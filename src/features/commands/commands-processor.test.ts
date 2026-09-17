@@ -708,6 +708,65 @@ describe("CommandsProcessor", () => {
 
       expect(result).toHaveLength(1);
     });
+
+    it("should skip a command the tool refuses to write, checked on the flattened path", async () => {
+      // `getWriteBlockReason` is the per-command write gate; it runs after
+      // flattening so the tool sees the name it would load, and a refused
+      // command is dropped with a warning instead of reaching
+      // `fromRulesyncCommand` or the collision bookkeeping.
+      const getWriteBlockReason = vi
+        .fn()
+        .mockImplementation(({ rulesyncCommand }: { rulesyncCommand: RulesyncCommand }) =>
+          rulesyncCommand.getRelativeFilePath() === "goal.md" ? "the name is reserved" : null,
+        );
+      vi.mocked(KiloCommand).getWriteBlockReason = getWriteBlockReason;
+      try {
+        processor = new CommandsProcessor({ logger, outputRoot: testDir, toolTarget: "kilo" });
+
+        const reserved = new RulesyncCommand({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+          relativeFilePath: join("nested", "goal.md"),
+          fileContent: "reserved",
+          frontmatter: { targets: ["kilo"], description: "reserved" },
+          body: "reserved",
+        });
+        const allowed = new RulesyncCommand({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+          relativeFilePath: "review.md",
+          fileContent: "allowed",
+          frontmatter: { targets: ["kilo"], description: "allowed" },
+          body: "allowed",
+        });
+        const converted = new KiloCommand({
+          outputRoot: testDir,
+          relativeDirPath: join(".kilo", "commands"),
+          relativeFilePath: "review.md",
+          frontmatter: {},
+          body: "converted",
+        });
+        vi.mocked(KiloCommand.fromRulesyncCommand).mockReturnValue(converted);
+
+        const result = await processor.convertRulesyncFilesToToolFiles([reserved, allowed]);
+
+        expect(result).toEqual([converted]);
+        expect(getWriteBlockReason).toHaveBeenCalledTimes(2);
+        expect(getWriteBlockReason.mock.calls[0]![0]!.rulesyncCommand.getRelativeFilePath()).toBe(
+          "goal.md",
+        );
+        expect(getWriteBlockReason.mock.calls[0]![0]!.global).toBe(false);
+        expect(vi.mocked(KiloCommand.fromRulesyncCommand)).toHaveBeenCalledTimes(1);
+        expect(logger.warn).toHaveBeenCalledTimes(1);
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringMatching(
+            /^Skipping command "nested[/\\]+goal\.md" for 'kilo': the name is reserved$/,
+          ),
+        );
+      } finally {
+        delete (KiloCommand as { getWriteBlockReason?: unknown }).getWriteBlockReason;
+      }
+    });
   });
 
   describe("convertToolFilesToRulesyncFiles", () => {

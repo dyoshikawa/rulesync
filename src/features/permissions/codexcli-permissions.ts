@@ -18,6 +18,7 @@ import {
 import { ToolFile } from "../../types/tool-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import { warnWithFallback } from "../../utils/logger.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { bashRulesHonoringAllTools } from "./shell-command-categories.js";
@@ -47,6 +48,17 @@ const CODEX_EXTENDABLE_BASELINES = new Set<string>(CODEX_EXTENDABLE_BASELINE_PRO
 // config.toml sets the key (an existing user-set value is never clobbered).
 const CODEX_DEFAULT_APPROVAL_POLICY = "on-request";
 const CODEX_DEFAULT_APPROVALS_REVIEWER = "auto_review";
+// `approval_policy = "untrusted"` was retired in Codex 0.149.0 (openai/codex
+// PR #39630): an explicit value makes Codex refuse to start with
+// `approval_policy = "untrusted" is no longer supported; remove this setting`.
+// The strict behavior moved to a user-level `[projects."<path>"]
+// trust_level = "untrusted"` entry, which is per-machine state rulesync does
+// not author. `on-failure` is still read as an alias of `on-request` but is
+// documented as deprecated.
+// https://learn.chatgpt.com/docs/config-file/config-reference
+// https://learn.chatgpt.com/docs/agent-approvals-security#migrate-from-the-retired-untrusted-approval-policy
+const CODEX_RETIRED_APPROVAL_POLICY = "untrusted";
+const CODEX_DEPRECATED_APPROVAL_POLICY = "on-failure";
 const CODEX_GLOB_SCAN_MAX_DEPTH = 8; // Matches Codex CLI default glob_scan_max_depth
 // `:minimal = "read"` enables `include_platform_defaults()` (FileSystemSpecialPath::Minimal,
 // openai/codex#13434), providing platform/runtime read access for basic sandboxed command execution.
@@ -292,6 +304,15 @@ export class CodexcliPermissions extends ToolPermissions {
     const config = convertCodexProfileToRulesync({ profile, domainsHadUnknown });
 
     const override = extractCodexcliOverride(table);
+    if (override.approval_policy === CODEX_RETIRED_APPROVAL_POLICY) {
+      // Lifting it would only have the next generate warn and drop it again;
+      // surface the migration once, at the file that still carries it.
+      warnWithFallback(
+        undefined,
+        `${join(this.getRelativeDirPath(), this.getRelativeFilePath())} sets approval_policy = "${CODEX_RETIRED_APPROVAL_POLICY}", which was retired in Codex 0.149.0 and makes Codex refuse to start. It was not imported; remove it from the file, or mark the project untrusted in your user config instead ([projects."<path>"] trust_level = "${CODEX_RETIRED_APPROVAL_POLICY}").`,
+      );
+      delete override.approval_policy;
+    }
     // The profile's `extends` baseline is modeled as the
     // `codexcli.base_permission_profile` override (not a top-level key), so it
     // round-trips explicitly. Non-extendable or custom parents are skipped;
@@ -911,6 +932,7 @@ function computeCodexcliOverridePatch({
       continue;
     }
     if (value === undefined) continue;
+    if (key === "approval_policy" && !isWritableApprovalPolicy({ value, logger })) continue;
     if (key === "sandbox_mode" || key === "sandbox_workspace_write") {
       logger?.warn(
         `Codex CLI permission override key "${key}" is deprecated. Codex prioritizes the legacy sandbox settings over permission profiles when both are present, so it disables the generated "${RULESYNC_PROFILE_NAME}" permissions profile. Use "base_permission_profile" and the shared "permission" block instead.`,
@@ -921,20 +943,70 @@ function computeCodexcliOverridePatch({
       isPlainObject(existingValue) && isPlainObject(value) ? { ...existingValue, ...value } : value;
   }
 
-  // Defaults for keys rulesync recommends always pinning. The override wins,
-  // then an existing user-set value in config.toml; the default fills the key
-  // only when both are absent (the gateway preserves existing keys that are
-  // not in the patch, so leaving them out of the patch keeps user values).
+  fillCodexcliDefaults({ existing, patch, logger });
+  return patch;
+}
+
+// Defaults for keys rulesync recommends always pinning. The override wins,
+// then an existing user-set value in config.toml; the default fills the key
+// only when both are absent (the gateway preserves existing keys that are
+// not in the patch, so leaving them out of the patch keeps user values).
+// The one existing value that is not kept is the retired `approval_policy =
+// "untrusted"` — typically left behind by an earlier rulesync run that still
+// wrote it — because preserving it keeps producing a config.toml Codex
+// refuses to start with; it is replaced by the default, with a warning.
+function fillCodexcliDefaults({
+  existing,
+  patch,
+  logger,
+}: {
+  existing: UnknownTable;
+  patch: Record<string, unknown>;
+  logger?: ToolPermissionsFromRulesyncPermissionsParams["logger"];
+}): void {
   const defaults: Record<string, string> = {
     approval_policy: CODEX_DEFAULT_APPROVAL_POLICY,
     approvals_reviewer: CODEX_DEFAULT_APPROVALS_REVIEWER,
   };
   for (const [key, value] of Object.entries(defaults)) {
-    if (patch[key] === undefined && existing[key] === undefined) {
+    if (patch[key] !== undefined) continue;
+    if (existing[key] === undefined) {
+      patch[key] = value;
+      continue;
+    }
+    if (key === "approval_policy" && existing[key] === CODEX_RETIRED_APPROVAL_POLICY) {
+      logger?.warn(
+        `The existing Codex CLI config.toml sets approval_policy = "${CODEX_RETIRED_APPROVAL_POLICY}", which was retired in Codex 0.149.0 and makes Codex refuse to start, so it was replaced with "${value}". To keep the strict behavior, mark the project untrusted in your user config instead ([projects."<path>"] trust_level = "${CODEX_RETIRED_APPROVAL_POLICY}").`,
+      );
       patch[key] = value;
     }
   }
-  return patch;
+}
+
+// Whether an authored `approval_policy` may be written. The retired
+// `untrusted` never is: writing it would produce a config.toml Codex rejects
+// at startup, so the key is left to the existing value or the default instead
+// — the same outcome as the "remove this setting" migration Codex asks for.
+// The deprecated `on-failure` alias is still written, with a warning.
+function isWritableApprovalPolicy({
+  value,
+  logger,
+}: {
+  value: unknown;
+  logger?: ToolPermissionsFromRulesyncPermissionsParams["logger"];
+}): boolean {
+  if (value === CODEX_RETIRED_APPROVAL_POLICY) {
+    logger?.warn(
+      `Codex CLI permission override "approval_policy": "${CODEX_RETIRED_APPROVAL_POLICY}" was retired in Codex 0.149.0 and makes Codex refuse to start, so it was not written. Remove it from the override; to keep the strict behavior, mark the project untrusted in your user config instead ([projects."<path>"] trust_level = "${CODEX_RETIRED_APPROVAL_POLICY}").`,
+    );
+    return false;
+  }
+  if (value === CODEX_DEPRECATED_APPROVAL_POLICY) {
+    logger?.warn(
+      `Codex CLI permission override "approval_policy": "${CODEX_DEPRECATED_APPROVAL_POLICY}" is deprecated; Codex reads it as "${CODEX_DEFAULT_APPROVAL_POLICY}". Use "${CODEX_DEFAULT_APPROVAL_POLICY}" instead.`,
+    );
+  }
+  return true;
 }
 
 // Lift the whitelisted top-level keys back into the `codexcli` override so they

@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { basename, join } from "node:path";
 
 import { z } from "zod/mini";
 
@@ -32,6 +32,16 @@ export const KiloCommandFrontmatterSchema = z.looseObject({
 });
 
 export type KiloCommandFrontmatter = z.infer<typeof KiloCommandFrontmatterSchema>;
+
+/**
+ * Command names Kilo keeps for itself. Its loader throws on a custom command
+ * file named `goal.md` in either the project or the global directory ("The
+ * /goal command is reserved for session goals. Rename the custom command."),
+ * and a throw there aborts the whole command scan — every other custom
+ * command becomes unreachable too, not only the reserved one.
+ * https://github.com/Kilo-Org/kilocode/blob/v7.6.2/packages/opencode/src/command/index.ts
+ */
+const KILO_RESERVED_COMMAND_NAMES: ReadonlySet<string> = new Set(["goal"]);
 
 export type KiloCommandParams = {
   frontmatter: KiloCommandFrontmatter;
@@ -95,6 +105,33 @@ export class KiloCommand extends ToolCommand {
       fileContent,
       validate: true,
     });
+  }
+
+  /**
+   * Refuse to write a command Kilo reserves (see
+   * {@link KILO_RESERVED_COMMAND_NAMES}). The name Kilo loads is the file
+   * stem, and the processor calls this on the flattened path, so `goal.md`
+   * is refused at any nesting depth under the basename naming and only at the
+   * top level under the path naming, where `git/goal.md` becomes `git-goal`.
+   * Import is untouched: a `goal.md` already in `.kilo/commands/` is read as
+   * it is, since the reservation is Kilo's to enforce on its own files.
+   */
+  static getWriteBlockReason({
+    rulesyncCommand,
+  }: {
+    rulesyncCommand: RulesyncCommand;
+    global: boolean;
+  }): string | null {
+    const stem = basename(rulesyncCommand.getRelativeFilePath(), ".md");
+    if (!KILO_RESERVED_COMMAND_NAMES.has(stem)) {
+      return null;
+    }
+    return (
+      `Kilo reserves the /${stem} command for session goals and refuses to load a ` +
+      `custom command by that name — it would abort Kilo's whole command scan, ` +
+      `making every other custom command unreachable too. Rename the command, ` +
+      `or exclude it from this target with \`targets\`.`
+    );
   }
 
   static fromRulesyncCommand({

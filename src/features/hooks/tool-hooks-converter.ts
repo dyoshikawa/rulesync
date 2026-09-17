@@ -70,6 +70,26 @@ export type ToolHooksConverterConfig = {
     readonly commandOnly?: boolean;
   }>;
   /**
+   * Per-hook boolean fields a tool spells as a keyword rather than a boolean
+   * (Goose's `on_failure: "block"` for the canonical `failClosed`). `true` is
+   * emitted as `trueValue`; `false` and an absent field emit nothing, because
+   * the tool's default is the `false` behavior. On import `trueValue` reads
+   * back as `true`, `falseValue` (when given) as `false`, and any other value
+   * is dropped with a warning. `events` lists the canonical events the tool
+   * honours the field on: a `true` authored on another event is dropped with a
+   * warning in both directions, since the tool would ignore it there.
+   */
+  keywordPassthroughFields?: ReadonlyArray<{
+    readonly canonical: "failClosed";
+    readonly tool: string;
+    readonly trueValue: string;
+    readonly falseValue?: string;
+    /** Emit only on `command` hooks, for a field the tool documents there only. */
+    readonly commandOnly?: boolean;
+    /** Canonical events the tool honours the field on; unrestricted when absent. */
+    readonly events?: ReadonlySet<string>;
+  }>;
+  /**
    * Per-hook number fields to carry through the round-trip, each mapping a
    * canonical {@link HookDefinitionSchema} number field to its tool-side field
    * name. Only finite numbers are emitted on export and imported back, so a
@@ -754,6 +774,122 @@ function isSupportedHookType({
   return converterConfig.supportedHookTypes?.has(type ?? "command") ?? true;
 }
 
+type KeywordPassthroughFieldSpec = NonNullable<
+  ToolHooksConverterConfig["keywordPassthroughFields"]
+>[number];
+
+/**
+ * Whether a keyword field applies to this hook, warning about the reason when
+ * it does not. Shared by both directions: the field is unusable on the tool
+ * side either way, so the value is dropped rather than carried into a config
+ * the tool would ignore or refuse.
+ */
+function isKeywordFieldApplicable({
+  spec,
+  hookType,
+  eventName,
+  direction,
+  warn,
+}: {
+  spec: KeywordPassthroughFieldSpec;
+  hookType: HookType;
+  eventName: string;
+  direction: "generated" | "imported";
+  warn?: (message: string) => void;
+}): boolean {
+  const { canonical, tool, commandOnly, events } = spec;
+  const field = direction === "generated" ? canonical : tool;
+  if (!isFieldApplicable({ commandOnly, hookType })) {
+    warn?.(
+      `Dropping "${field}" from a "${hookType}" hook on "${eventName}": this tool documents ` +
+        `"${tool}" on "command" hooks only, so it is not ${direction}.`,
+    );
+    return false;
+  }
+  if (events !== undefined && !events.has(eventName)) {
+    warn?.(
+      `Dropping "${field}" from a "${hookType}" hook on "${eventName}": this tool honours ` +
+        `"${tool}" on ${[...events].map((event) => `"${event}"`).join(", ")} only, so it is not ${direction}.`,
+    );
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Emit the keyword passthrough fields: a canonical `true` becomes the tool's
+ * keyword, while `false` is omitted as the tool's own default. A `true` the
+ * tool would not honour on this hook is warned about, like the other kinds;
+ * a `false` there is dropped silently, since omitting it changes nothing.
+ */
+function emitKeywordFields({
+  def,
+  hookType,
+  eventName,
+  fields,
+  warn,
+}: {
+  def: HooksConfig["hooks"][string][number];
+  hookType: HookType;
+  eventName: string;
+  fields: readonly KeywordPassthroughFieldSpec[];
+  warn?: (message: string) => void;
+}): Record<string, string> {
+  const emitted: Record<string, string> = {};
+  for (const spec of fields) {
+    const value = def[spec.canonical];
+    if (value !== true) {
+      continue;
+    }
+    if (isKeywordFieldApplicable({ spec, hookType, eventName, direction: "generated", warn })) {
+      emitted[spec.tool] = spec.trueValue;
+    }
+  }
+  return emitted;
+}
+
+/**
+ * Import the keyword passthrough fields back into canonical booleans,
+ * reversing {@link emitKeywordFields}. Only the two documented keywords are
+ * read; anything else is warned about and dropped, so a typo in a hand-written
+ * tool file never lands in `.rulesync/hooks.*` as a boolean it did not mean.
+ */
+function importKeywordFields({
+  h,
+  hookType,
+  eventName,
+  fields,
+  warn,
+}: {
+  h: Record<string, unknown>;
+  hookType: HookType;
+  eventName: string;
+  fields: readonly KeywordPassthroughFieldSpec[];
+  warn?: (message: string) => void;
+}): Record<string, boolean> {
+  const imported: Record<string, boolean> = {};
+  for (const spec of fields) {
+    const value = h[spec.tool];
+    if (value === undefined) {
+      continue;
+    }
+    if (!isKeywordFieldApplicable({ spec, hookType, eventName, direction: "imported", warn })) {
+      continue;
+    }
+    if (value === spec.trueValue) {
+      imported[spec.canonical] = true;
+    } else if (spec.falseValue !== undefined && value === spec.falseValue) {
+      imported[spec.canonical] = false;
+    } else {
+      warn?.(
+        `Dropping "${spec.tool}" from an imported "${hookType}" hook on "${eventName}": ` +
+          `${quoteValueForWarning(value)} is not a value this tool documents for it.`,
+      );
+    }
+  }
+  return imported;
+}
+
 /**
  * Emit every per-hook passthrough kind for one canonical definition.
  */
@@ -777,6 +913,13 @@ function emitAllPassthroughFields({
       eventName,
       fields: converterConfig.booleanPassthroughFields ?? [],
       isValid: isBooleanValue,
+      warn,
+    }),
+    ...emitKeywordFields({
+      def,
+      hookType,
+      eventName,
+      fields: converterConfig.keywordPassthroughFields ?? [],
       warn,
     }),
     ...emitPassthroughFields<number>({
@@ -1176,11 +1319,13 @@ function importTypePayloadFields({
 function importAllPassthroughFields({
   h,
   hookType,
+  eventName,
   converterConfig,
   warn,
 }: {
   h: Record<string, unknown>;
   hookType: HookType;
+  eventName: string;
   converterConfig: ToolHooksConverterConfig;
   warn?: (message: string) => void;
 }): Record<string, unknown> {
@@ -1190,6 +1335,13 @@ function importAllPassthroughFields({
       hookType,
       fields: converterConfig.booleanPassthroughFields ?? [],
       isValid: isBooleanValue,
+      warn,
+    }),
+    ...importKeywordFields({
+      h,
+      hookType,
+      eventName,
+      fields: converterConfig.keywordPassthroughFields ?? [],
       warn,
     }),
     ...importPassthroughFields<number>({
@@ -1251,11 +1403,13 @@ function importAllPassthroughFields({
 function toolHookToCanonical({
   h,
   rawEntry,
+  eventName,
   converterConfig,
   warn,
 }: {
   h: Record<string, unknown>;
   rawEntry: ToolMatcherEntry;
+  eventName: string;
   converterConfig: ToolHooksConverterConfig;
   warn?: (message: string) => void;
 }): HooksConfig["hooks"][string][number] {
@@ -1292,7 +1446,7 @@ function toolHookToCanonical({
     ...(converterConfig.passthroughFields?.includes("name") && name !== undefined && { name }),
     ...(converterConfig.passthroughFields?.includes("description") &&
       description !== undefined && { description }),
-    ...importAllPassthroughFields({ h, hookType, converterConfig, warn }),
+    ...importAllPassthroughFields({ h, hookType, eventName, converterConfig, warn }),
     ...importGroupPassthroughFields({ rawEntry, converterConfig }),
     ...(matcher !== undefined && matcher !== null && matcher !== "" && { matcher }),
   };
@@ -1410,10 +1564,13 @@ function describeHookSkipReason({
  */
 function toolMatcherEntryToCanonical({
   rawEntry,
+  eventName,
   converterConfig,
   warn,
 }: {
   rawEntry: ToolMatcherEntry;
+  /** The canonical event the entry belongs to. */
+  eventName: string;
   converterConfig: ToolHooksConverterConfig;
   warn?: (message: string) => void;
 }): HooksConfig["hooks"][string] {
@@ -1431,7 +1588,7 @@ function toolMatcherEntryToCanonical({
       warn?.(skipReason);
       continue;
     }
-    definitions.push(toolHookToCanonical({ h, rawEntry, converterConfig, warn }));
+    definitions.push(toolHookToCanonical({ h, rawEntry, eventName, converterConfig, warn }));
   }
   return definitions;
 }
@@ -1504,7 +1661,7 @@ export function toolHooksToCanonical({
     const defs: HooksConfig["hooks"][string] = [];
     for (const rawEntry of matcherEntries) {
       if (!isToolMatcherEntry(rawEntry)) continue;
-      defs.push(...toolMatcherEntryToCanonical({ rawEntry, converterConfig, warn }));
+      defs.push(...toolMatcherEntryToCanonical({ rawEntry, eventName, converterConfig, warn }));
     }
     if (defs.length > 0) {
       canonical[eventName] = defs;

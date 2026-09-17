@@ -227,6 +227,8 @@ describe("registry derivation", () => {
       "cline::hooks::**/.clinerules/hooks/PreToolUse.ps1",
       "cline::hooks::**/.clinerules/hooks/SessionShutdown",
       "cline::hooks::**/.clinerules/hooks/SessionShutdown.ps1",
+      "cline::hooks::**/.clinerules/hooks/TaskCancel",
+      "cline::hooks::**/.clinerules/hooks/TaskCancel.ps1",
       "cline::hooks::**/.clinerules/hooks/TaskComplete",
       "cline::hooks::**/.clinerules/hooks/TaskComplete.ps1",
       "cline::hooks::**/.clinerules/hooks/TaskError",

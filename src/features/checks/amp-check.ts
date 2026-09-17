@@ -21,7 +21,7 @@ import {
 // looseObject preserves unknown keys during parsing (like passthrough in Zod 3)
 // so unknown Amp-specific keys survive a generate/import round-trip.
 // `severity-default` is bounded and documented, so a strict enum is appropriate.
-// @see https://ampcode.com/manual
+// @see https://ampcode.com/docs/review
 export const AmpCheckFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.optional(z.string()),
@@ -42,10 +42,13 @@ export type AmpCheckParams = {
 /**
  * Represents an Amp code review check.
  *
- * Amp natively reads code review checks as Markdown files with YAML frontmatter,
- * scoped to the project (`.agents/checks/`) and user-wide (`~/.config/amp/checks/`).
- * Each check runs as a per-check subagent during code review.
- * @see https://ampcode.com/manual
+ * Amp reads code review checks as Markdown files with YAML frontmatter,
+ * scoped to the project (`.agents/checks/`) and user-wide (`~/.config/amp/checks/`;
+ * Amp also reads `~/.config/agents/checks/`, which rulesync does not write).
+ * Since the docs rebuild the supported runner is the official
+ * `@amp/review-checks` plugin (`amp review` is deprecated); existing checks in
+ * this format continue to apply.
+ * @see https://ampcode.com/docs/review
  */
 export class AmpCheck extends ToolCheck {
   private readonly frontmatter: AmpCheckFrontmatter;

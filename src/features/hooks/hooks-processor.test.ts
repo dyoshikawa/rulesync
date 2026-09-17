@@ -465,6 +465,51 @@ describe("HooksProcessor", () => {
       expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("http-type"));
     });
 
+    it("should warn that a confirm prompt is dropped outside kiro-cli / kiro-ide", async () => {
+      const config = {
+        version: 1,
+        hooks: {
+          stop: [
+            {
+              type: "command",
+              command: "npm test",
+              confirm: { question: "Run tests?", options: [{ id: "y", label: "Yes", run: true }] },
+            },
+          ],
+          preToolUse: [
+            {
+              type: "command",
+              command: "lint.sh",
+              confirm: {
+                question: "Lint?",
+                confirmCommand: "gate.sh",
+                options: [{ id: "y", label: "Yes", run: true }],
+              },
+            },
+          ],
+          postToolUse: [{ type: "command", command: "fmt.sh" }],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const claude = new HooksProcessor({ logger, outputRoot: testDir, toolTarget: "claudecode" });
+      await claude.convertRulesyncFilesToToolFiles([rulesyncHooks]);
+      expect(logger.warn).toHaveBeenCalledWith(
+        'Emitting hook(s) without their "confirm" prompt for claudecode (only the kiro-cli / kiro-ide hooks formats support it): stop, preToolUse',
+      );
+
+      logger.warn.mockClear();
+      const kiro = new HooksProcessor({ logger, outputRoot: testDir, toolTarget: "kiro-ide" });
+      await kiro.convertRulesyncFilesToToolFiles([rulesyncHooks]);
+      expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining('"confirm" prompt'));
+    });
+
     it("should warn that a disabled hook is emitted as active outside kiro-ide", async () => {
       const config = {
         version: 1,

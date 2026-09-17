@@ -35,6 +35,34 @@ export const HOOK_TYPES = ["command", "prompt", "http", "agent", "mcp_tool", "fu
 export type HookType = (typeof HOOK_TYPES)[number];
 
 /**
+ * One choice offered by a Kiro `confirm` prompt: `run` decides whether picking
+ * it executes the hook command. The prompt text is written back into JSON,
+ * never embedded in generated code, so it is a plain string.
+ */
+export const HookConfirmOptionSchema = z.looseObject({
+  id: z.string(),
+  label: z.string(),
+  run: z.boolean(),
+});
+
+/**
+ * Kiro's confirmation prompt shown before a `Stop`-trigger command hook runs.
+ * `confirmCommand` (optional, inside the block) names a command whose JSON
+ * stdout drives the prompt at run time: `{ "skip": true }` suppresses it, a
+ * replacement `question` / `options` object overrides the static prompt, and
+ * on failure or timeout the static prompt is used. Stored verbatim: Kiro is
+ * the only consumer, and it owns the shape.
+ * https://kiro.dev/docs/hooks/
+ */
+export const HookConfirmSchema = z.looseObject({
+  question: z.string(),
+  options: z.array(HookConfirmOptionSchema),
+  confirmCommand: z.optional(safeString),
+});
+
+export type HookConfirm = z.infer<typeof HookConfirmSchema>;
+
+/**
  * Canonical hook definition.
  * Used in .rulesync/hooks.jsonc and mapped to tool-specific formats.
  */
@@ -57,6 +85,13 @@ export const HookDefinitionSchema = z.looseObject({
   // it; other targets warn and emit the hook as active.
   // https://kiro.dev/docs/hooks/
   enabled: z.optional(z.boolean()),
+  // Kiro: a confirmation prompt (`question` + `options[{ id, label, run }]`,
+  // optionally driven at run time by a nested `confirmCommand`) shown before a
+  // `Stop`-trigger command hook runs. Forwarded verbatim by the standalone
+  // Kiro hooks emitter and round-tripped on import; no other target has an
+  // equivalent.
+  // https://kiro.dev/docs/hooks/
+  confirm: z.optional(HookConfirmSchema),
   prompt: z.optional(safeString),
   loop_limit: z.optional(z.nullable(z.number())),
   name: z.optional(safeString),
@@ -434,9 +469,13 @@ export const AMP_HOOK_EVENTS: readonly HookEvent[] = [
  * the platform the other one owns — see `generateClineHookScript` and
  * `generateClineHookPowerShellScript`.
  *
- * `TaskResume` and `TaskCancel` have no canonical counterpart and stay
- * unmapped rather than being approximated by `sessionEnd` / `stop`, whose
- * semantics differ.
+ * `TaskCancel` is the shape of canonical `stopCancelled` (as Grok CLI's
+ * `StopCancelled` and Codex CLI's `Interrupt` are): both runtimes fire it
+ * *instead of* `TaskComplete` when the run ends aborted — the VS Code
+ * extension from `afterRun` when the result status is `aborted`, the SDK/CLI
+ * as `agent_abort` — and neither lets the script cancel anything. `TaskResume`
+ * has no canonical counterpart and stays unmapped rather than being
+ * approximated by `sessionStart`, whose semantics differ.
  *
  * @see https://github.com/cline/cline/blob/main/apps/vscode/src/core/hooks/utils.ts
  * @see https://github.com/cline/cline/blob/main/sdk/packages/core/src/hooks/hook-file-config.ts
@@ -451,6 +490,7 @@ export const CLINE_HOOK_EVENTS: readonly HookEvent[] = [
   "notification",
   "taskCompleted",
   "afterError",
+  "stopCancelled",
 ];
 
 /**
@@ -800,23 +840,32 @@ export const QWENCODE_HOOK_EVENTS: readonly HookEvent[] = [
  * Hook events supported by Reasonix.
  *
  * Reasonix's `.reasonix/settings.json` (project) / `~/.reasonix/settings.json`
- * (global) documents a ten-event surface (`PreToolUse`, `PostToolUse`,
- * `UserPromptSubmit`, `Stop`, `PostLLMCall`, `SessionStart`, `SessionEnd`,
- * `SubagentStop`, `Notification`, `PreCompact`). All ten have a clean canonical
+ * (global) accepts the thirteen events declared in `internal/hook/hook.go`
+ * (`var Events`): `PreToolUse`, `PostToolUse`, `PostToolUseFailure`,
+ * `PermissionRequest`, `UserPromptSubmit`, `Stop`, `StopFailure`,
+ * `PostLLMCall`, `SessionStart`, `SessionEnd`, `SubagentStop`, `Notification`,
+ * `PreCompact`. The zh-CN desktop hooks page documents only ten of them, so the
+ * source file is the authoritative list. All thirteen have a clean canonical
  * equivalent and are mapped: `PreToolUse`, `PostToolUse`,
- * `UserPromptSubmit` ← `beforeSubmitPrompt`, `Stop`, `SessionStart`,
- * `SessionEnd`, `SubagentStop`, `PostLLMCall` ← `postModelInvocation`,
- * `Notification` ← `notification`, and `PreCompact` ← `preCompact`.
- * `match` (Reasonix's matcher field name) is honored only on
- * `PreToolUse`/`PostToolUse`, matching the canonical `matcher` field's
- * tool-event scoping used by other adapters.
+ * `PostToolUseFailure`, `PermissionRequest`, `UserPromptSubmit` ←
+ * `beforeSubmitPrompt`, `Stop`, `StopFailure`, `SessionStart`, `SessionEnd`,
+ * `SubagentStop`, `PostLLMCall` ← `postModelInvocation`, `Notification` ←
+ * `notification`, and `PreCompact` ← `preCompact`.
+ * `match` (Reasonix's matcher field name) is honored on the four tool-scoped
+ * events (`PreToolUse`, `PostToolUse`, `PostToolUseFailure`,
+ * `PermissionRequest` — `UsesToolMatcher` in `internal/hook/inspect.go`) and
+ * ignored everywhere else.
+ * @see https://github.com/esengine/DeepSeek-Reasonix/blob/main-v2/internal/hook/hook.go
  * @see https://github.com/esengine/DeepSeek-Reasonix/blob/main-v2/docs/DESKTOP_HOOKS.zh-CN.md
  */
 export const REASONIX_HOOK_EVENTS: readonly HookEvent[] = [
   "preToolUse",
   "postToolUse",
+  "postToolUseFailure",
+  "permissionRequest",
   "beforeSubmitPrompt",
   "stop",
+  "stopFailure",
   "sessionStart",
   "sessionEnd",
   "subagentStop",
@@ -868,8 +917,8 @@ export const GROKCLI_HOOK_EVENTS: readonly HookEvent[] = [
  * added in 0.32.0 (`TurnStarted`, `UserPromptQueued`, `TaskStarted`,
  * `SessionHeartbeat`), none of which is mapped onto a canonical rulesync event
  * here. `Interrupt` (fires instead of `Stop` when the user interrupts a turn)
- * does have a canonical shape — `stopCancelled`, which Grok CLI and Codex CLI
- * map — but Kimi keeps it native-only for now, since an existing `kimi-code`
+ * does have a canonical shape — `stopCancelled`, which Grok CLI, Codex CLI and
+ * Cline map — but Kimi keeps it native-only for now, since an existing `kimi-code`
  * override addressing it by name would otherwise double up with a canonical
  * `stopCancelled` block; folding it in is a follow-up. All six are listed in
  * `KIMI_CODE_NATIVE_HOOK_EVENTS` so a per-tool `kimi-code` override can
@@ -1203,8 +1252,8 @@ export const CONTINUE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.
 /**
  * Hook events supported by Hermes Agent's native Shell Hooks system.
  *
- * Hermes validates hook events against a fixed `VALID_HOOKS` set — 37 entries as
- * of v0.20.2 (`v2026.8.16`); see {@link HERMESAGENT_NATIVE_HOOK_EVENTS} for the
+ * Hermes validates hook events against a fixed `VALID_HOOKS` set — 39 entries as
+ * of v0.21.3 (`v2026.9.14`); see {@link HERMESAGENT_NATIVE_HOOK_EVENTS} for the
  * full list. Only the events with a clean 1:1 canonical equivalent are mapped
  * here. All other native events round-trip through `hermesagent.hooks`.
  * @see https://github.com/NousResearch/hermes-agent/blob/main/website/docs/user-guide/features/hooks.md
@@ -1229,11 +1278,13 @@ export const HERMESAGENT_HOOK_EVENTS: readonly HookEvent[] = [
  * observers, `gateway_platform_event` and `transform_api_error_classification`.
  * Shell hooks are gated on the same set.
  *
- * Verified against the tag `v2026.8.16` (v0.20.2): `VALID_HOOKS` holds 37
- * entries, grown from 23 at `v2026.8.3` (v0.20.0). This list holds 36 of them —
- * see {@link HERMESAGENT_SHELL_UNSUPPORTED_HOOK_EVENTS} for the exclusion.
+ * Verified against the tag `v2026.9.14` (v0.21.3): `VALID_HOOKS` holds 39
+ * entries, grown from 23 at `v2026.8.3` (v0.20.0) and 37 at `v2026.8.16`
+ * (v0.20.2) — v0.21 added `agent_loop_stopped` and `on_room_member_activity`.
+ * This list holds 38 of them — see
+ * {@link HERMESAGENT_SHELL_UNSUPPORTED_HOOK_EVENTS} for the exclusion.
  *
- * @see https://github.com/NousResearch/hermes-agent/blob/v2026.8.16/hermes_cli/plugins.py
+ * @see https://github.com/NousResearch/hermes-agent/blob/v2026.9.14/hermes_cli/plugins.py
  */
 export const HERMESAGENT_NATIVE_HOOK_EVENTS = [
   "pre_tool_call",
@@ -1259,8 +1310,10 @@ export const HERMESAGENT_NATIVE_HOOK_EVENTS = [
   "subagent_start",
   "subagent_stop",
   "pre_gateway_dispatch",
+  "agent_loop_stopped",
   "pre_approval_request",
   "post_approval_response",
+  "on_room_member_activity",
   "pre_transcription",
   "kanban_task_claimed",
   "kanban_task_completed",
@@ -1284,8 +1337,8 @@ export const HERMESAGENT_NATIVE_HOOK_EVENTS = [
  * rulesync only ever writes shell hooks, so these are excluded from
  * {@link HERMESAGENT_NATIVE_HOOK_EVENTS} and warned about with their own message.
  *
- * @see https://github.com/NousResearch/hermes-agent/blob/v2026.8.16/hermes_cli/plugins.py — `SHELL_UNSUPPORTED_HOOKS`
- * @see https://github.com/NousResearch/hermes-agent/blob/v2026.8.16/agent/shell_hooks.py — `_parse_hooks_block`
+ * @see https://github.com/NousResearch/hermes-agent/blob/v2026.9.14/hermes_cli/plugins.py — `SHELL_UNSUPPORTED_HOOKS`
+ * @see https://github.com/NousResearch/hermes-agent/blob/v2026.9.14/agent/shell_hooks.py — `_parse_hooks_block`
  */
 export const HERMESAGENT_SHELL_UNSUPPORTED_HOOK_EVENTS = [
   "transform_api_error_classification",
@@ -1669,6 +1722,7 @@ export const CANONICAL_TO_CLINE_EVENT_NAMES: Record<string, string> = {
   notification: "Notification",
   taskCompleted: "TaskComplete",
   afterError: "TaskError",
+  stopCancelled: "TaskCancel",
 };
 
 /**
@@ -2041,8 +2095,11 @@ export const QWENCODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.
 export const CANONICAL_TO_REASONIX_EVENT_NAMES: Record<string, string> = {
   preToolUse: "PreToolUse",
   postToolUse: "PostToolUse",
+  postToolUseFailure: "PostToolUseFailure",
+  permissionRequest: "PermissionRequest",
   beforeSubmitPrompt: "UserPromptSubmit",
   stop: "Stop",
+  stopFailure: "StopFailure",
   sessionStart: "SessionStart",
   sessionEnd: "SessionEnd",
   subagentStop: "SubagentStop",

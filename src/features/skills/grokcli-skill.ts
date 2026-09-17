@@ -27,6 +27,11 @@ const GrokcliSkillFrontmatterSchema = z.looseObject({
   // https://docs.x.ai/build/features/skills-plugins-marketplaces
   "user-invocable": z.optional(z.boolean()),
   "disable-model-invocation": z.optional(z.boolean()),
+  // Path-gated (conditional) skill: gitignore globs that keep the skill out of
+  // the listing until a tool touches a matching file. Grok's parser accepts a
+  // YAML list or a comma-separated string, so both shapes pass through as-is.
+  // https://github.com/xai-org/grok-build/blob/main/crates/codegen/xai-grok-tools/src/implementations/skills/discovery.rs
+  paths: z.optional(z.union([z.string(), z.array(z.string())])),
 });
 
 export type GrokcliSkillFrontmatter = z.infer<typeof GrokcliSkillFrontmatterSchema>;
@@ -143,6 +148,7 @@ export class GrokcliSkill extends ToolSkill {
       ...(frontmatter["disable-model-invocation"] !== undefined && {
         "disable-model-invocation": frontmatter["disable-model-invocation"],
       }),
+      ...(frontmatter.paths !== undefined && { paths: frontmatter.paths }),
     };
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
       name: frontmatter.name,
@@ -189,6 +195,7 @@ export class GrokcliSkill extends ToolSkill {
       ...(resolvedDisableModelInvocation !== undefined && {
         "disable-model-invocation": resolvedDisableModelInvocation,
       }),
+      ...(grokcliSection?.paths !== undefined && { paths: grokcliSection.paths }),
     };
 
     return new GrokcliSkill({

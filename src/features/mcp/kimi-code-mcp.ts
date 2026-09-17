@@ -92,12 +92,17 @@ function toKimiCodeServer({
     ...(args.length > 0 && { args }),
     ...(url && { url }),
   };
+  // Kimi's documented per-server keys beyond the transport itself. `deferred`
+  // (0.43.0) keeps the server's tools out of the top-level tool list until the
+  // model loads them on demand.
+  // https://moonshotai.github.io/kimi-code/en/customization/mcp.html
   for (const field of [
     "env",
     "cwd",
     "headers",
     "bearerTokenEnvVar",
     "enabled",
+    "deferred",
     "startupTimeoutMs",
     "toolTimeoutMs",
     "enabledTools",

@@ -7,8 +7,14 @@ import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-path
 import { ZED_SKILLS_DIR_PATH } from "../../constants/zed-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
+import { type Logger } from "../../utils/logger.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
-import { resolveDisableModelInvocation } from "./skills-utils.js";
+import {
+  collectSkillNameViolations,
+  resolveDisableModelInvocation,
+  SKILL_DESCRIPTION_MAX_LENGTH,
+  warnSkillViolations,
+} from "./skills-utils.js";
 import {
   ToolSkill,
   ToolSkillForDeletionParams,
@@ -24,6 +30,49 @@ const ZedSkillFrontmatterSchema = z.looseObject({
 });
 
 export type ZedSkillFrontmatter = z.infer<typeof ZedSkillFrontmatterSchema>;
+
+// Zed applies the Agent Skills name and description limits (shared through
+// `skills-utils.ts`) when it loads a skill. A `name` outside those rules makes
+// the skill "fail to load and surface an error in the UI"; a `description`
+// past the limit still loads, "but with a warning". Both are reported at
+// generate time so the author hears about them before opening Zed. The 50KB
+// cap on the catalog as a whole spans every installed skill, which a single
+// skill cannot judge, so it is not checked here.
+// https://zed.dev/docs/ai/skills
+const ZED = "Zed";
+const ZED_LOAD_FAILURE = "does not load the skill otherwise";
+
+/**
+ * Collect the rules Zed enforces on a skill's frontmatter that the loose
+ * schema above does not — `name` rules first, then `description`. Returned as
+ * warnings rather than thrown: the canonical skill is shared with every other
+ * target, so a name Zed rejects must not stop the generate run for the rest.
+ */
+function collectZedSkillViolations({
+  name,
+  description,
+}: {
+  name: string;
+  description: string;
+}): string[] {
+  const violations: string[] = [];
+
+  if (name.length === 0) {
+    violations.push("`name` must not be empty; Zed does not load a skill without one");
+  } else {
+    violations.push(
+      ...collectSkillNameViolations({ name, authority: ZED, consequence: ZED_LOAD_FAILURE }),
+    );
+  }
+
+  if (description.length > SKILL_DESCRIPTION_MAX_LENGTH) {
+    violations.push(
+      `\`description\` is ${description.length} characters; ${ZED} loads the skill but warns past ${SKILL_DESCRIPTION_MAX_LENGTH}`,
+    );
+  }
+
+  return violations;
+}
 
 export type ZedSkillParams = {
   outputRoot?: string;
@@ -143,9 +192,11 @@ export class ZedSkill extends ToolSkill {
     rulesyncSkill,
     validate = true,
     global = false,
+    logger,
   }: ToolSkillFromRulesyncSkillParams): ZedSkill {
     const settablePaths = ZedSkill.getSettablePaths({ global });
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
+    const dirName = rulesyncSkill.getDirName();
     const zedSection = rulesyncFrontmatter.zed;
     const resolvedDisableModelInvocation = resolveDisableModelInvocation({
       rootFrontmatter: rulesyncFrontmatter,
@@ -164,15 +215,48 @@ export class ZedSkill extends ToolSkill {
       }),
     };
 
+    ZedSkill.reportSkillViolations({
+      outputRoot,
+      relativeDirPath: settablePaths.relativeDirPath,
+      dirName,
+      frontmatter: zedFrontmatter,
+      logger,
+    });
+
     return new ZedSkill({
       outputRoot,
       relativeDirPath: settablePaths.relativeDirPath,
-      dirName: rulesyncSkill.getDirName(),
+      dirName,
       frontmatter: zedFrontmatter,
       body: rulesyncSkill.getBody(),
       otherFiles: rulesyncSkill.getOtherFiles(),
       validate,
       global,
+    });
+  }
+
+  /**
+   * Warn about every rule Zed enforces on the skill about to be written. The
+   * reported path includes `outputRoot` so a global-scope skill points at the
+   * file under the home directory rather than a same-named project path.
+   */
+  static reportSkillViolations({
+    outputRoot,
+    relativeDirPath,
+    dirName,
+    frontmatter,
+    logger,
+  }: {
+    outputRoot: string;
+    relativeDirPath: string;
+    dirName: string;
+    frontmatter: ZedSkillFrontmatter;
+    logger?: Logger;
+  }): void {
+    warnSkillViolations({
+      skillPath: join(outputRoot, relativeDirPath, dirName, SKILL_FILE_NAME),
+      violations: collectZedSkillViolations(frontmatter),
+      logger,
     });
   }
 

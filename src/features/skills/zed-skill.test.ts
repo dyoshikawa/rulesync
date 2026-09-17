@@ -4,8 +4,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
+import { fallbackLogger } from "../../utils/logger.js";
 import { RulesyncSkill } from "./rulesync-skill.js";
 import { ZedSkill } from "./zed-skill.js";
 
@@ -190,6 +192,138 @@ This is the body of the zed skill.`;
 
       const zedSkill = ZedSkill.fromRulesyncSkill({ rulesyncSkill, validate: true });
       expect(zedSkill.getFrontmatter()["disable-model-invocation"]).toBeUndefined();
+    });
+  });
+
+  describe("fromRulesyncSkill Zed skill limits", () => {
+    // https://zed.dev/docs/ai/skills — an invalid name makes the skill "fail to
+    // load and surface an error in the UI"; a description over 1024 characters
+    // "still load[s], but with a warning".
+    const makeRulesyncSkill = ({
+      dirName,
+      name,
+      description,
+    }: {
+      dirName: string;
+      name: string;
+      description: string;
+    }): RulesyncSkill =>
+      new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName,
+        frontmatter: { name, description },
+        body: "Body",
+        validate: true,
+      });
+
+    it("should not warn about a skill that satisfies Zed's rules", () => {
+      const logger = createMockLogger();
+      const rulesyncSkill = makeRulesyncSkill({
+        dirName: "deploy-2-prod",
+        name: "deploy-2-prod",
+        description: "d".repeat(1024),
+      });
+
+      ZedSkill.fromRulesyncSkill({ rulesyncSkill, logger });
+
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      { name: "Deploy Skill", reason: "uppercase letters and spaces" },
+      { name: "-deploy", reason: "a leading hyphen" },
+      { name: "deploy-", reason: "a trailing hyphen" },
+      { name: "deploy--prod", reason: "consecutive hyphens" },
+      { name: "deploy_prod", reason: "an underscore" },
+    ])("should warn about a name with $reason, which Zed refuses to load", ({ name }) => {
+      const logger = createMockLogger();
+      const rulesyncSkill = makeRulesyncSkill({
+        dirName: "deploy-skill",
+        name,
+        description: "Deploy",
+      });
+
+      const zedSkill = ZedSkill.fromRulesyncSkill({ rulesyncSkill, logger });
+
+      // Still written: the canonical skill is shared with every other target.
+      expect(zedSkill.getFrontmatter().name).toBe(name);
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn.mock.calls[0]?.[0]).toContain(
+        join(testDir, ".agents", "skills", "deploy-skill", SKILL_FILE_NAME).replaceAll("\\", "/"),
+      );
+      expect(logger.warn.mock.calls[0]?.[0]).toContain(
+        `\`name\` "${name}" must contain only lowercase letters, digits and single hyphens`,
+      );
+    });
+
+    it("should warn about a name longer than 64 characters", () => {
+      const logger = createMockLogger();
+      const rulesyncSkill = makeRulesyncSkill({
+        dirName: "long-name",
+        name: "a".repeat(65),
+        description: "Long",
+      });
+
+      ZedSkill.fromRulesyncSkill({ rulesyncSkill, logger });
+
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn.mock.calls[0]?.[0]).toContain(
+        "`name` is 65 characters; Zed allows at most 64",
+      );
+    });
+
+    it("should warn about a description longer than 1024 characters", () => {
+      const logger = createMockLogger();
+      const rulesyncSkill = makeRulesyncSkill({
+        dirName: "wordy",
+        name: "wordy",
+        description: "d".repeat(1025),
+      });
+
+      ZedSkill.fromRulesyncSkill({ rulesyncSkill, logger });
+
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn.mock.calls[0]?.[0]).toContain(
+        "`description` is 1025 characters; Zed loads the skill but warns past 1024",
+      );
+    });
+
+    it("should report every violation of one skill, name rules before description", () => {
+      const logger = createMockLogger();
+      const rulesyncSkill = makeRulesyncSkill({
+        dirName: "bad-skill",
+        name: "Bad_Skill",
+        description: "d".repeat(1025),
+      });
+
+      ZedSkill.fromRulesyncSkill({ rulesyncSkill, logger });
+
+      expect(logger.warn).toHaveBeenCalledTimes(2);
+      const messages = logger.warn.mock.calls.map((call) => String(call[0]));
+      expect(messages[0]).toContain('`name` "Bad_Skill"');
+      expect(messages[1]).toContain("`description` is 1025 characters");
+      expect(messages[0]).toContain(
+        join(testDir, ".agents", "skills", "bad-skill", SKILL_FILE_NAME).replaceAll("\\", "/"),
+      );
+    });
+
+    it("should warn through the fallback logger when none is passed", () => {
+      const rulesyncSkill = makeRulesyncSkill({
+        dirName: "no-logger",
+        name: "No Logger",
+        description: "None",
+      });
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
+      try {
+        ZedSkill.fromRulesyncSkill({ rulesyncSkill });
+
+        expect(warnSpy).toHaveBeenCalledTimes(1);
+        expect(warnSpy.mock.calls[0]?.[0]).toContain('`name` "No Logger"');
+      } finally {
+        warnSpy.mockRestore();
+      }
     });
   });
 

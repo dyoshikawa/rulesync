@@ -313,6 +313,9 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
     z.looseObject({
       "disable-model-invocation": z.optional(z.boolean()),
       "user-invocable": z.optional(z.boolean()),
+      // Gitignore-style globs that keep the skill hidden until a tool touches
+      // a matching file. Grok reads a YAML list or a comma-separated string.
+      paths: z.optional(z.union([z.string(), z.array(z.string())])),
     }),
   ),
   // DeepSeek Harness reads `whenToUse` (extra trigger-timing context),
@@ -440,6 +443,7 @@ export type RulesyncSkillFrontmatterInput = {
   grokcli?: {
     "disable-model-invocation"?: boolean;
     "user-invocable"?: boolean;
+    paths?: string | string[];
   };
   dsh?: {
     whenToUse?: string;

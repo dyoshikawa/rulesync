@@ -23,6 +23,7 @@
     "src/generated/**"
   ],
   "words": [
+    "cimd",
     "CONIN",
     "CONOUT",
     "conin",
@@ -164,6 +165,7 @@
     "cliui",
     "codebuddy",
     "codeiumignore",
+    "codemode",
     "codexcli",
     "codexignore",
     "codingagent",
