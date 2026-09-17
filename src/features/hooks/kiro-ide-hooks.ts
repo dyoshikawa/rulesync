@@ -4,7 +4,7 @@ import { z } from "zod/mini";
 
 import { KIRO_IDE_HOOKS_DIR_PATH, KIRO_IDE_HOOKS_FILE_NAME } from "../../constants/kiro-paths.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
-import type { HookDefinition, HooksConfig } from "../../types/hooks.js";
+import type { HookConfirm, HookDefinition, HooksConfig } from "../../types/hooks.js";
 import {
   CANONICAL_TO_KIRO_IDE_EVENT_NAMES,
   HookConfirmSchema,
@@ -108,7 +108,7 @@ function buildKiroIdeEntriesForEvent(
       // Kiro defaults `enabled` to `true`; an imported `enabled: false` is
       // preserved so regenerating does not silently reactivate the hook.
       enabled: def.enabled ?? true,
-      ...(def.confirm !== undefined && { confirm: structuredClone(def.confirm) }),
+      ...(def.confirm !== undefined && { confirm: def.confirm }),
       ...(def.confirmCommand !== undefined && { confirmCommand: def.confirmCommand }),
     });
   }
@@ -167,15 +167,16 @@ function canonicalToKiroIdeHooks(config: HooksConfig): KiroIdeHookEntry[] {
 
 /**
  * Copies the Kiro `confirm` / `confirmCommand` fields back onto a canonical
- * definition. The prompt is user-authored JSON read back from disk, so
- * `__proto__`-style keys are dropped at every depth first.
+ * definition. The prompt is user-authored JSON read back from disk: zod already
+ * refuses a literal `__proto__` own key, and `constructor` / `prototype` keys
+ * (which `z.looseObject` passes through) are dropped at every depth here.
  */
 function confirmFieldsToCanonical(
   entry: KiroIdeHookEntry,
 ): Pick<HookDefinition, "confirm" | "confirmCommand"> {
   const fields: Pick<HookDefinition, "confirm" | "confirmCommand"> = {};
   if (entry.confirm !== undefined && entry.confirm !== null) {
-    fields.confirm = HookConfirmSchema.parse(omitPrototypePollutionKeysDeep(entry.confirm));
+    fields.confirm = omitPrototypePollutionKeysDeep(entry.confirm) as HookConfirm;
   }
   if (entry.confirmCommand !== undefined && entry.confirmCommand !== null) {
     fields.confirmCommand = entry.confirmCommand;

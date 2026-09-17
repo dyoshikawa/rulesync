@@ -276,12 +276,14 @@ describe("KiroIdeHooks", () => {
     expect(pre).not.toHaveProperty("confirmCommand");
   });
 
-  it("round-trips a confirm prompt on import and strips prototype-pollution keys from it", async () => {
+  it("round-trips a confirm prompt on import and strips prototype-pollution keys at every depth", async () => {
     const hooks = new KiroIdeHooks({
       outputRoot: testDir,
       relativeDirPath: join(".kiro", "hooks"),
       relativeFilePath: "rulesync.json",
-      // Raw JSON so the literal "__proto__" key reaches the parser as an own property.
+      // zod already refuses a literal `__proto__` own key; `constructor` and
+      // `prototype` pass through `z.looseObject`, so they are what the deep
+      // sanitizer must catch. Raw JSON keeps them as own properties.
       fileContent: `{
         "version": "v1",
         "hooks": [
@@ -290,9 +292,9 @@ describe("KiroIdeHooks", () => {
             "trigger": "Stop",
             "action": { "type": "command", "command": "npm test" },
             "confirm": {
-              "question": "Run the test suite?",
-              "__proto__": { "polluted": true },
-              "options": [{ "id": "yes", "label": "Run", "run": true, "__proto__": { "x": 1 } }]
+              "question": "Run the\\ntest suite?",
+              "constructor": { "polluted": true },
+              "options": [{ "id": "yes", "label": "Run", "run": true, "prototype": { "x": 1 } }]
             },
             "confirmCommand": "node scripts/should-test.js"
           }
@@ -303,11 +305,13 @@ describe("KiroIdeHooks", () => {
     const rulesyncHooks = hooks.toRulesyncHooks();
     const canonical = JSON.parse(rulesyncHooks.getFileContent());
     expect(HooksConfigSchema.safeParse(canonical).success).toBe(true);
+    // Prompt text is plain JSON, so a multi-line question survives intact.
     expect(canonical.hooks.stop[0].confirm).toEqual({
-      question: "Run the test suite?",
+      question: "Run the\ntest suite?",
       options: [{ id: "yes", label: "Run", run: true }],
     });
-    expect(rulesyncHooks.getFileContent()).not.toContain("__proto__");
+    expect(canonical.hooks.stop[0].confirm).not.toHaveProperty("constructor");
+    expect(canonical.hooks.stop[0].confirm.options[0]).not.toHaveProperty("prototype");
     expect(canonical.hooks.stop[0].confirmCommand).toBe("node scripts/should-test.js");
 
     const regenerated = await KiroIdeHooks.fromRulesyncHooks({

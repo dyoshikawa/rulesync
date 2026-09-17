@@ -36,11 +36,12 @@ export type HookType = (typeof HOOK_TYPES)[number];
 
 /**
  * One choice offered by a Kiro `confirm` prompt: `run` decides whether picking
- * it executes the hook command.
+ * it executes the hook command. The prompt text is written back into JSON,
+ * never embedded in generated code, so it is a plain string.
  */
 export const HookConfirmOptionSchema = z.looseObject({
-  id: safeString,
-  label: safeString,
+  id: z.string(),
+  label: z.string(),
   run: z.boolean(),
 });
 
@@ -50,7 +51,7 @@ export const HookConfirmOptionSchema = z.looseObject({
  * https://kiro.dev/docs/hooks/
  */
 export const HookConfirmSchema = z.looseObject({
-  question: safeString,
+  question: z.string(),
   options: z.array(HookConfirmOptionSchema),
 });
 
