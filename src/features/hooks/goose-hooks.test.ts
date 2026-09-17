@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { GooseHooks } from "./goose-hooks.js";
@@ -193,6 +194,54 @@ describe("GooseHooks", () => {
       expect(parsed.hooks.Notification).toBeUndefined();
     });
 
+    it("should emit failClosed as on_failure: block on PreToolUse command hooks only (issue #2404)", async () => {
+      // Goose v1.48.0+: `on_failure` is read on `PreToolUse` only and must be
+      // one of the lowercase keywords `allow` / `block`; `allow` is the default.
+      const logger = createMockLogger();
+      const rulesyncHooks = new RulesyncHooks(
+        createMockAiFileParams({
+          fileContent: JSON.stringify({
+            hooks: {
+              preToolUse: [
+                { command: "./scripts/guard.sh", matcher: "developer__shell", failClosed: true },
+                { command: "./scripts/audit.sh", failClosed: false },
+              ],
+              postToolUse: [{ command: "./scripts/after.sh", failClosed: true }],
+              stop: [{ command: "./scripts/stop.sh", failClosed: false }],
+            },
+          }),
+        }),
+      );
+
+      const gooseHooks = await GooseHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: true,
+        logger,
+      });
+
+      const parsed = JSON.parse(gooseHooks.getFileContent());
+      const preToolUse = parsed.hooks.PreToolUse.flatMap(
+        (entry: { hooks: Array<Record<string, unknown>> }) => entry.hooks,
+      );
+      expect(preToolUse).toEqual([
+        { type: "command", command: "./scripts/guard.sh", on_failure: "block" },
+        { type: "command", command: "./scripts/audit.sh" },
+      ]);
+      expect(parsed.hooks.PostToolUse[0].hooks[0]).toEqual({
+        type: "command",
+        command: "./scripts/after.sh",
+      });
+      expect(parsed.hooks.Stop[0].hooks[0]).toEqual({
+        type: "command",
+        command: "./scripts/stop.sh",
+      });
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Dropping "failClosed" from a "command" hook on "postToolUse"'),
+      );
+    });
+
     it("should process goose-specific overrides", async () => {
       const rulesyncHooks = new RulesyncHooks(
         createMockAiFileParams({
@@ -253,6 +302,46 @@ describe("GooseHooks", () => {
         type: "command",
         command: "echo done",
       });
+    });
+
+    it("should import on_failure back into failClosed and drop what Goose would not read (issue #2404)", () => {
+      const logger = createMockLogger();
+      const gooseHooks = new GooseHooks(
+        createMockAiFileParams({
+          relativeDirPath: GOOSE_HOOKS_DIR,
+          relativeFilePath: "hooks.json",
+          fileContent: JSON.stringify({
+            hooks: {
+              PreToolUse: [
+                {
+                  hooks: [
+                    { type: "command", command: "echo block", on_failure: "block" },
+                    { type: "command", command: "echo allow", on_failure: "allow" },
+                    { type: "command", command: "echo typo", on_failure: "Block" },
+                  ],
+                },
+              ],
+              PostToolUse: [
+                { hooks: [{ type: "command", command: "echo after", on_failure: "block" }] },
+              ],
+            },
+          }),
+        }),
+      );
+
+      const parsed = gooseHooks.toRulesyncHooks({ logger }).getJson();
+      expect(parsed.hooks.preToolUse).toEqual([
+        { type: "command", command: "echo block", failClosed: true },
+        { type: "command", command: "echo allow", failClosed: false },
+        { type: "command", command: "echo typo" },
+      ]);
+      expect(parsed.hooks.postToolUse).toEqual([{ type: "command", command: "echo after" }]);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('"Block" is not a value this tool documents for it'),
+      );
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Dropping "on_failure" from a "command" hook on "postToolUse"'),
+      );
     });
 
     it("should drop non-Goose SubagentStart/SubagentStop keys on import", () => {
