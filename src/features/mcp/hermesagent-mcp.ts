@@ -53,34 +53,82 @@ function resolveHermesTimeout(config: Record<string, unknown>): number | undefin
 }
 
 /**
- * Copies the advanced Hermes-recognized per-server fields that have no canonical
- * alias — `auth` (`oauth` for OAuth 2.1/PKCE), mTLS `client_cert` (string PEM
- * path, or `[cert, key]`/`[cert, key, password]` list) and `client_key`,
- * `connect_timeout` (seconds), `supports_parallel_tool_calls`,
- * `keepalive_interval`, `elicitation`, `trust`, and `identity_header` — verbatim
- * from `source` to `target`. Field names are identical on both sides (the
- * canonical `McpServerSchema` is a `looseObject`), so this serves export and
- * import alike. See the Hermes mcp-config-reference.
+ * String-valued `oauth` keys Hermes reads (`tools/mcp_oauth.py`,
+ * `tools/mcp_oauth_device.py`, v0.21.3): the callback overrides, the
+ * pre-registered client, the CIMD document override, the DCR registration
+ * fields, the token-request `user_agent`, the login `flow` (`device` for
+ * RFC 8628) and the space-separated `scope` string sent on registration and
+ * device authorization.
+ */
+const HERMES_OAUTH_STRING_KEYS = [
+  "redirect_uri",
+  "redirect_host",
+  "client_id",
+  "client_secret",
+  "client_name",
+  "client_metadata_url",
+  "token_endpoint_auth_method",
+  "application_type",
+  "user_agent",
+  "flow",
+  "scope",
+] as const;
+
+/**
+ * Copies the `oauth` mapping of a server, keeping only the keys Hermes reads.
+ *
+ * Hermes reads a single `scope` string, never a `scopes` list; earlier Rulesync
+ * versions wrote `scopes` regardless, which Hermes silently ignored. A `scopes`
+ * list is therefore folded into `scope` (space-separated, the OAuth wire form)
+ * when no `scope` is given, in both directions, so an authored list finally
+ * reaches the authorization server and an old `config.yaml` imports cleanly.
  */
 function copyHermesOauth(source: unknown): Record<string, unknown> | undefined {
   if (!isRecord(source)) {
     return undefined;
   }
   const oauth: Record<string, unknown> = {};
-  for (const key of ["redirect_uri", "redirect_host", "client_id", "client_secret"] as const) {
+  for (const key of HERMES_OAUTH_STRING_KEYS) {
     if (typeof source[key] === "string") {
       oauth[key] = source[key];
     }
   }
-  if (typeof source.redirect_port === "number") {
-    oauth.redirect_port = source.redirect_port;
+  if (typeof oauth.scope !== "string" && isStringArray(source.scopes)) {
+    oauth.scope = source.scopes.join(" ");
   }
-  if (isStringArray(source.scopes)) {
-    oauth.scopes = source.scopes;
+  // Callback port for the browser flow; approval wait in seconds for the
+  // device flow (default 300).
+  for (const key of ["redirect_port", "timeout"] as const) {
+    if (typeof source[key] === "number") {
+      oauth[key] = source[key];
+    }
+  }
+  // `cimd: false` forces Dynamic Client Registration over the Client ID
+  // Metadata Document.
+  if (typeof source.cimd === "boolean") {
+    oauth.cimd = source.cimd;
   }
   return Object.keys(oauth).length > 0 ? oauth : undefined;
 }
 
+// Per-server mappings Hermes reads as a whole; see `copyHermesAdvancedFields`.
+const HERMES_OPAQUE_MAPPING_KEYS = [
+  "sampling",
+  "elicitation",
+  "identity_header",
+  "lifecycle",
+] as const;
+
+/**
+ * Copies the advanced Hermes-recognized per-server fields that have no canonical
+ * alias — `auth` (`oauth` for OAuth 2.1/PKCE), mTLS `client_cert` (string PEM
+ * path, or `[cert, key]`/`[cert, key, password]` list) and `client_key`,
+ * `connect_timeout` (seconds), `supports_parallel_tool_calls`, `protocol`,
+ * `lazy`, `keepalive_interval`, `elicitation`, `trust`, and `identity_header` —
+ * verbatim from `source` to `target`. Field names are identical on both sides
+ * (the canonical `McpServerSchema` is a `looseObject`), so this serves export
+ * and import alike. See the Hermes mcp-config-reference.
+ */
 function copyHermesAdvancedFields(
   source: Record<string, unknown>,
   target: Record<string, unknown>,
@@ -117,6 +165,19 @@ function copyHermesAdvancedFields(
       copied = true;
     }
   }
+  // Protocol-era negotiation (v0.21): `auto` (default), `stateless` or
+  // `legacy`. Copied verbatim like `trust`, so a value upstream adds next is
+  // not turned back into the default on regenerate.
+  if (typeof source.protocol === "string") {
+    target.protocol = source.protocol;
+    copied = true;
+  }
+  // Defer the connection until a tool of the server is first used (v0.21;
+  // default off, read as a boolean-ish value in `tools/mcp_tool_discovery.py`).
+  if (typeof source.lazy === "boolean") {
+    target.lazy = source.lazy;
+    copied = true;
+  }
   // TLS verification: `true`/`false` or a PEM CA-bundle path. Landed in the
   // same upstream mTLS PR as `client_cert`/`client_key` but was missed when
   // those were added, so a hand-written value was destroyed on regenerate.
@@ -129,23 +190,9 @@ function copyHermesAdvancedFields(
     target.skip_preflight = source.skip_preflight;
     copied = true;
   }
-  // Server-initiated LLM request policy (`enabled`, `model`, `max_tokens_cap`,
-  // …). Copied as an opaque mapping so new sub-keys keep working; cloned so no
-  // reference is shared with the source, with pollution keys dropped.
-  if (isPlainObject(source.sampling)) {
-    target.sampling = omitPrototypePollutionKeys(structuredClone(source.sampling));
-    copied = true;
-  }
   // Liveness ping cadence in seconds (v0.20.0; default 180, floored at 5).
   if (typeof source.keepalive_interval === "number") {
     target.keepalive_interval = source.keepalive_interval;
-    copied = true;
-  }
-  // Server-initiated user-input requests (v0.20.0): `enabled` (default true)
-  // and `timeout` in seconds (default 300). Copied as an opaque mapping for the
-  // same reason `sampling` is.
-  if (isPlainObject(source.elicitation)) {
-    target.elicitation = omitPrototypePollutionKeys(structuredClone(source.elicitation));
     copied = true;
   }
   // Trust tier: `full` (default) or `untrusted`, where every write-capable tool
@@ -156,12 +203,21 @@ function copyHermesAdvancedFields(
     target.trust = source.trust;
     copied = true;
   }
-  // Per-user identity header for remote HTTP/SSE servers:
-  // `{name, value_from: "static" | "profile", value}`. Copied as an opaque
-  // mapping for the same reason `sampling` is.
-  if (isPlainObject(source.identity_header)) {
-    target.identity_header = omitPrototypePollutionKeys(structuredClone(source.identity_header));
-    copied = true;
+  // Mappings Hermes reads as a whole: `sampling` (server-initiated LLM request
+  // policy: `enabled`, `model`, `max_tokens_cap`, …), `elicitation`
+  // (server-initiated user-input requests, v0.20.0: `enabled`, `timeout`),
+  // `identity_header` (per-user header for remote servers: `{name, value_from:
+  // "static" | "profile", value}`) and `lifecycle` (the stdio recycle timeouts
+  // `idle_timeout_seconds`/`max_lifetime_seconds`, which the top-level keys
+  // take precedence over; `tools/mcp_tool_common.py`). Copied as opaque
+  // objects so new sub-keys keep working; cloned so no reference is shared
+  // with the source, with pollution keys dropped.
+  for (const key of HERMES_OPAQUE_MAPPING_KEYS) {
+    const mapping = source[key];
+    if (isPlainObject(mapping)) {
+      target[key] = omitPrototypePollutionKeys(structuredClone(mapping));
+      copied = true;
+    }
   }
   return copied;
 }
