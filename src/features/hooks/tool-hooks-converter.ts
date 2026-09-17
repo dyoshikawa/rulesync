@@ -40,6 +40,15 @@ export type ToolHooksConverterConfig = {
   toolToCanonicalEventNames: Record<string, string>;
   projectDirVar: string;
   supportedHookTypes?: ReadonlySet<HookType>;
+  /**
+   * Tool-side spellings of the canonical hook `type` values, for a tool that
+   * names a handler type differently (e.g. Bob's `https` for the canonical
+   * `http`). A type without an entry is emitted under its canonical name. On
+   * import the mapping is applied in reverse, and the tool spelling of one
+   * canonical type shadows a same-named canonical type: Bob has no `http`
+   * handler, so an `http` in its file is not one either.
+   */
+  hookTypeNames?: Readonly<Partial<Record<HookType, string>>>;
   passthroughFields?: ReadonlyArray<"name" | "description">;
   /**
    * Per-hook boolean fields to carry through the round-trip, each mapping a
@@ -114,6 +123,20 @@ export type ToolHooksConverterConfig = {
     readonly commandOnly?: boolean;
   }>;
   /**
+   * Per-hook object fields to carry through the round-trip, each mapping a
+   * canonical {@link HookDefinitionSchema} object field to its tool-side field
+   * name. Only plain objects are emitted; import additionally checks the value
+   * against the canonical field's own schema, so a hand-written object missing
+   * a required key (Cortex Code's `source.source`) cannot land in a
+   * `.rulesync/hooks.*` that fails validation on the next run.
+   */
+  objectPassthroughFields?: ReadonlyArray<{
+    readonly canonical: "source";
+    readonly tool: string;
+    /** Emit only on `command` hooks, for a field the tool documents there only. */
+    readonly commandOnly?: boolean;
+  }>;
+  /**
    * Fields that live on the *matcher group* rather than on a hook. They are
    * stored per definition canonically (the canonical model is a flat list), so
    * export reads the first definition of the group that carries one and import
@@ -163,7 +186,46 @@ export type ToolHooksConverterConfig = {
    * rewrite `"*"` to `".*"` in their own generators instead.
    */
   wildcardMatcherMeansAll?: boolean;
+  /**
+   * The unit of the tool's per-hook `timeout` field. The canonical `timeout` is
+   * seconds (docs/reference/file-formats.md), so `"milliseconds"` multiplies by
+   * 1000 on generate and divides on import; the default forwards the value
+   * verbatim.
+   */
+  timeoutUnit?: "seconds" | "milliseconds";
 };
+
+/**
+ * Convert a canonical `timeout` (seconds) into the tool's unit.
+ */
+function emitTimeout({
+  timeout,
+  converterConfig,
+}: {
+  timeout: number;
+  converterConfig: ToolHooksConverterConfig;
+}): number {
+  // A non-finite value is forwarded as-is (JSON writes it as null) rather
+  // than rounded into another non-finite value, matching the Tabnine converter.
+  return converterConfig.timeoutUnit === "milliseconds" && Number.isFinite(timeout)
+    ? Math.round(timeout * 1000)
+    : timeout;
+}
+
+/**
+ * Convert a tool `timeout` back into the canonical unit (seconds).
+ */
+function importTimeout({
+  timeout,
+  converterConfig,
+}: {
+  timeout: number;
+  converterConfig: ToolHooksConverterConfig;
+}): number {
+  return converterConfig.timeoutUnit === "milliseconds" && Number.isFinite(timeout)
+    ? timeout / 1000
+    : timeout;
+}
 
 /**
  * Filter the shared canonical hooks to the supported events and merge tool overrides on top.
@@ -293,7 +355,7 @@ function applyCommandPrefix({
 }
 
 /**
- * The shape every per-hook passthrough registration shares. The five kinds
+ * The shape every per-hook passthrough registration shares. The six kinds
  * differ only in which canonical field names they accept and in the predicate
  * that decides whether a value is expressible, so both directions are
  * implemented once and parameterized by that predicate.
@@ -447,6 +509,7 @@ const isEmittableString: PassthroughValidator = ({ value }) => isNonEmptyString(
 const isEmittableArray: PassthroughValidator = ({ value }) => isStringArray(value);
 const isEmittableRecord: PassthroughValidator = ({ value }) => isSafeStringRecord(value);
 const isImportableArray: PassthroughValidator = ({ value }) => isSafeStringArray(value);
+const isEmittableObject: PassthroughValidator = ({ value }) => isPlainObject(value);
 
 /**
  * The canonical schema of one hook field, looked up by name. Read off the
@@ -492,11 +555,16 @@ const isImportableString: PassthroughValidator = ({ value, canonical }) =>
 const isImportableNumber: PassthroughValidator = ({ value, canonical }) =>
   Number.isFinite(value) && satisfiesCanonicalField({ value, canonical });
 
+const isImportableObject: PassthroughValidator = ({ value, canonical }) =>
+  isPlainObject(value) && satisfiesCanonicalField({ value, canonical });
+
 /**
  * Say which rule the value broke, so the warning names the actual constraint
  * rather than asserting a canonical rejection that may not be the reason. A
  * closed enum lists its members; a rule carrying its own message (the
- * control-character check behind `safeString`) reuses it.
+ * control-character check behind `safeString`) reuses it. An object field
+ * names the offending key, since zod's generic "Invalid input" would not tell
+ * the reader which key is missing or malformed.
  */
 function describeScalarConstraint({
   canonical,
@@ -516,7 +584,11 @@ function describeScalarConstraint({
   if (issue === undefined) {
     return `it is not a value the canonical "${canonical}" field accepts.`;
   }
-  return `it does not satisfy the canonical "${canonical}" field: ${issue.message}.`;
+  // A record's path element is the user-written key itself (a header name),
+  // so it is quoted like every other value this message carries.
+  const at =
+    issue.path.length > 0 ? ` at ${quoteValueForWarning(issue.path.map(String).join("."))}` : "";
+  return `it does not satisfy the canonical "${canonical}" field${at}: ${issue.message}.`;
 }
 
 const describeInvalidScalar = ({
@@ -535,6 +607,26 @@ const describeInvalidScalar = ({
 const describeInvalidArray = ({ tool }: { tool: string }): string =>
   `Dropping "${tool}" while importing a hook: it must be a list of strings without ` +
   `newline, carriage return or NUL characters.`;
+
+/**
+ * An object is quoted by its offending key rather than its value: the payload
+ * can be arbitrarily large, and the missing or malformed key is what the
+ * reader needs to fix.
+ */
+const describeInvalidObject = ({
+  tool,
+  canonical,
+  value,
+}: {
+  tool: string;
+  canonical: string;
+  value: unknown;
+}): string =>
+  isPlainObject(value)
+    ? `Dropping "${tool}" while importing a hook: ` +
+      `${describeScalarConstraint({ canonical, value })} Importing it would fail validation ` +
+      `on the next run.`
+    : `Dropping "${tool}" while importing a hook: it must be an object.`;
 
 const describeInvalidRecord = ({ tool }: { tool: string }): string =>
   `Dropping "${tool}" while importing a hook: it must be a map of strings whose keys ` +
@@ -719,6 +811,14 @@ function emitAllPassthroughFields({
       isValid: isEmittableRecord,
       warn,
     }),
+    ...emitPassthroughFields<Record<string, unknown>>({
+      def,
+      hookType,
+      eventName,
+      fields: converterConfig.objectPassthroughFields ?? [],
+      isValid: isEmittableObject,
+      warn,
+    }),
   };
 }
 
@@ -745,9 +845,12 @@ function buildToolHooks({
       // fields below always win: a misconfigured `tool` name (e.g. mapping onto
       // "type"/"command") can never silently shadow them.
       ...emitAllPassthroughFields({ def, hookType, eventName, converterConfig, warn }),
-      type: hookType,
+      type: converterConfig.hookTypeNames?.[hookType] ?? hookType,
       ...(command !== undefined && command !== null && { command }),
-      ...(def.timeout !== undefined && def.timeout !== null && { timeout: def.timeout }),
+      ...(def.timeout !== undefined &&
+        def.timeout !== null && {
+          timeout: emitTimeout({ timeout: def.timeout, converterConfig }),
+        }),
       ...(def.prompt !== undefined && def.prompt !== null && { prompt: def.prompt }),
       // Type-specific payload fields (https://code.claude.com/docs/en/hooks).
       // Gated per type so e.g. an `url` authored on a command hook never
@@ -895,6 +998,32 @@ const IMPORTED_HOOK_TYPES = new Set<HookType>(["command", "prompt", "http", "mcp
 
 function isImportedHookType(value: unknown): value is HookType {
   return typeof value === "string" && IMPORTED_HOOK_TYPES.has(value as HookType);
+}
+
+/**
+ * The canonical hook type a tool-side `type` value denotes: the tool's own
+ * spelling from {@link ToolHooksConverterConfig.hookTypeNames} when it has
+ * one, otherwise the value itself when it is a canonical type, and `command`
+ * for anything else (the same coercion as before the renames existed).
+ */
+function resolveImportedHookType({
+  value,
+  converterConfig,
+}: {
+  value: unknown;
+  converterConfig: ToolHooksConverterConfig;
+}): HookType {
+  const names = converterConfig.hookTypeNames;
+  if (names !== undefined && typeof value === "string") {
+    for (const [canonical, tool] of Object.entries(names)) {
+      if (tool === value) return canonical as HookType;
+    }
+    // A tool spelling shadows the canonical name it replaces: when the tool
+    // calls the canonical `http` handler `https`, a bare `http` in its file
+    // is not a handler the tool has.
+    if (Object.hasOwn(names, value)) return "command";
+  }
+  return isImportedHookType(value) ? value : "command";
 }
 
 function isStringRecord(value: unknown): value is Record<string, string> {
@@ -1103,6 +1232,16 @@ function importAllPassthroughFields({
       describeInvalid: describeInvalidRecord,
       warn,
     }),
+    ...importPassthroughFields<Record<string, unknown>>({
+      h,
+      hookType,
+      fields: converterConfig.objectPassthroughFields ?? [],
+      // Stricter than the emit side: the canonical field declares the keys the
+      // object must carry, and a hand-written tool config need not.
+      isValid: isImportableObject,
+      describeInvalid: describeInvalidObject,
+      warn,
+    }),
   };
 }
 
@@ -1120,7 +1259,7 @@ function toolHookToCanonical({
   converterConfig: ToolHooksConverterConfig;
   warn?: (message: string) => void;
 }): HooksConfig["hooks"][string][number] {
-  const hookType = isImportedHookType(h.type) ? h.type : "command";
+  const hookType = resolveImportedHookType({ value: h.type, converterConfig });
   // A value that defines this hook type has already been checked by
   // `describeHookSkipReason`; this catches the same field left on a type it
   // does not define, where losing it alone changes nothing.
@@ -1129,7 +1268,10 @@ function toolHookToCanonical({
     canonical: "command",
     warn,
   });
-  const timeout = typeof h.timeout === "number" ? h.timeout : undefined;
+  const timeout =
+    typeof h.timeout === "number"
+      ? importTimeout({ timeout: h.timeout, converterConfig })
+      : undefined;
   const prompt = importCanonicalString({ value: h.prompt, canonical: "prompt", warn });
   const name = importCanonicalString({ value: h.name, canonical: "name", warn });
   const description = importCanonicalString({
@@ -1283,7 +1425,7 @@ function toolMatcherEntryToCanonical({
   }
   const definitions: HooksConfig["hooks"][string] = [];
   for (const h of hookDefs) {
-    const hookType = isImportedHookType(h.type) ? h.type : "command";
+    const hookType = resolveImportedHookType({ value: h.type, converterConfig });
     const skipReason = describeHookSkipReason({ h, rawEntry, hookType, converterConfig });
     if (skipReason !== undefined) {
       warn?.(skipReason);

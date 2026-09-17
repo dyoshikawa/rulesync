@@ -297,8 +297,12 @@ export class CodebuddyRule extends ToolRule {
    * | `false`          | none      | not supported; the rule is dropped  |
    *
    * The default being `true` is the opposite of Cursor, which the adapter was
-   * modeled on: `paths` alone scopes nothing, so a rule meant to be path
-   * triggered has to carry an explicit `alwaysApply: false` alongside it.
+   * modeled on. The shipped loader (`@tencent-ai/codebuddy-code` 2.151.0,
+   * `dist/codebuddy.js`) is looser than the table — it resolves
+   * `alwaysApply = fm.alwaysApply === true || (!hasPaths && fm.alwaysApply !== false)`,
+   * so `paths` without `alwaysApply` is already MANUAL — but the explicit
+   * `alwaysApply: false` is written anyway: it is correct under both readings
+   * and the documented one is what a reader of the file goes by.
    *
    * @see https://www.codebuddy.ai/docs/cli/memory
    */
@@ -409,15 +413,18 @@ export class CodebuddyRule extends ToolRule {
 
     // An Always Apply rule with no explicit paths is always-on for every
     // other tool too, so it maps to the universal glob, mirroring the Cursor
-    // adapter's `alwaysApply` handling. `alwaysApply` defaults to `true`
-    // upstream, so only an explicit `false` makes a rule path triggered.
+    // adapter's `alwaysApply` handling. This follows the shipped loader (see
+    // `resolveCodebuddyRuleType`): a file is ALWAYS when `alwaysApply: true`
+    // is set, or when it has no `paths` and does not say `false`. `paths`
+    // without `alwaysApply` is therefore a path-triggered rule, and the key is
+    // carried over as written — materializing `true` there would turn the
+    // scope into an always-on rule on the next generate.
     const sourcePaths = normalizeCodebuddyPaths(this.frontmatter.paths) ?? [];
-    const isAlways = this.frontmatter.alwaysApply !== false;
+    const isAlways =
+      this.frontmatter.alwaysApply === true ||
+      (sourcePaths.length === 0 && this.frontmatter.alwaysApply !== false);
     const globs = sourcePaths.length === 0 && isAlways ? ["**/*"] : sourcePaths;
-    // Materialize that default when the file also carries `paths`: the rule is
-    // ALWAYS and ignores them, so leaving the key implicit would let the next
-    // generate read the paths as a scope and downgrade the rule to MANUAL.
-    const alwaysApply = this.frontmatter.alwaysApply ?? (sourcePaths.length > 0 ? true : undefined);
+    const alwaysApply = this.frontmatter.alwaysApply;
 
     const rulesyncFrontmatter: RulesyncRuleFrontmatter = {
       targets,

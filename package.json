@@ -1,6 +1,6 @@
 {
   "name": "rulesync",
-  "version": "16.34.0",
+  "version": "16.35.0",
   "description": "Unified AI rules management CLI tool that generates configuration files for various AI development tools",
   "keywords": [
     "ai",
@@ -91,6 +91,7 @@
     "@octokit/rest": "22.0.1",
     "@toon-format/toon": "4.1.1",
     "@valibot/to-json-schema": "1.7.1",
+    "chokidar": "5.0.0",
     "commander": "15.0.0",
     "effect": "3.22.2",
     "es-toolkit": "1.52.0",

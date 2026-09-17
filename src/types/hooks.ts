@@ -120,6 +120,19 @@ export const HookDefinitionSchema = z.looseObject({
   // per definition here, like `sequential`, since the canonical model is a flat
   // list. https://docs.augmentcode.com/cli/hooks
   metadata: z.optional(z.looseObject({})),
+  // Snowflake Cortex Code command hooks: a "remote hook" fetches the script
+  // from a Git repository instead of the local tree — `source.source` is the
+  // `github:<org>/<repo>/<path>` locator and `source.ref` the branch or commit.
+  // `command` then names the interpreter (e.g. `bash`) the fetched file runs
+  // under, so dropping this object would leave a bare interpreter with nothing
+  // to execute. Only Cortex Code documents the field.
+  // https://docs.snowflake.com/en/user-guide/cortex-code/extensibility#remote-hooks
+  source: z.optional(
+    z.looseObject({
+      source: safeString,
+      ref: z.optional(safeString),
+    }),
+  ),
   // Claude Code tool events (PreToolUse/PostToolUse/PostToolUseFailure/
   // PermissionRequest/PermissionDenied): `if` filters a hook by tool arguments,
   // holding a single permission rule with the same syntax as settings.json
@@ -980,10 +993,12 @@ export const ZCODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fro
  *
  * Bob reads `hooks` from `.bob/settings.json` (project) and
  * `~/.bob/settings/settings.json` (user) in the Claude-Code shape and fires
- * five events: SessionStart, UserPromptSubmit, PreToolUse, PostToolUse and
- * Stop. Only `command` hooks exist, and `matcher` (a regex over the tool
- * name) applies to the two tool events.
+ * seven events: SessionStart, UserPromptSubmit, PreToolUse, PostToolUse,
+ * PreCompact, PostCompact (both added by Bob Shell 2.0.3) and Stop. Handlers
+ * are `command` or `https` hooks, and `matcher` (a regex over the tool name)
+ * applies to the two tool events.
  *
+ * @see https://bob.ibm.com/docs/shell/configuration/lifecycle-hooks
  * @see https://bob.ibm.com/docs/ide/configuration/lifecycle-hooks
  */
 export const BOB_HOOK_EVENTS: readonly HookEvent[] = [
@@ -991,6 +1006,8 @@ export const BOB_HOOK_EVENTS: readonly HookEvent[] = [
   "beforeSubmitPrompt",
   "preToolUse",
   "postToolUse",
+  "preCompact",
+  "postCompact",
   "stop",
 ];
 
@@ -999,6 +1016,8 @@ export const CANONICAL_TO_BOB_EVENT_NAMES: Record<string, string> = {
   beforeSubmitPrompt: "UserPromptSubmit",
   preToolUse: "PreToolUse",
   postToolUse: "PostToolUse",
+  preCompact: "PreCompact",
+  postCompact: "PostCompact",
   stop: "Stop",
 };
 

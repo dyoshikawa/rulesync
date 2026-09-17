@@ -43,14 +43,14 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
   ),
   description: z.string(),
   targets: z._default(RulesyncTargetsSchema, ["*"]),
-  // Default for tools that support the flag (claudecode, cursor, zed, pi, qwencode, grokcli, factorydroid, dsh).
+  // Default for tools that support the flag (claudecode, cursor, zed, pi, qwencode, grokcli, factorydroid, dsh, commandcode).
   // A target-section value of the same key overrides this default.
   // `devin` also consumes this root value (mapping `true` onto a user-only
   // `triggers` list); it has no section key of the same name, but a
   // `devin.triggers` section value overrides it.
   "disable-model-invocation": z.optional(z.boolean()),
   // Default for tools that support the flag (claudecode, copilot, copilotcli, cursor,
-  // qwencode, vibe, grokcli, factorydroid, dsh).
+  // qwencode, vibe, grokcli, factorydroid, dsh, commandcode).
   // A target-section value of the same key overrides this default.
   // `devin` also consumes this root value (mapping `false` onto a model-only
   // `triggers` list); it has no section key of the same name, but a
@@ -353,7 +353,15 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
       "allowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
     }),
   ),
-  commandcode: z.optional(z.looseObject({})),
+  commandcode: z.optional(
+    z.looseObject({
+      license: z.optional(z.string()),
+      compatibility: z.optional(z.union([z.string(), z.looseObject({})])),
+      metadata: z.optional(z.looseObject({})),
+      "disable-model-invocation": z.optional(z.boolean()),
+      "user-invocable": z.optional(z.boolean()),
+    }),
+  ),
   cortexcode: z.optional(z.looseObject({})),
   continue: z.optional(z.looseObject({})),
   tabnine: z.optional(z.looseObject({})),

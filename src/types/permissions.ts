@@ -585,6 +585,25 @@ const DeepagentsExtensionsOverrideSchema = z.looseObject({
 });
 
 /**
+ * The `[mcp]` table of `~/.deepagents/config.toml`, where dcode keeps its
+ * per-server trust for the MCP servers a project's `.mcp.json` /
+ * `.deepagents/.mcp.json` declares. dcode reads these lists from the user-level
+ * file only — never from a project file — which is exactly why the global
+ * permissions adapter is the place to author them.
+ *
+ * `disabled_project_servers` names project MCP servers dcode always rejects;
+ * a rejection wins over any approval or trust. The sibling
+ * `enabled_project_server_approvals` is the fingerprint-bound approval store
+ * the interactive prompt fills in, and `enabled_project_servers` is a
+ * deprecated flat allowlist dcode ignores, so neither has a key here.
+ *
+ * @see https://docs.langchain.com/oss/deepagents/code/configuration
+ */
+const DeepagentsMcpOverrideSchema = z.looseObject({
+  disabled_project_servers: z.optional(z.array(z.string())),
+});
+
+/**
  * The `[shell].allow_list` array itself is rulesync-owned, driven by the
  * shared `permission.bash` block, so it has no key here.
  */
@@ -592,6 +611,7 @@ const DeepagentsPermissionsOverrideSchema = z.looseObject({
   permission: z.optional(ToolScopedPermissionSchema),
   startup: z.optional(DeepagentsStartupOverrideSchema),
   extensions: z.optional(DeepagentsExtensionsOverrideSchema),
+  mcp: z.optional(DeepagentsMcpOverrideSchema),
 });
 export type DeepagentsPermissionsOverride = z.infer<typeof DeepagentsPermissionsOverrideSchema>;
 

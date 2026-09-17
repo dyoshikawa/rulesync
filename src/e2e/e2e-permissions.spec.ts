@@ -2844,7 +2844,10 @@ describe("E2E: permissions (global mode)", () => {
           permission: {
             bash: { "git *": "allow", ls: "allow", "rm -rf *": "deny" },
           },
-          deepagents: { startup: { mode: "auto" } },
+          deepagents: {
+            startup: { mode: "auto" },
+            mcp: { disabled_project_servers: ["filesystem"] },
+          },
         },
         null,
         2,
@@ -2869,6 +2872,7 @@ describe("E2E: permissions (global mode)", () => {
     const shell = generated.shell as Record<string, unknown>;
     expect(shell.allow_list).toEqual(["git", "ls"]);
     expect(generated.startup).toEqual({ mode: "auto" });
+    expect(generated.mcp).toEqual({ disabled_project_servers: ["filesystem"] });
   });
 
   it("should generate zed permissions in home directory with --global", async () => {

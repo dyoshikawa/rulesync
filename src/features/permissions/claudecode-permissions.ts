@@ -567,15 +567,28 @@ const CLAUDECODE_NON_PASSTHROUGH_OVERRIDE_KEYS: ReadonlySet<string> = new Set([
  *
  * Derived from the per-key **Scope** column of the settings reference: every
  * top-level key documented as `User or managed` or `User, local, or managed`.
+ * `enableArtifact` is deliberately absent: it is documented as `Any file` —
+ * every file can turn the Artifact tool off, and none can turn it back on — so
+ * a project file does honor it. `processWrapper` is also `User or managed`, but it is refused
+ * in both scopes by `CLAUDECODE_COMMAND_EXECUTING_KEYS`, which runs first.
+ *
+ * `autoContinueAtUsageLimit` is dropped at project scope for a stronger reason
+ * than the others: when no user or managed file sets it, a project or local
+ * value turns the feature *off* whatever the value is, so committing a `true`
+ * would silently do the opposite of what it says.
  *
  * @see https://code.claude.com/docs/en/settings-reference
  */
 const CLAUDECODE_USER_SCOPE_ONLY_KEYS: ReadonlySet<string> = new Set([
   "askUserQuestionTimeout",
+  "autoContinueAtUsageLimit",
   "autoMode",
+  "bashEditDiffEnabled",
+  "desktopSessionCleanupPeriodDays",
   "dialogExpiry",
-  "enableArtifact",
+  "feedbackDrafts",
   "footerLinksRegexes",
+  "modelPicker",
   "pluginConfigs",
   "skipAutoPermissionPrompt",
   "skipDangerousModePermissionPrompt",
@@ -609,14 +622,20 @@ const CLAUDECODE_UNHONORED_KEY_SOURCES: Readonly<Record<string, string>> = {
   browserExternalPageTools: "managed settings",
   channelsEnabled: "managed settings",
   claudeMd: "managed settings",
+  copyOnSelect: "~/.claude.json",
   diffTool: "~/.claude.json",
   disableBrowserExternalNavigation: "managed settings",
   disableCommandPluginSources: "managed settings",
+  disableDesktopLocalSessions: "managed settings",
   disableMobileSimulatorTools: "managed settings",
   disableSideloadFlags: "managed settings",
   externalEditorContext: "~/.claude.json",
   forceLoginGatewayUrl: "managed settings",
   forceRemoteSettingsRefresh: "managed settings",
+  gatewayInternalNetworks: "managed settings",
+  managedMcpServers: "managed settings",
+  managedSourcesBehavior: "managed settings",
+  modelPricing: "managed settings",
   parentSettingsBehavior: "managed settings",
   permissionExplainerEnabled: "~/.claude.json",
   pluginSuggestionMarketplaces: "managed settings",

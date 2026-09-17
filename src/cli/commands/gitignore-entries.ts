@@ -10,6 +10,10 @@ import {
 } from "../../constants/claudecode-paths.js";
 import { CODEBUDDY_DIR, CODEBUDDY_LOCAL_RULE_FILE_NAME } from "../../constants/codebuddy-paths.js";
 import { CODEXCLI_BASH_RULES_FILE_NAME, CODEXCLI_DIR } from "../../constants/codexcli-paths.js";
+import {
+  COMMANDCODE_DIR,
+  COMMANDCODE_SETTINGS_LOCAL_FILE_NAME,
+} from "../../constants/commandcode-paths.js";
 import { CRUSH_LOCAL_RULE_FILE_NAME } from "../../constants/crush-paths.js";
 import {
   FACTORYDROID_DIR,
@@ -138,6 +142,14 @@ export const HAND_MAINTAINED_GITIGNORE_ENTRIES: ReadonlyArray<GitignoreEntryTag>
     target: "augmentcode",
     feature: "general",
     entry: `**/${AUGMENTCODE_DIR}/${AUGMENTCODE_SETTINGS_LOCAL_FILE_NAME}`,
+  },
+  // Command Code's personal settings overlay, documented as "personal,
+  // gitignored" (`--local` approvals are written there); never emitted by
+  // rulesync. https://commandcode.ai/docs/permissions
+  {
+    target: "commandcode",
+    feature: "general",
+    entry: `**/${COMMANDCODE_DIR}/${COMMANDCODE_SETTINGS_LOCAL_FILE_NAME}`,
   },
   { target: "rovodev", feature: "general", entry: "**/.rovodev/.rulesync/" },
   { target: "takt", feature: "general", entry: "**/.takt/runs/" },

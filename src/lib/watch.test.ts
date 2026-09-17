@@ -1,22 +1,30 @@
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const { statSyncMock, fsWatchMock } = vi.hoisted(() => ({
+const { statSyncMock, chokidarWatchMock } = vi.hoisted(() => ({
   statSyncMock: vi.fn(),
-  fsWatchMock: vi.fn(),
+  chokidarWatchMock: vi.fn(),
 }));
 vi.mock("node:fs", async (importOriginal) => {
   const actual = await importOriginal<typeof import("node:fs")>();
   statSyncMock.mockImplementation(actual.statSync);
-  fsWatchMock.mockImplementation(actual.watch);
-  return { ...actual, statSync: statSyncMock, watch: fsWatchMock };
+  return { ...actual, statSync: statSyncMock };
+});
+vi.mock("chokidar", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("chokidar")>();
+  chokidarWatchMock.mockImplementation(actual.watch);
+  return { ...actual, watch: chokidarWatchMock };
 });
 
 import {
+  RULES_FEATURE_SUBDIR,
   RULESYNC_CONFIG_RELATIVE_FILE_PATH,
   RULESYNC_LOCAL_CONFIG_RELATIVE_FILE_PATH,
+  RULESYNC_MCP_DEPRECATED_DOTFILE_NAME,
+  RULESYNC_MCP_FILE_NAME,
+  RULESYNC_MCP_LEGACY_FILE_NAME,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
@@ -31,7 +39,7 @@ import {
 
 /**
  * Resolves once `predicate` holds, polling on real timers. Used for the
- * `fs.watch` integration test, where event delivery latency is platform
+ * watcher integration tests, where event delivery latency is platform
  * dependent.
  */
 async function waitFor(predicate: () => boolean, timeoutMs = 10000): Promise<void> {
@@ -255,10 +263,8 @@ describe("buildWatchTargets", () => {
     });
 
     expect(targets).toHaveLength(2);
-    expect(targets[0]).toEqual({
-      directory: sourceTree,
-      recursive: true,
-    });
+    expect(targets[0]?.directory).toBe(sourceTree);
+    expect(targets[0]?.recursive).toBe(true);
 
     const configTarget = targets[1];
     expect(configTarget?.directory).toBe(root);
@@ -268,6 +274,25 @@ describe("buildWatchTargets", () => {
     // Generated output next to the config file must not trigger a regeneration.
     expect(configTarget?.include?.("AGENTS.md")).toBe(false);
     expect(configTarget?.include?.("CLAUDE.md")).toBe(false);
+  });
+
+  it("watches only the entries generate reads within an input root", () => {
+    const root = join("/", "repo");
+    const targets = buildWatchTargets({
+      inputRoots: [root],
+      configFilePath: join(root, RULESYNC_CONFIG_RELATIVE_FILE_PATH),
+    });
+
+    const include = targets[0]?.include;
+    expect(include?.(join(RULES_FEATURE_SUBDIR, "a.md"))).toBe(true);
+    expect(include?.(RULESYNC_MCP_FILE_NAME)).toBe(true);
+    // Deprecated spellings are still read by `generate`, so they stay watched.
+    expect(include?.(RULESYNC_MCP_LEGACY_FILE_NAME)).toBe(true);
+    expect(include?.(RULESYNC_MCP_DEPRECATED_DOTFILE_NAME)).toBe(true);
+    // Entries `generate` never reads must not trigger a regeneration, even
+    // when the source tree is the project directory itself.
+    expect(include?.(join(".git", "index"))).toBe(false);
+    expect(include?.("README.md")).toBe(false);
   });
 
   it("watches the directory holding a config file outside the input root", () => {
@@ -399,7 +424,7 @@ describe("formatTriggerPaths", () => {
 });
 
 describe("watchTargets", () => {
-  // The fs.watch integration tests depend on OS event delivery, which can
+  // The watcher integration tests depend on OS event delivery, which can
   // stall for seconds on loaded CI runners; the default 5s per-test timeout
   // has produced repeated flakes there (each `waitFor` already polls with its
   // own 10s budget).
@@ -460,8 +485,43 @@ describe("watchTargets", () => {
         });
 
         try {
+          await handle.ready;
           await writeFile(join(rulesDir, "watched.md"), "# watched\n", "utf8");
           await waitFor(() => changed.some((path) => path.includes("watched.md")));
+        } finally {
+          handle.close();
+        }
+      } finally {
+        await cleanup();
+      }
+    },
+  );
+
+  it.skipIf(process.platform === "win32")(
+    "forwards changes under a symlinked subdirectory",
+    { timeout: FS_EVENT_TEST_TIMEOUT_MS },
+    async () => {
+      const { testDir, cleanup } = await setupTestDirectory();
+      try {
+        const sourceTree = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
+        const sharedRules = join(testDir, "shared-rules");
+        await mkdir(sourceTree, { recursive: true });
+        await mkdir(sharedRules, { recursive: true });
+        await symlink(join("..", "shared-rules"), join(sourceTree, RULES_FEATURE_SUBDIR));
+
+        const changed: string[] = [];
+        const handle = watchTargets({
+          targets: [{ directory: sourceTree, recursive: true }],
+          onChange: ({ path }) => {
+            changed.push(path);
+          },
+          onError: () => {},
+        });
+
+        try {
+          await handle.ready;
+          await writeFile(join(sharedRules, "linked.md"), "# linked\n", "utf8");
+          await waitFor(() => changed.some((path) => path.includes("linked.md")));
         } finally {
           handle.close();
         }
@@ -577,7 +637,7 @@ describe("watchTargets", () => {
   );
 
   it("detects a deleted directory by polling even when no fs event is ever delivered", async () => {
-    const actual = await vi.importActual<typeof import("node:fs")>("node:fs");
+    const actual = await vi.importActual<typeof import("chokidar")>("chokidar");
     const { testDir, cleanup } = await setupTestDirectory();
     try {
       const watchedDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
@@ -586,11 +646,12 @@ describe("watchTargets", () => {
       // Simulate an OS that never delivers events for this watcher (observed
       // on loaded CI runners): the returned watcher is inert, so only the
       // periodic liveness sweep can notice the deletion.
-      fsWatchMock.mockImplementation(
+      chokidarWatchMock.mockImplementation(
         () =>
           ({
             close: () => {},
             on: () => {},
+            once: () => {},
           }) as unknown as ReturnType<typeof actual.watch>,
       );
 
@@ -610,8 +671,88 @@ describe("watchTargets", () => {
         // report the disappearance on its own.
         await waitFor(() => changed.includes(watchedDir));
       } finally {
-        fsWatchMock.mockImplementation(actual.watch);
+        chokidarWatchMock.mockImplementation(actual.watch);
         handle.close();
+      }
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("resolves ready when the target disappears before the initial scan completes", async () => {
+    const actual = await vi.importActual<typeof import("chokidar")>("chokidar");
+    const { testDir, cleanup } = await setupTestDirectory();
+    try {
+      const watchedDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
+      await mkdir(watchedDir, { recursive: true });
+
+      // A watcher whose initial scan never finishes: chokidar's `close()`
+      // discards its pending `ready` listener, so once the liveness sweep
+      // detaches it, nothing but the handle itself can settle `ready`.
+      chokidarWatchMock.mockImplementation(
+        () =>
+          ({
+            close: () => {},
+            on: () => {},
+            once: () => {},
+          }) as unknown as ReturnType<typeof actual.watch>,
+      );
+
+      const handle = watchTargets({
+        targets: [{ directory: watchedDir, recursive: true }],
+        onChange: () => {},
+        onError: () => {},
+        rearmIntervalMs: 25,
+      });
+
+      try {
+        await rm(watchedDir, { recursive: true, force: true });
+        await expect(
+          Promise.race([
+            handle.ready.then(() => "ready"),
+            new Promise((resolve) => setTimeout(() => resolve("stalled"), 5000)),
+          ]),
+        ).resolves.toBe("ready");
+      } finally {
+        chokidarWatchMock.mockImplementation(actual.watch);
+        handle.close();
+      }
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("resolves ready when the handle is closed before the initial scan completes", async () => {
+    const actual = await vi.importActual<typeof import("chokidar")>("chokidar");
+    const { testDir, cleanup } = await setupTestDirectory();
+    try {
+      const watchedDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
+      await mkdir(watchedDir, { recursive: true });
+
+      chokidarWatchMock.mockImplementation(
+        () =>
+          ({
+            close: () => {},
+            on: () => {},
+            once: () => {},
+          }) as unknown as ReturnType<typeof actual.watch>,
+      );
+
+      try {
+        const handle = watchTargets({
+          targets: [{ directory: watchedDir, recursive: true }],
+          onChange: () => {},
+          onError: () => {},
+        });
+        handle.close();
+        await expect(
+          Promise.race([
+            handle.ready.then(() => "ready"),
+            new Promise((resolve) => setTimeout(() => resolve("stalled"), 5000)),
+          ]),
+        ).resolves.toBe("ready");
+      } finally {
+        chokidarWatchMock.mockImplementation(actual.watch);
       }
     } finally {
       await cleanup();
@@ -647,9 +788,6 @@ describe("watchTargets", () => {
         // one recorded at attach time. An events-only existence check would
         // keep the dead watcher forever; the identity comparison must re-arm.
         statSyncMock.mockReturnValue({ ino: 999_999_999n, birthtimeNs: 1n });
-        // Any event — even one the include filter rejects — runs the
-        // liveness check.
-        await writeFile(join(configDir, "decoy.md"), "# decoy\n", "utf8");
         await waitFor(() => changed.includes(configDir));
       } finally {
         statSyncMock.mockImplementation(actual.statSync);
@@ -705,7 +843,7 @@ describe("watchTargets", () => {
   });
 
   it("closes already-started watchers when a later existing target cannot be watched", async () => {
-    const actual = await vi.importActual<typeof import("node:fs")>("node:fs");
+    const actual = await vi.importActual<typeof import("chokidar")>("chokidar");
     const { testDir, cleanup } = await setupTestDirectory();
 
     try {
@@ -715,12 +853,13 @@ describe("watchTargets", () => {
       await mkdir(failingDir, { recursive: true });
 
       const close = vi.fn();
-      fsWatchMock
+      chokidarWatchMock
         .mockImplementationOnce(
           () =>
             ({
               close,
               on: () => {},
+              once: () => {},
             }) as unknown as ReturnType<typeof actual.watch>,
         )
         .mockImplementationOnce(() => {
@@ -740,7 +879,7 @@ describe("watchTargets", () => {
 
       expect(close).toHaveBeenCalledTimes(1);
     } finally {
-      fsWatchMock.mockImplementation(actual.watch);
+      chokidarWatchMock.mockImplementation(actual.watch);
       await cleanup();
     }
   });
@@ -764,6 +903,7 @@ describe("watchTargets", () => {
       });
 
       try {
+        await handle.ready;
         await writeFile(join(testDir, "AGENTS.md"), "# generated\n", "utf8");
         await writeFile(join(testDir, RULESYNC_CONFIG_RELATIVE_FILE_PATH), "{}\n", "utf8");
         await waitFor(() =>

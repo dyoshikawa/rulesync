@@ -126,6 +126,35 @@ describe("CortexcodeHooks", () => {
       });
     });
 
+    it("should carry the remote-hook source object on command hooks", async () => {
+      const rulesyncHooks = buildRulesyncHooks(testDir, {
+        version: 1,
+        hooks: {
+          preToolUse: [
+            {
+              type: "command",
+              command: "bash",
+              matcher: "bash",
+              source: { source: "github:org/hooks-repo/scripts/validate.sh", ref: "main" },
+            },
+          ],
+        },
+      });
+
+      const hooks = await CortexcodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const parsed = JSON.parse(hooks.getFileContent());
+      expect(parsed.hooks.PreToolUse[0].hooks[0]).toEqual({
+        type: "command",
+        command: "bash",
+        source: { source: "github:org/hooks-repo/scripts/validate.sh", ref: "main" },
+      });
+    });
+
     it("should emit prompt hooks and skip unsupported hook types", async () => {
       const rulesyncHooks = buildRulesyncHooks(testDir, {
         version: 1,
@@ -490,6 +519,13 @@ describe("CortexcodeHooks", () => {
             { type: "prompt", prompt: "Safe?", matcher: "bash" },
           ],
           stop: [{ type: "command", command: "stop.sh", enabled: false }],
+          sessionStart: [
+            {
+              type: "command",
+              command: "bash",
+              source: { source: "github:org/hooks-repo/scripts/setup.sh", ref: "main" },
+            },
+          ],
         },
       });
 
@@ -511,6 +547,10 @@ describe("CortexcodeHooks", () => {
         matcher: "bash",
       });
       expect(json.hooks.stop?.[0]).toMatchObject({ command: "stop.sh", enabled: false });
+      expect(json.hooks.sessionStart?.[0]).toMatchObject({
+        command: "bash",
+        source: { source: "github:org/hooks-repo/scripts/setup.sh", ref: "main" },
+      });
     });
   });
 
