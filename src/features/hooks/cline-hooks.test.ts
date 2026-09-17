@@ -90,6 +90,34 @@ describe("ClineHooks", () => {
       expect(scriptOf(files, "SessionShutdown")?.getFileContent()).toContain("echo end");
     });
 
+    it("maps stopCancelled onto TaskCancel in both spellings (issue #2405)", async () => {
+      const hooks = ClineHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks: buildRulesyncHooks({
+          hooks: {
+            stopCancelled: [{ type: "command", command: "echo aborted" }],
+            taskCompleted: [{ type: "command", command: "echo done" }],
+          },
+        }),
+      });
+
+      expect(JSON.parse(hooks.getFileContent())).toEqual({
+        generatedBy: "rulesync",
+        events: ["TaskCancel", "TaskComplete"],
+      });
+
+      const files = await hooks.getScriptFiles();
+      expect(files.map((file) => file.getRelativeFilePath()).toSorted()).toEqual([
+        "TaskCancel",
+        "TaskCancel.ps1",
+        "TaskComplete",
+        "TaskComplete.ps1",
+      ]);
+      expect(scriptOf(files, "TaskCancel")?.getFileContent()).toContain("echo aborted");
+      expect(scriptOf(files, "TaskCancel.ps1")?.getFileContent()).toContain("echo aborted");
+      expect(scriptOf(files, "TaskComplete")?.getFileContent()).not.toContain("echo aborted");
+    });
+
     it("layers the cline override block over the shared hooks", async () => {
       const hooks = ClineHooks.fromRulesyncHooks({
         outputRoot: testDir,

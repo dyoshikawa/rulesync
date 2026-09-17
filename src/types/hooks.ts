@@ -469,9 +469,13 @@ export const AMP_HOOK_EVENTS: readonly HookEvent[] = [
  * the platform the other one owns — see `generateClineHookScript` and
  * `generateClineHookPowerShellScript`.
  *
- * `TaskResume` and `TaskCancel` have no canonical counterpart and stay
- * unmapped rather than being approximated by `sessionEnd` / `stop`, whose
- * semantics differ.
+ * `TaskCancel` is the shape of canonical `stopCancelled` (as Grok CLI's
+ * `StopCancelled` and Codex CLI's `Interrupt` are): both runtimes fire it
+ * *instead of* `TaskComplete` when the run ends aborted — the VS Code
+ * extension from `afterRun` when the result status is `aborted`, the SDK/CLI
+ * as `agent_abort` — and neither lets the script cancel anything. `TaskResume`
+ * has no canonical counterpart and stays unmapped rather than being
+ * approximated by `sessionStart`, whose semantics differ.
  *
  * @see https://github.com/cline/cline/blob/main/apps/vscode/src/core/hooks/utils.ts
  * @see https://github.com/cline/cline/blob/main/sdk/packages/core/src/hooks/hook-file-config.ts
@@ -486,6 +490,7 @@ export const CLINE_HOOK_EVENTS: readonly HookEvent[] = [
   "notification",
   "taskCompleted",
   "afterError",
+  "stopCancelled",
 ];
 
 /**
@@ -912,8 +917,8 @@ export const GROKCLI_HOOK_EVENTS: readonly HookEvent[] = [
  * added in 0.32.0 (`TurnStarted`, `UserPromptQueued`, `TaskStarted`,
  * `SessionHeartbeat`), none of which is mapped onto a canonical rulesync event
  * here. `Interrupt` (fires instead of `Stop` when the user interrupts a turn)
- * does have a canonical shape — `stopCancelled`, which Grok CLI and Codex CLI
- * map — but Kimi keeps it native-only for now, since an existing `kimi-code`
+ * does have a canonical shape — `stopCancelled`, which Grok CLI, Codex CLI and
+ * Cline map — but Kimi keeps it native-only for now, since an existing `kimi-code`
  * override addressing it by name would otherwise double up with a canonical
  * `stopCancelled` block; folding it in is a follow-up. All six are listed in
  * `KIMI_CODE_NATIVE_HOOK_EVENTS` so a per-tool `kimi-code` override can
@@ -1717,6 +1722,7 @@ export const CANONICAL_TO_CLINE_EVENT_NAMES: Record<string, string> = {
   notification: "Notification",
   taskCompleted: "TaskComplete",
   afterError: "TaskError",
+  stopCancelled: "TaskCancel",
 };
 
 /**
