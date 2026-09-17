@@ -2028,7 +2028,7 @@ describe("OpencodeMcp", () => {
       });
     });
 
-    it("should round-trip documented-but-unmodeled per-server fields (timeout/oauth) back to OpenCode", async () => {
+    it("should round-trip documented-but-unmodeled per-server fields (timeout/oauth/protocol/codemode) back to OpenCode", async () => {
       // Start with OpenCode format carrying OpenCode-supported extras
       const originalJsonData = {
         mcp: {
@@ -2037,6 +2037,8 @@ describe("OpencodeMcp", () => {
             command: ["node", "server.js"],
             enabled: true,
             timeout: 120000,
+            protocol: "auto",
+            codemode: false,
           },
           "remote-server": {
             type: "remote",
@@ -2044,6 +2046,7 @@ describe("OpencodeMcp", () => {
             enabled: true,
             timeout: 60000,
             oauth: { clientId: "abc" },
+            protocol: "2026-07-28",
           },
         },
       };
@@ -2067,6 +2070,8 @@ describe("OpencodeMcp", () => {
         command: ["node", "server.js"],
         enabled: true,
         timeout: 120000,
+        protocol: "auto",
+        codemode: false,
       });
       expect(mcp?.["remote-server"]).toEqual({
         type: "remote",
@@ -2074,6 +2079,7 @@ describe("OpencodeMcp", () => {
         enabled: true,
         timeout: 60000,
         oauth: { clientId: "abc" },
+        protocol: "2026-07-28",
       });
     });
 
@@ -2832,6 +2838,23 @@ describe("OpencodeMcp", () => {
             relativeFilePath: "opencode.json",
             fileContent: JSON.stringify({
               mcp: { broken: { enabled: true, oauth: { clientId: "x" } } },
+            }),
+          }),
+      ).toThrow();
+    });
+
+    it("does not read a transport entry carrying codemode as a toggle", () => {
+      // `codemode` is a passthrough key, not part of either transport schema's
+      // `.def.shape`, so it has to be listed as a transport key explicitly or
+      // `{"enabled": true, "codemode": false}` would be read as a toggle.
+      expect(
+        () =>
+          new OpencodeMcp({
+            outputRoot: testDir,
+            relativeDirPath: ".",
+            relativeFilePath: "opencode.json",
+            fileContent: JSON.stringify({
+              mcp: { broken: { enabled: true, codemode: false } },
             }),
           }),
       ).toThrow();
