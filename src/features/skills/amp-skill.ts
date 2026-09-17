@@ -40,7 +40,7 @@ export type AmpSkillParams = {
  * Amp natively reads Agent Skills following the open standard: a directory with a
  * `SKILL.md` carrying `name`/`description` frontmatter, scoped to the project
  * (`.agents/skills/`) and user-wide (`~/.config/agents/skills/`).
- * @see https://ampcode.com/manual
+ * @see https://ampcode.com/docs/customize/skills
  */
 export class AmpSkill extends ToolSkill {
   constructor({

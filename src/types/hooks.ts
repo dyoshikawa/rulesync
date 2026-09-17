@@ -437,7 +437,7 @@ export const PI_HOOK_EVENTS: readonly HookEvent[] = [
  * adapter. Amp's `agent.start` / `agent.end` events describe the main agent
  * turn, not a subagent lifecycle, so they map to `beforeSubmitPrompt` / `stop`.
  *
- * @see https://ampcode.com/manual/plugin-api
+ * @see https://ampcode.com/docs/plugin-api
  */
 export const AMP_HOOK_EVENTS: readonly HookEvent[] = [
   "sessionStart",
