@@ -49,6 +49,22 @@ const TAKT_RUNTIME_TARGETS_KEY = "targets";
 const TAKT_RUNTIME_AUTO_ROUTING_KEY = "auto_routing";
 const TAKT_RUNTIME_PROFILE_KEY = "profile";
 const TAKT_RUNTIME_OPTIONS_KEY = "options";
+const TAKT_RUNTIME_ASSIGNMENTS_KEY = "assignments";
+const TAKT_RUNTIME_LADDER_KEY = "ladder";
+const TAKT_RUNTIME_EXTENDS_KEY = "extends";
+const TAKT_RUNTIME_ROUTER_PROFILE_KEY = "router_profile";
+const TAKT_RUNTIME_POOLS_KEY = "pools";
+const TAKT_RUNTIME_CANDIDATES_KEY = "candidates";
+const TAKT_RUNTIME_FALLBACK_PROFILE_KEY = "fallback_profile";
+/** The one `targets` map that routes companion reviewers rather than agents. */
+const TAKT_RUNTIME_COMPANIONS_TARGET_KEY = "companions";
+// Top-level `companion:` policy of runtime.yaml. Companions are opt-in
+// (`DEFAULT_COMPANION_ENABLED = false` upstream), and while they are off Takt
+// ignores every companion-only assignment before deciding which mode it is in.
+// https://github.com/nrslib/takt/blob/main/src/infra/config/runtime-provider/schema.ts
+const TAKT_RUNTIME_COMPANION_KEY = "companion";
+const TAKT_RUNTIME_ENABLED_KEY = "enabled";
+const TAKT_DEFAULT_COMPANION_ENABLED = false;
 
 // Takt's default-deny "workflow security policies": each admits one class of
 // user-supplied code (an Arpeggio module, a runtime-prepare script, a
@@ -468,29 +484,262 @@ function runtimeProfiles(runtime: Record<string, unknown>): Record<string, unkno
   return isPlainObject(profiles) ? profiles : {};
 }
 
+/** A `targets` map (`personas`, `tags`, …) with at least one non-empty entry. */
+function hasTargetContent(targets: unknown): boolean {
+  return isPlainObject(targets) && Object.values(targets).some(hasEntries);
+}
+
+/** The profile names an assignment points at: `profile` plus every `ladder` rung. */
+function assignmentProfileNames(assignment: unknown): string[] {
+  if (!isPlainObject(assignment)) {
+    return [];
+  }
+  const names: string[] = [];
+  const profile = assignment[TAKT_RUNTIME_PROFILE_KEY];
+  if (typeof profile === "string") {
+    names.push(profile);
+  }
+  const ladder = assignment[TAKT_RUNTIME_LADDER_KEY];
+  if (Array.isArray(ladder)) {
+    names.push(...ladder.filter((rung): rung is string => typeof rung === "string"));
+  }
+  return names;
+}
+
+/** The assignments under a `targets` map, split by whether they route companions. */
+function targetAssignments(targets: unknown, { companions }: { companions: boolean }): unknown[] {
+  if (!isPlainObject(targets)) {
+    return [];
+  }
+  return Object.entries(targets)
+    .filter(([name]) => (name === TAKT_RUNTIME_COMPANIONS_TARGET_KEY) === companions)
+    .flatMap(([, targetMap]) => (isPlainObject(targetMap) ? Object.values(targetMap) : []));
+}
+
+/**
+ * Record the profiles a `defaults` + `targets` pair (the top-level provider
+ * section or one named assignment set) reaches, keeping companion roots apart
+ * from the roots agents use.
+ */
+function addAssignmentSetRoots({
+  set,
+  companionRoots,
+  agentRoots,
+}: {
+  set: Record<string, unknown>;
+  companionRoots: Set<string>;
+  agentRoots: Set<string>;
+}): void {
+  for (const name of assignmentProfileNames(set[TAKT_RUNTIME_DEFAULTS_KEY])) {
+    agentRoots.add(name);
+  }
+  const targets = set[TAKT_RUNTIME_TARGETS_KEY];
+  for (const assignment of targetAssignments(targets, { companions: false })) {
+    for (const name of assignmentProfileNames(assignment)) {
+      agentRoots.add(name);
+    }
+  }
+  for (const assignment of targetAssignments(targets, { companions: true })) {
+    for (const name of assignmentProfileNames(assignment)) {
+      companionRoots.add(name);
+    }
+  }
+}
+
+/** The profiles `auto_routing` reaches: the router plus every pool candidate/fallback. */
+function addAutoRoutingRoots(autoRouting: unknown, roots: Set<string>): void {
+  if (!isPlainObject(autoRouting)) {
+    return;
+  }
+  const routerProfile = autoRouting[TAKT_RUNTIME_ROUTER_PROFILE_KEY];
+  if (typeof routerProfile === "string") {
+    roots.add(routerProfile);
+  }
+  const pools = autoRouting[TAKT_RUNTIME_POOLS_KEY];
+  if (!isPlainObject(pools)) {
+    return;
+  }
+  for (const pool of Object.values(pools)) {
+    if (!isPlainObject(pool)) {
+      continue;
+    }
+    const candidates = pool[TAKT_RUNTIME_CANDIDATES_KEY];
+    for (const candidate of Array.isArray(candidates) ? candidates : []) {
+      for (const name of assignmentProfileNames(candidate)) {
+        roots.add(name);
+      }
+    }
+    const fallback = pool[TAKT_RUNTIME_FALLBACK_PROFILE_KEY];
+    if (typeof fallback === "string") {
+      roots.add(fallback);
+    }
+  }
+}
+
+/** Every profile reachable from `roots` by following `extends`. */
+function profileClosure(
+  profiles: Record<string, unknown>,
+  roots: ReadonlySet<string>,
+): Set<string> {
+  const closure = new Set<string>();
+  const visit = (name: string): void => {
+    if (closure.has(name)) {
+      return;
+    }
+    closure.add(name);
+    const profile = profiles[name];
+    const parent = isPlainObject(profile) ? profile[TAKT_RUNTIME_EXTENDS_KEY] : undefined;
+    if (typeof parent === "string") {
+      visit(parent);
+    }
+  };
+  for (const root of roots) {
+    visit(root);
+  }
+  return closure;
+}
+
+/** The `targets` map minus its `companions` entry (`undefined` when not a map). */
+function withoutCompanionTargets(targets: unknown): Record<string, unknown> | undefined {
+  if (!isPlainObject(targets)) {
+    return undefined;
+  }
+  const { [TAKT_RUNTIME_COMPANIONS_TARGET_KEY]: _companions, ...remaining } = targets;
+  return remaining;
+}
+
+/**
+ * The named assignment sets with their companion targets removed; a set left
+ * with neither `defaults` nor a non-empty `targets` map is dropped, and
+ * `undefined` means none survived.
+ */
+function withoutCompanionAssignments(assignments: unknown): Record<string, unknown> | undefined {
+  if (!isPlainObject(assignments)) {
+    return undefined;
+  }
+  const remaining: Record<string, unknown> = {};
+  for (const [name, set] of Object.entries(assignments)) {
+    if (!isPlainObject(set)) {
+      continue;
+    }
+    const defaults = set[TAKT_RUNTIME_DEFAULTS_KEY];
+    const targets = withoutCompanionTargets(set[TAKT_RUNTIME_TARGETS_KEY]);
+    const keepTargets = hasTargetContent(targets);
+    if (defaults === undefined && !keepTargets) {
+      continue;
+    }
+    remaining[name] = {
+      ...(defaults === undefined ? {} : { [TAKT_RUNTIME_DEFAULTS_KEY]: defaults }),
+      ...(keepTargets ? { [TAKT_RUNTIME_TARGETS_KEY]: targets } : {}),
+    };
+  }
+  return Object.keys(remaining).length > 0 ? remaining : undefined;
+}
+
+/** Whether the section (or any of its named assignment sets) routes companions at all. */
+function hasCompanionTargets(section: Record<string, unknown>): boolean {
+  const routesCompanions = (set: unknown): boolean => {
+    const targets = isPlainObject(set) ? set[TAKT_RUNTIME_TARGETS_KEY] : undefined;
+    return isPlainObject(targets) && targets[TAKT_RUNTIME_COMPANIONS_TARGET_KEY] !== undefined;
+  };
+  const assignments = section[TAKT_RUNTIME_ASSIGNMENTS_KEY];
+  return (
+    routesCompanions(section) ||
+    (isPlainObject(assignments) && Object.values(assignments).some(routesCompanions))
+  );
+}
+
+/**
+ * The `provider:` section as Takt itself evaluates it, mirroring upstream's
+ * `getEffectiveProviderSection`: unless `companion.enabled` is `true`
+ * (companions are opt-in), the `targets.companions` maps — top-level and inside
+ * every named assignment set — are dropped, along with each profile that only a
+ * companion target reaches through `extends`. A profile an agent assignment
+ * (`defaults`, the other `targets` maps, `auto_routing`) also reaches is kept.
+ * https://github.com/nrslib/takt/blob/main/src/infra/config/runtime-provider/schema.ts
+ */
+function effectiveRuntimeProviderSection(
+  runtime: Record<string, unknown>,
+): Record<string, unknown> | undefined {
+  const section = runtime[TAKT_RUNTIME_PROVIDER_KEY];
+  if (!isPlainObject(section)) {
+    return undefined;
+  }
+  const companion = runtime[TAKT_RUNTIME_COMPANION_KEY];
+  const companionEnabled =
+    (isPlainObject(companion) ? companion[TAKT_RUNTIME_ENABLED_KEY] : undefined) ??
+    TAKT_DEFAULT_COMPANION_ENABLED;
+  if (companionEnabled === true || !hasCompanionTargets(section)) {
+    return section;
+  }
+
+  const profiles = runtimeProfiles(runtime);
+  const companionRoots = new Set<string>();
+  const agentRoots = new Set<string>();
+  addAssignmentSetRoots({ set: section, companionRoots, agentRoots });
+  const assignments = section[TAKT_RUNTIME_ASSIGNMENTS_KEY];
+  for (const set of isPlainObject(assignments) ? Object.values(assignments) : []) {
+    if (isPlainObject(set)) {
+      addAssignmentSetRoots({ set, companionRoots, agentRoots });
+    }
+  }
+  addAutoRoutingRoots(section[TAKT_RUNTIME_AUTO_ROUTING_KEY], agentRoots);
+  const companionClosure = profileClosure(profiles, companionRoots);
+  const agentClosure = profileClosure(profiles, agentRoots);
+
+  const effective: Record<string, unknown> = {
+    ...section,
+    [TAKT_RUNTIME_PROFILES_KEY]: Object.fromEntries(
+      Object.entries(profiles).filter(
+        ([name]) => !companionClosure.has(name) || agentClosure.has(name),
+      ),
+    ),
+  };
+  for (const [key, value] of [
+    [TAKT_RUNTIME_TARGETS_KEY, withoutCompanionTargets(section[TAKT_RUNTIME_TARGETS_KEY])],
+    [TAKT_RUNTIME_ASSIGNMENTS_KEY, withoutCompanionAssignments(assignments)],
+  ] as const) {
+    if (value === undefined) {
+      delete effective[key];
+    } else {
+      effective[key] = value;
+    }
+  }
+  return effective;
+}
+
 /**
  * Whether a parsed `runtime.yaml` puts Takt into runtime mode, mirroring
- * upstream's mode detection: the `provider:` section must carry an actual
- * assignment — a non-empty `defaults`, `profiles` or `auto_routing`, or a
- * `targets` map with at least one non-empty nested map. The file existing is not
- * enough, and empty nested maps (`defaults: {}`, `targets: { personas: {} }`)
- * must not flip the mode.
+ * upstream's mode detection: the effective `provider:` section (see
+ * `effectiveRuntimeProviderSection` — companion-only routing does not count
+ * while companions are disabled) must carry an actual assignment — a non-empty
+ * `defaults`, `profiles` or `auto_routing`, a `targets` map with at least one
+ * non-empty nested map, or a named assignment set with a non-empty `defaults`
+ * or such a `targets` map. The file existing is not enough, and empty nested
+ * maps (`defaults: {}`, `targets: { personas: {} }`) must not flip the mode.
  * https://github.com/nrslib/takt/blob/main/src/infra/config/runtime-provider/mode.ts
  */
 function isRuntimeModeActive(runtime: Record<string, unknown>): boolean {
-  const provider = runtime[TAKT_RUNTIME_PROVIDER_KEY];
-  if (!isPlainObject(provider)) {
+  const section = effectiveRuntimeProviderSection(runtime);
+  if (section === undefined) {
     return false;
   }
-  if (
-    hasEntries(provider[TAKT_RUNTIME_DEFAULTS_KEY]) ||
-    hasEntries(provider[TAKT_RUNTIME_PROFILES_KEY]) ||
-    hasEntries(provider[TAKT_RUNTIME_AUTO_ROUTING_KEY])
-  ) {
-    return true;
-  }
-  const targets = provider[TAKT_RUNTIME_TARGETS_KEY];
-  return isPlainObject(targets) && Object.values(targets).some(hasEntries);
+  const assignments = section[TAKT_RUNTIME_ASSIGNMENTS_KEY];
+  const hasAssignments =
+    isPlainObject(assignments) &&
+    Object.values(assignments).some(
+      (set) =>
+        isPlainObject(set) &&
+        (hasEntries(set[TAKT_RUNTIME_DEFAULTS_KEY]) ||
+          hasTargetContent(set[TAKT_RUNTIME_TARGETS_KEY])),
+    );
+  return (
+    hasEntries(section[TAKT_RUNTIME_DEFAULTS_KEY]) ||
+    hasEntries(section[TAKT_RUNTIME_PROFILES_KEY]) ||
+    hasEntries(section[TAKT_RUNTIME_AUTO_ROUTING_KEY]) ||
+    hasTargetContent(section[TAKT_RUNTIME_TARGETS_KEY]) ||
+    hasAssignments
+  );
 }
 
 /** The provider named by the runtime profile Takt would use by default. */
@@ -528,10 +777,13 @@ function resolveRuntimeProvider(runtime: Record<string, unknown>): string | unde
  * shape the `takt` override uses. Each profile's options belong to that
  * profile's own provider; when several profiles name the same provider they are
  * merged in document order, so a later profile wins on a colliding option key.
+ * Profiles Takt itself ignores (companion-only ones while companions are
+ * disabled) are skipped, as they never reach an agent.
  */
 function collectRuntimeProviderOptions(runtime: Record<string, unknown>): Record<string, unknown> {
   const collected: Record<string, unknown> = {};
-  for (const profile of Object.values(runtimeProfiles(runtime))) {
+  const profiles = effectiveRuntimeProviderSection(runtime)?.[TAKT_RUNTIME_PROFILES_KEY];
+  for (const profile of Object.values(isPlainObject(profiles) ? profiles : {})) {
     if (!isPlainObject(profile)) {
       continue;
     }
@@ -577,13 +829,24 @@ async function readTaktRuntimeFile({
   }
 }
 
+/** A map-valued key of a `provider:` section, or `undefined` when it is not a map. */
+function runtimeSectionMap(
+  section: Record<string, unknown>,
+  key: string,
+): Record<string, unknown> | undefined {
+  return isPlainObject(section[key]) ? section[key] : undefined;
+}
+
 /**
  * Collapse the project and global `runtime.yaml` into the single document Takt
- * itself resolves against, matching upstream's loader: `profiles` is a union
- * with the project definition of a same-named profile replacing the global one,
- * while `defaults`, `targets` and `auto_routing` are taken from the project file
- * whole whenever it states them at all (`??`, so a project `targets: {}` masks
- * the global one rather than merging with it).
+ * itself resolves against, matching upstream's loader: `profiles` and
+ * `assignments` are unions with the project definition of a same-named entry
+ * replacing the global one, while `defaults`, `targets` and `auto_routing` are
+ * taken from the project file whole whenever it states them at all (`??`, so a
+ * project `targets: {}` masks the global one rather than merging with it). The
+ * top-level `companion.enabled` — which decides whether companion routing
+ * counts for mode detection — is carried as upstream carries it: unset when
+ * neither file states it, otherwise on only when neither file turns it off.
  * https://github.com/nrslib/takt/blob/main/src/infra/config/runtime-provider/loader.ts
  *
  * Merging before mode detection matters in both directions: a project file
@@ -606,16 +869,13 @@ function mergeTaktRuntimeConfigs({
   const globalSection = sectionOf(globalConfig);
   const replaced = (key: string): unknown => projectSection[key] ?? globalSection[key];
 
-  const profilesOf = (section: Record<string, unknown>): Record<string, unknown> | undefined =>
-    isPlainObject(section[TAKT_RUNTIME_PROFILES_KEY])
-      ? section[TAKT_RUNTIME_PROFILES_KEY]
-      : undefined;
-  const globalProfiles = profilesOf(globalSection);
-  const projectProfiles = profilesOf(projectSection);
-
   const provider: Record<string, unknown> = {};
-  if (globalProfiles !== undefined || projectProfiles !== undefined) {
-    provider[TAKT_RUNTIME_PROFILES_KEY] = { ...globalProfiles, ...projectProfiles };
+  for (const key of [TAKT_RUNTIME_PROFILES_KEY, TAKT_RUNTIME_ASSIGNMENTS_KEY]) {
+    const globalMap = runtimeSectionMap(globalSection, key);
+    const projectMap = runtimeSectionMap(projectSection, key);
+    if (globalMap !== undefined || projectMap !== undefined) {
+      provider[key] = { ...globalMap, ...projectMap };
+    }
   }
   for (const key of [
     TAKT_RUNTIME_DEFAULTS_KEY,
@@ -627,7 +887,21 @@ function mergeTaktRuntimeConfigs({
       provider[key] = value;
     }
   }
-  return { [TAKT_RUNTIME_PROVIDER_KEY]: provider };
+
+  const enabledOf = (config: Record<string, unknown> | undefined): unknown => {
+    const companion = config?.[TAKT_RUNTIME_COMPANION_KEY];
+    return isPlainObject(companion) ? companion[TAKT_RUNTIME_ENABLED_KEY] : undefined;
+  };
+  const globalEnabled = enabledOf(globalConfig);
+  const projectEnabled = enabledOf(project);
+  const companion =
+    globalEnabled === undefined && projectEnabled === undefined
+      ? undefined
+      : { [TAKT_RUNTIME_ENABLED_KEY]: globalEnabled !== false && projectEnabled !== false };
+  return {
+    [TAKT_RUNTIME_PROVIDER_KEY]: provider,
+    ...(companion === undefined ? {} : { [TAKT_RUNTIME_COMPANION_KEY]: companion }),
+  };
 }
 
 /**
