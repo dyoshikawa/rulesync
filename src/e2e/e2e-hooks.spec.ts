@@ -533,7 +533,7 @@ describe("E2E: hooks", () => {
   it("should generate reasonix hooks (.reasonix/settings.json, flat per-event arrays)", async () => {
     const testDir = getTestDir();
 
-    // Reasonix maps ten events; sessionStart ⇄ SessionStart,
+    // Reasonix maps thirteen events; sessionStart ⇄ SessionStart,
     // postModelInvocation ⇄ PostLLMCall, notification ⇄ Notification, and
     // preCompact ⇄ PreCompact are among them, while beforeReadFile has no mapped
     // Reasonix equivalent in rulesync's scoped surface and is dropped.

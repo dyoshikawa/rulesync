@@ -800,23 +800,32 @@ export const QWENCODE_HOOK_EVENTS: readonly HookEvent[] = [
  * Hook events supported by Reasonix.
  *
  * Reasonix's `.reasonix/settings.json` (project) / `~/.reasonix/settings.json`
- * (global) documents a ten-event surface (`PreToolUse`, `PostToolUse`,
- * `UserPromptSubmit`, `Stop`, `PostLLMCall`, `SessionStart`, `SessionEnd`,
- * `SubagentStop`, `Notification`, `PreCompact`). All ten have a clean canonical
+ * (global) accepts the thirteen events declared in `internal/hook/hook.go`
+ * (`var Events`): `PreToolUse`, `PostToolUse`, `PostToolUseFailure`,
+ * `PermissionRequest`, `UserPromptSubmit`, `Stop`, `StopFailure`,
+ * `PostLLMCall`, `SessionStart`, `SessionEnd`, `SubagentStop`, `Notification`,
+ * `PreCompact`. The zh-CN desktop hooks page documents only ten of them, so the
+ * source file is the authoritative list. All thirteen have a clean canonical
  * equivalent and are mapped: `PreToolUse`, `PostToolUse`,
- * `UserPromptSubmit` ← `beforeSubmitPrompt`, `Stop`, `SessionStart`,
- * `SessionEnd`, `SubagentStop`, `PostLLMCall` ← `postModelInvocation`,
- * `Notification` ← `notification`, and `PreCompact` ← `preCompact`.
- * `match` (Reasonix's matcher field name) is honored only on
- * `PreToolUse`/`PostToolUse`, matching the canonical `matcher` field's
- * tool-event scoping used by other adapters.
+ * `PostToolUseFailure`, `PermissionRequest`, `UserPromptSubmit` ←
+ * `beforeSubmitPrompt`, `Stop`, `StopFailure`, `SessionStart`, `SessionEnd`,
+ * `SubagentStop`, `PostLLMCall` ← `postModelInvocation`, `Notification` ←
+ * `notification`, and `PreCompact` ← `preCompact`.
+ * `match` (Reasonix's matcher field name) is honored on the four tool-scoped
+ * events (`PreToolUse`, `PostToolUse`, `PostToolUseFailure`,
+ * `PermissionRequest` — `UsesToolMatcher` in `internal/hook/inspect.go`) and
+ * ignored everywhere else.
+ * @see https://github.com/esengine/DeepSeek-Reasonix/blob/main-v2/internal/hook/hook.go
  * @see https://github.com/esengine/DeepSeek-Reasonix/blob/main-v2/docs/DESKTOP_HOOKS.zh-CN.md
  */
 export const REASONIX_HOOK_EVENTS: readonly HookEvent[] = [
   "preToolUse",
   "postToolUse",
+  "postToolUseFailure",
+  "permissionRequest",
   "beforeSubmitPrompt",
   "stop",
+  "stopFailure",
   "sessionStart",
   "sessionEnd",
   "subagentStop",
@@ -2041,8 +2050,11 @@ export const QWENCODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.
 export const CANONICAL_TO_REASONIX_EVENT_NAMES: Record<string, string> = {
   preToolUse: "PreToolUse",
   postToolUse: "PostToolUse",
+  postToolUseFailure: "PostToolUseFailure",
+  permissionRequest: "PermissionRequest",
   beforeSubmitPrompt: "UserPromptSubmit",
   stop: "Stop",
+  stopFailure: "StopFailure",
   sessionStart: "SessionStart",
   sessionEnd: "SessionEnd",
   subagentStop: "SubagentStop",
