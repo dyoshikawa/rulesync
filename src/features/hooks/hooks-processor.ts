@@ -38,7 +38,9 @@ import {
   TABNINE_HOOK_EVENTS,
   VIBE_HOOK_EVENTS,
   ZCODE_HOOK_EVENTS,
+  type HookDefinition,
   type HookEvent,
+  type HooksConfig,
   type HookType,
 } from "../../types/hooks.js";
 import type { RulesyncFile } from "../../types/rulesync-file.js";
@@ -247,6 +249,30 @@ const PER_HOOK_ENABLED_TARGETS: ReadonlySet<ToolTarget> = new Set([
   "kiro-ide",
   "zcode",
 ]);
+
+/** The targets whose hooks format carries the Kiro `confirm` prompt. */
+const PER_HOOK_CONFIRM_TARGETS: ReadonlySet<ToolTarget> = new Set(["kiro-cli", "kiro-ide"]);
+
+/**
+ * Names the shared events that carry a hook whose canonical definition
+ * satisfies `predicate`, excluding events the target skips altogether (those
+ * are already reported as skipped and produce no output, so warning about them
+ * again would contradict that message).
+ */
+function emittedEventsWithHook(params: {
+  factory: ToolHooksFactory;
+  sharedHooks: HooksConfig["hooks"];
+  effectiveHooks: HooksConfig["hooks"];
+  predicate: (def: HookDefinition) => boolean;
+}): string[] {
+  const { factory, sharedHooks, effectiveHooks, predicate } = params;
+  const skippedEvents: Set<string> = new Set(
+    unsupportedEventNames({ factory, sharedHooks, effectiveHooks }),
+  );
+  return Object.entries(sharedHooks)
+    .filter(([event, defs]) => !skippedEvents.has(event) && defs.some((def) => predicate(def)))
+    .map(([event]) => event);
+}
 
 export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFactory>([
   [
@@ -1101,33 +1127,7 @@ export class HooksProcessor extends FeatureProcessor {
       }
     }
 
-    // Warn that `enabled: false` cannot be expressed by targets whose hooks
-    // format carries no per-definition on-disk enable flag (`kiro-ide`,
-    // `kiro-cli` and `zcode` do); everywhere else the hook is emitted as an
-    // ordinary, active hook, so a user who paused one hook would otherwise see
-    // it keep firing with no explanation.
-    // Only canonical definitions are considered: a tool-native `enabled` inside
-    // an override block is passed through verbatim and honored by that tool.
-    if (!PER_HOOK_ENABLED_TARGETS.has(this.toolTarget)) {
-      // Events the target does not support are already reported as skipped and
-      // produce no output at all, so warning about them here would contradict
-      // that message.
-      const skippedEvents: Set<string> = new Set(
-        unsupportedEventNames({ factory, sharedHooks, effectiveHooks }),
-      );
-      const eventsWithDisabledHooks = Object.entries(sharedHooks)
-        .filter(
-          ([event, defs]) =>
-            !skippedEvents.has(event) &&
-            (defs as { enabled?: unknown }[]).some((def) => def.enabled === false),
-        )
-        .map(([event]) => event);
-      if (eventsWithDisabledHooks.length > 0) {
-        this.logger.warn(
-          `Emitting "enabled: false" hook(s) as active for ${this.toolTarget} (only the kiro-cli / kiro-ide / zcode hooks formats support the flag): ${eventsWithDisabledHooks.join(", ")}`,
-        );
-      }
-    }
+    this.warnAboutDroppedPerHookFields({ factory, sharedHooks, effectiveHooks });
 
     // Warn about unsupported matcher
     const eventsWithUnsupportedMatcher = unsupportedMatcherEventNames({ factory, effectiveHooks });
@@ -1161,6 +1161,55 @@ export class HooksProcessor extends FeatureProcessor {
     }
 
     return result;
+  }
+
+  /**
+   * Warns about canonical per-hook fields that this target's hooks format
+   * cannot express, so a hook does not silently change behavior on generation.
+   * Only canonical definitions are considered: a tool-native field inside an
+   * override block is passed through verbatim and honored by that tool.
+   */
+  private warnAboutDroppedPerHookFields(params: {
+    factory: ToolHooksFactory;
+    sharedHooks: HooksConfig["hooks"];
+    effectiveHooks: HooksConfig["hooks"];
+  }): void {
+    const { factory, sharedHooks, effectiveHooks } = params;
+    // Warn that `enabled: false` cannot be expressed by targets whose hooks
+    // format carries no per-definition on-disk enable flag (`kiro-ide`,
+    // `kiro-cli` and `zcode` do); everywhere else the hook is emitted as an
+    // ordinary, active hook, so a user who paused one hook would otherwise see
+    // it keep firing with no explanation.
+    if (!PER_HOOK_ENABLED_TARGETS.has(this.toolTarget)) {
+      const eventsWithDisabledHooks = emittedEventsWithHook({
+        factory,
+        sharedHooks,
+        effectiveHooks,
+        predicate: (def) => def.enabled === false,
+      });
+      if (eventsWithDisabledHooks.length > 0) {
+        this.logger.warn(
+          `Emitting "enabled: false" hook(s) as active for ${this.toolTarget} (only the kiro-cli / kiro-ide / zcode hooks formats support the flag): ${eventsWithDisabledHooks.join(", ")}`,
+        );
+      }
+    }
+
+    // Same idea for the Kiro `confirm` prompt: it asks the user
+    // before the command runs, so a target without it would run the hook
+    // unconditionally with no explanation.
+    if (!PER_HOOK_CONFIRM_TARGETS.has(this.toolTarget)) {
+      const eventsWithConfirmHooks = emittedEventsWithHook({
+        factory,
+        sharedHooks,
+        effectiveHooks,
+        predicate: (def) => def.confirm !== undefined,
+      });
+      if (eventsWithConfirmHooks.length > 0) {
+        this.logger.warn(
+          `Emitting hook(s) without their "confirm" prompt for ${this.toolTarget} (only the kiro-cli / kiro-ide hooks formats support it): ${eventsWithConfirmHooks.join(", ")}`,
+        );
+      }
+    }
   }
 
   async convertToolFilesToRulesyncFiles(toolFiles: ToolFile[]): Promise<RulesyncFile[]> {
