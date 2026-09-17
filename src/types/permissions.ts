@@ -966,11 +966,15 @@ export type KiroPermissionsOverride = z.infer<typeof KiroPermissionsOverrideSche
 
 /**
  * Codex CLI's approval-workflow policy. Serialized as a kebab-case string in
- * `.codex/config.toml`. `on-failure` is a legacy alias for `on-request` that
- * Codex still accepts, so it is included so existing configs round-trip. The
- * granular table form (`{ granular = { … } }`) is modeled separately in the
- * override union.
+ * `.codex/config.toml`. `on-failure` is a deprecated alias for `on-request`
+ * that Codex still reads, so it stays accepted (generate warns) so existing
+ * configs round-trip. `untrusted` was retired in Codex 0.149.0 and makes
+ * Codex refuse to start; it stays in the enum only so an existing
+ * `.rulesync/permissions.jsonc` still parses — generate warns and does not
+ * write it, and import does not lift it. The granular table form
+ * (`{ granular = { … } }`) is modeled separately in the override union.
  * @see https://learn.chatgpt.com/docs/config-file/config-reference
+ * @see https://github.com/openai/codex/pull/39630
  */
 const CodexApprovalPolicySchema = z.enum(["untrusted", "on-request", "on-failure", "never"]);
 
@@ -1035,11 +1039,12 @@ const CodexBasePermissionProfileSchema = z.enum(CODEX_BASE_PERMISSION_PROFILES);
  *   selected directly via `default_permissions` and skips the managed profile
  *   entirely — canonical filesystem/network rules are ignored in that mode.
  *   Defaults to `:workspace` when unspecified.
- * - `approval_policy` — `untrusted` | `on-request` (legacy alias `on-failure`) |
+ * - `approval_policy` — `on-request` (deprecated alias `on-failure`) |
  *   `never`, or a `{ granular = { … } }` table (kept verbatim; the granular
  *   schema has required fields that are brittle to model as typed keys).
  *   Defaults to `on-request` when neither the override nor the existing
- *   config sets it.
+ *   config sets it. `untrusted` (retired in Codex 0.149.0) is still parsed
+ *   but skipped with a warning on generate, since Codex refuses to start on it.
  * - `sandbox_mode` — **deprecated.** `read-only` | `workspace-write` |
  *   `danger-full-access`, with the sibling `sandbox_workspace_write` table
  *   (`network_access`, `writable_roots`, …). Codex has superseded the classic
