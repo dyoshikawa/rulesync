@@ -633,6 +633,8 @@ export class RulesyncMcp extends RulesyncFile {
           // spellings someone copying a `crush.json` entry writes — are
           // re-merged by the crush generator the same way; the client secret
           // among them is the reason they must not reach any other tool.
+          // `poolAllow` is Pool's approval allowlist, re-merged by the pool
+          // generator the same way; it is an approval decision only Pool reads.
           // `enabled` is stripped because OpenCode, Kilo, Grok CLI
           // and Goose have a NATIVE `enabled` field with different semantics a
           // leaked value would silently collide with.
@@ -653,6 +655,7 @@ export class RulesyncMcp extends RulesyncFile {
               "crushOauthClientSecret",
               "crushOauthCallbackPort",
               "crushSessionless",
+              "poolAllow",
               "oauth_client_id",
               "oauth_client_secret",
               "oauth_callback_port",
