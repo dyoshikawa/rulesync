@@ -476,7 +476,17 @@ describe("HooksProcessor", () => {
               confirm: { question: "Run tests?", options: [{ id: "y", label: "Yes", run: true }] },
             },
           ],
-          preToolUse: [{ type: "command", command: "lint.sh", confirmCommand: "gate.sh" }],
+          preToolUse: [
+            {
+              type: "command",
+              command: "lint.sh",
+              confirm: {
+                question: "Lint?",
+                confirmCommand: "gate.sh",
+                options: [{ id: "y", label: "Yes", run: true }],
+              },
+            },
+          ],
           postToolUse: [{ type: "command", command: "fmt.sh" }],
         },
       };

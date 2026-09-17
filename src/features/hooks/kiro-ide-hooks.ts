@@ -50,10 +50,10 @@ const KiroIdeHookEntrySchema = z.looseObject({
   action: z.optional(KiroIdeHookActionSchema),
   timeout: z.optional(z.number()),
   enabled: z.optional(z.boolean()),
-  // Confirmation prompt for `Stop`-trigger command hooks; see
-  // `HookDefinitionSchema.confirm`. Passed through verbatim in both directions.
+  // Confirmation prompt for `Stop`-trigger command hooks (with its optional
+  // nested `confirmCommand`); see `HookDefinitionSchema.confirm`. Passed
+  // through verbatim in both directions.
   confirm: z.optional(HookConfirmSchema),
-  confirmCommand: z.optional(safeString),
 });
 
 const KiroIdeHooksFileSchema = z.looseObject({
@@ -109,7 +109,6 @@ function buildKiroIdeEntriesForEvent(
       // preserved so regenerating does not silently reactivate the hook.
       enabled: def.enabled ?? true,
       ...(def.confirm !== undefined && { confirm: def.confirm }),
-      ...(def.confirmCommand !== undefined && { confirmCommand: def.confirmCommand }),
     });
   }
   return entries;
@@ -166,22 +165,25 @@ function canonicalToKiroIdeHooks(config: HooksConfig): KiroIdeHookEntry[] {
 }
 
 /**
- * Copies the Kiro `confirm` / `confirmCommand` fields back onto a canonical
- * definition. The prompt is user-authored JSON read back from disk: zod already
- * refuses a literal `__proto__` own key, and `constructor` / `prototype` keys
- * (which `z.looseObject` passes through) are dropped at every depth here.
+ * Copies the optional per-hook fields (`enabled`, `confirm`) back onto the
+ * canonical definition.
  */
-function confirmFieldsToCanonical(
-  entry: KiroIdeHookEntry,
-): Pick<HookDefinition, "confirm" | "confirmCommand"> {
-  const fields: Pick<HookDefinition, "confirm" | "confirmCommand"> = {};
+function copyOptionalHookFields({
+  entry,
+  def,
+}: {
+  entry: KiroIdeHookEntry;
+  def: HookDefinition;
+}): void {
+  // Only carry an explicit `false`: `true` is Kiro's default, so re-emitting
+  // it would add noise to every imported hook definition.
+  if (entry.enabled === false) def.enabled = false;
+  // The `confirm` block is user-authored JSON read from disk: zod already
+  // refuses a literal `__proto__` own key, and `constructor` / `prototype`
+  // keys (which `z.looseObject` passes through) are dropped at every depth.
   if (entry.confirm !== undefined && entry.confirm !== null) {
-    fields.confirm = omitPrototypePollutionKeysDeep(entry.confirm) as HookConfirm;
+    def.confirm = omitPrototypePollutionKeysDeep(entry.confirm) as HookConfirm;
   }
-  if (entry.confirmCommand !== undefined && entry.confirmCommand !== null) {
-    fields.confirmCommand = entry.confirmCommand;
-  }
-  return fields;
 }
 
 function kiroIdeHooksToCanonical(entries: KiroIdeHookEntry[]): HooksConfig["hooks"] {
@@ -213,10 +215,7 @@ function kiroIdeHooksToCanonical(entries: KiroIdeHookEntry[]): HooksConfig["hook
       def.matcher = entry.matcher;
     }
     if (entry.timeout !== undefined && entry.timeout !== null) def.timeout = entry.timeout;
-    // Only carry an explicit `false`: `true` is Kiro's default, so re-emitting
-    // it would add noise to every imported hook definition.
-    if (entry.enabled === false) def.enabled = false;
-    Object.assign(def, confirmFieldsToCanonical(entry));
+    copyOptionalHookFields({ entry, def });
 
     const list = lookupOwn({ record: canonical, key: eventName }) ?? [];
     list.push(def);

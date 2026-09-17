@@ -46,13 +46,18 @@ export const HookConfirmOptionSchema = z.looseObject({
 });
 
 /**
- * Kiro's static confirmation prompt shown before a `Stop`-trigger command hook
- * runs. Stored verbatim: Kiro is the only consumer, and it owns the shape.
+ * Kiro's confirmation prompt shown before a `Stop`-trigger command hook runs.
+ * `confirmCommand` (optional, inside the block) names a command whose JSON
+ * stdout drives the prompt at run time: `{ "skip": true }` suppresses it, a
+ * replacement `question` / `options` object overrides the static prompt, and
+ * on failure or timeout the static prompt is used. Stored verbatim: Kiro is
+ * the only consumer, and it owns the shape.
  * https://kiro.dev/docs/hooks/
  */
 export const HookConfirmSchema = z.looseObject({
   question: z.string(),
   options: z.array(HookConfirmOptionSchema),
+  confirmCommand: z.optional(safeString),
 });
 
 export type HookConfirm = z.infer<typeof HookConfirmSchema>;
@@ -80,15 +85,13 @@ export const HookDefinitionSchema = z.looseObject({
   // it; other targets warn and emit the hook as active.
   // https://kiro.dev/docs/hooks/
   enabled: z.optional(z.boolean()),
-  // Kiro: a confirmation prompt (`question` + `options[{ id, label, run }]`)
-  // shown before a `Stop`-trigger command hook runs, and an optional
-  // `confirmCommand` whose JSON stdout (`{ "skip": true }` or a replacement
-  // `question`/`options`) drives that prompt dynamically. Both are forwarded
-  // verbatim by the standalone Kiro hooks emitter and round-trip on import;
-  // no other target has an equivalent.
+  // Kiro: a confirmation prompt (`question` + `options[{ id, label, run }]`,
+  // optionally driven at run time by a nested `confirmCommand`) shown before a
+  // `Stop`-trigger command hook runs. Forwarded verbatim by the standalone
+  // Kiro hooks emitter and round-tripped on import; no other target has an
+  // equivalent.
   // https://kiro.dev/docs/hooks/
   confirm: z.optional(HookConfirmSchema),
-  confirmCommand: z.optional(safeString),
   prompt: z.optional(safeString),
   loop_limit: z.optional(z.nullable(z.number())),
   name: z.optional(safeString),

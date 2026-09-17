@@ -250,7 +250,7 @@ const PER_HOOK_ENABLED_TARGETS: ReadonlySet<ToolTarget> = new Set([
   "zcode",
 ]);
 
-/** The targets whose hooks format carries the Kiro `confirm` / `confirmCommand` gate. */
+/** The targets whose hooks format carries the Kiro `confirm` prompt. */
 const PER_HOOK_CONFIRM_TARGETS: ReadonlySet<ToolTarget> = new Set(["kiro-cli", "kiro-ide"]);
 
 /**
@@ -1194,7 +1194,7 @@ export class HooksProcessor extends FeatureProcessor {
       }
     }
 
-    // Same idea for the Kiro `confirm` / `confirmCommand` gate: it asks the user
+    // Same idea for the Kiro `confirm` prompt: it asks the user
     // before the command runs, so a target without it would run the hook
     // unconditionally with no explanation.
     if (!PER_HOOK_CONFIRM_TARGETS.has(this.toolTarget)) {
@@ -1202,7 +1202,7 @@ export class HooksProcessor extends FeatureProcessor {
         factory,
         sharedHooks,
         effectiveHooks,
-        predicate: (def) => def.confirm !== undefined || def.confirmCommand !== undefined,
+        predicate: (def) => def.confirm !== undefined,
       });
       if (eventsWithConfirmHooks.length > 0) {
         this.logger.warn(

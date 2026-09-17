@@ -234,7 +234,7 @@ describe("KiroIdeHooks", () => {
     expect(canonical.hooks.stop[0].prompt).toBe("Summarize");
   });
 
-  it("forwards the Kiro confirm prompt and confirmCommand verbatim (issue #2408)", async () => {
+  it("forwards the Kiro confirm prompt with its nested confirmCommand verbatim (issue #2408)", async () => {
     const rulesyncHooks = new RulesyncHooks({
       relativeDirPath: ".rulesync",
       relativeFilePath: "hooks.jsonc",
@@ -246,12 +246,14 @@ describe("KiroIdeHooks", () => {
               command: "npm test",
               confirm: {
                 question: "Run the test suite?",
+                // Kiro reads `confirmCommand` inside the `confirm` block, not
+                // as a sibling of `action`.
+                confirmCommand: "node scripts/should-test.js",
                 options: [
                   { id: "yes", label: "Run tests", run: true },
                   { id: "no", label: "Skip", run: false },
                 ],
               },
-              confirmCommand: "node scripts/should-test.js",
             },
           ],
           preToolUse: [{ matcher: "Write", command: "echo lint" }],
@@ -264,16 +266,16 @@ describe("KiroIdeHooks", () => {
     const stop = entries.find((entry) => entry.trigger === "Stop");
     expect(stop?.confirm).toEqual({
       question: "Run the test suite?",
+      confirmCommand: "node scripts/should-test.js",
       options: [
         { id: "yes", label: "Run tests", run: true },
         { id: "no", label: "Skip", run: false },
       ],
     });
-    expect(stop?.confirmCommand).toBe("node scripts/should-test.js");
+    expect(stop).not.toHaveProperty("confirmCommand");
     // Hooks without a prompt do not grow empty keys.
     const pre = entries.find((entry) => entry.trigger === "PreToolUse");
     expect(pre).not.toHaveProperty("confirm");
-    expect(pre).not.toHaveProperty("confirmCommand");
   });
 
   it("round-trips a confirm prompt on import and strips prototype-pollution keys at every depth", async () => {
@@ -294,9 +296,9 @@ describe("KiroIdeHooks", () => {
             "confirm": {
               "question": "Run the\\ntest suite?",
               "constructor": { "polluted": true },
+              "confirmCommand": "node scripts/should-test.js",
               "options": [{ "id": "yes", "label": "Run", "run": true, "prototype": { "x": 1 } }]
-            },
-            "confirmCommand": "node scripts/should-test.js"
+            }
           }
         ]
       }`,
@@ -308,11 +310,11 @@ describe("KiroIdeHooks", () => {
     // Prompt text is plain JSON, so a multi-line question survives intact.
     expect(canonical.hooks.stop[0].confirm).toEqual({
       question: "Run the\ntest suite?",
+      confirmCommand: "node scripts/should-test.js",
       options: [{ id: "yes", label: "Run", run: true }],
     });
     expect(canonical.hooks.stop[0].confirm).not.toHaveProperty("constructor");
     expect(canonical.hooks.stop[0].confirm.options[0]).not.toHaveProperty("prototype");
-    expect(canonical.hooks.stop[0].confirmCommand).toBe("node scripts/should-test.js");
 
     const regenerated = await KiroIdeHooks.fromRulesyncHooks({
       outputRoot: testDir,
@@ -320,7 +322,7 @@ describe("KiroIdeHooks", () => {
     });
     const entry = JSON.parse(regenerated.getFileContent()).hooks[0];
     expect(entry.confirm.options).toHaveLength(1);
-    expect(entry.confirmCommand).toBe("node scripts/should-test.js");
+    expect(entry.confirm.confirmCommand).toBe("node scripts/should-test.js");
   });
 
   it("round-trips a disabled hook instead of silently reactivating it", async () => {
