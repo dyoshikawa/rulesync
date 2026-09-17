@@ -108,6 +108,11 @@ export class CursorHooks extends ToolHooks {
           ...(def.loop_limit !== undefined && { loop_limit: def.loop_limit }),
           ...(def.matcher !== undefined && def.matcher !== null && { matcher: def.matcher }),
           ...(def.prompt !== undefined && def.prompt !== null && { prompt: def.prompt }),
+          // Prompt hooks accept an optional `model` overriding the fast model
+          // that evaluates the condition. https://cursor.com/docs/hooks
+          ...(def.type === "prompt" &&
+            def.model !== undefined &&
+            def.model !== null && { model: def.model }),
           ...(def.failClosed !== undefined &&
             def.failClosed !== null && {
               failClosed: def.failClosed,

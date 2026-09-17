@@ -273,7 +273,7 @@ By default the generated hooks replace the destination's hook list wholesale, so
 - `shell` (optional): Either `"bash"` or `"powershell"` — the only two interpreter values any tool accepts. Forwarded to Qwen Code, Claude Code, Copilot and Copilot CLI command hooks; for the two Copilot targets it names the `bash`/`powershell` field the command is written into, and leaving it unset selects their portable `command` field. Like `args`, `async` and `asyncRewake`, it is documented on command hooks only, so it is neither emitted on a hook of another type nor imported from one (a value found there is dropped with a warning).
 - `url` / `headers` / `allowedEnvVars` (optional, `http` hooks): the POST target URL, request headers (values support `$VAR` interpolation), and the env-var allowlist for that interpolation. Forwarded to Claude Code and Qwen Code http hooks.
 - `server` / `tool` / `input` (optional, `mcp_tool` hooks): the configured MCP server name, the tool to call on it, and the (arbitrary JSON) arguments, whose string values support `${path}` substitution from the hook input. Forwarded to Claude Code mcp_tool hooks.
-- `model` (optional, `prompt` / `agent` hooks): the model used for evaluation (defaults to a fast model). Forwarded to Claude Code prompt/agent hooks and to Qwen Code prompt hooks.
+- `model` (optional, `prompt` / `agent` hooks): the model used for evaluation (defaults to a fast model). Forwarded to Claude Code prompt/agent hooks, to Qwen Code prompt hooks, and to Cursor prompt hooks (the [Cursor hooks docs](https://cursor.com/docs/hooks) document it as an optional prompt-hook override; it is dropped from Cursor `command` hooks).
 - `args` (optional, `command` hooks): an argument list. When present — an empty list counts, and is the form the Claude Code docs use — the tool spawns `command` directly as an executable with these arguments. There is no shell, so Rulesync writes the project-directory prefix as the braced placeholder `${CLAUDE_PROJECT_DIR}/…` that Claude Code substitutes itself, rather than the quoted shell form. Forwarded to Claude Code, AugmentCode and Copilot CLI (where it is written as the CLI-only `exec` + `args` pair). Only `command` is prefixed; entries of `args` are passed through exactly as written.
 - `asyncRewake` (optional): boolean. Like `async`, but wakes Claude when the hook exits with code 2. Forwarded to Claude Code command hooks.
 - `once` (optional): boolean. Run the hook once per session, then remove it. Forwarded to Claude Code (honored in skill frontmatter; accepted but ignored in settings files) and Qwen Code http hooks.
@@ -990,6 +990,9 @@ cursor: # for Cursor-specific parameters (optional)
     - "src/**/*.ts"
   disable-model-invocation: true # (optional) only include the skill when invoked via /skill-name
   user-invocable: false # (optional) hide from / autocomplete and typed /skill-name, keep model access
+  icon: rocket # (optional) Custom Modes badge icon (code, terminal, bug, git-branch, book-open, beaker, shield, rocket); unknown values fall back to Cursor's default badge
+  color: purple # (optional) Custom Modes badge color (default, green, cyan, blue, purple, magenta, orange, yellow, red, brand)
+  # On import, the legacy Cursor `globs` field is read as a fallback for `paths` (and dropped when `paths` is also set); generate always writes `paths`.
   metadata: # (optional) free-form metadata
     author: rulesync
 factorydroid: # for Factory Droid-specific parameters (optional)

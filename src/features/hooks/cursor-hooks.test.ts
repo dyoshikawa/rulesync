@@ -97,6 +97,43 @@ describe("CursorHooks", () => {
       expect(parsed.hooks.beforeShellExecution[0].failClosed).toBe(true);
     });
 
+    it("should forward the prompt-hook model override and drop it from command hooks", async () => {
+      const config = {
+        version: 1,
+        hooks: {
+          beforeShellExecution: [
+            { type: "prompt", prompt: "Is this command safe?", model: "custom-model-name" },
+            { command: ".cursor/hooks/guard.sh", model: "ignored-on-command-hooks" },
+          ],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const parsed = JSON.parse(
+        (
+          await CursorHooks.fromRulesyncHooks({
+            outputRoot: testDir,
+            rulesyncHooks,
+            validate: false,
+          })
+        ).getFileContent(),
+      );
+      expect(parsed.hooks.beforeShellExecution[0]).toEqual({
+        type: "prompt",
+        prompt: "Is this command safe?",
+        model: "custom-model-name",
+      });
+      expect(parsed.hooks.beforeShellExecution[1]).toEqual({
+        command: ".cursor/hooks/guard.sh",
+      });
+    });
+
     it("should merge config.cursor.hooks on top of shared hooks", async () => {
       const config = {
         version: 1,

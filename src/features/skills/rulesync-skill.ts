@@ -287,6 +287,10 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
       paths: z.optional(z.union([z.string(), z.array(z.string())])),
       "disable-model-invocation": z.optional(z.boolean()),
       "user-invocable": z.optional(z.boolean()),
+      // Custom Modes badge; free-form strings since Cursor falls back to its
+      // default badge for unrecognized values.
+      icon: z.optional(z.string()),
+      color: z.optional(z.string()),
       metadata: z.optional(z.looseObject({})),
     }),
   ),
@@ -562,6 +566,8 @@ export type RulesyncSkillFrontmatterInput = {
     paths?: string | string[];
     "disable-model-invocation"?: boolean;
     "user-invocable"?: boolean;
+    icon?: string;
+    color?: string;
     metadata?: Record<string, unknown>;
   };
   factorydroid?: {
