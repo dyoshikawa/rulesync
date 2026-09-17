@@ -309,7 +309,7 @@ export class CodexcliPermissions extends ToolPermissions {
       // surface the migration once, at the file that still carries it.
       warnWithFallback(
         undefined,
-        `${join(this.getRelativeDirPath(), this.getRelativeFilePath())} sets approval_policy = "${CODEX_RETIRED_APPROVAL_POLICY}", which Codex retired in 0.149.0 and now refuses to start with. It was not imported; remove it from the file, or mark the project untrusted in your user config instead ([projects."<path>"] trust_level = "${CODEX_RETIRED_APPROVAL_POLICY}").`,
+        `${join(this.getRelativeDirPath(), this.getRelativeFilePath())} sets approval_policy = "${CODEX_RETIRED_APPROVAL_POLICY}", which was retired in Codex 0.149.0 and makes Codex refuse to start. It was not imported; remove it from the file, or mark the project untrusted in your user config instead ([projects."<path>"] trust_level = "${CODEX_RETIRED_APPROVAL_POLICY}").`,
       );
       delete override.approval_policy;
     }
@@ -943,20 +943,44 @@ function computeCodexcliOverridePatch({
       isPlainObject(existingValue) && isPlainObject(value) ? { ...existingValue, ...value } : value;
   }
 
-  // Defaults for keys rulesync recommends always pinning. The override wins,
-  // then an existing user-set value in config.toml; the default fills the key
-  // only when both are absent (the gateway preserves existing keys that are
-  // not in the patch, so leaving them out of the patch keeps user values).
+  fillCodexcliDefaults({ existing, patch, logger });
+  return patch;
+}
+
+// Defaults for keys rulesync recommends always pinning. The override wins,
+// then an existing user-set value in config.toml; the default fills the key
+// only when both are absent (the gateway preserves existing keys that are
+// not in the patch, so leaving them out of the patch keeps user values).
+// The one existing value that is not kept is the retired `approval_policy =
+// "untrusted"` — typically left behind by an earlier rulesync run that still
+// wrote it — because preserving it keeps producing a config.toml Codex
+// refuses to start with; it is replaced by the default, with a warning.
+function fillCodexcliDefaults({
+  existing,
+  patch,
+  logger,
+}: {
+  existing: UnknownTable;
+  patch: Record<string, unknown>;
+  logger?: ToolPermissionsFromRulesyncPermissionsParams["logger"];
+}): void {
   const defaults: Record<string, string> = {
     approval_policy: CODEX_DEFAULT_APPROVAL_POLICY,
     approvals_reviewer: CODEX_DEFAULT_APPROVALS_REVIEWER,
   };
   for (const [key, value] of Object.entries(defaults)) {
-    if (patch[key] === undefined && existing[key] === undefined) {
+    if (patch[key] !== undefined) continue;
+    if (existing[key] === undefined) {
+      patch[key] = value;
+      continue;
+    }
+    if (key === "approval_policy" && existing[key] === CODEX_RETIRED_APPROVAL_POLICY) {
+      logger?.warn(
+        `The existing Codex CLI config.toml sets approval_policy = "${CODEX_RETIRED_APPROVAL_POLICY}", which was retired in Codex 0.149.0 and makes Codex refuse to start, so it was replaced with "${value}". To keep the strict behavior, mark the project untrusted in your user config instead ([projects."<path>"] trust_level = "${CODEX_RETIRED_APPROVAL_POLICY}").`,
+      );
       patch[key] = value;
     }
   }
-  return patch;
 }
 
 // Whether an authored `approval_policy` may be written. The retired

@@ -1845,6 +1845,70 @@ command = "node"
         );
       });
 
+      it("replaces a leftover approval_policy = untrusted in config.toml with the default", async () => {
+        // An earlier rulesync still wrote `untrusted`; keeping it would leave a
+        // config.toml Codex refuses to start with on every regeneration.
+        const logger = createMockLogger();
+        const codexDir = join(testDir, ".codex");
+        await ensureDir(codexDir);
+        await writeFileContent(
+          join(codexDir, "config.toml"),
+          ['approval_policy = "untrusted"', 'approvals_reviewer = "user"'].join("\n"),
+        );
+        const rulesyncPermissions = new RulesyncPermissions({
+          outputRoot: testDir,
+          relativeDirPath: ".rulesync",
+          relativeFilePath: "permissions.json",
+          fileContent: JSON.stringify({
+            permission: { read: { "src/**": "allow" } },
+          }),
+        });
+
+        const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+          outputRoot: testDir,
+          rulesyncPermissions,
+          logger,
+        });
+
+        const parsed = smolToml.parse(codexPermissions.getFileContent()) as Record<string, unknown>;
+        expect(parsed.approval_policy).toBe("on-request");
+        expect(parsed.approvals_reviewer).toBe("user");
+        const warnMessages = logger.warn.mock.calls.map((call) => String(call[0]));
+        expect(
+          warnMessages.some(
+            (line) =>
+              line.includes('existing Codex CLI config.toml sets approval_policy = "untrusted"') &&
+              line.includes('replaced with "on-request"'),
+          ),
+        ).toBe(true);
+      });
+
+      it("lets an authored approval_policy override a leftover untrusted value", async () => {
+        const logger = createMockLogger();
+        const codexDir = join(testDir, ".codex");
+        await ensureDir(codexDir);
+        await writeFileContent(join(codexDir, "config.toml"), 'approval_policy = "untrusted"\n');
+        const rulesyncPermissions = new RulesyncPermissions({
+          outputRoot: testDir,
+          relativeDirPath: ".rulesync",
+          relativeFilePath: "permissions.json",
+          fileContent: JSON.stringify({
+            permission: { read: { "src/**": "allow" } },
+            codexcli: { approval_policy: "never" },
+          }),
+        });
+
+        const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+          outputRoot: testDir,
+          rulesyncPermissions,
+          logger,
+        });
+
+        const parsed = smolToml.parse(codexPermissions.getFileContent()) as Record<string, unknown>;
+        expect(parsed.approval_policy).toBe("never");
+        expect(logger.warn).not.toHaveBeenCalled();
+      });
+
       it("does not import the retired value and warns with the migration path", () => {
         const warn = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
         const codexPermissions = new CodexcliPermissions({
@@ -1867,7 +1931,7 @@ command = "node"
         const message = String(warn.mock.calls[0]?.[0]);
         expect(message).toContain(join(".codex", "config.toml"));
         expect(message).toContain('approval_policy = "untrusted"');
-        expect(message).toContain("retired in 0.149.0");
+        expect(message).toContain("retired in Codex 0.149.0");
         expect(message).toContain('trust_level = "untrusted"');
       });
 
