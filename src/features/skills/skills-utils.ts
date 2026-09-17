@@ -6,12 +6,88 @@ import {
   SKILLS_FEATURE_SUBDIR,
 } from "../../constants/rulesync-paths.js";
 import { containsPathSeparator } from "../../types/ai-dir.js";
+import { quoteForLog, stripControlCharacters } from "../../utils/control-characters.js";
 import {
   directoryExists,
   directoryExistsStrict,
   fileExists,
   listSubdirectoryNames,
+  toPosixPath,
 } from "../../utils/file.js";
+import { type Logger, warnWithFallback } from "../../utils/logger.js";
+
+/**
+ * Limits shared by every consumer of the Agent Skills `SKILL.md` shape: the
+ * Agent Skills specification defines them and Zed applies the same numbers to
+ * its own skill loader. Adapters that only borrow the numbers phrase their own
+ * messages; the name rules below are identical across both, so they are
+ * checked in one place.
+ * @see https://agentskills.io/specification
+ * @see https://zed.dev/docs/ai/skills
+ */
+export const SKILL_NAME_MAX_LENGTH = 64;
+export const SKILL_DESCRIPTION_MAX_LENGTH = 1024;
+
+// "Lowercase letters, numbers, and hyphens only", with no leading/trailing
+// hyphen and no consecutive hyphens — all four rules expressed as alphanumeric
+// runs joined by single hyphens.
+export const SKILL_NAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+/**
+ * Check a skill `name` against the length and character rules, phrased for the
+ * `authority` that enforces them (e.g. "the Agent Skills spec" or "Zed"). When
+ * that authority does something with a bad name beyond flagging it — Zed
+ * refuses to load the skill — `consequence` names it so the warning says what
+ * the author is about to lose. An empty name is the caller's concern: what it
+ * means differs per consumer.
+ */
+export function collectSkillNameViolations({
+  name,
+  authority,
+  consequence,
+}: {
+  name: string;
+  authority: string;
+  consequence?: string;
+}): string[] {
+  const violations: string[] = [];
+  if (name.length > SKILL_NAME_MAX_LENGTH) {
+    violations.push(
+      `\`name\` is ${name.length} characters; ${authority} allows at most ${SKILL_NAME_MAX_LENGTH}${
+        consequence === undefined ? "" : ` and ${consequence}`
+      }`,
+    );
+  }
+  if (!SKILL_NAME_PATTERN.test(name)) {
+    violations.push(
+      `\`name\` ${quoteForLog(name)} must contain only lowercase letters, digits and single hyphens, with no leading, trailing or consecutive hyphens${
+        consequence === undefined ? "" : `; ${authority} ${consequence}`
+      }`,
+    );
+  }
+  return violations;
+}
+
+/**
+ * Report each violation as a warning prefixed with the skill file it concerns.
+ * The path is shown POSIX-style and stripped of control characters so a hostile
+ * directory name cannot forge log lines; `warnWithFallback` keeps the report
+ * visible when the caller has no logger to hand.
+ */
+export function warnSkillViolations({
+  skillPath,
+  violations,
+  logger,
+}: {
+  skillPath: string;
+  violations: readonly string[];
+  logger?: Logger;
+}): void {
+  const shownPath = stripControlCharacters(toPosixPath(skillPath));
+  for (const violation of violations) {
+    warnWithFallback(logger, `${shownPath}: ${violation}`);
+  }
+}
 
 /**
  * Whether a directory on disk can be addressed by its name.
