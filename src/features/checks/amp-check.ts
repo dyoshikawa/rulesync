@@ -45,9 +45,9 @@ export type AmpCheckParams = {
  * Amp reads code review checks as Markdown files with YAML frontmatter,
  * scoped to the project (`.agents/checks/`) and user-wide (`~/.config/amp/checks/`).
  * Each check runs as a per-check subagent during code review. Since the
- * 2026-09 docs rebuild the checks runner ships as the official
- * `@amp/review-checks` plugin rather than the deprecated `amp review` command,
- * so the generated files take effect only once that plugin is installed.
+ * 2026-09 docs rebuild the supported runner is the official
+ * `@amp/review-checks` plugin (`amp review` is deprecated); existing checks in
+ * this format continue to apply.
  * @see https://ampcode.com/docs/review
  */
 export class AmpCheck extends ToolCheck {

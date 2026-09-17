@@ -74,7 +74,9 @@ type AmpPermissionEntry = {
  * The `amp.guardedFiles.allowlist` array (file globs allowed without
  * confirmation), `amp.dangerouslyAllowAll` boolean (disable all confirmation),
  * and `amp.mcpPermissions` array — sibling settings authored through the `amp`
- * permissions override. Reference: https://ampcode.com/manual.
+ * permissions override. Since 2026-09 only `amp.mcpPermissions` is still
+ * documented (https://ampcode.com/docs/cli/settings); the other two are
+ * undocumented-but-honored like `amp.permissions` (see `AMP_PERMISSIONS_KEY`).
  */
 const AMP_GUARDED_FILES_ALLOWLIST_KEY = "amp.guardedFiles.allowlist";
 const AMP_DANGEROUSLY_ALLOW_ALL_KEY = "amp.dangerouslyAllowAll";

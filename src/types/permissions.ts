@@ -750,7 +750,9 @@ export type TaktPermissionsOverride = z.infer<typeof TaktPermissionsOverrideSche
  */
 const AmpPermissionsOverrideSchema = z.looseObject({
   permission: z.optional(ToolScopedPermissionSchema),
-  // @see https://ampcode.com/manual/appendix/legacy-permissions-rules.txt
+  // Undocumented-but-honored since the 2026-09 docs rebuild: the legacy
+  // permissions appendix now redirects to https://ampcode.com/docs/tools#permissions,
+  // which only points at custom plugins, but the shipped CLI still reads the key.
   permissions: z.optional(
     z.array(
       z.looseObject({
@@ -760,7 +762,7 @@ const AmpPermissionsOverrideSchema = z.looseObject({
       }),
     ),
   ),
-  // @see https://ampcode.com/manual (amp.mcpPermissions)
+  // @see https://ampcode.com/docs/cli/settings (amp.mcpPermissions)
   mcpPermissions: z.optional(z.array(z.looseObject({ action: z.enum(["allow", "reject"]) }))),
   guardedFiles: z.optional(z.looseObject({ allowlist: z.optional(z.array(z.string())) })),
   dangerouslyAllowAll: z.optional(z.boolean()),
