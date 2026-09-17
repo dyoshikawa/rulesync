@@ -274,6 +274,8 @@ rulesync.local.jsonc
 **/.clinerules/hooks/PreToolUse.ps1
 **/.clinerules/hooks/SessionShutdown
 **/.clinerules/hooks/SessionShutdown.ps1
+**/.clinerules/hooks/TaskCancel
+**/.clinerules/hooks/TaskCancel.ps1
 **/.clinerules/hooks/TaskComplete
 **/.clinerules/hooks/TaskComplete.ps1
 **/.clinerules/hooks/TaskError
