@@ -289,7 +289,7 @@ This is the body of the zed skill.`;
       );
     });
 
-    it("should report every violation of one skill, in the order Zed lists its rules", () => {
+    it("should report every violation of one skill, name rules before description", () => {
       const logger = createMockLogger();
       const rulesyncSkill = makeRulesyncSkill({
         dirName: "bad-skill",

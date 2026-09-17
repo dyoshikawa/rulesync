@@ -6,12 +6,15 @@ import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ZED_SKILLS_DIR_PATH } from "../../constants/zed-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
-import { stripControlCharacters } from "../../utils/control-characters.js";
 import { formatError } from "../../utils/error.js";
-import { toPosixPath } from "../../utils/file.js";
-import { type Logger, warnWithFallback } from "../../utils/logger.js";
+import { type Logger } from "../../utils/logger.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
-import { resolveDisableModelInvocation } from "./skills-utils.js";
+import {
+  collectSkillNameViolations,
+  resolveDisableModelInvocation,
+  SKILL_DESCRIPTION_MAX_LENGTH,
+  warnSkillViolations,
+} from "./skills-utils.js";
 import {
   ToolSkill,
   ToolSkillForDeletionParams,
@@ -28,23 +31,20 @@ const ZedSkillFrontmatterSchema = z.looseObject({
 
 export type ZedSkillFrontmatter = z.infer<typeof ZedSkillFrontmatterSchema>;
 
-// Limits Zed applies when it loads a skill. A `name` outside these rules makes
+// Zed applies the Agent Skills name and description limits (shared through
+// `skills-utils.ts`) when it loads a skill. A `name` outside those rules makes
 // the skill "fail to load and surface an error in the UI"; a `description`
 // past the limit still loads, "but with a warning". Both are reported at
 // generate time so the author hears about them before opening Zed. The 50KB
 // cap on the catalog as a whole spans every installed skill, which a single
 // skill cannot judge, so it is not checked here.
 // https://zed.dev/docs/ai/skills
-const ZED_SKILL_NAME_MAX_LENGTH = 64;
-const ZED_SKILL_DESCRIPTION_MAX_LENGTH = 1024;
-// "Lowercase letters, numbers, and hyphens only", not starting or ending with
-// a hyphen and with no consecutive hyphens — alphanumeric runs joined by
-// single hyphens.
-const ZED_SKILL_NAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const ZED = "Zed";
+const ZED_LOAD_FAILURE = "does not load the skill otherwise";
 
 /**
  * Collect the rules Zed enforces on a skill's frontmatter that the loose
- * schema above does not, in the order Zed's docs list them. Returned as
+ * schema above does not — `name` rules first, then `description`. Returned as
  * warnings rather than thrown: the canonical skill is shared with every other
  * target, so a name Zed rejects must not stop the generate run for the rest.
  */
@@ -60,21 +60,14 @@ function collectZedSkillViolations({
   if (name.length === 0) {
     violations.push("`name` must not be empty; Zed does not load a skill without one");
   } else {
-    if (name.length > ZED_SKILL_NAME_MAX_LENGTH) {
-      violations.push(
-        `\`name\` is ${name.length} characters; Zed allows at most ${ZED_SKILL_NAME_MAX_LENGTH} and does not load the skill otherwise`,
-      );
-    }
-    if (!ZED_SKILL_NAME_PATTERN.test(name)) {
-      violations.push(
-        `\`name\` "${name}" must contain only lowercase letters, digits and single hyphens, with no leading, trailing or consecutive hyphens; Zed does not load the skill otherwise`,
-      );
-    }
+    violations.push(
+      ...collectSkillNameViolations({ name, authority: ZED, consequence: ZED_LOAD_FAILURE }),
+    );
   }
 
-  if (description.length > ZED_SKILL_DESCRIPTION_MAX_LENGTH) {
+  if (description.length > SKILL_DESCRIPTION_MAX_LENGTH) {
     violations.push(
-      `\`description\` is ${description.length} characters; Zed loads the skill but warns past ${ZED_SKILL_DESCRIPTION_MAX_LENGTH}`,
+      `\`description\` is ${description.length} characters; ${ZED} loads the skill but warns past ${SKILL_DESCRIPTION_MAX_LENGTH}`,
     );
   }
 
@@ -260,10 +253,11 @@ export class ZedSkill extends ToolSkill {
     frontmatter: ZedSkillFrontmatter;
     logger?: Logger;
   }): void {
-    const skillPath = join(outputRoot, relativeDirPath, dirName, SKILL_FILE_NAME);
-    for (const violation of collectZedSkillViolations(frontmatter)) {
-      warnWithFallback(logger, `${stripControlCharacters(toPosixPath(skillPath))}: ${violation}`);
-    }
+    warnSkillViolations({
+      skillPath: join(outputRoot, relativeDirPath, dirName, SKILL_FILE_NAME),
+      violations: collectZedSkillViolations(frontmatter),
+      logger,
+    });
   }
 
   static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
