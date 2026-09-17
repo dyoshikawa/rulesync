@@ -7,6 +7,7 @@ import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { HookDefinition, HooksConfig } from "../../types/hooks.js";
 import {
   CANONICAL_TO_KIRO_IDE_EVENT_NAMES,
+  HookConfirmSchema,
   KIRO_IDE_HOOK_EVENTS,
   KIRO_IDE_TO_CANONICAL_EVENT_NAMES,
   KIRO_LEGACY_TO_KIRO_IDE_TRIGGER_NAMES,
@@ -15,7 +16,10 @@ import {
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { lookupOwn } from "../../utils/own-lookup.js";
-import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
+import {
+  isPrototypePollutionKey,
+  omitPrototypePollutionKeysDeep,
+} from "../../utils/prototype-pollution.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import { buildImportedHooksConfig } from "./tool-hooks-converter.js";
 import {
@@ -46,6 +50,10 @@ const KiroIdeHookEntrySchema = z.looseObject({
   action: z.optional(KiroIdeHookActionSchema),
   timeout: z.optional(z.number()),
   enabled: z.optional(z.boolean()),
+  // Confirmation prompt for `Stop`-trigger command hooks; see
+  // `HookDefinitionSchema.confirm`. Passed through verbatim in both directions.
+  confirm: z.optional(HookConfirmSchema),
+  confirmCommand: z.optional(safeString),
 });
 
 const KiroIdeHooksFileSchema = z.looseObject({
@@ -100,6 +108,8 @@ function buildKiroIdeEntriesForEvent(
       // Kiro defaults `enabled` to `true`; an imported `enabled: false` is
       // preserved so regenerating does not silently reactivate the hook.
       enabled: def.enabled ?? true,
+      ...(def.confirm !== undefined && { confirm: structuredClone(def.confirm) }),
+      ...(def.confirmCommand !== undefined && { confirmCommand: def.confirmCommand }),
     });
   }
   return entries;
@@ -155,6 +165,24 @@ function canonicalToKiroIdeHooks(config: HooksConfig): KiroIdeHookEntry[] {
   return entries;
 }
 
+/**
+ * Copies the Kiro `confirm` / `confirmCommand` fields back onto a canonical
+ * definition. The prompt is user-authored JSON read back from disk, so
+ * `__proto__`-style keys are dropped at every depth first.
+ */
+function confirmFieldsToCanonical(
+  entry: KiroIdeHookEntry,
+): Pick<HookDefinition, "confirm" | "confirmCommand"> {
+  const fields: Pick<HookDefinition, "confirm" | "confirmCommand"> = {};
+  if (entry.confirm !== undefined && entry.confirm !== null) {
+    fields.confirm = HookConfirmSchema.parse(omitPrototypePollutionKeysDeep(entry.confirm));
+  }
+  if (entry.confirmCommand !== undefined && entry.confirmCommand !== null) {
+    fields.confirmCommand = entry.confirmCommand;
+  }
+  return fields;
+}
+
 function kiroIdeHooksToCanonical(entries: KiroIdeHookEntry[]): HooksConfig["hooks"] {
   const canonical: HooksConfig["hooks"] = {};
   for (const entry of entries) {
@@ -187,6 +215,7 @@ function kiroIdeHooksToCanonical(entries: KiroIdeHookEntry[]): HooksConfig["hook
     // Only carry an explicit `false`: `true` is Kiro's default, so re-emitting
     // it would add noise to every imported hook definition.
     if (entry.enabled === false) def.enabled = false;
+    Object.assign(def, confirmFieldsToCanonical(entry));
 
     const list = lookupOwn({ record: canonical, key: eventName }) ?? [];
     list.push(def);

@@ -35,6 +35,28 @@ export const HOOK_TYPES = ["command", "prompt", "http", "agent", "mcp_tool", "fu
 export type HookType = (typeof HOOK_TYPES)[number];
 
 /**
+ * One choice offered by a Kiro `confirm` prompt: `run` decides whether picking
+ * it executes the hook command.
+ */
+export const HookConfirmOptionSchema = z.looseObject({
+  id: safeString,
+  label: safeString,
+  run: z.boolean(),
+});
+
+/**
+ * Kiro's static confirmation prompt shown before a `Stop`-trigger command hook
+ * runs. Stored verbatim: Kiro is the only consumer, and it owns the shape.
+ * https://kiro.dev/docs/hooks/
+ */
+export const HookConfirmSchema = z.looseObject({
+  question: safeString,
+  options: z.array(HookConfirmOptionSchema),
+});
+
+export type HookConfirm = z.infer<typeof HookConfirmSchema>;
+
+/**
  * Canonical hook definition.
  * Used in .rulesync/hooks.jsonc and mapped to tool-specific formats.
  */
@@ -57,6 +79,15 @@ export const HookDefinitionSchema = z.looseObject({
   // it; other targets warn and emit the hook as active.
   // https://kiro.dev/docs/hooks/
   enabled: z.optional(z.boolean()),
+  // Kiro: a confirmation prompt (`question` + `options[{ id, label, run }]`)
+  // shown before a `Stop`-trigger command hook runs, and an optional
+  // `confirmCommand` whose JSON stdout (`{ "skip": true }` or a replacement
+  // `question`/`options`) drives that prompt dynamically. Both are forwarded
+  // verbatim by the standalone Kiro hooks emitter and round-trip on import;
+  // no other target has an equivalent.
+  // https://kiro.dev/docs/hooks/
+  confirm: z.optional(HookConfirmSchema),
+  confirmCommand: z.optional(safeString),
   prompt: z.optional(safeString),
   loop_limit: z.optional(z.nullable(z.number())),
   name: z.optional(safeString),

@@ -234,6 +234,91 @@ describe("KiroIdeHooks", () => {
     expect(canonical.hooks.stop[0].prompt).toBe("Summarize");
   });
 
+  it("forwards the Kiro confirm prompt and confirmCommand verbatim (issue #2408)", async () => {
+    const rulesyncHooks = new RulesyncHooks({
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "hooks.jsonc",
+      fileContent: JSON.stringify({
+        version: 1,
+        hooks: {
+          stop: [
+            {
+              command: "npm test",
+              confirm: {
+                question: "Run the test suite?",
+                options: [
+                  { id: "yes", label: "Run tests", run: true },
+                  { id: "no", label: "Skip", run: false },
+                ],
+              },
+              confirmCommand: "node scripts/should-test.js",
+            },
+          ],
+          preToolUse: [{ matcher: "Write", command: "echo lint" }],
+        },
+      }),
+    });
+
+    const hooks = await KiroIdeHooks.fromRulesyncHooks({ outputRoot: testDir, rulesyncHooks });
+    const entries = JSON.parse(hooks.getFileContent()).hooks as Record<string, unknown>[];
+    const stop = entries.find((entry) => entry.trigger === "Stop");
+    expect(stop?.confirm).toEqual({
+      question: "Run the test suite?",
+      options: [
+        { id: "yes", label: "Run tests", run: true },
+        { id: "no", label: "Skip", run: false },
+      ],
+    });
+    expect(stop?.confirmCommand).toBe("node scripts/should-test.js");
+    // Hooks without a prompt do not grow empty keys.
+    const pre = entries.find((entry) => entry.trigger === "PreToolUse");
+    expect(pre).not.toHaveProperty("confirm");
+    expect(pre).not.toHaveProperty("confirmCommand");
+  });
+
+  it("round-trips a confirm prompt on import and strips prototype-pollution keys from it", async () => {
+    const hooks = new KiroIdeHooks({
+      outputRoot: testDir,
+      relativeDirPath: join(".kiro", "hooks"),
+      relativeFilePath: "rulesync.json",
+      // Raw JSON so the literal "__proto__" key reaches the parser as an own property.
+      fileContent: `{
+        "version": "v1",
+        "hooks": [
+          {
+            "name": "gated-test",
+            "trigger": "Stop",
+            "action": { "type": "command", "command": "npm test" },
+            "confirm": {
+              "question": "Run the test suite?",
+              "__proto__": { "polluted": true },
+              "options": [{ "id": "yes", "label": "Run", "run": true, "__proto__": { "x": 1 } }]
+            },
+            "confirmCommand": "node scripts/should-test.js"
+          }
+        ]
+      }`,
+    });
+
+    const rulesyncHooks = hooks.toRulesyncHooks();
+    const canonical = JSON.parse(rulesyncHooks.getFileContent());
+    expect(HooksConfigSchema.safeParse(canonical).success).toBe(true);
+    expect(canonical.hooks.stop[0].confirm).toEqual({
+      question: "Run the test suite?",
+      options: [{ id: "yes", label: "Run", run: true }],
+    });
+    expect(rulesyncHooks.getFileContent()).not.toContain("__proto__");
+    expect(canonical.hooks.stop[0].confirmCommand).toBe("node scripts/should-test.js");
+
+    const regenerated = await KiroIdeHooks.fromRulesyncHooks({
+      outputRoot: testDir,
+      rulesyncHooks,
+    });
+    const entry = JSON.parse(regenerated.getFileContent()).hooks[0];
+    expect(entry.confirm.options).toHaveLength(1);
+    expect(entry.confirmCommand).toBe("node scripts/should-test.js");
+  });
+
   it("round-trips a disabled hook instead of silently reactivating it", async () => {
     const hooks = new KiroIdeHooks({
       outputRoot: testDir,
