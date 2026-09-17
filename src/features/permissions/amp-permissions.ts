@@ -31,7 +31,7 @@ import {
  * builtin of that name). It lives in the shared Amp settings file:
  * `.amp/settings.json` (project) and `~/.config/amp/settings.json` (global).
  *
- * Reference: https://ampcode.com/manual ("amp.tools.disable").
+ * Reference: https://ampcode.com/docs/cli/settings ("amp.tools.disable").
  */
 const AMP_TOOLS_DISABLE_KEY = "amp.tools.disable";
 
@@ -43,12 +43,16 @@ const AMP_TOOLS_DISABLE_KEY = "amp.tools.disable";
  * glob. Rules are evaluated **first-match-wins**. It lives in the same shared
  * Amp settings file as `amp.tools.disable`.
  *
- * `amp.permissions` is Amp's documented legacy/backwards-compat surface — it
- * remains functional and is the only place to express `allow`/`ask` and
- * argument-specific `reject` rules (the simpler `amp.tools.disable` array can
- * only disable whole tools).
+ * `amp.permissions` is Amp's legacy/backwards-compat surface — it remains
+ * functional in the shipped CLI and is the only place to express `allow`/`ask`
+ * and argument-specific `reject` rules (the simpler `amp.tools.disable` array
+ * can only disable whole tools). The web docs no longer describe it (the
+ * permissions section only points at custom plugins), but the shipped CLI
+ * still lists it in its built-in settings reference (`amp --help`) and
+ * evaluates it through `amp permissions list|test`.
  *
- * Reference: https://ampcode.com/manual ("amp.permissions").
+ * Reference: https://ampcode.com/docs/tools#permissions and
+ * https://ampcode.com/docs/customize/plugins#example-plugin-permissions.
  */
 const AMP_PERMISSIONS_KEY = "amp.permissions";
 
@@ -71,7 +75,10 @@ type AmpPermissionEntry = {
  * The `amp.guardedFiles.allowlist` array (file globs allowed without
  * confirmation), `amp.dangerouslyAllowAll` boolean (disable all confirmation),
  * and `amp.mcpPermissions` array — sibling settings authored through the `amp`
- * permissions override. Reference: https://ampcode.com/manual.
+ * permissions override. Only `amp.mcpPermissions` is still on the web docs
+ * (https://ampcode.com/docs/cli/settings); the other two, like
+ * `amp.permissions`, survive only in the CLI's built-in settings reference
+ * (see `AMP_PERMISSIONS_KEY`).
  */
 const AMP_GUARDED_FILES_ALLOWLIST_KEY = "amp.guardedFiles.allowlist";
 const AMP_DANGEROUSLY_ALLOW_ALL_KEY = "amp.dangerouslyAllowAll";
