@@ -118,6 +118,36 @@ describe("CopilotcliSubagent", () => {
       expect(fm.model).toBe("claude-3-5-sonnet-20241022");
       expect(fm.tools).toEqual(["read", "edit"]);
     });
+
+    it("should type the multi-model fields models and modelPolicy", () => {
+      const build = (copilotcli: Record<string, unknown>) =>
+        CopilotcliSubagent.fromRulesyncSubagent({
+          outputRoot: testDir,
+          relativeDirPath: join(".github", "agents"),
+          rulesyncSubagent: new RulesyncSubagent({
+            outputRoot: testDir,
+            relativeDirPath: ".rulesync/subagents",
+            relativeFilePath: "multi.md",
+            frontmatter: { targets: ["copilotcli"], name: "multi", description: "d", copilotcli },
+            body: "Body",
+            validate: false,
+          }),
+          validate: false,
+        }) as CopilotcliSubagent;
+
+      const fm = build({
+        models: ["claude-opus-5", "claude-sonnet-5"],
+        modelPolicy: "required",
+      }).getFrontmatter();
+      expect(fm.models).toEqual(["claude-opus-5", "claude-sonnet-5"]);
+      expect(fm.modelPolicy).toBe("required");
+
+      // The changelog spelling (`model` as a list) is not the documented form.
+      expect(() => build({ model: ["a", "b"] })).toThrow(/Invalid copilotcli subagent frontmatter/);
+      expect(() => build({ modelPolicy: "locked" })).toThrow(
+        /Invalid copilotcli subagent frontmatter/,
+      );
+    });
   });
 
   describe("toRulesyncSubagent", () => {

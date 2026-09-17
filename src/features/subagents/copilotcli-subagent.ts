@@ -25,11 +25,17 @@ import {
  *
  * Reference: https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/create-custom-agents-for-cli
  *            https://docs.github.com/en/copilot/reference/custom-agents-configuration
+ *            https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-command-reference
  *
  * Per the configuration docs:
  *  - `description` is required.
  *  - `name`, `target`, `tools`, `model`, `disable-model-invocation`,
  *    `user-invocable`, `mcp-servers`, and `metadata` are optional.
+ *  - The CLI command reference adds `models` (authored models in priority
+ *    order, overriding `model` when both are set) and `modelPolicy`
+ *    (`preferred` lets a `subagents` settings override or the `/subagents`
+ *    picker replace the model; `required` locks dispatch to the authored
+ *    list). CLI v1.0.81+; the shared reference page still lists `model` only.
  *
  * `looseObject` is used so that future additional fields are passed through
  * unchanged (consistent with the rest of rulesync's frontmatter schemas).
@@ -40,6 +46,8 @@ const CopilotCliSubagentFrontmatterSchema = z.looseObject({
   target: z.optional(z.string()),
   tools: z.optional(z.union([z.string(), z.array(z.string())])),
   model: z.optional(z.string()),
+  models: z.optional(z.array(z.string())),
+  modelPolicy: z.optional(z.enum(["preferred", "required"])),
   "disable-model-invocation": z.optional(z.boolean()),
   "user-invocable": z.optional(z.boolean()),
   "mcp-servers": z.optional(z.record(z.string(), z.unknown())),
