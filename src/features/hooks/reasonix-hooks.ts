@@ -37,10 +37,16 @@ type ReasonixHookEntry = {
 };
 
 /**
- * Only PreToolUse/PostToolUse honor the `match` field (an anchored regex
- * against the tool name); it is ignored on every other event.
+ * Only the tool-scoped events honor the `match` field (an anchored regex
+ * against the tool name); it is ignored on every other event. Mirrors
+ * `UsesToolMatcher` in upstream `internal/hook/inspect.go`.
  */
-const REASONIX_MATCHER_EVENTS: ReadonlySet<string> = new Set(["PreToolUse", "PostToolUse"]);
+const REASONIX_MATCHER_EVENTS: ReadonlySet<string> = new Set([
+  "PreToolUse",
+  "PostToolUse",
+  "PostToolUseFailure",
+  "PermissionRequest",
+]);
 
 const SUPPORTED_REASONIX_EVENTS: ReadonlySet<string> = new Set(REASONIX_HOOK_EVENTS);
 
@@ -166,9 +172,11 @@ function reasonixHooksToCanonical(hooks: unknown): HooksConfig["hooks"] {
  * Reasonix hooks live in a Claude-Code-style but standalone JSON file —
  * `.reasonix/settings.json` (project) or `~/.reasonix/settings.json`
  * (global) — separate from the `[permissions]`/`[[plugins]]` TOML config.
- * All ten upstream events have a clean canonical equivalent and are mapped:
- * PreToolUse/PostToolUse/UserPromptSubmit/Stop plus SessionStart/SessionEnd/
- * SubagentStop/PostLLMCall/Notification/PreCompact (see REASONIX_HOOK_EVENTS).
+ * All thirteen upstream events have a clean canonical equivalent and are mapped:
+ * PreToolUse/PostToolUse/PostToolUseFailure/PermissionRequest/UserPromptSubmit/
+ * Stop/StopFailure plus SessionStart/SessionEnd/SubagentStop/PostLLMCall/
+ * Notification/PreCompact (see REASONIX_HOOK_EVENTS).
+ * @see https://github.com/esengine/DeepSeek-Reasonix/blob/main-v2/internal/hook/hook.go
  * @see https://github.com/esengine/DeepSeek-Reasonix/blob/main-v2/docs/DESKTOP_HOOKS.zh-CN.md
  */
 export class ReasonixHooks extends ToolHooks {
