@@ -22,7 +22,7 @@ import { RulesyncFile } from "../../types/rulesync-file.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { commandsProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
-import { stripControlCharacters } from "../../utils/control-characters.js";
+import { quoteForLog, stripControlCharacters } from "../../utils/control-characters.js";
 import { formatError } from "../../utils/error.js";
 import {
   checkPathTraversal,
@@ -126,6 +126,19 @@ type ToolCommandFactory = {
       rulesyncCommands: RulesyncCommand[];
       logger: Logger;
     }): Promise<void> | void;
+    /**
+     * Optional per-command write gate: the reason this tool must not emit the
+     * given command, or `null` when it may. It runs on the command as it will
+     * be written — after flattening for tools without subdirectory support —
+     * so the check sees the name the tool would actually load. A blocked
+     * command is skipped with a warning; the rest of the run is unaffected.
+     * The reason is logged verbatim, so it must not embed anything read off
+     * disk.
+     */
+    getWriteBlockReason?(params: {
+      rulesyncCommand: RulesyncCommand;
+      global: boolean;
+    }): string | null;
   };
   meta: {
     /** File extension for the command file */
@@ -789,6 +802,20 @@ export class CommandsProcessor extends FeatureProcessor {
         const commandToConvert = factory.meta.supportsSubdirectory
           ? rulesyncCommand
           : this.flattenRelativeFilePath(rulesyncCommand);
+        const writeBlockReason = factory.class.getWriteBlockReason?.({
+          rulesyncCommand: commandToConvert,
+          global: this.global,
+        });
+        if (writeBlockReason !== undefined && writeBlockReason !== null) {
+          // Checked before the collision bookkeeping so a name the tool refuses
+          // is not also reported as colliding with itself. The path is quoted
+          // and stripped because whoever wrote the repository chose it.
+          this.logger.warn(
+            `Skipping command ${quoteForLog(originalRelativePath)} for ` +
+              `'${this.toolTarget}': ${writeBlockReason}`,
+          );
+          return null;
+        }
         if (!factory.meta.supportsSubdirectory) {
           const flattenedPath = commandToConvert.getRelativeFilePath();
           const firstOrigin = flattenedPathOrigins.get(flattenedPath);

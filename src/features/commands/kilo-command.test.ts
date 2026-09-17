@@ -170,5 +170,64 @@ describe("KiloCommand", () => {
       expect(KiloCommandFrontmatterSchema.safeParse(command.getFrontmatter()).success).toBe(true);
       expect(command.getBody()).toBe("Check @src/components/Button.tsx");
     });
+
+    it("should still import a reserved-name command file as it is", async () => {
+      // The reservation is enforced on the write side only; a `goal.md` that
+      // already sits in `.kilo/commands/` is Kilo's problem to report, and
+      // dropping it on import would lose content the user can still rename.
+      const commandDir = join(testDir, ".kilo", "commands");
+      await ensureDir(commandDir);
+      await writeFileContent(
+        join(commandDir, "goal.md"),
+        `---\ndescription: Session goal\n---\nWork toward $ARGUMENTS`,
+      );
+
+      const command = await KiloCommand.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "goal.md",
+      });
+
+      expect(command.getRelativeFilePath()).toBe("goal.md");
+      expect(command.getBody()).toBe("Work toward $ARGUMENTS");
+    });
+  });
+
+  describe("getWriteBlockReason", () => {
+    const rulesyncCommandAt = (relativeFilePath: string): RulesyncCommand =>
+      new RulesyncCommand({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+        relativeFilePath,
+        frontmatter: { targets: ["kilo"], description: "A command" },
+        body: "Body",
+        fileContent: stringifyFrontmatter("Body", { targets: ["kilo"], description: "A command" }),
+      });
+
+    it.each([{ global: false }, { global: true }])(
+      "should refuse the reserved goal command (global: $global)",
+      ({ global }) => {
+        // Kilo throws on a custom `goal` command in both the project and the
+        // global directory, so the gate applies at either scope.
+        // https://github.com/Kilo-Org/kilocode/blob/v7.6.2/packages/opencode/src/command/index.ts
+        const reason = KiloCommand.getWriteBlockReason({
+          rulesyncCommand: rulesyncCommandAt("goal.md"),
+          global,
+        });
+
+        expect(reason).toContain("Kilo reserves the /goal command for session goals");
+        expect(reason).toContain("Rename the command");
+      },
+    );
+
+    it("should allow every other name, including ones that only contain the reserved stem", () => {
+      for (const relativeFilePath of ["review.md", "goals.md", "git-goal.md", "goal-review.md"]) {
+        expect(
+          KiloCommand.getWriteBlockReason({
+            rulesyncCommand: rulesyncCommandAt(relativeFilePath),
+            global: false,
+          }),
+        ).toBeNull();
+      }
+    });
   });
 });
