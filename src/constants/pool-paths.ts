@@ -33,3 +33,17 @@ export const POOL_SKILLS_DIR_PATH = join(POOL_DIR, "skills");
 
 /** Global skills root, relative to the home directory. */
 export const POOL_GLOBAL_SKILLS_DIR_PATH = join(POOL_GLOBAL_DIR, "skills");
+
+/**
+ * Pool's settings file name. MCP servers live under the top-level
+ * `mcp_servers` key of `.poolside/settings.yaml` (project, committed) and
+ * `~/.config/poolside/settings.yaml` (global); the untracked
+ * `.poolside/settings.local.yaml` overlay is left to the user.
+ *
+ * @see https://docs.poolside.ai/mcp-servers
+ * @see https://docs.poolside.ai/settings-file-reference
+ */
+export const POOL_SETTINGS_FILE_NAME = "settings.yaml";
+
+/** Top-level key of Pool's settings file that holds the MCP server map. */
+export const POOL_MCP_SERVERS_KEY = "mcp_servers";

@@ -44,6 +44,7 @@ const mcpGenerateTargets = [
   { target: "copilotcli", outputPath: join(".github", "mcp.json") },
   { target: "crush", outputPath: "crush.json" },
   { target: "opencode", outputPath: "opencode.jsonc" },
+  { target: "pool", outputPath: join(".poolside", "settings.yaml") },
   { target: "deepagents", outputPath: join(".deepagents", ".mcp.json") },
   { target: "factorydroid", outputPath: join(".factory", "mcp.json") },
   { target: "goose", outputPath: join(".agents", "plugins", "rulesync", ".mcp.json") },
@@ -493,6 +494,11 @@ describe("E2E: mcp", () => {
       outputPath: join(".takt", "config.yaml"),
       content: "provider: claude\n",
     },
+    {
+      target: "pool",
+      outputPath: join(".poolside", "settings.yaml"),
+      content: "model: claude-opus-5\n",
+    },
   ])(
     "should succeed in check mode when a $target mcp file is non-deletable",
     async ({ target, outputPath, content }) => {
@@ -741,6 +747,13 @@ describe("E2E: mcp (import)", () => {
     { target: "roo", sourcePath: join(".roo", "mcp.json") },
     { target: "kiro", sourcePath: join(".kiro", "settings", "mcp.json") },
     { target: "junie", sourcePath: join(".junie", "mcp", "mcp.json") },
+    // Pool stores servers under the `mcp_servers` key of its YAML settings
+    // file, so the source content shape differs from the other targets.
+    {
+      target: "pool",
+      sourcePath: join(".poolside", "settings.yaml"),
+      sourceContent: "mcp_servers:\n  test-server:\n    command: echo\n    args:\n      - hello\n",
+    },
     // Amp stores servers under the `amp.mcpServers` key inside the shared
     // settings file, so the source content shape differs from the other targets.
     {
@@ -911,6 +924,7 @@ const mcpGlobalTargets = [
   { target: "goose", outputPath: join(".config", "goose", "config.yaml") },
   { target: "hermesagent", outputPath: join(getHermesagentGlobalDir(), "config.yaml") },
   { target: "opencode", outputPath: join(".config", "opencode", "opencode.jsonc") },
+  { target: "pool", outputPath: join(".config", "poolside", "settings.yaml") },
   { target: "codexcli", outputPath: join(".codex", "config.toml") },
   { target: "grokcli", outputPath: join(".grok", "config.toml") },
   { target: "copilotcli", outputPath: join(".copilot", "mcp-config.json") },

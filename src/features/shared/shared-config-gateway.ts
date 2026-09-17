@@ -1170,6 +1170,8 @@ export const KIMI_CODE_HOME_CONFIG_SHARED_FILE_KEY = "config.toml";
 export const REASONIX_PROJECT_CONFIG_SHARED_FILE_KEY = "reasonix.toml";
 export const REASONIX_GLOBAL_CONFIG_SHARED_FILE_KEY = ".reasonix/config.toml";
 export const ROVODEV_CONFIG_SHARED_FILE_KEY = ".rovodev/config.yml";
+export const POOL_PROJECT_SETTINGS_SHARED_FILE_KEY = ".poolside/settings.yaml";
+export const POOL_GLOBAL_SETTINGS_SHARED_FILE_KEY = ".config/poolside/settings.yaml";
 
 /**
  * Build the `SHARED_CONFIG_OWNERSHIP` lookup key from a tool's settable paths.
@@ -1260,6 +1262,20 @@ const KIMI_CODE_CONFIG_DECLARATION: SharedConfigFileDeclaration = {
  * executes workspace config hooks, so the workspace copy is declared with
  * `mcp` alone and the user copy adds `hooks`.
  */
+/**
+ * Pool settings (`.poolside/settings.yaml` / `~/.config/poolside/settings.yaml`):
+ * the user's primary Pool settings file, so an unparseable root fails closed
+ * rather than being replaced with generated output. `mcp_servers` is owned as
+ * a whole key because the MCP writer emits the complete server map.
+ */
+const POOL_SETTINGS_DECLARATION: SharedConfigFileDeclaration = {
+  format: "yaml",
+  invalidRootPolicy: "error",
+  features: {
+    mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp_servers"] },
+  },
+};
+
 const ZCODE_WORKSPACE_CONFIG_DECLARATION: SharedConfigFileDeclaration = {
   format: "json",
   invalidRootPolicy: "error",
@@ -1334,6 +1350,12 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
   [HERMES_CONFIG_SHARED_FILE_KEY]: HERMES_CONFIG_DECLARATION,
   [HERMES_WIN32_CONFIG_SHARED_FILE_KEY]: HERMES_CONFIG_DECLARATION,
   [HERMES_HOME_CONFIG_SHARED_FILE_KEY]: HERMES_CONFIG_DECLARATION,
+  // Pool settings: the project file (`.poolside/settings.yaml`, committed and
+  // shared with the team) and the user one under `~/.config/poolside/`. Both
+  // carry the user's own Pool settings (model, permissions, ...) beside the
+  // `mcp_servers` block, which is the only key rulesync owns.
+  [POOL_PROJECT_SETTINGS_SHARED_FILE_KEY]: POOL_SETTINGS_DECLARATION,
+  [POOL_GLOBAL_SETTINGS_SHARED_FILE_KEY]: POOL_SETTINGS_DECLARATION,
   [TAKT_CONFIG_SHARED_FILE_KEY]: {
     format: "yaml",
     // config.yaml is the user's primary Takt config; refusing to parse a
