@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
+import { fallbackLogger } from "../../utils/logger.js";
 import { CodexcliPermissions, createCodexcliBashRulesFile } from "./codexcli-permissions.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 
@@ -1660,9 +1661,11 @@ command = "node"
 
     it("accepts every documented enum value for approval_policy / sandbox_mode / approvals_reviewer / base_permission_profile", () => {
       const cases = [
+        // `untrusted` was retired upstream but still parses so an existing
+        // permissions file keeps loading; generate warns and skips it.
         { approval_policy: "untrusted" },
         { approval_policy: "on-request" },
-        // `on-failure` is a legacy alias Codex still accepts for `on-request`.
+        // `on-failure` is a deprecated alias Codex still reads as `on-request`.
         { approval_policy: "on-failure" },
         { approval_policy: "never" },
         // The granular table form still round-trips through the enum union.
@@ -1765,7 +1768,7 @@ command = "node"
         relativeFilePath: "permissions.json",
         fileContent: JSON.stringify({
           permission: { read: { "src/**": "allow" } },
-          codexcli: { approval_policy: "untrusted", approvals_reviewer: "user" },
+          codexcli: { approval_policy: "never", approvals_reviewer: "user" },
         }),
       });
 
@@ -1775,8 +1778,164 @@ command = "node"
       });
 
       const parsed = smolToml.parse(codexPermissions.getFileContent()) as Record<string, unknown>;
-      expect(parsed.approval_policy).toBe("untrusted");
+      expect(parsed.approval_policy).toBe("never");
       expect(parsed.approvals_reviewer).toBe("user");
+    });
+
+    describe("retired approval_policy = untrusted (Codex 0.149.0)", () => {
+      // Codex refuses to start on an explicit `approval_policy = "untrusted"`
+      // (`is no longer supported; remove this setting`), so writing it is
+      // never right: the key falls back to the existing value or the default.
+      it("does not write the retired value and falls back to the default with a warning", async () => {
+        const logger = createMockLogger();
+        const rulesyncPermissions = new RulesyncPermissions({
+          outputRoot: testDir,
+          relativeDirPath: ".rulesync",
+          relativeFilePath: "permissions.json",
+          fileContent: JSON.stringify({
+            permission: { read: { "src/**": "allow" } },
+            codexcli: { approval_policy: "untrusted" },
+          }),
+        });
+
+        const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+          outputRoot: testDir,
+          rulesyncPermissions,
+          logger,
+        });
+
+        const parsed = smolToml.parse(codexPermissions.getFileContent()) as Record<string, unknown>;
+        expect(parsed.approval_policy).toBe("on-request");
+        const warnMessages = logger.warn.mock.calls.map((call) => String(call[0]));
+        expect(
+          warnMessages.some(
+            (line) =>
+              line.includes('"approval_policy": "untrusted"') &&
+              line.includes("retired in Codex 0.149.0") &&
+              line.includes('trust_level = "untrusted"'),
+          ),
+        ).toBe(true);
+      });
+
+      it("keeps an existing user-set approval_policy when the retired override is skipped", async () => {
+        const logger = createMockLogger();
+        const codexDir = join(testDir, ".codex");
+        await ensureDir(codexDir);
+        await writeFileContent(join(codexDir, "config.toml"), 'approval_policy = "never"\n');
+        const rulesyncPermissions = new RulesyncPermissions({
+          outputRoot: testDir,
+          relativeDirPath: ".rulesync",
+          relativeFilePath: "permissions.json",
+          fileContent: JSON.stringify({
+            permission: { read: { "src/**": "allow" } },
+            codexcli: { approval_policy: "untrusted" },
+          }),
+        });
+
+        const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+          outputRoot: testDir,
+          rulesyncPermissions,
+          logger,
+        });
+
+        const parsed = smolToml.parse(codexPermissions.getFileContent()) as Record<string, unknown>;
+        expect(parsed.approval_policy).toBe("never");
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining("retired in Codex 0.149.0"),
+        );
+      });
+
+      it("does not import the retired value and warns with the migration path", () => {
+        const warn = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+        const codexPermissions = new CodexcliPermissions({
+          outputRoot: testDir,
+          relativeDirPath: ".codex",
+          relativeFilePath: "config.toml",
+          fileContent: [
+            'approval_policy = "untrusted"',
+            'approvals_reviewer = "user"',
+            'default_permissions = "rulesync"',
+            "[permissions.rulesync.filesystem]",
+            '"src/**" = "read"',
+          ].join("\n"),
+        });
+
+        const json = codexPermissions.toRulesyncPermissions().getJson();
+        expect(json.codexcli?.approval_policy).toBeUndefined();
+        expect(json.codexcli?.approvals_reviewer).toBe("user");
+        expect(warn).toHaveBeenCalledTimes(1);
+        const message = String(warn.mock.calls[0]?.[0]);
+        expect(message).toContain(join(".codex", "config.toml"));
+        expect(message).toContain('approval_policy = "untrusted"');
+        expect(message).toContain("retired in 0.149.0");
+        expect(message).toContain('trust_level = "untrusted"');
+      });
+
+      it("still imports the other approval_policy values without a warning", () => {
+        const warn = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+        for (const value of ["on-request", "on-failure", "never"]) {
+          const codexPermissions = new CodexcliPermissions({
+            outputRoot: testDir,
+            relativeDirPath: ".codex",
+            relativeFilePath: "config.toml",
+            fileContent: `approval_policy = "${value}"\n`,
+          });
+          expect(codexPermissions.toRulesyncPermissions().getJson().codexcli?.approval_policy).toBe(
+            value,
+          );
+        }
+        expect(warn).not.toHaveBeenCalled();
+      });
+    });
+
+    it("warns that approval_policy = on-failure is deprecated but still writes it", async () => {
+      const logger = createMockLogger();
+      const rulesyncPermissions = new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: { read: { "src/**": "allow" } },
+          codexcli: { approval_policy: "on-failure" },
+        }),
+      });
+
+      const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger,
+      });
+
+      // Codex still reads the alias, so the authored value round-trips.
+      const parsed = smolToml.parse(codexPermissions.getFileContent()) as Record<string, unknown>;
+      expect(parsed.approval_policy).toBe("on-failure");
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('"approval_policy": "on-failure" is deprecated'),
+      );
+    });
+
+    it("does not warn about approval_policy for the supported values", async () => {
+      for (const value of ["on-request", "never"]) {
+        const logger = createMockLogger();
+        const rulesyncPermissions = new RulesyncPermissions({
+          outputRoot: testDir,
+          relativeDirPath: ".rulesync",
+          relativeFilePath: "permissions.json",
+          fileContent: JSON.stringify({
+            permission: { read: { "src/**": "allow" } },
+            codexcli: { approval_policy: value },
+          }),
+        });
+
+        await CodexcliPermissions.fromRulesyncPermissions({
+          outputRoot: testDir,
+          rulesyncPermissions,
+          logger,
+        });
+
+        const warnMessages = logger.warn.mock.calls.map((call) => String(call[0]));
+        expect(warnMessages.some((line) => line.includes("approval_policy"))).toBe(false);
+      }
     });
 
     it("warns that sandbox_mode / sandbox_workspace_write are deprecated", async () => {
