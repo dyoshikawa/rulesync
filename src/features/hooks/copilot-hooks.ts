@@ -181,10 +181,16 @@ function importPassthrough(entry: CopilotHookEntry): Record<string, unknown> {
   const passthrough: Record<string, unknown> = {};
   if (entry.cwd !== undefined) passthrough.cwd = entry.cwd;
   if (entry.env !== undefined) passthrough.env = entry.env;
-  for (const key of ["windows", "linux", "osx"] as const) {
+  for (const key of OS_OVERRIDE_KEYS) {
     if (entry[key] !== undefined) passthrough[key] = entry[key];
   }
   return passthrough;
+}
+
+const OS_OVERRIDE_KEYS = ["windows", "linux", "osx"] as const;
+
+function hasOsOverride(passthrough: Record<string, unknown>): boolean {
+  return OS_OVERRIDE_KEYS.some((key) => passthrough[key] !== undefined);
 }
 
 /**
@@ -209,13 +215,21 @@ function copilotHooksToCanonical(copilotHooks: unknown, logger?: Logger): HooksC
       const entry = parseResult.data;
       const { command, shell } = resolveImportCommand(entry, logger);
       const timeout = entry.timeoutSec ?? entry.timeout;
+      const passthrough = importPassthrough(entry);
+      if (command === undefined && hasOsOverride(passthrough)) {
+        // Imported into the shared `hooks` block, where every other target
+        // reads the canonical `command` and would emit a hook without one.
+        logger?.warn(
+          `Copilot hook on '${copilotEventName}' has only VS Code per-OS overrides (windows/linux/osx) and no portable command; it is preserved for copilot, but other targets will generate it without a command until a \`command\` is added.`,
+        );
+      }
 
       defs.push({
         type: "command",
         ...(command !== undefined && { command }),
         ...(shell !== undefined && { shell }),
         ...(timeout !== undefined && { timeout }),
-        ...importPassthrough(entry),
+        ...passthrough,
       });
     }
     if (defs.length > 0) {
