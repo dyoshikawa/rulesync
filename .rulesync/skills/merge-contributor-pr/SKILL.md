@@ -3,8 +3,11 @@ name: merge-contributor-pr
 description: >-
   Take a contributor's pull request that cannot be merged as-is — usually a
   conflict with main — resolve the blocker without rewriting their commits, and
-  merge it with a merge commit so their authorship survives. Use when the user
-  wants a PR fixed up and merged while keeping the original author's commits.
+  merge it with a merge commit so their authorship survives. Detects the case
+  where the conflict exists because the same feature already landed through
+  another PR, and hands that decision (close as superseded, or a credit-only
+  merge) back to the user instead of merging a no-op. Use when the user wants a
+  PR fixed up and merged while keeping the original author's commits.
 targets:
   - "*"
 ---
@@ -323,6 +326,99 @@ sha256 sums of published release assets and is rewritten only by the release
 flow. A contributor PR has no business touching it; if it conflicts, stop and
 hand the PR back.
 
+## Step 3b: Rule Out a Superseded PR Before Resolving Anything
+
+A conflict is not always "something else landed first and touched the same
+lines". Sometimes the something else *is* the PR's own feature, contributed a
+second time — a maintainer or another contributor shipped it while this PR sat
+in the queue. Resolving such a conflict "in favour of `main`" produces a merge
+commit that changes nothing, and merging that quietly is worse than useless:
+the PR is recorded as having added a feature it did not add, and whatever the
+resolution did *not* strip out (a stale lockfile, duplicated test rows, a
+schema block nothing reads) lands on `main` unreviewed.
+
+The tell is an **add/add conflict on a file the PR created** — a new adapter,
+its test, a new constants module. `git merge-tree` in Step 3 reports those the
+same way as any other conflict, so check the conflicted paths against what the
+PR added:
+
+```bash
+gh pr view <pr_number> --json files --jq '.files[] | select(.additions > 0 and .deletions == 0) | .path'
+git log origin/main --oneline -- <each such path that also conflicts>
+```
+
+A non-empty log for a path the PR introduced means `main` already has its own
+version of that file. Read the merge commit the log names (`gh pr view` on the
+PR number in its subject, or `git show --stat`), and note the release that
+first carried it — `git tag --contains <sha> | sort -V | head -1` — because
+the closing comment should cite both.
+
+Then measure what this PR would still contribute once every conflict is taken
+from `main`'s side. Do it on the throwaway branch Step 4 creates (never on
+`main`), and read the result before resolving anything for real:
+
+```bash
+git switch -c merge-pr-<pr_number> origin/pr-<pr_number>
+git merge origin/main --no-edit            # stops on the conflicts
+git checkout origin/main -- $(git diff --name-only --diff-filter=U)
+git diff origin/main --stat
+git diff origin/main -- <each non-generated path the stat lists>
+```
+
+What survives is the PR's net delta over the competing implementation. Classify
+every surviving hunk:
+
+- **Duplicate of something `main` already has** (the same E2E matrix rows, the
+  same doc paragraph in a second place) — worthless, and often a test failure
+  waiting to happen.
+- **Code nothing on `main` reads** (a frontmatter schema block for a key the
+  adapter that actually landed never looks at) — dead on arrival.
+- **`pnpm-lock.yaml` churn** — Step 2's stop applies unchanged; a lockfile diff
+  that only exists because the fork installed from an older `main` is not a
+  contribution.
+- **A genuine improvement the landed implementation lacks** — a case the other
+  PR missed, a better error message, a test that covers something untested.
+
+Only the last kind justifies a merge, and even then the right move is usually
+to keep only that part: ask the author to rebase their branch down to the
+surviving improvement, or leave a comment offering to take it as a follow-up.
+Do not resolve the conflict by hand-picking pieces of two implementations —
+that is a judgement call about what the author meant, which Step 3 already
+rules out.
+
+If nothing of the fourth kind survives, **stop and ask the user** — this is the
+one place in this skill where the decision is not mechanical. Present the
+competing PR, the release it shipped in, and the classified leftovers, and
+offer exactly two outcomes:
+
+- **Close as superseded** (the default recommendation): `git merge --abort`,
+  return to `main`, delete the throwaway branch, and close the PR with a comment
+  that thanks the author, names the PR and release that carried the feature,
+  says what a resolution would have left over and why none of it can land, and
+  points at the still-open follow-up work where a new PR would be welcome.
+  Write the comment to a file and pass it with `--comment "$(cat <file>)"`;
+  the paths and PR numbers in it are yours, not the fork's, so this is safe.
+- **Credit-only merge**: every conflicted *and* every surviving path is reset
+  to `origin/main` (`git checkout origin/main -- <paths>`), so the merge commit
+  has an empty diff against `main` and the author's commits still enter the
+  history. Only do this when the user explicitly chooses it; then continue with
+  Step 4's verification, Step 5 and Step 6 as written. Say in the Step 8 report
+  that the merge was empty by design.
+
+Never pick between the two yourself, and never merge a no-op because the
+instruction said "merge": a request written before the competing PR was
+noticed is a request about a different situation.
+
+Aborting cleanly matters here because Step 4 refuses to reuse a leftover
+`merge-pr-<pr_number>` branch:
+
+```bash
+git merge --abort
+git switch main
+git branch -D merge-pr-<pr_number>
+git status --porcelain      # must be empty
+```
+
 ## Step 4: Resolve on a Throwaway Local Branch
 
 Never resolve on `main`, and never leave the repository on the work branch
@@ -335,7 +431,10 @@ git merge origin/main --no-edit
 
 If `git switch -c` fails because the branch already exists, stop and look at
 what is on it. Do not reach for `-B`: a leftover branch means a previous attempt
-did not finish, and overwriting it hides whatever went wrong.
+did not finish, and overwriting it hides whatever went wrong. (Step 3b's
+measurement either aborted and deleted its branch, or — for a credit-only
+merge — is the branch to continue on; in that case skip the two commands above
+and go straight to the verification below.)
 
 List the conflicts the merge actually stopped on, before resolving any of them —
 this is the set every later check is measured against:
@@ -584,9 +683,14 @@ Delete it once the report is written:
 rm -rf "$(git rev-parse --git-dir)/merge-pr-<pr_number>"
 ```
 
-Report the PR number and title, the author, what the blocker was and how it was
-resolved, the merge commit, and the list of the author's commits that survived
-into `main`. State plainly that the merge used `--admin`, and which check run
+If Step 3b ended the run, the report is shorter: the PR number and title, the
+author, the PR and release that superseded it, what a resolution would have
+left over, the user's choice, and the closing-comment URL (or, for a
+credit-only merge, the rest of this section with the empty diff called out).
+
+Otherwise report the PR number and title, the author, what the blocker was and
+how it was resolved, the merge commit, and the list of the author's commits
+that survived into `main`. State plainly that the merge used `--admin`, and which check run
 was verified green immediately before it, so the bypass is auditable rather than
 invisible. Mention anything deliberately left out of the resolution commit
 (review findings, follow-up issues) so it is not silently dropped.
