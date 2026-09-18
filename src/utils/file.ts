@@ -759,10 +759,9 @@ function isNotADirectoryError(error: unknown): boolean {
  * outside the root.
  */
 async function writeLandingPath(targetPath: string): Promise<string | null> {
-  const resolvedTarget = resolve(targetPath);
-  const targetRoot = parse(resolvedTarget).root;
-  let current = targetRoot;
-  let pending = splitPathSegments(resolvedTarget.slice(targetRoot.length));
+  const start = splitAbsolutePath(isAbsolute(targetPath) ? targetPath : resolve(targetPath));
+  let current = start.root;
+  let pending = start.segments;
   // Once a segment is missing, nothing below it can be a link.
   let exists = true;
   let linkHops = 0;
@@ -805,16 +804,25 @@ async function writeLandingPath(targetPath: string): Promise<string | null> {
       // Dangling, or a cycle `realpath` gave up on: walk its target by hand.
     }
     const linkTarget = await readlink(current);
-    const linkTargetRoot = isAbsolute(linkTarget) ? parse(resolve(linkTarget)).root : "";
-    pending = [
-      ...splitPathSegments(
-        isAbsolute(linkTarget) ? resolve(linkTarget).slice(linkTargetRoot.length) : linkTarget,
-      ),
-      ...pending,
-    ];
-    current = isAbsolute(linkTarget) ? linkTargetRoot : dirname(current);
+    if (isAbsolute(linkTarget)) {
+      const target = splitAbsolutePath(linkTarget);
+      current = target.root;
+      pending = [...target.segments, ...pending];
+    } else {
+      current = dirname(current);
+      pending = [...splitPathSegments(linkTarget), ...pending];
+    }
   }
   return current;
+}
+
+/**
+ * Split an absolute path into its root and its raw segments, without folding a
+ * `..` away: {@link writeLandingPath} has to see every `..` where it is spelled.
+ */
+function splitAbsolutePath(absolutePath: string): { root: string; segments: string[] } {
+  const root = parse(absolutePath).root;
+  return { root, segments: splitPathSegments(absolutePath.slice(root.length)) };
 }
 
 /**

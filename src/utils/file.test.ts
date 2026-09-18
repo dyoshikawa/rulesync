@@ -1163,6 +1163,23 @@ describe("file utilities", () => {
       );
 
       it.skipIf(process.platform === "win32")(
+        "should resolve a dangling link's absolute target segment by segment rather than lexically",
+        async () => {
+          const root = join(testDir, "root");
+          const outside = join(testDir, "outside");
+          await ensureDir(root);
+          await ensureDir(join(outside, "victim"));
+          await symlink(outside, join(root, "sub"));
+          // Spelled by hand: `join` would fold the `..` away before the link is made.
+          await symlink(`${root}/sub/../victim/file.md`, join(root, "file.md"));
+
+          expect(
+            await writablePathEscapesRoot({ rootPath: root, targetPath: join(root, "file.md") }),
+          ).toBe(true);
+        },
+      );
+
+      it.skipIf(process.platform === "win32")(
         "should pass a dangling link whose target climbs back into the root through a link",
         async () => {
           const root = join(testDir, "root");
