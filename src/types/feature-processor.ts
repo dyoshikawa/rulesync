@@ -72,6 +72,17 @@ export abstract class FeatureProcessor extends RulesyncSourceConsumer {
   abstract convertToolFilesToRulesyncFiles(toolFiles: ToolFile[]): Promise<RulesyncFile[]>;
 
   /**
+   * Whether `convertRulesyncFilesToToolFiles` still yields tool files for an
+   * empty source list. A processor that aggregates into a shared file it may
+   * never delete (Pool's `settings.yaml` subagents) answers true so a run
+   * whose last source file is gone retracts what an earlier run generated;
+   * the default keeps a run with no source from writing anything.
+   */
+  emitsToolFilesForEmptySource(): boolean {
+    return false;
+  }
+
+  /**
    * Return tool targets that this feature supports.
    */
   static getToolTargets(

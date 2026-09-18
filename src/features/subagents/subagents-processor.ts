@@ -781,6 +781,10 @@ export class SubagentsProcessor extends FeatureProcessor {
     this.getFactory = getFactory;
   }
 
+  override emitsToolFilesForEmptySource(): boolean {
+    return this.getFactory(this.toolTarget).meta.emitsEmptyAggregate === true;
+  }
+
   async convertRulesyncFilesToToolFiles(rulesyncFiles: RulesyncFile[]): Promise<ToolFile[]> {
     const rulesyncSubagents = rulesyncFiles.filter(
       (file): file is RulesyncSubagent => file instanceof RulesyncSubagent,
@@ -1074,6 +1078,7 @@ export class SubagentsProcessor extends FeatureProcessor {
             relativeDirPath: dirPath,
             relativeFilePath: toRelativeFilePath(path),
             global: this.global,
+            logger: this.logger,
           }),
         ),
       );

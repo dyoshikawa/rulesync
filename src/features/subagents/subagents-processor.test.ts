@@ -15,6 +15,7 @@ import { CodexCliSubagent } from "./codexcli-subagent.js";
 import { CopilotSubagent } from "./copilot-subagent.js";
 import { CursorSubagent } from "./cursor-subagent.js";
 import { JunieSubagent } from "./junie-subagent.js";
+import { PoolSubagent } from "./pool-subagent.js";
 import { RooSubagent } from "./roo-subagent.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
 import {
@@ -317,6 +318,50 @@ describe("SubagentsProcessor", () => {
       expect(toolFiles).toHaveLength(1);
       const [opencodeSubagent] = toolFiles;
       expect(opencodeSubagent?.getRelativeDirPath()).toBe(".opencode/agents");
+    });
+  });
+
+  describe("emitsToolFilesForEmptySource", () => {
+    it("is true only for a target that keeps its agents in one aggregate file", () => {
+      const poolProcessor = new SubagentsProcessor({
+        logger: createMockLogger(),
+        outputRoot: testDir,
+        toolTarget: "pool",
+      });
+      const rooProcessor = new SubagentsProcessor({
+        logger: createMockLogger(),
+        outputRoot: testDir,
+        toolTarget: "roo",
+      });
+
+      expect(poolProcessor.emitsToolFilesForEmptySource()).toBe(true);
+      expect(rooProcessor.emitsToolFilesForEmptySource()).toBe(false);
+    });
+
+    it("converts an empty source list into an agentless Pool settings patch", async () => {
+      // Removing the last rulesync subagent must still write the aggregate so
+      // the agents generated earlier are retracted from settings.yaml.
+      const poolProcessor = new SubagentsProcessor({
+        logger: createMockLogger(),
+        outputRoot: testDir,
+        toolTarget: "pool",
+      });
+
+      const toolFiles = await poolProcessor.convertRulesyncFilesToToolFiles([]);
+
+      expect(toolFiles).toHaveLength(1);
+      expect(toolFiles[0]).toBeInstanceOf(PoolSubagent);
+      expect((toolFiles[0] as PoolSubagent).getAgents()).toEqual({});
+    });
+
+    it("converts an empty source list into nothing for a per-file target", async () => {
+      const rooProcessor = new SubagentsProcessor({
+        logger: createMockLogger(),
+        outputRoot: testDir,
+        toolTarget: "roo",
+      });
+
+      expect(await rooProcessor.convertRulesyncFilesToToolFiles([])).toEqual([]);
     });
   });
 

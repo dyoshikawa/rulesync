@@ -5,7 +5,13 @@ import { describe, expect, it } from "vitest";
 
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
-import { ensureDir, fileExists, readFileContent, writeFileContent } from "../utils/file.js";
+import {
+  ensureDir,
+  fileExists,
+  readFileContent,
+  removeFile,
+  writeFileContent,
+} from "../utils/file.js";
 import { getHermesagentGlobalDir } from "../utils/hermesagent.js";
 import {
   assertGenerateMatrixCoversTargets,
@@ -476,6 +482,40 @@ You are the planner. Analyze files and create a plan.
     expect(generatedContent).toContain("inherit_agent_config: true");
     expect(generatedContent).toContain("Analyze files and create a plan.");
     expect(generatedContent).not.toContain("stale");
+  });
+
+  it("should retract Pool agents once the last rulesync subagent is removed", async () => {
+    const testDir = getTestDir();
+    const sourcePath = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md");
+
+    await writeFileContent(
+      join(testDir, ".poolside", "settings.yaml"),
+      ["pool:", "  model: default", "subagents:", "  default: general", ""].join("\n"),
+    );
+    await writeFileContent(
+      sourcePath,
+      `---
+name: planner
+targets: ["pool"]
+description: "Plans implementation tasks"
+---
+You are the planner.
+`,
+    );
+    await runGenerate({ target: "pool", features: "subagents" });
+    expect(await readFileContent(join(testDir, ".poolside", "settings.yaml"))).toContain(
+      "planner:",
+    );
+
+    // With no source left there is nothing to generate, but the agents written
+    // earlier still belong to rulesync and must not linger in settings.yaml.
+    await removeFile(sourcePath);
+    await runGenerate({ target: "pool", features: "subagents" });
+
+    const generatedContent = await readFileContent(join(testDir, ".poolside", "settings.yaml"));
+    expect(generatedContent).toContain("model: default");
+    expect(generatedContent).toContain("default: general");
+    expect(generatedContent).not.toContain("planner");
   });
 
   it("should import Pool subagents from settings.yaml", async () => {

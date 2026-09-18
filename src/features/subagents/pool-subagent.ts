@@ -424,6 +424,7 @@ export class PoolSubagent extends ToolSubagent {
     relativeFilePath,
     validate = true,
     global = false,
+    logger,
   }: ToolSubagentFromFileParams): Promise<PoolSubagent> {
     const paths = this.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, relativeFilePath);
@@ -434,7 +435,7 @@ export class PoolSubagent extends ToolSubagent {
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath,
-      agents: agentsOfSettings({ settings, filePath }),
+      agents: agentsOfSettings({ settings, filePath, logger }),
       validate,
       global,
     });

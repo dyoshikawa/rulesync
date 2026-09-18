@@ -550,6 +550,55 @@ describe("generate", () => {
       expect(mockProcessor.convertRulesyncFilesToToolFiles).not.toHaveBeenCalled();
       expect(mockProcessor.writeAiFiles).not.toHaveBeenCalled();
     });
+
+    it("should still convert and write when the processor emits files for an empty source", async () => {
+      // A processor whose output is one aggregate file (Pool subagents) must
+      // write it even with no source, so entries generated earlier get retracted.
+      mockConfig.getFeatures.mockReturnValue(["ignore"]);
+
+      const mockProcessor = {
+        loadToolFiles: vi.fn().mockResolvedValue([]),
+        removeAiFiles: vi.fn().mockResolvedValue(undefined),
+        ...mockProcessorBase(),
+        emitsToolFilesForEmptySource: vi.fn().mockReturnValue(true),
+        loadRulesyncFiles: vi.fn().mockResolvedValue([]),
+        convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ getFilePath: () => "out" }]),
+        writeAiFiles: vi.fn().mockResolvedValue({ count: 1, paths: ["out"] }),
+      };
+      vi.mocked(IgnoreProcessor).mockImplementation(function () {
+        return mockProcessor as unknown as IgnoreProcessor;
+      });
+
+      const result = await generate({ logger, config: mockConfig as never });
+
+      expect(result.ignoreCount).toBe(1);
+      expect(mockProcessor.convertRulesyncFilesToToolFiles).toHaveBeenCalledWith([]);
+      expect(mockProcessor.writeAiFiles).toHaveBeenCalled();
+    });
+
+    it("should not retract for an empty source when loading the source failed", async () => {
+      mockConfig.getFeatures.mockReturnValue(["ignore"]);
+
+      const mockProcessor = {
+        loadToolFiles: vi.fn().mockResolvedValue([]),
+        removeAiFiles: vi.fn().mockResolvedValue(undefined),
+        ...mockProcessorBase(),
+        emitsToolFilesForEmptySource: vi.fn().mockReturnValue(true),
+        hasRulesyncSourceLoadFailure: vi.fn().mockReturnValue(true),
+        loadRulesyncFiles: vi.fn().mockResolvedValue([]),
+        convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ getFilePath: () => "out" }]),
+        writeAiFiles: vi.fn().mockResolvedValue({ count: 1, paths: ["out"] }),
+      };
+      vi.mocked(IgnoreProcessor).mockImplementation(function () {
+        return mockProcessor as unknown as IgnoreProcessor;
+      });
+
+      const result = await generate({ logger, config: mockConfig as never });
+
+      expect(result.ignoreCount).toBe(0);
+      expect(mockProcessor.convertRulesyncFilesToToolFiles).not.toHaveBeenCalled();
+      expect(mockProcessor.writeAiFiles).not.toHaveBeenCalled();
+    });
   });
 
   describe("mcp feature", () => {

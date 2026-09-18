@@ -435,6 +435,25 @@ describe("PoolSubagent", () => {
       expect(() => subagent.toRulesyncSubagent()).toThrow("No custom subagents found");
     });
 
+    it("warns through the given logger about an entry it skips", async () => {
+      await writeFileContent(
+        join(testDir, ".poolside", "settings.yaml"),
+        ["subagents:", "  agents:", "    broken: not-a-mapping", ""].join("\n"),
+      );
+      const logger = createMockLogger();
+
+      const subagent = await PoolSubagent.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "settings.yaml",
+        logger,
+      });
+
+      expect(subagent.toRulesyncSubagents()).toEqual([]);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Skipped Pool subagent "broken"'),
+      );
+    });
+
     it("reads a settings file without a subagents block as empty", async () => {
       await writeFileContent(join(testDir, ".poolside", "settings.yaml"), "pool:\n  model: gpt\n");
 

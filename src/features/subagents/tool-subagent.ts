@@ -42,6 +42,8 @@ export type ToolSubagentSettablePaths = {
 
 export type ToolSubagentFromFileParams = AiFileFromFileParams & {
   global?: boolean;
+  /** Receives the warnings of a tool whose file may carry entries it skips. */
+  logger?: Logger;
 };
 
 export type ToolSubagentForDeletionParams = {
