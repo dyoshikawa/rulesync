@@ -628,6 +628,16 @@ roo: # for Roo Code specific parameters (optional; aggregated into the root .roo
   groups: # (optional, defaults to ["read", "edit", "command", "mcp"]) tool access
     - read
     - ["edit", { fileRegex: "\\.md$", description: "Markdown files" }]
+pool: # for Pool specific parameters (optional; aggregated into the `subagents` block of .poolside/settings.yaml)
+  type: in_process # (optional, defaults to "in_process") in_process | command | agent_server
+  description: "Plans a task" # (optional) overrides the top-level description for Pool
+  instructions: "Plan carefully." # (optional) overrides the body as the agent's instructions
+  command: my-agent # (command type) executable that speaks ACP over stdio
+  args: ["--acp"] # (command type) arguments passed to the executable
+  env: { LOG_LEVEL: debug } # (command type) environment variables for the process
+  agent_server: my-agent # (agent_server type) name of a configured ACP agent server
+  inherit_agent_config: true # (optional) inherit the parent's model and settings
+  disabled: false # (optional) keep the definition but hide the agent from Pool
 ---
 
 You are the planner for any tasks.
@@ -695,6 +705,8 @@ Besides `mode`, the `kilo` subagent block accepts these optional fields (all pre
 > **Migration note (`steps`):** earlier Rulesync versions typed `steps` as a list of step objects, which Kilo never accepted — a subagent authored that way produced a file Kilo ignored. It is now the iteration count Kilo documents, so a `kilo` block (or a `.kilo/agents/*.md` file) still carrying the list form fails validation with the offending file named, and the run stops rather than writing a file that would not work. Replace the list with the number of iterations you want, or drop the field.
 
 > **Hermes Agent note:** Project generation writes subagent JSON specs under `.hermes/rulesync/subagents/` and installs `.hermes/plugins/rulesync-subagents/`. The plugin resolves specs relative to its own installation, so the same code works in project and global scope. For project scope, Rulesync also enables `rulesync-subagents` in `$HERMES_HOME/config.yaml`. Run Hermes from the trusted project root with `HERMES_ENABLE_PROJECT_PLUGINS=true`; Rulesync deliberately does not persist that global trust gate.
+
+> **Pool note:** Pool has no per-agent files: every subagent is an entry of the `subagents.agents` map in its settings file, `.poolside/settings.yaml` for the project and `~/.config/poolside/settings.yaml` for `--global`. Rulesync writes one entry per subagent, keyed by the frontmatter `name`, with `type` (defaulting to `in_process`), `description` and `instructions` (the Markdown body, unless `pool.instructions` overrides it) plus whatever else the `pool:` block carries, such as `command`/`args`/`env` for a `command` agent or `agent_server` for an `agent_server` one. Rulesync owns the whole `subagents` block: on every run it recomputes `subagents.agents` from the Rulesync subagents targeting Pool, dropping agents a previous run generated but keeps `subagents.default` and Pool's built-in `general` entry (a Rulesync subagent named `general` is skipped with a warning) and leaves the file's other keys untouched; a run with no Pool-targeted subagent therefore removes the generated agents instead of leaving stale ones behind, as long as a `.rulesync/subagents/` directory exists (a project without one has not adopted the feature and its agents are left alone, and `rulesync convert --to pool` likewise never retracts, since its sources come from another tool). Every agent Rulesync removes is named in a warning. Hand-written agents that should survive generation belong in `.poolside/settings.local.yaml`, which Rulesync never touches; at global scope, where Pool has no such overlay, keep them in `.rulesync/subagents/` instead. `rulesync import --targets pool` fans `subagents.agents` (except `general`) back out to one `.rulesync/subagents/<name>.md` per agent, moving `instructions` into the body and the remaining keys into the `pool:` block. See the [Pool subagents docs](https://docs.poolside.ai/subagents) and [settings file reference](https://docs.poolside.ai/settings-file-reference).
 
 > **ZCode note:** ZCode subagents are **global only**: its docs state that the current Beta "manages global / user-level subagents stored under `~/.zcode/agents/`" and that creating workspace / project-level ones "is not available yet". `zcode` is therefore offered for `--global` runs only, and a project-scope `rulesync generate --features subagents` writes nothing for it. Each subagent is one Markdown file named after the agent, `~/.zcode/agents/<name>.md`, with YAML frontmatter whose keys are camelCase and case-sensitive: `name` and `description` are required, and `model`, `thoughtLevel`, `color`, `tools`, `disallowedTools`, `maxTurns` (a positive integer), `injectAgentsMd` and `mcpServers` are optional. Put those optional fields in the `zcode:` block of the canonical subagent; any extra keys are preserved on round-trip through the same block. See the [ZCode subagents docs](https://zcode.z.ai/en/docs/subagents).
 

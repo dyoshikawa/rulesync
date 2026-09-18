@@ -2,6 +2,7 @@ import { basename, dirname, join, relative } from "node:path";
 
 import { z } from "zod/mini";
 
+import { POOL_SETTINGS_FILE_NAME } from "../../constants/pool-paths.js";
 import {
   RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
   SUBAGENTS_FEATURE_SUBDIR,
@@ -52,6 +53,7 @@ import { KiroCliSubagent } from "./kiro-cli-subagent.js";
 import { KiroIdeSubagent } from "./kiro-ide-subagent.js";
 import { KiroSubagent } from "./kiro-subagent.js";
 import { OpenCodeSubagent } from "./opencode-subagent.js";
+import { PoolSubagent } from "./pool-subagent.js";
 import { QwencodeSubagent } from "./qwencode-subagent.js";
 import { ReasonixSubagent } from "./reasonix-subagent.js";
 import { RooSubagent } from "./roo-subagent.js";
@@ -89,6 +91,7 @@ type ToolSubagentFactory = {
       outputRoot?: string;
       rulesyncSubagents: RulesyncSubagent[];
       global?: boolean;
+      logger?: Logger;
     }): ToolSubagent | ToolSubagent[];
     fromFile(params: ToolSubagentFromFileParams): Promise<ToolSubagent>;
     forDeletion(params: ToolSubagentForDeletionParams): ToolSubagent;
@@ -124,6 +127,16 @@ type ToolSubagentFactory = {
     supportsSimulated: boolean;
     /** Whether the tool supports global (user-level) subagents */
     supportsGlobal: boolean;
+    /**
+     * Whether `fromRulesyncSubagents` is invoked even when no rulesync subagent
+     * targets the tool. Set by aggregating tools whose file is a shared config
+     * the tool keeps for other purposes (Pool's `settings.yaml`): the empty
+     * aggregate then retracts the agents rulesync generated earlier, which
+     * orphan deletion cannot do because the file itself is never deleted.
+     * Tools whose aggregate file is theirs alone (Roo's `.roomodes`) leave it
+     * unset and rely on orphan deletion instead.
+     */
+    emitsEmptyAggregate?: boolean;
     /**
      * File pattern for import (e.g., "*.md", "*.json").
      *
@@ -534,6 +547,26 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
     },
   ],
   [
+    "pool",
+    {
+      // Pool defines subagents inside its settings file
+      // (`.poolside/settings.yaml` / `~/.config/poolside/settings.yaml`) under
+      // `subagents.agents.<name>`. rulesync collapses every targeted subagent
+      // into that block, keeping the file's other keys and Pool's built-in
+      // `general` agent; the file is shared with the MCP feature and is never
+      // deleted, so an empty aggregate is what retracts stale agents.
+      // https://docs.poolside.ai/subagents
+      class: PoolSubagent,
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: true,
+        emitsEmptyAggregate: true,
+        filePattern: POOL_SETTINGS_FILE_NAME,
+      },
+    },
+  ],
+  [
     "qwencode",
     {
       // Qwen Code subagents are native Markdown + YAML frontmatter under
@@ -718,6 +751,12 @@ export class SubagentsProcessor extends FeatureProcessor {
   private readonly toolTarget: SubagentsProcessorToolTarget;
   private readonly global: boolean;
   private readonly getFactory: GetFactory;
+  /**
+   * Whether the last `loadRulesyncFiles` found a `subagents/` directory under
+   * any input root. A project without one has not adopted the feature, so the
+   * agents in its Pool settings are its own and must not be retracted.
+   */
+  private rulesyncSourceDirFound = false;
 
   constructor({
     outputRoot = process.cwd(),
@@ -748,6 +787,13 @@ export class SubagentsProcessor extends FeatureProcessor {
     this.getFactory = getFactory;
   }
 
+  override emitsToolFilesForEmptySource(): boolean {
+    return (
+      this.rulesyncSourceDirFound &&
+      this.getFactory(this.toolTarget).meta.emitsEmptyAggregate === true
+    );
+  }
+
   async convertRulesyncFilesToToolFiles(rulesyncFiles: RulesyncFile[]): Promise<ToolFile[]> {
     const rulesyncSubagents = rulesyncFiles.filter(
       (file): file is RulesyncSubagent => file instanceof RulesyncSubagent,
@@ -763,13 +809,18 @@ export class SubagentsProcessor extends FeatureProcessor {
     // file (e.g. Roo's `.roomodes`) implement `fromRulesyncSubagents` to emit
     // one tool file holding all targeted subagents. Otherwise map one-to-one.
     if (factory.class.fromRulesyncSubagents) {
-      if (targeted.length === 0) {
+      // An empty aggregate retracts every agent a previous run generated, so
+      // it is only emitted under the same gate as the generate flow: a source
+      // directory must have been found. `convert`, whose sources come from
+      // another tool, never finds one and so never wipes the target file.
+      if (targeted.length === 0 && !this.emitsToolFilesForEmptySource()) {
         return [];
       }
       const toolSubagents = factory.class.fromRulesyncSubagents({
         outputRoot: this.outputRoot,
         rulesyncSubagents: targeted,
         global: this.global,
+        logger: this.logger,
       });
 
       return Array.isArray(toolSubagents) ? toolSubagents : [toolSubagents];
@@ -861,6 +912,7 @@ export class SubagentsProcessor extends FeatureProcessor {
       this.logger.debug(`Rulesync subagents directory not found: ${subagentsDir}`);
       return [];
     }
+    this.rulesyncSourceDirFound = true;
 
     const entries = await listDirectoryEntryNames(subagentsDir);
     const mdFiles = entries.filter((file) => file.endsWith(".md"));
@@ -921,6 +973,7 @@ export class SubagentsProcessor extends FeatureProcessor {
    * earlier root's copy.
    */
   async loadRulesyncFiles(): Promise<RulesyncFile[]> {
+    this.rulesyncSourceDirFound = false;
     const perRoot = await Promise.all(
       this.inputRoots.map((root) => this.loadRulesyncFilesForRoot(root)),
     );
@@ -1040,6 +1093,7 @@ export class SubagentsProcessor extends FeatureProcessor {
             relativeDirPath: dirPath,
             relativeFilePath: toRelativeFilePath(path),
             global: this.global,
+            logger: this.logger,
           }),
         ),
       );

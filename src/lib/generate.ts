@@ -334,7 +334,11 @@ async function processFeatureWithRulesyncFiles(params: {
   onToolFiles?: (toolFiles: AiFile[]) => void;
 }): Promise<FeatureGenerateResult> {
   const { config, processor, rulesyncFiles, sweepPlan, skipFilePaths, onToolFiles } = params;
-  if (rulesyncFiles.length === 0) {
+  // A source that failed to load also arrives empty, and "could not be read"
+  // is not "no longer wanted", so it never retracts anything.
+  const retractsForEmptySource =
+    processor.emitsToolFilesForEmptySource() && !processor.hasRulesyncSourceLoadFailure();
+  if (rulesyncFiles.length === 0 && !retractsForEmptySource) {
     return processEmptyFeatureGeneration({ config, processor, sweepPlan, skipFilePaths });
   }
   const toolFiles = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);

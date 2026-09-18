@@ -30,10 +30,20 @@ export type ToolSubagentSettablePaths = {
         relativeDirPath: string;
       }
   >;
+  /**
+   * Set when a tool's subagents all live in one file rather than in a
+   * directory of per-agent files (e.g. Pool's `settings.yaml`). Consumers that
+   * would otherwise assume the whole directory is rulesync's — the gitignore
+   * and shared-file derivations, for one — use it to narrow to that single
+   * file.
+   */
+  relativeFilePath?: string;
 };
 
 export type ToolSubagentFromFileParams = AiFileFromFileParams & {
   global?: boolean;
+  /** Receives the warnings of a tool whose file may carry entries it skips. */
+  logger?: Logger;
 };
 
 export type ToolSubagentForDeletionParams = {

@@ -198,6 +198,7 @@ export const subagentsProcessorToolTargetTuple = [
   "kiro-cli",
   "kiro-ide",
   "opencode",
+  "pool",
   "qwencode",
   "reasonix",
   "roo",
