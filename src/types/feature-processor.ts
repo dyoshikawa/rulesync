@@ -2,7 +2,7 @@ import { join } from "node:path";
 
 import { RULESYNC_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import { fileContentIsEmptyPayload, fileContentsEquivalent } from "../utils/content-equivalence.js";
-import { stripControlCharacters } from "../utils/control-characters.js";
+import { quoteForLog, stripControlCharacters } from "../utils/control-characters.js";
 import {
   addTrailingNewline,
   applyFileMode,
@@ -10,6 +10,7 @@ import {
   restoreMissingExecutableBit,
   readFileContentOrNull,
   removeFile,
+  writablePathEscapesRoot,
   writeFileContent,
 } from "../utils/file.js";
 import type { Logger } from "../utils/logger.js";
@@ -88,6 +89,22 @@ export abstract class FeatureProcessor extends RulesyncSourceConsumer {
     const changedPaths: string[] = [];
     for (const aiFile of aiFiles) {
       const filePath = aiFile.getFilePath();
+
+      // `getFilePath` judges the path as spelled. A checked-out repository can
+      // carry a symbolic link at an output path (`AGENTS.md -> ~/.bashrc`, or a
+      // tool directory linked to `/etc`), and a write through it would land
+      // wherever the link points. The link is resolved before anything is read
+      // or written, and a target that really sits outside the root is skipped.
+      if (
+        await writablePathEscapesRoot({ rootPath: aiFile.getOutputRoot(), targetPath: filePath })
+      ) {
+        this.logger.warn(
+          `Refusing to write ${quoteForLog(filePath)}: it resolves outside ` +
+            `${quoteForLog(aiFile.getOutputRoot())} through a symbolic link`,
+        );
+        continue;
+      }
+
       const existingFileContent = await readFileContentOrNull(filePath);
 
       if (existingFileContent !== null && aiFile.shouldMergeExistingFileContent()) {

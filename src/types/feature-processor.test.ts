@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -39,10 +39,11 @@ vi.mock("../utils/file.js", async () => {
  */
 function createMockFile(
   filePath: string,
-  { fileContent = "content" }: { fileContent?: string } = {},
+  { fileContent = "content", outputRoot = "/" }: { fileContent?: string; outputRoot?: string } = {},
 ): AiFile {
   const file = {
     getFilePath: () => filePath,
+    getOutputRoot: () => outputRoot,
     getFileContent: () => fileContent,
     getRelativePathFromCwd: () => filePath,
     // Declared on the AiFile base class; defaults to false for non-merging files.
@@ -227,6 +228,58 @@ describe("FeatureProcessor", () => {
       expect(result).toEqual({ count: 2, paths: ["/path/to/file1.md", "/path/to/file2.md"] });
       expect(writeFileContent).toHaveBeenCalledTimes(2);
     });
+
+    it.skipIf(process.platform === "win32")(
+      "should refuse to write through a link that leads out of the output root",
+      async () => {
+        vi.mocked(readFileContentOrNull).mockResolvedValue(null);
+        const logger = createMockLogger();
+        const root = join(testDir, "root");
+        const outside = join(testDir, "outside");
+        await mkdir(root, { recursive: true });
+        await mkdir(outside, { recursive: true });
+        // A checked-out repository can carry this link; the write must not land
+        // in the directory it points to.
+        await symlink(outside, join(root, ".tool"));
+        const processor = new TestProcessor({ logger, outputRoot: root });
+
+        const linkedPath = join(root, ".tool", "rules.md");
+        const result = await processor.writeAiFiles([
+          createMockFile(linkedPath, { outputRoot: root }),
+          createMockFile(join(root, "kept.md"), { outputRoot: root }),
+        ]);
+
+        expect(result).toEqual({ count: 1, paths: [join(root, "kept.md")] });
+        expect(writeFileContent).toHaveBeenCalledTimes(1);
+        expect(writeFileContent).not.toHaveBeenCalledWith(linkedPath, expect.anything());
+        expect(readFileContentOrNull).not.toHaveBeenCalledWith(linkedPath);
+        expect(logger.warn).toHaveBeenCalledWith(
+          `Refusing to write ${JSON.stringify(linkedPath)}: it resolves outside ` +
+            `${JSON.stringify(root)} through a symbolic link`,
+        );
+      },
+    );
+
+    it.skipIf(process.platform === "win32")(
+      "should write through a link that stays inside the output root",
+      async () => {
+        vi.mocked(readFileContentOrNull).mockResolvedValue(null);
+        const logger = createMockLogger();
+        const root = join(testDir, "root");
+        await mkdir(join(root, "dotfiles", ".tool"), { recursive: true });
+        await symlink(join(root, "dotfiles", ".tool"), join(root, ".tool"));
+        const processor = new TestProcessor({ logger, outputRoot: root });
+
+        const linkedPath = join(root, ".tool", "rules.md");
+        const result = await processor.writeAiFiles([
+          createMockFile(linkedPath, { outputRoot: root }),
+        ]);
+
+        expect(result).toEqual({ count: 1, paths: [linkedPath] });
+        expect(writeFileContent).toHaveBeenCalledWith(linkedPath, "content\n");
+        expect(logger.warn).not.toHaveBeenCalled();
+      },
+    );
 
     it("should skip unchanged files and return 0", async () => {
       vi.mocked(readFileContentOrNull).mockResolvedValue("content\n");

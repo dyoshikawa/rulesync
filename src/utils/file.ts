@@ -721,6 +721,50 @@ export async function resolvedPathEscapesRoot({
 }
 
 /**
+ * Whether writing `targetPath` would land outside `rootPath` once every link on
+ * the way there is resolved. The target itself usually does not exist yet, so
+ * the check resolves its nearest existing ancestor instead: a directory that is
+ * a link out of the root sends every file written below it out of the root too.
+ * When nothing exists below the root yet — the nearest existing ancestor is the
+ * root itself or one of its own ancestors — no link can be on the way, and the
+ * spelled path is what {@link pathEscapesRoot} already judged.
+ *
+ * A link that stays inside the root passes. That is what sets this apart from
+ * the stricter {@link assertWritablePathInsideRoot} the sweep paths use: a
+ * dotfiles checkout linked from inside the home directory is a common shape for
+ * a global write target, and refusing it would refuse `--global` outright.
+ */
+export async function writablePathEscapesRoot({
+  rootPath,
+  targetPath,
+}: {
+  rootPath: string;
+  targetPath: string;
+}): Promise<boolean> {
+  const resolvedRoot = resolve(rootPath);
+  let existingPath = resolve(targetPath);
+  while (true) {
+    try {
+      await lstat(existingPath);
+      break;
+    } catch (error) {
+      if (!isFileNotFoundError(error)) {
+        throw error;
+      }
+      const parentPath = dirname(existingPath);
+      if (parentPath === existingPath) {
+        return false;
+      }
+      existingPath = parentPath;
+    }
+  }
+  if (!pathEscapesRoot(relative(existingPath, resolvedRoot))) {
+    return false;
+  }
+  return resolvedPathEscapesRoot({ rootPath: resolvedRoot, targetPath: existingPath });
+}
+
+/**
  * How many trailing segments `filePath` and `identity` have in common.
  *
  * A path that walked through no link at all shares all of its own segments with
