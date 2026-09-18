@@ -53,3 +53,6 @@ export const POOL_TOOLS_KEY = "tools";
 
 /** Top-level key of Pool's settings file that holds file access rules. */
 export const POOL_PATHS_KEY = "paths";
+
+/** Top-level key of Pool's settings file that holds the per-event hook lists. */
+export const POOL_HOOKS_KEY = "hooks";

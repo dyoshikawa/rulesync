@@ -33,6 +33,7 @@ import {
   KIRO_IDE_HOOK_EVENTS,
   OPENCODE_HOOK_EVENTS,
   PI_HOOK_EVENTS,
+  POOL_HOOK_EVENTS,
   QWENCODE_HOOK_EVENTS,
   REASONIX_HOOK_EVENTS,
   TABNINE_HOOK_EVENTS,
@@ -81,6 +82,7 @@ import { KiroHooks } from "./kiro-hooks.js";
 import { KIRO_HOOKS_OVERRIDE_KEY, KiroIdeHooks } from "./kiro-ide-hooks.js";
 import { OpencodeHooks } from "./opencode-hooks.js";
 import { PiHooks } from "./pi-hooks.js";
+import { PoolHooks } from "./pool-hooks.js";
 import { QwencodeHooks } from "./qwencode-hooks.js";
 import { ReasonixHooks } from "./reasonix-hooks.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
@@ -861,6 +863,25 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       // The adapter only emits its own native events; unknown override-block
       // keys are dropped, so report them.
       dropsUnknownOverrideEvents: true,
+    },
+  ],
+  [
+    "pool",
+    {
+      // Pool hooks live under the `hooks` key of its settings file,
+      // `.poolside/settings.yaml` (project) / `~/.config/poolside/settings.yaml`
+      // (global), as a flat `<Event>: [{name, matcher, command, timeout}]`
+      // list per event. `matcher` is tested against the tool name on
+      // PreToolUse/PostToolUse only (`*` any, bare name exact, `a|b` list,
+      // else regex) and is written as `*` on the other events, which Pool
+      // ignores it on. https://docs.poolside.ai/hooks
+      class: PoolHooks,
+      meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
+      supportedEvents: POOL_HOOK_EVENTS,
+      supportedHookTypes: ["command"],
+      supportsMatcher: true,
+      // Event names under the `pool.hooks` override (e.g. ones an import
+      // filed there) are emitted verbatim by the adapter.
     },
   ],
   [
