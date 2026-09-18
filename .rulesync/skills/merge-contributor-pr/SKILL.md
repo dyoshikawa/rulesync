@@ -329,12 +329,12 @@ hand the PR back.
 ## Step 3b: Rule Out a Superseded PR Before Resolving Anything
 
 A conflict is not always "something else landed first and touched the same
-lines". Sometimes the something else *is* the PR's own feature, contributed a
+lines". Sometimes the something else _is_ the PR's own feature, contributed a
 second time — a maintainer or another contributor shipped it while this PR sat
 in the queue. Resolving such a conflict "in favour of `main`" produces a merge
 commit that changes nothing, and merging that quietly is worse than useless:
 the PR is recorded as having added a feature it did not add, and whatever the
-resolution did *not* strip out (a stale lockfile, duplicated test rows, a
+resolution did _not_ strip out (a stale lockfile, duplicated test rows, a
 schema block nothing reads) lands on `main` unreviewed.
 
 The tell is an **add/add conflict on a file the PR created** — a new adapter,
@@ -398,7 +398,7 @@ offer exactly two outcomes:
   points at the still-open follow-up work where a new PR would be welcome.
   Write the comment to a file and pass it with `--comment "$(cat <file>)"`;
   the paths and PR numbers in it are yours, not the fork's, so this is safe.
-- **Credit-only merge**: every conflicted *and* every surviving path is reset
+- **Credit-only merge**: every conflicted _and_ every surviving path is reset
   to `origin/main` (`git checkout origin/main -- <paths>`), so the merge commit
   has an empty diff against `main` and the author's commits still enter the
   history. Only do this when the user explicitly chooses it; then continue with
