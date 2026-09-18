@@ -1256,13 +1256,17 @@ const KIMI_CODE_CONFIG_DECLARATION: SharedConfigFileDeclaration = {
  * Pool settings (`.poolside/settings.yaml` / `~/.config/poolside/settings.yaml`):
  * the user's primary Pool settings file, so an unparseable root fails closed
  * rather than being replaced with generated output. `mcp_servers` is owned as
- * a whole key because the MCP writer emits the complete server map.
+ * a whole key because the MCP writer emits the complete server map. The
+ * permissions writer deep-merges: it rewrites the `allow`/`deny` lists of the
+ * `tools.<name>` blocks it manages and the `paths` lists, leaving each tool's
+ * `disabled` flag, unmanaged tools and every other key in place.
  */
 const POOL_SETTINGS_DECLARATION: SharedConfigFileDeclaration = {
   format: "yaml",
   invalidRootPolicy: "error",
   features: {
     mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp_servers"] },
+    permissions: { kind: "deep-merge" },
   },
 };
 
