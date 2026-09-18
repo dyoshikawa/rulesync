@@ -368,6 +368,72 @@ describe("PoolPermissions", () => {
       expect(logger.warn).not.toHaveBeenCalled();
     });
 
+    it("should withhold a path allow that overlaps a deny Pool cannot spell", async () => {
+      const logger = createMockLogger();
+      const permissions = await PoolPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          read: { "**": "allow", "docs/**": "allow", "secrets/?.env": "deny" },
+          edit: { "**": "allow", "docs/{a,b}.md": "allow" },
+        }),
+        logger,
+      });
+
+      // Written literally, `secrets/?.env` would match nothing in Pool's path
+      // globs and the catch-all allows would auto-approve the files it names,
+      // so the deny is skipped and withholds them instead; `docs/**` overlaps
+      // nothing it names and stays. An allow Pool cannot spell is skipped too.
+      expect(permissions.getSettings()).toEqual({
+        paths: { allow: [{ path: "docs/**" }] },
+      });
+      expect(logger.warn).toHaveBeenCalledTimes(4);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          'Pool path rules treat only "*" and "**" as wildcards, so the "deny" rule for "read" (pattern "secrets/?.env") was skipped',
+        ),
+      );
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          'the "allow" rule for "read" (pattern "**") was withheld because it overlaps the restriction(s) "secrets/?.env"',
+        ),
+      );
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          'the "allow" rule for "edit" (pattern "**") was withheld because it overlaps the restriction(s) "secrets/?.env"',
+        ),
+      );
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          'so the "allow" rule for "edit" (pattern "docs/{a,b}.md") was skipped',
+        ),
+      );
+    });
+
+    it("should report a write deny Pool cannot spell as skipped rather than as unread", async () => {
+      const logger = createMockLogger();
+      const permissions = await PoolPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          read: { "src/**": "allow" },
+          write: { "src/**": "allow", "src/[ab].ts": "deny" },
+        }),
+        logger,
+      });
+
+      // The write flag is withheld as for any lone write deny, but the hint
+      // to deny the pattern under `read` would not help: Pool cannot spell it.
+      expect(permissions.getSettings()).toEqual({
+        paths: { allow: [{ path: "src/**" }] },
+      });
+      expect(logger.warn).toHaveBeenCalledTimes(2);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          'so the "deny" rule for "write" (pattern "src/[ab].ts") was skipped',
+        ),
+      );
+      expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("was not written"));
+    });
+
     it("should withhold a tool allow that overlaps an ask of another category on the same Pool tool", async () => {
       const logger = createMockLogger();
       const permissions = await PoolPermissions.fromRulesyncPermissions({

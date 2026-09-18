@@ -121,7 +121,14 @@ function toPoolToolPattern(pattern: string): string | undefined {
   return pattern.replaceAll(/\*{2,}/g, "*");
 }
 
-function toPoolPathPattern(pattern: string): string {
+/**
+ * Pool's path globs know `*` and `**`, so a bare `*` run is written as `**`
+ * to keep it matching anything. `?`, `[...]` and `{a,b}` are literal
+ * characters to Pool here as well, so a pattern that relies on them cannot be
+ * written.
+ */
+function toPoolPathPattern(pattern: string): string | undefined {
+  if (/[?[{]/.test(pattern)) return undefined;
   return /^\*+$/.test(pattern) ? PATHS_CATCH_ALL_PATTERN : pattern;
 }
 
@@ -540,7 +547,9 @@ function convertRulesyncToPoolTools({
  * win over any allow, and covers an `edit`/`write` deny of the same pattern,
  * so neither withholds anything; an `edit`/`write` deny without a `read` deny
  * cannot be written (Pool's deny blocks reads as well), so it is reported and
- * only withholds the write flags it overlaps.
+ * only withholds the write flags it overlaps. A deny Pool cannot spell is
+ * skipped the same way and withholds the allows it overlaps, so it is honored
+ * by prompting rather than dropped.
  */
 function convertRulesyncToPoolPaths({
   permission,
@@ -579,15 +588,26 @@ function convertRulesyncToPoolPaths({
     return false;
   };
 
-  // Only a read deny that fits this scope reaches `paths.deny`; one skipped
-  // for the other scope enforces nothing here, so it exempts no write deny.
-  const deny = uniq(
-    patternsWithAction(readRules, ["deny"])
-      .filter((pattern) => fitsScope({ category: READ_CATEGORY, action: "deny", pattern }))
-      .map(toPoolPathPattern),
-  ).map((path) => ({ [POOL_PATH_KEY]: path }));
-  const isDeniedForRead = (pattern: string): boolean =>
-    deny.some((entry) => entry[POOL_PATH_KEY] === toPoolPathPattern(pattern));
+  // Only a read deny that fits this scope and that Pool can spell reaches
+  // `paths.deny`; one skipped for the other scope enforces nothing here, so
+  // it exempts no write deny, and one Pool cannot spell withholds the allows
+  // it overlaps instead.
+  const deny: PoolPathEntry[] = [];
+  const readRestrictions = [...readAsks];
+  for (const pattern of patternsWithAction(readRules, ["deny"])) {
+    const path = toPoolPathPattern(pattern);
+    if (path === undefined) {
+      warnSkippedPathPattern({ category: READ_CATEGORY, action: "deny", pattern, logger });
+      readRestrictions.push(pattern);
+      continue;
+    }
+    if (!fitsScope({ category: READ_CATEGORY, action: "deny", pattern })) continue;
+    if (!deny.some((entry) => entry[POOL_PATH_KEY] === path)) deny.push({ [POOL_PATH_KEY]: path });
+  }
+  const isDeniedForRead = (pattern: string): boolean => {
+    const path = toPoolPathPattern(pattern);
+    return path !== undefined && deny.some((entry) => entry[POOL_PATH_KEY] === path);
+  };
 
   // A write deny whose pattern a written read deny covers is enforced by Pool
   // itself, so only the ones Pool never sees withhold.
@@ -596,40 +616,42 @@ function convertRulesyncToPoolPaths({
     ...patternsWithAction(rules, ["deny"]).filter((pattern) => !isDeniedForRead(pattern)),
   ]);
 
-  for (const [category, rules] of writeRulesByCategory) {
-    for (const pattern of patternsWithAction(rules, ["deny"])) {
-      if (isDeniedForRead(pattern)) continue;
-      logger?.warn(
-        `Pool cannot deny writes without denying reads, so the "deny" rule for "${category}" ` +
-          `(pattern ${quoteValueForWarning(pattern)}) was not written and Pool prompts for those ` +
-          `writes instead; deny the pattern under "read" as well to block it entirely.`,
-      );
-    }
-  }
+  reportUnwrittenWriteDenies({ writeRulesByCategory, isDeniedForRead, logger });
 
-  const shadowingReadRestrictions = createShadowingRestrictionsTest(asRestrictions(readAsks));
+  const shadowingReadRestrictions = createShadowingRestrictionsTest(
+    asRestrictions(readRestrictions),
+  );
   const shadowingWriteRestrictions = createShadowingRestrictionsTest(
-    asRestrictions([...readAsks, ...writeRestrictions]),
+    asRestrictions([...readRestrictions, ...writeRestrictions]),
   );
 
   const allowByPath = new Map<string, PoolPathEntry>();
   for (const pattern of patternsWithAction(readRules, ["allow"])) {
     if (!fitsScope({ category: READ_CATEGORY, action: "allow", pattern })) continue;
+    const path = toPoolPathPattern(pattern);
+    if (path === undefined) {
+      warnSkippedPathPattern({ category: READ_CATEGORY, action: "allow", pattern, logger });
+      continue;
+    }
     const shadowing = shadowingReadRestrictions(pattern);
     if (shadowing.length > 0) {
       logger?.warn(
-        `Pool has no "ask" list (an unmatched path prompts), so the "allow" rule for "read" ` +
-          `(pattern ${quoteValueForWarning(pattern)}) was withheld because it overlaps the "ask" ` +
-          `rule(s) ${listPatterns(shadowing)}.`,
+        `Pool has no list for an "ask" or for a deny it cannot spell (an unmatched path prompts), ` +
+          `so the "allow" rule for "read" (pattern ${quoteValueForWarning(pattern)}) was withheld ` +
+          `because it overlaps the restriction(s) ${listPatterns(shadowing)}.`,
       );
       continue;
     }
-    const path = toPoolPathPattern(pattern);
     allowByPath.set(path, { [POOL_PATH_KEY]: path });
   }
   for (const [category, rules] of writeRulesByCategory) {
     for (const pattern of patternsWithAction(rules, ["allow"])) {
       if (!fitsScope({ category, action: "allow", pattern })) continue;
+      const path = toPoolPathPattern(pattern);
+      if (path === undefined) {
+        warnSkippedPathPattern({ category, action: "allow", pattern, logger });
+        continue;
+      }
       const shadowing = shadowingWriteRestrictions(pattern);
       if (shadowing.length > 0) {
         logger?.warn(
@@ -639,12 +661,55 @@ function convertRulesyncToPoolPaths({
         );
         continue;
       }
-      const path = toPoolPathPattern(pattern);
       allowByPath.set(path, { [POOL_PATH_KEY]: path, [POOL_WRITE_KEY]: true });
     }
   }
 
   return { allow: [...allowByPath.values()], deny };
+}
+
+function warnSkippedPathPattern({
+  category,
+  action,
+  pattern,
+  logger,
+}: {
+  category: string;
+  action: PermissionAction;
+  pattern: string;
+  logger?: Logger;
+}): void {
+  logger?.warn(
+    `Pool path rules treat only "*" and "**" as wildcards, so the "${action}" rule for ` +
+      `"${category}" (pattern ${quoteValueForWarning(pattern)}) was skipped.`,
+  );
+}
+
+// Report every write deny that no written read deny enforces: Pool prompts
+// for those writes, and only the overlapping write flags are withheld.
+function reportUnwrittenWriteDenies({
+  writeRulesByCategory,
+  isDeniedForRead,
+  logger,
+}: {
+  writeRulesByCategory: ReadonlyArray<readonly [string, ActionRules]>;
+  isDeniedForRead: (pattern: string) => boolean;
+  logger?: Logger;
+}): void {
+  for (const [category, rules] of writeRulesByCategory) {
+    for (const pattern of patternsWithAction(rules, ["deny"])) {
+      if (isDeniedForRead(pattern)) continue;
+      if (toPoolPathPattern(pattern) === undefined) {
+        warnSkippedPathPattern({ category, action: "deny", pattern, logger });
+        continue;
+      }
+      logger?.warn(
+        `Pool cannot deny writes without denying reads, so the "deny" rule for "${category}" ` +
+          `(pattern ${quoteValueForWarning(pattern)}) was not written and Pool prompts for those ` +
+          `writes instead; deny the pattern under "read" as well to block it entirely.`,
+      );
+    }
+  }
 }
 
 // A pattern a Pool list entry may carry: a non-empty string that is not an
