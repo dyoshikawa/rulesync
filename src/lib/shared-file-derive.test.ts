@@ -170,6 +170,7 @@ describe("shared-file write derivation", () => {
           "hooks",
           "mcp",
           "permissions",
+          "subagents",
         ],
         ".config/zed/settings.json": [
           "ignore",
@@ -200,6 +201,7 @@ describe("shared-file write derivation", () => {
           "hooks",
           "mcp",
           "permissions",
+          "subagents",
         ],
         ".qwen/settings.json": [
           "hooks",

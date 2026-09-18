@@ -109,6 +109,10 @@ const subagentsGenerateTargets = [
     outputPath: join(".opencode", "agents", "planner.md"),
   },
   {
+    target: "pool",
+    outputPath: join(".poolside", "settings.yaml"),
+  },
+  {
     target: "rovodev",
     outputPath: join(".rovodev", "subagents", "planner.md"),
   },
@@ -174,6 +178,7 @@ const subagentsGlobalTargets = [
   { target: "kilo", outputPath: join(".config", "kilo", "agents", "planner.md") },
   { target: "kimi-code", outputPath: join(".kimi-code", "agents", "planner.md") },
   { target: "opencode", outputPath: join(".config", "opencode", "agents", "planner.md") },
+  { target: "pool", outputPath: join(".config", "poolside", "settings.yaml") },
   { target: "rovodev", outputPath: join(".rovodev", "subagents", "planner.md") },
   { target: "takt", outputPath: join(".takt", "facets", "personas", "planner.md") },
   { target: "factorydroid", outputPath: join(".factory", "droids", "planner.md") },
@@ -421,6 +426,100 @@ You are a subagent-only helper.
       expect(await readFileContent(join(testDir, orphanPath))).toBe("# orphan\n");
     },
   );
+});
+
+describe("E2E: subagents (pool)", () => {
+  const { getTestDir } = useTestDirectory();
+
+  it("should merge Pool subagents into settings.yaml without touching other keys", async () => {
+    const testDir = getTestDir();
+
+    // Pool keeps every subagent inside its settings file, next to keys rulesync
+    // does not own; `subagents.default` and the built-in `general` agent stay
+    // while the agents rulesync generated previously are replaced.
+    await writeFileContent(
+      join(testDir, ".poolside", "settings.yaml"),
+      [
+        "pool:",
+        "  model: default",
+        "subagents:",
+        "  default: general",
+        "  agents:",
+        "    general:",
+        "      type: in_process",
+        "    stale:",
+        "      type: in_process",
+        "      description: Gone from rulesync",
+        "",
+      ].join("\n"),
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md"),
+      `---
+name: planner
+targets: ["pool"]
+description: "Plans implementation tasks"
+pool:
+  inherit_agent_config: true
+---
+You are the planner. Analyze files and create a plan.
+`,
+    );
+
+    await runGenerate({ target: "pool", features: "subagents" });
+
+    const generatedContent = await readFileContent(join(testDir, ".poolside", "settings.yaml"));
+    expect(generatedContent).toContain("model: default");
+    expect(generatedContent).toContain("default: general");
+    expect(generatedContent).toContain("general:");
+    expect(generatedContent).toContain("planner:");
+    expect(generatedContent).toContain("inherit_agent_config: true");
+    expect(generatedContent).toContain("Analyze files and create a plan.");
+    expect(generatedContent).not.toContain("stale");
+  });
+
+  it("should import Pool subagents from settings.yaml", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, ".poolside", "settings.yaml"),
+      [
+        "subagents:",
+        "  default: general",
+        "  agents:",
+        "    general:",
+        "      type: in_process",
+        "    planner:",
+        "      type: in_process",
+        "      description: Plans implementation tasks",
+        "      instructions: Break down tasks into steps.",
+        "    runner:",
+        "      type: command",
+        "      description: External ACP agent",
+        "      command: my-agent",
+        "",
+      ].join("\n"),
+    );
+
+    await runImport({ target: "pool", features: "subagents" });
+
+    const planner = await readFileContent(
+      join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md"),
+    );
+    expect(planner).toContain("name: planner");
+    expect(planner).toContain("Break down tasks into steps.");
+    expect(planner).not.toContain("in_process");
+
+    const runner = await readFileContent(
+      join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "runner.md"),
+    );
+    expect(runner).toContain("type: command");
+    expect(runner).toContain("command: my-agent");
+
+    expect(
+      await fileExists(join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "general.md")),
+    ).toBe(false);
+  });
 });
 
 describe("E2E: subagents (import)", () => {

@@ -56,3 +56,18 @@ export const POOL_PATHS_KEY = "paths";
 
 /** Top-level key of Pool's settings file that holds the per-event hook lists. */
 export const POOL_HOOKS_KEY = "hooks";
+
+/**
+ * Top-level key of Pool's settings file that holds the subagent registry:
+ * `subagents.default` names the agent delegated to by default and
+ * `subagents.agents.<name>` defines each agent.
+ *
+ * @see https://docs.poolside.ai/subagents
+ */
+export const POOL_SUBAGENTS_KEY = "subagents";
+
+/** Key under `subagents` that holds the per-agent definitions. */
+export const POOL_SUBAGENTS_AGENTS_KEY = "agents";
+
+/** Pool's reserved built-in agent, always `in_process` and never generated. */
+export const POOL_GENERAL_AGENT_NAME = "general";
