@@ -361,17 +361,41 @@ describe("SubagentsProcessor", () => {
     it("converts an empty source list into an agentless Pool settings patch", async () => {
       // Removing the last rulesync subagent must still write the aggregate so
       // the agents generated earlier are retracted from settings.yaml.
+      await ensureDir(join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH));
       const poolProcessor = new SubagentsProcessor({
         logger: createMockLogger(),
         outputRoot: testDir,
         toolTarget: "pool",
       });
+      await poolProcessor.loadRulesyncFiles();
 
       const toolFiles = await poolProcessor.convertRulesyncFilesToToolFiles([]);
 
       expect(toolFiles).toHaveLength(1);
       expect(toolFiles[0]).toBeInstanceOf(PoolSubagent);
       expect((toolFiles[0] as PoolSubagent).getAgents()).toEqual({});
+    });
+
+    it("converts an empty source list into nothing when no source directory was found", async () => {
+      // `convert --to pool` hands over subagents read from another tool, so
+      // no `.rulesync/subagents/` directory is ever found; an aggregate
+      // written for a list none of which targets Pool would wipe the agents
+      // already in settings.yaml.
+      const poolProcessor = new SubagentsProcessor({
+        logger: createMockLogger(),
+        outputRoot: testDir,
+        toolTarget: "pool",
+      });
+      const rooOnly = new RulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath: "roo-only.md",
+        frontmatter: { name: "roo-only", description: "Roo only", targets: ["roo"] },
+        body: "Only for Roo.",
+      });
+
+      expect(await poolProcessor.convertRulesyncFilesToToolFiles([])).toEqual([]);
+      expect(await poolProcessor.convertRulesyncFilesToToolFiles([rooOnly])).toEqual([]);
     });
 
     it("converts an empty source list into nothing for a per-file target", async () => {

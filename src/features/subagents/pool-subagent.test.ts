@@ -194,6 +194,30 @@ describe("PoolSubagent", () => {
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("settings.local.yaml"));
     });
 
+    it("points a global-scope warning at .rulesync/subagents/ instead of settings.local.yaml", () => {
+      // Pool has no user-level settings.local.yaml, so the project advice
+      // would name a file that does not exist there.
+      const logger = createMockLogger();
+      const subagent = PoolSubagent.fromRulesyncSubagents({
+        outputRoot: testDir,
+        rulesyncSubagents: [],
+        global: true,
+        logger,
+      });
+      subagent.setFileContent(
+        ["subagents:", "  agents:", "    mine:", "      type: in_process", ""].join("\n"),
+      );
+
+      subagent.getFileContent();
+
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Removed Pool subagent(s) "mine"'),
+      );
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining(".rulesync/subagents/"));
+      expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("settings.local.yaml"));
+    });
+
     it("does not warn when no existing agent is dropped", () => {
       const logger = createMockLogger();
       const subagent = PoolSubagent.fromRulesyncSubagents({

@@ -809,7 +809,11 @@ export class SubagentsProcessor extends FeatureProcessor {
     // file (e.g. Roo's `.roomodes`) implement `fromRulesyncSubagents` to emit
     // one tool file holding all targeted subagents. Otherwise map one-to-one.
     if (factory.class.fromRulesyncSubagents) {
-      if (targeted.length === 0 && !factory.meta.emitsEmptyAggregate) {
+      // An empty aggregate retracts every agent a previous run generated, so
+      // it is only emitted under the same gate as the generate flow: a source
+      // directory must have been found. `convert`, whose sources come from
+      // another tool, never finds one and so never wipes the target file.
+      if (targeted.length === 0 && !this.emitsToolFilesForEmptySource()) {
         return [];
       }
       const toolSubagents = factory.class.fromRulesyncSubagents({

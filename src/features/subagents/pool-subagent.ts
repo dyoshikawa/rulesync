@@ -228,11 +228,15 @@ export class PoolSubagent extends ToolSubagent {
       (name) => name !== POOL_GENERAL_AGENT_NAME && !Object.hasOwn(agents, name),
     );
     if (dropped.length > 0) {
+      // Pool layers a `settings.local.yaml` overlay over the project file only,
+      // so at user scope there is no untouched sibling to point at.
+      const advice = this.global
+        ? "hand-written agents belong in .rulesync/subagents/"
+        : `hand-written agents belong in ${POOL_SETTINGS_LOCAL_FILE_NAME}`;
       this.logger?.warn(
         `Removed Pool subagent(s) ${dropped.map(quoteValueForWarning).join(", ")} from ${filePath}: ` +
           `rulesync recomputes "${POOL_SUBAGENTS_KEY}.${POOL_SUBAGENTS_AGENTS_KEY}" from ` +
-          `its own subagents on every run, so hand-written agents belong in ` +
-          `${POOL_SETTINGS_LOCAL_FILE_NAME}.`,
+          `its own subagents on every run, so ${advice}.`,
       );
     }
     if (Object.keys(agents).length > 0) {
