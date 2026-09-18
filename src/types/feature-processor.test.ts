@@ -281,6 +281,58 @@ describe("FeatureProcessor", () => {
       },
     );
 
+    it.skipIf(process.platform === "win32")(
+      "should refuse to create a file through a dangling link that leads out of the output root",
+      async () => {
+        vi.mocked(readFileContentOrNull).mockResolvedValue(null);
+        const logger = createMockLogger();
+        const root = join(testDir, "root");
+        await mkdir(root, { recursive: true });
+        // The target does not exist yet (`~/.zshenv` on a machine without one),
+        // so resolving the link's real path cannot tell where the write lands.
+        await symlink(join(testDir, "not-yet"), join(root, "AGENTS.md"));
+        const processor = new TestProcessor({ logger, outputRoot: root });
+
+        const linkedPath = join(root, "AGENTS.md");
+        const result = await processor.writeAiFiles([
+          createMockFile(linkedPath, { outputRoot: root }),
+        ]);
+
+        expect(result).toEqual({ count: 0, paths: [] });
+        expect(writeFileContent).not.toHaveBeenCalled();
+        expect(logger.warn).toHaveBeenCalledWith(
+          `Refusing to write ${JSON.stringify(linkedPath)}: it resolves outside ` +
+            `${JSON.stringify(root)} through a symbolic link`,
+        );
+      },
+    );
+
+    it.skipIf(process.platform === "win32")(
+      "should refuse a link out of the output root before the dry-run report",
+      async () => {
+        vi.mocked(readFileContentOrNull).mockResolvedValue(null);
+        const logger = createMockLogger();
+        const root = join(testDir, "root");
+        const outside = join(testDir, "outside");
+        await mkdir(root, { recursive: true });
+        await mkdir(outside, { recursive: true });
+        await symlink(outside, join(root, ".tool"));
+        const processor = new TestProcessor({ logger, outputRoot: root, dryRun: true });
+
+        const linkedPath = join(root, ".tool", "rules.md");
+        const result = await processor.writeAiFiles([
+          createMockFile(linkedPath, { outputRoot: root }),
+        ]);
+
+        // A dry run reports what a real run would do, and a real run skips it.
+        expect(result).toEqual({ count: 0, paths: [] });
+        expect(logger.info).not.toHaveBeenCalledWith(expect.stringContaining("[DRY RUN]"));
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining("through a symbolic link"),
+        );
+      },
+    );
+
     it("should skip unchanged files and return 0", async () => {
       vi.mocked(readFileContentOrNull).mockResolvedValue("content\n");
       const processor = new TestProcessor({ logger: createMockLogger(), outputRoot: testDir });

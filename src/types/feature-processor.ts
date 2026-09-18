@@ -90,18 +90,15 @@ export abstract class FeatureProcessor extends RulesyncSourceConsumer {
     for (const aiFile of aiFiles) {
       const filePath = aiFile.getFilePath();
 
-      // `getFilePath` judges the path as spelled. A checked-out repository can
-      // carry a symbolic link at an output path (`AGENTS.md -> ~/.bashrc`, or a
-      // tool directory linked to `/etc`), and a write through it would land
-      // wherever the link points. The link is resolved before anything is read
-      // or written, and a target that really sits outside the root is skipped.
+      // `getFilePath` judges the path as spelled; the link check happens
+      // before anything is read or written.
       if (
-        await writablePathEscapesRoot({ rootPath: aiFile.getOutputRoot(), targetPath: filePath })
+        await refusesWriteOutsideRoot({
+          logger: this.logger,
+          rootPath: aiFile.getOutputRoot(),
+          targetPath: filePath,
+        })
       ) {
-        this.logger.warn(
-          `Refusing to write ${quoteForLog(filePath)}: it resolves outside ` +
-            `${quoteForLog(aiFile.getOutputRoot())} through a symbolic link`,
-        );
         continue;
       }
 
@@ -346,6 +343,35 @@ export function mergeByIdentity<T>({
  * filesystem); folding them here would instead drop names that a
  * case-sensitive filesystem keeps genuinely apart.
  */
+/**
+ * Whether a write to `targetPath` has to be refused because a link on the way
+ * there leads out of `rootPath`, warning about the refusal.
+ *
+ * A checked-out repository can carry a symbolic link at an output path
+ * (`AGENTS.md -> ~/.bashrc`, a tool directory linked to `/etc`), and a write
+ * through it would land wherever the link points. Every writer that lets the
+ * OS follow links — file, directory, and config-rewrite alike — asks this first
+ * so that one warning describes the one behavior.
+ */
+export async function refusesWriteOutsideRoot({
+  logger,
+  rootPath,
+  targetPath,
+}: {
+  logger: Logger;
+  rootPath: string;
+  targetPath: string;
+}): Promise<boolean> {
+  if (!(await writablePathEscapesRoot({ rootPath, targetPath }))) {
+    return false;
+  }
+  logger.warn(
+    `Refusing to write ${quoteForLog(targetPath)}: it resolves outside ` +
+      `${quoteForLog(rootPath)} through a symbolic link`,
+  );
+  return true;
+}
+
 export function caseFoldIdentity(identity: string): string {
   return identity.normalize("NFC").toLowerCase();
 }

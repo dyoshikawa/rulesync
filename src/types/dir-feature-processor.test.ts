@@ -1,4 +1,4 @@
-import { chmod, symlink } from "node:fs/promises";
+import { chmod, mkdir, symlink } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -1269,6 +1269,40 @@ describe("DirFeatureProcessor", () => {
       expect(ensureDir).toHaveBeenCalledTimes(2);
       expect(writeFileContent).toHaveBeenCalledTimes(2);
     });
+
+    it.skipIf(process.platform === "win32")(
+      "should refuse to write a directory that links out of the output root",
+      async () => {
+        vi.mocked(readFileContentOrNull).mockResolvedValue(null);
+        const logger = createMockLogger();
+        const root = join(testDir, "root");
+        const outside = join(testDir, "outside");
+        await mkdir(root, { recursive: true });
+        await mkdir(outside, { recursive: true });
+        // `.claude/skills -> /etc`: every file below the link would land there.
+        await symlink(outside, join(root, "linked"));
+        const processor = new TestDirProcessor({ logger, outputRoot: root });
+
+        const linkedDir = join(root, "linked");
+        const keptDir = join(root, "kept");
+        const result = await processor.writeAiDirs([
+          createMockDirWithFiles({ dirPath: linkedDir, mainFileBody: "body" }),
+          createMockDirWithFiles({ dirPath: keptDir, mainFileBody: "body" }),
+        ]);
+
+        expect(result).toEqual({ count: 1, paths: [join(keptDir, "SKILL.md")] });
+        expect(ensureDir).not.toHaveBeenCalledWith(linkedDir);
+        expect(writeFileContent).not.toHaveBeenCalledWith(
+          join(linkedDir, "SKILL.md"),
+          expect.anything(),
+        );
+        expect(readFileContentOrNull).not.toHaveBeenCalledWith(join(linkedDir, "SKILL.md"));
+        expect(logger.warn).toHaveBeenCalledWith(
+          `Refusing to write ${JSON.stringify(linkedDir)}: it resolves outside ` +
+            `${JSON.stringify(root)} through a symbolic link`,
+        );
+      },
+    );
 
     it("should strip control characters from the dry-run write log", async () => {
       vi.mocked(readFileContentOrNull).mockResolvedValue(null);

@@ -8,6 +8,7 @@ import {
   open,
   readFile,
   readdir,
+  readlink,
   realpath,
   rm,
   stat,
@@ -721,6 +722,13 @@ export async function resolvedPathEscapesRoot({
 }
 
 /**
+ * How many dangling links {@link writablePathEscapesRoot} follows before it
+ * treats the chain as a cycle it cannot write through. Linux itself gives up
+ * after 40.
+ */
+const MAX_DANGLING_LINK_HOPS = 40;
+
+/**
  * Whether writing `targetPath` would land outside `rootPath` once every link on
  * the way there is resolved. The target itself usually does not exist yet, so
  * the check resolves its nearest existing ancestor instead: a directory that is
@@ -733,6 +741,10 @@ export async function resolvedPathEscapesRoot({
  * the stricter {@link assertWritablePathInsideRoot} the sweep paths use: a
  * dotfiles checkout linked from inside the home directory is a common shape for
  * a global write target, and refusing it would refuse `--global` outright.
+ *
+ * A dangling link is judged by the target it would create: the write follows
+ * the link, so a link at `AGENTS.md` pointing at a `~/.zshenv` that does not
+ * exist yet is exactly the case the check is for.
  */
 export async function writablePathEscapesRoot({
   rootPath,
@@ -742,11 +754,15 @@ export async function writablePathEscapesRoot({
   targetPath: string;
 }): Promise<boolean> {
   const resolvedRoot = resolve(rootPath);
-  let existingPath = resolve(targetPath);
+  // Where the write lands as spelled: the target, or what the last dangling
+  // link on the way to it points at.
+  let spelledPath = resolve(targetPath);
+  let existingPath = spelledPath;
+  let linkHops = 0;
   while (true) {
+    let stats: Stats;
     try {
-      await lstat(existingPath);
-      break;
+      stats = await lstat(existingPath);
     } catch (error) {
       if (!isFileNotFoundError(error)) {
         throw error;
@@ -756,10 +772,27 @@ export async function writablePathEscapesRoot({
         return false;
       }
       existingPath = parentPath;
+      continue;
     }
+    if (!stats.isSymbolicLink() || !(await isPresentButUnresolvable(existingPath))) {
+      break;
+    }
+    // A dangling link is where the write would create its target, so the
+    // target is what has to be inside the root. `realpath` cannot resolve it
+    // and would fall back to the link's own path, which is inside the root by
+    // construction, so the target is spelled out and judged the same way.
+    linkHops += 1;
+    if (linkHops > MAX_DANGLING_LINK_HOPS) {
+      return true;
+    }
+    spelledPath = resolve(dirname(existingPath), await readlink(existingPath));
+    existingPath = spelledPath;
   }
-  if (!pathEscapesRoot(relative(existingPath, resolvedRoot))) {
-    return false;
+  const existingIsRootOrAbove = !pathEscapesRoot(relative(existingPath, resolvedRoot));
+  if (existingIsRootOrAbove) {
+    // Nothing below the root exists yet, so no link is on the way and the
+    // spelled path is where the write lands.
+    return pathEscapesRoot(relative(resolvedRoot, spelledPath));
   }
   return resolvedPathEscapesRoot({ rootPath: resolvedRoot, targetPath: existingPath });
 }

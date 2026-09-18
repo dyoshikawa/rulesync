@@ -28,7 +28,7 @@ import { type Logger, warnOnceWithFallback } from "../utils/logger.js";
 import type { WriteResult } from "../utils/result.js";
 import { hasIncompleteCarriedFiles } from "../utils/warned-once.js";
 import { AiDir, AiDirFile } from "./ai-dir.js";
-import { caseFoldIdentity } from "./feature-processor.js";
+import { caseFoldIdentity, refusesWriteOutsideRoot } from "./feature-processor.js";
 import { RulesyncSourceConsumer } from "./rulesync-source-consumer.js";
 import { ToolTarget } from "./tool-targets.js";
 
@@ -166,6 +166,18 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
     const changedPaths: string[] = [];
     for (const aiDir of aiDirs) {
       const dirPath = aiDir.getDirPath();
+      // A directory that is a link out of the root would send every file
+      // written below it out of the root; the check happens before anything
+      // is read or written.
+      if (
+        await refusesWriteOutsideRoot({
+          logger: this.logger,
+          rootPath: aiDir.getOutputRoot(),
+          targetPath: dirPath,
+        })
+      ) {
+        continue;
+      }
       let dirHasChanges = false;
 
       // Compute content for main file

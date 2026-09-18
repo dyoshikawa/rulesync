@@ -16,6 +16,7 @@ import {
   ClaimedIdentities,
   FeatureProcessor,
   mergeByCaseInsensitiveIdentity,
+  refusesWriteOutsideRoot,
 } from "../../types/feature-processor.js";
 import type { FlattenedCommandNaming } from "../../types/features.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
@@ -1121,6 +1122,15 @@ export class CommandsProcessor extends FeatureProcessor {
         relativeFilePath: HERMESAGENT_CONFIG_FILE_PATH,
       }),
     );
+    if (
+      await refusesWriteOutsideRoot({
+        logger: this.logger,
+        rootPath: this.outputRoot,
+        targetPath: configPath,
+      })
+    ) {
+      return changedCount;
+    }
     const currentContent = await readFileContentOrNull(configPath);
     if (currentContent === null) return changedCount;
     const nextContent = getDisabledHermesCommandsPluginConfigContent({
@@ -1149,6 +1159,15 @@ export class CommandsProcessor extends FeatureProcessor {
     if (generatedFiles.some((file) => file instanceof GooseCommand)) return 0;
 
     const configPath = join(this.outputRoot, GOOSE_GLOBAL_DIR, GOOSE_MCP_FILE_NAME);
+    if (
+      await refusesWriteOutsideRoot({
+        logger: this.logger,
+        rootPath: this.outputRoot,
+        targetPath: configPath,
+      })
+    ) {
+      return 0;
+    }
     const currentContent = await readFileContentOrNull(configPath);
     // Rewriting a config that holds no managed registration would reformat the
     // user's file (dropping their comments) for no gain.
