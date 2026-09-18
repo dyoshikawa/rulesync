@@ -518,6 +518,32 @@ You are the planner.
     expect(generatedContent).not.toContain("planner");
   });
 
+  it("should leave Pool agents alone when the project has no subagents directory", async () => {
+    const testDir = getTestDir();
+    const settingsContent = [
+      "subagents:",
+      "  default: general",
+      "  agents:",
+      "    general:",
+      "      type: in_process",
+      "    mine:",
+      "      type: in_process",
+      "      description: Hand-written",
+      "",
+    ].join("\n");
+
+    // Without `.rulesync/subagents/` the project never adopted the feature:
+    // a plain `generate` must not take the user's own agents away.
+    await writeFileContent(join(testDir, ".rulesync", ".gitkeep"), "");
+    await writeFileContent(join(testDir, ".poolside", "settings.yaml"), settingsContent);
+
+    await runGenerate({ target: "pool", features: "subagents" });
+
+    expect(await readFileContent(join(testDir, ".poolside", "settings.yaml"))).toBe(
+      settingsContent,
+    );
+  });
+
   it("should import Pool subagents from settings.yaml", async () => {
     const testDir = getTestDir();
 

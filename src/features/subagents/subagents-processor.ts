@@ -751,6 +751,12 @@ export class SubagentsProcessor extends FeatureProcessor {
   private readonly toolTarget: SubagentsProcessorToolTarget;
   private readonly global: boolean;
   private readonly getFactory: GetFactory;
+  /**
+   * Whether the last `loadRulesyncFiles` found a `subagents/` directory under
+   * any input root. A project without one has not adopted the feature, so the
+   * agents in its Pool settings are its own and must not be retracted.
+   */
+  private rulesyncSourceDirFound = false;
 
   constructor({
     outputRoot = process.cwd(),
@@ -782,7 +788,10 @@ export class SubagentsProcessor extends FeatureProcessor {
   }
 
   override emitsToolFilesForEmptySource(): boolean {
-    return this.getFactory(this.toolTarget).meta.emitsEmptyAggregate === true;
+    return (
+      this.rulesyncSourceDirFound &&
+      this.getFactory(this.toolTarget).meta.emitsEmptyAggregate === true
+    );
   }
 
   async convertRulesyncFilesToToolFiles(rulesyncFiles: RulesyncFile[]): Promise<ToolFile[]> {
@@ -899,6 +908,7 @@ export class SubagentsProcessor extends FeatureProcessor {
       this.logger.debug(`Rulesync subagents directory not found: ${subagentsDir}`);
       return [];
     }
+    this.rulesyncSourceDirFound = true;
 
     const entries = await listDirectoryEntryNames(subagentsDir);
     const mdFiles = entries.filter((file) => file.endsWith(".md"));
@@ -959,6 +969,7 @@ export class SubagentsProcessor extends FeatureProcessor {
    * earlier root's copy.
    */
   async loadRulesyncFiles(): Promise<RulesyncFile[]> {
+    this.rulesyncSourceDirFound = false;
     const perRoot = await Promise.all(
       this.inputRoots.map((root) => this.loadRulesyncFilesForRoot(root)),
     );

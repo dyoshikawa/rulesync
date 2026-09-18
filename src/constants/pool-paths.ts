@@ -45,6 +45,9 @@ export const POOL_GLOBAL_SKILLS_DIR_PATH = join(POOL_GLOBAL_DIR, "skills");
  */
 export const POOL_SETTINGS_FILE_NAME = "settings.yaml";
 
+/** Pool's untracked per-user overlay next to the settings file; never written. */
+export const POOL_SETTINGS_LOCAL_FILE_NAME = "settings.local.yaml";
+
 /** Top-level key of Pool's settings file that holds the MCP server map. */
 export const POOL_MCP_SERVERS_KEY = "mcp_servers";
 

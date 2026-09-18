@@ -322,7 +322,8 @@ describe("SubagentsProcessor", () => {
   });
 
   describe("emitsToolFilesForEmptySource", () => {
-    it("is true only for a target that keeps its agents in one aggregate file", () => {
+    it("is true only for an aggregate-file target once a source directory was found", async () => {
+      await ensureDir(join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH));
       const poolProcessor = new SubagentsProcessor({
         logger: createMockLogger(),
         outputRoot: testDir,
@@ -334,8 +335,27 @@ describe("SubagentsProcessor", () => {
         toolTarget: "roo",
       });
 
+      // Nothing was loaded yet, so nothing may be retracted.
+      expect(poolProcessor.emitsToolFilesForEmptySource()).toBe(false);
+
+      await poolProcessor.loadRulesyncFiles();
+      await rooProcessor.loadRulesyncFiles();
+
       expect(poolProcessor.emitsToolFilesForEmptySource()).toBe(true);
       expect(rooProcessor.emitsToolFilesForEmptySource()).toBe(false);
+    });
+
+    it("stays false when no source directory exists", async () => {
+      // A project that never adopted the feature keeps its own Pool agents.
+      const poolProcessor = new SubagentsProcessor({
+        logger: createMockLogger(),
+        outputRoot: testDir,
+        toolTarget: "pool",
+      });
+
+      await poolProcessor.loadRulesyncFiles();
+
+      expect(poolProcessor.emitsToolFilesForEmptySource()).toBe(false);
     });
 
     it("converts an empty source list into an agentless Pool settings patch", async () => {

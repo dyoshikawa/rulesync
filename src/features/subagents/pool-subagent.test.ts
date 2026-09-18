@@ -154,6 +154,67 @@ describe("PoolSubagent", () => {
       });
     });
 
+    it("names every existing agent it drops in a warning", () => {
+      const logger = createMockLogger();
+      const subagent = PoolSubagent.fromRulesyncSubagents({
+        outputRoot: testDir,
+        rulesyncSubagents: [
+          makeRulesyncSubagent({
+            testDir,
+            frontmatter: { name: "planner", description: "Plans tasks" },
+          }),
+        ],
+        logger,
+      });
+      subagent.setFileContent(
+        [
+          "subagents:",
+          "  agents:",
+          "    general:",
+          "      type: in_process",
+          "    planner:",
+          "      type: in_process",
+          "    mine:",
+          "      type: in_process",
+          "    stale:",
+          "      type: in_process",
+          "",
+        ].join("\n"),
+      );
+
+      expect(parseSettings(subagent.getFileContent())).toEqual({
+        subagents: {
+          agents: { general: { type: "in_process" }, planner: expect.any(Object) },
+        },
+      });
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Removed Pool subagent(s) "mine", "stale" from'),
+      );
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("settings.local.yaml"));
+    });
+
+    it("does not warn when no existing agent is dropped", () => {
+      const logger = createMockLogger();
+      const subagent = PoolSubagent.fromRulesyncSubagents({
+        outputRoot: testDir,
+        rulesyncSubagents: [
+          makeRulesyncSubagent({
+            testDir,
+            frontmatter: { name: "planner", description: "Plans tasks" },
+          }),
+        ],
+        logger,
+      });
+      subagent.setFileContent(
+        ["subagents:", "  agents:", "    general:", "      type: in_process", ""].join("\n"),
+      );
+
+      subagent.getFileContent();
+
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
     it("omits instructions for an empty body and warns about a missing description", () => {
       const logger = createMockLogger();
       const subagent = PoolSubagent.fromRulesyncSubagents({

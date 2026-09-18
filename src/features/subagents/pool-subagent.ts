@@ -7,6 +7,7 @@ import {
   POOL_GENERAL_AGENT_NAME,
   POOL_GLOBAL_DIR,
   POOL_SETTINGS_FILE_NAME,
+  POOL_SETTINGS_LOCAL_FILE_NAME,
   POOL_SUBAGENTS_AGENTS_KEY,
   POOL_SUBAGENTS_KEY,
 } from "../../constants/pool-paths.js";
@@ -220,6 +221,20 @@ export class PoolSubagent extends ToolSubagent {
       ...(general !== undefined ? { [POOL_GENERAL_AGENT_NAME]: general } : {}),
       ...this.agents,
     };
+    // Generated and hand-written agents look alike here, so name every one
+    // that goes: a user who kept their own agents in this file learns where
+    // they belong instead of finding them silently gone.
+    const dropped = Object.keys(existingAgents).filter(
+      (name) => name !== POOL_GENERAL_AGENT_NAME && !Object.hasOwn(agents, name),
+    );
+    if (dropped.length > 0) {
+      this.logger?.warn(
+        `Removed Pool subagent(s) ${dropped.map(quoteValueForWarning).join(", ")} from ${filePath}: ` +
+          `rulesync recomputes "${POOL_SUBAGENTS_KEY}.${POOL_SUBAGENTS_AGENTS_KEY}" from ` +
+          `its own subagents on every run, so hand-written agents belong in ` +
+          `${POOL_SETTINGS_LOCAL_FILE_NAME}.`,
+      );
+    }
     if (Object.keys(agents).length > 0) {
       block[POOL_SUBAGENTS_AGENTS_KEY] = agents;
     }

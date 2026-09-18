@@ -76,7 +76,8 @@ export abstract class FeatureProcessor extends RulesyncSourceConsumer {
    * empty source list. A processor that aggregates into a shared file it may
    * never delete (Pool's `settings.yaml` subagents) answers true so a run
    * whose last source file is gone retracts what an earlier run generated;
-   * the default keeps a run with no source from writing anything.
+   * the default keeps a run with no source from writing anything. Consulted
+   * after `loadRulesyncFiles`, so the answer may depend on what that load saw.
    */
   emitsToolFilesForEmptySource(): boolean {
     return false;
