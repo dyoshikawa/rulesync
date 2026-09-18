@@ -138,20 +138,23 @@ type ToolHooksFactory = {
   supportsMatcher: boolean;
   matcherEvents?: readonly HookEvent[];
   /**
-   * When true, keys in the tool-specific override block (`config[target].hooks`)
-   * are passed through verbatim by the adapter even if they are not in
-   * `supportedEvents` (e.g. Kiro IDE's `PostFileSave`/`PreTaskExec` triggers),
-   * so they must not be reported as skipped/unsupported.
+   * When true, the adapter silently drops keys in the tool-specific override
+   * block (`config[target].hooks`) that are not in `supportedEvents`, so the
+   * processor reports them as skipped. By default override-block keys are
+   * left alone: most adapters emit them verbatim (native event names an
+   * import filed there, forward-compatible triggers), and the adapters that
+   * filter the block themselves already report what they drop.
    */
-  passthroughOverrideEvents?: boolean;
+  dropsUnknownOverrideEvents?: boolean;
 };
 
 /**
  * Event names present in the config that the target's adapter cannot emit.
  *
- * When the factory passes override-block keys through verbatim
- * (`passthroughOverrideEvents`), those keys are excluded from the check so
- * documented passthrough triggers aren't falsely reported as skipped.
+ * Shared (`hooks`) keys are always checked. Override-block keys are only
+ * checked when the factory declares `dropsUnknownOverrideEvents`; otherwise
+ * the adapter either emits them verbatim or reports its own drops, and a
+ * generic "not supported" warning would be wrong or duplicated.
  */
 function unsupportedEventNames(params: {
   factory: ToolHooksFactory;
@@ -160,9 +163,9 @@ function unsupportedEventNames(params: {
 }): string[] {
   const { factory, sharedHooks, effectiveHooks } = params;
   const supportedEvents: Set<string> = new Set(factory.supportedEvents);
-  const eventNames = factory.passthroughOverrideEvents
-    ? Object.keys(sharedHooks)
-    : Object.keys(effectiveHooks);
+  const eventNames = factory.dropsUnknownOverrideEvents
+    ? Object.keys(effectiveHooks)
+    : Object.keys(sharedHooks);
   return [...new Set(eventNames)].filter((e) => !supportedEvents.has(e));
 }
 
@@ -238,7 +241,7 @@ function unsupportedMatcherEventNames({
  * resolution is used by the MCP (`MCP_BLOCK_KEY_ALIASES`) and permissions
  * (`PERMISSION_OVERRIDE_KEY_ALIASES`) features for the files they share.
  */
-const HOOKS_OVERRIDE_KEY_ALIASES: Partial<Record<ToolTarget, string>> = {
+export const HOOKS_OVERRIDE_KEY_ALIASES: Partial<Record<ToolTarget, string>> = {
   "kiro-cli": KIRO_HOOKS_OVERRIDE_KEY,
   "kiro-ide": KIRO_HOOKS_OVERRIDE_KEY,
 };
@@ -288,6 +291,9 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       supportedHookTypes: ["command"],
       supportsMatcher: true,
       matcherEvents: ["preToolUse", "postToolUse"],
+      // The adapter only emits its own native events; unknown override-block
+      // keys are dropped, so report them.
+      dropsUnknownOverrideEvents: true,
     },
   ],
   [
@@ -330,6 +336,9 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       supportedEvents: ANTIGRAVITY_HOOK_EVENTS,
       supportedHookTypes: ["command"],
       supportsMatcher: true,
+      // The adapter only emits its own native events; unknown override-block
+      // keys are dropped, so report them.
+      dropsUnknownOverrideEvents: true,
     },
   ],
   [
@@ -374,6 +383,9 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       supportedEvents: CLAUDE_HOOK_EVENTS,
       supportedHookTypes: ["command", "prompt", "http", "mcp_tool", "agent"],
       supportsMatcher: true,
+      // The adapter only emits its own native events; unknown override-block
+      // keys are dropped, so report them.
+      dropsUnknownOverrideEvents: true,
     },
   ],
   [
@@ -459,6 +471,9 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       supportedHookTypes: ["command"],
       supportsMatcher: true,
       matcherEvents: ["preToolUse", "postToolUse"],
+      // The adapter only emits its own native events; unknown override-block
+      // keys are dropped, so report them.
+      dropsUnknownOverrideEvents: true,
     },
   ],
   [
@@ -474,6 +489,9 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       supportedHookTypes: ["command"],
       supportsMatcher: true,
       matcherEvents: ["preToolUse", "postToolUse"],
+      // The adapter only emits its own native events; unknown override-block
+      // keys are dropped, so report them.
+      dropsUnknownOverrideEvents: true,
     },
   ],
   [
@@ -495,6 +513,9 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       // Matchers are evaluated as regexes against `event.toolName` on Pi's
       // tool_call / tool_result events.
       supportsMatcher: true,
+      // The adapter only emits its own native events; unknown override-block
+      // keys are dropped, so report them.
+      dropsUnknownOverrideEvents: true,
     },
   ],
   [
@@ -531,6 +552,9 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       // The payload shape differs per event and the wrapper is a plain shell
       // script with no JSON parser to rely on, so a matcher cannot be enforced.
       supportsMatcher: false,
+      // The adapter only emits its own native events; unknown override-block
+      // keys are dropped, so report them.
+      dropsUnknownOverrideEvents: true,
     },
   ],
   [
@@ -566,7 +590,6 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       supportsMatcher: true,
       // Hermes-native event names are valid in the target override block and
       // are emitted verbatim after adapter validation.
-      passthroughOverrideEvents: true,
     },
   ],
   [
@@ -577,7 +600,6 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       supportedEvents: KIMI_CODE_HOOK_EVENTS,
       supportedHookTypes: ["command"],
       supportsMatcher: true,
-      passthroughOverrideEvents: true,
     },
   ],
   [
@@ -591,6 +613,9 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       supportedHookTypes: ["command"],
       // v2 matcher groups carry the matcher; the pre-v2 flat list could not.
       supportsMatcher: true,
+      // The adapter only emits its own native events; unknown override-block
+      // keys are dropped, so report them.
+      dropsUnknownOverrideEvents: true,
     },
   ],
   [
@@ -610,9 +635,7 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       // The shared `kiro` override block carries this format's own native keys
       // (`fileEdited`, `fileCreated`, …) plus the standalone-format triggers the
       // other Kiro targets read. The adapter filters that block against its own
-      // vocabulary and reports what it drops, so a generic "not supported"
-      // warning here would be both duplicate and wrong.
-      passthroughOverrideEvents: true,
+      // vocabulary and reports what it drops.
     },
   ],
   [
@@ -636,7 +659,6 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       supportsMatcher: true,
       // Triggers with no canonical event (PostFileSave, PreTaskExec, …)
       // supplied via the shared `kiro` override block are emitted verbatim.
-      passthroughOverrideEvents: true,
     },
   ],
   [
@@ -658,8 +680,7 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       supportedHookTypes: ["command", "prompt"],
       supportsMatcher: true,
       // IDE-only triggers (PostFileSave, PreTaskExec, …) supplied via the
-      // shared `kiro` override block are emitted verbatim, so don't warn on them.
-      passthroughOverrideEvents: true,
+      // shared `kiro` override block are emitted verbatim.
     },
   ],
   [
@@ -837,6 +858,9 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       // All three Vibe events (before_tool/after_tool/post_agent_turn) accept a
       // `match` tool-name matcher (fnmatch glob or `re:` regex).
       supportsMatcher: true,
+      // The adapter only emits its own native events; unknown override-block
+      // keys are dropped, so report them.
+      dropsUnknownOverrideEvents: true,
     },
   ],
   [
@@ -878,6 +902,9 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       // Only PreToolUse/PostToolUse honor `match`; the adapter itself drops it
       // (with a warning) on UserPromptSubmit/Stop.
       supportsMatcher: true,
+      // The adapter only emits its own native events; unknown override-block
+      // keys are dropped, so report them.
+      dropsUnknownOverrideEvents: true,
     },
   ],
   [
@@ -919,7 +946,6 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       supportsMatcher: true,
       // Event names under the `crush.hooks` override (e.g. ones an import
       // filed there) are emitted verbatim by the adapter.
-      passthroughOverrideEvents: true,
     },
   ],
   [
