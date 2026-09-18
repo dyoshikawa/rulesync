@@ -28,7 +28,7 @@ import { type Logger, warnOnceWithFallback } from "../utils/logger.js";
 import type { WriteResult } from "../utils/result.js";
 import { hasIncompleteCarriedFiles } from "../utils/warned-once.js";
 import { AiDir, AiDirFile } from "./ai-dir.js";
-import { caseFoldIdentity, refusesWriteOutsideRoot } from "./feature-processor.js";
+import { caseFoldIdentity, refusesAnyWriteOutsideRoot } from "./feature-processor.js";
 import { RulesyncSourceConsumer } from "./rulesync-source-consumer.js";
 import { ToolTarget } from "./tool-targets.js";
 
@@ -166,14 +166,23 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
     const changedPaths: string[] = [];
     for (const aiDir of aiDirs) {
       const dirPath = aiDir.getDirPath();
+      const mainFile = aiDir.getMainFile();
+      const otherFiles: AiDirFile[] = aiDir.getOtherFiles();
       // A directory that is a link out of the root would send every file
-      // written below it out of the root; the check happens before anything
-      // is read or written.
+      // written below it out of the root, and so would any one file that is
+      // a link of its own — the main file and the companions alike. The
+      // directory is written as a unit, so one such file holds back the whole
+      // directory; the check happens before anything is read or written.
+      const writtenPaths = [
+        dirPath,
+        ...(mainFile ? [join(dirPath, mainFile.name)] : []),
+        ...otherFiles.map((file) => join(dirPath, file.relativeFilePathToDirPath)),
+      ];
       if (
-        await refusesWriteOutsideRoot({
+        await refusesAnyWriteOutsideRoot({
           logger: this.logger,
           rootPath: aiDir.getOutputRoot(),
-          targetPath: dirPath,
+          targetPaths: writtenPaths,
         })
       ) {
         continue;
@@ -181,7 +190,6 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
       let dirHasChanges = false;
 
       // Compute content for main file
-      const mainFile = aiDir.getMainFile();
       let mainFileContent: string | undefined;
       if (mainFile) {
         const mainFilePath = join(dirPath, mainFile.name);
@@ -207,7 +215,6 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
       // whose body and frontmatter rulesync composes, nothing about them is
       // rulesync's to normalize. Sending them through a UTF-8 round-trip with
       // trailing-newline normalization silently rewrote their bytes.
-      const otherFiles: AiDirFile[] = aiDir.getOtherFiles();
       for (const file of otherFiles) {
         // Detection only; the write loop below covers every file once the
         // directory is known to have changed.

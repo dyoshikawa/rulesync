@@ -15,7 +15,7 @@ import {
   writeFile,
 } from "node:fs/promises";
 import os from "node:os";
-import { dirname, isAbsolute, join, posix, relative, resolve, sep } from "node:path";
+import { dirname, isAbsolute, join, parse, posix, relative, resolve, sep } from "node:path";
 
 import { kebabCase } from "es-toolkit";
 import { globbySync, isGitIgnoredSync } from "globby";
@@ -722,29 +722,115 @@ export async function resolvedPathEscapesRoot({
 }
 
 /**
- * How many dangling links {@link writablePathEscapesRoot} follows before it
- * treats the chain as a cycle it cannot write through. Linux itself gives up
- * after 40.
+ * How many links {@link writeLandingPath} follows before it treats the chain as
+ * a cycle it cannot write through. Linux itself gives up after 40.
  */
-const MAX_DANGLING_LINK_HOPS = 40;
+const MAX_LINK_HOPS = 40;
+
+/**
+ * Whether `error` is the ENOTDIR a lookup through a file raises. On the way to
+ * a write it means the same as a missing entry: nothing at or below the path
+ * exists, so nothing there can be a link.
+ */
+function isNotADirectoryError(error: unknown): boolean {
+  return someErrorInChain(
+    error,
+    (candidate) => "code" in candidate && candidate.code === "ENOTDIR",
+  );
+}
+
+/**
+ * Where a write to `targetPath` lands once the OS has followed every link on
+ * the way there, or `null` when the links form a cycle no write can get
+ * through. The target itself usually does not exist yet, so the walk goes
+ * segment by segment from the filesystem root: an existing segment that is a
+ * link is replaced by what it resolves to, and a dangling link — one whose
+ * target does not exist yet, which is exactly the shape of a link planted at
+ * `AGENTS.md` pointing at a `~/.zshenv` that is still to be created — has its
+ * target spliced into the walk in its place, so the segments of that target
+ * are looked up one by one too. Once a segment is missing, nothing below it
+ * exists, and the rest of the path is where the write's `mkdir -p` will put it.
+ *
+ * Walking segment by segment is what keeps a `..` honest. A link target is a
+ * path the OS resolves left to right, so in `sub/../victim` the `..` climbs out
+ * of wherever `sub` leads, not out of the directory `sub` is spelled in; a
+ * lexical `resolve` folds `sub/..` away before `sub` is ever looked at, which
+ * is how a link chain could be spelled to pass the check and still land
+ * outside the root.
+ */
+async function writeLandingPath(targetPath: string): Promise<string | null> {
+  const resolvedTarget = resolve(targetPath);
+  const targetRoot = parse(resolvedTarget).root;
+  let current = targetRoot;
+  let pending = splitPathSegments(resolvedTarget.slice(targetRoot.length));
+  // Once a segment is missing, nothing below it can be a link.
+  let exists = true;
+  let linkHops = 0;
+  while (pending.length > 0) {
+    const segment = pending.shift();
+    if (segment === undefined || segment === "" || segment === ".") {
+      continue;
+    }
+    if (segment === "..") {
+      // `current` is fully resolved up to here, so its parent is the real one.
+      current = dirname(current);
+      continue;
+    }
+    current = join(current, segment);
+    if (!exists) {
+      continue;
+    }
+    let stats: Stats;
+    try {
+      stats = await lstat(current);
+    } catch (error) {
+      if (!isFileNotFoundError(error) && !isNotADirectoryError(error)) {
+        throw error;
+      }
+      exists = false;
+      continue;
+    }
+    if (!stats.isSymbolicLink()) {
+      continue;
+    }
+    linkHops += 1;
+    if (linkHops > MAX_LINK_HOPS) {
+      return null;
+    }
+    try {
+      // A link that resolves is replaced by what it resolves to.
+      current = await realpath(current);
+      continue;
+    } catch {
+      // Dangling, or a cycle `realpath` gave up on: walk its target by hand.
+    }
+    const linkTarget = await readlink(current);
+    const linkTargetRoot = isAbsolute(linkTarget) ? parse(resolve(linkTarget)).root : "";
+    pending = [
+      ...splitPathSegments(
+        isAbsolute(linkTarget) ? resolve(linkTarget).slice(linkTargetRoot.length) : linkTarget,
+      ),
+      ...pending,
+    ];
+    current = isAbsolute(linkTarget) ? linkTargetRoot : dirname(current);
+  }
+  return current;
+}
 
 /**
  * Whether writing `targetPath` would land outside `rootPath` once every link on
- * the way there is resolved. The target itself usually does not exist yet, so
- * the check resolves its nearest existing ancestor instead: a directory that is
- * a link out of the root sends every file written below it out of the root too.
- * When nothing exists below the root yet — the nearest existing ancestor is the
- * root itself or one of its own ancestors — no link can be on the way, and the
- * spelled path is what {@link pathEscapesRoot} already judged.
+ * the way there is resolved. Both sides are taken to where a write to them
+ * would land (see {@link writeLandingPath}), so a root that does not fully
+ * exist yet is judged the same way as the target below it.
  *
  * A link that stays inside the root passes. That is what sets this apart from
  * the stricter {@link assertWritablePathInsideRoot} the sweep paths use: a
  * dotfiles checkout linked from inside the home directory is a common shape for
  * a global write target, and refusing it would refuse `--global` outright.
  *
- * A dangling link is judged by the target it would create: the write follows
- * the link, so a link at `AGENTS.md` pointing at a `~/.zshenv` that does not
- * exist yet is exactly the case the check is for.
+ * A link chain that cycles is reported as an escape: the write could not get
+ * through it, and refusing it is the answer that never writes somewhere
+ * unexpected.
  */
 export async function writablePathEscapesRoot({
   rootPath,
@@ -753,48 +839,14 @@ export async function writablePathEscapesRoot({
   rootPath: string;
   targetPath: string;
 }): Promise<boolean> {
-  const resolvedRoot = resolve(rootPath);
-  // Where the write lands as spelled: the target, or what the last dangling
-  // link on the way to it points at.
-  let spelledPath = resolve(targetPath);
-  let existingPath = spelledPath;
-  let linkHops = 0;
-  while (true) {
-    let stats: Stats;
-    try {
-      stats = await lstat(existingPath);
-    } catch (error) {
-      if (!isFileNotFoundError(error)) {
-        throw error;
-      }
-      const parentPath = dirname(existingPath);
-      if (parentPath === existingPath) {
-        return false;
-      }
-      existingPath = parentPath;
-      continue;
-    }
-    if (!stats.isSymbolicLink() || !(await isPresentButUnresolvable(existingPath))) {
-      break;
-    }
-    // A dangling link is where the write would create its target, so the
-    // target is what has to be inside the root. `realpath` cannot resolve it
-    // and would fall back to the link's own path, which is inside the root by
-    // construction, so the target is spelled out and judged the same way.
-    linkHops += 1;
-    if (linkHops > MAX_DANGLING_LINK_HOPS) {
-      return true;
-    }
-    spelledPath = resolve(dirname(existingPath), await readlink(existingPath));
-    existingPath = spelledPath;
+  const [rootLanding, targetLanding] = await Promise.all([
+    writeLandingPath(rootPath),
+    writeLandingPath(targetPath),
+  ]);
+  if (rootLanding === null || targetLanding === null) {
+    return true;
   }
-  const existingIsRootOrAbove = !pathEscapesRoot(relative(existingPath, resolvedRoot));
-  if (existingIsRootOrAbove) {
-    // Nothing below the root exists yet, so no link is on the way and the
-    // spelled path is where the write lands.
-    return pathEscapesRoot(relative(resolvedRoot, spelledPath));
-  }
-  return resolvedPathEscapesRoot({ rootPath: resolvedRoot, targetPath: existingPath });
+  return pathEscapesRoot(relative(rootLanding, targetLanding));
 }
 
 /**

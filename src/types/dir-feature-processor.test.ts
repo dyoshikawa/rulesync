@@ -1304,6 +1304,73 @@ describe("DirFeatureProcessor", () => {
       },
     );
 
+    it.skipIf(process.platform === "win32")(
+      "should refuse a directory whose main file links out of the output root",
+      async () => {
+        vi.mocked(readFileContentOrNull).mockResolvedValue(null);
+        const logger = createMockLogger();
+        const root = join(testDir, "root");
+        const dirPath = join(root, "demo");
+        const outsideFile = join(testDir, "outside.md");
+        await mkdir(dirPath, { recursive: true });
+        await writeFiles(testDir, ["outside.md"]);
+        // `.claude/skills/demo/SKILL.md -> ~/.zshenv`: the directory is fine,
+        // the file inside it is not.
+        await symlink(outsideFile, join(dirPath, "SKILL.md"));
+        const processor = new TestDirProcessor({ logger, outputRoot: root });
+
+        const result = await processor.writeAiDirs([
+          createMockDirWithFiles({ dirPath, mainFileBody: "body" }),
+        ]);
+
+        expect(result).toEqual({ count: 0, paths: [] });
+        expect(ensureDir).not.toHaveBeenCalled();
+        expect(writeFileContent).not.toHaveBeenCalled();
+        expect(readFileContentOrNull).not.toHaveBeenCalled();
+        expect(logger.warn).toHaveBeenCalledWith(
+          `Refusing to write ${JSON.stringify(join(dirPath, "SKILL.md"))}: it resolves outside ` +
+            `${JSON.stringify(root)} through a symbolic link`,
+        );
+      },
+    );
+
+    it.skipIf(process.platform === "win32")(
+      "should refuse a directory whose companion file links out of the output root",
+      async () => {
+        vi.mocked(readFileContentOrNull).mockResolvedValue(null);
+        const logger = createMockLogger();
+        const root = join(testDir, "root");
+        const dirPath = join(root, "demo");
+        await mkdir(join(dirPath, "scripts"), { recursive: true });
+        // A dangling link: the target does not exist yet, and the write is what
+        // would create it.
+        await symlink(join(testDir, "not-yet.sh"), join(dirPath, "scripts", "run.sh"));
+        const processor = new TestDirProcessor({ logger, outputRoot: root });
+
+        const result = await processor.writeAiDirs([
+          createMockDirWithFiles({
+            dirPath,
+            mainFileBody: "body",
+            otherFiles: [
+              {
+                relativeFilePathToDirPath: join("scripts", "run.sh"),
+                fileBuffer: Buffer.from("#!/bin/sh\n"),
+              } as unknown as AiDirFile,
+            ],
+          }),
+        ]);
+
+        expect(result).toEqual({ count: 0, paths: [] });
+        expect(ensureDir).not.toHaveBeenCalled();
+        expect(writeFileContent).not.toHaveBeenCalled();
+        expect(writeFileBuffer).not.toHaveBeenCalled();
+        expect(logger.warn).toHaveBeenCalledWith(
+          `Refusing to write ${JSON.stringify(join(dirPath, "scripts", "run.sh"))}: it resolves ` +
+            `outside ${JSON.stringify(root)} through a symbolic link`,
+        );
+      },
+    );
+
     it("should strip control characters from the dry-run write log", async () => {
       vi.mocked(readFileContentOrNull).mockResolvedValue(null);
       const logger = createMockLogger();

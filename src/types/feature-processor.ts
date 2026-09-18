@@ -328,22 +328,6 @@ export function mergeByIdentity<T>({
 }
 
 /**
- * The key two spellings share when a case-insensitive filesystem would give
- * them one file. `toLowerCase()` is locale-independent (unlike
- * `toLocaleLowerCase`, it does not turn `I` into the Turkish `ı` under a Turkish
- * locale), and the NFC pass folds the composed and decomposed spellings of an
- * accented name — which macOS also resolves to a single directory —
- * onto each other.
- *
- * This is simple lowercasing rather than full Unicode case folding, so it is
- * deliberately narrower than what a filesystem considers one file: a Greek
- * final sigma, a Turkish `ı` under NTFS's upcasing, and a Win32 name whose
- * trailing dot is stripped all still produce distinct keys. Those pairs keep
- * the pre-existing behavior (both are imported, and the later one wins on the
- * filesystem); folding them here would instead drop names that a
- * case-sensitive filesystem keeps genuinely apart.
- */
-/**
  * Whether a write to `targetPath` has to be refused because a link on the way
  * there leads out of `rootPath`, warning about the refusal.
  *
@@ -372,6 +356,44 @@ export async function refusesWriteOutsideRoot({
   return true;
 }
 
+/**
+ * {@link refusesWriteOutsideRoot} over every path a single unit of output
+ * writes, stopping at the first refusal: a directory written as one unit is
+ * held back whole when any one file in it would land outside the root.
+ */
+export async function refusesAnyWriteOutsideRoot({
+  logger,
+  rootPath,
+  targetPaths,
+}: {
+  logger: Logger;
+  rootPath: string;
+  targetPaths: readonly string[];
+}): Promise<boolean> {
+  for (const targetPath of targetPaths) {
+    if (await refusesWriteOutsideRoot({ logger, rootPath, targetPath })) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * The key two spellings share when a case-insensitive filesystem would give
+ * them one file. `toLowerCase()` is locale-independent (unlike
+ * `toLocaleLowerCase`, it does not turn `I` into the Turkish `ı` under a Turkish
+ * locale), and the NFC pass folds the composed and decomposed spellings of an
+ * accented name — which macOS also resolves to a single directory —
+ * onto each other.
+ *
+ * This is simple lowercasing rather than full Unicode case folding, so it is
+ * deliberately narrower than what a filesystem considers one file: a Greek
+ * final sigma, a Turkish `ı` under NTFS's upcasing, and a Win32 name whose
+ * trailing dot is stripped all still produce distinct keys. Those pairs keep
+ * the pre-existing behavior (both are imported, and the later one wins on the
+ * filesystem); folding them here would instead drop names that a
+ * case-sensitive filesystem keeps genuinely apart.
+ */
 export function caseFoldIdentity(identity: string): string {
   return identity.normalize("NFC").toLowerCase();
 }

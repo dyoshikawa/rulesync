@@ -4,6 +4,7 @@ import {
   HERMESAGENT_CONFIG_FILE_PATH,
   HERMESAGENT_PROJECT_PLUGINS_ENV_VAR,
 } from "../../constants/hermesagent-paths.js";
+import { refusesWriteOutsideRoot } from "../../types/feature-processor.js";
 import { fileContentsEquivalent } from "../../utils/content-equivalence.js";
 import {
   addTrailingNewline,
@@ -120,6 +121,11 @@ export async function activateHermesProjectPlugins({
     relativeFilePath: HERMESAGENT_CONFIG_FILE_PATH,
   });
   const configPath = join(configRoot, relativeConfigPath);
+  // The same file the commands processor rewrites, guarded the same way: a
+  // link planted at the config path must not send the rewrite elsewhere.
+  if (await refusesWriteOutsideRoot({ logger, rootPath: configRoot, targetPath: configPath })) {
+    return { count: 0, paths: [], hasDiff: false, sourceLoadFailed: false };
+  }
   const existingConfig = (await readFileContentOrNull(configPath)) ?? "";
   const expectedConfig = mergeEnabledPlugins({
     existingContent: existingConfig,
