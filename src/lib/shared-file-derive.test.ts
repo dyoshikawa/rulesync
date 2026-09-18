@@ -166,6 +166,10 @@ describe("shared-file write derivation", () => {
           "permissions",
           "rules",
         ],
+        ".config/poolside/settings.yaml": [
+          "mcp",
+          "permissions",
+        ],
         ".config/zed/settings.json": [
           "ignore",
           "mcp",
@@ -189,6 +193,10 @@ describe("shared-file write derivation", () => {
         ],
         ".kiro/agents/default.json": [
           "hooks",
+          "permissions",
+        ],
+        ".poolside/settings.yaml": [
+          "mcp",
           "permissions",
         ],
         ".qwen/settings.json": [

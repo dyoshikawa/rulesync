@@ -1261,6 +1261,7 @@ export const PermissionsConfigSchema = z.looseObject({
   copilotcli: z.optional(CanonicalPermissionsOverrideSchema),
   crush: z.optional(CanonicalPermissionsOverrideSchema),
   goose: z.optional(CanonicalPermissionsOverrideSchema),
+  pool: z.optional(CanonicalPermissionsOverrideSchema),
   grokcli: z.optional(CanonicalPermissionsOverrideSchema),
   "kimi-code": z.optional(KimiCodePermissionsOverrideSchema),
   roo: z.optional(CanonicalPermissionsOverrideSchema),

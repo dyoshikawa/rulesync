@@ -47,3 +47,9 @@ export const POOL_SETTINGS_FILE_NAME = "settings.yaml";
 
 /** Top-level key of Pool's settings file that holds the MCP server map. */
 export const POOL_MCP_SERVERS_KEY = "mcp_servers";
+
+/** Top-level key of Pool's settings file that holds per-tool permission rules. */
+export const POOL_TOOLS_KEY = "tools";
+
+/** Top-level key of Pool's settings file that holds file access rules. */
+export const POOL_PATHS_KEY = "paths";

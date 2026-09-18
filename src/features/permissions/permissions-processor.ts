@@ -38,6 +38,7 @@ import { KimiCodePermissions } from "./kimi-code-permissions.js";
 import { KiroPermissions } from "./kiro-permissions.js";
 import { OpencodePermissions } from "./opencode-permissions.js";
 import { PiPermissions } from "./pi-permissions.js";
+import { PoolPermissions } from "./pool-permissions.js";
 import { QwencodePermissions } from "./qwencode-permissions.js";
 import { ReasonixPermissions } from "./reasonix-permissions.js";
 import { RooPermissions } from "./roo-permissions.js";
@@ -427,6 +428,22 @@ export const toolPermissionsFactories = new Map<
       meta: {
         // `.pi/settings.json` (project) and `~/.pi/agent/settings.json`
         // (global); a project `defaultTools` array replaces the global one.
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+    },
+  ],
+  [
+    "pool",
+    {
+      class: PoolPermissions,
+      meta: {
+        // Pool's `tools.<name>.allow`/`deny` pattern lists and `paths`
+        // entries live in `.poolside/settings.yaml` (project) and
+        // `~/.config/poolside/settings.yaml` (global), the same file the MCP
+        // servers are written to; the merge is in place.
+        // https://docs.poolside.ai/settings-file-reference
         supportsProject: true,
         supportsGlobal: true,
         supportsImport: true,
