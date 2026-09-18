@@ -134,7 +134,7 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 | Pi Coding Agent           |  ✅   |        |     |    ✅    |           |   ✅   |  ✅   |     ✅      |        |
 | Zed                       |  ✅   |   ✅   | ✅  |          |           |   ✅   |       |     ✅      |        |
 | ZCode (Z.ai)              |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |             |        |
-| Pool (Poolside)           |  ✅   |        | ✅  |          |           |   ✅   |       |     ✅      |        |
+| Pool (Poolside)           |  ✅   |        | ✅  |          |           |   ✅   |  ✅   |     ✅      |        |
 | DeepSeek Harness          |  ✅   |        |     |          |           |   ✅   |       |             |        |
 
 <!-- SUPPORTED_TOOLS_AI:END -->

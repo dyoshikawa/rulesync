@@ -1259,7 +1259,8 @@ const KIMI_CODE_CONFIG_DECLARATION: SharedConfigFileDeclaration = {
  * a whole key because the MCP writer emits the complete server map. The
  * permissions writer deep-merges: it rewrites the `allow`/`deny` lists of the
  * `tools.<name>` blocks it manages and the `paths` lists, leaving each tool's
- * `disabled` flag, unmanaged tools and every other key in place.
+ * `disabled` flag, unmanaged tools and every other key in place. `hooks` is
+ * owned as a whole key because the hooks writer emits every event list.
  */
 const POOL_SETTINGS_DECLARATION: SharedConfigFileDeclaration = {
   format: "yaml",
@@ -1267,6 +1268,9 @@ const POOL_SETTINGS_DECLARATION: SharedConfigFileDeclaration = {
   features: {
     mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp_servers"] },
     permissions: { kind: "deep-merge" },
+    // The hooks writer recomputes the whole `hooks` block, carrying over its
+    // non-event siblings (`stop_hook_max_continuations`) itself.
+    hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
   },
 };
 

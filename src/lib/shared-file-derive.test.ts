@@ -167,6 +167,7 @@ describe("shared-file write derivation", () => {
           "rules",
         ],
         ".config/poolside/settings.yaml": [
+          "hooks",
           "mcp",
           "permissions",
         ],
@@ -196,6 +197,7 @@ describe("shared-file write derivation", () => {
           "permissions",
         ],
         ".poolside/settings.yaml": [
+          "hooks",
           "mcp",
           "permissions",
         ],

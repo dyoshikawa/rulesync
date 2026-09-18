@@ -285,6 +285,7 @@ export const hooksProcessorToolTargetTuple = [
   "crush",
   "opencode",
   "pi",
+  "pool",
   "factorydroid",
   "goose",
   "hermesagent",
