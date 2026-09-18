@@ -1,3 +1,4 @@
+import { symlink } from "node:fs/promises";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, MockedFunction, vi } from "vitest";
@@ -1847,4 +1848,38 @@ describe("CommandsProcessor Goose slash-command retraction", () => {
 
     expect(await readFileContent(configPath)).toBe(before);
   });
+
+  it.skipIf(process.platform === "win32")(
+    "refuses to rewrite a config reached through a link out of the output root",
+    async () => {
+      const outsideConfigPath = join(testDir, "outside", "config.yaml");
+      await writeFileContent(
+        outsideConfigPath,
+        [
+          "slash_commands:",
+          "  - command: removed",
+          `    recipe_path: ${join(testDir, ".config", "goose", "recipes", "removed.yaml")}`,
+          "",
+        ].join("\n"),
+      );
+      const before = await readFileContent(outsideConfigPath);
+      const root = join(testDir, "root");
+      await ensureDir(join(root, ".config", "goose"));
+      await symlink(outsideConfigPath, join(root, ".config", "goose", "config.yaml"));
+      const gooseLogger = createMockLogger();
+      const processor = new CommandsProcessor({
+        outputRoot: root,
+        toolTarget: "goose",
+        global: true,
+        logger: gooseLogger,
+      });
+
+      await processor.removeOrphanAiFiles([], []);
+
+      expect(await readFileContent(outsideConfigPath)).toBe(before);
+      expect(gooseLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("through a symbolic link"),
+      );
+    },
+  );
 });

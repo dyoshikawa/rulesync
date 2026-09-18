@@ -10,6 +10,8 @@ Three exceptions narrow this within skill directories. First, the entries a skil
 
 What decides that third rule is the name inside the skill directory, not the path the link resolves through: a named file keeps the behavior above even when its target sits under a dot-directory such as `~/.dotfiles/skills/`, because somebody chose that name. Reaching outside the directory is reported either way — carried or not — since the content is about to be copied into every enabled tool root.
 
+On the output side, generation does not write through a link that leads out of the output root. A checked-out repository can carry a symbolic link at an output path — an `AGENTS.md` pointing at `~/.bashrc`, or a tool directory pointing at `/etc` — and following it would land the generated content wherever the link points. Such a file or directory is skipped with a warning naming the path — a skill directory as a whole when any one file in it (its `SKILL.md` or a supporting file) is such a link — and a dangling link is judged by the target it would create, resolved link by link the way the OS would resolve it. A link that stays inside the output root is written through as before, so a dotfiles checkout linked from inside the home directory keeps working with `--global`.
+
 One discovery pass is deliberately excluded from the follow-symlinks rule: the scan for nested `AGENTS.md` files (see the `agentsmd` note below). Unlike every other glob above, it walks the whole project rather than a rulesync-owned directory, so a symlink committed to a repository you cloned could otherwise pull a file from outside the project into version-controlled `.rulesync/`. That scan does not follow symlinks.
 
 ## `rulesync/rules/*.md`

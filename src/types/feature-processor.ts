@@ -2,7 +2,7 @@ import { join } from "node:path";
 
 import { RULESYNC_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import { fileContentIsEmptyPayload, fileContentsEquivalent } from "../utils/content-equivalence.js";
-import { stripControlCharacters } from "../utils/control-characters.js";
+import { quoteForLog, stripControlCharacters } from "../utils/control-characters.js";
 import {
   addTrailingNewline,
   applyFileMode,
@@ -10,6 +10,7 @@ import {
   restoreMissingExecutableBit,
   readFileContentOrNull,
   removeFile,
+  writablePathEscapesRoot,
   writeFileContent,
 } from "../utils/file.js";
 import type { Logger } from "../utils/logger.js";
@@ -88,6 +89,19 @@ export abstract class FeatureProcessor extends RulesyncSourceConsumer {
     const changedPaths: string[] = [];
     for (const aiFile of aiFiles) {
       const filePath = aiFile.getFilePath();
+
+      // `getFilePath` judges the path as spelled; the link check happens
+      // before anything is read or written.
+      if (
+        await refusesWriteOutsideRoot({
+          logger: this.logger,
+          rootPath: aiFile.getOutputRoot(),
+          targetPath: filePath,
+        })
+      ) {
+        continue;
+      }
+
       const existingFileContent = await readFileContentOrNull(filePath);
 
       if (existingFileContent !== null && aiFile.shouldMergeExistingFileContent()) {
@@ -311,6 +325,57 @@ export function mergeByIdentity<T>({
   }
 
   return order.map((key) => winnerByKey.get(key)!);
+}
+
+/**
+ * Whether a write to `targetPath` has to be refused because a link on the way
+ * there leads out of `rootPath`, warning about the refusal.
+ *
+ * A checked-out repository can carry a symbolic link at an output path
+ * (`AGENTS.md -> ~/.bashrc`, a tool directory linked to `/etc`), and a write
+ * through it would land wherever the link points. Every writer that lets the
+ * OS follow links — file, directory, and config-rewrite alike — asks this first
+ * so that one warning describes the one behavior.
+ */
+export async function refusesWriteOutsideRoot({
+  logger,
+  rootPath,
+  targetPath,
+}: {
+  logger: Logger;
+  rootPath: string;
+  targetPath: string;
+}): Promise<boolean> {
+  if (!(await writablePathEscapesRoot({ rootPath, targetPath }))) {
+    return false;
+  }
+  logger.warn(
+    `Refusing to write ${quoteForLog(targetPath)}: it resolves outside ` +
+      `${quoteForLog(rootPath)} through a symbolic link`,
+  );
+  return true;
+}
+
+/**
+ * {@link refusesWriteOutsideRoot} over every path a single unit of output
+ * writes, stopping at the first refusal: a directory written as one unit is
+ * held back whole when any one file in it would land outside the root.
+ */
+export async function refusesAnyWriteOutsideRoot({
+  logger,
+  rootPath,
+  targetPaths,
+}: {
+  logger: Logger;
+  rootPath: string;
+  targetPaths: readonly string[];
+}): Promise<boolean> {
+  for (const targetPath of targetPaths) {
+    if (await refusesWriteOutsideRoot({ logger, rootPath, targetPath })) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /**

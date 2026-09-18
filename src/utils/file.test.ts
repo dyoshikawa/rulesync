@@ -41,6 +41,7 @@ import {
   removeFile,
   removeTempDirectory,
   resolvedPathEscapesRoot,
+  writablePathEscapesRoot,
   resolvedRelativePath,
   resolvePath,
   restoreMissingExecutableBit,
@@ -991,6 +992,269 @@ describe("file utilities", () => {
           await resolvedPathEscapesRoot({ rootPath: root, targetPath: join(testDir, "missing") }),
         ).toBe(true);
       });
+    });
+
+    describe("writablePathEscapesRoot", () => {
+      it("should pass a target below directories that do not exist yet", async () => {
+        const root = join(testDir, "root");
+        await ensureDir(root);
+
+        expect(
+          await writablePathEscapesRoot({
+            rootPath: root,
+            targetPath: join(root, "new", "deeper", "file.md"),
+          }),
+        ).toBe(false);
+      });
+
+      it("should pass a target whose root does not exist yet", async () => {
+        const root = join(testDir, "root");
+
+        expect(
+          await writablePathEscapesRoot({ rootPath: root, targetPath: join(root, "file.md") }),
+        ).toBe(false);
+      });
+
+      it.skipIf(process.platform === "win32")(
+        "should report a target below a directory that links out of the root",
+        async () => {
+          const root = join(testDir, "root");
+          const outside = join(testDir, "outside");
+          await ensureDir(root);
+          await ensureDir(outside);
+          await symlink(outside, join(root, "link"));
+
+          expect(
+            await writablePathEscapesRoot({
+              rootPath: root,
+              targetPath: join(root, "link", "rules", "file.md"),
+            }),
+          ).toBe(true);
+        },
+      );
+
+      it.skipIf(process.platform === "win32")(
+        "should report a target that is itself a link out of the root",
+        async () => {
+          const root = join(testDir, "root");
+          await ensureDir(root);
+          const outsideFile = join(testDir, "outside.md");
+          await writeFileContent(outsideFile, "theirs");
+          await symlink(outsideFile, join(root, "file.md"));
+
+          expect(
+            await writablePathEscapesRoot({ rootPath: root, targetPath: join(root, "file.md") }),
+          ).toBe(true);
+        },
+      );
+
+      it.skipIf(process.platform === "win32")(
+        "should pass a target below a directory that links elsewhere inside the root",
+        async () => {
+          // A dotfiles checkout linked from inside the home directory: the link
+          // stays inside the root, so writing through it stays inside too.
+          const root = join(testDir, "root");
+          const real = join(root, "dotfiles", "tool");
+          await ensureDir(real);
+          await symlink(real, join(root, "tool"));
+
+          expect(
+            await writablePathEscapesRoot({
+              rootPath: root,
+              targetPath: join(root, "tool", "file.md"),
+            }),
+          ).toBe(false);
+        },
+      );
+
+      it.skipIf(process.platform === "win32")(
+        "should report a dangling link whose target would be created outside the root",
+        async () => {
+          // `realpath` cannot resolve the link, so the target it would create
+          // has to be judged from the link's spelled target instead.
+          const root = join(testDir, "root");
+          await ensureDir(root);
+          await symlink(join(testDir, "not-yet.md"), join(root, "file.md"));
+
+          expect(
+            await writablePathEscapesRoot({ rootPath: root, targetPath: join(root, "file.md") }),
+          ).toBe(true);
+        },
+      );
+
+      it.skipIf(process.platform === "win32")(
+        "should report a target below a dangling directory link out of the root",
+        async () => {
+          const root = join(testDir, "root");
+          await ensureDir(root);
+          await symlink(join(testDir, "not-yet"), join(root, "link"));
+
+          expect(
+            await writablePathEscapesRoot({
+              rootPath: root,
+              targetPath: join(root, "link", "file.md"),
+            }),
+          ).toBe(true);
+        },
+      );
+
+      it.skipIf(process.platform === "win32")(
+        "should follow a dangling link's relative target from the link's own directory",
+        async () => {
+          const root = join(testDir, "root");
+          await ensureDir(join(root, "nested"));
+          await symlink(join("..", "..", "not-yet.md"), join(root, "nested", "file.md"));
+
+          expect(
+            await writablePathEscapesRoot({
+              rootPath: root,
+              targetPath: join(root, "nested", "file.md"),
+            }),
+          ).toBe(true);
+        },
+      );
+
+      it.skipIf(process.platform === "win32")(
+        "should pass a dangling link whose target would be created inside the root",
+        async () => {
+          // The dotfiles shape again, before the first write creates the file.
+          const root = join(testDir, "root");
+          await ensureDir(join(root, "dotfiles"));
+          await symlink(join(root, "dotfiles", "file.md"), join(root, "file.md"));
+
+          expect(
+            await writablePathEscapesRoot({ rootPath: root, targetPath: join(root, "file.md") }),
+          ).toBe(false);
+        },
+      );
+
+      it.skipIf(process.platform === "win32")(
+        "should report a link cycle rather than loop forever",
+        async () => {
+          const root = join(testDir, "root");
+          await ensureDir(root);
+          await symlink(join(root, "b.md"), join(root, "a.md"));
+          await symlink(join(root, "a.md"), join(root, "b.md"));
+
+          expect(
+            await writablePathEscapesRoot({ rootPath: root, targetPath: join(root, "a.md") }),
+          ).toBe(true);
+        },
+      );
+
+      it.skipIf(process.platform === "win32")(
+        "should resolve a dangling link's target segment by segment rather than lexically",
+        async () => {
+          // `sub` leads out of the root, so the `..` in the link's target climbs
+          // out of the outside directory, not out of the root where `sub` is
+          // spelled. Folding `sub/..` away lexically would pass the write.
+          const root = join(testDir, "root");
+          const outside = join(testDir, "outside");
+          await ensureDir(root);
+          await ensureDir(join(outside, "victim"));
+          await symlink(outside, join(root, "sub"));
+          // Spelled by hand: `join` would fold the `..` away before the link is made.
+          await symlink("sub/../victim/file.md", join(root, "file.md"));
+
+          expect(
+            await writablePathEscapesRoot({ rootPath: root, targetPath: join(root, "file.md") }),
+          ).toBe(true);
+        },
+      );
+
+      it.skipIf(process.platform === "win32")(
+        "should resolve a dangling link's absolute target segment by segment rather than lexically",
+        async () => {
+          const root = join(testDir, "root");
+          const outside = join(testDir, "outside");
+          await ensureDir(root);
+          await ensureDir(join(outside, "victim"));
+          await symlink(outside, join(root, "sub"));
+          // Spelled by hand: `join` would fold the `..` away before the link is made.
+          await symlink(`${root}/sub/../victim/file.md`, join(root, "file.md"));
+
+          expect(
+            await writablePathEscapesRoot({ rootPath: root, targetPath: join(root, "file.md") }),
+          ).toBe(true);
+        },
+      );
+
+      it.skipIf(process.platform === "win32")(
+        "should pass a dangling link whose target climbs back into the root through a link",
+        async () => {
+          const root = join(testDir, "root");
+          await ensureDir(join(root, "dotfiles", "tool"));
+          await symlink(join(root, "dotfiles", "tool"), join(root, "tool"));
+          await symlink("tool/../file.md", join(root, "file.md"));
+
+          expect(
+            await writablePathEscapesRoot({ rootPath: root, targetPath: join(root, "file.md") }),
+          ).toBe(false);
+        },
+      );
+
+      it.skipIf(process.platform === "win32")(
+        "should follow a dangling link whose target goes through another dangling link",
+        async () => {
+          const root = join(testDir, "root");
+          await ensureDir(root);
+          await symlink(join(testDir, "not-yet"), join(root, "hop"));
+          await symlink(join("hop", "file.md"), join(root, "file.md"));
+
+          expect(
+            await writablePathEscapesRoot({ rootPath: root, targetPath: join(root, "file.md") }),
+          ).toBe(true);
+        },
+      );
+
+      it.skipIf(process.platform === "win32")(
+        "should report a target below a link cycle rather than throw",
+        async () => {
+          const root = join(testDir, "root");
+          await ensureDir(root);
+          await symlink(join(root, "b"), join(root, "a"));
+          await symlink(join(root, "a"), join(root, "b"));
+
+          expect(
+            await writablePathEscapesRoot({
+              rootPath: root,
+              targetPath: join(root, "a", "file.md"),
+            }),
+          ).toBe(true);
+        },
+      );
+
+      it("should pass a target spelled below a file rather than throw", async () => {
+        // The write itself fails with ENOTDIR; the guard only has to answer
+        // where it would land.
+        const root = join(testDir, "root");
+        await ensureDir(root);
+        await writeFileContent(join(root, "file.md"), "content");
+
+        expect(
+          await writablePathEscapesRoot({
+            rootPath: root,
+            targetPath: join(root, "file.md", "below.md"),
+          }),
+        ).toBe(false);
+      });
+
+      it.skipIf(process.platform === "win32")(
+        "should pass a target whose root is itself reached through a link",
+        async () => {
+          const real = join(testDir, "real-home");
+          await ensureDir(real);
+          const root = join(testDir, "home");
+          await symlink(real, root);
+
+          expect(
+            await writablePathEscapesRoot({
+              rootPath: root,
+              targetPath: join(root, "new", "file.md"),
+            }),
+          ).toBe(false);
+        },
+      );
     });
 
     describe("resolvedRelativePath", () => {
