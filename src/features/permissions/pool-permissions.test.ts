@@ -260,6 +260,58 @@ describe("PoolPermissions", () => {
       );
     });
 
+    it("should keep a write allow that only overlaps a deny already landed in paths.deny", async () => {
+      const logger = createMockLogger();
+      const permissions = await PoolPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          read: { "src/**": "allow", "src/secret/**": "deny" },
+          edit: { "src/**": "allow", "src/secret/**": "deny" },
+          write: { "src/**": "allow", "src/secret/**": "deny", "dist/**": "deny" },
+        }),
+        logger,
+      });
+
+      // Pool lets `paths.deny` win over the write allow, so nothing is withheld
+      // for `src/secret/**`; the lone `dist/**` write deny still cannot be
+      // written and is only reported.
+      expect(permissions.getSettings()).toEqual({
+        paths: {
+          allow: [{ path: "src/**", write: true }],
+          deny: [{ path: "src/secret/**" }],
+        },
+      });
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('the "deny" rule for "write" (pattern "dist/**") was not written'),
+      );
+    });
+
+    it("should withhold a tool allow that overlaps an ask of another category on the same Pool tool", async () => {
+      const logger = createMockLogger();
+      const permissions = await PoolPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          bash: { "git push *": "ask", "npm test": "allow" },
+          shell: { "*": "allow", "rm -rf *": "deny" },
+        }),
+        logger,
+      });
+
+      // `bash` and a pass-through `shell` both land on `tools.shell`, which
+      // Pool matches as one list, so the `shell` catch-all allow would have
+      // auto-approved the `git push *` calls that `bash` wants prompted.
+      expect(permissions.getSettings()).toEqual({
+        tools: { shell: { allow: ["npm test"], deny: ["rm -rf *"] } },
+      });
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          'the "allow" rule for "shell" (pattern "*") was withheld because it overlaps the "ask" rule(s) "git push *"',
+        ),
+      );
+    });
+
     it("should skip absolute and home paths at project scope", async () => {
       const logger = createMockLogger();
       const permissions = await PoolPermissions.fromRulesyncPermissions({

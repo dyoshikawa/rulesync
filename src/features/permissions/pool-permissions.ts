@@ -393,22 +393,24 @@ function buildPoolPermissionsPatch({
  * deny needs no withholding (Pool lets it win over an allow), but an `ask`
  * has no list of its own — a call Pool does not match prompts — so an allow
  * that overlaps one is withheld and reported, and the tool keeps prompting.
+ * `asks` carries the ask patterns of every category that lands on the same
+ * Pool tool, because Pool matches the joined lists as one.
  */
 function convertToolCategory({
   category,
   toolName,
   rules,
+  asks,
   logger,
 }: {
   category: string;
   toolName: string;
   rules: ActionRules;
+  asks: readonly string[];
   logger?: Logger;
 }): PoolToolLists {
   const lists: PoolToolLists = { allow: [], deny: [] };
-  const shadowingAsks = createShadowingRestrictionsTest(
-    asRestrictions(patternsWithAction(rules, ["ask"])),
-  );
+  const shadowingAsks = createShadowingRestrictionsTest(asRestrictions(asks));
 
   for (const [rawPattern, action] of Object.entries(rules)) {
     if (isPrototypePollutionKey(rawPattern) || action === "ask") continue;
@@ -440,19 +442,18 @@ function convertToolCategory({
 }
 
 /**
- * Convert the non-file categories into Pool tool lists, keyed by Pool tool
- * name. Two categories can resolve to the same tool (`bash` and a
- * pass-through `shell`); their lists are joined, which is safe because a deny
- * wins over an allow in Pool whichever category wrote it.
+ * Group the non-file categories by the Pool tool they land on, reporting the
+ * ones Pool has no place for. Two categories can resolve to the same tool
+ * (`bash` and a pass-through `shell`).
  */
-function convertRulesyncToPoolTools({
+function groupCategoriesByPoolTool({
   permission,
   logger,
 }: {
   permission: PermissionsConfig["permission"];
   logger?: Logger;
-}): Map<string, PoolToolLists> {
-  const byTool = new Map<string, PoolToolLists>();
+}): Map<string, [category: string, rules: ActionRules][]> {
+  const byTool = new Map<string, [string, ActionRules][]>();
 
   for (const [category, rules] of Object.entries(permission)) {
     if (isPrototypePollutionKey(category) || isFileCategory(category)) continue;
@@ -476,17 +477,36 @@ function convertRulesyncToPoolTools({
     }
 
     const toolName = toPoolToolName(category);
-    const lists = convertToolCategory({ category, toolName, rules, logger });
-    const previous = byTool.get(toolName);
-    byTool.set(
-      toolName,
-      previous === undefined
-        ? lists
-        : {
-            allow: uniq([...previous.allow, ...lists.allow]),
-            deny: uniq([...previous.deny, ...lists.deny]),
-          },
-    );
+    byTool.set(toolName, [...(byTool.get(toolName) ?? []), [category, rules]]);
+  }
+
+  return byTool;
+}
+
+/**
+ * Convert the non-file categories into Pool tool lists, keyed by Pool tool
+ * name. The categories that land on the same tool are converted against the
+ * union of their `ask` patterns and their lists are joined, which is safe
+ * because a deny wins over an allow in Pool whichever category wrote it.
+ */
+function convertRulesyncToPoolTools({
+  permission,
+  logger,
+}: {
+  permission: PermissionsConfig["permission"];
+  logger?: Logger;
+}): Map<string, PoolToolLists> {
+  const byTool = new Map<string, PoolToolLists>();
+
+  for (const [toolName, categories] of groupCategoriesByPoolTool({ permission, logger })) {
+    const asks = categories.flatMap(([, rules]) => patternsWithAction(rules, ["ask"]));
+    const lists: PoolToolLists = { allow: [], deny: [] };
+    for (const [category, rules] of categories) {
+      const converted = convertToolCategory({ category, toolName, rules, asks, logger });
+      lists.allow.push(...converted.allow);
+      lists.deny.push(...converted.deny);
+    }
+    byTool.set(toolName, { allow: uniq(lists.allow), deny: uniq(lists.deny) });
   }
 
   return byTool;
@@ -497,11 +517,12 @@ function convertRulesyncToPoolTools({
  *
  * An allow entry grants reading, and `write: true` grants writing on top, so
  * a `read` allow is withheld by an overlapping `read` ask and a write allow by
- * an overlapping `edit`/`write` ask or deny — and by a `read` ask, since the
- * write entry would read too. A `read` deny lands in `paths.deny`, which Pool
- * lets win over any allow, and covers an `edit`/`write` deny of the same
- * pattern; an `edit`/`write` deny without one cannot be written (Pool's deny
- * blocks reads as well), so it is reported and only withholds write flags.
+ * an overlapping `edit`/`write` ask — and by a `read` ask, since the write
+ * entry would read too. A `read` deny lands in `paths.deny`, which Pool lets
+ * win over any allow, and covers an `edit`/`write` deny of the same pattern,
+ * so neither withholds anything; an `edit`/`write` deny without a `read` deny
+ * cannot be written (Pool's deny blocks reads as well), so it is reported and
+ * only withholds the write flags it overlaps.
  */
 function convertRulesyncToPoolPaths({
   permission,
@@ -518,9 +539,12 @@ function convertRulesyncToPoolPaths({
   );
   const readDenies = patternsWithAction(readRules, ["deny"]);
   const readAsks = patternsWithAction(readRules, ["ask"]);
-  const writeRestrictions = writeRulesByCategory.flatMap(([, rules]) =>
-    patternsWithAction(rules, ["ask", "deny"]),
-  );
+  // A write deny that a read deny of the same pattern lands in `paths.deny`
+  // is enforced by Pool itself, so only the ones Pool never sees withhold.
+  const writeRestrictions = writeRulesByCategory.flatMap(([, rules]) => [
+    ...patternsWithAction(rules, ["ask"]),
+    ...patternsWithAction(rules, ["deny"]).filter((pattern) => !readDenies.includes(pattern)),
+  ]);
 
   for (const [category, rules] of writeRulesByCategory) {
     for (const pattern of patternsWithAction(rules, ["deny"])) {
