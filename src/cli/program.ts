@@ -323,7 +323,12 @@ export function createProgram(): Command {
     )
     .action(
       wrapCommand("generate", "GENERATION_FAILED", async (logger, options) => {
-        await generateCommand(logger, options as GenerateOptions);
+        // Commander stores `-c, --config <path>` as `config`, but the resolver
+        // reads `configPath`; map it explicitly like `add` and `install` do.
+        const { config, ...generateOptions } = options as Omit<GenerateOptions, "configPath"> & {
+          config?: string;
+        };
+        await generateCommand(logger, { ...generateOptions, configPath: config });
       }),
     );
 
