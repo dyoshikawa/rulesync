@@ -323,7 +323,13 @@ export function createProgram(): Command {
     )
     .action(
       wrapCommand("generate", "GENERATION_FAILED", async (logger, options) => {
-        await generateCommand(logger, options as GenerateOptions);
+        const generateOptions = options as Omit<GenerateOptions, "configPath"> & {
+          config?: string;
+        };
+        await generateCommand(logger, {
+          ...generateOptions,
+          configPath: generateOptions.config,
+        });
       }),
     );
 
