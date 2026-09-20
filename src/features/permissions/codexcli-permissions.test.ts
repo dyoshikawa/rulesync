@@ -132,6 +132,9 @@ describe("CodexcliPermissions", () => {
     const fileContent = codexPermissions.getFileContent();
     expect(fileContent).toContain('"/data/mixed/**" = "read"');
     expect(fileContent).toContain('"/data/open/**" = "write"');
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("maps a write-side deny to read-only access"),
+    );
   });
 
   it("should preserve read access when an edit rule asks for write approval", async () => {
@@ -159,6 +162,30 @@ describe("CodexcliPermissions", () => {
     expect(logger.warn).toHaveBeenCalledWith(
       expect.stringContaining('Codex CLI cannot express "ask" for filesystem write permissions'),
     );
+  });
+
+  it("should not warn about an ask rule masked by a read denial", async () => {
+    const logger = createMockLogger();
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          read: { ".rulesync/**": "deny" },
+          edit: { ".rulesync/**": "ask" },
+        },
+      }),
+    });
+
+    const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+      logger,
+    });
+
+    expect(codexPermissions.getFileContent()).toContain('".rulesync/**" = "deny"');
+    expect(logger.warn).not.toHaveBeenCalled();
   });
 
   it("should downgrade unsupported read globs to deny access", async () => {
@@ -410,7 +437,7 @@ enabled = true
     expect(json.permission.webfetch?.["example.com"]).toBe("deny");
   });
 
-  it("should not set glob_scan_max_depth when workspace-root globs contain only single-level wildcards", async () => {
+  it("should skip unsupported read/write grant globs without glob scan depth", async () => {
     const logger = createMockLogger();
     const rulesyncPermissions = new RulesyncPermissions({
       outputRoot: testDir,
@@ -419,7 +446,7 @@ enabled = true
       fileContent: JSON.stringify({
         permission: {
           read: {
-            "src/*": "allow",
+            "**": "allow",
           },
           write: {
             "docs/*": "allow",
@@ -438,10 +465,17 @@ enabled = true
     });
 
     const fileContent = codexPermissions.getFileContent();
-    expect(fileContent).toContain('[permissions.rulesync.filesystem.":workspace_roots"]');
-    expect(fileContent).toContain('"src/*" = "deny"');
-    expect(fileContent).toContain('"docs/*" = "deny"');
+    expect(fileContent).not.toContain('[permissions.rulesync.filesystem.":workspace_roots"]');
+    expect(fileContent).not.toContain('"**"');
+    expect(fileContent).not.toContain('"docs/*"');
     expect(fileContent).not.toContain("glob_scan_max_depth");
+    expect(logger.warn).toHaveBeenCalledTimes(2);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("Skipping unsupported Codex CLI read filesystem glob"),
+    );
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("Skipping unsupported Codex CLI write filesystem glob"),
+    );
   });
 
   it("should import nested Codex workspace root filesystem rules", () => {

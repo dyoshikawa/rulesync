@@ -433,22 +433,12 @@ function convertRulesyncToCodexProfile({
     );
   }
 
-  // Codex has a single access level per path (deny < read < write), so rules
-  // for the same pattern across the canonical read/edit/write categories are
-  // merged instead of last-category-wins overwriting (e.g. `read: allow` +
-  // `write: deny` emits `"read"`, not `"deny"`).
-  for (const [pattern, access] of mergeFilesystemCategoryRules({
+  addCodexFilesystemRules({
     categoryRules: filesystemCategoryRules,
+    filesystem,
+    workspaceRootFilesystem,
     logger,
-  })) {
-    addFilesystemRule({
-      filesystem,
-      workspaceRootFilesystem,
-      pattern,
-      access: normalizeCodexFilesystemAccess({ pattern, access, logger }),
-      logger,
-    });
-  }
+  });
 
   applyDefaultGitWriteRules({ config, filesystem, workspaceRootFilesystem });
 
@@ -488,6 +478,53 @@ function convertRulesyncToCodexProfile({
     filesystem,
     ...(network ? { network } : {}),
   };
+}
+
+function addCodexFilesystemRules({
+  categoryRules,
+  filesystem,
+  workspaceRootFilesystem,
+  logger,
+}: {
+  categoryRules: Partial<Record<"read" | "edit" | "write", Record<string, PermissionAction>>>;
+  filesystem: CodexFilesystem;
+  workspaceRootFilesystem: CodexFilesystemRuleTable;
+  logger?: ToolPermissionsFromRulesyncPermissionsParams["logger"];
+}): void {
+  // Codex has a single access level per path (deny < read < write), so rules
+  // for the same pattern across the canonical read/edit/write categories are
+  // merged instead of last-category-wins overwriting (e.g. `read: allow` +
+  // `write: deny` emits `"read"`, not `"deny"`).
+  for (const rule of mergeFilesystemCategoryRules({ categoryRules, logger })) {
+    const access = normalizeCodexFilesystemAccess({
+      pattern: rule.pattern,
+      access: rule.access,
+      writeRestriction: rule.writeRestriction,
+      logger,
+    });
+    if (access === undefined) {
+      continue;
+    }
+
+    if (access === "read" && rule.writeRestriction === "ask") {
+      logger?.warn(
+        `Codex CLI cannot express "ask" for filesystem write permissions: pattern "${rule.pattern}" will be emitted as read-only.`,
+      );
+    }
+    if (access === "read" && rule.writeRestriction === "deny") {
+      logger?.warn(
+        `Codex CLI maps a write-side deny to read-only access: pattern "${rule.pattern}" will be emitted as "read". A broader read deny may be overridden by this more-specific path.`,
+      );
+    }
+
+    addFilesystemRule({
+      filesystem,
+      workspaceRootFilesystem,
+      pattern: rule.pattern,
+      access,
+      logger,
+    });
+  }
 }
 
 // Fill in the default `.git` carve-out after the user's rules so a
@@ -863,17 +900,25 @@ function addFilesystemRule({
 function normalizeCodexFilesystemAccess({
   pattern,
   access,
+  writeRestriction,
   logger,
 }: {
   pattern: string;
   access: CodexFilesystemAccess;
+  writeRestriction?: "ask" | "deny";
   logger?: ToolPermissionsFromRulesyncPermissionsParams["logger"];
-}): CodexFilesystemAccess {
+}): CodexFilesystemAccess | undefined {
   if ((access === "read" || access === "write") && hasUnsupportedCodexFilesystemGlob(pattern)) {
+    if (writeRestriction !== undefined) {
+      logger?.warn(
+        `Codex CLI only supports deny access for non-trailing filesystem globs: pattern "${pattern}" will be emitted as "deny" because its write-side ${writeRestriction} restriction cannot be represented as read-only access. Use an exact path or trailing "/**" for read/write access.`,
+      );
+      return "deny";
+    }
     logger?.warn(
-      `Codex CLI only supports deny access for non-trailing filesystem globs: pattern "${pattern}" will be emitted as "deny". Use an exact path or trailing "/**" for read/write access.`,
+      `Skipping unsupported Codex CLI ${access} filesystem glob "${pattern}"; the base permission profile remains in effect. Use an exact path or trailing "/**" for read/write access.`,
     );
-    return "deny";
+    return undefined;
   }
   return access;
 }
@@ -1146,9 +1191,9 @@ function mapWriteAction(action: PermissionAction): "write" | "read" {
  * - A write-side non-allow → `"read"` (readable but not writable — exactly
  *   what Codex's `"read"` level expresses). An `ask` action is approximated
  *   this way because Codex has no path-level write approval.
- * - `read` non-allow → `"deny"` regardless of the write side; a contradictory
- *   write-side `allow` (unreadable but writable is not expressible in Codex)
- *   is warned about.
+ * - A `read` non-allow on the same pattern → `"deny"` regardless of the
+ *   write side; a contradictory write-side `allow` (unreadable but writable
+ *   is not expressible in Codex) is warned about.
  * - Single-category patterns keep the existing mapReadAction/mapWriteAction
  *   mappings.
  *
@@ -1158,13 +1203,19 @@ function mapWriteAction(action: PermissionAction): "write" | "read" {
  * `read: allow` only (the explicit write-side deny is implied by Codex's
  * access level and not re-materialized).
  */
+type MergedCodexFilesystemRule = {
+  pattern: string;
+  access: "read" | "write" | "deny";
+  writeRestriction?: "ask" | "deny";
+};
+
 function mergeFilesystemCategoryRules({
   categoryRules,
   logger,
 }: {
   categoryRules: Partial<Record<"read" | "edit" | "write", Record<string, PermissionAction>>>;
   logger?: ToolPermissionsFromRulesyncPermissionsParams["logger"];
-}): Array<[string, "read" | "write" | "deny"]> {
+}): MergedCodexFilesystemRule[] {
   const readRules = categoryRules.read ?? {};
   const writeSideRestrictiveness: Record<PermissionAction, number> = {
     deny: 2,
@@ -1195,28 +1246,34 @@ function mergeFilesystemCategoryRules({
     }
   }
 
-  const merged: Array<[string, "read" | "write" | "deny"]> = [];
+  const merged: MergedCodexFilesystemRule[] = [];
   for (const pattern of patterns) {
     const readAction = readRules[pattern];
     const writeAction = writeSideRules[pattern];
 
-    if (writeAction === "ask") {
-      logger?.warn(
-        `Codex CLI cannot express "ask" for filesystem write permissions: pattern "${pattern}" will be emitted without write access.`,
-      );
-    }
-
     if (readAction === undefined) {
-      merged.push([pattern, mapWriteAction(writeAction as PermissionAction)]);
+      merged.push({
+        pattern,
+        access: mapWriteAction(writeAction as PermissionAction),
+        ...(writeAction === "ask" || writeAction === "deny"
+          ? { writeRestriction: writeAction }
+          : {}),
+      });
       continue;
     }
     if (writeAction === undefined) {
-      merged.push([pattern, mapReadAction(readAction)]);
+      merged.push({ pattern, access: mapReadAction(readAction) });
       continue;
     }
 
     if (readAction === "allow") {
-      merged.push([pattern, writeAction === "allow" ? "write" : "read"]);
+      merged.push({
+        pattern,
+        access: writeAction === "allow" ? "write" : "read",
+        ...(writeAction === "ask" || writeAction === "deny"
+          ? { writeRestriction: writeAction }
+          : {}),
+      });
       continue;
     }
 
@@ -1225,7 +1282,7 @@ function mergeFilesystemCategoryRules({
         `Codex CLI cannot express "writable but not readable": pattern "${pattern}" has read: ${readAction} and a write-side allow. Emitting "deny".`,
       );
     }
-    merged.push([pattern, "deny"]);
+    merged.push({ pattern, access: "deny" });
   }
   return merged;
 }
