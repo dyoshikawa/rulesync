@@ -43,6 +43,7 @@ const permissionsGenerateTargets = [
   "copilot",
   "copilotcli",
   "crush",
+  "pool",
   "kiro",
   "kiro-cli",
   "kiro-ide",
@@ -72,6 +73,7 @@ const permissionsGlobalTargets = [
   "commandcode",
   "copilotcli",
   "crush",
+  "pool",
   "cursor",
   "kilo",
   "augmentcode",
@@ -1049,6 +1051,38 @@ web_search_request = true
     expect(content.options.debug).toBe(true);
   });
 
+  it("should generate pool permissions into .poolside/settings.yaml", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "git *": "allow", "rm -rf *": "deny" },
+            read: { "src/**": "allow", ".env": "deny" },
+            edit: { "src/**": "allow" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+    // Unrelated top-level keys of the shared settings file must survive.
+    await writeFileContent(join(testDir, ".poolside", "settings.yaml"), "pool:\n  model: gpt\n");
+
+    await runGenerate({ target: "pool", features: "permissions" });
+
+    // Tool rules become `tools.<name>` allow/deny lists; file rules become
+    // `paths` entries (read-only unless `write: true`).
+    const content = load(await readFileContent(join(testDir, ".poolside", "settings.yaml")));
+    expect(content).toEqual({
+      pool: { model: "gpt" },
+      tools: { shell: { allow: ["git *"], deny: ["rm -rf *"] } },
+      paths: { allow: [{ path: "src/**", write: true }], deny: [{ path: ".env" }] },
+    });
+  });
+
   it("should generate tabnine permissions into .tabnine/agent/settings.json", async () => {
     const testDir = getTestDir();
 
@@ -1669,6 +1703,41 @@ enabled = true
     expect(content.permission.webfetch["*"]).toBe("deny");
     // `tool:action` entries are narrower than a tool-wide rule and are not imported.
     expect(content.permission.edit).toBeUndefined();
+  });
+
+  it("should import pool permissions into .rulesync/permissions.jsonc", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, ".poolside", "settings.yaml"),
+      [
+        "tools:",
+        "  shell:",
+        "    allow: ['git *']",
+        "    deny: ['rm -rf *']",
+        "  web_fetch:",
+        "    disabled: true",
+        "paths:",
+        "  allow:",
+        "    - path: src/**",
+        "      write: true",
+        "  deny:",
+        "    - path: .env",
+        "",
+      ].join("\n"),
+    );
+
+    await runImport({ target: "pool", features: "permissions" });
+
+    const content = JSON.parse(
+      await readFileContent(join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH)),
+    );
+    expect(content.permission.bash).toEqual({ "git *": "allow", "rm -rf *": "deny" });
+    // A disabled tool never runs, so it reads as a catch-all deny.
+    expect(content.permission.webfetch).toEqual({ "*": "deny" });
+    expect(content.permission.read).toEqual({ "src/**": "allow", ".env": "deny" });
+    expect(content.permission.edit).toEqual({ "src/**": "allow", ".env": "deny" });
+    expect(content.permission.write).toEqual({ "src/**": "allow", ".env": "deny" });
   });
 
   it("should import tabnine permissions into .rulesync/permissions.jsonc", async () => {
@@ -2721,6 +2790,40 @@ describe("E2E: permissions (global mode)", () => {
     );
     expect(generated.permissions.allowed_tools).toEqual(["view"]);
     expect(generated.options.disabled_tools).toEqual(["fetch"]);
+  });
+
+  it("should generate pool permissions in home directory with --global", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "git *": "allow" },
+            read: { "~/.ssh/**": "deny" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({
+      target: "pool",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const generated = load(
+      await readFileContent(join(homeDir, ".config", "poolside", "settings.yaml")),
+    );
+    expect(generated).toEqual({
+      tools: { shell: { allow: ["git *"] } },
+      paths: { deny: [{ path: "~/.ssh/**" }] },
+    });
   });
 
   it("should generate tabnine permissions in home directory with --global", async () => {

@@ -1170,6 +1170,8 @@ export const KIMI_CODE_HOME_CONFIG_SHARED_FILE_KEY = "config.toml";
 export const REASONIX_PROJECT_CONFIG_SHARED_FILE_KEY = "reasonix.toml";
 export const REASONIX_GLOBAL_CONFIG_SHARED_FILE_KEY = ".reasonix/config.toml";
 export const ROVODEV_CONFIG_SHARED_FILE_KEY = ".rovodev/config.yml";
+export const POOL_PROJECT_SETTINGS_SHARED_FILE_KEY = ".poolside/settings.yaml";
+export const POOL_GLOBAL_SETTINGS_SHARED_FILE_KEY = ".config/poolside/settings.yaml";
 
 /**
  * Build the `SHARED_CONFIG_OWNERSHIP` lookup key from a tool's settable paths.
@@ -1247,6 +1249,32 @@ const KIMI_CODE_CONFIG_DECLARATION: SharedConfigFileDeclaration = {
       // layer alongside `permission.rules`.
       ownedKeys: ["permission", "default_permission_mode", "tools"],
     },
+  },
+};
+
+/**
+ * Pool settings (`.poolside/settings.yaml` / `~/.config/poolside/settings.yaml`):
+ * the user's primary Pool settings file, so an unparseable root fails closed
+ * rather than being replaced with generated output. `mcp_servers` is owned as
+ * a whole key because the MCP writer emits the complete server map. The
+ * permissions writer deep-merges: it rewrites the `allow`/`deny` lists of the
+ * `tools.<name>` blocks it manages and the `paths` lists, leaving each tool's
+ * `disabled` flag, unmanaged tools and every other key in place. `hooks` is
+ * owned as a whole key because the hooks writer emits every event list.
+ * `subagents` is owned as a whole key too: its writer recomputes the block
+ * from the existing file (`default` and the built-in `general` agent carried
+ * over, every other agent replaced) before applying the patch.
+ */
+const POOL_SETTINGS_DECLARATION: SharedConfigFileDeclaration = {
+  format: "yaml",
+  invalidRootPolicy: "error",
+  features: {
+    mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp_servers"] },
+    permissions: { kind: "deep-merge" },
+    // The hooks writer recomputes the whole `hooks` block, carrying over its
+    // non-event siblings (`stop_hook_max_continuations`) itself.
+    hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
+    subagents: { kind: "replace-owned-keys", ownedKeys: ["subagents"] },
   },
 };
 
@@ -1334,6 +1362,12 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
   [HERMES_CONFIG_SHARED_FILE_KEY]: HERMES_CONFIG_DECLARATION,
   [HERMES_WIN32_CONFIG_SHARED_FILE_KEY]: HERMES_CONFIG_DECLARATION,
   [HERMES_HOME_CONFIG_SHARED_FILE_KEY]: HERMES_CONFIG_DECLARATION,
+  // Pool settings: the project file (`.poolside/settings.yaml`, committed and
+  // shared with the team) and the user one under `~/.config/poolside/`. Both
+  // carry the user's own Pool settings (`pool`, `tools`, `sandbox`, ...) beside
+  // the `mcp_servers` and `subagents` blocks rulesync owns.
+  [POOL_PROJECT_SETTINGS_SHARED_FILE_KEY]: POOL_SETTINGS_DECLARATION,
+  [POOL_GLOBAL_SETTINGS_SHARED_FILE_KEY]: POOL_SETTINGS_DECLARATION,
   [TAKT_CONFIG_SHARED_FILE_KEY]: {
     format: "yaml",
     // config.yaml is the user's primary Takt config; refusing to parse a

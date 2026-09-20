@@ -10,7 +10,11 @@ import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { ClaudecodeHooks } from "./claudecode-hooks.js";
 import { CodexcliConfigToml, CodexcliHooks } from "./codexcli-hooks.js";
 import { CursorHooks } from "./cursor-hooks.js";
-import { HooksProcessor } from "./hooks-processor.js";
+import {
+  HOOKS_OVERRIDE_KEY_ALIASES,
+  HooksProcessor,
+  toolHooksFactories,
+} from "./hooks-processor.js";
 import { KiroIdeHooks } from "./kiro-ide-hooks.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
 import { ToolHooks } from "./tool-hooks.js";
@@ -385,6 +389,82 @@ describe("HooksProcessor", () => {
       );
     });
 
+    it("should not report a shared-block event as unsupported when only the override block is unknown", async () => {
+      const config = {
+        version: 1,
+        hooks: {
+          sessionStart: [{ command: "echo" }],
+        },
+        cursor: {
+          hooks: {
+            zzzNativeEvent: [{ command: "echo" }],
+          },
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const processor = new HooksProcessor({ logger, outputRoot: testDir, toolTarget: "cursor" });
+      const toolFiles = await processor.convertRulesyncFilesToToolFiles([rulesyncHooks]);
+
+      // Cursor emits override-block keys verbatim, so the key must be in the
+      // output and the generic "not supported" warning must stay silent.
+      expect(toolFiles.some((f) => f.getFileContent().includes("zzzNativeEvent"))).toBe(true);
+      expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("(not supported)"));
+    });
+
+    // Every target either emits an unknown override-block key verbatim or
+    // drops it; the generic "not supported" warning must fire exactly when the
+    // key is dropped without the adapter reporting the drop itself. This pins
+    // `dropsUnknownOverrideEvents` to what each adapter really does.
+    it.each([...toolHooksFactories])(
+      "should warn about an unknown override-block event for %s only when it is dropped",
+      async (toolTarget, factory) => {
+        const nativeEvent = "zzzNativeEvent";
+        const overrideKey = HOOKS_OVERRIDE_KEY_ALIASES[toolTarget] ?? toolTarget;
+        const config = {
+          version: 1,
+          hooks: {},
+          [overrideKey]: { hooks: { [nativeEvent]: [{ command: "echo" }] } },
+        };
+        const rulesyncHooks = new RulesyncHooks({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: "hooks.json",
+          fileContent: JSON.stringify(config),
+          validate: false,
+        });
+
+        const processor = new HooksProcessor({
+          logger,
+          outputRoot: testDir,
+          toolTarget,
+          global: !factory.meta.supportsProject,
+        });
+        const toolFiles = await processor.convertRulesyncFilesToToolFiles([rulesyncHooks]);
+
+        const emitted = toolFiles.some((f) => f.getFileContent().includes(nativeEvent));
+        const warnings = logger.warn.mock.calls.map(([message]) => String(message));
+        const genericWarning = warnings.some((m) => m.includes(`(not supported): ${nativeEvent}`));
+        const adapterWarning = warnings.some(
+          (m) => m.includes(nativeEvent) && !m.includes(`(not supported): ${nativeEvent}`),
+        );
+
+        if (emitted) {
+          expect(genericWarning).toBe(false);
+        } else {
+          expect(genericWarning || adapterWarning).toBe(true);
+          // An adapter that reports its own drops must not be echoed.
+          expect(genericWarning && adapterWarning).toBe(false);
+        }
+      },
+    );
+
     it("should log warning when prompt-type hooks exist and target does not support them", async () => {
       const config = {
         version: 1,
@@ -751,6 +831,7 @@ describe("HooksProcessor", () => {
         "cortexcode",
         "tabnine",
         "vibe",
+        "pool",
         "qwencode",
         "reasonix",
         "grokcli",
@@ -789,6 +870,7 @@ describe("HooksProcessor", () => {
         "junie",
         "tabnine",
         "vibe",
+        "pool",
         "qwencode",
         "reasonix",
         "grokcli",
@@ -837,6 +919,7 @@ describe("HooksProcessor", () => {
         "cortexcode",
         "tabnine",
         "vibe",
+        "pool",
         "qwencode",
         "reasonix",
         "grokcli",
@@ -870,6 +953,7 @@ describe("HooksProcessor", () => {
         "junie",
         "tabnine",
         "vibe",
+        "pool",
         "qwencode",
         "reasonix",
         "grokcli",

@@ -15,6 +15,7 @@ import { CodexCliSubagent } from "./codexcli-subagent.js";
 import { CopilotSubagent } from "./copilot-subagent.js";
 import { CursorSubagent } from "./cursor-subagent.js";
 import { JunieSubagent } from "./junie-subagent.js";
+import { PoolSubagent } from "./pool-subagent.js";
 import { RooSubagent } from "./roo-subagent.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
 import {
@@ -317,6 +318,94 @@ describe("SubagentsProcessor", () => {
       expect(toolFiles).toHaveLength(1);
       const [opencodeSubagent] = toolFiles;
       expect(opencodeSubagent?.getRelativeDirPath()).toBe(".opencode/agents");
+    });
+  });
+
+  describe("emitsToolFilesForEmptySource", () => {
+    it("is true only for an aggregate-file target once a source directory was found", async () => {
+      await ensureDir(join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH));
+      const poolProcessor = new SubagentsProcessor({
+        logger: createMockLogger(),
+        outputRoot: testDir,
+        toolTarget: "pool",
+      });
+      const rooProcessor = new SubagentsProcessor({
+        logger: createMockLogger(),
+        outputRoot: testDir,
+        toolTarget: "roo",
+      });
+
+      // Nothing was loaded yet, so nothing may be retracted.
+      expect(poolProcessor.emitsToolFilesForEmptySource()).toBe(false);
+
+      await poolProcessor.loadRulesyncFiles();
+      await rooProcessor.loadRulesyncFiles();
+
+      expect(poolProcessor.emitsToolFilesForEmptySource()).toBe(true);
+      expect(rooProcessor.emitsToolFilesForEmptySource()).toBe(false);
+    });
+
+    it("stays false when no source directory exists", async () => {
+      // A project that never adopted the feature keeps its own Pool agents.
+      const poolProcessor = new SubagentsProcessor({
+        logger: createMockLogger(),
+        outputRoot: testDir,
+        toolTarget: "pool",
+      });
+
+      await poolProcessor.loadRulesyncFiles();
+
+      expect(poolProcessor.emitsToolFilesForEmptySource()).toBe(false);
+    });
+
+    it("converts an empty source list into an agentless Pool settings patch", async () => {
+      // Removing the last rulesync subagent must still write the aggregate so
+      // the agents generated earlier are retracted from settings.yaml.
+      await ensureDir(join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH));
+      const poolProcessor = new SubagentsProcessor({
+        logger: createMockLogger(),
+        outputRoot: testDir,
+        toolTarget: "pool",
+      });
+      await poolProcessor.loadRulesyncFiles();
+
+      const toolFiles = await poolProcessor.convertRulesyncFilesToToolFiles([]);
+
+      expect(toolFiles).toHaveLength(1);
+      expect(toolFiles[0]).toBeInstanceOf(PoolSubagent);
+      expect((toolFiles[0] as PoolSubagent).getAgents()).toEqual({});
+    });
+
+    it("converts an empty source list into nothing when no source directory was found", async () => {
+      // `convert --to pool` hands over subagents read from another tool, so
+      // no `.rulesync/subagents/` directory is ever found; an aggregate
+      // written for a list none of which targets Pool would wipe the agents
+      // already in settings.yaml.
+      const poolProcessor = new SubagentsProcessor({
+        logger: createMockLogger(),
+        outputRoot: testDir,
+        toolTarget: "pool",
+      });
+      const rooOnly = new RulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath: "roo-only.md",
+        frontmatter: { name: "roo-only", description: "Roo only", targets: ["roo"] },
+        body: "Only for Roo.",
+      });
+
+      expect(await poolProcessor.convertRulesyncFilesToToolFiles([])).toEqual([]);
+      expect(await poolProcessor.convertRulesyncFilesToToolFiles([rooOnly])).toEqual([]);
+    });
+
+    it("converts an empty source list into nothing for a per-file target", async () => {
+      const rooProcessor = new SubagentsProcessor({
+        logger: createMockLogger(),
+        outputRoot: testDir,
+        toolTarget: "roo",
+      });
+
+      expect(await rooProcessor.convertRulesyncFilesToToolFiles([])).toEqual([]);
     });
   });
 
@@ -1333,6 +1422,7 @@ Second global content`;
         "kilo",
         "kimi-code",
         "opencode",
+        "pool",
         "qwencode",
         "reasonix",
         "rovodev",
@@ -1398,6 +1488,7 @@ Second global content`;
           "kiro-cli",
           "kiro-ide",
           "opencode",
+          "pool",
           "qwencode",
           "reasonix",
           "roo",

@@ -62,7 +62,7 @@ jobs:
           input-text: ${{ inputs.model }}
 
       - name: Run OpenCode to draft release
-        uses: anomalyco/opencode/github@63f7ceecbed2d7d9a627518d935dd963b9d4ac9f # v2.0.0
+        uses: anomalyco/opencode/github@ca27d3328fcd0d470588149c902a963452f1abaf # v2.0.7
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           ZHIPU_API_KEY: ${{ secrets.ZHIPU_API_KEY }}

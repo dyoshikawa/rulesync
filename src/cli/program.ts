@@ -21,7 +21,7 @@ import { resolveGitignoreTargets } from "./commands/resolve-gitignore-targets.js
 import { updateCommand, UpdateCommandOptions } from "./commands/update.js";
 import { wrapCommand as _wrapCommand } from "./wrap-command.js";
 
-const getVersion = () => "16.36.0";
+const getVersion = () => "16.39.1";
 const FEATURES_HELP = `${ALL_FEATURES.join(",")}; ignore is deprecated, use permissions`;
 
 function wrapCommand(
@@ -323,7 +323,12 @@ export function createProgram(): Command {
     )
     .action(
       wrapCommand("generate", "GENERATION_FAILED", async (logger, options) => {
-        await generateCommand(logger, options as GenerateOptions);
+        // Commander stores `-c, --config <path>` as `config`, but the resolver
+        // reads `configPath`; map it explicitly like `add` and `install` do.
+        const { config, ...generateOptions } = options as Omit<GenerateOptions, "configPath"> & {
+          config?: string;
+        };
+        await generateCommand(logger, { ...generateOptions, configPath: config });
       }),
     );
 

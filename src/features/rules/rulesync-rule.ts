@@ -106,6 +106,15 @@ export const RulesyncRuleFrontmatterSchema = z.object({
       globs: z.optional(z.array(z.string())),
     }),
   ),
+  aiassistant: z.optional(
+    z.looseObject({
+      // Rule type written to the `apply:` metadata line of
+      // `.aiassistant/rules/*.md`: always | manually | by model decision |
+      // by file patterns | off. Unset means "derive it from `globs` and
+      // `description`"; any other string is written verbatim (forward compat).
+      apply: z.optional(z.string()),
+    }),
+  ),
   devin: z.optional(
     z.looseObject({
       // Activation mode: always_on | glob | manual | model_decision

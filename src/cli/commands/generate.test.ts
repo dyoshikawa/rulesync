@@ -1378,6 +1378,7 @@ describe("generateCommand", () => {
       mockConfig.getFeatures.mockReturnValue(["mcp"]);
       vi.mocked(McpProcessor).mockImplementation(function () {
         return {
+          ...mockProcessorBase(),
           hasRulesyncSourceLoadFailure: vi.fn().mockReturnValue(true),
           loadToolFiles: vi.fn().mockResolvedValue([]),
           removeOrphanAiFiles: vi.fn().mockResolvedValue(undefined),
@@ -1408,6 +1409,7 @@ describe("generateCommand", () => {
       const removeOrphanMock = vi.fn().mockResolvedValue(1);
       vi.mocked(McpProcessor).mockImplementation(function () {
         return {
+          ...mockProcessorBase(),
           hasRulesyncSourceLoadFailure: vi.fn().mockReturnValue(true),
           loadToolFiles: vi
             .fn()
@@ -1433,6 +1435,7 @@ describe("generateCommand", () => {
       mockConfig.getConfigFilePath = vi.fn().mockReturnValue("/test/project/rulesync.jsonc");
       vi.mocked(McpProcessor).mockImplementation(function () {
         return {
+          ...mockProcessorBase(),
           hasRulesyncSourceLoadFailure: vi.fn().mockReturnValue(true),
           loadToolFiles: vi.fn().mockResolvedValue([]),
           removeOrphanAiFiles: vi.fn().mockResolvedValue(undefined),

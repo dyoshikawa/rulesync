@@ -437,7 +437,7 @@ export const PI_HOOK_EVENTS: readonly HookEvent[] = [
  * adapter. Amp's `agent.start` / `agent.end` events describe the main agent
  * turn, not a subagent lifecycle, so they map to `beforeSubmitPrompt` / `stop`.
  *
- * @see https://ampcode.com/manual/plugin-api
+ * @see https://ampcode.com/docs/plugin-api
  */
 export const AMP_HOOK_EVENTS: readonly HookEvent[] = [
   "sessionStart",
@@ -758,6 +758,39 @@ export const AUGMENTCODE_HOOK_EVENTS: readonly HookEvent[] = [
  * @see https://github.com/mistralai/mistral-vibe/blob/main/README.md
  */
 export const VIBE_HOOK_EVENTS: readonly HookEvent[] = ["preToolUse", "postToolUse", "stop"];
+
+/**
+ * Hook events supported by Pool.
+ *
+ * Pool's `hooks` settings block fires six events, spelled the Claude Code
+ * way: `PreToolUse`, `PostToolUse`, `UserPromptSubmit` (← `beforeSubmitPrompt`),
+ * `PreCompact`, `SessionStart` and `Stop`. Every entry carries a `matcher`
+ * (required by Pool's schema; `""`/`*` match any tool, a bare name is an exact
+ * match, `a|b` lists names, anything else is a regular expression), which only
+ * `PreToolUse`/`PostToolUse` test against the tool name.
+ * @see https://docs.poolside.ai/hooks
+ */
+export const POOL_HOOK_EVENTS: readonly HookEvent[] = [
+  "preToolUse",
+  "postToolUse",
+  "beforeSubmitPrompt",
+  "preCompact",
+  "sessionStart",
+  "stop",
+];
+
+export const CANONICAL_TO_POOL_EVENT_NAMES: Record<string, string> = {
+  preToolUse: "PreToolUse",
+  postToolUse: "PostToolUse",
+  beforeSubmitPrompt: "UserPromptSubmit",
+  preCompact: "PreCompact",
+  sessionStart: "SessionStart",
+  stop: "Stop",
+};
+
+export const POOL_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
+  Object.entries(CANONICAL_TO_POOL_EVENT_NAMES).map(([k, v]) => [v, k]),
+);
 
 /**
  * Hook events supported by Crush.
@@ -1426,6 +1459,7 @@ export const HooksConfigSchema = z.looseObject({
   "kimi-code": z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   zcode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   crush: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  pool: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   bob: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   cortexcode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   commandcode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),

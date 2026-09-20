@@ -26,11 +26,20 @@ const CursorSkillFrontmatterSchema = z.looseObject({
   description: z.string(),
   // Optional Cursor SKILL.md frontmatter. https://cursor.com/docs/skills
   paths: z.optional(z.union([z.string(), z.array(z.string())])),
+  // "The legacy `globs` field is still accepted as a fallback for older
+  // skills, but new skills should use `paths`." Read on import only and
+  // normalized into `paths`; never written on generate.
+  globs: z.optional(z.union([z.string(), z.array(z.string())])),
   "disable-model-invocation": z.optional(z.boolean()),
   // Documented only in the CLI changelog (July 6, 2026 release), not yet in the
   // skills frontmatter reference table.
   // https://cursor.com/docs/cli/changelog
   "user-invocable": z.optional(z.boolean()),
+  // Custom Modes badge (Cursor 2026-08). Kept as plain strings rather than
+  // enums: Cursor documents a fallback to the default lightning badge for
+  // unrecognized values, so an enum would reject frontmatter Cursor accepts.
+  icon: z.optional(z.string()),
+  color: z.optional(z.string()),
   metadata: z.optional(z.looseObject({})),
 });
 
@@ -125,14 +134,19 @@ export class CursorSkill extends ToolSkill {
 
   toRulesyncSkill(): RulesyncSkill {
     const frontmatter = this.getFrontmatter();
+    // `paths` is the documented field; the legacy `globs` is only honored as
+    // a fallback when `paths` is absent, matching Cursor's own precedence.
+    const paths = frontmatter.paths ?? frontmatter.globs;
     const cursorSection = {
-      ...(frontmatter.paths !== undefined && { paths: frontmatter.paths }),
+      ...(paths !== undefined && { paths }),
       ...(frontmatter["disable-model-invocation"] !== undefined && {
         "disable-model-invocation": frontmatter["disable-model-invocation"],
       }),
       ...(frontmatter["user-invocable"] !== undefined && {
         "user-invocable": frontmatter["user-invocable"],
       }),
+      ...(frontmatter.icon !== undefined && { icon: frontmatter.icon }),
+      ...(frontmatter.color !== undefined && { color: frontmatter.color }),
       ...(frontmatter.metadata !== undefined && { metadata: frontmatter.metadata }),
     };
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
@@ -188,6 +202,8 @@ export class CursorSkill extends ToolSkill {
       ...(resolvedUserInvocable !== undefined && {
         "user-invocable": resolvedUserInvocable,
       }),
+      ...(cursorSection?.icon !== undefined && { icon: cursorSection.icon }),
+      ...(cursorSection?.color !== undefined && { color: cursorSection.color }),
       ...(metadata !== undefined && { metadata }),
     };
 

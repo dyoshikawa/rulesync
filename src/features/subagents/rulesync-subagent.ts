@@ -57,6 +57,24 @@ export const RulesyncSubagentFrontmatterSchema = z.looseObject({
       mcpServers: z.optional(z.array(z.string())),
     }),
   ),
+  // Pool's documented per-agent keys (`subagents.agents.<name>` of its
+  // settings file), spelled out so their types are checked when the rulesync
+  // file is read. `description`/`instructions` override the shared field and
+  // the body; unknown keys still ride through, as everywhere else.
+  pool: z.optional(
+    z.looseObject({
+      type: z.optional(z.enum(["in_process", "command", "agent_server"])),
+      description: z.optional(z.string()),
+      instructions: z.optional(z.string()),
+      command: z.optional(z.string()),
+      args: z.optional(z.array(z.string())),
+      env: z.optional(z.record(z.string(), z.string())),
+      agent_server: z.optional(z.string()),
+      session_config_options: z.optional(z.record(z.string(), z.unknown())),
+      inherit_agent_config: z.optional(z.boolean()),
+      disabled: z.optional(z.boolean()),
+    }),
+  ),
   vibe: z.optional(
     z.looseObject({
       agent_type: z.optional(z.enum(["agent", "subagent"])),

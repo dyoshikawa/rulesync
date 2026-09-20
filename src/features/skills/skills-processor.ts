@@ -262,7 +262,7 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
     "amp",
     {
       // Amp reads Agent Skills from `.agents/skills/` (project) and
-      // `~/.config/agents/skills/` (global). https://ampcode.com/manual
+      // `~/.config/agents/skills/` (global). https://ampcode.com/docs/customize/skills
       class: AmpSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },

@@ -1,10 +1,16 @@
+import { symlink } from "node:fs/promises";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { readFileContent, readFileContentOrNull, writeFileContent } from "../../utils/file.js";
+import {
+  ensureDir,
+  readFileContent,
+  readFileContentOrNull,
+  writeFileContent,
+} from "../../utils/file.js";
 import { activateHermesProjectPlugins } from "./hermes-project-plugin-activation.js";
 import { parseSharedConfig } from "./shared-config-gateway.js";
 
@@ -107,6 +113,33 @@ describe("Hermes project plugin activation", () => {
       await cleanup();
     }
   });
+
+  it.skipIf(process.platform === "win32")(
+    "refuses to rewrite a config that links outside the home directory",
+    async () => {
+      const { testDir, cleanup } = await setupTestDirectory({ home: true });
+      process.env.HOME_DIR = join(testDir, "home");
+      try {
+        const outsideConfig = join(testDir, "outside", "config.yaml");
+        await writeFileContent(outsideConfig, "model: hermes-3\n");
+        await ensureDir(join(testDir, "home", ".hermes"));
+        await symlink(outsideConfig, join(testDir, "home", ".hermes", "config.yaml"));
+
+        const logger = createMockLogger();
+        const result = await activateHermesProjectPlugins({
+          pluginNames: ["rulesync-ignore"],
+          dryRun: false,
+          logger,
+        });
+
+        expect(result).toEqual({ count: 0, paths: [], hasDiff: false, sourceLoadFailed: false });
+        expect(await readFileContent(outsideConfig)).toBe("model: hermes-3\n");
+        expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("Refusing to write"));
+      } finally {
+        await cleanup();
+      }
+    },
+  );
 
   it("writes activation to the active HERMES_HOME profile", async () => {
     const { testDir, cleanup } = await setupTestDirectory({ home: true });

@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import { load } from "js-yaml";
 import * as smolToml from "smol-toml";
 import { describe, expect, it } from "vitest";
 
@@ -134,7 +135,7 @@ const hooksGenerateTargets = [
 ] as const;
 
 // Targets exercised by dedicated `it`s (bespoke per-tool serialization).
-const hooksProjectStandaloneTargets = ["vibe", "devin", "reasonix", "crush"] as const;
+const hooksProjectStandaloneTargets = ["vibe", "devin", "reasonix", "crush", "pool"] as const;
 
 describe("E2E: hooks", () => {
   const { getTestDir } = useTestDirectory();
@@ -497,6 +498,75 @@ describe("E2E: hooks", () => {
     );
     expect(imported.hooks.preToolUse).toEqual([
       { type: "command", matcher: "bash|edit", command: "echo audit" },
+    ]);
+  });
+
+  it("should generate pool hooks into the hooks block of .poolside/settings.yaml", async () => {
+    const testDir = getTestDir();
+
+    const hooksContent = JSON.stringify(
+      {
+        version: 1,
+        hooks: {
+          preToolUse: [
+            { name: "audit", command: ".poolside/hooks/audit.sh", matcher: "shell", timeout: 5 },
+          ],
+          stop: [{ command: ".poolside/hooks/on-stop.sh" }],
+        },
+      },
+      null,
+      2,
+    );
+    await writeFileContent(join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH), hooksContent);
+    // Unrelated top-level keys and the non-event siblings of the hooks block
+    // of the shared settings file must survive.
+    await writeFileContent(
+      join(testDir, ".poolside", "settings.yaml"),
+      "pool:\n  model: gpt\nhooks:\n  stop_hook_max_continuations: 2\n",
+    );
+
+    await runGenerate({ target: "pool", features: "hooks" });
+
+    const parsed = load(await readFileContent(join(testDir, ".poolside", "settings.yaml")));
+    expect(parsed).toEqual({
+      pool: { model: "gpt" },
+      hooks: {
+        stop_hook_max_continuations: 2,
+        PreToolUse: [
+          { name: "audit", matcher: "shell", command: ".poolside/hooks/audit.sh", timeout: 5 },
+        ],
+        Stop: [{ matcher: "*", command: ".poolside/hooks/on-stop.sh" }],
+      },
+    });
+  });
+
+  it("should import pool hooks from .poolside/settings.yaml", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, ".poolside", "settings.yaml"),
+      [
+        "hooks:",
+        "  PreToolUse:",
+        "    - matcher: shell|edit",
+        "      command: echo audit",
+        "  UserPromptSubmit:",
+        "    - matcher: '*'",
+        "      command: echo prompt",
+        "",
+      ].join("\n"),
+    );
+
+    await runImport({ target: "pool", features: "hooks" });
+
+    const imported = JSON.parse(
+      await readFileContent(join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH)),
+    );
+    expect(imported.hooks.preToolUse).toEqual([
+      { type: "command", matcher: "shell|edit", command: "echo audit" },
+    ]);
+    expect(imported.hooks.beforeSubmitPrompt).toEqual([
+      { type: "command", command: "echo prompt" },
     ]);
   });
 
@@ -929,6 +999,7 @@ const hooksGlobalStandaloneTargets = [
   "hermesagent",
   "kimi-code",
   "reasonix",
+  "pool",
 ] as const;
 
 describe("E2E: hooks (global mode)", () => {
@@ -1065,6 +1136,38 @@ describe("E2E: hooks (global mode)", () => {
     expect(parsed.hooks.PreToolUse).toEqual([
       { matcher: "bash", command: ".rulesync/hooks/audit.sh" },
     ]);
+  });
+
+  it("should generate pool hooks in the user settings", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    const hooksContent = JSON.stringify(
+      {
+        version: 1,
+        root: true,
+        hooks: {
+          sessionStart: [{ command: "~/hooks/session-start.sh" }],
+        },
+      },
+      null,
+      2,
+    );
+    await writeFileContent(join(projectDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH), hooksContent);
+
+    await runGenerate({
+      target: "pool",
+      features: "hooks",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const parsed = load(
+      await readFileContent(join(homeDir, ".config", "poolside", "settings.yaml")),
+    );
+    expect(parsed).toEqual({
+      hooks: { SessionStart: [{ matcher: "*", command: "~/hooks/session-start.sh" }] },
+    });
   });
 
   it("should generate devin hooks in home directory", async () => {

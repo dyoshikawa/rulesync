@@ -122,9 +122,16 @@ const CopilotCliHookEntrySchema = z.looseObject({
   powershell: z.optional(z.string()),
   // Cross-platform fallback: upstream copies it to both `bash` and
   // `powershell` when those fields are absent. Generate writes it whenever the
-  // canonical `shell` selector is unset (see `buildCopilotCliEntriesForEvent`),
-  // and writes the shell-specific field otherwise.
+  // canonical `shell` selector is unset (see `resolveExportCommandPart`), and
+  // writes the shell-specific field otherwise.
   command: z.optional(z.string()),
+  // CLI-only shell-free form: `exec` names an executable that is spawned
+  // directly, `args` its argv. The docs say not to combine `exec` with
+  // `bash`/`powershell`/`command`, and the same canonical definition uses
+  // `command` + `args` (the exec form AugmentCode and Claude Code share).
+  // https://docs.github.com/en/copilot/reference/hooks-reference
+  exec: z.optional(z.string()),
+  args: z.optional(z.array(z.string())),
   prompt: z.optional(z.string()),
   url: z.optional(z.string()),
   headers: z.optional(z.record(z.string(), z.string())),
@@ -177,6 +184,39 @@ function resolveExportMatcherPart({
     `Copilot CLI hook matchers are only honored on ${COPILOTCLI_MATCHER_EVENTS_LABEL}; dropping matcher "${matcher}" on '${eventName}'.`,
   );
   return {};
+}
+
+/**
+ * Pick the command fields of an exported `command` entry.
+ *
+ * A canonical `args` list (an empty one counts) selects the CLI's shell-free
+ * form: `command` becomes `exec` and the list is written as `args`, so the
+ * executable is spawned directly. The `shell` selector is meaningless there
+ * and is dropped with a warning. Otherwise the canonical `shell` selector
+ * picks the shell-specific field; without it the portable `command` field is
+ * written, which upstream copies to both `bash` and `powershell`. Keying off
+ * `shell` rather than `process.platform` keeps the generated file identical
+ * on every machine.
+ */
+function resolveExportCommandPart({
+  def,
+  eventName,
+  logger,
+}: {
+  def: HooksConfig["hooks"][string][number];
+  eventName: string;
+  logger?: Logger;
+}): Record<string, unknown> {
+  if (Array.isArray(def.args)) {
+    if (def.shell !== undefined) {
+      logger?.warn(
+        `Copilot CLI runs an \`exec\` hook without a shell; dropping shell "${def.shell}" on '${eventName}'.`,
+      );
+    }
+    return compact({ exec: def.command, args: def.args, env: def.env });
+  }
+  const commandField = def.shell ?? "command";
+  return compact({ [commandField]: def.command, env: def.env });
 }
 
 /**
@@ -243,11 +283,10 @@ function buildCopilotCliEntriesForEvent({
       // it the portable `command` field is written, which upstream copies to
       // both `bash` and `powershell`. Keying off `shell` rather than
       // `process.platform` keeps the generated file identical on every machine.
-      const commandField = def.shell ?? "command";
       entries.push({
         type: "command",
         ...matcherPart,
-        ...compact({ [commandField]: def.command, env: def.env }),
+        ...resolveExportCommandPart({ def, eventName, logger }),
         ...timeoutPart,
         ...rest,
       });
@@ -302,6 +341,10 @@ function importPassthrough(entry: CopilotCliHookEntry): Record<string, unknown> 
 /**
  * Resolve the canonical command and its `shell` selector from an imported entry.
  *
+ * The CLI-only `exec` form maps to canonical `command` + `args`, the exec form
+ * shared with AugmentCode and Claude Code, so it no longer imports as a hook
+ * with no command at all.
+ *
  * A shell-specific field carries its `shell` through so re-export writes the
  * same field back. An entry using only the portable `command` field leaves
  * `shell` unset, which re-export renders as the portable field again.
@@ -315,9 +358,21 @@ function importPassthrough(entry: CopilotCliHookEntry): Record<string, unknown> 
 function resolveImportCommand(
   entry: CopilotCliHookEntry,
   logger?: Logger,
-): { command?: string; shell?: "bash" | "powershell" } {
+): { command?: string; shell?: "bash" | "powershell"; args?: string[] } {
   const hasBash = typeof entry.bash === "string";
   const hasPowershell = typeof entry.powershell === "string";
+  if (typeof entry.exec === "string") {
+    // The shell-free form. Upstream documents `exec` as replacing the shell
+    // fields, so any of them alongside it is ignored, with a warning. An
+    // always-present `args` list is what marks the canonical exec form, so a
+    // bare `exec` imports with an empty list.
+    if (hasBash || hasPowershell || typeof entry.command === "string") {
+      logger?.warn(
+        "Copilot CLI hook has both exec and a shell command; using exec and ignoring the shell fields, as the hooks reference says not to combine them.",
+      );
+    }
+    return { command: entry.exec, args: entry.args ?? [] };
+  }
   if (hasBash && hasPowershell) {
     logger?.warn(
       "Copilot CLI hook has both bash and powershell commands; using bash and ignoring powershell, so the imported config does not depend on the machine the import ran on.",
@@ -364,11 +419,12 @@ function copilotCliHooksToCanonical(rawHooks: unknown, logger?: Logger): HooksCo
       } else if (entry.type === "http") {
         defs.push({ type: "http", ...matcherPart, ...timeoutPart, ...passthrough });
       } else {
-        const { command, shell } = resolveImportCommand(entry, logger);
+        const { command, shell, args } = resolveImportCommand(entry, logger);
         defs.push({
           type: "command",
           ...(command !== undefined && { command }),
           ...(shell !== undefined && { shell }),
+          ...(args !== undefined && { args }),
           ...matcherPart,
           ...timeoutPart,
           ...passthrough,

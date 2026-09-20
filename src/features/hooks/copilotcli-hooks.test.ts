@@ -190,6 +190,46 @@ describe("CopilotcliHooks", () => {
       expect(parsed.hooks.preToolUse[0]).toMatchObject({ bash: "echo nix" });
     });
 
+    it("writes the exec form when the canonical args list is present", async () => {
+      const logger = createMockLogger();
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            // A list selects the shell-free form; an empty one counts.
+            sessionStart: [{ command: "node", args: ["hook.js", "--fast"], env: { A: "1" } }],
+            sessionEnd: [{ command: "./notify", args: [] }],
+            // `shell` has no meaning without a shell, so it is dropped.
+            preToolUse: [{ command: "lint", args: ["src"], shell: "bash" }],
+          },
+        }),
+        validate: false,
+      });
+
+      const hooks = await CopilotcliHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        logger,
+      });
+      const parsed = JSON.parse(hooks.getFileContent());
+
+      expect(parsed.hooks.sessionStart[0]).toEqual({
+        type: "command",
+        exec: "node",
+        args: ["hook.js", "--fast"],
+        env: { A: "1" },
+      });
+      expect(parsed.hooks.sessionEnd[0]).toEqual({ type: "command", exec: "./notify", args: [] });
+      expect(parsed.hooks.preToolUse[0]).toEqual({ type: "command", exec: "lint", args: ["src"] });
+      expect(parsed.hooks.preToolUse[0].bash).toBeUndefined();
+      expect(vi.mocked(logger.warn)).toHaveBeenCalledWith(
+        "Copilot CLI runs an `exec` hook without a shell; dropping shell \"bash\" on 'preToolUse'.",
+      );
+    });
+
     it("drops a matcher on an event that does not honor one, naming all six that do", async () => {
       const logger = createMockLogger();
       const rulesyncHooks = new RulesyncHooks({
@@ -550,6 +590,67 @@ describe("CopilotcliHooks", () => {
       );
       expect(reExported.hooks.sessionStart[0].cwd).toBe("packages/api");
       expect(reExported.hooks.sessionStart[0].timeoutSec).toBe(30);
+    });
+
+    it("reads the exec form as canonical command plus args", () => {
+      const logger = createMockLogger();
+      const hooks = new CopilotcliHooks({
+        outputRoot: testDir,
+        relativeDirPath: join(".github", "hooks"),
+        relativeFilePath: "copilotcli-hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            sessionStart: [{ type: "command", exec: "node", args: ["hook.js"], timeoutSec: 5 }],
+            // A bare `exec` still needs the list marker to stay an exec hook.
+            sessionEnd: [{ type: "command", exec: "/usr/bin/notify" }],
+            // The docs say not to combine `exec` with the shell fields; exec wins.
+            preToolUse: [{ type: "command", exec: "lint", args: [], bash: "echo ignored" }],
+          },
+        }),
+        validate: false,
+      });
+
+      const json = hooks.toRulesyncHooks({ logger }).getJson();
+      expect(json.hooks.sessionStart?.[0]).toEqual({
+        type: "command",
+        command: "node",
+        args: ["hook.js"],
+        timeout: 5,
+      });
+      expect(json.hooks.sessionEnd?.[0]).toEqual({
+        type: "command",
+        command: "/usr/bin/notify",
+        args: [],
+      });
+      expect(json.hooks.preToolUse?.[0]).toEqual({ type: "command", command: "lint", args: [] });
+      expect(json.hooks.preToolUse?.[0]?.shell).toBeUndefined();
+      expect(vi.mocked(logger.warn)).toHaveBeenCalledWith(
+        "Copilot CLI hook has both exec and a shell command; using exec and ignoring the shell fields, as the hooks reference says not to combine them.",
+      );
+    });
+
+    it("round-trips an exec hook through import and export", async () => {
+      const source = {
+        version: 1,
+        hooks: {
+          sessionStart: [{ type: "command", exec: "node", args: ["hook.js"], cwd: "scripts" }],
+        },
+      };
+      const imported = new CopilotcliHooks({
+        outputRoot: testDir,
+        relativeDirPath: join(".github", "hooks"),
+        relativeFilePath: "copilotcli-hooks.json",
+        fileContent: JSON.stringify(source),
+        validate: false,
+      }).toRulesyncHooks();
+
+      const exported = await CopilotcliHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks: imported,
+      });
+
+      expect(JSON.parse(exported.getFileContent())).toEqual(source);
     });
 
     it("should always take bash when both bash and powershell are present", () => {
