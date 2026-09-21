@@ -3,23 +3,126 @@ description: Trace the rest of the job with cicd-sensor and send the trace to Ta
 inputs:
   bot-id:
     description: Shisho Cloud bot ID with the "Takumi Runner Trace Sender" role. Skips tracing when empty.
+    required: false
 runs:
   using: composite
   steps:
+    # Availability failures (sign-in, installer, trust root, download) fail
+    # open: the step warns, tracing is skipped, and the job carries on
+    # untraced. Integrity failures (bad signature, hash mismatch) fail closed
+    # and stop the job before any later step runs.
     - name: Sign in to Shisho Cloud
       id: auth
       if: inputs.bot-id != ''
+      continue-on-error: true
       uses: flatt-security/shisho-cloud-action@9b68d33503ebf75d7c285d489b288f96ef3df758 # v1.1.0
       with:
         bot-id: ${{ inputs.bot-id }}
         export-token: true
         expires-in-minutes: 360
 
+    - name: Install cosign
+      id: cosign
+      if: steps.auth.outcome == 'success'
+      continue-on-error: true
+      uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+    # Keyless verification needs the Sigstore TUF trust root, which cosign
+    # fetches over the network. Fetch it here so that an outage is an
+    # availability failure rather than a verification failure.
+    - name: Fetch Sigstore trust root
+      id: trust-root
+      if: steps.cosign.outcome == 'success'
+      continue-on-error: true
+      shell: bash
+      run: cosign initialize
+
+    # cicd-sensor-action's SHA pin covers only its JS wrapper; the agent that
+    # runs as root is fetched from a mutable GitHub Release at run time. Verify
+    # the same release asset here first: the sigstore bundle proves who built
+    # it, and the pinned digests prove it is the exact tarball that was
+    # reviewed. Bump CICD_SENSOR_VERSION and both digests together, and
+    # re-check the signing identity against the new bundle's certificate.
+    - name: Verify cicd-sensor release
+      id: verify
+      if: steps.trust-root.outcome == 'success'
+      shell: bash
+      env:
+        CICD_SENSOR_VERSION: v0.0.45
+        CICD_SENSOR_TARBALL_SHA256: 783467e39039b4d64300ef76c146699443d3f1abf685e47220f533b37ad478d9
+        CICD_SENSOR_AGENT_SHA256: 888bc236e88bf3b9b8bbd78442f41fb876e5c5cc86f2b598a88708e797eb2a1a
+        CERTIFICATE_IDENTITY: https://github.com/cicd-sensor/cicd-sensor/.github/workflows/releases-sensor.yaml@refs/heads/main
+        CERTIFICATE_OIDC_ISSUER: https://token.actions.githubusercontent.com
+      run: |
+        set -euo pipefail
+
+        arch="$(uname -m)"
+        if [ "$arch" != "x86_64" ]; then
+          echo "::warning::cicd-sensor digests are pinned for linux_amd64 only; skipping tracing on $arch"
+          echo "outcome=unsupported" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        version_no_v="${CICD_SENSOR_VERSION#v}"
+        tarball="cicd-sensor_${version_no_v}_linux_amd64.tar.gz"
+        base="https://github.com/cicd-sensor/cicd-sensor/releases/download/releases/${CICD_SENSOR_VERSION}"
+        work="${RUNNER_TEMP}/cicd-sensor-verify"
+        mkdir -p "$work"
+
+        # Download failures are availability problems, not integrity ones.
+        if ! curl --fail --silent --show-error --location \
+             --output "${work}/${tarball}" "${base}/${tarball}" \
+           || ! curl --fail --silent --show-error --location \
+             --output "${work}/${tarball}.sigstore.json" "${base}/${tarball}.sigstore.json"; then
+          echo "::warning::could not download the cicd-sensor ${CICD_SENSOR_VERSION} release; skipping tracing"
+          echo "outcome=unavailable" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        # From here on every failure is an integrity failure and must stop the job.
+        cosign verify-blob \
+          --bundle "${work}/${tarball}.sigstore.json" \
+          --certificate-identity "$CERTIFICATE_IDENTITY" \
+          --certificate-oidc-issuer "$CERTIFICATE_OIDC_ISSUER" \
+          "${work}/${tarball}"
+        echo "${CICD_SENSOR_TARBALL_SHA256}  ${work}/${tarball}" | sha256sum --check --strict
+
+        mkdir -p "${work}/extracted"
+        tar xzf "${work}/${tarball}" -C "${work}/extracted"
+        echo "${CICD_SENSOR_AGENT_SHA256}  ${work}/extracted/cicd-sensor-linux-amd64" | sha256sum --check --strict
+        rm -rf "$work"
+
+        echo "outcome=verified" >> "$GITHUB_OUTPUT"
+        echo "version=${CICD_SENSOR_VERSION}" >> "$GITHUB_OUTPUT"
+        echo "agent-sha256=${CICD_SENSOR_AGENT_SHA256}" >> "$GITHUB_OUTPUT"
+
     - name: Start cicd-sensor
-      if: inputs.bot-id != ''
+      id: start
+      if: steps.verify.outputs.outcome == 'verified'
+      continue-on-error: true
       uses: cicd-sensor/cicd-sensor-action@6511eb44c91d71b2b93d71193b1bf2cb18352f66 # v0.0.38
       with:
+        cicd-sensor-version: ${{ steps.verify.outputs.version }}
         manager-url: https://manager.cicdsensor.cloud.shisho.dev
         manager-token: ${{ steps.auth.outputs.token }}
         enable-html-report: false
         enable-attestation-artifact: false
+
+    # The action downloads the release again on its own, so close the window
+    # between the two downloads: the agent it installed must be the binary
+    # that was verified above, or the job stops before any later step runs.
+    # This also runs when the action failed part-way, because the agent may
+    # already be installed and running by then; only a missing binary means
+    # nothing was installed.
+    - name: Check installed cicd-sensor agent
+      if: steps.start.outcome == 'success' || steps.start.outcome == 'failure'
+      shell: bash
+      env:
+        CICD_SENSOR_AGENT_SHA256: ${{ steps.verify.outputs.agent-sha256 }}
+      run: |
+        set -euo pipefail
+        if [ ! -f /usr/local/bin/cicd-sensor ]; then
+          echo "::warning::cicd-sensor was not installed; the job runs untraced"
+          exit 0
+        fi
+        echo "${CICD_SENSOR_AGENT_SHA256}  /usr/local/bin/cicd-sensor" | sha256sum --check --strict

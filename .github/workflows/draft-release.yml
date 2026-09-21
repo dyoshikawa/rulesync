@@ -33,7 +33,6 @@ jobs:
           fetch-depth: 0
 
       - name: Start cicd-sensor
-        continue-on-error: true
         uses: ./.github/actions/cicd-sensor
         with:
           bot-id: ${{ vars.SHISHO_BOT_ID }}

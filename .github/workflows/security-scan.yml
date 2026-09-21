@@ -20,7 +20,6 @@ jobs:
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
       - name: Start cicd-sensor
-        continue-on-error: true
         uses: ./.github/actions/cicd-sensor
         with:
           bot-id: ${{ vars.SHISHO_BOT_ID }}
@@ -34,7 +33,7 @@ jobs:
         uses: flatt-security/setup-takumi-guard-npm@6d4182745c1e474c35a023573c2612c085be45a4 # v1
 
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --ignore-scripts
 
       - name: Generate repomix XML files
         run: pnpm exec tsx scripts/generate-repomix-xml.ts
