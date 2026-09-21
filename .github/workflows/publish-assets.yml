@@ -41,6 +41,11 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
+      - name: Start cicd-sensor
+        uses: ./.github/actions/cicd-sensor
+        with:
+          bot-id: ${{ vars.SHISHO_BOT_ID }}
+
       - name: Configure git
         uses: ./.github/actions/git-config
 

@@ -63,6 +63,31 @@ updates:
       - "dyoshikawa"
       - "cm-dyoshikawa"
 
+  # The root `github-actions` entry only scans `.github/workflows/`, so a
+  # composite action that pins third-party actions needs its own entry.
+  # This bumps the action pins only; `CICD_SENSOR_VERSION` and its digests in
+  # action.yml are bumped by hand (see the GitHub Actions security rule).
+  - package-ecosystem: "github-actions"
+    directory: "/.github/actions/cicd-sensor"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 1
+    open-pull-requests-limit: 1
+    groups:
+      all-actions:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+    labels:
+      - "ci"
+      - "automated"
+    assignees:
+      - "dyoshikawa"
+      - "cm-dyoshikawa"
+
   # Automatic updates for Docker
   - package-ecosystem: "docker"
     directory: "/.devcontainer"

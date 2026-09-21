@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   security-scan:
@@ -18,6 +19,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
 
+      - name: Start cicd-sensor
+        uses: ./.github/actions/cicd-sensor
+        with:
+          bot-id: ${{ vars.SHISHO_BOT_ID }}
+
       - name: Setup mise
         uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
@@ -27,7 +33,7 @@ jobs:
         uses: flatt-security/setup-takumi-guard-npm@6d4182745c1e474c35a023573c2612c085be45a4 # v1
 
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install --ignore-scripts
 
       - name: Generate repomix XML files
         run: pnpm exec tsx scripts/generate-repomix-xml.ts
