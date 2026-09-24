@@ -1213,6 +1213,9 @@ const findFilesWithFallback = async (
 const rootRelativeGlob = (...segments: Array<string | undefined>): string =>
   posix.join(...segments.filter((segment) => segment !== undefined).map(toPosixPath));
 
+const isRootRule = (rule: RulesyncRule): boolean =>
+  Boolean(rule.getFrontmatter().root || rule.getFrontmatter().localRoot);
+
 export class RulesProcessor extends FeatureProcessor {
   private readonly toolTarget: RulesProcessorToolTarget;
   private readonly simulateCommands: boolean;
@@ -1224,6 +1227,7 @@ export class RulesProcessor extends FeatureProcessor {
   private readonly getFactory: GetFactory;
   private readonly skills?: RulesyncSkill[];
   private readonly featureOptions?: FeatureOptions;
+  private readonly deleteOrphans: boolean;
 
   constructor({
     outputRoot = process.cwd(),
@@ -1238,6 +1242,7 @@ export class RulesProcessor extends FeatureProcessor {
     getFactory = defaultGetFactory,
     skills,
     featureOptions,
+    delete: deleteOrphans = false,
     dryRun = false,
     logger,
   }: {
@@ -1264,6 +1269,13 @@ export class RulesProcessor extends FeatureProcessor {
     getFactory?: GetFactory;
     skills?: RulesyncSkill[];
     featureOptions?: FeatureOptions;
+    /**
+     * Whether the run sweeps orphaned tool files (the `delete` config option).
+     * Only consulted to decide which leftover root files `includeRoot: false`
+     * has to report during conversion: with `delete` on, the sweep removes the
+     * project-root `CLAUDE.md` / `CLAUDE.local.md` and reports the rest.
+     */
+    delete?: boolean;
     dryRun?: boolean;
     logger: Logger;
   }) {
@@ -1284,6 +1296,7 @@ export class RulesProcessor extends FeatureProcessor {
     this.getFactory = getFactory;
     this.skills = skills;
     this.featureOptions = featureOptions;
+    this.deleteOrphans = deleteOrphans;
   }
 
   async convertRulesyncFilesToToolFiles(rulesyncFiles: RulesyncFile[]): Promise<ToolFile[]> {
@@ -1296,9 +1309,7 @@ export class RulesProcessor extends FeatureProcessor {
     const { meta } = factory;
     this.warnForIncludeRootOption(meta);
     const emittedRules = this.omitsRootFiles()
-      ? alignedRules.filter(
-          (rule) => !rule.getFrontmatter().root && !rule.getFrontmatter().localRoot,
-        )
+      ? await this.dropRootRules(alignedRules)
       : alignedRules;
 
     // Separate localRoot rules from normal rules
@@ -1510,8 +1521,9 @@ export class RulesProcessor extends FeatureProcessor {
    * non-root `.claude/rules/*.md`. Claude Code falls back to `AGENTS.md` only
    * when none of `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` exists,
    * so emitting either root file would shadow an `AGENTS.md` written by another
-   * target. Stale root files are swept by the regular orphan deletion because
-   * they are no longer part of the generated output. Global scope keeps the
+   * target. With `delete` on, stale root files are swept by the regular orphan
+   * deletion because they are no longer part of the generated output; without
+   * it, conversion warns about them instead. Global scope keeps the
    * root file: `~/.claude/CLAUDE.md` never shadows `AGENTS.md`, and Claude Code
    * reads no global `AGENTS.md` to fall back to. `claudecode-legacy` is not
    * covered: its `.claude/memories/*.md` are only reachable through the
@@ -1556,31 +1568,88 @@ export class RulesProcessor extends FeatureProcessor {
   }
 
   /**
-   * With `includeRoot: false`, a hand-authored root file at an alternative
-   * location (`.claude/CLAUDE.md`, `.claude/CLAUDE.local.md`) still keeps
-   * Claude Code from reading `AGENTS.md`. Rulesync never writes those files, so
-   * it leaves them in place and tells the user instead of deleting them.
+   * Drop the root and local-root rules for `includeRoot: false`, reporting what
+   * would otherwise go unnoticed: a dropped rule no other target emits, and a
+   * root file on disk that keeps shadowing `AGENTS.md`. With `delete` on, the
+   * orphan sweep removes the project-root files and reports the rest itself
+   * (see {@link loadToolFiles}), so conversion only reports them when no sweep
+   * runs.
    */
-  private async warnForShadowingAlternativeRoots(
-    alternativeRoots: Array<{ relativeDirPath: string; relativeFilePath: string }>,
-  ): Promise<void> {
-    const localRootFileName = this.getFactory(this.toolTarget).meta.localRootFileName;
-    const globs = alternativeRoots.flatMap((alt) => [
-      rootRelativeGlob(alt.relativeDirPath, alt.relativeFilePath),
-      ...(localRootFileName ? [rootRelativeGlob(alt.relativeDirPath, localRootFileName)] : []),
-    ]);
-    if (globs.length === 0) {
-      return;
+  private async dropRootRules(rules: RulesyncRule[]): Promise<RulesyncRule[]> {
+    this.warnForClaudecodeOnlyRootRules(rules.filter(isRootRule));
+    if (!this.deleteOrphans || this.hasRulesyncSourceLoadFailure()) {
+      await this.warnForShadowingRootFiles({ includePrimaryRoots: true });
     }
-    const filePaths = await findFilesByGlobs(globs, { cwd: this.outputRoot });
+    return rules.filter((rule) => !isRootRule(rule));
+  }
+
+  /**
+   * A root or local-root rule that targets `claudecode` alone is dropped by
+   * `includeRoot: false`, and no other target writes it either, so its content
+   * would end up nowhere without a word.
+   */
+  private warnForClaudecodeOnlyRootRules(rootRules: RulesyncRule[]): void {
+    for (const rule of rootRules) {
+      const targets = rule.getFrontmatter().targets ?? ["*"];
+      if (targets.length === 0 || !targets.every((target) => target === "claudecode")) {
+        continue;
+      }
+      this.logger.warn(
+        `${stripControlCharacters(rule.getRelativeFilePath())} is a root rule that targets only claudecode, so \`includeRoot: false\` drops it and no target generates its content. Add the target that writes AGENTS.md to its \`targets\`, or turn it into a non-root rule.`,
+      );
+    }
+  }
+
+  /**
+   * With `includeRoot: false`, a root file still on disk keeps Claude Code
+   * from reading `AGENTS.md`: a project-root `CLAUDE.md` or `CLAUDE.local.md`
+   * (`includePrimaryRoots`), which only the `delete` sweep removes, and a
+   * hand-authored `.claude/CLAUDE.md` at an alternative location, which
+   * Rulesync never writes and so never deletes. `.claude/CLAUDE.local.md` is
+   * not checked: it is not one of the files that shadow `AGENTS.md`.
+   * @see https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md
+   */
+  private async warnForShadowingRootFiles({
+    includePrimaryRoots,
+  }: {
+    includePrimaryRoots: boolean;
+  }): Promise<void> {
+    const factory = this.getFactory(this.toolTarget);
+    const settablePaths = factory.class.getSettablePaths({ global: this.global });
+    const primaryDirPath = settablePaths.root?.relativeDirPath ?? ".";
+    const primaryFileNames =
+      includePrimaryRoots && settablePaths.root
+        ? [
+            settablePaths.root.relativeFilePath,
+            ...(factory.meta.localRootFileName ? [factory.meta.localRootFileName] : []),
+          ]
+        : [];
+    const primaryGlobs = primaryFileNames.map((fileName) =>
+      rootRelativeGlob(primaryDirPath, fileName),
+    );
+    const alternativeGlobs = (settablePaths.alternativeRoots ?? []).map((alt) =>
+      rootRelativeGlob(alt.relativeDirPath, alt.relativeFilePath),
+    );
+    const primaryFilePaths =
+      primaryGlobs.length > 0 ? await findFilesByGlobs(primaryGlobs, { cwd: this.outputRoot }) : [];
+    const alternativeFilePaths =
+      alternativeGlobs.length > 0
+        ? await findFilesByGlobs(alternativeGlobs, { cwd: this.outputRoot })
+        : [];
+    const filePaths = [...primaryFilePaths, ...alternativeFilePaths];
     if (filePaths.length === 0) {
       return;
     }
     const names = filePaths.map((filePath) =>
       stripControlCharacters(relative(this.outputRoot, filePath)),
     );
+    const one = names.length === 1;
+    const deleteHint =
+      primaryFilePaths.length > 0
+        ? " Enable `delete` to have Rulesync remove a project-root CLAUDE.md or CLAUDE.local.md itself."
+        : "";
     this.logger.warn(
-      `${names.join(", ")} still ${names.length === 1 ? "keeps" : "keep"} Claude Code from reading AGENTS.md although \`includeRoot: false\` is set for claudecode. Rulesync does not delete ${names.length === 1 ? "it" : "them"}; remove ${names.length === 1 ? "it" : "them"} by hand once the content is covered by AGENTS.md.`,
+      `${names.join(", ")} still ${one ? "keeps" : "keep"} Claude Code from reading AGENTS.md although \`includeRoot: false\` is set for claudecode. Rulesync leaves ${one ? "it" : "them"} in place; remove ${one ? "it" : "them"} by hand once the content is covered by AGENTS.md.${deleteHint}`,
     );
   }
 
@@ -2636,7 +2705,7 @@ As this project's AI coding tool, you must follow the additional conventions bel
         if (forDeletion && omitsRootFiles) {
           // Only sweep the file Rulesync writes: a `.claude/CLAUDE.md` is
           // hand-authored, so it is reported instead of deleted.
-          await this.warnForShadowingAlternativeRoots(settablePaths.alternativeRoots ?? []);
+          await this.warnForShadowingRootFiles({ includePrimaryRoots: false });
           return buildDeletionRulesFromPaths(primaryRootFilePaths);
         }
 
