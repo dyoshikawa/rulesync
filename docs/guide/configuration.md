@@ -209,6 +209,7 @@ The current per-feature options are:
 | ------------ | -------- | ---------------------- | ------------------------------------------------------------------------------ | ------------- |
 | `claudecode` | `rules`  | `ruleDiscoveryMode`    | `"none"` / `"explicit"`                                                        | tool default  |
 | any          | `rules`  | `includeLocalRoot`     | `true` / `false` (when `false`, `localRoot` rules are skipped for this target) | `true`        |
+| `claudecode` | `rules`  | `includeRoot`          | `true` / `false` (when `false`, `CLAUDE.md` and `CLAUDE.local.md` are skipped) | `true`        |
 | `claudecode` | `ignore` | `fileMode`             | `"shared"` (settings.json) / `"local"` (settings.local.json)                   | `"shared"`    |
 | any          | any      | `gitignoreDestination` | `"gitignore"` / `"gitattributes"`                                              | `"gitignore"` |
 

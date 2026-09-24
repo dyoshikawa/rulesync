@@ -127,6 +127,7 @@ type RuleDiscoveryMode = "auto" | "toon" | "claudecode-legacy";
 const RulesFeatureOptionsSchema = z.looseObject({
   ruleDiscoveryMode: z.optional(z.enum(["none", "explicit"])),
   includeLocalRoot: z.optional(z.boolean()),
+  includeRoot: z.optional(z.boolean()),
 });
 
 const resolveRuleDiscoveryMode = ({
@@ -167,6 +168,22 @@ const resolveIncludeLocalRoot = (options?: FeatureOptions): boolean => {
     );
   }
   return parsed.data.includeLocalRoot ?? true;
+};
+
+const IncludeRootSchema = z.looseObject({
+  includeRoot: z.optional(z.boolean()),
+});
+
+const resolveIncludeRoot = (options?: FeatureOptions): boolean => {
+  if (!options) return true;
+  const parsed = IncludeRootSchema.safeParse(options);
+  if (!parsed.success) {
+    throw new Error(
+      `Invalid options for rules feature: ${parsed.error.message}. ` +
+        "`includeRoot` must be a boolean.",
+    );
+  }
+  return parsed.data.includeRoot ?? true;
 };
 
 /**
@@ -1275,10 +1292,15 @@ export class RulesProcessor extends FeatureProcessor {
     );
 
     const alignedRules = this.alignPiContextFile(rulesyncRules);
+    const emittedRules = this.shouldOmitRootFiles()
+      ? alignedRules.filter(
+          (rule) => !rule.getFrontmatter().root && !rule.getFrontmatter().localRoot,
+        )
+      : alignedRules;
 
     // Separate localRoot rules from normal rules
-    const localRootRules = alignedRules.filter((rule) => rule.getFrontmatter().localRoot);
-    const nonLocalRootRules = alignedRules.filter((rule) => !rule.getFrontmatter().localRoot);
+    const localRootRules = emittedRules.filter((rule) => rule.getFrontmatter().localRoot);
+    const nonLocalRootRules = emittedRules.filter((rule) => !rule.getFrontmatter().localRoot);
 
     const factory = this.getFactory(this.toolTarget);
     const { meta } = factory;
@@ -1479,6 +1501,37 @@ export class RulesProcessor extends FeatureProcessor {
    */
   private getPromptBlockLanguage(): Language | undefined {
     return this.isClaudecodeTarget() ? undefined : this.language;
+  }
+
+  /**
+   * `includeRoot: false` on the `claudecode` target (project scope only)
+   * drops the root `CLAUDE.md` and the personal `CLAUDE.local.md`, keeping the
+   * non-root `.claude/rules/*.md`. Claude Code falls back to `AGENTS.md` only
+   * when none of `CLAUDE.md`, `.claude/CLAUDE.md` or `CLAUDE.local.md` exists,
+   * so emitting either root file would shadow an `AGENTS.md` written by another
+   * target. Stale root files are swept by the regular orphan deletion because
+   * they are no longer part of the generated output. Global scope keeps the
+   * root file: `~/.claude/CLAUDE.md` never shadows `AGENTS.md`, and Claude Code
+   * reads no global `AGENTS.md` to fall back to.
+   * @see https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md
+   */
+  private shouldOmitRootFiles(): boolean {
+    if (resolveIncludeRoot(this.featureOptions)) {
+      return false;
+    }
+    if (this.toolTarget !== "claudecode") {
+      this.logger.warn(
+        `The rules option \`includeRoot\` is only supported by the claudecode target; ignoring it for ${this.toolTarget}.`,
+      );
+      return false;
+    }
+    if (this.global) {
+      this.logger.warn(
+        "The rules option `includeRoot: false` has no effect in global mode: ~/.claude/CLAUDE.md does not shadow AGENTS.md, so it is still generated.",
+      );
+      return false;
+    }
+    return true;
   }
 
   private isClaudecodeTarget(): boolean {

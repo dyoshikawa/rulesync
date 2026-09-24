@@ -14,6 +14,9 @@ import { buildLanguageInstruction } from "../types/language.js";
 import { fileExists, readFileContent, writeFileContent } from "../utils/file.js";
 import {
   assertGenerateMatrixCoversTargets,
+  execFileAsync,
+  rulesyncArgs,
+  rulesyncCmd,
   runGenerate,
   runImport,
   useGlobalTestDirectories,
@@ -809,6 +812,69 @@ globs: ["**/*"]
     const alwaysContent = await readFileContent(join(testDir, ".clinerules", "always.md"));
     expect(alwaysContent).toContain("alwaysApply: true");
     expect(alwaysContent).not.toContain("paths:");
+  });
+
+  it("should skip CLAUDE.md and CLAUDE.local.md for claudecode when includeRoot is false", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+      `---
+root: true
+targets: ["*"]
+---
+
+# Project Overview
+`,
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "local.md"),
+      `---
+localRoot: true
+---
+
+# Personal Notes
+`,
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "typescript.md"),
+      `---
+targets: ["*"]
+globs: ["**/*.ts"]
+---
+
+# TypeScript Rules
+`,
+    );
+    // Root files generated before the option was turned on: `--delete` sweeps
+    // them because the run no longer produces them.
+    await writeFileContent(join(testDir, "CLAUDE.md"), "# Project Overview (stale)\n");
+    await writeFileContent(join(testDir, "CLAUDE.local.md"), "# Personal Notes (stale)\n");
+    // Per-feature options live in the object form of `targets`, which the
+    // `--targets` CLI flag would replace, so the config file drives this run.
+    await writeFileContent(
+      join(testDir, RULESYNC_CONFIG_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          targets: {
+            agentsmd: ["rules"],
+            claudecode: { rules: { includeRoot: false } },
+          },
+          delete: true,
+        },
+        null,
+        2,
+      ),
+    );
+
+    await execFileAsync(rulesyncCmd, [...rulesyncArgs, "generate"]);
+
+    expect(await fileExists(join(testDir, "CLAUDE.md"))).toBe(false);
+    expect(await fileExists(join(testDir, "CLAUDE.local.md"))).toBe(false);
+    expect(await readFileContent(join(testDir, ".claude", "rules", "typescript.md"))).toContain(
+      "# TypeScript Rules",
+    );
+    expect(await readFileContent(join(testDir, "AGENTS.md"))).toContain("# Project Overview");
   });
 
   it("should fail in check mode when delete would remove an orphan rule file", async () => {

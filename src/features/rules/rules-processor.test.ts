@@ -3376,6 +3376,137 @@ targets: ["*"]
       );
     });
 
+    describe("includeRoot option", () => {
+      const buildRules = () => [
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "root.md",
+          frontmatter: { root: true, targets: ["*"] },
+          body: "# Root content",
+        }),
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "local.md",
+          frontmatter: { localRoot: true, targets: ["*"] },
+          body: "# Local content",
+        }),
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "testing.md",
+          frontmatter: { targets: ["*"], globs: ["**/*.test.ts"] },
+          body: "# Testing content",
+        }),
+      ];
+
+      it("should omit CLAUDE.md and CLAUDE.local.md but keep non-root rules for claudecode", async () => {
+        const processor = new RulesProcessor({
+          logger,
+          outputRoot: testDir,
+          toolTarget: "claudecode",
+          featureOptions: { includeRoot: false },
+        });
+
+        const result = await processor.convertRulesyncFilesToToolFiles(buildRules());
+
+        const ruleFiles = result.filter((file) => file instanceof ClaudecodeRule);
+        expect(ruleFiles).toHaveLength(1);
+        expect(ruleFiles[0]?.isRoot()).toBe(false);
+        expect(ruleFiles[0]?.getRelativeDirPath()).toBe(join(".claude", "rules"));
+        expect(ruleFiles[0]?.getRelativeFilePath()).toBe("testing.md");
+        expect(ruleFiles[0]?.getFileContent()).toContain("# Testing content");
+        expect(
+          result.find((file) =>
+            ["CLAUDE.md", "CLAUDE.local.md"].includes(file.getRelativeFilePath()),
+          ),
+        ).toBeUndefined();
+      });
+
+      it("should keep CLAUDE.md when includeRoot is explicitly true", async () => {
+        const processor = new RulesProcessor({
+          logger,
+          outputRoot: testDir,
+          toolTarget: "claudecode",
+          featureOptions: { includeRoot: true },
+        });
+
+        const result = await processor.convertRulesyncFilesToToolFiles(buildRules());
+
+        expect(result.find((file) => file.getRelativeFilePath() === "CLAUDE.md")).toBeDefined();
+        expect(
+          result.find((file) => file.getRelativeFilePath() === "CLAUDE.local.md"),
+        ).toBeDefined();
+      });
+
+      it("should keep the root file in global mode and warn", async () => {
+        const processor = new RulesProcessor({
+          logger,
+          outputRoot: testDir,
+          toolTarget: "claudecode",
+          global: true,
+          featureOptions: { includeRoot: false },
+        });
+
+        const result = await processor.convertRulesyncFilesToToolFiles(buildRules());
+
+        expect(
+          result.find((file) => file instanceof ClaudecodeRule && file.isRoot()),
+        ).toBeDefined();
+        expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("global mode"));
+      });
+
+      it("should ignore includeRoot on other targets and warn", async () => {
+        const processor = new RulesProcessor({
+          logger,
+          outputRoot: testDir,
+          toolTarget: "copilot",
+          featureOptions: { includeRoot: false },
+        });
+
+        const result = await processor.convertRulesyncFilesToToolFiles(buildRules());
+
+        expect(result.find((file) => file instanceof CopilotRule && file.isRoot())).toBeDefined();
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining("only supported by the claudecode target"),
+        );
+      });
+
+      it("should throw when includeRoot is not a boolean", async () => {
+        const processor = new RulesProcessor({
+          logger,
+          outputRoot: testDir,
+          toolTarget: "claudecode",
+          featureOptions: { includeRoot: "false" as unknown as boolean },
+        });
+
+        await expect(processor.convertRulesyncFilesToToolFiles(buildRules())).rejects.toThrow(
+          /includeRoot.*must be a boolean/,
+        );
+      });
+
+      it("should sweep a previously generated CLAUDE.md as an orphan", async () => {
+        await writeFileContent(join(testDir, "CLAUDE.md"), "# Stale root");
+        await writeFileContent(join(testDir, "CLAUDE.local.md"), "# Stale local");
+        const processor = new RulesProcessor({
+          logger,
+          outputRoot: testDir,
+          toolTarget: "claudecode",
+          featureOptions: { includeRoot: false },
+        });
+
+        const generated = await processor.convertRulesyncFilesToToolFiles(buildRules());
+        const existing = await processor.loadToolFiles({ forDeletion: true });
+        const generatedPaths = new Set(generated.map((file) => file.getFilePath()));
+        const orphanPaths = existing
+          .filter((file) => !generatedPaths.has(file.getFilePath()))
+          .map((file) => file.getRelativeFilePath());
+
+        expect(orphanPaths).toEqual(expect.arrayContaining(["CLAUDE.md", "CLAUDE.local.md"]));
+      });
+    });
+
     it("should coexist with ruleDiscoveryMode option", async () => {
       const processor = new RulesProcessor({
         logger,
