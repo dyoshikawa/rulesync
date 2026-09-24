@@ -3486,6 +3486,65 @@ targets: ["*"]
         );
       });
 
+      it("should warn that ruleDiscoveryMode has no effect without the root file", async () => {
+        const processor = new RulesProcessor({
+          logger,
+          outputRoot: testDir,
+          toolTarget: "claudecode",
+          featureOptions: { includeRoot: false, ruleDiscoveryMode: "explicit" },
+        });
+
+        await processor.convertRulesyncFilesToToolFiles(buildRules());
+
+        expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("ruleDiscoveryMode"));
+      });
+
+      it("should ignore includeRoot on claudecode-legacy, whose memories need the root file", async () => {
+        const processor = new RulesProcessor({
+          logger,
+          outputRoot: testDir,
+          toolTarget: "claudecode-legacy",
+          featureOptions: { includeRoot: false },
+        });
+
+        const result = await processor.convertRulesyncFilesToToolFiles(buildRules());
+
+        expect(
+          result.find((file) => file instanceof ClaudecodeLegacyRule && file.isRoot()),
+        ).toBeDefined();
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining("only supported by the claudecode target"),
+        );
+      });
+
+      it("should keep a hand-authored .claude/CLAUDE.md out of the sweep and warn about it", async () => {
+        await writeFileContent(join(testDir, ".claude", "CLAUDE.md"), "# Hand-authored root");
+        await writeFileContent(
+          join(testDir, ".claude", "CLAUDE.local.md"),
+          "# Hand-authored local",
+        );
+        const processor = new RulesProcessor({
+          logger,
+          outputRoot: testDir,
+          toolTarget: "claudecode",
+          featureOptions: { includeRoot: false },
+        });
+
+        const existing = await processor.loadToolFiles({ forDeletion: true });
+
+        expect(
+          existing
+            .filter((file) => file.getRelativeDirPath() === ".claude")
+            .map((file) => file.getRelativeFilePath()),
+        ).toEqual([]);
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining(join(".claude", "CLAUDE.md")),
+        );
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining(join(".claude", "CLAUDE.local.md")),
+        );
+      });
+
       it("should sweep a previously generated CLAUDE.md as an orphan", async () => {
         await writeFileContent(join(testDir, "CLAUDE.md"), "# Stale root");
         await writeFileContent(join(testDir, "CLAUDE.local.md"), "# Stale local");
