@@ -205,13 +205,13 @@ Priority is **more specific wins**:
 
 The current per-feature options are:
 
-| Target       | Feature  | Option                 | Values                                                                                 | Default       |
-| ------------ | -------- | ---------------------- | -------------------------------------------------------------------------------------- | ------------- |
-| `claudecode` | `rules`  | `ruleDiscoveryMode`    | `"none"` / `"explicit"`                                                                | tool default  |
-| any          | `rules`  | `includeLocalRoot`     | `true` / `false` (when `false`, `localRoot` rules are skipped for this target)         | `true`        |
-| `claudecode` | `rules`  | `includeRoot`          | `true` / `false` (when `false`, project `CLAUDE.md` and `CLAUDE.local.md` are skipped) | `true`        |
-| `claudecode` | `ignore` | `fileMode`             | `"shared"` (settings.json) / `"local"` (settings.local.json)                           | `"shared"`    |
-| any          | any      | `gitignoreDestination` | `"gitignore"` / `"gitattributes"`                                                      | `"gitignore"` |
+| Target       | Feature  | Option                 | Values                                                                                                                           | Default       |
+| ------------ | -------- | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| `claudecode` | `rules`  | `ruleDiscoveryMode`    | `"none"` / `"explicit"`                                                                                                          | tool default  |
+| any          | `rules`  | `includeLocalRoot`     | `true` / `false` (when `false`, `localRoot` rules are skipped for this target)                                                   | `true`        |
+| `claudecode` | `rules`  | `includeRoot`          | `true` / `false` (when `false`, project `CLAUDE.md` and `CLAUDE.local.md` are skipped; leftovers are removed only with `delete`) | `true`        |
+| `claudecode` | `ignore` | `fileMode`             | `"shared"` (settings.json) / `"local"` (settings.local.json)                                                                     | `"shared"`    |
+| any          | any      | `gitignoreDestination` | `"gitignore"` / `"gitattributes"`                                                                                                | `"gitignore"` |
 
 See [`docs/reference/file-formats.md`](../reference/file-formats.md#where-ignore-patterns-are-written-per-tool)
 for the rationale behind the Claude Code default and when to switch to

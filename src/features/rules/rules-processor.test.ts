@@ -3540,8 +3540,140 @@ targets: ["*"]
         expect(logger.warn).toHaveBeenCalledWith(
           expect.stringContaining(join(".claude", "CLAUDE.md")),
         );
-        expect(logger.warn).toHaveBeenCalledWith(
+        // `.claude/CLAUDE.local.md` does not shadow AGENTS.md, so it is not reported.
+        expect(logger.warn).not.toHaveBeenCalledWith(
           expect.stringContaining(join(".claude", "CLAUDE.local.md")),
+        );
+      });
+
+      it("should warn during conversion about leftover root files when delete is off", async () => {
+        await writeFileContent(join(testDir, "CLAUDE.md"), "# Stale root");
+        await writeFileContent(join(testDir, "CLAUDE.local.md"), "# Stale local");
+        await writeFileContent(join(testDir, ".claude", "CLAUDE.md"), "# Hand-authored root");
+        await writeFileContent(
+          join(testDir, ".claude", "CLAUDE.local.md"),
+          "# Hand-authored local",
+        );
+        const processor = new RulesProcessor({
+          logger,
+          outputRoot: testDir,
+          toolTarget: "claudecode",
+          featureOptions: { includeRoot: false },
+        });
+
+        await processor.convertRulesyncFilesToToolFiles(buildRules());
+
+        const shadowingWarnings = vi
+          .mocked(logger.warn)
+          .mock.calls.map(([message]) => String(message))
+          .filter((message) => message.includes("from reading AGENTS.md"));
+        expect(shadowingWarnings).toHaveLength(1);
+        expect(shadowingWarnings[0]).toContain("CLAUDE.md");
+        expect(shadowingWarnings[0]).toContain("CLAUDE.local.md");
+        expect(shadowingWarnings[0]).toContain(join(".claude", "CLAUDE.md"));
+        expect(shadowingWarnings[0]).not.toContain(join(".claude", "CLAUDE.local.md"));
+        expect(shadowingWarnings[0]).toContain("Enable `delete`");
+      });
+
+      it("should leave leftover root files to the sweep's warning when delete is on", async () => {
+        await writeFileContent(join(testDir, "CLAUDE.md"), "# Stale root");
+        await writeFileContent(join(testDir, ".claude", "CLAUDE.md"), "# Hand-authored root");
+        const processor = new RulesProcessor({
+          logger,
+          outputRoot: testDir,
+          toolTarget: "claudecode",
+          featureOptions: { includeRoot: false },
+          delete: true,
+        });
+
+        await processor.convertRulesyncFilesToToolFiles(buildRules());
+        expect(logger.warn).not.toHaveBeenCalledWith(
+          expect.stringContaining("from reading AGENTS.md"),
+        );
+
+        await processor.loadToolFiles({ forDeletion: true });
+        const shadowingWarnings = vi
+          .mocked(logger.warn)
+          .mock.calls.map(([message]) => String(message))
+          .filter((message) => message.includes("from reading AGENTS.md"));
+        expect(shadowingWarnings).toHaveLength(1);
+        expect(shadowingWarnings[0]).toContain(join(".claude", "CLAUDE.md"));
+        expect(shadowingWarnings[0]).not.toContain("Enable `delete`");
+      });
+
+      it("should not warn about shadowing when no root file exists", async () => {
+        const processor = new RulesProcessor({
+          logger,
+          outputRoot: testDir,
+          toolTarget: "claudecode",
+          featureOptions: { includeRoot: false },
+        });
+
+        await processor.convertRulesyncFilesToToolFiles(buildRules());
+
+        expect(logger.warn).not.toHaveBeenCalledWith(
+          expect.stringContaining("from reading AGENTS.md"),
+        );
+      });
+
+      it("should warn with the file name when a dropped root rule targets only claudecode", async () => {
+        const processor = new RulesProcessor({
+          logger,
+          outputRoot: testDir,
+          toolTarget: "claudecode",
+          featureOptions: { includeRoot: false },
+        });
+
+        await processor.convertRulesyncFilesToToolFiles([
+          new RulesyncRule({
+            outputRoot: testDir,
+            relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+            relativeFilePath: "claude-only-root.md",
+            frontmatter: { root: true, targets: ["claudecode"] },
+            body: "# Claude-only root",
+          }),
+          new RulesyncRule({
+            outputRoot: testDir,
+            relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+            relativeFilePath: "claude-only-local.md",
+            frontmatter: { localRoot: true, targets: ["claudecode"] },
+            body: "# Claude-only local",
+          }),
+        ]);
+
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining(
+            "claude-only-root.md is a root rule that targets only claudecode",
+          ),
+        );
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining(
+            "claude-only-local.md is a root rule that targets only claudecode",
+          ),
+        );
+      });
+
+      it("should not warn about dropped root rules that another target still emits", async () => {
+        const processor = new RulesProcessor({
+          logger,
+          outputRoot: testDir,
+          toolTarget: "claudecode",
+          featureOptions: { includeRoot: false },
+        });
+
+        await processor.convertRulesyncFilesToToolFiles([
+          ...buildRules(),
+          new RulesyncRule({
+            outputRoot: testDir,
+            relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+            relativeFilePath: "shared-root.md",
+            frontmatter: { root: true, targets: ["claudecode", "agentsmd"] },
+            body: "# Shared root",
+          }),
+        ]);
+
+        expect(logger.warn).not.toHaveBeenCalledWith(
+          expect.stringContaining("targets only claudecode"),
         );
       });
 

@@ -1028,6 +1028,7 @@ async function generateRulesCore(params: {
         deriveSubprojectPathFromGlobs: config.getDeriveSubprojectPathFromGlobs(),
         skills: skills,
         featureOptions: config.getFeatureOptions(toolTarget, "rules"),
+        delete: config.getDelete(),
         dryRun: config.isPreviewMode(),
         logger,
       });
