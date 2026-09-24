@@ -582,5 +582,146 @@ This is the body of the codex cli skill.`;
           .some((f) => toPosixPath(f.relativeFilePathToDirPath) === toPosixPath(OPENAI_YAML_PATH)),
       ).toBe(false);
     });
+
+    describe("root disable-model-invocation mapping", () => {
+      const createRulesyncSkill = (frontmatter: Record<string, unknown>) =>
+        new RulesyncSkill({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+          dirName: "test-skill",
+          frontmatter: {
+            name: "Test Skill",
+            description: "AI-facing description",
+            ...frontmatter,
+          },
+          body: "Test body content",
+          validate: true,
+        });
+
+      it("should emit policy.allow_implicit_invocation: false from root disable-model-invocation: true alone", () => {
+        const rulesyncSkill = createRulesyncSkill({ "disable-model-invocation": true });
+
+        const codexCliSkill = CodexCliSkill.fromRulesyncSkill({ rulesyncSkill, validate: true });
+
+        expect(codexCliSkill.getFrontmatter()).toEqual({
+          name: "Test Skill",
+          description: "AI-facing description",
+        });
+        expect(load(findOpenaiYaml(codexCliSkill) ?? "")).toEqual({
+          policy: { allow_implicit_invocation: false },
+        });
+      });
+
+      it("should merge the mapped policy into other codexcli sidecar fields", () => {
+        const rulesyncSkill = createRulesyncSkill({
+          "disable-model-invocation": true,
+          codexcli: {
+            interface: { display_name: "Test Skill" },
+            policy: { products: ["codex"] },
+          },
+        });
+
+        const codexCliSkill = CodexCliSkill.fromRulesyncSkill({ rulesyncSkill, validate: true });
+
+        expect(load(findOpenaiYaml(codexCliSkill) ?? "")).toEqual({
+          interface: { display_name: "Test Skill" },
+          policy: { products: ["codex"], allow_implicit_invocation: false },
+        });
+      });
+
+      it("should route a lone short-description into the sidecar once the root flag emits it", () => {
+        const rulesyncSkill = createRulesyncSkill({
+          "disable-model-invocation": true,
+          codexcli: { "short-description": "User-facing description" },
+        });
+
+        const codexCliSkill = CodexCliSkill.fromRulesyncSkill({ rulesyncSkill, validate: true });
+
+        expect(codexCliSkill.getFrontmatter()).toEqual({
+          name: "Test Skill",
+          description: "AI-facing description",
+          metadata: { "short-description": "User-facing description" },
+        });
+        expect(load(findOpenaiYaml(codexCliSkill) ?? "")).toEqual({
+          interface: { short_description: "User-facing description" },
+          policy: { allow_implicit_invocation: false },
+        });
+      });
+
+      it("should let an explicit codexcli.policy.allow_implicit_invocation override the root flag", () => {
+        const rulesyncSkill = createRulesyncSkill({
+          "disable-model-invocation": true,
+          codexcli: { policy: { allow_implicit_invocation: true } },
+        });
+
+        const codexCliSkill = CodexCliSkill.fromRulesyncSkill({ rulesyncSkill, validate: true });
+
+        expect(load(findOpenaiYaml(codexCliSkill) ?? "")).toEqual({
+          policy: { allow_implicit_invocation: true },
+        });
+      });
+
+      it("should keep an explicit allow_implicit_invocation: false when the root flag is false", () => {
+        const rulesyncSkill = createRulesyncSkill({
+          "disable-model-invocation": false,
+          codexcli: { policy: { allow_implicit_invocation: false } },
+        });
+
+        const codexCliSkill = CodexCliSkill.fromRulesyncSkill({ rulesyncSkill, validate: true });
+
+        expect(load(findOpenaiYaml(codexCliSkill) ?? "")).toEqual({
+          policy: { allow_implicit_invocation: false },
+        });
+      });
+
+      it("should NOT emit agents/openai.yaml when the root flag is false", () => {
+        const rulesyncSkill = createRulesyncSkill({ "disable-model-invocation": false });
+
+        const codexCliSkill = CodexCliSkill.fromRulesyncSkill({ rulesyncSkill, validate: true });
+
+        expect(findOpenaiYaml(codexCliSkill)).toBeUndefined();
+      });
+
+      it("should NOT emit agents/openai.yaml when the root flag is absent", () => {
+        const rulesyncSkill = createRulesyncSkill({});
+
+        const codexCliSkill = CodexCliSkill.fromRulesyncSkill({ rulesyncSkill, validate: true });
+
+        expect(findOpenaiYaml(codexCliSkill)).toBeUndefined();
+      });
+
+      it("should import a policy-only sidecar into codexcli.policy and regenerate the same sidecar", async () => {
+        const skillDir = join(testDir, ".agents", "skills", "test-skill");
+        await ensureDir(join(skillDir, "agents"));
+        await writeFileContent(
+          join(skillDir, SKILL_FILE_NAME),
+          `---\nname: Test Skill\ndescription: AI-facing description\n---\n\nBody.`,
+        );
+        await writeFileContent(
+          join(skillDir, "agents", "openai.yaml"),
+          ["policy:", "  allow_implicit_invocation: false", ""].join("\n"),
+        );
+
+        const skill = await CodexCliSkill.fromDir({
+          outputRoot: testDir,
+          dirName: "test-skill",
+          global: false,
+        });
+        const rulesyncSkill = skill.toRulesyncSkill();
+        const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
+
+        // The policy stays in the codexcli section so importing from Codex does not
+        // change the output of every other target through the root flag.
+        expect(rulesyncFrontmatter["disable-model-invocation"]).toBeUndefined();
+        expect(rulesyncFrontmatter.codexcli).toEqual({
+          policy: { allow_implicit_invocation: false },
+        });
+
+        const regenerated = CodexCliSkill.fromRulesyncSkill({ rulesyncSkill, validate: true });
+        expect(load(findOpenaiYaml(regenerated) ?? "")).toEqual({
+          policy: { allow_implicit_invocation: false },
+        });
+      });
+    });
   });
 });
