@@ -910,6 +910,18 @@ function normalizeCodexFilesystemAccess({
   writeRestriction?: "ask" | "deny";
   logger?: ToolPermissionsFromRulesyncPermissionsParams["logger"];
 }): CodexFilesystemAccess | undefined {
+  if ((access === "read" || access === "write") && isWindowsDevicePath(pattern)) {
+    if (writeRestriction !== undefined) {
+      logger?.warn(
+        `Codex CLI does not support Windows device paths for read/write access: pattern "${pattern}" will be emitted as "deny" because its write-side ${writeRestriction} restriction cannot be represented as read-only access. Use a plain drive path such as "C:\\..." instead.`,
+      );
+      return "deny";
+    }
+    logger?.warn(
+      `Skipping unsupported Codex CLI ${access} filesystem entry for Windows device path "${pattern}"; the base permission profile remains in effect. Use a plain drive path such as "C:\\..." instead.`,
+    );
+    return undefined;
+  }
   if ((access === "read" || access === "write") && hasUnsupportedCodexFilesystemGlob(pattern)) {
     if (writeRestriction !== undefined) {
       logger?.warn(
@@ -925,32 +937,19 @@ function normalizeCodexFilesystemAccess({
   return access;
 }
 
-// Mirrors Codex's `contains_glob_chars_for_platform`, which first strips
-// Windows device-path prefixes via `normalize_windows_device_path` so the `?`
-// in `\\?\C:\...` is not taken for a glob character. Codex only does this
-// under the Windows path convention; Rulesync cannot know the platform Codex
-// runs on, and these prefixes are meaningless elsewhere, so it always applies.
 function hasCodexFilesystemGlob(pattern: string): boolean {
-  const path = normalizeWindowsDevicePath(pattern) ?? pattern;
-  return path.includes("*") || path.includes("?") || path.includes("[") || path.includes("]");
+  return (
+    pattern.includes("*") || pattern.includes("?") || pattern.includes("[") || pattern.includes("]")
+  );
 }
 
-// Port of Codex's `normalize_windows_device_path`: `\\?\UNC\` / `\\.\UNC\`
-// become a plain `\\` UNC prefix, and `\\?\` / `\\.\` are stripped only when
-// a drive-absolute path (`C:\` or `C:/`) follows. Anything else is left alone.
-function normalizeWindowsDevicePath(pattern: string): string | undefined {
-  for (const prefix of ["\\\\?\\UNC\\", "\\\\.\\UNC\\"]) {
-    if (pattern.startsWith(prefix)) {
-      return `\\\\${pattern.slice(prefix.length)}`;
-    }
-  }
-  for (const prefix of ["\\\\?\\", "\\\\.\\"]) {
-    if (pattern.startsWith(prefix)) {
-      const rest = pattern.slice(prefix.length);
-      return /^[A-Za-z]:[\\/]/.test(rest) ? rest : undefined;
-    }
-  }
-  return undefined;
+// Windows device paths (`\\?\...`, `\\.\...`) cannot be emitted as grants:
+// Codex normalizes them only under the Windows path convention and rejects
+// them as workspace-root subpaths, while elsewhere their `?` counts as a glob
+// character. Rulesync cannot know the platform Codex runs on, so they are
+// treated as unsupported for read/write grants.
+function isWindowsDevicePath(pattern: string): boolean {
+  return pattern.startsWith("\\\\?\\") || pattern.startsWith("\\\\.\\");
 }
 
 function hasUnsupportedCodexFilesystemGlob(pattern: string): boolean {
@@ -1333,11 +1332,12 @@ function collapseWriteSideRules(
 }
 
 // Whether any canonical `read` deny/ask rule other than `pattern` itself
-// covers `pattern`. Only the shapes Codex can emit as a subtree are modeled:
-// `X/**` (covering `X` and everything below it), `**` (every workspace-relative
-// pattern), and `:root` (every path; treated conservatively as covering all
-// patterns). Non-trailing globs such as `src/*.ts` are not matched: guessing
-// glob semantics here could not be verified against Codex's matcher.
+// covers `pattern`. Codex applies a path entry to its whole subtree, so both
+// an exact path `X` and `X/**` cover `X` and everything below it. `:root` and
+// `/**` are treated conservatively as covering every pattern, and `**` covers
+// every workspace-relative pattern. Other special paths (`:tmpdir`, ...) and
+// non-trailing globs such as `src/*.ts` are not matched: guessing their
+// semantics here could not be verified against Codex's resolver.
 function isCoveredByReadRestriction({
   pattern,
   readRules,
@@ -1345,22 +1345,37 @@ function isCoveredByReadRestriction({
   pattern: string;
   readRules: Record<string, PermissionAction>;
 }): boolean {
+  const key = stripLeadingDotSlash(pattern);
   return Object.entries(readRules).some(([readPattern, action]) => {
     if (action === "allow" || readPattern === pattern) {
       return false;
     }
-    if (readPattern === ":root") {
+    if (readPattern === ":root" || readPattern === "/**") {
       return true;
     }
     if (readPattern === "**") {
       return !canBeCodexFilesystemRoot(pattern);
     }
-    if (readPattern.endsWith("/**")) {
-      const base = readPattern.slice(0, -"/**".length);
-      return pattern === base || pattern.startsWith(`${base}/`);
+    const withoutTrailingGlob = readPattern.endsWith("/**")
+      ? readPattern.slice(0, -"/**".length)
+      : readPattern;
+    if (withoutTrailingGlob.startsWith(":") || hasCodexFilesystemGlob(withoutTrailingGlob)) {
+      return false;
     }
-    return false;
+    const base = stripTrailingSlash(stripLeadingDotSlash(withoutTrailingGlob));
+    if (base === "") {
+      return false;
+    }
+    return key === base || key.startsWith(base.endsWith("/") ? base : `${base}/`);
   });
+}
+
+function stripLeadingDotSlash(pattern: string): string {
+  return pattern.startsWith("./") ? pattern.slice("./".length) : pattern;
+}
+
+function stripTrailingSlash(pattern: string): string {
+  return pattern.length > 1 && pattern.endsWith("/") ? pattern.slice(0, -1) : pattern;
 }
 
 function buildCodexBashRulesContent(config: PermissionsConfig): string {

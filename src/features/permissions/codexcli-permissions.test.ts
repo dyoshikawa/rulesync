@@ -324,7 +324,7 @@ describe("CodexcliPermissions", () => {
     );
   });
 
-  it("should not treat Windows device path prefixes as filesystem globs", async () => {
+  it("should not emit grants for Windows device paths", async () => {
     const logger = createMockLogger();
     const rulesyncPermissions = new RulesyncPermissions({
       outputRoot: testDir,
@@ -334,11 +334,51 @@ describe("CodexcliPermissions", () => {
         permission: {
           read: {
             "\\\\?\\C:\\proj\\docs": "allow",
-            "\\\\.\\UNC\\server\\share\\notes": "allow",
-            // A real glob after the prefix is still unsupported.
-            "\\\\?\\C:\\proj\\*.ts": "allow",
-            // Codex does not normalize `\\?\GLOBALROOT\...`, so its `?` counts.
-            "\\\\?\\GLOBALROOT\\Device": "allow",
+            "\\\\.\\C:\\proj\\secret": "deny",
+          },
+          edit: { "\\\\.\\UNC\\server\\share\\notes": "deny" },
+        },
+        codexcli: { git_write_rules: false },
+      }),
+    });
+
+    const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+      logger,
+    });
+
+    // Codex rejects device paths as grants on every platform, so a grant is
+    // skipped and a write-side restriction falls back to deny.
+    const workspaceRoots = parseWorkspaceRoots(codexPermissions.getFileContent());
+    expect(Object.keys(workspaceRoots)).not.toContain("\\\\?\\C:\\proj\\docs");
+    expect(workspaceRoots["\\\\.\\C:\\proj\\secret"]).toBe("deny");
+    expect(workspaceRoots["\\\\.\\UNC\\server\\share\\notes"]).toBe("deny");
+    expect(logger.warn).toHaveBeenCalledTimes(2);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining(
+        'Skipping unsupported Codex CLI read filesystem entry for Windows device path "\\\\?\\C:\\proj\\docs"',
+      ),
+    );
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("does not support Windows device paths for read/write access"),
+    );
+  });
+
+  it("should treat exact, /** and ./-prefixed read denials as covering ancestors", async () => {
+    const logger = createMockLogger();
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          // Codex applies an exact directory entry to its whole subtree.
+          read: { "/home/me/.ssh": "deny", "./private/**": "deny", "config/": "ask" },
+          write: {
+            "/home/me/.ssh/id_rsa": "deny",
+            "private/key.pem": "deny",
+            "./config/app.json": "ask",
           },
         },
         codexcli: { git_write_rules: false },
@@ -351,18 +391,39 @@ describe("CodexcliPermissions", () => {
       logger,
     });
 
-    const workspaceRoots = parseWorkspaceRoots(codexPermissions.getFileContent());
-    expect(workspaceRoots["\\\\?\\C:\\proj\\docs"]).toBe("read");
-    expect(workspaceRoots["\\\\.\\UNC\\server\\share\\notes"]).toBe("read");
-    expect(Object.keys(workspaceRoots)).not.toContain("\\\\?\\C:\\proj\\*.ts");
-    expect(Object.keys(workspaceRoots)).not.toContain("\\\\?\\GLOBALROOT\\Device");
-    expect(logger.warn).toHaveBeenCalledTimes(2);
-    expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining('read filesystem glob "\\\\?\\C:\\proj\\*.ts"'),
-    );
-    expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining('read filesystem glob "\\\\?\\GLOBALROOT\\Device"'),
-    );
+    const fileContent = codexPermissions.getFileContent();
+    expect(fileContent).toContain('"/home/me/.ssh/id_rsa" = "deny"');
+    const workspaceRoots = parseWorkspaceRoots(fileContent);
+    expect(workspaceRoots["private/key.pem"]).toBe("deny");
+    expect(workspaceRoots["./config/app.json"]).toBe("deny");
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
+  it("should treat a /** read denial as covering absolute and relative paths", async () => {
+    const logger = createMockLogger();
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          read: { "/**": "deny" },
+          edit: { "/etc/hosts": "deny", "src/main.ts": "ask" },
+        },
+        codexcli: { git_write_rules: false },
+      }),
+    });
+
+    const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+      logger,
+    });
+
+    const fileContent = codexPermissions.getFileContent();
+    expect(fileContent).toContain('"/etc/hosts" = "deny"');
+    expect(parseWorkspaceRoots(fileContent)["src/main.ts"]).toBe("deny");
+    expect(logger.warn).not.toHaveBeenCalled();
   });
 
   it("should skip ?, [...] and non-trailing glob grants like Codex", async () => {
