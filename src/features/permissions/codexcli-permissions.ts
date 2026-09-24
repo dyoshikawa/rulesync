@@ -511,7 +511,9 @@ function addCodexFilesystemRules({
         `Codex CLI cannot express "ask" for filesystem write permissions: pattern "${rule.pattern}" will be emitted as read-only.`,
       );
     }
-    if (access === "read" && rule.writeRestriction === "deny") {
+    // Only warn when the read side was unspecified: an explicit `read: allow`
+    // on the same pattern already asks for exactly Codex's `"read"` level.
+    if (access === "read" && rule.writeRestriction === "deny" && rule.readUnspecified) {
       logger?.warn(
         `Codex CLI maps a write-side deny to read-only access: pattern "${rule.pattern}" will be emitted as "read". A broader read deny may be overridden by this more-specific path.`,
       );
@@ -923,10 +925,32 @@ function normalizeCodexFilesystemAccess({
   return access;
 }
 
+// Mirrors Codex's `contains_glob_chars_for_platform`, which first strips
+// Windows device-path prefixes via `normalize_windows_device_path` so the `?`
+// in `\\?\C:\...` is not taken for a glob character. Codex only does this
+// under the Windows path convention; Rulesync cannot know the platform Codex
+// runs on, and these prefixes are meaningless elsewhere, so it always applies.
 function hasCodexFilesystemGlob(pattern: string): boolean {
-  return (
-    pattern.includes("*") || pattern.includes("?") || pattern.includes("[") || pattern.includes("]")
-  );
+  const path = normalizeWindowsDevicePath(pattern) ?? pattern;
+  return path.includes("*") || path.includes("?") || path.includes("[") || path.includes("]");
+}
+
+// Port of Codex's `normalize_windows_device_path`: `\\?\UNC\` / `\\.\UNC\`
+// become a plain `\\` UNC prefix, and `\\?\` / `\\.\` are stripped only when
+// a drive-absolute path (`C:\` or `C:/`) follows. Anything else is left alone.
+function normalizeWindowsDevicePath(pattern: string): string | undefined {
+  for (const prefix of ["\\\\?\\UNC\\", "\\\\.\\UNC\\"]) {
+    if (pattern.startsWith(prefix)) {
+      return `\\\\${pattern.slice(prefix.length)}`;
+    }
+  }
+  for (const prefix of ["\\\\?\\", "\\\\.\\"]) {
+    if (pattern.startsWith(prefix)) {
+      const rest = pattern.slice(prefix.length);
+      return /^[A-Za-z]:[\\/]/.test(rest) ? rest : undefined;
+    }
+  }
+  return undefined;
 }
 
 function hasUnsupportedCodexFilesystemGlob(pattern: string): boolean {
@@ -1180,6 +1204,15 @@ function mapWriteAction(action: PermissionAction): "write" | "read" {
   return action === "allow" ? "write" : "read";
 }
 
+type MergedCodexFilesystemRule = {
+  pattern: string;
+  access: "read" | "write" | "deny";
+  writeRestriction?: "ask" | "deny";
+  // True when no canonical `read` rule exists for this exact pattern, i.e. the
+  // Codex `"read"` level was derived from the write side alone.
+  readUnspecified?: boolean;
+};
+
 /**
  * Merge the canonical read/edit/write category rules into one Codex access
  * level per path pattern (Codex models a single `deny` < `read` < `write`
@@ -1191,6 +1224,10 @@ function mapWriteAction(action: PermissionAction): "write" | "read" {
  * - A write-side non-allow → `"read"` (readable but not writable — exactly
  *   what Codex's `"read"` level expresses). An `ask` action is approximated
  *   this way because Codex has no path-level write approval.
+ * - A write-side-only non-allow (no `read` rule for the same pattern) whose
+ *   path is covered by a broader `read` deny/ask rule (e.g. `X/**` covering
+ *   `X/id_rsa`, or `:root`) → `"deny"`. Codex resolves the most specific
+ *   path, so emitting `"read"` there would re-open reads the user denied.
  * - A `read` non-allow on the same pattern → `"deny"` regardless of the
  *   write side; a contradictory write-side `allow` (unreadable but writable
  *   is not expressible in Codex) is warned about.
@@ -1200,15 +1237,14 @@ function mapWriteAction(action: PermissionAction): "write" | "read" {
  * Iteration order is read → edit → write with first-seen pattern order, so
  * the emitted table is stable regardless of the authored category order.
  * Note the merge is one-way: `"{path}" = "read"` imports back as
- * `read: allow` only (the explicit write-side deny is implied by Codex's
- * access level and not re-materialized).
+ * `read: allow` only. The write-side restriction is implied by Codex's access
+ * level and not re-materialized, so both `read: allow` + write-side
+ * `ask`/`deny` and a write-side-only `ask`/`deny` (e.g. `edit: { "/x/**":
+ * "deny" }` with no `read` rule) lose their write restriction on
+ * `rulesync import`. This is deliberate: importing `"read"` as an extra
+ * `edit: deny` would push a restriction to every other tool that the Codex
+ * profile alone cannot prove was authored.
  */
-type MergedCodexFilesystemRule = {
-  pattern: string;
-  access: "read" | "write" | "deny";
-  writeRestriction?: "ask" | "deny";
-};
-
 function mergeFilesystemCategoryRules({
   categoryRules,
   logger,
@@ -1217,25 +1253,7 @@ function mergeFilesystemCategoryRules({
   logger?: ToolPermissionsFromRulesyncPermissionsParams["logger"];
 }): MergedCodexFilesystemRule[] {
   const readRules = categoryRules.read ?? {};
-  const writeSideRestrictiveness: Record<PermissionAction, number> = {
-    deny: 2,
-    ask: 1,
-    allow: 0,
-  };
-
-  // Collapse edit/write onto Codex's single write side, restrictive-wins.
-  const writeSideRules: Record<string, PermissionAction> = {};
-  for (const category of ["edit", "write"] as const) {
-    for (const [pattern, action] of Object.entries(categoryRules[category] ?? {})) {
-      const existing = writeSideRules[pattern];
-      if (
-        existing === undefined ||
-        writeSideRestrictiveness[action] > writeSideRestrictiveness[existing]
-      ) {
-        writeSideRules[pattern] = action;
-      }
-    }
-  }
+  const writeSideRules = collapseWriteSideRules(categoryRules);
 
   const patterns: string[] = [];
   const seen = new Set<string>();
@@ -1251,40 +1269,98 @@ function mergeFilesystemCategoryRules({
     const readAction = readRules[pattern];
     const writeAction = writeSideRules[pattern];
 
-    if (readAction === undefined) {
-      merged.push({
-        pattern,
-        access: mapWriteAction(writeAction as PermissionAction),
-        ...(writeAction === "ask" || writeAction === "deny"
-          ? { writeRestriction: writeAction }
-          : {}),
-      });
-      continue;
-    }
     if (writeAction === undefined) {
-      merged.push({ pattern, access: mapReadAction(readAction) });
+      merged.push({ pattern, access: mapReadAction(readAction as PermissionAction) });
       continue;
     }
 
-    if (readAction === "allow") {
-      merged.push({
-        pattern,
-        access: writeAction === "allow" ? "write" : "read",
-        ...(writeAction === "ask" || writeAction === "deny"
-          ? { writeRestriction: writeAction }
-          : {}),
-      });
+    if (readAction !== undefined && readAction !== "allow") {
+      if (writeAction === "allow") {
+        logger?.warn(
+          `Codex CLI cannot express "writable but not readable": pattern "${pattern}" has read: ${readAction} and a write-side allow. Emitting "deny".`,
+        );
+      }
+      merged.push({ pattern, access: "deny" });
       continue;
     }
 
-    if (writeAction === "allow") {
-      logger?.warn(
-        `Codex CLI cannot express "writable but not readable": pattern "${pattern}" has read: ${readAction} and a write-side allow. Emitting "deny".`,
-      );
+    // Here the read side is either an explicit `allow` or unspecified.
+    const writeRestriction = writeAction === "allow" ? undefined : writeAction;
+    const readUnspecified = readAction === undefined;
+    if (
+      readUnspecified &&
+      writeRestriction !== undefined &&
+      isCoveredByReadRestriction({ pattern, readRules })
+    ) {
+      // A broader read deny/ask covers this path; a more-specific `"read"`
+      // entry would override it in Codex, so keep the path fully denied.
+      merged.push({ pattern, access: "deny" });
+      continue;
     }
-    merged.push({ pattern, access: "deny" });
+
+    merged.push({
+      pattern,
+      access: mapWriteAction(writeAction),
+      ...(writeRestriction !== undefined ? { writeRestriction } : {}),
+      ...(readUnspecified ? { readUnspecified } : {}),
+    });
   }
   return merged;
+}
+
+// Collapse edit/write onto Codex's single write side, restrictive-wins.
+function collapseWriteSideRules(
+  categoryRules: Partial<Record<"read" | "edit" | "write", Record<string, PermissionAction>>>,
+): Record<string, PermissionAction> {
+  const writeSideRestrictiveness: Record<PermissionAction, number> = {
+    deny: 2,
+    ask: 1,
+    allow: 0,
+  };
+  const writeSideRules: Record<string, PermissionAction> = {};
+  for (const category of ["edit", "write"] as const) {
+    for (const [pattern, action] of Object.entries(categoryRules[category] ?? {})) {
+      const existing = writeSideRules[pattern];
+      if (
+        existing === undefined ||
+        writeSideRestrictiveness[action] > writeSideRestrictiveness[existing]
+      ) {
+        writeSideRules[pattern] = action;
+      }
+    }
+  }
+  return writeSideRules;
+}
+
+// Whether any canonical `read` deny/ask rule other than `pattern` itself
+// covers `pattern`. Only the shapes Codex can emit as a subtree are modeled:
+// `X/**` (covering `X` and everything below it), `**` (every workspace-relative
+// pattern), and `:root` (every path; treated conservatively as covering all
+// patterns). Non-trailing globs such as `src/*.ts` are not matched: guessing
+// glob semantics here could not be verified against Codex's matcher.
+function isCoveredByReadRestriction({
+  pattern,
+  readRules,
+}: {
+  pattern: string;
+  readRules: Record<string, PermissionAction>;
+}): boolean {
+  return Object.entries(readRules).some(([readPattern, action]) => {
+    if (action === "allow" || readPattern === pattern) {
+      return false;
+    }
+    if (readPattern === ":root") {
+      return true;
+    }
+    if (readPattern === "**") {
+      return !canBeCodexFilesystemRoot(pattern);
+    }
+    if (readPattern.endsWith("/**")) {
+      const base = readPattern.slice(0, -"/**".length);
+      return pattern === base || pattern.startsWith(`${base}/`);
+    }
+    return false;
+  });
 }
 
 function buildCodexBashRulesContent(config: PermissionsConfig): string {
