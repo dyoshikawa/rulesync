@@ -50,27 +50,65 @@ const CODEX_OPENAI_YAML_RELATIVE_PATH = CODEXCLI_OPENAI_YAML_RELATIVE_PATH;
 type CodexcliRulesyncSection = NonNullable<RulesyncSkillFrontmatter["codexcli"]>;
 
 /**
- * Build the `agents/openai.yaml` object from a rulesync `codexcli` section.
- * Only produced when the user opts in via `interface`, `policy`, or `dependencies`;
- * a lone legacy `short-description` keeps mapping to `SKILL.md` `metadata` only.
+ * Resolve Codex's `policy.allow_implicit_invocation` from the rulesync inputs.
+ * An explicit `codexcli.policy.allow_implicit_invocation` wins; otherwise the root
+ * `disable-model-invocation: true` maps onto `false`. With neither set the value is
+ * left undefined, since Codex already defaults to `true`.
+ * @see https://github.com/openai/codex/blob/main/codex-rs/skills/src/model.rs
+ */
+function resolveAllowImplicitInvocation({
+  codexcli,
+  disableModelInvocation,
+}: {
+  codexcli: CodexcliRulesyncSection | undefined;
+  disableModelInvocation: boolean | undefined;
+}): boolean | undefined {
+  const explicit = codexcli?.policy?.allow_implicit_invocation;
+  if (explicit !== undefined) {
+    return explicit;
+  }
+  return disableModelInvocation === true ? false : undefined;
+}
+
+/**
+ * Build the `agents/openai.yaml` object from a rulesync `codexcli` section and the
+ * root-level `disable-model-invocation` flag.
+ * Only produced when the user opts in via `interface`, `policy`, or `dependencies`,
+ * or when the root `disable-model-invocation: true` maps onto
+ * `policy.allow_implicit_invocation: false`; a lone legacy `short-description` keeps
+ * mapping to `SKILL.md` `metadata` only.
  * When the sidecar is produced and `interface.short_description` is absent, the
  * legacy `short-description` is routed there (its canonical home per Codex docs).
  */
-function buildOpenaiYamlObject(
-  codexcli: CodexcliRulesyncSection | undefined,
-): Record<string, unknown> | undefined {
-  if (!codexcli) {
-    return undefined;
-  }
-  const hasSidecarFields = Boolean(codexcli.interface || codexcli.policy || codexcli.dependencies);
-  if (!hasSidecarFields) {
+function buildOpenaiYamlObject({
+  codexcli,
+  disableModelInvocation,
+}: {
+  codexcli: CodexcliRulesyncSection | undefined;
+  disableModelInvocation: boolean | undefined;
+}): Record<string, unknown> | undefined {
+  const allowImplicitInvocation = resolveAllowImplicitInvocation({
+    codexcli,
+    disableModelInvocation,
+  });
+  const policySection: Record<string, unknown> = {
+    ...codexcli?.policy,
+    ...(allowImplicitInvocation !== undefined && {
+      allow_implicit_invocation: allowImplicitInvocation,
+    }),
+  };
+
+  const hasSidecarFields = Boolean(
+    codexcli?.interface || codexcli?.policy || codexcli?.dependencies,
+  );
+  if (!hasSidecarFields && Object.keys(policySection).length === 0) {
     return undefined;
   }
 
-  const interfaceSection: Record<string, unknown> = { ...codexcli.interface };
+  const interfaceSection: Record<string, unknown> = { ...codexcli?.interface };
   if (
     interfaceSection.short_description === undefined &&
-    codexcli["short-description"] !== undefined
+    codexcli?.["short-description"] !== undefined
   ) {
     interfaceSection.short_description = codexcli["short-description"];
   }
@@ -79,10 +117,10 @@ function buildOpenaiYamlObject(
   if (Object.keys(interfaceSection).length > 0) {
     result.interface = interfaceSection;
   }
-  if (codexcli.policy && Object.keys(codexcli.policy).length > 0) {
-    result.policy = codexcli.policy;
+  if (Object.keys(policySection).length > 0) {
+    result.policy = policySection;
   }
-  if (codexcli.dependencies && Object.keys(codexcli.dependencies).length > 0) {
+  if (codexcli?.dependencies && Object.keys(codexcli.dependencies).length > 0) {
     result.dependencies = codexcli.dependencies;
   }
   return Object.keys(result).length > 0 ? result : undefined;
@@ -119,6 +157,11 @@ function extractOpenaiYamlFile(otherFiles: SkillFile[]): {
 
 /**
  * Map a parsed `agents/openai.yaml` object back into a rulesync `codexcli` section.
+ * `policy.allow_implicit_invocation` stays under `codexcli.policy` rather than being
+ * promoted to the root `disable-model-invocation`, matching how every other tool's
+ * importer keeps its invocation flags in its own section: promoting it would change
+ * the output of every other target on the next generate, while the section value
+ * regenerates the same sidecar because it takes precedence over the root flag.
  */
 function openaiYamlToCodexcliSection(
   parsed: Record<string, unknown> | undefined,
@@ -280,12 +323,16 @@ export class CodexCliSkill extends ToolSkill {
     };
 
     // Emit the Codex `agents/openai.yaml` sidecar when interface/policy/dependencies
-    // are configured, replacing any stale copy carried through as a passthrough file.
+    // are configured or the root `disable-model-invocation: true` maps onto the
+    // invocation policy, replacing any stale copy carried through as a passthrough file.
     const target = toPosixPath(CODEX_OPENAI_YAML_RELATIVE_PATH);
     const baseOtherFiles = rulesyncSkill
       .getOtherFiles()
       .filter((file) => toPosixPath(file.relativeFilePathToDirPath) !== target);
-    const openaiObject = buildOpenaiYamlObject(rulesyncFrontmatter.codexcli);
+    const openaiObject = buildOpenaiYamlObject({
+      codexcli: rulesyncFrontmatter.codexcli,
+      disableModelInvocation: rulesyncFrontmatter["disable-model-invocation"],
+    });
     const otherFiles: SkillFile[] = openaiObject
       ? [
           ...baseOtherFiles,
