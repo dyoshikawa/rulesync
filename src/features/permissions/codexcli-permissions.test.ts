@@ -542,8 +542,8 @@ describe("CodexcliPermissions", () => {
           logger,
         }),
       );
-      // The first key seen is kept and the more restrictive access wins.
-      expect(workspaceRoots).toEqual({ "./": "deny", "src/a.ts": "deny" });
+      // Both collapse onto `"."` with the more restrictive access.
+      expect(workspaceRoots).toEqual({ ".": "deny", "src/a.ts": "deny" });
 
       const both = parseWorkspaceRoots(
         await generate({
@@ -552,6 +552,19 @@ describe("CodexcliPermissions", () => {
         }),
       );
       expect(both).toEqual({ ".": "deny" });
+
+      // A lone `"./"` is emitted verbatim.
+      expect(
+        parseWorkspaceRoots(await generate({ permission: { read: { "./": "deny" } }, logger })),
+      ).toEqual({ "./": "deny" });
+    });
+
+    it("does not treat an empty read pattern as covering workspace-relative paths", async () => {
+      const fileContent = await generate({
+        permission: { read: { "": "deny" }, edit: { "src/a.ts": "deny" } },
+        logger: createMockLogger(),
+      });
+      expect(parseWorkspaceRoots(fileContent)).toEqual({ "src/a.ts": "read" });
     });
 
     it("round-trips :root deny with a writable special path and absolute path", async () => {

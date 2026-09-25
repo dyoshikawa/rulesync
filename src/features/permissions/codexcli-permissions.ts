@@ -924,9 +924,11 @@ function addFilesystemRule({
 }
 
 // `"."` and `"./"` both address the workspace root itself inside the
-// `:workspace_roots` table, so they share one slot: the first key seen is
-// kept (emitted keys are never rewritten) and the more restrictive access
-// wins, so both keys are never emitted together.
+// `:workspace_roots` table, so they share one slot and are never emitted
+// together. A lone key is emitted verbatim; when both are present they
+// collapse onto `"."` (the key Codex special-cases for the workspace root;
+// `relative_subpath` rejects a leading `.` segment) with the more
+// restrictive access.
 const WORKSPACE_ROOT_SLOT_KEYS: ReadonlySet<string> = new Set([CODEX_WORKSPACE_ROOT_SUBPATH, "./"]);
 
 function mergeIntoWorkspaceRootSlot({
@@ -938,12 +940,19 @@ function mergeIntoWorkspaceRootSlot({
   pattern: string;
   access: CodexFilesystemAccess;
 }): void {
-  const slotKey =
-    [...WORKSPACE_ROOT_SLOT_KEYS].find((key) => workspaceRootFilesystem[key] !== undefined) ??
-    pattern;
-  const existing = workspaceRootFilesystem[slotKey];
-  workspaceRootFilesystem[slotKey] =
-    existing === undefined ? access : moreRestrictiveCodexAccess({ a: existing, b: access });
+  const existingKey = [...WORKSPACE_ROOT_SLOT_KEYS].find(
+    (key) => workspaceRootFilesystem[key] !== undefined,
+  );
+  if (existingKey === undefined) {
+    workspaceRootFilesystem[pattern] = access;
+    return;
+  }
+  const existing = workspaceRootFilesystem[existingKey] as CodexFilesystemAccess;
+  delete workspaceRootFilesystem[existingKey];
+  workspaceRootFilesystem[CODEX_WORKSPACE_ROOT_SUBPATH] = moreRestrictiveCodexAccess({
+    a: existing,
+    b: access,
+  });
 }
 
 function normalizeCodexFilesystemAccess({
@@ -1511,7 +1520,9 @@ function normalizeCoverageKey(pattern: string): string {
     normalized = normalized.slice("./".length);
   }
   normalized = stripTrailingSlash(normalized);
-  return normalized === "" ? "." : normalized;
+  // Only a `./`-prefixed pattern collapses to the workspace root; a genuinely
+  // empty pattern stays empty and covers nothing.
+  return normalized === "" && pattern !== "" ? "." : normalized;
 }
 
 function isSkippedCodexGrant(pattern: string): boolean {
