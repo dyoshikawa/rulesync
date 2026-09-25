@@ -553,10 +553,48 @@ describe("CodexcliPermissions", () => {
       );
       expect(both).toEqual({ ".": "deny" });
 
-      // A lone `"./"` is emitted verbatim.
+      // A lone `"./"` is emitted as `"."`: Codex rejects a leading `.`
+      // segment in `:workspace_roots` subpaths and only special-cases `"."`.
       expect(
         parseWorkspaceRoots(await generate({ permission: { read: { "./": "deny" } }, logger })),
-      ).toEqual({ "./": "deny" });
+      ).toEqual({ ".": "deny" });
+    });
+
+    it("strips leading './' segments from :workspace_roots keys", async () => {
+      const logger = createMockLogger();
+      const fileContent = await generate({
+        permission: {
+          read: { "./src/**": "allow", "././docs": "deny", "./**": "deny" },
+          edit: { "/abs/./x": "deny", "C:\\proj\\out": "deny" },
+        },
+        logger,
+      });
+
+      expect(parseWorkspaceRoots(fileContent)).toEqual({
+        "src/**": "read",
+        docs: "deny",
+        "**": "deny",
+      });
+      // Absolute and drive keys are never rewritten.
+      const filesystem = (smolToml.parse(fileContent) as ParsedToml).permissions.rulesync
+        .filesystem;
+      expect(filesystem["/abs/./x"]).toBe("read");
+      expect(filesystem["C:\\proj\\out"]).toBe("read");
+    });
+
+    it("merges './'-prefixed and plain keys that collide, more restrictive wins", async () => {
+      const logger = createMockLogger();
+      expect(
+        parseWorkspaceRoots(
+          await generate({
+            permission: {
+              read: { "./src": "deny", src: "allow" },
+              write: { "lib/**": "allow", "./lib/**": "deny" },
+            },
+            logger,
+          }),
+        ),
+      ).toEqual({ src: "deny", "lib/**": "read" });
     });
 
     it("does not treat an empty read pattern as covering workspace-relative paths", async () => {
@@ -721,6 +759,56 @@ describe("CodexcliPermissions", () => {
       );
     });
 
+    it("never lets a narrower read allow win for keys or patterns with '.'/'..' segments", async () => {
+      const cases: Array<{
+        read: Record<string, string>;
+        edit: Record<string, string>;
+        key: string;
+      }> = [
+        {
+          read: { "/home/me/**": "deny", "/home/me/public": "allow" },
+          edit: { "/home/me/public/../.ssh/id_rsa": "deny" },
+          key: "/home/me/public/../.ssh/id_rsa",
+        },
+        {
+          read: { ":root": "deny", "~/public": "allow" },
+          edit: { "~/public/../.ssh/id_rsa": "deny" },
+          key: "~/public/../.ssh/id_rsa",
+        },
+        {
+          read: { "/home/me/**": "deny", "/home/me/pub": "allow" },
+          edit: { "/home/me/./pub/../.ssh/k": "deny" },
+          key: "/home/me/./pub/../.ssh/k",
+        },
+        {
+          // A dot segment in the allow pattern itself is not trusted either.
+          read: { "/home/me/**": "deny", "/home/me/x/../pub": "allow" },
+          edit: { "/home/me/x/../pub/k": "deny" },
+          key: "/home/me/x/../pub/k",
+        },
+      ];
+      for (const { read, edit, key } of cases) {
+        const fileContent = await generate({
+          permission: { read, edit },
+          logger: createMockLogger(),
+        });
+        const filesystem = (smolToml.parse(fileContent) as ParsedToml).permissions.rulesync
+          .filesystem;
+        expect(filesystem[key]).toBe("deny");
+      }
+    });
+
+    it("still lets a narrower read allow win for workspace-relative './'-prefixed keys", async () => {
+      const fileContent = await generate({
+        permission: {
+          read: { "**": "deny", "pub/**": "allow" },
+          edit: { "./pub/k": "deny" },
+        },
+        logger: createMockLogger(),
+      });
+      expect(parseWorkspaceRoots(fileContent)["pub/k"]).toBe("read");
+    });
+
     it("does not let a workspace-relative read deny cover an absolute drive path", async () => {
       const fileContent = await generate({
         permission: {
@@ -833,7 +921,9 @@ describe("CodexcliPermissions", () => {
     expect(fileContent).toContain('"/home/me/.ssh/id_rsa" = "deny"');
     const workspaceRoots = parseWorkspaceRoots(fileContent);
     expect(workspaceRoots["private/key.pem"]).toBe("deny");
-    expect(workspaceRoots["./config/app.json"]).toBe("deny");
+    // Leading `./` is stripped from emitted `:workspace_roots` keys.
+    expect(workspaceRoots["config/app.json"]).toBe("deny");
+    expect(workspaceRoots["./config/app.json"]).toBeUndefined();
     expect(logger.warn).not.toHaveBeenCalled();
   });
 

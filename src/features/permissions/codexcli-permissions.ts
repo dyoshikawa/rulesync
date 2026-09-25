@@ -453,7 +453,7 @@ function convertRulesyncToCodexProfile({
       // codex-rs/core/src/config/permissions.rs), so the direct access rule is
       // preserved there instead of being silently dropped. When an explicit
       // `"."` (or `"./"`) rule also exists, the more restrictive access wins.
-      mergeIntoWorkspaceRootSlot({
+      mergeIntoWorkspaceRootTable({
         workspaceRootFilesystem,
         pattern: CODEX_WORKSPACE_ROOT_SUBPATH,
         access: directWorkspaceRootsAccess,
@@ -915,23 +915,32 @@ function addFilesystemRule({
     return;
   }
 
-  if (WORKSPACE_ROOT_SLOT_KEYS.has(pattern)) {
-    mergeIntoWorkspaceRootSlot({ workspaceRootFilesystem, pattern, access });
-    return;
-  }
-
-  workspaceRootFilesystem[pattern] = access;
+  mergeIntoWorkspaceRootTable({
+    workspaceRootFilesystem,
+    pattern: toWorkspaceRootSubpath(pattern),
+    access,
+  });
 }
 
-// `"."` and `"./"` both address the workspace root itself inside the
-// `:workspace_roots` table, so they share one slot and are never emitted
-// together. A lone key is emitted verbatim; when both are present they
-// collapse onto `"."` (the key Codex special-cases for the workspace root;
-// `relative_subpath` rejects a leading `.` segment) with the more
-// restrictive access.
-const WORKSPACE_ROOT_SLOT_KEYS: ReadonlySet<string> = new Set([CODEX_WORKSPACE_ROOT_SUBPATH, "./"]);
+// Codex's `relative_subpath` (codex-rs/core/src/config/permission_path.rs)
+// rejects a `:workspace_roots` subpath whose first segment is `""`, `.`, or
+// `..`, and only the exact `"."` key is special-cased as the workspace root
+// itself. A `./`-prefixed key (e.g. `"./"` or `"./src/**"`) would therefore
+// make Codex refuse the whole config, so leading `./` segments are stripped
+// when emitting into the table: `"./"` becomes `"."`, `"./**"` becomes `"**"`,
+// and `"./src/**"` becomes `"src/**"`.
+function toWorkspaceRootSubpath(pattern: string): string {
+  let subpath = pattern;
+  while (subpath.startsWith("./")) {
+    subpath = subpath.slice("./".length);
+  }
+  return subpath === "" ? CODEX_WORKSPACE_ROOT_SUBPATH : subpath;
+}
 
-function mergeIntoWorkspaceRootSlot({
+// Insert a `:workspace_roots` table entry. Distinct canonical patterns can
+// collapse onto the same emitted key (e.g. `"./src"` and `"src"`, or a direct
+// `:workspace_roots` rule and `"."`); the more restrictive access wins.
+function mergeIntoWorkspaceRootTable({
   workspaceRootFilesystem,
   pattern,
   access,
@@ -940,19 +949,9 @@ function mergeIntoWorkspaceRootSlot({
   pattern: string;
   access: CodexFilesystemAccess;
 }): void {
-  const existingKey = [...WORKSPACE_ROOT_SLOT_KEYS].find(
-    (key) => workspaceRootFilesystem[key] !== undefined,
-  );
-  if (existingKey === undefined) {
-    workspaceRootFilesystem[pattern] = access;
-    return;
-  }
-  const existing = workspaceRootFilesystem[existingKey] as CodexFilesystemAccess;
-  delete workspaceRootFilesystem[existingKey];
-  workspaceRootFilesystem[CODEX_WORKSPACE_ROOT_SUBPATH] = moreRestrictiveCodexAccess({
-    a: existing,
-    b: access,
-  });
+  const existing = workspaceRootFilesystem[pattern];
+  workspaceRootFilesystem[pattern] =
+    existing === undefined ? access : moreRestrictiveCodexAccess({ a: existing, b: access });
 }
 
 function normalizeCodexFilesystemAccess({
@@ -1441,6 +1440,7 @@ function isCoveredByReadRestriction({
 }): boolean {
   const key = normalizeCoverageKey(pattern);
   const isWorkspaceRelative = !canBeCodexFilesystemRoot(pattern);
+  const keyHasDotSegment = hasDotPathSegment(key);
   let best: { specificity: number; restrictive: boolean } | undefined;
   for (const [readPattern, action] of Object.entries(readRules)) {
     if (readPattern === pattern) {
@@ -1454,6 +1454,17 @@ function isCoveredByReadRestriction({
     // A read allow that Codex never receives (it is skipped as an unsupported
     // glob or device-path grant) cannot override a broader deny.
     if (!restrictive && isSkippedCodexGrant(readPattern)) {
+      continue;
+    }
+    // Coverage is matched by literal prefix, while Codex lexically resolves
+    // `.`/`..` segments (e.g. `/home/me/public/../.ssh/id_rsa` is really
+    // `/home/me/.ssh/id_rsa`). When either side has such a segment, a
+    // narrower allow may only look like it covers the key, so it never wins;
+    // restrictive rules still cover.
+    if (
+      !restrictive &&
+      (keyHasDotSegment || hasDotPathSegment(normalizeCoverageKey(readPattern)))
+    ) {
       continue;
     }
     if (
@@ -1523,6 +1534,15 @@ function normalizeCoverageKey(pattern: string): string {
   // Only a `./`-prefixed pattern collapses to the workspace root; a genuinely
   // empty pattern stays empty and covers nothing.
   return normalized === "" && pattern !== "" ? "." : normalized;
+}
+
+// Whether a normalized coverage key contains a `.` or `..` path segment. The
+// bare workspace root `.` itself is not a dot segment.
+function hasDotPathSegment(normalizedKey: string): boolean {
+  if (normalizedKey === ".") {
+    return false;
+  }
+  return normalizedKey.split(/[\\/]/).some((segment) => segment === "." || segment === "..");
 }
 
 function isSkippedCodexGrant(pattern: string): boolean {
