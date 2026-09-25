@@ -443,7 +443,13 @@ function convertRulesyncToCodexProfile({
     logger,
   });
 
-  applyDefaultGitWriteRules({ config, filesystem, workspaceRootFilesystem });
+  applyDefaultGitWriteRules({
+    config,
+    categoryRules: filesystemCategoryRules,
+    filesystem,
+    workspaceRootFilesystem,
+    logger,
+  });
 
   if (Object.keys(workspaceRootFilesystem).length > 0) {
     const directWorkspaceRootsAccess = filesystem[CODEX_WORKSPACE_ROOTS_KEY];
@@ -559,15 +565,25 @@ function addCodexFilesystemRules({
 // - the user authored a direct `":workspace_roots"` string rule — that is an
 //   explicit access decision for the whole workspace tree (e.g. a blanket
 //   deny), and injecting defaults would force the string rule to be replaced
-//   by a rule table.
+//   by a rule table; or
+// - `.git` is covered by a broader workspace-relative read or write-side
+//   deny/ask (e.g. `read: { "**": "deny" }` or `edit: { ".": "deny" }`) —
+//   Codex resolves the more specific `.git/**` entry with priority, so the
+//   carve-out would silently reopen `.git` under that restriction. `:root` and
+//   `/**` do not count here: the `:workspace` baseline re-grants the
+//   workspace above them, so `.git` still needs the carve-out.
 function applyDefaultGitWriteRules({
   config,
+  categoryRules,
   filesystem,
   workspaceRootFilesystem,
+  logger,
 }: {
   config: PermissionsConfig;
+  categoryRules: Partial<Record<"read" | "edit" | "write", Record<string, PermissionAction>>>;
   filesystem: CodexFilesystem;
   workspaceRootFilesystem: CodexFilesystemRuleTable;
+  logger?: ToolPermissionsFromRulesyncPermissionsParams["logger"];
 }): void {
   if (config.codexcli?.git_write_rules === false) {
     return;
@@ -579,8 +595,39 @@ function applyDefaultGitWriteRules({
     return;
   }
   for (const [pattern, access] of Object.entries(CODEX_GIT_WRITE_RULES)) {
-    workspaceRootFilesystem[pattern] ??= access;
+    if (workspaceRootFilesystem[pattern] !== undefined) {
+      continue;
+    }
+    if (isCoveredByWorkspaceRestriction({ pattern, categoryRules })) {
+      logger?.warn(
+        `Skipping the default Codex CLI "${pattern}" = "${access}" carve-out: ".git" is covered by a broader workspace-relative read or write-side deny/ask rule, which the carve-out would reopen. Author an explicit rule for "${pattern}" to override.`,
+      );
+      continue;
+    }
+    workspaceRootFilesystem[pattern] = access;
   }
+}
+
+// Whether the workspace-relative `pattern` is covered by a broader
+// workspace-relative read or write-side deny/ask (see
+// applyDefaultGitWriteRules). `:root` and `/**` are ignored.
+function isCoveredByWorkspaceRestriction({
+  pattern,
+  categoryRules,
+}: {
+  pattern: string;
+  categoryRules: Partial<Record<"read" | "edit" | "write", Record<string, PermissionAction>>>;
+}): boolean {
+  const normalized = normalizeWorkspaceRelativeCategoryRules({ categoryRules });
+  const withoutRootRules = (rules: Record<string, PermissionAction>) =>
+    Object.fromEntries(
+      Object.entries(rules).filter(
+        ([rulePattern]) => rulePattern !== ":root" && rulePattern !== "/**",
+      ),
+    );
+  return [normalized.read ?? {}, collapseWriteSideRules(normalized)].some((rules) =>
+    isCoveredByReadRestriction({ pattern, readRules: withoutRootRules(rules) }),
+  );
 }
 
 function convertCodexProfileToRulesync({

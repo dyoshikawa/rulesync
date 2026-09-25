@@ -511,13 +511,13 @@ describe("CodexcliPermissions", () => {
       expect(permission.edit?.[":workspace_roots"]).toBeUndefined();
     });
 
-    it("round-trips a '.' read deny without losing the default .git carve-out", async () => {
+    it("round-trips a '.' read deny without reopening .git via the default carve-out", async () => {
       const first = await generate({
         permission: { read: { ".": "deny" } },
         logger: createMockLogger(),
         gitWriteRules: true,
       });
-      expect(parseWorkspaceRoots(first)).toEqual({ ".": "deny", ".git/**": "write" });
+      expect(parseWorkspaceRoots(first)).toEqual({ ".": "deny" });
 
       const permission = importPermission(first);
       expect(permission.read?.["."]).toBe("deny");
@@ -3228,6 +3228,85 @@ command = "node"
       expect(fileContent).toContain('extends = ":read-only"');
       expect(fileContent).not.toContain(".git/**");
       expect(fileContent).not.toContain(":workspace_roots");
+    });
+
+    describe("skips the carve-out when a broader workspace restriction covers .git", () => {
+      const generateWorkspaceRoots = async ({
+        permission,
+        logger,
+      }: {
+        permission: Record<string, Record<string, string>>;
+        logger: ReturnType<typeof createMockLogger>;
+      }) => {
+        const rulesyncPermissions = new RulesyncPermissions({
+          outputRoot: testDir,
+          relativeDirPath: ".rulesync",
+          relativeFilePath: "permissions.json",
+          fileContent: JSON.stringify({ permission }),
+        });
+        const codexPermissions = await CodexcliPermissions.fromRulesyncPermissions({
+          outputRoot: testDir,
+          rulesyncPermissions,
+          logger,
+        });
+        return parseWorkspaceRoots(codexPermissions.getFileContent());
+      };
+
+      it.each([
+        ["read '**' deny", { read: { "**": "deny" } }],
+        ["read '.' deny", { read: { ".": "deny" } }],
+        ["read './**' deny", { read: { "./**": "deny" } }],
+        ["read '.git' deny", { read: { ".git": "deny" } }],
+        ["read '**' ask", { read: { "**": "ask" } }],
+        ["edit '**' deny", { edit: { "**": "deny" } }],
+        ["write '.' ask", { write: { ".": "ask" } }],
+      ])("%s", async (_label, permission) => {
+        const logger = createMockLogger();
+        const workspaceRoots = await generateWorkspaceRoots({ permission, logger });
+        expect(workspaceRoots[".git/**"]).toBeUndefined();
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining('Skipping the default Codex CLI ".git/**" = "write" carve-out'),
+        );
+      });
+
+      it("keeps a user-authored '.git/**' rule under a workspace-wide read deny", async () => {
+        const logger = createMockLogger();
+        const workspaceRoots = await generateWorkspaceRoots({
+          permission: { read: { "**": "deny", ".git/**": "allow" }, edit: { ".git/**": "allow" } },
+          logger,
+        });
+        expect(workspaceRoots[".git/**"]).toBe("write");
+      });
+
+      it("keeps the carve-out when a narrower read allow reopens .git", async () => {
+        const logger = createMockLogger();
+        const workspaceRoots = await generateWorkspaceRoots({
+          permission: { read: { "**": "deny", ".git": "allow" } },
+          logger,
+        });
+        expect(workspaceRoots[".git/**"]).toBe("write");
+      });
+
+      it("keeps the carve-out for ':root' and '/**' denies (the baseline re-grants the workspace)", async () => {
+        const logger = createMockLogger();
+        const workspaceRoots = await generateWorkspaceRoots({
+          permission: { read: { ":root": "deny", "/**": "deny", "src/**": "deny" } },
+          logger,
+        });
+        expect(workspaceRoots[".git/**"]).toBe("write");
+      });
+
+      it("keeps the carve-out for restrictions that do not cover .git", async () => {
+        const logger = createMockLogger();
+        const workspaceRoots = await generateWorkspaceRoots({
+          permission: {
+            read: { "src/**": "deny", "/abs/**": "deny" },
+            edit: { "docs/**": "deny" },
+          },
+          logger,
+        });
+        expect(workspaceRoots[".git/**"]).toBe("write");
+      });
     });
 
     it("does not override a direct ':workspace_roots' string rule with the carve-out", async () => {
