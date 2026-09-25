@@ -96,7 +96,8 @@ const CODEX_MINIMAL_KEY = ":minimal";
 // Like `:minimal`, this default-valued entry is not imported into the
 // rulesync model (it is re-added on every export); a user-customized value
 // for the same key imports — and generates — normally, winning over the
-// default.
+// default. The default pair itself also imports as a user rule when the rest
+// of the table restricts `.git`, since generation would not re-add it there.
 const CODEX_GIT_WRITE_RULES: Readonly<Record<string, "read" | "write">> = {
   ".git/**": "write",
 };
@@ -600,7 +601,7 @@ function applyDefaultGitWriteRules({
     }
     if (isRestrictedInWorkspaceRootTable({ pattern, table: workspaceRootFilesystem })) {
       logger?.warn(
-        `Skipping the default Codex CLI "${pattern}" = "${access}" carve-out: ".git" is covered by a broader workspace-relative deny or read-only rule, which the carve-out would reopen. Author an explicit rule for "${pattern}" to override.`,
+        `Skipping the default Codex CLI "${pattern}" = "${access}" carve-out: ".git" is covered by a broader workspace-relative deny or read-only rule, which the carve-out would reopen. To keep it, author read and edit allows for "${pattern}"; to silence this warning, set codexcli.git_write_rules to false.`,
       );
       continue;
     }
