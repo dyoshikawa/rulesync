@@ -96,7 +96,8 @@ const CODEX_MINIMAL_KEY = ":minimal";
 // Like `:minimal`, this default-valued entry is not imported into the
 // rulesync model (it is re-added on every export); a user-customized value
 // for the same key imports — and generates — normally, winning over the
-// default.
+// default. The default pair itself also imports as a user rule when the rest
+// of the table restricts `.git`, since generation would not re-add it there.
 const CODEX_GIT_WRITE_RULES: Readonly<Record<string, "read" | "write">> = {
   ".git/**": "write",
 };
@@ -443,7 +444,12 @@ function convertRulesyncToCodexProfile({
     logger,
   });
 
-  applyDefaultGitWriteRules({ config, filesystem, workspaceRootFilesystem });
+  applyDefaultGitWriteRules({
+    config,
+    filesystem,
+    workspaceRootFilesystem,
+    logger,
+  });
 
   if (Object.keys(workspaceRootFilesystem).length > 0) {
     const directWorkspaceRootsAccess = filesystem[CODEX_WORKSPACE_ROOTS_KEY];
@@ -559,15 +565,26 @@ function addCodexFilesystemRules({
 // - the user authored a direct `":workspace_roots"` string rule — that is an
 //   explicit access decision for the whole workspace tree (e.g. a blanket
 //   deny), and injecting defaults would force the string rule to be replaced
-//   by a rule table.
+//   by a rule table; or
+// - `.git` is covered by a broader restrictive entry of the generated
+//   `:workspace_roots` table (e.g. `"**" = "deny"` from `read: { "**": "deny" }`,
+//   or `"." = "read"` from `edit: { ".": "deny" }`) — Codex resolves the more
+//   specific `.git/**` entry with priority, so the carve-out would silently
+//   reopen `.git` under that restriction. The decision reads only the emitted
+//   table, so a generate -> import -> generate round trip reaches the same
+//   result. `:root` and `/**` do not count here: they are not table entries,
+//   and the `:workspace` baseline re-grants the workspace above them, so
+//   `.git` still needs the carve-out.
 function applyDefaultGitWriteRules({
   config,
   filesystem,
   workspaceRootFilesystem,
+  logger,
 }: {
   config: PermissionsConfig;
   filesystem: CodexFilesystem;
   workspaceRootFilesystem: CodexFilesystemRuleTable;
+  logger?: ToolPermissionsFromRulesyncPermissionsParams["logger"];
 }): void {
   if (config.codexcli?.git_write_rules === false) {
     return;
@@ -579,8 +596,37 @@ function applyDefaultGitWriteRules({
     return;
   }
   for (const [pattern, access] of Object.entries(CODEX_GIT_WRITE_RULES)) {
-    workspaceRootFilesystem[pattern] ??= access;
+    if (workspaceRootFilesystem[pattern] !== undefined) {
+      continue;
+    }
+    if (isRestrictedInWorkspaceRootTable({ pattern, table: workspaceRootFilesystem })) {
+      logger?.warn(
+        `Skipping the default Codex CLI "${pattern}" = "${access}" carve-out: ".git" is covered by a broader workspace-relative deny or read-only rule, which the carve-out would reopen. To keep it, author read and edit allows for "${pattern}"; to silence this warning, set codexcli.git_write_rules to false.`,
+      );
+      continue;
+    }
+    workspaceRootFilesystem[pattern] = access;
   }
+}
+
+// Whether the most specific other entry of a `:workspace_roots` table that
+// covers `pattern` is restrictive (`deny` or `read`). Shared by generation
+// (applyDefaultGitWriteRules) and import so both reach the same decision.
+function isRestrictedInWorkspaceRootTable({
+  pattern,
+  table,
+}: {
+  pattern: string;
+  table: CodexFilesystemRuleTable;
+}): boolean {
+  const readRules: Record<string, PermissionAction> = {};
+  for (const [tablePattern, access] of Object.entries(table)) {
+    if (tablePattern === pattern) {
+      continue;
+    }
+    readRules[tablePattern] = access === "write" ? "allow" : "deny";
+  }
+  return isCoveredByReadRestriction({ pattern, readRules });
 }
 
 function convertCodexProfileToRulesync({
@@ -618,10 +664,13 @@ function convertCodexProfileToRulesync({
           // the shared canonical model (and other tools' outputs), and it is
           // re-added on every export anyway. Only the exact default
           // pattern/value pair is skipped — a customized value (e.g.
-          // `".git/**" = "read"`) imports normally.
+          // `".git/**" = "read"`) imports normally. So does the default pair
+          // when the rest of the table restricts `.git`: generation would not
+          // re-add it there, so it must have been authored by the user.
           if (
             pattern === CODEX_WORKSPACE_ROOTS_KEY &&
-            CODEX_GIT_WRITE_RULES[nestedPattern] === nestedAccess
+            CODEX_GIT_WRITE_RULES[nestedPattern] === nestedAccess &&
+            !isRestrictedInWorkspaceRootTable({ pattern: nestedPattern, table: access })
           ) {
             continue;
           }
