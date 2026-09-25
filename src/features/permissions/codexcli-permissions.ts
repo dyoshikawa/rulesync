@@ -509,7 +509,14 @@ function addCodexFilesystemRules({
   // for the same pattern across the canonical read/edit/write categories are
   // merged instead of last-category-wins overwriting (e.g. `read: allow` +
   // `write: deny` emits `"read"`, not `"deny"`).
-  for (const rule of mergeFilesystemCategoryRules({ categoryRules, logger })) {
+  const normalizedCategoryRules = normalizeWorkspaceRelativeCategoryRules({
+    categoryRules,
+    logger,
+  });
+  for (const rule of mergeFilesystemCategoryRules({
+    categoryRules: normalizedCategoryRules,
+    logger,
+  })) {
     const access = normalizeCodexFilesystemAccess({
       pattern: rule.pattern,
       access: rule.access,
@@ -915,26 +922,83 @@ function addFilesystemRule({
     return;
   }
 
-  mergeIntoWorkspaceRootTable({
-    workspaceRootFilesystem,
-    pattern: toWorkspaceRootSubpath(pattern),
-    access,
-  });
+  mergeIntoWorkspaceRootTable({ workspaceRootFilesystem, pattern, access });
+}
+
+const PERMISSION_ACTION_RESTRICTIVENESS: Record<PermissionAction, number> = {
+  deny: 2,
+  ask: 1,
+  allow: 0,
+};
+
+// Rewrite workspace-relative canonical patterns into the `:workspace_roots`
+// subpath form Codex accepts BEFORE the read/edit/write categories are
+// merged, so rules that differ only by a leading `./` (e.g. `read: "src/**"`
+// + `edit: "./src/**"`) meet on one key instead of silently shadowing each
+// other. Within one category, patterns that collapse onto the same key keep
+// the more restrictive action. Patterns Codex would reject (see
+// toWorkspaceRootSubpath) are dropped with a warning. Absolute, drive, `~`,
+// and special-path patterns are left untouched.
+function normalizeWorkspaceRelativeCategoryRules({
+  categoryRules,
+  logger,
+}: {
+  categoryRules: Partial<Record<"read" | "edit" | "write", Record<string, PermissionAction>>>;
+  logger?: ToolPermissionsFromRulesyncPermissionsParams["logger"];
+}): Partial<Record<"read" | "edit" | "write", Record<string, PermissionAction>>> {
+  const result: Partial<Record<"read" | "edit" | "write", Record<string, PermissionAction>>> = {};
+  for (const category of ["read", "edit", "write"] as const) {
+    const rules = categoryRules[category];
+    if (rules === undefined) {
+      continue;
+    }
+    const normalized: Record<string, PermissionAction> = {};
+    for (const [pattern, action] of Object.entries(rules)) {
+      const key =
+        pattern.trim() === "" || canBeCodexFilesystemRoot(pattern)
+          ? pattern
+          : toWorkspaceRootSubpath(pattern);
+      if (key === undefined) {
+        logger?.warn(
+          `Skipping Codex CLI ${category} filesystem entry for workspace-relative pattern "${pattern}": Codex rejects a ":workspace_roots" subpath containing a ".." segment or an empty leading segment and would refuse the whole config, so the rule is dropped entirely — even a deny — and the path is NOT protected by the generated profile. Use a normalized relative path instead.`,
+        );
+        continue;
+      }
+      const existing = normalized[key];
+      normalized[key] =
+        existing === undefined ||
+        PERMISSION_ACTION_RESTRICTIVENESS[action] > PERMISSION_ACTION_RESTRICTIVENESS[existing]
+          ? action
+          : existing;
+    }
+    result[category] = normalized;
+  }
+  return result;
 }
 
 // Codex's `relative_subpath` (codex-rs/core/src/config/permission_path.rs)
 // rejects a `:workspace_roots` subpath whose first segment is `""`, `.`, or
-// `..`, and only the exact `"."` key is special-cased as the workspace root
-// itself. A `./`-prefixed key (e.g. `"./"` or `"./src/**"`) would therefore
-// make Codex refuse the whole config, so leading `./` segments are stripped
-// when emitting into the table: `"./"` becomes `"."`, `"./**"` becomes `"**"`,
-// and `"./src/**"` becomes `"src/**"`.
-function toWorkspaceRootSubpath(pattern: string): string {
+// `..` (or that contains a `..` segment), and only the exact `"."` key is
+// special-cased as the workspace root itself. Leading `./` segments are
+// therefore stripped: `"./"` becomes `"."` and `"./src/**"` becomes
+// `"src/**"`. `"./**"` becomes `"."` rather than the bare glob `"**"`, which
+// Codex accepts only with `deny` access, while a trailing `/**` on the root
+// already means the whole workspace (Codex strips it to `"."`). Returns
+// `undefined` for a subpath Codex would reject: one with a `..` segment, or
+// with an empty leading segment after stripping (e.g. `.//src`, which must
+// never turn into the absolute `/src`).
+function toWorkspaceRootSubpath(pattern: string): string | undefined {
   let subpath = pattern;
   while (subpath.startsWith("./")) {
     subpath = subpath.slice("./".length);
   }
-  return subpath === "" ? CODEX_WORKSPACE_ROOT_SUBPATH : subpath;
+  if (subpath === "" || (subpath === "**" && subpath !== pattern)) {
+    return CODEX_WORKSPACE_ROOT_SUBPATH;
+  }
+  if (subpath.startsWith("/") || subpath.split(/[\\/]/).some((segment) => segment === "..")) {
+    return undefined;
+  }
+  return subpath;
 }
 
 // Insert a `:workspace_roots` table entry. Distinct canonical patterns can
@@ -1389,18 +1453,13 @@ function mergeFilesystemCategoryRules({
 function collapseWriteSideRules(
   categoryRules: Partial<Record<"read" | "edit" | "write", Record<string, PermissionAction>>>,
 ): Record<string, PermissionAction> {
-  const writeSideRestrictiveness: Record<PermissionAction, number> = {
-    deny: 2,
-    ask: 1,
-    allow: 0,
-  };
   const writeSideRules: Record<string, PermissionAction> = {};
   for (const category of ["edit", "write"] as const) {
     for (const [pattern, action] of Object.entries(categoryRules[category] ?? {})) {
       const existing = writeSideRules[pattern];
       if (
         existing === undefined ||
-        writeSideRestrictiveness[action] > writeSideRestrictiveness[existing]
+        PERMISSION_ACTION_RESTRICTIVENESS[action] > PERMISSION_ACTION_RESTRICTIVENESS[existing]
       ) {
         writeSideRules[pattern] = action;
       }
@@ -1440,7 +1499,7 @@ function isCoveredByReadRestriction({
 }): boolean {
   const key = normalizeCoverageKey(pattern);
   const isWorkspaceRelative = !canBeCodexFilesystemRoot(pattern);
-  const keyHasDotSegment = hasDotPathSegment(key);
+  const keyHasDotSegment = hasDotPathSegment(pattern);
   let best: { specificity: number; restrictive: boolean } | undefined;
   for (const [readPattern, action] of Object.entries(readRules)) {
     if (readPattern === pattern) {
@@ -1461,10 +1520,7 @@ function isCoveredByReadRestriction({
     // `/home/me/.ssh/id_rsa`). When either side has such a segment, a
     // narrower allow may only look like it covers the key, so it never wins;
     // restrictive rules still cover.
-    if (
-      !restrictive &&
-      (keyHasDotSegment || hasDotPathSegment(normalizeCoverageKey(readPattern)))
-    ) {
+    if (!restrictive && (keyHasDotSegment || hasDotPathSegment(readPattern))) {
       continue;
     }
     if (
@@ -1520,10 +1576,45 @@ function coverageSpecificity({
 }
 
 // Normalize a pattern for coverage comparison only (emitted keys are never
-// rewritten): drop every leading `./` and a trailing slash (the workspace
-// root itself normalizes to `.`, and `./**` to `**`), and for Windows drive
-// paths lowercase the drive letter and use `/` as the separator.
+// rewritten): toCoverageForm, then, for absolute, drive, and `~` paths,
+// lexically resolve `.`/`..` segments the way Codex does, so
+// `/home/me/public/../.ssh/id_rsa` is compared as `/home/me/.ssh/id_rsa`.
 function normalizeCoverageKey(pattern: string): string {
+  const form = toCoverageForm(pattern);
+  return canBeCodexFilesystemRoot(pattern) && !pattern.startsWith(":")
+    ? resolveDotSegments(form)
+    : form;
+}
+
+// Lexically resolve `.` and `..` segments of a `/`-separated absolute, drive
+// (`c:/...`), or `~` path. The first segment is the anchor (`""` for `/`,
+// `c:`, or `~`); `..` never climbs above `/` or a drive root, and a `..`
+// above `~` is kept because the home directory's parent is unknown here.
+function resolveDotSegments(path: string): string {
+  const [anchor = "", ...rest] = path.split("/");
+  const stack: string[] = [];
+  for (const segment of rest) {
+    if (segment === ".") {
+      continue;
+    }
+    if (segment === "..") {
+      if (stack.length > 0 && stack[stack.length - 1] !== "..") {
+        stack.pop();
+      } else if (anchor === "~") {
+        stack.push(segment);
+      }
+      continue;
+    }
+    stack.push(segment);
+  }
+  const resolved = [anchor, ...stack].join("/");
+  return resolved === "" ? "/" : stripTrailingSlash(resolved);
+}
+
+// Drop every leading `./` and a trailing slash (the workspace root itself
+// becomes `.`, and `./**` becomes `**`), and for Windows drive paths lowercase
+// the drive letter and use `/` as the separator. Dot segments are kept.
+function toCoverageForm(pattern: string): string {
   let normalized = /^[A-Za-z]:[\\/]/.test(pattern)
     ? `${pattern.charAt(0).toLowerCase()}${pattern.slice(1).replaceAll("\\", "/")}`
     : pattern;
@@ -1536,13 +1627,15 @@ function normalizeCoverageKey(pattern: string): string {
   return normalized === "" && pattern !== "" ? "." : normalized;
 }
 
-// Whether a normalized coverage key contains a `.` or `..` path segment. The
-// bare workspace root `.` itself is not a dot segment.
-function hasDotPathSegment(normalizedKey: string): boolean {
-  if (normalizedKey === ".") {
+// Whether a pattern (in coverage form, before dot-segment resolution)
+// contains a `.` or `..` path segment. The bare workspace root `.` itself is
+// not a dot segment.
+function hasDotPathSegment(pattern: string): boolean {
+  const form = toCoverageForm(pattern);
+  if (form === ".") {
     return false;
   }
-  return normalizedKey.split(/[\\/]/).some((segment) => segment === "." || segment === "..");
+  return form.split(/[\\/]/).some((segment) => segment === "." || segment === "..");
 }
 
 function isSkippedCodexGrant(pattern: string): boolean {
