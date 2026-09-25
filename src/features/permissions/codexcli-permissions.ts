@@ -452,12 +452,12 @@ function convertRulesyncToCodexProfile({
       // `:workspace_roots` table (compile_scoped_filesystem_path in
       // codex-rs/core/src/config/permissions.rs), so the direct access rule is
       // preserved there instead of being silently dropped. When an explicit
-      // `"."` rule also exists, the more restrictive access wins.
-      const existing = workspaceRootFilesystem[CODEX_WORKSPACE_ROOT_SUBPATH];
-      workspaceRootFilesystem[CODEX_WORKSPACE_ROOT_SUBPATH] =
-        existing === undefined
-          ? directWorkspaceRootsAccess
-          : moreRestrictiveCodexAccess({ a: existing, b: directWorkspaceRootsAccess });
+      // `"."` (or `"./"`) rule also exists, the more restrictive access wins.
+      mergeIntoWorkspaceRootSlot({
+        workspaceRootFilesystem,
+        pattern: CODEX_WORKSPACE_ROOT_SUBPATH,
+        access: directWorkspaceRootsAccess,
+      });
       logger?.warn(
         `"${CODEX_WORKSPACE_ROOTS_KEY}" is set as a direct filesystem access rule in the permissions alongside workspace-relative rules; it is emitted as the "${CODEX_WORKSPACE_ROOT_SUBPATH}" entry of the "${CODEX_WORKSPACE_ROOTS_KEY}" table.`,
       );
@@ -618,13 +618,12 @@ function convertCodexProfileToRulesync({
           ) {
             continue;
           }
-          // `":workspace_roots"."."` is the workspace root itself; import it as
-          // the direct `:workspace_roots` rule it is generated from.
-          const importedPattern =
-            pattern === CODEX_WORKSPACE_ROOTS_KEY && nestedPattern === CODEX_WORKSPACE_ROOT_SUBPATH
-              ? CODEX_WORKSPACE_ROOTS_KEY
-              : nestedPattern;
-          addRulesyncFilesystemRule(permission, importedPattern, nestedAccess);
+          // A `"."` table key (the workspace root itself) imports as the
+          // portable canonical `"."` pattern, not as the Codex-only
+          // `:workspace_roots` special path: other tools do not understand
+          // `:workspace_roots`, and generation already emits a direct
+          // `:workspace_roots` rule as this same `"."` entry.
+          addRulesyncFilesystemRule(permission, nestedPattern, nestedAccess);
         }
       }
     }
@@ -916,7 +915,35 @@ function addFilesystemRule({
     return;
   }
 
+  if (WORKSPACE_ROOT_SLOT_KEYS.has(pattern)) {
+    mergeIntoWorkspaceRootSlot({ workspaceRootFilesystem, pattern, access });
+    return;
+  }
+
   workspaceRootFilesystem[pattern] = access;
+}
+
+// `"."` and `"./"` both address the workspace root itself inside the
+// `:workspace_roots` table, so they share one slot: the first key seen is
+// kept (emitted keys are never rewritten) and the more restrictive access
+// wins, so both keys are never emitted together.
+const WORKSPACE_ROOT_SLOT_KEYS: ReadonlySet<string> = new Set([CODEX_WORKSPACE_ROOT_SUBPATH, "./"]);
+
+function mergeIntoWorkspaceRootSlot({
+  workspaceRootFilesystem,
+  pattern,
+  access,
+}: {
+  workspaceRootFilesystem: CodexFilesystemRuleTable;
+  pattern: string;
+  access: CodexFilesystemAccess;
+}): void {
+  const slotKey =
+    [...WORKSPACE_ROOT_SLOT_KEYS].find((key) => workspaceRootFilesystem[key] !== undefined) ??
+    pattern;
+  const existing = workspaceRootFilesystem[slotKey];
+  workspaceRootFilesystem[slotKey] =
+    existing === undefined ? access : moreRestrictiveCodexAccess({ a: existing, b: access });
 }
 
 function normalizeCodexFilesystemAccess({
@@ -938,7 +965,7 @@ function normalizeCodexFilesystemAccess({
     // under the POSIX convention, so no entry — not even a deny — can express
     // it. Skip it entirely.
     logger?.warn(
-      `Skipping Codex CLI ${access} filesystem entry for Windows device path "${pattern}": Codex cannot express it as a workspace-root entry (it is rejected on Windows and matches nothing elsewhere). Use a plain drive path such as "C:\\..." instead.`,
+      `Skipping Codex CLI ${access} filesystem entry for Windows device path "${pattern}": Codex cannot express it as a workspace-root entry (it is rejected on Windows and matches nothing elsewhere), so the rule is dropped entirely — even a deny — and the path is NOT protected by the generated profile. Use a plain drive path such as "C:\\..." instead.`,
     );
     return undefined;
   }
@@ -1384,9 +1411,11 @@ function collapseWriteSideRules(
 // - `**`, `.`, `./**`, and `:workspace_roots` cover every workspace-relative
 //   pattern (`:workspace_roots` is emitted as its `"."` table entry when
 //   workspace-relative rules exist).
-// - An exact path `X` or `X/**` covers `X` and everything below it. A leading
-//   `./` is ignored, and for Windows drive paths (`C:\...`) a backslash is
-//   treated as a separator.
+// - An exact path `X` or `X/**` covers `X` and everything below it, but only
+//   when both are the same kind of path (both absolute/drive-root/`~`, or
+//   both workspace-relative). Leading `./` segments are ignored, and for
+//   Windows drive paths (`C:\...`) a backslash is treated as a separator and
+//   the drive letter is compared case-insensitively.
 //
 // Deliberately not matched (a generic warning is still logged for a
 // write-side deny mapped to `"read"`): `~/...` versus the equivalent absolute
@@ -1446,8 +1475,14 @@ function coverageSpecificity({
   if (readPattern === CODEX_WORKSPACE_ROOTS_KEY) {
     return isWorkspaceRelative ? 1 : undefined;
   }
+  // A path pattern only covers a key of the same kind: an absolute/drive-root
+  // pattern never covers a workspace-relative key and vice versa (e.g. the
+  // relative `C:` must not cover the drive path `C:\secret\k`).
+  if (canBeCodexFilesystemRoot(readPattern) === isWorkspaceRelative) {
+    return undefined;
+  }
   const normalized = normalizeCoverageKey(readPattern);
-  if (normalized === "**" || normalized === "." || normalized === "./**") {
+  if (normalized === "**" || normalized === ".") {
     return isWorkspaceRelative ? 1 : undefined;
   }
   const withoutTrailingGlob = normalized.endsWith("/**")
@@ -1457,22 +1492,26 @@ function coverageSpecificity({
     return undefined;
   }
   const base = stripTrailingSlash(withoutTrailingGlob);
-  if (base === "" || base === ".") {
-    return base === "." && isWorkspaceRelative ? 1 : undefined;
+  if (base === "") {
+    return undefined;
   }
   const covers = key === base || key.startsWith(base.endsWith("/") ? base : `${base}/`);
   return covers ? 2 + base.length : undefined;
 }
 
 // Normalize a pattern for coverage comparison only (emitted keys are never
-// rewritten): drop a leading `./` and trailing slash, and use `/` as the
-// separator for Windows drive paths.
+// rewritten): drop every leading `./` and a trailing slash (the workspace
+// root itself normalizes to `.`, and `./**` to `**`), and for Windows drive
+// paths lowercase the drive letter and use `/` as the separator.
 function normalizeCoverageKey(pattern: string): string {
-  const withSlashes = /^[A-Za-z]:[\\/]/.test(pattern) ? pattern.replaceAll("\\", "/") : pattern;
-  if (withSlashes === "./**" || withSlashes === "." || withSlashes === "./") {
-    return withSlashes === "./" ? "." : withSlashes;
+  let normalized = /^[A-Za-z]:[\\/]/.test(pattern)
+    ? `${pattern.charAt(0).toLowerCase()}${pattern.slice(1).replaceAll("\\", "/")}`
+    : pattern;
+  while (normalized.startsWith("./")) {
+    normalized = normalized.slice("./".length);
   }
-  return stripTrailingSlash(stripLeadingDotSlash(withSlashes));
+  normalized = stripTrailingSlash(normalized);
+  return normalized === "" ? "." : normalized;
 }
 
 function isSkippedCodexGrant(pattern: string): boolean {
@@ -1488,10 +1527,6 @@ function moreRestrictiveCodexAccess({
 }): CodexFilesystemAccess {
   const rank: Record<CodexFilesystemAccess, number> = { deny: 0, none: 0, read: 1, write: 2 };
   return rank[a] <= rank[b] ? a : b;
-}
-
-function stripLeadingDotSlash(pattern: string): string {
-  return pattern.startsWith("./") ? pattern.slice("./".length) : pattern;
 }
 
 function stripTrailingSlash(pattern: string): string {
