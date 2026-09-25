@@ -531,6 +531,32 @@ describe("CodexcliPermissions", () => {
       expect(parseWorkspaceRoots(second)).toEqual(parseWorkspaceRoots(first));
     });
 
+    it.each([
+      [
+        "a workspace-wide read deny with a narrower .git read allow",
+        { read: { "**": "deny", ".git": "allow" } },
+      ],
+      [
+        "a user-authored '.git/**' write rule under a workspace-wide read deny",
+        { read: { "**": "deny", ".git/**": "allow" }, edit: { ".git/**": "allow" } },
+      ],
+    ])(
+      "keeps the .git carve-out decision stable across generate -> import -> generate for %s",
+      async (_, permission) => {
+        const first = await generate({
+          permission,
+          logger: createMockLogger(),
+          gitWriteRules: true,
+        });
+        const second = await generate({
+          permission: importPermission(first),
+          logger: createMockLogger(),
+          gitWriteRules: true,
+        });
+        expect(parseWorkspaceRoots(second)).toEqual(parseWorkspaceRoots(first));
+      },
+    );
+
     it("treats '.' and './' as the same :workspace_roots slot", async () => {
       const logger = createMockLogger();
       const workspaceRoots = parseWorkspaceRoots(
@@ -3278,10 +3304,22 @@ command = "node"
         expect(workspaceRoots[".git/**"]).toBe("write");
       });
 
-      it("keeps the carve-out when a narrower read allow reopens .git", async () => {
+      it("skips the carve-out when a narrower read allow only re-grants .git read", async () => {
         const logger = createMockLogger();
         const workspaceRoots = await generateWorkspaceRoots({
           permission: { read: { "**": "deny", ".git": "allow" } },
+          logger,
+        });
+        expect(workspaceRoots).toEqual({ "**": "deny", ".git": "read" });
+      });
+
+      it("keeps the carve-out when a narrower write rule reopens .git", async () => {
+        const logger = createMockLogger();
+        const workspaceRoots = await generateWorkspaceRoots({
+          permission: {
+            read: { "**": "deny", ".git": "allow" },
+            edit: { ".git": "allow" },
+          },
           logger,
         });
         expect(workspaceRoots[".git/**"]).toBe("write");
