@@ -34,22 +34,21 @@ const GOOSE_USER_KEY = "user";
 // Goose tool. Non-catch-all patterns cannot be expressed and are reported.
 const CATCH_ALL_PATTERN = "*";
 
-// Goose's built-in Developer extension tools are namespaced `extension__tool`.
-// rulesync's canonical categories map onto the matching Developer tool name.
-// https://goose-docs.ai/docs/mcp/developer-mcp/
+// Goose's built-in Developer extension exposes its tools unprefixed (`shell`,
+// `write`, `edit`, `tree`, `read_image`), and permission.yaml is matched against
+// that public tool name exactly. Only `bash` needs renaming; `edit` and `write`
+// already match the Developer tool names and pass through verbatim.
+// https://github.com/aaif-goose/goose/blob/v1.52.0/crates/goose/src/agents/platform_extensions/developer/mod.rs
 const RULESYNC_TO_GOOSE_TOOL_NAME: Record<string, string> = {
-  bash: "developer__shell",
-  edit: "developer__text_editor",
-  // `write` collapses onto the same Developer tool as `edit` (Goose's
-  // text_editor handles both read and write); `edit` is the canonical category
-  // it maps back to on import.
-  write: "developer__text_editor",
+  bash: "shell",
 };
 
-// Reverse mapping for import. `developer__text_editor` resolves to `edit` (the
-// canonical mutation category), so the `write` -> `developer__text_editor`
-// forward entry is intentionally not represented here.
+// Reverse mapping for import. The `developer__shell` / `developer__text_editor`
+// entries are the names Goose used before the Developer extension went
+// unprefixed (v1.27.0); they are still read so older permission.yaml files
+// import cleanly, but they are never written.
 const GOOSE_TO_RULESYNC_TOOL_NAME: Record<string, string> = {
+  shell: "bash",
   developer__shell: "bash",
   developer__text_editor: "edit",
 };
@@ -95,10 +94,10 @@ type GoosePermissionConfig = {
  *
  * Mapping (rulesync canonical -> Goose):
  *   - Action: `allow` -> `always_allow`, `ask` -> `ask_before`, `deny` -> `never_allow`.
- *   - Tool name: `bash` -> `developer__shell`, `edit` -> `developer__text_editor`;
- *     any other category passes through verbatim as the Goose tool name (mirrors
- *     the Gemini CLI adapter). `write` collapses onto `developer__text_editor`
- *     too, so a conflicting `edit`/`write` catch-all is reported and `edit` wins.
+ *   - Tool name: `bash` -> `shell`; any other category (including `edit` and
+ *     `write`) passes through verbatim as the Goose tool name (mirrors the
+ *     Gemini CLI adapter). The legacy `developer__shell` /
+ *     `developer__text_editor` names are still accepted on import.
  *   - Granularity: Goose lists hold whole tool names, so only a category's
  *     catch-all `*` pattern is representable. Non-catch-all patterns cannot be
  *     expressed per-tool and are reported via `logger.warn` and skipped.
@@ -266,13 +265,7 @@ function convertRulesyncToGoosePermissionConfig({
   // shadow an earlier one without a warning.
   const assigned = new Map<string, PermissionAction>();
 
-  // Apply `edit` after `write` so the shared `developer__text_editor` mapping
-  // resolves deterministically to `edit`, consistent with the import direction.
-  const orderedEntries = Object.entries(honorAllToolsOnBash(config.permission)).toSorted(
-    ([a], [b]) => (a === "edit" ? 1 : 0) - (b === "edit" ? 1 : 0),
-  );
-
-  for (const [category, rules] of orderedEntries) {
+  for (const [category, rules] of Object.entries(honorAllToolsOnBash(config.permission))) {
     const toolName = RULESYNC_TO_GOOSE_TOOL_NAME[category] ?? category;
 
     for (const [pattern, action] of Object.entries(rules)) {
