@@ -49,9 +49,7 @@ describe("GooseHooks", () => {
           fileContent: JSON.stringify({
             hooks: {
               sessionStart: [{ command: "echo start" }],
-              preToolUse: [
-                { command: "./scripts/lint.sh", matcher: "developer__shell", timeout: 30 },
-              ],
+              preToolUse: [{ command: "./scripts/lint.sh", matcher: "shell", timeout: 30 }],
               afterFileEdit: [{ command: "cargo fmt", matcher: "\\.rs$" }],
             },
           }),
@@ -67,7 +65,7 @@ describe("GooseHooks", () => {
       const parsed = JSON.parse(gooseHooks.getFileContent());
       expect(parsed.hooks.SessionStart[0].hooks[0].command).toBe("echo start");
       expect(parsed.hooks.SessionStart[0].hooks[0].type).toBe("command");
-      expect(parsed.hooks.PreToolUse[0].matcher).toBe("developer__shell");
+      expect(parsed.hooks.PreToolUse[0].matcher).toBe("shell");
       expect(parsed.hooks.PreToolUse[0].hooks[0].command).toBe("./scripts/lint.sh");
       expect(parsed.hooks.PreToolUse[0].hooks[0].timeout).toBe(30);
       expect(parsed.hooks.AfterFileEdit[0].matcher).toBe("\\.rs$");
@@ -81,7 +79,7 @@ describe("GooseHooks", () => {
               preToolUse: [
                 { command: "all-tools.sh", matcher: "*" },
                 { command: "also-all-tools.sh" },
-                { command: "shell-only.sh", matcher: "developer__shell" },
+                { command: "shell-only.sh", matcher: "shell" },
               ],
             },
           }),
@@ -104,7 +102,7 @@ describe("GooseHooks", () => {
         "all-tools.sh",
         "also-all-tools.sh",
       ]);
-      expect(parsed.hooks.PreToolUse[1].matcher).toBe("developer__shell");
+      expect(parsed.hooks.PreToolUse[1].matcher).toBe("shell");
     });
 
     it("should map all Goose lifecycle events", async () => {
@@ -203,7 +201,7 @@ describe("GooseHooks", () => {
           fileContent: JSON.stringify({
             hooks: {
               preToolUse: [
-                { command: "./scripts/guard.sh", matcher: "developer__shell", failClosed: true },
+                { command: "./scripts/guard.sh", matcher: "shell", failClosed: true },
                 { command: "./scripts/audit.sh", failClosed: false },
               ],
               postToolUse: [{ command: "./scripts/after.sh", failClosed: true }],
@@ -281,7 +279,7 @@ describe("GooseHooks", () => {
             hooks: {
               PreToolUse: [
                 {
-                  matcher: "developer__shell",
+                  matcher: "shell",
                   hooks: [{ type: "command", command: "echo pre", timeout: 1000 }],
                 },
               ],
@@ -296,7 +294,7 @@ describe("GooseHooks", () => {
         type: "command",
         command: "echo pre",
         timeout: 1000,
-        matcher: "developer__shell",
+        matcher: "shell",
       });
       expect(parsed.hooks.afterShellExecution?.[0]).toEqual({
         type: "command",
