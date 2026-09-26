@@ -34,24 +34,25 @@ const GOOSE_USER_KEY = "user";
 // Goose tool. Non-catch-all patterns cannot be expressed and are reported.
 const CATCH_ALL_PATTERN = "*";
 
-// Goose's built-in Developer extension tools are namespaced `extension__tool`.
-// rulesync's canonical categories map onto the matching Developer tool name.
-// https://goose-docs.ai/docs/mcp/developer-mcp/
+// Goose's built-in Developer extension exposes its tools unprefixed (`shell`,
+// `write`, `edit`, `tree`, `read_image`), and permission.yaml is matched against
+// that public tool name exactly. Only `bash` needs renaming; `edit` and `write`
+// already match the Developer tool names and pass through verbatim.
+// https://github.com/aaif-goose/goose/blob/v1.52.0/crates/goose/src/agents/platform_extensions/developer/mod.rs
 const RULESYNC_TO_GOOSE_TOOL_NAME: Record<string, string> = {
-  bash: "developer__shell",
-  edit: "developer__text_editor",
-  // `write` collapses onto the same Developer tool as `edit` (Goose's
-  // text_editor handles both read and write); `edit` is the canonical category
-  // it maps back to on import.
-  write: "developer__text_editor",
+  bash: "shell",
 };
 
-// Reverse mapping for import. `developer__text_editor` resolves to `edit` (the
-// canonical mutation category), so the `write` -> `developer__text_editor`
-// forward entry is intentionally not represented here.
-const GOOSE_TO_RULESYNC_TOOL_NAME: Record<string, string> = {
-  developer__shell: "bash",
-  developer__text_editor: "edit",
+// Reverse mapping for import. The `developer__shell` / `developer__text_editor`
+// entries are the names Goose used before the Developer extension went
+// unprefixed (v1.27.0); they are still read so older permission.yaml files
+// import cleanly, but they are never written. The legacy text editor tool both
+// edited and wrote files, so it expands to both categories to keep a deny on it
+// covering the `write` tool it was split into.
+const GOOSE_TO_RULESYNC_TOOL_NAMES: Record<string, string[]> = {
+  shell: ["bash"],
+  developer__shell: ["bash"],
+  developer__text_editor: ["edit", "write"],
 };
 
 // rulesync canonical action -> Goose permission list key.
@@ -60,6 +61,10 @@ const ACTION_TO_GOOSE_LIST: Record<PermissionAction, GoosePermissionListKey> = {
   ask: "ask_before",
   deny: "never_allow",
 };
+
+// When two categories map onto the same Goose tool, the stricter action wins
+// (deny > ask > allow), matching import, where `never_allow` is applied last.
+const ACTION_RANK: Record<PermissionAction, number> = { allow: 0, ask: 1, deny: 2 };
 
 const GOOSE_LIST_TO_ACTION: Record<GoosePermissionListKey, PermissionAction> = {
   always_allow: "allow",
@@ -95,10 +100,11 @@ type GoosePermissionConfig = {
  *
  * Mapping (rulesync canonical -> Goose):
  *   - Action: `allow` -> `always_allow`, `ask` -> `ask_before`, `deny` -> `never_allow`.
- *   - Tool name: `bash` -> `developer__shell`, `edit` -> `developer__text_editor`;
- *     any other category passes through verbatim as the Goose tool name (mirrors
- *     the Gemini CLI adapter). `write` collapses onto `developer__text_editor`
- *     too, so a conflicting `edit`/`write` catch-all is reported and `edit` wins.
+ *   - Tool name: `bash` -> `shell`; any other category (including `edit` and
+ *     `write`) passes through verbatim as the Goose tool name (mirrors the
+ *     Gemini CLI adapter). The legacy `developer__shell` /
+ *     `developer__text_editor` names are still accepted on import, the latter
+ *     as both `edit` and `write`.
  *   - Granularity: Goose lists hold whole tool names, so only a category's
  *     catch-all `*` pattern is representable. Non-catch-all patterns cannot be
  *     expressed per-tool and are reported via `logger.warn` and skipped.
@@ -266,13 +272,7 @@ function convertRulesyncToGoosePermissionConfig({
   // shadow an earlier one without a warning.
   const assigned = new Map<string, PermissionAction>();
 
-  // Apply `edit` after `write` so the shared `developer__text_editor` mapping
-  // resolves deterministically to `edit`, consistent with the import direction.
-  const orderedEntries = Object.entries(honorAllToolsOnBash(config.permission)).toSorted(
-    ([a], [b]) => (a === "edit" ? 1 : 0) - (b === "edit" ? 1 : 0),
-  );
-
-  for (const [category, rules] of orderedEntries) {
+  for (const [category, rules] of Object.entries(honorAllToolsOnBash(config.permission))) {
     const toolName = RULESYNC_TO_GOOSE_TOOL_NAME[category] ?? category;
 
     for (const [pattern, action] of Object.entries(rules)) {
@@ -285,19 +285,25 @@ function convertRulesyncToGoosePermissionConfig({
       }
 
       const previous = assigned.get(toolName);
-      if (previous !== undefined && previous !== action) {
+      if (previous === action) {
+        continue;
+      }
+      if (previous !== undefined) {
+        const stricter = ACTION_RANK[action] > ACTION_RANK[previous] ? action : previous;
         logger?.warn(
           `Goose maps "${category}" onto the "${toolName}" tool, which already has a ` +
-            `conflicting permission ("${previous}"). The "${action}" value takes precedence.`,
+            `conflicting permission ("${previous}"). Keeping the stricter "${stricter}" ` +
+            `(deny > ask > allow).`,
         );
-        // Remove the stale assignment so the tool is not listed twice.
+        if (stricter === previous) {
+          continue;
+        }
+        // Remove the weaker assignment so the tool is not listed twice.
         const previousList = lists[ACTION_TO_GOOSE_LIST[previous]];
         const index = previousList.indexOf(toolName);
         if (index !== -1) {
           previousList.splice(index, 1);
         }
-      } else if (previous === action) {
-        continue;
       }
 
       lists[ACTION_TO_GOOSE_LIST[action]].push(toolName);
@@ -324,9 +330,10 @@ function convertGoosePermissionConfigToRulesync(
     const toolNames = isStringArray(userPermission[key]) ? userPermission[key] : [];
     const action = GOOSE_LIST_TO_ACTION[key];
     for (const toolName of toolNames) {
-      const category = GOOSE_TO_RULESYNC_TOOL_NAME[toolName] ?? toolName;
-      permission[category] ??= {};
-      permission[category][CATCH_ALL_PATTERN] = action;
+      for (const category of GOOSE_TO_RULESYNC_TOOL_NAMES[toolName] ?? [toolName]) {
+        permission[category] ??= {};
+        permission[category][CATCH_ALL_PATTERN] = action;
+      }
     }
   }
 

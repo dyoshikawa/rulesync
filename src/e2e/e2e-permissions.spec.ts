@@ -3195,7 +3195,7 @@ describe("E2E: permissions (global mode)", () => {
       [
         "smart_approve:",
         "  always_allow:",
-        "    - developer__shell",
+        "    - shell",
         "  ask_before: []",
         "  never_allow: []",
       ].join("\n"),
@@ -3217,12 +3217,12 @@ describe("E2E: permissions (global mode)", () => {
     );
     const root = toTable(parsed);
     const user = toTable(root.user);
-    expect(user.always_allow).toEqual(["developer__shell"]);
-    expect(user.ask_before).toEqual(["developer__text_editor"]);
+    expect(user.always_allow).toEqual(["shell"]);
+    expect(user.ask_before).toEqual(["edit"]);
     expect(user.never_allow).toEqual(["webfetch"]);
     // The smart_approve LLM cache is preserved by the non-destructive merge.
     const smartApprove = toTable(root.smart_approve);
-    expect(smartApprove.always_allow).toEqual(["developer__shell"]);
+    expect(smartApprove.always_allow).toEqual(["shell"]);
   });
 
   it("should generate grokcli permissions in home directory with --global", async () => {

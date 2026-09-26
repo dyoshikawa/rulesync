@@ -116,7 +116,7 @@ describe("GoosePermissions", () => {
       await generateThroughProcessor({ bash: { "*": "allow" } });
 
       expect(userPermissionOf(await readFileContent(permissionPath())).always_allow).toEqual([
-        "developer__shell",
+        "shell",
       ]);
     });
 
@@ -173,8 +173,8 @@ describe("GoosePermissions", () => {
       });
 
       const user = userPermissionOf(perms.getFileContent());
-      expect(user.always_allow).toEqual(["developer__shell"]);
-      expect(user.ask_before).toEqual(["developer__text_editor"]);
+      expect(user.always_allow).toEqual(["shell"]);
+      expect(user.ask_before).toEqual(["edit"]);
       expect(user.never_allow).toEqual(["webfetch"]);
     });
 
@@ -182,13 +182,15 @@ describe("GoosePermissions", () => {
       const perms = await GoosePermissions.fromRulesyncPermissions({
         outputRoot: testDir,
         rulesyncPermissions: rulesyncPermissions({
-          developer__image_processor: { "*": "allow" },
+          read_image: { "*": "allow" },
+          github__create_issue: { "*": "ask" },
         }),
         global: true,
       });
 
       const user = userPermissionOf(perms.getFileContent());
-      expect(user.always_allow).toEqual(["developer__image_processor"]);
+      expect(user.always_allow).toEqual(["read_image"]);
+      expect(user.ask_before).toEqual(["github__create_issue"]);
     });
 
     it("warns and skips non-catch-all patterns (Goose lists hold whole tool names)", async () => {
@@ -207,7 +209,7 @@ describe("GoosePermissions", () => {
       expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining("git status"));
     });
 
-    it("warns and lets edit win when edit and write set conflicting catch-alls", async () => {
+    it("writes edit and write as the separate Goose Developer tools they are", async () => {
       const mockLogger = createMockLogger();
       const perms = await GoosePermissions.fromRulesyncPermissions({
         outputRoot: testDir,
@@ -220,14 +222,35 @@ describe("GoosePermissions", () => {
       });
 
       const user = userPermissionOf(perms.getFileContent());
-      // edit (deny) deterministically wins over write (allow) on the shared
-      // developer__text_editor tool; it is listed exactly once.
-      expect(user.never_allow).toEqual(["developer__text_editor"]);
-      expect(user.always_allow).toEqual([]);
-      expect(mockLogger.warn).toHaveBeenCalledWith(
-        expect.stringContaining('"deny" value takes precedence'),
-      );
+      expect(user.always_allow).toEqual(["write"]);
+      expect(user.never_allow).toEqual(["edit"]);
+      expect(mockLogger.warn).not.toHaveBeenCalled();
     });
+
+    it.each([
+      ["bash first", { bash: { "*": "allow" }, shell: { "*": "deny" } }],
+      ["shell first", { shell: { "*": "deny" }, bash: { "*": "allow" } }],
+    ] as const)(
+      "keeps the stricter action when bash and a literal shell category conflict (%s)",
+      async (_label, permission) => {
+        const mockLogger = createMockLogger();
+        const perms = await GoosePermissions.fromRulesyncPermissions({
+          outputRoot: testDir,
+          rulesyncPermissions: rulesyncPermissions(permission),
+          logger: mockLogger,
+          global: true,
+        });
+
+        const user = userPermissionOf(perms.getFileContent());
+        // Both map onto the one Goose `shell` tool, which is listed exactly once
+        // under the stricter action whatever the key order.
+        expect(user.never_allow).toEqual(["shell"]);
+        expect(user.always_allow).toEqual([]);
+        expect(mockLogger.warn).toHaveBeenCalledWith(
+          expect.stringContaining('Keeping the stricter "deny"'),
+        );
+      },
+    );
 
     it("merges into permission.yaml preserving the smart_approve cache", async () => {
       const dirPath = join(testDir, ".config", "goose");
@@ -261,7 +284,7 @@ describe("GoosePermissions", () => {
       expect(smartApprove.always_allow).toEqual(["developer__shell"]);
       // The user block is fully managed by rulesync.
       const user = isRecord(parsed.user) ? parsed.user : {};
-      expect(user.always_allow).toEqual(["developer__shell"]);
+      expect(user.always_allow).toEqual(["shell"]);
     });
   });
 
@@ -270,6 +293,7 @@ describe("GoosePermissions", () => {
       const original = rulesyncPermissions({
         bash: { "*": "allow" },
         edit: { "*": "ask" },
+        write: { "*": "allow" },
         webfetch: { "*": "deny" },
       });
 
@@ -284,12 +308,35 @@ describe("GoosePermissions", () => {
 
       expect(json.permission.bash["*"]).toBe("allow");
       expect(json.permission.edit["*"]).toBe("ask");
+      expect(json.permission.write["*"]).toBe("allow");
       expect(json.permission.webfetch["*"]).toBe("deny");
     });
   });
 
   describe("fromFile", () => {
     it("reads an existing permission.yaml from the home-relative path", async () => {
+      const dirPath = join(testDir, ".config", "goose");
+      await ensureDir(dirPath);
+      await writeFileContent(
+        join(dirPath, "permission.yaml"),
+        dump({
+          user: {
+            always_allow: ["shell"],
+            ask_before: ["write"],
+            never_allow: ["edit"],
+          },
+        }),
+      );
+
+      const perms = await GoosePermissions.fromFile({ outputRoot: testDir, global: true });
+      const rulesync = perms.toRulesyncPermissions();
+      const json = JSON.parse(rulesync.getFileContent());
+      expect(json.permission.bash["*"]).toBe("allow");
+      expect(json.permission.write["*"]).toBe("ask");
+      expect(json.permission.edit["*"]).toBe("deny");
+    });
+
+    it("still imports the pre-v1.27.0 developer__-prefixed tool names", async () => {
       const dirPath = join(testDir, ".config", "goose");
       await ensureDir(dirPath);
       await writeFileContent(
@@ -304,10 +351,31 @@ describe("GoosePermissions", () => {
       );
 
       const perms = await GoosePermissions.fromFile({ outputRoot: testDir, global: true });
-      const rulesync = perms.toRulesyncPermissions();
-      const json = JSON.parse(rulesync.getFileContent());
+      const json = JSON.parse(perms.toRulesyncPermissions().getFileContent());
       expect(json.permission.bash["*"]).toBe("allow");
+      // The legacy text editor both edited and wrote files, so a deny on it
+      // keeps covering the separate `write` tool after regeneration.
       expect(json.permission.edit["*"]).toBe("deny");
+      expect(json.permission.write["*"]).toBe("deny");
+    });
+
+    it("lets the stricter action win when new and legacy names name the same tool", async () => {
+      const dirPath = join(testDir, ".config", "goose");
+      await ensureDir(dirPath);
+      await writeFileContent(
+        join(dirPath, "permission.yaml"),
+        dump({
+          user: {
+            always_allow: ["shell"],
+            ask_before: [],
+            never_allow: ["developer__shell"],
+          },
+        }),
+      );
+
+      const perms = await GoosePermissions.fromFile({ outputRoot: testDir, global: true });
+      const json = JSON.parse(perms.toRulesyncPermissions().getFileContent());
+      expect(json.permission.bash["*"]).toBe("deny");
     });
   });
 
