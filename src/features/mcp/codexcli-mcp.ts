@@ -331,6 +331,106 @@ function translateCanonicalKeyToCodex({
 }
 
 /**
+ * A header value that is exactly one canonical `${VAR}` reference. Anchored and
+ * without the `g` flag, so `.exec()` carries no `lastIndex` state between
+ * calls. `${VAR:-default}` does not match (the name excludes `:`), because
+ * Codex has no way to express the fallback.
+ */
+const WHOLE_ENV_VAR_REF_PATTERN = /^\$\{([A-Za-z_][A-Za-z0-9_]*)\}$/;
+
+/** An `Authorization` value that is exactly `Bearer ${VAR}`. */
+const BEARER_ENV_VAR_REF_PATTERN = /^Bearer \$\{([A-Za-z_][A-Za-z0-9_]*)\}$/;
+
+const AUTHORIZATION_HEADER_NAME = "authorization";
+
+/**
+ * Whether a string still contains an unexpanded `${…}` reference. Codex writes
+ * `url` and `http_headers` values as-is and never expands them, so such a value
+ * reaches the server literally.
+ */
+function hasUnexpandedEnvVarRef(value: string): boolean {
+  return value.includes("${");
+}
+
+/**
+ * Rewrite canonical `${VAR}` header references into the keys Codex reads them
+ * from, since Codex sends `http_headers` values verbatim:
+ * - `Authorization: Bearer ${VAR}` → `bearer_token_env_var = "VAR"`
+ * - a header whose whole value is `${VAR}` → `env_http_headers.<name> = "VAR"`
+ *
+ * Runs after every key is translated, so a `bearer_token_env_var` or
+ * `env_http_headers` the source already carries (they pass through under their
+ * own names) is seen regardless of key order. Those explicit values win: a
+ * derived bearer is not written over an existing one, and an existing
+ * `env_http_headers` entry for the same header is kept. Any value the rewrite
+ * cannot express — a partial reference, a `${VAR:-default}` fallback — stays in
+ * `http_headers` verbatim with a warning, as does a `${…}` in `url`, for which
+ * Codex has no environment-sourced counterpart at all.
+ * @see https://learn.chatgpt.com/docs/config-file/config-reference
+ */
+function convertEnvVarRefsForCodex({
+  converted,
+  serverName,
+}: {
+  converted: Record<string, unknown>;
+  serverName: string;
+}): void {
+  const url = converted["url"];
+  if (typeof url === "string" && hasUnexpandedEnvVarRef(url)) {
+    warnWithFallback(
+      undefined,
+      `[CodexCliMcp] MCP server "${serverName}": 'url' contains an environment variable reference that Codex does not expand, so it is written verbatim and the server will likely fail to start: ${url}`,
+    );
+  }
+
+  const httpHeaders = converted["http_headers"];
+  if (!isHeadersRecord(httpHeaders)) return;
+
+  const existingEnvHeaders = converted["env_http_headers"];
+  const canWriteEnvHeaders =
+    existingEnvHeaders === undefined || isHeadersRecord(existingEnvHeaders);
+  const envHeaders: Record<string, string> = {};
+  const staticHeaders: Record<string, string> = {};
+  let bearerTokenEnvVar: string | undefined;
+
+  for (const [name, value] of Object.entries(httpHeaders)) {
+    const bearerMatch = BEARER_ENV_VAR_REF_PATTERN.exec(value);
+    if (
+      bearerMatch?.[1] &&
+      name.toLowerCase() === AUTHORIZATION_HEADER_NAME &&
+      converted["bearer_token_env_var"] === undefined &&
+      bearerTokenEnvVar === undefined
+    ) {
+      bearerTokenEnvVar = bearerMatch[1];
+      continue;
+    }
+    const wholeMatch = WHOLE_ENV_VAR_REF_PATTERN.exec(value);
+    if (wholeMatch?.[1] && canWriteEnvHeaders) {
+      envHeaders[name] = wholeMatch[1];
+      continue;
+    }
+    if (hasUnexpandedEnvVarRef(value)) {
+      warnWithFallback(
+        undefined,
+        `[CodexCliMcp] MCP server "${serverName}": header '${name}' contains an environment variable reference that Codex cannot source from the environment, so it is written verbatim to 'http_headers' and sent literally. Only 'Authorization: Bearer \${VAR}' and a whole-value '\${VAR}' are converted.`,
+      );
+    }
+    staticHeaders[name] = value;
+  }
+
+  converted["http_headers"] = staticHeaders;
+  if (bearerTokenEnvVar !== undefined) {
+    converted["bearer_token_env_var"] = bearerTokenEnvVar;
+  }
+  if (Object.keys(envHeaders).length > 0) {
+    converted["env_http_headers"] = {
+      ...envHeaders,
+      ...(isHeadersRecord(existingEnvHeaders) ? existingEnvHeaders : {}),
+    };
+  }
+}
+
+/**
  * Codex states no transport of its own — it infers one from `command` versus
  * `url`, which is why generate drops the canonical `type`. Restate it for a url
  * server on the way back, so a config imported from Codex reaches the adapters
@@ -451,6 +551,8 @@ function convertToCodexFormat(mcpServers: McpServers): Record<string, unknown> {
         converted[key] = value;
       }
     }
+
+    convertEnvVarRefsForCodex({ converted, serverName: name });
 
     const previousName = originalNames.get(codexName);
     if (previousName !== undefined) {
