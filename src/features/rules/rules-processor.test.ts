@@ -1460,7 +1460,7 @@ describe("RulesProcessor", () => {
       const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "codexcli" });
       await processor.warnForFoldImportDuplicationRisk();
 
-      const warning = warnings().find((message) => message.includes("nested AGENTS.md files"));
+      const warning = warnings().find((message) => message.includes("files outside the root file"));
       expect(warning).toBeDefined();
       expect(warning).toContain("svc1.md");
     });
@@ -1476,14 +1476,78 @@ describe("RulesProcessor", () => {
       const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "codexcli" });
       await processor.warnForFoldImportDuplicationRisk();
 
-      expect(warnings().some((message) => message.includes("nested AGENTS.md files"))).toBe(false);
+      expect(warnings().some((message) => message.includes("files outside the root file"))).toBe(
+        false,
+      );
     });
 
-    it("should not list a rule routed to Pi's APPEND_SYSTEM.md as folded into the root file", async () => {
+    it("should warn about Pi's APPEND_SYSTEM.md instead of listing its rule as folded", async () => {
       await writeRule("root.md", 'root: true\ntargets: ["pi"]');
       await writeRule("append.md", 'root: false\ntargets: ["pi"]\npi:\n  systemPrompt: append');
+      await writeFileContent(join(testDir, ".pi", "APPEND_SYSTEM.md"), "body\n");
 
       const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "pi" });
+      await processor.warnForFoldImportDuplicationRisk();
+
+      expect(warnings().some((message) => message.includes("already folded from"))).toBe(false);
+      const warning = warnings().find((message) => message.includes("files outside the root file"));
+      expect(warning).toContain("APPEND_SYSTEM.md files");
+      expect(warning).toContain("append.md");
+    });
+
+    it("should list rules folded into Pi's AGENTS.override.md as folded", async () => {
+      await writeRule("root.md", 'root: true\ntargets: ["pi"]\npi:\n  contextFile: override');
+      await writeRule("style.md", 'root: false\ntargets: ["pi"]\npi:\n  contextFile: override');
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "pi" });
+      await processor.warnForFoldImportDuplicationRisk();
+
+      const warning = warnings().find((message) => message.includes("already folded from"));
+      expect(warning).toContain("style.md");
+    });
+
+    it("should treat subprojectPath './' as the root file", async () => {
+      await writeRule("root.md", 'root: true\ntargets: ["codexcli"]');
+      await writeRule(
+        "here.md",
+        'root: false\ntargets: ["codexcli"]\nagentsmd:\n  subprojectPath: ./',
+      );
+      await writeFileContent(join(testDir, "AGENTS.md"), "body\n");
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "codexcli" });
+      await processor.warnForFoldImportDuplicationRisk();
+
+      const warning = warnings().find((message) => message.includes("already folded from"));
+      expect(warning).toContain("here.md");
+      expect(warnings().some((message) => message.includes("files outside the root file"))).toBe(
+        false,
+      );
+    });
+
+    it("should list a directory-scoped rule as folded in global mode", async () => {
+      await writeRule("root.md", 'root: true\ntargets: ["codexcli"]');
+      await writeRule(
+        "svc1.md",
+        'root: false\ntargets: ["codexcli"]\nagentsmd:\n  subprojectPath: services/svc1',
+      );
+
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "codexcli",
+        global: true,
+      });
+      await processor.warnForFoldImportDuplicationRisk();
+
+      const warning = warnings().find((message) => message.includes("already folded from"));
+      expect(warning).toContain("svc1.md");
+    });
+
+    it("should not list a localRoot rule written to a separate local file as folded", async () => {
+      await writeRule("root.md", 'root: true\ntargets: ["crush"]');
+      await writeRule("local.md", 'root: false\nlocalRoot: true\ntargets: ["crush"]');
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "crush" });
       await processor.warnForFoldImportDuplicationRisk();
 
       expect(warnings().some((message) => message.includes("already folded from"))).toBe(false);
@@ -1499,7 +1563,9 @@ describe("RulesProcessor", () => {
       const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "codexcli" });
       await processor.warnForFoldImportDuplicationRisk();
 
-      expect(warnings().some((message) => message.includes("nested AGENTS.md files"))).toBe(false);
+      expect(warnings().some((message) => message.includes("files outside the root file"))).toBe(
+        false,
+      );
     });
   });
 

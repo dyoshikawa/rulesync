@@ -117,6 +117,18 @@ import { ZoocodeRule } from "./zoocode-rule.js";
 export type RulesProcessorToolTarget = (typeof rulesProcessorToolTargetTuple)[number];
 export const RulesProcessorToolTargetSchema = z.enum(rulesProcessorToolTargetTuple);
 
+/**
+ * Normalizes a relative directory path for comparison: POSIX separators, no
+ * `./` segments and no trailing slash, with the current directory as `"."`
+ * (so `"./"`, `"a/"` and `"a"` compare the way `join()` groups them).
+ */
+const normalizeRelativeDir = (dir: string): string =>
+  posix.normalize(toPosixPath(dir)).replace(/\/+$/, "") || ".";
+
+/** A tool rule's output path relative to its output root, for comparison. */
+const toolOutputPath = (toolRule: ToolRule): string =>
+  posix.join(normalizeRelativeDir(toolRule.getRelativeDirPath()), toolRule.getRelativeFilePath());
+
 const formatRulePaths = (rules: RulesyncRule[]): string =>
   rules.map((r) => join(r.getRelativeDirPath(), r.getRelativeFilePath())).join(", ");
 
@@ -1416,7 +1428,7 @@ export class RulesProcessor extends FeatureProcessor {
     const files = toolRules.map((rule) => ({
       // Drop a trailing slash (an explicit `subprojectPath: "a/"`) so the
       // ancestor test below compares plain directory paths.
-      dir: posix.normalize(toPosixPath(rule.getRelativeDirPath())).replace(/\/+$/, "") || ".",
+      dir: normalizeRelativeDir(rule.getRelativeDirPath()),
       path: toPosixPath(join(rule.getRelativeDirPath(), rule.getRelativeFilePath())),
       // Measure what is written: the writer normalizes the trailing newline.
       bytes: Buffer.byteLength(addTrailingNewline(rule.getFileContent()), "utf8"),
@@ -2674,7 +2686,12 @@ As this project's AI coding tool, you must follow the additional conventions bel
    * duplication check the same way `loadRulesyncFiles`'s global-mode branch
    * excludes it from `nonRootRules`: `generate` ignores `localRoot` entirely
    * in global mode, so such a rule is never actually folded into the global
-   * root output and warning about it here would be inaccurate.
+   * root output and warning about it here would be inaccurate. The same goes
+   * for a tool that writes `localRoot` to a dedicated local file.
+   *
+   * Non-root rules written to a file other than the root (nested
+   * per-directory files, Pi's `APPEND_SYSTEM.md`) get a separate warning when
+   * that file already exists and would import under a different name.
    */
   async warnForFoldImportDuplicationRisk(): Promise<void> {
     const factory = this.getFactory(this.toolTarget);
@@ -2683,28 +2700,48 @@ As this project's AI coding tool, you must follow the additional conventions bel
     }
 
     const mergedRules = await this.loadMergedRulesyncRules();
-    const targetedNonRootRules = mergedRules.filter(
+    const targetedRules = mergedRules.filter((rule) =>
+      factory.class.isTargetedByRulesyncRule(rule),
+    );
+    const targetedNonRootRules = targetedRules.filter(
       (rule) =>
         !rule.getFrontmatter().root &&
-        (!this.global || !rule.getFrontmatter().localRoot) &&
-        factory.class.isTargetedByRulesyncRule(rule),
+        // A `localRoot` rule is ignored in global mode and, for a tool with a
+        // dedicated local file (e.g. `CRUSH.local.md`), written there instead
+        // of being folded into the root file.
+        !(
+          rule.getFrontmatter().localRoot &&
+          (this.global || factory.meta.localRootMode === "separate-local-file")
+        ),
     );
 
-    // Only rules that land in the root file are folded. A target that also
-    // discovers nested per-directory files (codexcli, pool, vibe, dsh,
-    // reasonix) writes a directory-scoped rule to its own nested file instead;
-    // importing that file produces a rulesync rule named after its directory,
-    // which duplicates the source rule only when the source has another name.
-    // Rules routed to any other fixed file (e.g. Pi's `APPEND_SYSTEM.md`) are
-    // neither.
-    const nestedRules: RuleConversion[] = [];
+    // Every path the root output can take: the default root file plus
+    // wherever a root rule sends it (Pi's `AGENTS.override.md`, which the
+    // non-root rules follow on generate).
+    const rootPaths = new Set<string>();
+    const { root } = factory.class.getSettablePaths({ global: this.global });
+    if (root) {
+      rootPaths.add(posix.join(normalizeRelativeDir(root.relativeDirPath), root.relativeFilePath));
+    }
+    for (const rulesyncRule of targetedRules.filter((rule) => rule.getFrontmatter().root)) {
+      const toolRule = this.toToolRuleForImportCheck({ factory, rulesyncRule });
+      rootPaths.add(toolOutputPath(toolRule));
+    }
+
+    // Only rules that land in the root file are folded. Any other non-root
+    // rule is written to a file of its own (a nested per-directory
+    // `AGENTS.md` for codexcli, pool, vibe, dsh and reasonix, or Pi's
+    // `APPEND_SYSTEM.md`) that import reads back as a separate rulesync rule
+    // named after that file; it duplicates the source rule only when the
+    // source has another name.
+    const separateRules: RuleConversion[] = [];
     const foldedRules: RulesyncRule[] = [];
     for (const rulesyncRule of targetedNonRootRules) {
-      const placement = this.classifyNonRootPlacement({ factory, rulesyncRule });
-      if (placement.kind === "nested") {
-        nestedRules.push({ toolRule: placement.toolRule, rulesyncRule });
-      } else if (placement.kind === "root") {
+      const toolRule = this.toToolRuleForImportCheck({ factory, rulesyncRule });
+      if (rootPaths.size === 0 || rootPaths.has(toolOutputPath(toolRule))) {
         foldedRules.push(rulesyncRule);
+      } else {
+        separateRules.push({ toolRule, rulesyncRule });
       }
     }
 
@@ -2714,59 +2751,40 @@ As this project's AI coding tool, you must follow the additional conventions bel
       );
     }
 
-    const duplicatedNestedRules: RulesyncRule[] = [];
-    for (const { toolRule, rulesyncRule } of nestedRules) {
+    const duplicated: RuleConversion[] = [];
+    for (const conversion of separateRules) {
+      const { toolRule, rulesyncRule } = conversion;
       const importedName = toolRule.toRulesyncRule().getRelativeFilePath();
       if (importedName.toLowerCase() === rulesyncRule.getRelativeFilePath().toLowerCase()) {
         continue;
       }
       if (await fileExists(toolRule.getFilePath())) {
-        duplicatedNestedRules.push(rulesyncRule);
+        duplicated.push(conversion);
       }
     }
-    if (duplicatedNestedRules.length > 0) {
-      const nestedFileNames = [
-        ...new Set(nestedRules.map(({ toolRule }) => toolRule.getRelativeFilePath())),
+    if (duplicated.length > 0) {
+      const fileNames = [
+        ...new Set(duplicated.map(({ toolRule }) => toolRule.getRelativeFilePath())),
       ].join(", ");
       this.logger.warn(
-        `Importing ${this.toolTarget}'s nested ${nestedFileNames} files will re-add content already written from ${formatRulePaths(duplicatedNestedRules)}: each nested file is imported under a name derived from its directory, so the imported copy and the original rule resolve to the same nested file and are concatenated the next time you run \`rulesync generate --targets ${this.toolTarget}\`. Remove one of the two copies before generating again.`,
+        `Importing ${this.toolTarget}'s ${fileNames} files outside the root file will re-add content already written from ${formatRulePaths(duplicated.map(({ rulesyncRule }) => rulesyncRule))}: each such file is imported as its own rule under a name derived from its path, so the imported copy and the original rule resolve to the same file and are concatenated the next time you run \`rulesync generate --targets ${this.toolTarget}\`. Remove one of the two copies before generating again.`,
       );
     }
   }
 
-  /**
-   * Where a non-root rulesync rule lands for this target: folded into the
-   * root file, written to a nested per-directory file the target also
-   * discovers on import, or some other fixed file.
-   */
-  private classifyNonRootPlacement({
+  private toToolRuleForImportCheck({
     factory,
     rulesyncRule,
   }: {
     factory: ToolRuleFactory;
     rulesyncRule: RulesyncRule;
-  }): { kind: "root" } | { kind: "nested"; toolRule: ToolRule } | { kind: "other" } {
-    const { root } = factory.class.getSettablePaths({ global: this.global });
-    if (!root) {
-      return { kind: "root" };
-    }
-    const toolRule = factory.class.fromRulesyncRule({
+  }): ToolRule {
+    return factory.class.fromRulesyncRule({
       outputRoot: this.outputRoot,
       rulesyncRule,
       validate: false,
       global: this.global,
     });
-    const normalizeDir = (dir: string): string => posix.normalize(toPosixPath(dir));
-    const isRootPath =
-      normalizeDir(toolRule.getRelativeDirPath()) === normalizeDir(root.relativeDirPath) &&
-      toolRule.getRelativeFilePath() === root.relativeFilePath;
-    if (isRootPath) {
-      return { kind: "root" };
-    }
-    if (!this.global && factory.class.getNestedFilePatterns) {
-      return { kind: "nested", toolRule };
-    }
-    return { kind: "other" };
   }
 
   /**
