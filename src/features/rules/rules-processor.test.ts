@@ -1532,7 +1532,7 @@ describe("RulesProcessor", () => {
       expect(warning).toContain("local.md");
     });
 
-    it("should list only the first localRoot rule as folded, as generate appends only one", async () => {
+    it("should list only one localRoot rule as folded, since generate rejects several", async () => {
       await writeRule("root.md", 'root: true\ntargets: ["codexcli"]');
       await writeRule("local-a.md", 'root: false\nlocalRoot: true\ntargets: ["codexcli"]');
       await writeRule("local-b.md", 'root: false\nlocalRoot: true\ntargets: ["codexcli"]');

@@ -2755,8 +2755,8 @@ As this project's AI coding tool, you must follow the additional conventions bel
     let localRootCounted = false;
     for (const rulesyncRule of targetedNonRootRules) {
       // A remaining `localRoot` rule is appended to the root file whatever its
-      // own path would be. Generate appends only one (and rejects several), so
-      // only the first counts.
+      // own path would be. Generate rejects several `localRoot` rules, so only
+      // the first is listed.
       if (rulesyncRule.getFrontmatter().localRoot) {
         if (!localRootCounted) {
           foldedRules.push(rulesyncRule);
