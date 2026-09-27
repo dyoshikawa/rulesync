@@ -23,7 +23,9 @@ import { SkillsProcessor } from "../features/skills/skills-processor.js";
 import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
 import { createMockLogger } from "../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
+import { PACKAGING_TOOL_TARGETS } from "../types/tool-targets.js";
 import { ensureDir, writeFileContent } from "../utils/file.js";
+import { assertPluginRootSafe } from "../utils/plugin-root.js";
 import { importFromTool } from "./import.js";
 
 const logger = createMockLogger();
@@ -52,6 +54,13 @@ vi.mock("../features/skills/skills-processor.js");
 vi.mock("../features/hooks/hooks-processor.js");
 vi.mock("../features/permissions/permissions-processor.js");
 vi.mock("../features/checks/checks-processor.js");
+vi.mock("../utils/plugin-root.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../utils/plugin-root.js")>();
+  return {
+    ...actual,
+    assertPluginRootSafe: vi.fn(),
+  };
+});
 
 describe("importFromTool", () => {
   let mockConfig: {
@@ -140,6 +149,44 @@ describe("importFromTool", () => {
 
   afterEach(() => {
     vi.clearAllMocks();
+  });
+
+  describe("packaging targets", () => {
+    it.each(PACKAGING_TOOL_TARGETS)(
+      "should skip %s in global mode without checking the home directory for symlinks",
+      async (tool) => {
+        mockConfig.getGlobal.mockReturnValue(true);
+        mockConfig.getOutputRoots.mockReturnValue(["/home/user"]);
+        mockConfig.getFeatures.mockReturnValue(["rules", "skills"]);
+        vi.mocked(RulesProcessor.getToolTargets).mockReturnValue([tool]);
+        vi.mocked(SkillsProcessor.getToolTargets).mockReturnValue([tool]);
+
+        const result = await importFromTool({ logger, config: mockConfig as never, tool });
+
+        expect(assertPluginRootSafe).not.toHaveBeenCalled();
+        expect(logger.warn).toHaveBeenCalledWith(
+          `Target '${tool}' is a plugin packaging target and supports only project scope. Re-run without '--global'. Skipping.`,
+        );
+        expect(Object.values(result).every((count) => count === 0)).toBe(true);
+        expect(RulesProcessor).not.toHaveBeenCalled();
+        expect(SkillsProcessor).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each(PACKAGING_TOOL_TARGETS)(
+      "should check the plugin root of %s in project mode",
+      async (tool) => {
+        mockConfig.getOutputRoots.mockReturnValue(["/plugins/a"]);
+        mockConfig.getFeatures.mockReturnValue([]);
+
+        await importFromTool({ logger, config: mockConfig as never, tool });
+
+        expect(assertPluginRootSafe).toHaveBeenCalledWith({
+          toolTarget: tool,
+          outputRoot: "/plugins/a",
+        });
+      },
+    );
   });
 
   describe("rules feature", () => {

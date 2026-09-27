@@ -91,6 +91,26 @@ export async function importFromTool(params: {
   // still applies has to be said again.
   resetRunWarningState();
 
+  // Packaging targets read from a plugin directory and support project scope
+  // only. In global mode the output root is the home directory, so the plugin
+  // root safety check would walk all of $HOME; skip the target instead.
+  if (config.getGlobal() && isPackagingToolTarget(tool)) {
+    logger.warn(
+      `Target '${tool}' is a plugin packaging target and supports only project scope. Re-run without '--global'. Skipping.`,
+    );
+    return {
+      rulesCount: 0,
+      ignoreCount: 0,
+      mcpCount: 0,
+      commandsCount: 0,
+      subagentsCount: 0,
+      skillsCount: 0,
+      hooksCount: 0,
+      permissionsCount: 0,
+      checksCount: 0,
+    };
+  }
+
   await assertPluginRootSafe({
     toolTarget: tool,
     outputRoot: getToolOutputRoot({ config, tool }),

@@ -42,7 +42,7 @@ import {
   toPosixPath,
 } from "../utils/file.js";
 import type { Logger } from "../utils/logger.js";
-import { assertPluginRootSafe } from "../utils/plugin-root.js";
+import { assertPluginRootSafe, isPackagingToolTarget } from "../utils/plugin-root.js";
 import type { FeatureGenerateResult } from "../utils/result.js";
 import { resolveToolOutputRoot } from "../utils/tool-output-root.js";
 import { resetRunWarningState } from "../utils/warned-once.js";
@@ -821,6 +821,16 @@ export async function generate(params: {
   resetRunWarningState();
 
   for (const toolTarget of config.getTargets()) {
+    // Packaging targets write into a plugin directory and support project scope
+    // only. In global mode the output root is the home directory, so the plugin
+    // root safety check would walk all of $HOME; skip it here and let every
+    // feature step report the unsupported scope.
+    if (config.getGlobal() && isPackagingToolTarget(toolTarget)) {
+      logger.warn(
+        `Target '${toolTarget}' is a plugin packaging target and supports only project scope. Re-run without '--global'. Skipping.`,
+      );
+      continue;
+    }
     for (const outputRoot of config.getOutputRoots(toolTarget)) {
       await assertPluginRootSafe({ toolTarget, outputRoot });
     }
