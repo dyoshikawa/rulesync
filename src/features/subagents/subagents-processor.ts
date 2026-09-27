@@ -146,6 +146,10 @@ type ToolSubagentFactory = {
      * accident because `findFilesByGlobs` rewrites backslashes.
      */
     filePattern: string;
+    /** Optional broader pattern used only while importing, never for orphan deletion. */
+    importFilePattern?: string;
+    /** Whether import discovery may follow symbolic links. Defaults to true. */
+    followImportSymbolicLinks?: boolean;
   };
 };
 
@@ -242,7 +246,9 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
         supportsProject: true,
         supportsSimulated: false,
         supportsGlobal: true,
-        filePattern: "**/*.md",
+        filePattern: "*.md",
+        importFilePattern: "**/*.md",
+        followImportSymbolicLinks: false,
       },
     },
   ],
@@ -266,7 +272,9 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
         supportsProject: true,
         supportsSimulated: false,
         supportsGlobal: true,
-        filePattern: "**/*.md",
+        filePattern: "*.md",
+        importFilePattern: "**/*.md",
+        followImportSymbolicLinks: false,
       },
     },
   ],
@@ -1031,9 +1039,13 @@ export class SubagentsProcessor extends FeatureProcessor {
           targetPath: baseDir,
         });
       }
-      const subagentFilePaths = await findFilesByGlobs(factory.meta.filePattern, {
+      const filePattern =
+        !forDeletion && factory.meta.importFilePattern
+          ? factory.meta.importFilePattern
+          : factory.meta.filePattern;
+      const subagentFilePaths = await findFilesByGlobs(filePattern, {
         cwd: baseDir,
-        followSymbolicLinks: !forDeletion,
+        followSymbolicLinks: !forDeletion && (factory.meta.followImportSymbolicLinks ?? true),
       });
 
       // Compute the per-subagent file path relative to the tool's base directory.

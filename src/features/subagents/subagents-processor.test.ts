@@ -1274,6 +1274,43 @@ Review the code for security issues.`;
       expect(toolFiles[0]?.getRelativeFilePath()).toBe(join("review", "security-reviewer.md"));
     });
 
+    it("should not treat nested claudecode subagents as deletion candidates", async () => {
+      const nestedAgentsDir = join(testDir, ".claude", "agents", "review");
+      await ensureDir(nestedAgentsDir);
+      await writeFileContent(
+        join(nestedAgentsDir, "manual.md"),
+        `---
+name: manual
+description: A manually managed agent
+---
+Manual agent content.`,
+      );
+
+      const toolFiles = await processor.loadToolFiles({ forDeletion: true });
+
+      expect(toolFiles).toEqual([]);
+    });
+
+    it("should not follow directory symlinks while importing nested claudecode subagents", async () => {
+      const agentsDir = join(testDir, ".claude", "agents");
+      const externalDir = join(testDir, "external-agents");
+      await ensureDir(agentsDir);
+      await ensureDir(externalDir);
+      await writeFileContent(
+        join(externalDir, "external.md"),
+        `---
+name: external
+description: An agent outside the Claude directory
+---
+External agent content.`,
+      );
+      await symlink(externalDir, join(agentsDir, "linked"), "dir");
+
+      const toolFiles = await processor.loadToolFiles();
+
+      expect(toolFiles).toEqual([]);
+    });
+
     it("should warn and keep the first claudecode subagent when nested files share a name", async () => {
       const logger = createMockLogger();
       processor = new SubagentsProcessor({
