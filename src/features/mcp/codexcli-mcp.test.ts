@@ -1244,10 +1244,14 @@ args = ["server.js"]
         expect(
           messages.some((m) => m.includes('"api-server"') && m.includes("header 'X-Default'")),
         ).toBe(true);
+        // Warnings name the field only; values may carry secrets.
+        expect(
+          messages.every((m) => !m.includes("key-${API_KEY}") && !m.includes("api.example.com")),
+        ).toBe(true);
       });
 
       it("should let explicit bearer_token_env_var and env_http_headers win over derived ones", async () => {
-        vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+        const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
         const mcpServers = await generate({
           remote: {
             url: "https://mcp.example.com",
@@ -1269,6 +1273,7 @@ args = ["server.js"]
         // The explicit bearer already supplies Authorization, so the derived
         // header is dropped rather than also sent as a literal.
         expect(mcpServers.remote.http_headers).toBeUndefined();
+        expect(warnSpy).not.toHaveBeenCalled();
       });
 
       it("should still drop headers with references from a stdio server", async () => {
