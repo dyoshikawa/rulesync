@@ -1,3 +1,5 @@
+import { lookupOwn } from "../../utils/own-lookup.js";
+
 /**
  * Shell-aware helpers for anchoring `./` paths in hook commands to a tool's
  * project directory variable (e.g. `$CLAUDE_PROJECT_DIR`) and for stripping
@@ -75,14 +77,7 @@ function scanCommand(command: string): Scan {
     if (top?.kind === "'") {
       if (command.charAt(i) === "'") scan.stack.pop();
     } else if (command.charAt(i) === "\\") {
-      // An escaped character is a literal and never starts a path, but a word
-      // may begin with one: `\\sudo` still runs `sudo`. A line continuation
-      // (`\\` before a newline) starts no word.
-      if (top?.kind !== '"' && command.charAt(i + 1) !== "\n" && followsBoundary({ scan, i })) {
-        recordWord({ scan, i });
-      }
-      i++;
-      scan.escaped = i;
+      i = scanEscape({ scan, top, i });
     } else if (top?.kind === '"') {
       i = scanDoubleQuoted({ scan, i });
     } else {
@@ -90,6 +85,23 @@ function scanCommand(command: string): Scan {
     }
   }
   return scan;
+}
+
+/**
+ * An escaped character is a literal and never starts a path, but a word may
+ * begin with one: `\\sudo` still runs `sudo`. A line continuation (`\\` before
+ * a newline) joins the lines, so the next line continues the word unless the
+ * backslash stood between words. Returns the index of the escaped character.
+ */
+function scanEscape({ scan, top, i }: { scan: Scan; top: Frame | undefined; i: number }): number {
+  const startsWord = top?.kind !== '"' && followsBoundary({ scan, i });
+  if (scan.command.charAt(i + 1) === "\n") {
+    if (!startsWord) scan.escaped = i + 1;
+  } else {
+    if (startsWord) recordWord({ scan, i });
+    scan.escaped = i + 1;
+  }
+  return i + 1;
 }
 
 type Scan = {
@@ -225,13 +237,19 @@ const INNER_SHELL_LOOKBEHIND = 256;
  * optionally with a directory) whose last option cluster contains `c` (`-c`,
  * `-lc`, `-euc`), possibly after other options such as `-o pipefail`, `-O extglob` or
  * `--norc` and followed by `--`. Other commands' `-c` options (`git -c`,
- * `grep -c`, `head -c`) do not match. The words must be on one line: a newline
- * ends the command, so a quote on the next line is not its script.
+ * `grep -c`, `head -c`) do not match. The shell name may be escaped or quoted
+ * (`\\bash`, `"bash"`). The words must be on one line, or joined by line
+ * continuations: a newline ends the command, so a quote on the next line is
+ * not its script.
  */
-const INNER_SHELL_PATTERN = new RegExp(
-  String.raw`(?:^|[\s;&|(${"`"}])(?:[^\s;&|()<>${"`"}]*\/)?${SHELL_NAME}` +
-    String.raw`(?:[ \t]+(?:[-+][oO][ \t]+\w+|--?[A-Za-z][\w-]*|\+[A-Za-z]+))*[ \t]+-[A-Za-z]*c[A-Za-z]*(?:[ \t]+--)?[ \t]*$`,
-);
+const INNER_SHELL_PATTERN = (() => {
+  const gap = String.raw`(?:[ \t]|\\\n)`;
+  return new RegExp(
+    String.raw`(?:^|[\s;&|(${"`"}])\\?["']?(?:[^\s;&|()<>'"${"`"}]*\/)?${SHELL_NAME}["']?` +
+      String.raw`(?:${gap}+(?:[-+][oO]${gap}+\w+|--?[A-Za-z][\w-]*|\+[A-Za-z]+))*` +
+      String.raw`${gap}+-[A-Za-z]*c[A-Za-z]*(?:${gap}+--)?${gap}*$`,
+  );
+})();
 
 /** Whether the quote at `i` opens a script handed to an inner shell via `-c`. */
 function isInnerShellScript({ command, i }: { command: string; i: number }): boolean {
@@ -356,7 +374,7 @@ const VALUE_OPTIONS: Record<string, ReadonlySet<string>> = {
   pnpm: new Set(PACKAGE_VALUE_OPTIONS),
   yarn: new Set(PACKAGE_VALUE_OPTIONS),
   npm: new Set(PACKAGE_VALUE_OPTIONS),
-  sh: new Set(["-o", "+o", "-O", "+O"]),
+  sh: new Set(["-o", "+o", "-O", "+O", "--rcfile", "--init-file"]),
 };
 
 const NODE_CODE_OPTIONS = ["-e", "--eval", "-p", "--print"];
@@ -391,7 +409,7 @@ function optionsFor({
 }): ReadonlySet<string> | undefined {
   if (name.startsWith("python")) return table.python;
   if (SHELL_NAME_PATTERN.test(name)) return table.sh;
-  return Object.hasOwn(table, name) ? table[name] : undefined;
+  return lookupOwn({ record: table, key: name });
 }
 
 /**
@@ -475,6 +493,7 @@ function findCommandPaths({ command, scan }: { command: string; scan: Scan }): C
     previousScript: undefined,
     prefix: undefined,
     prefixValue: false,
+    shellCode: false,
   };
   for (const word of scan.words) {
     if (!startWord({ state, word, runScripts })) continue;
@@ -484,7 +503,7 @@ function findCommandPaths({ command, scan }: { command: string; scan: Scan }): C
       // The value of a runner option: anchored when it names a file.
       state.optionValue = false;
       if (path !== undefined) toAnchor.add(path);
-    } else if (state.expecting === "command" && skipsBeforeCommand({ state, text })) {
+    } else if (state.expecting === "command" && consumePrefixWord({ state, text })) {
       continue;
     } else if (state.expecting !== "command" && /^[-+]/.test(text)) {
       readOption({ state, text });
@@ -494,7 +513,14 @@ function findCommandPaths({ command, scan }: { command: string; scan: Scan }): C
       // A tool that is a script runner itself takes the script without a
       // subcommand (`bun ./x.ts`); any other tool's subcommand runs nothing.
       if (state.expecting === "script" || SCRIPT_RUNNER_PATTERN.test(state.owner)) {
-        readScript({ command, owner: state.owner, index: word.index, path, toAnchor, runScripts });
+        readScript({
+          state,
+          index: word.index,
+          opensScript: scriptQuotes.has(word.index),
+          path,
+          toAnchor,
+          runScripts,
+        });
       }
       state.expecting = "none";
     } else {
@@ -503,6 +529,7 @@ function findCommandPaths({ command, scan }: { command: string; scan: Scan }): C
       state.owner = text.slice(text.lastIndexOf("/") + 1);
       state.expecting = afterCommandWord(state.owner);
       state.prefix = undefined;
+      state.shellCode = false;
     }
   }
   return { toAnchor, runScripts };
@@ -521,6 +548,8 @@ type WalkState = {
   prefix: string | undefined;
   /** Whether the next word is the value of a prefix word's option. */
   prefixValue: boolean;
+  /** Whether a shell was given `-c`, so its script argument is code. */
+  shellCode: boolean;
 };
 
 /**
@@ -547,6 +576,7 @@ function startWord({
     state.optionValue = false;
     state.prefix = undefined;
     state.prefixValue = false;
+    state.shellCode = false;
   } else if (leftScript) {
     state.expecting = "none";
   }
@@ -554,19 +584,11 @@ function startWord({
 }
 
 /**
- * Options of prefix words that take the next word as their value
- * (`exec -a name ./x.sh`).
- */
-const PREFIX_VALUE_OPTIONS: Record<string, ReadonlySet<string>> = {
-  exec: new Set(["-a"]),
-};
-
-/**
  * Whether a word before the command word leaves it still to come: a prefix
- * word, an assignment, or an option of a prefix word (`time -p`, `exec -a
- * name`).
+ * word, an assignment, or an option of a prefix word (`time -p`), consuming
+ * the value of `exec -a name` as well.
  */
-function skipsBeforeCommand({ state, text }: { state: WalkState; text: string }): boolean {
+function consumePrefixWord({ state, text }: { state: WalkState; text: string }): boolean {
   if (state.prefixValue) {
     state.prefixValue = false;
     return true;
@@ -576,9 +598,7 @@ function skipsBeforeCommand({ state, text }: { state: WalkState; text: string })
     return true;
   }
   if (state.prefix !== undefined && text.startsWith("-")) {
-    state.prefixValue =
-      Object.hasOwn(PREFIX_VALUE_OPTIONS, state.prefix) &&
-      (PREFIX_VALUE_OPTIONS[state.prefix]?.has(text) ?? false);
+    state.prefixValue = state.prefix === "exec" && /^-[A-Za-z]*a$/.test(text);
     return true;
   }
   return /^\w+=/.test(text);
@@ -588,6 +608,9 @@ function skipsBeforeCommand({ state, text }: { state: WalkState; text: string })
 function readOption({ state, text }: { state: WalkState; text: string }): void {
   if (optionsFor({ table: CODE_OPTIONS, name: state.owner })?.has(text)) state.expecting = "none";
   state.optionValue = optionsFor({ table: VALUE_OPTIONS, name: state.owner })?.has(text) ?? false;
+  if (SHELL_NAME_PATTERN.test(state.owner) && /^-[A-Za-z]*c[A-Za-z]*$/.test(text)) {
+    state.shellCode = true;
+  }
 }
 
 /** What follows a command word whose basename is `name`. */
@@ -598,31 +621,31 @@ function afterCommandWord(name: string): Expecting {
 }
 
 /**
- * Read the script argument of a script runner. A quote that opens a `-c`
- * script is followed only for a shell; to another runner it is a literal.
+ * Read the script argument of a script runner. A shell given `-c` reads it as
+ * code: a single-quoted script found by the scanner is followed, and any other
+ * form (unquoted, double-quoted) is left alone, since the inner shell would
+ * split an expanded path again. A quote the scanner took for a `-c` script is
+ * a literal to any other runner, and to a shell that got no `-c` (`bash
+ * --rcfile -c './x'`), so it is not anchored either.
  */
 function readScript({
-  command,
-  owner,
+  state,
   index,
+  opensScript,
   path,
   toAnchor,
   runScripts,
 }: {
-  command: string;
-  owner: string;
+  state: WalkState;
   index: number;
+  opensScript: boolean;
   path: number | undefined;
   toAnchor: Set<number>;
   runScripts: Set<number>;
 }): void {
-  if (!SHELL_NAME_PATTERN.test(owner)) {
-    if (path !== undefined) toAnchor.add(path);
-  } else if (isInnerShellScript({ command, i: index })) {
-    // Its words are read next; an unquoted `-c` script has none and is
-    // re-split by the inner shell once expanded, so it is not anchored.
-    runScripts.add(index);
-  } else if (path !== undefined) {
+  if (state.shellCode && SHELL_NAME_PATTERN.test(state.owner)) {
+    if (opensScript) runScripts.add(index);
+  } else if (!opensScript && path !== undefined) {
     toAnchor.add(path);
   }
 }

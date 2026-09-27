@@ -110,6 +110,15 @@ describe("anchorDotPaths", () => {
     // A quote on the next line is a new command, not a `-c` script.
     ["x # sh -c\n'./a.sh'", `x # sh -c\n"${VAR}"/'a.sh'`],
     ["echo sh -c\n'./a.sh'", `echo sh -c\n"${VAR}"/'a.sh'`],
+    // An escaped or quoted shell name still runs its `-c` script.
+    ["\\bash -c './x y'", `\\bash -c '"${VAR}"/x y'`],
+    [`"bash" -c './x y'`, `"bash" -c '"${VAR}"/x y'`],
+    // A line continuation joins the lines.
+    ["bash \\\n -c './x y'", `bash \\\n -c '"${VAR}"/x y'`],
+    ["node \\\n./x.js", `node \\\n"${VAR}"/x.js`],
+    ["exec -la name ./x.sh", `exec -la name "${VAR}"/x.sh`],
+    ["php -c ./php.ini ./x.php", `php -c "${VAR}"/php.ini "${VAR}"/x.php`],
+    ["bash --rcfile ./rc ./x.sh", `bash --rcfile "${VAR}"/rc "${VAR}"/x.sh`],
   ])("should anchor %s", (command, expected) => {
     expect(anchor(command)).toBe(expected);
   });
@@ -171,6 +180,11 @@ describe("anchorDotPaths", () => {
     "\\echo sh -c './x.sh'",
     // To a runner other than a shell, a quoted script is a literal argument.
     "node -r sh -c './x'",
+    "\\bash -c ./x",
+    // `--rcfile` takes `-c` as its value, so the quote is part of a file name.
+    "bash --rcfile -c './x'",
+    // Joined by a line continuation, the next line continues the word.
+    "ab\\\ncd ./x",
     // The positional parameters of a `-c` script are data.
     "bash -c 'exec node' ./x.js",
     // Inline code, a module or standard input instead of a script file.
@@ -192,6 +206,8 @@ describe("stripProjectDirVariable", () => {
     [`echo \`${VAR}/x\``, "echo `./x`"],
     // A quote after the variable that closes a `-c` script stays after `./`.
     [`bash -c 'node "${VAR}"/'\\''x y.js'\\'''`, "bash -c 'node ./'\\''x y.js'\\'''"],
+    [`\\bash -c 'node "${VAR}"/x.js'`, "\\bash -c 'node ./x.js'"],
+    [`node \\\n"${VAR}"/x.js`, "node \\\n./x.js"],
     [`$HOME/x`, "$HOME/x"],
     [`"$HOME"/x && ${VAR}/y`, `"$HOME"/x && ${VAR}/y`],
   ])("should convert %s", (command, expected) => {
