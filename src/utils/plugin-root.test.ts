@@ -4,6 +4,8 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { setupTestDirectory } from "../test-utils/test-directories.js";
+import { PROCESSOR_REGISTRY } from "../types/processor-registry.js";
+import { PACKAGING_TOOL_TARGETS } from "../types/tool-targets.js";
 import { ensureDir, writeFileContent } from "./file.js";
 import { assertPluginRootSafe } from "./plugin-root.js";
 
@@ -70,4 +72,22 @@ describe("assertPluginRootSafe", () => {
       ).rejects.toThrow("tree containing a symbolic link");
     });
   });
+});
+
+describe("packaging targets in global mode", () => {
+  // `generate --global` and `import --global` skip the plugin root safety check
+  // for packaging targets because it would walk the whole home directory. That
+  // is only safe while no feature can write a packaging target in global mode.
+  it.each(PROCESSOR_REGISTRY.map((entry) => [entry.feature, entry.processor] as const))(
+    "the %s processor supports no packaging target in global mode",
+    (_feature, processor) => {
+      const globalTargets = [
+        ...processor.getToolTargets({ global: true }),
+        ...processor.getToolTargets({ global: true, importOnly: true }),
+      ];
+      for (const target of PACKAGING_TOOL_TARGETS) {
+        expect(globalTargets).not.toContain(target);
+      }
+    },
+  );
 });

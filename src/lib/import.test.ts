@@ -153,7 +153,7 @@ describe("importFromTool", () => {
 
   describe("packaging targets", () => {
     it.each(PACKAGING_TOOL_TARGETS)(
-      "should skip %s in global mode without checking the home directory for symlinks",
+      "should reject %s in global mode without checking the home directory for symlinks",
       async (tool) => {
         mockConfig.getGlobal.mockReturnValue(true);
         mockConfig.getOutputRoots.mockReturnValue(["/home/user"]);
@@ -161,13 +161,11 @@ describe("importFromTool", () => {
         vi.mocked(RulesProcessor.getToolTargets).mockReturnValue([tool]);
         vi.mocked(SkillsProcessor.getToolTargets).mockReturnValue([tool]);
 
-        const result = await importFromTool({ logger, config: mockConfig as never, tool });
+        await expect(importFromTool({ logger, config: mockConfig as never, tool })).rejects.toThrow(
+          `Target '${tool}' is a plugin packaging target and supports only project scope. Re-run without '--global'.`,
+        );
 
         expect(assertPluginRootSafe).not.toHaveBeenCalled();
-        expect(logger.warn).toHaveBeenCalledWith(
-          `Target '${tool}' is a plugin packaging target and supports only project scope. Re-run without '--global'. Skipping.`,
-        );
-        expect(Object.values(result).every((count) => count === 0)).toBe(true);
         expect(RulesProcessor).not.toHaveBeenCalled();
         expect(SkillsProcessor).not.toHaveBeenCalled();
       },

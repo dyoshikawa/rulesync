@@ -14,7 +14,12 @@ import {
   readFileContent,
   writeFileContent,
 } from "../utils/file.js";
-import { runGenerate, runImport, useTestDirectory } from "./e2e-helper.js";
+import {
+  runGenerate,
+  runImport,
+  useGlobalTestDirectories,
+  useTestDirectory,
+} from "./e2e-helper.js";
 
 describe("E2E: plugin targets", () => {
   const { getTestDir } = useTestDirectory();
@@ -158,6 +163,71 @@ Review the current changes.
       expect(
         await fileExists(join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "review", "secret.txt")),
       ).toBe(false);
+    });
+  });
+});
+
+describe.skipIf(process.platform === "win32")("E2E: plugin targets in global mode", () => {
+  const { getProjectDir, getHomeDir } = useGlobalTestDirectories();
+
+  const writeHomeWithUnrelatedSymlink = async (homeDir: string): Promise<void> => {
+    // An ordinary home directory contains symlinks (version managers, dotfile
+    // managers, ...). A packaging target must never scan it for them.
+    const outsideFile = join(homeDir, "tool", "bin", "real-binary");
+    await writeFileContent(outsideFile, "#!/bin/sh\n");
+    await ensureDir(join(homeDir, ".cache", "bin"));
+    await symlink(outsideFile, join(homeDir, ".cache", "bin", "linked-binary"));
+  };
+
+  it("skips a packaging target with a warning and still generates the other targets", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+    await writeHomeWithUnrelatedSymlink(homeDir);
+    await writeFileContent(
+      join(projectDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "review", "SKILL.md"),
+      `---
+name: review
+description: Review code changes
+targets: ["*"]
+---
+Review the current changes.
+`,
+    );
+
+    const { stderr, stdout } = await runGenerate({
+      target: "claudecode,claudecode-plugin",
+      features: "skills",
+      global: true,
+      env: { HOME_DIR: homeDir, NODE_ENV: "e2e" },
+    });
+
+    const output = `${stdout}\n${stderr}`;
+    expect(output).toContain(
+      "Target 'claudecode-plugin' is a plugin packaging target and supports only project scope. Re-run without '--global'. Skipping.",
+    );
+    expect(output).not.toContain("symbolic link");
+    expect(
+      await readFileContent(join(homeDir, ".claude", "skills", "review", "SKILL.md")),
+    ).toContain("Review the current changes.");
+    expect(await fileExists(join(homeDir, "skills", "review", "SKILL.md"))).toBe(false);
+  });
+
+  it("rejects importing a packaging target", async () => {
+    const homeDir = getHomeDir();
+    await writeHomeWithUnrelatedSymlink(homeDir);
+
+    await expect(
+      runImport({
+        target: "claudecode-plugin",
+        features: "skills",
+        global: true,
+        env: { HOME_DIR: homeDir, NODE_ENV: "e2e" },
+      }),
+    ).rejects.toMatchObject({
+      code: 1,
+      stderr: expect.stringContaining(
+        "Target 'claudecode-plugin' is a plugin packaging target and supports only project scope. Re-run without '--global'.",
+      ),
     });
   });
 });

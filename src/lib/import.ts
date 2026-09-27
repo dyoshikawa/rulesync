@@ -15,7 +15,11 @@ import { SubagentsProcessor } from "../features/subagents/subagents-processor.js
 import type { RulesyncFile, RulesyncFileParams } from "../types/rulesync-file.js";
 import type { ToolTarget } from "../types/tool-targets.js";
 import type { Logger } from "../utils/logger.js";
-import { assertPluginRootSafe, isPackagingToolTarget } from "../utils/plugin-root.js";
+import {
+  assertPluginRootSafe,
+  formatPackagingTargetGlobalMessage,
+  isPackagingToolTarget,
+} from "../utils/plugin-root.js";
 import {
   resolveRulesyncSourceWritePath,
   type RulesyncSourceSettablePaths,
@@ -91,24 +95,11 @@ export async function importFromTool(params: {
   // still applies has to be said again.
   resetRunWarningState();
 
-  // Packaging targets read from a plugin directory and support project scope
-  // only. In global mode the output root is the home directory, so the plugin
-  // root safety check would walk all of $HOME; skip the target instead.
+  // Import takes exactly one tool, so a packaging target in global mode has
+  // nothing left to import; reject it before the plugin root safety check
+  // walks the home directory.
   if (config.getGlobal() && isPackagingToolTarget(tool)) {
-    logger.warn(
-      `Target '${tool}' is a plugin packaging target and supports only project scope. Re-run without '--global'. Skipping.`,
-    );
-    return {
-      rulesCount: 0,
-      ignoreCount: 0,
-      mcpCount: 0,
-      commandsCount: 0,
-      subagentsCount: 0,
-      skillsCount: 0,
-      hooksCount: 0,
-      permissionsCount: 0,
-      checksCount: 0,
-    };
+    throw new Error(formatPackagingTargetGlobalMessage(tool));
   }
 
   await assertPluginRootSafe({

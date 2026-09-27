@@ -1243,16 +1243,26 @@ describe("generate", () => {
       async (target) => {
         mockConfig.getTargets.mockReturnValue(["claudecode", target]);
         mockConfig.getOutputRoots.mockReturnValue(["/home/user"]);
-        mockConfig.getFeatures.mockReturnValue(["rules"]);
+        mockConfig.getFeatures.mockReturnValue(["rules", "skills"]);
 
         await generate({ logger, config: mockConfig as never });
 
         expect(assertPluginRootSafe).not.toHaveBeenCalledWith(
           expect.objectContaining({ toolTarget: target }),
         );
-        expect(logger.warn).toHaveBeenCalledWith(
-          `Target '${target}' is a plugin packaging target and supports only project scope. Re-run without '--global'. Skipping.`,
-        );
+        expect(assertPluginRootSafe).toHaveBeenCalledWith({
+          toolTarget: "claudecode",
+          outputRoot: "/home/user",
+        });
+        // One target-level warning, not one more per enabled feature.
+        const targetWarnings = vi
+          .mocked(logger.warn)
+          .mock.calls.filter(([message]) => String(message).includes(`'${target}'`));
+        expect(targetWarnings).toEqual([
+          [
+            `Target '${target}' is a plugin packaging target and supports only project scope. Re-run without '--global'. Skipping.`,
+          ],
+        ]);
         expect(RulesProcessor).toHaveBeenCalledWith(
           expect.objectContaining({ toolTarget: "claudecode", global: true }),
         );
