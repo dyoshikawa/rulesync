@@ -2752,11 +2752,16 @@ As this project's AI coding tool, you must follow the additional conventions bel
     // source has another name.
     const separateRules: RuleConversion[] = [];
     const foldedRules: RulesyncRule[] = [];
+    let localRootCounted = false;
     for (const rulesyncRule of targetedNonRootRules) {
       // A remaining `localRoot` rule is appended to the root file whatever its
-      // own path would be.
+      // own path would be. Generate appends only one (and rejects several), so
+      // only the first counts.
       if (rulesyncRule.getFrontmatter().localRoot) {
-        foldedRules.push(rulesyncRule);
+        if (!localRootCounted) {
+          foldedRules.push(rulesyncRule);
+          localRootCounted = true;
+        }
         continue;
       }
       const toolRule = this.toToolRuleForImportCheck({ factory, rulesyncRule });

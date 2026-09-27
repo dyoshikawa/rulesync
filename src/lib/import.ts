@@ -162,7 +162,19 @@ async function importRulesCore(params: {
     return 0;
   }
 
-  await rulesProcessor.warnForFoldImportDuplicationRisk();
+  // The duplication check predicts where generate writes the existing
+  // rulesync rules, so it needs generate's configuration; the import itself
+  // keeps the plain processor above.
+  const duplicationCheckProcessor = new RulesProcessor({
+    outputRoot: getToolOutputRoot({ config, tool }),
+    inputRoots: config.getInputRoots(),
+    toolTarget: tool,
+    global,
+    deriveSubprojectPathFromGlobs: config.getDeriveSubprojectPathFromGlobs(),
+    featureOptions: config.getFeatureOptions(tool, "rules"),
+    logger,
+  });
+  await duplicationCheckProcessor.warnForFoldImportDuplicationRisk();
 
   const rulesyncFiles = await rulesProcessor.convertToolFilesToRulesyncFiles(toolFiles);
   const { count: writtenCount } = await rulesProcessor.writeAiFiles(rulesyncFiles);

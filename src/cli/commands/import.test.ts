@@ -40,6 +40,8 @@ describe("importCommand", () => {
       getFeatureOptions: vi.fn().mockReturnValue(undefined),
       getGlobal: vi.fn().mockReturnValue(false),
       getOutputRoots: vi.fn().mockReturnValue(["."]),
+      getInputRoots: vi.fn().mockReturnValue(["."]),
+      getDeriveSubprojectPathFromGlobs: vi.fn().mockReturnValue(false),
     };
 
     vi.mocked(ConfigResolver.resolve).mockResolvedValue(mockConfig);
