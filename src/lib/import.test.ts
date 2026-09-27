@@ -70,6 +70,8 @@ describe("importFromTool", () => {
     getFeatures: ReturnType<typeof vi.fn>;
     getFeatureOptions: ReturnType<typeof vi.fn>;
     getGlobal: ReturnType<typeof vi.fn>;
+    getInputRoots: ReturnType<typeof vi.fn>;
+    getDeriveSubprojectPathFromGlobs: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(() => {
@@ -80,6 +82,8 @@ describe("importFromTool", () => {
       getFeatures: vi.fn().mockReturnValue(["rules"]),
       getFeatureOptions: vi.fn().mockReturnValue(undefined),
       getGlobal: vi.fn().mockReturnValue(false),
+      getInputRoots: vi.fn().mockReturnValue(["."]),
+      getDeriveSubprojectPathFromGlobs: vi.fn().mockReturnValue(false),
     };
 
     vi.mocked(RulesProcessor.getToolTargets).mockReturnValue(["claudecode"]);
@@ -244,8 +248,70 @@ describe("importFromTool", () => {
       });
 
       expect(result.rulesCount).toBe(1);
-      const mockProcessor = vi.mocked(RulesProcessor).mock.results[0]?.value;
-      expect(mockProcessor.warnForFoldImportDuplicationRisk).toHaveBeenCalled();
+      const processors = vi.mocked(RulesProcessor).mock.results.map((entry) => entry.value);
+      expect(
+        processors.some(
+          (processor) => processor.warnForFoldImportDuplicationRisk.mock.calls.length > 0,
+        ),
+      ).toBe(true);
+    });
+
+    it("should check fold-import duplication with generate's rules configuration", async () => {
+      mockConfig.getFeatures.mockReturnValue(["rules"]);
+      mockConfig.getInputRoots.mockReturnValue([".", "shared"]);
+      mockConfig.getDeriveSubprojectPathFromGlobs.mockReturnValue(true);
+      mockConfig.getFeatureOptions.mockReturnValue({ includeLocalRoot: false });
+
+      await importFromTool({
+        logger,
+        config: mockConfig as never,
+        tool: "claudecode",
+      });
+
+      const calls = vi.mocked(RulesProcessor).mock.calls;
+      const results = vi.mocked(RulesProcessor).mock.results;
+      const checkIndex = results.findIndex(
+        (entry) => entry.value.warnForFoldImportDuplicationRisk.mock.calls.length > 0,
+      );
+      const importIndex = results.findIndex(
+        (entry) => entry.value.convertToolFilesToRulesyncFiles.mock.calls.length > 0,
+      );
+      expect(checkIndex).toBeGreaterThanOrEqual(0);
+      expect(importIndex).toBeGreaterThanOrEqual(0);
+      expect(calls[checkIndex]?.[0]).toEqual(
+        expect.objectContaining({
+          inputRoots: [".", "shared"],
+          deriveSubprojectPathFromGlobs: true,
+          featureOptions: { includeLocalRoot: false },
+        }),
+      );
+      // The processor that imports the files keeps its plain configuration.
+      expect(calls[importIndex]?.[0]).not.toHaveProperty("featureOptions");
+    });
+
+    it("should keep importing when the duplication check throws", async () => {
+      mockConfig.getFeatures.mockReturnValue(["rules"]);
+      const importProcessor = createMockProcessor();
+      const failingCheckProcessor = {
+        ...createMockProcessor(),
+        warnForFoldImportDuplicationRisk: vi.fn().mockRejectedValue(new Error("bad frontmatter")),
+      };
+      vi.mocked(RulesProcessor)
+        .mockImplementationOnce(function () {
+          return importProcessor as unknown as RulesProcessor;
+        })
+        .mockImplementationOnce(function () {
+          return failingCheckProcessor as unknown as RulesProcessor;
+        });
+
+      const result = await importFromTool({
+        logger,
+        config: mockConfig as never,
+        tool: "claudecode",
+      });
+
+      expect(result.rulesCount).toBe(1);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("bad frontmatter"));
     });
 
     it("should return 0 when no tool files found", async () => {

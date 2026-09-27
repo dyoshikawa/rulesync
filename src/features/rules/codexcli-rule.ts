@@ -1,138 +1,28 @@
-import { join } from "node:path";
-
-import { CODEXCLI_DIR, CODEXCLI_RULE_FILE_NAME } from "../../constants/codexcli-paths.js";
-import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
-import { readFileContent } from "../../utils/file.js";
-import { RulesyncRule } from "./rulesync-rule.js";
-import {
-  ToolRule,
-  ToolRuleForDeletionParams,
-  ToolRuleFromFileParams,
-  ToolRuleFromRulesyncRuleParams,
-  ToolRuleSettablePaths,
-} from "./tool-rule.js";
-
-export type CodexcliRuleParams = AiFileParams & {
-  root?: boolean;
-};
+import { CODEXCLI_DIR } from "../../constants/codexcli-paths.js";
+import { NestedAgentsmdRule, NestedAgentsmdRuleFamily } from "./nested-agentsmd-rule.js";
 
 /**
  * Rule generator for OpenAI Codex CLI.
  *
- * Codex CLI loads project instructions only from the `AGENTS.md` family — the
- * global `~/.codex/AGENTS.md`, then hierarchical `AGENTS.md` / `AGENTS.override.md`
- * files discovered by walking from the project root to the current working
- * directory. It does NOT scan a `.codex/memories/` directory for instruction
- * files — that directory belongs to Codex's separate SQLite-backed auto-memory
- * system. (Verified against the official docs:
- * https://developers.openai.com/codex/guides/agents-md)
+ * Codex CLI loads instructions only from the `AGENTS.md` family: the global
+ * `~/.codex/AGENTS.md` (or `AGENTS.override.md`), then one file per directory
+ * level from the project root down to the current working directory, joined
+ * root-first so deeper files take precedence. Nested per-directory files are
+ * therefore a real scoping surface, and Codex's docs recommend splitting large
+ * instruction sets across nested directories. It does NOT scan a
+ * `.codex/memories/` directory for instruction files — that directory belongs
+ * to Codex's separate SQLite-backed auto-memory system.
  *
- * rulesync's topic-based non-root rules have no project subdirectory to map
- * onto, so their bodies are folded into the single root `AGENTS.md` by the
- * RulesProcessor; there is no separate non-root output location (`nonRoot` is
- * `undefined`). This mirrors the warp and deepagents targets.
+ * A non-root rule carrying `agentsmd.subprojectPath` is emitted as a nested
+ * `<subprojectPath>/AGENTS.md` (project scope only); every other non-root rule
+ * folds into the root `AGENTS.md`, since Codex has no modular rules directory.
+ * The project files on the root-to-cwd chain share one `project_doc_max_bytes`
+ * budget (32 KiB by default), which the RulesProcessor warns about.
+ *
+ * @see https://learn.chatgpt.com/docs/agent-configuration/agents-md
  */
-export type CodexcliRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> & {
-  root: {
-    relativeDirPath: string;
-    relativeFilePath: string;
-  };
-  nonRoot?: undefined;
-};
-
-export class CodexcliRule extends ToolRule {
-  constructor({ fileContent, root, ...rest }: CodexcliRuleParams) {
-    super({
-      ...rest,
-      fileContent,
-      root: root ?? false,
-    });
-  }
-
-  static getSettablePaths({
-    global = false,
-  }: {
-    global?: boolean;
-    excludeToolDir?: boolean;
-  } = {}): CodexcliRuleSettablePaths {
-    return {
-      root: {
-        relativeDirPath: global ? CODEXCLI_DIR : ".",
-        relativeFilePath: CODEXCLI_RULE_FILE_NAME,
-      },
-    };
-  }
-
-  static async fromFile({
-    outputRoot = process.cwd(),
-    relativeFilePath: _relativeFilePath,
-    validate = true,
-    global = false,
-  }: ToolRuleFromFileParams): Promise<CodexcliRule> {
-    const { root } = this.getSettablePaths({ global });
-    const relativePath = join(root.relativeDirPath, root.relativeFilePath);
-    const fileContent = await readFileContent(join(outputRoot, relativePath));
-
-    return new CodexcliRule({
-      outputRoot,
-      relativeDirPath: root.relativeDirPath,
-      relativeFilePath: root.relativeFilePath,
-      fileContent,
-      validate,
-      root: true,
-    });
-  }
-
-  static fromRulesyncRule({
-    outputRoot = process.cwd(),
-    rulesyncRule,
-    validate = true,
-    global = false,
-  }: ToolRuleFromRulesyncRuleParams): CodexcliRule {
-    const { root } = this.getSettablePaths({ global });
-    const isRoot = rulesyncRule.getFrontmatter().root ?? false;
-
-    return new CodexcliRule({
-      outputRoot,
-      relativeDirPath: root.relativeDirPath,
-      relativeFilePath: root.relativeFilePath,
-      fileContent: rulesyncRule.getBody(),
-      validate,
-      root: isRoot,
-    });
-  }
-
-  toRulesyncRule(): RulesyncRule {
-    return this.toRulesyncRuleDefault();
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolRuleForDeletionParams): CodexcliRule {
-    const isRoot =
-      relativeFilePath === CODEXCLI_RULE_FILE_NAME &&
-      (relativeDirPath === "." || relativeDirPath === CODEXCLI_DIR);
-
-    return new CodexcliRule({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: "",
-      validate: false,
-      root: isRoot,
-    });
-  }
-
-  static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
-    return this.isTargetedByRulesyncRuleDefault({
-      rulesyncRule,
-      toolTarget: "codexcli",
-    });
+export class CodexcliRule extends NestedAgentsmdRule {
+  protected static getFamily(): NestedAgentsmdRuleFamily {
+    return { globalDir: CODEXCLI_DIR, toolTarget: "codexcli" };
   }
 }

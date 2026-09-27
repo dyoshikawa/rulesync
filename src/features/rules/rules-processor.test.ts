@@ -1427,6 +1427,202 @@ describe("RulesProcessor", () => {
     });
   });
 
+  describe("warnForFoldImportDuplicationRisk with nested AGENTS.md", () => {
+    const writeRule = async (name: string, frontmatter: string) => {
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, name),
+        `---\n${frontmatter}\n---\nbody\n`,
+      );
+    };
+    const warnings = () => logger.warn.mock.calls.map(([message]) => String(message));
+
+    it("should not list a directory-scoped rule as folded into the root file", async () => {
+      await writeRule("root.md", 'root: true\ntargets: ["codexcli"]');
+      await writeRule(
+        "svc1.md",
+        'root: false\ntargets: ["codexcli"]\nagentsmd:\n  subprojectPath: services/svc1',
+      );
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "codexcli" });
+      await processor.warnForFoldImportDuplicationRisk();
+
+      expect(warnings().some((message) => message.includes("already folded from"))).toBe(false);
+    });
+
+    it("should warn when a nested file will be imported under a different name than its source rule", async () => {
+      await writeRule("root.md", 'root: true\ntargets: ["codexcli"]');
+      await writeRule(
+        "svc1.md",
+        'root: false\ntargets: ["codexcli"]\nagentsmd:\n  subprojectPath: services/svc1',
+      );
+      await writeFileContent(join(testDir, "services", "svc1", "AGENTS.md"), "body\n");
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "codexcli" });
+      await processor.warnForFoldImportDuplicationRisk();
+
+      const warning = warnings().find((message) => message.includes("files outside the root file"));
+      expect(warning).toBeDefined();
+      expect(warning).toContain("svc1.md");
+    });
+
+    it("should not warn when the nested file imports back onto its source rule", async () => {
+      await writeRule("root.md", 'root: true\ntargets: ["codexcli"]');
+      await writeRule(
+        "services-svc1.md",
+        'root: false\ntargets: ["*"]\nagentsmd:\n  subprojectPath: services/svc1',
+      );
+      await writeFileContent(join(testDir, "services", "svc1", "AGENTS.md"), "body\n");
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "codexcli" });
+      await processor.warnForFoldImportDuplicationRisk();
+
+      expect(warnings().some((message) => message.includes("files outside the root file"))).toBe(
+        false,
+      );
+    });
+
+    it("should warn about Pi's APPEND_SYSTEM.md instead of listing its rule as folded", async () => {
+      await writeRule("root.md", 'root: true\ntargets: ["pi"]');
+      await writeRule("append.md", 'root: false\ntargets: ["pi"]\npi:\n  systemPrompt: append');
+      await writeFileContent(join(testDir, ".pi", "APPEND_SYSTEM.md"), "body\n");
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "pi" });
+      await processor.warnForFoldImportDuplicationRisk();
+
+      expect(warnings().some((message) => message.includes("already folded from"))).toBe(false);
+      const warning = warnings().find((message) => message.includes("files outside the root file"));
+      expect(warning).toContain("APPEND_SYSTEM.md files");
+      expect(warning).toContain("append.md");
+    });
+
+    it("should list rules folded into Pi's AGENTS.override.md as folded", async () => {
+      await writeRule("root.md", 'root: true\ntargets: ["pi"]\npi:\n  contextFile: override');
+      await writeRule("style.md", 'root: false\ntargets: ["pi"]\npi:\n  contextFile: override');
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "pi" });
+      await processor.warnForFoldImportDuplicationRisk();
+
+      const warning = warnings().find((message) => message.includes("already folded from"));
+      expect(warning).toContain("style.md");
+    });
+
+    it("should list a non-root rule whose Pi contextFile the root rule overrides as folded", async () => {
+      await writeRule("root.md", 'root: true\ntargets: ["pi"]');
+      await writeRule("style.md", 'root: false\ntargets: ["pi"]\npi:\n  contextFile: override');
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "pi" });
+      await processor.warnForFoldImportDuplicationRisk();
+
+      const warning = warnings().find((message) => message.includes("already folded from"));
+      expect(warning).toContain("style.md");
+      expect(warnings().some((message) => message.includes("pi.contextFile is set"))).toBe(false);
+    });
+
+    it("should list a localRoot rule appended to the root file as folded despite its subprojectPath", async () => {
+      await writeRule("root.md", 'root: true\ntargets: ["codexcli"]');
+      await writeRule(
+        "local.md",
+        'root: false\nlocalRoot: true\ntargets: ["codexcli"]\nagentsmd:\n  subprojectPath: services/svc1',
+      );
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "codexcli" });
+      await processor.warnForFoldImportDuplicationRisk();
+
+      const warning = warnings().find((message) => message.includes("already folded from"));
+      expect(warning).toContain("local.md");
+    });
+
+    it("should list only one localRoot rule as folded, since generate rejects several", async () => {
+      await writeRule("root.md", 'root: true\ntargets: ["codexcli"]');
+      await writeRule("local-a.md", 'root: false\nlocalRoot: true\ntargets: ["codexcli"]');
+      await writeRule("local-b.md", 'root: false\nlocalRoot: true\ntargets: ["codexcli"]');
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "codexcli" });
+      await processor.warnForFoldImportDuplicationRisk();
+
+      const warning = warnings().find((message) => message.includes("already folded from"));
+      expect(warning).toContain("local-a.md");
+      expect(warning).not.toContain("local-b.md");
+    });
+
+    it("should not list a localRoot rule as folded when includeLocalRoot is false", async () => {
+      await writeRule("root.md", 'root: true\ntargets: ["codexcli"]');
+      await writeRule("local.md", 'root: false\nlocalRoot: true\ntargets: ["codexcli"]');
+
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "codexcli",
+        featureOptions: { includeLocalRoot: false },
+      });
+      await processor.warnForFoldImportDuplicationRisk();
+
+      expect(warnings().some((message) => message.includes("already folded from"))).toBe(false);
+    });
+
+    it("should treat subprojectPath './' as the root file", async () => {
+      await writeRule("root.md", 'root: true\ntargets: ["codexcli"]');
+      await writeRule(
+        "here.md",
+        'root: false\ntargets: ["codexcli"]\nagentsmd:\n  subprojectPath: ./',
+      );
+      await writeFileContent(join(testDir, "AGENTS.md"), "body\n");
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "codexcli" });
+      await processor.warnForFoldImportDuplicationRisk();
+
+      const warning = warnings().find((message) => message.includes("already folded from"));
+      expect(warning).toContain("here.md");
+      expect(warnings().some((message) => message.includes("files outside the root file"))).toBe(
+        false,
+      );
+    });
+
+    it("should list a directory-scoped rule as folded in global mode", async () => {
+      await writeRule("root.md", 'root: true\ntargets: ["codexcli"]');
+      await writeRule(
+        "svc1.md",
+        'root: false\ntargets: ["codexcli"]\nagentsmd:\n  subprojectPath: services/svc1',
+      );
+
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "codexcli",
+        global: true,
+      });
+      await processor.warnForFoldImportDuplicationRisk();
+
+      const warning = warnings().find((message) => message.includes("already folded from"));
+      expect(warning).toContain("svc1.md");
+    });
+
+    it("should not list a localRoot rule written to a separate local file as folded", async () => {
+      await writeRule("root.md", 'root: true\ntargets: ["crush"]');
+      await writeRule("local.md", 'root: false\nlocalRoot: true\ntargets: ["crush"]');
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "crush" });
+      await processor.warnForFoldImportDuplicationRisk();
+
+      expect(warnings().some((message) => message.includes("already folded from"))).toBe(false);
+    });
+
+    it("should not warn when the nested file does not exist yet", async () => {
+      await writeRule("root.md", 'root: true\ntargets: ["codexcli"]');
+      await writeRule(
+        "svc1.md",
+        'root: false\ntargets: ["codexcli"]\nagentsmd:\n  subprojectPath: services/svc1',
+      );
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "codexcli" });
+      await processor.warnForFoldImportDuplicationRisk();
+
+      expect(warnings().some((message) => message.includes("files outside the root file"))).toBe(
+        false,
+      );
+    });
+  });
+
   describe("warnForFoldImportDuplicationRisk", () => {
     it("should warn that importing a fold target duplicates its already-folded non-root rules", async () => {
       // codexcli concatenates every non-root rule into its single AGENTS.md
@@ -2580,6 +2776,216 @@ globs: ["packages/api/**/*"]
         expect(result[0]?.getRelativeDirPath()).toBe(".");
         expect(result[0]?.getRelativeFilePath()).toBe("CLAUDE.md");
       });
+    });
+  });
+
+  describe("codexcli project instruction budget", () => {
+    const budgetWarnings = () =>
+      logger.warn.mock.calls
+        .map(([message]) => String(message))
+        .filter((message) => message.includes("project_doc_max_bytes"));
+
+    const rule = ({
+      name,
+      body,
+      root = false,
+      subprojectPath,
+    }: {
+      name: string;
+      body: string;
+      root?: boolean;
+      subprojectPath?: string;
+    }) =>
+      new RulesyncRule({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+        relativeFilePath: name,
+        frontmatter: {
+          root,
+          targets: ["*"],
+          ...(subprojectPath ? { agentsmd: { subprojectPath } } : {}),
+        },
+        body,
+      });
+
+    it("should warn when the folded root AGENTS.md exceeds 32 KiB", async () => {
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "codexcli" });
+
+      await processor.convertRulesyncFilesToToolFiles([
+        rule({ name: "overview.md", body: "a".repeat(20000), root: true }),
+        rule({ name: "svc1.md", body: "b".repeat(20000) }),
+      ]);
+
+      const warnings = budgetWarnings();
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]).toContain("root instruction file (AGENTS.md) is 40003 bytes");
+      expect(warnings[0]).toContain("32768");
+    });
+
+    it("should not warn when the written root AGENTS.md is exactly 32 KiB", async () => {
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "codexcli" });
+
+      // The writer appends a trailing newline, so this writes 32,768 bytes.
+      await processor.convertRulesyncFilesToToolFiles([
+        rule({ name: "overview.md", body: "a".repeat(32767), root: true }),
+      ]);
+
+      expect(budgetWarnings()).toHaveLength(0);
+    });
+
+    it("should warn at one byte over 32 KiB", async () => {
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "codexcli" });
+
+      await processor.convertRulesyncFilesToToolFiles([
+        rule({ name: "overview.md", body: "a".repeat(32768), root: true }),
+      ]);
+
+      expect(budgetWarnings()).toHaveLength(1);
+    });
+
+    it("should measure the budget in UTF-8 bytes, not characters", async () => {
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "codexcli" });
+
+      // 11,000 characters, but 33,000 bytes (plus the trailing newline): each
+      // character is 3 bytes in UTF-8.
+      await processor.convertRulesyncFilesToToolFiles([
+        rule({ name: "overview.md", body: "\u3042".repeat(11000), root: true }),
+      ]);
+
+      const warnings = budgetWarnings();
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]).toContain("33001 bytes");
+    });
+
+    it("should not warn in global mode, where the personal AGENTS.md is outside the project budget", async () => {
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "codexcli",
+        global: true,
+      });
+
+      await processor.convertRulesyncFilesToToolFiles([
+        rule({ name: "overview.md", body: "a".repeat(40000), root: true }),
+      ]);
+
+      expect(budgetWarnings()).toHaveLength(0);
+    });
+
+    it("should emit a directory-scoped rule as a nested AGENTS.md instead of folding it", async () => {
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "codexcli" });
+
+      const result = await processor.convertRulesyncFilesToToolFiles([
+        rule({ name: "overview.md", body: "a".repeat(20000), root: true }),
+        rule({ name: "svc1.md", body: "b".repeat(20000), subprojectPath: "services/svc1" }),
+      ]);
+
+      const paths = result.map((file) =>
+        join(file.getRelativeDirPath(), file.getRelativeFilePath()),
+      );
+      expect(paths).toEqual(["AGENTS.md", join("services", "svc1", "AGENTS.md")]);
+      expect(result[0]?.getFileContent()).toBe("a".repeat(20000));
+    });
+
+    it("should warn about a nested chain whose files together exceed 32 KiB", async () => {
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "codexcli" });
+
+      await processor.convertRulesyncFilesToToolFiles([
+        rule({ name: "overview.md", body: "a".repeat(20000), root: true }),
+        rule({ name: "svc1.md", body: "b".repeat(20000), subprojectPath: "services/svc1" }),
+        rule({ name: "svc2.md", body: "c".repeat(1000), subprojectPath: "services/svc2" }),
+      ]);
+
+      const warnings = budgetWarnings();
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]).toContain("'services/svc1'");
+      expect(warnings[0]).toContain("AGENTS.md, services/svc1/AGENTS.md");
+      expect(warnings[0]).toContain("40002 bytes");
+    });
+
+    it("should treat a trailing slash in subprojectPath as the same directory", async () => {
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "codexcli" });
+
+      await processor.convertRulesyncFilesToToolFiles([
+        rule({ name: "overview.md", body: "a".repeat(20000), root: true }),
+        rule({ name: "svc1.md", body: "b".repeat(20000), subprojectPath: "services/svc1/" }),
+      ]);
+
+      const warnings = budgetWarnings();
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]).toContain("'services/svc1'");
+      expect(warnings[0]).toContain("40002 bytes");
+    });
+
+    it("should name the output root when it is not the current directory", async () => {
+      const outputRoot = join(testDir, "packages", "app");
+      const processor = new RulesProcessor({ logger, outputRoot, toolTarget: "codexcli" });
+
+      await processor.convertRulesyncFilesToToolFiles([
+        rule({ name: "overview.md", body: "a".repeat(40000), root: true }),
+      ]);
+
+      const warnings = budgetWarnings();
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]).toContain(`under '${outputRoot}'`);
+    });
+
+    it("should report a nested chain once, at its shallowest over-budget directory", async () => {
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "codexcli" });
+
+      await processor.convertRulesyncFilesToToolFiles([
+        rule({ name: "overview.md", body: "a".repeat(20000), root: true }),
+        rule({ name: "svc1.md", body: "b".repeat(20000), subprojectPath: "services/svc1" }),
+        rule({ name: "svc1-api.md", body: "c".repeat(100), subprojectPath: "services/svc1/api" }),
+      ]);
+
+      const warnings = budgetWarnings();
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]).toContain("'services/svc1'");
+    });
+
+    it("should sum every file on a grandchild chain", async () => {
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "codexcli" });
+
+      await processor.convertRulesyncFilesToToolFiles([
+        rule({ name: "overview.md", body: "a".repeat(12000), root: true }),
+        rule({ name: "svc1.md", body: "b".repeat(12000), subprojectPath: "services/svc1" }),
+        rule({ name: "svc1-api.md", body: "c".repeat(12000), subprojectPath: "services/svc1/api" }),
+      ]);
+
+      const warnings = budgetWarnings();
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]).toContain("'services/svc1/api'");
+      expect(warnings[0]).toContain(
+        "AGENTS.md, services/svc1/AGENTS.md, services/svc1/api/AGENTS.md",
+      );
+      expect(warnings[0]).toContain("36003 bytes");
+    });
+
+    it("should count the language block appended to the root file", async () => {
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "codexcli",
+        language: "ja",
+      });
+
+      // Fits on its own; the appended language block pushes it over.
+      await processor.convertRulesyncFilesToToolFiles([
+        rule({ name: "overview.md", body: "a".repeat(32767), root: true }),
+      ]);
+
+      expect(budgetWarnings()).toHaveLength(1);
+    });
+
+    it("should not warn for targets without an instruction budget", async () => {
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "pool" });
+
+      await processor.convertRulesyncFilesToToolFiles([
+        rule({ name: "overview.md", body: "a".repeat(40000), root: true }),
+      ]);
+
+      expect(budgetWarnings()).toHaveLength(0);
     });
   });
 
