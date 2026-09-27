@@ -25,6 +25,7 @@ import {
   NESTED_SCAN_EXCLUDED_DIRS_ANY_DEPTH,
   NESTED_SCAN_EXCLUDED_ROOT_DIRS,
 } from "../rules/nested-scan-exclusions.js";
+import { ClaudecodeArgumentHintSchema } from "../shared/claudecode-argument-hint.js";
 import {
   RulesyncSkill,
   RulesyncSkillFrontmatter,
@@ -193,8 +194,9 @@ export const ClaudecodeSkillFrontmatterSchema = z.looseObject({
   model: z.optional(z.string()),
   // Effort level while the skill is active (low | medium | high | xhigh | max).
   effort: z.optional(z.string()),
-  // Hint shown during autocomplete to indicate expected arguments.
-  "argument-hint": z.optional(z.string()),
+  // Hint shown during autocomplete to indicate expected arguments. A YAML list
+  // (the unquoted `[issue-number]` form) is joined back into the string form.
+  "argument-hint": z.optional(ClaudecodeArgumentHintSchema),
   // Named positional arguments for `$name` substitution; string or YAML list.
   arguments: z.optional(z.union([z.string(), z.array(z.string())])),
   // `fork` runs the skill in a forked subagent context.
@@ -500,9 +502,9 @@ export class ClaudecodeSkill extends ToolSkill {
     // how they are spelled -- otherwise one root is scanned several times and every
     // skill under it is reported as a duplicate name. The tool's own root is seeded
     // here for the same reason: the glob cannot match it -- it requires a segment
-    // above the tail -- but a name like `x\..` resolves onto it, and a nested root
-    // is imported leniently, which would turn an invalid skill of the project's own
-    // into a warning instead of an error. It is seeded under both of its spellings:
+    // above the tail -- but a name like `x\..` resolves onto it, and scanning it
+    // again as a nested root would report every skill under it as a duplicate name.
+    // It is seeded under both of its spellings:
     // the literal one, and where it really resolves to when it is itself a link into
     // the project, since a nested root reaching the same place is told apart by
     // that resolved spelling alone. When it cannot be resolved -- because it is

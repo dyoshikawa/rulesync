@@ -325,6 +325,77 @@ describe("ClaudecodeCommand", () => {
   });
 
   describe("fromFile", () => {
+    it("should accept a YAML-list argument-hint and join it into the bracketed string", async () => {
+      const commandsDir = join(testDir, ".claude", "commands");
+      await ensureDir(commandsDir);
+      await writeFileContent(
+        join(commandsDir, "fix-issue.md"),
+        `---
+description: Fix a GitHub issue
+argument-hint: [issue-number]
+---
+Fix issue $ARGUMENTS.`,
+      );
+      await writeFileContent(
+        join(commandsDir, "convert.md"),
+        `---
+description: Convert a file
+argument-hint: [filename, format]
+---
+Convert $ARGUMENTS.`,
+      );
+
+      const fixIssue = await ClaudecodeCommand.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "fix-issue.md",
+      });
+      const convert = await ClaudecodeCommand.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "convert.md",
+      });
+
+      expect(fixIssue.getFrontmatter()["argument-hint"]).toBe("[issue-number]");
+      expect(fixIssue.toRulesyncCommand().getFrontmatter().claudecode).toEqual({
+        "argument-hint": "[issue-number]",
+      });
+      expect(convert.getFrontmatter()["argument-hint"]).toBe("[filename] [format]");
+
+      // Generating back writes the quoted string, which re-imports unchanged.
+      const regenerated = ClaudecodeCommand.fromRulesyncCommand({
+        outputRoot: testDir,
+        rulesyncCommand: fixIssue.toRulesyncCommand(),
+      });
+      expect(regenerated.getFileContent()).toContain("argument-hint: '[issue-number]'");
+      await writeFileContent(join(commandsDir, "fix-issue.md"), regenerated.getFileContent());
+      const reimported = await ClaudecodeCommand.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "fix-issue.md",
+      });
+      expect(reimported.getFrontmatter()["argument-hint"]).toBe("[issue-number]");
+    });
+
+    it("should drop an empty-list argument-hint on import", async () => {
+      const commandsDir = join(testDir, ".claude", "commands");
+      await ensureDir(commandsDir);
+      await writeFileContent(
+        join(commandsDir, "empty-hint.md"),
+        `---
+description: No hint
+argument-hint: []
+---
+Body`,
+      );
+
+      const command = await ClaudecodeCommand.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "empty-hint.md",
+      });
+
+      const rulesyncCommand = command.toRulesyncCommand();
+      expect(rulesyncCommand.getFileContent()).not.toContain("argument-hint");
+      expect(rulesyncCommand.getFileContent()).not.toContain("claudecode");
+    });
+
     it("should load ClaudecodeCommand from file", async () => {
       const commandsDir = join(testDir, ".claude", "commands");
       await ensureDir(commandsDir);
