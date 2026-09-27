@@ -30,6 +30,10 @@ export function joinArgumentHint(value: string | ArgumentHintEntry[]): string | 
  * `[true]`, `[~]`) is stringified rather than rejected.
  * https://code.claude.com/docs/en/skills
  *
+ * A list entry is stringified from the value YAML produced, so its original
+ * spelling is not kept (`[1.0]` becomes `[1]`), and an entry YAML reads as a
+ * date (`[2026-01-01]`) is rejected.
+ *
  * The unquoted multi-placeholder form (`argument-hint: [filename] [format]`)
  * is not valid YAML at all, so it fails before this schema is reached.
  */

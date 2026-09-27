@@ -76,7 +76,12 @@ export class ClaudecodeCommand extends ToolCommand {
   }
 
   toRulesyncCommand(): RulesyncCommand {
-    const { description, ...restFields } = this.frontmatter;
+    const { description, ...extraFields } = this.frontmatter;
+    // A field the schema normalized away (an empty-list `argument-hint`) is left
+    // as an undefined key; drop it so it does not produce an empty section.
+    const restFields = Object.fromEntries(
+      Object.entries(extraFields).filter(([, value]) => value !== undefined),
+    );
 
     const rulesyncFrontmatter: RulesyncCommandFrontmatter = {
       targets: ["*"],

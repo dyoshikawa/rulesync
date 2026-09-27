@@ -393,6 +393,7 @@ Body`,
 
       const rulesyncCommand = command.toRulesyncCommand();
       expect(rulesyncCommand.getFileContent()).not.toContain("argument-hint");
+      expect(rulesyncCommand.getFileContent()).not.toContain("claudecode");
     });
 
     it("should load ClaudecodeCommand from file", async () => {

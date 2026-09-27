@@ -1236,6 +1236,27 @@ Fix issue $ARGUMENTS.`,
       expect(regenerated.getMainFile()?.frontmatter?.["argument-hint"]).toBe("[issue-number]");
     });
 
+    it("should drop an empty-list argument-hint", async () => {
+      const skillDir = join(testDir, ".claude", "skills", "no-hint");
+      await ensureDir(skillDir);
+      await writeFileContent(
+        join(skillDir, SKILL_FILE_NAME),
+        `---
+name: no-hint
+description: No hint
+argument-hint: []
+---
+Body`,
+      );
+
+      const skill = await ClaudecodeSkill.fromDir({
+        outputRoot: testDir,
+        dirName: "no-hint",
+      });
+
+      expect(skill.toRulesyncSkill().getFrontmatter().claudecode).toBeUndefined();
+    });
+
     it("should join a multi-entry YAML-list argument-hint one placeholder per entry", async () => {
       const skillDir = join(testDir, ".claude", "skills", "convert");
       await ensureDir(skillDir);

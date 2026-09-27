@@ -1006,8 +1006,9 @@ export class SkillsProcessor extends DirFeatureProcessor {
       const isConfiguredRoot = configuredRootPaths.has(relativeDirPath);
       // A root the tool's own config points at is arbitrary user territory,
       // the Agent Skills interop roots hold foreign-authored skills, and tools
-      // flagged `lenientImport` follow the Agent Skills guide's
-      // lenient-validation prescription for every root — in all three cases
+      // flagged `lenientImport` follow a lenient-validation rule for every root
+      // (the Agent Skills guide's prescription, or the tool's own loader keeping
+      // the other skills when one is broken, as Claude Code does) — in all three cases
       // one bad skill must not take the whole import (and every feature after
       // it) down, so it is skipped with a warning instead.
       const isLenientRoot =
