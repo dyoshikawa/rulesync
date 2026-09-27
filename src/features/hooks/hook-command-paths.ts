@@ -109,15 +109,37 @@ function scanUnquoted({ scan, top, i }: { scan: Scan; top: Frame | undefined; i:
   }
   if (char === '"') {
     stack.push({ kind: '"', open: i });
-    if (startsWord) starts.set(i + 1, "double");
+    // A double-quoted `-c` script is expanded by the outer shell and then
+    // re-split by the inner one, so an anchored path would not stay one word.
+    if (startsWord && !isInnerShellScript({ command, i })) starts.set(i + 1, "double");
   } else if (char === "'") {
-    const innerShell = /(?:^|\s)-c\s*$/.test(command.slice(0, i));
+    const innerShell = isInnerShellScript({ command, i });
     stack.push({ kind: "'", open: i, innerShell });
     if (startsWord && !innerShell) starts.set(i + 1, "single");
   } else {
     return scanNesting({ scan, top, i });
   }
   return i;
+}
+
+/**
+ * Longest command prefix inspected before a quote to decide whether it opens a
+ * `-c` script; bounding it keeps the scan linear in the command length.
+ */
+const INNER_SHELL_LOOKBEHIND = 256;
+
+/**
+ * A shell invocation (`sh`, `bash`, `dash`, `ksh`, `zsh`, optionally with a
+ * directory) whose last option cluster contains `c` (`-c`, `-lc`, `-euc`),
+ * possibly after other options such as `-o pipefail`. Other commands' `-c`
+ * options (`git -c`, `grep -c`, `head -c`) do not match.
+ */
+const INNER_SHELL_PATTERN =
+  /(?:^|[\s;&|(`])(?:\S*\/)?(?:ba|da|k|z)?sh(?:\s+(?:[-+]o\s+\w+|[-+][A-Za-z]+))*\s+-[A-Za-z]*c[A-Za-z]*\s*$/;
+
+/** Whether the quote at `i` opens a script handed to an inner shell via `-c`. */
+function isInnerShellScript({ command, i }: { command: string; i: number }): boolean {
+  return INNER_SHELL_PATTERN.test(command.slice(Math.max(0, i - INNER_SHELL_LOOKBEHIND), i));
 }
 
 /** Track `` ` … ` ``, `$( … )` and `( … )` in unquoted text. */
@@ -144,7 +166,16 @@ function scanNesting({ scan, top, i }: { scan: Scan; top: Frame | undefined; i: 
  * commands are converted only in their first word, in both directions.
  */
 export function changesDirectory(command: string): boolean {
-  return /(?:^|[\s;&|(){`'"])(?:cd|pushd|popd)(?:\s|$)/.test(command);
+  return /(?:^|[\s;&|(){`'"])\\?(?:cd|pushd|popd)(?:[\s;&|()`'"]|$)/.test(command);
+}
+
+/**
+ * Whether `./` words after the first one are converted in both directions:
+ * not after a directory change, and not in a command with a heredoc or
+ * here-string (`<<`), whose body is data rather than shell words.
+ */
+export function convertsLaterWords(command: string): boolean {
+  return !changesDirectory(command) && !command.includes("<<");
 }
 
 /**
@@ -166,7 +197,7 @@ export function anchorDotPaths({
   command: string;
   projectDirVar: string;
 }): string {
-  if (!command.includes("./") || changesDirectory(command)) {
+  if (!command.includes("./") || !convertsLaterWords(command)) {
     return command;
   }
   const edits = [...findPathStarts(command)]
@@ -225,11 +256,11 @@ export function stripProjectDirVariable({
     offset === leading || (offset === leading + 1 && command.charAt(leading) === '"');
   const startsWithOtherVariable =
     command.charAt(leading) === "$" && !new RegExp(`^${variable}/`).test(command.slice(leading));
-  const convertsLaterWords = !changesDirectory(command) && !startsWithOtherVariable;
+  const laterWords = convertsLaterWords(command) && !startsWithOtherVariable;
   const starts = findPathStarts(command);
 
   return command.replace(pattern, (match: string, quote: string | undefined, offset: number) => {
-    if (!convertsLaterWords && !inFirstWord(offset)) return match;
+    if (!laterWords && !inFirstWord(offset)) return match;
     const kind = starts.get(offset);
     if (kind !== "plain" && kind !== "double") return match;
     return `${quote ?? ""}./`;

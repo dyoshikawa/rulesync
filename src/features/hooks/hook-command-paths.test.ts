@@ -39,13 +39,21 @@ describe("changesDirectory", () => {
     'sh -c "cd sub; ./x"',
     "(cd sub && ./x)",
     "{ cd sub; ./x; }",
+    '"cd" sub && ./x',
+    "\\cd sub && ./x",
+    "(cd) && ./x",
+    "x; cd; ./y",
+    "cd&&./x",
   ])("should detect %s", (command) => {
     expect(changesDirectory(command)).toBe(true);
   });
 
-  it.each(["./cdx.sh", "abcd ./x", "echo cd-rom"])("should not detect %s", (command) => {
-    expect(changesDirectory(command)).toBe(false);
-  });
+  it.each(["./cdx.sh", "abcd ./x", "echo cd-rom", "cdk deploy ./x"])(
+    "should not detect %s",
+    (command) => {
+      expect(changesDirectory(command)).toBe(false);
+    },
+  );
 });
 
 describe("anchorDotPaths", () => {
@@ -59,6 +67,9 @@ describe("anchorDotPaths", () => {
     ['echo "$(./v.sh)"', `echo "$("${VAR}"/v.sh)"`],
     ["bash -c 'test -x ./k.sh'", `bash -c 'test -x "${VAR}"/k.sh'`],
     ["a && ./b.sh", `a && "${VAR}"/b.sh`],
+    ["bash -lc './a && ./b'", `bash -lc '"${VAR}"/a && "${VAR}"/b'`],
+    ["/bin/sh -euc './a'", `/bin/sh -euc '"${VAR}"/a'`],
+    ["bash -o pipefail -c './a | ./b'", `bash -o pipefail -c '"${VAR}"/a | "${VAR}"/b'`],
   ])("should anchor %s", (command, expected) => {
     expect(anchor(command)).toBe(expected);
   });
@@ -78,6 +89,15 @@ describe("anchorDotPaths", () => {
     // After a change of directory `./` is no longer the project root.
     "./build.sh && cd dist && ./post.sh",
     "bash -c 'cd sub && ./run.sh'",
+    // `-c` of a command other than a shell takes a literal value.
+    "git -c 'core.hooksPath=./hooks' status",
+    "grep -c 'a ./x' f",
+    "cut -c '1 ./x'",
+    // A double-quoted `-c` script is re-split by the inner shell.
+    'sh -c "./x && ./y"',
+    // A heredoc or here-string body is data, not shell words.
+    "cat <<EOF > f\n./x\nEOF",
+    "x <<< ./y",
   ])("should leave %s untouched", (command) => {
     expect(anchor(command)).toBe(command);
   });
@@ -106,6 +126,14 @@ describe("stripProjectDirVariable", () => {
     `x # ${VAR}/y`,
     // A command led by another variable is passed through by generate.
     `$HOME/x "${VAR}"/y`,
+    // `-c` of a command other than a shell takes a literal value.
+    `git -c 'core.hooksPath=${VAR}/hooks' status`,
+    `grep -c '${VAR}/x' f`,
+    // A double-quoted `-c` script: generate does not anchor there either.
+    `sh -c "${VAR}/x"`,
+    // A heredoc or here-string body is data, not shell words.
+    `cat <<EOF > f\n${VAR}/x\nEOF`,
+    `x <<< ${VAR}/y`,
   ])("should leave %s untouched", (command) => {
     expect(strip(command)).toBe(command);
   });
@@ -123,6 +151,10 @@ describe("stripProjectDirVariable", () => {
     `node "${VAR}"/'b c.js'`,
     `python3 "${VAR}/my dir/x.py" --flag`,
     `bash -c 'test -x ${VAR}/k.sh'`,
+    `bash -lc '${VAR}/a && ${VAR}/b'`,
+    `git -c 'core.hooksPath=${VAR}/hooks' status`,
+    `sh -c "${VAR}/x"`,
+    `x <<< ${VAR}/y`,
     `echo "$(${VAR}/v.sh)"`,
     `x ${VAR}/a/${VAR}/b`,
     `PATH=$PATH:${VAR}/bin x`,
