@@ -1246,7 +1246,7 @@ args = ["server.js"]
         ).toBe(true);
         // Warnings name the field only; values may carry secrets.
         expect(
-          messages.every((m) => !m.includes("key-${API_KEY}") && !m.includes("api.example.com")),
+          messages.every((m) => !m.includes("key-${API_KEY}") && !m.includes("API_BASE_URL:-")),
         ).toBe(true);
       });
 
