@@ -1479,6 +1479,16 @@ describe("RulesProcessor", () => {
       expect(warnings().some((message) => message.includes("nested AGENTS.md files"))).toBe(false);
     });
 
+    it("should not list a rule routed to Pi's APPEND_SYSTEM.md as folded into the root file", async () => {
+      await writeRule("root.md", 'root: true\ntargets: ["pi"]');
+      await writeRule("append.md", 'root: false\ntargets: ["pi"]\npi:\n  systemPrompt: append');
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "pi" });
+      await processor.warnForFoldImportDuplicationRisk();
+
+      expect(warnings().some((message) => message.includes("already folded from"))).toBe(false);
+    });
+
     it("should not warn when the nested file does not exist yet", async () => {
       await writeRule("root.md", 'root: true\ntargets: ["codexcli"]');
       await writeRule(
@@ -2771,6 +2781,33 @@ globs: ["packages/api/**/*"]
       expect(warnings[0]).toContain("'services/svc1'");
       expect(warnings[0]).toContain("AGENTS.md, services/svc1/AGENTS.md");
       expect(warnings[0]).toContain("40002 bytes");
+    });
+
+    it("should treat a trailing slash in subprojectPath as the same directory", async () => {
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "codexcli" });
+
+      await processor.convertRulesyncFilesToToolFiles([
+        rule({ name: "overview.md", body: "a".repeat(20000), root: true }),
+        rule({ name: "svc1.md", body: "b".repeat(20000), subprojectPath: "services/svc1/" }),
+      ]);
+
+      const warnings = budgetWarnings();
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]).toContain("'services/svc1'");
+      expect(warnings[0]).toContain("40002 bytes");
+    });
+
+    it("should name the output root when it is not the current directory", async () => {
+      const outputRoot = join(testDir, "packages", "app");
+      const processor = new RulesProcessor({ logger, outputRoot, toolTarget: "codexcli" });
+
+      await processor.convertRulesyncFilesToToolFiles([
+        rule({ name: "overview.md", body: "a".repeat(40000), root: true }),
+      ]);
+
+      const warnings = budgetWarnings();
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]).toContain(`under '${outputRoot}'`);
     });
 
     it("should report a nested chain once, at its shallowest over-budget directory", async () => {

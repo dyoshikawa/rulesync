@@ -1414,7 +1414,9 @@ export class RulesProcessor extends FeatureProcessor {
     }
 
     const files = toolRules.map((rule) => ({
-      dir: posix.normalize(toPosixPath(rule.getRelativeDirPath())),
+      // Drop a trailing slash (an explicit `subprojectPath: "a/"`) so the
+      // ancestor test below compares plain directory paths.
+      dir: posix.normalize(toPosixPath(rule.getRelativeDirPath())).replace(/\/+$/, "") || ".",
       path: toPosixPath(join(rule.getRelativeDirPath(), rule.getRelativeFilePath())),
       // Measure what is written: the writer normalizes the trailing newline.
       bytes: Buffer.byteLength(addTrailingNewline(rule.getFileContent()), "utf8"),
@@ -2688,18 +2690,20 @@ As this project's AI coding tool, you must follow the additional conventions bel
         factory.class.isTargetedByRulesyncRule(rule),
     );
 
-    // A target that also discovers nested per-directory files (codexcli, pool,
-    // vibe, dsh) writes a directory-scoped rule to `<dir>/AGENTS.md` rather
-    // than folding it, so that rule is not part of the root file. Importing
-    // the nested file instead produces `.rulesync/rules/<dir-with-hyphens>.md`,
+    // Only rules that land in the root file are folded. A target that also
+    // discovers nested per-directory files (codexcli, pool, vibe, dsh,
+    // reasonix) writes a directory-scoped rule to its own nested file instead;
+    // importing that file produces a rulesync rule named after its directory,
     // which duplicates the source rule only when the source has another name.
+    // Rules routed to any other fixed file (e.g. Pi's `APPEND_SYSTEM.md`) are
+    // neither.
     const nestedRules: RuleConversion[] = [];
     const foldedRules: RulesyncRule[] = [];
     for (const rulesyncRule of targetedNonRootRules) {
-      const toolRule = this.global ? undefined : this.toNestedToolRule({ factory, rulesyncRule });
-      if (toolRule) {
-        nestedRules.push({ toolRule, rulesyncRule });
-      } else {
+      const placement = this.classifyNonRootPlacement({ factory, rulesyncRule });
+      if (placement.kind === "nested") {
+        nestedRules.push({ toolRule: placement.toolRule, rulesyncRule });
+      } else if (placement.kind === "root") {
         foldedRules.push(rulesyncRule);
       }
     }
@@ -2721,26 +2725,30 @@ As this project's AI coding tool, you must follow the additional conventions bel
       }
     }
     if (duplicatedNestedRules.length > 0) {
+      const nestedFileNames = [
+        ...new Set(nestedRules.map(({ toolRule }) => toolRule.getRelativeFilePath())),
+      ].join(", ");
       this.logger.warn(
-        `Importing ${this.toolTarget}'s nested AGENTS.md files will re-add content already written from ${formatRulePaths(duplicatedNestedRules)}: each nested file is imported under a name derived from its directory, so the imported copy and the original rule resolve to the same nested file and are concatenated the next time you run \`rulesync generate --targets ${this.toolTarget}\`. Remove one of the two copies before generating again.`,
+        `Importing ${this.toolTarget}'s nested ${nestedFileNames} files will re-add content already written from ${formatRulePaths(duplicatedNestedRules)}: each nested file is imported under a name derived from its directory, so the imported copy and the original rule resolve to the same nested file and are concatenated the next time you run \`rulesync generate --targets ${this.toolTarget}\`. Remove one of the two copies before generating again.`,
       );
     }
   }
 
   /**
-   * The tool rule a non-root rulesync rule becomes when the target writes it
-   * to a nested per-directory file instead of folding it into the root file,
-   * or `undefined` when it folds (or the target has no nested files).
+   * Where a non-root rulesync rule lands for this target: folded into the
+   * root file, written to a nested per-directory file the target also
+   * discovers on import, or some other fixed file.
    */
-  private toNestedToolRule({
+  private classifyNonRootPlacement({
     factory,
     rulesyncRule,
   }: {
     factory: ToolRuleFactory;
     rulesyncRule: RulesyncRule;
-  }): ToolRule | undefined {
-    if (!factory.class.getNestedFilePatterns) {
-      return undefined;
+  }): { kind: "root" } | { kind: "nested"; toolRule: ToolRule } | { kind: "other" } {
+    const { root } = factory.class.getSettablePaths({ global: this.global });
+    if (!root) {
+      return { kind: "root" };
     }
     const toolRule = factory.class.fromRulesyncRule({
       outputRoot: this.outputRoot,
@@ -2748,15 +2756,17 @@ As this project's AI coding tool, you must follow the additional conventions bel
       validate: false,
       global: this.global,
     });
-    const { root } = factory.class.getSettablePaths({ global: this.global });
-    if (!root || toolRule.isRoot()) {
-      return undefined;
-    }
+    const normalizeDir = (dir: string): string => posix.normalize(toPosixPath(dir));
     const isRootPath =
-      posix.normalize(toPosixPath(toolRule.getRelativeDirPath())) ===
-        posix.normalize(toPosixPath(root.relativeDirPath)) &&
+      normalizeDir(toolRule.getRelativeDirPath()) === normalizeDir(root.relativeDirPath) &&
       toolRule.getRelativeFilePath() === root.relativeFilePath;
-    return isRootPath ? undefined : toolRule;
+    if (isRootPath) {
+      return { kind: "root" };
+    }
+    if (!this.global && factory.class.getNestedFilePatterns) {
+      return { kind: "nested", toolRule };
+    }
+    return { kind: "other" };
   }
 
   /**
