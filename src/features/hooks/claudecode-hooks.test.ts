@@ -502,7 +502,7 @@ describe("ClaudecodeHooks", () => {
       expect(parsed.hooks.DirectoryAdded[0].matcher).toBe("slash_command");
     });
 
-    it("should only prefix dot-relative commands with $CLAUDE_PROJECT_DIR", async () => {
+    it("should prefix dot-relative commands and anchor later ./ paths with $CLAUDE_PROJECT_DIR", async () => {
       await ensureDir(join(testDir, ".claude"));
       await writeFileContent(join(testDir, ".claude", "settings.json"), JSON.stringify({}));
 
@@ -512,6 +512,7 @@ describe("ClaudecodeHooks", () => {
           sessionStart: [
             { type: "command", command: ".rulesync/hooks/session-start.sh" },
             { type: "command", command: "npx prettier --write ./src/hooks/format.ts" },
+            { type: "command", command: "npx eslint --fix" },
           ],
         },
       };
@@ -536,7 +537,10 @@ describe("ClaudecodeHooks", () => {
       expect(sessionStartEntry.matcher).toBeUndefined();
       expect(sessionStartEntry.hooks[0].command).toContain("$CLAUDE_PROJECT_DIR");
       expect(sessionStartEntry.hooks[0].command).toContain(".rulesync/hooks/session-start.sh");
-      expect(sessionStartEntry.hooks[1].command).toBe("npx prettier --write ./src/hooks/format.ts");
+      expect(sessionStartEntry.hooks[1].command).toBe(
+        'npx prettier --write "$CLAUDE_PROJECT_DIR"/src/hooks/format.ts',
+      );
+      expect(sessionStartEntry.hooks[2].command).toBe("npx eslint --fix");
     });
 
     it("should quote only the $CLAUDE_PROJECT_DIR variable so it survives word-splitting on project paths with spaces", async () => {
@@ -1146,6 +1150,21 @@ describe("ClaudecodeHooks", () => {
     // https://github.com/dyoshikawa/rulesync/issues/3171 — the variable must be
     // normalized wherever a path starts with it, not only as the first token,
     // or it leaks into targets (e.g. Codex CLI) that never set it.
+    const importCommand = (command: string): string | undefined => {
+      const claudecodeHooks = new ClaudecodeHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".claude",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          hooks: {
+            PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command }] }],
+          },
+        }),
+        validate: false,
+      });
+      return claudecodeHooks.toRulesyncHooks().getJson().hooks.preToolUse?.[0]?.command;
+    };
+
     it.each([
       ['"$CLAUDE_PROJECT_DIR"/.claude/hooks/a.sh', "./.claude/hooks/a.sh"],
       ['"$CLAUDE_PROJECT_DIR/.claude/hooks/b.sh"', '"./.claude/hooks/b.sh"'],
@@ -1161,25 +1180,21 @@ describe("ClaudecodeHooks", () => {
         "$CLAUDE_PROJECT_DIR/lint.sh && node $CLAUDE_PROJECT_DIR/check.js",
         "./lint.sh && node ./check.js",
       ],
+      ["tool --config=$CLAUDE_PROJECT_DIR/c.json", "tool --config=./c.json"],
+      // The form generate writes for a quoted path.
+      ['"$CLAUDE_PROJECT_DIR"/"my hooks/k.sh" --fix', '"./my hooks/k.sh" --fix'],
+      ["\"$CLAUDE_PROJECT_DIR\"/'my hooks/k.sh'", "'./my hooks/k.sh'"],
+      // A variable closing a double-quoted string keeps that quote in place.
+      ['echo "$CLAUDE_PROJECT_DIR/"', 'echo "./"'],
+      // An inner shell expands the variable inside single quotes.
+      ["bash -c 'test -x $CLAUDE_PROJECT_DIR/k.sh'", "bash -c 'test -x ./k.sh'"],
+      // After a `cd`, only the leading variable is normalized.
       [
-        "bash -c 'test -f x' --config=$CLAUDE_PROJECT_DIR/c.json",
-        "bash -c 'test -f x' --config=./c.json",
+        "$CLAUDE_PROJECT_DIR/a.sh && cd sub && $CLAUDE_PROJECT_DIR/b.sh",
+        "./a.sh && cd sub && $CLAUDE_PROJECT_DIR/b.sh",
       ],
     ])("should normalize %s to %s on import", (command, expected) => {
-      const claudecodeHooks = new ClaudecodeHooks({
-        outputRoot: testDir,
-        relativeDirPath: ".claude",
-        relativeFilePath: "settings.json",
-        fileContent: JSON.stringify({
-          hooks: {
-            PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command }] }],
-          },
-        }),
-        validate: false,
-      });
-
-      const json = claudecodeHooks.toRulesyncHooks().getJson();
-      expect(json.hooks.preToolUse?.[0]?.command).toBe(expected);
+      expect(importCommand(command)).toBe(expected);
     });
 
     it.each([
@@ -1193,20 +1208,91 @@ describe("ClaudecodeHooks", () => {
       // Another tool's variable is not Claude Code's to rewrite.
       "$CLAUDE_PLUGIN_ROOT/hook.sh",
     ])("should leave %s untouched on import", (command) => {
-      const claudecodeHooks = new ClaudecodeHooks({
+      expect(importCommand(command)).toBe(command);
+    });
+
+    // Generate re-anchors every `./` path import produced, so a hook keeps
+    // resolving against the project root, and a second import is stable.
+    it.each([
+      ['"$CLAUDE_PROJECT_DIR"/.claude/hooks/a.sh', '"$CLAUDE_PROJECT_DIR"/.claude/hooks/a.sh'],
+      ['"$CLAUDE_PROJECT_DIR/.claude/hooks/b.sh"', '"$CLAUDE_PROJECT_DIR"/".claude/hooks/b.sh"'],
+      ["$CLAUDE_PROJECT_DIR/.claude/hooks/c.sh", '"$CLAUDE_PROJECT_DIR"/.claude/hooks/c.sh'],
+      ["${CLAUDE_PROJECT_DIR}/.claude/hooks/d.sh", '"$CLAUDE_PROJECT_DIR"/.claude/hooks/d.sh'],
+      [
+        'python3 "$CLAUDE_PROJECT_DIR/.claude/hooks/e.py"',
+        'python3 "$CLAUDE_PROJECT_DIR/.claude/hooks/e.py"',
+      ],
+      [
+        'python3 "$CLAUDE_PROJECT_DIR"/.claude/hooks/f.py',
+        'python3 "$CLAUDE_PROJECT_DIR"/.claude/hooks/f.py',
+      ],
+      [
+        "node $CLAUDE_PROJECT_DIR/.claude/hooks/g.js",
+        'node "$CLAUDE_PROJECT_DIR"/.claude/hooks/g.js',
+      ],
+      [
+        'uv run "$CLAUDE_PROJECT_DIR/my hooks/j.py" --flag',
+        'uv run "$CLAUDE_PROJECT_DIR/my hooks/j.py" --flag',
+      ],
+      [
+        "$CLAUDE_PROJECT_DIR/lint.sh && node $CLAUDE_PROJECT_DIR/check.js",
+        '"$CLAUDE_PROJECT_DIR"/lint.sh && node "$CLAUDE_PROJECT_DIR"/check.js',
+      ],
+      ["bash -c 'test -x $CLAUDE_PROJECT_DIR/k.sh'", "bash -c 'test -x $CLAUDE_PROJECT_DIR/k.sh'"],
+      [
+        "$CLAUDE_PROJECT_DIR/a.sh && cd sub && $CLAUDE_PROJECT_DIR/b.sh",
+        '"$CLAUDE_PROJECT_DIR"/a.sh && cd sub && $CLAUDE_PROJECT_DIR/b.sh',
+      ],
+    ])("should round-trip %s through import and generate", async (command, expected) => {
+      const canonical = importCommand(command);
+      const rulesyncHooks = new RulesyncHooks({
         outputRoot: testDir,
-        relativeDirPath: ".claude",
-        relativeFilePath: "settings.json",
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
         fileContent: JSON.stringify({
-          hooks: {
-            PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command }] }],
-          },
+          version: 1,
+          hooks: { preToolUse: [{ type: "command", matcher: "Bash", command: canonical }] },
         }),
         validate: false,
       });
+      const generated = await ClaudecodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+      const regenerated: string = JSON.parse(generated.getFileContent()).hooks.PreToolUse[0]
+        .hooks[0].command;
+      expect(regenerated).toBe(expected);
+      expect(importCommand(regenerated)).toBe(canonical);
+    });
 
-      const json = claudecodeHooks.toRulesyncHooks().getJson();
-      expect(json.hooks.preToolUse?.[0]?.command).toBe(command);
+    it.each([
+      // `../` and bare `.name` words are never anchored after the first word.
+      "cat ../shared/notes.txt",
+      "git add .gitignore",
+      // Mid-word `./` is not a path start.
+      "ls a/./b",
+      // A command that changes directory keeps its later `./` paths relative.
+      "./build.sh && cd dist && ./post.sh",
+    ])("should not anchor later non-./ or post-cd paths in %s", async (command) => {
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: { preToolUse: [{ type: "command", matcher: "Bash", command }] },
+        }),
+        validate: false,
+      });
+      const generated = await ClaudecodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+      const regenerated: string = JSON.parse(generated.getFileContent()).hooks.PreToolUse[0]
+        .hooks[0].command;
+      expect(regenerated).toBe(command.replace(/^\.\//, '"$CLAUDE_PROJECT_DIR"/'));
     });
 
     it("should preserve http/mcp_tool/agent hooks with their payload fields on import", () => {

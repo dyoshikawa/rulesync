@@ -285,6 +285,9 @@ By default the generated hooks replace the destination's hook list wholesale, so
 **Hook entry keys:**
 
 - `command` (required): Shell command to execute when the event fires.
+
+  Write paths to project files as `./`-relative paths. For targets that anchor hook commands to a project-directory variable (Claude Code's `$CLAUDE_PROJECT_DIR`, the Claude Code plugin's `$CLAUDE_PLUGIN_ROOT`, Command Code, Continue, Cortex Code and Factory Droid), Rulesync prefixes a command that starts with `.` and also every later word that starts with `./`, such as an interpreter's script argument (`python3 ./hooks/check.py` becomes `python3 "$CLAUDE_PROJECT_DIR"/hooks/check.py`; inside quotes the variable is written unquoted, as in `"$CLAUDE_PROJECT_DIR/my hooks/check.py"`). Import reverses this wherever the variable starts a path, not only at the start of the command, so the variable does not leak into targets that never set it. A command that starts with a variable is passed through untouched, and in a command that changes directory (`cd`, `pushd`, `popd`) only the first word is converted, because a later `./` no longer refers to the project root.
+
 - `type` (optional): One of `"command"` (default), `"prompt"`, `"http"`, `"agent"`, `"mcp_tool"`, or `"function"` — the union of the hook types accepted across supported tools. Each tool supports a subset (most support only `command`); hooks with a type a tool does not support are skipped for that tool with a warning. See notes below.
 - `matcher` (optional): Regex used by tools that scope hooks to specific tool names (e.g. `preToolUse`, `postToolUse`, `notification`). Ignored by events that do not take a matcher (e.g. `sessionStart`, `worktreeCreate`, `worktreeRemove`).
 - `timeout` (optional): Per-hook timeout in seconds, forwarded to tools that support it.

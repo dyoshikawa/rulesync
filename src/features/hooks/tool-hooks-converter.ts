@@ -354,11 +354,20 @@ function applyCommandPrefix({
     !isAbsoluteCommand &&
     (!converterConfig.prefixDotRelativeCommandsOnly || isDotRelativeCommand);
 
+  // A later `./` path (an interpreter's script argument, a second command in a
+  // chain) is anchored too, mirroring import, which normalizes the variable
+  // wherever a path starts with it. The exec form has no shell to split words,
+  // and a command led by a variable is passed through untouched.
+  const anchorInline = (command: string): string =>
+    isExecForm || converterConfig.projectDirVar === "" || trimmedCommand?.startsWith("$")
+      ? command
+      : anchorInlineDotPaths({ command, projectDirVar: converterConfig.projectDirVar });
+
   // Only the variable itself is quoted (not the whole command) so a project path
   // containing a space can't be word-split by the shell, while any trailing
   // arguments after the script path stay outside the quotes and still split normally.
   if (!shouldPrefix || typeof trimmedCommand !== "string") {
-    return def.command;
+    return typeof def.command === "string" ? anchorInline(def.command) : def.command;
   }
 
   // Keep a leading quote around paths containing spaces, but remove `./`
@@ -371,7 +380,84 @@ function applyCommandPrefix({
     // quoting because each argument is passed through verbatim.
     return `${bracePlaceholder(converterConfig.projectDirVar)}/${stripSurroundingQuotes(relativeCommand)}`;
   }
-  return `"${converterConfig.projectDirVar}"/${relativeCommand}`;
+  return anchorInline(`"${converterConfig.projectDirVar}"/${relativeCommand}`);
+}
+
+/** Characters after which a shell word (and so a path) can start. */
+const WORD_BOUNDARY_CHARS = new Set([" ", "\t", "\n", "=", ";", "&", "|", "("]);
+
+/**
+ * Whether the command changes its working directory (`cd`, `pushd`, `popd`),
+ * after which a later `./` path no longer means the project root. Such
+ * commands are left alone past their first word in both directions.
+ */
+function changesDirectory(command: string): boolean {
+  return /(?:^|[\s;&|(])(?:cd|pushd|popd)(?:\s|$)/.test(command);
+}
+
+/**
+ * Anchor every `./` path that starts a shell word after the first one with the
+ * project directory variable, the inverse of `stripCommandPrefix`:
+ *
+ * - unquoted `./x` becomes `"$VAR"/x`;
+ * - inside quotes (`"./x"`, `bash -c '… ./x'`) it becomes `$VAR/x`, which a
+ *   double-quoted string keeps as one word and an inner shell expands.
+ *
+ * Only an explicit `./` is anchored — never `../` or a bare `.name` — and a
+ * `./` in the middle of a word (`a/./b`) is not a word start.
+ */
+function anchorInlineDotPaths({
+  command,
+  projectDirVar,
+}: {
+  command: string;
+  projectDirVar: string;
+}): string {
+  if (!command.includes("./") || changesDirectory(command)) {
+    return command;
+  }
+  let result = "";
+  let quote: string | undefined;
+  let quoteStart = -1;
+  for (let i = 0; i < command.length; i++) {
+    const char = command.charAt(i);
+    const previous = i === 0 ? undefined : command.charAt(i - 1);
+    const startsWord =
+      previous !== undefined && (WORD_BOUNDARY_CHARS.has(previous) || i - 1 === quoteStart);
+    if (quote !== "'" && char === "\\") {
+      // An escaped character is copied as is, and never starts a path.
+      result += command.slice(i, i + 2);
+      i++;
+      continue;
+    }
+    if (quote === undefined) {
+      if (startsWord && command.startsWith("./", i)) {
+        result += `"${projectDirVar}"/`;
+        i++;
+        continue;
+      }
+      if (char === '"' || char === "'") {
+        quote = char;
+        // An opening quote at a word start lets the path inside start a word.
+        quoteStart = previous === undefined || WORD_BOUNDARY_CHARS.has(previous) ? i : -1;
+      }
+      result += char;
+      continue;
+    }
+    if (char === quote) {
+      quote = undefined;
+      quoteStart = -1;
+      result += char;
+      continue;
+    }
+    if (startsWord && command.startsWith("./", i)) {
+      result += `${projectDirVar}/`;
+      i++;
+      continue;
+    }
+    result += char;
+  }
+  return result;
 }
 
 /**
@@ -1092,15 +1178,6 @@ export function canonicalToToolHooks({
 }
 
 /**
- * Convert tool-specific hooks back to canonical format (shared by Claude and Factory Droid).
- * Reverses event name mapping and strips project directory variable prefix from commands.
- *
- * Note: This function does not strip matchers for noMatcherEvents. Tools themselves never produce
- * matchers on these events, so stripping is unnecessary on import. If a manually edited config
- * includes a matcher on such an event, it will be preserved in canonical format but dropped
- * on the next export (with a warning).
- */
-/**
  * Rewrite every reference to the project directory variable in a tool command
  * string to the portable `./` form.
  *
@@ -1112,6 +1189,10 @@ export function canonicalToToolHooks({
  * a path containing spaces stays one shell word (`"$VAR/my hook.sh"` becomes
  * `"./my hook.sh"`). An escaped `\$VAR` (a literal `$`), a longer name such
  * as `$VAR_2`, and a bare `$VAR` not followed by a path are left untouched.
+ * Single-quoted text is rewritten too: hooks mostly single-quote a script
+ * handed to an inner shell (`bash -c '… $VAR/x'`), which does expand it, and
+ * `anchorInlineDotPaths` restores `$VAR/` there on generate. A command that
+ * changes directory keeps every variable after its first word.
  */
 function stripCommandPrefix({
   command,
@@ -1129,11 +1210,19 @@ function stripCommandPrefix({
   // `"$VAR"/`, `"${VAR}"/`, `$VAR/` and `${VAR}/`, not preceded by a backslash
   // (an escaped, literal `$`) or by an identifier character (part of a longer
   // name). The trailing `/` also rules out a longer name such as `$VAR_2/`.
+  // A quoted path right after a quoted variable (`"$VAR"/"my hook.sh"`, the
+  // form generate writes for a quoted path) is captured so its quote moves in
+  // front of `./` and the canonical command stays `"./my hook.sh"`.
   const pattern = new RegExp(
-    `(?<![\\\\\\w])(?:"\\$(?:${escapedName}|\\{${escapedName}\\})"|\\$(?:${escapedName}|\\{${escapedName}\\}))/`,
+    `(?<![\\\\\\w])(?:"\\$(?:${escapedName}|\\{${escapedName}\\})"/(["']?)|\\$(?:${escapedName}|\\{${escapedName}\\})/)`,
     "g",
   );
-  return cmd.replace(pattern, "./");
+  // After a `cd`, a later `./` would no longer mean the project root, so only
+  // a leading variable is normalized there (generate re-anchors just that one).
+  const keepsInline = changesDirectory(cmd);
+  return cmd.replace(pattern, (match: string, quote: string | undefined, offset: number) =>
+    keepsInline && offset > 0 ? match : `${quote ?? ""}./`,
+  );
 }
 
 /**
@@ -1640,6 +1729,15 @@ export function buildImportedHooksConfig({
   return config;
 }
 
+/**
+ * Convert tool-specific hooks back to canonical format (shared by Claude and Factory Droid).
+ * Reverses event name mapping and strips the project directory variable from commands.
+ *
+ * Note: This function does not strip matchers for noMatcherEvents. Tools themselves never produce
+ * matchers on these events, so stripping is unnecessary on import. If a manually edited config
+ * includes a matcher on such an event, it will be preserved in canonical format but dropped
+ * on the next export (with a warning).
+ */
 export function toolHooksToCanonical({
   hooks,
   converterConfig,

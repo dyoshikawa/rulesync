@@ -225,5 +225,48 @@ describe("ClaudecodePluginHooks", () => {
 
       expect(config.hooks.sessionStart[0].command).toBe("./scripts/fmt.sh");
     });
+
+    // https://github.com/dyoshikawa/rulesync/issues/3171 — an interpreter-led
+    // command must keep resolving its script against the plugin root after an
+    // import and a generate, or the plugin points into the consumer's project.
+    it.each([
+      [
+        "node ${CLAUDE_PLUGIN_ROOT}/scripts/x.js",
+        "node ./scripts/x.js",
+        'node "$CLAUDE_PLUGIN_ROOT"/scripts/x.js',
+      ],
+      [
+        'python3 "$CLAUDE_PLUGIN_ROOT/scripts/x.py"',
+        'python3 "./scripts/x.py"',
+        'python3 "$CLAUDE_PLUGIN_ROOT/scripts/x.py"',
+      ],
+    ])("should round-trip %s through import and generate", async (command, canonical, expected) => {
+      const importCommand = (fileCommand: string): string =>
+        JSON.parse(
+          new ClaudecodePluginHooks({
+            outputRoot: testDir,
+            relativeDirPath: "hooks",
+            relativeFilePath: "hooks.json",
+            fileContent: JSON.stringify({
+              hooks: { SessionStart: [{ hooks: [{ type: "command", command: fileCommand }] }] },
+            }),
+            validate: false,
+          })
+            .toRulesyncHooks()
+            .getFileContent(),
+        ).hooks.sessionStart[0].command;
+
+      expect(importCommand(command)).toBe(canonical);
+
+      const pluginHooks = await ClaudecodePluginHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks: buildRulesyncHooks({ testDir, command: canonical }),
+        validate: false,
+      });
+      const regenerated: string = JSON.parse(pluginHooks.getFileContent()).hooks.SessionStart[0]
+        .hooks[0].command;
+      expect(regenerated).toBe(expected);
+      expect(importCommand(regenerated)).toBe(canonical);
+    });
   });
 });

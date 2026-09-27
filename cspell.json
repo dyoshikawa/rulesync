@@ -24,6 +24,8 @@
   ],
   "words": [
     "cimd",
+    "pushd",
+    "popd",
     "CONIN",
     "CONOUT",
     "conin",
