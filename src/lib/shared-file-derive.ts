@@ -30,6 +30,9 @@ export const SHARED_WRITE_FEATURE_ORDER = [
   "commands",
   "subagents",
   "mcp",
+  // `models` writes `provider`/`model` keys of `opencode.json`, which no other
+  // feature touches — it sits next to `mcp`, the feature it mirrors.
+  "models",
   "hooks",
   // `checks` only reaches a shared file for Takt, where it owns
   // `workflow_overrides` outright — no other feature writes that key — so its

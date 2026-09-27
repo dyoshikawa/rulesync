@@ -163,6 +163,7 @@ describe("shared-file write derivation", () => {
         ],
         ".config/opencode/opencode.json": [
           "mcp",
+          "models",
           "permissions",
           "rules",
         ],
@@ -275,6 +276,7 @@ describe("shared-file write derivation", () => {
         ],
         "opencode.json": [
           "mcp",
+          "models",
           "permissions",
           "rules",
         ],

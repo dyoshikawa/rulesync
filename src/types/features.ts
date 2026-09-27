@@ -3,6 +3,7 @@ import { meta, z } from "zod/mini";
 const ACTIVE_FEATURES_BEFORE_IGNORE = ["rules"] as const;
 const ACTIVE_FEATURES_AFTER_IGNORE = [
   "mcp",
+  "models",
   "subagents",
   "commands",
   "skills",

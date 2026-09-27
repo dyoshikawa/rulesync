@@ -20,6 +20,11 @@ import {
 } from "../features/ignore/ignore-processor.js";
 import { McpProcessor } from "../features/mcp/mcp-processor.js";
 import { McpProcessorToolTargetSchema, toolMcpFactories } from "../features/mcp/mcp-processor.js";
+import { ModelsProcessor } from "../features/models/models-processor.js";
+import {
+  ModelsProcessorToolTargetSchema,
+  toolModelsFactories,
+} from "../features/models/models-processor.js";
 import { PermissionsProcessor } from "../features/permissions/permissions-processor.js";
 import {
   PermissionsProcessorToolTargetSchema,
@@ -84,6 +89,12 @@ export const PROCESSOR_REGISTRY: ReadonlyArray<ProcessorRegistryEntry> = [
     processor: McpProcessor,
     schema: McpProcessorToolTargetSchema,
     factory: toolMcpFactories,
+  },
+  {
+    feature: "models",
+    processor: ModelsProcessor,
+    schema: ModelsProcessorToolTargetSchema,
+    factory: toolModelsFactories,
   },
   {
     feature: "commands",

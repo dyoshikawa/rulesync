@@ -8,9 +8,11 @@ import { ConfigFileSchema } from "../src/config/config.js";
 import {
   RULESYNC_CONFIG_SCHEMA_URL,
   RULESYNC_MCP_SCHEMA_URL,
+  RULESYNC_MODELS_SCHEMA_URL,
   RULESYNC_PERMISSIONS_SCHEMA_URL,
 } from "../src/constants/rulesync-paths.js";
 import { RulesyncMcpFileSchema } from "../src/features/mcp/rulesync-mcp.js";
+import { RulesyncModelsFileSchema } from "../src/features/models/rulesync-models.js";
 import { RulesyncPermissionsFileSchema } from "../src/types/permissions.js";
 
 type SchemaMeta = {
@@ -55,6 +57,17 @@ generateSchema(
     description: "MCP server configuration file for Rulesync CLI tool",
   },
   mcpOutputPath,
+);
+
+const modelsOutputPath = join(process.cwd(), "models-schema.json");
+generateSchema(
+  RulesyncModelsFileSchema,
+  {
+    $id: RULESYNC_MODELS_SCHEMA_URL,
+    title: "Rulesync Models Configuration",
+    description: "Model provider and model list configuration file for Rulesync CLI tool",
+  },
+  modelsOutputPath,
 );
 
 const permissionsOutputPath = join(process.cwd(), "permissions-schema.json");
