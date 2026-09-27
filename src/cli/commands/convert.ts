@@ -5,7 +5,27 @@ import { CLIError, ErrorCodes } from "../../types/json-output.js";
 import { ALL_TOOL_TARGETS, type ToolTarget, ToolTargetSchema } from "../../types/tool-targets.js";
 import type { Logger } from "../../utils/logger.js";
 import { isPackagingToolTarget } from "../../utils/plugin-root.js";
-import { calculateTotalCount } from "../../utils/result.js";
+import { calculateTotalCount, type CountableResult } from "../../utils/result.js";
+
+/**
+ * Build the human-readable per-feature summary fragments (e.g. "3 rules") for
+ * features that converted at least one file.
+ */
+function buildConvertSummaryParts(result: CountableResult): string[] {
+  const specs: { count: number | undefined; label: string }[] = [
+    { count: result.rulesCount, label: "rules" },
+    { count: result.ignoreCount, label: "ignore files" },
+    { count: result.mcpCount, label: "MCP files" },
+    { count: result.modelsCount, label: "models files" },
+    { count: result.commandsCount, label: "commands" },
+    { count: result.subagentsCount, label: "subagents" },
+    { count: result.skillsCount, label: "skills" },
+    { count: result.hooksCount, label: "hooks" },
+    { count: result.permissionsCount, label: "permissions" },
+    { count: result.checksCount, label: "checks" },
+  ];
+  return specs.filter((spec) => (spec.count ?? 0) > 0).map((spec) => `${spec.count} ${spec.label}`);
+}
 
 export type ConvertOptions = Omit<
   ConfigResolverResolveParams,
@@ -86,6 +106,7 @@ export async function convertCommand(logger: Logger, options: ConvertOptions): P
       rules: { count: result.rulesCount },
       ignore: { count: result.ignoreCount },
       mcp: { count: result.mcpCount },
+      models: { count: result.modelsCount },
       commands: { count: result.commandsCount },
       subagents: { count: result.subagentsCount },
       skills: { count: result.skillsCount },
@@ -96,16 +117,7 @@ export async function convertCommand(logger: Logger, options: ConvertOptions): P
     logger.captureData("totalFiles", totalConverted);
   }
 
-  const parts: string[] = [];
-  if (result.rulesCount > 0) parts.push(`${result.rulesCount} rules`);
-  if (result.ignoreCount > 0) parts.push(`${result.ignoreCount} ignore files`);
-  if (result.mcpCount > 0) parts.push(`${result.mcpCount} MCP files`);
-  if (result.commandsCount > 0) parts.push(`${result.commandsCount} commands`);
-  if (result.subagentsCount > 0) parts.push(`${result.subagentsCount} subagents`);
-  if (result.skillsCount > 0) parts.push(`${result.skillsCount} skills`);
-  if (result.hooksCount > 0) parts.push(`${result.hooksCount} hooks`);
-  if (result.permissionsCount > 0) parts.push(`${result.permissionsCount} permissions`);
-  if (result.checksCount > 0) parts.push(`${result.checksCount} checks`);
+  const parts = buildConvertSummaryParts(result);
 
   const verbPhrase = isPreview ? "Would convert" : "Converted";
   const summary = `${modePrefix}${verbPhrase} ${totalConverted} file(s) total from ${fromTool} to ${toTools.join(", ")} (${parts.join(" + ")})`;

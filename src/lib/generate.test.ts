@@ -1856,6 +1856,7 @@ describe("GENERATION_STEP_GRAPH", () => {
       "skills",
       "subagents",
       "mcp",
+      "models",
       "hooks",
       // Checks moved out of the unordered tail once Takt started writing
       // `workflow_overrides` into the config.yaml that MCP and permissions

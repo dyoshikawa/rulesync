@@ -27,6 +27,7 @@ export type CountableResult = {
   rulesCount: number;
   ignoreCount: number;
   mcpCount: number;
+  modelsCount?: number;
   commandsCount: number;
   subagentsCount: number;
   skillsCount: number;
@@ -44,6 +45,7 @@ export function calculateTotalCount(result: CountableResult): number {
     result.rulesCount +
     result.ignoreCount +
     result.mcpCount +
+    (result.modelsCount ?? 0) +
     result.commandsCount +
     result.subagentsCount +
     result.skillsCount +

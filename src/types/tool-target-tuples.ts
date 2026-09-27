@@ -131,6 +131,8 @@ export const mcpProcessorToolTargetTuple = [
   "zoocode",
 ] as const;
 
+export const modelsProcessorToolTargetTuple = ["opencode"] as const;
+
 export const commandsProcessorToolTargetTuple = [
   "agentsmd",
   "antigravity-cli",
@@ -362,6 +364,7 @@ export const ALL_TOOL_TARGET_TUPLES = [
   rulesProcessorToolTargetTuple,
   ignoreProcessorToolTargetTuple,
   mcpProcessorToolTargetTuple,
+  modelsProcessorToolTargetTuple,
   commandsProcessorToolTargetTuple,
   subagentsProcessorToolTargetTuple,
   skillsProcessorToolTargetTuple,

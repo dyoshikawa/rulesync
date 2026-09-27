@@ -86,56 +86,56 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 
 <!-- SUPPORTED_TOOLS_AI:BEGIN -->
 
-| Tool                      | rules | ignore | mcp | commands | subagents | skills | hooks | permissions | checks |
-| ------------------------- | :---: | :----: | :-: | :------: | :-------: | :----: | :---: | :---------: | :----: |
-| Amp                       |  ✅   |        | ✅  |          |           |   ✅   |  ✅   |     ✅      |   ✅   |
-| IBM Bob                   |  ✅   |   ✅   | ✅  |    ✅    |           |   ✅   |  ✅   |             |        |
-| Claude Code               |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
-| Claude Code plugin        |       |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |             |        |
-| CodeBuddy Code            |  ✅   |        |     |          |           |        |       |             |        |
-| Codex CLI                 |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
-| Command Code              |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
-| GitHub Copilot            |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
-| GitHub Copilot CLI        |  ✅   |        | ✅  |          |    ✅     |   ✅   |  ✅   |     ✅      |        |
-| Crush                     |  ✅   |   ✅   | ✅  |          |           |   ✅   |  ✅   |     ✅      |        |
-| Goose                     |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
-| Hermes Agent              |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |   ✅   |
-| Grok CLI                  |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
-| Cursor                    |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |   ✅   |
-| deepagents-cli            |  ✅   |        | ✅  |          |    ✅     |   ✅   |  ✅   |     ✅      |        |
-| Factory Droid             |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |   ✅   |
-| OpenCode                  |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
-| Cline                     |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
-| Kilo Code                 |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
-| Kimi Code                 |  ✅   |        | ✅  |          |    ✅     |   ✅   |  ✅   |     ✅      |        |
-| Roo Code ⚠️               |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |       |     ✅      |        |
-| Zoo Code                  |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |       |     ✅      |        |
-| Rovodev (Atlassian)       |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |       |     ✅      |   ✅   |
-| Takt                      |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |       |     ✅      |   ✅   |
-| Tabnine CLI ⚠️            |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
-| Continue ⚠️               |  ✅   |   ✅   | ✅  |    ✅    |           |   ✅   |  ✅   |     ✅      |        |
-| Snowflake Cortex Code     |  ✅   |        | ✅  |          |    ✅     |   ✅   |  ✅   |             |        |
-| Vibe Code                 |  ✅   |   ✅   | ✅  |          |    ✅     |   ✅   |  ✅   |     ✅      |        |
-| Qwen Code                 |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
-| Meta Muse Code            |  ✅   |        | ✅  |          |           |   ✅   |       |             |        |
-| Reasonix                  |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
-| Kiro ⚠️                   |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
-| Kiro CLI                  |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
-| Kiro IDE                  |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
-| Google Antigravity IDE    |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
-| Google Antigravity CLI    |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
-| Google Antigravity plugin |  ✅   |        | ✅  |          |    ✅     |   ✅   |  ✅   |             |        |
-| JetBrains AI Assistant    |  ✅   |   ✅   | ✅  |          |           |   ✅   |       |             |        |
-| JetBrains Junie           |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
-| AugmentCode               |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |   ✅   |
-| Devin Desktop             |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
-| Warp                      |  ✅   |   ✅   | ✅  |    ✅    |           |   ✅   |       |     ✅      |        |
-| Replit                    |  ✅   |        |     |          |           |   ✅   |       |             |        |
-| Pi Coding Agent           |  ✅   |        |     |    ✅    |           |   ✅   |  ✅   |     ✅      |        |
-| Zed                       |  ✅   |   ✅   | ✅  |          |           |   ✅   |       |     ✅      |        |
-| ZCode (Z.ai)              |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |             |        |
-| Pool (Poolside)           |  ✅   |        | ✅  |          |    ✅     |   ✅   |  ✅   |     ✅      |        |
-| DeepSeek Harness          |  ✅   |        |     |          |           |   ✅   |       |             |        |
+| Tool                      | rules | ignore | mcp | models | commands | subagents | skills | hooks | permissions | checks |
+| ------------------------- | :---: | :----: | :-: | :----: | :------: | :-------: | :----: | :---: | :---------: | :----: |
+| Amp                       |  ✅   |        | ✅  |        |          |           |   ✅   |  ✅   |     ✅      |   ✅   |
+| IBM Bob                   |  ✅   |   ✅   | ✅  |        |    ✅    |           |   ✅   |  ✅   |             |        |
+| Claude Code               |  ✅   |   ✅   | ✅  |        |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
+| Claude Code plugin        |       |        | ✅  |        |    ✅    |    ✅     |   ✅   |  ✅   |             |        |
+| CodeBuddy Code            |  ✅   |        |     |        |          |           |        |       |             |        |
+| Codex CLI                 |  ✅   |        | ✅  |        |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
+| Command Code              |  ✅   |        | ✅  |        |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
+| GitHub Copilot            |  ✅   |        | ✅  |        |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
+| GitHub Copilot CLI        |  ✅   |        | ✅  |        |          |    ✅     |   ✅   |  ✅   |     ✅      |        |
+| Crush                     |  ✅   |   ✅   | ✅  |        |          |           |   ✅   |  ✅   |     ✅      |        |
+| Goose                     |  ✅   |        | ✅  |        |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
+| Hermes Agent              |  ✅   |   ✅   | ✅  |        |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |   ✅   |
+| Grok CLI                  |  ✅   |        | ✅  |        |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
+| Cursor                    |  ✅   |   ✅   | ✅  |        |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |   ✅   |
+| deepagents-cli            |  ✅   |        | ✅  |        |          |    ✅     |   ✅   |  ✅   |     ✅      |        |
+| Factory Droid             |  ✅   |        | ✅  |        |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |   ✅   |
+| OpenCode                  |  ✅   |        | ✅  |   ✅   |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
+| Cline                     |  ✅   |   ✅   | ✅  |        |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
+| Kilo Code                 |  ✅   |   ✅   | ✅  |        |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
+| Kimi Code                 |  ✅   |        | ✅  |        |          |    ✅     |   ✅   |  ✅   |     ✅      |        |
+| Roo Code ⚠️               |  ✅   |   ✅   | ✅  |        |    ✅    |    ✅     |   ✅   |       |     ✅      |        |
+| Zoo Code                  |  ✅   |   ✅   | ✅  |        |    ✅    |    ✅     |   ✅   |       |     ✅      |        |
+| Rovodev (Atlassian)       |  ✅   |        | ✅  |        |    ✅    |    ✅     |   ✅   |       |     ✅      |   ✅   |
+| Takt                      |  ✅   |        | ✅  |        |    ✅    |    ✅     |   ✅   |       |     ✅      |   ✅   |
+| Tabnine CLI ⚠️            |  ✅   |   ✅   | ✅  |        |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
+| Continue ⚠️               |  ✅   |   ✅   | ✅  |        |    ✅    |           |   ✅   |  ✅   |     ✅      |        |
+| Snowflake Cortex Code     |  ✅   |        | ✅  |        |          |    ✅     |   ✅   |  ✅   |             |        |
+| Vibe Code                 |  ✅   |   ✅   | ✅  |        |          |    ✅     |   ✅   |  ✅   |     ✅      |        |
+| Qwen Code                 |  ✅   |   ✅   | ✅  |        |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
+| Meta Muse Code            |  ✅   |        | ✅  |        |          |           |   ✅   |       |             |        |
+| Reasonix                  |  ✅   |   ✅   | ✅  |        |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
+| Kiro ⚠️                   |  ✅   |   ✅   | ✅  |        |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
+| Kiro CLI                  |  ✅   |   ✅   | ✅  |        |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
+| Kiro IDE                  |  ✅   |   ✅   | ✅  |        |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
+| Google Antigravity IDE    |  ✅   |        | ✅  |        |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
+| Google Antigravity CLI    |  ✅   |   ✅   | ✅  |        |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
+| Google Antigravity plugin |  ✅   |        | ✅  |        |          |    ✅     |   ✅   |  ✅   |             |        |
+| JetBrains AI Assistant    |  ✅   |   ✅   | ✅  |        |          |           |   ✅   |       |             |        |
+| JetBrains Junie           |  ✅   |   ✅   | ✅  |        |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
+| AugmentCode               |  ✅   |   ✅   | ✅  |        |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |   ✅   |
+| Devin Desktop             |  ✅   |   ✅   | ✅  |        |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
+| Warp                      |  ✅   |   ✅   | ✅  |        |    ✅    |           |   ✅   |       |     ✅      |        |
+| Replit                    |  ✅   |        |     |        |          |           |   ✅   |       |             |        |
+| Pi Coding Agent           |  ✅   |        |     |        |    ✅    |           |   ✅   |  ✅   |     ✅      |        |
+| Zed                       |  ✅   |   ✅   | ✅  |        |          |           |   ✅   |       |     ✅      |        |
+| ZCode (Z.ai)              |  ✅   |        | ✅  |        |    ✅    |    ✅     |   ✅   |  ✅   |             |        |
+| Pool (Poolside)           |  ✅   |        | ✅  |        |          |    ✅     |   ✅   |  ✅   |     ✅      |        |
+| DeepSeek Harness          |  ✅   |        |     |        |          |           |   ✅   |       |             |        |
 
 <!-- SUPPORTED_TOOLS_AI:END -->
 
@@ -143,10 +143,10 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 
 <!-- SUPPORTED_TOOLS_STANDARD:BEGIN -->
 
-| Tool         | rules | ignore | mcp | commands | subagents | skills | hooks | permissions | checks |
-| ------------ | :---: | :----: | :-: | :------: | :-------: | :----: | :---: | :---------: | :----: |
-| AGENTS.md    |  ✅   |        |     |    ✅    |    ✅     |   ✅   |       |             |        |
-| AgentsSkills |       |        |     |          |           |   ✅   |       |             |        |
+| Tool         | rules | ignore | mcp | models | commands | subagents | skills | hooks | permissions | checks |
+| ------------ | :---: | :----: | :-: | :----: | :------: | :-------: | :----: | :---: | :---------: | :----: |
+| AGENTS.md    |  ✅   |        |     |        |    ✅    |    ✅     |   ✅   |       |             |        |
+| AgentsSkills |       |        |     |        |          |           |   ✅   |       |             |        |
 
 <!-- SUPPORTED_TOOLS_STANDARD:END -->
 

@@ -65,6 +65,7 @@ function logFeatureResult(
 const FEATURE_DEBUG_MESSAGES: Record<string, string> = {
   ignore: "Generating ignore files...",
   mcp: "Generating MCP files...",
+  models: "Generating models files...",
   commands: "Generating command files...",
   subagents: "Generating subagent files...",
   skills: "Generating skill files...",
@@ -78,6 +79,7 @@ const FEATURE_DEBUG_MESSAGES: Record<string, string> = {
 const FEATURE_DEBUG_ORDER = [
   "ignore",
   "mcp",
+  "models",
   "commands",
   "subagents",
   "skills",
@@ -104,6 +106,7 @@ function buildSummaryParts(result: GenerateResult): string[] {
     { count: result.rulesCount, label: "rules" },
     { count: result.ignoreCount, label: "ignore files" },
     { count: result.mcpCount, label: "MCP files" },
+    { count: result.modelsCount, label: "models files" },
     { count: result.commandsCount, label: "commands" },
     { count: result.subagentsCount, label: "subagents" },
     { count: result.skillsCount, label: "skills" },
@@ -170,6 +173,7 @@ async function generateOnce(
   const featureResults = {
     ignore: { count: result.ignoreCount, paths: result.ignorePaths },
     mcp: { count: result.mcpCount, paths: result.mcpPaths },
+    models: { count: result.modelsCount, paths: result.modelsPaths },
     commands: { count: result.commandsCount, paths: result.commandsPaths },
     subagents: { count: result.subagentsCount, paths: result.subagentsPaths },
     skills: { count: result.skillsCount, paths: result.skillsPaths },
@@ -185,6 +189,7 @@ async function generateOnce(
     rules: (count) => `${count === 1 ? "rule" : "rules"}`,
     ignore: (count) => `${count === 1 ? "ignore file" : "ignore files"}`,
     mcp: (count) => `${count === 1 ? "MCP file" : "MCP files"}`,
+    models: (count) => `${count === 1 ? "models file" : "models files"}`,
     commands: (count) => `${count === 1 ? "command" : "commands"}`,
     subagents: (count) => `${count === 1 ? "subagent" : "subagents"}`,
     skills: (count) => `${count === 1 ? "skill" : "skills"}`,

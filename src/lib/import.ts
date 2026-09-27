@@ -6,6 +6,8 @@ import { RulesyncHooks } from "../features/hooks/rulesync-hooks.js";
 import { IgnoreProcessor } from "../features/ignore/ignore-processor.js";
 import { McpProcessor } from "../features/mcp/mcp-processor.js";
 import { RulesyncMcp } from "../features/mcp/rulesync-mcp.js";
+import { ModelsProcessor } from "../features/models/models-processor.js";
+import { RulesyncModels } from "../features/models/rulesync-models.js";
 import { PermissionsProcessor } from "../features/permissions/permissions-processor.js";
 import { RulesyncPermissions } from "../features/permissions/rulesync-permissions.js";
 import { RulesProcessor } from "../features/rules/rules-processor.js";
@@ -65,6 +67,7 @@ export type ImportResult = {
   rulesCount: number;
   ignoreCount: number;
   mcpCount: number;
+  modelsCount: number;
   commandsCount: number;
   subagentsCount: number;
   skillsCount: number;
@@ -111,6 +114,7 @@ export async function importFromTool(params: {
   const rulesCount = await importRulesCore({ config, tool, logger });
   const ignoreCount = await importIgnoreCore({ config, tool, logger });
   const mcpCount = await importMcpCore({ config, tool, logger });
+  const modelsCount = await importModelsCore({ config, tool, logger });
   const commandsCount = await importCommandsCore({ config, tool, logger });
   const subagentsCount = await importSubagentsCore({ config, tool, logger });
   const skillsCount = await importSkillsCore({ config, tool, logger });
@@ -122,6 +126,7 @@ export async function importFromTool(params: {
     rulesCount,
     ignoreCount,
     mcpCount,
+    modelsCount,
     commandsCount,
     subagentsCount,
     skillsCount,
@@ -273,6 +278,54 @@ async function importMcpCore(params: {
 
   if (config.getVerbose() && writtenCount > 0) {
     logger.success(`Created ${writtenCount} MCP files`);
+  }
+
+  return writtenCount;
+}
+
+async function importModelsCore(params: {
+  config: Config;
+  tool: ToolTarget;
+  logger: Logger;
+}): Promise<number> {
+  const { config, tool, logger } = params;
+
+  if (!config.getFeatures(tool).includes("models")) {
+    return 0;
+  }
+
+  const global = config.getGlobal();
+
+  const supportedTargets = ModelsProcessor.getToolTargets({ global });
+
+  if (!supportedTargets.includes(tool)) {
+    return 0;
+  }
+
+  const modelsProcessor = new ModelsProcessor({
+    outputRoot: getToolOutputRoot({ config, tool }),
+    toolTarget: tool,
+    global,
+    logger,
+  });
+
+  const toolFiles = await modelsProcessor.loadToolFiles();
+  if (toolFiles.length === 0) {
+    logger.warn(`No models files found for ${tool}. Skipping import.`);
+    return 0;
+  }
+
+  const convertedFiles = await modelsProcessor.convertToolFilesToRulesyncFiles(toolFiles);
+  const rulesyncFiles = await applyRulesyncSourcePath({
+    files: convertedFiles,
+    paths: RulesyncModels.getSettablePaths(),
+    sourceClass: RulesyncModels,
+    outputRoot: isPackagingToolTarget(tool) ? process.cwd() : undefined,
+  });
+  const { count: writtenCount } = await modelsProcessor.writeAiFiles(rulesyncFiles);
+
+  if (config.getVerbose() && writtenCount > 0) {
+    logger.success(`Created ${writtenCount} models files`);
   }
 
   return writtenCount;

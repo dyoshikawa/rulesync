@@ -12,6 +12,7 @@ const FEATURES = [
   "rules",
   "ignore",
   "mcp",
+  "models",
   "commands",
   "subagents",
   "skills",

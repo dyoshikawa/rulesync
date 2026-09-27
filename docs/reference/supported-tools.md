@@ -4,58 +4,58 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 
 <!-- SUPPORTED_TOOLS_DOCS:BEGIN -->
 
-| Tool                      | --targets          | rules | ignore |   mcp    | commands | subagents | skills | hooks | permissions | checks |
-| ------------------------- | ------------------ | :---: | :----: | :------: | :------: | :-------: | :----: | :---: | :---------: | :----: |
-| AGENTS.md                 | agentsmd           |  ✅   |        |          |    🎮    |    🎮     |   🎮   |       |             |        |
-| AgentsSkills              | agentsskills       |       |        |          |          |           | ✅ 🌏  |       |             |        |
-| Amp                       | amp                | ✅ 🌏 |        |  ✅ 🌏   |          |           | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    | ✅ 🌏  |
-| IBM Bob                   | bob                | ✅ 🌏 |   ✅   |  ✅ 🌏   |  ✅ 🌏   |           | ✅ 🌏  | ✅ 🌏 |             |        |
-| Claude Code               | claudecode         | ✅ 🌏 |   ✅   |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
-| Claude Code plugin        | claudecode-plugin  |       |        |    ✅    |    ✅    |    ✅     |   ✅   |  ✅   |             |        |
-| CodeBuddy Code            | codebuddy          | ✅ 🌏 |        |          |          |           |        |       |             |        |
-| Codex CLI                 | codexcli           | ✅ 🌏 |        | ✅ 🌏 🔧 |    🌏    |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
-| Command Code              | commandcode        | ✅ 🌏 |        |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
-| GitHub Copilot            | copilot            | ✅ 🌏 |        |    ✅    |    ✅    |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |     ✅      |        |
-| GitHub Copilot CLI        | copilotcli         | ✅ 🌏 |        | ✅ 🌏 🔧 |          |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
-| Crush                     | crush              | ✅ 🌏 |   ✅   | ✅ 🌏 🔧 |          |           | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
-| Goose                     | goose              | ✅ 🌏 |        |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   |   ✅   | ✅ 🌏 |     🌏      |        |
-| Hermes Agent              | hermesagent        |  ✅   |   ✅   |  🌏 🔧   |    🌏    |   ✅ 🌏   |   🌏   |  🌏   |     🌏      |   ✅   |
-| Grok CLI                  | grokcli            | ✅ 🌏 |        |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
-| Cursor                    | cursor             |  ✅   |   ✅   |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |   ✅   |
-| deepagents-cli            | deepagents         | ✅ 🌏 |        | ✅ 🌏 🔧 |          |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |     🌏      |        |
-| Factory Droid             | factorydroid       | ✅ 🌏 |        | ✅ 🌏 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |   ✅   |
-| OpenCode                  | opencode           | ✅ 🌏 |        | ✅ 🌏 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
-| Cline                     | cline              | ✅ 🌏 |   ✅   |    🌏    |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |     ✅      |        |
-| Kilo Code                 | kilo               | ✅ 🌏 |   ✅   | ✅ 🌏 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
-| Kimi Code                 | kimi-code          | ✅ 🌏 |        | ✅ 🌏 🔧 |          |   ✅ 🌏   | ✅ 🌏  |  🌏   |     🌏      |        |
-| Roo Code ⚠️               | roo                | ✅ 🌏 |   ✅   |  ✅ 🔧   |  ✅ 🌏   |    ✅     | ✅ 🌏  |       |     ✅      |        |
-| Zoo Code                  | zoocode            | ✅ 🌏 |   ✅   |  ✅ 🔧   |  ✅ 🌏   |    ✅     | ✅ 🌏  |       |     ✅      |        |
-| Rovodev (Atlassian)       | rovodev            | ✅ 🌏 |        |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |       |    ✅ 🌏    |   ✅   |
-| Takt                      | takt               | ✅ 🌏 |        |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |       |    ✅ 🌏    | ✅ 🌏  |
-| Tabnine CLI ⚠️            | tabnine            | ✅ 🌏 |   ✅   | ✅ 🌏 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
-| Continue ⚠️               | continue           | ✅ 🌏 | ✅ 🌏  |  ✅ 🌏   |  ✅ 🌏   |           | ✅ 🌏  | ✅ 🌏 |     🌏      |        |
-| Snowflake Cortex Code     | cortexcode         |  ✅   |        |    🌏    |          |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |             |        |
-| Vibe Code                 | vibe               | ✅ 🌏 |   ✅   | ✅ 🌏 🔧 |          |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
-| Qwen Code                 | qwencode           | ✅ 🌏 |   ✅   | ✅ 🌏 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
-| Meta Muse Code            | musecode           |  ✅   |        |    🌏    |          |           | ✅ 🌏  |       |             |        |
-| Reasonix                  | reasonix           | ✅ 🌏 | ✅ 🌏  |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
-| Kiro ⚠️                   | kiro               | ✅ 🌏 | ✅ 🌏  | ✅ 🌏 🔧 |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
-| Kiro CLI                  | kiro-cli           | ✅ 🌏 | ✅ 🌏  | ✅ 🌏 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |     ✅      |        |
-| Kiro IDE                  | kiro-ide           | ✅ 🌏 | ✅ 🌏  | ✅ 🌏 🔧 |    ✅    |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |     ✅      |        |
-| Google Antigravity IDE    | antigravity-ide    | ✅ 🌏 |        | ✅ 🌏 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |     ✅      |        |
-| Google Antigravity CLI    | antigravity-cli    | ✅ 🌏 |   ✅   | ✅ 🌏 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |     🌏      |        |
-| Google Antigravity plugin | antigravity-plugin |  ✅   |        |  ✅ 🔧   |          |    ✅     |   ✅   |  ✅   |             |        |
-| JetBrains AI Assistant    | aiassistant        |  ✅   |   ✅   |  ✅ 🌏   |          |           |   ✅   |       |             |        |
-| JetBrains Junie           | junie              | ✅ 🌏 |   ✅   |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |  🌏   |     🌏      |        |
-| AugmentCode               | augmentcode        | ✅ 🌏 |   ✅   |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |   ✅   |
-| Devin Desktop             | devin              | ✅ 🌏 | ✅ 🌏  | ✅ 🌏 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
-| Warp                      | warp               | ✅ 🌏 |   ✅   |  ✅ 🌏   |  ✅ 🌏   |           | ✅ 🌏  |       |     🌏      |        |
-| Replit                    | replit             |  ✅   |        |          |          |           | ✅ 🌏  |       |             |        |
-| Pi Coding Agent           | pi                 | ✅ 🌏 |        |          |  ✅ 🌏   |           | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
-| Zed                       | zed                | ✅ 🌏 | ✅ 🌏  |  ✅ 🌏   |          |           | ✅ 🌏  |       |    ✅ 🌏    |        |
-| ZCode (Z.ai)              | zcode              | ✅ 🌏 |        |  ✅ 🌏   |  ✅ 🌏   |    🌏     | ✅ 🌏  |  🌏   |             |        |
-| Pool (Poolside)           | pool               | ✅ 🌏 |        | ✅ 🌏 🔧 |          |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
-| DeepSeek Harness          | dsh                | ✅ 🌏 |        |          |          |           | ✅ 🌏  |       |             |        |
+| Tool                      | --targets          | rules | ignore |   mcp    | models | commands | subagents | skills | hooks | permissions | checks |
+| ------------------------- | ------------------ | :---: | :----: | :------: | :----: | :------: | :-------: | :----: | :---: | :---------: | :----: |
+| AGENTS.md                 | agentsmd           |  ✅   |        |          |        |    🎮    |    🎮     |   🎮   |       |             |        |
+| AgentsSkills              | agentsskills       |       |        |          |        |          |           | ✅ 🌏  |       |             |        |
+| Amp                       | amp                | ✅ 🌏 |        |  ✅ 🌏   |        |          |           | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    | ✅ 🌏  |
+| IBM Bob                   | bob                | ✅ 🌏 |   ✅   |  ✅ 🌏   |        |  ✅ 🌏   |           | ✅ 🌏  | ✅ 🌏 |             |        |
+| Claude Code               | claudecode         | ✅ 🌏 |   ✅   |  ✅ 🌏   |        |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
+| Claude Code plugin        | claudecode-plugin  |       |        |    ✅    |        |    ✅    |    ✅     |   ✅   |  ✅   |             |        |
+| CodeBuddy Code            | codebuddy          | ✅ 🌏 |        |          |        |          |           |        |       |             |        |
+| Codex CLI                 | codexcli           | ✅ 🌏 |        | ✅ 🌏 🔧 |        |    🌏    |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
+| Command Code              | commandcode        | ✅ 🌏 |        |  ✅ 🌏   |        |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
+| GitHub Copilot            | copilot            | ✅ 🌏 |        |    ✅    |        |    ✅    |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |     ✅      |        |
+| GitHub Copilot CLI        | copilotcli         | ✅ 🌏 |        | ✅ 🌏 🔧 |        |          |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
+| Crush                     | crush              | ✅ 🌏 |   ✅   | ✅ 🌏 🔧 |        |          |           | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
+| Goose                     | goose              | ✅ 🌏 |        |  ✅ 🌏   |        |  ✅ 🌏   |   ✅ 🌏   |   ✅   | ✅ 🌏 |     🌏      |        |
+| Hermes Agent              | hermesagent        |  ✅   |   ✅   |  🌏 🔧   |        |    🌏    |   ✅ 🌏   |   🌏   |  🌏   |     🌏      |   ✅   |
+| Grok CLI                  | grokcli            | ✅ 🌏 |        |  ✅ 🌏   |        |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
+| Cursor                    | cursor             |  ✅   |   ✅   |  ✅ 🌏   |        |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |   ✅   |
+| deepagents-cli            | deepagents         | ✅ 🌏 |        | ✅ 🌏 🔧 |        |          |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |     🌏      |        |
+| Factory Droid             | factorydroid       | ✅ 🌏 |        | ✅ 🌏 🔧 |        |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |   ✅   |
+| OpenCode                  | opencode           | ✅ 🌏 |        | ✅ 🌏 🔧 | ✅ 🌏  |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
+| Cline                     | cline              | ✅ 🌏 |   ✅   |    🌏    |        |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |     ✅      |        |
+| Kilo Code                 | kilo               | ✅ 🌏 |   ✅   | ✅ 🌏 🔧 |        |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
+| Kimi Code                 | kimi-code          | ✅ 🌏 |        | ✅ 🌏 🔧 |        |          |   ✅ 🌏   | ✅ 🌏  |  🌏   |     🌏      |        |
+| Roo Code ⚠️               | roo                | ✅ 🌏 |   ✅   |  ✅ 🔧   |        |  ✅ 🌏   |    ✅     | ✅ 🌏  |       |     ✅      |        |
+| Zoo Code                  | zoocode            | ✅ 🌏 |   ✅   |  ✅ 🔧   |        |  ✅ 🌏   |    ✅     | ✅ 🌏  |       |     ✅      |        |
+| Rovodev (Atlassian)       | rovodev            | ✅ 🌏 |        |  ✅ 🌏   |        |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |       |    ✅ 🌏    |   ✅   |
+| Takt                      | takt               | ✅ 🌏 |        |  ✅ 🌏   |        |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |       |    ✅ 🌏    | ✅ 🌏  |
+| Tabnine CLI ⚠️            | tabnine            | ✅ 🌏 |   ✅   | ✅ 🌏 🔧 |        |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
+| Continue ⚠️               | continue           | ✅ 🌏 | ✅ 🌏  |  ✅ 🌏   |        |  ✅ 🌏   |           | ✅ 🌏  | ✅ 🌏 |     🌏      |        |
+| Snowflake Cortex Code     | cortexcode         |  ✅   |        |    🌏    |        |          |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |             |        |
+| Vibe Code                 | vibe               | ✅ 🌏 |   ✅   | ✅ 🌏 🔧 |        |          |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
+| Qwen Code                 | qwencode           | ✅ 🌏 |   ✅   | ✅ 🌏 🔧 |        |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
+| Meta Muse Code            | musecode           |  ✅   |        |    🌏    |        |          |           | ✅ 🌏  |       |             |        |
+| Reasonix                  | reasonix           | ✅ 🌏 | ✅ 🌏  |  ✅ 🌏   |        |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
+| Kiro ⚠️                   | kiro               | ✅ 🌏 | ✅ 🌏  | ✅ 🌏 🔧 |        |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
+| Kiro CLI                  | kiro-cli           | ✅ 🌏 | ✅ 🌏  | ✅ 🌏 🔧 |        |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |     ✅      |        |
+| Kiro IDE                  | kiro-ide           | ✅ 🌏 | ✅ 🌏  | ✅ 🌏 🔧 |        |    ✅    |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |     ✅      |        |
+| Google Antigravity IDE    | antigravity-ide    | ✅ 🌏 |        | ✅ 🌏 🔧 |        |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |     ✅      |        |
+| Google Antigravity CLI    | antigravity-cli    | ✅ 🌏 |   ✅   | ✅ 🌏 🔧 |        |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |     🌏      |        |
+| Google Antigravity plugin | antigravity-plugin |  ✅   |        |  ✅ 🔧   |        |          |    ✅     |   ✅   |  ✅   |             |        |
+| JetBrains AI Assistant    | aiassistant        |  ✅   |   ✅   |  ✅ 🌏   |        |          |           |   ✅   |       |             |        |
+| JetBrains Junie           | junie              | ✅ 🌏 |   ✅   |  ✅ 🌏   |        |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |  🌏   |     🌏      |        |
+| AugmentCode               | augmentcode        | ✅ 🌏 |   ✅   |  ✅ 🌏   |        |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |   ✅   |
+| Devin Desktop             | devin              | ✅ 🌏 | ✅ 🌏  | ✅ 🌏 🔧 |        |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
+| Warp                      | warp               | ✅ 🌏 |   ✅   |  ✅ 🌏   |        |  ✅ 🌏   |           | ✅ 🌏  |       |     🌏      |        |
+| Replit                    | replit             |  ✅   |        |          |        |          |           | ✅ 🌏  |       |             |        |
+| Pi Coding Agent           | pi                 | ✅ 🌏 |        |          |        |  ✅ 🌏   |           | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
+| Zed                       | zed                | ✅ 🌏 | ✅ 🌏  |  ✅ 🌏   |        |          |           | ✅ 🌏  |       |    ✅ 🌏    |        |
+| ZCode (Z.ai)              | zcode              | ✅ 🌏 |        |  ✅ 🌏   |        |  ✅ 🌏   |    🌏     | ✅ 🌏  |  🌏   |             |        |
+| Pool (Poolside)           | pool               | ✅ 🌏 |        | ✅ 🌏 🔧 |        |          |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
+| DeepSeek Harness          | dsh                | ✅ 🌏 |        |          |        |          |           | ✅ 🌏  |       |             |        |
 
 <!-- SUPPORTED_TOOLS_DOCS:END -->
 

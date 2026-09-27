@@ -1412,6 +1412,45 @@ Vibe (mistral-vibe) MCP servers live in `[[mcp_servers]]` arrays of the shared `
 > **Command Code MCP note:** Command Code reads MCP servers from the `mcpServers` map of `.mcp.json` at the project root (project scope — the same file Claude Code reads, meant to be committed) and of `~/.commandcode/mcp.json` (global, via `--global`); the per-machine local scope under `~/.commandcode/projects/` is left to the tool. Because the project file is the one the `claudecode` target writes, project mode writes it in exactly Claude Code's pass-through shape — the canonical servers as they are, only rulesync-only fields stripped — so `--targets claudecode,commandcode` yields the same bytes whichever target generates last (and both apply both the `claudecode` and `commandcode` blocks, see the alias groups above). Command Code reads that shape natively: `type` is an alias of `transport`, a bare `url` means `http`, and keys it does not know (`disabled`, `timeout`) are ignored as they are by Claude Code. Only the global file, which is Command Code's own, is written in its documented spelling: every server carries the `transport` key — a stdio server `transport: "stdio"`, `command`, `args` and the optional `env`; a remote server `url` plus `transport: "http"` (the canonical `streamable-http` alias and a bare `url` both fold into `http`) or `transport: "sse"`, with `headers`, `env` and `oauth` passed through. There a server marked `disabled: true` is written with Command Code's native `enabled: false` and read back as `disabled: true`, other keys (`timeout`, rulesync-only fields) are left out, and a server Command Code drops at load time — one with no transport, a remote transport without a URL, a `ws`/`wss` URL, or a stdio entry without a command — is skipped with a warning rather than written in a form the tool would silently ignore. At both scopes only the `mcpServers` key is rewritten, so other top-level keys in an existing file are preserved (an existing file is read as JSONC). The project file is removed by `--delete`; the global one, which `~/.commandcode/` shares with hand-managed servers, is not. See the [MCP docs](https://commandcode.ai/docs/mcp).
 > **Crush MCP note:** Crush reads MCP servers from the `mcp` key of its shared JSON config: `<project>/crush.json` (project) / `~/.config/crush/crush.json` (global, via `--global`). Crush's schema requires a `type` on every server, so one is always written: a stdio server carries `type: "stdio"`, `command`, `args` and `env`; a remote server carries `url` plus `type: "http"` (the canonical `http`, `streamable-http`, a bare `url`, and the Claude-style `httpUrl` field all fold into it) or `type: "sse"`, with `headers` passed through. The canonical per-server `disabledTools` ⇄ Crush's `disabled_tools` and `enabledTools` ⇄ `enabled_tools` (both match the server's own tool names, without the `mcp_<server>_` prefix Crush uses in its permissions list); `disabled` and `timeout` (which Crush reads as an integer number of **seconds**, so it is forwarded as authored and a fractional value is rounded up) map onto the same-named fields, and Crush's OAuth fields and `sessionless` marker are authored under the Crush-only keys `crushOauth`, `crushOauthClientId`, `crushOauthClientSecret`, `crushOauthCallbackPort` and `crushSessionless` (written as `oauth`, `oauth_client_id`, `oauth_client_secret`, `oauth_callback_port` and `sessionless`; the raw `oauth_client_id`, `oauth_client_secret`, `oauth_callback_port` and `sessionless` spellings are honoured as a fallback for an entry copied out of a `crush.json`, but only `crushOauth` turns the flow on, because the canonical `oauth` key is Claude Code's `{ clientId }` object and a raw `oauth: true` would be forwarded to other tools as well). Like Codex's `envVars`, these keys are stripped from what every other tool sees, so the client secret never lands in another tool's config. A server Crush cannot start or reach — one with no transport, a remote transport without a URL, a `ws`/`wss` URL, or a stdio entry without a command — is skipped with a warning rather than written in a broken form; an existing `oauth_token`, which Crush persists at runtime, is never imported. Note that `headers` and `oauth_client_secret` (as `crushOauthClientSecret`) are copied verbatim into `.rulesync/mcp.json` on import, so move any literal secret into an environment-variable reference (`$VAR`) before committing that file. At project scope Crush reads both `.crush.json` and `crush.json` and merges them (objects recursively, lists concatenated, `.crush.json` on top), so neither file hides the other. When a `.crush.json` already exists it is the file written (otherwise `crush.json`); if the `crush.json` next to it still carries the keys rulesync owns — for example from a generate run before `.crush.json` was added — those entries stay in effect and are named in a warning, since they can only be removed by hand. Import reads the merged pair, the way Crush does; at global scope only `~/.config/crush/crush.json` is read. Only the `mcp` key is rewritten, so the `providers`, `options`, `permissions` and `hooks` keys in the same file survive a regenerate, a file that fails to parse is an error rather than a partial read, and the file is never removed by `--delete`. The JSON config is documented as deprecated in favour of the Bash-based `crushrc`, but it stays supported and is the schema Crush publishes; a `crushrc` next to it compiles `mcp add` into the same `mcp.<name>` entries and wins key by key. See the [config docs](https://github.com/charmbracelet/crush/blob/main/docs/config/README.md#mcp-servers).
 
+## `.rulesync/models.jsonc`
+
+`.rulesync/models.jsonc` declares model providers and their model lists once, and rulesync writes each tool's provider and model-list config from it. The feature does nothing unless this file exists. The recommended JSONC path accepts comments and trailing commas; the legacy `.rulesync/models.json` path remains readable, and the JSONC file takes precedence when both exist.
+
+Provider and model objects reuse the [models.dev](https://models.dev) field names verbatim, so a block copied from `models.dev/api.json` is valid input as-is: provider `name`, `api` (the OpenAI-compatible base URL), `env` (the environment variables holding the key), `npm` (the AI SDK package), `doc`, and `models`; per model `id`, `name`, `limit.context`, `limit.output`, `tool_call`, `reasoning`, `modalities`, and the remaining models.dev model fields. The two keys that are not models.dev keys are the top-level `default` (the model a tool starts on, as a `provider` + `model` pair so ids containing `/` stay unambiguous) and the tool-scoped override blocks.
+
+Example:
+
+```jsonc
+{
+  "$schema": "https://github.com/dyoshikawa/rulesync/releases/latest/download/models-schema.json",
+  "providers": {
+    "local": {
+      "name": "Local models",
+      "npm": "@ai-sdk/openai-compatible",
+      "api": "http://127.0.0.1:5678/v1",
+      "env": ["LOCAL_MODELS_KEY"],
+      "models": {
+        "ollama/qwen3-coder:30b": {
+          "id": "ollama/qwen3-coder:30b",
+          "name": "Qwen3 Coder 30B",
+          "limit": { "context": 131072, "output": 16384 },
+          "tool_call": true,
+          "reasoning": false,
+          "modalities": { "input": ["text"], "output": ["text"] },
+        },
+      },
+    },
+  },
+  "default": { "provider": "local", "model": "ollama/qwen3-coder:30b" },
+  // Per-tool overrides replace the shared entry wholesale for that tool.
+  "opencode": { "default": { "provider": "opencode-go", "model": "glm-5.3" } },
+}
+```
+
+A key named `__proto__`, `constructor`, or `prototype` is rejected with an error naming its path, rather than being dropped in silence (same handling as the other JSONC source files).
+
+> **OpenCode models note:** OpenCode accepts the same model fields under `provider.<id>.models.<id>`, so the model entry is close to an identity mapping. The provider entry splits into `options.baseURL` (`api`) and `options.apiKey`, with the key spelled as OpenCode's `{env:VAR}` reference form — a literal key is never written, and a provider without `env` gets no `apiKey`. The top-level `model` key carries the default as `<provider>/<model>`. Only the `provider` and `model` keys are rewritten, so every other key in `opencode.json` survives, and the file is never removed by `--delete`. A model field a tool has no place for is dropped with a once-per-tool warning, never an error. See the [OpenCode config docs](https://opencode.ai/docs/config/) and [custom providers](https://opencode.ai/docs/providers/).
+
 ## `.rulesync/.aiignore` or `.rulesyncignore` (deprecated)
 
 > **Deprecation notice:** The `ignore` feature is deprecated in favor of the more expressive [`permissions` feature](#rulesync-permissions-jsonc). Existing ignore configurations, generation, import, conversion, and explicit `rulesync add ignore` scaffolding remain supported throughout Rulesync 14.x. Removal, if any, will be decided separately and will not occur before a future major release. `rulesync init` no longer enables or scaffolds ignore for new projects.

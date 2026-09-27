@@ -56,6 +56,7 @@ export async function importCommand(logger: Logger, options: ImportOptions): Pro
       rules: { count: result.rulesCount },
       ignore: { count: result.ignoreCount },
       mcp: { count: result.mcpCount },
+      models: { count: result.modelsCount },
       commands: { count: result.commandsCount },
       subagents: { count: result.subagentsCount },
       skills: { count: result.skillsCount },
@@ -70,6 +71,7 @@ export async function importCommand(logger: Logger, options: ImportOptions): Pro
   if (result.rulesCount > 0) parts.push(`${result.rulesCount} rules`);
   if (result.ignoreCount > 0) parts.push(`${result.ignoreCount} ignore files`);
   if (result.mcpCount > 0) parts.push(`${result.mcpCount} MCP files`);
+  if (result.modelsCount > 0) parts.push(`${result.modelsCount} models files`);
   if (result.commandsCount > 0) parts.push(`${result.commandsCount} commands`);
   if (result.subagentsCount > 0) parts.push(`${result.subagentsCount} subagents`);
   if (result.skillsCount > 0) parts.push(`${result.skillsCount} skills`);

@@ -4,6 +4,7 @@ import { CommandsProcessor } from "../features/commands/commands-processor.js";
 import { HooksProcessor } from "../features/hooks/hooks-processor.js";
 import { IgnoreProcessor } from "../features/ignore/ignore-processor.js";
 import { McpProcessor } from "../features/mcp/mcp-processor.js";
+import { ModelsProcessor } from "../features/models/models-processor.js";
 import { PermissionsProcessor } from "../features/permissions/permissions-processor.js";
 import { RulesProcessor } from "../features/rules/rules-processor.js";
 import { SkillsProcessor } from "../features/skills/skills-processor.js";
@@ -19,6 +20,7 @@ export type ConvertResult = {
   rulesCount: number;
   ignoreCount: number;
   mcpCount: number;
+  modelsCount: number;
   commandsCount: number;
   subagentsCount: number;
   skillsCount: number;
@@ -81,6 +83,7 @@ export async function convertFromTool(params: {
     rulesCount,
     ignoreCount,
     mcpCount,
+    modelsCount,
     commandsCount,
     subagentsCount,
     skillsCount,
@@ -91,6 +94,7 @@ export async function convertFromTool(params: {
     await runFeatureConvert(ctx, buildRulesStrategy(ctx)),
     await runFeatureConvert(ctx, buildIgnoreStrategy(ctx)),
     await runFeatureConvert(ctx, buildMcpStrategy(ctx)),
+    await runFeatureConvert(ctx, buildModelsStrategy(ctx)),
     await runFeatureConvert(ctx, buildCommandsStrategy(ctx)),
     await runFeatureConvert(ctx, buildSubagentsStrategy(ctx)),
     await runFeatureConvert(ctx, buildSkillsStrategy(ctx)),
@@ -103,6 +107,7 @@ export async function convertFromTool(params: {
     rulesCount,
     ignoreCount,
     mcpCount,
+    modelsCount,
     commandsCount,
     subagentsCount,
     skillsCount,
@@ -270,6 +275,35 @@ function buildMcpStrategy(ctx: ConvertContext) {
     McpProcessor,
     Awaited<ReturnType<McpProcessor["loadToolFiles"]>>[number],
     Awaited<ReturnType<McpProcessor["convertToolFilesToRulesyncFiles"]>>[number]
+  >;
+}
+
+function buildModelsStrategy(ctx: ConvertContext) {
+  const { config, logger } = ctx;
+  const global = config.getGlobal();
+  const outputRoot = getOutputRoot(config);
+  const allTargets = ModelsProcessor.getToolTargets({ global });
+
+  return {
+    feature: "models" as const,
+    itemLabel: "models file(s)",
+    allTargets,
+    createProcessor: ({ toolTarget, dryRun }) =>
+      new ModelsProcessor({
+        outputRoot: resolveToolOutputRoot({ outputRoot, toolTarget, global }),
+        toolTarget,
+        global,
+        dryRun,
+        logger,
+      }),
+    loadSource: (p) => p.loadToolFiles(),
+    toRulesync: (p, files) => p.convertToolFilesToRulesyncFiles(files),
+    fromRulesync: (p, files) => p.convertRulesyncFilesToToolFiles(files),
+    write: (p, files) => p.writeAiFiles(files),
+  } satisfies ConvertStrategy<
+    ModelsProcessor,
+    Awaited<ReturnType<ModelsProcessor["loadToolFiles"]>>[number],
+    Awaited<ReturnType<ModelsProcessor["convertToolFilesToRulesyncFiles"]>>[number]
   >;
 }
 

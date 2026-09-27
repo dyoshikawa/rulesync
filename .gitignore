@@ -211,6 +211,7 @@ bun.lock
 config-schema.json
 permissions-schema.json
 mcp-schema.json
+models-schema.json
 
 **/.playwright/
 **/.playwright-cli/
