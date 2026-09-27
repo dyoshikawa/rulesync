@@ -116,6 +116,14 @@ describe("anchorDotPaths", () => {
     // A line continuation joins the lines.
     ["bash \\\n -c './x y'", `bash \\\n -c '"${VAR}"/x y'`],
     ["node \\\n./x.js", `node \\\n"${VAR}"/x.js`],
+    ["bash -c \\\n'./x y'", `bash -c \\\n'"${VAR}"/x y'`],
+    ["no\\\nde ./y.js", `no\\\nde "${VAR}"/y.js`],
+    ["node >\\\n./log ./x.js", `node >\\\n./log "${VAR}"/x.js`],
+    ["node --import=\\\n./r.js ./x.js", `node --import=\\\n./r.js "${VAR}"/x.js`],
+    [`'bash' -c './x y'`, `'bash' -c '"${VAR}"/x y'`],
+    // A redirection is not the script argument.
+    ["node 2>/dev/null ./x.js", `node 2>/dev/null "${VAR}"/x.js`],
+    ["python3 2>&1 ./x.py", `python3 2>&1 "${VAR}"/x.py`],
     ["exec -la name ./x.sh", `exec -la name "${VAR}"/x.sh`],
     ["php -c ./php.ini ./x.php", `php -c "${VAR}"/php.ini "${VAR}"/x.php`],
     ["bash --rcfile ./rc ./x.sh", `bash --rcfile "${VAR}"/rc "${VAR}"/x.sh`],
@@ -183,6 +191,11 @@ describe("anchorDotPaths", () => {
     "\\bash -c ./x",
     // `--rcfile` takes `-c` as its value, so the quote is part of a file name.
     "bash --rcfile -c './x'",
+    "bash --init-file -c './x'",
+    // Without a blank, a continuation joins `bash` and `-c` into one word.
+    "bash\\\n-c './x y'",
+    "node\\\nx ./y.js",
+    "FOO=\\\n./x",
     // Joined by a line continuation, the next line continues the word.
     "ab\\\ncd ./x",
     // The positional parameters of a `-c` script are data.

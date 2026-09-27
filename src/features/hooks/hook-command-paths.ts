@@ -32,6 +32,9 @@ const SHELL_NAME = "(?:a|ba|da|k|mk|z)?sh";
 /** Matches the basename of a POSIX-like shell. */
 const SHELL_NAME_PATTERN = new RegExp(`^${SHELL_NAME}$`);
 
+/** Matches a shell option cluster that contains `c` (`-c`, `-lc`, `-euc`). */
+const SHELL_CODE_OPTION = /^-[A-Za-z]*c[A-Za-z]*$/;
+
 /** Escape a string for literal use in a regular expression. */
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -90,18 +93,27 @@ function scanCommand(command: string): Scan {
 /**
  * An escaped character is a literal and never starts a path, but a word may
  * begin with one: `\\sudo` still runs `sudo`. A line continuation (`\\` before
- * a newline) joins the lines, so the next line continues the word unless the
- * backslash stood between words. Returns the index of the escaped character.
+ * a newline) is removed by the shell, so it is skipped as if it were not there
+ * (see `previousIndex`). Returns the index of the escaped character.
  */
 function scanEscape({ scan, top, i }: { scan: Scan; top: Frame | undefined; i: number }): number {
-  const startsWord = top?.kind !== '"' && followsBoundary({ scan, i });
-  if (scan.command.charAt(i + 1) === "\n") {
-    if (!startsWord) scan.escaped = i + 1;
-  } else {
-    if (startsWord) recordWord({ scan, i });
-    scan.escaped = i + 1;
-  }
+  if (scan.command.charAt(i + 1) === "\n") return i + 1;
+  if (top?.kind !== '"' && followsBoundary({ scan, i })) recordWord({ scan, i });
+  scan.escaped = i + 1;
   return i + 1;
+}
+
+/** The index of the character before `i`, skipping line continuations. */
+function previousIndex({ command, i }: { command: string; i: number }): number {
+  let previous = i - 1;
+  while (
+    previous >= 1 &&
+    command.charAt(previous) === "\n" &&
+    command.charAt(previous - 1) === "\\"
+  ) {
+    previous -= 2;
+  }
+  return previous;
 }
 
 type Scan = {
@@ -119,10 +131,15 @@ type Scan = {
 };
 
 function followsBoundary({ scan, i }: { scan: Scan; i: number }): boolean {
+  const previous = previousIndex({ command: scan.command, i });
   return (
-    i === 0 || (PLAIN_WORD_BOUNDARIES.has(scan.command.charAt(i - 1)) && scan.escaped !== i - 1)
+    previous < 0 ||
+    (PLAIN_WORD_BOUNDARIES.has(scan.command.charAt(previous)) && scan.escaped !== previous)
   );
 }
+
+/** A file descriptor number that starts a redirection (`2>`, `3>&1`). */
+const FD_REDIRECTION = /\d+[<>]/y;
 
 /** Inside `"…"`: only a nested `$( … )` or `` ` … ` `` opens new words. */
 function scanDoubleQuoted({ scan, i }: { scan: Scan; i: number }): number {
@@ -146,13 +163,19 @@ function scanDoubleQuoted({ scan, i }: { scan: Scan; i: number }): number {
  */
 function recordWord({ scan, i }: { scan: Scan; i: number }): void {
   const { command } = scan;
-  // Operators and blanks are not words, and a redirection target is not an
-  // argument of the command.
+  // Operators and blanks are not words, and neither a redirection nor its
+  // target is an argument of the command.
   if (PLAIN_WORD_BOUNDARIES.has(command.charAt(i))) return;
-  if (command.charAt(i - 1) === "=") return;
-  let previous = i - 1;
-  while (previous >= 0 && /\s/.test(command.charAt(previous))) previous--;
+  FD_REDIRECTION.lastIndex = i;
+  if (FD_REDIRECTION.test(command)) return;
+  let previous = previousIndex({ command, i });
+  if (command.charAt(previous) === "=") return;
+  while (previous >= 0 && /\s/.test(command.charAt(previous))) {
+    previous = previousIndex({ command, i: previous });
+  }
   if (previous >= 0 && "<>".includes(command.charAt(previous))) return;
+  // The target of a descriptor duplication (`2>&1`, `<&0`).
+  if (command.charAt(previous) === "&" && "<>".includes(command.charAt(previous - 1))) return;
   scan.words.push({ index: i, commandStart: scan.atCommandStart });
   scan.atCommandStart = false;
 }
@@ -243,11 +266,14 @@ const INNER_SHELL_LOOKBEHIND = 256;
  * not its script.
  */
 const INNER_SHELL_PATTERN = (() => {
+  // Blanks, possibly with line continuations; at least one blank separates
+  // two words, since a bare continuation joins them.
   const gap = String.raw`(?:[ \t]|\\\n)`;
+  const separator = String.raw`(?:\\\n)*[ \t]${gap}*`;
   return new RegExp(
     String.raw`(?:^|[\s;&|(${"`"}])\\?["']?(?:[^\s;&|()<>'"${"`"}]*\/)?${SHELL_NAME}["']?` +
-      String.raw`(?:${gap}+(?:[-+][oO]${gap}+\w+|--?[A-Za-z][\w-]*|\+[A-Za-z]+))*` +
-      String.raw`${gap}+-[A-Za-z]*c[A-Za-z]*(?:${gap}+--)?${gap}*$`,
+      String.raw`(?:${separator}(?:[-+][oO]${separator}\w+|--?[A-Za-z][\w-]*|\+[A-Za-z]+))*` +
+      String.raw`${separator}${SHELL_CODE_OPTION.source.slice(1, -1)}(?:${separator}--)?${gap}*$`,
   );
 })();
 
@@ -433,9 +459,17 @@ const COMMAND_PREFIX_WORDS = new Set([
   "nohup",
 ]);
 
-/** The unquoted text of the word at `index`, as far as a name needs it. */
+/** Longest word prefix `wordText` reads. */
+const WORD_TEXT_LIMIT = 256;
+
+/**
+ * The unquoted text of the word at `index`, as far as a name needs it, with
+ * line continuations joined.
+ */
 function wordText({ command, index }: { command: string; index: number }): string {
-  return (/^[^\s;&|()<>`]*/.exec(command.slice(index))?.[0] ?? "").replace(/["'\\]/g, "");
+  // A name is short, so a bounded slice is enough and keeps the walk linear.
+  const text = command.slice(index, index + WORD_TEXT_LIMIT).replaceAll("\\\n", "");
+  return (/^[^\s;&|()<>`]*/.exec(text)?.[0] ?? "").replace(/["'\\]/g, "");
 }
 
 /**
@@ -507,7 +541,10 @@ function findCommandPaths({ command, scan }: { command: string; scan: Scan }): C
       continue;
     } else if (state.expecting !== "command" && /^[-+]/.test(text)) {
       readOption({ state, text });
-    } else if (state.expecting === "subcommand" && RUN_SUBCOMMANDS[state.owner]?.has(text)) {
+    } else if (
+      state.expecting === "subcommand" &&
+      lookupOwn({ record: RUN_SUBCOMMANDS, key: state.owner })?.has(text)
+    ) {
       state.expecting = "wrapped";
     } else if (state.expecting === "script" || state.expecting === "subcommand") {
       // A tool that is a script runner itself takes the script without a
@@ -608,7 +645,7 @@ function consumePrefixWord({ state, text }: { state: WalkState; text: string }):
 function readOption({ state, text }: { state: WalkState; text: string }): void {
   if (optionsFor({ table: CODE_OPTIONS, name: state.owner })?.has(text)) state.expecting = "none";
   state.optionValue = optionsFor({ table: VALUE_OPTIONS, name: state.owner })?.has(text) ?? false;
-  if (SHELL_NAME_PATTERN.test(state.owner) && /^-[A-Za-z]*c[A-Za-z]*$/.test(text)) {
+  if (SHELL_NAME_PATTERN.test(state.owner) && SHELL_CODE_OPTION.test(text)) {
     state.shellCode = true;
   }
 }
@@ -643,7 +680,8 @@ function readScript({
   toAnchor: Set<number>;
   runScripts: Set<number>;
 }): void {
-  if (state.shellCode && SHELL_NAME_PATTERN.test(state.owner)) {
+  // Only a shell owner sets `shellCode`, and a new command word resets it.
+  if (state.shellCode) {
     if (opensScript) runScripts.add(index);
   } else if (!opensScript && path !== undefined) {
     toAnchor.add(path);
