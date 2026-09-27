@@ -100,6 +100,16 @@ describe("anchorDotPaths", () => {
     ["npx -p tsx tsx ./x.ts", `npx -p tsx tsx "${VAR}"/x.ts`],
     ["time bash -c './a'", `time bash -c '"${VAR}"/a'`],
     ["uv run sh -c './a'", `uv run sh -c '"${VAR}"/a'`],
+    ["perl -I ./lib ./x.pl", `perl -I "${VAR}"/lib "${VAR}"/x.pl`],
+    ["php -d display_errors=1 ./x.php", `php -d display_errors=1 "${VAR}"/x.php`],
+    // Options of a prefix word come before the command word.
+    ["time -p node ./x.js", `time -p node "${VAR}"/x.js`],
+    ["exec -a name ./x.sh", `exec -a name "${VAR}"/x.sh`],
+    // An escaped command name still runs that command.
+    ["\\node ./x.js", `\\node "${VAR}"/x.js`],
+    // A quote on the next line is a new command, not a `-c` script.
+    ["x # sh -c\n'./a.sh'", `x # sh -c\n"${VAR}"/'a.sh'`],
+    ["echo sh -c\n'./a.sh'", `echo sh -c\n"${VAR}"/'a.sh'`],
   ])("should anchor %s", (command, expected) => {
     expect(anchor(command)).toBe(expected);
   });
@@ -157,6 +167,10 @@ describe("anchorDotPaths", () => {
     "env -i sh -c './x.sh'",
     "find . -execdir sh -c './fix.sh' \\;",
     "echo bash -c './x'",
+    "\\sudo sh -c './x.sh'",
+    "\\echo sh -c './x.sh'",
+    // To a runner other than a shell, a quoted script is a literal argument.
+    "node -r sh -c './x'",
     // The positional parameters of a `-c` script are data.
     "bash -c 'exec node' ./x.js",
     // Inline code, a module or standard input instead of a script file.
@@ -176,6 +190,8 @@ describe("stripProjectDirVariable", () => {
     [`x >"${VAR}"/o.txt`, "x >./o.txt"],
     [`x 2>${VAR}/log`, "x 2>./log"],
     [`echo \`${VAR}/x\``, "echo `./x`"],
+    // A quote after the variable that closes a `-c` script stays after `./`.
+    [`bash -c 'node "${VAR}"/'\\''x y.js'\\'''`, "bash -c 'node ./'\\''x y.js'\\'''"],
     [`$HOME/x`, "$HOME/x"],
     [`"$HOME"/x && ${VAR}/y`, `"$HOME"/x && ${VAR}/y`],
   ])("should convert %s", (command, expected) => {
@@ -206,6 +222,8 @@ describe("stripProjectDirVariable", () => {
     // A `-c` script the command does not run itself.
     `find . -execdir sh -c '${VAR}/x' \\;`,
     `sudo sh -c 'node ${VAR}/x.js'`,
+    `\\sudo sh -c 'node ${VAR}/x.js'`,
+    `node -r sh -c '${VAR}/x'`,
   ])("should leave %s untouched", (command) => {
     expect(strip(command)).toBe(command);
   });
@@ -237,6 +255,7 @@ describe("stripProjectDirVariable", () => {
     `echo "$(${VAR}/v.sh)"`,
     `bash -lc '${VAR}/a && ${VAR}/b'`,
     `bash -c 'node "${VAR}/y"'`,
+    `bash -c 'node "${VAR}"/'\\''x y.js'\\'''`,
     `sh -c "${VAR}/x"`,
     `git -c 'core.hooksPath=${VAR}/hooks' status`,
     `bash -c 'echo "a ${VAR}/x"'`,
