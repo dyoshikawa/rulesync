@@ -502,9 +502,9 @@ export class ClaudecodeSkill extends ToolSkill {
     // how they are spelled -- otherwise one root is scanned several times and every
     // skill under it is reported as a duplicate name. The tool's own root is seeded
     // here for the same reason: the glob cannot match it -- it requires a segment
-    // above the tail -- but a name like `x\..` resolves onto it, and a nested root
-    // is imported leniently, which would turn an invalid skill of the project's own
-    // into a warning instead of an error. It is seeded under both of its spellings:
+    // above the tail -- but a name like `x\..` resolves onto it, and scanning it
+    // again as a nested root would report every skill under it as a duplicate name.
+    // It is seeded under both of its spellings:
     // the literal one, and where it really resolves to when it is itself a link into
     // the project, since a nested root reaching the same place is told apart by
     // that resolved spelling alone. When it cannot be resolved -- because it is

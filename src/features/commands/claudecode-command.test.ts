@@ -359,6 +359,40 @@ Convert $ARGUMENTS.`,
         "argument-hint": "[issue-number]",
       });
       expect(convert.getFrontmatter()["argument-hint"]).toBe("[filename] [format]");
+
+      // Generating back writes the quoted string, which re-imports unchanged.
+      const regenerated = ClaudecodeCommand.fromRulesyncCommand({
+        outputRoot: testDir,
+        rulesyncCommand: fixIssue.toRulesyncCommand(),
+      });
+      expect(regenerated.getFileContent()).toContain("argument-hint: '[issue-number]'");
+      await writeFileContent(join(commandsDir, "fix-issue.md"), regenerated.getFileContent());
+      const reimported = await ClaudecodeCommand.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "fix-issue.md",
+      });
+      expect(reimported.getFrontmatter()["argument-hint"]).toBe("[issue-number]");
+    });
+
+    it("should drop an empty-list argument-hint on import", async () => {
+      const commandsDir = join(testDir, ".claude", "commands");
+      await ensureDir(commandsDir);
+      await writeFileContent(
+        join(commandsDir, "empty-hint.md"),
+        `---
+description: No hint
+argument-hint: []
+---
+Body`,
+      );
+
+      const command = await ClaudecodeCommand.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "empty-hint.md",
+      });
+
+      const rulesyncCommand = command.toRulesyncCommand();
+      expect(rulesyncCommand.getFileContent()).not.toContain("argument-hint");
     });
 
     it("should load ClaudecodeCommand from file", async () => {

@@ -11,6 +11,11 @@ describe("joinArgumentHint", () => {
     expect(joinArgumentHint(["issue-number"])).toBe("[issue-number]");
     expect(joinArgumentHint(["filename", "format"])).toBe("[filename] [format]");
     expect(joinArgumentHint(["pr", 1])).toBe("[pr] [1]");
+    expect(joinArgumentHint([true, null])).toBe("[true] [null]");
+  });
+
+  it("drops an empty list", () => {
+    expect(joinArgumentHint([])).toBeUndefined();
   });
 });
 
@@ -23,5 +28,6 @@ describe("ClaudecodeArgumentHintSchema", () => {
     expect(ClaudecodeArgumentHintSchema.safeParse({ a: 1 }).success).toBe(false);
     expect(ClaudecodeArgumentHintSchema.safeParse([{ a: 1 }]).success).toBe(false);
     expect(ClaudecodeArgumentHintSchema.safeParse(true).success).toBe(false);
+    expect(ClaudecodeArgumentHintSchema.safeParse([["nested"]]).success).toBe(false);
   });
 });
