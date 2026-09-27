@@ -1190,11 +1190,11 @@ describe("ClaudecodeHooks", () => {
       ['echo "$CLAUDE_PROJECT_DIR/"', 'echo "./"'],
       // An inner shell expands the variable inside single quotes.
       ["bash -c 'test -x $CLAUDE_PROJECT_DIR/k.sh'", "bash -c 'test -x ./k.sh'"],
-      // After a `cd`, only the leading variable is normalized.
       [
         "bash -c '$CLAUDE_PROJECT_DIR/k.sh && node \"$CLAUDE_PROJECT_DIR/l.js\"'",
         `bash -c './k.sh && node "./l.js"'`,
       ],
+      // After a `cd`, only the leading variable is normalized.
       [
         "$CLAUDE_PROJECT_DIR/a.sh && cd sub && $CLAUDE_PROJECT_DIR/b.sh",
         "./a.sh && cd sub && $CLAUDE_PROJECT_DIR/b.sh",
@@ -1217,10 +1217,39 @@ describe("ClaudecodeHooks", () => {
       expect(importCommand(command)).toBe(command);
     });
 
+    it.each([
+      ["npx prettier --write $CLAUDE_PROJECT_DIR/src", true],
+      ['x > "$CLAUDE_PROJECT_DIR"/out.log', true],
+      ['node "$CLAUDE_PROJECT_DIR"/x.js', false],
+      ["$CLAUDE_PROJECT_DIR/a.sh && cd sub && $CLAUDE_PROJECT_DIR/b.sh", false],
+    ])(
+      "should warn about %s only when generate cannot restore the variable: %s",
+      (command, warns) => {
+        const warnSpy = vi.spyOn(logger, "warn").mockClear();
+        const claudecodeHooks = new ClaudecodeHooks({
+          outputRoot: testDir,
+          relativeDirPath: ".claude",
+          relativeFilePath: "settings.json",
+          fileContent: JSON.stringify({
+            hooks: {
+              PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command }] }],
+            },
+          }),
+          validate: false,
+        });
+        claudecodeHooks.toRulesyncHooks({ logger });
+        const warned = warnSpy.mock.calls.some(([message]) =>
+          String(message).includes("is not restored on generate"),
+        );
+        expect(warned).toBe(warns);
+      },
+    );
+
     // Generate re-anchors the `./` paths that name a file the command runs, so
     // a hook keeps resolving against the project root. Other positions come
-    // back cwd-relative, the same path for a hook that runs in the project
-    // root. Either way a second import is stable.
+    // back cwd-relative, resolved against the hook's working directory, which
+    // need not be the project root (a worktree, or the target of a `cd`);
+    // import warns about those. Either way a second import is stable.
     it.each([
       ['"$CLAUDE_PROJECT_DIR"/.claude/hooks/a.sh', '"$CLAUDE_PROJECT_DIR"/.claude/hooks/a.sh'],
       ['"$CLAUDE_PROJECT_DIR/.claude/hooks/b.sh"', '"$CLAUDE_PROJECT_DIR"/".claude/hooks/b.sh"'],
@@ -1238,7 +1267,15 @@ describe("ClaudecodeHooks", () => {
         "node $CLAUDE_PROJECT_DIR/.claude/hooks/g.js",
         'node "$CLAUDE_PROJECT_DIR"/.claude/hooks/g.js',
       ],
-      ['uv run "$CLAUDE_PROJECT_DIR/my hooks/j.py" --flag', 'uv run "./my hooks/j.py" --flag'],
+      [
+        'uv run "$CLAUDE_PROJECT_DIR/my hooks/j.py" --flag',
+        'uv run "$CLAUDE_PROJECT_DIR/my hooks/j.py" --flag',
+      ],
+      ["npx tsx $CLAUDE_PROJECT_DIR/x.ts", 'npx tsx "$CLAUDE_PROJECT_DIR"/x.ts'],
+      [
+        "node -r $CLAUDE_PROJECT_DIR/r.js $CLAUDE_PROJECT_DIR/a.js",
+        'node -r "$CLAUDE_PROJECT_DIR"/r.js "$CLAUDE_PROJECT_DIR"/a.js',
+      ],
       [
         "$CLAUDE_PROJECT_DIR/lint.sh && node $CLAUDE_PROJECT_DIR/check.js",
         '"$CLAUDE_PROJECT_DIR"/lint.sh && node "$CLAUDE_PROJECT_DIR"/check.js',

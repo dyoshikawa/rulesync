@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   anchorDotPaths,
   changesDirectory,
+  countProjectDirVariable,
   findPathStarts,
   stripProjectDirVariable,
 } from "./hook-command-paths.js";
@@ -81,6 +82,21 @@ describe("anchorDotPaths", () => {
     // The inner shell reads its own double quotes.
     [`bash -c 'node "./y"'`, `bash -c 'node "${VAR}/y"'`],
     ["bash -O extglob -c './a'", `bash -O extglob -c '"${VAR}"/a'`],
+    ["bash -o pipefail ./a.sh", `bash -o pipefail "${VAR}"/a.sh`],
+    // Runners named by version or path, and runners of runners.
+    ["python3.12 ./x.py", `python3.12 "${VAR}"/x.py`],
+    ["bun ./x.ts", `bun "${VAR}"/x.ts`],
+    ["bun run ./x.ts", `bun run "${VAR}"/x.ts`],
+    ["deno run -A ./x.ts", `deno run -A "${VAR}"/x.ts`],
+    ["uv run ./x.py ./data", `uv run "${VAR}"/x.py ./data`],
+    ["uv run --with requests ./x.py", `uv run --with requests "${VAR}"/x.py`],
+    ["uv run python -W ignore ./x.py", `uv run python -W ignore "${VAR}"/x.py`],
+    ["npx tsx ./x.ts ./data", `npx tsx "${VAR}"/x.ts ./data`],
+    ["npx --yes ts-node ./x.ts", `npx --yes ts-node "${VAR}"/x.ts`],
+    ["pnpm exec tsx ./x.ts", `pnpm exec tsx "${VAR}"/x.ts`],
+    // An option value is not the script; a file it loads is anchored.
+    ["node -r ./r.js ./a.js", `node -r "${VAR}"/r.js "${VAR}"/a.js`],
+    ["python3 -W ignore ./x.py", `python3 -W ignore "${VAR}"/x.py`],
   ])("should anchor %s", (command, expected) => {
     expect(anchor(command)).toBe(expected);
   });
@@ -122,7 +138,10 @@ describe("anchorDotPaths", () => {
     "x >./o.txt 2>./e.log",
     "tool --config=./c.json",
     "npx prettier --write ./src",
-    "uv run ./x.py",
+    "uv run pytest ./tests",
+    "uv pip install ./pkg",
+    "pnpm run lint ./src",
+    "bun run build ./src",
     // Paths handed to a container or another host.
     "docker compose exec -T app ./vendor/bin/pint",
     "docker run img sh -c './x'",
@@ -143,6 +162,7 @@ describe("stripProjectDirVariable", () => {
     [`x 2>${VAR}/log`, "x 2>./log"],
     [`echo \`${VAR}/x\``, "echo `./x`"],
     [`$HOME/x`, "$HOME/x"],
+    [`"$HOME"/x && ${VAR}/y`, `"$HOME"/x && ${VAR}/y`],
   ])("should convert %s", (command, expected) => {
     expect(strip(command)).toBe(expected);
   });
@@ -181,6 +201,15 @@ describe("stripProjectDirVariable", () => {
   const count = (value: string): number => value.split(VAR).length - 1;
 
   it.each([
+    [`node ${VAR}/x.js`, 1],
+    [`"${VAR}"/a.sh && ${"$"}{CLAUDE_PROJECT_DIR}/b.sh`, 2],
+    ["echo $CLAUDE_PROJECT_DIR_2 $CLAUDE_PROJECT_DIR", 1],
+    ["./x.sh", 0],
+  ])("should count the variable in %s as %i", (command, expected) => {
+    expect(countProjectDirVariable({ command, projectDirVar: VAR })).toBe(expected);
+  });
+
+  it.each([
     `node "${VAR}"/'b c.js'`,
     `python3 "${VAR}/my dir/x.py" --flag`,
     `${VAR}/a.sh && node ${VAR}/b.js`,
@@ -193,6 +222,13 @@ describe("stripProjectDirVariable", () => {
     `bash -c 'echo "a ${VAR}/x"'`,
     `x <<< ${VAR}/y`,
     `PATH=$PATH:${VAR}/bin x`,
+    `uv run "${VAR}/x.py"`,
+    `bun ${VAR}/x.ts`,
+    `npx tsx "${VAR}"/x.ts`,
+    `python3.12 "${VAR}"/x.py`,
+    `node -r "${VAR}"/r.js "${VAR}"/a.js`,
+    `python3 -W ignore "${VAR}"/x.py`,
+    `uv run --with requests "${VAR}"/x.py`,
   ])("should restore every variable in %s through strip and anchor", (command) => {
     const canonical = strip(command);
     const regenerated = anchor(canonical);

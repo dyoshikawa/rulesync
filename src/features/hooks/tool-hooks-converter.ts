@@ -15,7 +15,11 @@ import { compact } from "../../utils/object.js";
 import { lookupOwn } from "../../utils/own-lookup.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { isPlainObject } from "../../utils/type-guards.js";
-import { anchorDotPaths, stripProjectDirVariable } from "./hook-command-paths.js";
+import {
+  anchorDotPaths,
+  countProjectDirVariable,
+  stripProjectDirVariable,
+} from "./hook-command-paths.js";
 
 type ToolMatcherEntry = {
   matcher?: string;
@@ -324,6 +328,24 @@ function stripSurroundingQuotes(value: string): string {
 }
 
 /**
+ * Whether a hook is in the exec form, `args` being *present* — an empty array
+ * selects it too, and the docs' own example uses `"args": []`. Only checked
+ * for tools that actually emit `args`; for the rest `command` stays a shell
+ * string.
+ */
+function isExecFormHook({
+  args,
+  converterConfig,
+}: {
+  args: unknown;
+  converterConfig: ToolHooksConverterConfig;
+}): boolean {
+  const emitsArgs =
+    converterConfig.arrayPassthroughFields?.some(({ canonical }) => canonical === "args") ?? false;
+  return emitsArgs && Array.isArray(args);
+}
+
+/**
  * Apply the optional project directory variable prefix to a command string.
  */
 function applyCommandPrefix({
@@ -344,16 +366,12 @@ function applyCommandPrefix({
     (posix.isAbsolute(unquotedCommand) ||
       win32.isAbsolute(unquotedCommand) ||
       unquotedCommand.startsWith("~/"));
-  // The exec form is `args` being *present* — an empty array selects it too,
-  // and the docs' own example uses `"args": []`. Only checked for tools that
-  // actually emit `args`; for the rest `command` stays a shell string.
-  const emitsArgs =
-    converterConfig.arrayPassthroughFields?.some(({ canonical }) => canonical === "args") ?? false;
-  const isExecForm = emitsArgs && Array.isArray(def.args);
+  const isExecForm = isExecFormHook({ args: def.args, converterConfig });
+  const startsWithVariable = unquotedCommand?.startsWith("$") ?? false;
   const shouldPrefix =
     converterConfig.projectDirVar !== "" &&
     typeof trimmedCommand === "string" &&
-    !trimmedCommand.startsWith("$") &&
+    !startsWithVariable &&
     !isAbsoluteCommand &&
     (!converterConfig.prefixDotRelativeCommandsOnly || isDotRelativeCommand);
 
@@ -362,7 +380,7 @@ function applyCommandPrefix({
   // imported with the variable there keeps it. The exec form has no shell to
   // split words, and a command led by a variable is passed through untouched.
   const anchorInline = (command: string): string =>
-    isExecForm || converterConfig.projectDirVar === "" || trimmedCommand?.startsWith("$")
+    isExecForm || converterConfig.projectDirVar === "" || startsWithVariable
       ? command
       : anchorDotPaths({ command, projectDirVar: converterConfig.projectDirVar });
 
@@ -1106,26 +1124,55 @@ export function canonicalToToolHooks({
 /**
  * Strip the project directory variable from a tool command string, converting
  * it back to `./`-relative paths (see `stripProjectDirVariable`).
+ *
+ * With `warn`, a command that loses a variable generate will not put back (a
+ * data argument such as `npx prettier --write "$VAR"/src`) is reported: its
+ * path is resolved against the hook's working directory once regenerated.
  */
 function stripCommandPrefix({
   command,
   args,
   converterConfig,
+  warn,
 }: {
   command: unknown;
   args: unknown;
   converterConfig: ToolHooksConverterConfig;
+  warn?: (message: string) => void;
 }): string | undefined {
   const cmd = typeof command === "string" ? command : undefined;
-  if (converterConfig.projectDirVar === "" || typeof cmd !== "string") {
+  const { projectDirVar } = converterConfig;
+  if (projectDirVar === "" || typeof cmd !== "string") {
     return cmd;
   }
-  return stripProjectDirVariable({
+  const stripped = stripProjectDirVariable({
     command: cmd,
-    projectDirVar: converterConfig.projectDirVar,
+    projectDirVar,
     // The exec form's command is one executable path, not shell words.
-    firstWordOnly: Array.isArray(args),
+    firstWordOnly: isExecFormHook({ args, converterConfig }),
   });
+  // What generate makes of the imported command, as a string.
+  const regenerated = (): string => {
+    const generated = applyCommandPrefix({
+      // Only the presence of `args` matters here: it selects the exec form.
+      def: { type: "command", command: stripped, ...(Array.isArray(args) && { args: [] }) },
+      converterConfig,
+    });
+    return typeof generated === "string" ? generated : "";
+  };
+  if (
+    warn &&
+    countProjectDirVariable({ command: regenerated(), projectDirVar }) <
+      countProjectDirVariable({ command: cmd, projectDirVar })
+  ) {
+    warn(
+      `Hook command ${quoteValueForWarning(cmd)} was imported as ${quoteValueForWarning(stripped)}: ` +
+        `a ${projectDirVar} path that is not a script the command runs becomes relative to the ` +
+        `hook's working directory and is not restored on generate. Put the exact command in a ` +
+        `tool-specific hooks override (such as "claudecode.hooks") to keep the variable.`,
+    );
+  }
+  return stripped;
 }
 
 /**
@@ -1414,7 +1461,7 @@ function toolHookToCanonical({
   // `describeHookSkipReason`; this catches the same field left on a type it
   // does not define, where losing it alone changes nothing.
   const command = importCanonicalString({
-    value: stripCommandPrefix({ command: h.command, args: h.args, converterConfig }),
+    value: stripCommandPrefix({ command: h.command, args: h.args, converterConfig, warn }),
     canonical: "command",
     warn,
   });

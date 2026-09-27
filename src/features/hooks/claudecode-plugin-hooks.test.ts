@@ -87,6 +87,7 @@ describe("ClaudecodePluginHooks", () => {
     it.each([
       // The script a script runner runs ships with the plugin.
       ["node ./scripts/check.js", 'node "$CLAUDE_PLUGIN_ROOT"/scripts/check.js'],
+      ["uv run ./x.py", 'uv run "$CLAUDE_PLUGIN_ROOT"/x.py'],
       // A data argument keeps pointing into the consumer's project.
       ["npx prettier --write ./src", "npx prettier --write ./src"],
       ["./scripts/fmt.sh ./src", '"$CLAUDE_PLUGIN_ROOT"/scripts/fmt.sh ./src'],
