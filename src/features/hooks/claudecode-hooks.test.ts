@@ -513,6 +513,7 @@ describe("ClaudecodeHooks", () => {
             { type: "command", command: ".rulesync/hooks/session-start.sh" },
             { type: "command", command: "npx prettier --write ./src/hooks/format.ts" },
             { type: "command", command: "npx eslint --fix" },
+            { type: "command", command: ". ./env.sh && run" },
           ],
         },
       };
@@ -541,6 +542,8 @@ describe("ClaudecodeHooks", () => {
         'npx prettier --write "$CLAUDE_PROJECT_DIR"/src/hooks/format.ts',
       );
       expect(sessionStartEntry.hooks[2].command).toBe("npx eslint --fix");
+      // A lone `.` is the `source` builtin, so only its script is anchored.
+      expect(sessionStartEntry.hooks[3].command).toBe('. "$CLAUDE_PROJECT_DIR"/env.sh && run');
     });
 
     it("should quote only the $CLAUDE_PROJECT_DIR variable so it survives word-splitting on project paths with spaces", async () => {

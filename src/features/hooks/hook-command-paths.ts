@@ -13,11 +13,14 @@
  * How the shell reads a position where a path may start:
  *
  * - `plain`: an unquoted word — at the top level, inside `$( … )`, `` ` … ` ``
- *   or `( … )`, or inside a single-quoted script handed to an inner shell
- *   (`bash -c '…'`), which the inner shell reads unquoted.
+ *   or `( … )`.
  * - `double`: right after a `"` that opens a word.
- * - `single`: right after a `'` that opens a word and is *not* a `-c` script,
- *   so its text is a literal the shell never expands.
+ * - `single`: right after a `'` that opens a word, so its text is a literal the
+ *   shell never expands.
+ *
+ * A single-quoted script handed to an inner shell (`bash -c '…'`) is scanned
+ * as a command of its own, since the inner shell parses it again; a
+ * double-quoted one is not, since the outer shell has already expanded it.
  */
 export type PathStartKind = "plain" | "double" | "single";
 
@@ -26,8 +29,6 @@ const PLAIN_WORD_BOUNDARIES = new Set([" ", "\t", "\n", ";", "&", "|", "(", "<",
 
 type Frame = {
   readonly kind: '"' | "'" | "$(" | "(" | "`";
-  /** A single-quoted script handed to an inner shell via `-c`. */
-  readonly innerShell?: boolean;
   /** Index of the frame's opening character. */
   readonly open: number;
 };
@@ -43,7 +44,7 @@ export function findPathStarts(command: string): Map<number, PathStartKind> {
   for (let i = 0; i < command.length; i++) {
     const top = scan.stack.at(-1);
     if (top?.kind === "'") {
-      scanSingleQuoted({ scan, top, i });
+      if (command.charAt(i) === "'") scan.stack.pop();
     } else if (command.charAt(i) === "\\") {
       // An escaped character is a literal and never starts a path.
       i++;
@@ -69,15 +70,6 @@ function followsBoundary({ scan, i }: { scan: Scan; i: number }): boolean {
   return (
     i === 0 || (PLAIN_WORD_BOUNDARIES.has(scan.command.charAt(i - 1)) && scan.escaped !== i - 1)
   );
-}
-
-/** Inside `'…'`: a literal, unless it is a script handed to an inner shell. */
-function scanSingleQuoted({ scan, top, i }: { scan: Scan; top: Frame; i: number }): void {
-  if (scan.command.charAt(i) === "'") {
-    scan.stack.pop();
-  } else if (top.innerShell && (i === top.open + 1 || followsBoundary({ scan, i }))) {
-    scan.starts.set(i, "plain");
-  }
 }
 
 /** Inside `"…"`: only a nested `$( … )` or `` ` … ` `` opens new words. */
@@ -113,13 +105,39 @@ function scanUnquoted({ scan, top, i }: { scan: Scan; top: Frame | undefined; i:
     // re-split by the inner one, so an anchored path would not stay one word.
     if (startsWord && !isInnerShellScript({ command, i })) starts.set(i + 1, "double");
   } else if (char === "'") {
-    const innerShell = isInnerShellScript({ command, i });
-    stack.push({ kind: "'", open: i, innerShell });
-    if (startsWord && !innerShell) starts.set(i + 1, "single");
+    if (isInnerShellScript({ command, i })) return scanInnerShellScript({ scan, i });
+    stack.push({ kind: "'", open: i });
+    if (startsWord) starts.set(i + 1, "single");
+  } else if (char === "$" && command.charAt(i + 1) === "'") {
+    // An ANSI-C `$'…'` string is a literal with backslash escapes.
+    return skipAnsiCString({ command, i });
   } else {
     return scanNesting({ scan, top, i });
   }
   return i;
+}
+
+/**
+ * A single-quoted `-c` script is passed verbatim to an inner shell, which reads
+ * it as a command of its own: scan it the same way, including its own quotes,
+ * and continue after the closing quote.
+ */
+function scanInnerShellScript({ scan, i }: { scan: Scan; i: number }): number {
+  const close = scan.command.indexOf("'", i + 1);
+  const end = close === -1 ? scan.command.length : close;
+  for (const [index, kind] of findPathStarts(scan.command.slice(i + 1, end))) {
+    scan.starts.set(i + 1 + index, kind);
+  }
+  return end;
+}
+
+/** Return the index of the quote closing the `$'…'` string opened at `i`. */
+function skipAnsiCString({ command, i }: { command: string; i: number }): number {
+  for (let j = i + 2; j < command.length; j++) {
+    if (command.charAt(j) === "\\") j++;
+    else if (command.charAt(j) === "'") return j;
+  }
+  return command.length;
 }
 
 /**
@@ -129,17 +147,21 @@ function scanUnquoted({ scan, top, i }: { scan: Scan; top: Frame | undefined; i:
 const INNER_SHELL_LOOKBEHIND = 256;
 
 /**
- * A shell invocation (`sh`, `bash`, `dash`, `ksh`, `zsh`, optionally with a
- * directory) whose last option cluster contains `c` (`-c`, `-lc`, `-euc`),
- * possibly after other options such as `-o pipefail`. Other commands' `-c`
- * options (`git -c`, `grep -c`, `head -c`) do not match.
+ * A shell invocation (`sh`, `ash`, `bash`, `dash`, `ksh`, `mksh`, `zsh`,
+ * optionally with a directory) whose last option cluster contains `c` (`-c`,
+ * `-lc`, `-euc`), possibly after other options such as `-o pipefail` or
+ * `--norc` and followed by `--`. Other commands' `-c` options (`git -c`,
+ * `grep -c`, `head -c`) do not match.
  */
 const INNER_SHELL_PATTERN =
-  /(?:^|[\s;&|(`])(?:\S*\/)?(?:ba|da|k|z)?sh(?:\s+(?:[-+]o\s+\w+|[-+][A-Za-z]+))*\s+-[A-Za-z]*c[A-Za-z]*\s*$/;
+  /(?:^|[\s;&|(`])(?:\S*\/)?(?:a|ba|da|k|mk|z)?sh(?:\s+(?:[-+]o\s+\w+|--?[A-Za-z][\w-]*|\+[A-Za-z]+))*\s+-[A-Za-z]*c[A-Za-z]*(?:\s+--)?\s*$/;
 
 /** Whether the quote at `i` opens a script handed to an inner shell via `-c`. */
 function isInnerShellScript({ command, i }: { command: string; i: number }): boolean {
-  return INNER_SHELL_PATTERN.test(command.slice(Math.max(0, i - INNER_SHELL_LOOKBEHIND), i));
+  const start = Math.max(0, i - INNER_SHELL_LOOKBEHIND);
+  const tail = command.slice(start, i);
+  // A cut-off prefix may begin mid-word, which must not count as a word start.
+  return INNER_SHELL_PATTERN.test(start === 0 ? tail : tail.replace(/^\S*/, ""));
 }
 
 /** Track `` ` … ` ``, `$( … )` and `( … )` in unquoted text. */
@@ -166,16 +188,26 @@ function scanNesting({ scan, top, i }: { scan: Scan; top: Frame | undefined; i: 
  * commands are converted only in their first word, in both directions.
  */
 export function changesDirectory(command: string): boolean {
-  return /(?:^|[\s;&|(){`'"])\\?(?:cd|pushd|popd)(?:[\s;&|()`'"]|$)/.test(command);
+  return containsCommand({ command, names: "cd|pushd|popd" });
+}
+
+/** Whether one of the `|`-separated command names appears as a word. */
+function containsCommand({ command, names }: { command: string; names: string }): boolean {
+  return new RegExp(`(?:^|[\\s;&|(){\`'"])\\\\?(?:${names})(?:[\\s;&|()\`'"]|$)`).test(command);
 }
 
 /**
  * Whether `./` words after the first one are converted in both directions:
- * not after a directory change, and not in a command with a heredoc or
- * here-string (`<<`), whose body is data rather than shell words.
+ * not after a directory change, not in a command with a heredoc or here-string
+ * (`<<`), whose body is data rather than shell words, and not with `eval`,
+ * which would parse an expanded project path as shell code again.
  */
 export function convertsLaterWords(command: string): boolean {
-  return !changesDirectory(command) && !command.includes("<<");
+  return (
+    !changesDirectory(command) &&
+    !command.includes("<<") &&
+    !containsCommand({ command, names: "eval" })
+  );
 }
 
 /**
@@ -188,7 +220,8 @@ export function convertsLaterWords(command: string): boolean {
  * - a literal `'./x'` becomes `"$VAR"/'x'`, since single quotes never expand.
  *
  * Only an explicit `./` is anchored — never `../` or a bare `.name`. A command
- * that changes directory is returned unchanged.
+ * whose later words are not converted (see `convertsLaterWords`) is returned
+ * unchanged.
  */
 export function anchorDotPaths({
   command,
@@ -202,19 +235,22 @@ export function anchorDotPaths({
   }
   const edits = [...findPathStarts(command)]
     .filter(([index]) => command.startsWith("./", index))
-    .toSorted(([a], [b]) => b - a);
-  let result = command;
+    .toSorted(([a], [b]) => a - b);
+  const parts: string[] = [];
+  let copied = 0;
   for (const [index, kind] of edits) {
-    if (kind === "plain") {
-      result = `${result.slice(0, index)}"${projectDirVar}"/${result.slice(index + 2)}`;
-    } else if (kind === "double") {
-      result = `${result.slice(0, index)}${projectDirVar}/${result.slice(index + 2)}`;
-    } else {
+    if (kind === "single") {
       // Move the opening single quote after the variable: './x' -> "$VAR"/'x'.
-      result = `${result.slice(0, index - 1)}"${projectDirVar}"/'${result.slice(index + 2)}`;
+      parts.push(command.slice(copied, index - 1), `"${projectDirVar}"/'`);
+    } else {
+      // Inside double quotes the variable needs no quotes of its own.
+      const anchor = kind === "plain" ? `"${projectDirVar}"/` : `${projectDirVar}/`;
+      parts.push(command.slice(copied, index), anchor);
     }
+    copied = index + 2;
   }
-  return result;
+  parts.push(command.slice(copied));
+  return parts.join("");
 }
 
 /**

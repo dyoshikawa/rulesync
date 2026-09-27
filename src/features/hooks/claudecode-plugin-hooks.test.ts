@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { ClaudecodePluginHooks } from "./claudecode-plugin-hooks.js";
@@ -82,6 +83,36 @@ describe("ClaudecodePluginHooks", () => {
       expect(parsed.hooks.SessionStart[0].hooks[0].command).toBe(
         "${CLAUDE_PLUGIN_ROOT}/scripts/fmt.sh",
       );
+    });
+
+    it("should warn when later ./ words are anchored to the plugin root", async () => {
+      const logger = createMockLogger();
+      const pluginHooks = await ClaudecodePluginHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks: buildRulesyncHooks({ testDir, command: "npx prettier --write ./src" }),
+        validate: false,
+        logger,
+      });
+
+      const parsed = JSON.parse(pluginHooks.getFileContent());
+      expect(parsed.hooks.SessionStart[0].hooks[0].command).toBe(
+        'npx prettier --write "$CLAUDE_PLUGIN_ROOT"/src',
+      );
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('later "./" paths now resolve against $CLAUDE_PLUGIN_ROOT'),
+      );
+    });
+
+    it("should not warn when only the first word is anchored", async () => {
+      const logger = createMockLogger();
+      await ClaudecodePluginHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks: buildRulesyncHooks({ testDir, command: "./scripts/fmt.sh --all" }),
+        validate: false,
+        logger,
+      });
+
+      expect(logger.warn).not.toHaveBeenCalled();
     });
 
     it("should leave a command that already starts with a variable untouched", async () => {

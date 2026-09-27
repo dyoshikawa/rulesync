@@ -44,6 +44,7 @@ describe("changesDirectory", () => {
     "(cd) && ./x",
     "x; cd; ./y",
     "cd&&./x",
+    "builtin cd sub; ./x",
   ])("should detect %s", (command) => {
     expect(changesDirectory(command)).toBe(true);
   });
@@ -70,6 +71,11 @@ describe("anchorDotPaths", () => {
     ["bash -lc './a && ./b'", `bash -lc '"${VAR}"/a && "${VAR}"/b'`],
     ["/bin/sh -euc './a'", `/bin/sh -euc '"${VAR}"/a'`],
     ["bash -o pipefail -c './a | ./b'", `bash -o pipefail -c '"${VAR}"/a | "${VAR}"/b'`],
+    ["bash --norc -c './a'", `bash --norc -c '"${VAR}"/a'`],
+    ["bash -c -- './a'", `bash -c -- '"${VAR}"/a'`],
+    ["mksh -c './a'", `mksh -c '"${VAR}"/a'`],
+    // The inner shell reads its own double quotes.
+    [`bash -c 'x "./y"'`, `bash -c 'x "${VAR}/y"'`],
   ])("should anchor %s", (command, expected) => {
     expect(anchor(command)).toBe(expected);
   });
@@ -95,6 +101,15 @@ describe("anchorDotPaths", () => {
     "cut -c '1 ./x'",
     // A double-quoted `-c` script is re-split by the inner shell.
     'sh -c "./x && ./y"',
+    'bash --norc -c "./x"',
+    // Text inside a quoted string of an inner shell script.
+    `bash -c 'echo "a ./x"'`,
+    `bash -c 'true; sh -c "echo; ./x"'`,
+    // `eval` would parse an expanded project path as code again.
+    'eval "./x"',
+    "eval ./x",
+    // An ANSI-C string is a literal.
+    "echo $'a\\' ./x'",
     // A heredoc or here-string body is data, not shell words.
     "cat <<EOF > f\n./x\nEOF",
     "x <<< ./y",
@@ -134,6 +149,8 @@ describe("stripProjectDirVariable", () => {
     // A heredoc or here-string body is data, not shell words.
     `cat <<EOF > f\n${VAR}/x\nEOF`,
     `x <<< ${VAR}/y`,
+    `bash -c 'echo "a ${VAR}/x"'`,
+    `eval "${VAR}/x"`,
   ])("should leave %s untouched", (command) => {
     expect(strip(command)).toBe(command);
   });
@@ -152,6 +169,8 @@ describe("stripProjectDirVariable", () => {
     `python3 "${VAR}/my dir/x.py" --flag`,
     `bash -c 'test -x ${VAR}/k.sh'`,
     `bash -lc '${VAR}/a && ${VAR}/b'`,
+    `bash -c 'x "${VAR}/y"'`,
+    `bash -c 'echo "a ${VAR}/x"'`,
     `git -c 'core.hooksPath=${VAR}/hooks' status`,
     `sh -c "${VAR}/x"`,
     `x <<< ${VAR}/y`,

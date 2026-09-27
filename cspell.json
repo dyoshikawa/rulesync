@@ -24,6 +24,8 @@
   ],
   "words": [
     "cimd",
+    "mksh",
+    "norc",
     "pipefail",
     "pushd",
     "popd",

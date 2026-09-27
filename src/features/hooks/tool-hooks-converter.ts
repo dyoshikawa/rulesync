@@ -187,6 +187,14 @@ export type ToolHooksConverterConfig = {
    */
   prefixDotRelativeCommandsOnly?: boolean;
   /**
+   * When true, generate warns about a hook command whose later `./` words were
+   * anchored to projectDirVar. Set for a projectDirVar that is not the project
+   * root (a plugin's install directory), where a data argument such as
+   * `npx prettier --write ./src` would otherwise silently stop pointing into
+   * the consumer's project.
+   */
+  warnsOnAnchoredLaterPaths?: boolean;
+  /**
    * When true, prompt/agent hooks emit the canonical `model` field. Only tools
    * that document a per-hook model selector (Claude Code) should opt in —
    * other prompt-capable tools (Factory Droid, Devin) do not document the
@@ -329,14 +337,18 @@ function stripSurroundingQuotes(value: string): string {
 function applyCommandPrefix({
   def,
   converterConfig,
+  warn,
 }: {
   def: HooksConfig["hooks"][string][number];
   converterConfig: ToolHooksConverterConfig;
+  warn?: (message: string) => void;
 }): unknown {
   const commandText = def.command;
   const trimmedCommand = typeof commandText === "string" ? commandText.trimStart() : undefined;
   const unquotedCommand = trimmedCommand?.replace(/^["']/, "");
-  const isDotRelativeCommand = unquotedCommand?.startsWith(".") ?? false;
+  // A lone `.` is the `source` builtin (`. ./env.sh`), not a path.
+  const isDotRelativeCommand =
+    typeof unquotedCommand === "string" && /^\.(?!\s|$)/.test(unquotedCommand);
   const isAbsoluteCommand =
     typeof unquotedCommand === "string" &&
     (posix.isAbsolute(unquotedCommand) ||
@@ -359,10 +371,18 @@ function applyCommandPrefix({
   // chain) is anchored too, mirroring import, which normalizes the variable
   // wherever a path starts with it. The exec form has no shell to split words,
   // and a command led by a variable is passed through untouched.
-  const anchorInline = (command: string): string =>
-    isExecForm || converterConfig.projectDirVar === "" || trimmedCommand?.startsWith("$")
-      ? command
-      : anchorDotPaths({ command, projectDirVar: converterConfig.projectDirVar });
+  const anchorInline = (command: string): string => {
+    if (isExecForm || converterConfig.projectDirVar === "" || trimmedCommand?.startsWith("$")) {
+      return command;
+    }
+    const anchored = anchorDotPaths({ command, projectDirVar: converterConfig.projectDirVar });
+    if (anchored !== command && converterConfig.warnsOnAnchoredLaterPaths) {
+      warn?.(
+        `hook command ${quoteValueForWarning(def.command)}: later "./" paths now resolve against ${converterConfig.projectDirVar}, not the project the hook runs in; write "$CLAUDE_PROJECT_DIR"/… for a path in that project`,
+      );
+    }
+    return anchored;
+  };
 
   // Only the variable itself is quoted (not the whole command) so a project path
   // containing a space can't be word-split by the shell, while any trailing
@@ -992,7 +1012,7 @@ function buildToolHooks({
     if (!isSupportedHookType({ type: hookType, converterConfig })) {
       continue;
     }
-    const command = applyCommandPrefix({ def, converterConfig });
+    const command = applyCommandPrefix({ def, converterConfig, warn });
     hooks.push({
       // Spread every passthrough field first so the explicitly-handled core
       // fields below always win: a misconfigured `tool` name (e.g. mapping onto
