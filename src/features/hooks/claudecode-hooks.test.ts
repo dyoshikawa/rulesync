@@ -1220,6 +1220,7 @@ describe("ClaudecodeHooks", () => {
     it.each([
       ["npx prettier --write $CLAUDE_PROJECT_DIR/src", true],
       ['x > "$CLAUDE_PROJECT_DIR"/out.log', true],
+      ['node ./a.js "$CLAUDE_PROJECT_DIR"/data', true],
       ['node "$CLAUDE_PROJECT_DIR"/x.js', false],
       ["$CLAUDE_PROJECT_DIR/a.sh && cd sub && $CLAUDE_PROJECT_DIR/b.sh", false],
     ])(

@@ -15,11 +15,7 @@ import { compact } from "../../utils/object.js";
 import { lookupOwn } from "../../utils/own-lookup.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { isPlainObject } from "../../utils/type-guards.js";
-import {
-  anchorDotPaths,
-  countProjectDirVariable,
-  stripProjectDirVariable,
-} from "./hook-command-paths.js";
+import { anchorDotPaths, importProjectDirVariable } from "./hook-command-paths.js";
 
 type ToolMatcherEntry = {
   matcher?: string;
@@ -1145,26 +1141,13 @@ function stripCommandPrefix({
   if (projectDirVar === "" || typeof cmd !== "string") {
     return cmd;
   }
-  const stripped = stripProjectDirVariable({
+  const { command: stripped, unrestored } = importProjectDirVariable({
     command: cmd,
     projectDirVar,
     // The exec form's command is one executable path, not shell words.
     firstWordOnly: isExecFormHook({ args, converterConfig }),
   });
-  // What generate makes of the imported command, as a string.
-  const regenerated = (): string => {
-    const generated = applyCommandPrefix({
-      // Only the presence of `args` matters here: it selects the exec form.
-      def: { type: "command", command: stripped, ...(Array.isArray(args) && { args: [] }) },
-      converterConfig,
-    });
-    return typeof generated === "string" ? generated : "";
-  };
-  if (
-    warn &&
-    countProjectDirVariable({ command: regenerated(), projectDirVar }) <
-      countProjectDirVariable({ command: cmd, projectDirVar })
-  ) {
+  if (warn && unrestored) {
     warn(
       `Hook command ${quoteValueForWarning(cmd)} was imported as ${quoteValueForWarning(stripped)}: ` +
         `a ${projectDirVar} path that is not a script the command runs becomes relative to the ` +

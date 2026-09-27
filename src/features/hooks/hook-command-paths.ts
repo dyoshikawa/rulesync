@@ -3,10 +3,10 @@
  * project directory variable (e.g. `$CLAUDE_PROJECT_DIR`) and for stripping
  * that variable back off on import.
  *
- * Both directions share `findPathStarts`, so a position the import normalizes
- * is exactly a position the generate re-anchors: an imported hook keeps
- * resolving against the project root after a round trip, and a second import
- * is stable.
+ * Both directions share one shell scanner. Generate anchors only the `./`
+ * paths a command runs as files; import normalizes the variable wherever it
+ * starts a path and reports the ones generate would not restore. A second
+ * import of a regenerated command is stable.
  */
 
 /**
@@ -24,6 +24,14 @@
  */
 export type PathStartKind = "plain" | "double" | "single";
 
+/** The name of a POSIX-like shell, as a regular expression source. */
+const SHELL_NAME = "(?:a|ba|da|k|mk|z)?sh";
+
+/** Escape a string for literal use in a regular expression. */
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 /** Characters after which an unquoted shell word can start. */
 const PLAIN_WORD_BOUNDARIES = new Set([" ", "\t", "\n", ";", "&", "|", "(", "<", ">", "=", "`"]);
 
@@ -32,8 +40,12 @@ const COMMAND_SEPARATORS = new Set([";", "&", "|", "\n"]);
 
 type Frame = { readonly kind: '"' | "'" | "$(" | "(" | "`" };
 
-/** A shell word, and whether it is the first word of a simple command. */
-type Word = { readonly index: number; readonly commandStart: boolean };
+/**
+ * A shell word, whether it is the first word of a simple command, and — for a
+ * word of a single-quoted `-c` script — the index of that script's opening
+ * quote, which is recorded as a word of the outer command first.
+ */
+type Word = { readonly index: number; readonly commandStart: boolean; readonly script?: number };
 
 /**
  * Scan a shell command and return every position where a path may start,
@@ -51,6 +63,7 @@ function scanCommand(command: string): Scan {
     starts: new Map(),
     words: [],
     stack: [],
+    scripts: [],
     escaped: -1,
     atCommandStart: true,
   };
@@ -76,6 +89,8 @@ type Scan = {
   readonly starts: Map<number, PathStartKind>;
   /** Every unquoted-context word, in order. */
   readonly words: Word[];
+  /** The single-quoted `-c` scripts: opening quote and closing quote. */
+  readonly scripts: Array<{ readonly index: number; readonly end: number }>;
   readonly stack: Frame[];
   /** Index of the last backslash-escaped character, which is part of a word. */
   escaped: number;
@@ -176,8 +191,9 @@ function scanInnerShellScript({ scan, i }: { scan: Scan; i: number }): number {
     scan.starts.set(i + 1 + index, kind);
   }
   for (const { index, commandStart } of inner.words) {
-    scan.words.push({ index: i + 1 + index, commandStart });
+    scan.words.push({ index: i + 1 + index, commandStart, script: i });
   }
+  scan.scripts.push({ index: i, end });
   return end;
 }
 
@@ -203,8 +219,10 @@ const INNER_SHELL_LOOKBEHIND = 256;
  * `--norc` and followed by `--`. Other commands' `-c` options (`git -c`,
  * `grep -c`, `head -c`) do not match.
  */
-const INNER_SHELL_PATTERN =
-  /(?:^|[\s;&|(`])(?:\S*\/)?(?:a|ba|da|k|mk|z)?sh(?:\s+(?:[-+][oO]\s+\w+|--?[A-Za-z][\w-]*|\+[A-Za-z]+))*\s+-[A-Za-z]*c[A-Za-z]*(?:\s+--)?\s*$/;
+const INNER_SHELL_PATTERN = new RegExp(
+  String.raw`(?:^|[\s;&|(${"`"}])(?:\S*\/)?${SHELL_NAME}` +
+    String.raw`(?:\s+(?:[-+][oO]\s+\w+|--?[A-Za-z][\w-]*|\+[A-Za-z]+))*\s+-[A-Za-z]*c[A-Za-z]*(?:\s+--)?\s*$`,
+);
 
 /** Whether the quote at `i` opens a script handed to an inner shell via `-c`. */
 function isInnerShellScript({ command, i }: { command: string; i: number }): boolean {
@@ -274,8 +292,9 @@ function convertsLaterWords(command: string): boolean {
  * into the current shell. Matched against the basename, so `/usr/bin/python3`
  * and `python3.12` count too.
  */
-const SCRIPT_RUNNER_PATTERN =
-  /^(?:\.|source|(?:a|ba|da|k|mk|z)?sh|node|nodejs|bun|tsx|ts-node|python(?:\d+(?:\.\d+)?)?|ruby|perl|php)$/;
+const SCRIPT_RUNNER_PATTERN = new RegExp(
+  String.raw`^(?:\.|source|${SHELL_NAME}|node|nodejs|bun|tsx|ts-node|python(?:\d+(?:\.\d+)?)?|ruby|perl|php)$`,
+);
 
 /**
  * Tools whose subcommand runs the command that follows it on the same host:
@@ -301,6 +320,7 @@ const RUN_SUBCOMMANDS: Record<string, ReadonlySet<string>> = {
 const PACKAGE_RUNNERS = new Set(["npx", "bunx", "pnpx"]);
 
 const NODE_VALUE_OPTIONS = ["-r", "--require", "--import", "--loader", "--experimental-loader"];
+const PACKAGE_VALUE_OPTIONS = ["-p", "--package"];
 
 /**
  * Options that take the next word as their value, per command, so the value
@@ -319,13 +339,48 @@ const VALUE_OPTIONS: Record<string, ReadonlySet<string>> = {
   python: new Set(["-W", "-X"]),
   ruby: new Set(["-r", "-I"]),
   uv: new Set(["--with", "--with-requirements", "--python", "-p", "--env-file"]),
+  npx: new Set(PACKAGE_VALUE_OPTIONS),
+  bunx: new Set(PACKAGE_VALUE_OPTIONS),
+  pnpx: new Set(PACKAGE_VALUE_OPTIONS),
+  pnpm: new Set(PACKAGE_VALUE_OPTIONS),
+  yarn: new Set(PACKAGE_VALUE_OPTIONS),
+  npm: new Set(PACKAGE_VALUE_OPTIONS),
   sh: new Set(["-o", "+o", "-O", "+O"]),
 };
 
-function valueOptionsFor(name: string): ReadonlySet<string> | undefined {
-  if (name.startsWith("python")) return VALUE_OPTIONS.python;
-  if (/^(?:a|ba|da|k|mk|z)?sh$/.test(name)) return VALUE_OPTIONS.sh;
-  return VALUE_OPTIONS[name];
+const NODE_CODE_OPTIONS = ["-e", "--eval", "-p", "--print"];
+
+/**
+ * Options after which a runner runs no script file: the code or module named
+ * next (`python3 -c '…'`, `python3 -m pkg`, `node -e '…'`) or standard input
+ * (`bash -s`). The words after them are data. A shell's `-c` script is read as
+ * a command of its own instead (see `scanInnerShellScript`).
+ */
+const CODE_OPTIONS: Record<string, ReadonlySet<string>> = {
+  node: new Set(NODE_CODE_OPTIONS),
+  nodejs: new Set(NODE_CODE_OPTIONS),
+  tsx: new Set(NODE_CODE_OPTIONS),
+  "ts-node": new Set(NODE_CODE_OPTIONS),
+  bun: new Set(NODE_CODE_OPTIONS),
+  deno: new Set(["eval"]),
+  python: new Set(["-c", "-m"]),
+  ruby: new Set(["-e"]),
+  perl: new Set(["-e", "-E"]),
+  php: new Set(["-r"]),
+  sh: new Set(["-s"]),
+};
+
+/** The per-command option table entry for a runner named `name`. */
+function optionsFor({
+  table,
+  name,
+}: {
+  table: Record<string, ReadonlySet<string>>;
+  name: string;
+}): ReadonlySet<string> | undefined {
+  if (name.startsWith("python")) return table.python;
+  if (new RegExp(`^${SHELL_NAME}$`).test(name)) return table.sh;
+  return Object.hasOwn(table, name) ? table[name] : undefined;
 }
 
 /**
@@ -366,87 +421,157 @@ function wordText({ command, index }: { command: string; index: number }): strin
  */
 type Expecting = "command" | "wrapped" | "subcommand" | "script" | "none";
 
-/**
- * What follows the word read where a tool listed in `RUN_SUBCOMMANDS` expects
- * its subcommand: the command it runs, or — for a tool that is a script
- * runner itself, as in `bun ./x.ts` — nothing further once that word is read
- * as the script.
- */
-function afterSubcommandWord({ owner, text }: { owner: string; text: string }): Expecting {
-  if (RUN_SUBCOMMANDS[owner]?.has(text)) return "wrapped";
-  return SCRIPT_RUNNER_PATTERN.test(owner) ? "script" : "none";
-}
+/** The positions a command runs as files, and the `-c` scripts it runs. */
+type CommandPaths = {
+  /** The `./` path starts that name a file the command runs. */
+  readonly toAnchor: Set<number>;
+  /**
+   * The opening quotes of the single-quoted `-c` scripts that a shell run by
+   * the command reads, as opposed to text that only looks like one, such as
+   * `sudo sh -c '…'` or `echo sh -c '…'`.
+   */
+  readonly runScripts: Set<number>;
+};
 
 /**
- * The `./` path starts `anchorDotPaths` rewrites: the command word of each
- * simple command when it is itself a `./` path, the script argument of a
- * script runner (`node ./x.js`, `python3 "./my x.py"`, `. ./env.sh`), also
- * behind a package runner or run subcommand (`npx tsx ./x.ts`,
- * `uv run ./x.py`), and the value of a runner option that loads a file
- * (`node -r ./register.js`). Other arguments are data whose meaning depends on
- * the command (`npx prettier --write ./src`, `docker exec app ./x`), so they
- * are left as written.
+ * Walk the words of a command and find the `./` path starts `anchorDotPaths`
+ * rewrites: the command word of each simple command when it is itself a `./`
+ * path, the script argument of a script runner (`node ./x.js`,
+ * `python3 "./my x.py"`, `. ./env.sh`), also behind a package runner or run
+ * subcommand (`npx tsx ./x.ts`, `uv run ./x.py`), and the value of a runner
+ * option that loads a file (`node -r ./register.js`). Other arguments are data
+ * whose meaning depends on the command (`npx prettier --write ./src`,
+ * `docker exec app ./x`), so they are left as written.
+ *
+ * A single-quoted `-c` script is followed only when it is the script argument
+ * of a shell the command runs itself; under another command (`sudo`, `find
+ * -execdir`, `echo`) it runs elsewhere, if at all.
  */
-function findPathsToAnchor({ command, scan }: { command: string; scan: Scan }): Set<number> {
+function findCommandPaths({ command, scan }: { command: string; scan: Scan }): CommandPaths {
   const pathAt = (index: number): number | undefined =>
     [index, index + 1].find((at) => scan.starts.has(at) && command.startsWith("./", at));
   const toAnchor = new Set<number>();
-  let expecting: Expecting = "command";
-  // The command whose options are being read, and whether the next word is
-  // the value of one of them.
-  let owner = "";
-  let optionValue = false;
-
-  // Decide what follows a command word named `name`.
-  const afterCommandWord = (name: string): Expecting => {
-    owner = name;
-    if (Object.hasOwn(RUN_SUBCOMMANDS, name)) return "subcommand";
-    if (PACKAGE_RUNNERS.has(name)) return "wrapped";
-    return SCRIPT_RUNNER_PATTERN.test(name) ? "script" : "none";
+  const runScripts = new Set<number>();
+  const state: WalkState = {
+    expecting: "command",
+    owner: "",
+    optionValue: false,
+    previousScript: undefined,
   };
-
-  for (const { index, commandStart } of scan.words) {
-    if (commandStart) {
-      expecting = "command";
-      optionValue = false;
-    }
-    if (expecting === "none") continue;
-    const text = wordText({ command, index });
-    const path = pathAt(index);
-    if (optionValue) {
+  for (const word of scan.words) {
+    if (!startWord({ state, word, runScripts })) continue;
+    const text = wordText({ command, index: word.index });
+    const path = pathAt(word.index);
+    if (state.optionValue) {
       // The value of a runner option: anchored when it names a file.
-      optionValue = false;
+      state.optionValue = false;
       if (path !== undefined) toAnchor.add(path);
+    } else if (state.expecting === "command" && isCommandPrefix(text)) {
       continue;
+    } else if (state.expecting !== "command" && /^[-+]/.test(text)) {
+      readOption({ state, text });
+    } else if (state.expecting === "subcommand" && RUN_SUBCOMMANDS[state.owner]?.has(text)) {
+      state.expecting = "wrapped";
+    } else if (state.expecting === "script" || state.expecting === "subcommand") {
+      // A tool that is a script runner itself takes the script without a
+      // subcommand (`bun ./x.ts`); any other tool's subcommand runs nothing.
+      if (state.expecting === "script" || SCRIPT_RUNNER_PATTERN.test(state.owner)) {
+        readScript({ command, index: word.index, path, toAnchor, runScripts });
+      }
+      state.expecting = "none";
+    } else {
+      // A command word, possibly behind a runner.
+      if (path !== undefined) toAnchor.add(path);
+      state.owner = text.slice(text.lastIndexOf("/") + 1);
+      state.expecting = afterCommandWord(state.owner);
     }
-    if (expecting === "command" && (COMMAND_PREFIX_WORDS.has(text) || /^\w+=/.test(text))) {
-      continue;
-    }
-    if (expecting !== "command" && /^[-+]/.test(text)) {
-      optionValue = valueOptionsFor(owner)?.has(text) ?? false;
-      continue;
-    }
-    const name = text.slice(text.lastIndexOf("/") + 1);
-    if (expecting === "subcommand") {
-      expecting = afterSubcommandWord({ owner, text });
-      if (expecting !== "script") continue;
-    }
-    if (expecting === "script") {
-      // An unquoted `-c` script is re-split by the inner shell once expanded.
-      if (path !== undefined && !isInnerShellScript({ command, i: index })) toAnchor.add(path);
-      expecting = "none";
-      continue;
-    }
-    // A command word, possibly behind a runner.
-    if (path !== undefined) toAnchor.add(path);
-    expecting = afterCommandWord(name);
   }
-  return toAnchor;
+  return { toAnchor, runScripts };
+}
+
+/** Where `findCommandPaths` is in the current simple command. */
+type WalkState = {
+  expecting: Expecting;
+  /** The command whose options are being read. */
+  owner: string;
+  /** Whether the next word is the value of one of those options. */
+  optionValue: boolean;
+  /** The `-c` script the previous word belonged to. */
+  previousScript: number | undefined;
+};
+
+/**
+ * Update the walk for the next word, and tell whether that word is read at
+ * all: not when it belongs to a `-c` script the command does not run, nor
+ * when it is a data argument.
+ */
+function startWord({
+  state,
+  word,
+  runScripts,
+}: {
+  state: WalkState;
+  word: Word;
+  runScripts: ReadonlySet<number>;
+}): boolean {
+  const { commandStart, script } = word;
+  if (script !== undefined && !runScripts.has(script)) return false;
+  // The words after a `-c` script are its positional parameters.
+  const leftScript = state.previousScript !== undefined && script === undefined;
+  state.previousScript = script;
+  if (commandStart) {
+    state.expecting = "command";
+    state.optionValue = false;
+  } else if (leftScript) {
+    state.expecting = "none";
+  }
+  return state.expecting !== "none";
+}
+
+/** Whether a word before the command word leaves it still to come. */
+function isCommandPrefix(text: string): boolean {
+  return COMMAND_PREFIX_WORDS.has(text) || /^\w+=/.test(text);
+}
+
+/** Read an option of the runner whose options are being read. */
+function readOption({ state, text }: { state: WalkState; text: string }): void {
+  if (optionsFor({ table: CODE_OPTIONS, name: state.owner })?.has(text)) state.expecting = "none";
+  state.optionValue = optionsFor({ table: VALUE_OPTIONS, name: state.owner })?.has(text) ?? false;
+}
+
+/** What follows a command word whose basename is `name`. */
+function afterCommandWord(name: string): Expecting {
+  if (Object.hasOwn(RUN_SUBCOMMANDS, name)) return "subcommand";
+  if (PACKAGE_RUNNERS.has(name)) return "wrapped";
+  return SCRIPT_RUNNER_PATTERN.test(name) ? "script" : "none";
+}
+
+/** Read the script argument of a script runner. */
+function readScript({
+  command,
+  index,
+  path,
+  toAnchor,
+  runScripts,
+}: {
+  command: string;
+  index: number;
+  path: number | undefined;
+  toAnchor: Set<number>;
+  runScripts: Set<number>;
+}): void {
+  if (isInnerShellScript({ command, i: index })) {
+    // Its words are read next; an unquoted `-c` script has none and is
+    // re-split by the inner shell once expanded, so it is not anchored.
+    runScripts.add(index);
+  } else if (path !== undefined) {
+    toAnchor.add(path);
+  }
 }
 
 /**
  * Anchor the `./` paths that name a file the command runs (see
- * `findPathsToAnchor`) with the project directory variable, the inverse of
+ * `findCommandPaths`) with the project directory variable, the inverse of
  * `stripProjectDirVariable` at those positions:
  *
  * - an unquoted `./x` becomes `"$VAR"/x`;
@@ -468,7 +593,7 @@ export function anchorDotPaths({
     return command;
   }
   const scan = scanCommand(command);
-  const toAnchor = findPathsToAnchor({ command, scan });
+  const { toAnchor } = findCommandPaths({ command, scan });
   const edits = [...scan.starts]
     .filter(([index]) => toAnchor.has(index))
     .toSorted(([a], [b]) => a - b);
@@ -491,12 +616,21 @@ export function anchorDotPaths({
 
 /**
  * Rewrite references to the project directory variable in a command to the
- * portable `./` form, the inverse of `anchorDotPaths`. Import converts more
- * positions than generate anchors: a data argument such as
- * `npx prettier --write "$VAR"/src` becomes `./src` and is regenerated as
- * written, so it is then resolved against the hook's working directory, which
- * need not be the project root (a worktree, or the target of an earlier `cd`).
- * `countProjectDirVariable` lets a caller notice and report such a command.
+ * portable `./` form, the inverse of `anchorDotPaths` (see
+ * `importProjectDirVariable`, which also reports what generate cannot
+ * restore).
+ */
+export function stripProjectDirVariable(options: {
+  command: string;
+  projectDirVar: string;
+  firstWordOnly?: boolean;
+}): string {
+  return importProjectDirVariable(options).command;
+}
+
+/**
+ * Rewrite references to the project directory variable in a command to the
+ * portable `./` form, and tell whether generate restores each of them.
  *
  * The variable is normalized wherever a path starts with it, not only as the
  * first word, so interpreter-prefixed commands (`python3 "$VAR/x.py"`,
@@ -509,13 +643,21 @@ export function anchorDotPaths({
  * - a quoted path right after a quoted variable (`"$VAR"/'my hook.sh'`) has
  *   its quote moved in front of `./` (`'./my hook.sh'`).
  *
+ * Import converts more positions than generate anchors: a data argument such
+ * as `npx prettier --write "$VAR"/src` becomes `./src` and is regenerated as
+ * written, so it is then resolved against the hook's working directory, which
+ * need not be the project root (a worktree, or the target of an earlier `cd`).
+ * `unrestored` is true when the command has such a path, so the caller can
+ * report it.
+ *
  * Left untouched: an escaped `\$VAR`, a longer name such as `$VAR_2`, a bare
  * `$VAR` not followed by `/`, a variable that does not start a path (`a:$VAR/x`),
- * one inside a literal single-quoted string or a comment, and — in a command
- * whose later words are not converted (see `convertsLaterWords`) or that
- * starts with another variable — every occurrence after the first word.
+ * one inside a literal single-quoted string, a comment, or a `-c` script the
+ * command does not run itself (`sudo sh -c '…'`), and — in a command whose
+ * later words are not converted (see `convertsLaterWords`) or that starts
+ * with another variable — every occurrence after the first word.
  */
-export function stripProjectDirVariable({
+export function importProjectDirVariable({
   command,
   projectDirVar,
   firstWordOnly = false,
@@ -524,9 +666,8 @@ export function stripProjectDirVariable({
   projectDirVar: string;
   /** Convert only a variable that starts the command. */
   firstWordOnly?: boolean;
-}): string {
-  const name = projectDirVar.replace(/^\$/, "");
-  const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}): { command: string; unrestored: boolean } {
+  const escapedName = escapeRegExp(projectDirVar.replace(/^\$/, ""));
   const variable = `\\$(?:${escapedName}|\\{${escapedName}\\})`;
   const pattern = new RegExp(`(?:"${variable}"/(["']?)|${variable}/)`, "g");
 
@@ -539,29 +680,33 @@ export function stripProjectDirVariable({
   const startsWithOtherVariable =
     firstWord.startsWith("$") && !new RegExp(`^${variable}"?/`).test(firstWord);
   const laterWords = !firstWordOnly && convertsLaterWords(command) && !startsWithOtherVariable;
-  const starts = findPathStarts(command);
+  const scan = scanCommand(command);
+  const { runScripts } = findCommandPaths({ command, scan });
+  // The body of a `-c` script that is not run by the command itself.
+  const inIdleScript = (offset: number): boolean =>
+    scan.scripts.some(({ index, end }) => offset > index && offset < end && !runScripts.has(index));
 
-  return command.replace(pattern, (match: string, quote: string | undefined, offset: number) => {
-    if (!laterWords && !inFirstWord(offset)) return match;
-    const kind = starts.get(offset);
-    if (kind !== "plain" && kind !== "double") return match;
-    return `${quote ?? ""}./`;
-  });
-}
+  // Where each converted later `./` starts in the result.
+  const converted: number[] = [];
+  let shift = 0;
+  const result = command.replace(
+    pattern,
+    (match: string, quote: string | undefined, offset: number) => {
+      const firstWordMatch = inFirstWord(offset);
+      if (!laterWords && !firstWordMatch) return match;
+      const kind = scan.starts.get(offset);
+      if ((kind !== "plain" && kind !== "double") || inIdleScript(offset)) return match;
+      const replacement = `${quote ?? ""}./`;
+      if (!firstWordMatch) converted.push(offset + shift + (quote ?? "").length);
+      shift += replacement.length - match.length;
+      return replacement;
+    },
+  );
 
-/**
- * How many times a command refers to the project directory variable, in any
- * of its forms. Comparing the count before import with the count after a
- * re-generate tells whether import removed a variable that generate does not
- * restore.
- */
-export function countProjectDirVariable({
-  command,
-  projectDirVar,
-}: {
-  command: string;
-  projectDirVar: string;
-}): number {
-  const name = projectDirVar.replace(/^\$/, "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return command.match(new RegExp(`\\$(?:${name}(?!\\w)|\\{${name}\\})`, "g"))?.length ?? 0;
+  // The first word is always restored by generate's own prefix.
+  const { toAnchor } =
+    converted.length > 0
+      ? findCommandPaths({ command: result, scan: scanCommand(result) })
+      : { toAnchor: new Set<number>() };
+  return { command: result, unrestored: converted.some((at) => !toAnchor.has(at)) };
 }

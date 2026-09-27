@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   anchorDotPaths,
   changesDirectory,
-  countProjectDirVariable,
   findPathStarts,
+  importProjectDirVariable,
   stripProjectDirVariable,
 } from "./hook-command-paths.js";
 
@@ -97,6 +97,9 @@ describe("anchorDotPaths", () => {
     // An option value is not the script; a file it loads is anchored.
     ["node -r ./r.js ./a.js", `node -r "${VAR}"/r.js "${VAR}"/a.js`],
     ["python3 -W ignore ./x.py", `python3 -W ignore "${VAR}"/x.py`],
+    ["npx -p tsx tsx ./x.ts", `npx -p tsx tsx "${VAR}"/x.ts`],
+    ["time bash -c './a'", `time bash -c '"${VAR}"/a'`],
+    ["uv run sh -c './a'", `uv run sh -c '"${VAR}"/a'`],
   ])("should anchor %s", (command, expected) => {
     expect(anchor(command)).toBe(expected);
   });
@@ -149,6 +152,18 @@ describe("anchorDotPaths", () => {
     "kubectl exec pod -- ./x",
     // An unquoted `-c` script is re-split by the inner shell once expanded.
     "sh -c ./x.sh",
+    // A `-c` script handed to another command runs elsewhere, if at all.
+    "sudo sh -c 'node ./x.js'",
+    "env -i sh -c './x.sh'",
+    "find . -execdir sh -c './fix.sh' \\;",
+    "echo bash -c './x'",
+    // The positional parameters of a `-c` script are data.
+    "bash -c 'exec node' ./x.js",
+    // Inline code, a module or standard input instead of a script file.
+    "python3 -c './x' ./y",
+    "python3 -m pkg ./y",
+    "node -e './x' ./y",
+    "bash -s ./x",
   ])("should leave %s untouched", (command) => {
     expect(anchor(command)).toBe(command);
   });
@@ -188,6 +203,9 @@ describe("stripProjectDirVariable", () => {
     `x <<< ${VAR}/y`,
     `bash -c 'echo "a ${VAR}/x"'`,
     `eval "${VAR}/x"`,
+    // A `-c` script the command does not run itself.
+    `find . -execdir sh -c '${VAR}/x' \\;`,
+    `sudo sh -c 'node ${VAR}/x.js'`,
   ])("should leave %s untouched", (command) => {
     expect(strip(command)).toBe(command);
   });
@@ -201,12 +219,14 @@ describe("stripProjectDirVariable", () => {
   const count = (value: string): number => value.split(VAR).length - 1;
 
   it.each([
-    [`node ${VAR}/x.js`, 1],
-    [`"${VAR}"/a.sh && ${"$"}{CLAUDE_PROJECT_DIR}/b.sh`, 2],
-    ["echo $CLAUDE_PROJECT_DIR_2 $CLAUDE_PROJECT_DIR", 1],
-    ["./x.sh", 0],
-  ])("should count the variable in %s as %i", (command, expected) => {
-    expect(countProjectDirVariable({ command, projectDirVar: VAR })).toBe(expected);
+    [`node ${VAR}/x.js`, false],
+    [`node -r ${VAR}/r.js ${VAR}/a.js`, false],
+    [`${VAR}/a.sh; cd sub; ${VAR}/b.sh`, false],
+    [`npx prettier --write ${VAR}/src`, true],
+    // A new anchor elsewhere does not make up for a lost one.
+    [`node ./a.js "${VAR}"/data`, true],
+  ])("should report whether generate restores every variable of %s: %s", (command, expected) => {
+    expect(importProjectDirVariable({ command, projectDirVar: VAR }).unrestored).toBe(expected);
   });
 
   it.each([
