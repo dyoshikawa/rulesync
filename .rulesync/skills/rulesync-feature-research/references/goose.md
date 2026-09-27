@@ -2,17 +2,18 @@
 
 ## Official Docs
 
-| Feature       | Official docs                                                             | Upstream surface                                                                |
-| ------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| index         | `https://goose-docs.ai/docs/category/getting-started/`                    | Goose documentation index                                                       |
-| `rules`       | `https://goose-docs.ai/docs/guides/context-engineering/using-goosehints/` | `.goosehints`, `AGENTS.md`, nested hints, global `~/.agents/AGENTS.md`          |
-| `ignore`      | Retired upstream (docs removed in v1.44.0; goose#10343)                   | No ignore file — `.gitignore` plus tool permissions are the guidance            |
-| `mcp`         | `https://goose-docs.ai/docs/getting-started/using-extensions/`            | Global `config.yaml` `extensions:`; project open-plugin `.mcp.json`             |
-| `commands`    | `https://goose-docs.ai/docs/guides/recipes/recipe-reference/`             | Recipes at `.goose/recipes/` and `~/.config/goose/recipes/`                     |
-| `subagents`   | `https://goose-docs.ai/docs/guides/context-engineering/custom-agents/`    | Custom agents (Markdown), `.goose/agents/` + `~/.config/goose/agents/` et al.   |
-| `skills`      | `https://goose-docs.ai/docs/guides/context-engineering/using-skills/`     | `.goose/skills/`, `.agents/skills/`, global `~/.config/goose/skills/`           |
-| `hooks`       | Open Plugins hooks (`.agents/plugins/<name>/hooks/hooks.json`)            | Eleven `HookEvent` values; no `SubagentStart`/`SubagentStop`                    |
-| `permissions` | `https://goose-docs.ai/docs/guides/managing-tools/tool-permissions/`      | Global `~/.config/goose/permission.yaml` (`user` key) in `goose-permissions.ts` |
+| Feature       | Official docs                                                             | Upstream surface                                                                                                                         |
+| ------------- | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| index         | `https://goose-docs.ai/docs/category/getting-started/`                    | Goose documentation index                                                                                                                |
+| `rules`       | `https://goose-docs.ai/docs/guides/context-engineering/using-goosehints/` | `.goosehints`, `AGENTS.md`, nested hints, global `~/.agents/AGENTS.md`                                                                   |
+| `ignore`      | Retired upstream (docs removed in v1.44.0; goose#10343)                   | No ignore file — `.gitignore` plus tool permissions are the guidance                                                                     |
+| `mcp`         | `https://goose-docs.ai/docs/getting-started/using-extensions/`            | Global `config.yaml` `extensions:`; project open-plugin `.mcp.json`                                                                      |
+| `commands`    | `https://goose-docs.ai/docs/guides/recipes/recipe-reference/`             | Recipes at `.goose/recipes/` and `~/.config/goose/recipes/`                                                                              |
+| `subagents`   | `https://goose-docs.ai/docs/guides/context-engineering/custom-agents/`    | Custom agents (Markdown), `.goose/agents/` + `~/.config/goose/agents/` et al.                                                            |
+| `skills`      | `https://goose-docs.ai/docs/guides/context-engineering/using-skills/`     | `.goose/skills/`, `.agents/skills/`, global `~/.config/goose/skills/`                                                                    |
+| `hooks`       | `https://goose-docs.ai/docs/guides/context-engineering/hooks`             | Open Plugins `hooks/hooks.json`; twelve `HookEvent` values on main (2026-09) incl. `PreToolUseResult`; no `SubagentStart`/`SubagentStop` |
+| `permissions` | `https://goose-docs.ai/docs/guides/managing-tools/tool-permissions/`      | Global `~/.config/goose/permission.yaml` (`user` key) in `goose-permissions.ts`                                                          |
+| `checks`      | No docs page; source `crates/goose/src/checks/mod.rs`                     | `goose review` checks in `.agents/checks/*.md` and `~/.config/goose/checks/`; unsupported in Rulesync (#2404)                            |
 
 ## Client Anchors
 
