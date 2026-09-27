@@ -1506,6 +1506,47 @@ describe("RulesProcessor", () => {
       expect(warning).toContain("style.md");
     });
 
+    it("should list a non-root rule whose Pi contextFile the root rule overrides as folded", async () => {
+      await writeRule("root.md", 'root: true\ntargets: ["pi"]');
+      await writeRule("style.md", 'root: false\ntargets: ["pi"]\npi:\n  contextFile: override');
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "pi" });
+      await processor.warnForFoldImportDuplicationRisk();
+
+      const warning = warnings().find((message) => message.includes("already folded from"));
+      expect(warning).toContain("style.md");
+      expect(warnings().some((message) => message.includes("pi.contextFile is set"))).toBe(false);
+    });
+
+    it("should list a localRoot rule appended to the root file as folded despite its subprojectPath", async () => {
+      await writeRule("root.md", 'root: true\ntargets: ["codexcli"]');
+      await writeRule(
+        "local.md",
+        'root: false\nlocalRoot: true\ntargets: ["codexcli"]\nagentsmd:\n  subprojectPath: services/svc1',
+      );
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "codexcli" });
+      await processor.warnForFoldImportDuplicationRisk();
+
+      const warning = warnings().find((message) => message.includes("already folded from"));
+      expect(warning).toContain("local.md");
+    });
+
+    it("should not list a localRoot rule as folded when includeLocalRoot is false", async () => {
+      await writeRule("root.md", 'root: true\ntargets: ["codexcli"]');
+      await writeRule("local.md", 'root: false\nlocalRoot: true\ntargets: ["codexcli"]');
+
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "codexcli",
+        featureOptions: { includeLocalRoot: false },
+      });
+      await processor.warnForFoldImportDuplicationRisk();
+
+      expect(warnings().some((message) => message.includes("already folded from"))).toBe(false);
+    });
+
     it("should treat subprojectPath './' as the root file", async () => {
       await writeRule("root.md", 'root: true\ntargets: ["codexcli"]');
       await writeRule(

@@ -2605,7 +2605,10 @@ As this project's AI coding tool, you must follow the additional conventions bel
    * decides for all of them: its `pi.contextFile` is copied onto the non-root
    * rules, and the flag set only on a non-root rule is dropped with a warning.
    */
-  private alignPiContextFile(rules: RulesyncRule[]): RulesyncRule[] {
+  private alignPiContextFile(
+    rules: RulesyncRule[],
+    { warn = true }: { warn?: boolean } = {},
+  ): RulesyncRule[] {
     if (this.toolTarget !== "pi") return rules;
 
     const factory = this.getFactory(this.toolTarget);
@@ -2624,7 +2627,7 @@ As this project's AI coding tool, you must follow the additional conventions bel
     );
     if (mismatched.length === 0) return rules;
 
-    if (rootContextFile === undefined) {
+    if (warn && rootContextFile === undefined) {
       this.logger.warn(
         `pi.contextFile is set on ${mismatched.length} non-root rule(s) but not on the root rule, ` +
           `so it is ignored: Pi folds every rule body into the root context file, and emitting ` +
@@ -2699,19 +2702,32 @@ As this project's AI coding tool, you must follow the additional conventions bel
       return;
     }
 
-    const mergedRules = await this.loadMergedRulesyncRules();
+    // Resolve placement the way generate does: Pi's non-root rules follow the
+    // root rule's `pi.contextFile` (aligned silently here, since the mismatch
+    // warning belongs to generate).
+    const mergedRules = this.alignPiContextFile(await this.loadMergedRulesyncRules(), {
+      warn: false,
+    });
     const targetedRules = mergedRules.filter((rule) =>
       factory.class.isTargetedByRulesyncRule(rule),
     );
+    // An invalid `includeLocalRoot` is reported by generate; a warning must
+    // not abort the import, so fall back to the default here.
+    let includeLocalRoot = !this.global;
+    try {
+      includeLocalRoot &&= resolveIncludeLocalRoot(this.featureOptions);
+    } catch {
+      // Keep the default.
+    }
     const targetedNonRootRules = targetedRules.filter(
       (rule) =>
         !rule.getFrontmatter().root &&
-        // A `localRoot` rule is ignored in global mode and, for a tool with a
-        // dedicated local file (e.g. `CRUSH.local.md`), written there instead
-        // of being folded into the root file.
+        // A `localRoot` rule is ignored in global mode or when local roots are
+        // excluded, and a tool with a dedicated local file (e.g.
+        // `CRUSH.local.md`) writes it there instead of folding it.
         !(
           rule.getFrontmatter().localRoot &&
-          (this.global || factory.meta.localRootMode === "separate-local-file")
+          (!includeLocalRoot || factory.meta.localRootMode === "separate-local-file")
         ),
     );
 
@@ -2737,6 +2753,12 @@ As this project's AI coding tool, you must follow the additional conventions bel
     const separateRules: RuleConversion[] = [];
     const foldedRules: RulesyncRule[] = [];
     for (const rulesyncRule of targetedNonRootRules) {
+      // A remaining `localRoot` rule is appended to the root file whatever its
+      // own path would be.
+      if (rulesyncRule.getFrontmatter().localRoot) {
+        foldedRules.push(rulesyncRule);
+        continue;
+      }
       const toolRule = this.toToolRuleForImportCheck({ factory, rulesyncRule });
       if (rootPaths.size === 0 || rootPaths.has(toolOutputPath(toolRule))) {
         foldedRules.push(rulesyncRule);
