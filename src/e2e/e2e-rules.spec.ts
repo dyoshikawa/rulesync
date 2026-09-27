@@ -623,6 +623,76 @@ globs: ["packages/api/**/*"]
     expect(await readFileContent(join(testDir, "AGENTS.md"))).toContain("packages/api/AGENTS.md");
   });
 
+  // Codex CLI loads one `AGENTS.md` per directory from the project root down
+  // to the cwd, and stops once their combined size reaches
+  // `project_doc_max_bytes` (32 KiB by default).
+  // https://learn.chatgpt.com/docs/agent-configuration/agents-md
+  it("should nest a glob-scoped codexcli rule and warn when the root AGENTS.md exceeds 32 KiB", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_CONFIG_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        { targets: ["codexcli"], features: ["rules"], deriveSubprojectPathFromGlobs: true },
+        null,
+        2,
+      ),
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+      `---
+root: true
+targets: ["*"]
+description: "Root rule"
+globs: ["**/*"]
+---
+
+# Project Overview
+`,
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "svc1.md"),
+      `---
+targets: ["*"]
+description: "svc1 rule"
+globs: ["services/svc1/**"]
+---
+
+# Rule for svc1
+`,
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "big.md"),
+      `---
+targets: ["*"]
+description: "Large always-on rule"
+globs: ["**/*.ts"]
+---
+
+# Large Rule
+
+${"x".repeat(33 * 1024)}
+`,
+    );
+
+    // `NODE_ENV=e2e` keeps the CLI from muting its logger under vitest, so the
+    // warning is observable on stderr.
+    const { stderr } = await runGenerate({
+      target: "codexcli",
+      features: "rules",
+      env: { NODE_ENV: "e2e" },
+    });
+
+    expect(await readFileContent(join(testDir, "services", "svc1", "AGENTS.md"))).toContain(
+      "Rule for svc1",
+    );
+    const root = await readFileContent(join(testDir, "AGENTS.md"));
+    expect(root).toContain("Project Overview");
+    expect(root).toContain("Large Rule");
+    expect(root).not.toContain("Rule for svc1");
+    expect(stderr).toContain("project_doc_max_bytes");
+  });
+
   it("should fold junie non-root rules into the root .junie/AGENTS.md", async () => {
     const testDir = getTestDir();
 

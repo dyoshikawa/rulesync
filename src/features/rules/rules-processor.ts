@@ -4,6 +4,7 @@ import { encode } from "@toon-format/toon";
 import { z } from "zod/mini";
 
 import { CODEBUDDY_LOCAL_RULE_FILE_NAME } from "../../constants/codebuddy-paths.js";
+import { CODEXCLI_PROJECT_DOC_MAX_BYTES } from "../../constants/codexcli-paths.js";
 import { CRUSH_LOCAL_RULE_FILE_NAME } from "../../constants/crush-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { QWENCODE_DIR, QWENCODE_LOCAL_RULE_FILE_NAME } from "../../constants/qwencode-paths.js";
@@ -28,6 +29,7 @@ import { ToolTarget } from "../../types/tool-targets.js";
 import { stripControlCharacters } from "../../utils/control-characters.js";
 import { formatError } from "../../utils/error.js";
 import {
+  addTrailingNewline,
   checkPathTraversal,
   directoryExistsStrict,
   filterOutPathsInGitIgnoredDirectories,
@@ -358,6 +360,13 @@ type ToolRuleFactory = {
     localRootMode?: LocalRootMode;
     /** File name for the `separate-local-file` local-root file. */
     localRootFileName?: string;
+    /**
+     * Default byte budget the tool reads across the project instruction files
+     * on one root-to-cwd chain before dropping the rest (Codex CLI's
+     * `project_doc_max_bytes`). Project scope only; generation warns when a
+     * generated chain exceeds it, since the tool truncates silently.
+     */
+    projectInstructionBudgetBytes?: number;
   };
 };
 
@@ -553,10 +562,19 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
     {
       class: CodexcliRule,
       meta: {
+        // Codex CLI reads the global `~/.codex/AGENTS.md` plus one `AGENTS.md`
+        // per directory from the project root down to the cwd, so a
+        // directory-scoped rule is emitted as a nested `<subprojectPath>/AGENTS.md`
+        // while plain topic rules fold into the root file (mirrors pool/vibe).
+        // The project files on one chain share `project_doc_max_bytes`
+        // (32 KiB by default, `codex-rs/config/defaults.toml`); Codex drops
+        // everything past it without a warning, so generation warns instead.
+        // https://learn.chatgpt.com/docs/agent-configuration/agents-md
         extension: "md",
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",
         collisionPolicy: "fold",
+        projectInstructionBudgetBytes: CODEXCLI_PROJECT_DOC_MAX_BYTES,
       },
     },
   ],
@@ -1350,7 +1368,72 @@ export class RulesProcessor extends FeatureProcessor {
     const outputFiles = [...toolRules, ...extraFiles];
     this.warnForOutputPathCollisions({ outputFiles, convertedRules });
     await this.warnForDeactivatedImportOnlyRoots({ toolRules, factory });
+    this.warnForInstructionBudget({ toolRules, meta });
     return outputFiles;
+  }
+
+  /**
+   * Warn when a generated project instruction chain exceeds the tool's byte
+   * budget (`meta.projectInstructionBudgetBytes`).
+   *
+   * Codex CLI concatenates the project `AGENTS.md` files from the project root
+   * down to the cwd and stops once their combined size reaches
+   * `project_doc_max_bytes`, truncating the file that crosses it — silently, so
+   * without this warning the rules past the limit simply never reach the model.
+   * Each generated file is measured together with the generated files in its
+   * ancestor directories, since that is the chain Codex loads while working
+   * there. When the root file alone is over the budget every chain is, so only
+   * the root is reported. The budget checked is the tool's default: a value
+   * raised by hand in the tool's own config is not read. Global scope is not
+   * checked because Codex loads the personal `~/.codex/AGENTS.md` outside the
+   * project budget.
+   */
+  private warnForInstructionBudget({
+    toolRules,
+    meta,
+  }: {
+    toolRules: ToolRule[];
+    meta: ToolRuleFactory["meta"];
+  }): void {
+    const budget = meta.projectInstructionBudgetBytes;
+    if (budget === undefined || this.global) {
+      return;
+    }
+
+    const files = toolRules.map((rule) => ({
+      dir: posix.normalize(toPosixPath(rule.getRelativeDirPath())),
+      path: toPosixPath(join(rule.getRelativeDirPath(), rule.getRelativeFilePath())),
+      // Measure what is written: the writer normalizes the trailing newline.
+      bytes: Buffer.byteLength(addTrailingNewline(rule.getFileContent()), "utf8"),
+    }));
+    const isAncestorOrSelf = (ancestor: string, dir: string): boolean =>
+      ancestor === "." || ancestor === dir || dir.startsWith(`${ancestor}/`);
+    const describeRemedy = (): string =>
+      `Codex CLI reads at most ${budget} bytes (\`project_doc_max_bytes\`, 32 KiB by default) of project \`AGENTS.md\` files and silently drops the rest. ` +
+      `Move directory-scoped rules into nested \`AGENTS.md\` files with \`agentsmd.subprojectPath\` (or \`deriveSubprojectPathFromGlobs: true\` in rulesync.jsonc), trim the rules, or raise \`project_doc_max_bytes\` in \`.codex/config.toml\` (ignore this warning if you already have).`;
+
+    const rootBytes = files
+      .filter(({ dir }) => dir === ".")
+      .reduce((sum, { bytes }) => sum + bytes, 0);
+    if (rootBytes > budget) {
+      this.logger.warn(
+        `The generated ${this.toolTarget} root AGENTS.md is ${rootBytes} bytes, over the ${budget}-byte limit. ${describeRemedy()}`,
+      );
+      return;
+    }
+
+    for (const file of files) {
+      if (file.dir === ".") {
+        continue;
+      }
+      const chain = files.filter(({ dir }) => isAncestorOrSelf(dir, file.dir));
+      const chainBytes = chain.reduce((sum, { bytes }) => sum + bytes, 0);
+      if (chainBytes > budget) {
+        this.logger.warn(
+          `The generated ${this.toolTarget} AGENTS.md files loaded while working in '${file.dir}' (${chain.map(({ path }) => path).join(", ")}) total ${chainBytes} bytes, over the ${budget}-byte limit. ${describeRemedy()}`,
+        );
+      }
+    }
   }
 
   /**

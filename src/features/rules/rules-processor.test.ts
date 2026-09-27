@@ -2583,6 +2583,141 @@ globs: ["packages/api/**/*"]
     });
   });
 
+  describe("codexcli project instruction budget", () => {
+    const budgetWarnings = () =>
+      logger.warn.mock.calls
+        .map(([message]) => String(message))
+        .filter((message) => message.includes("project_doc_max_bytes"));
+
+    const rule = ({
+      name,
+      body,
+      root = false,
+      subprojectPath,
+    }: {
+      name: string;
+      body: string;
+      root?: boolean;
+      subprojectPath?: string;
+    }) =>
+      new RulesyncRule({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+        relativeFilePath: name,
+        frontmatter: {
+          root,
+          targets: ["*"],
+          ...(subprojectPath ? { agentsmd: { subprojectPath } } : {}),
+        },
+        body,
+      });
+
+    it("should warn when the folded root AGENTS.md exceeds 32 KiB", async () => {
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "codexcli" });
+
+      await processor.convertRulesyncFilesToToolFiles([
+        rule({ name: "overview.md", body: "a".repeat(20000), root: true }),
+        rule({ name: "svc1.md", body: "b".repeat(20000) }),
+      ]);
+
+      const warnings = budgetWarnings();
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]).toContain("root AGENTS.md is 40003 bytes");
+      expect(warnings[0]).toContain("32768");
+    });
+
+    it("should not warn when the written root AGENTS.md is exactly 32 KiB", async () => {
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "codexcli" });
+
+      // The writer appends a trailing newline, so this writes 32,768 bytes.
+      await processor.convertRulesyncFilesToToolFiles([
+        rule({ name: "overview.md", body: "a".repeat(32767), root: true }),
+      ]);
+
+      expect(budgetWarnings()).toHaveLength(0);
+    });
+
+    it("should warn at one byte over 32 KiB", async () => {
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "codexcli" });
+
+      await processor.convertRulesyncFilesToToolFiles([
+        rule({ name: "overview.md", body: "a".repeat(32768), root: true }),
+      ]);
+
+      expect(budgetWarnings()).toHaveLength(1);
+    });
+
+    it("should measure the budget in UTF-8 bytes, not characters", async () => {
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "codexcli" });
+
+      // 11,000 characters, but 33,000 bytes (plus the trailing newline): each
+      // character is 3 bytes in UTF-8.
+      await processor.convertRulesyncFilesToToolFiles([
+        rule({ name: "overview.md", body: "\u3042".repeat(11000), root: true }),
+      ]);
+
+      const warnings = budgetWarnings();
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]).toContain("33001 bytes");
+    });
+
+    it("should not warn in global mode, where the personal AGENTS.md is outside the project budget", async () => {
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "codexcli",
+        global: true,
+      });
+
+      await processor.convertRulesyncFilesToToolFiles([
+        rule({ name: "overview.md", body: "a".repeat(40000), root: true }),
+      ]);
+
+      expect(budgetWarnings()).toHaveLength(0);
+    });
+
+    it("should emit a directory-scoped rule as a nested AGENTS.md instead of folding it", async () => {
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "codexcli" });
+
+      const result = await processor.convertRulesyncFilesToToolFiles([
+        rule({ name: "overview.md", body: "a".repeat(20000), root: true }),
+        rule({ name: "svc1.md", body: "b".repeat(20000), subprojectPath: "services/svc1" }),
+      ]);
+
+      const paths = result.map((file) =>
+        join(file.getRelativeDirPath(), file.getRelativeFilePath()),
+      );
+      expect(paths).toEqual(["AGENTS.md", join("services", "svc1", "AGENTS.md")]);
+      expect(result[0]?.getFileContent()).toBe("a".repeat(20000));
+    });
+
+    it("should warn about a nested chain whose files together exceed 32 KiB", async () => {
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "codexcli" });
+
+      await processor.convertRulesyncFilesToToolFiles([
+        rule({ name: "overview.md", body: "a".repeat(20000), root: true }),
+        rule({ name: "svc1.md", body: "b".repeat(20000), subprojectPath: "services/svc1" }),
+        rule({ name: "svc2.md", body: "c".repeat(1000), subprojectPath: "services/svc2" }),
+      ]);
+
+      const warnings = budgetWarnings();
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]).toContain("'services/svc1'");
+      expect(warnings[0]).toContain("AGENTS.md, services/svc1/AGENTS.md");
+      expect(warnings[0]).toContain("40002 bytes");
+    });
+
+    it("should not warn for targets without an instruction budget", async () => {
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "pool" });
+
+      await processor.convertRulesyncFilesToToolFiles([
+        rule({ name: "overview.md", body: "a".repeat(40000), root: true }),
+      ]);
+
+      expect(budgetWarnings()).toHaveLength(0);
+    });
+  });
+
   describe("reasonix nested instruction files", () => {
     it("should import nested REASONIX.md files alongside the root", async () => {
       await writeFileContent(join(testDir, "REASONIX.md"), "# Root");
