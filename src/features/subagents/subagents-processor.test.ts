@@ -1274,7 +1274,7 @@ Review the code for security issues.`;
       expect(toolFiles[0]?.getRelativeFilePath()).toBe(join("review", "security-reviewer.md"));
     });
 
-    it("should not treat nested claudecode subagents as deletion candidates", async () => {
+    it("should treat nested claudecode subagents as deletion candidates", async () => {
       const nestedAgentsDir = join(testDir, ".claude", "agents", "review");
       await ensureDir(nestedAgentsDir);
       await writeFileContent(
@@ -1288,7 +1288,8 @@ Manual agent content.`,
 
       const toolFiles = await processor.loadToolFiles({ forDeletion: true });
 
-      expect(toolFiles).toEqual([]);
+      expect(toolFiles).toHaveLength(1);
+      expect(toolFiles[0]?.getRelativeFilePath()).toBe(join("review", "manual.md"));
     });
 
     it("should not follow directory symlinks while importing nested claudecode subagents", async () => {
