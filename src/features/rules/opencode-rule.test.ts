@@ -339,6 +339,33 @@ describe("OpenCodeRule", () => {
       expect(opencodeRule.getRelativeFilePath()).toBe("AGENTS.md");
     });
 
+    it("should ignore subprojectPath in global mode and use the global non-root path", () => {
+      const rulesyncRule = new RulesyncRule({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "test.md",
+        frontmatter: {
+          root: false,
+          targets: ["opencode"],
+          agentsmd: {
+            subprojectPath: "packages/my-app",
+          },
+        },
+        body: "# Global Subproject\n\nContent.",
+      });
+
+      const opencodeRule = OpenCodeRule.fromRulesyncRule({
+        outputRoot: testDir,
+        rulesyncRule,
+        global: true,
+      });
+
+      const globalPaths = OpenCodeRule.getSettablePaths({ global: true });
+      expect(globalPaths.nonRoot).toBeDefined();
+      expect(opencodeRule.getRelativeDirPath()).toBe(globalPaths.nonRoot?.relativeDirPath);
+      expect(opencodeRule.getRelativeFilePath()).toBe("test.md");
+    });
+
     it("should ignore subprojectPath for root rules", () => {
       const rulesyncRule = new RulesyncRule({
         outputRoot: testDir,

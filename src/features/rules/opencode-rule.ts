@@ -125,6 +125,7 @@ export class OpenCodeRule extends ToolRule {
         validate,
         rootPath: paths.root,
         nonRootPath: paths.nonRoot,
+        global,
       }),
     );
   }
