@@ -1238,7 +1238,10 @@ describe("ClaudecodeHooks", () => {
         "$CLAUDE_PROJECT_DIR/lint.sh && node $CLAUDE_PROJECT_DIR/check.js",
         '"$CLAUDE_PROJECT_DIR"/lint.sh && node "$CLAUDE_PROJECT_DIR"/check.js',
       ],
-      ["bash -c 'test -x $CLAUDE_PROJECT_DIR/k.sh'", "bash -c 'test -x $CLAUDE_PROJECT_DIR/k.sh'"],
+      [
+        "bash -c 'test -x $CLAUDE_PROJECT_DIR/k.sh'",
+        `bash -c 'test -x "$CLAUDE_PROJECT_DIR"/k.sh'`,
+      ],
       [
         "$CLAUDE_PROJECT_DIR/a.sh && cd sub && $CLAUDE_PROJECT_DIR/b.sh",
         '"$CLAUDE_PROJECT_DIR"/a.sh && cd sub && $CLAUDE_PROJECT_DIR/b.sh',
