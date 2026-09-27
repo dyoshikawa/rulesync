@@ -1174,6 +1174,118 @@ args = ["server.js"]
       expect(mcpServers.remote.headers).toBeUndefined();
     });
 
+    describe("environment variable references (#3170)", () => {
+      const generate = async (mcpServers: Record<string, unknown>) => {
+        const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
+          outputRoot: testDir,
+          rulesyncMcp: new RulesyncMcp({
+            relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+            relativeFilePath: ".mcp.json",
+            fileContent: JSON.stringify({ mcpServers }),
+          }),
+        });
+        return codexcliMcp.getToml().mcp_servers as any;
+      };
+
+      it("should convert Bearer and whole-value references into Codex env-sourced keys", async () => {
+        const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+        const mcpServers = await generate({
+          remote: {
+            type: "http",
+            url: "https://mcp.example.com/mcp",
+            headers: {
+              Authorization: "Bearer ${API_KEY}",
+              "X-Api-Key": "${OTHER_KEY}",
+              "X-Static": "static-value",
+            },
+          },
+        });
+
+        expect(mcpServers.remote).toEqual({
+          url: "https://mcp.example.com/mcp",
+          bearer_token_env_var: "API_KEY",
+          env_http_headers: { "X-Api-Key": "OTHER_KEY" },
+          http_headers: { "X-Static": "static-value" },
+        });
+        expect(warnSpy).not.toHaveBeenCalled();
+      });
+
+      it("should match the Authorization header name and Bearer scheme case-insensitively", async () => {
+        const mcpServers = await generate({
+          remote: { url: "https://mcp.example.com", headers: { authorization: "bearer ${TOKEN}" } },
+        });
+
+        expect(mcpServers.remote.bearer_token_env_var).toBe("TOKEN");
+        expect(mcpServers.remote.http_headers).toBeUndefined();
+      });
+
+      it("should keep references Codex cannot express verbatim and warn with server and field", async () => {
+        const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+        const mcpServers = await generate({
+          "api-server": {
+            type: "http",
+            url: "${API_BASE_URL:-https://api.example.com}/mcp",
+            headers: {
+              "X-Prefixed": "key-${API_KEY}",
+              "X-Default": "${API_KEY:-fallback}",
+            },
+          },
+        });
+
+        expect(mcpServers["api-server"]).toEqual({
+          url: "${API_BASE_URL:-https://api.example.com}/mcp",
+          http_headers: { "X-Prefixed": "key-${API_KEY}", "X-Default": "${API_KEY:-fallback}" },
+        });
+        const messages = warnSpy.mock.calls.map(([message]) => String(message));
+        expect(messages.some((m) => m.includes('"api-server"') && m.includes("'url'"))).toBe(true);
+        expect(
+          messages.some((m) => m.includes('"api-server"') && m.includes("header 'X-Prefixed'")),
+        ).toBe(true);
+        expect(
+          messages.some((m) => m.includes('"api-server"') && m.includes("header 'X-Default'")),
+        ).toBe(true);
+        // Warnings name the field only; values may carry secrets.
+        expect(
+          messages.every((m) => !m.includes("key-${API_KEY}") && !m.includes("API_BASE_URL:-")),
+        ).toBe(true);
+      });
+
+      it("should let explicit bearer_token_env_var and env_http_headers win over derived ones", async () => {
+        const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+        const mcpServers = await generate({
+          remote: {
+            url: "https://mcp.example.com",
+            bearer_token_env_var: "EXPLICIT_TOKEN",
+            env_http_headers: { "X-Api-Key": "EXPLICIT_KEY" },
+            headers: {
+              Authorization: "Bearer ${DERIVED_TOKEN}",
+              "X-Api-Key": "${DERIVED_KEY}",
+              "X-Other": "${OTHER}",
+            },
+          },
+        });
+
+        expect(mcpServers.remote.bearer_token_env_var).toBe("EXPLICIT_TOKEN");
+        expect(mcpServers.remote.env_http_headers).toEqual({
+          "X-Api-Key": "EXPLICIT_KEY",
+          "X-Other": "OTHER",
+        });
+        // The explicit bearer already supplies Authorization, so the derived
+        // header is dropped rather than also sent as a literal.
+        expect(mcpServers.remote.http_headers).toBeUndefined();
+        expect(warnSpy).not.toHaveBeenCalled();
+      });
+
+      it("should still drop headers with references from a stdio server", async () => {
+        vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+        const mcpServers = await generate({
+          local: { command: "node", headers: { Authorization: "Bearer ${TOKEN}" } },
+        });
+
+        expect(mcpServers.local).toEqual({ command: "node" });
+      });
+    });
+
     it("should drop headers from a stdio server rather than fail the entry (#2496)", async () => {
       // Codex errors with "http_headers is not supported for stdio", which
       // would take the whole server entry down.
