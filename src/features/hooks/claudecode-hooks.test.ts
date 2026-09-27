@@ -502,7 +502,7 @@ describe("ClaudecodeHooks", () => {
       expect(parsed.hooks.DirectoryAdded[0].matcher).toBe("slash_command");
     });
 
-    it("should prefix dot-relative commands and anchor later ./ paths with $CLAUDE_PROJECT_DIR", async () => {
+    it("should only prefix dot-relative commands with $CLAUDE_PROJECT_DIR", async () => {
       await ensureDir(join(testDir, ".claude"));
       await writeFileContent(join(testDir, ".claude", "settings.json"), JSON.stringify({}));
 
@@ -538,9 +538,8 @@ describe("ClaudecodeHooks", () => {
       expect(sessionStartEntry.matcher).toBeUndefined();
       expect(sessionStartEntry.hooks[0].command).toContain("$CLAUDE_PROJECT_DIR");
       expect(sessionStartEntry.hooks[0].command).toContain(".rulesync/hooks/session-start.sh");
-      expect(sessionStartEntry.hooks[1].command).toBe(
-        'npx prettier --write "$CLAUDE_PROJECT_DIR"/src/hooks/format.ts',
-      );
+      // A data argument keeps its meaning relative to the working directory.
+      expect(sessionStartEntry.hooks[1].command).toBe("npx prettier --write ./src/hooks/format.ts");
       expect(sessionStartEntry.hooks[2].command).toBe("npx eslint --fix");
       // A lone `.` is the `source` builtin, so only its script is anchored.
       expect(sessionStartEntry.hooks[3].command).toBe('. "$CLAUDE_PROJECT_DIR"/env.sh && run');
@@ -1193,6 +1192,10 @@ describe("ClaudecodeHooks", () => {
       ["bash -c 'test -x $CLAUDE_PROJECT_DIR/k.sh'", "bash -c 'test -x ./k.sh'"],
       // After a `cd`, only the leading variable is normalized.
       [
+        "bash -c '$CLAUDE_PROJECT_DIR/k.sh && node \"$CLAUDE_PROJECT_DIR/l.js\"'",
+        `bash -c './k.sh && node "./l.js"'`,
+      ],
+      [
         "$CLAUDE_PROJECT_DIR/a.sh && cd sub && $CLAUDE_PROJECT_DIR/b.sh",
         "./a.sh && cd sub && $CLAUDE_PROJECT_DIR/b.sh",
       ],
@@ -1214,8 +1217,10 @@ describe("ClaudecodeHooks", () => {
       expect(importCommand(command)).toBe(command);
     });
 
-    // Generate re-anchors every `./` path import produced, so a hook keeps
-    // resolving against the project root, and a second import is stable.
+    // Generate re-anchors the `./` paths that name a file the command runs, so
+    // a hook keeps resolving against the project root. Other positions come
+    // back cwd-relative, the same path for a hook that runs in the project
+    // root. Either way a second import is stable.
     it.each([
       ['"$CLAUDE_PROJECT_DIR"/.claude/hooks/a.sh', '"$CLAUDE_PROJECT_DIR"/.claude/hooks/a.sh'],
       ['"$CLAUDE_PROJECT_DIR/.claude/hooks/b.sh"', '"$CLAUDE_PROJECT_DIR"/".claude/hooks/b.sh"'],
@@ -1233,17 +1238,15 @@ describe("ClaudecodeHooks", () => {
         "node $CLAUDE_PROJECT_DIR/.claude/hooks/g.js",
         'node "$CLAUDE_PROJECT_DIR"/.claude/hooks/g.js',
       ],
-      [
-        'uv run "$CLAUDE_PROJECT_DIR/my hooks/j.py" --flag',
-        'uv run "$CLAUDE_PROJECT_DIR/my hooks/j.py" --flag',
-      ],
+      ['uv run "$CLAUDE_PROJECT_DIR/my hooks/j.py" --flag', 'uv run "./my hooks/j.py" --flag'],
       [
         "$CLAUDE_PROJECT_DIR/lint.sh && node $CLAUDE_PROJECT_DIR/check.js",
         '"$CLAUDE_PROJECT_DIR"/lint.sh && node "$CLAUDE_PROJECT_DIR"/check.js',
       ],
+      ["bash -c 'test -x $CLAUDE_PROJECT_DIR/k.sh'", "bash -c 'test -x ./k.sh'"],
       [
-        "bash -c 'test -x $CLAUDE_PROJECT_DIR/k.sh'",
-        `bash -c 'test -x "$CLAUDE_PROJECT_DIR"/k.sh'`,
+        "bash -c '$CLAUDE_PROJECT_DIR/k.sh && node \"$CLAUDE_PROJECT_DIR/l.js\"'",
+        `bash -c '"$CLAUDE_PROJECT_DIR"/k.sh && node "$CLAUDE_PROJECT_DIR/l.js"'`,
       ],
       [
         "$CLAUDE_PROJECT_DIR/a.sh && cd sub && $CLAUDE_PROJECT_DIR/b.sh",
@@ -1280,7 +1283,13 @@ describe("ClaudecodeHooks", () => {
       "ls a/./b",
       // A command that changes directory keeps its later `./` paths relative.
       "./build.sh && cd dist && ./post.sh",
-    ])("should not anchor later non-./ or post-cd paths in %s", async (command) => {
+      // Data arguments, and paths handed to a container or another host.
+      "./build.sh ./dist",
+      "./fmt.sh > ./out.log",
+      "docker compose exec -T app ./vendor/bin/pint",
+      "ssh host ./deploy.sh",
+      "kubectl exec pod -- ./x",
+    ])("should not anchor later data or post-cd paths in %s", async (command) => {
       const rulesyncHooks = new RulesyncHooks({
         outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,

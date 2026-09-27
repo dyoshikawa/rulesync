@@ -187,14 +187,6 @@ export type ToolHooksConverterConfig = {
    */
   prefixDotRelativeCommandsOnly?: boolean;
   /**
-   * When true, generate warns about a hook command whose later `./` words were
-   * anchored to projectDirVar. Set for a projectDirVar that is not the project
-   * root (a plugin's install directory), where a data argument such as
-   * `npx prettier --write ./src` would otherwise silently stop pointing into
-   * the consumer's project.
-   */
-  warnsOnAnchoredLaterPaths?: boolean;
-  /**
    * When true, prompt/agent hooks emit the canonical `model` field. Only tools
    * that document a per-hook model selector (Claude Code) should opt in —
    * other prompt-capable tools (Factory Droid, Devin) do not document the
@@ -337,11 +329,9 @@ function stripSurroundingQuotes(value: string): string {
 function applyCommandPrefix({
   def,
   converterConfig,
-  warn,
 }: {
   def: HooksConfig["hooks"][string][number];
   converterConfig: ToolHooksConverterConfig;
-  warn?: (message: string) => void;
 }): unknown {
   const commandText = def.command;
   const trimmedCommand = typeof commandText === "string" ? commandText.trimStart() : undefined;
@@ -367,22 +357,14 @@ function applyCommandPrefix({
     !isAbsoluteCommand &&
     (!converterConfig.prefixDotRelativeCommandsOnly || isDotRelativeCommand);
 
-  // A later `./` path (an interpreter's script argument, a second command in a
-  // chain) is anchored too, mirroring import, which normalizes the variable
-  // wherever a path starts with it. The exec form has no shell to split words,
-  // and a command led by a variable is passed through untouched.
-  const anchorInline = (command: string): string => {
-    if (isExecForm || converterConfig.projectDirVar === "" || trimmedCommand?.startsWith("$")) {
-      return command;
-    }
-    const anchored = anchorDotPaths({ command, projectDirVar: converterConfig.projectDirVar });
-    if (anchored !== command && converterConfig.warnsOnAnchoredLaterPaths) {
-      warn?.(
-        `hook command ${quoteValueForWarning(def.command)}: later "./" paths now resolve against ${converterConfig.projectDirVar}, not the project the hook runs in; write "$CLAUDE_PROJECT_DIR"/… for a path in that project`,
-      );
-    }
-    return anchored;
-  };
+  // A later `./` path that names a file the command runs (a script runner's
+  // script argument, the next command in a chain) is anchored too, so a hook
+  // imported with the variable there keeps it. The exec form has no shell to
+  // split words, and a command led by a variable is passed through untouched.
+  const anchorInline = (command: string): string =>
+    isExecForm || converterConfig.projectDirVar === "" || trimmedCommand?.startsWith("$")
+      ? command
+      : anchorDotPaths({ command, projectDirVar: converterConfig.projectDirVar });
 
   // Only the variable itself is quoted (not the whole command) so a project path
   // containing a space can't be word-split by the shell, while any trailing
@@ -1012,7 +994,7 @@ function buildToolHooks({
     if (!isSupportedHookType({ type: hookType, converterConfig })) {
       continue;
     }
-    const command = applyCommandPrefix({ def, converterConfig, warn });
+    const command = applyCommandPrefix({ def, converterConfig });
     hooks.push({
       // Spread every passthrough field first so the explicitly-handled core
       // fields below always win: a misconfigured `tool` name (e.g. mapping onto
@@ -1127,16 +1109,23 @@ export function canonicalToToolHooks({
  */
 function stripCommandPrefix({
   command,
+  args,
   converterConfig,
 }: {
   command: unknown;
+  args: unknown;
   converterConfig: ToolHooksConverterConfig;
 }): string | undefined {
   const cmd = typeof command === "string" ? command : undefined;
   if (converterConfig.projectDirVar === "" || typeof cmd !== "string") {
     return cmd;
   }
-  return stripProjectDirVariable({ command: cmd, projectDirVar: converterConfig.projectDirVar });
+  return stripProjectDirVariable({
+    command: cmd,
+    projectDirVar: converterConfig.projectDirVar,
+    // The exec form's command is one executable path, not shell words.
+    firstWordOnly: Array.isArray(args),
+  });
 }
 
 /**
@@ -1425,7 +1414,7 @@ function toolHookToCanonical({
   // `describeHookSkipReason`; this catches the same field left on a type it
   // does not define, where losing it alone changes nothing.
   const command = importCanonicalString({
-    value: stripCommandPrefix({ command: h.command, converterConfig }),
+    value: stripCommandPrefix({ command: h.command, args: h.args, converterConfig }),
     canonical: "command",
     warn,
   });
@@ -1493,7 +1482,7 @@ function definingFields({
       field: "command",
       value:
         typeof h.command === "string"
-          ? stripCommandPrefix({ command: h.command, converterConfig })
+          ? stripCommandPrefix({ command: h.command, args: h.args, converterConfig })
           : h.command,
     });
   }

@@ -25,6 +25,8 @@
   "words": [
     "cimd",
     "mksh",
+    "nerdctl",
+    "nohup",
     "norc",
     "pipefail",
     "pushd",

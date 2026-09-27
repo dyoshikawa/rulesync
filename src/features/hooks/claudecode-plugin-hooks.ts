@@ -21,13 +21,7 @@ export class ClaudecodePluginHooks extends ClaudecodeHooks {
    * @see https://code.claude.com/docs/en/plugins-reference
    */
   static override getConverterConfig(): ToolHooksConverterConfig {
-    return {
-      ...super.getConverterConfig(),
-      projectDirVar: "$CLAUDE_PLUGIN_ROOT",
-      // A later `./` word, such as a formatter's target directory, now points
-      // into the plugin rather than the consumer's project.
-      warnsOnAnchoredLaterPaths: true,
-    };
+    return { ...super.getConverterConfig(), projectDirVar: "$CLAUDE_PLUGIN_ROOT" };
   }
 
   /**

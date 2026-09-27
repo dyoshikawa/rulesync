@@ -62,11 +62,15 @@ describe("anchorDotPaths", () => {
     ["node ./x.js", `node "${VAR}"/x.js`],
     ['python3 "./my dir/x.py"', `python3 "${VAR}/my dir/x.py"`],
     ["node './my dir/x.js'", `node "${VAR}"/'my dir/x.js'`],
-    ["x >./o.txt 2>./e.log", `x >"${VAR}"/o.txt 2>"${VAR}"/e.log`],
-    ["tool --config=./c.json", `tool --config="${VAR}"/c.json`],
+    ["/usr/bin/python3 ./x.py ./data", `/usr/bin/python3 "${VAR}"/x.py ./data`],
+    ["node -r ./reg.js", `node -r "${VAR}"/reg.js`],
+    ["node ./x.js > ./o.txt", `node "${VAR}"/x.js > ./o.txt`],
+    [". ./env.sh && run", `. "${VAR}"/env.sh && run`],
+    ["FOO=1 node ./x.js 2>&1 | ./tee.sh", `FOO=1 node "${VAR}"/x.js 2>&1 | "${VAR}"/tee.sh`],
+    ["if ./a; then ./b; fi", `if "${VAR}"/a; then "${VAR}"/b; fi`],
     ["echo `./v.sh`", `echo \`"${VAR}"/v.sh\``],
     ['echo "$(./v.sh)"', `echo "$("${VAR}"/v.sh)"`],
-    ["bash -c 'test -x ./k.sh'", `bash -c 'test -x "${VAR}"/k.sh'`],
+    ["bash -c 'test -x ./k.sh && ./k.sh'", `bash -c 'test -x ./k.sh && "${VAR}"/k.sh'`],
     ["a && ./b.sh", `a && "${VAR}"/b.sh`],
     ["bash -lc './a && ./b'", `bash -lc '"${VAR}"/a && "${VAR}"/b'`],
     ["/bin/sh -euc './a'", `/bin/sh -euc '"${VAR}"/a'`],
@@ -75,7 +79,8 @@ describe("anchorDotPaths", () => {
     ["bash -c -- './a'", `bash -c -- '"${VAR}"/a'`],
     ["mksh -c './a'", `mksh -c '"${VAR}"/a'`],
     // The inner shell reads its own double quotes.
-    [`bash -c 'x "./y"'`, `bash -c 'x "${VAR}/y"'`],
+    [`bash -c 'node "./y"'`, `bash -c 'node "${VAR}/y"'`],
+    ["bash -O extglob -c './a'", `bash -O extglob -c '"${VAR}"/a'`],
   ])("should anchor %s", (command, expected) => {
     expect(anchor(command)).toBe(expected);
   });
@@ -113,6 +118,18 @@ describe("anchorDotPaths", () => {
     // A heredoc or here-string body is data, not shell words.
     "cat <<EOF > f\n./x\nEOF",
     "x <<< ./y",
+    // Data arguments, whose meaning depends on the command.
+    "x >./o.txt 2>./e.log",
+    "tool --config=./c.json",
+    "npx prettier --write ./src",
+    "uv run ./x.py",
+    // Paths handed to a container or another host.
+    "docker compose exec -T app ./vendor/bin/pint",
+    "docker run img sh -c './x'",
+    "ssh host ./deploy.sh",
+    "kubectl exec pod -- ./x",
+    // An unquoted `-c` script is re-split by the inner shell once expanded.
+    "sh -c ./x.sh",
   ])("should leave %s untouched", (command) => {
     expect(anchor(command)).toBe(command);
   });
@@ -161,28 +178,38 @@ describe("stripProjectDirVariable", () => {
     );
   });
 
+  const count = (value: string): number => value.split(VAR).length - 1;
+
   it.each([
-    `x >"${VAR}"/o.txt`,
-    `x 2>${VAR}/log`,
-    `echo \`${VAR}/x\``,
     `node "${VAR}"/'b c.js'`,
     `python3 "${VAR}/my dir/x.py" --flag`,
-    `bash -c 'test -x ${VAR}/k.sh'`,
-    `bash -lc '${VAR}/a && ${VAR}/b'`,
-    `bash -c 'x "${VAR}/y"'`,
-    `bash -c 'echo "a ${VAR}/x"'`,
-    `git -c 'core.hooksPath=${VAR}/hooks' status`,
-    `sh -c "${VAR}/x"`,
-    `x <<< ${VAR}/y`,
+    `${VAR}/a.sh && node ${VAR}/b.js`,
+    `echo \`${VAR}/x\``,
     `echo "$(${VAR}/v.sh)"`,
-    `x ${VAR}/a/${VAR}/b`,
+    `bash -lc '${VAR}/a && ${VAR}/b'`,
+    `bash -c 'node "${VAR}/y"'`,
+    `sh -c "${VAR}/x"`,
+    `git -c 'core.hooksPath=${VAR}/hooks' status`,
+    `bash -c 'echo "a ${VAR}/x"'`,
+    `x <<< ${VAR}/y`,
     `PATH=$PATH:${VAR}/bin x`,
-  ])("should keep %s anchored through strip and anchor, and stable on re-import", (command) => {
+  ])("should restore every variable in %s through strip and anchor", (command) => {
     const canonical = strip(command);
     const regenerated = anchor(canonical);
     expect(strip(regenerated)).toBe(canonical);
-    // Every variable reference import removed is restored by generate.
-    const count = (value: string): number => value.split(VAR).length - 1;
     expect(count(regenerated)).toBe(count(command));
+  });
+
+  it.each([
+    `x >"${VAR}"/o.txt`,
+    `x 2>${VAR}/log`,
+    `bash -c 'test -x ${VAR}/k.sh'`,
+    `x ${VAR}/a/${VAR}/b`,
+    `npx prettier --write "${VAR}"/src`,
+  ])("should leave data arguments of %s cwd-relative and stable on re-import", (command) => {
+    const canonical = strip(command);
+    const regenerated = anchor(canonical);
+    expect(regenerated).toBe(canonical);
+    expect(strip(regenerated)).toBe(canonical);
   });
 });

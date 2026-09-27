@@ -3,7 +3,6 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
-import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { ClaudecodePluginHooks } from "./claudecode-plugin-hooks.js";
@@ -85,34 +84,21 @@ describe("ClaudecodePluginHooks", () => {
       );
     });
 
-    it("should warn when later ./ words are anchored to the plugin root", async () => {
-      const logger = createMockLogger();
+    it.each([
+      // The script a script runner runs ships with the plugin.
+      ["node ./scripts/check.js", 'node "$CLAUDE_PLUGIN_ROOT"/scripts/check.js'],
+      // A data argument keeps pointing into the consumer's project.
+      ["npx prettier --write ./src", "npx prettier --write ./src"],
+      ["./scripts/fmt.sh ./src", '"$CLAUDE_PLUGIN_ROOT"/scripts/fmt.sh ./src'],
+    ])("should generate %s as %s", async (command, expected) => {
       const pluginHooks = await ClaudecodePluginHooks.fromRulesyncHooks({
         outputRoot: testDir,
-        rulesyncHooks: buildRulesyncHooks({ testDir, command: "npx prettier --write ./src" }),
+        rulesyncHooks: buildRulesyncHooks({ testDir, command }),
         validate: false,
-        logger,
       });
 
       const parsed = JSON.parse(pluginHooks.getFileContent());
-      expect(parsed.hooks.SessionStart[0].hooks[0].command).toBe(
-        'npx prettier --write "$CLAUDE_PLUGIN_ROOT"/src',
-      );
-      expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining('later "./" paths now resolve against $CLAUDE_PLUGIN_ROOT'),
-      );
-    });
-
-    it("should not warn when only the first word is anchored", async () => {
-      const logger = createMockLogger();
-      await ClaudecodePluginHooks.fromRulesyncHooks({
-        outputRoot: testDir,
-        rulesyncHooks: buildRulesyncHooks({ testDir, command: "./scripts/fmt.sh --all" }),
-        validate: false,
-        logger,
-      });
-
-      expect(logger.warn).not.toHaveBeenCalled();
+      expect(parsed.hooks.SessionStart[0].hooks[0].command).toBe(expected);
     });
 
     it("should leave a command that already starts with a variable untouched", async () => {
