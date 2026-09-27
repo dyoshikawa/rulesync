@@ -15,7 +15,11 @@ import { SubagentsProcessor } from "../features/subagents/subagents-processor.js
 import type { RulesyncFile, RulesyncFileParams } from "../types/rulesync-file.js";
 import type { ToolTarget } from "../types/tool-targets.js";
 import type { Logger } from "../utils/logger.js";
-import { assertPluginRootSafe, isPackagingToolTarget } from "../utils/plugin-root.js";
+import {
+  assertPluginRootSafe,
+  formatPackagingTargetGlobalMessage,
+  isPackagingToolTarget,
+} from "../utils/plugin-root.js";
 import {
   resolveRulesyncSourceWritePath,
   type RulesyncSourceSettablePaths,
@@ -90,6 +94,13 @@ export async function importFromTool(params: {
   // and `--watch` keep one process alive across many runs, and a warning that
   // still applies has to be said again.
   resetRunWarningState();
+
+  // Import takes exactly one tool, so a packaging target in global mode has
+  // nothing left to import; reject it before the plugin root safety check
+  // walks the home directory.
+  if (config.getGlobal() && isPackagingToolTarget(tool)) {
+    throw new Error(formatPackagingTargetGlobalMessage(tool));
+  }
 
   await assertPluginRootSafe({
     toolTarget: tool,

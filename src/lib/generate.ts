@@ -42,7 +42,11 @@ import {
   toPosixPath,
 } from "../utils/file.js";
 import type { Logger } from "../utils/logger.js";
-import { assertPluginRootSafe } from "../utils/plugin-root.js";
+import {
+  assertPluginRootSafe,
+  formatPackagingTargetGlobalMessage,
+  isPackagingToolTarget,
+} from "../utils/plugin-root.js";
 import type { FeatureGenerateResult } from "../utils/result.js";
 import { resolveToolOutputRoot } from "../utils/tool-output-root.js";
 import { resetRunWarningState } from "../utils/warned-once.js";
@@ -369,6 +373,10 @@ function warnUnsupportedTargets(params: {
     oppositeScopeTargets = [];
   }
   for (const target of config.getTargets()) {
+    // Already reported once per run by `generate`.
+    if (config.getGlobal() && isPackagingToolTarget(target)) {
+      continue;
+    }
     if (!supportedTargets.includes(target) && config.getFeatures(target).includes(featureName)) {
       const simulateOption = SIMULATE_OPTION_MAP[featureName];
       if (simulateOption && simulatedTargets.includes(target)) {
@@ -821,6 +829,14 @@ export async function generate(params: {
   resetRunWarningState();
 
   for (const toolTarget of config.getTargets()) {
+    // In global mode the output root is the home directory, so the plugin root
+    // safety check would walk all of $HOME. No feature supports a packaging
+    // target in global mode, so report it once here and skip the check;
+    // `warnUnsupportedTargets` stays quiet about it.
+    if (config.getGlobal() && isPackagingToolTarget(toolTarget)) {
+      logger.warn(`${formatPackagingTargetGlobalMessage(toolTarget)} Skipping.`);
+      continue;
+    }
     for (const outputRoot of config.getOutputRoots(toolTarget)) {
       await assertPluginRootSafe({ toolTarget, outputRoot });
     }

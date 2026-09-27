@@ -5,7 +5,7 @@ Rulesync can generate and import configuration components inside existing Claude
 - `claudecode-plugin`
 - `antigravity-plugin`
 
-Packaging targets are project-scope only and are intentionally excluded from `--targets "*"`. Their component directories, such as `skills/` and `rules/`, live directly under the output root and could otherwise collide with ordinary project directories.
+Packaging targets are project-scope only and are intentionally excluded from `--targets "*"`. With `--global`, `generate` skips an explicitly requested packaging target with a warning, and `import` rejects it with an error. Their component directories, such as `skills/` and `rules/`, live directly under the output root and could otherwise collide with ordinary project directories.
 
 ## Generate into a plugin
 

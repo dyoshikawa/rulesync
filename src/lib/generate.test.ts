@@ -15,12 +15,14 @@ import { RulesyncSubagent } from "../features/subagents/rulesync-subagent.js";
 import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
 import { mockProcessorBase } from "../test-utils/mock-feature-processor.js";
 import { createMockLogger } from "../test-utils/mock-logger.js";
+import { PACKAGING_TOOL_TARGETS } from "../types/tool-targets.js";
 import {
   directoryExists,
   fileExists,
   isPresentButUnresolvable,
   readFileContentOrNull,
 } from "../utils/file.js";
+import { assertPluginRootSafe } from "../utils/plugin-root.js";
 import {
   generate,
   GENERATION_STEP_GRAPH,
@@ -58,6 +60,13 @@ vi.mock("../utils/file.js", async (importOriginal) => {
     isPresentButUnresolvable: vi.fn(),
     readFileContentOrNull: vi.fn(),
     addTrailingNewline: actual.addTrailingNewline,
+  };
+});
+vi.mock("../utils/plugin-root.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../utils/plugin-root.js")>();
+  return {
+    ...actual,
+    assertPluginRootSafe: vi.fn(),
   };
 });
 vi.mock("es-toolkit", () => ({
@@ -1182,6 +1191,28 @@ describe("generate", () => {
     });
   });
 
+  describe("plugin root safety check", () => {
+    it.each(PACKAGING_TOOL_TARGETS)(
+      "should check every output root of packaging target %s in project mode",
+      async (target) => {
+        mockConfig.getTargets.mockReturnValue([target]);
+        mockConfig.getOutputRoots.mockReturnValue(["/plugins/a", "/plugins/b"]);
+        mockConfig.getFeatures.mockReturnValue(["rules"]);
+
+        await generate({ logger, config: mockConfig as never });
+
+        expect(assertPluginRootSafe).toHaveBeenCalledWith({
+          toolTarget: target,
+          outputRoot: "/plugins/a",
+        });
+        expect(assertPluginRootSafe).toHaveBeenCalledWith({
+          toolTarget: target,
+          outputRoot: "/plugins/b",
+        });
+      },
+    );
+  });
+
   describe("global mode", () => {
     beforeEach(() => {
       mockConfig.getGlobal.mockReturnValue(true);
@@ -1206,6 +1237,37 @@ describe("generate", () => {
 
       expect(RulesProcessor.getToolTargets).toHaveBeenCalledWith({ global: true });
     });
+
+    it.each(PACKAGING_TOOL_TARGETS)(
+      "should skip packaging target %s without checking the home directory for symlinks",
+      async (target) => {
+        mockConfig.getTargets.mockReturnValue(["claudecode", target]);
+        mockConfig.getOutputRoots.mockReturnValue(["/home/user"]);
+        mockConfig.getFeatures.mockReturnValue(["rules", "skills"]);
+
+        await generate({ logger, config: mockConfig as never });
+
+        expect(assertPluginRootSafe).not.toHaveBeenCalledWith(
+          expect.objectContaining({ toolTarget: target }),
+        );
+        expect(assertPluginRootSafe).toHaveBeenCalledWith({
+          toolTarget: "claudecode",
+          outputRoot: "/home/user",
+        });
+        // One target-level warning, not one more per enabled feature.
+        const targetWarnings = vi
+          .mocked(logger.warn)
+          .mock.calls.filter(([message]) => String(message).includes(`'${target}'`));
+        expect(targetWarnings).toEqual([
+          [
+            `Target '${target}' is a plugin packaging target and supports only project scope. Re-run without '--global'. Skipping.`,
+          ],
+        ]);
+        expect(RulesProcessor).toHaveBeenCalledWith(
+          expect.objectContaining({ toolTarget: "claudecode", global: true }),
+        );
+      },
+    );
   });
 
   describe("dry run mode (dry-run/check)", () => {
