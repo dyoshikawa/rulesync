@@ -83,6 +83,10 @@ export class ClaudecodeSubagent extends ToolSubagent {
     return this.body;
   }
 
+  override getImportIdentity(): string {
+    return this.frontmatter.name;
+  }
+
   toRulesyncSubagent(): RulesyncSubagent {
     const { name, description, model, ...restFields } = this.frontmatter;
 

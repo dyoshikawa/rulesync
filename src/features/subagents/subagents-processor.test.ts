@@ -1255,6 +1255,53 @@ Second content`;
       expect(toolFiles.every((file) => file instanceof ClaudecodeSubagent)).toBe(true);
     });
 
+    it("should load claudecode subagent files recursively", async () => {
+      const nestedAgentsDir = join(testDir, ".claude", "agents", "review");
+      await ensureDir(nestedAgentsDir);
+
+      const subagentContent = `---
+name: security-reviewer
+description: Reviews code for security issues
+---
+Review the code for security issues.`;
+
+      await writeFileContent(join(nestedAgentsDir, "security-reviewer.md"), subagentContent);
+
+      const toolFiles = await processor.loadToolFiles();
+
+      expect(toolFiles).toHaveLength(1);
+      expect(toolFiles[0]).toBeInstanceOf(ClaudecodeSubagent);
+      expect(toolFiles[0]?.getRelativeFilePath()).toBe(join("review", "security-reviewer.md"));
+    });
+
+    it("should warn and keep the first claudecode subagent when nested files share a name", async () => {
+      const logger = createMockLogger();
+      processor = new SubagentsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+      });
+      const agentsDir = join(testDir, ".claude", "agents");
+      await ensureDir(join(agentsDir, "review"));
+      await ensureDir(join(agentsDir, "research"));
+
+      const subagentContent = `---
+name: analyst
+description: An analyst
+---
+Analyze the task.`;
+
+      await writeFileContent(join(agentsDir, "review", "reviewer.md"), subagentContent);
+      await writeFileContent(join(agentsDir, "research", "researcher.md"), subagentContent);
+
+      const toolFiles = await processor.loadToolFiles();
+
+      expect(toolFiles).toHaveLength(1);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Duplicate claudecode subagent "analyst"'),
+      );
+    });
+
     it("should throw error when file fails to load", async () => {
       const agentsDir = join(testDir, ".claude", "agents");
       await ensureDir(agentsDir);
