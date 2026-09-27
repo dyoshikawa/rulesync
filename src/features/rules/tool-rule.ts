@@ -253,6 +253,7 @@ export abstract class ToolRule extends ToolFile {
     validate = true,
     rootPath = { relativeDirPath: ".", relativeFilePath: "AGENTS.md" },
     nonRootPath = { relativeDirPath: AGENTSMD_MEMORIES_DIR_PATH },
+    global = false,
   }: BuildToolRuleParamsParams): BuildToolRuleParamsResult {
     const params = this.buildToolRuleParamsDefault({
       outputRoot,
@@ -262,8 +263,10 @@ export abstract class ToolRule extends ToolFile {
       nonRootPath,
     });
 
+    // Project scope only; the global root has no workspace to nest under, so a
+    // global non-root rule keeps the adapter's own non-root path.
     const rulesyncFrontmatter = rulesyncRule.getFrontmatter();
-    if (!rulesyncFrontmatter.root && rulesyncFrontmatter.agentsmd?.subprojectPath) {
+    if (!global && !rulesyncFrontmatter.root && rulesyncFrontmatter.agentsmd?.subprojectPath) {
       params.relativeDirPath = join(rulesyncFrontmatter.agentsmd.subprojectPath);
       params.relativeFilePath = "AGENTS.md";
     }

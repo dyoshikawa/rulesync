@@ -240,6 +240,7 @@ export class ClineRule extends ToolRule {
           rulesyncRule,
           validate,
           rootPath: paths.root,
+          global,
         }),
       );
     }

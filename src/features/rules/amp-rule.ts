@@ -161,6 +161,7 @@ export class AmpRule extends ToolRule {
       validate,
       rootPath: paths.root,
       nonRootPath: paths.nonRoot,
+      global,
     });
     // Amp natively gates an @-mentioned file (and a subtree AGENTS.md) on
     // `globs:` YAML frontmatter — without it the file is ALWAYS included, and
