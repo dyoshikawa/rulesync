@@ -360,7 +360,8 @@ const RUN_SUBCOMMANDS: Record<string, ReadonlySet<string>> = {
   deno: new Set(["run"]),
   npm: new Set(["exec"]),
   pnpm: new Set(["exec", "dlx"]),
-  yarn: new Set(["exec", "dlx"]),
+  // `yarn exec` runs its arguments as a script of Yarn's own shell.
+  yarn: new Set(["dlx"]),
   poetry: new Set(["run"]),
   pipenv: new Set(["run"]),
 };
@@ -423,6 +424,12 @@ const CODE_OPTIONS: Record<string, ReadonlySet<string>> = {
   perl: new Set(["-e", "-E"]),
   php: new Set(["-r"]),
   sh: new Set(["-s"]),
+  // Shell modes that hand the command line to `sh -c`, which would split an
+  // expanded path again.
+  npx: new Set(["-c", "--call"]),
+  pnpx: new Set(["-c", "--call"]),
+  npm: new Set(["-c", "--call"]),
+  pnpm: new Set(["-c", "--shell-mode"]),
 };
 
 /** The per-command option table entry for a runner named `name`. */

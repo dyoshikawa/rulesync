@@ -192,6 +192,13 @@ describe("anchorDotPaths", () => {
     // `--rcfile` takes `-c` as its value, so the quote is part of a file name.
     "bash --rcfile -c './x'",
     "bash --init-file -c './x'",
+    // A package runner's shell mode re-parses its command line.
+    "npx -c './x.sh --flag'",
+    "npx --call ./x.sh",
+    "npm exec -c ./x.sh",
+    "pnpm exec --shell-mode ./x.sh",
+    "pnpm -c exec ./x.sh",
+    "yarn exec ./x.sh",
     // Without a blank, a continuation joins `bash` and `-c` into one word.
     "bash\\\n-c './x y'",
     "node\\\nx ./y.js",
