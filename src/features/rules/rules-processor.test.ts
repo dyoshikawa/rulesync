@@ -1532,6 +1532,19 @@ describe("RulesProcessor", () => {
       expect(warning).toContain("local.md");
     });
 
+    it("should list only the first localRoot rule as folded, as generate appends only one", async () => {
+      await writeRule("root.md", 'root: true\ntargets: ["codexcli"]');
+      await writeRule("local-a.md", 'root: false\nlocalRoot: true\ntargets: ["codexcli"]');
+      await writeRule("local-b.md", 'root: false\nlocalRoot: true\ntargets: ["codexcli"]');
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "codexcli" });
+      await processor.warnForFoldImportDuplicationRisk();
+
+      const warning = warnings().find((message) => message.includes("already folded from"));
+      expect(warning).toContain("local-a.md");
+      expect(warning).not.toContain("local-b.md");
+    });
+
     it("should not list a localRoot rule as folded when includeLocalRoot is false", async () => {
       await writeRule("root.md", 'root: true\ntargets: ["codexcli"]');
       await writeRule("local.md", 'root: false\nlocalRoot: true\ntargets: ["codexcli"]');

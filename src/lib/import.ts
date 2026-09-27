@@ -14,6 +14,7 @@ import { SkillsProcessor } from "../features/skills/skills-processor.js";
 import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
 import type { RulesyncFile, RulesyncFileParams } from "../types/rulesync-file.js";
 import type { ToolTarget } from "../types/tool-targets.js";
+import { formatError } from "../utils/error.js";
 import type { Logger } from "../utils/logger.js";
 import {
   assertPluginRootSafe,
@@ -149,12 +150,9 @@ async function importRulesCore(params: {
     return 0;
   }
 
-  const rulesProcessor = new RulesProcessor({
-    outputRoot: getToolOutputRoot({ config, tool }),
-    toolTarget: tool,
-    global,
-    logger,
-  });
+  const outputRoot = getToolOutputRoot({ config, tool });
+  const baseParams = { outputRoot, toolTarget: tool, global, logger };
+  const rulesProcessor = new RulesProcessor(baseParams);
 
   const toolFiles = await rulesProcessor.loadToolFiles();
   if (toolFiles.length === 0) {
@@ -164,17 +162,19 @@ async function importRulesCore(params: {
 
   // The duplication check predicts where generate writes the existing
   // rulesync rules, so it needs generate's configuration; the import itself
-  // keeps the plain processor above.
-  const duplicationCheckProcessor = new RulesProcessor({
-    outputRoot: getToolOutputRoot({ config, tool }),
-    inputRoots: config.getInputRoots(),
-    toolTarget: tool,
-    global,
-    deriveSubprojectPathFromGlobs: config.getDeriveSubprojectPathFromGlobs(),
-    featureOptions: config.getFeatureOptions(tool, "rules"),
-    logger,
-  });
-  await duplicationCheckProcessor.warnForFoldImportDuplicationRisk();
+  // keeps the plain processor above. It only warns, so a failure (e.g. a
+  // malformed rule in another input root) must not abort the import.
+  try {
+    const duplicationCheckProcessor = new RulesProcessor({
+      ...baseParams,
+      inputRoots: config.getInputRoots(),
+      deriveSubprojectPathFromGlobs: config.getDeriveSubprojectPathFromGlobs(),
+      featureOptions: config.getFeatureOptions(tool, "rules"),
+    });
+    await duplicationCheckProcessor.warnForFoldImportDuplicationRisk();
+  } catch (error) {
+    logger.warn(`Skipped the ${tool} import duplication check: ${formatError(error)}`);
+  }
 
   const rulesyncFiles = await rulesProcessor.convertToolFilesToRulesyncFiles(toolFiles);
   const { count: writtenCount } = await rulesProcessor.writeAiFiles(rulesyncFiles);

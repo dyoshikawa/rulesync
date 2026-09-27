@@ -269,11 +269,15 @@ describe("importFromTool", () => {
       });
 
       const calls = vi.mocked(RulesProcessor).mock.calls;
-      const checkIndex = vi
-        .mocked(RulesProcessor)
-        .mock.results.findIndex(
-          (result) => result.value.warnForFoldImportDuplicationRisk.mock.calls.length > 0,
-        );
+      const results = vi.mocked(RulesProcessor).mock.results;
+      const checkIndex = results.findIndex(
+        (entry) => entry.value.warnForFoldImportDuplicationRisk.mock.calls.length > 0,
+      );
+      const importIndex = results.findIndex(
+        (entry) => entry.value.convertToolFilesToRulesyncFiles.mock.calls.length > 0,
+      );
+      expect(checkIndex).toBeGreaterThanOrEqual(0);
+      expect(importIndex).toBeGreaterThanOrEqual(0);
       expect(calls[checkIndex]?.[0]).toEqual(
         expect.objectContaining({
           inputRoots: [".", "shared"],
@@ -282,7 +286,32 @@ describe("importFromTool", () => {
         }),
       );
       // The processor that imports the files keeps its plain configuration.
-      expect(calls[0]?.[0]).not.toHaveProperty("featureOptions");
+      expect(calls[importIndex]?.[0]).not.toHaveProperty("featureOptions");
+    });
+
+    it("should keep importing when the duplication check throws", async () => {
+      mockConfig.getFeatures.mockReturnValue(["rules"]);
+      const importProcessor = createMockProcessor();
+      const failingCheckProcessor = {
+        ...createMockProcessor(),
+        warnForFoldImportDuplicationRisk: vi.fn().mockRejectedValue(new Error("bad frontmatter")),
+      };
+      vi.mocked(RulesProcessor)
+        .mockImplementationOnce(function () {
+          return importProcessor as unknown as RulesProcessor;
+        })
+        .mockImplementationOnce(function () {
+          return failingCheckProcessor as unknown as RulesProcessor;
+        });
+
+      const result = await importFromTool({
+        logger,
+        config: mockConfig as never,
+        tool: "claudecode",
+      });
+
+      expect(result.rulesCount).toBe(1);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("bad frontmatter"));
     });
 
     it("should return 0 when no tool files found", async () => {
