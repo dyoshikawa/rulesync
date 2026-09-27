@@ -1101,8 +1101,17 @@ export function canonicalToToolHooks({
  * on the next export (with a warning).
  */
 /**
- * Strip the project directory variable prefix from a tool command string,
- * converting it back to a `./`-relative command.
+ * Rewrite every reference to the project directory variable in a tool command
+ * string to the portable `./` form.
+ *
+ * The variable is normalized wherever a path starts with it, not only as the
+ * first token, so interpreter-prefixed commands (`python3 "$VAR/x.py"`,
+ * `node $VAR/x.js`) do not leak a tool-specific variable into targets that do
+ * not define it. The recognized forms, each followed by `/`, are `"$VAR"`,
+ * `"${VAR}"`, `$VAR` and `${VAR}`; a quote *around the whole path* is kept so
+ * a path containing spaces stays one shell word (`"$VAR/my hook.sh"` becomes
+ * `"./my hook.sh"`). An escaped `\$VAR` (a literal `$`), a longer name such
+ * as `$VAR_2`, and a bare `$VAR` not followed by a path are left untouched.
  */
 function stripCommandPrefix({
   command,
@@ -1115,21 +1124,16 @@ function stripCommandPrefix({
   if (converterConfig.projectDirVar === "" || typeof cmd !== "string") {
     return cmd;
   }
-  const quotedPrefix = `"${converterConfig.projectDirVar}"/`;
-  if (cmd.startsWith(quotedPrefix)) {
-    return `./${cmd.slice(quotedPrefix.length)}`;
-  }
-  // The exec form's braced placeholder, so a generated hook round-trips back to
-  // the relative command it was authored as.
-  const bracedPrefix = `${bracePlaceholder(converterConfig.projectDirVar)}/`;
-  if (cmd.startsWith(bracedPrefix)) {
-    return `./${cmd.slice(bracedPrefix.length)}`;
-  }
-  if (cmd.includes(`${converterConfig.projectDirVar}/`)) {
-    const escapedVar = converterConfig.projectDirVar.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    return cmd.replace(new RegExp(`^${escapedVar}\\/?`), "./");
-  }
-  return cmd;
+  const name = converterConfig.projectDirVar.replace(/^\$/, "");
+  const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  // `"$VAR"/`, `"${VAR}"/`, `$VAR/` and `${VAR}/`, not preceded by a backslash
+  // (an escaped, literal `$`) or by an identifier character (part of a longer
+  // name). The trailing `/` also rules out a longer name such as `$VAR_2/`.
+  const pattern = new RegExp(
+    `(?<![\\\\\\w])(?:"\\$(?:${escapedName}|\\{${escapedName}\\})"|\\$(?:${escapedName}|\\{${escapedName}\\}))/`,
+    "g",
+  );
+  return cmd.replace(pattern, "./");
 }
 
 /**

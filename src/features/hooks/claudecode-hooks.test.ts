@@ -1143,6 +1143,72 @@ describe("ClaudecodeHooks", () => {
       expect(json.hooks.sessionStart?.[0]?.command).toBe("./scripts/format.sh --fix --quiet");
     });
 
+    // https://github.com/dyoshikawa/rulesync/issues/3171 — the variable must be
+    // normalized wherever a path starts with it, not only as the first token,
+    // or it leaks into targets (e.g. Codex CLI) that never set it.
+    it.each([
+      ['"$CLAUDE_PROJECT_DIR"/.claude/hooks/a.sh', "./.claude/hooks/a.sh"],
+      ['"$CLAUDE_PROJECT_DIR/.claude/hooks/b.sh"', '"./.claude/hooks/b.sh"'],
+      ["$CLAUDE_PROJECT_DIR/.claude/hooks/c.sh", "./.claude/hooks/c.sh"],
+      ["${CLAUDE_PROJECT_DIR}/.claude/hooks/d.sh", "./.claude/hooks/d.sh"],
+      ['python3 "$CLAUDE_PROJECT_DIR/.claude/hooks/e.py"', 'python3 "./.claude/hooks/e.py"'],
+      ['python3 "$CLAUDE_PROJECT_DIR"/.claude/hooks/f.py', "python3 ./.claude/hooks/f.py"],
+      ["node $CLAUDE_PROJECT_DIR/.claude/hooks/g.js", "node ./.claude/hooks/g.js"],
+      ['python3 "${CLAUDE_PROJECT_DIR}/.claude/hooks/h.py"', 'python3 "./.claude/hooks/h.py"'],
+      ['python3 "${CLAUDE_PROJECT_DIR}"/.claude/hooks/i.py', "python3 ./.claude/hooks/i.py"],
+      ['uv run "$CLAUDE_PROJECT_DIR/my hooks/j.py" --flag', 'uv run "./my hooks/j.py" --flag'],
+      [
+        "$CLAUDE_PROJECT_DIR/lint.sh && node $CLAUDE_PROJECT_DIR/check.js",
+        "./lint.sh && node ./check.js",
+      ],
+      [
+        "bash -c 'test -f x' --config=$CLAUDE_PROJECT_DIR/c.json",
+        "bash -c 'test -f x' --config=./c.json",
+      ],
+    ])("should normalize %s to %s on import", (command, expected) => {
+      const claudecodeHooks = new ClaudecodeHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".claude",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          hooks: {
+            PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command }] }],
+          },
+        }),
+        validate: false,
+      });
+
+      const json = claudecodeHooks.toRulesyncHooks().getJson();
+      expect(json.hooks.preToolUse?.[0]?.command).toBe(expected);
+    });
+
+    it.each([
+      // A longer variable name is a different variable.
+      "$CLAUDE_PROJECT_DIR2/hook.sh",
+      "python3 ${CLAUDE_PROJECT_DIR_OLD}/hook.py",
+      // An escaped `$` is a literal, not an expansion.
+      'echo "\\$CLAUDE_PROJECT_DIR/hook.sh"',
+      // A bare variable that does not start a path.
+      'cd "$CLAUDE_PROJECT_DIR" && ./hook.sh',
+      // Another tool's variable is not Claude Code's to rewrite.
+      "$CLAUDE_PLUGIN_ROOT/hook.sh",
+    ])("should leave %s untouched on import", (command) => {
+      const claudecodeHooks = new ClaudecodeHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".claude",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          hooks: {
+            PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command }] }],
+          },
+        }),
+        validate: false,
+      });
+
+      const json = claudecodeHooks.toRulesyncHooks().getJson();
+      expect(json.hooks.preToolUse?.[0]?.command).toBe(command);
+    });
+
     it("should preserve http/mcp_tool/agent hooks with their payload fields on import", () => {
       const claudecodeHooks = new ClaudecodeHooks({
         outputRoot: testDir,
