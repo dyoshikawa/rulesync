@@ -1210,9 +1210,9 @@ args = ["server.js"]
         expect(warnSpy).not.toHaveBeenCalled();
       });
 
-      it("should match the Authorization header name case-insensitively", async () => {
+      it("should match the Authorization header name and Bearer scheme case-insensitively", async () => {
         const mcpServers = await generate({
-          remote: { url: "https://mcp.example.com", headers: { authorization: "Bearer ${TOKEN}" } },
+          remote: { url: "https://mcp.example.com", headers: { authorization: "bearer ${TOKEN}" } },
         });
 
         expect(mcpServers.remote.bearer_token_env_var).toBe("TOKEN");
@@ -1266,9 +1266,9 @@ args = ["server.js"]
           "X-Api-Key": "EXPLICIT_KEY",
           "X-Other": "OTHER",
         });
-        expect(mcpServers.remote.http_headers).toEqual({
-          Authorization: "Bearer ${DERIVED_TOKEN}",
-        });
+        // The explicit bearer already supplies Authorization, so the derived
+        // header is dropped rather than also sent as a literal.
+        expect(mcpServers.remote.http_headers).toBeUndefined();
       });
 
       it("should still drop headers with references from a stdio server", async () => {

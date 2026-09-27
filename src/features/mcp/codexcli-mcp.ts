@@ -338,8 +338,11 @@ function translateCanonicalKeyToCodex({
  */
 const WHOLE_ENV_VAR_REF_PATTERN = /^\$\{([A-Za-z_][A-Za-z0-9_]*)\}$/;
 
-/** An `Authorization` value that is exactly `Bearer ${VAR}`. */
-const BEARER_ENV_VAR_REF_PATTERN = /^Bearer \$\{([A-Za-z_][A-Za-z0-9_]*)\}$/;
+/**
+ * An `Authorization` value that is exactly `Bearer ${VAR}`. The scheme is
+ * matched case-insensitively, as HTTP authentication schemes are.
+ */
+const BEARER_ENV_VAR_REF_PATTERN = /^Bearer \$\{([A-Za-z_][A-Za-z0-9_]*)\}$/i;
 
 const AUTHORIZATION_HEADER_NAME = "authorization";
 
@@ -379,7 +382,7 @@ function convertEnvVarRefsForCodex({
   if (typeof url === "string" && hasUnexpandedEnvVarRef(url)) {
     warnWithFallback(
       undefined,
-      `[CodexCliMcp] MCP server "${serverName}": 'url' contains an environment variable reference that Codex does not expand, so it is written verbatim and the server will likely fail to start: ${url}`,
+      `[CodexCliMcp] MCP server "${serverName}": 'url' contains an environment variable reference that Codex does not expand, so it is written verbatim and the server will likely fail to start.`,
     );
   }
 
@@ -395,13 +398,14 @@ function convertEnvVarRefsForCodex({
 
   for (const [name, value] of Object.entries(httpHeaders)) {
     const bearerMatch = BEARER_ENV_VAR_REF_PATTERN.exec(value);
-    if (
-      bearerMatch?.[1] &&
-      name.toLowerCase() === AUTHORIZATION_HEADER_NAME &&
-      converted["bearer_token_env_var"] === undefined &&
-      bearerTokenEnvVar === undefined
-    ) {
-      bearerTokenEnvVar = bearerMatch[1];
+    if (bearerMatch?.[1] && name.toLowerCase() === AUTHORIZATION_HEADER_NAME) {
+      // An explicit `bearer_token_env_var` already supplies the Authorization
+      // header, so the derived one is dropped rather than sent a second time
+      // as a literal — mirroring how an explicit `env_http_headers` entry
+      // replaces the header it names.
+      if (converted["bearer_token_env_var"] === undefined && bearerTokenEnvVar === undefined) {
+        bearerTokenEnvVar = bearerMatch[1];
+      }
       continue;
     }
     const wholeMatch = WHOLE_ENV_VAR_REF_PATTERN.exec(value);
