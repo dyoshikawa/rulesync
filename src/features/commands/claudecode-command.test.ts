@@ -325,6 +325,42 @@ describe("ClaudecodeCommand", () => {
   });
 
   describe("fromFile", () => {
+    it("should accept a YAML-list argument-hint and join it into the bracketed string", async () => {
+      const commandsDir = join(testDir, ".claude", "commands");
+      await ensureDir(commandsDir);
+      await writeFileContent(
+        join(commandsDir, "fix-issue.md"),
+        `---
+description: Fix a GitHub issue
+argument-hint: [issue-number]
+---
+Fix issue $ARGUMENTS.`,
+      );
+      await writeFileContent(
+        join(commandsDir, "convert.md"),
+        `---
+description: Convert a file
+argument-hint: [filename, format]
+---
+Convert $ARGUMENTS.`,
+      );
+
+      const fixIssue = await ClaudecodeCommand.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "fix-issue.md",
+      });
+      const convert = await ClaudecodeCommand.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "convert.md",
+      });
+
+      expect(fixIssue.getFrontmatter()["argument-hint"]).toBe("[issue-number]");
+      expect(fixIssue.toRulesyncCommand().getFrontmatter().claudecode).toEqual({
+        "argument-hint": "[issue-number]",
+      });
+      expect(convert.getFrontmatter()["argument-hint"]).toBe("[filename] [format]");
+    });
+
     it("should load ClaudecodeCommand from file", async () => {
       const commandsDir = join(testDir, ".claude", "commands");
       await ensureDir(commandsDir);

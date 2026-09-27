@@ -1203,6 +1203,60 @@ describe("ClaudecodeSkill", () => {
   });
 
   describe("fromDir", () => {
+    it("should accept a YAML-list argument-hint and join it into the bracketed string", async () => {
+      // `argument-hint: [issue-number]`, written the way the Claude Code docs
+      // show it, parses as a YAML list.
+      const skillDir = join(testDir, ".claude", "skills", "fix-issue");
+      await ensureDir(skillDir);
+      await writeFileContent(
+        join(skillDir, SKILL_FILE_NAME),
+        `---
+name: fix-issue
+description: Fix a GitHub issue
+argument-hint: [issue-number]
+---
+Fix issue $ARGUMENTS.`,
+      );
+
+      const skill = await ClaudecodeSkill.fromDir({
+        outputRoot: testDir,
+        dirName: "fix-issue",
+      });
+
+      expect(skill.getFrontmatter()["argument-hint"]).toBe("[issue-number]");
+      const rulesyncSkill = skill.toRulesyncSkill();
+      expect(rulesyncSkill.getFrontmatter().claudecode?.["argument-hint"]).toBe("[issue-number]");
+
+      // Generating back writes the string form, which re-imports unchanged.
+      const regenerated = ClaudecodeSkill.fromRulesyncSkill({
+        outputRoot: testDir,
+        rulesyncSkill,
+      });
+      expect(regenerated.getFrontmatter()["argument-hint"]).toBe("[issue-number]");
+      expect(regenerated.getMainFile()?.frontmatter?.["argument-hint"]).toBe("[issue-number]");
+    });
+
+    it("should join a multi-entry YAML-list argument-hint one placeholder per entry", async () => {
+      const skillDir = join(testDir, ".claude", "skills", "convert");
+      await ensureDir(skillDir);
+      await writeFileContent(
+        join(skillDir, SKILL_FILE_NAME),
+        `---
+name: convert
+description: Convert a file
+argument-hint: [filename, format, 2]
+---
+Body`,
+      );
+
+      const skill = await ClaudecodeSkill.fromDir({
+        outputRoot: testDir,
+        dirName: "convert",
+      });
+
+      expect(skill.getFrontmatter()["argument-hint"]).toBe("[filename] [format] [2]");
+    });
+
     it("should load skill from directory", async () => {
       const skillDir = join(testDir, ".claude", "skills", "test-skill");
       await ensureDir(skillDir);

@@ -7,6 +7,7 @@ import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
+import { ClaudecodeArgumentHintSchema } from "../shared/claudecode-argument-hint.js";
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
 import {
   ToolCommand,
@@ -23,7 +24,8 @@ export const ClaudecodeCommandFrontmatterSchema = z.looseObject({
   // Removes the listed tools from the model while the command is active.
   // Accepts the space/comma-separated string form or a YAML list, mirroring `allowed-tools`.
   "disallowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
-  "argument-hint": z.optional(z.string()),
+  // A YAML list (the unquoted `[issue-number]` form) is joined back into the string form.
+  "argument-hint": z.optional(ClaudecodeArgumentHintSchema),
   model: z.optional(z.string()),
   "disable-model-invocation": z.optional(z.boolean()),
 });

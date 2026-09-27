@@ -25,6 +25,7 @@ import {
   NESTED_SCAN_EXCLUDED_DIRS_ANY_DEPTH,
   NESTED_SCAN_EXCLUDED_ROOT_DIRS,
 } from "../rules/nested-scan-exclusions.js";
+import { ClaudecodeArgumentHintSchema } from "../shared/claudecode-argument-hint.js";
 import {
   RulesyncSkill,
   RulesyncSkillFrontmatter,
@@ -193,8 +194,9 @@ export const ClaudecodeSkillFrontmatterSchema = z.looseObject({
   model: z.optional(z.string()),
   // Effort level while the skill is active (low | medium | high | xhigh | max).
   effort: z.optional(z.string()),
-  // Hint shown during autocomplete to indicate expected arguments.
-  "argument-hint": z.optional(z.string()),
+  // Hint shown during autocomplete to indicate expected arguments. A YAML list
+  // (the unquoted `[issue-number]` form) is joined back into the string form.
+  "argument-hint": z.optional(ClaudecodeArgumentHintSchema),
   // Named positional arguments for `$name` substitution; string or YAML list.
   arguments: z.optional(z.union([z.string(), z.array(z.string())])),
   // `fork` runs the skill in a forked subagent context.

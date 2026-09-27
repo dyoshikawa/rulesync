@@ -312,7 +312,17 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
     "claudecode",
     {
       class: ClaudecodeSkill,
-      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+      // Claude Code does not let one broken SKILL.md stop the others from
+      // loading ("If the YAML between the markers doesn't parse, the skill
+      // still loads with no fields set"), so import skips such a skill with a
+      // warning instead of aborting the run — and every feature after skills.
+      // https://code.claude.com/docs/en/skills
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: true,
+        lenientImport: true,
+      },
     },
   ],
   [
