@@ -32,6 +32,7 @@ import {
   addTrailingNewline,
   checkPathTraversal,
   directoryExistsStrict,
+  fileExists,
   filterOutPathsInGitIgnoredDirectories,
   findFilesByGlobs,
   readFileContent,
@@ -362,11 +363,14 @@ type ToolRuleFactory = {
     localRootFileName?: string;
     /**
      * Default byte budget the tool reads across the project instruction files
-     * on one root-to-cwd chain before dropping the rest (Codex CLI's
+     * on one root-to-cwd chain before silently dropping the rest (Codex CLI's
      * `project_doc_max_bytes`). Project scope only; generation warns when a
-     * generated chain exceeds it, since the tool truncates silently.
+     * generated chain exceeds `bytes`, appending the tool-specific `remedy`.
      */
-    projectInstructionBudgetBytes?: number;
+    projectInstructionBudget?: {
+      bytes: number;
+      remedy: string;
+    };
   };
 };
 
@@ -574,7 +578,12 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",
         collisionPolicy: "fold",
-        projectInstructionBudgetBytes: CODEXCLI_PROJECT_DOC_MAX_BYTES,
+        projectInstructionBudget: {
+          bytes: CODEXCLI_PROJECT_DOC_MAX_BYTES,
+          remedy:
+            "Codex CLI stops reading project `AGENTS.md` files once their combined size on the root-to-working-directory chain reaches `project_doc_max_bytes` (32 KiB by default) and silently drops the rest. " +
+            "Move directory-scoped rules into nested `AGENTS.md` files with `agentsmd.subprojectPath` (or `deriveSubprojectPathFromGlobs: true` in rulesync.jsonc), trim the rules, or raise `project_doc_max_bytes` in `.codex/config.toml` (ignore this warning if you already have).",
+        },
       },
     },
   ],
@@ -1374,7 +1383,7 @@ export class RulesProcessor extends FeatureProcessor {
 
   /**
    * Warn when a generated project instruction chain exceeds the tool's byte
-   * budget (`meta.projectInstructionBudgetBytes`).
+   * budget (`meta.projectInstructionBudget`).
    *
    * Codex CLI concatenates the project `AGENTS.md` files from the project root
    * down to the cwd and stops once their combined size reaches
@@ -1383,7 +1392,11 @@ export class RulesProcessor extends FeatureProcessor {
    * Each generated file is measured together with the generated files in its
    * ancestor directories, since that is the chain Codex loads while working
    * there. When the root file alone is over the budget every chain is, so only
-   * the root is reported. The budget checked is the tool's default: a value
+   * the root is reported; likewise each over-budget nested chain is reported
+   * once, at its shallowest directory. With several output roots the warning
+   * names the root it refers to. An output root below the git root is measured
+   * without the parent directories' files Codex would also load, so the
+   * estimate can come out low there. The budget checked is the tool's default: a value
    * raised by hand in the tool's own config is not read. Global scope is not
    * checked because Codex loads the personal `~/.codex/AGENTS.md` outside the
    * project budget.
@@ -1395,7 +1408,7 @@ export class RulesProcessor extends FeatureProcessor {
     toolRules: ToolRule[];
     meta: ToolRuleFactory["meta"];
   }): void {
-    const budget = meta.projectInstructionBudgetBytes;
+    const budget = meta.projectInstructionBudget;
     if (budget === undefined || this.global) {
       return;
     }
@@ -1408,29 +1421,33 @@ export class RulesProcessor extends FeatureProcessor {
     }));
     const isAncestorOrSelf = (ancestor: string, dir: string): boolean =>
       ancestor === "." || ancestor === dir || dir.startsWith(`${ancestor}/`);
-    const describeRemedy = (): string =>
-      `Codex CLI reads at most ${budget} bytes (\`project_doc_max_bytes\`, 32 KiB by default) of project \`AGENTS.md\` files and silently drops the rest. ` +
-      `Move directory-scoped rules into nested \`AGENTS.md\` files with \`agentsmd.subprojectPath\` (or \`deriveSubprojectPathFromGlobs: true\` in rulesync.jsonc), trim the rules, or raise \`project_doc_max_bytes\` in \`.codex/config.toml\` (ignore this warning if you already have).`;
+    const location = this.outputRoot === process.cwd() ? "" : ` under '${this.outputRoot}'`;
 
-    const rootBytes = files
-      .filter(({ dir }) => dir === ".")
-      .reduce((sum, { bytes }) => sum + bytes, 0);
-    if (rootBytes > budget) {
+    const rootFiles = files.filter(({ dir }) => dir === ".");
+    const rootBytes = rootFiles.reduce((sum, { bytes }) => sum + bytes, 0);
+    if (rootBytes > budget.bytes) {
       this.logger.warn(
-        `The generated ${this.toolTarget} root AGENTS.md is ${rootBytes} bytes, over the ${budget}-byte limit. ${describeRemedy()}`,
+        `The generated ${this.toolTarget} root instruction file${location} (${rootFiles.map(({ path }) => path).join(", ")}) is ${rootBytes} bytes, over the ${budget.bytes}-byte limit. ${budget.remedy}`,
       );
       return;
     }
 
-    for (const file of files) {
-      if (file.dir === ".") {
+    // Report each over-budget chain once, at its shallowest nested file: every
+    // deeper file below it is over budget too, so listing them adds nothing.
+    const reportedDirs: string[] = [];
+    const nestedFiles = files
+      .filter(({ dir }) => dir !== ".")
+      .toSorted((a, b) => a.dir.split("/").length - b.dir.split("/").length);
+    for (const file of nestedFiles) {
+      if (reportedDirs.some((dir) => isAncestorOrSelf(dir, file.dir))) {
         continue;
       }
       const chain = files.filter(({ dir }) => isAncestorOrSelf(dir, file.dir));
       const chainBytes = chain.reduce((sum, { bytes }) => sum + bytes, 0);
-      if (chainBytes > budget) {
+      if (chainBytes > budget.bytes) {
+        reportedDirs.push(file.dir);
         this.logger.warn(
-          `The generated ${this.toolTarget} AGENTS.md files loaded while working in '${file.dir}' (${chain.map(({ path }) => path).join(", ")}) total ${chainBytes} bytes, over the ${budget}-byte limit. ${describeRemedy()}`,
+          `The generated ${this.toolTarget} instruction files${location} loaded while working in '${file.dir}' (${chain.map(({ path }) => path).join(", ")}) total ${chainBytes} bytes, over the ${budget.bytes}-byte limit (as is every directory below it). ${budget.remedy}`,
         );
       }
     }
@@ -2664,19 +2681,82 @@ As this project's AI coding tool, you must follow the additional conventions bel
     }
 
     const mergedRules = await this.loadMergedRulesyncRules();
-    const nonRootRules = mergedRules.filter(
+    const targetedNonRootRules = mergedRules.filter(
       (rule) =>
         !rule.getFrontmatter().root &&
         (!this.global || !rule.getFrontmatter().localRoot) &&
         factory.class.isTargetedByRulesyncRule(rule),
     );
-    if (nonRootRules.length === 0) {
-      return;
+
+    // A target that also discovers nested per-directory files (codexcli, pool,
+    // vibe, dsh) writes a directory-scoped rule to `<dir>/AGENTS.md` rather
+    // than folding it, so that rule is not part of the root file. Importing
+    // the nested file instead produces `.rulesync/rules/<dir-with-hyphens>.md`,
+    // which duplicates the source rule only when the source has another name.
+    const nestedRules: RuleConversion[] = [];
+    const foldedRules: RulesyncRule[] = [];
+    for (const rulesyncRule of targetedNonRootRules) {
+      const toolRule = this.global ? undefined : this.toNestedToolRule({ factory, rulesyncRule });
+      if (toolRule) {
+        nestedRules.push({ toolRule, rulesyncRule });
+      } else {
+        foldedRules.push(rulesyncRule);
+      }
     }
 
-    this.logger.warn(
-      `Importing ${this.toolTarget}'s root file will re-add content already folded from ${formatRulePaths(nonRootRules)}: ${this.toolTarget} concatenates every non-root rule into its single root output file, so the imported copy duplicates them the next time you run \`rulesync generate --targets ${this.toolTarget}\`. Review the imported rule and remove the duplicated content, or remove the original non-root rule files, before generating again.`,
-    );
+    if (foldedRules.length > 0) {
+      this.logger.warn(
+        `Importing ${this.toolTarget}'s root file will re-add content already folded from ${formatRulePaths(foldedRules)}: ${this.toolTarget} concatenates every non-root rule into its single root output file, so the imported copy duplicates them the next time you run \`rulesync generate --targets ${this.toolTarget}\`. Review the imported rule and remove the duplicated content, or remove the original non-root rule files, before generating again.`,
+      );
+    }
+
+    const duplicatedNestedRules: RulesyncRule[] = [];
+    for (const { toolRule, rulesyncRule } of nestedRules) {
+      const importedName = toolRule.toRulesyncRule().getRelativeFilePath();
+      if (importedName.toLowerCase() === rulesyncRule.getRelativeFilePath().toLowerCase()) {
+        continue;
+      }
+      if (await fileExists(toolRule.getFilePath())) {
+        duplicatedNestedRules.push(rulesyncRule);
+      }
+    }
+    if (duplicatedNestedRules.length > 0) {
+      this.logger.warn(
+        `Importing ${this.toolTarget}'s nested AGENTS.md files will re-add content already written from ${formatRulePaths(duplicatedNestedRules)}: each nested file is imported under a name derived from its directory, so the imported copy and the original rule resolve to the same nested file and are concatenated the next time you run \`rulesync generate --targets ${this.toolTarget}\`. Remove one of the two copies before generating again.`,
+      );
+    }
+  }
+
+  /**
+   * The tool rule a non-root rulesync rule becomes when the target writes it
+   * to a nested per-directory file instead of folding it into the root file,
+   * or `undefined` when it folds (or the target has no nested files).
+   */
+  private toNestedToolRule({
+    factory,
+    rulesyncRule,
+  }: {
+    factory: ToolRuleFactory;
+    rulesyncRule: RulesyncRule;
+  }): ToolRule | undefined {
+    if (!factory.class.getNestedFilePatterns) {
+      return undefined;
+    }
+    const toolRule = factory.class.fromRulesyncRule({
+      outputRoot: this.outputRoot,
+      rulesyncRule,
+      validate: false,
+      global: this.global,
+    });
+    const { root } = factory.class.getSettablePaths({ global: this.global });
+    if (!root || toolRule.isRoot()) {
+      return undefined;
+    }
+    const isRootPath =
+      posix.normalize(toPosixPath(toolRule.getRelativeDirPath())) ===
+        posix.normalize(toPosixPath(root.relativeDirPath)) &&
+      toolRule.getRelativeFilePath() === root.relativeFilePath;
+    return isRootPath ? undefined : toolRule;
   }
 
   /**
