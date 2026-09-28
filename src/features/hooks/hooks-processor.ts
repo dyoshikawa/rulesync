@@ -12,6 +12,8 @@ import {
   BOB_HOOK_EVENTS,
   CLAUDE_HOOK_EVENTS,
   CODEXCLI_HOOK_EVENTS,
+  CODEWHALE_HOOK_EVENTS,
+  CODEWHALE_MATCHER_HOOK_EVENTS,
   COMMANDCODE_HOOK_EVENTS,
   COPILOT_HOOK_EVENTS,
   COPILOTCLI_HOOK_EVENTS,
@@ -60,6 +62,7 @@ import { BobHooks } from "./bob-hooks.js";
 import { ClaudecodeHooks } from "./claudecode-hooks.js";
 import { ClaudecodePluginHooks } from "./claudecode-plugin-hooks.js";
 import { ClineHooks } from "./cline-hooks.js";
+import { CodewhaleHooks } from "./codewhale-hooks.js";
 import { CodexcliHooks } from "./codexcli-hooks.js";
 import { CommandcodeHooks } from "./commandcode-hooks.js";
 import { ContinueHooks } from "./continue-hooks.js";
@@ -386,6 +389,31 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       supportedHookTypes: ["command", "prompt", "http", "mcp_tool", "agent"],
       supportsMatcher: true,
       // The adapter only emits its own native events; unknown override-block
+      // keys are dropped, so report them.
+      dropsUnknownOverrideEvents: true,
+    },
+  ],
+  [
+    "codewhale",
+    {
+      class: CodewhaleHooks,
+      meta: {
+        // Codewhale hooks live in `.codewhale/hooks.toml` (project, top-level
+        // `[[hooks]]`; honored once the workspace is trusted and the file bytes
+        // approved with `/hooks approve`) and in the `[hooks]` table of
+        // `~/.codewhale/config.toml` (global, shared with every other setting).
+        // https://github.com/Hmbown/Codewhale/blob/main/docs/HOOKS.md
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+      supportedEvents: CODEWHALE_HOOK_EVENTS,
+      supportedHookTypes: ["command"],
+      // A matcher becomes a `tool_name` condition, which Codewhale accepts only
+      // on events that carry a tool.
+      supportsMatcher: true,
+      matcherEvents: CODEWHALE_MATCHER_HOOK_EVENTS,
+      // The adapter only emits its supported events; unknown override-block
       // keys are dropped, so report them.
       dropsUnknownOverrideEvents: true,
     },

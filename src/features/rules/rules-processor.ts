@@ -65,6 +65,7 @@ import { ClaudecodeLegacyRule } from "./claudecode-legacy-rule.js";
 import { ClaudecodeRule } from "./claudecode-rule.js";
 import { ClineRule } from "./cline-rule.js";
 import { CodebuddyRule } from "./codebuddy-rule.js";
+import { CodewhaleRule } from "./codewhale-rule.js";
 import { CodexcliRule } from "./codexcli-rule.js";
 import { CommandcodeRule } from "./commandcode-rule.js";
 import { ContinueRule } from "./continue-rule.js";
@@ -587,6 +588,23 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         ruleDiscoveryMode: "auto",
         localRootMode: "separate-local-file",
         localRootFileName: CODEBUDDY_LOCAL_RULE_FILE_NAME,
+      },
+    },
+  ],
+  [
+    "codewhale",
+    {
+      class: CodewhaleRule,
+      meta: {
+        // Codewhale auto-loads the workspace-root AGENTS.md followed by every
+        // `.codewhale/rules/*.md` file. The user-scoped `~/.codewhale/AGENTS.md`
+        // has no companion rules directory, so global non-root rules fold into
+        // that single file.
+        // https://github.com/Hmbown/Codewhale/blob/main/docs/CONFIGURATION.md
+        extension: "md",
+        supportsGlobal: true,
+        ruleDiscoveryMode: "auto",
+        collisionPolicy: "fold",
       },
     },
   ],

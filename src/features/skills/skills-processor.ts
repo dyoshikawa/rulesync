@@ -41,6 +41,7 @@ import { BobSkill } from "./bob-skill.js";
 import { ClaudecodePluginSkill } from "./claudecode-plugin-skill.js";
 import { ClaudecodeSkill } from "./claudecode-skill.js";
 import { ClineSkill } from "./cline-skill.js";
+import { CodewhaleSkill } from "./codewhale-skill.js";
 import { CodexCliSkill } from "./codexcli-skill.js";
 import { CommandcodeSkill } from "./commandcode-skill.js";
 import { ContinueSkill } from "./continue-skill.js";
@@ -343,6 +344,16 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
     "cline",
     {
       class: ClineSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "codewhale",
+    {
+      // Codewhale reads <name>/SKILL.md directories from .codewhale/skills/
+      // (project) and ~/.codewhale/skills/ (user).
+      // https://github.com/Hmbown/Codewhale/blob/main/docs/SKILLS.md
+      class: CodewhaleSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],

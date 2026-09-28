@@ -2138,6 +2138,7 @@ Content that would fail parsing`;
         "claudecode-legacy",
         "cline",
         "codebuddy",
+        "codewhale",
         "codexcli",
         "commandcode",
         "continue",
@@ -2228,7 +2229,7 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("dsh");
       expect(globalTargets).toContain("continue");
       expect(globalTargets).toContain("commandcode");
-      expect(globalTargets.length).toBe(41);
+      expect(globalTargets.length).toBe(42);
 
       // These targets should NOT be in global mode
       expect(globalTargets).not.toContain("cursor");
@@ -4940,6 +4941,7 @@ targets: ["claudecode"]
 
     it("should expose every global-capable folded target to the regression matrix", () => {
       expect(globalFoldTargets).toEqual([
+        "codewhale",
         "codexcli",
         "commandcode",
         "crush",

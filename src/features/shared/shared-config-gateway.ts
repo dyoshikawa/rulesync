@@ -1163,6 +1163,7 @@ export const HERMES_WIN32_CONFIG_SHARED_FILE_KEY = "AppData/Local/hermes/config.
 export const HERMES_HOME_CONFIG_SHARED_FILE_KEY = "config.yaml";
 export const TAKT_CONFIG_SHARED_FILE_KEY = ".takt/config.yaml";
 export const CODEXCLI_CONFIG_SHARED_FILE_KEY = ".codex/config.toml";
+export const CODEWHALE_CONFIG_SHARED_FILE_KEY = ".codewhale/config.toml";
 export const GROKCLI_CONFIG_SHARED_FILE_KEY = ".grok/config.toml";
 export const VIBE_CONFIG_SHARED_FILE_KEY = ".vibe/config.toml";
 export const KIMI_CODE_CONFIG_SHARED_FILE_KEY = ".kimi-code/config.toml";
@@ -1656,6 +1657,18 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
     features: {
       hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
       permissions: { kind: "replace-owned-keys", ownedKeys: ["permissions"] },
+    },
+  },
+  // Codewhale user config: global hooks live in the `[hooks]` table beside
+  // every other Codewhale setting. The hooks writer owns that table, carrying
+  // its own settings (`enabled`, `default_timeout_secs`, `working_dir`) over
+  // from the existing file, and an unparseable root is refused rather than
+  // replaced.
+  [CODEWHALE_CONFIG_SHARED_FILE_KEY]: {
+    format: "toml",
+    invalidRootPolicy: "error",
+    features: {
+      hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
     },
   },
   // Snowflake Cortex Code hooks: `hooks` is the only rulesync-owned key. The

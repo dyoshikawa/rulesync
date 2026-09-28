@@ -300,6 +300,7 @@ rulesync.local.jsonc
 **/CODEBUDDY.md
 **/.codebuddy/CODEBUDDY.md
 **/.codebuddy/rules/
+**/.codewhale/rules/
 **/.continue/rules/
 **/.github/copilot-instructions.md
 **/.github/instructions/
@@ -363,6 +364,7 @@ rulesync.local.jsonc
 **/.bob/skills/
 **/.claude/skills/
 **/.cline/skills/
+**/.codewhale/skills/
 **/.commandcode/skills/
 **/.continue/skills/
 **/.github/skills/
@@ -395,6 +397,7 @@ rulesync.local.jsonc
 **/.augment/agents/
 **/.claude/agents/
 **/.cline/agents/
+**/.codewhale/agents/
 **/.codex/agents/
 **/.commandcode/agents/
 **/.github/agents/
@@ -421,6 +424,7 @@ rulesync.local.jsonc
 **/.augment/settings.json
 **/.bob/mcp.json
 **/.mcp.json
+**/.codewhale/mcp.json
 **/.continue/mcpServers/mcp.json
 **/.vscode/mcp.json
 **/.github/mcp.json
@@ -438,6 +442,7 @@ rulesync.local.jsonc
 **/.amp/plugins/rulesync-hooks.ts
 **/.agents/hooks.json
 **/.cursor/hooks.json
+**/.codewhale/hooks.toml
 **/.codex/hooks.json
 **/.github/hooks/copilot-hooks.json
 **/.github/hooks/copilotcli-hooks.json

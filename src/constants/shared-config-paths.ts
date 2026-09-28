@@ -32,6 +32,9 @@ export const SHARED_USER_MANAGED_CONFIG_PATHS: readonly string[] = [
   ".claude/settings.json",
   ".claude/settings.local.json",
   ".codex/config.toml",
+  // Codewhale's user config carries every Codewhale setting beside the
+  // `[hooks]` table rulesync writes.
+  ".codewhale/config.toml",
   // Command Code settings: the project file and the user one share the same
   // `.commandcode/settings.json` layout and carry the user's own settings
   // (`defaultMode`, `model`, ...) beside the `hooks` and `permissions` blocks.

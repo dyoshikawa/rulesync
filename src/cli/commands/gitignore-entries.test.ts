@@ -132,6 +132,10 @@ describe("registry derivation", () => {
       // scope writes `.cortex/settings.json` instead), so project derivation
       // never yields it.
       "**/.snowflake/cortex/hooks.json",
+      // Codewhale user config: emitted in GLOBAL scope only (project scope
+      // writes hooks to `.codewhale/hooks.toml` instead), so project
+      // derivation never yields it.
+      "**/.codewhale/config.toml",
     ]);
     const rawEntries = new Set(deriveAllGitignoreEntriesUnfiltered().map((tag) => tag.entry));
     const stale = [...DERIVED_PATHS_NOT_GITIGNORED].filter(
