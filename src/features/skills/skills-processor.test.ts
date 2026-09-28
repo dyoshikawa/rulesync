@@ -2290,6 +2290,39 @@ Test skill content`;
       expect(dirsToDelete[0]?.getDirName()).toBe("test-skill");
     });
 
+    it("should not sweep a committed project skills root (gitlabduo)", async () => {
+      // GitLab Duo reads project skills from the repository-root `skills/`,
+      // which routinely holds hand-authored skills rulesync never generated.
+      const processor = new SkillsProcessor({
+        logger: createMockLogger(),
+        outputRoot: testDir,
+        toolTarget: "gitlabduo",
+      });
+      await writeFileContent(
+        join(testDir, "skills", "hand-authored", "SKILL.md"),
+        "---\nname: hand-authored\ndescription: Test skill\n---\nContent",
+      );
+
+      expect(await processor.loadToolDirsToDelete()).toEqual([]);
+    });
+
+    it("should still sweep the global gitlabduo skills root", async () => {
+      const processor = new SkillsProcessor({
+        logger: createMockLogger(),
+        outputRoot: testDir,
+        toolTarget: "gitlabduo",
+        global: true,
+      });
+      await writeFileContent(
+        join(testDir, ".gitlab", "duo", "skills", "orphan", "SKILL.md"),
+        "---\nname: orphan\ndescription: Test skill\n---\nContent",
+      );
+
+      const dirsToDelete = await processor.loadToolDirsToDelete();
+
+      expect(dirsToDelete.map((dir) => dir.getDirName())).toEqual(["orphan"]);
+    });
+
     it("should report a skill directory whose name contains a backslash", async () => {
       // A `*` glob rewrites the backslash into a separator, so the candidate it
       // used to yield was `<root>/slash` — a directory that does not exist. The
@@ -2642,6 +2675,7 @@ Content that would fail parsing`;
           "deepagents",
           "factorydroid",
           "goose",
+          "gitlabduo",
           "grokcli",
           "junie",
           "kilo",
@@ -2703,6 +2737,7 @@ Content that would fail parsing`;
           "deepagents",
           "factorydroid",
           "goose",
+          "gitlabduo",
           "grokcli",
           "junie",
           "kilo",
@@ -2763,6 +2798,7 @@ Content that would fail parsing`;
           "deepagents",
           "factorydroid",
           "goose",
+          "gitlabduo",
           "grokcli",
           "junie",
           "kilo",
@@ -2832,6 +2868,7 @@ Content that would fail parsing`;
         "deepagents",
         "factorydroid",
         "hermesagent",
+        "gitlabduo",
         "grokcli",
         "junie",
         "kilo",
@@ -2889,6 +2926,7 @@ Content that would fail parsing`;
         "deepagents",
         "factorydroid",
         "hermesagent",
+        "gitlabduo",
         "grokcli",
         "junie",
         "kilo",

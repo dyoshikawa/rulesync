@@ -54,6 +54,7 @@ import { DeepagentsSkill } from "./deepagents-skill.js";
 import { DevinSkill } from "./devin-skill.js";
 import { DshSkill } from "./dsh-skill.js";
 import { FactorydroidSkill } from "./factorydroid-skill.js";
+import { GitlabduoSkill } from "./gitlabduo-skill.js";
 import { GooseSkill } from "./goose-skill.js";
 import { GrokcliSkill } from "./grokcli-skill.js";
 import { HermesagentSkill } from "./hermesagent-skill.js";
@@ -206,6 +207,22 @@ type ToolSkillFactory = {
      * {@link isAgentSkillsInteropRoot}) are always imported leniently.
      */
     lenientImport?: boolean;
+    /**
+     * Whether the upstream tool reads the project skills from the **committed**
+     * repository through a root too generic to ignore (GitLab Duo's top-level
+     * `skills/`). The gitignore derivation skips such outputs: a recursive entry
+     * for `skills/` would swallow every unrelated `skills` directory in the tree.
+     *
+     * The `--delete` orphan sweep also leaves the other skill directories in
+     * such a project root alone (stale files inside a skill directory this run
+     * generates are still cleaned up, as for any tool): a
+     * repository's top-level `skills/` routinely holds hand-authored skills
+     * (skill collections, skills distributed to other tools) that no
+     * `.rulesync/skills/` source accounts for, and nothing on disk tells them
+     * apart from a skill rulesync generated earlier. A stale generated skill
+     * there has to be removed by hand instead.
+     */
+    committedOutput?: boolean;
   };
 };
 
@@ -464,6 +481,26 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
     {
       class: HermesagentSkill,
       meta: { supportsProject: false, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "gitlabduo",
+    {
+      // GitLab Duo reads project skills from a top-level `skills/` directory
+      // (used by the GitLab UI flows too, from the committed repository) and
+      // user skills from `~/.gitlab/duo/skills/` (CLI only, behind
+      // `--enable-global-skills`).
+      // https://docs.gitlab.com/user/duo_agent_platform/customize/agent_skills/
+      class: GitlabduoSkill,
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: true,
+        // `skills/` is a common, unrelated directory name, so a malformed
+        // SKILL.md there is skipped on import rather than aborting the run.
+        lenientImport: true,
+        committedOutput: true,
+      },
     },
   ],
   [
@@ -1269,6 +1306,14 @@ export class SkillsProcessor extends DirFeatureProcessor {
 
   async loadToolDirsToDelete(): Promise<AiDir[]> {
     const factory = this.getFactory(this.toolTarget);
+    if (factory.meta.committedOutput === true && !this.global) {
+      // See `committedOutput`: the committed project root is shared with the
+      // user's own skills, so nothing in it is swept as an orphan.
+      this.logger.debug(
+        `Skipping the orphan sweep for ${this.toolTarget} skills: the project root is committed and user-owned`,
+      );
+      return [];
+    }
     const paths = factory.class.getSettablePaths({ global: this.global });
     const roots = toolSkillSearchRoots(paths);
 

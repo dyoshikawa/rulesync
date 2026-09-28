@@ -449,7 +449,7 @@ export class AgentsSkillsSkill extends ToolSkill {
     global = false,
     logger,
   }: ToolSkillFromRulesyncSkillParams): AgentsSkillsSkill {
-    const settablePaths = AgentsSkillsSkill.getSettablePaths({ global });
+    const settablePaths = this.getSettablePaths({ global });
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
     const dirName = rulesyncSkill.getDirName();
 
@@ -517,7 +517,7 @@ export class AgentsSkillsSkill extends ToolSkill {
   static async fromDir(params: ToolSkillFromDirParams): Promise<AgentsSkillsSkill> {
     const loaded = await this.loadSkillDirContent({
       ...params,
-      getSettablePaths: AgentsSkillsSkill.getSettablePaths,
+      getSettablePaths: (options) => this.getSettablePaths(options),
     });
 
     const result = AgentsSkillsSkillFrontmatterSchema.safeParse(loaded.frontmatter);
@@ -546,7 +546,7 @@ export class AgentsSkillsSkill extends ToolSkill {
     dirName,
     global = false,
   }: ToolSkillForDeletionParams): AgentsSkillsSkill {
-    const settablePaths = AgentsSkillsSkill.getSettablePaths({ global });
+    const settablePaths = this.getSettablePaths({ global });
     return new this({
       outputRoot,
       relativeDirPath: relativeDirPath ?? settablePaths.relativeDirPath,
