@@ -1503,6 +1503,7 @@ Second global content`;
           "tabnine",
           "takt",
           "vibe",
+          "zcode",
         ]),
       );
       expect(Array.isArray(subagentsProcessorToolTargets)).toBe(true);

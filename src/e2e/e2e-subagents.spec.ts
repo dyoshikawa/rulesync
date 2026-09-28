@@ -174,6 +174,10 @@ const subagentsGenerateTargets = [
     target: "hermesagent",
     outputPath: join(".hermes", "rulesync", "subagents", "planner.json"),
   },
+  {
+    target: "zcode",
+    outputPath: join(".zcode", "agents", "planner.md"),
+  },
 ] as const;
 
 const subagentsGlobalTargets = [

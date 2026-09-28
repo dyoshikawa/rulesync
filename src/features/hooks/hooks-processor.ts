@@ -1060,13 +1060,12 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
   [
     "zcode",
     {
-      // ZCode hooks live under the `hooks` key of its user config file,
-      // `~/.zcode/cli/config.json`, with the event map nested under
-      // `hooks.events`. ZCode never executes workspace config hooks — the
-      // workspace file is ignored regardless of `hooks.enabled` — so rulesync
-      // treats ZCode hooks as global-only.
+      // ZCode hooks live under the `hooks` key of its config file —
+      // `<project>/.zcode/config.json` (workspace) or `~/.zcode/cli/config.json`
+      // (user) — with the event map nested under `hooks.events`. Workspace
+      // hooks run once the user trusts them in ZCode.
       class: ZcodeHooks,
-      meta: { supportsProject: false, supportsGlobal: true, supportsImport: true },
+      meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
       supportedEvents: ZCODE_HOOK_EVENTS,
       supportedHookTypes: ["command"],
       supportsMatcher: true,

@@ -426,6 +426,7 @@ rulesync.local.jsonc
 **/.tabnine/agent/agents/
 **/.takt/facets/personas/
 **/.vibe/agents/
+**/.zcode/agents/
 **/.ai/mcp/mcp.json
 **/.agents/mcp_config.json
 **/.augment/settings.json

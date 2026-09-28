@@ -43,25 +43,25 @@ export const ZCODE_GLOBAL_CONFIG_DIR_PATH = join(ZCODE_DIR, "cli");
 export const ZCODE_MCP_CONFIG_KEY = "mcp";
 export const ZCODE_MCP_SERVERS_KEY = "servers";
 
-// Hooks live under the `hooks` key of ZCode's user config.json (the same
-// file as MCP servers), with the event map nested one level further under
-// `hooks.events`: `{ enabled?: boolean, timeoutMs?: number, events: { <Event>: [...] } }`.
-// Workspace config hooks are never executed — the workspace file is ignored
-// regardless of `hooks.enabled` — so rulesync treats ZCode hooks as
-// global-only. Configuration-file hooks are disabled by default and must
-// state `enabled: true` to run. `enabled` and `timeoutMs` are user-tunable
-// siblings of `events`, so rulesync replaces `events` and carries the
-// siblings over.
+// Hooks live under the `hooks` key of ZCode's config.json (the same files as
+// MCP servers: `<project>/.zcode/config.json` and `~/.zcode/cli/config.json`),
+// with the event map nested one level further under `hooks.events`:
+// `{ enabled?: boolean, timeoutMs?: number, events: { <Event>: [...] } }`.
+// Workspace hooks run only after the user trusts them in ZCode (the v3.8.1
+// changelog announces workspace-level hooks; the hooks docs page still says
+// they are ignored, but the v3.14.3 runtime executes trusted ones).
+// Configuration-file hooks are disabled by default and must state
+// `enabled: true` to run. `enabled` and `timeoutMs` are user-tunable siblings
+// of `events`, so rulesync replaces `events` and carries the siblings over.
 // @see https://zcode.z.ai/en/docs
+// @see https://zcode.z.ai/en/changelog
 export const ZCODE_HOOKS_CONFIG_KEY = "hooks";
 export const ZCODE_HOOKS_EVENTS_KEY = "events";
 
 // Subagents: Markdown files with YAML frontmatter, one per subagent, named
-// after the agent. Global scope only — the current Beta "manages global /
-// user-level subagents stored under `~/.zcode/agents/`", and creating
-// workspace / project-level subagents "is not available yet", so rulesync
-// writes this path under the home directory and emits nothing for a project.
-// The relative path is still spelled against `.zcode/` so it lines up with
-// every other ZCode asset if the workspace scope ships later.
+// after the agent, under `<project>/.zcode/agents/` and `~/.zcode/agents/`.
+// The docs describe only the user directory (the Settings UI manages
+// user-level subagents), but the agent runtime also loads the project one —
+// observed in the v3.14.3 runtime, not yet documented.
 // @see https://zcode.z.ai/en/docs/subagents
 export const ZCODE_AGENTS_DIR_PATH = join(ZCODE_DIR, "agents");
