@@ -54,7 +54,8 @@ skill. It records products that are not targets yet but were worth re-checking,
 each with the condition that would change that. Evaluate every entry in the same
 run: promote one whose condition is met to a target proposal (a GitHub issue,
 after the duplicate check in Step 4-1) and remove it from the file, retire an
-entry that can no longer be met, and leave the rest. Report which entries were
+entry that can no longer be met, and leave the rest with their rows' current
+figures refreshed from this re-check. Report which entries were
 promoted, retired or left in the final report.
 
 ## Step 2: Launch One Research Subagent per Target Tool
