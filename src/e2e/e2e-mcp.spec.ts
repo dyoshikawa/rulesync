@@ -926,7 +926,7 @@ describe("E2E: mcp (import)", () => {
 const mcpGlobalTargets = [
   { target: "aiassistant", outputPath: join(".ai", "mcp", "mcp.json") },
   { target: "augmentcode", outputPath: join(".augment", "settings.json") },
-  { target: "bob", outputPath: join(".bob", "mcp.json") },
+  { target: "bob", outputPath: join(".bob", "settings", "mcp.json") },
   { target: "continue", outputPath: join(".continue", "mcpServers", "mcp.json") },
   { target: "tabnine", outputPath: join(".tabnine", "agent", "settings.json") },
   { target: "claudecode", outputPath: ".claude.json" },

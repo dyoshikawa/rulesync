@@ -1,6 +1,10 @@
 import { join } from "node:path";
 
-import { BOB_DIR, BOB_MCP_FILE_NAME } from "../../constants/bob-paths.js";
+import {
+  BOB_DIR,
+  BOB_GLOBAL_SETTINGS_DIR_PATH,
+  BOB_MCP_FILE_NAME,
+} from "../../constants/bob-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { isMcpServers, type McpServers } from "../../types/mcp.js";
 import { formatError } from "../../utils/error.js";
@@ -291,8 +295,8 @@ function convertFromBobFormat(mcpServers: unknown): McpServers {
  * IBM Bob MCP configuration.
  *
  * Bob IDE reads `mcpServers` from `<project>/.bob/mcp.json` (project scope)
- * and `~/.bob/mcp.json` (user scope); the project entry wins when both define
- * the same server name. Both files are dedicated to MCP. The project one is
+ * and `~/.bob/settings/mcp.json` (user scope); the project entry wins when
+ * both define the same server name. Both files are dedicated to MCP. The project one is
  * deletable; the user one is created and edited by Bob IDE's own MCP settings
  * UI, so `--delete` leaves it in place rather than removing a file the user
  * did not create through rulesync. (Bob Shell reads its user-scoped servers
@@ -323,9 +327,9 @@ export class BobMcp extends ToolMcp {
     return !this.global;
   }
 
-  static getSettablePaths(_options: { global?: boolean } = {}): ToolMcpSettablePaths {
+  static getSettablePaths({ global = false }: { global?: boolean } = {}): ToolMcpSettablePaths {
     return {
-      relativeDirPath: BOB_DIR,
+      relativeDirPath: global ? BOB_GLOBAL_SETTINGS_DIR_PATH : BOB_DIR,
       relativeFilePath: BOB_MCP_FILE_NAME,
     };
   }
