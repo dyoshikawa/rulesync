@@ -105,6 +105,9 @@ describe("anchorDotPaths", () => {
     // Options of a prefix word come before the command word.
     ["time -p node ./x.js", `time -p node "${VAR}"/x.js`],
     ["exec -a name ./x.sh", `exec -a name "${VAR}"/x.sh`],
+    // `env` runs the command after its assignments.
+    ["env FOO=1 ./x.sh", `env FOO=1 "${VAR}"/x.sh`],
+    ["env FOO=1 BAR=2 node ./x.js", `env FOO=1 BAR=2 node "${VAR}"/x.js`],
     // An escaped command name still runs that command.
     ["\\node ./x.js", `\\node "${VAR}"/x.js`],
     // A quote on the next line is a new command, not a `-c` script.
@@ -182,6 +185,9 @@ describe("anchorDotPaths", () => {
     // A `-c` script handed to another command runs elsewhere, if at all.
     "sudo sh -c 'node ./x.js'",
     "env -i sh -c './x.sh'",
+    // `env` options are not followed: `-u` takes a value, `-C` changes directory.
+    "env -u NAME ./x.sh",
+    "env -C sub ./x.sh",
     "find . -execdir sh -c './fix.sh' \\;",
     "echo bash -c './x'",
     "\\sudo sh -c './x.sh'",
@@ -282,7 +288,24 @@ describe("stripProjectDirVariable", () => {
       expect(importProjectDirVariable({ command, projectDirVar: VAR })).toEqual({
         command: expected,
         unrestored: false,
+        retained: true,
       });
+    },
+  );
+
+  it.each([
+    [`${VAR}/a.sh`, false, false],
+    [`node ${VAR}/x.js`, false, false],
+    [`'${VAR}/x'`, false, false],
+    [`${VAR}/a.sh && cd sub && ${VAR}/b.sh`, false, true],
+    [`${VAR}/a.ps1 --config ${VAR}/c.json`, true, true],
+    [`${VAR}/a.ps1`, true, false],
+  ])(
+    "should report whether %s keeps a variable (first word only: %s): %s",
+    (command, firstWordOnly, expected) => {
+      expect(
+        importProjectDirVariable({ command, projectDirVar: VAR, firstWordOnly }).retained,
+      ).toBe(expected);
     },
   );
 
