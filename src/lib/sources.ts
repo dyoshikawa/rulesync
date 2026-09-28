@@ -1409,12 +1409,30 @@ function groupRemoteFilesBySkillRoot(params: {
 // ---------------------------------------------------------------------------
 
 /**
+ * Resolve a git-transport source to the commit it points at now: the declared
+ * `ref`, or the remote's default branch when none is declared. Used by
+ * `install --update` (and unlocked installs) and by `install --outdated`.
+ */
+export async function resolveGitSourceRef(
+  sourceEntry: SourceEntry,
+): Promise<{ requestedRef: string; resolvedSha: string }> {
+  if (sourceEntry.ref) {
+    return {
+      requestedRef: sourceEntry.ref,
+      resolvedSha: await resolveRefToSha(sourceEntry.source, sourceEntry.ref),
+    };
+  }
+  const defaultRef = await resolveDefaultRef(sourceEntry.source);
+  return { requestedRef: defaultRef.ref, resolvedSha: defaultRef.sha };
+}
+
+/**
  * Resolve a GitHub source's ref to a commit SHA, preferring the locked SHA for
  * deterministic fetches and otherwise resolving the declared ref or default
  * branch. Returns the on-disk `ref` (SHA when freshly resolved, else locked
  * ref), the resolved SHA, and the requested ref.
  */
-async function resolveGithubFetchRef(params: {
+export async function resolveGithubFetchRef(params: {
   parsed: ParsedSource;
   locked: LockedSource | undefined;
   updateSources: boolean;
@@ -1723,13 +1741,8 @@ async function fetchRulesViaGit(params: {
     resolvedRef = locked.resolvedRef;
     requestedRef = locked.requestedRef;
     if (requestedRef) validateRef(requestedRef);
-  } else if (sourceEntry.ref) {
-    requestedRef = sourceEntry.ref;
-    resolvedRef = await resolveRefToSha(sourceKey, requestedRef);
   } else {
-    const defaultRef = await resolveDefaultRef(sourceKey);
-    requestedRef = defaultRef.ref;
-    resolvedRef = defaultRef.sha;
+    ({ requestedRef, resolvedSha: resolvedRef } = await resolveGitSourceRef(sourceEntry));
   }
   const curatedDir = join(projectRoot, RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH);
   if (
@@ -2278,13 +2291,8 @@ async function fetchSourceViaGit(params: {
     if (requestedRef) {
       validateRef(requestedRef);
     }
-  } else if (sourceEntry.ref) {
-    requestedRef = sourceEntry.ref;
-    resolvedSha = await resolveRefToSha(url, requestedRef);
   } else {
-    const def = await resolveDefaultRef(url);
-    requestedRef = def.ref;
-    resolvedSha = def.sha;
+    ({ requestedRef, resolvedSha } = await resolveGitSourceRef(sourceEntry));
   }
 
   const curatedDir = join(projectRoot, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
@@ -2447,7 +2455,7 @@ function npmPackageBaseName(packageName: string): string {
  * available (deterministic re-fetch), otherwise the declared `ref` (exact
  * version or dist-tag, defaulting to "latest") resolved via the packument.
  */
-function resolveNpmFetchVersion(params: {
+export function resolveNpmFetchVersion(params: {
   sourceEntry: SourceEntry;
   locked: NpmLockedSource | undefined;
   updateSources: boolean;
