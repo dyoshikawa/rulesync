@@ -3,11 +3,7 @@ import { join } from "node:path";
 import { parse as parseJsonc } from "jsonc-parser";
 import { z } from "zod/mini";
 
-import {
-  OPENCODE_GLOBAL_DIR,
-  OPENCODE_JSON_FILE_NAME,
-  OPENCODE_JSONC_FILE_NAME,
-} from "../../constants/opencode-paths.js";
+import { OPENCODE_LAYOUT, type OpencodeLayout } from "../../constants/opencode-paths.js";
 import type { AiFileParams } from "../../types/ai-file.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import type {
@@ -157,6 +153,9 @@ const OpencodePermissionsConfigSchema = z.looseObject({
 type OpencodePermissionsConfig = z.infer<typeof OpencodePermissionsConfigSchema>;
 
 export class OpencodePermissions extends ToolPermissions {
+  /** Directory layout; OpenCode forks (MiMo Code) override it. */
+  protected static readonly layout: OpencodeLayout = OPENCODE_LAYOUT;
+
   private readonly json: OpencodePermissionsConfig;
 
   constructor(params: AiFileParams) {
@@ -175,9 +174,10 @@ export class OpencodePermissions extends ToolPermissions {
   static getSettablePaths({
     global = false,
   }: { global?: boolean } = {}): ToolPermissionsSettablePaths {
-    return global
-      ? { relativeDirPath: OPENCODE_GLOBAL_DIR, relativeFilePath: OPENCODE_JSON_FILE_NAME }
-      : { relativeDirPath: ".", relativeFilePath: OPENCODE_JSON_FILE_NAME };
+    return {
+      relativeDirPath: global ? this.layout.globalDir : this.layout.configDir,
+      relativeFilePath: this.layout.jsonFileName,
+    };
   }
 
   static async fromFile({
@@ -185,19 +185,19 @@ export class OpencodePermissions extends ToolPermissions {
     validate = true,
     global = false,
   }: ToolPermissionsFromFileParams): Promise<OpencodePermissions> {
-    const basePaths = OpencodePermissions.getSettablePaths({ global });
+    const basePaths = this.getSettablePaths({ global });
     const jsonDir = join(outputRoot, basePaths.relativeDirPath);
 
-    const jsoncPath = join(jsonDir, OPENCODE_JSONC_FILE_NAME);
-    const jsonPath = join(jsonDir, OPENCODE_JSON_FILE_NAME);
+    const jsoncPath = join(jsonDir, this.layout.jsoncFileName);
+    const jsonPath = join(jsonDir, this.layout.jsonFileName);
 
     let fileContent = await readFileContentOrNull(jsoncPath);
-    let relativeFilePath = OPENCODE_JSONC_FILE_NAME;
+    let relativeFilePath = this.layout.jsoncFileName;
 
     if (!fileContent) {
       fileContent = await readFileContentOrNull(jsonPath);
       if (fileContent) {
-        relativeFilePath = OPENCODE_JSON_FILE_NAME;
+        relativeFilePath = this.layout.jsonFileName;
       }
     }
 
@@ -213,7 +213,7 @@ export class OpencodePermissions extends ToolPermissions {
       permission: Object.hasOwn(record, "permission") ? (record.permission ?? {}) : {},
     };
 
-    return new OpencodePermissions({
+    return new this({
       outputRoot,
       relativeDirPath: basePaths.relativeDirPath,
       relativeFilePath,
@@ -228,19 +228,19 @@ export class OpencodePermissions extends ToolPermissions {
     logger,
     global = false,
   }: ToolPermissionsFromRulesyncPermissionsParams): Promise<OpencodePermissions> {
-    const basePaths = OpencodePermissions.getSettablePaths({ global });
+    const basePaths = this.getSettablePaths({ global });
     const jsonDir = join(outputRoot, basePaths.relativeDirPath);
 
-    const jsoncPath = join(jsonDir, OPENCODE_JSONC_FILE_NAME);
-    const jsonPath = join(jsonDir, OPENCODE_JSON_FILE_NAME);
+    const jsoncPath = join(jsonDir, this.layout.jsoncFileName);
+    const jsonPath = join(jsonDir, this.layout.jsonFileName);
 
     let fileContent = await readFileContentOrNull(jsoncPath);
-    let relativeFilePath = OPENCODE_JSONC_FILE_NAME;
+    let relativeFilePath = this.layout.jsoncFileName;
 
     if (!fileContent) {
       fileContent = await readFileContentOrNull(jsonPath);
       if (fileContent) {
-        relativeFilePath = OPENCODE_JSON_FILE_NAME;
+        relativeFilePath = this.layout.jsonFileName;
       }
     }
 
@@ -249,7 +249,7 @@ export class OpencodePermissions extends ToolPermissions {
     // override wins per category, so an OpenCode-specific value (e.g. an
     // `external_directory` deny, or a `webfetch` value tuned only for OpenCode)
     // replaces the shared entry without affecting other tools' outputs.
-    const overridePermission = rulesyncJson.opencode?.permission ?? {};
+    const overridePermission = rulesyncJson[this.layout.toolTarget]?.permission ?? {};
 
     // Translate canonical category names into OpenCode's native permission keys
     // (`agent` → `task`) before emitting them, so subagent-launch gating is
@@ -270,7 +270,7 @@ export class OpencodePermissions extends ToolPermissions {
       permission[category] = opencodePermission;
     }
 
-    return new OpencodePermissions({
+    return new this({
       outputRoot,
       relativeDirPath: basePaths.relativeDirPath,
       relativeFilePath,
@@ -319,7 +319,12 @@ export class OpencodePermissions extends ToolPermissions {
 
     const json: PermissionsConfig =
       Object.keys(overrideOnly).length > 0
-        ? { permission: shared, opencode: { permission: overrideOnly } }
+        ? {
+            permission: shared,
+            [(this.constructor as typeof OpencodePermissions).layout.toolTarget]: {
+              permission: overrideOnly,
+            },
+          }
         : { permission: shared };
 
     return this.toRulesyncPermissionsDefault({
@@ -350,7 +355,7 @@ export class OpencodePermissions extends ToolPermissions {
     relativeDirPath,
     relativeFilePath,
   }: ToolPermissionsForDeletionParams): OpencodePermissions {
-    return new OpencodePermissions({
+    return new this({
       outputRoot,
       relativeDirPath,
       relativeFilePath,

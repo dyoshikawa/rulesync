@@ -1,10 +1,6 @@
 import { join } from "node:path";
 
-import {
-  OPENCODE_GLOBAL_DIR,
-  OPENCODE_JSON_FILE_NAME,
-  OPENCODE_JSONC_FILE_NAME,
-} from "../constants/opencode-paths.js";
+import { OPENCODE_LAYOUT, type OpencodeLayout } from "../constants/opencode-paths.js";
 import { readFileContentOrNull } from "../utils/file.js";
 import { parseSharedConfig } from "./shared/shared-config-gateway.js";
 
@@ -24,25 +20,29 @@ import { parseSharedConfig } from "./shared/shared-config-gateway.js";
 export function getOpencodeConfigDir({
   outputRoot,
   global = false,
+  layout = OPENCODE_LAYOUT,
 }: {
   outputRoot: string;
   global?: boolean;
+  layout?: OpencodeLayout;
 }): string {
-  return join(outputRoot, global ? OPENCODE_GLOBAL_DIR : ".");
+  return join(outputRoot, global ? layout.globalDir : layout.configDir);
 }
 
 export async function readOpencodeConfig({
   outputRoot,
   global = false,
+  layout = OPENCODE_LAYOUT,
 }: {
   outputRoot: string;
   global?: boolean;
+  layout?: OpencodeLayout;
 }): Promise<Record<string, unknown>> {
-  const configDir = getOpencodeConfigDir({ outputRoot, global });
+  const configDir = getOpencodeConfigDir({ outputRoot, global, layout });
 
   const fileContent =
-    (await readFileContentOrNull(join(configDir, OPENCODE_JSONC_FILE_NAME))) ??
-    (await readFileContentOrNull(join(configDir, OPENCODE_JSON_FILE_NAME)));
+    (await readFileContentOrNull(join(configDir, layout.jsoncFileName))) ??
+    (await readFileContentOrNull(join(configDir, layout.jsonFileName)));
 
   if (!fileContent) {
     return {};

@@ -36,6 +36,7 @@ const rulesRootTargets = [
   { target: "grokcli", outputPath: "AGENTS.md" },
   { target: "hermesagent", outputPath: ".hermes.md" },
   { target: "copilot", outputPath: join(".github", "copilot-instructions.md") },
+  { target: "mimocode", outputPath: "AGENTS.md" },
   { target: "opencode", outputPath: "AGENTS.md" },
   { target: "antigravity-cli", outputPath: "AGENTS.md" },
   { target: "antigravity-ide", outputPath: "AGENTS.md" },
@@ -1609,6 +1610,7 @@ describe("E2E: rules (import)", () => {
       sourcePath: join(".github", "copilot-instructions.md"),
       importedFileName: "copilot-instructions.md",
     },
+    { target: "mimocode", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     { target: "opencode", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     { target: "goose", sourcePath: ".goosehints", importedFileName: "overview.md" },
     {
@@ -1760,6 +1762,7 @@ const rulesGlobalTargets = [
   { target: "claudecode", outputPath: join(".claude", "CLAUDE.md") },
   { target: "codebuddy", outputPath: join(".codebuddy", "CODEBUDDY.md") },
   { target: "copilot", outputPath: join(".copilot", "copilot-instructions.md") },
+  { target: "mimocode", outputPath: join(".config", "mimocode", "AGENTS.md") },
   { target: "opencode", outputPath: join(".config", "opencode", "AGENTS.md") },
   { target: "codexcli", outputPath: join(".codex", "AGENTS.md") },
   { target: "commandcode", outputPath: join(".commandcode", "AGENTS.md") },
