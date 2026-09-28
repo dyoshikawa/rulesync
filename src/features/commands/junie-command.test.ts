@@ -349,11 +349,21 @@ describe("JunieCommand", () => {
       expect(command.getFrontmatter()).toEqual({ description: "Fix" });
     });
 
-    it("should let an explicit junie.allowPromptArgument take precedence", () => {
+    it("should keep $ARGUMENTS when junie.allowPromptArgument is explicitly false", () => {
       const command = generateCommand({ junie: { allowPromptArgument: false } }, "Fix $ARGUMENTS.");
 
-      expect(command.getBody()).toBe("Fix $prompt.");
+      expect(command.getBody()).toBe("Fix $ARGUMENTS.");
       expect(command.getFrontmatter()).toEqual({ description: "Fix", allowPromptArgument: false });
+    });
+
+    it("should keep $ARGUMENTS when the body already references $prompt", () => {
+      const command = generateCommand({}, "Use $prompt and $ARGUMENTS.");
+
+      expect(command.getBody()).toBe("Use $prompt and $ARGUMENTS.");
+      expect(command.getFrontmatter()).toEqual({ description: "Fix" });
+
+      const rulesyncCommand = command.toRulesyncCommand();
+      expect(rulesyncCommand.getBody()).toBe("Use $prompt and $ARGUMENTS.");
     });
 
     it("should round-trip $ARGUMENTS through generate and import", () => {

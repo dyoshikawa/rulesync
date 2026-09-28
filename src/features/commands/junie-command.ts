@@ -36,7 +36,9 @@ const JunieCommandFrontmatterSchema = z.looseObject({
  * `` !`cmd` `` is left verbatim: Junie documents no shell expansion.
  *
  * `$ARGUMENTS\b` uses a trailing word boundary so `$ARGUMENTSx` and
- * `$ARGUMENTS_FOO` (other named arguments) are left alone.
+ * `$ARGUMENTS_FOO` (other named arguments) are left alone, while
+ * `$ARGUMENTS-foo` and `$ARGUMENTS[0]` are rewritten (`-` and `[` are not
+ * word characters), matching the Tabnine translation.
  * @see https://junie.jetbrains.com/docs/custom-slash-commands.html
  */
 function translateRulesyncBodyToJunie(body: string): string {
@@ -148,10 +150,16 @@ export class JunieCommand extends ToolCommand {
     const junieFields = rulesyncFrontmatter.junie ?? {};
 
     // Rewrite `$ARGUMENTS` to Junie's free-form `$prompt` argument and enable
-    // it. An explicit `junie.allowPromptArgument` still wins, as the
+    // it. The rewrite is skipped when the body already references `$prompt`
+    // (a hand-written named argument that would otherwise merge with
+    // `$ARGUMENTS` and not round-trip) or when `junie.allowPromptArgument` is
+    // explicitly `false` (the `$prompt` would then be a named argument too).
+    // An explicit `junie.allowPromptArgument` always wins, as the
     // tool-specific block is spread last.
     const originalBody = rulesyncCommand.getBody();
-    const body = translateRulesyncBodyToJunie(originalBody);
+    const canTranslate =
+      junieFields.allowPromptArgument !== false && !/\$prompt\b/.test(originalBody);
+    const body = canTranslate ? translateRulesyncBodyToJunie(originalBody) : originalBody;
     const usesPromptArgument = body !== originalBody;
 
     const junieFrontmatter: JunieCommandFrontmatter = {
