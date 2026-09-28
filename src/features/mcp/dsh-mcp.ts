@@ -200,12 +200,8 @@ function assignRowIds({
   serverNames: string[];
   entries: unknown[];
 }): Map<string, string> {
-  // Ids already naming something else: other plugins' rows, and the ids that
-  // top-level patch entries target.
+  // Ids of other plugins' rows are never taken over.
   const usedIds = new Set<string>();
-  for (const entry of entries) {
-    if (isPlainObject(entry) && typeof entry.id === "string") usedIds.add(entry.id);
-  }
   for (const row of collectInsertRows(entries)) {
     if (row.name !== DSH_MCP_CLIENT_PLUGIN_NAME && typeof row.id === "string") usedIds.add(row.id);
   }
@@ -223,6 +219,12 @@ function assignRowIds({
     }
     existingIds.set(serverName, row.id);
     usedIds.add(row.id);
+  }
+  // Ids targeted by top-level patch entries are reserved only for fresh ids: a
+  // reused id is expected to be targeted (that is why it is kept), but a new
+  // row must not silently pick up a patch meant for something else.
+  for (const entry of entries) {
+    if (isPlainObject(entry) && typeof entry.id === "string") usedIds.add(entry.id);
   }
   const ids = new Map(existingIds);
   for (const serverName of serverNames) {

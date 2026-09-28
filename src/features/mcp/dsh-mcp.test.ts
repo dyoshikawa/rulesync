@@ -263,6 +263,30 @@ describe("DshMcp", () => {
     expect(dshMcp.getFileContent()).toBe(["- id: tools-group", "  disabled: true", ""].join("\n"));
   });
 
+  it("keeps a reused id that a top-level patch entry targets", async () => {
+    await writeFileContent(
+      join(testDir, ...PATCH_PATH),
+      [
+        "- insert:",
+        "    - id: mcp-a",
+        "      name: '@deepseek-ai/dsh-mcp-client'",
+        "      config: { serverName: a, transport: stdio, command: old }",
+        "- id: mcp-a",
+        "  disabled: true",
+      ].join("\n"),
+    );
+    const rulesyncMcp = createRulesyncMcp(testDir, { a: { command: "a" } });
+
+    const dshMcp = await DshMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp, global: true });
+
+    const [entry, patch] = load(dshMcp.getFileContent()) as Array<{
+      id?: string;
+      insert?: Array<{ id: string }>;
+    }>;
+    expect(entry?.insert?.map((row) => row.id)).toEqual(["mcp-a"]);
+    expect(patch).toEqual({ id: "mcp-a", disabled: true });
+  });
+
   it("never writes two rows with the same id", async () => {
     await writeFileContent(
       join(testDir, ...PATCH_PATH),
