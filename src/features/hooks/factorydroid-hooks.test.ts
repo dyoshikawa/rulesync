@@ -245,6 +245,34 @@ describe("FactorydroidHooks", () => {
       );
     });
 
+    it("should anchor later words of a hook marked for PowerShell, since Droid has no shell field", async () => {
+      await ensureDir(join(testDir, ".factory"));
+      await writeFileContent(join(testDir, ".factory", "settings.json"), JSON.stringify({}));
+
+      const config = {
+        version: 1,
+        hooks: {
+          sessionStart: [{ type: "command", command: "node ./x.js", shell: "powershell" }],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const factorydroidHooks = await FactorydroidHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const parsed = JSON.parse(factorydroidHooks.getFileContent());
+      expect(parsed.SessionStart[0].hooks[0].command).toBe('node "$FACTORY_PROJECT_DIR"/x.js');
+    });
+
     it("should not prefix commands that already start with $", async () => {
       await ensureDir(join(testDir, ".factory"));
       await writeFileContent(join(testDir, ".factory", "settings.json"), JSON.stringify({}));

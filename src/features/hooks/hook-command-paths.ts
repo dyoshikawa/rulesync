@@ -447,7 +447,7 @@ function optionsFor({
 
 /**
  * Words that may precede the command word of a simple command without being
- * it: reserved words and builtins that run the command that follows.
+ * it: reserved words, builtins and `env`, which run the command that follows.
  */
 const COMMAND_PREFIX_WORDS = new Set([
   "!",
@@ -464,6 +464,7 @@ const COMMAND_PREFIX_WORDS = new Set([
   "command",
   "builtin",
   "nohup",
+  "env",
 ]);
 
 /** Longest word prefix `wordText` reads. */
@@ -641,6 +642,13 @@ function consumePrefixWord({ state, text }: { state: WalkState; text: string }):
     state.prefix = text;
     return true;
   }
+  if (state.prefix === "env" && text.startsWith("-")) {
+    // `env` options may take a value (`-u NAME`), change the directory the
+    // command runs in (`-C dir`) or split a string into words (`-S`), so the
+    // command they lead to is not followed.
+    state.expecting = "none";
+    return true;
+  }
   if (state.prefix !== undefined && text.startsWith("-")) {
     state.prefixValue = state.prefix === "exec" && /^-[A-Za-z]*a$/.test(text);
     return true;
@@ -774,7 +782,10 @@ export function stripProjectDirVariable(options: {
  * written, so it is then resolved against the hook's working directory, which
  * need not be the project root (a worktree, or the target of an earlier `cd`).
  * `unrestored` is true when the command has such a path, so the caller can
- * report it.
+ * report it. `retained` is true when the variable is kept in an assignment or
+ * option value, or after the first word of a command whose later words are
+ * not converted, so the caller can report that the tool-specific variable
+ * stays in the imported command.
  *
  * Left untouched: an escaped `\$VAR`, a longer name such as `$VAR_2`, a bare
  * `$VAR` not followed by `/`, a variable that does not start a path (`a:$VAR/x`),
@@ -793,7 +804,7 @@ export function importProjectDirVariable({
   projectDirVar: string;
   /** Convert only a variable that starts the command. */
   firstWordOnly?: boolean;
-}): { command: string; unrestored: boolean } {
+}): { command: string; unrestored: boolean; retained: boolean } {
   const escapedName = escapeRegExp(projectDirVar.replace(/^\$/, ""));
   const variable = `\\$(?:${escapedName}|\\{${escapedName}\\})`;
   const pattern = new RegExp(`(?:"${variable}"/(["']?)|${variable}/)`, "g");
@@ -827,15 +838,18 @@ export function importProjectDirVariable({
 
   // Where each converted later `./` starts in the result.
   const converted: number[] = [];
+  let retained = false;
   let shift = 0;
   const result = command.replace(
     pattern,
     (match: string, quote: string | undefined, offset: number) => {
       const firstWordMatch = inFirstWord(offset);
-      if (!laterWords && !firstWordMatch) return match;
-      if (!firstWordMatch && followsAssignment(offset)) return match;
       const kind = scan.starts.get(offset);
       if ((kind !== "plain" && kind !== "double") || inIdleScript(offset)) return match;
+      if (!firstWordMatch && (!laterWords || followsAssignment(offset))) {
+        retained = true;
+        return match;
+      }
       const moved = quote && !scriptEnds.has(offset + match.length - 1) ? quote : "";
       const replacement = `${moved}./${quote?.slice(moved.length) ?? ""}`;
       if (!firstWordMatch) converted.push(offset + shift + moved.length);
@@ -849,5 +863,5 @@ export function importProjectDirVariable({
     converted.length > 0
       ? findCommandPaths({ command: result, scan: scanCommand(result) })
       : { toAnchor: new Set<number>() };
-  return { command: result, unrestored: converted.some((at) => !toAnchor.has(at)) };
+  return { command: result, unrestored: converted.some((at) => !toAnchor.has(at)), retained };
 }
