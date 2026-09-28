@@ -355,6 +355,13 @@ type ToolRuleFactory = {
      * while the project one is referenced from the root file).
      */
     ruleDiscoveryModeGlobal?: RuleDiscoveryMode;
+    /**
+     * The global non-root directory is shared with files rulesync did not
+     * write and is read only at its top level by the tool (e.g. Antigravity's
+     * `~/.gemini/config/rules/`). Global import then scans only top-level
+     * files and skips an unreadable one with a warning instead of failing.
+     */
+    sharedGlobalNonRootDir?: boolean;
     /** Configuration for additional convention paths in the root rule */
     additionalConventions?: AdditionalConventionsConfig;
     /** Whether to create a separate rule file for additional conventions instead of prepending to root */
@@ -456,6 +463,7 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         supportsGlobal: true,
         ruleDiscoveryMode: "toon",
         ruleDiscoveryModeGlobal: "auto",
+        sharedGlobalNonRootDir: true,
       },
     },
   ],
@@ -3188,9 +3196,12 @@ As this project's AI coding tool, you must follow the additional conventions bel
         }
 
         const nonRootOutputRoot = join(this.outputRoot, settablePaths.nonRoot.relativeDirPath);
-        const nonRootFilePaths = await findFilesByGlobs(`**/*.${factory.meta.extension}`, {
-          cwd: nonRootOutputRoot,
-        });
+        const isSharedGlobalNonRootDir =
+          this.global && factory.meta.sharedGlobalNonRootDir === true;
+        const nonRootFilePaths = await findFilesByGlobs(
+          `${isSharedGlobalNonRootDir ? "" : "**/"}*.${factory.meta.extension}`,
+          { cwd: nonRootOutputRoot },
+        );
 
         if (forDeletion) {
           return buildDeletionRulesFromPaths(nonRootFilePaths, {
@@ -3230,21 +3241,34 @@ As this project's AI coding tool, you must follow the additional conventions bel
             relative(nonRootOutputRoot, filePath) !== rootFileNameInSameDir,
         );
 
-        return await Promise.all(
-          nonRootPathsForImport.map((filePath) => {
+        const loadedNonRootRules = await Promise.all(
+          nonRootPathsForImport.map(async (filePath) => {
             const relativeFilePath = relative(nonRootOutputRoot, filePath);
             checkPathTraversal({
               relativePath: relativeFilePath,
               intendedRootDir: nonRootOutputRoot,
             });
-            return factory.class.fromFile({
-              outputRoot: this.outputRoot,
-              relativeDirPath: modularRootRelative,
-              relativeFilePath,
-              global: this.global,
-            });
+            try {
+              return await factory.class.fromFile({
+                outputRoot: this.outputRoot,
+                relativeDirPath: modularRootRelative,
+                relativeFilePath,
+                global: this.global,
+              });
+            } catch (error) {
+              // A shared directory holds files other writers own, so one of
+              // them being unreadable must not abort the whole import.
+              if (!isSharedGlobalNonRootDir) {
+                throw error;
+              }
+              this.logger.warn(
+                `Skipping ${stripControlCharacters(join(modularRootRelative, relativeFilePath))} for ${this.toolTarget}: ${formatError(error)}`,
+              );
+              return undefined;
+            }
           }),
         );
+        return loadedNonRootRules.filter((rule): rule is ToolRule => rule !== undefined);
       })();
       this.logger.debug(`Found ${nonRootToolRules.length} non-root tool rule files`);
 

@@ -381,7 +381,7 @@ describe("AntigravityCliRule", () => {
   });
 
   describe("validate", () => {
-    it("should always return success", () => {
+    it("should always return success for project-scope rules", () => {
       const cliRule = new AntigravityCliRule({
         relativeDirPath: ".",
         relativeFilePath: "GEMINI.md",
