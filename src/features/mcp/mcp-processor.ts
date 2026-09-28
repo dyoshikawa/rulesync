@@ -42,6 +42,7 @@ import { KimiCodeMcp } from "./kimi-code-mcp.js";
 import { KiroMcp } from "./kiro-mcp.js";
 import { MimocodeMcp } from "./mimocode-mcp.js";
 import { MusecodeMcp } from "./musecode-mcp.js";
+import { OmpMcp } from "./omp-mcp.js";
 import { OpencodeMcp } from "./opencode-mcp.js";
 import { PoolMcp } from "./pool-mcp.js";
 import { QwencodeMcp } from "./qwencode-mcp.js";
@@ -633,6 +634,18 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
       class: MusecodeMcp,
       meta: {
         supportsProject: false,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
+    "omp",
+    {
+      class: OmpMcp,
+      meta: {
+        supportsProject: true,
         supportsGlobal: true,
         supportsEnabledTools: false,
         supportsDisabledTools: false,

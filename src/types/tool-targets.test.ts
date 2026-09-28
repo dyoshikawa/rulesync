@@ -52,6 +52,7 @@ describe("tool targets", () => {
         "kiro-ide",
         "musecode",
         "mimocode",
+        "omp",
         "opencode",
         "openclaw",
         "pi",

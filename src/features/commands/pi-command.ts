@@ -2,7 +2,7 @@ import { join } from "node:path";
 
 import { z } from "zod/mini";
 
-import { PI_AGENT_PROMPTS_DIR_PATH, PI_PROMPTS_DIR_PATH } from "../../constants/pi-paths.js";
+import { PI_LAYOUT, type PiLayout } from "../../constants/pi-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
@@ -45,6 +45,9 @@ export type PiCommandParams = {
  * with rulesync command bodies, so the body is passed through verbatim.
  */
 export class PiCommand extends ToolCommand {
+  /** Directory layout; Pi forks (oh-my-pi) override it. */
+  protected static readonly layout: PiLayout = PI_LAYOUT;
+
   private readonly frontmatter: PiCommandFrontmatter;
   private readonly body: string;
 
@@ -77,13 +80,9 @@ export class PiCommand extends ToolCommand {
   }
 
   static getSettablePaths({ global }: { global?: boolean } = {}): ToolCommandSettablePaths {
-    if (global) {
-      return {
-        relativeDirPath: PI_AGENT_PROMPTS_DIR_PATH,
-      };
-    }
+    const root = global ? this.layout.globalDir : this.layout.dir;
     return {
-      relativeDirPath: PI_PROMPTS_DIR_PATH,
+      relativeDirPath: join(root, this.layout.commandsDirName),
     };
   }
 
@@ -101,9 +100,11 @@ export class PiCommand extends ToolCommand {
     const rulesyncFrontmatter: RulesyncCommandFrontmatter = {
       targets: ["*"],
       description,
-      // Preserve Pi-specific fields (e.g. `argument-hint`) under a `pi:`
-      // section so round-trips retain tool-specific metadata.
-      ...(Object.keys(restFields).length > 0 && { pi: restFields }),
+      // Preserve Pi-specific fields (e.g. `argument-hint`) under the
+      // tool-scoped section (`pi:` / `omp:`) so round-trips retain tool-specific metadata.
+      ...(Object.keys(restFields).length > 0 && {
+        [(this.constructor as typeof PiCommand).layout.toolTarget]: restFields,
+      }),
     };
 
     const fileContent = stringifyFrontmatter(this.body, rulesyncFrontmatter);
@@ -126,7 +127,7 @@ export class PiCommand extends ToolCommand {
     global = false,
   }: ToolCommandFromRulesyncCommandParams): PiCommand {
     const rulesyncFrontmatter = rulesyncCommand.getFrontmatter();
-    const piFields = rulesyncFrontmatter.pi ?? {};
+    const piFields = rulesyncFrontmatter[this.layout.toolTarget] ?? {};
 
     const piFrontmatter: PiCommandFrontmatter = {
       ...(rulesyncFrontmatter.description !== undefined && {
@@ -137,7 +138,7 @@ export class PiCommand extends ToolCommand {
 
     const paths = this.getSettablePaths({ global });
 
-    return new PiCommand({
+    return new this({
       outputRoot,
       frontmatter: piFrontmatter,
       body: rulesyncCommand.getBody(),
@@ -166,7 +167,7 @@ export class PiCommand extends ToolCommand {
   static isTargetedByRulesyncCommand(rulesyncCommand: RulesyncCommand): boolean {
     return this.isTargetedByRulesyncCommandDefault({
       rulesyncCommand,
-      toolTarget: "pi",
+      toolTarget: this.layout.toolTarget,
     });
   }
 
@@ -186,7 +187,7 @@ export class PiCommand extends ToolCommand {
       throw new Error(`Invalid frontmatter in ${filePath}: ${formatError(result.error)}`);
     }
 
-    return new PiCommand({
+    return new this({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath,
@@ -201,7 +202,7 @@ export class PiCommand extends ToolCommand {
     relativeDirPath,
     relativeFilePath,
   }: ToolCommandForDeletionParams): PiCommand {
-    return new PiCommand({
+    return new this({
       outputRoot,
       relativeDirPath,
       relativeFilePath,

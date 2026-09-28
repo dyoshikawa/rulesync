@@ -138,6 +138,7 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 | Warp                      |  ✅   |   ✅   | ✅  |    ✅    |           |   ✅   |       |     ✅      |        |
 | Replit                    |  ✅   |        |     |          |           |   ✅   |       |             |        |
 | Pi Coding Agent           |  ✅   |        |     |    ✅    |           |   ✅   |  ✅   |     ✅      |        |
+| oh-my-pi                  |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |       |             |        |
 | Zed                       |  ✅   |   ✅   | ✅  |          |           |   ✅   |       |     ✅      |        |
 | ZCode (Z.ai)              |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |             |        |
 | Pool (Poolside)           |  ✅   |        | ✅  |          |    ✅     |   ✅   |  ✅   |     ✅      |        |
