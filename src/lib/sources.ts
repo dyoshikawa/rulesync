@@ -1414,7 +1414,7 @@ function groupRemoteFilesBySkillRoot(params: {
  * branch. Returns the on-disk `ref` (SHA when freshly resolved, else locked
  * ref), the resolved SHA, and the requested ref.
  */
-async function resolveGithubFetchRef(params: {
+export async function resolveGithubFetchRef(params: {
   parsed: ParsedSource;
   locked: LockedSource | undefined;
   updateSources: boolean;

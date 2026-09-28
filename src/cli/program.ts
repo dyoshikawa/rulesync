@@ -252,6 +252,10 @@ export function createProgram(): Command {
       "--frozen",
       "Fail if lockfile is missing or out of sync (for CI); fetches missing skills using locked refs",
     )
+    .option(
+      "--outdated",
+      "Report sources whose lockfile entry is behind the remote without writing anything (exit 1 if any, 2 if a source cannot be resolved)",
+    )
     .option("--token <token>", "GitHub token for private repos")
     .option("-c, --config <path>", "Path to configuration file")
     .option("-V, --verbose", "Verbose output")
@@ -264,6 +268,7 @@ export function createProgram(): Command {
           mode,
           update: (options as { update?: boolean }).update,
           frozen: (options as { frozen?: boolean }).frozen,
+          outdated: (options as { outdated?: boolean }).outdated,
           token: (options as { token?: string }).token,
           configPath: (options as { config?: string }).config,
           verbose: (options as { verbose?: boolean }).verbose,

@@ -61,6 +61,10 @@ rulesync install --update
 # Fail if lockfile is missing or out of sync (for CI); fetch missing artifacts using locked refs
 rulesync install --frozen
 
+# Report sources whose lockfile entry is behind the remote, without writing anything
+# (exit 1 if any is behind, 2 if a source cannot be resolved)
+rulesync install --outdated
+
 # Install then generate (typical workflow)
 rulesync install && rulesync generate
 

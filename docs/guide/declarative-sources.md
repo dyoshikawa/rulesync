@@ -209,6 +209,7 @@ The `install` command accepts these flags:
 | `--mode <mode>`   | Install mode: `rulesync` (default), `apm`, or `gh`. See **Install Modes** above.                                                                                                     |
 | `--update`        | Force re-resolve all source refs, ignoring the lockfile (useful to pull new updates).                                                                                                |
 | `--frozen`        | Fail if a lockfile is missing or does not cover declared sources and their skill and rule selections. Fetches missing locked artifacts without updating the lockfile. Useful for CI. |
+| `--outdated`      | Report which sources are behind in the lockfile without installing or writing anything. See **Checking for Outdated Sources** below.                                                 |
 | `--token <token>` | GitHub token for private repositories.                                                                                                                                               |
 
 ```bash
@@ -220,6 +221,9 @@ rulesync install --update
 
 # Strict CI mode — fail if lockfile doesn't cover all sources and selections
 rulesync install --frozen
+
+# Report sources whose lockfile entry is behind (read-only)
+rulesync install --outdated
 
 # Install then generate
 rulesync install && rulesync generate
@@ -257,6 +261,20 @@ The lockfile at `rulesync.lock` (at the project root) records the resolved commi
 ```
 
 To update locked refs, run `rulesync install --update`.
+
+### Checking for Outdated Sources
+
+`rulesync install --outdated` answers "is my lockfile behind its sources?" without changing anything: it writes no lockfile, fetches no rules or skills, and touches no files. For each declared source it resolves the ref the same way `--update` would — the `ref` declared in `rulesync.jsonc`, or the default branch when none is declared (the `latest` dist-tag for npm sources) — and compares the result with the commit SHA (`resolvedRef`) or package version (`resolvedVersion`) in the lockfile. Each source is reported as up to date, outdated, not locked (declared but missing from the lockfile), or failed (its ref could not be resolved, for example because the network or the registry is unreachable, or a token is missing).
+
+The exit code makes the check usable in CI and scripts:
+
+| Exit code | Meaning                                                                                 |
+| --------- | --------------------------------------------------------------------------------------- |
+| `0`       | Every source is locked at the ref it resolves to now.                                   |
+| `1`       | At least one source is outdated or not locked; `rulesync install --update` moves it on. |
+| `2`       | At least one source could not be resolved, so its status is unknown.                    |
+
+With the global `--json` flag, the per-source report (`source`, `transport`, `status`, `requestedRef`, `lockedRef`, `latestRef`, `error`) is returned as `data.sources` on success and as `error.details.sources` when the command exits non-zero. `--outdated` works only in the default `rulesync` mode and cannot be combined with `--update` or `--frozen`. It checks refs only; whether the lockfile covers each source's `skills` and `rules` selection is what `--frozen` checks.
 
 Changing a source's `skills` or `rules` selection in `rulesync.jsonc` (for example, adding a skill name to an explicit list, or switching to `"*"`) is picked up by the next plain `rulesync install`: the entry is refetched at its locked ref and the lockfile records the new selection. Under `--frozen`, a selection the lockfile does not cover fails the install instead. A lockfile written before `skillSelection` was recorded is fetched again once, at its locked ref, by the next plain `rulesync install`, which then records the selection; commit the updated lockfile so `--frozen` installs keep reusing the cache.
 
