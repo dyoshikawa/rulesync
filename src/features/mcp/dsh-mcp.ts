@@ -11,11 +11,12 @@ import { ValidationResult } from "../../types/ai-file.js";
 import type { McpServer, McpServers } from "../../types/mcp.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
-import type { Logger } from "../../utils/logger.js";
+import { type Logger, warnWithFallback } from "../../utils/logger.js";
 import {
   omitPrototypePollutionKeys,
   PROTOTYPE_POLLUTION_KEYS,
 } from "../../utils/prototype-pollution.js";
+import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { isPlainObject, isStringArray } from "../../utils/type-guards.js";
 import { loadYaml } from "../../utils/yaml.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
@@ -107,11 +108,16 @@ function isMcpClientRow(row: unknown): row is Record<string, unknown> {
   return isPlainObject(row) && row.name === DSH_MCP_CLIENT_PLUGIN_NAME;
 }
 
+/** Every row of every `insert` entry in the file. */
+function collectInsertRows(entries: unknown[]): Record<string, unknown>[] {
+  return entries.flatMap((entry) =>
+    isPlainObject(entry) && Array.isArray(entry.insert) ? entry.insert.filter(isPlainObject) : [],
+  );
+}
+
 /** Every `@deepseek-ai/dsh-mcp-client` row across the file's `insert` entries. */
 function collectMcpClientRows(entries: unknown[]): Record<string, unknown>[] {
-  return entries.flatMap((entry) =>
-    isPlainObject(entry) && Array.isArray(entry.insert) ? entry.insert.filter(isMcpClientRow) : [],
-  );
+  return collectInsertRows(entries).filter(isMcpClientRow);
 }
 
 function getRowServerName(row: Record<string, unknown>): string | undefined {
@@ -194,13 +200,14 @@ function assignRowIds({
   serverNames: string[];
   entries: unknown[];
 }): Map<string, string> {
-  const insertRows = entries.flatMap((entry) =>
-    isPlainObject(entry) && Array.isArray(entry.insert) ? entry.insert.filter(isPlainObject) : [],
-  );
+  // Ids already naming something else: other plugins' rows, and the ids that
+  // top-level patch entries target.
   const usedIds = new Set<string>();
-  for (const row of insertRows) {
-    const owned: boolean = isMcpClientRow(row);
-    if (!owned && typeof row.id === "string") usedIds.add(row.id);
+  for (const entry of entries) {
+    if (isPlainObject(entry) && typeof entry.id === "string") usedIds.add(entry.id);
+  }
+  for (const row of collectInsertRows(entries)) {
+    if (row.name !== DSH_MCP_CLIENT_PLUGIN_NAME && typeof row.id === "string") usedIds.add(row.id);
   }
   const existingIds = new Map<string, string>();
   for (const row of collectMcpClientRows(entries)) {
@@ -298,7 +305,10 @@ function convertServerToDshRow({
   logger?: Logger;
 }): DshMcpRow | null {
   const skip = (reason: string): null => {
-    logger?.warn(`DeepSeek Harness MCP: skipping "${name}" because ${reason}.`);
+    warnWithFallback(
+      logger,
+      `DeepSeek Harness MCP: skipping ${quoteValueForWarning(name)} because ${reason}.`,
+    );
     return null;
   };
   if (!DSH_SERVER_NAME_PATTERN.test(name)) {
@@ -341,8 +351,8 @@ function copyStringRecord(value: unknown): Record<string, string> | undefined {
 }
 
 /**
- * The first field that decides what a row runs, or whether it runs, and is a
- * `!!js` expression. Such a row has no faithful canonical form, so import
+ * The first field that decides what a row runs, or whether or how it runs, and
+ * is (or, for `reconnect`, contains) a `!!js` expression. Such a row has no faithful canonical form, so import
  * skips it instead of carrying a server with a hole in it. A `!!js` value in
  * `env` or `headers` only drops that one entry.
  */
@@ -356,7 +366,13 @@ function findJsExpressionField(row: Record<string, unknown>): string | undefined
   if (Array.isArray(config.args) && config.args.some((arg) => arg instanceof DshJsExpression)) {
     return "args";
   }
-  return undefined;
+  return DSH_PASSTHROUGH_FIELDS.find((field) => containsJsExpression(config[field]));
+}
+
+function containsJsExpression(value: unknown): boolean {
+  if (value instanceof DshJsExpression) return true;
+  if (Array.isArray(value)) return value.some(containsJsExpression);
+  return isPlainObject(value) && Object.values(value).some(containsJsExpression);
 }
 
 function convertRowsFromDsh(
@@ -368,19 +384,29 @@ function convertRowsFromDsh(
 } {
   const mcpServers: McpServers = {};
   const dshOverrides: McpServers = {};
+  const skip = (label: string, reason: string) =>
+    warnWithFallback(
+      logger,
+      `DeepSeek Harness MCP: not importing ${label} because ${reason}, which has no rulesync ` +
+        `equivalent. Define it in .rulesync/mcp.jsonc, or the next generate will remove the row.`,
+    );
   for (const row of rows) {
     const config = row.config;
+    if (config instanceof DshJsExpression) {
+      skip(`the row ${quoteValueForWarning(row.id)}`, "its `config` is a !!js expression");
+      continue;
+    }
+    if (isPlainObject(config) && config.serverName instanceof DshJsExpression) {
+      skip(`the row ${quoteValueForWarning(row.id)}`, "its `serverName` is a !!js expression");
+      continue;
+    }
     const name = getRowServerName(row);
     if (!isPlainObject(config) || name === undefined || PROTOTYPE_POLLUTION_KEYS.has(name)) {
       continue;
     }
     const jsField = findJsExpressionField(row);
     if (jsField !== undefined) {
-      logger?.warn(
-        `DeepSeek Harness MCP: not importing "${name}" because its \`${jsField}\` is a !!js ` +
-          `expression, which has no rulesync equivalent. Define it in .rulesync/mcp.jsonc, or the ` +
-          `next generate will remove the row.`,
-      );
+      skip(quoteValueForWarning(name), `its \`${jsField}\` holds a !!js expression`);
       continue;
     }
     const server: Record<string, unknown> = {};
@@ -476,6 +502,7 @@ export class DshMcp extends ToolMcp {
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const existingContent = (await readFileContentOrNull(filePath)) ?? "";
     const entries = parseCordisPatchList(existingContent);
+    const hasMcpRows = collectMcpClientRows(entries).length > 0;
 
     const servers = Object.entries(rulesyncMcp.getMcpServers()).filter(
       ([name]) => !PROTOTYPE_POLLUTION_KEYS.has(name),
@@ -491,7 +518,12 @@ export class DshMcp extends ToolMcp {
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
-      fileContent: stringifyCordisPatchList(replaceMcpClientRows(entries, rows)),
+      // Nothing to add or remove: leave an existing file byte-for-byte alone
+      // rather than normalizing the user's formatting and comments.
+      fileContent:
+        !hasMcpRows && rows.length === 0 && existingContent !== ""
+          ? existingContent
+          : stringifyCordisPatchList(replaceMcpClientRows(entries, rows)),
       validate,
       global,
     });
