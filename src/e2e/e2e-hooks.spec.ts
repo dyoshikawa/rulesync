@@ -1044,6 +1044,21 @@ describe("E2E: hooks (import)", () => {
         },
       },
     },
+    {
+      // ZCode nests PascalCase events under `hooks.events` of the workspace
+      // config, beside its MCP servers.
+      target: "zcode",
+      sourcePath: join(".zcode", "config.json"),
+      sourceContent: {
+        mcp: { servers: {} },
+        hooks: {
+          enabled: true,
+          events: {
+            SessionStart: [{ hooks: [{ type: "command", command: "echo session started" }] }],
+          },
+        },
+      },
+    },
   ])(
     "should import $target hooks",
     async ({ target, sourcePath, sourceContent, expectedEvent }) => {

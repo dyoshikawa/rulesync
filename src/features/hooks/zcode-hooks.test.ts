@@ -486,6 +486,22 @@ describe("ZcodeHooks", () => {
       expect(parsed.hooks.events.SessionStart).toEqual([]);
     });
 
+    it("should load from .zcode/cli/config.json in global mode", async () => {
+      await ensureDir(join(testDir, ".zcode", "cli"));
+      await writeFileContent(
+        join(testDir, ".zcode", "cli", "config.json"),
+        JSON.stringify({ hooks: { enabled: true, events: { Stop: [] } } }),
+      );
+
+      const zcodeHooks = await ZcodeHooks.fromFile({
+        outputRoot: testDir,
+        validate: false,
+        global: true,
+      });
+      expect(zcodeHooks.getRelativeDirPath()).toBe(join(".zcode", "cli"));
+      expect(JSON.parse(zcodeHooks.getFileContent()).hooks.events.Stop).toEqual([]);
+    });
+
     it("should initialize an empty config when .zcode/config.json does not exist", async () => {
       const zcodeHooks = await ZcodeHooks.fromFile({
         outputRoot: testDir,
