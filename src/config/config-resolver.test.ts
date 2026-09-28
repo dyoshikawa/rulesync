@@ -303,7 +303,7 @@ describe("config-resolver", () => {
       expect(config.getConfigFileFeatures("claudecode")).toEqual([]);
     });
 
-    it("uses the config file's features for array-form targets regardless of CLI -f", async () => {
+    it("applies CLI -f to every array-form config file target, as a run without -t would", async () => {
       const configContent = JSON.stringify({
         outputRoots: ["./"],
         targets: ["codexcli", "opencode"],
@@ -318,6 +318,22 @@ describe("config-resolver", () => {
       });
 
       expect(config.getFeatures("codexcli")).toEqual(["rules"]);
+      expect(config.getConfigFileFeatures("opencode")).toEqual(["rules"]);
+    });
+
+    it("uses the config file's array-form features when CLI -f is absent", async () => {
+      const configContent = JSON.stringify({
+        outputRoots: ["./"],
+        targets: ["codexcli", "opencode"],
+        features: ["mcp"],
+      });
+      await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
+
+      const config = await ConfigResolver.resolve({
+        configPath: join(testDir, "rulesync.jsonc"),
+        targets: ["codexcli"],
+      });
+
       expect(config.getConfigFileFeatures("opencode")).toEqual(["mcp"]);
     });
 

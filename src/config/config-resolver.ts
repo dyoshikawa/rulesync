@@ -589,8 +589,10 @@ export class ConfigResolver {
           ? undefined
           : {
               targets: configByFile.targets,
+              // CLI --features still applies: this is the selection a run
+              // without --targets would use.
               features: resolveFeaturesAndTargets({
-                features: undefined,
+                features,
                 targets: undefined,
                 configByFile,
               }).resolvedFeatures,

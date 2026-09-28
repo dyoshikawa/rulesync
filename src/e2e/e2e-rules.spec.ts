@@ -1355,6 +1355,64 @@ description: "Root rule"
       { env: { ...process.env, NODE_ENV: "e2e" } },
     );
     expect(stdout).toContain("All files are up to date.");
+
+    // Narrowed to either target, --features rules still makes agentsmd (last)
+    // the owner, as it is in a run without --targets.
+    for (const target of ["codexcli", "agentsmd"]) {
+      const { stdout: narrowedStdout } = await runGenerate({
+        target,
+        features: "rules",
+        check: true,
+        env: { NODE_ENV: "e2e" },
+      });
+      expect(narrowedStdout).toContain("All files are up to date.");
+    }
+  });
+
+  it("should build the owner's skills section with the CLI --features in a narrowed check", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+      `---
+root: true
+targets: ["*"]
+description: "Root rule"
+---
+
+# Root Rule
+`,
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "test-skill", "SKILL.md"),
+      `---
+name: test-skill
+description: "A test skill"
+targets: ["*"]
+---
+Skill body.
+`,
+    );
+    // The config file does not enable skills; --features adds them.
+    await writeFileContent(
+      join(testDir, RULESYNC_CONFIG_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        { targets: ["codexcli", "agentsmd"], features: ["rules"], simulateSkills: true },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({ target: "codexcli,agentsmd", features: "rules,skills" });
+    expect(await readFileContent(join(testDir, "AGENTS.md"))).toContain("test-skill");
+
+    const { stdout } = await runGenerate({
+      target: "codexcli",
+      features: "rules,skills",
+      check: true,
+      env: { NODE_ENV: "e2e" },
+    });
+    expect(stdout).toContain("All files are up to date.");
   });
 
   it("should build the owner's simulated skills section from the full run's skills in a narrowed check", async () => {

@@ -695,9 +695,10 @@ export class Config {
   }
 
   /**
-   * The features `target` has according to the configuration file alone, i.e.
-   * what a plain `rulesync generate` would produce for it. Falls back to
-   * {@link getFeatures} when no configuration file declared `targets`.
+   * The features `target` has for a run over the configuration file's
+   * targets, i.e. what `rulesync generate` without `--targets` would produce
+   * for it (a CLI `--features` still applies to array-form targets). Falls
+   * back to {@link getFeatures} when no configuration file declared `targets`.
    */
   public getConfigFileFeatures(target: ToolTarget): Features {
     const selection = this.configFileSelection;
@@ -712,8 +713,8 @@ export class Config {
   }
 
   /**
-   * The options `target` sets for `feature` according to the configuration
-   * file alone, like {@link getConfigFileFeatures}. Falls back to
+   * The options `target` sets for `feature` in the configuration file, for
+   * the same run as {@link getConfigFileFeatures}. Falls back to
    * {@link getFeatureOptions} when no configuration file declared `targets`.
    */
   public getConfigFileFeatureOptions(

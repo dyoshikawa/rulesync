@@ -1211,8 +1211,8 @@ async function generateRulesCore(params: {
     ? computeRootFileOwnership({
         // Only a target that generates rules can own a root file; one
         // configured for other features never writes it. A target in this run
-        // is judged by this run's features (#1894), any other target by the
-        // config file, as a full generate would run it (#3198).
+        // is judged by this run's features (#1894), any other target as a run
+        // without --targets would generate it (#3198).
         targets: config
           .getConfigFileTargets()
           .filter((target) =>
@@ -1290,9 +1290,14 @@ async function generateRulesCore(params: {
               ...ownerParams,
               // CLI -t replaces the per-target options and narrows the skills
               // step, so build the owner's output from the config file, as a
-              // full generate would.
+              // run without --targets would.
               featureOptions: config.getConfigFileFeatureOptions(ownerParams.toolTarget, "rules"),
-              skills: await loadFullRunSkills(),
+              // Only a simulated skills section lists skills in a root file.
+              skills:
+                config.getSimulateSkills() &&
+                SkillsProcessor.getToolTargetsSimulated().includes(ownerParams.toolTarget)
+                  ? await loadFullRunSkills()
+                  : undefined,
             })
           : undefined,
     });
