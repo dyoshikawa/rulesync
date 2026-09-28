@@ -36,6 +36,7 @@ export const TOOL_DISPLAY: ReadonlyArray<ToolDisplayEntry> = [
   { key: "factorydroid", label: "Factory Droid", group: "ai" },
   { key: "opencode", label: "OpenCode", group: "ai" },
   { key: "mimocode", label: "MiMo Code", group: "ai" },
+  { key: "gitlabduo", label: "GitLab Duo CLI", group: "ai" },
   { key: "cline", label: "Cline", group: "ai" },
   { key: "kilo", label: "Kilo Code", group: "ai" },
   { key: "kimi-code", label: "Kimi Code", group: "ai" },

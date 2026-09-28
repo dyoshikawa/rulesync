@@ -296,10 +296,11 @@ function convertFromBobFormat(mcpServers: unknown): McpServers {
  *
  * Bob IDE reads `mcpServers` from `<project>/.bob/mcp.json` (project scope)
  * and `~/.bob/settings/mcp.json` (user scope); the project entry wins when
- * both define the same server name. Both files are dedicated to MCP. The project one is
- * deletable; the user one is created and edited by Bob IDE's own MCP settings
- * UI, so `--delete` leaves it in place rather than removing a file the user
- * did not create through rulesync. (Bob Shell reads its user-scoped servers
+ * both define the same server name. Both files are dedicated to MCP (the
+ * user one sits next to the `settings.json` that `BobHooks` merges into). The
+ * project one is deletable; the user one is created and edited by Bob IDE's
+ * own MCP settings UI, so `--delete` leaves it in place rather than removing a
+ * file the user did not create through rulesync. (Bob Shell reads its user-scoped servers
  * from `~/.bob/mcp_settings.json` instead, which rulesync does not write.)
  *
  * @see https://bob.ibm.com/docs/ide/configuration/mcp/mcp-in-bob
