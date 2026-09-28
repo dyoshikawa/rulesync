@@ -18,6 +18,7 @@ import { AugmentcodeMcp } from "./augmentcode-mcp.js";
 import { BobMcp } from "./bob-mcp.js";
 import { ClaudecodeMcp } from "./claudecode-mcp.js";
 import { ClineMcp } from "./cline-mcp.js";
+import { CodebuffMcp } from "./codebuff-mcp.js";
 import { CodewhaleMcp } from "./codewhale-mcp.js";
 import { CodexcliMcp } from "./codexcli-mcp.js";
 import { CommandcodeMcp } from "./commandcode-mcp.js";
@@ -258,6 +259,22 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
       class: ClineMcp,
       meta: {
         supportsProject: false,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
+    "codebuff",
+    {
+      // Codebuff (Freebuff) reads `.agents/mcp.json` in the project and
+      // `~/.agents/mcp.json` in the home directory; its server schema has no
+      // per-server tool allow/deny lists.
+      // https://www.codebuff.com/docs/tips/mcp-servers
+      class: CodebuffMcp,
+      meta: {
+        supportsProject: true,
         supportsGlobal: true,
         supportsEnabledTools: false,
         supportsDisabledTools: false,
