@@ -23,7 +23,18 @@
     "src/generated/**"
   ],
   "words": [
+    "bunx",
     "cimd",
+    "execdir",
+    "mksh",
+    "nerdctl",
+    "nohup",
+    "norc",
+    "pipefail",
+    "pipenv",
+    "popd",
+    "pushd",
+    "rcfile",
     "CONIN",
     "CONOUT",
     "conin",

@@ -15,6 +15,7 @@ import { compact } from "../../utils/object.js";
 import { lookupOwn } from "../../utils/own-lookup.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { isPlainObject } from "../../utils/type-guards.js";
+import { anchorDotPaths, importProjectDirVariable } from "./hook-command-paths.js";
 
 type ToolMatcherEntry = {
   matcher?: string;
@@ -323,6 +324,33 @@ function stripSurroundingQuotes(value: string): string {
 }
 
 /**
+ * Whether a hook is in the exec form, `args` being *present* — an empty array
+ * selects it too, and the docs' own example uses `"args": []`. Only checked
+ * for tools that actually emit `args`; for the rest `command` stays a shell
+ * string.
+ */
+function isExecFormHook({
+  args,
+  converterConfig,
+}: {
+  args: unknown;
+  converterConfig: ToolHooksConverterConfig;
+}): boolean {
+  const emitsArgs =
+    converterConfig.arrayPassthroughFields?.some(({ canonical }) => canonical === "args") ?? false;
+  return emitsArgs && Array.isArray(args);
+}
+
+/**
+ * Whether a hook's command runs in a POSIX shell. The shell-word scanner in
+ * `hook-command-paths.ts` assumes sh syntax, so a `powershell` hook keeps
+ * only the leading-word handling it had before that scanner existed.
+ */
+function runsInPosixShell(shell: unknown): boolean {
+  return shell !== "powershell";
+}
+
+/**
  * Apply the optional project directory variable prefix to a command string.
  */
 function applyCommandPrefix({
@@ -335,30 +363,40 @@ function applyCommandPrefix({
   const commandText = def.command;
   const trimmedCommand = typeof commandText === "string" ? commandText.trimStart() : undefined;
   const unquotedCommand = trimmedCommand?.replace(/^["']/, "");
-  const isDotRelativeCommand = unquotedCommand?.startsWith(".") ?? false;
+  // A lone `.` is the `source` builtin (`. ./env.sh`), not a path.
+  const isDotRelativeCommand =
+    typeof unquotedCommand === "string" && /^\.(?!\s|$)/.test(unquotedCommand);
   const isAbsoluteCommand =
     typeof unquotedCommand === "string" &&
     (posix.isAbsolute(unquotedCommand) ||
       win32.isAbsolute(unquotedCommand) ||
       unquotedCommand.startsWith("~/"));
-  // The exec form is `args` being *present* — an empty array selects it too,
-  // and the docs' own example uses `"args": []`. Only checked for tools that
-  // actually emit `args`; for the rest `command` stays a shell string.
-  const emitsArgs =
-    converterConfig.arrayPassthroughFields?.some(({ canonical }) => canonical === "args") ?? false;
-  const isExecForm = emitsArgs && Array.isArray(def.args);
+  const isExecForm = isExecFormHook({ args: def.args, converterConfig });
+  const startsWithVariable = unquotedCommand?.startsWith("$") ?? false;
   const shouldPrefix =
     converterConfig.projectDirVar !== "" &&
     typeof trimmedCommand === "string" &&
-    !trimmedCommand.startsWith("$") &&
+    !startsWithVariable &&
     !isAbsoluteCommand &&
     (!converterConfig.prefixDotRelativeCommandsOnly || isDotRelativeCommand);
+
+  // A later `./` path that names a file the command runs (a script runner's
+  // script argument, the next command in a chain) is anchored too, so a hook
+  // imported with the variable there keeps it. The exec form has no shell to
+  // split words, and a command led by a variable is passed through untouched.
+  const anchorInline = (command: string): string =>
+    isExecForm ||
+    converterConfig.projectDirVar === "" ||
+    startsWithVariable ||
+    !runsInPosixShell(def.shell)
+      ? command
+      : anchorDotPaths({ command, projectDirVar: converterConfig.projectDirVar });
 
   // Only the variable itself is quoted (not the whole command) so a project path
   // containing a space can't be word-split by the shell, while any trailing
   // arguments after the script path stay outside the quotes and still split normally.
   if (!shouldPrefix || typeof trimmedCommand !== "string") {
-    return def.command;
+    return typeof def.command === "string" ? anchorInline(def.command) : def.command;
   }
 
   // Keep a leading quote around paths containing spaces, but remove `./`
@@ -371,7 +409,7 @@ function applyCommandPrefix({
     // quoting because each argument is passed through verbatim.
     return `${bracePlaceholder(converterConfig.projectDirVar)}/${stripSurroundingQuotes(relativeCommand)}`;
   }
-  return `"${converterConfig.projectDirVar}"/${relativeCommand}`;
+  return anchorInline(`"${converterConfig.projectDirVar}"/${relativeCommand}`);
 }
 
 /**
@@ -1092,44 +1130,47 @@ export function canonicalToToolHooks({
 }
 
 /**
- * Convert tool-specific hooks back to canonical format (shared by Claude and Factory Droid).
- * Reverses event name mapping and strips project directory variable prefix from commands.
+ * Strip the project directory variable from a tool command string, converting
+ * it back to `./`-relative paths (see `stripProjectDirVariable`).
  *
- * Note: This function does not strip matchers for noMatcherEvents. Tools themselves never produce
- * matchers on these events, so stripping is unnecessary on import. If a manually edited config
- * includes a matcher on such an event, it will be preserved in canonical format but dropped
- * on the next export (with a warning).
- */
-/**
- * Strip the project directory variable prefix from a tool command string,
- * converting it back to a `./`-relative command.
+ * With `warn`, a command that loses a variable generate will not put back (a
+ * data argument such as `npx prettier --write "$VAR"/src`) is reported: its
+ * path is resolved against the hook's working directory once regenerated.
  */
 function stripCommandPrefix({
   command,
+  args,
+  shell,
   converterConfig,
+  warn,
 }: {
   command: unknown;
+  args: unknown;
+  shell: unknown;
   converterConfig: ToolHooksConverterConfig;
+  warn?: (message: string) => void;
 }): string | undefined {
   const cmd = typeof command === "string" ? command : undefined;
-  if (converterConfig.projectDirVar === "" || typeof cmd !== "string") {
+  const { projectDirVar } = converterConfig;
+  if (projectDirVar === "" || typeof cmd !== "string") {
     return cmd;
   }
-  const quotedPrefix = `"${converterConfig.projectDirVar}"/`;
-  if (cmd.startsWith(quotedPrefix)) {
-    return `./${cmd.slice(quotedPrefix.length)}`;
+  const { command: stripped, unrestored } = importProjectDirVariable({
+    command: cmd,
+    projectDirVar,
+    // The exec form's command is one executable path, not shell words, and a
+    // non-POSIX shell's words are not what the scanner understands.
+    firstWordOnly: isExecFormHook({ args, converterConfig }) || !runsInPosixShell(shell),
+  });
+  if (warn && unrestored) {
+    warn(
+      `Hook command ${quoteValueForWarning(cmd)} was imported as ${quoteValueForWarning(stripped)}: ` +
+        `a ${projectDirVar} path that is not a script the command runs becomes relative to the ` +
+        `hook's working directory and is not restored on generate. Put the exact command in a ` +
+        `tool-specific hooks override (such as "claudecode.hooks") to keep the variable.`,
+    );
   }
-  // The exec form's braced placeholder, so a generated hook round-trips back to
-  // the relative command it was authored as.
-  const bracedPrefix = `${bracePlaceholder(converterConfig.projectDirVar)}/`;
-  if (cmd.startsWith(bracedPrefix)) {
-    return `./${cmd.slice(bracedPrefix.length)}`;
-  }
-  if (cmd.includes(`${converterConfig.projectDirVar}/`)) {
-    const escapedVar = converterConfig.projectDirVar.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    return cmd.replace(new RegExp(`^${escapedVar}\\/?`), "./");
-  }
-  return cmd;
+  return stripped;
 }
 
 /**
@@ -1418,7 +1459,13 @@ function toolHookToCanonical({
   // `describeHookSkipReason`; this catches the same field left on a type it
   // does not define, where losing it alone changes nothing.
   const command = importCanonicalString({
-    value: stripCommandPrefix({ command: h.command, converterConfig }),
+    value: stripCommandPrefix({
+      command: h.command,
+      args: h.args,
+      shell: h.shell,
+      converterConfig,
+      warn,
+    }),
     canonical: "command",
     warn,
   });
@@ -1486,7 +1533,12 @@ function definingFields({
       field: "command",
       value:
         typeof h.command === "string"
-          ? stripCommandPrefix({ command: h.command, converterConfig })
+          ? stripCommandPrefix({
+              command: h.command,
+              args: h.args,
+              shell: h.shell,
+              converterConfig,
+            })
           : h.command,
     });
   }
@@ -1636,6 +1688,15 @@ export function buildImportedHooksConfig({
   return config;
 }
 
+/**
+ * Convert tool-specific hooks back to canonical format (shared by Claude and Factory Droid).
+ * Reverses event name mapping and strips the project directory variable from commands.
+ *
+ * Note: This function does not strip matchers for noMatcherEvents. Tools themselves never produce
+ * matchers on these events, so stripping is unnecessary on import. If a manually edited config
+ * includes a matcher on such an event, it will be preserved in canonical format but dropped
+ * on the next export (with a warning).
+ */
 export function toolHooksToCanonical({
   hooks,
   converterConfig,
