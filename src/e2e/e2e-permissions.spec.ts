@@ -49,6 +49,7 @@ const permissionsGenerateTargets = [
   "kiro-cli",
   "kiro-ide",
   "kilo",
+  "lettacode",
   "antigravity-ide",
   "augmentcode",
   "cline",
@@ -98,6 +99,7 @@ const permissionsGlobalTargets = [
   "devin",
   "factorydroid",
   "junie",
+  "lettacode",
 ] as const;
 
 describe("E2E: permissions", () => {
@@ -122,6 +124,7 @@ describe("E2E: permissions", () => {
     // settings file, so an empty payload must not leave a bare `{}` behind.
     { target: "copilotcli", relativePaths: [[".github", "copilot", "settings.json"]] },
     { target: "commandcode", relativePaths: [[".commandcode", "settings.json"]] },
+    { target: "lettacode", relativePaths: [[".letta", "settings.json"]] },
     // opencode writes the `.jsonc` twin when neither file exists yet, so both
     // spellings must stay absent.
     { target: "opencode", relativePaths: [["opencode.json"], ["opencode.jsonc"]] },
@@ -699,6 +702,53 @@ web_search_request = true
       ],
       ask: ["Shell(npm publish *)"],
       deny: ["Shell(rm -rf *)", "Write(.env*)"],
+    });
+  });
+
+  it("should generate lettacode permissions into .letta/settings.json", async () => {
+    const testDir = getTestDir();
+
+    // Pre-existing settings owned by the user (and by the hooks feature) must
+    // survive the merge, including the siblings of the rule lists.
+    await writeFileContent(
+      join(testDir, ".letta", "settings.json"),
+      JSON.stringify(
+        {
+          model: "auto",
+          hooks: { Stop: [{ hooks: [{ type: "command", command: "echo done" }] }] },
+          permissions: { mode: "acceptEdits", allow: ["Bash(stale:*)", "Task"] },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await writeFileContent(
+      join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "git *": "allow", "rm -rf *": "deny", "npm publish": "ask" },
+            read: { "*": "allow" },
+            write: { ".env*": "deny" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({ target: "lettacode", features: "permissions" });
+
+    const generated = JSON.parse(await readFileContent(join(testDir, ".letta", "settings.json")));
+    expect(generated.model).toBe("auto");
+    expect(generated.hooks.Stop).toHaveLength(1);
+    // Canonical `ask` lands in `alwaysAsk`, which Letta Code checks before `allow`.
+    expect(generated.permissions).toEqual({
+      mode: "acceptEdits",
+      allow: ["Task", "Bash(git:*)", "Read"],
+      alwaysAsk: ["Bash(npm publish)"],
+      deny: ["Bash(rm -rf:*)", "Write(.env*)"],
     });
   });
 
@@ -1924,6 +1974,35 @@ enabled = true
     expect(content.permission.mcp__github__get_issue).toEqual({ "*": "allow" });
   });
 
+  it("should import lettacode permissions into .rulesync/permissions.jsonc", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, ".letta", "settings.json"),
+      JSON.stringify(
+        {
+          permissions: {
+            mode: "default",
+            allow: ["Bash(git:*)", "Read", "Task"],
+            alwaysAsk: ["Bash(npm publish)"],
+            deny: ["Write(.env*)"],
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runImport({ target: "lettacode", features: "permissions" });
+
+    const content = JSON.parse(
+      await readFileContent(join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH)),
+    );
+    expect(content.permission.bash).toEqual({ "git *": "allow", "npm publish": "ask" });
+    expect(content.permission.read).toEqual({ "*": "allow" });
+    expect(content.permission.write).toEqual({ ".env*": "deny" });
+  });
+
   it("should import copilot permissions into .rulesync/permissions.jsonc", async () => {
     const testDir = getTestDir();
 
@@ -2116,6 +2195,29 @@ describe("E2E: permissions (global mode)", () => {
       allow: ["Shell(git *)"],
       ask: ["WebSearch"],
       deny: ["Shell(rm -rf *)"],
+    });
+  });
+
+  it("should generate lettacode permissions in home directory with --global", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify({ permission: { bash: { "git *": "allow", "rm -rf *": "deny" } } }, null, 2),
+    );
+
+    await runGenerate({
+      target: "lettacode",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const generated = JSON.parse(await readFileContent(join(homeDir, ".letta", "settings.json")));
+    expect(generated.permissions).toEqual({
+      allow: ["Bash(git:*)"],
+      deny: ["Bash(rm -rf:*)"],
     });
   });
 

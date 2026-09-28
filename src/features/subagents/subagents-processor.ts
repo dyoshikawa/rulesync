@@ -52,6 +52,7 @@ import { KimiCodeSubagent } from "./kimi-code-subagent.js";
 import { KiroCliSubagent } from "./kiro-cli-subagent.js";
 import { KiroIdeSubagent } from "./kiro-ide-subagent.js";
 import { KiroSubagent } from "./kiro-subagent.js";
+import { LettacodeSubagent } from "./lettacode-subagent.js";
 import { MimocodeSubagent } from "./mimocode-subagent.js";
 import { OpenCodeSubagent } from "./opencode-subagent.js";
 import { PoolSubagent } from "./pool-subagent.js";
@@ -503,6 +504,20 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
     "kiro-ide",
     {
       class: KiroIdeSubagent,
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: "*.md",
+      },
+    },
+  ],
+  [
+    // Letta Code loads custom subagents from `.letta/agents/` (project) and
+    // `~/.letta/agents/` (user). https://docs.letta.com/configuration/subagents/index.md
+    "lettacode",
+    {
+      class: LettacodeSubagent,
       meta: {
         supportsProject: true,
         supportsSimulated: false,

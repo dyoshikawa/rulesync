@@ -1226,6 +1226,50 @@ export const COMMANDCODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Obje
 );
 
 /**
+ * Hook events supported by Letta Code.
+ *
+ * Letta Code reads hooks from the `hooks` key of `.letta/settings.json`
+ * (project), `.letta/settings.local.json` (personal project) and
+ * `~/.letta/settings.json` (user) in the Claude-Code shape. The four tool
+ * events take a regex `matcher`; the other events carry none. `timeout` is in
+ * milliseconds (default 60000) and hooks run with the project directory as
+ * their working directory.
+ *
+ * @see https://github.com/letta-ai/letta-code/blob/main/src/hooks/types.ts
+ */
+export const LETTACODE_HOOK_EVENTS: readonly HookEvent[] = [
+  "sessionStart",
+  "sessionEnd",
+  "preToolUse",
+  "postToolUse",
+  "postToolUseFailure",
+  "permissionRequest",
+  "beforeSubmitPrompt",
+  "notification",
+  "stop",
+  "subagentStop",
+  "preCompact",
+];
+
+export const CANONICAL_TO_LETTACODE_EVENT_NAMES: Record<string, string> = {
+  sessionStart: "SessionStart",
+  sessionEnd: "SessionEnd",
+  preToolUse: "PreToolUse",
+  postToolUse: "PostToolUse",
+  postToolUseFailure: "PostToolUseFailure",
+  permissionRequest: "PermissionRequest",
+  beforeSubmitPrompt: "UserPromptSubmit",
+  notification: "Notification",
+  stop: "Stop",
+  subagentStop: "SubagentStop",
+  preCompact: "PreCompact",
+};
+
+export const LETTACODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
+  Object.entries(CANONICAL_TO_LETTACODE_EVENT_NAMES).map(([k, v]) => [v, k]),
+);
+
+/**
  * Hook events supported by the Continue CLI (`cn`).
  *
  * Continue reads a Claude-Code-compatible `hooks` key from
@@ -1468,6 +1512,7 @@ export const HooksConfigSchema = z.looseObject({
   bob: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   cortexcode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   commandcode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  lettacode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   continue: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   tabnine: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   qwencode: z.optional(

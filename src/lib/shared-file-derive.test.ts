@@ -202,6 +202,10 @@ describe("shared-file write derivation", () => {
           "hooks",
           "permissions",
         ],
+        ".letta/settings.json": [
+          "hooks",
+          "permissions",
+        ],
         ".mimocode/mimocode.json": [
           "mcp",
           "permissions",

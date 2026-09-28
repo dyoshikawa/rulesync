@@ -74,6 +74,10 @@ const hooksKeyedEventNames: Record<string, { sessionStart: string; stop: string 
   // .continue/settings.json in both scopes; commands are anchored with
   // $CONTINUE_PROJECT_DIR only when they start with `./`.
   continue: { sessionStart: "SessionStart", stop: "Stop" },
+  // Letta Code stores Claude-style PascalCase events under the `hooks` key of
+  // .letta/settings.json in both scopes; hooks run with the project directory
+  // as their working directory, so commands are written verbatim.
+  lettacode: { sessionStart: "SessionStart", stop: "Stop" },
 };
 
 function assertHooksKeyedEvents({
@@ -131,6 +135,7 @@ const hooksGenerateTargets = [
   { target: "cortexcode", outputPath: join(".cortex", "settings.json") },
   { target: "commandcode", outputPath: join(".commandcode", "settings.json") },
   { target: "continue", outputPath: join(".continue", "settings.json") },
+  { target: "lettacode", outputPath: join(".letta", "settings.json") },
   { target: "grokcli", outputPath: join(".grok", "hooks", "rulesync.json") },
   { target: "cline", outputPath: join(".clinerules", "hooks", "rulesync-hooks.json") },
 ] as const;
@@ -915,6 +920,20 @@ describe("E2E: hooks (import)", () => {
       },
     },
     {
+      // Letta Code stores hooks under the `hooks` key of .letta/settings.json
+      // using Claude-style PascalCase event names and millisecond timeouts;
+      // SessionStart round-trips to the canonical `sessionStart` event.
+      target: "lettacode",
+      sourcePath: join(".letta", "settings.json"),
+      sourceContent: {
+        hooks: {
+          SessionStart: [
+            { hooks: [{ type: "command", command: "echo session started", timeout: 30000 }] },
+          ],
+        },
+      },
+    },
+    {
       // deepagents-cli uses the Hooks v2 document (PascalCase HookEvent keys
       // over matcher groups); SessionStart round-trips to canonical `sessionStart`.
       target: "deepagents",
@@ -984,6 +1003,7 @@ const hooksGlobalTargets = [
   { target: "cortexcode", outputPath: join(".snowflake", "cortex", "hooks.json") },
   { target: "commandcode", outputPath: join(".commandcode", "settings.json") },
   { target: "continue", outputPath: join(".continue", "settings.json") },
+  { target: "lettacode", outputPath: join(".letta", "settings.json") },
   { target: "kiro-ide", outputPath: join(".kiro", "hooks", "rulesync.json") },
   { target: "kiro-cli", outputPath: join(".kiro", "hooks", "rulesync.json") },
   { target: "grokcli", outputPath: join(".grok", "hooks", "rulesync.json") },
