@@ -423,6 +423,7 @@ rulesync.local.jsonc
 **/.augment/settings.json
 **/.bob/mcp.json
 **/.mcp.json
+**/.agents/mcp.json
 **/.continue/mcpServers/mcp.json
 **/.vscode/mcp.json
 **/.github/mcp.json
@@ -464,6 +465,7 @@ rulesync.local.jsonc
 **/.augmentignore
 **/.bobignore
 **/.clineignore
+**/.codebuffignore
 **/.continueignore
 **/.crushignore
 **/.cursorignore

@@ -470,6 +470,7 @@ describe("IgnoreProcessor", () => {
         "claudecode",
         "claudecode-legacy",
         "cline",
+        "codebuff",
         "continue",
         "crush",
         "cursor",
