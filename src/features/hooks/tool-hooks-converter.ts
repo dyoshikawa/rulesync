@@ -344,10 +344,21 @@ function isExecFormHook({
 /**
  * Whether a hook's command runs in a POSIX shell. The shell-word scanner in
  * `hook-command-paths.ts` assumes sh syntax, so a `powershell` hook keeps
- * only the leading-word handling it had before that scanner existed.
+ * only the leading-word handling it had before that scanner existed. Only a
+ * tool that emits the `shell` field runs a hook in PowerShell; any other tool
+ * runs it in its own shell whatever the canonical `shell` says.
  */
-function runsInPosixShell(shell: unknown): boolean {
-  return shell !== "powershell";
+function runsInPosixShell({
+  shell,
+  converterConfig,
+}: {
+  shell: unknown;
+  converterConfig: ToolHooksConverterConfig;
+}): boolean {
+  const emitsShell =
+    converterConfig.stringPassthroughFields?.some(({ canonical }) => canonical === "shell") ??
+    false;
+  return !emitsShell || shell !== "powershell";
 }
 
 /**
@@ -388,7 +399,7 @@ function applyCommandPrefix({
     isExecForm ||
     converterConfig.projectDirVar === "" ||
     startsWithVariable ||
-    !runsInPosixShell(def.shell)
+    !runsInPosixShell({ shell: def.shell, converterConfig })
       ? command
       : anchorDotPaths({ command, projectDirVar: converterConfig.projectDirVar });
 
@@ -1155,12 +1166,17 @@ function stripCommandPrefix({
   if (projectDirVar === "" || typeof cmd !== "string") {
     return cmd;
   }
-  const { command: stripped, unrestored } = importProjectDirVariable({
+  const {
+    command: stripped,
+    unrestored,
+    retained,
+  } = importProjectDirVariable({
     command: cmd,
     projectDirVar,
     // The exec form's command is one executable path, not shell words, and a
     // non-POSIX shell's words are not what the scanner understands.
-    firstWordOnly: isExecFormHook({ args, converterConfig }) || !runsInPosixShell(shell),
+    firstWordOnly:
+      isExecFormHook({ args, converterConfig }) || !runsInPosixShell({ shell, converterConfig }),
   });
   if (warn && unrestored) {
     warn(
@@ -1168,6 +1184,15 @@ function stripCommandPrefix({
         `a ${projectDirVar} path that is not a script the command runs becomes relative to the ` +
         `hook's working directory and is not restored on generate. Put the exact command in a ` +
         `tool-specific hooks override (such as "claudecode.hooks") to keep the variable.`,
+    );
+  }
+  if (warn && retained) {
+    warn(
+      `Hook command ${quoteValueForWarning(cmd)} keeps ${projectDirVar} in an assignment or ` +
+        `option value, or in a later word of a command whose later words are not normalized, ` +
+        `so the imported command still refers to it and other tools that do not define it ` +
+        `receive it verbatim. Put the exact command in a tool-specific hooks override (such as ` +
+        `"claudecode.hooks") if other tools should not see it.`,
     );
   }
   return stripped;
