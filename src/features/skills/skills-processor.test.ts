@@ -160,35 +160,6 @@ describe("SkillsProcessor", () => {
       expect(claudecodeSkill.getFrontmatter().description).toBe("Test skill description");
     });
 
-    it("should write a committed project root (gitlabduo) only for skills naming the tool", async () => {
-      const makeSkill = (name: string, targets: ("*" | "gitlabduo")[]) =>
-        new RulesyncSkill({
-          outputRoot: testDir,
-          relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
-          dirName: name,
-          frontmatter: { name, description: "Test skill description", targets },
-          body: "Test skill content",
-          validate: false,
-        });
-      const skills = [makeSkill("wildcard", ["*"]), makeSkill("explicit", ["*", "gitlabduo"])];
-
-      const projectDirs = await new SkillsProcessor({
-        logger: createMockLogger(),
-        outputRoot: testDir,
-        toolTarget: "gitlabduo",
-      }).convertRulesyncDirsToToolDirs(skills);
-      expect(projectDirs.map((dir) => dir.getDirName())).toEqual(["explicit"]);
-
-      // The global root is dedicated to GitLab Duo, so a wildcard reaches it.
-      const globalDirs = await new SkillsProcessor({
-        logger: createMockLogger(),
-        outputRoot: testDir,
-        toolTarget: "gitlabduo",
-        global: true,
-      }).convertRulesyncDirsToToolDirs(skills);
-      expect(globalDirs.map((dir) => dir.getDirName())).toEqual(["wildcard", "explicit"]);
-    });
-
     it("should pass its logger to the tool skill so spec diagnostics reach the user", async () => {
       const logger = createMockLogger();
       const agentsSkillsProcessor = new SkillsProcessor({

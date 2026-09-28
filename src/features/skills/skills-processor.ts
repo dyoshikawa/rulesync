@@ -211,16 +211,14 @@ type ToolSkillFactory = {
      * `skills/`). The gitignore derivation skips such outputs: a recursive entry
      * for `skills/` would swallow every unrelated `skills` directory in the tree.
      *
-     * The `--delete` orphan sweep also leaves such a project root alone: a
+     * The `--delete` orphan sweep also leaves the other skill directories in
+     * such a project root alone (stale files inside a skill directory this run
+     * generates are still cleaned up, as for any tool): a
      * repository's top-level `skills/` routinely holds hand-authored skills
      * (skill collections, skills distributed to other tools) that no
      * `.rulesync/skills/` source accounts for, and nothing on disk tells them
      * apart from a skill rulesync generated earlier. A stale generated skill
      * there has to be removed by hand instead.
-     *
-     * For the same reason, at project scope such a root is written only for
-     * skills whose `targets` name the tool explicitly: a wildcard (`*`) skill
-     * is not copied into the repository's own `skills/` directory.
      */
     committedOutput?: boolean;
   };
@@ -821,17 +819,6 @@ export class SkillsProcessor extends DirFeatureProcessor {
             return null;
           }
           if (!factory.class.isTargetedByRulesyncSkill(rulesyncSkill)) {
-            return null;
-          }
-          if (
-            factory.meta.committedOutput === true &&
-            !this.global &&
-            !rulesyncFrontmatter.targets.includes(this.toolTarget)
-          ) {
-            // See `committedOutput`: a committed, generic project root such as
-            // GitLab Duo's top-level `skills/` is only written for skills that
-            // name the tool explicitly, so a `targets: ["*"]` skill does not
-            // land in the repository's own `skills/` directory unasked.
             return null;
           }
           const dirName = rulesyncSkill.getDirName();
