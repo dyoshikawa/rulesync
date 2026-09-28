@@ -105,6 +105,7 @@ const hooksGenerateTargets = [
   { target: "claudecode", outputPath: join(".claude", "settings.json") },
   { target: "claudecode-plugin", outputPath: join("hooks", "hooks.json") },
   { target: "cursor", outputPath: join(".cursor", "hooks.json") },
+  { target: "mimocode", outputPath: join(".mimocode", "plugins", "rulesync-hooks.js") },
   { target: "opencode", outputPath: join(".opencode", "plugins", "rulesync-hooks.js") },
   { target: "kilo", outputPath: join(".kilo", "plugins", "rulesync-hooks.js") },
   { target: "pi", outputPath: join(".pi", "extensions", "rulesync-hooks.ts") },
@@ -175,8 +176,8 @@ describe("E2E: hooks", () => {
       expect(generatedContent).toContain('amp.on("agent.end"');
       expect(generatedContent).toContain(".rulesync/hooks/session-start.sh");
       expect(generatedContent).toContain(".rulesync/hooks/audit.sh");
-    } else if (target === "opencode") {
-      // OpenCode generates a JavaScript plugin file, not JSON
+    } else if (target === "opencode" || target === "mimocode") {
+      // OpenCode (and its MiMo Code distribution) generates a JavaScript plugin file, not JSON
       expect(generatedContent).toContain("export const RulesyncHooksPlugin");
       expect(generatedContent).toContain('"session.created"');
       expect(generatedContent).toContain('"session.idle"');
@@ -668,6 +669,7 @@ describe("E2E: hooks", () => {
     // claudecode, kiro use shared config files (isDeletable=false) — excluded.
     // factorydroid now writes a dedicated .factory/hooks.json (isDeletable=true).
     { target: "cursor", orphanPath: join(".cursor", "hooks.json") },
+    { target: "mimocode", orphanPath: join(".mimocode", "plugins", "rulesync-hooks.js") },
     { target: "opencode", orphanPath: join(".opencode", "plugins", "rulesync-hooks.js") },
     { target: "pi", orphanPath: join(".pi", "extensions", "rulesync-hooks.ts") },
     { target: "codexcli", orphanPath: join(".codex", "hooks.json") },
@@ -964,6 +966,7 @@ const hooksGlobalTargets = [
     target: "goose",
     outputPath: join(".agents", "plugins", "rulesync", "hooks", "hooks.json"),
   },
+  { target: "mimocode", outputPath: join(".config", "mimocode", "plugins", "rulesync-hooks.js") },
   { target: "opencode", outputPath: join(".config", "opencode", "plugins", "rulesync-hooks.js") },
   { target: "kilo", outputPath: join(".config", "kilo", "plugins", "rulesync-hooks.js") },
   { target: "pi", outputPath: join(".pi", "agent", "extensions", "rulesync-hooks.ts") },
@@ -1046,7 +1049,7 @@ describe("E2E: hooks (global mode)", () => {
         expect(generatedContent).toContain('amp.on("agent.end"');
         expect(generatedContent).toContain(".rulesync/hooks/session-start.sh");
         expect(generatedContent).toContain(".rulesync/hooks/audit.sh");
-      } else if (target === "opencode") {
+      } else if (target === "opencode" || target === "mimocode") {
         expect(generatedContent).toContain("RulesyncHooksPlugin");
         expect(generatedContent).toContain(".rulesync/hooks/session-start.sh");
         expect(generatedContent).toContain(".rulesync/hooks/audit.sh");

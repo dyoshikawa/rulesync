@@ -1,9 +1,9 @@
 import { join } from "node:path";
 
 import {
-  OPENCODE_GLOBAL_PLUGINS_DIR_PATH,
   OPENCODE_HOOKS_FILE_NAME,
-  OPENCODE_PLUGINS_DIR_PATH,
+  OPENCODE_LAYOUT,
+  type OpencodeLayout,
 } from "../../constants/opencode-paths.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { CANONICAL_TO_OPENCODE_EVENT_NAMES, OPENCODE_HOOK_EVENTS } from "../../types/hooks.js";
@@ -19,6 +19,9 @@ import {
 } from "./tool-hooks.js";
 
 export class OpencodeHooks extends ToolHooks {
+  /** Directory layout; OpenCode forks (MiMo Code) override it. */
+  protected static readonly layout: OpencodeLayout = OPENCODE_LAYOUT;
+
   constructor(params: AiFileParams) {
     super({
       ...params,
@@ -28,9 +31,7 @@ export class OpencodeHooks extends ToolHooks {
 
   static getSettablePaths(options?: { global?: boolean }): ToolHooksSettablePaths {
     return {
-      relativeDirPath: options?.global
-        ? OPENCODE_GLOBAL_PLUGINS_DIR_PATH
-        : OPENCODE_PLUGINS_DIR_PATH,
+      relativeDirPath: join(options?.global ? this.layout.globalDir : this.layout.dir, "plugins"),
       relativeFilePath: OPENCODE_HOOKS_FILE_NAME,
     };
   }
@@ -40,11 +41,11 @@ export class OpencodeHooks extends ToolHooks {
     validate = true,
     global = false,
   }: ToolHooksFromFileParams): Promise<OpencodeHooks> {
-    const paths = OpencodeHooks.getSettablePaths({ global });
+    const paths = this.getSettablePaths({ global });
     const fileContent = await readFileContent(
       join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
     );
-    return new OpencodeHooks({
+    return new this({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
@@ -63,11 +64,11 @@ export class OpencodeHooks extends ToolHooks {
     const fileContent = generateOpencodeStylePluginCode(
       config,
       OPENCODE_HOOK_EVENTS,
-      "opencode",
+      this.layout.toolTarget,
       CANONICAL_TO_OPENCODE_EVENT_NAMES,
     );
-    const paths = OpencodeHooks.getSettablePaths({ global });
-    return new OpencodeHooks({
+    const paths = this.getSettablePaths({ global });
+    return new this({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
@@ -89,7 +90,7 @@ export class OpencodeHooks extends ToolHooks {
     relativeDirPath,
     relativeFilePath,
   }: ToolHooksForDeletionParams): OpencodeHooks {
-    return new OpencodeHooks({
+    return new this({
       outputRoot,
       relativeDirPath,
       relativeFilePath,

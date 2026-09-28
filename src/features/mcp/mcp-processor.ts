@@ -36,6 +36,7 @@ import { JunieMcp } from "./junie-mcp.js";
 import { KiloMcp } from "./kilo-mcp.js";
 import { KimiCodeMcp } from "./kimi-code-mcp.js";
 import { KiroMcp } from "./kiro-mcp.js";
+import { MimocodeMcp } from "./mimocode-mcp.js";
 import { MusecodeMcp } from "./musecode-mcp.js";
 import { OpencodeMcp } from "./opencode-mcp.js";
 import { PoolMcp } from "./pool-mcp.js";
@@ -537,6 +538,18 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
         supportsGlobal: true,
         supportsEnabledTools: false,
         supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
+    "mimocode",
+    {
+      class: MimocodeMcp,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsEnabledTools: true,
+        supportsDisabledTools: true,
       },
     },
   ],

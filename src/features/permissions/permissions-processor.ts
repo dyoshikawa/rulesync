@@ -36,6 +36,7 @@ import { JuniePermissions } from "./junie-permissions.js";
 import { KiloPermissions } from "./kilo-permissions.js";
 import { KimiCodePermissions } from "./kimi-code-permissions.js";
 import { KiroPermissions } from "./kiro-permissions.js";
+import { MimocodePermissions } from "./mimocode-permissions.js";
 import { OpencodePermissions } from "./opencode-permissions.js";
 import { PiPermissions } from "./pi-permissions.js";
 import { PoolPermissions } from "./pool-permissions.js";
@@ -406,6 +407,17 @@ export const toolPermissionsFactories = new Map<
       meta: {
         supportsProject: true,
         supportsGlobal: false,
+        supportsImport: true,
+      },
+    },
+  ],
+  [
+    "mimocode",
+    {
+      class: MimocodePermissions,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
         supportsImport: true,
       },
     },

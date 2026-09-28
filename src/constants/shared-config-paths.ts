@@ -5,7 +5,8 @@ import { toPosixPath } from "../utils/file.js";
  * settings files), as paths relative to the output root. Most come straight from
  * a tool's default `getSettablePaths`; the rest are twins a generator only
  * chooses at write time or under non-default options: `.amp/settings.jsonc`
- * (runtime probe twin of `.amp/settings.json`), `opencode.jsonc` / `kilo.jsonc`
+ * (runtime probe twin of `.amp/settings.json`), `opencode.jsonc` / `kilo.jsonc` /
+ * `.mimocode/mimocode.jsonc`
  * (preferred over the `.json` twin when neither file exists yet), and
  * `.claude/settings.local.json` (claudecode ignore `fileMode: "local"`).
  *
@@ -85,6 +86,8 @@ export const SHARED_USER_MANAGED_CONFIG_PATHS: readonly string[] = [
   ".config/crush/crush.json",
   "kilo.json",
   "kilo.jsonc",
+  ".mimocode/mimocode.json",
+  ".mimocode/mimocode.jsonc",
   "opencode.json",
   "opencode.jsonc",
 ];

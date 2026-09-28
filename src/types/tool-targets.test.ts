@@ -49,6 +49,7 @@ describe("tool targets", () => {
         "kiro-cli",
         "kiro-ide",
         "musecode",
+        "mimocode",
         "opencode",
         "pi",
         "pool",

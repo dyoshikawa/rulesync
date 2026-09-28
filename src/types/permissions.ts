@@ -1233,6 +1233,8 @@ export const PermissionsConfigSchema = z.looseObject({
   hermes: z.optional(HermesPermissionsOverrideSchema),
   cline: z.optional(ClinePermissionsOverrideSchema),
   kilo: z.optional(KiloPermissionsOverrideSchema),
+  // MiMo Code keeps OpenCode's `permission` schema, so it shares its override shape.
+  mimocode: z.optional(OpencodePermissionsOverrideSchema),
   claudecode: z.optional(ClaudecodePermissionsOverrideSchema),
   vibe: z.optional(VibePermissionsOverrideSchema),
   cursor: z.optional(CursorPermissionsOverrideSchema),

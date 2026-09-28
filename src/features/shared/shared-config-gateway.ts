@@ -1771,6 +1771,24 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
       rules: { kind: "replace-owned-keys", ownedKeys: ["instructions"] },
     },
   },
+  // MiMo Code config (an OpenCode fork; `.mimocode/mimocode.json` or the
+  // preferred `mimocode.jsonc` twin) — same ownership as OpenCode at both scopes.
+  ".mimocode/mimocode.json": {
+    format: "jsonc",
+    features: {
+      mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp", "tools"] },
+      permissions: { kind: "replace-owned-keys", ownedKeys: ["permission"] },
+      rules: { kind: "replace-owned-keys", ownedKeys: ["instructions"] },
+    },
+  },
+  ".config/mimocode/mimocode.json": {
+    format: "jsonc",
+    features: {
+      mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp", "tools"] },
+      permissions: { kind: "replace-owned-keys", ownedKeys: ["permission"] },
+      rules: { kind: "replace-owned-keys", ownedKeys: ["instructions"] },
+    },
+  },
   // Kilo config (`kilo.json` / preferred `kilo.jsonc` twin) — same shape as
   // OpenCode: `tools` is retracted when empty, `instructions` is recomputed
   // from the existing list before being applied.

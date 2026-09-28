@@ -140,6 +140,15 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
       metadata: z.optional(z.unknown()),
     }),
   ),
+  // MiMo Code keeps OpenCode's SKILL.md parser, so its section mirrors `opencode`.
+  mimocode: z.optional(
+    z.looseObject({
+      "allowed-tools": z.optional(z.array(z.string())),
+      license: z.optional(z.unknown()),
+      compatibility: z.optional(z.unknown()),
+      metadata: z.optional(z.unknown()),
+    }),
+  ),
   kilo: z.optional(
     z.looseObject({
       // `allowed-tools` is not part of Kilo's official SKILL.md frontmatter; it is
@@ -479,6 +488,12 @@ export type RulesyncSkillFrontmatterInput = {
     };
   };
   opencode?: {
+    "allowed-tools"?: string[];
+    license?: unknown;
+    compatibility?: unknown;
+    metadata?: unknown;
+  };
+  mimocode?: {
     "allowed-tools"?: string[];
     license?: unknown;
     compatibility?: unknown;

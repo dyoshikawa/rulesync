@@ -43,6 +43,7 @@ const mcpGenerateTargets = [
   { target: "copilot", outputPath: join(".vscode", "mcp.json") },
   { target: "copilotcli", outputPath: join(".github", "mcp.json") },
   { target: "crush", outputPath: "crush.json" },
+  { target: "mimocode", outputPath: join(".mimocode", "mimocode.jsonc") },
   { target: "opencode", outputPath: "opencode.jsonc" },
   { target: "pool", outputPath: join(".poolside", "settings.yaml") },
   { target: "deepagents", outputPath: join(".deepagents", ".mcp.json") },
@@ -468,6 +469,11 @@ describe("E2E: mcp", () => {
       target: "grokcli",
       outputPath: join(".grok", "config.toml"),
       content: '[ui]\ntheme = "dark"\n',
+    },
+    {
+      target: "mimocode",
+      outputPath: join(".mimocode", "mimocode.jsonc"),
+      content: JSON.stringify({ theme: "dark", mcp: {} }, null, 2),
     },
     {
       target: "opencode",
@@ -923,6 +929,7 @@ const mcpGlobalTargets = [
   { target: "qwencode", outputPath: join(".qwen", "settings.json") },
   { target: "goose", outputPath: join(".config", "goose", "config.yaml") },
   { target: "hermesagent", outputPath: join(getHermesagentGlobalDir(), "config.yaml") },
+  { target: "mimocode", outputPath: join(".config", "mimocode", "mimocode.jsonc") },
   { target: "opencode", outputPath: join(".config", "opencode", "opencode.jsonc") },
   { target: "pool", outputPath: join(".config", "poolside", "settings.yaml") },
   { target: "codexcli", outputPath: join(".codex", "config.toml") },
