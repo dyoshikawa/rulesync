@@ -1,4 +1,4 @@
-import { load, YAMLException } from "js-yaml";
+import { load, type LoadOptions, YAMLException } from "js-yaml";
 
 /**
  * js-yaml v5's `reason` for an empty document. `load("")` — and any
@@ -22,12 +22,12 @@ const EMPTY_INPUT_REASON = "expected a document, but the input is empty";
  *
  * @see https://github.com/nodeca/js-yaml/blob/master/docs/migrate_v4_to_v5.md#empty-input-throws
  */
-export function loadYaml(content: string): unknown {
+export function loadYaml(content: string, options?: LoadOptions): unknown {
   if (content.trim() === "") {
     return undefined;
   }
   try {
-    return load(content);
+    return load(content, options);
   } catch (error) {
     // A comment-only document is not caught by the whitespace guard above but is
     // still an "empty document" in v5. Preserve the v4 `undefined` contract for

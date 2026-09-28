@@ -111,6 +111,7 @@ export const mcpProcessorToolTargetTuple = [
   "crush",
   "cursor",
   "deepagents",
+  "dsh",
   "factorydroid",
   "goose",
   "grokcli",

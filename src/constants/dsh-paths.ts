@@ -34,3 +34,20 @@ export const DSH_DIR = ".dsh";
 
 /** Skills root, relative to the project root or the harness home. */
 export const DSH_SKILLS_DIR_PATH = join(DSH_DIR, "skills");
+
+/**
+ * Home-level Cordis patch layer (`$DSH_HOME/cordis.patch.yml`), the
+ * "machine-local preferences shared by every profile" that outranks each
+ * profile's own `cordis.patch.yml`. Its root is a YAML list of patch entries;
+ * MCP servers are persisted there as `insert` rows of
+ * {@link DSH_MCP_CLIENT_PLUGIN_NAME}. Rulesync writes only this home file: the
+ * per-profile `profiles/<name>/cordis.patch.yml` is also written by the app
+ * itself (the GUI Plugin Manager and settings, since v0.1.6-alpha.2).
+ *
+ * @see https://github.com/deepseek-ai/deepseek-harness/blob/master/apps/cli/reference/README.md
+ * @see https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/user/guide/mcp-memory.md
+ */
+export const DSH_CORDIS_PATCH_FILE_NAME = "cordis.patch.yml";
+
+/** The Cordis plugin that connects one MCP server per `insert` row. */
+export const DSH_MCP_CLIENT_PLUGIN_NAME = "@deepseek-ai/dsh-mcp-client";
