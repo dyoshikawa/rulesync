@@ -2,7 +2,9 @@ import { ConfigResolver } from "../../config/config-resolver.js";
 import { installApm } from "../../lib/apm/apm-install.js";
 import { apmManifestExists } from "../../lib/apm/apm-manifest.js";
 import { installGh } from "../../lib/gh/gh-install.js";
+import { checkOutdatedSources } from "../../lib/sources-outdated.js";
 import { resolveAndFetchSources } from "../../lib/sources.js";
+import { CLIError, ErrorCodes } from "../../types/json-output.js";
 import type { Logger } from "../../utils/logger.js";
 
 export const INSTALL_MODES = ["rulesync", "apm", "gh"] as const;
@@ -12,6 +14,7 @@ export type InstallCommandOptions = {
   mode?: InstallMode;
   update?: boolean;
   frozen?: boolean;
+  outdated?: boolean;
   token?: string;
   configPath?: string;
   verbose?: boolean;
@@ -23,6 +26,17 @@ export async function installCommand(
   options: InstallCommandOptions,
 ): Promise<void> {
   const mode: InstallMode = options.mode ?? "rulesync";
+
+  if (options.outdated) {
+    if (mode !== "rulesync") {
+      throw new Error("--outdated is only supported in rulesync mode.");
+    }
+    if (options.update || options.frozen) {
+      throw new Error("--outdated cannot be combined with --update or --frozen.");
+    }
+    await runOutdatedCheck(logger, options);
+    return;
+  }
 
   if (mode === "gh") {
     await runGhInstall(logger, options);
@@ -105,6 +119,79 @@ async function runRulesyncInstall(logger: Logger, options: InstallCommandOptions
       `All source artifacts up to date (${result.sourcesProcessed} source(s) checked).`,
     );
   }
+}
+
+/** Exit code of `install --outdated` when a source could not be resolved. */
+export const OUTDATED_RESOLUTION_FAILED_EXIT_CODE = 2;
+
+async function runOutdatedCheck(logger: Logger, options: InstallCommandOptions): Promise<void> {
+  const config = await ConfigResolver.resolve(
+    {
+      configPath: options.configPath,
+      verbose: options.verbose,
+      silent: options.silent,
+    },
+    { logger },
+  );
+  const sources = config.getSources();
+
+  if (sources.length === 0) {
+    logger.warn("No sources defined in configuration. Nothing to check.");
+    return;
+  }
+
+  const reports = await checkOutdatedSources({
+    sources,
+    projectRoot: process.cwd(),
+    token: options.token,
+    logger,
+  });
+
+  if (logger.jsonMode) {
+    logger.captureData("sources", reports);
+  }
+
+  for (const report of reports) {
+    const label = `${report.source} (${report.requestedRef ?? "unresolved"})`;
+    switch (report.status) {
+      case "up-to-date":
+        logger.info(`up to date  ${label}: ${report.lockedRef}`);
+        break;
+      case "outdated":
+        logger.warn(`outdated    ${label}: ${report.lockedRef} -> ${report.latestRef}`);
+        break;
+      case "not-locked":
+        logger.warn(`not locked  ${label}: -> ${report.latestRef}`);
+        break;
+      case "failed":
+        // `warn`, not `error`: in `--json` mode `error` emits a whole document.
+        logger.warn(`failed      ${report.source}: ${report.error}`);
+        break;
+    }
+  }
+
+  const failed = reports.filter((report) => report.status === "failed").length;
+  const behind = reports.filter(
+    (report) => report.status === "outdated" || report.status === "not-locked",
+  ).length;
+
+  if (failed > 0) {
+    throw new CLIError(
+      `Could not resolve ${failed} of ${reports.length} source(s); their lockfile status is unknown.`,
+      ErrorCodes.INSTALL_FAILED,
+      OUTDATED_RESOLUTION_FAILED_EXIT_CODE,
+      { sources: reports },
+    );
+  }
+  if (behind > 0) {
+    throw new CLIError(
+      `${behind} of ${reports.length} source(s) are behind in the lockfile or missing from it. Run 'rulesync install --update' to update.`,
+      ErrorCodes.INSTALL_FAILED,
+      1,
+      { sources: reports },
+    );
+  }
+  logger.success(`All ${reports.length} source(s) are up to date with the lockfile.`);
 }
 
 async function runApmInstall(logger: Logger, options: InstallCommandOptions): Promise<void> {
