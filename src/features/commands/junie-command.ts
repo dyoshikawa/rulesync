@@ -110,8 +110,11 @@ export class JunieCommand extends ToolCommand {
     // the flag, since generation re-derives it from the placeholder. A flag
     // set without any `$prompt` reference is kept: it still makes Junie append
     // free text as `User Input: ...`.
+    // A body that already holds a literal `$ARGUMENTS` (a named argument, or
+    // one generation left untouched) is kept as-is, mirroring the skip in
+    // `fromRulesyncCommand`, so the two cannot merge.
     const translatedBody =
-      junieFields.allowPromptArgument === true
+      junieFields.allowPromptArgument === true && !/\$ARGUMENTS\b/.test(this.body)
         ? translateJunieBodyToRulesync(this.body)
         : this.body;
     const { allowPromptArgument: _allowPromptArgument, ...fieldsWithoutFlag } = junieFields;

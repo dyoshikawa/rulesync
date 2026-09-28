@@ -240,7 +240,10 @@ describe("JunieCommand", () => {
       const rulesyncCommand = importCommand({ description: "Fix" }, "Fix $prompt.");
 
       expect(rulesyncCommand.getBody()).toBe("Fix $prompt.");
-      expect(rulesyncCommand.getFrontmatter()).toEqual({ targets: ["*"], description: "Fix" });
+      expect(rulesyncCommand.getFrontmatter()).toEqual({
+        targets: ["*"],
+        description: "Fix",
+      });
     });
 
     it("should keep allowPromptArgument when the body does not reference $prompt", () => {
@@ -250,6 +253,20 @@ describe("JunieCommand", () => {
       );
 
       expect(rulesyncCommand.getBody()).toBe("Fix the bug in $file.");
+      expect(rulesyncCommand.getFrontmatter()).toEqual({
+        targets: ["*"],
+        description: "Fix",
+        junie: { allowPromptArgument: true },
+      });
+    });
+
+    it("should leave $prompt untouched when the body also holds a literal $ARGUMENTS", () => {
+      const rulesyncCommand = importCommand(
+        { description: "Fix", allowPromptArgument: true },
+        "Use $prompt and $ARGUMENTS.",
+      );
+
+      expect(rulesyncCommand.getBody()).toBe("Use $prompt and $ARGUMENTS.");
       expect(rulesyncCommand.getFrontmatter()).toEqual({
         targets: ["*"],
         description: "Fix",
@@ -293,7 +310,9 @@ describe("JunieCommand", () => {
       expect(command).toBeInstanceOf(JunieCommand);
       expect(command.getRelativeDirPath()).toBe(join(".junie", "commands"));
       expect(command.getRelativeFilePath()).toBe("test-command.md");
-      expect(command.getFrontmatter()).toEqual({ description: "Test description" });
+      expect(command.getFrontmatter()).toEqual({
+        description: "Test description",
+      });
       expect(command.getBody()).toBe("Test body");
     });
 
@@ -328,7 +347,11 @@ describe("JunieCommand", () => {
           relativeDirPath: ".rulesync/commands",
           relativeFilePath: "fix.md",
           fileContent: "",
-          frontmatter: { targets: ["junie"], description: "Fix", ...frontmatter },
+          frontmatter: {
+            targets: ["junie"],
+            description: "Fix",
+            ...frontmatter,
+          },
           body,
         }),
       });
@@ -337,7 +360,10 @@ describe("JunieCommand", () => {
       const command = generateCommand({}, "Fix $ARGUMENTS.\n!`git diff`");
 
       expect(command.getBody()).toBe("Fix $prompt.\n!`git diff`");
-      expect(command.getFrontmatter()).toEqual({ description: "Fix", allowPromptArgument: true });
+      expect(command.getFrontmatter()).toEqual({
+        description: "Fix",
+        allowPromptArgument: true,
+      });
       expect(command.getFileContent()).toContain("allowPromptArgument: true");
       expect(command.getFileContent()).toContain("Fix $prompt.");
     });
@@ -353,7 +379,10 @@ describe("JunieCommand", () => {
       const command = generateCommand({ junie: { allowPromptArgument: false } }, "Fix $ARGUMENTS.");
 
       expect(command.getBody()).toBe("Fix $ARGUMENTS.");
-      expect(command.getFrontmatter()).toEqual({ description: "Fix", allowPromptArgument: false });
+      expect(command.getFrontmatter()).toEqual({
+        description: "Fix",
+        allowPromptArgument: false,
+      });
     });
 
     it("should keep $ARGUMENTS when the body already references $prompt", () => {
@@ -366,11 +395,35 @@ describe("JunieCommand", () => {
       expect(rulesyncCommand.getBody()).toBe("Use $prompt and $ARGUMENTS.");
     });
 
+    it("should round-trip a body with both placeholders and an explicit flag", () => {
+      const command = generateCommand(
+        { junie: { allowPromptArgument: true } },
+        "Use $prompt and $ARGUMENTS.",
+      );
+
+      expect(command.getBody()).toBe("Use $prompt and $ARGUMENTS.");
+      expect(command.getFrontmatter()).toEqual({
+        description: "Fix",
+        allowPromptArgument: true,
+      });
+
+      const rulesyncCommand = command.toRulesyncCommand();
+      expect(rulesyncCommand.getBody()).toBe("Use $prompt and $ARGUMENTS.");
+      expect(rulesyncCommand.getFrontmatter()).toEqual({
+        targets: ["*"],
+        description: "Fix",
+        junie: { allowPromptArgument: true },
+      });
+    });
+
     it("should round-trip $ARGUMENTS through generate and import", () => {
       const rulesyncCommand = generateCommand({}, "Fix $ARGUMENTS.").toRulesyncCommand();
 
       expect(rulesyncCommand.getBody()).toBe("Fix $ARGUMENTS.");
-      expect(rulesyncCommand.getFrontmatter()).toEqual({ targets: ["*"], description: "Fix" });
+      expect(rulesyncCommand.getFrontmatter()).toEqual({
+        targets: ["*"],
+        description: "Fix",
+      });
     });
   });
 
@@ -398,7 +451,9 @@ describe("JunieCommand", () => {
     it("should throw error if frontmatter in file is invalid", async () => {
       const relativeDirPath = join(".junie", "commands");
       const relativeFilePath = "invalid-command.md";
-      const fileContent = stringifyFrontmatter("Body", { description: 123 as any });
+      const fileContent = stringifyFrontmatter("Body", {
+        description: 123 as any,
+      });
 
       await ensureDir(join(testDir, relativeDirPath));
       await writeFileContent(join(testDir, relativeDirPath, relativeFilePath), fileContent);
