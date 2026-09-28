@@ -139,6 +139,10 @@ describe("registry derivation", () => {
       // user-managed config so a global generate with no servers does not
       // create an empty `[]` patch file in the user's home directory.
       "**/.dsh/cordis.patch.yml",
+      // Codewhale user config: emitted in GLOBAL scope only (project scope
+      // writes hooks to `.codewhale/hooks.toml` instead), so project
+      // derivation never yields it.
+      "**/.codewhale/config.toml",
     ]);
     const rawEntries = new Set(deriveAllGitignoreEntriesUnfiltered().map((tag) => tag.entry));
     const stale = [...DERIVED_PATHS_NOT_GITIGNORED].filter(

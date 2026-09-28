@@ -34,6 +34,7 @@ import { AugmentcodeSubagent } from "./augmentcode-subagent.js";
 import { ClaudecodePluginSubagent } from "./claudecode-plugin-subagent.js";
 import { ClaudecodeSubagent } from "./claudecode-subagent.js";
 import { ClineSubagent } from "./cline-subagent.js";
+import { CodewhaleSubagent } from "./codewhale-subagent.js";
 import { CodexCliSubagent } from "./codexcli-subagent.js";
 import { CommandcodeSubagent } from "./commandcode-subagent.js";
 import { CopilotSubagent } from "./copilot-subagent.js";
@@ -286,6 +287,21 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
         supportsSimulated: false,
         supportsGlobal: true,
         filePattern: "*.{yaml,yml}",
+      },
+    },
+  ],
+  [
+    "codewhale",
+    {
+      // Codewhale reads TOML agent profiles from .codewhale/agents/ (project)
+      // and ~/.codewhale/agents/ (user).
+      // https://github.com/Hmbown/Codewhale/blob/main/docs/SUBAGENTS.md
+      class: CodewhaleSubagent,
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: "*.toml",
       },
     },
   ],
