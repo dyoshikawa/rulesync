@@ -95,6 +95,62 @@ describe("CodebuffMcp", () => {
     expect(logger.warn).toHaveBeenCalledTimes(3);
   });
 
+  it("skips a server whose env value starts with $ but is not a whole ${VAR}", () => {
+    const logger = createMockLogger();
+    const mcp = CodebuffMcp.fromRulesyncMcp({
+      outputRoot: testDir,
+      logger,
+      rulesyncMcp: rulesyncMcpOf(testDir, {
+        port: { command: "node", env: { ADDR: "${HOST}:8080" } },
+        fallback: { command: "node", env: { MODE: "${MODE:-dev}" } },
+        kept: { command: "node", env: { TOKEN: "${TOKEN}" }, disabled: false },
+      }),
+    });
+
+    expect(JSON.parse(mcp.getFileContent())).toEqual({
+      mcpServers: { kept: { type: "stdio", command: "node", env: { TOKEN: "$TOKEN" } } },
+    });
+    expect(logger.warn).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps string params and drops non-string ones with a warning", () => {
+    const logger = createMockLogger();
+    const mcp = CodebuffMcp.fromRulesyncMcp({
+      outputRoot: testDir,
+      logger,
+      rulesyncMcp: rulesyncMcpOf(testDir, {
+        good: { url: "https://example.com/a", params: { key: "v" } },
+        bad: { url: "https://example.com/b", params: { key: 1 } },
+      }),
+    });
+
+    expect(JSON.parse(mcp.getFileContent())).toEqual({
+      mcpServers: {
+        good: { type: "http", url: "https://example.com/a", params: { key: "v" } },
+        bad: { type: "http", url: "https://example.com/b" },
+      },
+    });
+    expect(logger.warn).toHaveBeenCalledTimes(1);
+  });
+
+  it("writes ~/.agents/mcp.json in global mode and never deletes it", () => {
+    const mcp = CodebuffMcp.fromRulesyncMcp({
+      outputRoot: testDir,
+      global: true,
+      rulesyncMcp: rulesyncMcpOf(testDir, { kept: { command: "node" } }),
+    });
+
+    expect(mcp.getFilePath()).toBe(join(testDir, ".agents", "mcp.json"));
+    expect(mcp.isDeletable()).toBe(false);
+    expect(
+      CodebuffMcp.forDeletion({
+        outputRoot: testDir,
+        relativeDirPath: ".agents",
+        relativeFilePath: "mcp.json",
+      }).isDeletable(),
+    ).toBe(true);
+  });
+
   it("imports .agents/mcp.json, restoring canonical ${VAR} env references", async () => {
     await writeFileContent(
       join(testDir, ".agents", "mcp.json"),

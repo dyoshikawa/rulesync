@@ -37,6 +37,8 @@ const MAPPED_KEYS = new Set([
   "httpUrl",
   "headers",
   "params",
+  // `disabled: true` skips the server; `false` is the default and needs no key.
+  "disabled",
 ]);
 
 // A whole canonical `${VAR}` value, the only form with a Codebuff equivalent.
@@ -46,11 +48,13 @@ const CANONICAL_ENV_REF = /\$\{(?!env:)[^}:]+\}/;
 const WHOLE_CODEBUFF_ENV_REF = /^\$([A-Za-z_][A-Za-z0-9_]*)$/;
 
 /**
- * Codebuff resolves an `env` value as a variable reference only when the whole
- * value is `$NAME`, and throws — dropping the whole `mcp.json` — when that
- * variable is unset. A canonical `${NAME}` would be looked up as a variable
- * literally named `{NAME}`, so it is rewritten; a reference embedded in a longer
- * value has no Codebuff form and is left as literal text with a warning.
+ * Codebuff treats every `env` value starting with `$` as a variable reference
+ * (the rest of the value is the variable name) and throws — dropping the whole
+ * `mcp.json` — when that variable is unset. A whole-value canonical `${NAME}`
+ * is rewritten to `$NAME`. Any other value starting with `$` has no Codebuff
+ * form and would break the whole file, so `null` is returned and the caller
+ * skips the server. A reference embedded later in a value is not resolved by
+ * Codebuff; it is written as literal text with a warning.
  */
 function toCodebuffEnv({
   name,
@@ -60,22 +64,34 @@ function toCodebuffEnv({
   name: string;
   env: Record<string, string>;
   logger?: Logger;
-}): Record<string, string> {
-  return Object.fromEntries(
-    Object.entries(env).map(([key, value]) => {
-      const match = WHOLE_CANONICAL_ENV_REF.exec(value);
-      if (match) {
-        return [key, `$${match[1]}`];
-      }
-      if (CANONICAL_ENV_REF.test(value)) {
-        logger?.warn(
-          `${TOOL_NAME} MCP: env ${quoteValueForWarning(key)} of server ${quoteValueForWarning(name)} embeds a \${VAR} reference; ` +
-            "Codebuff only resolves a whole-value $VAR, so it is written as literal text.",
-        );
-      }
-      return [key, value];
-    }),
-  );
+}): Record<string, string> | null {
+  const converted: Array<[string, string]> = [];
+  for (const [key, value] of Object.entries(env)) {
+    const match = WHOLE_CANONICAL_ENV_REF.exec(value);
+    if (match) {
+      converted.push([key, `$${match[1]}`]);
+      continue;
+    }
+    if (value.startsWith("$")) {
+      warnAndSkipMcpServer({
+        toolName: TOOL_NAME,
+        serverName: name,
+        reason:
+          `env ${quoteValueForWarning(key)} starting with "$" that is not a whole \${VAR} reference, ` +
+          "which Codebuff would resolve as a variable name and fail to load the whole mcp.json",
+        logger,
+      });
+      return null;
+    }
+    if (CANONICAL_ENV_REF.test(value)) {
+      logger?.warn(
+        `${TOOL_NAME} MCP: env ${quoteValueForWarning(key)} of server ${quoteValueForWarning(name)} embeds a \${VAR} reference; ` +
+          "Codebuff only resolves a whole-value $VAR, so it is written as literal text.",
+      );
+    }
+    converted.push([key, value]);
+  }
+  return Object.fromEntries(converted);
 }
 
 /**
@@ -135,10 +151,18 @@ function toCodebuffServer({
       });
     }
     const params: unknown = server.params;
+    const validParams =
+      isRecord(params) && Object.values(params).every((value) => typeof value === "string");
+    if (params !== undefined && !validParams) {
+      logger?.warn(
+        `${TOOL_NAME} MCP: dropping params from server ${quoteValueForWarning(name)}; ` +
+          "Codebuff accepts only a map of string values.",
+      );
+    }
     return {
       type: transport === "sse" ? "sse" : "http",
       url,
-      ...(isRecord(params) && { params }),
+      ...(validParams && { params }),
       ...(server.headers && { headers: server.headers }),
     };
   }
@@ -152,11 +176,15 @@ function toCodebuffServer({
       logger,
     });
   }
+  const env = server.env ? toCodebuffEnv({ name, env: server.env, logger }) : undefined;
+  if (env === null) {
+    return null;
+  }
   return {
     type: "stdio",
     command,
     ...(args.length > 0 && { args }),
-    ...(server.env && { env: toCodebuffEnv({ name, env: server.env, logger }) }),
+    ...(env && { env }),
   };
 }
 
@@ -194,6 +222,12 @@ export class CodebuffMcp extends ToolMcp {
 
   getJson(): Record<string, unknown> {
     return this.json;
+  }
+
+  override isDeletable(): boolean {
+    // `~/.agents/` is shared with other tools and may hold servers the user
+    // manages by hand, so the global file is never deleted.
+    return !this.global;
   }
 
   static getSettablePaths(_options: { global?: boolean } = {}): ToolMcpSettablePaths {
@@ -234,13 +268,14 @@ export class CodebuffMcp extends ToolMcp {
   }: ToolMcpFromRulesyncMcpParams): CodebuffMcp {
     const paths = this.getSettablePaths({ global });
 
-    const mcpServers: Record<string, unknown> = {};
+    const entries: Array<[string, Record<string, unknown>]> = [];
     for (const [name, server] of Object.entries(rulesyncMcp.getMcpServers())) {
       const converted = toCodebuffServer({ name, server, logger });
       if (converted !== null) {
-        mcpServers[name] = converted;
+        entries.push([name, converted]);
       }
     }
+    const mcpServers = Object.fromEntries(entries);
 
     return new CodebuffMcp({
       outputRoot,
