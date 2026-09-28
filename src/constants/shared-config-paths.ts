@@ -57,6 +57,10 @@ export const SHARED_USER_MANAGED_CONFIG_PATHS: readonly string[] = [
   ".dsh/cordis.patch.yml",
   ".factory/settings.json",
   ".grok/config.toml",
+  // Letta Code settings: the project file and the user one share the same
+  // `.letta/settings.json` layout and carry the user's own settings beside the
+  // `hooks` and `permissions` blocks.
+  ".letta/settings.json",
   // Both Rovo Dev project files are documented as repo-committed surfaces
   // (Bitbucket Cloud Agentic Pipelines), so neither is gitignored.
   ".rovodev/config.yml",

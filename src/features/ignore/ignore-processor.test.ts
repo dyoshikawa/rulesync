@@ -479,6 +479,7 @@ describe("IgnoreProcessor", () => {
         "kiro",
         "kiro-cli",
         "kiro-ide",
+        "lettacode",
         "qwencode",
         "reasonix",
         "roo",

@@ -51,6 +51,7 @@ export const TOOL_DISPLAY: ReadonlyArray<ToolDisplayEntry> = [
   { key: "kiro", label: "Kiro ⚠️", group: "ai" },
   { key: "kiro-cli", label: "Kiro CLI", group: "ai" },
   { key: "kiro-ide", label: "Kiro IDE", group: "ai" },
+  { key: "lettacode", label: "Letta Code", group: "ai" },
   { key: "antigravity-ide", label: "Google Antigravity IDE", group: "ai" },
   { key: "antigravity-cli", label: "Google Antigravity CLI", group: "ai" },
   { key: "antigravity-plugin", label: "Google Antigravity plugin", group: "ai" },
