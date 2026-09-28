@@ -2,7 +2,6 @@ import type { SourceEntry } from "../config/config.js";
 import type { ParsedSource } from "../types/fetch.js";
 import { formatError } from "../utils/error.js";
 import type { Logger } from "../utils/logger.js";
-import { resolveDefaultRef, resolveRefToSha } from "./git-client.js";
 import { GitHubClient } from "./github-client.js";
 import {
   DEFAULT_NPM_REGISTRY_URL,
@@ -15,7 +14,7 @@ import {
 import { getNpmLockedSource, readNpmLockFile } from "./npm-sources-lock.js";
 import { parseSource } from "./source-parser.js";
 import { getLockedSource, readLockFile } from "./sources-lock.js";
-import { resolveGithubFetchRef } from "./sources.js";
+import { resolveGitSourceRef, resolveGithubFetchRef, resolveNpmFetchVersion } from "./sources.js";
 
 export type OutdatedSourceStatus = "up-to-date" | "outdated" | "not-locked" | "failed";
 
@@ -100,21 +99,17 @@ async function resolveLatestRef(params: {
     const registryUrl = sourceEntry.registry ?? DEFAULT_NPM_REGISTRY_URL;
     validateNpmRegistryUrl(registryUrl, { logger });
     const token = resolveNpmToken({ tokenEnv: sourceEntry.tokenEnv });
-    const requestedRef = sourceEntry.ref ?? "latest";
+    const requestedRef =
+      resolveNpmFetchVersion({ sourceEntry, locked: undefined, updateSources: true })
+        .requestedVersion ?? "latest";
     const packument = await fetchPackument({ registryUrl, packageName, token });
     const latestRef = resolvePackumentVersion({ packument, packageName, requested: requestedRef });
     return { requestedRef, latestRef };
   }
 
   if (transport === "git") {
-    if (sourceEntry.ref) {
-      return {
-        requestedRef: sourceEntry.ref,
-        latestRef: await resolveRefToSha(sourceEntry.source, sourceEntry.ref),
-      };
-    }
-    const defaultRef = await resolveDefaultRef(sourceEntry.source);
-    return { requestedRef: defaultRef.ref, latestRef: defaultRef.sha };
+    const { requestedRef, resolvedSha } = await resolveGitSourceRef(sourceEntry);
+    return { requestedRef, latestRef: resolvedSha };
   }
 
   const parsedFromSource = parseSource(sourceEntry.source);
@@ -133,5 +128,6 @@ async function resolveLatestRef(params: {
     client,
     logger,
   });
-  return { requestedRef: requestedRef ?? parsed.ref ?? "HEAD", latestRef: resolvedSha };
+  // With `locked: undefined`, `resolveGithubFetchRef` always resolves a requested ref.
+  return { requestedRef: requestedRef ?? resolvedSha, latestRef: resolvedSha };
 }

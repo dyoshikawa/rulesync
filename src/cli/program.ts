@@ -254,7 +254,7 @@ export function createProgram(): Command {
     )
     .option(
       "--outdated",
-      "Report sources whose lockfile entry is behind the remote without writing anything (exit 1 if any, 2 if a source cannot be resolved)",
+      "Report sources whose lockfile entry is behind the remote without writing anything (exit 1 if any is behind or not locked, 2 if a source cannot be resolved)",
     )
     .option("--token <token>", "GitHub token for private repos")
     .option("-c, --config <path>", "Path to configuration file")

@@ -269,6 +269,9 @@ describe("installCommand", () => {
       expect(error).toMatchObject({
         exitCode: 1,
         message: expect.stringContaining("2 of 2 source(s)"),
+        details: {
+          sources: expect.arrayContaining([expect.objectContaining({ status: "outdated" })]),
+        },
       });
       expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining("outdated"));
       expect(resolveAndFetchSources).not.toHaveBeenCalled();

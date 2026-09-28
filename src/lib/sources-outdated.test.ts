@@ -169,6 +169,20 @@ describe("checkOutdatedSources", () => {
     expect(reports.map((report) => report.status)).toEqual(["up-to-date", "up-to-date"]);
   });
 
+  it("uses a ref embedded in the source string and matches normalized lockfile keys", async () => {
+    mockClient.resolveRefToSha.mockResolvedValue(SHA_A);
+
+    const reports = await checkOutdatedSources({
+      sources: [{ source: "owner/current@v2" }, { source: "https://github.com/owner/behind" }],
+      projectRoot: "/project",
+      logger,
+    });
+
+    expect(mockClient.getDefaultBranch).toHaveBeenCalledTimes(1);
+    expect(mockClient.resolveRefToSha).toHaveBeenCalledWith("owner", "current", "v2");
+    expect(reports[1]).toMatchObject({ status: "up-to-date", lockedRef: SHA_A });
+  });
+
   it("reports a source that cannot be resolved as failed and keeps checking the rest", async () => {
     mockClient.getDefaultBranch.mockRejectedValueOnce(new Error("network unreachable"));
     mockClient.getDefaultBranch.mockResolvedValue("main");

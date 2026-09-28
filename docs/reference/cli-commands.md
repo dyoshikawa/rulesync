@@ -62,7 +62,7 @@ rulesync install --update
 rulesync install --frozen
 
 # Report sources whose lockfile entry is behind the remote, without writing anything
-# (exit 1 if any is behind, 2 if a source cannot be resolved)
+# (exit 1 if any is behind or not locked, 2 if a source cannot be resolved)
 rulesync install --outdated
 
 # Install then generate (typical workflow)
