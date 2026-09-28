@@ -15,6 +15,7 @@ import { CommandsProcessor } from "../features/commands/commands-processor.js";
 import { HooksProcessor } from "../features/hooks/hooks-processor.js";
 import { IgnoreProcessor } from "../features/ignore/ignore-processor.js";
 import { McpProcessor } from "../features/mcp/mcp-processor.js";
+import { ModelsProcessor } from "../features/models/models-processor.js";
 import { PermissionsProcessor } from "../features/permissions/permissions-processor.js";
 import { RulesProcessor } from "../features/rules/rules-processor.js";
 import {
@@ -61,6 +62,8 @@ export type GenerateResult = {
   ignorePaths: string[];
   mcpCount: number;
   mcpPaths: string[];
+  modelsCount: number;
+  modelsPaths: string[];
   commandsCount: number;
   commandsPaths: string[];
   subagentsCount: number;
@@ -508,6 +511,7 @@ export async function inspectInputRoots(inputRoots: readonly string[]): Promise<
 export type GenerationStepId =
   | "ignore"
   | "mcp"
+  | "models"
   | "commands"
   | "subagents"
   | "skills"
@@ -644,6 +648,7 @@ const sharedWriteMeta = (
 export const GENERATION_STEP_GRAPH: readonly GenerationStepMeta[] = [
   { id: "ignore", ...sharedWriteMeta("ignore") },
   { id: "mcp", ...sharedWriteMeta("mcp") },
+  { id: "models", ...sharedWriteMeta("models") },
   { id: "commands", ...sharedWriteMeta("commands") },
   { id: "subagents", ...sharedWriteMeta("subagents") },
   { id: "skills" },
@@ -855,6 +860,7 @@ export async function generate(params: {
   const runners: Record<GenerationStepId, () => Promise<FeatureGenerateResult>> = {
     ignore: () => generateIgnoreCore({ config, logger, sweepPlan }),
     mcp: () => generateMcpCore({ config, logger, sweepPlan }),
+    models: () => generateModelsCore({ config, logger, sweepPlan }),
     commands: () => generateCommandsCore({ config, logger, sweepPlan }),
     subagents: () => generateSubagentsCore({ config, logger, sweepPlan }),
     skills: async () => {
@@ -922,6 +928,8 @@ export async function generate(params: {
     ignorePaths: get("ignore").paths,
     mcpCount: get("mcp").count,
     mcpPaths: get("mcp").paths,
+    modelsCount: get("models").count,
+    modelsPaths: get("models").paths,
     commandsCount: get("commands").count,
     commandsPaths: get("commands").paths,
     subagentsCount: get("subagents").count,
@@ -1416,6 +1424,65 @@ async function generateMcpCore(params: {
       }
 
       const processor = new McpProcessor({
+        outputRoot: resolveToolOutputRoot({
+          outputRoot,
+          toolTarget,
+          global: config.getGlobal(),
+        }),
+        inputRoots: config.getInputRoots(),
+        toolTarget: toolTarget,
+        global: config.getGlobal(),
+        dryRun: config.isPreviewMode(),
+        logger,
+      });
+
+      const rulesyncFiles = await processor.loadRulesyncFiles();
+      const result = await processFeatureWithRulesyncFiles({
+        config,
+        processor,
+        rulesyncFiles,
+        sweepPlan,
+      });
+
+      totalCount += result.count;
+      allPaths.push(...result.paths);
+      if (result.hasDiff) hasDiff = true;
+      if (result.sourceLoadFailed) sourceLoadFailed = true;
+    }
+  }
+
+  return { count: totalCount, paths: allPaths, hasDiff, sourceLoadFailed };
+}
+
+async function generateModelsCore(params: {
+  config: Config;
+  logger: Logger;
+  sweepPlan: OrphanSweepPlan;
+}): Promise<FeatureGenerateResult> {
+  const { config, logger, sweepPlan } = params;
+
+  let totalCount = 0;
+  const allPaths: string[] = [];
+  let hasDiff = false;
+  let sourceLoadFailed = false;
+
+  const supportedModelsTargets = ModelsProcessor.getToolTargets({ global: config.getGlobal() });
+  const toolTargets = intersection(config.getTargets(), supportedModelsTargets);
+  warnUnsupportedTargets({
+    config,
+    supportedTargets: supportedModelsTargets,
+    featureName: "models",
+    logger,
+  });
+
+  for (const toolTarget of toolTargets) {
+    for (const outputRoot of config.getOutputRoots(toolTarget)) {
+      // Check if models feature is enabled for this specific target
+      if (!config.getFeatures(toolTarget).includes("models")) {
+        continue;
+      }
+
+      const processor = new ModelsProcessor({
         outputRoot: resolveToolOutputRoot({
           outputRoot,
           toolTarget,

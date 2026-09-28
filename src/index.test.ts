@@ -45,6 +45,8 @@ const mockGenerateResult: GenerateResult = {
   ignorePaths: [],
   mcpCount: 0,
   mcpPaths: [],
+  modelsCount: 0,
+  modelsPaths: [],
   commandsCount: 0,
   commandsPaths: [],
   subagentsCount: 0,

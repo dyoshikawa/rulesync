@@ -47,6 +47,7 @@ export const RULESYNC_CHECKS_RELATIVE_DIR_PATH = join(
   CHECKS_FEATURE_SUBDIR,
 );
 export const RULESYNC_MCP_RELATIVE_FILE_PATH = join(RULESYNC_RELATIVE_DIR_PATH, "mcp.jsonc");
+export const RULESYNC_MODELS_RELATIVE_FILE_PATH = join(RULESYNC_RELATIVE_DIR_PATH, "models.jsonc");
 export const RULESYNC_HOOKS_RELATIVE_FILE_PATH = join(RULESYNC_RELATIVE_DIR_PATH, "hooks.jsonc");
 export const RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH = join(
   RULESYNC_RELATIVE_DIR_PATH,
@@ -80,6 +81,7 @@ export const RULESYNC_NPM_SOURCES_LOCK_RELATIVE_FILE_PATH = "rulesync-npm.lock.j
 
 // Recommended file names (without path)
 export const RULESYNC_MCP_FILE_NAME = "mcp.jsonc";
+export const RULESYNC_MODELS_FILE_NAME = "models.jsonc";
 export const RULESYNC_HOOKS_FILE_NAME = "hooks.jsonc";
 export const RULESYNC_PERMISSIONS_FILE_NAME = "permissions.jsonc";
 export const RULESYNC_MCP_LEGACY_FILE_NAME = "mcp.json";
@@ -101,6 +103,7 @@ export const FEATURE_SOURCE_TREE_ENTRIES: Record<Feature, readonly string[]> = {
     RULESYNC_MCP_LEGACY_FILE_NAME,
     RULESYNC_MCP_DEPRECATED_DOTFILE_NAME,
   ],
+  models: [RULESYNC_MODELS_FILE_NAME],
   hooks: [RULESYNC_HOOKS_FILE_NAME, RULESYNC_HOOKS_LEGACY_FILE_NAME],
   permissions: [RULESYNC_PERMISSIONS_FILE_NAME, RULESYNC_PERMISSIONS_LEGACY_FILE_NAME],
 };
@@ -110,6 +113,8 @@ export const RULESYNC_CONFIG_SCHEMA_URL =
   "https://github.com/dyoshikawa/rulesync/releases/latest/download/config-schema.json";
 export const RULESYNC_MCP_SCHEMA_URL =
   "https://github.com/dyoshikawa/rulesync/releases/latest/download/mcp-schema.json";
+export const RULESYNC_MODELS_SCHEMA_URL =
+  "https://github.com/dyoshikawa/rulesync/releases/latest/download/models-schema.json";
 export const RULESYNC_PERMISSIONS_SCHEMA_URL =
   "https://github.com/dyoshikawa/rulesync/releases/latest/download/permissions-schema.json";
 

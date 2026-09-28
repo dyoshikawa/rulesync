@@ -1751,11 +1751,13 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
   // both resolve here via the settable paths). `tools` is retracted when the
   // generated MCP servers yield no tool filters; `permission` and
   // `instructions` are recomputed from source/existing content before being
-  // applied. Rules (`instructions`) are registered at both scopes.
+  // applied. Rules (`instructions`) are registered at both scopes. `models`
+  // owns `provider`/`model`; `model` is retracted when no default is declared.
   "opencode.json": {
     format: "jsonc",
     features: {
       mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp", "tools"] },
+      models: { kind: "replace-owned-keys", ownedKeys: ["provider", "model"] },
       permissions: { kind: "replace-owned-keys", ownedKeys: ["permission"] },
       rules: { kind: "replace-owned-keys", ownedKeys: ["instructions"] },
     },
@@ -1764,6 +1766,7 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
     format: "jsonc",
     features: {
       mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp", "tools"] },
+      models: { kind: "replace-owned-keys", ownedKeys: ["provider", "model"] },
       permissions: { kind: "replace-owned-keys", ownedKeys: ["permission"] },
       // OpenCode reads `instructions` from the global config too; the rules
       // feature registers global non-root rules here (recomputed from the
