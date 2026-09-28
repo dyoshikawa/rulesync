@@ -840,6 +840,7 @@ describe("HooksProcessor", () => {
         "reasonix",
         "grokcli",
         "crush",
+        "zcode",
       ]);
     });
 
@@ -935,6 +936,7 @@ describe("HooksProcessor", () => {
         "reasonix",
         "grokcli",
         "crush",
+        "zcode",
       ]);
     });
 

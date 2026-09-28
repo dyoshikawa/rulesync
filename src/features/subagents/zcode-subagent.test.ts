@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ZCODE_AGENTS_DIR_PATH } from "../../constants/zcode-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { writeFileContent } from "../../utils/file.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
@@ -39,16 +40,15 @@ describe("ZcodeSubagent", () => {
   });
 
   describe("scope registration", () => {
-    it("should be offered for global mode only", () => {
+    it("should be offered for both project and global mode", () => {
       expect(toolSubagentFactories.get("zcode")?.meta).toEqual({
-        supportsProject: false,
+        supportsProject: true,
         supportsSimulated: false,
         supportsGlobal: true,
         filePattern: "*.md",
       });
       expect(SubagentsProcessor.getToolTargets({ global: true })).toContain("zcode");
-      expect(SubagentsProcessor.getToolTargets()).not.toContain("zcode");
-      expect(SubagentsProcessor.getToolTargets({ includeSimulated: true })).not.toContain("zcode");
+      expect(SubagentsProcessor.getToolTargets()).toContain("zcode");
     });
   });
 
@@ -101,6 +101,60 @@ describe("ZcodeSubagent", () => {
       expect(subagent.getBody()).toBe("Review the code carefully.");
       expect(subagent.getRelativeDirPath()).toBe(join(".zcode", "agents"));
       expect(subagent.getFileContent()).toContain("thoughtLevel: high");
+    });
+  });
+
+  describe("permissionMode scope handling", () => {
+    const buildRulesyncSubagent = () =>
+      new RulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath: "planner.md",
+        frontmatter: {
+          targets: ["zcode"],
+          name: "planner",
+          description: "Plans work",
+          zcode: { model: "glm-4.6", permissionMode: "plan" },
+        },
+        body: "Plan the work.",
+        validate: true,
+      });
+
+    it("should drop permissionMode with a warning for the project scope", () => {
+      const logger = createMockLogger();
+      const subagent = ZcodeSubagent.fromRulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: ZCODE_AGENTS_DIR_PATH,
+        rulesyncSubagent: buildRulesyncSubagent(),
+        logger,
+      }) as ZcodeSubagent;
+
+      expect(subagent.getFrontmatter()).toEqual({
+        name: "planner",
+        description: "Plans work",
+        model: "glm-4.6",
+      });
+      expect(subagent.getFileContent()).not.toContain("permissionMode");
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"permissionMode"'));
+    });
+
+    it("should keep permissionMode for the global scope", () => {
+      const logger = createMockLogger();
+      const subagent = ZcodeSubagent.fromRulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: ZCODE_AGENTS_DIR_PATH,
+        rulesyncSubagent: buildRulesyncSubagent(),
+        global: true,
+        logger,
+      }) as ZcodeSubagent;
+
+      expect(subagent.getFrontmatter()).toEqual({
+        name: "planner",
+        description: "Plans work",
+        model: "glm-4.6",
+        permissionMode: "plan",
+      });
+      expect(logger.warn).not.toHaveBeenCalled();
     });
   });
 

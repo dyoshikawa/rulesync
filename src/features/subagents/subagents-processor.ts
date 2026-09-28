@@ -742,13 +742,13 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
     "zcode",
     {
       // ZCode subagents are Markdown files with YAML frontmatter under
-      // `~/.zcode/agents/`. Global only: the current Beta manages user-level
-      // subagents there, and workspace/project-level ones are "not available
-      // yet".
+      // `.zcode/agents/` (project) and `~/.zcode/agents/` (global). The docs
+      // describe only the user directory, but the runtime also loads the
+      // project one (observed in the v3.14.3 agent runtime).
       // https://zcode.z.ai/en/docs/subagents
       class: ZcodeSubagent,
       meta: {
-        supportsProject: false,
+        supportsProject: true,
         supportsSimulated: false,
         supportsGlobal: true,
         filePattern: "*.md",

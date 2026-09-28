@@ -139,6 +139,7 @@ const hooksGenerateTargets = [
   { target: "gitlabduo", outputPath: join(".gitlab", "duo", "hooks.json") },
   { target: "grokcli", outputPath: join(".grok", "hooks", "rulesync.json") },
   { target: "cline", outputPath: join(".clinerules", "hooks", "rulesync-hooks.json") },
+  { target: "zcode", outputPath: join(".zcode", "config.json") },
 ] as const;
 
 // Targets exercised by dedicated `it`s (bespoke per-tool serialization).
@@ -275,6 +276,15 @@ describe("E2E: hooks", () => {
             ],
           },
         ]);
+      } else if (target === "zcode") {
+        // ZCode nests the PascalCase event map under `hooks.events` of the
+        // workspace config and states `enabled: true`; the hooks still run only
+        // once each user trusts them in ZCode.
+        expect(parsed.hooks.enabled).toBe(true);
+        expect(parsed.hooks.events.SessionStart).toBeDefined();
+        expect(parsed.hooks.events.Stop).toBeDefined();
+        expect(JSON.stringify(parsed.hooks.events)).toContain(".rulesync/hooks/session-start.sh");
+        expect(JSON.stringify(parsed.hooks.events)).toContain(".rulesync/hooks/audit.sh");
       } else if (target === "deepagents") {
         // deepagents-cli gets the Hooks v2 document: PascalCase HookEvent keys
         // over matcher groups holding string commands (no bash -c argv
@@ -1034,6 +1044,21 @@ describe("E2E: hooks (import)", () => {
         },
       },
     },
+    {
+      // ZCode nests PascalCase events under `hooks.events` of the workspace
+      // config, beside its MCP servers.
+      target: "zcode",
+      sourcePath: join(".zcode", "config.json"),
+      sourceContent: {
+        mcp: { servers: {} },
+        hooks: {
+          enabled: true,
+          events: {
+            SessionStart: [{ hooks: [{ type: "command", command: "echo session started" }] }],
+          },
+        },
+      },
+    },
   ])(
     "should import $target hooks",
     async ({ target, sourcePath, sourceContent, expectedEvent }) => {
@@ -1172,8 +1197,7 @@ describe("E2E: hooks (global mode)", () => {
         expect(parsed.hooks.sessionStart).toBeDefined();
         expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
       } else if (target === "zcode") {
-        // ZCode never executes workspace config hooks, so generation is
-        // global-only: the `hooks` block (with `enabled: true`) goes to
+        // In global mode the `hooks` block (with `enabled: true`) goes to
         // ~/.zcode/cli/config.json. See CANONICAL_TO_ZCODE_EVENT_NAMES in
         // src/types/hooks.ts.
         const parsedHooks = JSON.parse(generatedContent).hooks;

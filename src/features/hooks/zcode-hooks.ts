@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import {
   ZCODE_CONFIG_FILE_NAME,
+  ZCODE_DIR,
   ZCODE_GLOBAL_CONFIG_DIR_PATH,
   ZCODE_HOOKS_CONFIG_KEY,
   ZCODE_HOOKS_EVENTS_KEY,
@@ -105,8 +106,8 @@ const ZCODE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   canonicalToToolEventNames: CANONICAL_TO_ZCODE_EVENT_NAMES,
   toolToCanonicalEventNames: ZCODE_TO_CANONICAL_EVENT_NAMES,
   // ZCode defines no project-directory variable, so commands are emitted
-  // verbatim; user-scope hooks run with the project as the working directory,
-  // where `.`-relative paths already resolve.
+  // verbatim; hooks run with the project as the working directory, where
+  // `.`-relative paths already resolve.
   projectDirVar: "",
   noMatcherEvents: ZCODE_NO_MATCHER_EVENTS,
   // Only canonical `command` hooks are emitted. ZCode's native `process` type
@@ -134,14 +135,15 @@ const ZCODE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
 /**
  * ZCode hooks.
  *
- * ZCode reads configuration-file hooks from the `hooks` block of its user
- * config file, `~/.zcode/cli/config.json`. Workspace config hooks are never
- * executed — the workspace file is ignored regardless of `hooks.enabled` — so
- * rulesync treats ZCode hooks as global-only. The event map is nested under
- * `hooks.events` beside the user-tunable `enabled` and `timeoutMs` siblings,
- * which are carried over while `events` is replaced.
+ * ZCode reads configuration-file hooks from the `hooks` block of its JSON
+ * config: `<project>/.zcode/config.json` (workspace) and
+ * `~/.zcode/cli/config.json` (user) — the same files that hold MCP servers.
+ * Workspace hooks run only after the user trusts them. The event map is nested
+ * under `hooks.events` beside the user-tunable `enabled` and `timeoutMs`
+ * siblings, which are carried over while `events` is replaced.
  *
  * @see https://zcode.z.ai/en/docs
+ * @see https://zcode.z.ai/en/changelog (v3.8.1: workspace-level hooks)
  */
 export class ZcodeHooks extends ToolHooks {
   private readonly json: Record<string, unknown>;
@@ -160,12 +162,11 @@ export class ZcodeHooks extends ToolHooks {
     return false;
   }
 
-  static getSettablePaths(_options: { global?: boolean } = {}): ToolHooksSettablePaths {
-    // ZCode never executes workspace config hooks, so generation always
-    // targets the user config `~/.zcode/cli/config.json`. In global mode the
-    // same relative path is resolved under the user home.
+  static getSettablePaths({ global = false }: { global?: boolean } = {}): ToolHooksSettablePaths {
+    // Same files as ZcodeMcp: `<project>/.zcode/config.json` for the workspace
+    // and `~/.zcode/cli/config.json` for the user.
     return {
-      relativeDirPath: ZCODE_GLOBAL_CONFIG_DIR_PATH,
+      relativeDirPath: global ? ZCODE_GLOBAL_CONFIG_DIR_PATH : ZCODE_DIR,
       relativeFilePath: ZCODE_CONFIG_FILE_NAME,
     };
   }
