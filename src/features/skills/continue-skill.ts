@@ -20,7 +20,7 @@ import {
 // Agent Skills spec (Continue additionally rejects empty strings at load time,
 // like the sibling adapters this schema mirrors); Continue validates nothing
 // else.
-// @see https://github.com/continuedev/continue/blob/main/extensions/cli/src/util/loadMarkdownSkills.ts
+// @see https://github.com/continuedev/continue/blob/5522c6f44ca0ac3528b37244818fbfa39b5af470/extensions/cli/src/util/loadMarkdownSkills.ts
 const ContinueSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
@@ -48,7 +48,7 @@ export type ContinueSkillParams = {
  * covers. The frontmatter requires `name` (matching the directory name) and
  * `description`; supporting files next to `SKILL.md` are carried along.
  *
- * @see https://github.com/continuedev/continue/blob/main/extensions/cli/src/util/loadMarkdownSkills.ts
+ * @see https://github.com/continuedev/continue/blob/5522c6f44ca0ac3528b37244818fbfa39b5af470/extensions/cli/src/util/loadMarkdownSkills.ts
  */
 export class ContinueSkill extends ToolSkill {
   constructor({
