@@ -778,6 +778,7 @@ export function stripProjectDirVariable(options: {
  *
  * Left untouched: an escaped `\$VAR`, a longer name such as `$VAR_2`, a bare
  * `$VAR` not followed by `/`, a variable that does not start a path (`a:$VAR/x`),
+ * the value of an assignment word or option (`PATH=$VAR/bin`, `--opt=$VAR/x`),
  * one inside a literal single-quoted string, a comment, or a `-c` script the
  * command does not run itself (`sudo sh -c '…'`), and — in a command whose
  * later words are not converted (see `convertsLaterWords`) or that starts
@@ -816,6 +817,13 @@ export function importProjectDirVariable({
   // quoted path; one that closes a `-c` script stays after it
   // (`sh -c 'node "$VAR"/'\''x y.js'\'''` becomes `sh -c 'node ./'\''x y.js'\'''`).
   const scriptEnds = new Set(scan.scripts.map(({ end }) => end));
+  // The value of an assignment word or option (`PATH=$VAR/bin:$PATH`,
+  // `--config="$VAR/c.json"`) is never anchored by generate, and `./` there
+  // would resolve against the hook's working directory, so it keeps the
+  // variable.
+  const followsAssignment = (offset: number): boolean =>
+    command.charAt(offset - 1) === "=" ||
+    (command.charAt(offset - 1) === '"' && command.charAt(offset - 2) === "=");
 
   // Where each converted later `./` starts in the result.
   const converted: number[] = [];
@@ -825,6 +833,7 @@ export function importProjectDirVariable({
     (match: string, quote: string | undefined, offset: number) => {
       const firstWordMatch = inFirstWord(offset);
       if (!laterWords && !firstWordMatch) return match;
+      if (!firstWordMatch && followsAssignment(offset)) return match;
       const kind = scan.starts.get(offset);
       if ((kind !== "plain" && kind !== "double") || inIdleScript(offset)) return match;
       const moved = quote && !scriptEnds.has(offset + match.length - 1) ? quote : "";

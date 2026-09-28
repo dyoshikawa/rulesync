@@ -270,6 +270,22 @@ describe("stripProjectDirVariable", () => {
     );
   });
 
+  it.each([
+    [`PATH=${VAR}/bin:$PATH ./x`, `PATH=${VAR}/bin:$PATH ./x`],
+    [`node ./x.js --config=${VAR}/c.json`, `node ./x.js --config=${VAR}/c.json`],
+    [`node ./x.js --config="${VAR}/c.json"`, `node ./x.js --config="${VAR}/c.json"`],
+    [`node ./x.js --config="${VAR}"/c.json`, `node ./x.js --config="${VAR}"/c.json`],
+    [`${VAR}/a.sh --config=${VAR}/c.json`, `./a.sh --config=${VAR}/c.json`],
+  ])(
+    "should keep the variable in the value of an assignment or option: %s",
+    (command, expected) => {
+      expect(importProjectDirVariable({ command, projectDirVar: VAR })).toEqual({
+        command: expected,
+        unrestored: false,
+      });
+    },
+  );
+
   const count = (value: string): number => value.split(VAR).length - 1;
 
   it.each([

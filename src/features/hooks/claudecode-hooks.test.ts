@@ -1243,7 +1243,6 @@ describe("ClaudecodeHooks", () => {
         "$CLAUDE_PROJECT_DIR/lint.sh && node $CLAUDE_PROJECT_DIR/check.js",
         "./lint.sh && node ./check.js",
       ],
-      ["tool --config=$CLAUDE_PROJECT_DIR/c.json", "tool --config=./c.json"],
       // The form generate writes for a quoted path.
       ['"$CLAUDE_PROJECT_DIR"/"my hooks/k.sh" --fix', '"./my hooks/k.sh" --fix'],
       ["\"$CLAUDE_PROJECT_DIR\"/'my hooks/k.sh'", "'./my hooks/k.sh'"],
@@ -1272,6 +1271,8 @@ describe("ClaudecodeHooks", () => {
       'echo "\\$CLAUDE_PROJECT_DIR/hook.sh"',
       // A bare variable that does not start a path.
       'cd "$CLAUDE_PROJECT_DIR" && ./hook.sh',
+      // The value of an option or assignment, which generate never anchors.
+      "tool --config=$CLAUDE_PROJECT_DIR/c.json",
       // Another tool's variable is not Claude Code's to rewrite.
       "$CLAUDE_PLUGIN_ROOT/hook.sh",
     ])("should leave %s untouched on import", (command) => {
