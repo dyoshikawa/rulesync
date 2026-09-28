@@ -41,6 +41,7 @@ describe("tool targets", () => {
         "factorydroid",
         "goose",
         "grokcli",
+        "gitlabduo",
         "hermesagent",
         "junie",
         "kilo",

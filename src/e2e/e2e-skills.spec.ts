@@ -172,6 +172,11 @@ const skillsGenerateTargets = [
     outputPath: join(".agents", "skills", "test-skill", "SKILL.md"),
   },
   {
+    // GitLab Duo reads project skills from the repository-root `skills/` directory.
+    target: "gitlabduo",
+    outputPath: join("skills", "test-skill", "SKILL.md"),
+  },
+  {
     target: "takt",
     outputPath: join(".takt", "facets", "knowledge", "test-skill.md"),
   },
@@ -371,6 +376,7 @@ This is the test skill body content.
     { target: "cursor", orphanPath: join(".cursor", "skills", "orphan-skill", "SKILL.md") },
     { target: "codexcli", orphanPath: join(".agents", "skills", "orphan-skill", "SKILL.md") },
     { target: "lettacode", orphanPath: join(".agents", "skills", "orphan-skill", "SKILL.md") },
+    { target: "gitlabduo", orphanPath: join("skills", "orphan-skill", "SKILL.md") },
     { target: "copilot", orphanPath: join(".github", "skills", "orphan-skill", "SKILL.md") },
     { target: "deepagents", orphanPath: join(".deepagents", "skills", "orphan-skill", "SKILL.md") },
     { target: "cline", orphanPath: join(".cline", "skills", "orphan-skill", "SKILL.md") },
@@ -444,6 +450,7 @@ describe("E2E: skills (import)", () => {
     { target: "cursor", sourcePath: join(".cursor", "skills", "test-skill", "SKILL.md") },
     { target: "codexcli", sourcePath: join(".agents", "skills", "test-skill", "SKILL.md") },
     { target: "lettacode", sourcePath: join(".agents", "skills", "test-skill", "SKILL.md") },
+    { target: "gitlabduo", sourcePath: join("skills", "test-skill", "SKILL.md") },
     { target: "copilot", sourcePath: join(".github", "skills", "test-skill", "SKILL.md") },
     { target: "mimocode", sourcePath: join(".mimocode", "skill", "test-skill", "SKILL.md") },
     { target: "opencode", sourcePath: join(".opencode", "skill", "test-skill", "SKILL.md") },
@@ -1014,6 +1021,10 @@ const skillsGlobalTargets = [
   {
     target: "lettacode",
     outputPath: join(".letta", "skills", "test-skill", "SKILL.md"),
+  },
+  {
+    target: "gitlabduo",
+    outputPath: join(".gitlab", "duo", "skills", "test-skill", "SKILL.md"),
   },
   {
     target: "deepagents",

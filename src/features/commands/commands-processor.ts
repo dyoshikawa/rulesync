@@ -50,6 +50,7 @@ import { CopilotCommand } from "./copilot-command.js";
 import { CursorCommand } from "./cursor-command.js";
 import { DevinCommand } from "./devin-command.js";
 import { FactorydroidCommand } from "./factorydroid-command.js";
+import { GitlabduoCommand } from "./gitlabduo-command.js";
 import {
   getGooseSlashCommandsConfigContent,
   GooseCommand,
@@ -413,6 +414,23 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
         // Non-recursive: project recipes live flat in `.goose/recipes/`, while
         // legacy subagent sub-recipes of earlier rulesync versions may remain in `.goose/recipes/subagents/` and must not
         // be picked up by the command importer.
+        supportsSubdirectory: false,
+      },
+    },
+  ],
+  [
+    "gitlabduo",
+    {
+      class: GitlabduoCommand,
+      meta: {
+        // `.agents/commands/*.md` (project) / `~/.gitlab/duo/commands/*.md`
+        // (global). The scan is flat, so nested rulesync commands are
+        // flattened onto their basename.
+        // https://docs.gitlab.com/user/gitlab_duo_cli/customize/
+        extension: "md",
+        supportsProject: true,
+        supportsGlobal: true,
+        isSimulated: false,
         supportsSubdirectory: false,
       },
     },

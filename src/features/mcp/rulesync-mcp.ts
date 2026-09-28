@@ -105,6 +105,7 @@ export const RulesyncMcpFileSchema = z.looseObject({
   deepagents: z.optional(toolScopedMcpSchema),
   devin: z.optional(toolScopedMcpSchema),
   factorydroid: z.optional(toolScopedMcpSchema),
+  gitlabduo: z.optional(toolScopedMcpSchema),
   goose: z.optional(toolScopedMcpSchema),
   grokcli: z.optional(toolScopedMcpSchema),
   hermesagent: z.optional(toolScopedMcpSchema),

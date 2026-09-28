@@ -136,6 +136,7 @@ const hooksGenerateTargets = [
   { target: "commandcode", outputPath: join(".commandcode", "settings.json") },
   { target: "continue", outputPath: join(".continue", "settings.json") },
   { target: "lettacode", outputPath: join(".letta", "settings.json") },
+  { target: "gitlabduo", outputPath: join(".gitlab", "duo", "hooks.json") },
   { target: "grokcli", outputPath: join(".grok", "hooks", "rulesync.json") },
   { target: "cline", outputPath: join(".clinerules", "hooks", "rulesync-hooks.json") },
 ] as const;
@@ -255,6 +256,18 @@ describe("E2E: hooks", () => {
         expect(triggers).toContain("Stop");
         expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
         expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/audit.sh");
+      } else if (target === "gitlabduo") {
+        // GitLab Duo CLI documents only SessionStart, so `stop` (audit.sh) is
+        // dropped. Dot-relative commands are anchored to $DUO_PROJECT_DIR, which
+        // the CLI sets for hook processes.
+        expect(Object.keys(parsed.hooks)).toEqual(["SessionStart"]);
+        expect(parsed.hooks.SessionStart).toEqual([
+          {
+            hooks: [
+              { type: "command", command: '"$DUO_PROJECT_DIR"/.rulesync/hooks/session-start.sh' },
+            ],
+          },
+        ]);
       } else if (target === "deepagents") {
         // deepagents-cli gets the Hooks v2 document: PascalCase HookEvent keys
         // over matcher groups holding string commands (no bash -c argv
@@ -680,6 +693,7 @@ describe("E2E: hooks", () => {
     { target: "codexcli", orphanPath: join(".codex", "hooks.json") },
     { target: "copilot", orphanPath: join(".github", "hooks", "copilot-hooks.json") },
     { target: "factorydroid", orphanPath: join(".factory", "hooks.json") },
+    { target: "gitlabduo", orphanPath: join(".gitlab", "duo", "hooks.json") },
   ])(
     "should fail in check mode when delete would remove an orphan $target hooks file",
     async ({ target, orphanPath }) => {
@@ -1006,6 +1020,7 @@ const hooksGlobalTargets = [
   { target: "lettacode", outputPath: join(".letta", "settings.json") },
   { target: "kiro-ide", outputPath: join(".kiro", "hooks", "rulesync.json") },
   { target: "kiro-cli", outputPath: join(".kiro", "hooks", "rulesync.json") },
+  { target: "gitlabduo", outputPath: join(".gitlab", "duo", "hooks.json") },
   { target: "grokcli", outputPath: join(".grok", "hooks", "rulesync.json") },
   { target: "cline", outputPath: join("Documents", "Cline", "Hooks", "rulesync-hooks.json") },
   { target: "zcode", outputPath: join(".zcode", "cli", "config.json") },
@@ -1105,6 +1120,11 @@ describe("E2E: hooks (global mode)", () => {
         expect(parsedHooks.events.Stop).toBeDefined();
         expect(JSON.stringify(parsedHooks.events)).toContain(".rulesync/hooks/session-start.sh");
         expect(JSON.stringify(parsedHooks.events)).toContain(".rulesync/hooks/audit.sh");
+      } else if (target === "gitlabduo") {
+        // GitLab Duo CLI documents only SessionStart, so audit.sh is dropped.
+        const parsed = JSON.parse(generatedContent);
+        expect(Object.keys(parsed.hooks)).toEqual(["SessionStart"]);
+        expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
       } else if (target === "junie") {
         // Junie CLI supports SessionStart, UserPromptSubmit, Stop, and SessionEnd
         // (PascalCase), so both `sessionStart` and `stop` (audit.sh) survive.

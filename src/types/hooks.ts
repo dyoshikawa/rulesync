@@ -826,6 +826,14 @@ export const JUNIE_HOOK_EVENTS: readonly HookEvent[] = [
 ];
 
 /**
+ * Hook events supported by the GitLab Duo CLI. Only `SessionStart` is
+ * documented; its optional regex matcher filters on the session source
+ * (`startup`, `resume`). Only `type: "command"` hooks are supported.
+ * @see https://docs.gitlab.com/user/gitlab_duo_cli/customize/
+ */
+export const GITLABDUO_HOOK_EVENTS: readonly HookEvent[] = ["sessionStart"];
+
+/**
  * Hook events supported by Qwen Code.
  *
  * Qwen Code documents a Claude-style PascalCase hooks surface under the `hooks`
@@ -1502,6 +1510,7 @@ export const HooksConfigSchema = z.looseObject({
   "antigravity-cli": z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   hermesagent: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   junie: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  gitlabduo: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   vibe: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   reasonix: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   grokcli: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
@@ -2069,6 +2078,20 @@ export const CANONICAL_TO_KIRO_IDE_EVENT_NAMES: Record<string, string> = {
  */
 export const KIRO_IDE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
   Object.entries(CANONICAL_TO_KIRO_IDE_EVENT_NAMES).map(([k, v]) => [v, k]),
+);
+
+/**
+ * Map canonical camelCase event names to GitLab Duo CLI PascalCase.
+ */
+export const CANONICAL_TO_GITLABDUO_EVENT_NAMES: Record<string, string> = {
+  sessionStart: "SessionStart",
+};
+
+/**
+ * Map GitLab Duo CLI PascalCase event names to canonical camelCase.
+ */
+export const GITLABDUO_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
+  Object.entries(CANONICAL_TO_GITLABDUO_EVENT_NAMES).map(([k, v]) => [v, k]),
 );
 
 /**

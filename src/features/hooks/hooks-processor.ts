@@ -26,6 +26,7 @@ import {
   GOOSE_HOOK_EVENTS,
   GROKCLI_HOOK_EVENTS,
   HERMESAGENT_HOOK_EVENTS,
+  GITLABDUO_HOOK_EVENTS,
   JUNIE_HOOK_EVENTS,
   KILO_HOOK_EVENTS,
   KIMI_CODE_HOOK_EVENTS,
@@ -72,6 +73,7 @@ import { CursorHooks } from "./cursor-hooks.js";
 import { DeepagentsHooks } from "./deepagents-hooks.js";
 import { DevinHooks } from "./devin-hooks.js";
 import { FactorydroidHooks } from "./factorydroid-hooks.js";
+import { GitlabduoHooks } from "./gitlabduo-hooks.js";
 import { GooseHooks } from "./goose-hooks.js";
 import { GrokcliHooks } from "./grokcli-hooks.js";
 import { HermesagentHooks } from "./hermesagent-hooks.js";
@@ -860,6 +862,24 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
         supportsImport: true,
       },
       supportedEvents: JUNIE_HOOK_EVENTS,
+      supportedHookTypes: ["command"],
+      supportsMatcher: true,
+    },
+  ],
+  [
+    "gitlabduo",
+    {
+      class: GitlabduoHooks,
+      meta: {
+        // GitLab Duo CLI reads `~/.gitlab/duo/hooks.json` (user) and
+        // `<project>/.gitlab/duo/hooks.json` (project; opt-in via
+        // `--enable-project-hooks` / `GITLAB_ENABLE_PROJECT_HOOKS=true`).
+        // https://docs.gitlab.com/user/gitlab_duo_cli/customize/
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+      supportedEvents: GITLABDUO_HOOK_EVENTS,
       supportedHookTypes: ["command"],
       supportsMatcher: true,
     },

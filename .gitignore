@@ -312,6 +312,7 @@ rulesync.local.jsonc
 **/.factory/threat-model.md
 **/.goosehints
 **/.hermes.md
+**/.gitlab/duo/chat-rules.md
 **/.grok/rules/
 **/.junie/AGENTS.md
 **/.junie/guidelines.md
@@ -434,6 +435,7 @@ rulesync.local.jsonc
 **/.deepagents/.mcp.json
 **/.factory/mcp.json
 **/.agents/plugins/rulesync/.mcp.json
+**/.gitlab/duo/mcp.json
 **/.kimi-code/mcp.json
 **/.kiro/settings/mcp.json
 **/.junie/mcp/mcp.json
@@ -458,6 +460,7 @@ rulesync.local.jsonc
 **/.kiro/agents/default.json
 **/.kiro/hooks/rulesync.json
 **/.devin/hooks.v1.json
+**/.gitlab/duo/hooks.json
 **/.vibe/hooks.toml
 **/.reasonix/settings.json
 **/.grok/hooks/rulesync.json

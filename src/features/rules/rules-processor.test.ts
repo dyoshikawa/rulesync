@@ -2147,6 +2147,7 @@ Content that would fail parsing`;
         "deepagents",
         "factorydroid",
         "goose",
+        "gitlabduo",
         "grokcli",
         "junie",
         "kilo",
@@ -2212,6 +2213,7 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("kimi-code");
       expect(globalTargets).toContain("goose");
       expect(globalTargets).toContain("grokcli");
+      expect(globalTargets).toContain("gitlabduo");
       expect(globalTargets).toContain("mimocode");
       expect(globalTargets).toContain("opencode");
       expect(globalTargets).toContain("pi");
@@ -2230,7 +2232,7 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("dsh");
       expect(globalTargets).toContain("continue");
       expect(globalTargets).toContain("commandcode");
-      expect(globalTargets.length).toBe(42);
+      expect(globalTargets.length).toBe(43);
 
       // These targets should NOT be in global mode
       expect(globalTargets).not.toContain("cursor");
@@ -4947,6 +4949,7 @@ targets: ["claudecode"]
         "crush",
         "deepagents",
         "goose",
+        "gitlabduo",
         // `grokcli` left this list when it gained `.grok/rules/`.
         "junie",
         "kimi-code",

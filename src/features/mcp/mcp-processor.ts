@@ -29,6 +29,7 @@ import { CursorMcp } from "./cursor-mcp.js";
 import { DeepagentsMcp } from "./deepagents-mcp.js";
 import { DevinMcp } from "./devin-mcp.js";
 import { FactorydroidMcp } from "./factorydroid-mcp.js";
+import { GitlabduoMcp } from "./gitlabduo-mcp.js";
 import { GooseMcp } from "./goose-mcp.js";
 import { GrokcliMcp } from "./grokcli-mcp.js";
 import { HermesagentMcp } from "./hermesagent-mcp.js";
@@ -415,6 +416,22 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
       // https://goose-docs.ai/docs/getting-started/using-extensions/
       // https://github.com/aaif-goose/goose/pull/9471
       class: GooseMcp,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
+    "gitlabduo",
+    {
+      // GitLab Duo CLI reads `.gitlab/duo/mcp.json` (workspace) and
+      // `~/.gitlab/duo/mcp.json` (user) in the `mcpServers` shape. Its only
+      // per-server tool field is `approvedTools` (auto-approval), not a filter.
+      // https://docs.gitlab.com/user/gitlab_duo/model_context_protocol/mcp_clients/
+      class: GitlabduoMcp,
       meta: {
         supportsProject: true,
         supportsGlobal: true,

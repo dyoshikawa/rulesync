@@ -78,6 +78,7 @@ import { DeepagentsRule } from "./deepagents-rule.js";
 import { DevinRule } from "./devin-rule.js";
 import { DshRule } from "./dsh-rule.js";
 import { FactorydroidRule } from "./factorydroid-rule.js";
+import { GitlabduoRule } from "./gitlabduo-rule.js";
 import { GooseRule } from "./goose-rule.js";
 import { GrokcliRule } from "./grokcli-rule.js";
 import { HermesagentRule } from "./hermesagent-rule.js";
@@ -781,6 +782,22 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         extension: "md",
         supportsGlobal: false,
         ruleDiscoveryMode: "auto",
+        collisionPolicy: "fold",
+      },
+    },
+  ],
+  [
+    "gitlabduo",
+    {
+      // GitLab Duo CLI reads one custom rules file, `.gitlab/duo/chat-rules.md`
+      // in the project and `~/.gitlab/duo/chat-rules.md` for the user, with no
+      // rules directory, so topic rules fold into it.
+      // https://docs.gitlab.com/user/duo_agent_platform/customize/custom_rules/
+      class: GitlabduoRule,
+      meta: {
+        extension: "md",
+        supportsGlobal: true,
+        ruleDiscoveryMode: "toon",
         collisionPolicy: "fold",
       },
     },
