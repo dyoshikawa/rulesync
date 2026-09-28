@@ -175,6 +175,10 @@ const subagentsGenerateTargets = [
     target: "hermesagent",
     outputPath: join(".hermes", "rulesync", "subagents", "planner.json"),
   },
+  {
+    target: "zcode",
+    outputPath: join(".zcode", "agents", "planner.md"),
+  },
 ] as const;
 
 const subagentsGlobalTargets = [
@@ -650,6 +654,7 @@ describe("E2E: subagents (import)", () => {
     { target: "factorydroid", sourcePath: join(".factory", "droids", "planner.md") },
     { target: "cline", sourcePath: join(".cline", "agents", "planner.yaml") },
     { target: "devin", sourcePath: join(".devin", "agents", "planner", "AGENT.md") },
+    { target: "zcode", sourcePath: join(".zcode", "agents", "planner.md") },
   ])("should import $target subagents", async ({ target, sourcePath }) => {
     const testDir = getTestDir();
 

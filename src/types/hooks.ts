@@ -1079,9 +1079,10 @@ export const KIMI_CODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object
  * any other character makes the whole value a case-sensitive JavaScript regex.
  * Rulesync passes matchers through verbatim, so an authored value keeps
  * whichever reading ZCode gives it — worth knowing before escaping one.
- * Configuration hooks are read only from the user config
- * `~/.zcode/cli/config.json` (workspace config hooks are never executed) and
- * additionally require `hooks.enabled: true` to run.
+ * Configuration hooks are read from the workspace config
+ * `<project>/.zcode/config.json` (run only once the user trusts them) and the
+ * user config `~/.zcode/cli/config.json`, and additionally require
+ * `hooks.enabled: true` to run.
  *
  * ZCode also accepts a native `process` hook type (an argv run without a
  * shell) which has no canonical equivalent; see ZcodeHooks.

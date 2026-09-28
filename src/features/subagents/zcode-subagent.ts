@@ -46,15 +46,13 @@ type ZcodeSubagentParams = {
  * ZCode subagents.
  *
  * Each subagent is one Markdown file with YAML frontmatter, named after the
- * agent, under `~/.zcode/agents/`.
+ * agent, under `.zcode/agents/` (project) or `~/.zcode/agents/` (global).
  *
- * Global scope only. The current Beta "manages global / user-level subagents
- * stored under `~/.zcode/agents/`", and creating or editing workspace /
- * project-level subagents "is not available yet" — so this adapter is
- * registered with `supportsProject: false` and never writes into a project's
- * own `.zcode/`. The relative path is nonetheless spelled against
- * {@link ZCODE_AGENTS_DIR_PATH} so the workspace scope needs nothing more than
- * flipping that flag if ZCode ships it.
+ * The docs describe only the user directory (the Settings UI edits user-level
+ * subagents alone), but the agent runtime also loads `<cwd>/.zcode/agents/` as
+ * the project source — observed in the v3.14.3 runtime. Project profiles are
+ * parsed like user ones except that `permissionMode` is discarded, so it is
+ * not written for the project scope.
  *
  * @see https://zcode.z.ai/en/docs/subagents
  */
@@ -82,8 +80,8 @@ export class ZcodeSubagent extends ToolSubagent {
   }
 
   static getSettablePaths(_options: { global?: boolean } = {}): ToolSubagentSettablePaths {
-    // Only the global scope is ever asked for; the processor supplies the home
-    // directory as outputRoot in that mode.
+    // The same relative path serves both scopes; the processor supplies the
+    // home directory as outputRoot in global mode.
     return {
       relativeDirPath: ZCODE_AGENTS_DIR_PATH,
     };
@@ -125,9 +123,20 @@ export class ZcodeSubagent extends ToolSubagent {
     rulesyncSubagent,
     validate = true,
     global = false,
+    logger,
   }: ToolSubagentFromRulesyncSubagentParams): ToolSubagent {
     const rulesyncFrontmatter = rulesyncSubagent.getFrontmatter();
-    const zcodeSection = rulesyncFrontmatter.zcode ?? {};
+    const fullSection = rulesyncFrontmatter.zcode ?? {};
+    // ZCode discards `permissionMode` on project-scope subagents, so it is
+    // written only for the global scope.
+    const { permissionMode, ...projectSection } = fullSection;
+    if (!global && permissionMode !== undefined) {
+      logger?.warn(
+        `Dropping "permissionMode" from ZCode subagent "${rulesyncSubagent.getRelativeFilePath()}": ` +
+          `ZCode ignores it on project-scope subagents (it is honored in ~/.zcode/agents/ only).`,
+      );
+    }
+    const zcodeSection = global ? fullSection : projectSection;
 
     const zcodeFrontmatter: ZcodeSubagentFrontmatter = {
       name: rulesyncFrontmatter.name,
