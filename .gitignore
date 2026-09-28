@@ -318,6 +318,7 @@ rulesync.local.jsonc
 **/.kilo/rules/
 **/.kimi-code/AGENTS.md
 **/.kiro/steering/
+**/.mimocode/memories/
 **/.opencode/memories/
 **/.pi/APPEND_SYSTEM.md
 **/AGENTS.override.md
@@ -349,6 +350,7 @@ rulesync.local.jsonc
 **/.junie/commands/
 **/.kilo/commands/
 **/.kiro/prompts/
+**/.mimocode/commands/
 **/.opencode/commands/
 **/.pi/prompts/
 **/.qwen/commands/
@@ -380,6 +382,7 @@ rulesync.local.jsonc
 **/.kilo/skills/
 **/.kimi-code/skills/
 **/.kiro/skills/
+**/.mimocode/skills/
 **/.opencode/skills/
 **/.pi/skills/
 **/.poolside/skills/
@@ -412,6 +415,7 @@ rulesync.local.jsonc
 **/.letta/agents/
 **/.kilo/agents/
 **/.kimi-code/agents/
+**/.mimocode/agents/
 **/.opencode/agents/
 **/.qwen/agents/
 **/.rovodev/subagents/
@@ -445,6 +449,7 @@ rulesync.local.jsonc
 **/.github/hooks/copilot-hooks.json
 **/.github/hooks/copilotcli-hooks.json
 **/.kilo/plugins/rulesync-hooks.js
+**/.mimocode/plugins/rulesync-hooks.js
 **/.opencode/plugins/rulesync-hooks.js
 **/.pi/extensions/rulesync-hooks.ts
 **/.factory/hooks.json

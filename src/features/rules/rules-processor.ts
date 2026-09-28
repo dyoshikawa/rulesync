@@ -42,6 +42,7 @@ import { type Logger, warnOnceWithFallback } from "../../utils/logger.js";
 import { AgentsmdCommand } from "../commands/agentsmd-command.js";
 import { CommandsProcessor } from "../commands/commands-processor.js";
 import { KiloMcp } from "../mcp/kilo-mcp.js";
+import { MimocodeMcp } from "../mcp/mimocode-mcp.js";
 import { OpencodeMcp } from "../mcp/opencode-mcp.js";
 import { AgentsmdSkill } from "../skills/agentsmd-skill.js";
 import { RovodevSkill } from "../skills/rovodev-skill.js";
@@ -86,6 +87,7 @@ import { KimiCodeRule } from "./kimi-code-rule.js";
 import { KiroCliRule } from "./kiro-cli-rule.js";
 import { KiroIdeRule } from "./kiro-ide-rule.js";
 import { KiroRule } from "./kiro-rule.js";
+import { MimocodeRule } from "./mimocode-rule.js";
 import { MusecodeRule } from "./musecode-rule.js";
 import { OpenCodeRule } from "./opencode-rule.js";
 import { PiRule } from "./pi-rule.js";
@@ -877,6 +879,23 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         extension: "md",
         supportsGlobal: true,
         ruleDiscoveryMode: "toon",
+      },
+    },
+  ],
+  [
+    "mimocode",
+    {
+      class: MimocodeRule,
+      meta: {
+        extension: "md",
+        supportsGlobal: true,
+        ruleDiscoveryMode: "toon",
+        mcpInstructionsRegistrar: MimocodeMcp,
+        // MiMo Code (an OpenCode fork) reads `instructions` from the global
+        // `~/.config/mimocode/mimocode.jsonc` too, so global non-root rules
+        // are registered there (as `~/`-rooted paths).
+        mcpInstructionsRegistrarGlobal: true,
+        collisionPolicy: "compose",
       },
     },
   ],

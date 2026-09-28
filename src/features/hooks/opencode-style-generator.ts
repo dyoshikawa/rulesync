@@ -238,7 +238,7 @@ function wrapInExportShape({
 export function generateOpencodeStylePluginCode(
   config: HooksConfig,
   supportedEvents: readonly string[],
-  toolConfigKey: "kilo" | "opencode",
+  toolConfigKey: "kilo" | "mimocode" | "opencode",
   eventMap: Record<string, string>,
   // Export shape of the generated plugin module:
   // - "named" (default): `export const RulesyncHooksPlugin = async ({ $ }) => {...}`
