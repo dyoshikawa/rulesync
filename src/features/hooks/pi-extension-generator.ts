@@ -47,8 +47,12 @@ const PI_PROMPT_BLOCKING_EVENT = "input";
 /**
  * `agent_before_settle` (Pi v0.87.0+) is the last actionable boundary before a
  * run settles. Returning `{ entries, continue: true }` persists the entries and
- * runs one more model request, which is how a canonical `stop` hook that exits
- * non-zero keeps the agent going on the other hook-capable targets. Pi warns
+ * runs one more model request, which is how a canonical `stop` hook keeps the
+ * agent going. Like Claude Code's `Stop`, only exit code 2 asks for that; any
+ * other failure (including a command that could not be run) is only observed,
+ * since the safe side of a stop hook is to let the
+ * agent stop rather than to pay for an extra model request. Every configured
+ * stop command runs, and their feedback is combined into one request. Pi warns
  * that an unconditional continuation loops, so the generated extension
  * continues at most once per settled run and resets that guard on
  * `agent_settled`, which Pi fires exactly once when the run is final.
@@ -79,16 +83,9 @@ const FAILURE_LINES_BY_MODE: Record<BlockingMode, readonly string[]> = {
   // rather than end the agent turn.
   tool: ["return { block: true, reason: toBlockReason(error) };"],
   prompt: ["reportPromptGateFailure(ctx, toBlockReason(error));", 'return { action: "handled" };'],
-  // Only a completed run is continued: an aborted one is the user stopping the
-  // agent, and an errored one is a provider failure Claude Code's `Stop` does
-  // not fire for either. Once the guard is spent, later failures in the same
-  // run only observe, and the remaining handlers still run.
-  settle: [
-    'if (!stopHookContinued && event.outcome === "completed") {',
-    "  stopHookContinued = true;",
-    "  return continueAfterStopHook(event, toBlockReason(error));",
-    "}",
-  ],
+  // Feedback is only collected here; the handler decides after every stop
+  // command has run (see `buildSubscriptionLines`).
+  settle: ["collectStopHookFeedback(stopHookFeedback, error);"],
 };
 
 /**
@@ -190,6 +187,10 @@ const PROMPT_GATE_HELPER_LINES = [
  * appended message is committed, and Pi re-validates the final context itself.
  */
 const STOP_HOOK_HELPER_LINES = [
+  "function collectStopHookFeedback(feedback: string[], error: unknown): void {",
+  "  if ((error as { code?: unknown } | null)?.code === 2) feedback.push(toBlockReason(error));",
+  "}",
+  "",
   "function continueAfterStopHook(",
   "  event: AgentBeforeSettleEvent,",
   "  reason: string,",
@@ -335,6 +336,9 @@ function buildSubscriptionLines(handlerGroups: HandlerGroup): string[] {
       // which a user's prompt gate should not cancel.
       lines.push(`    if (event.source === "extension") return { action: "continue" };`);
     }
+    if (isSettleGate) {
+      lines.push("    const stopHookFeedback: string[] = [];");
+    }
     for (const handler of handlers) {
       lines.push(
         ...buildCommandLines({
@@ -346,6 +350,17 @@ function buildSubscriptionLines(handlerGroups: HandlerGroup): string[] {
     }
     if (isPromptGate) {
       lines.push(`    return { action: "continue" };`);
+    }
+    if (isSettleGate) {
+      // Only a completed run is continued: an aborted one is the user stopping
+      // the agent, and an errored one is a provider failure Claude Code's
+      // `Stop` does not fire for either. Returning nothing keeps another
+      // extension's `continue` decision.
+      lines.push(
+        '    if (stopHookFeedback.length === 0 || stopHookContinued || event.outcome !== "completed") return;',
+      );
+      lines.push("    stopHookContinued = true;");
+      lines.push('    return continueAfterStopHook(event, stopHookFeedback.join("\\n\\n"));');
     }
     lines.push("  });");
     if (isSettleGate) {
@@ -365,8 +380,8 @@ function buildSubscriptionLines(handlerGroups: HandlerGroup): string[] {
  * gate — where a hook command that exits non-zero denies the call with
  * `{ block: true, reason }`, and on `input` — Pi's prompt-submission gate —
  * where a non-zero exit cancels the prompt with `{ action: "handled" }`, and
- * on `agent_before_settle`, where a non-zero exit asks the agent to continue
- * once with the command's output as feedback.
+ * on `agent_before_settle`, where a stop command exiting with code 2 asks the
+ * agent to continue once with the command's output as feedback.
  * `postToolUse` and `postToolUseFailure` share Pi's `tool_result` event; the
  * latter's commands run only when `event.isError` is set.
  *
