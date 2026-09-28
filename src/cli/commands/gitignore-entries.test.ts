@@ -564,6 +564,24 @@ describe("committedOutput check outputs", () => {
     // ignoring them would disable the checks feature (#2487).
     expect(entries).not.toContain("**/.cursor/BUGBOT.md");
     expect(entries).not.toContain("**/.rovodev/.review-agent.md");
+    expect(entries).not.toContain("**/.gitlab/duo/mr-review-instructions.yaml");
+  });
+
+  it("never ignores GitLab Duo's committed root skills directory", () => {
+    const entries = deriveAllGitignoreEntries()
+      .filter((tag) => tag.target === "gitlabduo")
+      .map((tag) => tag.entry);
+    // GitLab Duo reads project skills from the repository-root `skills/`; a
+    // recursive entry for it would also swallow unrelated `skills` directories
+    // such as rulesync's own distributed skills. Its checks file is committed
+    // too; only the shared `.agents/commands/` and its local-only files remain.
+    expect(entries.toSorted()).toEqual([
+      "**/.agents/commands/",
+      "**/.gitlab/duo/chat-rules.md",
+      "**/.gitlab/duo/hooks.json",
+      "**/.gitlab/duo/mcp.json",
+    ]);
+    expect(filterGitignoreEntries()).not.toContain("**/skills/");
   });
 
   it("re-includes a committed output nested inside another feature's ignored directory", () => {
@@ -588,5 +606,10 @@ describe("committedOutput check outputs", () => {
       (factory) => factory.meta.committedOutput === true,
     );
     expect(flagged.length).toBeGreaterThan(0);
+  });
+
+  it("keeps the committedOutput flag meaningful for skills (gitlabduo sets it)", async () => {
+    const { toolSkillFactories } = await import("../../features/skills/skills-processor.js");
+    expect(toolSkillFactories.get("gitlabduo")?.meta.committedOutput).toBe(true);
   });
 });

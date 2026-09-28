@@ -41,8 +41,9 @@ export class GitlabduoSkill extends AgentsSkillsSkill {
   /**
    * The project skills root is a plain `skills/` directory that many
    * repositories already use for unrelated content, so only a subdirectory
-   * holding a `SKILL.md` is treated as a skill — for import and for the
-   * `--delete` orphan sweep alike.
+   * holding a `SKILL.md` is treated as a skill. (At project scope the
+   * `--delete` orphan sweep skips that root entirely through the factory's
+   * `committedOutput` meta; this filter still applies to the global sweep.)
    */
   static async isDirOwned({
     outputRoot,

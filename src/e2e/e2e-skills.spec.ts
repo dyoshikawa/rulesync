@@ -247,10 +247,14 @@ describe("E2E: skills", () => {
     async ({ target, outputPath }) => {
       const testDir = getTestDir();
 
+      // The target is named explicitly as well: a committed project root such
+      // as GitLab Duo's top-level `skills/` is written only for skills that
+      // name the tool, not for a bare wildcard.
+
       const skillContent = `---
 name: test-skill
 description: "A test skill for E2E testing"
-targets: ["*"]
+targets: ["*", "${target}"]
 ---
 This is the test skill body content.
 `;
@@ -376,7 +380,6 @@ This is the test skill body content.
     { target: "cursor", orphanPath: join(".cursor", "skills", "orphan-skill", "SKILL.md") },
     { target: "codexcli", orphanPath: join(".agents", "skills", "orphan-skill", "SKILL.md") },
     { target: "lettacode", orphanPath: join(".agents", "skills", "orphan-skill", "SKILL.md") },
-    { target: "gitlabduo", orphanPath: join("skills", "orphan-skill", "SKILL.md") },
     { target: "copilot", orphanPath: join(".github", "skills", "orphan-skill", "SKILL.md") },
     { target: "deepagents", orphanPath: join(".deepagents", "skills", "orphan-skill", "SKILL.md") },
     { target: "cline", orphanPath: join(".cline", "skills", "orphan-skill", "SKILL.md") },
@@ -429,6 +432,34 @@ This is the test skill body content.
       expect(await readFileContent(join(testDir, orphanPath))).toBe("# orphan\n");
     },
   );
+
+  it("should keep the committed gitlabduo project skills root opt-in and never sweep it", async () => {
+    const testDir = getTestDir();
+
+    const writeSkill = (name: string, targets: string) =>
+      writeFileContent(
+        join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, name, "SKILL.md"),
+        `---
+name: ${name}
+description: "A test skill for E2E testing"
+targets: ${targets}
+---
+Body of ${name}.
+`,
+      );
+    await writeSkill("explicit-skill", '["gitlabduo"]');
+    await writeSkill("wildcard-skill", '["*"]');
+    const handAuthoredPath = join(testDir, "skills", "hand-authored", "SKILL.md");
+    await writeFileContent(handAuthoredPath, "# hand-authored\n");
+
+    await runGenerate({ target: "gitlabduo", features: "skills", deleteFiles: true });
+
+    expect(await readFileContent(join(testDir, "skills", "explicit-skill", "SKILL.md"))).toContain(
+      "Body of explicit-skill.",
+    );
+    expect(await fileExists(join(testDir, "skills", "wildcard-skill"))).toBe(false);
+    expect(await readFileContent(handAuthoredPath)).toBe("# hand-authored\n");
+  });
 });
 
 describe("E2E: skills (import)", () => {
