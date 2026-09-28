@@ -33,14 +33,14 @@ export const CONTINUE_MCP_FILE_NAME = "mcp.json";
 // Skills: Anthropic-style `<name>/SKILL.md` directories under
 // `<project>/.continue/skills/` and `~/.continue/skills/`.
 // Not documented on docs.continue.dev yet; the loader is the reference.
-// @see https://github.com/continuedev/continue/blob/main/extensions/cli/src/util/loadMarkdownSkills.ts
+// @see https://github.com/continuedev/continue/blob/5522c6f44ca0ac3528b37244818fbfa39b5af470/extensions/cli/src/util/loadMarkdownSkills.ts
 export const CONTINUE_SKILLS_DIR_PATH = join(CONTINUE_DIR, "skills");
 
 // Hooks: the Claude-Code-compatible `hooks` key of
 // `<project>/.continue/settings.json` and `~/.continue/settings.json`, read by
 // the Continue CLI (`cn`). Both files also carry unrelated settings, so the key
 // is merged in place.
-// @see https://github.com/continuedev/continue/tree/main/extensions/cli/src/hooks
+// @see https://github.com/continuedev/continue/tree/5522c6f44ca0ac3528b37244818fbfa39b5af470/extensions/cli/src/hooks
 export const CONTINUE_SETTINGS_FILE_NAME = "settings.json";
 
 // Permissions: the Continue CLI reads tool policies from the single

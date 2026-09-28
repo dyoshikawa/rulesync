@@ -1313,8 +1313,8 @@ export const LETTACODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object
  * the working directory inside commands. The event list is the CLI's
  * `HOOK_EVENT_NAMES`.
  *
- * @see https://github.com/continuedev/continue/blob/main/extensions/cli/src/hooks/types.ts
- * @see https://github.com/continuedev/continue/blob/main/extensions/cli/src/hooks/hookConfig.ts
+ * @see https://github.com/continuedev/continue/blob/5522c6f44ca0ac3528b37244818fbfa39b5af470/extensions/cli/src/hooks/types.ts
+ * @see https://github.com/continuedev/continue/blob/5522c6f44ca0ac3528b37244818fbfa39b5af470/extensions/cli/src/hooks/hookConfig.ts
  */
 export const CONTINUE_HOOK_EVENTS: readonly HookEvent[] = [
   "preToolUse",
