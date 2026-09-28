@@ -112,13 +112,14 @@ export class OpenCodeSkill extends ToolSkill {
    * configured path is read but never generated into. `skills.urls` is a
    * remote-fetch surface and is out of scope for a file-based generator.
    *
-   * Absolute paths and paths escaping the config directory are dropped — an
+   * Absolute paths and paths escaping the base directory (the config
+   * directory for OpenCode; see `getSkillPathsBaseDir`) are dropped — an
    * import root is joined onto that directory, and reaching outside it is not
    * something a project config should be able to ask for. A path is judged by
    * where it resolves, not by how it is spelled: a relative name that is a
    * symbolic link pointing out of the directory is an escape all the same and
    * is dropped too. A path that does not exist has nothing to resolve and is
-   * compared as spelled against the resolved config directory, so it survives
+   * compared as spelled against the resolved base directory, so it survives
    * only when that directory resolves to its own spelling and is dropped when
    * the directory is itself reached through a link. Either way it yields no
    * skills — the scan finds no directory under it.
@@ -132,8 +133,8 @@ export class OpenCodeSkill extends ToolSkill {
     outputRoot: string;
     global?: boolean;
   }): Promise<Array<{ outputRoot: string; relativeDirPath: string }>> {
-    const configDir = this.getSkillPathsBaseDir({ outputRoot, global });
-    if (configDir === null) {
+    const baseDir = this.getSkillPathsBaseDir({ outputRoot, global });
+    if (baseDir === null) {
       return [];
     }
     const config = await readOpencodeConfig({ outputRoot, global, layout: this.layout });
@@ -149,17 +150,17 @@ export class OpenCodeSkill extends ToolSkill {
         !normalize(candidate).startsWith(".."),
     );
     // The lexical test above reads a path as it is spelled, so a name inside
-    // the config directory that is a link out of it passes and would be read.
+    // the base directory that is a link out of it passes and would be read.
     // Resolving both sides catches the link, the same way a nested Claude Code
     // skills root is judged. Dropped silently, like the lexical drops above.
     const escapes = await Promise.all(
       lexicallyContained.map((candidate) =>
-        resolvedPathEscapesRoot({ rootPath: configDir, targetPath: join(configDir, candidate) }),
+        resolvedPathEscapesRoot({ rootPath: baseDir, targetPath: join(baseDir, candidate) }),
       ),
     );
     return lexicallyContained
       .filter((_, index) => !escapes[index])
-      .map((relativeDirPath) => ({ outputRoot: configDir, relativeDirPath }));
+      .map((relativeDirPath) => ({ outputRoot: baseDir, relativeDirPath }));
   }
 
   /**
