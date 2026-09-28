@@ -11,4 +11,20 @@ import { OpenCodeSkill } from "./opencode-skill.js";
  */
 export class MimocodeSkill extends OpenCodeSkill {
   protected static override readonly layout = MIMOCODE_LAYOUT;
+
+  /**
+   * MiMo Code resolves a relative `skills.paths` entry against the project
+   * directory rather than the config directory. A global config's relative
+   * entries therefore depend on the project MiMo Code runs in, which a global
+   * import cannot know, so they are not read at that scope.
+   */
+  protected static override getSkillPathsBaseDir({
+    outputRoot,
+    global,
+  }: {
+    outputRoot: string;
+    global: boolean;
+  }): string | null {
+    return global ? null : outputRoot;
+  }
 }

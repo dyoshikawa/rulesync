@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
+import { writeFileContent } from "../../utils/file.js";
 import { MimocodeSkill } from "./mimocode-skill.js";
 import { RulesyncSkill } from "./rulesync-skill.js";
 
@@ -62,5 +63,27 @@ describe("MimocodeSkill", () => {
       "allowed-tools": ["Bash"],
       license: "MIT",
     });
+  });
+
+  it("should resolve skills.paths against the project root, not .mimocode/", async () => {
+    await writeFileContent(
+      join(testDir, ".mimocode", "mimocode.json"),
+      JSON.stringify({ skills: { paths: ["team-skills", "../outside"] } }),
+    );
+
+    await expect(MimocodeSkill.getConfiguredImportRoots({ outputRoot: testDir })).resolves.toEqual([
+      { outputRoot: testDir, relativeDirPath: "team-skills" },
+    ]);
+  });
+
+  it("should not read relative skills.paths from the global config", async () => {
+    await writeFileContent(
+      join(testDir, ".config", "mimocode", "mimocode.json"),
+      JSON.stringify({ skills: { paths: ["team-skills"] } }),
+    );
+
+    await expect(
+      MimocodeSkill.getConfiguredImportRoots({ outputRoot: testDir, global: true }),
+    ).resolves.toEqual([]);
   });
 });

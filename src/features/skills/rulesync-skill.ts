@@ -140,7 +140,8 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
       metadata: z.optional(z.unknown()),
     }),
   ),
-  // MiMo Code keeps OpenCode's SKILL.md parser, so its section mirrors `opencode`.
+  // Mirrors `opencode` so a skill round-trips through the shared OpenCode
+  // adapter; MiMo Code itself ignores these extra SKILL.md fields.
   mimocode: z.optional(
     z.looseObject({
       "allowed-tools": z.optional(z.array(z.string())),

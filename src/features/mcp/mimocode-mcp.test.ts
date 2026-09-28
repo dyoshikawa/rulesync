@@ -51,6 +51,20 @@ describe("MimocodeMcp", () => {
     });
   });
 
+  it("should import a transport-less server into the mimocode block", () => {
+    const mcp = new MimocodeMcp({
+      relativeDirPath: ".mimocode",
+      relativeFilePath: "mimocode.json",
+      fileContent: JSON.stringify({ mcp: { toggled: { enabled: false } } }),
+      validate: false,
+    });
+
+    const imported = JSON.parse(mcp.toRulesyncMcp().getFileContent());
+    expect(imported.mcpServers).toEqual({});
+    expect(imported.mimocode.mcpServers.toggled).toEqual({ disabled: true });
+    expect(imported.opencode).toBeUndefined();
+  });
+
   it("should register project instructions verbatim, relative to the project root", async () => {
     const mcp = await MimocodeMcp.fromInstructions({
       outputRoot: testDir,

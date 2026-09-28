@@ -132,15 +132,15 @@ export class OpenCodeSkill extends ToolSkill {
     outputRoot: string;
     global?: boolean;
   }): Promise<Array<{ outputRoot: string; relativeDirPath: string }>> {
+    const configDir = this.getSkillPathsBaseDir({ outputRoot, global });
+    if (configDir === null) {
+      return [];
+    }
     const config = await readOpencodeConfig({ outputRoot, global, layout: this.layout });
     const skills = asOpencodeEntries(config.skills);
     if (skills === null || !Array.isArray(skills.paths)) {
       return [];
     }
-    // Resolved against the directory the config itself was read from, which is
-    // what OpenCode does — in global mode that is `~/.config/opencode/`, not
-    // the home directory.
-    const configDir = getOpencodeConfigDir({ outputRoot, global, layout: this.layout });
     const lexicallyContained = skills.paths.filter(
       (candidate): candidate is string =>
         typeof candidate === "string" &&
@@ -160,6 +160,22 @@ export class OpenCodeSkill extends ToolSkill {
     return lexicallyContained
       .filter((_, index) => !escapes[index])
       .map((relativeDirPath) => ({ outputRoot: configDir, relativeDirPath }));
+  }
+
+  /**
+   * The directory relative `skills.paths` entries resolve against, or `null`
+   * when they cannot be resolved at this scope. OpenCode resolves them against
+   * the directory the config itself was read from — in global mode that is
+   * `~/.config/opencode/`, not the home directory.
+   */
+  protected static getSkillPathsBaseDir({
+    outputRoot,
+    global,
+  }: {
+    outputRoot: string;
+    global: boolean;
+  }): string | null {
+    return getOpencodeConfigDir({ outputRoot, global, layout: this.layout });
   }
 
   getFrontmatter(): OpenCodeSkillFrontmatter {
