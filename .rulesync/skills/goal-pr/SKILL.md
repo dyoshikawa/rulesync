@@ -45,8 +45,14 @@ The loop exits when a single review round satisfies **both** of:
   `pending`.
 
 Set a hard safety cap of **10 iterations**. If the exit condition is still not
-met at the cap, stop the loop and report the remaining findings (and any failing
-CI) to the user for a manual decision instead of merging.
+met at the cap:
+
+- If CI is green and every remaining finding is `mid` (no `high` or
+  `critical`), merge anyway: record the remaining findings with the
+  `create-scrap-issue` skill so they are tracked, then go to **Section 3**.
+  `mid` findings are not merge blockers.
+- Otherwise (a `high` / `critical` finding remains, or CI is red), stop the
+  loop and report the remaining findings and failing CI instead of merging.
 
 ## 2. Iteration Loop
 
@@ -112,18 +118,22 @@ Safety rules for the merge:
   bypasses required checks, so it must not be used to force past red or
   in-progress CI. If CI is failing, return to the fix phase; if it is pending,
   wait.
-- If the PR touches GitHub Actions workflows, build/release configuration, or
-  dependency manifests (e.g. `package.json`, lockfiles), do **not** auto-merge.
-  Stop and ask the user to confirm, since these changes carry higher risk.
+- If the PR edits GitHub Actions workflows (`.github/**`) or the
+  release/publish pipeline, or adds a **new runtime dependency**, do **not**
+  auto-merge. Stop and ask the user to confirm, since these changes carry
+  higher risk. Bumping an existing dependency, adding a dev dependency, or
+  editing `package.json` scripts and metadata does not need confirmation.
 
 ## 4. Final Report
 
 After the loop ends, report to the user:
 
-- **Outcome**: `Merged` (exit condition met and PR merged) or `Capped` (hit the
-  iteration cap without converging; not merged).
+- **Outcome**: `Merged` (exit condition met and PR merged), `Merged at cap`
+  (only `mid` findings left at the cap; merged with a scrap issue), or `Capped`
+  (a `high` / `critical` finding or red CI left at the cap; not merged).
 - **Iterations**: how many review/fix rounds were executed.
 - **Final severity summary**: the counts per severity from the last review
   round.
-- **Result**: the merged PR number and title, or — when capped — the list of
-  remaining `mid`-or-above findings for the user to decide on.
+- **Result**: the merged PR number and title (plus the scrap issue link when
+  merged at the cap), or — when capped — the list of remaining findings for
+  the user to decide on.
