@@ -19,7 +19,38 @@ import {
 // looseObject preserves unknown keys during parsing (like passthrough in Zod 3)
 const JunieCommandFrontmatterSchema = z.looseObject({
   description: z.optional(z.string()),
+  allowPromptArgument: z.optional(z.boolean()),
 });
+
+/**
+ * Translate rulesync universal command syntax (Claude Code compatible) into
+ * JetBrains Junie's native syntax. See docs/reference/command-syntax.md.
+ *
+ * Junie treats every `$name` in a command template as a named argument and
+ * only runs the command once all of them are provided, so a literal
+ * `$ARGUMENTS` would become a required argument called `ARGUMENTS`. The
+ * free-form counterpart is the `$prompt` argument, exposed when the command
+ * sets `allowPromptArgument: true`; the caller sets that flag whenever this
+ * rewrite changed the body.
+ *
+ * `` !`cmd` `` is left verbatim: Junie documents no shell expansion.
+ *
+ * `$ARGUMENTS\b` uses a trailing word boundary so `$ARGUMENTSx` and
+ * `$ARGUMENTS_FOO` (other named arguments) are left alone.
+ * @see https://junie.jetbrains.com/docs/custom-slash-commands.html
+ */
+function translateRulesyncBodyToJunie(body: string): string {
+  return body.replace(/\$ARGUMENTS\b/g, "$prompt");
+}
+
+/**
+ * Inverse of {@link translateRulesyncBodyToJunie}, used on import. Only call it
+ * when the command sets `allowPromptArgument: true`: without that flag
+ * `$prompt` is an ordinary named argument called `prompt`.
+ */
+function translateJunieBodyToRulesync(body: string): string {
+  return body.replace(/\$prompt\b/g, "$ARGUMENTS");
+}
 
 export type JunieCommandFrontmatter = z.infer<typeof JunieCommandFrontmatterSchema>;
 
@@ -70,7 +101,19 @@ export class JunieCommand extends ToolCommand {
   }
 
   toRulesyncCommand(): RulesyncCommand {
-    const { description, ...restFields } = this.frontmatter;
+    const { description, ...junieFields } = this.frontmatter;
+
+    // `$prompt` is the free-form argument only when `allowPromptArgument` is
+    // set. In that case rewrite it back to the universal `$ARGUMENTS` and drop
+    // the flag, since generation re-derives it from the placeholder. A flag
+    // set without any `$prompt` reference is kept: it still makes Junie append
+    // free text as `User Input: ...`.
+    const translatedBody =
+      junieFields.allowPromptArgument === true
+        ? translateJunieBodyToRulesync(this.body)
+        : this.body;
+    const { allowPromptArgument: _allowPromptArgument, ...fieldsWithoutFlag } = junieFields;
+    const restFields = translatedBody !== this.body ? fieldsWithoutFlag : junieFields;
 
     const rulesyncFrontmatter: RulesyncCommandFrontmatter = {
       targets: ["*"],
@@ -80,12 +123,12 @@ export class JunieCommand extends ToolCommand {
     };
 
     // Generate proper file content with Rulesync specific frontmatter
-    const fileContent = stringifyFrontmatter(this.body, rulesyncFrontmatter);
+    const fileContent = stringifyFrontmatter(translatedBody, rulesyncFrontmatter);
 
     return new RulesyncCommand({
       outputRoot: process.cwd(), // RulesyncCommand outputRoot is always the project root directory
       frontmatter: rulesyncFrontmatter,
-      body: this.body,
+      body: translatedBody,
       relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
       relativeFilePath: this.relativeFilePath,
       fileContent,
@@ -104,13 +147,18 @@ export class JunieCommand extends ToolCommand {
     // Merge junie-specific fields from rulesync frontmatter
     const junieFields = rulesyncFrontmatter.junie ?? {};
 
+    // Rewrite `$ARGUMENTS` to Junie's free-form `$prompt` argument and enable
+    // it. An explicit `junie.allowPromptArgument` still wins, as the
+    // tool-specific block is spread last.
+    const originalBody = rulesyncCommand.getBody();
+    const body = translateRulesyncBodyToJunie(originalBody);
+    const usesPromptArgument = body !== originalBody;
+
     const junieFrontmatter: JunieCommandFrontmatter = {
       description: rulesyncFrontmatter.description,
+      ...(usesPromptArgument && { allowPromptArgument: true }),
       ...junieFields,
     };
-
-    // Generate proper file content with Junie specific frontmatter
-    const body = rulesyncCommand.getBody();
 
     const paths = this.getSettablePaths({ global });
 

@@ -19,6 +19,7 @@ The table below shows how each placeholder is translated for the supported tools
 | ----------------- | ---------------------- | --------------------------- |
 | Claude Code       | pass-through           | pass-through                |
 | Codex CLI[^codex] | pass-through (literal) | pass-through (literal)      |
+| JetBrains Junie   | `$prompt`[^junie]      | pass-through (literal)      |
 | Pi                | pass-through           | pass-through (literal)[^pi] |
 | Tabnine CLI       | `{{args}}`             | `!{cmd}`                    |
 | Other tools[^1]   | pass-through (literal) | pass-through (literal)      |
@@ -26,6 +27,8 @@ The table below shows how each placeholder is translated for the supported tools
 [^1]: Tools not listed do not have a documented translation; their command body is emitted as-is.
 
 [^codex]: Codex CLI prompt files are forwarded to the LLM verbatim; the placeholders are passed to the model as literal text rather than being substituted by the engine.
+
+[^junie]: Junie treats every `$name` in a command template as a named argument and runs the command only once all of them are provided, so a literal `$ARGUMENTS` would become a required argument called `ARGUMENTS`. rulesync therefore rewrites it to Junie's free-form `$prompt` argument and adds `allowPromptArgument: true` to the generated frontmatter (an explicit `junie.allowPromptArgument` in the rulesync command takes precedence). On import, `$prompt` is rewritten back to `$ARGUMENTS` only when the command sets `allowPromptArgument: true` — without that flag `$prompt` is an ordinary named argument and is kept as-is. Junie documents no shell expansion, so `` !`cmd` `` stays literal. See the [Junie custom slash commands docs](https://junie.jetbrains.com/docs/custom-slash-commands.html).
 
 [^pi]: Pi natively expands `$ARGUMENTS` (along with `$1`, `$2`, `$@`), so `$ARGUMENTS` is a real pass-through there. rulesync still emits `` !`cmd` `` verbatim for Pi, but does not assume Pi expands inline shell snippets — treat that placeholder as literal text on Pi's side.
 
