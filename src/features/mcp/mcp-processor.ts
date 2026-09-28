@@ -18,6 +18,7 @@ import { AugmentcodeMcp } from "./augmentcode-mcp.js";
 import { BobMcp } from "./bob-mcp.js";
 import { ClaudecodeMcp } from "./claudecode-mcp.js";
 import { ClineMcp } from "./cline-mcp.js";
+import { CodewhaleMcp } from "./codewhale-mcp.js";
 import { CodexcliMcp } from "./codexcli-mcp.js";
 import { CommandcodeMcp } from "./commandcode-mcp.js";
 import { ContinueMcp } from "./continue-mcp.js";
@@ -259,6 +260,22 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
         supportsGlobal: true,
         supportsEnabledTools: false,
         supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
+    "codewhale",
+    {
+      // Codewhale reads `.codewhale/mcp.json` in a trusted workspace and
+      // `~/.codewhale/mcp.json` for the user; servers carry
+      // `enabled_tools` / `disabled_tools` filters.
+      // https://github.com/Hmbown/Codewhale/blob/main/docs/MCP.md
+      class: CodewhaleMcp,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsEnabledTools: true,
+        supportsDisabledTools: true,
       },
     },
   ],
