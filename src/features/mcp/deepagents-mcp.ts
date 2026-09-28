@@ -10,7 +10,11 @@ import {
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { isRecord } from "../../utils/type-guards.js";
-import { warnAndSkipMcpServer } from "./mcp-transport.js";
+import {
+  isRemoteMcpServer,
+  resolveLocalMcpCommand,
+  warnAndSkipMcpServer,
+} from "./mcp-transport.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -54,6 +58,53 @@ function normalizeDeepagentsTransport(transport: unknown): "stdio" | "http" | "s
 }
 
 /**
+ * Rewrite an array `command` in place on `converted`, or return `false` (after
+ * warning) when the server has to be skipped.
+ *
+ * FastMCP 4's `StdioMCPServer.command` is a single string, so an array command
+ * fails validation and dcode drops the server. The array's head is the
+ * executable and its tail goes in front of `args`.
+ */
+function applyDeepagentsCommand({
+  name,
+  server,
+  converted,
+  logger,
+}: {
+  name: string;
+  server: McpServers[string];
+  converted: Record<string, unknown>;
+  logger?: Logger;
+}): boolean {
+  if (!Array.isArray(server.command)) {
+    return true;
+  }
+  const [command, ...args] = resolveLocalMcpCommand(server);
+  if (command === undefined) {
+    if (isRemoteMcpServer(server)) {
+      // A remote server has no use for a command; an empty one is dropped so
+      // dcode does not reject the server for declaring both.
+      delete converted.command;
+      return true;
+    }
+    warnAndSkipMcpServer({
+      toolName: TOOL_NAME,
+      serverName: name,
+      reason: "an empty command list, which leaves deepagents nothing to spawn",
+      logger,
+    });
+    return false;
+  }
+  converted.command = command;
+  if (args.length > 0) {
+    converted.args = args;
+  } else {
+    delete converted.args;
+  }
+  return true;
+}
+
+/**
  * Translate one canonical server into dcode's `.mcp.json` shape, or `null` to
  * skip it.
  *
@@ -71,6 +122,20 @@ function toDeepagentsServer({
   server: McpServers[string];
   logger?: Logger;
 }): Record<string, unknown> | null {
+  // dcode reads no per-server `disabled` key — its only off switch is the
+  // server viewer's `[mcp].disabled_servers` list in `config.toml` — and
+  // FastMCP ignores unknown keys, so writing `disabled: true` would leave the
+  // server running. Leaving it out is the only form "disabled" has here.
+  if (server.disabled === true) {
+    return warnAndSkipMcpServer({
+      toolName: TOOL_NAME,
+      serverName: name,
+      reason:
+        "disabled: true, which deepagents does not read from .mcp.json (the server would still run)",
+      logger,
+    });
+  }
+
   const rawTransport = server.transport ?? server.type;
   if (rawTransport === "ws") {
     return warnAndSkipMcpServer({
@@ -81,10 +146,34 @@ function toDeepagentsServer({
     });
   }
 
-  const { enabledTools, disabledTools, type: _type, transport, ...rest } = server;
+  const {
+    enabledTools,
+    disabledTools,
+    type: _type,
+    transport,
+    disabled: _disabled,
+    httpUrl,
+    ...rest
+  } = server;
   const converted: Record<string, unknown> = { ...rest };
 
-  const normalized = normalizeDeepagentsTransport(rawTransport);
+  if (!applyDeepagentsCommand({ name, server, converted, logger })) {
+    return null;
+  }
+
+  // dcode resolves a remote server from `url` alone and never reads the
+  // `httpUrl` alias, so an `httpUrl`-only entry would be taken for stdio and
+  // rejected for its missing `command`. `url` wins when both are set.
+  const pinsStreamableHttp = server.url === undefined && httpUrl !== undefined;
+  if (pinsStreamableHttp) {
+    converted.url = httpUrl;
+  }
+
+  const normalized =
+    normalizeDeepagentsTransport(rawTransport) ??
+    // `httpUrl` names a streamable HTTP endpoint specifically, so the transport
+    // is pinned rather than left for FastMCP to infer from the URL's path.
+    (pinsStreamableHttp ? "http" : undefined);
   if (normalized !== undefined) {
     // The canonical key is preserved: a server authored with `transport` keeps
     // using it, and dcode reads either one.
@@ -242,6 +331,7 @@ export class DeepagentsMcp extends ToolMcp {
       relativeFilePath: paths.relativeFilePath,
       fileContent: JSON.stringify(mcpJson, null, 2),
       validate,
+      global,
     });
   }
 
