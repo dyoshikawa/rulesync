@@ -979,8 +979,9 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         // the execution folder's `AGENTS.md` as project context. It documents
         // no per-directory walk, so topic rules fold into the root file
         // (mirrors zcode). Over-long files are truncated with a notice in the
-        // prompt (`bootstrapMaxChars`, 20,000 characters by default), so no
-        // instruction budget warning is needed.
+        // prompt (`bootstrapMaxChars`, 20,000 characters per file by default;
+        // `bootstrapTotalMaxChars`, 60,000 in total) rather than dropped
+        // silently, so no instruction budget warning is emitted.
         // https://docs.openclaw.ai/concepts/system-prompt
         extension: "md",
         supportsGlobal: true,

@@ -30,7 +30,7 @@ describe("OpenclawRule", () => {
       expect(paths.nonRoot).toBeUndefined();
     });
 
-    it("should return the profile-directory AGENTS.md for global scope", () => {
+    it("should return the agent-workspace AGENTS.md for global scope", () => {
       const paths = OpenclawRule.getSettablePaths({ global: true });
       expect(paths.root.relativeDirPath).toBe(join(".openclaw", "workspace"));
       expect(paths.root.relativeFilePath).toBe("AGENTS.md");
