@@ -65,9 +65,16 @@ function stringifyCodewhaleSubagentToml(
   }
   // A multi-line body reads better as a TOML literal string, which cannot
   // itself contain `'''`; fall back to the escaped basic string otherwise.
+  // A literal string also cannot hold control characters other than tab and
+  // newline, and a trailing `'` would merge into the closing delimiter.
+  const literalSafe =
+    !instructions.includes("'''") &&
+    !instructions.endsWith("'") &&
+    // oxlint-disable-next-line no-control-regex
+    !/[\u0000-\u0008\u000b-\u001f\u007f]/.test(instructions);
   const instructionsToml =
-    instructions.includes("\n") && !instructions.includes("'''")
-      ? `[instructions]\ntext = '''\n${instructions}\n'''`
+    instructions.includes("\n") && literalSafe
+      ? `[instructions]\ntext = '''\n${instructions}'''`
       : smolToml.stringify({ instructions: { text: instructions } }).trimEnd();
   return [restToml, instructionsToml].filter((value) => value.length > 0).join("\n\n");
 }
@@ -176,7 +183,12 @@ export class CodewhaleSubagent extends ToolSubagent {
     const sectionFields: Record<string, unknown> = {};
     const droppedKeys: string[] = [];
     for (const [key, value] of Object.entries(rawSection)) {
-      if ((CODEWHALE_SECTION_KEYS as readonly string[]).includes(key)) {
+      // Every allowlisted key is a string upstream; any other value type would
+      // make Codewhale reject the whole profile.
+      if (
+        (CODEWHALE_SECTION_KEYS as readonly string[]).includes(key) &&
+        typeof value === "string"
+      ) {
         sectionFields[key] = value;
       } else {
         droppedKeys.push(key);
@@ -184,7 +196,7 @@ export class CodewhaleSubagent extends ToolSubagent {
     }
     if (droppedKeys.length > 0) {
       logger?.warn(
-        `Dropping unsupported codewhale subagent keys in ${rulesyncSubagent.getRelativeFilePath()}: ${droppedKeys.join(", ")}. Codewhale rejects agent profiles with unknown fields; supported keys are ${CODEWHALE_SECTION_KEYS.join(", ")}.`,
+        `Dropping unsupported codewhale subagent keys in ${rulesyncSubagent.getRelativeFilePath()}: ${droppedKeys.join(", ")}. Codewhale rejects agent profiles with unknown fields or non-string values there; supported keys are ${CODEWHALE_SECTION_KEYS.join(", ")}, each a string.`,
       );
     }
 

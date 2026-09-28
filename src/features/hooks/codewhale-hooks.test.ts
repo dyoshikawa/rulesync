@@ -156,6 +156,28 @@ describe("CodewhaleHooks", () => {
       });
     });
 
+    it("should emit Codewhale-only events from the override block and skip unknown ones", async () => {
+      const logger = createMockLogger();
+      const hooks = await CodewhaleHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks: buildRulesyncHooks({
+          version: 1,
+          hooks: {},
+          codewhale: {
+            hooks: {
+              mode_change: [{ command: "echo mode" }],
+              bogus_event: [{ command: "echo bogus" }],
+            },
+          },
+        }),
+        logger,
+      });
+
+      const parsed = smolToml.parse(hooks.getFileContent()) as { hooks: ParsedEntries };
+      expect(parsed.hooks).toEqual([{ event: "mode_change", command: "echo mode" }]);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("bogus_event"));
+    });
+
     it("should nest entries under [hooks] in global scope", async () => {
       const hooks = await CodewhaleHooks.fromRulesyncHooks({
         outputRoot: testDir,
@@ -261,6 +283,23 @@ describe("CodewhaleHooks", () => {
         { type: "command", command: "echo mode" },
       ]);
       expect(Object.prototype.hasOwnProperty.call(json.hooks, "__proto__")).toBe(false);
+    });
+
+    it("should keep Codewhale-only events across an import and regenerate", async () => {
+      await writeFileContent(
+        join(testDir, ".codewhale", "hooks.toml"),
+        '[[hooks]]\nevent = "session_idle"\ncommand = "echo idle"\n',
+      );
+
+      const imported = (await CodewhaleHooks.fromFile({ outputRoot: testDir })).toRulesyncHooks();
+      const regenerated = await CodewhaleHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks: imported,
+      });
+
+      expect(smolToml.parse(regenerated.getFileContent())).toEqual({
+        hooks: [{ event: "session_idle", command: "echo idle" }],
+      });
     });
 
     it("should import global hooks from the [hooks] table", async () => {

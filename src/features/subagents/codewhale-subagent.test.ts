@@ -76,7 +76,7 @@ describe("CodewhaleSubagent", () => {
         description: "Plans tasks",
         model: "deepseek-chat",
         reasoning_effort: "high",
-        instructions: { text: "Plan the work.\nThen report.\n" },
+        instructions: { text: "Plan the work.\nThen report." },
       });
     });
 
@@ -106,6 +106,36 @@ describe("CodewhaleSubagent", () => {
       expect(parsed).not.toHaveProperty("tools");
       expect(parsed).not.toHaveProperty("unknown");
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("tools, unknown"));
+    });
+
+    it("should drop non-string section values, with a warning", () => {
+      const logger = createMockLogger();
+      const subagent = CodewhaleSubagent.fromRulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: join(".codewhale", "agents"),
+        rulesyncSubagent: buildRulesyncSubagent({
+          frontmatter: { codewhale: { model: 4.1, provider: "deepseek" } },
+        }),
+        logger,
+      });
+
+      const parsed = smolToml.parse(subagent.getFileContent());
+      expect(parsed).not.toHaveProperty("model");
+      expect(parsed.provider).toBe("deepseek");
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("model"));
+    });
+
+    it("should fall back to an escaped string for control characters and a trailing quote", () => {
+      for (const body of ["a\n\u001b[1mb", "a\nit's"]) {
+        const subagent = CodewhaleSubagent.fromRulesyncSubagent({
+          outputRoot: testDir,
+          relativeDirPath: join(".codewhale", "agents"),
+          rulesyncSubagent: buildRulesyncSubagent({ body }),
+        });
+        expect(smolToml.parse(subagent.getFileContent())).toMatchObject({
+          instructions: { text: body },
+        });
+      }
     });
 
     it("should fall back to an escaped string when the body contains a triple quote", () => {

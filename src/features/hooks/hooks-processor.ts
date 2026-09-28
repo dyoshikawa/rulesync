@@ -413,9 +413,8 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       // on events that carry a tool.
       supportsMatcher: true,
       matcherEvents: CODEWHALE_MATCHER_HOOK_EVENTS,
-      // The adapter only emits its supported events; unknown override-block
-      // keys are dropped, so report them.
-      dropsUnknownOverrideEvents: true,
+      // Override-block keys are emitted verbatim when they are Codewhale's own
+      // event names (as an import files them); the adapter reports the rest.
     },
   ],
   [

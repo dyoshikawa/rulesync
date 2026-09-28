@@ -61,6 +61,20 @@ const SUPPORTED_EVENTS: ReadonlySet<string> = new Set(CODEWHALE_HOOK_EVENTS);
 const MATCHER_EVENTS: ReadonlySet<string> = new Set(CODEWHALE_MATCHER_HOOK_EVENTS);
 
 /**
+ * Codewhale events with no canonical counterpart. Import files them under the
+ * `codewhale.hooks` override block by their native name, and generation emits
+ * them verbatim from that block so an import/generate round-trip keeps them.
+ * @see https://github.com/Hmbown/Codewhale/blob/main/crates/tui/src/hooks/config.rs
+ */
+const CODEWHALE_NATIVE_ONLY_EVENTS: ReadonlySet<string> = new Set([
+  "mode_change",
+  "shell_env",
+  "session_idle",
+  "waiting_for_user",
+  "session_busy",
+]);
+
+/**
  * A matcher Codewhale can express: `|`-separated tool names, each of which may
  * use the `*` glob that `tool_name` conditions support. Anything else (regex
  * syntax such as `.`, `(`, `[`) has no `tool_name` equivalent.
@@ -190,11 +204,17 @@ function canonicalToCodewhaleHooks({
 
   const entries: CodewhaleHookEntry[] = [];
   for (const [event, defs] of Object.entries(effective)) {
-    if (!SUPPORTED_EVENTS.has(event)) {
-      continue;
-    }
-    const codewhaleEvent = lookupOwn({ record: CANONICAL_TO_CODEWHALE_EVENT_NAMES, key: event });
+    const codewhaleEvent = CODEWHALE_NATIVE_ONLY_EVENTS.has(event)
+      ? event
+      : SUPPORTED_EVENTS.has(event)
+        ? lookupOwn({ record: CANONICAL_TO_CODEWHALE_EVENT_NAMES, key: event })
+        : undefined;
     if (codewhaleEvent === undefined) {
+      // `shared` holds supported events only, so this key came from the
+      // override block, which the processor leaves to the adapter to report.
+      logger?.warn(
+        `skipping codewhale.hooks event ${quoteValueForWarning(event)}: it is neither a supported canonical event nor a Codewhale event name.`,
+      );
       continue;
     }
     for (const def of defs) {
