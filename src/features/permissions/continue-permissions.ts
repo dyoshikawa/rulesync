@@ -43,7 +43,7 @@ function normalizeCatchAllPattern(pattern: string): string {
 // `file_path` for Read/Edit/Write, `url` for Fetch). Any other category passes
 // through verbatim as the tool name, so an MCP tool or a further built-in
 // (`List`, `Search`, ...) can be named directly.
-// https://github.com/continuedev/continue/blob/main/extensions/cli/src/permissions/permissionsYamlLoader.ts
+// https://github.com/continuedev/continue/blob/5522c6f44ca0ac3528b37244818fbfa39b5af470/extensions/cli/src/permissions/permissionsYamlLoader.ts
 const CANONICAL_TO_CONTINUE_TOOL_NAMES: Record<string, string> = {
   bash: "Bash",
   read: "Read",
@@ -80,7 +80,7 @@ type ContinuePermissionLists = Record<ContinuePermissionListKey, string[]>;
 // The loader's pattern grammar: `Tool` or `Tool(argument pattern)`. An entry
 // that does not match makes the CLI throw while loading the file, so nothing
 // outside the grammar may be written.
-// https://github.com/continuedev/continue/blob/main/extensions/cli/src/permissions/permissionsYamlLoader.ts
+// https://github.com/continuedev/continue/blob/5522c6f44ca0ac3528b37244818fbfa39b5af470/extensions/cli/src/permissions/permissionsYamlLoader.ts
 const CONTINUE_PATTERN_RE = /^([^(]+)(?:\(([^)]*)\))?$/;
 
 // Own-property lookups only: a `constructor` category would otherwise resolve
@@ -152,8 +152,8 @@ function parseContinuePermissionEntry(
  * deleted.
  *
  * @see https://docs.continue.dev/cli/tool-permissions
- * @see https://github.com/continuedev/continue/blob/main/extensions/cli/src/permissions/permissionsYamlLoader.ts
- * @see https://github.com/continuedev/continue/blob/main/extensions/cli/src/permissions/permissionChecker.ts
+ * @see https://github.com/continuedev/continue/blob/5522c6f44ca0ac3528b37244818fbfa39b5af470/extensions/cli/src/permissions/permissionsYamlLoader.ts
+ * @see https://github.com/continuedev/continue/blob/5522c6f44ca0ac3528b37244818fbfa39b5af470/extensions/cli/src/permissions/permissionChecker.ts
  */
 export class ContinuePermissions extends ToolPermissions {
   constructor(params: AiFileParams) {

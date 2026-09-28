@@ -384,7 +384,7 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
       // Continue skills are Anthropic-style Agent Skills directories
       // (<name>/SKILL.md) under .continue/skills/ (project) and
       // ~/.continue/skills/ (user).
-      // https://github.com/continuedev/continue/blob/main/extensions/cli/src/util/loadMarkdownSkills.ts
+      // https://github.com/continuedev/continue/blob/5522c6f44ca0ac3528b37244818fbfa39b5af470/extensions/cli/src/util/loadMarkdownSkills.ts
       class: ContinueSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
