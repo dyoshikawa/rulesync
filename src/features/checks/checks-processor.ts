@@ -5,6 +5,7 @@ import { z } from "zod/mini";
 import { AUGMENTCODE_CODE_REVIEW_GUIDELINES_FILE_NAME } from "../../constants/augmentcode-paths.js";
 import { CURSOR_BUGBOT_FILE_NAME } from "../../constants/cursor-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
+import { GITLABDUO_MR_REVIEW_INSTRUCTIONS_FILE_NAME } from "../../constants/gitlabduo-paths.js";
 import { ROVODEV_REVIEW_AGENT_FILE_NAME } from "../../constants/rovodev-paths.js";
 import { CHECKS_FEATURE_SUBDIR } from "../../constants/rulesync-paths.js";
 import { TAKT_CONFIG_FILE_NAME } from "../../constants/takt-paths.js";
@@ -25,6 +26,7 @@ import { AmpCheck } from "./amp-check.js";
 import { AugmentcodeCheck } from "./augmentcode-check.js";
 import { CursorCheck } from "./cursor-check.js";
 import { FactorydroidCheck } from "./factorydroid-check.js";
+import { GitlabduoCheck } from "./gitlabduo-check.js";
 import { HermesagentCheck } from "./hermesagent-check.js";
 import { RovodevCheck } from "./rovodev-check.js";
 import { RulesyncCheck } from "./rulesync-check.js";
@@ -142,6 +144,23 @@ export const toolCheckFactories = new Map<ChecksProcessorToolTarget, ToolCheckFa
       // repository, so the derived .gitignore must not ignore it — including
       // via the `**/.factory/skills/` entry the skills feature contributes.
       meta: { supportsGlobal: false, filePattern: SKILL_FILE_NAME, committedOutput: true },
+    },
+  ],
+  [
+    "gitlabduo",
+    {
+      // GitLab Duo Code Review Flow reads one YAML list of instruction groups,
+      // so every check targeting GitLab Duo collapses into
+      // `.gitlab/duo/mr-review-instructions.yaml`.
+      // https://docs.gitlab.com/user/duo_agent_platform/customize/review_instructions/
+      class: GitlabduoCheck,
+      // `committedOutput`: the review reads the file from the repository, so
+      // the derived .gitignore must not ignore it.
+      meta: {
+        supportsGlobal: false,
+        filePattern: GITLABDUO_MR_REVIEW_INSTRUCTIONS_FILE_NAME,
+        committedOutput: true,
+      },
     },
   ],
   [

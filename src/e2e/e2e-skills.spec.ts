@@ -176,6 +176,11 @@ const skillsGenerateTargets = [
     outputPath: join(".agents", "skills", "test-skill", "SKILL.md"),
   },
   {
+    // GitLab Duo reads project skills from the repository-root `skills/` directory.
+    target: "gitlabduo",
+    outputPath: join("skills", "test-skill", "SKILL.md"),
+  },
+  {
     target: "takt",
     outputPath: join(".takt", "facets", "knowledge", "test-skill.md"),
   },
@@ -428,6 +433,30 @@ This is the test skill body content.
       expect(await readFileContent(join(testDir, orphanPath))).toBe("# orphan\n");
     },
   );
+
+  it("should never sweep hand-authored gitlabduo skills from the committed root skills directory", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "test-skill", "SKILL.md"),
+      `---
+name: test-skill
+description: "A test skill for E2E testing"
+targets: ["*"]
+---
+This is the test skill body content.
+`,
+    );
+    const handAuthoredPath = join(testDir, "skills", "hand-authored", "SKILL.md");
+    await writeFileContent(handAuthoredPath, "# hand-authored\n");
+
+    await runGenerate({ target: "gitlabduo", features: "skills", deleteFiles: true });
+
+    expect(await readFileContent(join(testDir, "skills", "test-skill", "SKILL.md"))).toContain(
+      "test skill body content",
+    );
+    expect(await readFileContent(handAuthoredPath)).toBe("# hand-authored\n");
+  });
 });
 
 describe("E2E: skills (import)", () => {
@@ -450,6 +479,7 @@ describe("E2E: skills (import)", () => {
     { target: "cursor", sourcePath: join(".cursor", "skills", "test-skill", "SKILL.md") },
     { target: "codexcli", sourcePath: join(".agents", "skills", "test-skill", "SKILL.md") },
     { target: "lettacode", sourcePath: join(".agents", "skills", "test-skill", "SKILL.md") },
+    { target: "gitlabduo", sourcePath: join("skills", "test-skill", "SKILL.md") },
     { target: "copilot", sourcePath: join(".github", "skills", "test-skill", "SKILL.md") },
     { target: "mimocode", sourcePath: join(".mimocode", "skill", "test-skill", "SKILL.md") },
     { target: "opencode", sourcePath: join(".opencode", "skill", "test-skill", "SKILL.md") },
@@ -1024,6 +1054,10 @@ const skillsGlobalTargets = [
   {
     target: "lettacode",
     outputPath: join(".letta", "skills", "test-skill", "SKILL.md"),
+  },
+  {
+    target: "gitlabduo",
+    outputPath: join(".gitlab", "duo", "skills", "test-skill", "SKILL.md"),
   },
   {
     target: "deepagents",

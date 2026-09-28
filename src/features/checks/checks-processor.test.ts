@@ -24,6 +24,7 @@ describe("ChecksProcessor.getToolTargets", () => {
       "augmentcode",
       "cursor",
       "factorydroid",
+      "gitlabduo",
       "hermesagent",
       "rovodev",
       "takt",
