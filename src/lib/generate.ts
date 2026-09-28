@@ -1023,7 +1023,7 @@ function createSkippedRootFileCheck({
     createOwnerProcessor: (params: {
       toolTarget: ToolTarget;
       outputRoot: string;
-    }) => RulesProcessor | undefined;
+    }) => Promise<RulesProcessor | undefined>;
   }) => Promise<FeatureGenerateResult>;
 } {
   // outputRoot -> relative path -> last non-owning target's file.
@@ -1079,7 +1079,7 @@ function createSkippedRootFileCheck({
           let expected = fallback;
           if (!isOwnerProcessed(owner)) {
             if (!ownerOutputs.has(owner)) {
-              const processor = createOwnerProcessor({ toolTarget: owner, outputRoot });
+              const processor = await createOwnerProcessor({ toolTarget: owner, outputRoot });
               if (processor === undefined) {
                 ownerOutputs.set(owner, undefined);
               } else {
@@ -1112,6 +1112,43 @@ function createSkippedRootFileCheck({
   };
 }
 
+/**
+ * The skills a full `rulesync generate` hands to the rules step: what the
+ * skills step collects for every config-file target that generates skills, in
+ * the same order. Simulated skill sections in a root file list these, so a
+ * narrowed check needs them to rebuild another target's root file.
+ */
+async function loadConfigFileSkills({
+  config,
+  logger,
+}: {
+  config: Config;
+  logger: Logger;
+}): Promise<RulesyncSkill[]> {
+  const supportedSkillsTargets = SkillsProcessor.getToolTargets({
+    global: config.getGlobal(),
+    includeSimulated: config.getSimulateSkills(),
+  });
+  const skills: RulesyncSkill[] = [];
+  for (const toolTarget of intersection(config.getConfigFileTargets(), supportedSkillsTargets)) {
+    if (!config.getConfigFileFeatures(toolTarget).includes("skills")) continue;
+    for (const outputRoot of config.getOutputRoots(toolTarget)) {
+      const processor = new SkillsProcessor({
+        outputRoot: resolveToolOutputRoot({ outputRoot, toolTarget, global: config.getGlobal() }),
+        inputRoots: config.getInputRoots(),
+        toolTarget,
+        global: config.getGlobal(),
+        dryRun: true,
+        logger,
+      });
+      for (const rulesyncDir of await processor.loadRulesyncDirs()) {
+        if (rulesyncDir instanceof RulesyncSkill) skills.push(rulesyncDir);
+      }
+    }
+  }
+  return skills;
+}
+
 async function generateRulesCore(params: {
   config: Config;
   logger: Logger;
@@ -1131,14 +1168,22 @@ async function generateRulesCore(params: {
 
   const foldRootOverwriteWatch = createFoldRootOverwriteWatch({ logger });
 
+  let fullRunSkills: Promise<RulesyncSkill[]> | undefined;
+  const loadFullRunSkills = (): Promise<RulesyncSkill[]> => {
+    fullRunSkills ??= loadConfigFileSkills({ config, logger });
+    return fullRunSkills;
+  };
+
   const createProcessor = ({
     toolTarget,
     outputRoot,
-    featureOptions = config.getFeatureOptions(toolTarget, "rules"),
+    featureOptions,
+    skills: processorSkills,
   }: {
     toolTarget: ToolTarget;
     outputRoot: string;
-    featureOptions?: FeatureOptions;
+    featureOptions: FeatureOptions | undefined;
+    skills: RulesyncSkill[] | undefined;
   }): RulesProcessor =>
     new RulesProcessor({
       outputRoot: resolveToolOutputRoot({
@@ -1154,7 +1199,7 @@ async function generateRulesCore(params: {
       simulateSkills: config.getSimulateSkills(),
       language: config.getLanguage(),
       deriveSubprojectPathFromGlobs: config.getDeriveSubprojectPathFromGlobs(),
-      skills: skills,
+      skills: processorSkills,
       featureOptions,
       delete: config.getDelete(),
       dryRun: config.isPreviewMode(),
@@ -1164,11 +1209,18 @@ async function generateRulesCore(params: {
   const isCheck = config.getCheck();
   const rootFileOwner = isCheck
     ? computeRootFileOwnership({
-        // Only a target that generates rules in a full run can own a root
-        // file; one configured for other features never writes it.
+        // Only a target that generates rules can own a root file; one
+        // configured for other features never writes it. A target in this run
+        // is judged by this run's features (#1894), any other target by the
+        // config file, as a full generate would run it (#3198).
         targets: config
           .getConfigFileTargets()
-          .filter((target) => config.getConfigFileFeatures(target).includes("rules")),
+          .filter((target) =>
+            (toolTargets.includes(target)
+              ? config.getFeatures(target)
+              : config.getConfigFileFeatures(target)
+            ).includes("rules"),
+          ),
         global: config.getGlobal(),
       })
     : new Map<string, ToolTarget>();
@@ -1182,7 +1234,12 @@ async function generateRulesCore(params: {
         continue;
       }
 
-      const processor = createProcessor({ toolTarget, outputRoot });
+      const processor = createProcessor({
+        toolTarget,
+        outputRoot,
+        featureOptions: config.getFeatureOptions(toolTarget, "rules"),
+        skills,
+      });
 
       const rulesyncFiles = await processor.loadRulesyncFiles();
 
@@ -1226,14 +1283,16 @@ async function generateRulesCore(params: {
         toolTargets.includes(owner) && config.getFeatures(owner).includes("rules"),
       // The owner only writes into an output root it is configured for, and
       // only in a scope it supports; otherwise the fallback is compared.
-      createOwnerProcessor: (ownerParams) =>
+      createOwnerProcessor: async (ownerParams) =>
         supportedTargets.includes(ownerParams.toolTarget) &&
         config.getOutputRoots(ownerParams.toolTarget).includes(ownerParams.outputRoot)
           ? createProcessor({
               ...ownerParams,
-              // CLI -t replaces the per-target options, so read the owner's
-              // from the config file, as a full generate would use them.
+              // CLI -t replaces the per-target options and narrows the skills
+              // step, so build the owner's output from the config file, as a
+              // full generate would.
               featureOptions: config.getConfigFileFeatureOptions(ownerParams.toolTarget, "rules"),
+              skills: await loadFullRunSkills(),
             })
           : undefined,
     });

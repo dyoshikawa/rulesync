@@ -613,6 +613,22 @@ describe("generate", () => {
         expect(result.hasDiff).toBe(false);
       });
 
+      it("should judge targets in the run by the run's features, not the config file's (#1894)", async () => {
+        const processors = setUp({
+          cliTargets: ["codexcli", "opencode"],
+          diskMatches: (toolTarget) => toolTarget === "opencode",
+        });
+        // The config file only enables MCP, but `--features rules` makes both
+        // targets in the run write AGENTS.md, so opencode still owns it.
+        mockConfig.getConfigFileFeatures.mockReturnValue(["mcp"]);
+
+        const result = await generate({ logger, config: mockConfig as never });
+
+        expect(processors.get("codexcli")?.writeAiFiles).toHaveBeenCalledTimes(1);
+        expect(processors.get("codexcli")?.writeAiFiles).toHaveBeenCalledWith([]);
+        expect(result.hasDiff).toBe(false);
+      });
+
       it("should compare the non-owner's output when the owner does not write to that output root", async () => {
         const processors = setUp({
           cliTargets: ["codexcli"],

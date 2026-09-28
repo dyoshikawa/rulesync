@@ -7,6 +7,7 @@ import {
   RULESYNC_MCP_RELATIVE_FILE_PATH,
   RULESYNC_OVERVIEW_FILE_NAME,
   RULESYNC_RULES_RELATIVE_DIR_PATH,
+  RULESYNC_SKILLS_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
 import { getZedGlobalDir } from "../constants/zed-paths.js";
 import { RulesProcessor } from "../features/rules/rules-processor.js";
@@ -1325,6 +1326,82 @@ description: "Root rule"
         env: { NODE_ENV: "e2e" },
       }),
     ).rejects.toMatchObject({ code: 1 });
+  });
+
+  it("should keep ownership for targets in the run when --features adds rules to a config without it (#1894)", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+      `---
+root: true
+targets: ["*"]
+description: "Root rule"
+---
+
+# Root Rule
+`,
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_CONFIG_RELATIVE_FILE_PATH),
+      JSON.stringify({ targets: ["codexcli", "agentsmd"], features: ["mcp"] }, null, 2),
+    );
+
+    await execFileAsync(rulesyncCmd, [...rulesyncArgs, "generate", "--features", "rules"]);
+
+    const { stdout } = await execFileAsync(
+      rulesyncCmd,
+      [...rulesyncArgs, "generate", "--check", "--features", "rules"],
+      { env: { ...process.env, NODE_ENV: "e2e" } },
+    );
+    expect(stdout).toContain("All files are up to date.");
+  });
+
+  it("should build the owner's simulated skills section from the full run's skills in a narrowed check", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+      `---
+root: true
+targets: ["*"]
+description: "Root rule"
+---
+
+# Root Rule
+`,
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "test-skill", "SKILL.md"),
+      `---
+name: test-skill
+description: "A test skill"
+targets: ["*"]
+---
+Skill body.
+`,
+    );
+    // agentsmd owns AGENTS.md and lists the simulated skills in it; a
+    // `-t codexcli` run has no skills step of its own to collect them from.
+    await writeFileContent(
+      join(testDir, RULESYNC_CONFIG_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        { targets: { codexcli: ["rules"], agentsmd: ["rules", "skills"] }, simulateSkills: true },
+        null,
+        2,
+      ),
+    );
+
+    await execFileAsync(rulesyncCmd, [...rulesyncArgs, "generate"]);
+    expect(await readFileContent(join(testDir, "AGENTS.md"))).toContain("test-skill");
+
+    const { stdout } = await runGenerate({
+      target: "codexcli",
+      features: "rules",
+      check: true,
+      env: { NODE_ENV: "e2e" },
+    });
+    expect(stdout).toContain("All files are up to date.");
   });
 
   it("should generate and re-import zoocode mode-specific rules under .roo/rules-{mode}", async () => {
