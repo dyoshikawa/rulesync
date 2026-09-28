@@ -72,6 +72,7 @@ export const ignoreProcessorToolTargetTuple = [
   "kiro",
   "kiro-cli",
   "kiro-ide",
+  "lettacode",
   "qwencode",
   "reasonix",
   "roo",
@@ -197,6 +198,7 @@ export const subagentsProcessorToolTargetTuple = [
   "kiro",
   "kiro-cli",
   "kiro-ide",
+  "lettacode",
   "opencode",
   "pool",
   "qwencode",
@@ -265,6 +267,7 @@ export const skillsProcessorToolTargetTuple = [
   "zed",
   "zoocode",
   "dsh",
+  "lettacode",
 ] as const;
 
 export const hooksProcessorToolTargetTuple = [
@@ -304,6 +307,7 @@ export const hooksProcessorToolTargetTuple = [
   "reasonix",
   "tabnine",
   "grokcli",
+  "lettacode",
   "zcode",
 ] as const;
 
@@ -333,6 +337,7 @@ export const permissionsProcessorToolTargetTuple = [
   "kiro",
   "kiro-cli",
   "kiro-ide",
+  "lettacode",
   "opencode",
   "pi",
   "pool",
