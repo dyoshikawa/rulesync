@@ -1308,6 +1308,32 @@ describe("ClaudecodeHooks", () => {
       },
     );
 
+    it.each([
+      ["PATH=$CLAUDE_PROJECT_DIR/bin:$PATH ./x.sh", true],
+      ["node ./x.js --config=$CLAUDE_PROJECT_DIR/c.json", true],
+      ["$CLAUDE_PROJECT_DIR/a.sh && cd sub && $CLAUDE_PROJECT_DIR/b.sh", true],
+      ['node "$CLAUDE_PROJECT_DIR"/x.js', false],
+      ['env FOO=1 "$CLAUDE_PROJECT_DIR"/x.sh', false],
+    ])("should warn about %s only when the variable is kept: %s", (command, warns) => {
+      const warnSpy = vi.spyOn(logger, "warn").mockClear();
+      const claudecodeHooks = new ClaudecodeHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".claude",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          hooks: {
+            PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command }] }],
+          },
+        }),
+        validate: false,
+      });
+      claudecodeHooks.toRulesyncHooks({ logger });
+      const warned = warnSpy.mock.calls.some(([message]) =>
+        String(message).includes("keeps $CLAUDE_PROJECT_DIR"),
+      );
+      expect(warned).toBe(warns);
+    });
+
     // Generate re-anchors the `./` paths that name a file the command runs, so
     // a hook keeps resolving against the project root. Other positions come
     // back cwd-relative, resolved against the hook's working directory, which
