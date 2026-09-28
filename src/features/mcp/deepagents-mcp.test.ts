@@ -157,6 +157,8 @@ describe("DeepagentsMcp", () => {
               "array-command": { command: ["npx", "-y", "pkg"], args: ["--flag"] },
               "array-command-only": { command: ["server"] },
               "empty-command": { command: [] },
+              "remote-empty-command": { url: "https://example.com/r", command: [] },
+              "sse-http-url": { transport: "sse", httpUrl: "https://example.com/sse" },
               off: { command: "npx", disabled: true },
               on: { command: "npx", disabled: false },
             },
@@ -176,6 +178,8 @@ describe("DeepagentsMcp", () => {
           "url-wins": { url: "https://example.com/a" },
           "array-command": { command: "npx", args: ["-y", "pkg", "--flag"] },
           "array-command-only": { command: "server" },
+          "remote-empty-command": { url: "https://example.com/r" },
+          "sse-http-url": { transport: "sse", url: "https://example.com/sse" },
           on: { command: "npx" },
         });
         expect(mcp.getRelativeFilePath()).toBe(".mcp.json");
