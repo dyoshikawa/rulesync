@@ -8,8 +8,8 @@ Each entry states the condition to re-check. When a condition is met, promote
 the entry to a target proposal (a GitHub issue) and remove it from this file;
 when the product is discontinued or the condition can no longer be met, retire
 the entry the same way. An entry that is neither promoted nor retired stays,
-and its row's current figures (stars, downloads, versions, key counts) are
-refreshed to the values recorded by the latest re-check section.
+and its row's "today" figures are refreshed to the values recorded by the
+latest re-check section.
 
 | Candidate                                         | Recorded   | Re-check condition                                                                                                                                                                                                                                                                                                                                                                                                               |
 | ------------------------------------------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

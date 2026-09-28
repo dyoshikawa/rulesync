@@ -327,7 +327,7 @@ Then, for the discovery pass of Step 2.5 / 2.6, one line per candidate:
 - `Watchlisted`: `<Tool>` (the condition recorded in `new-target-watchlist.md`)
 - `Rejected`: `<Tool>` (why — usually no file-based configuration surface)
 
-Also report the watchlist entries Step 1 promoted, retired or left as they were.
+Also report the watchlist entries Step 1 promoted, retired or left in place.
 
 Then list any tools whose research was inconclusive (e.g., releases could not be
 confirmed from primary sources) so the user can follow up manually.
