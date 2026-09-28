@@ -424,6 +424,7 @@ export const PI_HOOK_EVENTS: readonly HookEvent[] = [
   "preModelInvocation",
   "postModelInvocation",
   "beforeSubmitPrompt",
+  // `agent_before_settle` (Pi v0.87.0+). See CANONICAL_TO_PI_EVENT_NAMES.
   "stop",
   // `ui_prompt_start` (Pi v0.84.4) fires when an extension opens a blocking
   // UI prompt — Pi's "waiting for user" signal. See CANONICAL_TO_PI_EVENT_NAMES.
@@ -1738,11 +1739,15 @@ export const CANONICAL_TO_KILO_EVENT_NAMES: Record<string, string> =
  * Mapping notes: `sessionEnd` → `session_shutdown` (fires on session
  * teardown), `beforeSubmitPrompt` → `input` (user input interception),
  * `preModelInvocation` → `context` (fires before each LLM call), and
- * `stop` → `agent_end` (agent finished responding; unlike Claude Code's
- * Stop, this also fires before Pi auto-retries or auto-compacts —
- * `agent_settled` would skip queued follow-ups instead, a pure trade-off).
- * Pi events without a faithful canonical counterpart (e.g. `turn_start`,
- * `agent_settled`, `ui_prompt_end`) are intentionally unmapped.
+ * `stop` → `agent_before_settle` (Pi v0.87.0+; the last actionable boundary
+ * before a run settles, fired after automatic retries and compaction, so it
+ * runs once per settle like Claude Code's Stop, and a command exiting with
+ * code 2 can ask the agent to continue once). Older Pi never fires it, so a stop hook does
+ * not run there; the notify-only `agent_end` it replaced fired before retries
+ * and compaction too. Pi events without a faithful canonical counterpart
+ * (e.g. `turn_start`, `agent_end`, `ui_prompt_end`) are intentionally
+ * unmapped; the generated extension subscribes to `agent_settled` only to
+ * reset the stop hook's continue-once guard.
  *
  * @see https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/extensions.md
  */
@@ -1765,7 +1770,11 @@ export const CANONICAL_TO_PI_EVENT_NAMES: Record<string, string> = {
   // and exposes only HTTP status/headers.
   postModelInvocation: "message_end",
   beforeSubmitPrompt: "input",
-  stop: "agent_end",
+  // Pi v0.87.0 made `agent_before_settle` actionable: returning
+  // `{ entries, continue: true }` runs one more model request. The generated
+  // handler does that when a stop hook command exits with code 2, at most once
+  // per settled run. https://github.com/earendil-works/pi/blob/v0.87.1/packages/coding-agent/src/core/extensions/types.ts
+  stop: "agent_before_settle",
   // Pi has no built-in permission popup, so its only "waiting for user"
   // signal is `ui_prompt_start`, fired when an extension (Rulesync's or a
   // third party's) opens a blocking `ctx.ui.select/confirm/input/editor/custom`

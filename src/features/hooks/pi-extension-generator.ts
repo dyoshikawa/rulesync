@@ -44,12 +44,34 @@ const PI_BLOCKING_EVENT = "tool_call";
  */
 const PI_PROMPT_BLOCKING_EVENT = "input";
 
-/** How a generated handler reacts to a hook command that exits non-zero. */
-type BlockingMode = "none" | "tool" | "prompt";
+/**
+ * `agent_before_settle` (Pi v0.87.0+) is the last actionable boundary before a
+ * run settles. Returning `{ entries, continue: true }` persists the entries and
+ * runs one more model request, which is how a canonical `stop` hook keeps the
+ * agent going. Like Claude Code's `Stop`, only exit code 2 asks for that; any
+ * other failure (including a command that could not be run) never continues
+ * the agent, since the safe side of a stop hook is to let the agent stop rather
+ * than to pay for an extra model request; it is rethrown after every stop
+ * command has run, so Pi reports it as an extension error. The feedback of all
+ * commands exiting with 2 is combined into one request. Pi warns
+ * that an unconditional continuation loops, so the generated extension
+ * continues at most once per settled run and resets that guard on
+ * `agent_settled`, which Pi fires exactly once when the run is final.
+ *
+ * @see https://github.com/earendil-works/pi/blob/v0.87.1/packages/coding-agent/src/core/extensions/types.ts
+ */
+const PI_SETTLE_BLOCKING_EVENT = "agent_before_settle";
+
+/**
+ * How a generated handler reacts to a hook command that exits non-zero. The
+ * `settle` gate reacts to exit code 2 only; see `PI_SETTLE_BLOCKING_EVENT`.
+ */
+type BlockingMode = "none" | "tool" | "prompt" | "settle";
 
 const PI_BLOCKING_MODE_BY_EVENT: Record<string, BlockingMode> = {
   [PI_BLOCKING_EVENT]: "tool",
   [PI_PROMPT_BLOCKING_EVENT]: "prompt",
+  [PI_SETTLE_BLOCKING_EVENT]: "settle",
 };
 
 /**
@@ -65,6 +87,9 @@ const FAILURE_LINES_BY_MODE: Record<BlockingMode, readonly string[]> = {
   // rather than end the agent turn.
   tool: ["return { block: true, reason: toBlockReason(error) };"],
   prompt: ["reportPromptGateFailure(ctx, toBlockReason(error));", 'return { action: "handled" };'],
+  // Feedback is only collected here; the handler decides after every stop
+  // command has run (see `buildSubscriptionLines`).
+  settle: ["stopHookFailures.push(error);"],
 };
 
 /**
@@ -73,7 +98,9 @@ const FAILURE_LINES_BY_MODE: Record<BlockingMode, readonly string[]> = {
  * reason is derived from the rejection rather than from a resolved exit code.
  * A command that could not be run at all (spawn failure, `maxBuffer` overflow)
  * also rejects, and is deliberately treated as a block: a gate that cannot run
- * must not silently pass.
+ * must not silently pass. The `settle` gate is the exception (see
+ * `PI_SETTLE_BLOCKING_EVENT`): such a failure is rethrown for Pi to report
+ * instead of continuing the agent.
  *
  * The chosen text is sanitized because a hook command's output can relay
  * third-party content (linter output, matched file lines) into a terminal or,
@@ -153,6 +180,39 @@ const PROMPT_GATE_HELPER_LINES = [
   "    // The UI channel is best-effort; fall through to stderr.",
   "  }",
   "  console.error(reason);",
+  "}",
+];
+
+/**
+ * Helper emitted alongside the stop hook's settle gate. `event.entries` holds
+ * the drafts earlier extensions proposed at this boundary, so they are kept and
+ * the reason is appended after them as a displayed `custom_message`, which Pi
+ * projects to a user message the model answers in the extra request.
+ * `event.context.canContinue` is deliberately not consulted: at settlement the
+ * last message is normally the assistant's, so it reads `false` until the
+ * appended message is committed, and Pi re-validates the final context itself.
+ */
+const STOP_HOOK_HELPER_LINES = [
+  "function isStopHookBlock(error: unknown): boolean {",
+  "  return (error as { code?: unknown } | null)?.code === 2;",
+  "}",
+  "",
+  "function continueAfterStopHook(",
+  "  event: AgentBeforeSettleEvent,",
+  "  reason: string,",
+  "): AgentBeforeSettleEventResult {",
+  "  return {",
+  "    entries: [",
+  "      ...event.entries,",
+  "      {",
+  '        type: "custom_message",',
+  '        customType: "rulesync-stop-hook",',
+  "        content: `Stop hook feedback:\\n${reason}`,",
+  "        display: true,",
+  "      },",
+  "    ],",
+  "    continue: true,",
+  "  };",
   "}",
 ];
 
@@ -264,10 +324,12 @@ function buildSubscriptionLines(handlerGroups: HandlerGroup): string[] {
   for (const [piEvent, handlers] of Object.entries(handlerGroups)) {
     const blocking = PI_BLOCKING_MODE_BY_EVENT[piEvent] ?? "none";
     const isPromptGate = blocking === "prompt";
+    const isSettleGate = blocking === "settle";
     const usesToolName = PI_TOOL_EVENTS.has(piEvent) && handlers.some((h) => h.matcher);
     const usesErrorFlag = handlers.some((h) => h.onlyOnError);
     const gatesOnAssistant = PI_ASSISTANT_MESSAGE_EVENTS.has(piEvent);
-    const usesEvent = usesToolName || usesErrorFlag || gatesOnAssistant || isPromptGate;
+    const usesEvent =
+      usesToolName || usesErrorFlag || gatesOnAssistant || isPromptGate || isSettleGate;
     // `ctx` is the second handler argument, so the prompt gate names both.
     const params = isPromptGate ? "event, ctx" : usesEvent ? "event" : "";
     lines.push(`  pi.on(${JSON.stringify(piEvent)}, async (${params}) => {`);
@@ -279,6 +341,9 @@ function buildSubscriptionLines(handlerGroups: HandlerGroup): string[] {
       // `input` for messages another extension injects via `sendUserMessage`,
       // which a user's prompt gate should not cancel.
       lines.push(`    if (event.source === "extension") return { action: "continue" };`);
+    }
+    if (isSettleGate) {
+      lines.push("    const stopHookFailures: unknown[] = [];");
     }
     for (const handler of handlers) {
       lines.push(
@@ -292,7 +357,30 @@ function buildSubscriptionLines(handlerGroups: HandlerGroup): string[] {
     if (isPromptGate) {
       lines.push(`    return { action: "continue" };`);
     }
+    if (isSettleGate) {
+      // Only a completed run is continued: an aborted one is the user stopping
+      // the agent, and an errored one is a provider failure Claude Code's
+      // `Stop` does not fire for either. A failure that does not continue the
+      // agent is rethrown so Pi reports it, as it did for the notify-only
+      // `agent_end` mapping; returning nothing keeps another extension's
+      // `continue` decision.
+      lines.push("    const blocks = stopHookFailures.filter(isStopHookBlock);");
+      lines.push(
+        '    if (blocks.length > 0 && !stopHookContinued && event.outcome === "completed") {',
+      );
+      lines.push("      stopHookContinued = true;");
+      lines.push(
+        '      return continueAfterStopHook(event, blocks.map(toBlockReason).join("\\n\\n"));',
+      );
+      lines.push("    }");
+      lines.push("    if (stopHookFailures.length > 0) throw stopHookFailures[0];");
+    }
     lines.push("  });");
+    if (isSettleGate) {
+      lines.push(`  pi.on("agent_settled", async () => {`);
+      lines.push("    stopHookContinued = false;");
+      lines.push("  });");
+    }
   }
   return lines;
 }
@@ -304,7 +392,9 @@ function buildSubscriptionLines(handlerGroups: HandlerGroup): string[] {
  * platform shell. Handlers observe events, except on `tool_call` — Pi's tool
  * gate — where a hook command that exits non-zero denies the call with
  * `{ block: true, reason }`, and on `input` — Pi's prompt-submission gate —
- * where a non-zero exit cancels the prompt with `{ action: "handled" }`.
+ * where a non-zero exit cancels the prompt with `{ action: "handled" }`, and
+ * on `agent_before_settle`, where a stop command exiting with code 2 asks the
+ * agent to continue once with the command's output as feedback.
  * `postToolUse` and `postToolUseFailure` share Pi's `tool_result` event; the
  * latter's commands run only when `event.isError` is set.
  *
@@ -330,7 +420,9 @@ export function generatePiExtensionCode({
   const handlerGroups = collectPiHandlers({ effectiveHooks, eventMap });
   const subscriptionLines = buildSubscriptionLines(handlerGroups);
   const hasPromptGate = Boolean(handlerGroups[PI_PROMPT_BLOCKING_EVENT]);
-  const needsBlockReasonHelper = Boolean(handlerGroups[PI_BLOCKING_EVENT]) || hasPromptGate;
+  const hasSettleGate = Boolean(handlerGroups[PI_SETTLE_BLOCKING_EVENT]);
+  const needsBlockReasonHelper =
+    Boolean(handlerGroups[PI_BLOCKING_EVENT]) || hasPromptGate || hasSettleGate;
 
   const lines: string[] = ["// Generated by rulesync. Do not edit manually."];
   if (subscriptionLines.length === 0) {
@@ -339,7 +431,11 @@ export function generatePiExtensionCode({
     return lines.join("\n");
   }
 
-  const importedTypes = hasPromptGate ? "ExtensionAPI, ExtensionContext" : "ExtensionAPI";
+  const importedTypes = [
+    ...(hasSettleGate ? ["AgentBeforeSettleEvent", "AgentBeforeSettleEventResult"] : []),
+    "ExtensionAPI",
+    ...(hasPromptGate ? ["ExtensionContext"] : []),
+  ].join(", ");
   lines.push('import { exec } from "node:child_process";');
   lines.push('import { promisify } from "node:util";');
   lines.push("");
@@ -355,7 +451,15 @@ export function generatePiExtensionCode({
     lines.push(...PROMPT_GATE_HELPER_LINES);
     lines.push("");
   }
+  if (hasSettleGate) {
+    lines.push(...STOP_HOOK_HELPER_LINES);
+    lines.push("");
+  }
   lines.push("export default function (pi: ExtensionAPI) {");
+  if (hasSettleGate) {
+    // Per extension instance, so each session gets its own continue-once guard.
+    lines.push("  let stopHookContinued = false;");
+  }
   lines.push(...subscriptionLines);
   lines.push("}");
   lines.push("");
