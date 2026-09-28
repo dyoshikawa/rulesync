@@ -1,9 +1,9 @@
 import { join } from "node:path";
 
 import {
-  OPENCODE_DIR,
-  OPENCODE_GLOBAL_DIR,
+  OPENCODE_LAYOUT,
   OPENCODE_RULE_FILE_NAME,
+  type OpencodeLayout,
 } from "../../constants/opencode-paths.js";
 import type { SharedWritePath } from "../../lib/shared-file-derive.js";
 import { ValidationResult } from "../../types/ai-file.js";
@@ -30,6 +30,9 @@ export type OpenCodeRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
 export type OpenCodeRuleSettablePathsGlobal = ToolRuleSettablePathsGlobal;
 
 export class OpenCodeRule extends ToolRule {
+  /** Directory layout; OpenCode forks (MiMo Code) override it. */
+  protected static readonly layout: OpencodeLayout = OPENCODE_LAYOUT;
+
   static getSettablePaths({
     global,
     excludeToolDir,
@@ -40,14 +43,14 @@ export class OpenCodeRule extends ToolRule {
     if (global) {
       return {
         root: {
-          relativeDirPath: buildToolPath(OPENCODE_GLOBAL_DIR, ".", excludeToolDir),
+          relativeDirPath: buildToolPath(this.layout.globalDir, ".", excludeToolDir),
           relativeFilePath: OPENCODE_RULE_FILE_NAME,
         },
         // OpenCode reads `instructions` from the global opencode.json too, so
         // global non-root rules are written under the global config dir and
         // registered there instead of being dropped.
         nonRoot: {
-          relativeDirPath: buildToolPath(OPENCODE_GLOBAL_DIR, "memories", excludeToolDir),
+          relativeDirPath: buildToolPath(this.layout.globalDir, "memories", excludeToolDir),
         },
       };
     }
@@ -57,7 +60,7 @@ export class OpenCodeRule extends ToolRule {
         relativeFilePath: OPENCODE_RULE_FILE_NAME,
       },
       nonRoot: {
-        relativeDirPath: buildToolPath(OPENCODE_DIR, "memories", excludeToolDir),
+        relativeDirPath: buildToolPath(this.layout.dir, "memories", excludeToolDir),
       },
     };
   }
@@ -85,7 +88,7 @@ export class OpenCodeRule extends ToolRule {
         join(outputRoot, paths.root.relativeDirPath, relativePath),
       );
 
-      return new OpenCodeRule({
+      return new this({
         outputRoot,
         relativeDirPath: paths.root.relativeDirPath,
         relativeFilePath: paths.root.relativeFilePath,
@@ -101,7 +104,7 @@ export class OpenCodeRule extends ToolRule {
 
     const relativePath = join(paths.nonRoot.relativeDirPath, relativeFilePath);
     const fileContent = await readFileContent(join(outputRoot, relativePath));
-    return new OpenCodeRule({
+    return new this({
       outputRoot,
       relativeDirPath: paths.nonRoot.relativeDirPath,
       relativeFilePath: relativeFilePath,
@@ -118,7 +121,7 @@ export class OpenCodeRule extends ToolRule {
     global = false,
   }: ToolRuleFromRulesyncRuleParams): OpenCodeRule {
     const paths = this.getSettablePaths({ global });
-    return new OpenCodeRule(
+    return new this(
       this.buildToolRuleParamsAgentsmd({
         outputRoot,
         rulesyncRule,
@@ -149,7 +152,7 @@ export class OpenCodeRule extends ToolRule {
     const paths = this.getSettablePaths({ global });
     const isRoot = relativeFilePath === paths.root.relativeFilePath;
 
-    return new OpenCodeRule({
+    return new this({
       outputRoot,
       relativeDirPath,
       relativeFilePath,
@@ -162,7 +165,7 @@ export class OpenCodeRule extends ToolRule {
   static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
     return this.isTargetedByRulesyncRuleDefault({
       rulesyncRule,
-      toolTarget: "opencode",
+      toolTarget: this.layout.toolTarget,
     });
   }
 }
