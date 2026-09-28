@@ -141,6 +141,50 @@ describe("DeepagentsMcp", () => {
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("socket"));
     });
 
+    it.each([false, true])(
+      "should normalize httpUrl, array commands and disabled for FastMCP 4 (global: %s)",
+      async (global) => {
+        const logger = createMockLogger();
+        const rulesyncMcp = new RulesyncMcp({
+          outputRoot: testDir,
+          relativeDirPath: ".rulesync",
+          relativeFilePath: "mcp.json",
+          fileContent: JSON.stringify({
+            mcpServers: {
+              "http-url-only": { httpUrl: "https://example.com/mcp" },
+              "http-url-typed": { type: "http", httpUrl: "https://example.com/mcp" },
+              "url-wins": { url: "https://example.com/a", httpUrl: "https://example.com/b" },
+              "array-command": { command: ["npx", "-y", "pkg"], args: ["--flag"] },
+              "array-command-only": { command: ["server"] },
+              "empty-command": { command: [] },
+              off: { command: "npx", disabled: true },
+              on: { command: "npx", disabled: false },
+            },
+          }),
+        });
+
+        const mcp = await DeepagentsMcp.fromRulesyncMcp({
+          outputRoot: testDir,
+          rulesyncMcp,
+          logger,
+          global,
+        });
+
+        expect(mcp.getJson().mcpServers).toEqual({
+          "http-url-only": { type: "http", url: "https://example.com/mcp" },
+          "http-url-typed": { type: "http", url: "https://example.com/mcp" },
+          "url-wins": { url: "https://example.com/a" },
+          "array-command": { command: "npx", args: ["-y", "pkg", "--flag"] },
+          "array-command-only": { command: "server" },
+          on: { command: "npx" },
+        });
+        expect(mcp.getRelativeFilePath()).toBe(".mcp.json");
+        expect(mcp.isDeletable()).toBe(!global);
+        expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("empty-command"));
+        expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("disabled: true"));
+      },
+    );
+
     it("should translate enabledTools to allowedTools and keep disabledTools", async () => {
       const rulesyncMcp = new RulesyncMcp({
         outputRoot: testDir,
