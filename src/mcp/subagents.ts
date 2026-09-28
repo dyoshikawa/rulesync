@@ -1,4 +1,4 @@
-import { basename, join } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 
 import { z } from "zod/mini";
 
@@ -10,9 +10,10 @@ import {
 } from "../features/subagents/rulesync-subagent.js";
 import { formatError } from "../utils/error.js";
 import {
+  assertWritablePathInsideRoot,
   checkPathTraversal,
   ensureDir,
-  listDirectoryEntryNames,
+  findFilesByGlobs,
   removeFile,
   writeFileContent,
 } from "../utils/file.js";
@@ -22,6 +23,19 @@ const logger = new ConsoleLogger({ verbose: false, silent: true });
 
 const maxSubagentSizeBytes = 1024 * 1024; // 1MB
 const maxSubagentsCount = 1000;
+
+function getSubagentRelativeFilePath(relativePathFromCwd: string): string {
+  checkPathTraversal({
+    relativePath: relativePathFromCwd,
+    intendedRootDir: process.cwd(),
+  });
+
+  const subagentsDir = resolve(process.cwd(), RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
+  const requestedPath = resolve(process.cwd(), relativePathFromCwd);
+  const relativeFilePath = relative(subagentsDir, requestedPath);
+  checkPathTraversal({ relativePath: relativeFilePath, intendedRootDir: subagentsDir });
+  return relativeFilePath;
+}
 
 /**
  * Tool to list all subagents from .rulesync/subagents/*.md
@@ -35,8 +49,15 @@ async function listSubagents(): Promise<
   const subagentsDir = join(process.cwd(), RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
 
   try {
-    const files = await listDirectoryEntryNames(subagentsDir);
-    const mdFiles = files.filter((file) => file.endsWith(".md"));
+    await assertWritablePathInsideRoot({ rootPath: process.cwd(), targetPath: subagentsDir });
+    const mdFiles = (
+      await findFilesByGlobs("**/*.md", {
+        cwd: subagentsDir,
+        followSymbolicLinks: false,
+      })
+    )
+      .map((file) => relative(subagentsDir, file))
+      .toSorted();
 
     const subagents = await Promise.all(
       mdFiles.map(async (file) => {
@@ -80,21 +101,20 @@ async function getSubagent({ relativePathFromCwd }: { relativePathFromCwd: strin
   frontmatter: RulesyncSubagentFrontmatter;
   body: string;
 }> {
-  checkPathTraversal({
-    relativePath: relativePathFromCwd,
-    intendedRootDir: process.cwd(),
-  });
-
-  const filename = basename(relativePathFromCwd);
+  const relativeFilePath = getSubagentRelativeFilePath(relativePathFromCwd);
+  const subagentsDir = join(process.cwd(), RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
+  const fullPath = join(subagentsDir, relativeFilePath);
 
   try {
+    await assertWritablePathInsideRoot({ rootPath: process.cwd(), targetPath: subagentsDir });
+    await assertWritablePathInsideRoot({ rootPath: subagentsDir, targetPath: fullPath });
     const subagent = await RulesyncSubagent.fromFile({
-      relativeFilePath: filename,
+      relativeFilePath,
       validate: true,
     });
 
     return {
-      relativePathFromCwd: join(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, filename),
+      relativePathFromCwd: join(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, relativeFilePath),
       frontmatter: subagent.getFrontmatter(),
       body: subagent.getBody(),
     };
@@ -121,12 +141,9 @@ async function putSubagent({
   frontmatter: RulesyncSubagentFrontmatter;
   body: string;
 }> {
-  checkPathTraversal({
-    relativePath: relativePathFromCwd,
-    intendedRootDir: process.cwd(),
-  });
-
-  const filename = basename(relativePathFromCwd);
+  const relativeFilePath = getSubagentRelativeFilePath(relativePathFromCwd);
+  const subagentsDir = join(process.cwd(), RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
+  const fullPath = join(subagentsDir, relativeFilePath);
 
   // Check file size constraint
   const estimatedSize = JSON.stringify(frontmatter).length + body.length;
@@ -137,11 +154,13 @@ async function putSubagent({
   }
 
   try {
+    await assertWritablePathInsideRoot({ rootPath: process.cwd(), targetPath: subagentsDir });
     // Check subagent count constraint
     const existingSubagents = await listSubagents();
     const isUpdate = existingSubagents.some(
       (subagent) =>
-        subagent.relativePathFromCwd === join(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, filename),
+        subagent.relativePathFromCwd ===
+        join(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, relativeFilePath),
     );
 
     if (!isUpdate && existingSubagents.length >= maxSubagentsCount) {
@@ -154,21 +173,23 @@ async function putSubagent({
     const subagent = new RulesyncSubagent({
       outputRoot: process.cwd(),
       relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
-      relativeFilePath: filename,
+      relativeFilePath,
       frontmatter,
       body,
       validate: true,
     });
 
     // Ensure directory exists
-    const subagentsDir = join(process.cwd(), RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
     await ensureDir(subagentsDir);
+    await assertWritablePathInsideRoot({ rootPath: subagentsDir, targetPath: fullPath });
+    await ensureDir(join(subagentsDir, dirname(relativeFilePath)));
+    await assertWritablePathInsideRoot({ rootPath: subagentsDir, targetPath: fullPath });
 
     // Write the file
     await writeFileContent(subagent.getFilePath(), subagent.getFileContent());
 
     return {
-      relativePathFromCwd: join(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, filename),
+      relativePathFromCwd: join(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, relativeFilePath),
       frontmatter: subagent.getFrontmatter(),
       body: subagent.getBody(),
     };
@@ -185,19 +206,17 @@ async function putSubagent({
 async function deleteSubagent({ relativePathFromCwd }: { relativePathFromCwd: string }): Promise<{
   relativePathFromCwd: string;
 }> {
-  checkPathTraversal({
-    relativePath: relativePathFromCwd,
-    intendedRootDir: process.cwd(),
-  });
-
-  const filename = basename(relativePathFromCwd);
-  const fullPath = join(process.cwd(), RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, filename);
+  const relativeFilePath = getSubagentRelativeFilePath(relativePathFromCwd);
+  const subagentsDir = join(process.cwd(), RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
+  const fullPath = join(subagentsDir, relativeFilePath);
 
   try {
+    await assertWritablePathInsideRoot({ rootPath: process.cwd(), targetPath: subagentsDir });
+    await assertWritablePathInsideRoot({ rootPath: subagentsDir, targetPath: fullPath });
     await removeFile(fullPath);
 
     return {
-      relativePathFromCwd: join(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, filename),
+      relativePathFromCwd: join(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, relativeFilePath),
     };
   } catch (error) {
     throw new Error(
@@ -233,7 +252,7 @@ const subagentToolSchemas = {
 export const subagentTools = {
   listSubagents: {
     name: "listSubagents",
-    description: `List all subagents from ${join(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "*.md")} with their frontmatter.`,
+    description: `List all subagents from ${join(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "**/*.md")} with their frontmatter.`,
     parameters: subagentToolSchemas.listSubagents,
     execute: async () => {
       const subagents = await listSubagents();

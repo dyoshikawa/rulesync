@@ -1,10 +1,11 @@
+import { symlink } from "node:fs/promises";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
-import { ensureDir, writeFileContent } from "../utils/file.js";
+import { ensureDir, readFileContent, writeFileContent } from "../utils/file.js";
 import { subagentTools } from "./subagents.js";
 
 describe("MCP Subagents Tools", () => {
@@ -72,6 +73,27 @@ claudecode:
         ".rulesync/subagents/security-reviewer.md",
       );
       expect(parsed.subagents[1].frontmatter.name).toBe("security-reviewer");
+    });
+
+    it("should list nested subagents", async () => {
+      const subagentsDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
+      await writeFileContent(
+        join(subagentsDir, "review", "security-reviewer.md"),
+        `---
+name: security-reviewer
+targets: ["claudecode"]
+description: "Security reviewer"
+---
+# Review security`,
+      );
+
+      const result = await subagentTools.listSubagents.execute();
+      const parsed = JSON.parse(result);
+
+      expect(parsed.subagents).toHaveLength(1);
+      expect(parsed.subagents[0].relativePathFromCwd).toBe(
+        ".rulesync/subagents/review/security-reviewer.md",
+      );
     });
 
     it("should skip non-markdown files", async () => {
@@ -212,6 +234,116 @@ claudecode:
   });
 
   describe("putSubagent", () => {
+    it("should create, read, and update a nested subagent without touching a top-level namesake", async () => {
+      const subagentsDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
+      await writeFileContent(
+        join(subagentsDir, "security-reviewer.md"),
+        `---
+name: top-level
+targets: ["*"]
+---
+# Keep me`,
+      );
+
+      const nestedPath = ".rulesync/subagents/review/security-reviewer.md";
+      await subagentTools.putSubagent.execute({
+        relativePathFromCwd: nestedPath,
+        frontmatter: { name: "nested", targets: ["claudecode"] },
+        body: "# Nested reviewer",
+      });
+
+      const nested = JSON.parse(
+        await subagentTools.getSubagent.execute({ relativePathFromCwd: nestedPath }),
+      );
+      expect(nested.relativePathFromCwd).toBe(nestedPath);
+      expect(nested.body).toBe("# Nested reviewer");
+
+      await subagentTools.deleteSubagent.execute({ relativePathFromCwd: nestedPath });
+      await expect(
+        subagentTools.getSubagent.execute({ relativePathFromCwd: nestedPath }),
+      ).rejects.toThrow();
+      await expect(
+        subagentTools.getSubagent.execute({
+          relativePathFromCwd: ".rulesync/subagents/security-reviewer.md",
+        }),
+      ).resolves.toBeDefined();
+    });
+
+    it.skipIf(process.platform === "win32")(
+      "should reject nested get, put, and delete through a directory symlink",
+      async () => {
+        const subagentsDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
+        const externalDir = join(testDir, "external-subagents");
+        const externalFile = join(externalDir, "victim.md");
+        await ensureDir(subagentsDir);
+        await ensureDir(externalDir);
+        await writeFileContent(
+          externalFile,
+          `---
+name: victim
+targets: ["*"]
+---
+# External sentinel`,
+        );
+        await symlink(externalDir, join(subagentsDir, "review"), "dir");
+        const escapedPath = ".rulesync/subagents/review/victim.md";
+
+        await expect(
+          subagentTools.getSubagent.execute({ relativePathFromCwd: escapedPath }),
+        ).rejects.toThrow(/symbolic link|inside the root/i);
+        await expect(
+          subagentTools.putSubagent.execute({
+            relativePathFromCwd: escapedPath,
+            frontmatter: { name: "overwritten", targets: ["claudecode"] },
+            body: "# Overwritten",
+          }),
+        ).rejects.toThrow(/symbolic link|inside the root/i);
+        await expect(
+          subagentTools.deleteSubagent.execute({ relativePathFromCwd: escapedPath }),
+        ).rejects.toThrow(/symbolic link|inside the root/i);
+
+        expect(await readFileContent(externalFile)).toContain("# External sentinel");
+        expect(await subagentTools.listSubagents.execute()).toBe('{\n  "subagents": []\n}');
+      },
+    );
+
+    it.skipIf(process.platform === "win32")(
+      "should reject operations when the subagents root is a directory symlink",
+      async () => {
+        const rulesyncDir = join(testDir, ".rulesync");
+        const externalDir = join(testDir, "external-subagents-root");
+        const externalFile = join(externalDir, "victim.md");
+        await ensureDir(rulesyncDir);
+        await ensureDir(externalDir);
+        await writeFileContent(
+          externalFile,
+          `---
+name: victim
+targets: ["*"]
+---
+# External root sentinel`,
+        );
+        await symlink(externalDir, join(rulesyncDir, "subagents"), "dir");
+        const escapedPath = ".rulesync/subagents/victim.md";
+
+        await expect(
+          subagentTools.getSubagent.execute({ relativePathFromCwd: escapedPath }),
+        ).rejects.toThrow(/symbolic link|inside the root/i);
+        expect(JSON.parse(await subagentTools.listSubagents.execute()).subagents).toEqual([]);
+        await expect(
+          subagentTools.putSubagent.execute({
+            relativePathFromCwd: escapedPath,
+            frontmatter: { name: "overwritten", targets: ["claudecode"] },
+            body: "# Overwritten",
+          }),
+        ).rejects.toThrow(/symbolic link|inside the root/i);
+        await expect(
+          subagentTools.deleteSubagent.execute({ relativePathFromCwd: escapedPath }),
+        ).rejects.toThrow(/symbolic link|inside the root/i);
+        expect(await readFileContent(externalFile)).toContain("# External root sentinel");
+      },
+    );
+
     it("should create a new subagent", async () => {
       const subagentsDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
       await ensureDir(subagentsDir);

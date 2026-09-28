@@ -687,6 +687,25 @@ Second agent content`;
       expect(names).toEqual(["agent-1", "agent-2"]);
     });
 
+    it("should load nested rulesync subagent files", async () => {
+      const nestedDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "review");
+      await ensureDir(nestedDir);
+      await writeFileContent(
+        join(nestedDir, "security-reviewer.md"),
+        `---
+name: security-reviewer
+description: Reviews code for security issues
+targets: ["claudecode"]
+---
+Review the code for security issues.`,
+      );
+
+      const rulesyncFiles = await processor.loadRulesyncFiles();
+
+      expect(rulesyncFiles).toHaveLength(1);
+      expect(rulesyncFiles[0]?.getRelativeFilePath()).toBe(join("review", "security-reviewer.md"));
+    });
+
     // Windows needs elevated rights to create symlinks, so this one is POSIX-only.
     it.skipIf(process.platform === "win32")(
       "should record a source load failure for a subagent file that cannot be read",
@@ -1292,26 +1311,6 @@ Manual agent content.`,
       expect(toolFiles[0]?.getRelativeFilePath()).toBe(join("review", "manual.md"));
     });
 
-    it("should not follow directory symlinks while importing nested claudecode subagents", async () => {
-      const agentsDir = join(testDir, ".claude", "agents");
-      const externalDir = join(testDir, "external-agents");
-      await ensureDir(agentsDir);
-      await ensureDir(externalDir);
-      await writeFileContent(
-        join(externalDir, "external.md"),
-        `---
-name: external
-description: An agent outside the Claude directory
----
-External agent content.`,
-      );
-      await symlink(externalDir, join(agentsDir, "linked"), "dir");
-
-      const toolFiles = await processor.loadToolFiles();
-
-      expect(toolFiles).toEqual([]);
-    });
-
     it("should warn and keep the first claudecode subagent when nested files share a name", async () => {
       const logger = createMockLogger();
       processor = new SubagentsProcessor({
@@ -1335,10 +1334,75 @@ Analyze the task.`;
       const toolFiles = await processor.loadToolFiles();
 
       expect(toolFiles).toHaveLength(1);
+      expect(toolFiles[0]?.getRelativeFilePath()).toBe(join("research", "researcher.md"));
       expect(logger.warn).toHaveBeenCalledWith(
         expect.stringContaining('Duplicate claudecode subagent "analyst"'),
       );
     });
+
+    it("should prefer a shallower claudecode subagent when nested files share a name", async () => {
+      const logger = createMockLogger();
+      processor = new SubagentsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+      });
+      const agentsDir = join(testDir, ".claude", "agents");
+      await ensureDir(join(agentsDir, "review"));
+
+      const subagentContent = `---
+name: analyst
+description: An analyst
+---
+Analyze the task.`;
+
+      await writeFileContent(join(agentsDir, "review", "nested.md"), subagentContent);
+      await writeFileContent(join(agentsDir, "top-level.md"), subagentContent);
+
+      const toolFiles = await processor.loadToolFiles();
+
+      expect(toolFiles).toHaveLength(1);
+      expect(toolFiles[0]?.getRelativeFilePath()).toBe("top-level.md");
+    });
+
+    it.skipIf(process.platform !== "linux")(
+      "should reject case-insensitive claudecode path collisions with different names",
+      async () => {
+        const logger = createMockLogger();
+        processor = new SubagentsProcessor({
+          logger,
+          outputRoot: testDir,
+          toolTarget: "claudecode",
+        });
+        const agentsDir = join(testDir, ".claude", "agents");
+        await ensureDir(join(agentsDir, "Review"));
+        await ensureDir(join(agentsDir, "review"));
+        await writeFileContent(
+          join(agentsDir, "Review", "Agent.md"),
+          `---
+name: first-agent
+description: First agent
+---
+First agent.`,
+        );
+        await writeFileContent(
+          join(agentsDir, "review", "agent.md"),
+          `---
+name: second-agent
+description: Second agent
+---
+Second agent.`,
+        );
+
+        const toolFiles = await processor.loadToolFiles();
+
+        expect(toolFiles).toHaveLength(1);
+        expect(toolFiles[0]?.getRelativeFilePath()).toBe(join("Review", "Agent.md"));
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining("same file on a case-insensitive filesystem"),
+        );
+      },
+    );
 
     it("should throw error when file fails to load", async () => {
       const agentsDir = join(testDir, ".claude", "agents");

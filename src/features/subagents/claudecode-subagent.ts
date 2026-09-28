@@ -96,8 +96,12 @@ export class ClaudecodeSubagent extends ToolSubagent {
       ...restFields,
     };
 
+    const isNested = this.getRelativeFilePath().split(/[/\\]/u).length > 1;
     const rulesyncFrontmatter: RulesyncSubagentFrontmatter = {
-      targets: ["*"] as const,
+      // Other targets may only support flat agent directories. Keep nested
+      // Claude imports scoped to Claude so a default generate cannot create
+      // target files that their orphan sweeps will never discover.
+      targets: isNested ? (["claudecode"] as const) : (["*"] as const),
       name,
       description,
       // Only include claudecode section if there are fields

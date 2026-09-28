@@ -8,6 +8,7 @@ import {
   SUBAGENTS_FEATURE_SUBDIR,
 } from "../../constants/rulesync-paths.js";
 import {
+  caseFoldIdentity,
   ClaimedIdentities,
   FeatureProcessor,
   mergeByCaseInsensitiveIdentity,
@@ -23,7 +24,6 @@ import {
   directoryExistsStrict,
   findFilesByGlobs,
   isFileSystemError,
-  listDirectoryEntryNames,
 } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { AgentsmdSubagent } from "./agentsmd-subagent.js";
@@ -146,8 +146,6 @@ type ToolSubagentFactory = {
      * accident because `findFilesByGlobs` rewrites backslashes.
      */
     filePattern: string;
-    /** Whether import discovery may follow symbolic links. Defaults to true. */
-    followImportSymbolicLinks?: boolean;
   };
 };
 
@@ -245,7 +243,6 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
         supportsSimulated: false,
         supportsGlobal: true,
         filePattern: "**/*.md",
-        followImportSymbolicLinks: false,
       },
     },
   ],
@@ -270,7 +267,6 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
         supportsSimulated: false,
         supportsGlobal: true,
         filePattern: "**/*.md",
-        followImportSymbolicLinks: false,
       },
     },
   ],
@@ -751,6 +747,15 @@ const INLINE_SOURCE = "<inline>";
  */
 const OUTPUT_SOURCE = "<output>";
 
+function compareRelativePathsShallowestFirst(left: string, right: string): number {
+  const leftDepth = left.split(/[\\/]/u).length;
+  const rightDepth = right.split(/[\\/]/u).length;
+  if (leftDepth !== rightDepth) {
+    return leftDepth - rightDepth;
+  }
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
 export class SubagentsProcessor extends FeatureProcessor {
   private readonly toolTarget: SubagentsProcessorToolTarget;
   private readonly global: boolean;
@@ -918,8 +923,14 @@ export class SubagentsProcessor extends FeatureProcessor {
     }
     this.rulesyncSourceDirFound = true;
 
-    const entries = await listDirectoryEntryNames(subagentsDir);
-    const mdFiles = entries.filter((file) => file.endsWith(".md"));
+    const mdFiles = (
+      await findFilesByGlobs("**/*.md", {
+        cwd: subagentsDir,
+        followSymbolicLinks: false,
+      })
+    )
+      .map((file) => relative(subagentsDir, file))
+      .toSorted(compareRelativePathsShallowestFirst);
 
     if (mdFiles.length === 0) {
       this.logger.debug(`No markdown files found in rulesync subagents directory: ${subagentsDir}`);
@@ -1019,12 +1030,11 @@ export class SubagentsProcessor extends FeatureProcessor {
       : [paths.relativeDirPath, ...(paths.importDirPaths ?? [])];
 
     const toolSubagents: ToolFile[] = [];
-    // Tracks subagent relative paths already loaded so that a duplicate in a
-    // lower-precedence import root does not silently shadow an earlier one.
-    // Case is folded: the loaded subagents are written back into one
-    // `.rulesync/subagents/` tree, where two spellings of a path are a single
-    // file on macOS and Windows.
-    const claimedRelativeFilePaths = new ClaimedIdentities();
+    // Track both destination paths and tool-specific logical identities. Claude
+    // Code identifies agents by frontmatter name, but two differently named
+    // files whose paths differ only in case still collide on macOS and Windows.
+    const claimedRelativeFilePaths = new Map<string, { spelling: string; source: string }>();
+    const claimedImportIdentities = new ClaimedIdentities();
     for (const root of roots) {
       const rootOutputRoot = typeof root === "string" ? this.outputRoot : root.outputRoot;
       const dirPath = typeof root === "string" ? root : root.relativeDirPath;
@@ -1035,10 +1045,14 @@ export class SubagentsProcessor extends FeatureProcessor {
           targetPath: baseDir,
         });
       }
-      const subagentFilePaths = await findFilesByGlobs(factory.meta.filePattern, {
-        cwd: baseDir,
-        followSymbolicLinks: !forDeletion && (factory.meta.followImportSymbolicLinks ?? true),
-      });
+      const subagentFilePaths = (
+        await findFilesByGlobs(factory.meta.filePattern, {
+          cwd: baseDir,
+          followSymbolicLinks: !forDeletion,
+        })
+      ).toSorted((left, right) =>
+        compareRelativePathsShallowestFirst(relative(baseDir, left), relative(baseDir, right)),
+      );
 
       // Compute the per-subagent file path relative to the tool's base directory.
       // For flat layouts (e.g. `<name>.md`) this is identical to `basename(path)`,
@@ -1103,7 +1117,12 @@ export class SubagentsProcessor extends FeatureProcessor {
       );
 
       toolSubagents.push(
-        ...this.claimStandaloneSubagents({ loaded, dirPath, claimedRelativeFilePaths }),
+        ...this.claimStandaloneSubagents({
+          loaded,
+          dirPath,
+          claimedRelativeFilePaths,
+          claimedImportIdentities,
+        }),
       );
     }
 
@@ -1116,7 +1135,10 @@ export class SubagentsProcessor extends FeatureProcessor {
         global: this.global,
       });
       toolSubagents.push(
-        ...this.claimInlineSubagents({ additionalSubagents, claimedRelativeFilePaths }),
+        ...this.claimInlineSubagents({
+          additionalSubagents,
+          claimedRelativeFilePaths: claimedImportIdentities,
+        }),
       );
     }
 
@@ -1127,32 +1149,52 @@ export class SubagentsProcessor extends FeatureProcessor {
   }
 
   /**
-   * Keeps the subagents from one discovery root whose import identity is still
-   * unclaimed, warning about each copy that loses. Split out of
+   * Keeps the subagents from one discovery root whose destination path and
+   * import identity are still unclaimed, warning about each copy that loses. Split out of
    * `loadToolFiles` so the two de-duplication passes stay readable side by
    * side (and so that method stays within the linter's complexity budget).
    *
    * When more than one discovery root is scanned (e.g. Junie's `.junie/agents/`
    * plus `.agents/`), two roots can hold a subagent with the same relative
-   * path. Downstream conversion keys by that path, so a later one would
-   * silently overwrite an earlier one. Warn instead of failing, keeping the
-   * earlier (higher-precedence) root's file.
+   * path. A single root can also contain different paths with the same logical
+   * name, or paths that differ only by case. Downstream conversion would
+   * silently overwrite those files, so warn instead of failing and keep the
+   * earlier file according to root precedence and deterministic path order.
    */
   private claimStandaloneSubagents({
     loaded,
     dirPath,
     claimedRelativeFilePaths,
+    claimedImportIdentities,
   }: {
     loaded: readonly ToolSubagent[];
     dirPath: string;
-    claimedRelativeFilePaths: ClaimedIdentities;
+    claimedRelativeFilePaths: Map<string, { spelling: string; source: string }>;
+    claimedImportIdentities: ClaimedIdentities;
   }): ToolFile[] {
     const deduped: ToolFile[] = [];
 
     for (const subagent of loaded) {
+      const sourceRelativeFilePath = subagent.getRelativeFilePath();
+      const destinationRelativeFilePath = subagent.toRulesyncSubagent().getRelativeFilePath();
+      const pathKey = caseFoldIdentity(destinationRelativeFilePath);
+      const pathClaim = claimedRelativeFilePaths.get(pathKey);
+      if (pathClaim !== undefined) {
+        this.logger.warn(
+          pathClaim.spelling === destinationRelativeFilePath
+            ? `Duplicate ${this.toolTarget} subagent output path "${destinationRelativeFilePath}" from "${sourceRelativeFilePath}" in ${dirPath}; keeping the earlier one and ignoring this copy.`
+            : `${this.toolTarget} subagent output path "${destinationRelativeFilePath}" from "${sourceRelativeFilePath}" differs only in case from "${pathClaim.spelling}", which is the same file on a case-insensitive filesystem; keeping the earlier one and ignoring this copy.`,
+        );
+        continue;
+      }
+
       const key = subagent.getImportIdentity();
-      const claimed = claimedRelativeFilePaths.claim({ identity: key, source: dirPath });
+      const claimed = claimedImportIdentities.claim({ identity: key, source: dirPath });
       if (claimed === null) {
+        claimedRelativeFilePaths.set(pathKey, {
+          spelling: destinationRelativeFilePath,
+          source: dirPath,
+        });
         deduped.push(subagent);
         continue;
       }
