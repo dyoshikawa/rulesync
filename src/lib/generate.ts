@@ -29,7 +29,7 @@ import { AiDir } from "../types/ai-dir.js";
 import { AiFile } from "../types/ai-file.js";
 import { DirFeatureProcessor } from "../types/dir-feature-processor.js";
 import { FeatureProcessor, resetRootShadowingWarnings } from "../types/feature-processor.js";
-import type { Feature } from "../types/features.js";
+import type { Feature, FeatureOptions } from "../types/features.js";
 import { getProcessorRegistryEntry } from "../types/processor-registry.js";
 import type { RulesyncFile } from "../types/rulesync-file.js";
 import type { ToolTarget } from "../types/tool-targets.js";
@@ -1134,9 +1134,11 @@ async function generateRulesCore(params: {
   const createProcessor = ({
     toolTarget,
     outputRoot,
+    featureOptions = config.getFeatureOptions(toolTarget, "rules"),
   }: {
     toolTarget: ToolTarget;
     outputRoot: string;
+    featureOptions?: FeatureOptions;
   }): RulesProcessor =>
     new RulesProcessor({
       outputRoot: resolveToolOutputRoot({
@@ -1153,7 +1155,7 @@ async function generateRulesCore(params: {
       language: config.getLanguage(),
       deriveSubprojectPathFromGlobs: config.getDeriveSubprojectPathFromGlobs(),
       skills: skills,
-      featureOptions: config.getFeatureOptions(toolTarget, "rules"),
+      featureOptions,
       delete: config.getDelete(),
       dryRun: config.isPreviewMode(),
       logger,
@@ -1227,7 +1229,12 @@ async function generateRulesCore(params: {
       createOwnerProcessor: (ownerParams) =>
         supportedTargets.includes(ownerParams.toolTarget) &&
         config.getOutputRoots(ownerParams.toolTarget).includes(ownerParams.outputRoot)
-          ? createProcessor(ownerParams)
+          ? createProcessor({
+              ...ownerParams,
+              // CLI -t replaces the per-target options, so read the owner's
+              // from the config file, as a full generate would use them.
+              featureOptions: config.getConfigFileFeatureOptions(ownerParams.toolTarget, "rules"),
+            })
           : undefined,
     });
     totalCount += skippedResult.count;

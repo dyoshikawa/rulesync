@@ -704,37 +704,71 @@ export class Config {
     if (selection === undefined) {
       return this.getFeatures(target);
     }
-    if (isRulesyncConfigTargetsObject(selection.targets)) {
-      const value = selection.targets[target];
-      return value ? Config.normalizeTargetFeatures(value) : [];
+    return Config.resolveTargetFeatures({
+      targets: selection.targets,
+      features: selection.features ?? [],
+      target,
+    });
+  }
+
+  /**
+   * The options `target` sets for `feature` according to the configuration
+   * file alone, like {@link getConfigFileFeatures}. Falls back to
+   * {@link getFeatureOptions} when no configuration file declared `targets`.
+   */
+  public getConfigFileFeatureOptions(
+    target: ToolTarget,
+    feature: Feature,
+  ): FeatureOptions | undefined {
+    const selection = this.configFileSelection;
+    if (selection === undefined) {
+      return this.getFeatureOptions(target, feature);
     }
-    const features = selection.features ?? [];
-    if (features.includes("*")) {
-      return [...ALL_FEATURES];
-    }
-    return features.filter((feature): feature is Feature => feature !== "*");
+    return Config.resolveFeatureOptions({ targets: selection.targets, target, feature });
   }
 
   public getFeatures(): Features;
   public getFeatures(target: ToolTarget): Features;
   public getFeatures(target?: ToolTarget): Features {
+    if (target) {
+      return Config.resolveTargetFeatures({
+        targets: this.targets,
+        features: this.features,
+        target,
+      });
+    }
     // New object form on `targets`: per-target features come from the
     // targets object values.
     if (isRulesyncConfigTargetsObject(this.targets)) {
-      if (target) {
-        const value = this.targets[target];
-        if (!value) return [];
-        return Config.normalizeTargetFeatures(value);
-      }
       return Config.collectAllFeatures(Object.values(this.targets));
     }
+    return Config.normalizeFeatureList(this.features);
+  }
 
+  private static resolveTargetFeatures({
+    targets,
+    features,
+    target,
+  }: {
+    targets: RulesyncConfigTargets;
+    features: RulesyncFeatures;
+    target: ToolTarget;
+  }): Features {
+    // New object form on `targets`: per-target features come from the
+    // targets object values.
+    if (isRulesyncConfigTargetsObject(targets)) {
+      const value = targets[target];
+      return value ? Config.normalizeTargetFeatures(value) : [];
+    }
     // Array format - traditional behavior
-    if (this.features.includes("*")) {
+    return Config.normalizeFeatureList(features);
+  }
+
+  private static normalizeFeatureList(features: RulesyncFeatures): Features {
+    if (features.includes("*")) {
       return [...ALL_FEATURES];
     }
-
-    return this.features.filter((feature): feature is Feature => feature !== "*");
+    return features.filter((feature): feature is Feature => feature !== "*");
   }
 
   /**
@@ -789,7 +823,19 @@ export class Config {
    * feature is not enabled for the given target.
    */
   public getFeatureOptions(target: ToolTarget, feature: Feature): FeatureOptions | undefined {
-    const value = isRulesyncConfigTargetsObject(this.targets) ? this.targets[target] : undefined;
+    return Config.resolveFeatureOptions({ targets: this.targets, target, feature });
+  }
+
+  private static resolveFeatureOptions({
+    targets,
+    target,
+    feature,
+  }: {
+    targets: RulesyncConfigTargets;
+    target: ToolTarget;
+    feature: Feature;
+  }): FeatureOptions | undefined {
+    const value = isRulesyncConfigTargetsObject(targets) ? targets[target] : undefined;
     if (!value || Array.isArray(value)) {
       return undefined;
     }

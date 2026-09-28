@@ -252,6 +252,7 @@ describe("generate", () => {
     getTargets: ReturnType<typeof vi.fn>;
     getConfigFileTargets: ReturnType<typeof vi.fn>;
     getConfigFileFeatures: ReturnType<typeof vi.fn>;
+    getConfigFileFeatureOptions: ReturnType<typeof vi.fn>;
     getFeatures: ReturnType<typeof vi.fn>;
     getFeatureOptions: ReturnType<typeof vi.fn>;
     getDelete: ReturnType<typeof vi.fn>;
@@ -282,6 +283,7 @@ describe("generate", () => {
       ),
       getFeatures: vi.fn().mockReturnValue(["rules"]),
       getFeatureOptions: vi.fn().mockReturnValue(undefined),
+      getConfigFileFeatureOptions: vi.fn().mockReturnValue(undefined),
       getDelete: vi.fn().mockReturnValue(false),
       getCheck: vi.fn().mockReturnValue(false),
       getGlobal: vi.fn().mockReturnValue(false),
@@ -495,9 +497,11 @@ describe("generate", () => {
       const setUp = ({
         cliTargets,
         diskMatches,
+        sourceLoadFails = () => false,
       }: {
         cliTargets: string[];
         diskMatches: (toolTarget: string) => boolean;
+        sourceLoadFails?: (toolTarget: string) => boolean;
       }) => {
         const processors = new Map<string, { writeAiFiles: ReturnType<typeof vi.fn> }>();
         mockConfig.getCheck.mockReturnValue(true);
@@ -532,6 +536,7 @@ describe("generate", () => {
               const changed = files.length > 0 && !diskMatches(toolTarget) ? 1 : 0;
               return { count: changed, paths: changed ? ["AGENTS.md"] : [] };
             }),
+            hasRulesyncSourceLoadFailure: vi.fn().mockReturnValue(sourceLoadFails(toolTarget)),
           };
           processors.set(toolTarget, processor);
           return processor as unknown as RulesProcessor;
@@ -625,6 +630,39 @@ describe("generate", () => {
         expect(codexcliWrites[0]?.[0]).toEqual([]);
         expect(codexcliWrites[1]?.[0]?.[0]?.getFileContent()).toBe("root for codexcli");
         expect(result.hasDiff).toBe(true);
+      });
+
+      it("should build the owner's output with the owner's rules options from the config file", async () => {
+        setUp({ cliTargets: ["codexcli"], diskMatches: () => true });
+        mockConfig.getConfigFileFeatureOptions.mockImplementation(
+          (target: string, feature: string) =>
+            target === "opencode" && feature === "rules"
+              ? { ruleDiscoveryMode: "none" }
+              : undefined,
+        );
+
+        await generate({ logger, config: mockConfig as never });
+
+        expect(mockConfig.getConfigFileFeatureOptions).toHaveBeenCalledWith("opencode", "rules");
+        expect(RulesProcessor).toHaveBeenCalledWith(
+          expect.objectContaining({
+            toolTarget: "opencode",
+            featureOptions: { ruleDiscoveryMode: "none" },
+          }),
+        );
+      });
+
+      it("should propagate a source load failure from the owner's processor", async () => {
+        setUp({
+          cliTargets: ["codexcli"],
+          diskMatches: () => true,
+          sourceLoadFails: (toolTarget) => toolTarget === "opencode",
+        });
+
+        const result = await generate({ logger, config: mockConfig as never });
+
+        expect(result.hasDiff).toBe(false);
+        expect(result.sourceLoadFailed).toBe(true);
       });
     });
   });
