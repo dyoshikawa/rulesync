@@ -66,6 +66,7 @@ export const TOOL_DISPLAY: ReadonlyArray<ToolDisplayEntry> = [
   { key: "warp", label: "Warp", group: "ai" },
   { key: "replit", label: "Replit", group: "ai" },
   { key: "pi", label: "Pi Coding Agent", group: "ai" },
+  { key: "omp", label: "oh-my-pi", group: "ai" },
   { key: "zed", label: "Zed", group: "ai" },
   { key: "zcode", label: "ZCode (Z.ai)", group: "ai" },
   { key: "pool", label: "Pool (Poolside)", group: "ai" },

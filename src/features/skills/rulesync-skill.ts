@@ -34,6 +34,18 @@ function isUnsafeSkillDirName(name: string): boolean {
   );
 }
 
+const piSkillSectionSchema = z.looseObject({
+  // Pi implements the Agent Skills spec: `allowed-tools` is a
+  // space-delimited string and `compatibility` a 1-500 character string.
+  // Both legacy rulesync forms stay accepted.
+  // https://agentskills.io/specification
+  "allowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
+  "disable-model-invocation": z.optional(z.boolean()),
+  license: z.optional(z.string()),
+  compatibility: z.optional(z.union([z.string(), z.looseObject({})])),
+  metadata: z.optional(z.looseObject({})),
+});
+
 const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
   name: z.string().check(
     z.refine((name) => !isUnsafeSkillDirName(name), {
@@ -215,19 +227,9 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
       "disable-model-invocation": z.optional(z.boolean()),
     }),
   ),
-  pi: z.optional(
-    z.looseObject({
-      // Pi implements the Agent Skills spec: `allowed-tools` is a
-      // space-delimited string and `compatibility` a 1-500 character string.
-      // Both legacy rulesync forms stay accepted.
-      // https://agentskills.io/specification
-      "allowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
-      "disable-model-invocation": z.optional(z.boolean()),
-      license: z.optional(z.string()),
-      compatibility: z.optional(z.union([z.string(), z.looseObject({})])),
-      metadata: z.optional(z.looseObject({})),
-    }),
-  ),
+  pi: z.optional(piSkillSectionSchema),
+  // oh-my-pi keeps Pi's SKILL.md format, so its section mirrors `pi`.
+  omp: z.optional(piSkillSectionSchema),
   zed: z.optional(
     z.looseObject({
       "disable-model-invocation": z.optional(z.boolean()),
@@ -547,6 +549,13 @@ export type RulesyncSkillFrontmatterInput = {
     "disable-model-invocation"?: boolean;
   };
   pi?: {
+    "allowed-tools"?: string | string[];
+    "disable-model-invocation"?: boolean;
+    license?: string;
+    compatibility?: string | Record<string, unknown>;
+    metadata?: Record<string, unknown>;
+  };
+  omp?: {
     "allowed-tools"?: string | string[];
     "disable-model-invocation"?: boolean;
     license?: string;
