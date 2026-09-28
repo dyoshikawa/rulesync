@@ -43,14 +43,15 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
   ),
   description: z.string(),
   targets: z._default(RulesyncTargetsSchema, ["*"]),
-  // Default for tools that support the flag (claudecode, cursor, zed, pi, qwencode, grokcli, factorydroid, dsh, commandcode).
+  // Default for tools that support the flag (claudecode, cursor, zed, pi, qwencode, grokcli,
+  // factorydroid, dsh, commandcode, lettacode).
   // A target-section value of the same key overrides this default.
   // `devin` also consumes this root value (mapping `true` onto a user-only
   // `triggers` list); it has no section key of the same name, but a
   // `devin.triggers` section value overrides it.
   "disable-model-invocation": z.optional(z.boolean()),
   // Default for tools that support the flag (claudecode, copilot, copilotcli, cursor,
-  // qwencode, vibe, grokcli, factorydroid, dsh, commandcode).
+  // qwencode, vibe, grokcli, factorydroid, dsh, commandcode, lettacode).
   // A target-section value of the same key overrides this default.
   // `devin` also consumes this root value (mapping `false` onto a model-only
   // `triggers` list); it has no section key of the same name, but a
@@ -369,6 +370,18 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
       "user-invocable": z.optional(z.boolean()),
     }),
   ),
+  // Letta Code reads `when_to_use`, `argument-hint`, `category`, `tags` and
+  // both invocation flags from a skill's frontmatter.
+  lettacode: z.optional(
+    z.looseObject({
+      when_to_use: z.optional(z.string()),
+      "argument-hint": z.optional(z.string()),
+      category: z.optional(z.string()),
+      tags: z.optional(z.union([z.string(), z.array(z.string())])),
+      "disable-model-invocation": z.optional(z.boolean()),
+      "user-invocable": z.optional(z.boolean()),
+    }),
+  ),
   cortexcode: z.optional(z.looseObject({})),
   codewhale: z.optional(z.looseObject({})),
   continue: z.optional(z.looseObject({})),
@@ -602,6 +615,14 @@ export type RulesyncSkillFrontmatterInput = {
     "allowed-tools"?: string | string[];
   };
   commandcode?: Record<string, unknown>;
+  lettacode?: {
+    when_to_use?: string;
+    "argument-hint"?: string;
+    category?: string;
+    tags?: string | string[];
+    "disable-model-invocation"?: boolean;
+    "user-invocable"?: boolean;
+  };
   cortexcode?: Record<string, unknown>;
   codewhale?: Record<string, unknown>;
   continue?: Record<string, unknown>;

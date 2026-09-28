@@ -197,6 +197,10 @@ describe("shared-file write derivation", () => {
           "hooks",
           "permissions",
         ],
+        ".letta/settings.json": [
+          "hooks",
+          "permissions",
+        ],
         ".poolside/settings.yaml": [
           "hooks",
           "mcp",

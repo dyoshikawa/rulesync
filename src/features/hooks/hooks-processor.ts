@@ -33,6 +33,7 @@ import {
   KIMI_CODE_HOOK_EVENTS,
   KIRO_HOOK_EVENTS,
   KIRO_IDE_HOOK_EVENTS,
+  LETTACODE_HOOK_EVENTS,
   OPENCODE_HOOK_EVENTS,
   PI_HOOK_EVENTS,
   POOL_HOOK_EVENTS,
@@ -83,6 +84,7 @@ import { KimiCodeHooks } from "./kimi-code-hooks.js";
 import { KiroCliHooks } from "./kiro-cli-hooks.js";
 import { KiroHooks } from "./kiro-hooks.js";
 import { KIRO_HOOKS_OVERRIDE_KEY, KiroIdeHooks } from "./kiro-ide-hooks.js";
+import { LettacodeHooks } from "./lettacode-hooks.js";
 import { OpencodeHooks } from "./opencode-hooks.js";
 import { PiHooks } from "./pi-hooks.js";
 import { PoolHooks } from "./pool-hooks.js";
@@ -710,6 +712,26 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       supportsMatcher: true,
       // IDE-only triggers (PostFileSave, PreTaskExec, …) supplied via the
       // shared `kiro` override block are emitted verbatim.
+    },
+  ],
+  [
+    "lettacode",
+    {
+      class: LettacodeHooks,
+      meta: {
+        // Letta Code hooks live under the top-level `hooks` key of
+        // `.letta/settings.json` (project) and `~/.letta/settings.json`
+        // (user), in the Claude-Code shape. Only command hooks are emitted,
+        // with timeouts in milliseconds. `matcher` applies to the tool events.
+        // https://github.com/letta-ai/letta-code/blob/main/src/hooks/types.ts
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+      supportedEvents: LETTACODE_HOOK_EVENTS,
+      supportedHookTypes: ["command"],
+      supportsMatcher: true,
+      matcherEvents: ["preToolUse", "postToolUse", "postToolUseFailure", "permissionRequest"],
     },
   ],
   [

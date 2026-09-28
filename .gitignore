@@ -241,6 +241,7 @@ rulesync.local.jsonc
 **/.factory/settings.local.json
 **/.augment/settings.local.json
 **/.commandcode/settings.local.json
+**/.letta/settings.local.json
 **/.rovodev/.rulesync/
 **/.takt/runs/
 **/.takt/tasks/
@@ -411,6 +412,7 @@ rulesync.local.jsonc
 **/.grok/agents/
 **/.junie/agents/
 **/.kiro/agents/
+**/.letta/agents/
 **/.kilo/agents/
 **/.kimi-code/agents/
 **/.opencode/agents/
@@ -473,6 +475,7 @@ rulesync.local.jsonc
 **/.hermes/plugins/rulesync-ignore/patterns.gitignore
 **/.kilocodeignore
 **/.kiroignore
+**/.letta/.lettaignore
 **/.qwenignore
 **/.rooignore
 **/.devinignore

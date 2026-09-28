@@ -1671,6 +1671,21 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
       hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
     },
   },
+  // Letta Code settings: the project file (`.letta/settings.json`) and the
+  // user file (`~/.letta/settings.json`) share one layout and carry unrelated
+  // Letta Code settings (model, UI preferences, ...), so both are edited in
+  // place and an unparseable root is refused rather than replaced. Hooks own
+  // the `hooks` key (the adapter carries its `disabled` switch over);
+  // permissions own the `permissions` key, and the adapter re-spreads the
+  // sibling keys of that object (`mode`, `additionalDirectories`, ...).
+  ".letta/settings.json": {
+    format: "json",
+    invalidRootPolicy: "error",
+    features: {
+      hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
+      permissions: { kind: "replace-owned-keys", ownedKeys: ["permissions"] },
+    },
+  },
   // Snowflake Cortex Code hooks: `hooks` is the only rulesync-owned key. The
   // project file (`.cortex/settings.json`) carries unrelated Cortex settings,
   // and the user file (`~/.snowflake/cortex/hooks.json`) lives in the

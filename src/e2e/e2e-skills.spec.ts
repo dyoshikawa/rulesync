@@ -172,6 +172,10 @@ const skillsGenerateTargets = [
     outputPath: join(".agents", "skills", "test-skill", "SKILL.md"),
   },
   {
+    target: "lettacode",
+    outputPath: join(".agents", "skills", "test-skill", "SKILL.md"),
+  },
+  {
     target: "takt",
     outputPath: join(".takt", "facets", "knowledge", "test-skill.md"),
   },
@@ -367,6 +371,7 @@ This is the test skill body content.
     { target: "continue", orphanPath: join(".continue", "skills", "orphan-skill", "SKILL.md") },
     { target: "cursor", orphanPath: join(".cursor", "skills", "orphan-skill", "SKILL.md") },
     { target: "codexcli", orphanPath: join(".agents", "skills", "orphan-skill", "SKILL.md") },
+    { target: "lettacode", orphanPath: join(".agents", "skills", "orphan-skill", "SKILL.md") },
     { target: "copilot", orphanPath: join(".github", "skills", "orphan-skill", "SKILL.md") },
     { target: "deepagents", orphanPath: join(".deepagents", "skills", "orphan-skill", "SKILL.md") },
     { target: "cline", orphanPath: join(".cline", "skills", "orphan-skill", "SKILL.md") },
@@ -440,6 +445,7 @@ describe("E2E: skills (import)", () => {
     { target: "continue", sourcePath: join(".continue", "skills", "test-skill", "SKILL.md") },
     { target: "cursor", sourcePath: join(".cursor", "skills", "test-skill", "SKILL.md") },
     { target: "codexcli", sourcePath: join(".agents", "skills", "test-skill", "SKILL.md") },
+    { target: "lettacode", sourcePath: join(".agents", "skills", "test-skill", "SKILL.md") },
     { target: "copilot", sourcePath: join(".github", "skills", "test-skill", "SKILL.md") },
     { target: "opencode", sourcePath: join(".opencode", "skill", "test-skill", "SKILL.md") },
     { target: "deepagents", sourcePath: join(".deepagents", "skills", "test-skill", "SKILL.md") },
@@ -1005,6 +1011,10 @@ const skillsGlobalTargets = [
   {
     target: "amp",
     outputPath: join(".config", "agents", "skills", "test-skill", "SKILL.md"),
+  },
+  {
+    target: "lettacode",
+    outputPath: join(".letta", "skills", "test-skill", "SKILL.md"),
   },
   {
     target: "deepagents",

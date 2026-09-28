@@ -63,6 +63,7 @@ import { KimiCodeSkill } from "./kimi-code-skill.js";
 import { KiroCliSkill } from "./kiro-cli-skill.js";
 import { KiroIdeSkill } from "./kiro-ide-skill.js";
 import { KiroSkill } from "./kiro-skill.js";
+import { LettacodeSkill } from "./lettacode-skill.js";
 import { MusecodeSkill } from "./musecode-skill.js";
 import { OpenCodeSkill } from "./opencode-skill.js";
 import { PiSkill } from "./pi-skill.js";
@@ -494,6 +495,16 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
     "kilo",
     {
       class: KiloSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "lettacode",
+    {
+      // Letta Code discovers Agent Skills (<name>/SKILL.md) from the shared
+      // `.agents/skills/` root (project) and `~/.letta/skills/` (user).
+      // https://docs.letta.com/configuration/skills/index.md
+      class: LettacodeSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],
