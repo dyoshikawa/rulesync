@@ -284,6 +284,76 @@ describe("config-resolver", () => {
     });
   });
 
+  describe("config file features (getConfigFileFeatures)", () => {
+    it("keeps per-target features from object-form targets when CLI -t replaces them", async () => {
+      const configContent = JSON.stringify({
+        outputRoots: ["./"],
+        targets: { codexcli: ["rules"], opencode: ["mcp"] },
+      });
+      await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
+
+      const config = await ConfigResolver.resolve({
+        configPath: join(testDir, "rulesync.jsonc"),
+        targets: ["codexcli"],
+        features: ["rules"],
+      });
+
+      expect(config.getConfigFileFeatures("codexcli")).toEqual(["rules"]);
+      expect(config.getConfigFileFeatures("opencode")).toEqual(["mcp"]);
+      expect(config.getConfigFileFeatures("claudecode")).toEqual([]);
+    });
+
+    it("applies CLI -f to every array-form config file target, as a run without -t would", async () => {
+      const configContent = JSON.stringify({
+        outputRoots: ["./"],
+        targets: ["codexcli", "opencode"],
+        features: ["mcp"],
+      });
+      await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
+
+      const config = await ConfigResolver.resolve({
+        configPath: join(testDir, "rulesync.jsonc"),
+        targets: ["codexcli"],
+        features: ["rules"],
+      });
+
+      expect(config.getFeatures("codexcli")).toEqual(["rules"]);
+      expect(config.getConfigFileFeatures("opencode")).toEqual(["rules"]);
+    });
+
+    it("uses the config file's array-form features when CLI -f is absent", async () => {
+      const configContent = JSON.stringify({
+        outputRoots: ["./"],
+        targets: ["codexcli", "opencode"],
+        features: ["mcp"],
+      });
+      await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
+
+      const config = await ConfigResolver.resolve({
+        configPath: join(testDir, "rulesync.jsonc"),
+        targets: ["codexcli"],
+      });
+
+      expect(config.getConfigFileFeatures("opencode")).toEqual(["mcp"]);
+    });
+
+    it("expands a wildcard feature list from the config file", async () => {
+      const configContent = JSON.stringify({
+        outputRoots: ["./"],
+        targets: ["codexcli", "opencode"],
+        features: ["*"],
+      });
+      await writeFileContent(join(testDir, "rulesync.jsonc"), configContent);
+
+      const config = await ConfigResolver.resolve({
+        configPath: join(testDir, "rulesync.jsonc"),
+      });
+
+      expect(config.getConfigFileFeatures("opencode")).toContain("rules");
+      expect(config.getConfigFileFeatures("opencode")).toContain("mcp");
+    });
+  });
+
   describe("base directory resolution", () => {
     it("should load configured outputRoots from file", async () => {
       const configContent = JSON.stringify({

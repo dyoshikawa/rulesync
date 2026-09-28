@@ -251,6 +251,8 @@ describe("generate", () => {
     getOutputRoots: ReturnType<typeof vi.fn>;
     getTargets: ReturnType<typeof vi.fn>;
     getConfigFileTargets: ReturnType<typeof vi.fn>;
+    getConfigFileFeatures: ReturnType<typeof vi.fn>;
+    getConfigFileFeatureOptions: ReturnType<typeof vi.fn>;
     getFeatures: ReturnType<typeof vi.fn>;
     getFeatureOptions: ReturnType<typeof vi.fn>;
     getDelete: ReturnType<typeof vi.fn>;
@@ -274,8 +276,14 @@ describe("generate", () => {
       getOutputRoots: vi.fn().mockReturnValue(["."]),
       getTargets: vi.fn().mockReturnValue(["claudecode"]),
       getConfigFileTargets: vi.fn().mockReturnValue(["claudecode"]),
+      // Defaults to the (possibly CLI-overridden) features, like `Config` does
+      // when no config file selection is recorded.
+      getConfigFileFeatures: vi.fn((target: string): unknown =>
+        (mockConfig.getFeatures as (target: string) => unknown)(target),
+      ),
       getFeatures: vi.fn().mockReturnValue(["rules"]),
       getFeatureOptions: vi.fn().mockReturnValue(undefined),
+      getConfigFileFeatureOptions: vi.fn().mockReturnValue(undefined),
       getDelete: vi.fn().mockReturnValue(false),
       getCheck: vi.fn().mockReturnValue(false),
       getGlobal: vi.fn().mockReturnValue(false),
@@ -476,6 +484,202 @@ describe("generate", () => {
       expect(RulesProcessor).toHaveBeenCalledTimes(2);
       expect(RulesProcessor).toHaveBeenCalledWith(expect.objectContaining({ outputRoot: "dir1" }));
       expect(RulesProcessor).toHaveBeenCalledWith(expect.objectContaining({ outputRoot: "dir2" }));
+    });
+
+    describe("check mode with a shared root file owned by another target (#3198)", () => {
+      const makeRootFile = (toolTarget: string) => ({
+        getFilePath: () => "/repo/AGENTS.md",
+        getFileContent: () => `root for ${toolTarget}`,
+        getRelativePathFromCwd: () => "AGENTS.md",
+      });
+
+      // Every target emits `./AGENTS.md`; the last target in config order owns it.
+      const setUp = ({
+        cliTargets,
+        diskMatches,
+        sourceLoadFails = () => false,
+      }: {
+        cliTargets: string[];
+        diskMatches: (toolTarget: string) => boolean;
+        sourceLoadFails?: (toolTarget: string) => boolean;
+      }) => {
+        const processors = new Map<string, { writeAiFiles: ReturnType<typeof vi.fn> }>();
+        mockConfig.getCheck.mockReturnValue(true);
+        mockConfig.isPreviewMode.mockReturnValue(true);
+        mockConfig.getTargets.mockReturnValue(cliTargets);
+        mockConfig.getConfigFileTargets.mockReturnValue(["codexcli", "claudecode", "opencode"]);
+        vi.mocked(RulesProcessor.getToolTargets).mockReturnValue([
+          "codexcli",
+          "claudecode",
+          "opencode",
+        ]);
+        vi.mocked(RulesProcessor.getFactory).mockReturnValue({
+          class: {
+            getSettablePaths: () => ({
+              root: { relativeDirPath: ".", relativeFilePath: "AGENTS.md" },
+            }),
+          },
+          meta: {},
+        } as unknown as ReturnType<typeof RulesProcessor.getFactory>);
+        vi.mocked(RulesProcessor).mockImplementation(function ({
+          toolTarget,
+        }: {
+          toolTarget: string;
+        }) {
+          const processor = {
+            loadToolFiles: vi.fn().mockResolvedValue([]),
+            removeOrphanAiFiles: vi.fn().mockResolvedValue(0),
+            ...mockProcessorBase(),
+            loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
+            convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([makeRootFile(toolTarget)]),
+            writeAiFiles: vi.fn().mockImplementation(async (files: unknown[]) => {
+              const changed = files.length > 0 && !diskMatches(toolTarget) ? 1 : 0;
+              return { count: changed, paths: changed ? ["AGENTS.md"] : [] };
+            }),
+            hasRulesyncSourceLoadFailure: vi.fn().mockReturnValue(sourceLoadFails(toolTarget)),
+          };
+          processors.set(toolTarget, processor);
+          return processor as unknown as RulesProcessor;
+        } as never);
+        return processors;
+      };
+
+      afterEach(() => {
+        // `clearAllMocks` keeps return values, so undo the factory stub here.
+        vi.mocked(RulesProcessor.getFactory).mockReset();
+      });
+
+      it("should compare the skipped root file against the owner's output when the owner is not checked", async () => {
+        const processors = setUp({
+          cliTargets: ["codexcli"],
+          diskMatches: () => false,
+        });
+
+        const result = await generate({ logger, config: mockConfig as never });
+
+        // codexcli does not own AGENTS.md, so its own write sees nothing...
+        expect(processors.get("codexcli")?.writeAiFiles).toHaveBeenCalledWith([]);
+        // ...but the owner's expected content is still compared against disk.
+        expect(processors.get("opencode")?.writeAiFiles).toHaveBeenCalledWith([
+          expect.objectContaining({ getFileContent: expect.any(Function) }),
+        ]);
+        const [ownerFile] = processors.get("opencode")?.writeAiFiles.mock.calls[0]?.[0] ?? [];
+        expect(ownerFile.getFileContent()).toBe("root for opencode");
+        expect(result.hasDiff).toBe(true);
+      });
+
+      it("should report no diff when the disk matches the owner's output", async () => {
+        const processors = setUp({
+          cliTargets: ["codexcli"],
+          diskMatches: (toolTarget) => toolTarget === "opencode",
+        });
+
+        const result = await generate({ logger, config: mockConfig as never });
+
+        expect(processors.get("opencode")?.writeAiFiles).toHaveBeenCalledTimes(1);
+        expect(result.hasDiff).toBe(false);
+      });
+
+      it("should not re-check the root file when the owner is part of the run", async () => {
+        const processors = setUp({
+          cliTargets: ["codexcli", "opencode"],
+          diskMatches: (toolTarget) => toolTarget === "opencode",
+        });
+
+        const result = await generate({ logger, config: mockConfig as never });
+
+        expect(RulesProcessor).toHaveBeenCalledTimes(2);
+        expect(processors.get("codexcli")?.writeAiFiles).toHaveBeenCalledTimes(1);
+        expect(processors.get("codexcli")?.writeAiFiles).toHaveBeenCalledWith([]);
+        expect(processors.get("opencode")?.writeAiFiles).toHaveBeenCalledTimes(1);
+        expect(result.hasDiff).toBe(false);
+      });
+
+      it("should not let a target without rules in the config file own the root file", async () => {
+        const processors = setUp({
+          cliTargets: ["codexcli"],
+          diskMatches: (toolTarget) => toolTarget === "claudecode",
+        });
+        // opencode is last but only configured for MCP, so it never writes
+        // AGENTS.md; claudecode is the last target that does.
+        mockConfig.getConfigFileFeatures.mockImplementation((target: string) =>
+          target === "opencode" ? ["mcp"] : ["rules"],
+        );
+
+        const result = await generate({ logger, config: mockConfig as never });
+
+        expect(processors.has("opencode")).toBe(false);
+        expect(processors.get("claudecode")?.writeAiFiles).toHaveBeenCalledTimes(1);
+        expect(result.hasDiff).toBe(false);
+      });
+
+      it("should judge targets in the run by the run's features, not the config file's (#1894)", async () => {
+        const processors = setUp({
+          cliTargets: ["codexcli", "opencode"],
+          diskMatches: (toolTarget) => toolTarget === "opencode",
+        });
+        // The config file only enables MCP, but `--features rules` makes both
+        // targets in the run write AGENTS.md, so opencode still owns it.
+        mockConfig.getConfigFileFeatures.mockReturnValue(["mcp"]);
+
+        const result = await generate({ logger, config: mockConfig as never });
+
+        expect(processors.get("codexcli")?.writeAiFiles).toHaveBeenCalledTimes(1);
+        expect(processors.get("codexcli")?.writeAiFiles).toHaveBeenCalledWith([]);
+        expect(result.hasDiff).toBe(false);
+      });
+
+      it("should compare the non-owner's output when the owner does not write to that output root", async () => {
+        const processors = setUp({
+          cliTargets: ["codexcli"],
+          diskMatches: () => false,
+        });
+        mockConfig.getOutputRoots.mockImplementation((target?: string) =>
+          target === "opencode" ? ["elsewhere"] : ["."],
+        );
+
+        const result = await generate({ logger, config: mockConfig as never });
+
+        expect(processors.has("opencode")).toBe(false);
+        const codexcliWrites = processors.get("codexcli")?.writeAiFiles.mock.calls ?? [];
+        expect(codexcliWrites).toHaveLength(2);
+        expect(codexcliWrites[0]?.[0]).toEqual([]);
+        expect(codexcliWrites[1]?.[0]?.[0]?.getFileContent()).toBe("root for codexcli");
+        expect(result.hasDiff).toBe(true);
+      });
+
+      it("should build the owner's output with the owner's rules options from the config file", async () => {
+        setUp({ cliTargets: ["codexcli"], diskMatches: () => true });
+        mockConfig.getConfigFileFeatureOptions.mockImplementation(
+          (target: string, feature: string) =>
+            target === "opencode" && feature === "rules"
+              ? { ruleDiscoveryMode: "none" }
+              : undefined,
+        );
+
+        await generate({ logger, config: mockConfig as never });
+
+        expect(mockConfig.getConfigFileFeatureOptions).toHaveBeenCalledWith("opencode", "rules");
+        expect(RulesProcessor).toHaveBeenCalledWith(
+          expect.objectContaining({
+            toolTarget: "opencode",
+            featureOptions: { ruleDiscoveryMode: "none" },
+          }),
+        );
+      });
+
+      it("should propagate a source load failure from the owner's processor", async () => {
+        setUp({
+          cliTargets: ["codexcli"],
+          diskMatches: () => true,
+          sourceLoadFails: (toolTarget) => toolTarget === "opencode",
+        });
+
+        const result = await generate({ logger, config: mockConfig as never });
+
+        expect(result.hasDiff).toBe(false);
+        expect(result.sourceLoadFailed).toBe(true);
+      });
     });
   });
 

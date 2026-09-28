@@ -2149,7 +2149,15 @@ Second content`;
       expect(names).toEqual(["skill-1", "skill-2"]);
     });
 
-    it("should throw error when directory fails to load", async () => {
+    it("should skip a skill directory that fails to load with a warning", async () => {
+      // Claude Code keeps loading the other skills when one SKILL.md is
+      // broken, so import skips that one instead of aborting the run.
+      const logger = createMockLogger();
+      const lenientProcessor = new SkillsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+      });
       const skillsDir = join(testDir, ".claude", "skills");
       await ensureDir(skillsDir);
 
@@ -2162,7 +2170,50 @@ Second content`;
         "Invalid format without frontmatter",
       );
 
-      await expect(processor.loadToolDirs()).rejects.toThrow();
+      const toolDirs = await lenientProcessor.loadToolDirs();
+
+      expect(toolDirs).toHaveLength(0);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(join(".claude", "skills", "invalid")),
+      );
+    });
+
+    it("should keep importing the other skills when one SKILL.md has unparseable YAML", async () => {
+      const logger = createMockLogger();
+      const lenientProcessor = new SkillsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+      });
+      const skillsDir = join(testDir, ".claude", "skills");
+      await ensureDir(join(skillsDir, "broken"));
+      await ensureDir(join(skillsDir, "fix-issue"));
+      // `[filename] [format]` unquoted is not valid YAML.
+      await writeFileContent(
+        join(skillsDir, "broken", "SKILL.md"),
+        `---
+name: broken
+description: Broken skill
+argument-hint: [filename] [format]
+---
+Body`,
+      );
+      await writeFileContent(
+        join(skillsDir, "fix-issue", "SKILL.md"),
+        `---
+name: fix-issue
+description: Fix a GitHub issue
+argument-hint: [issue-number]
+---
+Fix issue $ARGUMENTS.`,
+      );
+
+      const toolDirs = await lenientProcessor.loadToolDirs();
+
+      expect(toolDirs.map((dir) => dir.getDirName())).toEqual(["fix-issue"]);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(join(".claude", "skills", "broken")),
+      );
     });
 
     describe("global mode", () => {

@@ -3,7 +3,11 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
+import {
+  RULESYNC_HOOKS_RELATIVE_FILE_PATH,
+  RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH,
+  RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+} from "../constants/rulesync-paths.js";
 import { SkillsProcessor } from "../features/skills/skills-processor.js";
 import {
   ensureDir,
@@ -472,6 +476,61 @@ This is the test skill body content.`;
       join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "test-skill", "SKILL.md"),
     );
     expect(importedContent).toContain("test skill body content");
+  });
+
+  it("should import a claudecode skill with a YAML-list argument-hint and keep going past a broken one", async () => {
+    // Regression for a skill written the way the Claude Code docs show it
+    // (`argument-hint: [issue-number]`, a YAML list) aborting the whole
+    // `--features "*"` import, and for one unparseable SKILL.md dropping every
+    // feature imported after skills (hooks, permissions).
+    const testDir = getTestDir();
+
+    await writeFileContent(join(testDir, "CLAUDE.md"), "# Project\n");
+    await writeFileContent(
+      join(testDir, ".claude", "skills", "fix-issue", "SKILL.md"),
+      `---
+name: fix-issue
+description: Fix a GitHub issue
+argument-hint: [issue-number]
+---
+Fix issue $ARGUMENTS.`,
+    );
+    await writeFileContent(
+      join(testDir, ".claude", "skills", "broken", "SKILL.md"),
+      `---
+name: broken
+description: Broken skill
+argument-hint: [filename] [format]
+---
+Body`,
+    );
+    await writeFileContent(
+      join(testDir, ".claude", "settings.json"),
+      JSON.stringify({
+        permissions: { allow: ["Bash(git status)"] },
+        hooks: {
+          PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: "echo check" }] }],
+        },
+      }),
+    );
+
+    // NODE_ENV=test silences the logger; the skip warning is part of the contract.
+    const { stdout, stderr } = await runImport({
+      target: "claudecode",
+      features: "*",
+      env: { NODE_ENV: "e2e" },
+    });
+
+    const importedSkill = await readFileContent(
+      join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "fix-issue", "SKILL.md"),
+    );
+    expect(importedSkill).toContain("argument-hint: '[issue-number]'");
+    expect(
+      await fileExists(join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "broken", "SKILL.md")),
+    ).toBe(false);
+    expect(`${stdout}${stderr}`).toContain(join(".claude", "skills", "broken"));
+    expect(await fileExists(join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH))).toBe(true);
+    expect(await fileExists(join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH))).toBe(true);
   });
 
   it("should import vibe skills from the .agents/skills fallback root", async () => {

@@ -55,9 +55,9 @@ Decide, per issue, whether it still describes a real, actionable problem. Combin
 Classify each issue into exactly one bucket:
 
 - **No action needed** — invalid, obsolete, already fixed, out of scope, a duplicate, or explicitly declined. Record the concrete reason and the evidence (URLs / file references / linked issue) behind it.
-- **Action needed** — a real problem confirmed to still exist, with a concrete, defensible fix in mind.
+- **Action needed** — a real problem, gap, or worthwhile proposal that still applies, with a concrete fix in mind. An open design point is not a blocker: pick the option that best fits the project's existing conventions and the tool's documented behavior, and state the choice in the PR body.
 
-If validation is genuinely inconclusive (the legitimacy cannot be settled by research or code), do not force a decision: leave the issue open, report it as needing a maintainer call, and exclude it from both Step 5 and Step 6.
+Default to action. Leave an issue open only in two narrow cases: the facts the fix depends on cannot be established from any primary source or the code, or the fix would do real harm (edit `.github/**` or the release pipeline, add a new runtime dependency, contradict an explicit maintainer decision in the thread, or delete or overwrite user files outside the outputs rulesync already manages). In those cases, leave the issue open, report the missing fact or harm, and exclude it from both Step 5 and Step 6.
 
 ## Step 5: Close the Issues That Need No Action
 
@@ -126,6 +126,6 @@ Summarize, per issue:
 
 - **Closed (no action):** issue number, title, and the reason it was closed.
 - **Resolved (PR):** issue number, title, and the single PR URL that closes it.
-- **Left open (inconclusive):** issue number, title, and what a maintainer still needs to decide.
+- **Left open (inconclusive):** issue number, title, and the missing fact or harm that blocked it.
 
 All issue comments, PR title, and PR body must be written in English regardless of the conversation language. Write the final report to the user in the language of the current conversation.

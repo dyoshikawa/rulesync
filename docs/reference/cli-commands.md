@@ -158,6 +158,14 @@ The `generate` command reads source files from one or more rulesync source trees
 | `--watch, -w`               | Keep running and regenerate whenever rulesync source files change                                                                                                                                                                                                                                                                                                                         | `false`               |
 | `--config, -c <path>`       | Path to the configuration file to load (`rulesync.local.jsonc` next to it still overlays it)                                                                                                                                                                                                                                                                                              | `rulesync.jsonc`      |
 
+> **Note on `--check` and shared root files:** A root file that several targets
+> write, such as `AGENTS.md`, is compared against its owner's output. The owner
+> is the last target in `rulesync.jsonc` that generates rules, even when
+> `--targets` selects a different target, and its output is built as
+> `rulesync generate` with the same options but without `--targets` would
+> build it. See
+> [Target Order and File Conflicts](../guide/configuration.md#target-order-and-file-conflicts).
+
 > **Note on `--delete` and shared output directories:** Several targets write
 > into one directory on purpose — `.agents/agents/`, `.agents/skills/`, and the
 > rest of the cross-vendor roots. The orphan sweep runs only after every target

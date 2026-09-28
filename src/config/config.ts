@@ -198,6 +198,10 @@ export type ConfigParams = Omit<InferredConfigParams, "targets" | "features"> & 
   targets?: RulesyncConfigTargets;
   features?: RulesyncFeatures;
   configFileTargets?: ToolTarget[];
+  // The `targets` / `features` selection exactly as the configuration file
+  // declares it, before any CLI override. Set by `ConfigResolver`; lets a
+  // `--targets`/`--features` run ask which features a target has in a full run.
+  configFileSelection?: { targets: RulesyncConfigTargets; features?: RulesyncFeatures };
   // Absolute path of the configuration file this config was loaded from. Set
   // by `ConfigResolver`; it is process state rather than a user-settable
   // option, so it deliberately stays out of `ConfigParamsSchema` (and thus out
@@ -426,6 +430,7 @@ export class Config {
    */
   private readonly objectFormTargetKeys: ToolTarget[] | undefined;
   private readonly configFileTargets: ToolTarget[] | undefined;
+  private readonly configFileSelection: ConfigParams["configFileSelection"];
   private readonly verbose: boolean;
   private readonly delete: boolean;
   private readonly global: boolean;
@@ -485,6 +490,7 @@ export class Config {
     configFilePath,
     sources,
     configFileTargets,
+    configFileSelection,
   }: ConfigParams) {
     // Defense-in-depth: enforce the same mutual-exclusivity rule that the
     // file loader applies, so programmatic `new Config(...)` callers can't
@@ -528,6 +534,7 @@ export class Config {
       ? Config.filterValidToolTargets(Object.keys(resolvedTargets))
       : undefined;
     this.configFileTargets = configFileTargets;
+    this.configFileSelection = configFileSelection;
     this.verbose = verbose;
     this.delete = isDelete;
 
@@ -687,26 +694,82 @@ export class Config {
     return this.configFileTargets ?? this.getTargets();
   }
 
+  /**
+   * The features `target` has for a run over the configuration file's
+   * targets, i.e. what `rulesync generate` without `--targets` would produce
+   * for it (a CLI `--features` still applies to array-form targets). Falls
+   * back to {@link getFeatures} when no configuration file declared `targets`.
+   */
+  public getConfigFileFeatures(target: ToolTarget): Features {
+    const selection = this.configFileSelection;
+    if (selection === undefined) {
+      return this.getFeatures(target);
+    }
+    return Config.resolveTargetFeatures({
+      targets: selection.targets,
+      features: selection.features ?? [],
+      target,
+    });
+  }
+
+  /**
+   * The options `target` sets for `feature` in the configuration file, for
+   * the same run as {@link getConfigFileFeatures}. Falls back to
+   * {@link getFeatureOptions} when no configuration file declared `targets`.
+   */
+  public getConfigFileFeatureOptions(
+    target: ToolTarget,
+    feature: Feature,
+  ): FeatureOptions | undefined {
+    const selection = this.configFileSelection;
+    if (selection === undefined) {
+      return this.getFeatureOptions(target, feature);
+    }
+    return Config.resolveFeatureOptions({ targets: selection.targets, target, feature });
+  }
+
   public getFeatures(): Features;
   public getFeatures(target: ToolTarget): Features;
   public getFeatures(target?: ToolTarget): Features {
+    if (target) {
+      return Config.resolveTargetFeatures({
+        targets: this.targets,
+        features: this.features,
+        target,
+      });
+    }
     // New object form on `targets`: per-target features come from the
     // targets object values.
     if (isRulesyncConfigTargetsObject(this.targets)) {
-      if (target) {
-        const value = this.targets[target];
-        if (!value) return [];
-        return Config.normalizeTargetFeatures(value);
-      }
       return Config.collectAllFeatures(Object.values(this.targets));
     }
+    return Config.normalizeFeatureList(this.features);
+  }
 
+  private static resolveTargetFeatures({
+    targets,
+    features,
+    target,
+  }: {
+    targets: RulesyncConfigTargets;
+    features: RulesyncFeatures;
+    target: ToolTarget;
+  }): Features {
+    // New object form on `targets`: per-target features come from the
+    // targets object values.
+    if (isRulesyncConfigTargetsObject(targets)) {
+      const value = targets[target];
+      return value ? Config.normalizeTargetFeatures(value) : [];
+    }
     // Array format - traditional behavior
-    if (this.features.includes("*")) {
+    return Config.normalizeFeatureList(features);
+  }
+
+  private static normalizeFeatureList(features: RulesyncFeatures): Features {
+    if (features.includes("*")) {
       return [...ALL_FEATURES];
     }
-
-    return this.features.filter((feature): feature is Feature => feature !== "*");
+    return features.filter((feature): feature is Feature => feature !== "*");
   }
 
   /**
@@ -761,7 +824,19 @@ export class Config {
    * feature is not enabled for the given target.
    */
   public getFeatureOptions(target: ToolTarget, feature: Feature): FeatureOptions | undefined {
-    const value = isRulesyncConfigTargetsObject(this.targets) ? this.targets[target] : undefined;
+    return Config.resolveFeatureOptions({ targets: this.targets, target, feature });
+  }
+
+  private static resolveFeatureOptions({
+    targets,
+    target,
+    feature,
+  }: {
+    targets: RulesyncConfigTargets;
+    target: ToolTarget;
+    feature: Feature;
+  }): FeatureOptions | undefined {
+    const value = isRulesyncConfigTargetsObject(targets) ? targets[target] : undefined;
     if (!value || Array.isArray(value)) {
       return undefined;
     }

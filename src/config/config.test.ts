@@ -502,6 +502,48 @@ describe("Config", () => {
     });
   });
 
+  describe("getConfigFileFeatures / getConfigFileFeatureOptions", () => {
+    it("falls back to the resolved features and options without a config file selection", () => {
+      const config = createConfig({
+        targets: { codexcli: { rules: { ruleDiscoveryMode: "none" } } },
+      });
+      expect(config.getConfigFileFeatures("codexcli")).toEqual(config.getFeatures("codexcli"));
+      expect(config.getConfigFileFeatureOptions("codexcli", "rules")).toEqual({
+        ruleDiscoveryMode: "none",
+      });
+    });
+
+    it("reads the config file selection instead of the CLI-overridden targets", () => {
+      const config = createConfig({
+        targets: ["codexcli"],
+        features: ["rules"],
+        configFileSelection: {
+          targets: {
+            codexcli: ["rules"],
+            agentsmd: { rules: { ruleDiscoveryMode: "none" } },
+            opencode: ["mcp"],
+          },
+        },
+      });
+      expect(config.getFeatureOptions("agentsmd", "rules")).toBeUndefined();
+      expect(config.getConfigFileFeatureOptions("agentsmd", "rules")).toEqual({
+        ruleDiscoveryMode: "none",
+      });
+      expect(config.getConfigFileFeatures("agentsmd")).toEqual(["rules"]);
+      expect(config.getConfigFileFeatures("opencode")).toEqual(["mcp"]);
+      expect(config.getConfigFileFeatures("claudecode")).toEqual([]);
+    });
+
+    it("expands array-form config file features for every listed target", () => {
+      const config = createConfig({
+        configFileSelection: { targets: ["codexcli", "opencode"], features: ["*"] },
+      });
+      expect(config.getConfigFileFeatures("opencode")).toContain("rules");
+      expect(config.getConfigFileFeatures("opencode")).toContain("mcp");
+      expect(config.getConfigFileFeatureOptions("opencode", "rules")).toBeUndefined();
+    });
+  });
+
   describe("getConfigFilePath", () => {
     it("keeps the absolute path supplied by the resolver", () => {
       const configFilePath = resolve(process.cwd(), "packages", "app", "rulesync.jsonc");

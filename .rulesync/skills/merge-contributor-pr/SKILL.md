@@ -5,8 +5,8 @@ description: >-
   conflict with main — resolve the blocker without rewriting their commits, and
   merge it with a merge commit so their authorship survives. Detects the case
   where the conflict exists because the same feature already landed through
-  another PR, and hands that decision (close as superseded, or a credit-only
-  merge) back to the user instead of merging a no-op. Use when the user wants a
+  another PR, and closes it as superseded (a credit-only merge only on request)
+  instead of merging a no-op. Use when the user wants a
   PR fixed up and merged while keeping the original author's commits.
 targets:
   - "*"
@@ -386,10 +386,10 @@ Do not resolve the conflict by hand-picking pieces of two implementations —
 that is a judgement call about what the author meant, which Step 3 already
 rules out.
 
-If nothing of the fourth kind survives, **stop and ask the user** — this is the
-one place in this skill where the decision is not mechanical. Present the
-competing PR, the release it shipped in, and the classified leftovers, and
-offer exactly two outcomes:
+If nothing of the fourth kind survives, take the default outcome — **close as
+superseded** — without asking; a closed PR can be reopened, so this is not a
+harmful call. Report the competing PR, the release it shipped in, and the
+classified leftovers in Step 8. The two possible outcomes are:
 
 - **Close as superseded** (the default recommendation): `git merge --abort`,
   return to `main`, delete the throwaway branch, and close the PR with a comment
@@ -401,13 +401,12 @@ offer exactly two outcomes:
 - **Credit-only merge**: every conflicted _and_ every surviving path is reset
   to `origin/main` (`git checkout origin/main -- <paths>`), so the merge commit
   has an empty diff against `main` and the author's commits still enter the
-  history. Only do this when the user explicitly chooses it; then continue with
-  Step 4's verification, Step 5 and Step 6 as written. Say in the Step 8 report
-  that the merge was empty by design.
+  history. Only do this when the user explicitly asked for it; then continue
+  with Step 4's verification, Step 5 and Step 6 as written. Say in the Step 8
+  report that the merge was empty by design.
 
-Never pick between the two yourself, and never merge a no-op because the
-instruction said "merge": a request written before the competing PR was
-noticed is a request about a different situation.
+Never merge a no-op because the instruction said "merge": a request written
+before the competing PR was noticed is a request about a different situation.
 
 Aborting cleanly matters here because Step 4 refuses to reuse a leftover
 `merge-pr-<pr_number>` branch:
