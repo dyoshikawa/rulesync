@@ -180,7 +180,8 @@ candidate's bullet here when its table row is promoted or retired.
   discovery pass. Do not re-add it — track the proposal on that issue.
 - **OpenClaw** — `~/.openclaw/workspace/AGENTS.md` rules. Recorded on the
   watchlist on 2026-09-12 and proposed as #3052; the row was removed on
-  2026-09-16. Do not re-add it — track the proposal on that issue.
+  2026-09-16 and it shipped as the rules-only `openclaw` target on 2026-09-28.
+  Do not re-add it.
 - **IBM Bob** — `.bob/` tree (rules, `.bobignore`, `mcp.json`, commands,
   skills, `settings.json` hooks). Proposed as #3011 on 2026-09-12 directly from
   the discovery pass. Do not re-add it — track the proposal on that issue.

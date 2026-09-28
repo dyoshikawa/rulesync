@@ -26,6 +26,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | deepagents-cli            | deepagents         | ✅ 🌏 |        | ✅ 🌏 🔧 |          |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |     🌏      |        |
 | Factory Droid             | factorydroid       | ✅ 🌏 |        | ✅ 🌏 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |   ✅   |
 | OpenCode                  | opencode           | ✅ 🌏 |        | ✅ 🌏 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
+| OpenClaw                  | openclaw           | ✅ 🌏 |        |          |          |           |        |       |             |        |
 | MiMo Code                 | mimocode           | ✅ 🌏 |        | ✅ 🌏 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
 | GitLab Duo CLI            | gitlabduo          | ✅ 🌏 |        |  ✅ 🌏   |  ✅ 🌏   |           | ✅ 🌏  | ✅ 🌏 |             |   ✅   |
 | Cline                     | cline              | ✅ 🌏 |   ✅   |    🌏    |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |     ✅      |        |

@@ -54,6 +54,7 @@ describe("tool targets", () => {
         "mimocode",
         "omp",
         "opencode",
+        "openclaw",
         "pi",
         "pool",
         "qwencode",

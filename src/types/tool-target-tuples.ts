@@ -41,6 +41,7 @@ export const rulesProcessorToolTargetTuple = [
   "mimocode",
   "omp",
   "opencode",
+  "openclaw",
   "pi",
   "pool",
   "qwencode",
