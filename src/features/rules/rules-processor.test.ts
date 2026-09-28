@@ -2156,6 +2156,7 @@ Content that would fail parsing`;
         "kiro-cli",
         "kiro-ide",
         "mimocode",
+        "omp",
         "opencode",
         "pi",
         "pool",
@@ -2231,7 +2232,7 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("dsh");
       expect(globalTargets).toContain("continue");
       expect(globalTargets).toContain("commandcode");
-      expect(globalTargets.length).toBe(43);
+      expect(globalTargets.length).toBe(44);
 
       // These targets should NOT be in global mode
       expect(globalTargets).not.toContain("cursor");

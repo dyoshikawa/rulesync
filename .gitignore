@@ -320,6 +320,8 @@ rulesync.local.jsonc
 **/.kimi-code/AGENTS.md
 **/.kiro/steering/
 **/.mimocode/memories/
+**/.omp/AGENTS.md
+**/.omp/rules/
 **/.opencode/memories/
 **/.pi/APPEND_SYSTEM.md
 **/AGENTS.override.md
@@ -352,6 +354,7 @@ rulesync.local.jsonc
 **/.kilo/commands/
 **/.kiro/prompts/
 **/.mimocode/commands/
+**/.omp/commands/
 **/.opencode/commands/
 **/.pi/prompts/
 **/.qwen/commands/
@@ -385,6 +388,7 @@ rulesync.local.jsonc
 **/.kimi-code/skills/
 **/.kiro/skills/
 **/.mimocode/skills/
+**/.omp/skills/
 **/.opencode/skills/
 **/.pi/skills/
 **/.poolside/skills/
@@ -419,6 +423,7 @@ rulesync.local.jsonc
 **/.kilo/agents/
 **/.kimi-code/agents/
 **/.mimocode/agents/
+**/.omp/agents/
 **/.opencode/agents/
 **/.qwen/agents/
 **/.rovodev/subagents/
@@ -441,6 +446,7 @@ rulesync.local.jsonc
 **/.kimi-code/mcp.json
 **/.kiro/settings/mcp.json
 **/.junie/mcp/mcp.json
+**/.omp/mcp.json
 **/.qwen/settings.json
 **/.roo/mcp.json
 **/.warp/.mcp.json

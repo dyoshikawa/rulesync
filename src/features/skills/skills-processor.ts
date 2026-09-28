@@ -66,6 +66,7 @@ import { KiroSkill } from "./kiro-skill.js";
 import { LettacodeSkill } from "./lettacode-skill.js";
 import { MimocodeSkill } from "./mimocode-skill.js";
 import { MusecodeSkill } from "./musecode-skill.js";
+import { OmpSkill } from "./omp-skill.js";
 import { OpenCodeSkill } from "./opencode-skill.js";
 import { PiSkill } from "./pi-skill.js";
 import { PoolSkill } from "./pool-skill.js";
@@ -554,6 +555,13 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
       // XDG-default `~/.config/muse/skills` is emitted at global scope.
       // https://dev.meta.ai/docs/muse-code/extending.md
       class: MusecodeSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "omp",
+    {
+      class: OmpSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],

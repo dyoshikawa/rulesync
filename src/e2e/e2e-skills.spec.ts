@@ -199,6 +199,7 @@ const skillsGenerateTargets = [
     target: "mimocode",
     outputPath: join(".mimocode", "skills", "test-skill", "SKILL.md"),
   },
+  { target: "omp", outputPath: join(".omp", "skills", "test-skill", "SKILL.md") },
   {
     target: "opencode",
     outputPath: join(".opencode", "skills", "test-skill", "SKILL.md"),
@@ -452,6 +453,7 @@ describe("E2E: skills (import)", () => {
     { target: "lettacode", sourcePath: join(".agents", "skills", "test-skill", "SKILL.md") },
     { target: "copilot", sourcePath: join(".github", "skills", "test-skill", "SKILL.md") },
     { target: "mimocode", sourcePath: join(".mimocode", "skill", "test-skill", "SKILL.md") },
+    { target: "omp", sourcePath: join(".omp", "skills", "test-skill", "SKILL.md") },
     { target: "opencode", sourcePath: join(".opencode", "skill", "test-skill", "SKILL.md") },
     { target: "deepagents", sourcePath: join(".deepagents", "skills", "test-skill", "SKILL.md") },
     { target: "cline", sourcePath: join(".cline", "skills", "test-skill", "SKILL.md") },
@@ -1009,6 +1011,7 @@ const skillsGlobalTargets = [
     target: "mimocode",
     outputPath: join(".config", "mimocode", "skills", "test-skill", "SKILL.md"),
   },
+  { target: "omp", outputPath: join(".omp", "agent", "skills", "test-skill", "SKILL.md") },
   {
     target: "opencode",
     outputPath: join(".config", "opencode", "skills", "test-skill", "SKILL.md"),

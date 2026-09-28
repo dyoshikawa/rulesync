@@ -45,6 +45,7 @@ const mcpGenerateTargets = [
   { target: "copilotcli", outputPath: join(".github", "mcp.json") },
   { target: "crush", outputPath: "crush.json" },
   { target: "mimocode", outputPath: join(".mimocode", "mimocode.jsonc") },
+  { target: "omp", outputPath: join(".omp", "mcp.json") },
   { target: "opencode", outputPath: "opencode.jsonc" },
   { target: "pool", outputPath: join(".poolside", "settings.yaml") },
   { target: "deepagents", outputPath: join(".deepagents", ".mcp.json") },
@@ -747,6 +748,7 @@ describe("E2E: mcp (import)", () => {
     { target: "commandcode", sourcePath: ".mcp.json" },
     { target: "cursor", sourcePath: join(".cursor", "mcp.json") },
     { target: "codewhale", sourcePath: join(".codewhale", "mcp.json") },
+    { target: "omp", sourcePath: join(".omp", "mcp.json") },
     // copilot MCP uses VS Code-specific format — excluded from import test
     { target: "copilotcli", sourcePath: join(".github", "mcp.json") },
     { target: "deepagents", sourcePath: join(".deepagents", ".mcp.json") },
@@ -932,6 +934,7 @@ const mcpGlobalTargets = [
   { target: "goose", outputPath: join(".config", "goose", "config.yaml") },
   { target: "hermesagent", outputPath: join(getHermesagentGlobalDir(), "config.yaml") },
   { target: "mimocode", outputPath: join(".config", "mimocode", "mimocode.jsonc") },
+  { target: "omp", outputPath: join(".omp", "agent", "mcp.json") },
   { target: "opencode", outputPath: join(".config", "opencode", "opencode.jsonc") },
   { target: "pool", outputPath: join(".config", "poolside", "settings.yaml") },
   { target: "codexcli", outputPath: join(".codex", "config.toml") },

@@ -90,6 +90,7 @@ import { KiroIdeRule } from "./kiro-ide-rule.js";
 import { KiroRule } from "./kiro-rule.js";
 import { MimocodeRule } from "./mimocode-rule.js";
 import { MusecodeRule } from "./musecode-rule.js";
+import { OmpRule } from "./omp-rule.js";
 import { OpenCodeRule } from "./opencode-rule.js";
 import { PiRule } from "./pi-rule.js";
 import { PoolRule } from "./pool-rule.js";
@@ -931,6 +932,20 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         supportsGlobal: false,
         ruleDiscoveryMode: "auto",
         collisionPolicy: "fold",
+      },
+    },
+  ],
+  [
+    "omp",
+    {
+      class: OmpRule,
+      meta: {
+        // oh-my-pi loads `.omp/AGENTS.md` plus `.omp/rules/*.md` natively, and
+        // `~/.omp/agent/AGENTS.md` plus `~/.omp/agent/rules/*.md` globally.
+        // https://github.com/can1357/oh-my-pi/blob/main/docs/context-files.md
+        extension: "md",
+        supportsGlobal: true,
+        ruleDiscoveryMode: "auto",
       },
     },
   ],
