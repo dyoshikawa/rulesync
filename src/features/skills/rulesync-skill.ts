@@ -393,6 +393,7 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
     }),
   ),
   cortexcode: z.optional(z.looseObject({})),
+  codewhale: z.optional(z.looseObject({})),
   continue: z.optional(z.looseObject({})),
   tabnine: z.optional(z.looseObject({})),
   takt: z.optional(
@@ -639,6 +640,7 @@ export type RulesyncSkillFrontmatterInput = {
     "user-invocable"?: boolean;
   };
   cortexcode?: Record<string, unknown>;
+  codewhale?: Record<string, unknown>;
   continue?: Record<string, unknown>;
   tabnine?: Record<string, unknown>;
   takt?: {
