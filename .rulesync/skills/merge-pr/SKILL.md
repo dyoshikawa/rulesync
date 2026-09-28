@@ -46,7 +46,7 @@ gh pr view <pr_number> --json number,title,state,mergeable,author,baseRefName,he
 Check:
 
 1. The PR state is `OPEN`
-2. Display the PR title and number to the user for confirmation
+2. Display the PR title and number to the user (for visibility; do not wait for a reply)
 
 If the PR is not open or not mergeable, inform the user and stop.
 
@@ -63,9 +63,11 @@ Check:
 1. All workflow checks show `pass` status
 2. No checks are `pending` or `fail`
 
-If any checks have failed or are still running, inform the user and ask whether to:
+If checks are still running, do not ask — wait for them with
+`gh pr checks <pr_number> --watch` and merge once they all pass.
 
-- Wait for pending checks to complete
+If any check has failed, inform the user and ask whether to:
+
 - Investigate failed checks before merging
 - Proceed with merge anyway (using `--admin` will bypass required checks)
 
