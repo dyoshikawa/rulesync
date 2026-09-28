@@ -33,6 +33,7 @@ import {
 // green. Keep this list in sync with the actual `it`s by hand.
 const permissionsGenerateTargets = [
   "opencode",
+  "mimocode",
   "pi",
   "zed",
   "amp",
@@ -70,6 +71,7 @@ const permissionsGlobalTargets = [
   "claudecode",
   "pi",
   "opencode",
+  "mimocode",
   "codexcli",
   "commandcode",
   "copilotcli",
@@ -126,6 +128,13 @@ describe("E2E: permissions", () => {
     // opencode writes the `.jsonc` twin when neither file exists yet, so both
     // spellings must stay absent.
     { target: "opencode", relativePaths: [["opencode.json"], ["opencode.jsonc"]] },
+    {
+      target: "mimocode",
+      relativePaths: [
+        [".mimocode", "mimocode.json"],
+        [".mimocode", "mimocode.jsonc"],
+      ],
+    },
   ])(
     "should not create the shared $target config file when the permissions payload is empty",
     async ({ target, relativePaths }) => {
@@ -268,6 +277,32 @@ describe("E2E: permissions", () => {
     const content = JSON.parse(await readFileContent(join(testDir, "opencode.jsonc")));
     expect(content.permission.bash["git *"]).toBe("allow");
     expect(content.permission.read[".env"]).toBe("deny");
+  });
+
+  it("should generate mimocode permissions from .rulesync/permissions.jsonc", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "*": "ask", "git *": "allow" },
+            read: { ".env": "deny" },
+          },
+          mimocode: { permission: { doom_loop: "deny" } },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({ target: "mimocode", features: "permissions" });
+
+    const content = JSON.parse(await readFileContent(join(testDir, ".mimocode", "mimocode.jsonc")));
+    expect(content.permission.bash["git *"]).toBe("allow");
+    expect(content.permission.read[".env"]).toBe("deny");
+    expect(content.permission.doom_loop).toBe("deny");
   });
 
   it("should apply a tool-scoped {toolname}.permission block only to that tool", async () => {
@@ -2652,6 +2687,37 @@ describe("E2E: permissions (global mode)", () => {
 
     const generated = JSON.parse(
       await readFileContent(join(homeDir, ".config", "opencode", "opencode.jsonc")),
+    );
+    expect(generated.permission.bash["git status *"]).toBe("allow");
+  });
+
+  it("should generate mimocode permissions in home directory with --global", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          root: true,
+          permission: {
+            bash: { "*": "ask", "git status *": "allow" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({
+      target: "mimocode",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const generated = JSON.parse(
+      await readFileContent(join(homeDir, ".config", "mimocode", "mimocode.jsonc")),
     );
     expect(generated.permission.bash["git status *"]).toBe("allow");
   });

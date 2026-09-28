@@ -2,10 +2,7 @@ import { join } from "node:path";
 
 import { optional, z } from "zod/mini";
 
-import {
-  OPENCODE_COMMANDS_DIR_PATH,
-  OPENCODE_GLOBAL_COMMANDS_DIR_PATH,
-} from "../../constants/opencode-paths.js";
+import { OPENCODE_LAYOUT, type OpencodeLayout } from "../../constants/opencode-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
@@ -35,6 +32,9 @@ export type OpenCodeCommandParams = {
 } & Omit<AiFileParams, "fileContent">;
 
 export class OpenCodeCommand extends ToolCommand {
+  /** Directory layout; OpenCode forks (MiMo Code) override it. */
+  protected static readonly layout: OpencodeLayout = OPENCODE_LAYOUT;
+
   private readonly frontmatter: OpenCodeCommandFrontmatter;
   private readonly body: string;
 
@@ -63,7 +63,7 @@ export class OpenCodeCommand extends ToolCommand {
     // so rulesync emits the plural form to match the documented convention and
     // its own plural `.opencode/plugins` hooks output.
     return {
-      relativeDirPath: global ? OPENCODE_GLOBAL_COMMANDS_DIR_PATH : OPENCODE_COMMANDS_DIR_PATH,
+      relativeDirPath: join(global ? this.layout.globalDir : this.layout.dir, "commands"),
     };
   }
 
@@ -77,11 +77,12 @@ export class OpenCodeCommand extends ToolCommand {
 
   toRulesyncCommand(): RulesyncCommand {
     const { description, ...restFields } = this.frontmatter;
+    const { toolTarget } = (this.constructor as typeof OpenCodeCommand).layout;
 
     const rulesyncFrontmatter: RulesyncCommandFrontmatter = {
       targets: ["*"],
       description,
-      ...(Object.keys(restFields).length > 0 && { opencode: restFields }),
+      ...(Object.keys(restFields).length > 0 && { [toolTarget]: restFields }),
     };
 
     const fileContent = stringifyFrontmatter(this.body, rulesyncFrontmatter);
@@ -104,7 +105,7 @@ export class OpenCodeCommand extends ToolCommand {
     global = false,
   }: ToolCommandFromRulesyncCommandParams): OpenCodeCommand {
     const rulesyncFrontmatter = rulesyncCommand.getFrontmatter();
-    const opencodeFields = rulesyncFrontmatter.opencode ?? {};
+    const opencodeFields = rulesyncFrontmatter[this.layout.toolTarget] ?? {};
 
     const opencodeFrontmatter: OpenCodeCommandFrontmatter = {
       description: rulesyncFrontmatter.description,
@@ -114,7 +115,7 @@ export class OpenCodeCommand extends ToolCommand {
     const body = rulesyncCommand.getBody();
     const paths = this.getSettablePaths({ global });
 
-    return new OpenCodeCommand({
+    return new this({
       outputRoot: outputRoot,
       frontmatter: opencodeFrontmatter,
       body,
@@ -157,7 +158,7 @@ export class OpenCodeCommand extends ToolCommand {
       throw new Error(`Invalid frontmatter in ${filePath}: ${formatError(result.error)}`);
     }
 
-    return new OpenCodeCommand({
+    return new this({
       outputRoot: outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath,
@@ -170,7 +171,7 @@ export class OpenCodeCommand extends ToolCommand {
   static isTargetedByRulesyncCommand(rulesyncCommand: RulesyncCommand): boolean {
     return this.isTargetedByRulesyncCommandDefault({
       rulesyncCommand,
-      toolTarget: "opencode",
+      toolTarget: this.layout.toolTarget,
     });
   }
 
@@ -192,7 +193,7 @@ export class OpenCodeCommand extends ToolCommand {
     outputRoot?: string;
     global?: boolean;
   } = {}): Promise<OpenCodeCommand[]> {
-    const config = await readOpencodeConfig({ outputRoot, global });
+    const config = await readOpencodeConfig({ outputRoot, global, layout: this.layout });
     const commandEntries = asOpencodeEntries(config.command);
     if (!commandEntries) {
       return [];
@@ -216,7 +217,7 @@ export class OpenCodeCommand extends ToolCommand {
       };
 
       commands.push(
-        new OpenCodeCommand({
+        new this({
           outputRoot,
           frontmatter,
           body,
@@ -235,7 +236,7 @@ export class OpenCodeCommand extends ToolCommand {
     relativeDirPath,
     relativeFilePath,
   }: ToolCommandForDeletionParams): OpenCodeCommand {
-    return new OpenCodeCommand({
+    return new this({
       outputRoot,
       relativeDirPath,
       relativeFilePath,

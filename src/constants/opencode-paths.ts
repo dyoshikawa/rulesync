@@ -16,3 +16,30 @@ export const OPENCODE_JSONC_FILE_NAME = "opencode.jsonc";
 export const OPENCODE_JSON_FILE_NAME = "opencode.json";
 export const OPENCODE_RULE_FILE_NAME = "AGENTS.md";
 export const OPENCODE_HOOKS_FILE_NAME = "rulesync-hooks.js";
+
+/**
+ * On-disk layout of an OpenCode-family tool. OpenCode forks that keep its
+ * config format but rename its directories (MiMo Code) reuse the OpenCode
+ * adapters by overriding this layout instead of copying them.
+ */
+export type OpencodeLayout = {
+  /** The rulesync tool target (also the tool-scoped key in rulesync files). */
+  toolTarget: "opencode" | "mimocode";
+  /** Project config directory (`.opencode`). */
+  dir: string;
+  /** Global config directory, relative to the home directory. */
+  globalDir: string;
+  /** Project directory holding the shared JSON(C) config. */
+  configDir: string;
+  jsonFileName: string;
+  jsoncFileName: string;
+};
+
+export const OPENCODE_LAYOUT: OpencodeLayout = {
+  toolTarget: "opencode",
+  dir: OPENCODE_DIR,
+  globalDir: OPENCODE_GLOBAL_DIR,
+  configDir: ".",
+  jsonFileName: OPENCODE_JSON_FILE_NAME,
+  jsoncFileName: OPENCODE_JSONC_FILE_NAME,
+};

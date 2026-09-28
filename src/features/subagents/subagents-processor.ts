@@ -54,6 +54,7 @@ import { KiroCliSubagent } from "./kiro-cli-subagent.js";
 import { KiroIdeSubagent } from "./kiro-ide-subagent.js";
 import { KiroSubagent } from "./kiro-subagent.js";
 import { LettacodeSubagent } from "./lettacode-subagent.js";
+import { MimocodeSubagent } from "./mimocode-subagent.js";
 import { OpenCodeSubagent } from "./opencode-subagent.js";
 import { PoolSubagent } from "./pool-subagent.js";
 import { QwencodeSubagent } from "./qwencode-subagent.js";
@@ -562,6 +563,18 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
         supportsSimulated: false,
         supportsGlobal: true,
         filePattern: "**/*.md",
+      },
+    },
+  ],
+  [
+    "mimocode",
+    {
+      class: MimocodeSubagent,
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: "*.md",
       },
     },
   ],

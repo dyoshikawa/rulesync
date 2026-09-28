@@ -3,12 +3,7 @@ import { join } from "node:path";
 import { parse as parseJsonc } from "jsonc-parser";
 import { refine, z } from "zod/mini";
 
-import {
-  OPENCODE_DIR,
-  OPENCODE_GLOBAL_DIR,
-  OPENCODE_JSON_FILE_NAME,
-  OPENCODE_JSONC_FILE_NAME,
-} from "../../constants/opencode-paths.js";
+import { OPENCODE_LAYOUT, type OpencodeLayout } from "../../constants/opencode-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { McpServers } from "../../types/mcp.js";
 import { readFileContentOrNull, toPosixPath } from "../../utils/file.js";
@@ -458,6 +453,9 @@ function convertToOpencodeFormat(
 }
 
 export class OpencodeMcp extends ToolMcp {
+  /** Directory layout; OpenCode forks (MiMo Code) override it. */
+  protected static readonly layout: OpencodeLayout = OPENCODE_LAYOUT;
+
   private readonly json: OpencodeConfig;
 
   constructor(params: ToolMcpParams) {
@@ -477,15 +475,9 @@ export class OpencodeMcp extends ToolMcp {
   }
 
   static getSettablePaths({ global }: { global?: boolean } = {}): ToolMcpSettablePaths {
-    if (global) {
-      return {
-        relativeDirPath: OPENCODE_GLOBAL_DIR,
-        relativeFilePath: OPENCODE_JSON_FILE_NAME,
-      };
-    }
     return {
-      relativeDirPath: ".",
-      relativeFilePath: OPENCODE_JSON_FILE_NAME,
+      relativeDirPath: global ? this.layout.globalDir : this.layout.configDir,
+      relativeFilePath: this.layout.jsonFileName,
     };
   }
 
@@ -498,17 +490,17 @@ export class OpencodeMcp extends ToolMcp {
     const jsonDir = join(outputRoot, basePaths.relativeDirPath);
 
     let fileContent: string | null = null;
-    let relativeFilePath = OPENCODE_JSONC_FILE_NAME;
+    let relativeFilePath = this.layout.jsoncFileName;
 
-    const jsoncPath = join(jsonDir, OPENCODE_JSONC_FILE_NAME);
-    const jsonPath = join(jsonDir, OPENCODE_JSON_FILE_NAME);
+    const jsoncPath = join(jsonDir, this.layout.jsoncFileName);
+    const jsonPath = join(jsonDir, this.layout.jsonFileName);
 
     // Always try JSONC first (preferred format), then fall back to JSON
     fileContent = await readFileContentOrNull(jsoncPath);
     if (!fileContent) {
       fileContent = await readFileContentOrNull(jsonPath);
       if (fileContent) {
-        relativeFilePath = OPENCODE_JSON_FILE_NAME;
+        relativeFilePath = this.layout.jsonFileName;
       }
     }
 
@@ -516,7 +508,7 @@ export class OpencodeMcp extends ToolMcp {
     const json = parseJsonc(fileContentToUse);
     const newJson = { ...json, mcp: json.mcp ?? {} };
 
-    return new OpencodeMcp({
+    return new this({
       outputRoot,
       relativeDirPath: basePaths.relativeDirPath,
       relativeFilePath,
@@ -536,17 +528,17 @@ export class OpencodeMcp extends ToolMcp {
     const jsonDir = join(outputRoot, basePaths.relativeDirPath);
 
     let fileContent: string | null = null;
-    let relativeFilePath = OPENCODE_JSONC_FILE_NAME;
+    let relativeFilePath = this.layout.jsoncFileName;
 
-    const jsoncPath = join(jsonDir, OPENCODE_JSONC_FILE_NAME);
-    const jsonPath = join(jsonDir, OPENCODE_JSON_FILE_NAME);
+    const jsoncPath = join(jsonDir, this.layout.jsoncFileName);
+    const jsonPath = join(jsonDir, this.layout.jsonFileName);
 
     // Try JSONC first (preferred format), then fall back to JSON
     fileContent = await readFileContentOrNull(jsoncPath);
     if (!fileContent) {
       fileContent = await readFileContentOrNull(jsonPath);
       if (fileContent) {
-        relativeFilePath = OPENCODE_JSON_FILE_NAME;
+        relativeFilePath = this.layout.jsonFileName;
       }
     }
 
@@ -565,7 +557,7 @@ export class OpencodeMcp extends ToolMcp {
       logger,
     );
 
-    return new OpencodeMcp({
+    return new this({
       outputRoot,
       relativeDirPath: basePaths.relativeDirPath,
       relativeFilePath,
@@ -625,21 +617,23 @@ export class OpencodeMcp extends ToolMcp {
     // config lives in, so that prefix is stripped.
     const configDirPrefix = `${toPosixPath(basePaths.relativeDirPath).replace(/\/+$/, "")}/`;
     const normalizedInstructions = instructions.map((path) =>
-      global && path.startsWith(configDirPrefix) ? path.slice(configDirPrefix.length) : path,
+      global && path.startsWith(configDirPrefix)
+        ? this.toGlobalInstructionEntry({ path, configDirPrefix })
+        : path,
     );
 
     let fileContent: string | null = null;
-    let relativeFilePath = OPENCODE_JSONC_FILE_NAME;
+    let relativeFilePath = this.layout.jsoncFileName;
 
-    const jsoncPath = join(jsonDir, OPENCODE_JSONC_FILE_NAME);
-    const jsonPath = join(jsonDir, OPENCODE_JSON_FILE_NAME);
+    const jsoncPath = join(jsonDir, this.layout.jsoncFileName);
+    const jsonPath = join(jsonDir, this.layout.jsonFileName);
 
     // Prefer opencode.jsonc, fall back to opencode.json, mirroring fromRulesyncMcp.
     fileContent = await readFileContentOrNull(jsoncPath);
     if (!fileContent) {
       fileContent = await readFileContentOrNull(jsonPath);
       if (fileContent) {
-        relativeFilePath = OPENCODE_JSON_FILE_NAME;
+        relativeFilePath = this.layout.jsonFileName;
       }
     }
 
@@ -660,8 +654,14 @@ export class OpencodeMcp extends ToolMcp {
     // full-prefix global spelling cannot coexist as a duplicate). Entries
     // outside the managed directory are the user's and pass through verbatim.
     const managedPrefixes = global
-      ? ["memories/", `${configDirPrefix}memories/`]
-      : [`${toPosixPath(OPENCODE_DIR)}/memories/`];
+      ? [
+          this.toGlobalInstructionEntry({
+            path: `${configDirPrefix}memories/`,
+            configDirPrefix,
+          }),
+          `${configDirPrefix}memories/`,
+        ]
+      : [`${toPosixPath(this.layout.dir)}/memories/`];
     const preservedInstructions = existingInstructions.filter((entry) => {
       const normalized = toPosixPath(entry).replace(/^\.\//, "");
       return !managedPrefixes.some((prefix) => normalized.startsWith(prefix));
@@ -671,7 +671,7 @@ export class OpencodeMcp extends ToolMcp {
       new Set([...preservedInstructions, ...normalizedInstructions]),
     ).toSorted();
 
-    return new OpencodeMcp({
+    return new this({
       outputRoot,
       relativeDirPath: basePaths.relativeDirPath,
       relativeFilePath,
@@ -688,6 +688,21 @@ export class OpencodeMcp extends ToolMcp {
     });
   }
 
+  /**
+   * Spells a global rule path (relative to the home directory, under the
+   * global config directory) as an `instructions` entry. OpenCode resolves the
+   * entry relative to the global config directory, so the prefix is stripped.
+   */
+  protected static toGlobalInstructionEntry({
+    path,
+    configDirPrefix,
+  }: {
+    path: string;
+    configDirPrefix: string;
+  }): string {
+    return path.slice(configDirPrefix.length);
+  }
+
   toRulesyncMcp(): RulesyncMcp {
     const convertedMcpServers = convertFromOpencodeFormat(this.json.mcp ?? {}, this.json.tools);
     const transformedServers = convertEnvVarRefsFromToolFormat({
@@ -702,7 +717,9 @@ export class OpencodeMcp extends ToolMcp {
       fileContent: JSON.stringify(
         {
           mcpServers: shared,
-          ...(Object.keys(toolOnly).length > 0 && { opencode: { mcpServers: toolOnly } }),
+          ...(Object.keys(toolOnly).length > 0 && {
+            [(this.constructor as typeof OpencodeMcp).layout.toolTarget]: { mcpServers: toolOnly },
+          }),
         },
         null,
         2,
@@ -729,7 +746,7 @@ export class OpencodeMcp extends ToolMcp {
     relativeFilePath,
     global = false,
   }: ToolMcpForDeletionParams): OpencodeMcp {
-    return new OpencodeMcp({
+    return new this({
       outputRoot,
       relativeDirPath,
       relativeFilePath,
