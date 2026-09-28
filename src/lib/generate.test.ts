@@ -251,6 +251,7 @@ describe("generate", () => {
     getOutputRoots: ReturnType<typeof vi.fn>;
     getTargets: ReturnType<typeof vi.fn>;
     getConfigFileTargets: ReturnType<typeof vi.fn>;
+    getConfigFileFeatures: ReturnType<typeof vi.fn>;
     getFeatures: ReturnType<typeof vi.fn>;
     getFeatureOptions: ReturnType<typeof vi.fn>;
     getDelete: ReturnType<typeof vi.fn>;
@@ -274,6 +275,11 @@ describe("generate", () => {
       getOutputRoots: vi.fn().mockReturnValue(["."]),
       getTargets: vi.fn().mockReturnValue(["claudecode"]),
       getConfigFileTargets: vi.fn().mockReturnValue(["claudecode"]),
+      // Defaults to the (possibly CLI-overridden) features, like `Config` does
+      // when no config file selection is recorded.
+      getConfigFileFeatures: vi.fn((target: string): unknown =>
+        (mockConfig.getFeatures as (target: string) => unknown)(target),
+      ),
       getFeatures: vi.fn().mockReturnValue(["rules"]),
       getFeatureOptions: vi.fn().mockReturnValue(undefined),
       getDelete: vi.fn().mockReturnValue(false),
@@ -480,7 +486,7 @@ describe("generate", () => {
 
     describe("check mode with a shared root file owned by another target (#3198)", () => {
       const makeRootFile = (toolTarget: string) => ({
-        getFilePath: () => `/repo/AGENTS.md#${toolTarget}`,
+        getFilePath: () => "/repo/AGENTS.md",
         getFileContent: () => `root for ${toolTarget}`,
         getRelativePathFromCwd: () => "AGENTS.md",
       });
@@ -582,6 +588,43 @@ describe("generate", () => {
         expect(processors.get("codexcli")?.writeAiFiles).toHaveBeenCalledWith([]);
         expect(processors.get("opencode")?.writeAiFiles).toHaveBeenCalledTimes(1);
         expect(result.hasDiff).toBe(false);
+      });
+
+      it("should not let a target without rules in the config file own the root file", async () => {
+        const processors = setUp({
+          cliTargets: ["codexcli"],
+          diskMatches: (toolTarget) => toolTarget === "claudecode",
+        });
+        // opencode is last but only configured for MCP, so it never writes
+        // AGENTS.md; claudecode is the last target that does.
+        mockConfig.getConfigFileFeatures.mockImplementation((target: string) =>
+          target === "opencode" ? ["mcp"] : ["rules"],
+        );
+
+        const result = await generate({ logger, config: mockConfig as never });
+
+        expect(processors.has("opencode")).toBe(false);
+        expect(processors.get("claudecode")?.writeAiFiles).toHaveBeenCalledTimes(1);
+        expect(result.hasDiff).toBe(false);
+      });
+
+      it("should compare the non-owner's output when the owner does not write to that output root", async () => {
+        const processors = setUp({
+          cliTargets: ["codexcli"],
+          diskMatches: () => false,
+        });
+        mockConfig.getOutputRoots.mockImplementation((target?: string) =>
+          target === "opencode" ? ["elsewhere"] : ["."],
+        );
+
+        const result = await generate({ logger, config: mockConfig as never });
+
+        expect(processors.has("opencode")).toBe(false);
+        const codexcliWrites = processors.get("codexcli")?.writeAiFiles.mock.calls ?? [];
+        expect(codexcliWrites).toHaveLength(2);
+        expect(codexcliWrites[0]?.[0]).toEqual([]);
+        expect(codexcliWrites[1]?.[0]?.[0]?.getFileContent()).toBe("root for codexcli");
+        expect(result.hasDiff).toBe(true);
       });
     });
   });

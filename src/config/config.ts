@@ -198,6 +198,10 @@ export type ConfigParams = Omit<InferredConfigParams, "targets" | "features"> & 
   targets?: RulesyncConfigTargets;
   features?: RulesyncFeatures;
   configFileTargets?: ToolTarget[];
+  // The `targets` / `features` selection exactly as the configuration file
+  // declares it, before any CLI override. Set by `ConfigResolver`; lets a
+  // `--targets`/`--features` run ask which features a target has in a full run.
+  configFileSelection?: { targets: RulesyncConfigTargets; features?: RulesyncFeatures };
   // Absolute path of the configuration file this config was loaded from. Set
   // by `ConfigResolver`; it is process state rather than a user-settable
   // option, so it deliberately stays out of `ConfigParamsSchema` (and thus out
@@ -426,6 +430,7 @@ export class Config {
    */
   private readonly objectFormTargetKeys: ToolTarget[] | undefined;
   private readonly configFileTargets: ToolTarget[] | undefined;
+  private readonly configFileSelection: ConfigParams["configFileSelection"];
   private readonly verbose: boolean;
   private readonly delete: boolean;
   private readonly global: boolean;
@@ -485,6 +490,7 @@ export class Config {
     configFilePath,
     sources,
     configFileTargets,
+    configFileSelection,
   }: ConfigParams) {
     // Defense-in-depth: enforce the same mutual-exclusivity rule that the
     // file loader applies, so programmatic `new Config(...)` callers can't
@@ -528,6 +534,7 @@ export class Config {
       ? Config.filterValidToolTargets(Object.keys(resolvedTargets))
       : undefined;
     this.configFileTargets = configFileTargets;
+    this.configFileSelection = configFileSelection;
     this.verbose = verbose;
     this.delete = isDelete;
 
@@ -685,6 +692,27 @@ export class Config {
 
   public getConfigFileTargets(): ToolTarget[] {
     return this.configFileTargets ?? this.getTargets();
+  }
+
+  /**
+   * The features `target` has according to the configuration file alone, i.e.
+   * what a plain `rulesync generate` would produce for it. Falls back to
+   * {@link getFeatures} when no configuration file declared `targets`.
+   */
+  public getConfigFileFeatures(target: ToolTarget): Features {
+    const selection = this.configFileSelection;
+    if (selection === undefined) {
+      return this.getFeatures(target);
+    }
+    if (isRulesyncConfigTargetsObject(selection.targets)) {
+      const value = selection.targets[target];
+      return value ? Config.normalizeTargetFeatures(value) : [];
+    }
+    const features = selection.features ?? [];
+    if (features.includes("*")) {
+      return [...ALL_FEATURES];
+    }
+    return features.filter((feature): feature is Feature => feature !== "*");
   }
 
   public getFeatures(): Features;

@@ -56,6 +56,9 @@ describe("generateCommand", () => {
       getOutputRoots: vi.fn().mockReturnValue(["."]),
       getTargets: vi.fn().mockReturnValue(["claudecode"]),
       getConfigFileTargets: vi.fn().mockReturnValue(["claudecode"]),
+      getConfigFileFeatures: vi
+        .fn()
+        .mockReturnValue(["rules", "ignore", "mcp", "commands", "subagents"]),
       getFeatures: vi.fn().mockReturnValue(["rules", "ignore", "mcp", "commands", "subagents"]),
       getFeatureOptions: vi.fn().mockReturnValue(undefined),
       getDelete: vi.fn().mockReturnValue(false),

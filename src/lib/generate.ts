@@ -944,16 +944,17 @@ export async function generate(params: {
 }
 
 // Maps every root-rule file path a target actually emits to that target, so
-// `generate --check` can skip root files a (CLI-selected) target does not own.
+// `generate --check` can compare root files a (CLI-selected) target does not
+// own against the owner's output instead (see `createSkippedRootFileCheck`).
 //
 // Ownership is "last target in config order wins": the loop iterates the config
-// file's full target list and `Map.set` overwrites, so the final writer in
-// config order owns a shared path — consistent with generation write order,
+// file's rules-generating targets and `Map.set` overwrites, so the final writer
+// in config order owns a shared path — consistent with generation write order,
 // where the last target's content is what ends up on disk.
 //
-// Note: a single ownership decision is applied uniformly across all output
-// roots (paths are output-root-relative). Multi-output-root `--check` would
-// need per-output-root keying; that is out of scope here.
+// Note: the ownership decision itself is applied uniformly across all output
+// roots (paths are output-root-relative); the skipped-file comparison is keyed
+// per output root and falls back when the owner does not write to that root.
 function computeRootFileOwnership(params: {
   targets: ToolTarget[];
   global: boolean;
@@ -1088,8 +1089,12 @@ function createSkippedRootFileCheck({
               }
             }
             const ownerOutput = ownerOutputs.get(owner);
+            // Matched on the resolved path too: a tool home override can put
+            // the owner's file elsewhere, and then it is not the skipped file.
             const ownerFile = ownerOutput?.toolFiles.find(
-              (file) => file.getRelativePathFromCwd() === relativePath,
+              (file) =>
+                file.getRelativePathFromCwd() === relativePath &&
+                file.getFilePath() === fallback.toolFile.getFilePath(),
             );
             if (ownerOutput !== undefined && ownerFile !== undefined) {
               expected = { processor: ownerOutput.processor, toolFile: ownerFile };
@@ -1157,7 +1162,11 @@ async function generateRulesCore(params: {
   const isCheck = config.getCheck();
   const rootFileOwner = isCheck
     ? computeRootFileOwnership({
-        targets: config.getConfigFileTargets(),
+        // Only a target that generates rules in a full run can own a root
+        // file; one configured for other features never writes it.
+        targets: config
+          .getConfigFileTargets()
+          .filter((target) => config.getConfigFileFeatures(target).includes("rules")),
         global: config.getGlobal(),
       })
     : new Map<string, ToolTarget>();
@@ -1209,16 +1218,23 @@ async function generateRulesCore(params: {
     }
   }
 
-  const skippedResult = await skippedRootFileCheck.verify({
-    isOwnerProcessed: (owner) =>
-      toolTargets.includes(owner) && config.getFeatures(owner).includes("rules"),
-    createOwnerProcessor: (ownerParams) =>
-      supportedTargets.includes(ownerParams.toolTarget) ? createProcessor(ownerParams) : undefined,
-  });
-  totalCount += skippedResult.count;
-  allPaths.push(...skippedResult.paths);
-  if (skippedResult.hasDiff) hasDiff = true;
-  if (skippedResult.sourceLoadFailed) sourceLoadFailed = true;
+  if (isCheck) {
+    const skippedResult = await skippedRootFileCheck.verify({
+      isOwnerProcessed: (owner) =>
+        toolTargets.includes(owner) && config.getFeatures(owner).includes("rules"),
+      // The owner only writes into an output root it is configured for, and
+      // only in a scope it supports; otherwise the fallback is compared.
+      createOwnerProcessor: (ownerParams) =>
+        supportedTargets.includes(ownerParams.toolTarget) &&
+        config.getOutputRoots(ownerParams.toolTarget).includes(ownerParams.outputRoot)
+          ? createProcessor(ownerParams)
+          : undefined,
+    });
+    totalCount += skippedResult.count;
+    allPaths.push(...skippedResult.paths);
+    if (skippedResult.hasDiff) hasDiff = true;
+    if (skippedResult.sourceLoadFailed) sourceLoadFailed = true;
+  }
 
   foldRootOverwriteWatch.report();
 

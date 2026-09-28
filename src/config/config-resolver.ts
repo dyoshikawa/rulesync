@@ -584,6 +584,17 @@ export class ConfigResolver {
         configByFile.flattenedCommandNaming ?? getDefaults().flattenedCommandNaming,
       language: configByFile.language,
       configFileTargets: extractConfigFileTargets(configByFile.targets),
+      configFileSelection:
+        configByFile.targets === undefined
+          ? undefined
+          : {
+              targets: configByFile.targets,
+              features: resolveFeaturesAndTargets({
+                features: undefined,
+                targets: undefined,
+                configByFile,
+              }).resolvedFeatures,
+            },
     };
     const config = new Config(configParams);
     return config;

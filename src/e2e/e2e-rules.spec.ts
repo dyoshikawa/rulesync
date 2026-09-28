@@ -1276,6 +1276,57 @@ description: "Root rule"
     ).rejects.toMatchObject({ code: 1 });
   });
 
+  it("should not let a later target without the rules feature own AGENTS.md in check mode", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+      `---
+root: true
+targets: ["*"]
+description: "Root rule"
+---
+
+# Root Rule
+`,
+    );
+    // rovodev is last in config order but only generates MCP, so it never
+    // writes ./AGENTS.md and must not be treated as its owner.
+    await writeFileContent(
+      join(testDir, RULESYNC_CONFIG_RELATIVE_FILE_PATH),
+      JSON.stringify({ targets: { codexcli: ["rules"], rovodev: ["mcp"] } }, null, 2),
+    );
+
+    await execFileAsync(rulesyncCmd, [...rulesyncArgs, "generate"]);
+
+    const { stdout: fullStdout } = await execFileAsync(
+      rulesyncCmd,
+      [...rulesyncArgs, "generate", "--check"],
+      { env: { ...process.env, NODE_ENV: "e2e" } },
+    );
+    expect(fullStdout).toContain("All files are up to date.");
+
+    const { stdout: codexStdout } = await runGenerate({
+      target: "codexcli",
+      features: "rules",
+      check: true,
+      env: { NODE_ENV: "e2e" },
+    });
+    expect(codexStdout).toContain("All files are up to date.");
+
+    const agentsMdPath = join(testDir, "AGENTS.md");
+    await writeFileContent(agentsMdPath, `${await readFileContent(agentsMdPath)}- drift\n`);
+
+    await expect(
+      runGenerate({
+        target: "codexcli",
+        features: "rules",
+        check: true,
+        env: { NODE_ENV: "e2e" },
+      }),
+    ).rejects.toMatchObject({ code: 1 });
+  });
+
   it("should generate and re-import zoocode mode-specific rules under .roo/rules-{mode}", async () => {
     const testDir = getTestDir();
 
