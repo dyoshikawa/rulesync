@@ -60,7 +60,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Zed                       | zed                | ✅ 🌏 | ✅ 🌏  |  ✅ 🌏   |          |           | ✅ 🌏  |       |    ✅ 🌏    |        |
 | ZCode (Z.ai)              | zcode              | ✅ 🌏 |        |  ✅ 🌏   |  ✅ 🌏   |    🌏     | ✅ 🌏  |  🌏   |             |        |
 | Pool (Poolside)           | pool               | ✅ 🌏 |        | ✅ 🌏 🔧 |          |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
-| DeepSeek Harness          | dsh                | ✅ 🌏 |        |          |          |           | ✅ 🌏  |       |             |        |
+| DeepSeek Harness          | dsh                | ✅ 🌏 |        |    🌏    |          |           | ✅ 🌏  |       |             |        |
 
 <!-- SUPPORTED_TOOLS_DOCS:END -->
 
