@@ -52,6 +52,9 @@ export const SHARED_USER_MANAGED_CONFIG_PATHS: readonly string[] = [
   ".cortex/settings.json",
   ".snowflake/cortex/hooks.json",
   ".devin/config.json",
+  // DeepSeek Harness home-level Cordis patch layer (`~/.dsh/cordis.patch.yml`):
+  // the user's own patches sit beside the MCP rows rulesync writes.
+  ".dsh/cordis.patch.yml",
   ".factory/settings.json",
   ".grok/config.toml",
   // Both Rovo Dev project files are documented as repo-committed surfaces

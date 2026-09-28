@@ -28,6 +28,7 @@ import { CrushMcp } from "./crush-mcp.js";
 import { CursorMcp } from "./cursor-mcp.js";
 import { DeepagentsMcp } from "./deepagents-mcp.js";
 import { DevinMcp } from "./devin-mcp.js";
+import { DshMcp } from "./dsh-mcp.js";
 import { FactorydroidMcp } from "./factorydroid-mcp.js";
 import { GooseMcp } from "./goose-mcp.js";
 import { GrokcliMcp } from "./grokcli-mcp.js";
@@ -385,6 +386,22 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
         // https://docs.langchain.com/oss/deepagents/code/mcp-tools
         supportsEnabledTools: true,
         supportsDisabledTools: true,
+      },
+    },
+  ],
+  [
+    "dsh",
+    {
+      // DeepSeek Harness persists MCP servers as `@deepseek-ai/dsh-mcp-client`
+      // `insert` rows of the home-level Cordis patch layer
+      // `~/.dsh/cordis.patch.yml`; it has no project-scoped MCP file, and the
+      // client has no per-server tool allow/deny lists.
+      class: DshMcp,
+      meta: {
+        supportsProject: false,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
       },
     },
   ],

@@ -132,6 +132,11 @@ describe("registry derivation", () => {
       // scope writes `.cortex/settings.json` instead), so project derivation
       // never yields it.
       "**/.snowflake/cortex/hooks.json",
+      // DeepSeek Harness home patch layer: the dsh MCP target is GLOBAL-only,
+      // so project derivation never yields it. It stays listed as a shared
+      // user-managed config so a global generate with no servers does not
+      // create an empty `[]` patch file in the user's home directory.
+      "**/.dsh/cordis.patch.yml",
     ]);
     const rawEntries = new Set(deriveAllGitignoreEntriesUnfiltered().map((tag) => tag.entry));
     const stale = [...DERIVED_PATHS_NOT_GITIGNORED].filter(
