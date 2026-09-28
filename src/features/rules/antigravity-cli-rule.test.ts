@@ -179,6 +179,59 @@ describe("AntigravityCliRule", () => {
       ).rejects.toThrow("Invalid frontmatter");
     });
 
+    it("should flatten a nested rule into a top-level file name", () => {
+      const cliRule = AntigravityCliRule.fromRulesyncRule({
+        rulesyncRule: new RulesyncRule({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: join("frontend", "style.md"),
+          frontmatter: { root: false, targets: ["*"], globs: [] },
+          body: "# Frontend Style",
+        }),
+        global: true,
+      });
+
+      expect(cliRule.getRelativeDirPath()).toBe(join(".gemini", "config", "rules"));
+      expect(cliRule.getRelativeFilePath()).toBe("frontend-style.md");
+    });
+
+    it("should load a non-root GEMINI.md in .gemini/config/rules as a non-root rule", async () => {
+      await writeFileContent(
+        join(testDir, ".gemini", "config", "rules", "GEMINI.md"),
+        "---\ntrigger: always_on\n---\n# Named Like Root\n",
+      );
+
+      const cliRule = await AntigravityCliRule.fromFile({
+        outputRoot: testDir,
+        relativeDirPath: join(".gemini", "config", "rules"),
+        relativeFilePath: "GEMINI.md",
+        global: true,
+      });
+
+      expect(cliRule.isRoot()).toBe(false);
+      expect(cliRule.getRelativeDirPath()).toBe(join(".gemini", "config", "rules"));
+    });
+
+    it("should never let the orphan sweep delete files in the shared global rules directory", () => {
+      const nonRootRule = AntigravityCliRule.forDeletion({
+        relativeDirPath: join(".gemini", "config", "rules"),
+        relativeFilePath: "user-rule.md",
+        global: true,
+      });
+      const rootRule = AntigravityCliRule.forDeletion({
+        relativeDirPath: ".gemini",
+        relativeFilePath: "GEMINI.md",
+        global: true,
+      });
+      const projectRule = AntigravityCliRule.forDeletion({
+        relativeDirPath: join(".agents", "rules"),
+        relativeFilePath: "style.md",
+      });
+
+      expect(nonRootRule.isDeletable()).toBe(false);
+      expect(rootRule.isDeletable()).toBe(true);
+      expect(projectRule.isDeletable()).toBe(true);
+    });
+
     it("should mark only the global GEMINI.md as root for deletion", () => {
       const rootRule = AntigravityCliRule.forDeletion({
         relativeDirPath: ".gemini",

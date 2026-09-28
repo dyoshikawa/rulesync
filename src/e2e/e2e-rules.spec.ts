@@ -1846,12 +1846,20 @@ globs: ["**/*"]
       nonRootRuleContent,
     );
 
+    // A global rule the user created outside rulesync in the shared directory.
+    const userRulePath = join(homeDir, ".gemini", "config", "rules", "user-rule.md");
+    await writeFileContent(userRulePath, "---\ntrigger: always_on\n---\n# User Rule\n");
+
     await runGenerate({
       target: "antigravity-cli",
       features: "rules",
       global: true,
+      deleteFiles: true,
       env: { HOME_DIR: homeDir },
     });
+
+    // The shared directory is never swept, so the user's own rule survives.
+    expect(await readFileContent(userRulePath)).toContain("User Rule");
 
     // Root rule -> ~/.gemini/GEMINI.md, with no reference to the non-root rule
     // because the CLI loads ~/.gemini/config/rules/ by itself.

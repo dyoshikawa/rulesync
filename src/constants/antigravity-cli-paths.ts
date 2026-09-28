@@ -31,7 +31,7 @@ export const ANTIGRAVITY_GLOBAL_RULE_FILE_NAME = "GEMINI.md";
 
 // Global (user-scope) modular rules live in the shared `~/.gemini/config/rules/`
 // tree, which the CLI loads as separate global rules. Each file needs `trigger`
-// frontmatter, and each is subject to the 24,000-byte per-file limit on its own,
-// so non-root rules no longer share the single `GEMINI.md` budget.
+// frontmatter, and each is subject to the 24,000-byte per-file limit on its own
+// rather than sharing the limit of the single `GEMINI.md`.
 // @see https://antigravity.google/docs/rules
 export const ANTIGRAVITY_GLOBAL_RULES_SUBDIR = join(ANTIGRAVITY_GLOBAL_CONFIG_SUBDIR, "rules");

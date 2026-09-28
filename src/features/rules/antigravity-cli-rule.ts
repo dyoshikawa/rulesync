@@ -92,12 +92,17 @@ export class AntigravityCliRule extends ToolRule {
 
   static async fromFile({
     outputRoot = process.cwd(),
+    relativeDirPath,
     relativeFilePath,
     validate = true,
     global = false,
   }: ToolRuleFromFileParams): Promise<AntigravityCliRule> {
     const paths = this.getSettablePaths({ global });
-    const isRoot = relativeFilePath === paths.root.relativeFilePath;
+    // A non-root file that happens to share the root file's name (e.g.
+    // `~/.gemini/config/rules/GEMINI.md`) is not the root rule.
+    const isRoot =
+      relativeFilePath === paths.root.relativeFilePath &&
+      (relativeDirPath === undefined || relativeDirPath === paths.root.relativeDirPath);
 
     if (isRoot) {
       const relativePath = paths.root.relativeFilePath;
@@ -175,6 +180,10 @@ export class AntigravityCliRule extends ToolRule {
 
     return new AntigravityCliRule({
       ...params,
+      // The CLI reads only the top level of `~/.gemini/config/rules/`, so a
+      // nested rulesync rule (`frontend/style.md`) is flattened into a single
+      // file name (`frontend-style.md`) there.
+      relativeFilePath: params.relativeFilePath.split(/[\\/]/).join("-"),
       fileContent: stringifyFrontmatter(rulesyncRule.getBody(), frontmatter),
       global,
     });
@@ -228,6 +237,15 @@ export class AntigravityCliRule extends ToolRule {
       };
     }
     return { success: true as const, error: null };
+  }
+
+  /**
+   * `~/.gemini/config/rules/` is shared with the Antigravity IDE and holds
+   * global rules the user created outside rulesync, which cannot be told apart
+   * from generated ones, so the orphan sweep never removes files there.
+   */
+  override isDeletable(): boolean {
+    return !this.global || this.root;
   }
 
   private parseGlobalNonRootContent(): {
