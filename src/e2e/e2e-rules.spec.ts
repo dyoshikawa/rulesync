@@ -1179,6 +1179,103 @@ description: "Root rule"
     expect(stdout).toContain("All files are up to date.");
   });
 
+  it.each(["codexcli", "agentsmd"])(
+    "should fail check for non-owning target %s when the shared AGENTS.md has been edited (#3198)",
+    async (target) => {
+      const testDir = getTestDir();
+
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+        `---
+root: true
+targets: ["*"]
+description: "Root rule"
+---
+
+# Root Rule
+`,
+      );
+
+      // The target list `rulesync init` writes: opencode is last in config
+      // order, so it owns ./AGENTS.md, and a `-t codexcli` / `-t agentsmd`
+      // check skips that file as a non-owner.
+      await writeFileContent(
+        join(testDir, RULESYNC_CONFIG_RELATIVE_FILE_PATH),
+        JSON.stringify({ targets: ["codexcli", "claudecode", "opencode"] }, null, 2),
+      );
+
+      await execFileAsync(rulesyncCmd, [...rulesyncArgs, "generate", "--features", "rules"]);
+
+      // Untouched: the non-owning target's check still passes.
+      const { stdout } = await runGenerate({
+        target,
+        features: "rules",
+        check: true,
+        env: { NODE_ENV: "e2e" },
+      });
+      expect(stdout).toContain("All files are up to date.");
+
+      const agentsMdPath = join(testDir, "AGENTS.md");
+      await writeFileContent(agentsMdPath, `${await readFileContent(agentsMdPath)}- drift\n`);
+
+      await expect(
+        runGenerate({
+          target,
+          features: "rules",
+          check: true,
+          env: { NODE_ENV: "e2e" },
+        }),
+      ).rejects.toMatchObject({
+        code: 1,
+        stderr: expect.stringContaining(
+          "Files are not up to date. Run 'rulesync generate' to update.",
+        ),
+      });
+
+      // Check mode never writes.
+      expect(await readFileContent(agentsMdPath)).toContain("- drift");
+    },
+  );
+
+  it("should fail check for a non-owning target when AGENTS.md drifts from the owner's output", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+      `---
+root: true
+targets: ["*"]
+description: "Root rule"
+---
+
+# Root Rule
+`,
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_CONFIG_RELATIVE_FILE_PATH),
+      JSON.stringify({ targets: { codexcli: ["rules"], rovodev: ["rules"] } }, null, 2),
+    );
+
+    await runGenerate({ target: "codexcli,rovodev", features: "rules", env: { NODE_ENV: "e2e" } });
+
+    // Overwrite the owner's (rovodev) mirrored ./AGENTS.md with codexcli's
+    // output: the non-owner's content is not what a full generate leaves on
+    // disk, so the codexcli check must not accept it either.
+    await runGenerate({ target: "codexcli", features: "rules", env: { NODE_ENV: "e2e" } });
+    expect(await readFileContent(join(testDir, "AGENTS.md"))).not.toContain(
+      "Additional Conventions",
+    );
+
+    await expect(
+      runGenerate({
+        target: "codexcli",
+        features: "rules",
+        check: true,
+        env: { NODE_ENV: "e2e" },
+      }),
+    ).rejects.toMatchObject({ code: 1 });
+  });
+
   it("should generate and re-import zoocode mode-specific rules under .roo/rules-{mode}", async () => {
     const testDir = getTestDir();
 

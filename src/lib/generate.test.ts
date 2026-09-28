@@ -477,6 +477,113 @@ describe("generate", () => {
       expect(RulesProcessor).toHaveBeenCalledWith(expect.objectContaining({ outputRoot: "dir1" }));
       expect(RulesProcessor).toHaveBeenCalledWith(expect.objectContaining({ outputRoot: "dir2" }));
     });
+
+    describe("check mode with a shared root file owned by another target (#3198)", () => {
+      const makeRootFile = (toolTarget: string) => ({
+        getFilePath: () => `/repo/AGENTS.md#${toolTarget}`,
+        getFileContent: () => `root for ${toolTarget}`,
+        getRelativePathFromCwd: () => "AGENTS.md",
+      });
+
+      // Every target emits `./AGENTS.md`; the last target in config order owns it.
+      const setUp = ({
+        cliTargets,
+        diskMatches,
+      }: {
+        cliTargets: string[];
+        diskMatches: (toolTarget: string) => boolean;
+      }) => {
+        const processors = new Map<string, { writeAiFiles: ReturnType<typeof vi.fn> }>();
+        mockConfig.getCheck.mockReturnValue(true);
+        mockConfig.isPreviewMode.mockReturnValue(true);
+        mockConfig.getTargets.mockReturnValue(cliTargets);
+        mockConfig.getConfigFileTargets.mockReturnValue(["codexcli", "claudecode", "opencode"]);
+        vi.mocked(RulesProcessor.getToolTargets).mockReturnValue([
+          "codexcli",
+          "claudecode",
+          "opencode",
+        ]);
+        vi.mocked(RulesProcessor.getFactory).mockReturnValue({
+          class: {
+            getSettablePaths: () => ({
+              root: { relativeDirPath: ".", relativeFilePath: "AGENTS.md" },
+            }),
+          },
+          meta: {},
+        } as unknown as ReturnType<typeof RulesProcessor.getFactory>);
+        vi.mocked(RulesProcessor).mockImplementation(function ({
+          toolTarget,
+        }: {
+          toolTarget: string;
+        }) {
+          const processor = {
+            loadToolFiles: vi.fn().mockResolvedValue([]),
+            removeOrphanAiFiles: vi.fn().mockResolvedValue(0),
+            ...mockProcessorBase(),
+            loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
+            convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([makeRootFile(toolTarget)]),
+            writeAiFiles: vi.fn().mockImplementation(async (files: unknown[]) => {
+              const changed = files.length > 0 && !diskMatches(toolTarget) ? 1 : 0;
+              return { count: changed, paths: changed ? ["AGENTS.md"] : [] };
+            }),
+          };
+          processors.set(toolTarget, processor);
+          return processor as unknown as RulesProcessor;
+        } as never);
+        return processors;
+      };
+
+      afterEach(() => {
+        // `clearAllMocks` keeps return values, so undo the factory stub here.
+        vi.mocked(RulesProcessor.getFactory).mockReset();
+      });
+
+      it("should compare the skipped root file against the owner's output when the owner is not checked", async () => {
+        const processors = setUp({
+          cliTargets: ["codexcli"],
+          diskMatches: () => false,
+        });
+
+        const result = await generate({ logger, config: mockConfig as never });
+
+        // codexcli does not own AGENTS.md, so its own write sees nothing...
+        expect(processors.get("codexcli")?.writeAiFiles).toHaveBeenCalledWith([]);
+        // ...but the owner's expected content is still compared against disk.
+        expect(processors.get("opencode")?.writeAiFiles).toHaveBeenCalledWith([
+          expect.objectContaining({ getFileContent: expect.any(Function) }),
+        ]);
+        const [ownerFile] = processors.get("opencode")?.writeAiFiles.mock.calls[0]?.[0] ?? [];
+        expect(ownerFile.getFileContent()).toBe("root for opencode");
+        expect(result.hasDiff).toBe(true);
+      });
+
+      it("should report no diff when the disk matches the owner's output", async () => {
+        const processors = setUp({
+          cliTargets: ["codexcli"],
+          diskMatches: (toolTarget) => toolTarget === "opencode",
+        });
+
+        const result = await generate({ logger, config: mockConfig as never });
+
+        expect(processors.get("opencode")?.writeAiFiles).toHaveBeenCalledTimes(1);
+        expect(result.hasDiff).toBe(false);
+      });
+
+      it("should not re-check the root file when the owner is part of the run", async () => {
+        const processors = setUp({
+          cliTargets: ["codexcli", "opencode"],
+          diskMatches: (toolTarget) => toolTarget === "opencode",
+        });
+
+        const result = await generate({ logger, config: mockConfig as never });
+
+        expect(RulesProcessor).toHaveBeenCalledTimes(2);
+        expect(processors.get("codexcli")?.writeAiFiles).toHaveBeenCalledTimes(1);
+        expect(processors.get("codexcli")?.writeAiFiles).toHaveBeenCalledWith([]);
+        expect(processors.get("opencode")?.writeAiFiles).toHaveBeenCalledTimes(1);
+        expect(result.hasDiff).toBe(false);
+      });
+    });
   });
 
   describe("ignore feature", () => {

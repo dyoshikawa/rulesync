@@ -994,6 +994,119 @@ function computeRootFileOwnership(params: {
   return ownerByPath;
 }
 
+type SkippedRootFile = { processor: RulesProcessor; toolFile: AiFile };
+
+// `generate --check` skips a shared root file for every target that does not
+// own it, but skipping alone would leave the file unchecked whenever its owner
+// is not part of the run (e.g. `--check -t codexcli` while `opencode` owns
+// `AGENTS.md`), so an edit to it went unnoticed (#3198). This records what was
+// skipped and then compares each such file against the owner's expected
+// content instead. When the owner already checked it in this run there is
+// nothing left to do; when the owner does not emit it at all, the last
+// non-owning writer's content is what a full `generate` leaves on disk, so that
+// is what gets compared. Everything is keyed per output root.
+function createSkippedRootFileCheck({
+  rootFileOwner,
+}: {
+  rootFileOwner: Map<string, ToolTarget>;
+}): {
+  observe: (params: {
+    toolTarget: ToolTarget;
+    outputRoot: string;
+    processor: RulesProcessor;
+    toolFiles: AiFile[];
+    skipFilePaths: Set<string>;
+  }) => void;
+  verify: (params: {
+    isOwnerProcessed: (owner: ToolTarget) => boolean;
+    createOwnerProcessor: (params: {
+      toolTarget: ToolTarget;
+      outputRoot: string;
+    }) => RulesProcessor | undefined;
+  }) => Promise<FeatureGenerateResult>;
+} {
+  // outputRoot -> relative path -> last non-owning target's file.
+  const skippedByRoot = new Map<string, Map<string, SkippedRootFile>>();
+  // outputRoot -> "target\0relative path" for every shared root file emitted.
+  const emittedByRoot = new Map<string, Set<string>>();
+  const emittedKey = (toolTarget: ToolTarget, relativePath: string) =>
+    `${toolTarget}\0${relativePath}`;
+
+  const loadOwnerToolFiles = async (
+    processor: RulesProcessor,
+  ): Promise<{ toolFiles: AiFile[]; sourceLoadFailed: boolean }> => {
+    const rulesyncFiles = await processor.loadRulesyncFiles();
+    const toolFiles =
+      rulesyncFiles.length > 0
+        ? await processor.convertRulesyncFilesToToolFiles(rulesyncFiles)
+        : [];
+    return { toolFiles, sourceLoadFailed: processor.hasRulesyncSourceLoadFailure() };
+  };
+
+  return {
+    observe: ({ toolTarget, outputRoot, processor, toolFiles, skipFilePaths }) => {
+      // Outside check mode nothing is owned, so nothing is ever skipped.
+      if (rootFileOwner.size === 0) return;
+      for (const toolFile of toolFiles) {
+        const relativePath = toolFile.getRelativePathFromCwd();
+        if (!rootFileOwner.has(relativePath)) continue;
+        const emitted = emittedByRoot.get(outputRoot) ?? new Set<string>();
+        emittedByRoot.set(outputRoot, emitted);
+        emitted.add(emittedKey(toolTarget, relativePath));
+        if (!skipFilePaths.has(relativePath)) continue;
+        const skipped = skippedByRoot.get(outputRoot) ?? new Map<string, SkippedRootFile>();
+        skippedByRoot.set(outputRoot, skipped);
+        skipped.set(relativePath, { processor, toolFile });
+      }
+    },
+
+    verify: async ({ isOwnerProcessed, createOwnerProcessor }) => {
+      let count = 0;
+      const paths: string[] = [];
+      let sourceLoadFailed = false;
+
+      for (const [outputRoot, skipped] of skippedByRoot) {
+        const ownerOutputs = new Map<
+          ToolTarget,
+          { processor: RulesProcessor; toolFiles: AiFile[] } | undefined
+        >();
+        for (const [relativePath, fallback] of skipped) {
+          const owner = rootFileOwner.get(relativePath);
+          if (owner === undefined) continue;
+          if (emittedByRoot.get(outputRoot)?.has(emittedKey(owner, relativePath))) continue;
+
+          let expected = fallback;
+          if (!isOwnerProcessed(owner)) {
+            if (!ownerOutputs.has(owner)) {
+              const processor = createOwnerProcessor({ toolTarget: owner, outputRoot });
+              if (processor === undefined) {
+                ownerOutputs.set(owner, undefined);
+              } else {
+                const loaded = await loadOwnerToolFiles(processor);
+                if (loaded.sourceLoadFailed) sourceLoadFailed = true;
+                ownerOutputs.set(owner, { processor, toolFiles: loaded.toolFiles });
+              }
+            }
+            const ownerOutput = ownerOutputs.get(owner);
+            const ownerFile = ownerOutput?.toolFiles.find(
+              (file) => file.getRelativePathFromCwd() === relativePath,
+            );
+            if (ownerOutput !== undefined && ownerFile !== undefined) {
+              expected = { processor: ownerOutput.processor, toolFile: ownerFile };
+            }
+          }
+
+          const result = await expected.processor.writeAiFiles([expected.toolFile]);
+          count += result.count;
+          paths.push(...result.paths);
+        }
+      }
+
+      return { count, paths, hasDiff: count > 0, sourceLoadFailed };
+    },
+  };
+}
+
 async function generateRulesCore(params: {
   config: Config;
   logger: Logger;
@@ -1013,6 +1126,34 @@ async function generateRulesCore(params: {
 
   const foldRootOverwriteWatch = createFoldRootOverwriteWatch({ logger });
 
+  const createProcessor = ({
+    toolTarget,
+    outputRoot,
+  }: {
+    toolTarget: ToolTarget;
+    outputRoot: string;
+  }): RulesProcessor =>
+    new RulesProcessor({
+      outputRoot: resolveToolOutputRoot({
+        outputRoot,
+        toolTarget,
+        global: config.getGlobal(),
+      }),
+      inputRoots: config.getInputRoots(),
+      toolTarget: toolTarget,
+      global: config.getGlobal(),
+      simulateCommands: config.getSimulateCommands(),
+      simulateSubagents: config.getSimulateSubagents(),
+      simulateSkills: config.getSimulateSkills(),
+      language: config.getLanguage(),
+      deriveSubprojectPathFromGlobs: config.getDeriveSubprojectPathFromGlobs(),
+      skills: skills,
+      featureOptions: config.getFeatureOptions(toolTarget, "rules"),
+      delete: config.getDelete(),
+      dryRun: config.isPreviewMode(),
+      logger,
+    });
+
   const isCheck = config.getCheck();
   const rootFileOwner = isCheck
     ? computeRootFileOwnership({
@@ -1021,6 +1162,8 @@ async function generateRulesCore(params: {
       })
     : new Map<string, ToolTarget>();
 
+  const skippedRootFileCheck = createSkippedRootFileCheck({ rootFileOwner });
+
   for (const toolTarget of toolTargets) {
     for (const outputRoot of config.getOutputRoots(toolTarget)) {
       // Check if rules feature is enabled for this specific target
@@ -1028,26 +1171,7 @@ async function generateRulesCore(params: {
         continue;
       }
 
-      const processor = new RulesProcessor({
-        outputRoot: resolveToolOutputRoot({
-          outputRoot,
-          toolTarget,
-          global: config.getGlobal(),
-        }),
-        inputRoots: config.getInputRoots(),
-        toolTarget: toolTarget,
-        global: config.getGlobal(),
-        simulateCommands: config.getSimulateCommands(),
-        simulateSubagents: config.getSimulateSubagents(),
-        simulateSkills: config.getSimulateSkills(),
-        language: config.getLanguage(),
-        deriveSubprojectPathFromGlobs: config.getDeriveSubprojectPathFromGlobs(),
-        skills: skills,
-        featureOptions: config.getFeatureOptions(toolTarget, "rules"),
-        delete: config.getDelete(),
-        dryRun: config.isPreviewMode(),
-        logger,
-      });
+      const processor = createProcessor({ toolTarget, outputRoot });
 
       const rulesyncFiles = await processor.loadRulesyncFiles();
 
@@ -1066,7 +1190,16 @@ async function generateRulesCore(params: {
         rulesyncFiles,
         sweepPlan,
         skipFilePaths: skipFilePaths.size > 0 ? skipFilePaths : undefined,
-        onToolFiles: (toolFiles) => foldRootOverwriteWatch.observe({ toolTarget, toolFiles }),
+        onToolFiles: (toolFiles) => {
+          foldRootOverwriteWatch.observe({ toolTarget, toolFiles });
+          skippedRootFileCheck.observe({
+            toolTarget,
+            outputRoot,
+            processor,
+            toolFiles,
+            skipFilePaths,
+          });
+        },
       });
 
       totalCount += result.count;
@@ -1075,6 +1208,17 @@ async function generateRulesCore(params: {
       if (result.sourceLoadFailed) sourceLoadFailed = true;
     }
   }
+
+  const skippedResult = await skippedRootFileCheck.verify({
+    isOwnerProcessed: (owner) =>
+      toolTargets.includes(owner) && config.getFeatures(owner).includes("rules"),
+    createOwnerProcessor: (ownerParams) =>
+      supportedTargets.includes(ownerParams.toolTarget) ? createProcessor(ownerParams) : undefined,
+  });
+  totalCount += skippedResult.count;
+  allPaths.push(...skippedResult.paths);
+  if (skippedResult.hasDiff) hasDiff = true;
+  if (skippedResult.sourceLoadFailed) sourceLoadFailed = true;
 
   foldRootOverwriteWatch.report();
 
