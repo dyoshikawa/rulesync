@@ -2,7 +2,7 @@ import { join } from "node:path";
 
 import { z } from "zod/mini";
 
-import { CONTINUE_SKILLS_DIR_PATH } from "../../constants/continue-paths.js";
+import { CODEWHALE_SKILLS_DIR_PATH } from "../../constants/codewhale-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
@@ -16,23 +16,22 @@ import {
   ToolSkillSettablePaths,
 } from "./tool-skill.js";
 
-// Continue skill frontmatter: `name` and `description` are required as in the
-// Agent Skills spec (Continue additionally rejects empty strings at load time,
-// like the sibling adapters this schema mirrors); Continue validates nothing
-// else.
-// @see https://github.com/continuedev/continue/blob/5522c6f44ca0ac3528b37244818fbfa39b5af470/extensions/cli/src/util/loadMarkdownSkills.ts
-const ContinueSkillFrontmatterSchema = z.looseObject({
+// Codewhale skill frontmatter: `name` and `description` as in the Agent Skills
+// spec. Codewhale-specific routing keys (`invocation`, `aliases-for`,
+// `description_<tag>`) pass through the `codewhale` section.
+// @see https://github.com/Hmbown/Codewhale/blob/main/docs/SKILLS.md
+const CodewhaleSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
 });
 
-export type ContinueSkillFrontmatter = z.infer<typeof ContinueSkillFrontmatterSchema>;
+export type CodewhaleSkillFrontmatter = z.infer<typeof CodewhaleSkillFrontmatterSchema>;
 
-export type ContinueSkillParams = {
+export type CodewhaleSkillParams = {
   outputRoot?: string;
   relativeDirPath?: string;
   dirName: string;
-  frontmatter: ContinueSkillFrontmatter;
+  frontmatter: CodewhaleSkillFrontmatter;
   body: string;
   otherFiles?: SkillFile[];
   validate?: boolean;
@@ -40,27 +39,25 @@ export type ContinueSkillParams = {
 };
 
 /**
- * Represents a Continue skill directory.
+ * Represents a Codewhale skill directory.
  *
- * Continue discovers Anthropic-style `<name>/SKILL.md` directories under
- * `<project>/.continue/skills/` (project scope) and `~/.continue/skills/`
- * (user scope); it also reads `.claude/skills/`, which the claudecode target
- * covers. The frontmatter requires `name` (matching the directory name) and
- * `description`; supporting files next to `SKILL.md` are carried along.
+ * Codewhale discovers `<name>/SKILL.md` directories under
+ * `<workspace>/.codewhale/skills/` (project scope) and `~/.codewhale/skills/`
+ * (user scope); supporting files next to `SKILL.md` are carried along.
  *
- * @see https://github.com/continuedev/continue/blob/5522c6f44ca0ac3528b37244818fbfa39b5af470/extensions/cli/src/util/loadMarkdownSkills.ts
+ * @see https://github.com/Hmbown/Codewhale/blob/main/docs/SKILLS.md
  */
-export class ContinueSkill extends ToolSkill {
+export class CodewhaleSkill extends ToolSkill {
   constructor({
     outputRoot = process.cwd(),
-    relativeDirPath = CONTINUE_SKILLS_DIR_PATH,
+    relativeDirPath = CODEWHALE_SKILLS_DIR_PATH,
     dirName,
     frontmatter,
     body,
     otherFiles = [],
     validate = true,
     global = false,
-  }: ContinueSkillParams) {
+  }: CodewhaleSkillParams) {
     super({
       outputRoot,
       relativeDirPath,
@@ -82,17 +79,20 @@ export class ContinueSkill extends ToolSkill {
     }
   }
 
-  static getSettablePaths(_options: { global?: boolean } = {}): ToolSkillSettablePaths {
-    // The processor supplies the home directory as outputRoot in global mode:
-    // - Project mode: {process.cwd()}/.continue/skills/
-    // - Global mode: {getHomeDirectory()}/.continue/skills/
+  static getSettablePaths({
+    global: _global = false,
+  }: {
+    global?: boolean;
+  } = {}): ToolSkillSettablePaths {
+    // The same relative path serves both scopes; the processor supplies the
+    // home directory as outputRoot in global mode (`~/.codewhale/skills`).
     return {
-      relativeDirPath: CONTINUE_SKILLS_DIR_PATH,
+      relativeDirPath: CODEWHALE_SKILLS_DIR_PATH,
     };
   }
 
-  getFrontmatter(): ContinueSkillFrontmatter {
-    const result = ContinueSkillFrontmatterSchema.parse(this.requireMainFileFrontmatter());
+  getFrontmatter(): CodewhaleSkillFrontmatter {
+    const result = CodewhaleSkillFrontmatterSchema.parse(this.requireMainFileFrontmatter());
     return result;
   }
 
@@ -108,7 +108,7 @@ export class ContinueSkill extends ToolSkill {
       };
     }
 
-    const result = ContinueSkillFrontmatterSchema.safeParse(this.mainFile.frontmatter);
+    const result = CodewhaleSkillFrontmatterSchema.safeParse(this.mainFile.frontmatter);
     if (!result.success) {
       return {
         success: false,
@@ -118,28 +118,19 @@ export class ContinueSkill extends ToolSkill {
       };
     }
 
-    if (result.data.name !== this.getDirName()) {
-      return {
-        success: false,
-        error: new Error(
-          `${this.getDirPath()}: frontmatter name (${result.data.name}) must match directory name (${this.getDirName()})`,
-        ),
-      };
-    }
-
     return { success: true, error: null };
   }
 
   toRulesyncSkill(): RulesyncSkill {
-    // Everything beyond `name` / `description` (any key a hand-written
-    // SKILL.md carries) is lifted into the `continue` section so it survives
-    // the round-trip (mirrors roo-skill.ts).
-    const { name, description, ...continueSection } = this.getFrontmatter();
+    // Everything beyond `name` / `description` (the documented routing keys and
+    // any key a hand-written SKILL.md carries) is lifted into the `codewhale`
+    // section so it survives the round-trip (mirrors roo-skill.ts).
+    const { name, description, ...codewhaleSection } = this.getFrontmatter();
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
       name,
       description,
       targets: ["*"],
-      ...(Object.keys(continueSection).length > 0 && { continue: continueSection }),
+      ...(Object.keys(codewhaleSection).length > 0 && { codewhale: codewhaleSection }),
     };
 
     return new RulesyncSkill({
@@ -159,28 +150,28 @@ export class ContinueSkill extends ToolSkill {
     rulesyncSkill,
     validate = true,
     global = false,
-  }: ToolSkillFromRulesyncSkillParams): ContinueSkill {
-    const settablePaths = ContinueSkill.getSettablePaths({ global });
+  }: ToolSkillFromRulesyncSkillParams): CodewhaleSkill {
+    const settablePaths = CodewhaleSkill.getSettablePaths({ global });
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
 
-    // The `continue` section carries Continue-specific frontmatter; canonical
+    // The `codewhale` section carries Codewhale-specific frontmatter; canonical
     // name/description always win over a stray same-named key in the section.
     const {
       name: _sectionName,
       description: _sectionDescription,
-      ...continueSection
-    } = rulesyncFrontmatter.continue ?? {};
-    const continueFrontmatter: ContinueSkillFrontmatter = {
-      ...continueSection,
+      ...codewhaleSection
+    } = rulesyncFrontmatter.codewhale ?? {};
+    const codewhaleFrontmatter: CodewhaleSkillFrontmatter = {
+      ...codewhaleSection,
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
     };
 
-    return new ContinueSkill({
+    return new CodewhaleSkill({
       outputRoot,
       relativeDirPath: settablePaths.relativeDirPath,
-      dirName: continueFrontmatter.name,
-      frontmatter: continueFrontmatter,
+      dirName: rulesyncSkill.getDirName(),
+      frontmatter: codewhaleFrontmatter,
       body: rulesyncSkill.getBody(),
       otherFiles: rulesyncSkill.getOtherFiles(),
       validate,
@@ -190,16 +181,16 @@ export class ContinueSkill extends ToolSkill {
 
   static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
     const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("continue");
+    return targets.includes("*") || targets.includes("codewhale");
   }
 
-  static async fromDir(params: ToolSkillFromDirParams): Promise<ContinueSkill> {
+  static async fromDir(params: ToolSkillFromDirParams): Promise<CodewhaleSkill> {
     const loaded = await this.loadSkillDirContent({
       ...params,
-      getSettablePaths: ContinueSkill.getSettablePaths,
+      getSettablePaths: CodewhaleSkill.getSettablePaths,
     });
 
-    const result = ContinueSkillFrontmatterSchema.safeParse(loaded.frontmatter);
+    const result = CodewhaleSkillFrontmatterSchema.safeParse(loaded.frontmatter);
     if (!result.success) {
       const skillDirPath = join(loaded.outputRoot, loaded.relativeDirPath, loaded.dirName);
       throw new Error(
@@ -207,19 +198,7 @@ export class ContinueSkill extends ToolSkill {
       );
     }
 
-    if (result.data.name !== loaded.dirName) {
-      const skillFilePath = join(
-        loaded.outputRoot,
-        loaded.relativeDirPath,
-        loaded.dirName,
-        SKILL_FILE_NAME,
-      );
-      throw new Error(
-        `Frontmatter name (${result.data.name}) must match directory name (${loaded.dirName}) in ${skillFilePath}`,
-      );
-    }
-
-    return new ContinueSkill({
+    return new CodewhaleSkill({
       outputRoot: loaded.outputRoot,
       relativeDirPath: loaded.relativeDirPath,
       dirName: loaded.dirName,
@@ -236,8 +215,8 @@ export class ContinueSkill extends ToolSkill {
     relativeDirPath,
     dirName,
     global = false,
-  }: ToolSkillForDeletionParams): ContinueSkill {
-    return new ContinueSkill({
+  }: ToolSkillForDeletionParams): CodewhaleSkill {
+    return new CodewhaleSkill({
       outputRoot,
       relativeDirPath,
       dirName,

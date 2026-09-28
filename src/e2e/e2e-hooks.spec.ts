@@ -142,7 +142,14 @@ const hooksGenerateTargets = [
 ] as const;
 
 // Targets exercised by dedicated `it`s (bespoke per-tool serialization).
-const hooksProjectStandaloneTargets = ["vibe", "devin", "reasonix", "crush", "pool"] as const;
+const hooksProjectStandaloneTargets = [
+  "vibe",
+  "codewhale",
+  "devin",
+  "reasonix",
+  "crush",
+  "pool",
+] as const;
 
 describe("E2E: hooks", () => {
   const { getTestDir } = useTestDirectory();
@@ -464,6 +471,60 @@ describe("E2E: hooks", () => {
     const importedContent = await readFileContent(join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH));
     expect(importedContent).toContain("preToolUse");
     expect(importedContent).toContain("echo audit");
+  });
+
+  it("should generate codewhale hooks into .codewhale/hooks.toml", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH),
+      JSON.stringify({
+        version: 1,
+        hooks: {
+          sessionStart: [{ command: ".rulesync/hooks/session-start.sh" }],
+          preToolUse: [{ command: ".rulesync/hooks/audit.sh", matcher: "exec_shell", timeout: 10 }],
+        },
+      }),
+    );
+
+    await runGenerate({ target: "codewhale", features: "hooks" });
+
+    const parsed = smolToml.parse(await readFileContent(join(testDir, ".codewhale", "hooks.toml")));
+    // Top-level `[[hooks]]` entries with snake_case events; the matcher
+    // becomes a `tool_name` condition.
+    expect(parsed.hooks).toEqual([
+      { event: "session_start", command: ".rulesync/hooks/session-start.sh" },
+      {
+        event: "tool_call_before",
+        command: ".rulesync/hooks/audit.sh",
+        condition: { type: "tool_name", name: "exec_shell" },
+        timeout_secs: 10,
+      },
+    ]);
+  });
+
+  it("should import codewhale hooks from .codewhale/hooks.toml", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, ".codewhale", "hooks.toml"),
+      [
+        "[[hooks]]",
+        'event = "tool_call_before"',
+        'command = "echo audit"',
+        'condition = { type = "tool_name", name = "exec_shell" }',
+        "",
+      ].join("\n"),
+    );
+
+    await runImport({ target: "codewhale", features: "hooks" });
+
+    const imported = JSON.parse(
+      await readFileContent(join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH)),
+    );
+    expect(imported.hooks.preToolUse).toEqual([
+      { type: "command", command: "echo audit", matcher: "exec_shell" },
+    ]);
   });
 
   it("should generate crush hooks into the hooks.PreToolUse list of crush.json", async () => {
@@ -1032,6 +1093,7 @@ const hooksGlobalTargets = [
 // exists for each name; keep it in sync with the actual `it`s by hand.
 const hooksGlobalStandaloneTargets = [
   "crush",
+  "codewhale",
   "devin",
   "vibe",
   "hermesagent",
@@ -1350,6 +1412,49 @@ describe("E2E: hooks (global mode)", () => {
     const regeneratedStop = regenerated.hooks.find(({ event }) => event === "Stop");
     expect(regeneratedStop?.command).toContain("RULESYNC_KIMI_HOOK_CWD=1");
     expect(regeneratedStop?.command).toContain("cd -- '/opt/company/security-hooks' && ./gate.sh");
+  });
+
+  it("should generate codewhale hooks into the [hooks] table of the user config", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(homeDir, ".codewhale", "config.toml"),
+      [
+        'model = "deepseek-v4"',
+        "",
+        "[hooks]",
+        "enabled = false",
+        "default_timeout_secs = 20",
+        "",
+      ].join("\n"),
+    );
+    await writeFileContent(
+      join(projectDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH),
+      JSON.stringify({
+        version: 1,
+        hooks: { stop: [{ command: ".rulesync/hooks/audit.sh" }] },
+      }),
+    );
+
+    await runGenerate({
+      target: "codewhale",
+      features: "hooks",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const parsed = smolToml.parse(
+      await readFileContent(join(homeDir, ".codewhale", "config.toml")),
+    );
+    // Unrelated settings and the `[hooks]` table's own settings survive.
+    expect(parsed.model).toBe("deepseek-v4");
+    expect(parsed.hooks).toEqual({
+      enabled: false,
+      default_timeout_secs: 20,
+      hooks: [{ event: "turn_end", command: ".rulesync/hooks/audit.sh" }],
+    });
+    expect(await fileExists(join(homeDir, ".codewhale", "hooks.toml"))).toBe(false);
   });
 
   it("should generate vibe hooks in home directory", async () => {

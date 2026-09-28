@@ -66,6 +66,7 @@ const rulesRootTargets = [
   { target: "bob", outputPath: "AGENTS.md" },
   { target: "tabnine", outputPath: "TABNINE.md" },
   { target: "cortexcode", outputPath: "AGENTS.md" },
+  { target: "codewhale", outputPath: "AGENTS.md" },
   { target: "continue", outputPath: "AGENTS.md" },
   { target: "pool", outputPath: "AGENTS.md" },
   { target: "dsh", outputPath: "AGENTS.md" },
@@ -86,6 +87,7 @@ const rulesNonRootTargets = [
   { target: "tabnine", outputPath: join(".tabnine", "guidelines", "overview.md") },
   { target: "continue", outputPath: join(".continue", "rules", "overview.md") },
   { target: "devin", outputPath: join(".devin", "rules", "overview.md") },
+  { target: "codewhale", outputPath: join(".codewhale", "rules", "overview.md") },
   { target: "takt", outputPath: join(".takt", "facets", "policies", "overview.md") },
 ] as const;
 
@@ -1653,6 +1655,7 @@ describe("E2E: rules (import)", () => {
     { target: "pi", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     { target: "pool", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     { target: "cortexcode", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
+    { target: "codewhale", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     { target: "continue", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     { target: "dsh", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     { target: "vibe", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
@@ -1791,6 +1794,7 @@ const rulesGlobalTargets = [
   { target: "pi", outputPath: join(".pi", "agent", "AGENTS.md") },
   { target: "zed", outputPath: join(getZedGlobalDir(), "AGENTS.md") },
   { target: "vibe", outputPath: join(".vibe", "AGENTS.md") },
+  { target: "codewhale", outputPath: join(".codewhale", "AGENTS.md") },
   { target: "augmentcode", outputPath: join(".augment", "rules", "overview.md") },
   {
     target: "devin",

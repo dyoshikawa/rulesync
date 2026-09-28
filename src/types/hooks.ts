@@ -761,6 +761,39 @@ export const AUGMENTCODE_HOOK_EVENTS: readonly HookEvent[] = [
 export const VIBE_HOOK_EVENTS: readonly HookEvent[] = ["preToolUse", "postToolUse", "stop"];
 
 /**
+ * Hook events supported by Codewhale.
+ *
+ * Codewhale fires fifteen snake_case events from `[[hooks]]` entries in
+ * `~/.codewhale/config.toml` (`[hooks]` table) and the workspace
+ * `.codewhale/hooks.toml`. The ten below have a canonical counterpart; the
+ * rest (`mode_change`, `shell_env`, `session_idle`, `waiting_for_user`,
+ * `session_busy`) have none. Only the tool-context events (`tool_call_before`,
+ * `tool_call_after`, `on_error`) accept a `tool_name` condition, which is what
+ * a canonical matcher becomes.
+ * @see https://github.com/Hmbown/Codewhale/blob/main/docs/HOOKS.md
+ * @see https://github.com/Hmbown/Codewhale/blob/main/crates/tui/src/hooks/config.rs
+ */
+export const CODEWHALE_HOOK_EVENTS: readonly HookEvent[] = [
+  "sessionStart",
+  "sessionEnd",
+  "stop",
+  "beforeSubmitPrompt",
+  "preToolUse",
+  "postToolUse",
+  "afterError",
+  "subagentStart",
+  "subagentStop",
+  "stopFailure",
+];
+
+/** The Codewhale events whose hooks can carry a tool-name matcher. */
+export const CODEWHALE_MATCHER_HOOK_EVENTS: readonly HookEvent[] = [
+  "preToolUse",
+  "postToolUse",
+  "afterError",
+];
+
+/**
  * Hook events supported by Pool.
  *
  * Pool's `hooks` settings block fires six events, spelled the Claude Code
@@ -1288,8 +1321,8 @@ export const LETTACODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object
  * the working directory inside commands. The event list is the CLI's
  * `HOOK_EVENT_NAMES`.
  *
- * @see https://github.com/continuedev/continue/blob/main/extensions/cli/src/hooks/types.ts
- * @see https://github.com/continuedev/continue/blob/main/extensions/cli/src/hooks/hookConfig.ts
+ * @see https://github.com/continuedev/continue/blob/5522c6f44ca0ac3528b37244818fbfa39b5af470/extensions/cli/src/hooks/types.ts
+ * @see https://github.com/continuedev/continue/blob/5522c6f44ca0ac3528b37244818fbfa39b5af470/extensions/cli/src/hooks/hookConfig.ts
  */
 export const CONTINUE_HOOK_EVENTS: readonly HookEvent[] = [
   "preToolUse",
@@ -1512,6 +1545,7 @@ export const HooksConfigSchema = z.looseObject({
   junie: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   gitlabduo: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   vibe: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  codewhale: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   reasonix: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   grokcli: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   "kimi-code": z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
@@ -2148,6 +2182,32 @@ export const VIBE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = {
   after_tool: "postToolUse",
   post_agent_turn: "stop",
 };
+
+/**
+ * Map canonical camelCase event names to Codewhale snake_case.
+ *
+ * `stop` → `turn_end` (after each completed turn), `stopFailure` →
+ * `session_error` (a turn that ends in a terminal failure), and `afterError`
+ * → `on_error`.
+ * @see https://github.com/Hmbown/Codewhale/blob/main/docs/HOOKS.md
+ */
+export const CANONICAL_TO_CODEWHALE_EVENT_NAMES: Record<string, string> = {
+  sessionStart: "session_start",
+  sessionEnd: "session_end",
+  stop: "turn_end",
+  beforeSubmitPrompt: "message_submit",
+  preToolUse: "tool_call_before",
+  postToolUse: "tool_call_after",
+  afterError: "on_error",
+  subagentStart: "subagent_spawn",
+  subagentStop: "subagent_complete",
+  stopFailure: "session_error",
+};
+
+/** Map Codewhale snake_case event names to canonical camelCase. */
+export const CODEWHALE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
+  Object.entries(CANONICAL_TO_CODEWHALE_EVENT_NAMES).map(([k, v]) => [v, k]),
+);
 
 /**
  * Canonical -> Crush event names. Crush spells its events the Claude Code

@@ -1241,6 +1241,7 @@ describe("McpProcessor", () => {
       // project-mode target.
       expect(targets).not.toContain("cline");
       expect(targets).not.toContain("cortexcode"); // cortexcode MCP is global-only too
+      expect(targets).toContain("codewhale"); // .codewhale/mcp.json
       expect(targets).toContain("copilot");
       expect(targets).toContain("copilotcli");
       expect(targets).toContain("cursor");
@@ -1250,6 +1251,7 @@ describe("McpProcessor", () => {
       expect(targets).toContain("vibe");
       expect(targets).toContain("bob");
       expect(targets).toContain("tabnine");
+      expect(targets).toContain("codebuff"); // .agents/mcp.json
     });
 
     it("should include kilo in global tool targets", () => {
@@ -1261,9 +1263,11 @@ describe("McpProcessor", () => {
       expect(globalTargets).toContain("opencode"); // sanity: parity with opencode
       expect(globalTargets).toContain("cline"); // cline MCP is global-only
       expect(globalTargets).toContain("cortexcode"); // ~/.snowflake/cortex/mcp.json
+      expect(globalTargets).toContain("codewhale"); // ~/.codewhale/mcp.json
       expect(globalTargets).toContain("vibe");
       expect(globalTargets).toContain("bob"); // ~/.bob/mcp.json
       expect(globalTargets).toContain("tabnine"); // ~/.tabnine/agent/settings.json
+      expect(globalTargets).toContain("codebuff"); // ~/.agents/mcp.json
     });
   });
 

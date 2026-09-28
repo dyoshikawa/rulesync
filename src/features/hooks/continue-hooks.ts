@@ -11,7 +11,7 @@ import type { ToolHooksSettablePaths } from "./tool-hooks.js";
 // The CLI's `NO_MATCHER_EVENTS`: these fire on every occurrence and ignore
 // `matcher`. Every other event compiles `matcher` as a regex over its subject
 // (`*` and an empty string mean "all").
-// https://github.com/continuedev/continue/blob/main/extensions/cli/src/hooks/types.ts
+// https://github.com/continuedev/continue/blob/5522c6f44ca0ac3528b37244818fbfa39b5af470/extensions/cli/src/hooks/types.ts
 const CONTINUE_NO_MATCHER_EVENTS: ReadonlySet<string> = new Set([
   "beforeSubmitPrompt",
   "stop",
@@ -27,8 +27,8 @@ const CONTINUE_NO_MATCHER_EVENTS: ReadonlySet<string> = new Set([
 // `async` on command handlers and `model` on prompt / agent handlers.
 // `$CONTINUE_PROJECT_DIR` is the working directory the CLI exports to hook
 // commands, so dot-relative scripts are anchored to it.
-// https://github.com/continuedev/continue/blob/main/extensions/cli/src/hooks/types.ts
-// https://github.com/continuedev/continue/blob/main/extensions/cli/src/hooks/hookRunner.ts
+// https://github.com/continuedev/continue/blob/5522c6f44ca0ac3528b37244818fbfa39b5af470/extensions/cli/src/hooks/types.ts
+// https://github.com/continuedev/continue/blob/5522c6f44ca0ac3528b37244818fbfa39b5af470/extensions/cli/src/hooks/hookRunner.ts
 const CONTINUE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   supportedEvents: CONTINUE_HOOK_EVENTS,
   canonicalToToolEventNames: CANONICAL_TO_CONTINUE_EVENT_NAMES,
@@ -64,8 +64,8 @@ const CONTINUE_SPEC: SettingsJsonHooksSpec = {
  * `.continue/settings.local.json` and the Claude Code settings files; rulesync
  * writes only the committable project file and the user file.
  *
- * @see https://github.com/continuedev/continue/blob/main/extensions/cli/src/hooks/hookConfig.ts
- * @see https://github.com/continuedev/continue/blob/main/extensions/cli/src/hooks/types.ts
+ * @see https://github.com/continuedev/continue/blob/5522c6f44ca0ac3528b37244818fbfa39b5af470/extensions/cli/src/hooks/hookConfig.ts
+ * @see https://github.com/continuedev/continue/blob/5522c6f44ca0ac3528b37244818fbfa39b5af470/extensions/cli/src/hooks/types.ts
  */
 export class ContinueHooks extends SettingsJsonHooks {
   static override getSpec(): SettingsJsonHooksSpec {
