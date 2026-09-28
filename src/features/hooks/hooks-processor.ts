@@ -820,7 +820,7 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
         // agent handlers. `matcher` is a regex over the event's subject;
         // UserPromptSubmit, Stop, TeammateIdle, TaskCompleted, WorktreeCreate
         // and WorktreeRemove fire unconditionally.
-        // https://github.com/continuedev/continue/blob/main/extensions/cli/src/hooks/types.ts
+        // https://github.com/continuedev/continue/blob/5522c6f44ca0ac3528b37244818fbfa39b5af470/extensions/cli/src/hooks/types.ts
         supportsProject: true,
         supportsGlobal: true,
         supportsImport: true,
