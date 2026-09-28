@@ -116,6 +116,7 @@ export const RulesyncMcpFileSchema = z.looseObject({
   "kimi-code": z.optional(kimiCodeScopedMcpSchema),
   kiro: z.optional(toolScopedMcpSchema),
   mimocode: z.optional(toolScopedMcpSchema),
+  omp: z.optional(toolScopedMcpSchema),
   opencode: z.optional(toolScopedMcpSchema),
   qwencode: z.optional(toolScopedMcpSchema),
   reasonix: z.optional(toolScopedMcpSchema),

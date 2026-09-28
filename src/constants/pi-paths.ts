@@ -23,3 +23,26 @@ export const PI_HOOKS_FILE_NAME = "rulesync-hooks.ts";
 // https://pi.dev/docs/latest/settings
 export const PI_SETTINGS_FILE_NAME = "settings.json";
 export const PI_AGENT_DIR_PATH = PI_AGENT_DIR;
+
+/**
+ * Directory layout shared by Pi and its forks (oh-my-pi reads the same
+ * skill and command formats from `.omp/`), so their skill and command
+ * classes subclass the Pi ones and override only this layout.
+ */
+export type PiLayout = {
+  /** The rulesync tool target (also the tool-scoped key in rulesync files). */
+  toolTarget: "pi" | "omp";
+  /** Project config directory (`.pi`). */
+  dir: string;
+  /** Global config directory, relative to the home directory (`.pi/agent`). */
+  globalDir: string;
+  /** Name of the Markdown command directory under both config directories. */
+  commandsDirName: string;
+};
+
+export const PI_LAYOUT: PiLayout = {
+  toolTarget: "pi",
+  dir: PI_DIR,
+  globalDir: PI_AGENT_DIR,
+  commandsDirName: "prompts",
+};
