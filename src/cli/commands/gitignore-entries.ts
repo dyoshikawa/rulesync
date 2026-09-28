@@ -19,6 +19,10 @@ import {
   FACTORYDROID_DIR,
   FACTORYDROID_SETTINGS_LOCAL_FILE_NAME,
 } from "../../constants/factorydroid-paths.js";
+import {
+  LETTACODE_DIR,
+  LETTACODE_SETTINGS_LOCAL_FILE_NAME,
+} from "../../constants/lettacode-paths.js";
 import { QWENCODE_DIR, QWENCODE_LOCAL_RULE_FILE_NAME } from "../../constants/qwencode-paths.js";
 import {
   RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH,
@@ -150,6 +154,14 @@ export const HAND_MAINTAINED_GITIGNORE_ENTRIES: ReadonlyArray<GitignoreEntryTag>
     target: "commandcode",
     feature: "general",
     entry: `**/${COMMANDCODE_DIR}/${COMMANDCODE_SETTINGS_LOCAL_FILE_NAME}`,
+  },
+  // Letta Code's personal project settings, documented as "personal,
+  // gitignored"; never emitted by rulesync.
+  // https://docs.letta.com/reference/settings/index.md
+  {
+    target: "lettacode",
+    feature: "general",
+    entry: `**/${LETTACODE_DIR}/${LETTACODE_SETTINGS_LOCAL_FILE_NAME}`,
   },
   { target: "rovodev", feature: "general", entry: "**/.rovodev/.rulesync/" },
   { target: "takt", feature: "general", entry: "**/.takt/runs/" },
