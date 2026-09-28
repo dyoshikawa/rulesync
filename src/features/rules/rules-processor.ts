@@ -349,6 +349,12 @@ type ToolRuleFactory = {
     supportsGlobal: boolean;
     /** How non-root rules are discovered or referenced */
     ruleDiscoveryMode: RuleDiscoveryMode;
+    /**
+     * Default discovery mode in global mode, when it differs from
+     * `ruleDiscoveryMode` (e.g. the global non-root directory is auto-loaded
+     * while the project one is referenced from the root file).
+     */
+    ruleDiscoveryModeGlobal?: RuleDiscoveryMode;
     /** Configuration for additional convention paths in the root rule */
     additionalConventions?: AdditionalConventionsConfig;
     /** Whether to create a separate rule file for additional conventions instead of prepending to root */
@@ -443,10 +449,13 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
       meta: {
         // The Antigravity CLI shares Gemini-CLI-class context files: a root
         // context file (project `AGENTS.md`, global `~/.gemini/GEMINI.md`) that
-        // @-references non-root memory files under `.agents/rules/`.
+        // @-references non-root memory files under `.agents/rules/`. In global
+        // mode, non-root rules go to `~/.gemini/config/rules/`, which the CLI
+        // loads by itself, so `GEMINI.md` carries no reference block there.
         extension: "md",
         supportsGlobal: true,
         ruleDiscoveryMode: "toon",
+        ruleDiscoveryModeGlobal: "auto",
       },
     },
   ],
@@ -2223,7 +2232,10 @@ export class RulesProcessor extends FeatureProcessor {
     toolRules: ToolRule[],
   ): string {
     const mode = resolveRuleDiscoveryMode({
-      defaultMode: meta.ruleDiscoveryMode,
+      defaultMode:
+        this.global && meta.ruleDiscoveryModeGlobal
+          ? meta.ruleDiscoveryModeGlobal
+          : meta.ruleDiscoveryMode,
       options: this.featureOptions,
     });
     switch (mode) {

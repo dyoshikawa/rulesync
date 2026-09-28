@@ -4,9 +4,19 @@ import {
   ANTIGRAVITY_AGENTS_DIR,
   ANTIGRAVITY_GEMINI_DIR,
   ANTIGRAVITY_GLOBAL_RULE_FILE_NAME,
+  ANTIGRAVITY_GLOBAL_RULES_SUBDIR,
   ANTIGRAVITY_RULE_FILE_NAME,
 } from "../../constants/antigravity-cli-paths.js";
+import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
+import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
+import {
+  AntigravityRuleFrontmatter,
+  AntigravityRuleFrontmatterSchema,
+  STRATEGIES,
+  normalizeStoredAntigravity,
+  parseGlobsString,
+} from "./antigravity-rule.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
   ToolRule,
@@ -37,7 +47,14 @@ export type AntigravityCliRuleSettablePathsGlobal = ToolRuleSettablePathsGlobal;
  *
  * - Project scope: root `AGENTS.md` (the cross-tool standard, matching
  *   `antigravity-ide`); non-root `.agents/rules/*.md`.
- * - Global scope: a single plain `~/.gemini/GEMINI.md` (shared with the IDE).
+ * - Global scope: root plain `~/.gemini/GEMINI.md` (shared with the IDE);
+ *   non-root `~/.gemini/config/rules/*.md`. The CLI truncates each rule file at
+ *   24,000 bytes, so keeping non-root rules as separate files stops a large rule
+ *   set from being cut off. Every file in that directory must carry a valid
+ *   `trigger` frontmatter or the CLI discards it, so these files get the same
+ *   trigger-strategy frontmatter as the IDE's non-root rules.
+ *
+ * @see https://antigravity.google/docs/rules
  */
 export class AntigravityCliRule extends ToolRule {
   static getSettablePaths({
@@ -52,6 +69,13 @@ export class AntigravityCliRule extends ToolRule {
         root: {
           relativeDirPath: buildToolPath(ANTIGRAVITY_GEMINI_DIR, ".", excludeToolDir),
           relativeFilePath: ANTIGRAVITY_GLOBAL_RULE_FILE_NAME,
+        },
+        nonRoot: {
+          relativeDirPath: buildToolPath(
+            ANTIGRAVITY_GEMINI_DIR,
+            ANTIGRAVITY_GLOBAL_RULES_SUBDIR,
+            excludeToolDir,
+          ),
         },
       };
     }
@@ -88,6 +112,7 @@ export class AntigravityCliRule extends ToolRule {
         fileContent,
         validate,
         root: true,
+        global,
       });
     }
 
@@ -97,14 +122,22 @@ export class AntigravityCliRule extends ToolRule {
 
     const relativePath = join(paths.nonRoot.relativeDirPath, relativeFilePath);
     const fileContent = await readFileContent(join(outputRoot, relativePath));
-    return new AntigravityCliRule({
+    const rule = new AntigravityCliRule({
       outputRoot,
       relativeDirPath: paths.nonRoot.relativeDirPath,
       relativeFilePath: relativeFilePath,
       fileContent,
       validate,
       root: false,
+      global,
     });
+    if (validate) {
+      const result = rule.validate();
+      if (!result.success) {
+        throw new Error(`Invalid frontmatter in ${relativePath}: ${result.error.message}`);
+      }
+    }
+    return rule;
   }
 
   static fromRulesyncRule({
@@ -114,24 +147,95 @@ export class AntigravityCliRule extends ToolRule {
     global = false,
   }: ToolRuleFromRulesyncRuleParams): AntigravityCliRule {
     const paths = this.getSettablePaths({ global });
-    return new AntigravityCliRule(
-      this.buildToolRuleParamsDefault({
-        outputRoot,
-        rulesyncRule,
-        validate,
-        rootPath: paths.root,
-        nonRootPath: paths.nonRoot,
-      }),
+    const params = this.buildToolRuleParamsDefault({
+      outputRoot,
+      rulesyncRule,
+      validate,
+      rootPath: paths.root,
+      nonRootPath: paths.nonRoot,
+    });
+    if (!global || params.root) {
+      return new AntigravityCliRule({ ...params, global });
+    }
+
+    // Global non-root rules live in `~/.gemini/config/rules/`, where a file
+    // without a valid `trigger` is discarded, so derive it the same way the
+    // IDE does for its non-root rules (a plain rule becomes `always_on`).
+    const rulesyncFrontmatter = rulesyncRule.getFrontmatter();
+    const storedAntigravity = rulesyncFrontmatter.antigravity;
+    const storedTrigger = storedAntigravity?.trigger;
+    const strategy = STRATEGIES.find((s) => s.canHandle(storedTrigger));
+    if (!strategy) {
+      throw new Error(`No strategy found for trigger: ${storedTrigger}`);
+    }
+    const frontmatter = strategy.generateFrontmatter(
+      normalizeStoredAntigravity(storedAntigravity),
+      rulesyncFrontmatter,
     );
+
+    return new AntigravityCliRule({
+      ...params,
+      fileContent: stringifyFrontmatter(rulesyncRule.getBody(), frontmatter),
+      global,
+    });
   }
 
   toRulesyncRule(): RulesyncRule {
-    return this.toRulesyncRuleDefault();
+    if (!this.global || this.root) {
+      return this.toRulesyncRuleDefault();
+    }
+
+    const { frontmatter, body } = this.parseGlobalNonRootContent();
+    const strategy = STRATEGIES.find((s) => s.canHandle(frontmatter.trigger));
+    const rulesyncData = strategy
+      ? strategy.exportRulesyncData(frontmatter)
+      : { globs: [], antigravity: frontmatter };
+
+    return new RulesyncRule({
+      outputRoot: process.cwd(),
+      relativeDirPath: RulesyncRule.getSettablePaths().recommended.relativeDirPath,
+      relativeFilePath: this.getRelativeFilePath(),
+      frontmatter: {
+        root: false,
+        targets: ["*"],
+        ...rulesyncData,
+        antigravity: {
+          ...rulesyncData.antigravity,
+          globs: frontmatter.globs ? parseGlobsString(frontmatter.globs) : undefined,
+        },
+      },
+      body,
+    });
   }
 
   validate() {
-    // Antigravity CLI uses plain markdown without frontmatter requirements.
+    // Project rules and the global GEMINI.md are plain markdown without
+    // frontmatter requirements; global non-root rules need Antigravity
+    // trigger frontmatter.
+    if (!this.global || this.root) {
+      return { success: true as const, error: null };
+    }
+    try {
+      const { frontmatter } = this.parseGlobalNonRootContent();
+      const result = AntigravityRuleFrontmatterSchema.safeParse(frontmatter);
+      if (!result.success) {
+        return { success: false as const, error: new Error(formatError(result.error)) };
+      }
+    } catch (error) {
+      return {
+        success: false as const,
+        error: error instanceof Error ? error : new Error(String(error)),
+      };
+    }
     return { success: true as const, error: null };
+  }
+
+  private parseGlobalNonRootContent(): {
+    frontmatter: AntigravityRuleFrontmatter;
+    body: string;
+  } {
+    const { frontmatter, body } = parseFrontmatter(this.getFileContent(), this.getFilePath());
+    return { frontmatter: frontmatter as AntigravityRuleFrontmatter, body };
   }
 
   static forDeletion({
@@ -141,7 +245,9 @@ export class AntigravityCliRule extends ToolRule {
     global = false,
   }: ToolRuleForDeletionParams): AntigravityCliRule {
     const paths = this.getSettablePaths({ global });
-    const isRoot = relativeFilePath === paths.root.relativeFilePath;
+    const isRoot =
+      relativeFilePath === paths.root.relativeFilePath &&
+      relativeDirPath === paths.root.relativeDirPath;
 
     return new AntigravityCliRule({
       outputRoot,
@@ -150,6 +256,7 @@ export class AntigravityCliRule extends ToolRule {
       fileContent: "",
       validate: false,
       root: isRoot,
+      global,
     });
   }
 
