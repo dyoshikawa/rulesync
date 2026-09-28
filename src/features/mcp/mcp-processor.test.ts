@@ -1265,7 +1265,7 @@ describe("McpProcessor", () => {
       expect(globalTargets).toContain("cortexcode"); // ~/.snowflake/cortex/mcp.json
       expect(globalTargets).toContain("codewhale"); // ~/.codewhale/mcp.json
       expect(globalTargets).toContain("vibe");
-      expect(globalTargets).toContain("bob"); // ~/.bob/mcp.json
+      expect(globalTargets).toContain("bob"); // ~/.bob/settings/mcp.json
       expect(globalTargets).toContain("tabnine"); // ~/.tabnine/agent/settings.json
       expect(globalTargets).toContain("codebuff"); // ~/.agents/mcp.json
     });
