@@ -78,6 +78,19 @@ function userPrompt({ source = "interactive" }: { source?: string } = {}) {
   return { text: "hi", source };
 }
 
+function settleEvent({
+  entries = [],
+  outcome = "completed",
+}: { entries?: unknown[]; outcome?: string } = {}) {
+  return {
+    type: "agent_before_settle",
+    entries,
+    continue: false,
+    context: { canContinue: false },
+    outcome,
+  };
+}
+
 function uiContext({
   notify,
   hasUI = true,
@@ -151,7 +164,11 @@ describe("PiHooks", () => {
       expect(content).toContain(".rulesync/hooks/session-start.sh");
       expect(content).toContain('pi.on("session_shutdown", async () => {');
       expect(content).toContain("teardown.sh");
-      expect(content).toContain('pi.on("agent_end", async () => {');
+      // `stop` maps to Pi's actionable settle boundary (v0.87.0), so the
+      // handler reads the event, and `agent_settled` resets its loop guard.
+      expect(content).toContain('pi.on("agent_before_settle", async (event) => {');
+      expect(content).toContain('pi.on("agent_settled", async () => {');
+      expect(content).not.toContain('"agent_end"');
       expect(content).toContain(".rulesync/hooks/audit.sh");
       // `input` gates prompt submission, so the handler takes `ctx` for the
       // notify channel and returns an explicit `continue` on success.
@@ -523,8 +540,69 @@ describe("PiHooks", () => {
         },
       });
 
-      expect(registeredEvents).toEqual(["session_start", "tool_call", "agent_end"]);
+      expect(registeredEvents).toEqual([
+        "session_start",
+        "tool_call",
+        "agent_before_settle",
+        "agent_settled",
+      ]);
       expect(handlerFor("session_start")).toBeTypeOf("function");
+    });
+
+    it("should ask the agent to continue once when a stop hook command fails", async () => {
+      const { handlerFor } = await loadPiExtension({
+        testDir,
+        config: {
+          version: 1,
+          hooks: { stop: [{ command: "echo 'tests are failing' >&2; exit 2" }] },
+        },
+      });
+      const settle = handlerFor("agent_before_settle");
+      const settled = handlerFor("agent_settled");
+      const earlier = { type: "custom", customType: "other-extension" };
+
+      // Drafts proposed by earlier extensions are kept ahead of the reason.
+      expect(await settle(settleEvent({ entries: [earlier] }))).toEqual({
+        entries: [
+          earlier,
+          {
+            type: "custom_message",
+            customType: "rulesync-stop-hook",
+            content: "Stop hook feedback:\ntests are failing",
+            display: true,
+          },
+        ],
+        continue: true,
+      });
+      // The continuation settles again; a second failure must not loop.
+      expect(await settle(settleEvent())).toBeUndefined();
+
+      // `agent_settled` ends the run, so the next prompt may continue again.
+      await settled();
+      expect(await settle(settleEvent())).toMatchObject({ continue: true });
+    });
+
+    it("should not continue an aborted or errored run from a stop hook", async () => {
+      const { handlerFor } = await loadPiExtension({
+        testDir,
+        config: { version: 1, hooks: { stop: [{ command: "exit 1" }] } },
+      });
+      const settle = handlerFor("agent_before_settle");
+
+      expect(await settle(settleEvent({ outcome: "aborted" }))).toBeUndefined();
+      expect(await settle(settleEvent({ outcome: "error" }))).toBeUndefined();
+      // Neither spent the guard.
+      expect(await settle(settleEvent())).toMatchObject({ continue: true });
+    });
+
+    it("should leave the settle boundary alone when every stop hook passes", async () => {
+      const { handlerFor } = await loadPiExtension({
+        testDir,
+        config: { version: 1, hooks: { stop: [{ command: "exit 0" }, { command: "exit 0" }] } },
+      });
+
+      // Returning nothing keeps another extension's `continue` decision.
+      expect(await handlerFor("agent_before_settle")(settleEvent())).toBeUndefined();
     });
 
     it("should generate an input handler that skips the agent when the command fails", async () => {

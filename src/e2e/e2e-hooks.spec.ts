@@ -200,9 +200,9 @@ describe("E2E: hooks", () => {
     } else if (target === "pi") {
       // Pi emits a TypeScript extension (.pi/extensions/rulesync-hooks.ts)
       // that subscribes to snake_case extension events: sessionStart →
-      // session_start, stop → agent_end.
+      // session_start, stop → agent_before_settle.
       expect(generatedContent).toContain('pi.on("session_start"');
-      expect(generatedContent).toContain('pi.on("agent_end"');
+      expect(generatedContent).toContain('pi.on("agent_before_settle"');
       expect(generatedContent).toContain(".rulesync/hooks/session-start.sh");
       expect(generatedContent).toContain(".rulesync/hooks/audit.sh");
     } else {
