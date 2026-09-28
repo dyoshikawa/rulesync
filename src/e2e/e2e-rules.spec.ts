@@ -1816,6 +1816,66 @@ globs: ["src/**/*.ts"]
     expect(nonRootContent).toContain("src/**/*.ts");
   });
 
+  it("should generate antigravity-cli non-root rules into ~/.gemini/config/rules in global mode", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    const rootRuleContent = `---
+root: true
+targets: ["*"]
+description: "Root rule"
+globs: ["**/*"]
+---
+
+# Root Rule Content
+`;
+    const nonRootRuleContent = `---
+targets: ["*"]
+description: "Global coding guidelines"
+globs: ["**/*"]
+---
+
+# Global Non-Root Rule
+`;
+    await writeFileContent(
+      join(projectDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+      rootRuleContent,
+    );
+    await writeFileContent(
+      join(projectDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "coding-guidelines.md"),
+      nonRootRuleContent,
+    );
+
+    // A global rule the user created outside rulesync in the shared directory.
+    const userRulePath = join(homeDir, ".gemini", "config", "rules", "user-rule.md");
+    await writeFileContent(userRulePath, "---\ntrigger: always_on\n---\n# User Rule\n");
+
+    await runGenerate({
+      target: "antigravity-cli",
+      features: "rules",
+      global: true,
+      deleteFiles: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    // The shared directory is never swept, so the user's own rule survives.
+    expect(await readFileContent(userRulePath)).toContain("User Rule");
+
+    // Root rule -> ~/.gemini/GEMINI.md, with no reference to the non-root rule
+    // because the CLI loads ~/.gemini/config/rules/ by itself.
+    const rootContent = await readFileContent(join(homeDir, ".gemini", "GEMINI.md"));
+    expect(rootContent).toContain("Root Rule Content");
+    expect(rootContent).not.toContain("Global Non-Root Rule");
+    expect(rootContent).not.toContain("coding-guidelines.md");
+
+    // Non-root rule -> ~/.gemini/config/rules/*.md with `trigger` frontmatter
+    const nonRootContent = await readFileContent(
+      join(homeDir, ".gemini", "config", "rules", "coding-guidelines.md"),
+    );
+    expect(nonRootContent).toContain("trigger: always_on");
+    expect(nonRootContent).toContain("Global Non-Root Rule");
+  });
+
   it("should generate devin non-root rules into ~/.devin/rules in global mode", async () => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();
