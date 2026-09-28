@@ -2158,6 +2158,7 @@ Content that would fail parsing`;
         "kiro-ide",
         "mimocode",
         "opencode",
+        "openclaw",
         "pi",
         "pool",
         "qwencode",
@@ -2233,7 +2234,8 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("dsh");
       expect(globalTargets).toContain("continue");
       expect(globalTargets).toContain("commandcode");
-      expect(globalTargets.length).toBe(44);
+      expect(globalTargets).toContain("openclaw");
+      expect(globalTargets.length).toBe(45);
 
       // These targets should NOT be in global mode
       expect(globalTargets).not.toContain("cursor");
@@ -4955,6 +4957,7 @@ targets: ["claudecode"]
         // `grokcli` left this list when it gained `.grok/rules/`.
         "junie",
         "kimi-code",
+        "openclaw",
         "pi",
         "pool",
         "reasonix",

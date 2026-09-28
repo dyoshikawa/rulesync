@@ -53,6 +53,7 @@ describe("tool targets", () => {
         "musecode",
         "mimocode",
         "opencode",
+        "openclaw",
         "pi",
         "pool",
         "qwencode",

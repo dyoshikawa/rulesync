@@ -91,6 +91,7 @@ import { KiroIdeRule } from "./kiro-ide-rule.js";
 import { KiroRule } from "./kiro-rule.js";
 import { MimocodeRule } from "./mimocode-rule.js";
 import { MusecodeRule } from "./musecode-rule.js";
+import { OpenclawRule } from "./openclaw-rule.js";
 import { OpenCodeRule } from "./opencode-rule.js";
 import { PiRule } from "./pi-rule.js";
 import { PoolRule } from "./pool-rule.js";
@@ -965,6 +966,26 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         // generated and registered instead of being dropped.
         mcpInstructionsRegistrarGlobal: true,
         collisionPolicy: "compose",
+      },
+    },
+  ],
+  [
+    "openclaw",
+    {
+      class: OpenclawRule,
+      meta: {
+        // OpenClaw injects the agent workspace's `AGENTS.md`
+        // (`~/.openclaw/workspace/AGENTS.md`) into every session and appends
+        // the execution folder's `AGENTS.md` as project context. It documents
+        // no per-directory walk, so topic rules fold into the root file
+        // (mirrors zcode). Over-long files are truncated with a notice in the
+        // prompt (`bootstrapMaxChars`, 20,000 characters by default), so no
+        // instruction budget warning is needed.
+        // https://docs.openclaw.ai/concepts/system-prompt
+        extension: "md",
+        supportsGlobal: true,
+        ruleDiscoveryMode: "auto",
+        collisionPolicy: "fold",
       },
     },
   ],
