@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { LettacodeHooks } from "./lettacode-hooks.js";
@@ -141,6 +142,50 @@ describe("LettacodeHooks", () => {
           disabled: true,
         },
       });
+    });
+
+    it("should warn when existing prompt hooks are replaced", async () => {
+      await ensureDir(join(testDir, SETTINGS_DIR));
+      await writeFileContent(
+        join(testDir, SETTINGS_DIR, "settings.json"),
+        JSON.stringify({
+          hooks: {
+            Stop: [{ hooks: [{ type: "prompt", prompt: "Is the task done?" }] }],
+            PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: "old.sh" }] }],
+          },
+        }),
+      );
+      const logger = createMockLogger();
+
+      await LettacodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks: buildRulesyncHooks(testDir, {
+          version: 1,
+          hooks: { stop: [{ type: "command", command: "stop.sh" }] },
+        }),
+        validate: false,
+        logger,
+      });
+
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("(events: Stop)"));
+    });
+
+    it("should write global hooks to the home directory's .letta/settings.json", async () => {
+      const hooks = await LettacodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks: buildRulesyncHooks(testDir, {
+          version: 1,
+          hooks: { stop: [{ type: "command", command: "stop.sh" }] },
+        }),
+        validate: false,
+        global: true,
+      });
+
+      expect(hooks.getFilePath()).toBe(join(testDir, SETTINGS_DIR, "settings.json"));
+      expect(JSON.parse(hooks.getFileContent()).hooks.Stop).toEqual([
+        { hooks: [{ type: "command", command: "stop.sh" }] },
+      ]);
     });
 
     it("should refuse to overwrite an unparseable settings file", async () => {

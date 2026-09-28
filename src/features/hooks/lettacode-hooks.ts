@@ -44,10 +44,10 @@ const LETTACODE_NO_MATCHER_EVENTS: ReadonlySet<string> = new Set([
   "preCompact",
 ]);
 
-// `projectDirVar` is intentionally empty: Letta Code documents no project-root
-// variable for hook commands and spawns every hook with the project directory
-// as its working directory (`src/hooks/executor.ts`), so relative commands are
-// emitted verbatim. `timeout` is in milliseconds (default 60000), so the
+// `projectDirVar` is intentionally empty: Letta Code spawns every hook with the
+// project directory as its working directory (`src/hooks/executor.ts`, which
+// also exports it as `LETTA_WORKING_DIR`), so relative commands are emitted
+// verbatim. `timeout` is in milliseconds (default 60000), so the
 // canonical seconds are converted both ways. Only `command` hooks are emitted:
 // Letta's `prompt` hooks exist on a subset of events only.
 const LETTACODE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
@@ -75,6 +75,42 @@ function readHooksDisabled(existingContent: string): boolean | undefined {
     // An unparseable file is reported by `applySharedConfigPatch` below.
   }
   return undefined;
+}
+
+/**
+ * Lists the events whose existing hook entries rulesync cannot represent (any
+ * `type` other than `command`, such as Letta Code's `prompt` hooks). The whole
+ * `hooks` key is regenerated, so those entries are dropped and the user is
+ * warned instead of losing them silently.
+ */
+function findUnmanagedHookEvents(existingContent: string): string[] {
+  let hooks: unknown;
+  try {
+    hooks = parseLettacodeSettings(existingContent).hooks;
+  } catch {
+    return [];
+  }
+  if (hooks === null || typeof hooks !== "object") return [];
+  const events: string[] = [];
+  for (const [event, groups] of Object.entries(hooks)) {
+    if (!Array.isArray(groups)) continue;
+    const hasUnmanaged = groups.some((group: unknown) => {
+      const entries: unknown =
+        group !== null && typeof group === "object" && "hooks" in group ? group.hooks : undefined;
+      return (
+        Array.isArray(entries) &&
+        entries.some(
+          (entry: unknown) =>
+            entry !== null &&
+            typeof entry === "object" &&
+            "type" in entry &&
+            entry.type !== "command",
+        )
+      );
+    });
+    if (hasUnmanaged) events.push(event);
+  }
+  return events;
 }
 
 /**
@@ -161,6 +197,12 @@ export class LettacodeHooks extends ToolHooks {
 
     const config = rulesyncHooks.getJson();
     const disabled = readHooksDisabled(existingContent);
+    const unmanagedEvents = findUnmanagedHookEvents(existingContent);
+    if (unmanagedEvents.length > 0) {
+      logger?.warn(
+        `Letta Code hooks in ${filePath} that are not command hooks (events: ${unmanagedEvents.join(", ")}) are replaced by the generated hooks; rulesync only manages command hooks.`,
+      );
+    }
     const hooks = canonicalToToolHooks({
       config,
       toolOverrideHooks: config.lettacode?.hooks,

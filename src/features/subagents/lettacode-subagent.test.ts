@@ -87,6 +87,51 @@ describe("LettacodeSubagent", () => {
     );
   });
 
+  it("joins list values with ', ', since Letta Code ignores a YAML list", () => {
+    const subagent = LettacodeSubagent.fromRulesyncSubagent({
+      outputRoot: testDir,
+      relativeDirPath: agentsDir,
+      rulesyncSubagent: buildRulesyncSubagent({
+        name: "reviewer",
+        description: "Reviews code",
+        lettacode: { tools: ["Read", "Grep"], skills: ["lint", "Bash(git: *)"] },
+      }),
+    });
+
+    expect(subagent.getFileContent()).toContain(
+      "tools: Read, Grep\nskills: |-\n  lint, Bash(git: *)\n---",
+    );
+  });
+
+  it("writes a global subagent under the home directory's .letta/agents", () => {
+    const subagent = LettacodeSubagent.fromRulesyncSubagent({
+      outputRoot: testDir,
+      relativeDirPath: agentsDir,
+      rulesyncSubagent: buildRulesyncSubagent({ name: "reviewer", description: "Reviews code" }),
+      global: true,
+    });
+
+    expect(subagent.getFilePath()).toBe(join(testDir, agentsDir, "reviewer.md"));
+  });
+
+  it("does not require a description for an empty-body overlay of a built-in subagent", () => {
+    const logger = createMockLogger();
+    LettacodeSubagent.fromRulesyncSubagent({
+      outputRoot: testDir,
+      relativeDirPath: agentsDir,
+      rulesyncSubagent: new RulesyncSubagent({
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath: "explore.md",
+        frontmatter: { targets: ["*"], name: "explore", lettacode: { model: "haiku" } },
+        body: "",
+        validate: true,
+      }),
+      logger,
+    });
+
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
   it("warns about names and descriptions Letta Code would skip", () => {
     const logger = createMockLogger();
     LettacodeSubagent.fromRulesyncSubagent({

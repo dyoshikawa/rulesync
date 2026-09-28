@@ -59,6 +59,7 @@ const LETTACODE_TOOL_TO_CATEGORY: Record<string, string> = {
   shell_command: "bash",
   ShellCommand: "bash",
   exec_command: "bash",
+  write_stdin: "bash",
   read_file: "read",
   ReadFile: "read",
   MultiEdit: "edit",

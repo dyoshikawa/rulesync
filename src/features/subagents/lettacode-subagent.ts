@@ -81,14 +81,18 @@ function warnAboutRejectedAgentName({
  * (`src/utils/frontmatter.ts`), which takes a scalar verbatim after the first
  * colon and never unquotes it. A string YAML would have to quote is therefore
  * written as a literal block scalar, which Letta Code does parse; every other
- * value is written the way YAML would write it.
+ * value is written the way YAML would write it, except a list: Letta Code reads
+ * `tools` and `skills` only as comma-separated strings and treats a YAML list
+ * as absent (which for `tools` means every tool), so a list is joined with
+ * `, ` instead.
  */
 function stringifyLettacodeFrontmatter(body: string, frontmatter: Record<string, unknown>): string {
   const lines: string[] = [];
-  for (const [key, value] of Object.entries(frontmatter)) {
-    if (value === undefined || value === null) {
+  for (const [key, rawValue] of Object.entries(frontmatter)) {
+    if (rawValue === undefined || rawValue === null) {
       continue;
     }
+    const value = Array.isArray(rawValue) ? rawValue.map(String).join(", ") : rawValue;
     const dumped = dump({ [key]: value }, { lineWidth: -1 }).trimEnd();
     const needsBlockScalar =
       typeof value === "string" &&
@@ -199,7 +203,10 @@ export class LettacodeSubagent extends ToolSubagent {
       logger,
     });
 
-    if (!lettacodeSubagentFrontmatter.description) {
+    const body = rulesyncSubagent.getBody();
+    // A subagent with an empty body only overlays a built-in subagent by the
+    // same name, which Letta Code loads without a description.
+    if (!lettacodeSubagentFrontmatter.description && body.trim() !== "") {
       logger?.warn(
         `Letta Code subagent ${rulesyncSubagent.getRelativeFilePath()}: Letta Code requires a ` +
           `description and skips a subagent without one. Add a description for it to be ` +
@@ -207,7 +214,6 @@ export class LettacodeSubagent extends ToolSubagent {
       );
     }
 
-    const body = rulesyncSubagent.getBody();
     const fileContent = stringifyLettacodeFrontmatter(body, lettacodeSubagentFrontmatter);
     const paths = this.getSettablePaths({ global });
 
