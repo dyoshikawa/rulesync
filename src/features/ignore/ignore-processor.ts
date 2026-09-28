@@ -19,6 +19,7 @@ import { AugmentcodeIgnore } from "./augmentcode-ignore.js";
 import { BobIgnore } from "./bob-ignore.js";
 import { ClaudecodeIgnore } from "./claudecode-ignore.js";
 import { ClineIgnore } from "./cline-ignore.js";
+import { CodebuffIgnore } from "./codebuff-ignore.js";
 import { ContinueIgnore } from "./continue-ignore.js";
 import { CrushIgnore } from "./crush-ignore.js";
 import { CursorIgnore } from "./cursor-ignore.js";
@@ -73,6 +74,8 @@ export const toolIgnoreFactories = new Map<IgnoreProcessorToolTarget, ToolIgnore
   ["claudecode", { class: ClaudecodeIgnore }],
   ["claudecode-legacy", { class: ClaudecodeIgnore }],
   ["cline", { class: ClineIgnore }],
+  // Codebuff (Freebuff) reads `.codebuffignore` from the project only.
+  ["codebuff", { class: CodebuffIgnore }],
   ["continue", { class: ContinueIgnore }],
   ["crush", { class: CrushIgnore }],
   ["cursor", { class: CursorIgnore }],

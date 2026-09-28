@@ -35,6 +35,7 @@ const mcpGenerateTargets = [
   { target: "amp", outputPath: join(".amp", "settings.json") },
   { target: "claudecode", outputPath: ".mcp.json" },
   { target: "claudecode-plugin", outputPath: ".mcp.json" },
+  { target: "codebuff", outputPath: join(".agents", "mcp.json") },
   { target: "cursor", outputPath: join(".cursor", "mcp.json") },
   { target: "qwencode", outputPath: join(".qwen", "settings.json") },
   { target: "codexcli", outputPath: join(".codex", "config.toml") },
@@ -406,6 +407,7 @@ describe("E2E: mcp", () => {
     // amp, codexcli, grokcli, opencode, kilo use merged config files
     // (isDeletable=false) — excluded
     { target: "claudecode", orphanPath: ".mcp.json" },
+    { target: "codebuff", orphanPath: join(".agents", "mcp.json") },
     { target: "commandcode", orphanPath: ".mcp.json" },
     { target: "continue", orphanPath: join(".continue", "mcpServers", "mcp.json") },
     { target: "cursor", orphanPath: join(".cursor", "mcp.json") },
@@ -744,6 +746,7 @@ describe("E2E: mcp (import)", () => {
     { target: "continue", sourcePath: join(".continue", "mcpServers", "mcp.json") },
     { target: "tabnine", sourcePath: join(".tabnine", "agent", "settings.json") },
     { target: "claudecode", sourcePath: ".mcp.json" },
+    { target: "codebuff", sourcePath: join(".agents", "mcp.json") },
     { target: "commandcode", sourcePath: ".mcp.json" },
     { target: "cursor", sourcePath: join(".cursor", "mcp.json") },
     { target: "codewhale", sourcePath: join(".codewhale", "mcp.json") },
@@ -944,6 +947,7 @@ const mcpGlobalTargets = [
     outputPath: join(".cline", "data", "settings", "cline_mcp_settings.json"),
   },
   { target: "cortexcode", outputPath: join(".snowflake", "cortex", "mcp.json") },
+  { target: "codebuff", outputPath: join(".agents", "mcp.json") },
   { target: "codewhale", outputPath: join(".codewhale", "mcp.json") },
   { target: "commandcode", outputPath: join(".commandcode", "mcp.json") },
   { target: "musecode", outputPath: join(".config", "muse", "settings.json") },

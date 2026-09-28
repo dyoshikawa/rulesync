@@ -1251,6 +1251,7 @@ describe("McpProcessor", () => {
       expect(targets).toContain("vibe");
       expect(targets).toContain("bob");
       expect(targets).toContain("tabnine");
+      expect(targets).toContain("codebuff"); // .agents/mcp.json
     });
 
     it("should include kilo in global tool targets", () => {
@@ -1266,6 +1267,7 @@ describe("McpProcessor", () => {
       expect(globalTargets).toContain("vibe");
       expect(globalTargets).toContain("bob"); // ~/.bob/mcp.json
       expect(globalTargets).toContain("tabnine"); // ~/.tabnine/agent/settings.json
+      expect(globalTargets).toContain("codebuff"); // ~/.agents/mcp.json
     });
   });
 
