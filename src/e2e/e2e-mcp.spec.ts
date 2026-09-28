@@ -976,6 +976,7 @@ const mcpGlobalTargets = [
   { target: "kiro-cli", outputPath: join(".kiro", "settings", "mcp.json") },
   { target: "kiro-ide", outputPath: join(".kiro", "settings", "mcp.json") },
   { target: "zcode", outputPath: join(".zcode", "cli", "config.json") },
+  { target: "dsh", outputPath: join(".dsh", "cordis.patch.yml") },
 ] as const;
 
 describe("E2E: mcp (global mode)", () => {
@@ -1040,6 +1041,71 @@ describe("E2E: mcp (global mode)", () => {
       await readFileContent(join(homeDir, RULESYNC_MCP_RELATIVE_FILE_PATH)),
     );
     expect(imported["kimi-code"]).toEqual({ startupTimeoutMs: 45000, toolTimeoutMs: 90000 });
+  });
+
+  it("should merge dsh MCP rows into ~/.dsh/cordis.patch.yml and import them back", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+    const patchPath = join(homeDir, ".dsh", "cordis.patch.yml");
+    await writeFileContent(
+      patchPath,
+      [
+        "- insert:",
+        "    - id: memory-mcp-reference",
+        "      name: '@deepseek-ai/dsh-mcp-client'",
+        "      config:",
+        "        serverName: remote",
+        "        transport: stdio",
+        "        command: old-server",
+        "- id: web-settings",
+        "  config:",
+        "    port: !!js ctx.webStartup.port ?? 3080",
+      ].join("\n"),
+    );
+    await writeFileContent(
+      join(projectDir, RULESYNC_MCP_RELATIVE_FILE_PATH),
+      JSON.stringify({
+        mcpServers: { remote: { type: "http", url: "https://example.com/mcp" } },
+        // A tool-scoped entry replaces the shared one for dsh only.
+        dsh: {
+          mcpServers: {
+            remote: { type: "http", url: "https://example.com/mcp", toolCallTimeoutMs: 90000 },
+          },
+        },
+      }),
+    );
+
+    await runGenerate({ target: "dsh", features: "mcp", global: true, env: { HOME_DIR: homeDir } });
+
+    const generated = await readFileContent(patchPath);
+    // The user's other patch entries and `!!js` expressions survive, and the
+    // existing row id is reused so id-targeted patches keep applying.
+    expect(generated).toContain("port: !!js ctx.webStartup.port ?? 3080");
+    expect(generated).toContain("id: memory-mcp-reference");
+    expect(generated).toContain("transport: streamable-http");
+    expect(generated).toContain("toolCallTimeoutMs: 90000");
+    expect(generated).not.toContain("old-server");
+
+    await runImport({ target: "dsh", features: "mcp", global: true, env: { HOME_DIR: homeDir } });
+
+    const imported = JSON.parse(
+      await readFileContent(join(homeDir, RULESYNC_MCP_RELATIVE_FILE_PATH)),
+    );
+    expect(imported.mcpServers.remote).toEqual({ type: "http", url: "https://example.com/mcp" });
+    expect(imported.dsh.mcpServers.remote).toMatchObject({ toolCallTimeoutMs: 90000 });
+  });
+
+  it("should not create ~/.dsh/cordis.patch.yml when there are no dsh MCP servers", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+    await writeFileContent(
+      join(projectDir, RULESYNC_MCP_RELATIVE_FILE_PATH),
+      JSON.stringify({ mcpServers: {} }),
+    );
+
+    await runGenerate({ target: "dsh", features: "mcp", global: true, env: { HOME_DIR: homeDir } });
+
+    expect(await fileExists(join(homeDir, ".dsh", "cordis.patch.yml"))).toBe(false);
   });
 
   it("should import Hermes OAuth and lifecycle settings into a target override", async () => {
