@@ -1081,6 +1081,19 @@ describe("E2E: mcp (global mode)", () => {
     expect(imported.dsh.mcpServers.remote).toMatchObject({ toolCallTimeoutMs: 90000 });
   });
 
+  it("should not create ~/.dsh/cordis.patch.yml when there are no dsh MCP servers", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+    await writeFileContent(
+      join(projectDir, RULESYNC_MCP_RELATIVE_FILE_PATH),
+      JSON.stringify({ mcpServers: {} }),
+    );
+
+    await runGenerate({ target: "dsh", features: "mcp", global: true, env: { HOME_DIR: homeDir } });
+
+    expect(await fileExists(join(homeDir, ".dsh", "cordis.patch.yml"))).toBe(false);
+  });
+
   it("should import Hermes OAuth and lifecycle settings into a target override", async () => {
     const homeDir = getHomeDir();
     await writeFileContent(

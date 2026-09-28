@@ -1,5 +1,6 @@
 import { join } from "node:path";
 
+import { load } from "js-yaml";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createMockLogger } from "../../test-utils/mock-logger.js";
@@ -209,6 +210,91 @@ describe("DshMcp", () => {
     );
   });
 
+  it("keeps each server in the entry that held it and appends new servers to a top-level insert", async () => {
+    await writeFileContent(
+      join(testDir, ...PATCH_PATH),
+      [
+        "- id: tools-group",
+        "  insert:",
+        "    - id: mcp-a",
+        "      name: '@deepseek-ai/dsh-mcp-client'",
+        "      config: { serverName: a, transport: stdio, command: old }",
+        "- insert:",
+        "    - id: mcp-b",
+        "      name: '@deepseek-ai/dsh-mcp-client'",
+        "      config: { serverName: b, transport: stdio, command: old }",
+      ].join("\n"),
+    );
+    const rulesyncMcp = createRulesyncMcp(testDir, {
+      a: { command: "a" },
+      b: { command: "b" },
+      c: { command: "c" },
+    });
+
+    const dshMcp = await DshMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp, global: true });
+
+    const entries = load(dshMcp.getFileContent()) as Array<{ id?: string; insert: unknown[] }>;
+    expect(entries.map((entry) => entry.id)).toEqual(["tools-group", undefined]);
+    expect(entries[0]?.insert).toEqual([
+      expect.objectContaining({ id: "mcp-a", config: expect.objectContaining({ command: "a" }) }),
+    ]);
+    expect(entries[1]?.insert).toEqual([
+      expect.objectContaining({ id: "mcp-b" }),
+      expect.objectContaining({ id: "mcp-c" }),
+    ]);
+  });
+
+  it("keeps an entry's other keys when its last MCP row is removed", async () => {
+    await writeFileContent(
+      join(testDir, ...PATCH_PATH),
+      [
+        "- id: tools-group",
+        "  disabled: true",
+        "  insert:",
+        "    - id: mcp-old",
+        "      name: '@deepseek-ai/dsh-mcp-client'",
+        "      config: { serverName: old, transport: stdio, command: old }",
+      ].join("\n"),
+    );
+    const rulesyncMcp = createRulesyncMcp(testDir, {});
+
+    const dshMcp = await DshMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp, global: true });
+
+    expect(dshMcp.getFileContent()).toBe(["- id: tools-group", "  disabled: true", ""].join("\n"));
+  });
+
+  it("never writes two rows with the same id", async () => {
+    await writeFileContent(
+      join(testDir, ...PATCH_PATH),
+      [
+        "- insert:",
+        "    - id: mcp-c",
+        "      name: '@example/other-plugin'",
+        "    - id: mcp-a",
+        "      name: '@deepseek-ai/dsh-mcp-client'",
+        "      config: { serverName: b, transport: stdio, command: old }",
+      ].join("\n"),
+    );
+    const rulesyncMcp = createRulesyncMcp(testDir, {
+      a: { command: "a" },
+      b: { command: "b" },
+      c: { command: "c" },
+    });
+
+    const dshMcp = await DshMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp, global: true });
+
+    const [entry] = load(dshMcp.getFileContent()) as Array<{
+      insert: Array<{ id: string; config?: { serverName: string } }>;
+    }>;
+    expect(entry?.insert.map((row) => [row.id, row.config?.serverName])).toEqual([
+      ["mcp-c", undefined],
+      // b keeps the id of its existing row, so a falls back to a suffixed id.
+      ["mcp-a", "b"],
+      ["mcp-a-2", "a"],
+      ["mcp-c-2", "c"],
+    ]);
+  });
+
   it("skips servers dsh cannot load, with a warning", async () => {
     const logger = createMockLogger();
     const rulesyncMcp = createRulesyncMcp(testDir, {
@@ -239,8 +325,27 @@ describe("DshMcp", () => {
     ).rejects.toThrow(/must be a YAML list/);
   });
 
-  it("imports MCP rows, dropping !!js values and keeping dsh-only fields in the dsh block", async () => {
-    await writeFileContent(join(testDir, ...PATCH_PATH), USER_PATCH);
+  it("imports MCP rows, dropping !!js map values and keeping dsh-only fields in the dsh block", async () => {
+    await writeFileContent(
+      join(testDir, ...PATCH_PATH),
+      [
+        "- insert:",
+        "    - id: memory-mcp-reference",
+        "      name: '@deepseek-ai/dsh-mcp-client'",
+        "      config:",
+        "        serverName: reference_memory",
+        "        transport: stdio",
+        "        command: mcp-server-memory",
+        "        env:",
+        "          MEMORY_FILE_PATH: !!js process.env.MEMORY_FILE_PATH?.trim() || 'memory.jsonl'",
+        "          PLAIN: value",
+        "        headers:",
+        "          Ignored: !!js 'x'",
+        "        toolCallTimeoutMs: 90000",
+        "        reconnect:",
+        "          enabled: false",
+      ].join("\n"),
+    );
 
     const dshMcp = await DshMcp.fromFile({ outputRoot: testDir, global: true });
     const imported = JSON.parse(dshMcp.toRulesyncMcp().getFileContent());
@@ -259,6 +364,35 @@ describe("DshMcp", () => {
       toolCallTimeoutMs: 90000,
       reconnect: { enabled: false },
     });
+  });
+
+  it("skips importing a row whose command, cwd, args or disabled is a !!js expression", async () => {
+    await writeFileContent(
+      join(testDir, ...PATCH_PATH),
+      [
+        USER_PATCH,
+        "- insert:",
+        "    - id: mcp-args",
+        "      name: '@deepseek-ai/dsh-mcp-client'",
+        "      config: { serverName: args, transport: stdio, command: server, args: [a, !!js 'b'] }",
+        "    - id: mcp-toggle",
+        "      name: '@deepseek-ai/dsh-mcp-client'",
+        "      disabled: !!js process.env.CI === '1'",
+        "      config: { serverName: toggle, transport: stdio, command: server }",
+        "    - id: mcp-plain",
+        "      name: '@deepseek-ai/dsh-mcp-client'",
+        "      config: { serverName: plain, transport: stdio, command: server }",
+      ].join("\n"),
+    );
+    const logger = createMockLogger();
+
+    const dshMcp = await DshMcp.fromFile({ outputRoot: testDir, global: true, logger });
+    const imported = JSON.parse(dshMcp.toRulesyncMcp().getFileContent());
+
+    // reference_memory has `cwd: !!js process.cwd()`.
+    expect(Object.keys(imported.mcpServers)).toEqual(["plain"]);
+    expect(logger.warn).toHaveBeenCalledTimes(3);
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"reference_memory"'));
   });
 
   it("imports a streamable-http row as canonical http", async () => {

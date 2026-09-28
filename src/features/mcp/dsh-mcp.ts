@@ -71,7 +71,7 @@ type DshMcpRow = {
   id: string;
   name: typeof DSH_MCP_CLIENT_PLUGIN_NAME;
   disabled?: true;
-  config: Record<string, unknown>;
+  config: { serverName: string } & Record<string, unknown>;
 };
 
 /**
@@ -121,22 +121,29 @@ function getRowServerName(row: Record<string, unknown>): string | undefined {
     : undefined;
 }
 
+function hasOnlyInsertKey(entry: Record<string, unknown>): boolean {
+  return Object.keys(entry).every((key) => key === "insert");
+}
+
 /**
  * Replace every `@deepseek-ai/dsh-mcp-client` row with `rows`, leaving all
- * other patch entries and rows untouched. The new rows take the place of the
- * first existing MCP row so any later entry that targets them by `id` still
- * follows them; an `insert` entry left empty by the removal is dropped. With no
- * existing MCP row, the rows are appended as one new `insert` entry.
+ * other patch entries and rows untouched. A server that already had a row is
+ * written where that row stood, so it stays in the same entry (an `insert`
+ * into a group keeps inserting into that group) and any later patch that
+ * targets it by `id` still follows it. Rows of servers that are gone are
+ * removed; an entry left with an empty `insert` loses that key, and is dropped
+ * only if `insert` was its sole key. New servers are appended to the first
+ * plain top-level `insert` entry, or to a new one at the end of the file.
  */
 function replaceMcpClientRows(entries: unknown[], rows: DshMcpRow[]): unknown[] {
-  let placed = false;
+  const pending = new Map(rows.map((row) => [row.config.serverName, row]));
   const result: unknown[] = [];
   for (const entry of entries) {
-    if (!isPlainObject(entry) || !Array.isArray(entry.insert)) {
-      result.push(entry);
-      continue;
-    }
-    if (!entry.insert.some(isMcpClientRow)) {
+    if (
+      !isPlainObject(entry) ||
+      !Array.isArray(entry.insert) ||
+      !entry.insert.some(isMcpClientRow)
+    ) {
       result.push(entry);
       continue;
     }
@@ -144,19 +151,82 @@ function replaceMcpClientRows(entries: unknown[], rows: DshMcpRow[]): unknown[] 
     for (const row of entry.insert) {
       if (!isMcpClientRow(row)) {
         insert.push(row);
-      } else if (!placed) {
-        insert.push(...rows);
-        placed = true;
+        continue;
+      }
+      const serverName = getRowServerName(row);
+      const replacement = serverName === undefined ? undefined : pending.get(serverName);
+      if (serverName !== undefined && replacement !== undefined) {
+        insert.push(replacement);
+        pending.delete(serverName);
       }
     }
     if (insert.length > 0) {
       result.push({ ...entry, insert });
+    } else if (!hasOnlyInsertKey(entry)) {
+      const { insert: _removed, ...rest } = entry;
+      result.push(rest);
     }
   }
-  if (!placed && rows.length > 0) {
-    result.push({ insert: rows });
+
+  const remaining = [...pending.values()];
+  if (remaining.length === 0) return result;
+  const targetIndex = result.findIndex(
+    (entry) => isPlainObject(entry) && Array.isArray(entry.insert) && hasOnlyInsertKey(entry),
+  );
+  const target = result[targetIndex];
+  if (isPlainObject(target) && Array.isArray(target.insert)) {
+    result[targetIndex] = { ...target, insert: [...target.insert, ...remaining] };
+  } else {
+    result.push({ insert: remaining });
   }
   return result;
+}
+
+/**
+ * Assign each server a row `id`: the id of its existing row when there is one
+ * (other patch layers target rows by `id`), otherwise `mcp-<name>`, suffixed
+ * when that would collide with an id already in the file.
+ */
+function assignRowIds({
+  serverNames,
+  entries,
+}: {
+  serverNames: string[];
+  entries: unknown[];
+}): Map<string, string> {
+  const insertRows = entries.flatMap((entry) =>
+    isPlainObject(entry) && Array.isArray(entry.insert) ? entry.insert.filter(isPlainObject) : [],
+  );
+  const usedIds = new Set<string>();
+  for (const row of insertRows) {
+    const owned: boolean = isMcpClientRow(row);
+    if (!owned && typeof row.id === "string") usedIds.add(row.id);
+  }
+  const existingIds = new Map<string, string>();
+  for (const row of collectMcpClientRows(entries)) {
+    const serverName = getRowServerName(row);
+    if (
+      serverName === undefined ||
+      !serverNames.includes(serverName) ||
+      existingIds.has(serverName) ||
+      typeof row.id !== "string" ||
+      usedIds.has(row.id)
+    ) {
+      continue;
+    }
+    existingIds.set(serverName, row.id);
+    usedIds.add(row.id);
+  }
+  const ids = new Map(existingIds);
+  for (const serverName of serverNames) {
+    if (ids.has(serverName)) continue;
+    const base = `mcp-${serverName}`;
+    let id = base;
+    for (let suffix = 2; usedIds.has(id); suffix++) id = `${base}-${suffix}`;
+    usedIds.add(id);
+    ids.set(serverName, id);
+  }
+  return ids;
 }
 
 function resolveDshTransport(
@@ -219,12 +289,12 @@ function buildStreamableHttpFields(server: McpServer): Record<string, unknown> |
 function convertServerToDshRow({
   name,
   server,
-  existingIds,
+  id,
   logger,
 }: {
   name: string;
   server: McpServer;
-  existingIds: Map<string, string>;
+  id: string;
   logger?: Logger;
 }): DshMcpRow | null {
   const skip = (reason: string): null => {
@@ -247,11 +317,11 @@ function convertServerToDshRow({
     transport === "stdio" ? buildStdioFields(server) : buildStreamableHttpFields(server);
   if (typeof fields === "string") return skip(fields);
 
-  const config: Record<string, unknown> = { serverName: name, transport, ...fields };
+  const config: DshMcpRow["config"] = { serverName: name, transport, ...fields };
   copyPassthroughFields(server as Record<string, unknown>, config);
 
   return {
-    id: existingIds.get(name) ?? `mcp-${name}`,
+    id,
     name: DSH_MCP_CLIENT_PLUGIN_NAME,
     ...(server.disabled === true && { disabled: true }),
     config,
@@ -267,10 +337,32 @@ function copyStringRecord(value: unknown): Record<string, string> | undefined {
       result[key] = entry;
     }
   }
-  return result;
+  return Object.keys(result).length > 0 ? result : undefined;
 }
 
-function convertRowsFromDsh(rows: Record<string, unknown>[]): {
+/**
+ * The first field that decides what a row runs, or whether it runs, and is a
+ * `!!js` expression. Such a row has no faithful canonical form, so import
+ * skips it instead of carrying a server with a hole in it. A `!!js` value in
+ * `env` or `headers` only drops that one entry.
+ */
+function findJsExpressionField(row: Record<string, unknown>): string | undefined {
+  if (row.disabled instanceof DshJsExpression) return "disabled";
+  const config = row.config;
+  if (!isPlainObject(config)) return undefined;
+  for (const field of ["transport", "command", "url", "cwd"] as const) {
+    if (config[field] instanceof DshJsExpression) return field;
+  }
+  if (Array.isArray(config.args) && config.args.some((arg) => arg instanceof DshJsExpression)) {
+    return "args";
+  }
+  return undefined;
+}
+
+function convertRowsFromDsh(
+  rows: Record<string, unknown>[],
+  logger?: Logger,
+): {
   mcpServers: McpServers;
   dshOverrides: McpServers;
 } {
@@ -280,6 +372,15 @@ function convertRowsFromDsh(rows: Record<string, unknown>[]): {
     const config = row.config;
     const name = getRowServerName(row);
     if (!isPlainObject(config) || name === undefined || PROTOTYPE_POLLUTION_KEYS.has(name)) {
+      continue;
+    }
+    const jsField = findJsExpressionField(row);
+    if (jsField !== undefined) {
+      logger?.warn(
+        `DeepSeek Harness MCP: not importing "${name}" because its \`${jsField}\` is a !!js ` +
+          `expression, which has no rulesync equivalent. Define it in .rulesync/mcp.jsonc, or the ` +
+          `next generate will remove the row.`,
+      );
       continue;
     }
     const server: Record<string, unknown> = {};
@@ -322,6 +423,9 @@ function convertRowsFromDsh(rows: Record<string, unknown>[]): {
  * @see https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/mcp/mcp-client/README.md
  */
 export class DshMcp extends ToolMcp {
+  /** Reports rows that import skips; set by `fromFile`. */
+  private importLogger?: Logger;
+
   override isDeletable(): boolean {
     return false;
   }
@@ -337,6 +441,7 @@ export class DshMcp extends ToolMcp {
     outputRoot = process.cwd(),
     validate = true,
     global = false,
+    logger,
   }: ToolMcpFromFileParams): Promise<DshMcp> {
     if (!global) {
       throw new Error(DSH_GLOBAL_ONLY_MESSAGE);
@@ -345,7 +450,7 @@ export class DshMcp extends ToolMcp {
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const fileContent = (await readFileContentOrNull(filePath)) ?? "";
 
-    return new DshMcp({
+    const dshMcp = new DshMcp({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
@@ -353,6 +458,8 @@ export class DshMcp extends ToolMcp {
       validate,
       global,
     });
+    dshMcp.importLogger = logger;
+    return dshMcp;
   }
 
   static async fromRulesyncMcp({
@@ -370,19 +477,14 @@ export class DshMcp extends ToolMcp {
     const existingContent = (await readFileContentOrNull(filePath)) ?? "";
     const entries = parseCordisPatchList(existingContent);
 
-    // Keep the `id` of an existing row for the same server: other patch layers
-    // (the profile patch, `--patch` overlays) target rows by `id`.
-    const existingIds = new Map<string, string>();
-    for (const row of collectMcpClientRows(entries)) {
-      const serverName = getRowServerName(row);
-      if (serverName !== undefined && typeof row.id === "string" && !existingIds.has(serverName)) {
-        existingIds.set(serverName, row.id);
-      }
-    }
-
-    const rows = Object.entries(rulesyncMcp.getMcpServers())
-      .filter(([name]) => !PROTOTYPE_POLLUTION_KEYS.has(name))
-      .map(([name, server]) => convertServerToDshRow({ name, server, existingIds, logger }))
+    const servers = Object.entries(rulesyncMcp.getMcpServers()).filter(
+      ([name]) => !PROTOTYPE_POLLUTION_KEYS.has(name),
+    );
+    const ids = assignRowIds({ serverNames: servers.map(([name]) => name), entries });
+    const rows = servers
+      .map(([name, server]) =>
+        convertServerToDshRow({ name, server, id: ids.get(name) ?? `mcp-${name}`, logger }),
+      )
       .filter((row) => row !== null);
 
     return new DshMcp({
@@ -398,6 +500,7 @@ export class DshMcp extends ToolMcp {
   toRulesyncMcp(): RulesyncMcp {
     const { mcpServers, dshOverrides } = convertRowsFromDsh(
       collectMcpClientRows(parseCordisPatchList(this.fileContent)),
+      this.importLogger,
     );
     return this.toRulesyncMcpDefault({
       fileContent: JSON.stringify(
