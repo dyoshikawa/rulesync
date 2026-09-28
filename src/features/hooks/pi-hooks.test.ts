@@ -577,8 +577,9 @@ describe("PiHooks", () => {
         ],
         continue: true,
       });
-      // The continuation settles again; a second failure must not loop.
-      expect(await settle(settleEvent())).toBeUndefined();
+      // The continuation settles again; a second failure must not loop, and is
+      // left for Pi to report instead.
+      await expect(settle(settleEvent())).rejects.toMatchObject({ code: 2 });
 
       // `agent_settled` ends the run, so the next prompt may continue again.
       await settled();
@@ -592,13 +593,13 @@ describe("PiHooks", () => {
       });
       const settle = handlerFor("agent_before_settle");
 
-      expect(await settle(settleEvent({ outcome: "aborted" }))).toBeUndefined();
-      expect(await settle(settleEvent({ outcome: "error" }))).toBeUndefined();
+      await expect(settle(settleEvent({ outcome: "aborted" }))).rejects.toMatchObject({ code: 2 });
+      await expect(settle(settleEvent({ outcome: "error" }))).rejects.toMatchObject({ code: 2 });
       // Neither spent the guard.
       expect(await settle(settleEvent())).toMatchObject({ continue: true });
     });
 
-    it("should only observe a stop hook that fails with an exit code other than 2", async () => {
+    it("should not continue for a stop hook that fails with an exit code other than 2", async () => {
       // Claude Code's `Stop` blocks on exit code 2 only; any other failure,
       // including a command that cannot be found, must not buy an extra request.
       const { handlerFor } = await loadPiExtension({
@@ -609,7 +610,10 @@ describe("PiHooks", () => {
         },
       });
 
-      expect(await handlerFor("agent_before_settle")(settleEvent())).toBeUndefined();
+      // Rethrown so Pi reports the broken hook instead of it failing silently.
+      await expect(handlerFor("agent_before_settle")(settleEvent())).rejects.toMatchObject({
+        code: 1,
+      });
     });
 
     it("should run every stop command and combine their feedback", async () => {

@@ -49,10 +49,11 @@ const PI_PROMPT_BLOCKING_EVENT = "input";
  * run settles. Returning `{ entries, continue: true }` persists the entries and
  * runs one more model request, which is how a canonical `stop` hook keeps the
  * agent going. Like Claude Code's `Stop`, only exit code 2 asks for that; any
- * other failure (including a command that could not be run) is only observed,
- * since the safe side of a stop hook is to let the
- * agent stop rather than to pay for an extra model request. Every configured
- * stop command runs, and their feedback is combined into one request. Pi warns
+ * other failure (including a command that could not be run) never continues
+ * the agent, since the safe side of a stop hook is to let the agent stop rather
+ * than to pay for an extra model request; it is rethrown after every stop
+ * command has run, so Pi reports it as an extension error. The feedback of all
+ * commands exiting with 2 is combined into one request. Pi warns
  * that an unconditional continuation loops, so the generated extension
  * continues at most once per settled run and resets that guard on
  * `agent_settled`, which Pi fires exactly once when the run is final.
@@ -61,7 +62,10 @@ const PI_PROMPT_BLOCKING_EVENT = "input";
  */
 const PI_SETTLE_BLOCKING_EVENT = "agent_before_settle";
 
-/** How a generated handler reacts to a hook command that exits non-zero. */
+/**
+ * How a generated handler reacts to a hook command that exits non-zero. The
+ * `settle` gate reacts to exit code 2 only; see `PI_SETTLE_BLOCKING_EVENT`.
+ */
 type BlockingMode = "none" | "tool" | "prompt" | "settle";
 
 const PI_BLOCKING_MODE_BY_EVENT: Record<string, BlockingMode> = {
@@ -85,7 +89,7 @@ const FAILURE_LINES_BY_MODE: Record<BlockingMode, readonly string[]> = {
   prompt: ["reportPromptGateFailure(ctx, toBlockReason(error));", 'return { action: "handled" };'],
   // Feedback is only collected here; the handler decides after every stop
   // command has run (see `buildSubscriptionLines`).
-  settle: ["collectStopHookFeedback(stopHookFeedback, error);"],
+  settle: ["stopHookFailures.push(error);"],
 };
 
 /**
@@ -94,7 +98,9 @@ const FAILURE_LINES_BY_MODE: Record<BlockingMode, readonly string[]> = {
  * reason is derived from the rejection rather than from a resolved exit code.
  * A command that could not be run at all (spawn failure, `maxBuffer` overflow)
  * also rejects, and is deliberately treated as a block: a gate that cannot run
- * must not silently pass.
+ * must not silently pass. The `settle` gate is the exception (see
+ * `PI_SETTLE_BLOCKING_EVENT`): such a failure is rethrown for Pi to report
+ * instead of continuing the agent.
  *
  * The chosen text is sanitized because a hook command's output can relay
  * third-party content (linter output, matched file lines) into a terminal or,
@@ -187,8 +193,8 @@ const PROMPT_GATE_HELPER_LINES = [
  * appended message is committed, and Pi re-validates the final context itself.
  */
 const STOP_HOOK_HELPER_LINES = [
-  "function collectStopHookFeedback(feedback: string[], error: unknown): void {",
-  "  if ((error as { code?: unknown } | null)?.code === 2) feedback.push(toBlockReason(error));",
+  "function isStopHookBlock(error: unknown): boolean {",
+  "  return (error as { code?: unknown } | null)?.code === 2;",
   "}",
   "",
   "function continueAfterStopHook(",
@@ -337,7 +343,7 @@ function buildSubscriptionLines(handlerGroups: HandlerGroup): string[] {
       lines.push(`    if (event.source === "extension") return { action: "continue" };`);
     }
     if (isSettleGate) {
-      lines.push("    const stopHookFeedback: string[] = [];");
+      lines.push("    const stopHookFailures: unknown[] = [];");
     }
     for (const handler of handlers) {
       lines.push(
@@ -354,13 +360,20 @@ function buildSubscriptionLines(handlerGroups: HandlerGroup): string[] {
     if (isSettleGate) {
       // Only a completed run is continued: an aborted one is the user stopping
       // the agent, and an errored one is a provider failure Claude Code's
-      // `Stop` does not fire for either. Returning nothing keeps another
-      // extension's `continue` decision.
+      // `Stop` does not fire for either. A failure that does not continue the
+      // agent is rethrown so Pi reports it, as it did for the notify-only
+      // `agent_end` mapping; returning nothing keeps another extension's
+      // `continue` decision.
+      lines.push("    const blocks = stopHookFailures.filter(isStopHookBlock);");
       lines.push(
-        '    if (stopHookFeedback.length === 0 || stopHookContinued || event.outcome !== "completed") return;',
+        '    if (blocks.length > 0 && !stopHookContinued && event.outcome === "completed") {',
       );
-      lines.push("    stopHookContinued = true;");
-      lines.push('    return continueAfterStopHook(event, stopHookFeedback.join("\\n\\n"));');
+      lines.push("      stopHookContinued = true;");
+      lines.push(
+        '      return continueAfterStopHook(event, blocks.map(toBlockReason).join("\\n\\n"));',
+      );
+      lines.push("    }");
+      lines.push("    if (stopHookFailures.length > 0) throw stopHookFailures[0];");
     }
     lines.push("  });");
     if (isSettleGate) {
