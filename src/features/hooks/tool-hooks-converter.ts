@@ -342,6 +342,15 @@ function isExecFormHook({
 }
 
 /**
+ * Whether a hook's command runs in a POSIX shell. The shell-word scanner in
+ * `hook-command-paths.ts` assumes sh syntax, so a `powershell` hook keeps
+ * only the leading-word handling it had before that scanner existed.
+ */
+function runsInPosixShell(shell: unknown): boolean {
+  return shell !== "powershell";
+}
+
+/**
  * Apply the optional project directory variable prefix to a command string.
  */
 function applyCommandPrefix({
@@ -376,7 +385,10 @@ function applyCommandPrefix({
   // imported with the variable there keeps it. The exec form has no shell to
   // split words, and a command led by a variable is passed through untouched.
   const anchorInline = (command: string): string =>
-    isExecForm || converterConfig.projectDirVar === "" || startsWithVariable
+    isExecForm ||
+    converterConfig.projectDirVar === "" ||
+    startsWithVariable ||
+    !runsInPosixShell(def.shell)
       ? command
       : anchorDotPaths({ command, projectDirVar: converterConfig.projectDirVar });
 
@@ -1128,11 +1140,13 @@ export function canonicalToToolHooks({
 function stripCommandPrefix({
   command,
   args,
+  shell,
   converterConfig,
   warn,
 }: {
   command: unknown;
   args: unknown;
+  shell: unknown;
   converterConfig: ToolHooksConverterConfig;
   warn?: (message: string) => void;
 }): string | undefined {
@@ -1144,8 +1158,9 @@ function stripCommandPrefix({
   const { command: stripped, unrestored } = importProjectDirVariable({
     command: cmd,
     projectDirVar,
-    // The exec form's command is one executable path, not shell words.
-    firstWordOnly: isExecFormHook({ args, converterConfig }),
+    // The exec form's command is one executable path, not shell words, and a
+    // non-POSIX shell's words are not what the scanner understands.
+    firstWordOnly: isExecFormHook({ args, converterConfig }) || !runsInPosixShell(shell),
   });
   if (warn && unrestored) {
     warn(
@@ -1444,7 +1459,13 @@ function toolHookToCanonical({
   // `describeHookSkipReason`; this catches the same field left on a type it
   // does not define, where losing it alone changes nothing.
   const command = importCanonicalString({
-    value: stripCommandPrefix({ command: h.command, args: h.args, converterConfig, warn }),
+    value: stripCommandPrefix({
+      command: h.command,
+      args: h.args,
+      shell: h.shell,
+      converterConfig,
+      warn,
+    }),
     canonical: "command",
     warn,
   });
@@ -1512,7 +1533,12 @@ function definingFields({
       field: "command",
       value:
         typeof h.command === "string"
-          ? stripCommandPrefix({ command: h.command, args: h.args, converterConfig })
+          ? stripCommandPrefix({
+              command: h.command,
+              args: h.args,
+              shell: h.shell,
+              converterConfig,
+            })
           : h.command,
     });
   }

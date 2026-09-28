@@ -201,6 +201,40 @@ describe("ClaudecodeHooks", () => {
       expect(hooks[2].command).toBe('"$CLAUDE_PROJECT_DIR"/scripts/shell-form.sh');
     });
 
+    it("should not anchor later words of a PowerShell hook", async () => {
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(join(testDir, ".claude", "settings.json"), JSON.stringify({}));
+
+      const config = {
+        version: 1,
+        hooks: {
+          preToolUse: [
+            // PowerShell would expand `$CLAUDE_PROJECT_DIR` as an undefined
+            // variable, so the POSIX scanner must leave its words alone.
+            { command: "node ./x.js", shell: "powershell" },
+            { command: "node ./x.js", shell: "bash" },
+          ],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const claudecodeHooks = await ClaudecodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const hooks = JSON.parse(claudecodeHooks.getFileContent()).hooks.PreToolUse[0].hooks;
+      expect(hooks[0].command).toBe("node ./x.js");
+      expect(hooks[1].command).toBe('node "$CLAUDE_PROJECT_DIR"/x.js');
+    });
+
     it("should keep command-only fields off non-command hooks", async () => {
       await ensureDir(join(testDir, ".claude"));
       await writeFileContent(join(testDir, ".claude", "settings.json"), JSON.stringify({}));
@@ -1166,6 +1200,33 @@ describe("ClaudecodeHooks", () => {
       });
       return claudecodeHooks.toRulesyncHooks().getJson().hooks.preToolUse?.[0]?.command;
     };
+
+    it("should strip only the leading word of a PowerShell hook", () => {
+      const claudecodeHooks = new ClaudecodeHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".claude",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          hooks: {
+            PreToolUse: [
+              {
+                matcher: "Bash",
+                hooks: [
+                  {
+                    type: "command",
+                    command: '"$CLAUDE_PROJECT_DIR"/a.ps1 --config $CLAUDE_PROJECT_DIR/c.json',
+                    shell: "powershell",
+                  },
+                ],
+              },
+            ],
+          },
+        }),
+        validate: false,
+      });
+      const command = claudecodeHooks.toRulesyncHooks().getJson().hooks.preToolUse?.[0]?.command;
+      expect(command).toBe("./a.ps1 --config $CLAUDE_PROJECT_DIR/c.json");
+    });
 
     it.each([
       ['"$CLAUDE_PROJECT_DIR"/.claude/hooks/a.sh', "./.claude/hooks/a.sh"],
