@@ -45,8 +45,8 @@ export type ToolRuleForDeletionParams = {
 };
 
 /**
- * A fixed-path file a tool manages beyond its root/non-root rules (e.g. Pi's
- * `APPEND_SYSTEM.md`). Returned by the optional static `getExtraFixedFiles`
+ * A fixed-path file (or a file-name glob within one directory) a tool manages
+ * beyond its root/non-root rules (e.g. Pi's `APPEND_SYSTEM.md`). Returned by the optional static `getExtraFixedFiles`
  * hook, consumed by the RulesProcessor (import/deletion) and the gitignore
  * derivation.
  */

@@ -36,8 +36,9 @@ export type FactorydroidRuleChannel = "design" | "threat-model" | "output-style"
 
 /**
  * The file-name glob `getExtraFixedFiles` returns for the output-styles
- * directory, so import and deletion enumerate every style in it: Droid loads
- * "direct `.md` children of each `output-styles` directory".
+ * directory, so import enumerates every style in it (never deletion — see
+ * `getExtraFixedFiles`): Droid loads "direct `.md` children of each
+ * `output-styles` directory".
  */
 const OUTPUT_STYLE_FILE_GLOB = "*.md";
 
