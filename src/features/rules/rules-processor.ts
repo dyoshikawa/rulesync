@@ -3146,7 +3146,9 @@ As this project's AI coding tool, you must follow the additional conventions bel
       // Extra fixed-path files (e.g. Pi's APPEND_SYSTEM.md) enumerated for both
       // import and deletion so they round-trip and stale files are cleaned up.
       const extraFixedToolRules = await (async () => {
-        const extraFiles = factory.class.getExtraFixedFiles?.({ global: this.global });
+        const extraFiles = factory.class
+          .getExtraFixedFiles?.({ global: this.global })
+          .filter((file) => !(forDeletion && file.importOnly));
         if (!extraFiles || extraFiles.length === 0) {
           return [];
         }

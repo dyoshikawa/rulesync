@@ -52,7 +52,14 @@ export type ToolRuleForDeletionParams = {
  */
 export type ToolRuleExtraFixedFile = {
   relativeDirPath: string;
+  /** A file name, or a file-name glob such as `*.md` for a whole directory. */
   relativeFilePath: string;
+  /**
+   * Enumerate the file(s) on import only, never for `--delete`. For a
+   * directory the tool shares with hand-written files, where sweeping it
+   * would delete work rulesync never wrote.
+   */
+  importOnly?: boolean;
 };
 
 /**

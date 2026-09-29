@@ -83,6 +83,7 @@ This is a test factorydroid rule.`;
         {
           relativeDirPath: ".factory/output-styles",
           relativeFilePath: "*.md",
+          importOnly: true,
         },
       ]);
     });
@@ -93,6 +94,7 @@ This is a test factorydroid rule.`;
         {
           relativeDirPath: ".factory/output-styles",
           relativeFilePath: "*.md",
+          importOnly: true,
         },
       ]);
     });

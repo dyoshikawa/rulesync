@@ -1096,6 +1096,49 @@ describe("RulesProcessor", () => {
       ).not.toContain(join("packages", "api", "AGENTS.md"));
     });
 
+    it.each([false, true])(
+      "should import factorydroid output styles but never enumerate them for deletion (global: %s)",
+      async (global) => {
+        await writeFileContent(join(testDir, "DESIGN.md"), "# Design");
+        await writeFileContent(
+          join(testDir, ".factory", "output-styles", "review-notes.md"),
+          "Start with findings.",
+        );
+        await writeFileContent(
+          join(testDir, ".factory", "output-styles", "nested", "deep.md"),
+          "# Nested",
+        );
+        await writeFileContent(join(testDir, ".factory", "output-styles", "notes.txt"), "text");
+
+        const processor = new RulesProcessor({
+          logger,
+          outputRoot: testDir,
+          toolTarget: "factorydroid",
+          global,
+        });
+
+        // Droid loads only direct `.md` children of `output-styles/`.
+        const imported = await processor.loadToolFiles();
+        const importedPaths = imported.map((file) =>
+          join(file.getRelativeDirPath(), file.getRelativeFilePath()),
+        );
+        expect(importedPaths).toContain(join(".factory", "output-styles", "review-notes.md"));
+        expect(importedPaths).not.toContain(join(".factory", "output-styles", "nested", "deep.md"));
+        expect(importedPaths).not.toContain(join(".factory", "output-styles", "notes.txt"));
+
+        // The directory also holds hand-written styles, so `--delete` never
+        // sweeps it — while the fixed project channels stay deletion targets.
+        const forDeletion = await processor.loadToolFiles({ forDeletion: true });
+        const deletionPaths = forDeletion.map((file) =>
+          join(file.getRelativeDirPath(), file.getRelativeFilePath()),
+        );
+        expect(deletionPaths).not.toContain(join(".factory", "output-styles", "review-notes.md"));
+        if (!global) {
+          expect(deletionPaths).toContain("DESIGN.md");
+        }
+      },
+    );
+
     it("should import Junie's .junie/rules and playbook but never delete them", async () => {
       // Junie combines a project-root `AGENTS.md` with `.junie/playbook.md`
       // and `.junie/rules/*.md` — the layout a repo is in before it has a

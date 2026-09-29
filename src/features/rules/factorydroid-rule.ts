@@ -233,16 +233,24 @@ export class FactorydroidRule extends ToolRule {
   /**
    * Extra files this tool manages beyond the root/non-root rules. The
    * RulesProcessor enumerates these for import and deletion so a stale
-   * `DESIGN.md`, `.factory/threat-model.md` or output style is cleaned up once
-   * no rule opts in anymore. Global mode lists only the output-styles
-   * directory: neither fixed file has a documented home-directory equivalent.
+   * `DESIGN.md` or `.factory/threat-model.md` is cleaned up once no rule opts
+   * in anymore. Output styles are enumerated for import only: the directory
+   * also holds styles users write by hand (including their personal
+   * `~/.factory/output-styles/`), and rulesync cannot tell those from the ones
+   * it wrote, so `--delete` leaves the directory alone. Global mode lists only
+   * the output-styles directory: neither fixed file has a documented
+   * home-directory equivalent.
    */
   static getExtraFixedFiles({
     global = false,
   }: { global?: boolean } = {}): ToolRuleExtraFixedFile[] {
     return [
       ...this.getChannelPaths({ global }).map(({ path }) => path),
-      { relativeDirPath: this.getOutputStylesDirPath(), relativeFilePath: OUTPUT_STYLE_FILE_GLOB },
+      {
+        relativeDirPath: this.getOutputStylesDirPath(),
+        relativeFilePath: OUTPUT_STYLE_FILE_GLOB,
+        importOnly: true,
+      },
     ];
   }
 
@@ -252,6 +260,11 @@ export class FactorydroidRule extends ToolRule {
    * `~/.factory/output-styles/` as the user scope of the same surface.
    */
   static isEmittedAsGlobalNonRootRule(rulesyncRule: RulesyncRule): boolean {
+    return this.isOutputStyleRule(rulesyncRule);
+  }
+
+  /** Whether a rule opts into the `output-style` channel (non-root only). */
+  private static isOutputStyleRule(rulesyncRule: RulesyncRule): boolean {
     const frontmatter = rulesyncRule.getFrontmatter();
     return !frontmatter.root && frontmatter.factorydroid?.channel === "output-style";
   }
@@ -376,7 +389,7 @@ export class FactorydroidRule extends ToolRule {
     const frontmatter = rulesyncRule.getFrontmatter();
     const paths = this.getSettablePaths({ global });
 
-    if (this.isEmittedAsGlobalNonRootRule(rulesyncRule)) {
+    if (this.isOutputStyleRule(rulesyncRule)) {
       return this.buildOutputStyle({ outputRoot, rulesyncRule, validate });
     }
 
