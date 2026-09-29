@@ -79,6 +79,28 @@ describe("readAugmentcodeSettingsWithLocalOverlay", () => {
     });
   });
 
+  it("ignores a top-level recommendedMarketplaces in settings.local.json, as Auggie does", async () => {
+    await writeSettings("settings.json", { recommendedMarketplaces: ["acme/team"] });
+    await writeSettings("settings.local.json", {
+      recommendedMarketplaces: ["me/personal"],
+      hooks: { recommendedMarketplaces: ["nested"] },
+    });
+
+    const content = await readAugmentcodeSettingsWithLocalOverlay({
+      outputRoot: testDir,
+      relativeDirPath: ".augment",
+      baseFileName: "settings.json",
+      baseFallbackContent: "{}",
+      includeLocalOverlay: true,
+    });
+
+    expect(JSON.parse(content)).toEqual({
+      recommendedMarketplaces: ["acme/team"],
+      // Only the top-level key is project-only; a nested namesake is combined as usual.
+      hooks: { recommendedMarketplaces: ["nested"] },
+    });
+  });
+
   it("replaces mcpServers/plugins wholesale (higher-precedence wins)", async () => {
     await writeSettings("settings.json", {
       mcpServers: { a: { command: "base" }, b: { command: "base" } },

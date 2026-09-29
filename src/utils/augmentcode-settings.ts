@@ -101,9 +101,19 @@ function combineAugmentSettings(
   base: Record<string, unknown>,
   local: Record<string, unknown>,
 ): Record<string, unknown> {
+  const localWithoutProjectOnlyKeys = Object.fromEntries(
+    Object.entries(local).filter(([key]) => !AUGMENTCODE_PROJECT_ONLY_KEYS.has(key)),
+  );
+  return combineAugmentSettingsLayer(base, localWithoutProjectOnlyKeys);
+}
+
+function combineAugmentSettingsLayer(
+  base: Record<string, unknown>,
+  local: Record<string, unknown>,
+): Record<string, unknown> {
   const result: Record<string, unknown> = { ...base };
   for (const [key, localValue] of Object.entries(local)) {
-    if (isPrototypePollutionKey(key) || AUGMENTCODE_PROJECT_ONLY_KEYS.has(key)) continue;
+    if (isPrototypePollutionKey(key)) continue;
 
     const baseValue = result[key];
     if (AUGMENTCODE_REPLACE_KEYS.has(key)) {
@@ -111,7 +121,7 @@ function combineAugmentSettings(
     } else if (Array.isArray(localValue) && Array.isArray(baseValue)) {
       result[key] = [...localValue, ...baseValue];
     } else if (isPlainObject(localValue) && isPlainObject(baseValue)) {
-      result[key] = combineAugmentSettings(baseValue, localValue);
+      result[key] = combineAugmentSettingsLayer(baseValue, localValue);
     } else {
       result[key] = localValue;
     }
@@ -122,7 +132,8 @@ function combineAugmentSettings(
 /**
  * The AugmentCode counterpart of Droid's guardrail keys: the tool-permission
  * rules, the hooks Auggie executes, and the servers and plugins it loads them
- * from (`enabledPlugins` turns a plugin, with its hooks and servers, on). See `readSettingsWithLocalOverlay` for why they are named twice.
+ * from (`enabledPlugins` turns a plugin, with its hooks and servers, on). See
+ * `readSettingsWithLocalOverlay` for why they are named twice.
  */
 const AUGMENTCODE_GUARDRAIL_KEYS = [
   "toolPermissions",
