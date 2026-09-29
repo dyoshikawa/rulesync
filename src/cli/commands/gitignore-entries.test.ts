@@ -609,6 +609,15 @@ describe("committedOutput check outputs", () => {
     );
   });
 
+  it("derives no entry for an import-only extra file such as Factory Droid's output styles", () => {
+    const entries = deriveAllGitignoreEntries().map((tag) => tag.entry);
+    // `.factory/output-styles/` also holds hand-written styles a team commits,
+    // so it is neither a deletion target nor gitignored; the fixed channel
+    // files next to it still are.
+    expect(entries.some((entry) => entry.includes(".factory/output-styles"))).toBe(false);
+    expect(entries).toContain("**/.factory/threat-model.md");
+  });
+
   it("keeps the committedOutput flag meaningful (at least one checks factory sets it)", async () => {
     const { toolCheckFactories } = await import("../../features/checks/checks-processor.js");
     const flagged = [...toolCheckFactories.values()].filter(

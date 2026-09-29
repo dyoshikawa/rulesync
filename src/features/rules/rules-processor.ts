@@ -3155,7 +3155,9 @@ As this project's AI coding tool, you must follow the additional conventions bel
 
         const filePaths = await findFilesByGlobs(
           extraFiles.map((file) => rootRelativeGlob(file.relativeDirPath, file.relativeFilePath)),
-          { cwd: this.outputRoot },
+          // Files only: a glob entry such as `*.md` would otherwise match a
+          // directory named `x.md`, which cannot be read as a rule.
+          { cwd: this.outputRoot, type: "file" },
         );
         if (filePaths.length === 0) {
           return [];
