@@ -7,6 +7,7 @@ import { CODEBUDDY_LOCAL_RULE_FILE_NAME } from "../../constants/codebuddy-paths.
 import { CODEXCLI_PROJECT_DOC_MAX_BYTES } from "../../constants/codexcli-paths.js";
 import { CRUSH_LOCAL_RULE_FILE_NAME } from "../../constants/crush-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
+import { QODER_LOCAL_RULE_FILE_NAME } from "../../constants/qoder-paths.js";
 import { QWENCODE_DIR, QWENCODE_LOCAL_RULE_FILE_NAME } from "../../constants/qwencode-paths.js";
 import {
   CURATED_RULES_FEATURE_SUBDIR,
@@ -96,6 +97,7 @@ import { OpenclawRule } from "./openclaw-rule.js";
 import { OpenCodeRule } from "./opencode-rule.js";
 import { PiRule } from "./pi-rule.js";
 import { PoolRule } from "./pool-rule.js";
+import { QoderRule } from "./qoder-rule.js";
 import { QwencodeRule } from "./qwencode-rule.js";
 import { ReasonixRule } from "./reasonix-rule.js";
 import { ReplitRule } from "./replit-rule.js";
@@ -1040,6 +1042,25 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",
         collisionPolicy: "fold",
+      },
+    },
+  ],
+  [
+    "qoder",
+    {
+      class: QoderRule,
+      meta: {
+        // Qoder reads the project-root `AGENTS.md` (plus the per-machine
+        // `AGENTS.local.md` overlay) and auto-loads `.qoder/rules/**/*.md` by
+        // their `trigger` frontmatter; the user scope mirrors it under
+        // `~/.qoder/`. Commands, subagents and skills are native, so no
+        // simulated additionalConventions are needed.
+        // https://docs.qoder.com/en/cli/04-extending-qoder-cli/memory
+        extension: "md",
+        supportsGlobal: true,
+        ruleDiscoveryMode: "auto",
+        localRootMode: "separate-local-file",
+        localRootFileName: QODER_LOCAL_RULE_FILE_NAME,
       },
     },
   ],
@@ -2293,6 +2314,20 @@ export class RulesProcessor extends FeatureProcessor {
       // `AGENTS.local.md` sits next to the project-root `AGENTS.md` Devin reads,
       // not under `.devin/`, and is plain markdown with no trigger frontmatter.
       return new DevinRule({
+        outputRoot: this.outputRoot,
+        relativeDirPath: relativeDirPath ?? ".",
+        relativeFilePath: fileName,
+        frontmatter: {},
+        body,
+        validate: true,
+        root: true,
+        localRoot,
+      });
+    }
+    if (isClassOrSubclassOf({ candidate: factory.class, base: QoderRule })) {
+      // `AGENTS.local.md` sits next to the project-root `AGENTS.md` Qoder reads,
+      // not under `.qoder/`, and is plain markdown with no trigger frontmatter.
+      return new QoderRule({
         outputRoot: this.outputRoot,
         relativeDirPath: relativeDirPath ?? ".",
         relativeFilePath: fileName,

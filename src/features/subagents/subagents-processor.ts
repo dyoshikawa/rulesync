@@ -58,6 +58,7 @@ import { MimocodeSubagent } from "./mimocode-subagent.js";
 import { OmpSubagent } from "./omp-subagent.js";
 import { OpenCodeSubagent } from "./opencode-subagent.js";
 import { PoolSubagent } from "./pool-subagent.js";
+import { QoderSubagent } from "./qoder-subagent.js";
 import { QwencodeSubagent } from "./qwencode-subagent.js";
 import { ReasonixSubagent } from "./reasonix-subagent.js";
 import { RooSubagent } from "./roo-subagent.js";
@@ -633,6 +634,21 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
         supportsGlobal: true,
         emitsEmptyAggregate: true,
         filePattern: POOL_SETTINGS_FILE_NAME,
+      },
+    },
+  ],
+  [
+    "qoder",
+    {
+      // Qoder subagents are native Markdown + YAML frontmatter under
+      // `.qoder/agents/` (project) and `~/.qoder/agents/` (user/global).
+      // https://docs.qoder.com/en/cli/04-extending-qoder-cli/subagent
+      class: QoderSubagent,
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: "*.md",
       },
     },
   ],

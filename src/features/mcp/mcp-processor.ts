@@ -45,6 +45,7 @@ import { MusecodeMcp } from "./musecode-mcp.js";
 import { OmpMcp } from "./omp-mcp.js";
 import { OpencodeMcp } from "./opencode-mcp.js";
 import { PoolMcp } from "./pool-mcp.js";
+import { QoderMcp } from "./qoder-mcp.js";
 import { QwencodeMcp } from "./qwencode-mcp.js";
 import { ReasonixMcp } from "./reasonix-mcp.js";
 import { RooMcp } from "./roo-mcp.js";
@@ -674,6 +675,22 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
         supportsGlobal: true,
         supportsEnabledTools: true,
         supportsDisabledTools: true,
+      },
+    },
+  ],
+  [
+    "qoder",
+    {
+      // Qoder reads the project `.mcp.json` (shared with Claude Code) and the
+      // `mcpServers` key of the user `~/.qoder/settings.json`. Per-server tool
+      // filters are not documented for these files.
+      // https://docs.qoder.com/en/cli/04-extending-qoder-cli/mcp-servers
+      class: QoderMcp,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
       },
     },
   ],

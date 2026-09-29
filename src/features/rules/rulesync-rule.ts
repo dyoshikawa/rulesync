@@ -134,6 +134,17 @@ export const RulesyncRuleFrontmatterSchema = z.object({
       description: z.optional(z.string()),
     }),
   ),
+  qoder: z.optional(
+    z.looseObject({
+      // Activation mode: always_on | glob | manual | model_decision (string
+      // for forward compatibility). Unset means "derive it from `globs`".
+      // @see https://docs.qoder.com/en/cli/04-extending-qoder-cli/memory
+      trigger: z.optional(z.string()),
+      // Glob patterns for `trigger: glob` (takes precedence over globs).
+      glob: z.optional(z.union([z.string(), z.array(z.string())])),
+      description: z.optional(z.string()),
+    }),
+  ),
   augmentcode: z.optional(
     z.looseObject({
       type: z.optional(z.string()),
