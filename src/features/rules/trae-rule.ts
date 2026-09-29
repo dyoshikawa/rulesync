@@ -9,6 +9,7 @@ import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { splitBraceAwareList } from "../../utils/brace-aware-list.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
+import { parseFrontmatter } from "../../utils/frontmatter.js";
 import { CursorRule } from "./cursor-rule.js";
 import { RulesyncRule, RulesyncRuleFrontmatter } from "./rulesync-rule.js";
 import {
@@ -166,15 +167,47 @@ export class TraeRule extends ToolRule {
     const isFileScoped = specificGlobs.length > 0 && specificGlobs.length === globs.length;
     const isIntelligent = globs.length === 0 && description !== undefined;
     const derivedAlwaysApply = isRoot || !(isFileScoped || isIntelligent);
-    const alwaysApply = frontmatter.trae?.alwaysApply ?? derivedAlwaysApply;
+    const explicitAlwaysApply = frontmatter.trae?.alwaysApply;
+    const alwaysApply = explicitAlwaysApply ?? derivedAlwaysApply;
     const scene = frontmatter.trae?.scene;
+    // A rule that is not always applied needs every glob, universal ones
+    // included, or it silently becomes a manual rule. An always-applied rule
+    // drops the globs (Cursor's staff call the pair a semantic conflict),
+    // except the specific ones an explicit `trae.alwaysApply: true` keeps.
+    const outputGlobs = !alwaysApply ? globs : explicitAlwaysApply === true ? specificGlobs : [];
 
     return {
       ...(scene !== undefined && { scene }),
       alwaysApply,
       ...(description !== undefined && { description }),
-      ...(specificGlobs.length > 0 && { globs: specificGlobs.join(",") }),
+      ...(outputGlobs.length > 0 && { globs: outputGlobs.join(",") }),
     };
+  }
+
+  /**
+   * Parses the frontmatter the way Trae's editor writes it: `globs` is an
+   * unquoted, comma-separated scalar, which a YAML parser rejects or misreads
+   * when it starts with `*`, `{`, `!` and the like. Such a value is quoted
+   * before parsing, inside the frontmatter block only so the body is never
+   * rewritten. A quoted value or a YAML list is left alone.
+   */
+  private static parseTraeFrontmatter(
+    fileContent: string,
+    filePath: string,
+  ): { frontmatter: Record<string, unknown>; body: string } {
+    const opening = /^\uFEFF?---[^\S\r\n]*\r?\n/.exec(fileContent);
+    const closing = opening ? /\r?\n---/.exec(fileContent.slice(opening[0].length)) : null;
+    if (!opening || !closing) {
+      return parseFrontmatter(fileContent, filePath);
+    }
+    const start = opening[0].length;
+    const end = start + closing.index;
+    const block = fileContent
+      .slice(start, end)
+      .replace(/^globs:[ \t]*([^\s"'[][^\r\n]*?)[ \t]*$/m, (_match, value: string) => {
+        return `globs: ${JSON.stringify(value)}`;
+      });
+    return parseFrontmatter(fileContent.slice(0, start) + block + fileContent.slice(end), filePath);
   }
 
   static fromRulesyncRule({
@@ -236,7 +269,7 @@ export class TraeRule extends ToolRule {
     const relativeDirPath = this.getSettablePaths().nonRoot.relativeDirPath;
     const filePath = join(outputRoot, relativeDirPath, relativeFilePath);
     const fileContent = await readFileContent(filePath);
-    const { frontmatter, body } = CursorRule.parseCursorFrontmatter(fileContent, filePath);
+    const { frontmatter, body } = TraeRule.parseTraeFrontmatter(fileContent, filePath);
 
     const result = TraeRuleFrontmatterSchema.safeParse(frontmatter);
     if (!result.success) {

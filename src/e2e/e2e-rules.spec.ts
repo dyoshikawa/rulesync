@@ -78,6 +78,7 @@ const rulesRootTargets = [
 // Tools that emit every rule as a directory entry.
 const rulesNonRootTargets = [
   { target: "cline", outputPath: join(".clinerules", "overview.md") },
+  { target: "trae", outputPath: join(".trae", "rules", "overview.md") },
   { target: "roo", outputPath: join(".roo", "rules", "overview.md") },
   { target: "zoocode", outputPath: join(".roo", "rules", "overview.md") },
   { target: "kiro", outputPath: join(".kiro", "steering", "overview.md") },

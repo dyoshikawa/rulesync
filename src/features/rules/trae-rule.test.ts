@@ -135,6 +135,58 @@ describe("TraeRule", () => {
     }
   });
 
+  it("should keep universal globs on a file-scoped rule through a round trip", async () => {
+    const imported = await importFile("---\nalwaysApply: false\nglobs: **/*\n---\nBody\n");
+    expect(imported).toMatchObject({ globs: ["**/*"], trae: { alwaysApply: false } });
+    expect(generate(imported).getFileContent()).toBe(
+      "---\nalwaysApply: false\nglobs: **/*\n---\n\nRule body",
+    );
+    expect(
+      generate({ globs: ["**/*", "*.ts"], trae: { alwaysApply: false } }).getFileContent(),
+    ).toBe("---\nalwaysApply: false\nglobs: **/*,*.ts\n---\n\nRule body");
+  });
+
+  it("should drop globs on a derived always-applied rule with a mixed glob list", () => {
+    expect(generate({ globs: ["**/*", "*.ts"] }).getFileContent()).toBe(
+      "---\nalwaysApply: true\n---\n\nRule body",
+    );
+  });
+
+  it("should import unquoted globs that YAML would otherwise reject", async () => {
+    expect(
+      await importFile("---\nalwaysApply: false\nglobs: {src,lib}/**/*.ts\n---\nBody\n"),
+    ).toMatchObject({ globs: ["{src,lib}/**/*.ts"] });
+    expect(
+      await importFile("---\nalwaysApply: false\nglobs: !**/test/**\n---\nBody\n"),
+    ).toMatchObject({ globs: ["!**/test/**"] });
+  });
+
+  it("should leave a globs line in the body untouched on import", async () => {
+    await writeFileContent(
+      join(testDir, ".trae", "rules", "a.md"),
+      "---\ndescription: How to write rules\n---\nExample:\n\nglobs: *.ts\n",
+    );
+    const rule = await TraeRule.fromFile({ outputRoot: testDir, relativeFilePath: "a.md" });
+    expect(rule.getBody()).toBe("Example:\n\nglobs: *.ts");
+    expect(rule.getFrontmatter().globs).toBeUndefined();
+  });
+
+  it("should reject invalid frontmatter on import", async () => {
+    await writeFileContent(
+      join(testDir, ".trae", "rules", "a.md"),
+      '---\nalwaysApply: "yes"\n---\nBody\n',
+    );
+    await expect(
+      TraeRule.fromFile({ outputRoot: testDir, relativeFilePath: "a.md" }),
+    ).rejects.toThrow("Invalid frontmatter");
+  });
+
+  it("should flatten a multi-line scene to one line", () => {
+    expect(generate({ trae: { scene: "git_\nmessage" } }).getFileContent()).toBe(
+      "---\nscene: git_ message\nalwaysApply: true\n---\n\nRule body",
+    );
+  });
+
   it("should round-trip a manual rule", async () => {
     const imported = await importFile("---\nalwaysApply: false\n---\nBody\n");
     expect(generate(imported).getFrontmatter().alwaysApply).toBe(false);

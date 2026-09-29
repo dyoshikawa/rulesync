@@ -161,10 +161,9 @@ export class CursorRule extends ToolRule {
 
   /**
    * Custom parse function for Cursor MDC files
-   * MDC files don't support quotes in YAML, so we need to handle patterns like *.ts specially.
-   * Also used by Trae, whose `.trae/rules/*.md` files carry the same frontmatter.
+   * MDC files don't support quotes in YAML, so we need to handle patterns like *.ts specially
    */
-  static parseCursorFrontmatter(
+  private static parseCursorFrontmatter(
     fileContent: string,
     filePath?: string,
   ): {
