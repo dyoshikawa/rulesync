@@ -122,6 +122,19 @@ describe("TraeRule", () => {
     );
   });
 
+  it("should write a scene value containing replacement patterns verbatim", () => {
+    for (const scene of ["$&$&", "$'", "$`"]) {
+      const content = generate({ globs: ["src/**"], trae: { scene } }).getFileContent();
+      expect(content.split("\n").slice(0, 5)).toEqual([
+        "---",
+        `scene: ${scene}`,
+        "alwaysApply: false",
+        "globs: src/**",
+        "---",
+      ]);
+    }
+  });
+
   it("should round-trip a manual rule", async () => {
     const imported = await importFile("---\nalwaysApply: false\n---\nBody\n");
     expect(generate(imported).getFrontmatter().alwaysApply).toBe(false);

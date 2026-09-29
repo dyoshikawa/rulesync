@@ -144,7 +144,10 @@ export class TraeRule extends ToolRule {
     if (scene === "") {
       return content;
     }
-    return content.replace(/^---\n/, `---\n${dump({ scene }, { lineWidth: -1 }).trimEnd()}\n`);
+    // A replacer function, so `$&` / `$'` in the value are not expanded as
+    // replacement patterns that could close the frontmatter early.
+    const sceneLine = dump({ scene }, { lineWidth: -1 }).trimEnd();
+    return content.replace(/^---\n/, () => `---\n${sceneLine}\n`);
   }
 
   /**
