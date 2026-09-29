@@ -196,8 +196,15 @@ export const RulesyncRuleFrontmatterSchema = z.object({
       // design-system, UX, visual, and interaction guidance", loaded
       // separately from `AGENTS.md`), `threat-model` →
       // `.factory/threat-model.md` (the attack-surface map Factory's Security
-      // Review reads). Project scope only — see docs/reference/file-formats.md.
-      channel: z.optional(z.enum(["design", "threat-model"])),
+      // Review reads). Both are project scope only. `output-style` instead
+      // writes the rule as its own custom output style,
+      // `.factory/output-styles/<rule file name>.md`, at project and global
+      // scope. See docs/reference/file-formats.md.
+      channel: z.optional(z.enum(["design", "threat-model", "output-style"])),
+      // The output style's picker name (`name` in the emitted frontmatter).
+      // Only read with `channel: output-style`; Droid defaults it to the file
+      // name without `.md`.
+      name: z.optional(z.string()),
     }),
   ),
 });

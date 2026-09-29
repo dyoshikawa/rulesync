@@ -4946,6 +4946,61 @@ targets: ["claudecode"]
       );
     });
 
+    it("should keep factorydroid output-style rules in global mode and drop only the other non-root rules", async () => {
+      await ensureDir(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "root.md"),
+        `---
+root: true
+targets: ["factorydroid"]
+---
+# Root`,
+      );
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "review-notes.md"),
+        `---
+targets: ["factorydroid"]
+factorydroid:
+  channel: output-style
+---
+Start with findings.`,
+      );
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "non-root.md"),
+        `---
+targets: ["factorydroid"]
+---
+# Non-root`,
+      );
+
+      const warnSpy = vi.spyOn(logger, "warn");
+
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "factorydroid",
+        global: true,
+      });
+
+      // Factory documents `~/.factory/output-styles/` as the user scope of the
+      // output-styles surface, so that rule survives; the plain non-root rule
+      // has no global home and is still reported as ignored.
+      const result = await processor.loadRulesyncFiles();
+      expect(result.map((r) => r.getRelativeFilePath()).toSorted()).toEqual([
+        "review-notes.md",
+        "root.md",
+      ]);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("1 non-root rulesync rules found, but it's in global mode"),
+      );
+      expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining("review-notes.md"));
+
+      const toolFiles = await processor.convertRulesyncFilesToToolFiles(result);
+      expect(
+        toolFiles.map((file) => join(file.getRelativeDirPath(), file.getRelativeFilePath())),
+      ).toEqual(expect.arrayContaining([join(".factory", "output-styles", "review-notes.md")]));
+    });
+
     it("should expose every global-capable folded target to the regression matrix", () => {
       expect(globalFoldTargets).toEqual([
         "codewhale",

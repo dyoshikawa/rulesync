@@ -311,6 +311,7 @@ rulesync.local.jsonc
 **/.factory/rules/
 **/DESIGN.md
 **/.factory/threat-model.md
+**/.factory/output-styles/*.md
 **/.goosehints
 **/.hermes.md
 **/.gitlab/duo/chat-rules.md

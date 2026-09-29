@@ -579,6 +579,61 @@ factorydroid:
     expect(importedThreatModel).toContain("Factory Droid Threat Model Two");
   });
 
+  it("should write factorydroid.channel:output-style rules to .factory/output-styles/ and round-trip", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+      `---
+root: true
+targets: ["factorydroid"]
+description: "Root rule"
+globs: ["**/*"]
+---
+
+# Factory Droid Root Rule
+`,
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "review-notes.md"),
+      `---
+targets: ["factorydroid"]
+description: "Put findings before the summary"
+factorydroid:
+  channel: output-style
+  name: "Review Notes"
+---
+
+Start with actionable findings, ordered by severity.
+`,
+    );
+
+    await runGenerate({ target: "factorydroid", features: "rules" });
+
+    // One file per style, carrying the picker name and description, and not
+    // listed in AGENTS.md's TOON reference section since Droid loads styles
+    // itself.
+    const rootContent = await readFileContent(join(testDir, "AGENTS.md"));
+    expect(rootContent).not.toContain("review-notes.md");
+    expect(rootContent).not.toContain("Start with actionable findings");
+
+    const styleContent = await readFileContent(
+      join(testDir, ".factory", "output-styles", "review-notes.md"),
+    );
+    expect(styleContent).toContain("name: Review Notes");
+    expect(styleContent).toContain("description: Put findings before the summary");
+    expect(styleContent).toContain("Start with actionable findings, ordered by severity.");
+
+    await runImport({ target: "factorydroid", features: "rules" });
+
+    const importedStyle = await readFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "review-notes.md"),
+    );
+    expect(importedStyle).toContain("channel: output-style");
+    expect(importedStyle).toContain("name: Review Notes");
+    expect(importedStyle).toContain("Start with actionable findings, ordered by severity.");
+  });
+
   it("should nest a rule under the directory derived from its globs when deriveSubprojectPathFromGlobs is on", async () => {
     const testDir = getTestDir();
 

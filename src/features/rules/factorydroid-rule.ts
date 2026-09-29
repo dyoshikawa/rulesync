@@ -1,14 +1,17 @@
-import { join } from "node:path";
+import { basename, extname, join } from "node:path";
 
 import {
   FACTORYDROID_DESIGN_FILE_NAME,
   FACTORYDROID_DIR,
+  FACTORYDROID_OUTPUT_STYLES_DIR_NAME,
+  FACTORYDROID_RESERVED_OUTPUT_STYLE_NAMES,
   FACTORYDROID_RULE_FILE_NAME,
   FACTORYDROID_THREAT_MODEL_FILE_NAME,
 } from "../../constants/factorydroid-paths.js";
 import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
+import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
   ToolRule,
@@ -23,11 +26,20 @@ import {
 
 /**
  * Factory Droid instruction surfaces beyond `AGENTS.md` that a non-root rule
- * can opt into via the `factorydroid.channel` frontmatter key. Each channel is
- * a single fixed file Factory Droid loads on its own, so opted-in rules are
- * concatenated into it and it is excluded from the root file's reference list.
+ * can opt into via the `factorydroid.channel` frontmatter key. `design` and
+ * `threat-model` are single fixed files Factory Droid loads on its own, so
+ * opted-in rules are concatenated into them; `output-style` writes each
+ * opted-in rule as its own `.factory/output-styles/<name>.md`. Every channel
+ * file is excluded from the root file's reference list.
  */
-export type FactorydroidRuleChannel = "design" | "threat-model";
+export type FactorydroidRuleChannel = "design" | "threat-model" | "output-style";
+
+/**
+ * The file-name glob `getExtraFixedFiles` returns for the output-styles
+ * directory, so import and deletion enumerate every style in it: Droid loads
+ * "direct `.md` children of each `output-styles` directory".
+ */
+const OUTPUT_STYLE_FILE_GLOB = "*.md";
 
 export type FactorydroidRuleParams = AiFileParams & {
   root?: boolean;
@@ -92,8 +104,16 @@ export type FactorydroidRuleSettablePathsGlobal = ToolRuleSettablePathsGlobal;
  *   repository file, so it has no global scope either.
  *
  * Both channels are therefore project scope only.
- * @see https://docs.factory.ai/cli/configuration/agents-md
+ *
+ * A third channel, `output-style`, is directory-shaped rather than a fixed
+ * file: each opted-in rule becomes its own custom output style,
+ * `.factory/output-styles/<rule file name>.md`, with the rule's `description`
+ * and optional `factorydroid.name` as the style's `name` / `description`
+ * frontmatter. Factory documents the same directory under the home directory
+ * (`~/.factory/output-styles/`), so this channel works at both scopes.
+ * @see https://docs.factory.ai/harness/agents-md
  * @see https://docs.factory.ai/software-factory/security-review
+ * @see https://docs.factory.ai/droid-cli/output-styles
  */
 export class FactorydroidRule extends ToolRule {
   private readonly channel: FactorydroidRuleChannel | undefined;
@@ -142,9 +162,18 @@ export class FactorydroidRule extends ToolRule {
   }
 
   /**
-   * The channel files in a fixed order, so that `getExtraFixedFiles` and the
-   * channel lookups below agree on which paths are channels. Empty in global
-   * mode, where neither file has a documented home-directory equivalent.
+   * The directory custom output styles live in, `.factory/output-styles`
+   * under the project root or the home directory alike.
+   */
+  static getOutputStylesDirPath({ excludeToolDir }: { excludeToolDir?: boolean } = {}): string {
+    return buildToolPath(FACTORYDROID_DIR, FACTORYDROID_OUTPUT_STYLES_DIR_NAME, excludeToolDir);
+  }
+
+  /**
+   * The fixed channel files in a fixed order, so that `getExtraFixedFiles` and
+   * the channel lookups below agree on which paths are channels. Empty in
+   * global mode, where neither file has a documented home-directory
+   * equivalent.
    */
   private static getChannelPaths({
     global,
@@ -162,7 +191,25 @@ export class FactorydroidRule extends ToolRule {
   }
 
   /**
-   * Which channel, if any, owns the given output path. Matching on
+   * Whether the given output path is a custom output style: a direct `.md`
+   * child of the output-styles directory, at either scope.
+   */
+  private static isOutputStylePath({
+    relativeDirPath,
+    relativeFilePath,
+  }: {
+    relativeDirPath: string | undefined;
+    relativeFilePath: string;
+  }): boolean {
+    return (
+      relativeDirPath === this.getOutputStylesDirPath() &&
+      extname(relativeFilePath) === ".md" &&
+      basename(relativeFilePath) === relativeFilePath
+    );
+  }
+
+  /**
+   * Which fixed-file channel, if any, owns the given output path. Matching on
    * `relativeDirPath` too (not just the basename) keeps a non-root rule that
    * happens to be named `DESIGN.md` or `threat-model.md` under
    * `.factory/rules/` from being routed to a channel by mistake.
@@ -184,16 +231,29 @@ export class FactorydroidRule extends ToolRule {
   }
 
   /**
-   * Extra fixed files this tool manages beyond the root/non-root rules. The
+   * Extra files this tool manages beyond the root/non-root rules. The
    * RulesProcessor enumerates these for import and deletion so a stale
-   * `DESIGN.md` or `.factory/threat-model.md` is cleaned up once no rule opts
-   * in anymore. Empty in global mode: neither file has a documented
-   * home-directory equivalent.
+   * `DESIGN.md`, `.factory/threat-model.md` or output style is cleaned up once
+   * no rule opts in anymore. Global mode lists only the output-styles
+   * directory: neither fixed file has a documented home-directory equivalent.
    */
   static getExtraFixedFiles({
     global = false,
   }: { global?: boolean } = {}): ToolRuleExtraFixedFile[] {
-    return this.getChannelPaths({ global }).map(({ path }) => path);
+    return [
+      ...this.getChannelPaths({ global }).map(({ path }) => path),
+      { relativeDirPath: this.getOutputStylesDirPath(), relativeFilePath: OUTPUT_STYLE_FILE_GLOB },
+    ];
+  }
+
+  /**
+   * Non-root rules this tool can still emit in global mode, where it otherwise
+   * has no non-root output: an `output-style` rule, since Factory documents
+   * `~/.factory/output-styles/` as the user scope of the same surface.
+   */
+  static isEmittedAsGlobalNonRootRule(rulesyncRule: RulesyncRule): boolean {
+    const frontmatter = rulesyncRule.getFrontmatter();
+    return !frontmatter.root && frontmatter.factorydroid?.channel === "output-style";
   }
 
   /**
@@ -213,6 +273,22 @@ export class FactorydroidRule extends ToolRule {
     global = false,
   }: ToolRuleFromFileParams): Promise<FactorydroidRule> {
     const paths = this.getSettablePaths({ global });
+
+    if (this.isOutputStylePath({ relativeDirPath, relativeFilePath })) {
+      const outputStylesDirPath = this.getOutputStylesDirPath();
+      const fileContent = await readFileContent(
+        join(outputRoot, outputStylesDirPath, relativeFilePath),
+      );
+      return new FactorydroidRule({
+        outputRoot,
+        relativeDirPath: outputStylesDirPath,
+        relativeFilePath,
+        fileContent,
+        validate,
+        root: false,
+        channel: "output-style",
+      });
+    }
 
     // Route a channel file to its own instance; everything else resolves
     // through the existing root/non-root handling.
@@ -272,7 +348,9 @@ export class FactorydroidRule extends ToolRule {
     global = false,
   }: ToolRuleForDeletionParams): FactorydroidRule {
     const paths = this.getSettablePaths({ global });
-    const channel = this.findChannelByPath({ relativeDirPath, relativeFilePath, global })?.channel;
+    const channel = this.isOutputStylePath({ relativeDirPath, relativeFilePath })
+      ? "output-style"
+      : this.findChannelByPath({ relativeDirPath, relativeFilePath, global })?.channel;
     const isRoot =
       channel === undefined &&
       relativeFilePath === paths.root.relativeFilePath &&
@@ -297,6 +375,10 @@ export class FactorydroidRule extends ToolRule {
   }: ToolRuleFromRulesyncRuleParams): FactorydroidRule {
     const frontmatter = rulesyncRule.getFrontmatter();
     const paths = this.getSettablePaths({ global });
+
+    if (this.isEmittedAsGlobalNonRootRule(rulesyncRule)) {
+      return this.buildOutputStyle({ outputRoot, rulesyncRule, validate });
+    }
 
     // Opted-in non-root rules route to their channel file instead of
     // AGENTS.md / .factory/rules/*.md. Project scope only, matching
@@ -331,7 +413,81 @@ export class FactorydroidRule extends ToolRule {
     );
   }
 
+  /**
+   * Write an `output-style` rule as `.factory/output-styles/<name>.md`. The
+   * file name is the rule's own, so a rule nested under `.rulesync/rules/`
+   * is refused (Droid ignores nested files), as is a style named after a
+   * built-in (`Default` / `Concise` "are reserved and cannot be replaced").
+   */
+  private static buildOutputStyle({
+    outputRoot,
+    rulesyncRule,
+    validate,
+  }: {
+    outputRoot: string;
+    rulesyncRule: RulesyncRule;
+    validate: boolean;
+  }): FactorydroidRule {
+    const frontmatter = rulesyncRule.getFrontmatter();
+    const sourcePath = rulesyncRule.getRelativeFilePath();
+    if (basename(sourcePath) !== sourcePath) {
+      throw new Error(
+        `Rule '${sourcePath}' sets factorydroid.channel: output-style but is nested in a subdirectory: Factory Droid loads only direct .md children of .factory/output-styles/, so move it to the top of ${RULESYNC_RULES_RELATIVE_DIR_PATH}.`,
+      );
+    }
+    const stem = basename(sourcePath, extname(sourcePath));
+    const name = frontmatter.factorydroid?.name;
+    const styleName = name ?? stem;
+    if (FACTORYDROID_RESERVED_OUTPUT_STYLE_NAMES.includes(styleName.trim().toLowerCase())) {
+      throw new Error(
+        `Rule '${sourcePath}' sets factorydroid.channel: output-style with the style name '${styleName}', which is reserved: Factory Droid's built-in Default and Concise styles cannot be replaced. Rename the rule file or set factorydroid.name.`,
+      );
+    }
+
+    const styleFrontmatter = {
+      ...(name !== undefined && { name }),
+      ...(frontmatter.description !== undefined && { description: frontmatter.description }),
+    };
+    const body = rulesyncRule.getBody();
+    return new FactorydroidRule({
+      outputRoot,
+      relativeDirPath: this.getOutputStylesDirPath(),
+      relativeFilePath: `${stem}.md`,
+      fileContent:
+        Object.keys(styleFrontmatter).length > 0
+          ? stringifyFrontmatter(body, styleFrontmatter)
+          : body,
+      validate,
+      root: false,
+      channel: "output-style",
+    });
+  }
+
   toRulesyncRule(): RulesyncRule {
+    if (this.channel === "output-style") {
+      // The style's `name` / `description` frontmatter maps back onto the
+      // rule's `factorydroid.name` / `description`, and the file keeps its
+      // own name, so generate writes it back to the same path.
+      const { frontmatter, body } = parseFrontmatter(
+        this.getFileContent(),
+        join(this.getRelativeDirPath(), this.getRelativeFilePath()),
+      );
+      const name = typeof frontmatter.name === "string" ? frontmatter.name : undefined;
+      const description =
+        typeof frontmatter.description === "string" ? frontmatter.description : undefined;
+      return new RulesyncRule({
+        outputRoot: process.cwd(),
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+        relativeFilePath: this.getRelativeFilePath(),
+        frontmatter: {
+          root: false,
+          targets: ["factorydroid"],
+          ...(description !== undefined && { description }),
+          factorydroid: { channel: "output-style", ...(name !== undefined && { name }) },
+        },
+        body: body.trim(),
+      });
+    }
     if (this.channel !== undefined) {
       // Imported under the channel file's own basename (`DESIGN.md`,
       // `threat-model.md`) so the two channels never collide in
