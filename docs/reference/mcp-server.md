@@ -27,7 +27,7 @@ The `rule` operations expose the authored frontmatter, the value written in the 
 
 ### `subagent` paths
 
-Unlike `rule` and `command`, which take a file name and place it in their `.rulesync/` directory, the `subagent` operations take a `relativePathFromCwd` that must point inside `.rulesync/subagents/` and end in `.md`, for example `.rulesync/subagents/planner.md` or, for a nested agent, `.rulesync/subagents/review/security.md`. A bare file name, a path outside that directory, a non-Markdown file, or the directory itself is rejected. `list` returns the same paths, so they can be passed back to `get`, `put`, and `delete` unchanged. `.rulesync` and `.rulesync/subagents` may be symbolic links (for example into a dotfiles repository); a symbolic link below `.rulesync/subagents/` is not followed.
+Unlike `rule` and `command`, which take a file name and place it in their `.rulesync/` directory, the `subagent` operations take a `relativePathFromCwd` that must point inside `.rulesync/subagents/` and end in `.md`, for example `.rulesync/subagents/planner.md` or, for a nested agent, `.rulesync/subagents/review/security.md`. A bare file name, a path outside that directory, a non-Markdown file, a path with a dot-prefixed segment (which `list` and `generate` skip), or the directory itself is rejected. `list` returns the same paths, so they can be passed back to `get`, `put`, and `delete` unchanged. `.rulesync` and `.rulesync/subagents` may be symbolic links (for example into a dotfiles repository), and the server then reads and writes wherever the link points, as the CLI does; a symbolic link below `.rulesync/subagents/` is neither listed nor read, written, or deleted through.
 
 ### `skill` other files
 

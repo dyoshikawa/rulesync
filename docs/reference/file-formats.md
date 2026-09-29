@@ -640,8 +640,7 @@ and global scope.
 subagent frontmatter (for example `docs/README.md`) is skipped with a warning on
 every run. Move such files out of `.rulesync/subagents/` after upgrading. For
 Claude Code and Kimi Code, which identify agents by frontmatter `name`, two
-sources in different directories that declare the same `name` are both
-generated, with a warning that the tool may load only one of them.
+sources that declare the same `name` are both generated, with a warning that the tool may load only one of them.
 
 Example:
 

@@ -12,9 +12,11 @@ import { formatError } from "../utils/error.js";
 import {
   assertWritablePathInsideRoot,
   checkPathTraversal,
+  directoryExists,
   ensureDir,
   findFilesByGlobs,
   removeFile,
+  splitPathSegments,
   writeFileContent,
 } from "../utils/file.js";
 import { ConsoleLogger } from "../utils/logger.js";
@@ -37,7 +39,12 @@ function getSubagentRelativeFilePath(relativePathFromCwd: string): string {
   // `relative()` maps the directory itself to "", which would make `delete`
   // target the whole subagents directory; and a file without `.md` is never
   // listed or generated, so writing one would only create an invisible file.
-  if (relativeFilePath === "" || !relativeFilePath.endsWith(".md")) {
+  // Dot-prefixed segments are skipped by `list` and `generate` alike.
+  if (
+    relativeFilePath === "" ||
+    !relativeFilePath.endsWith(".md") ||
+    splitPathSegments(relativeFilePath).some((segment) => segment.startsWith("."))
+  ) {
     throw new Error(
       `Subagent path must point to a .md file under ${RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH}/: ${relativePathFromCwd}`,
     );
@@ -69,6 +76,12 @@ async function listSubagents(): Promise<
     const subagents = await Promise.all(
       mdFiles.map(async (file) => {
         try {
+          // Hold `list` to the same confinement as `get`, so a symlinked file
+          // below the subagents directory is not listed and then refused.
+          await assertWritablePathInsideRoot({
+            rootPath: subagentsDir,
+            targetPath: join(subagentsDir, file),
+          });
           // Read the subagent file using RulesyncSubagent
           const subagent = await RulesyncSubagent.fromFile({
             relativeFilePath: file,
@@ -113,6 +126,9 @@ async function getSubagent({ relativePathFromCwd }: { relativePathFromCwd: strin
   const fullPath = join(subagentsDir, relativeFilePath);
 
   try {
+    if (!(await directoryExists(subagentsDir))) {
+      throw new Error(`${RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH} does not exist`);
+    }
     // Only the part below the subagents directory is confined: `.rulesync`
     // or `.rulesync/subagents` may itself be a symlink (e.g. into a dotfiles
     // repository), which the CLI follows as well.
@@ -219,6 +235,10 @@ async function deleteSubagent({ relativePathFromCwd }: { relativePathFromCwd: st
   const fullPath = join(subagentsDir, relativeFilePath);
 
   try {
+    // Nothing to delete; stay idempotent like deleting a missing file.
+    if (!(await directoryExists(subagentsDir))) {
+      return { relativePathFromCwd: join(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, relativeFilePath) };
+    }
     // Only the part below the subagents directory is confined: `.rulesync`
     // or `.rulesync/subagents` may itself be a symlink (e.g. into a dotfiles
     // repository), which the CLI follows as well.

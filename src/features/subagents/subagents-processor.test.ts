@@ -441,13 +441,14 @@ describe("SubagentsProcessor", () => {
     },
   );
 
-  it("marks exactly the recursively scanned targets as supporting nested paths", () => {
-    for (const [toolTarget, factory] of toolSubagentFactories) {
-      expect({ toolTarget, nested: factory.meta.supportsNestedPaths === true }).toEqual({
-        toolTarget,
-        nested: factory.meta.filePattern.startsWith("**/"),
+  it("marks only recursively scanned targets as supporting nested paths", () => {
+    const nestedTargets = [...toolSubagentFactories]
+      .filter(([, factory]) => factory.meta.supportsNestedPaths === true)
+      .map(([toolTarget, factory]) => {
+        expect(factory.meta.filePattern).toMatch(/^\*\*\//);
+        return toolTarget;
       });
-    }
+    expect(nestedTargets).toEqual(["claudecode", "claudecode-legacy", "kimi-code"]);
   });
 
   it("warns but still writes both nested subagents that share a name", async () => {
