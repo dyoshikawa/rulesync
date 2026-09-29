@@ -24,6 +24,7 @@ import {
   SubagentsProcessorToolTargetSchema,
   subagentsProcessorToolTargets,
   subagentsProcessorToolTargetsSimulated,
+  toolSubagentFactories,
 } from "./subagents-processor.js";
 
 /**
@@ -409,32 +410,71 @@ describe("SubagentsProcessor", () => {
     });
   });
 
-  it("skips nested sources for flat targets while keeping Claude Code nesting", async () => {
-    const logger = createMockLogger();
-    const nested = new RulesyncSubagent({
-      outputRoot: testDir,
-      relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
-      relativeFilePath: join("review", "security.md"),
-      frontmatter: {
-        name: "security",
-        description: "Review security",
-        targets: ["*"],
-      },
-      body: "Review security.",
-    });
+  it.each(["cursor", "deepagents", "roo"] as const)(
+    "skips nested sources for the flat %s target while keeping Claude Code nesting",
+    async (toolTarget) => {
+      const logger = createMockLogger();
+      const nested = new RulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath: join("review", "security.md"),
+        frontmatter: {
+          name: "security",
+          description: "Review security",
+          targets: ["*"],
+        },
+        body: "Review security.",
+      });
 
-    const cursor = new SubagentsProcessor({ logger, outputRoot: testDir, toolTarget: "cursor" });
+      const flat = new SubagentsProcessor({ logger, outputRoot: testDir, toolTarget });
+      const claudecode = new SubagentsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+      });
+
+      expect(await flat.convertRulesyncFilesToToolFiles([nested])).toEqual([]);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("Skipping nested subagent"));
+      const claudeFiles = await claudecode.convertRulesyncFilesToToolFiles([nested]);
+      expect(claudeFiles).toHaveLength(1);
+      expect(claudeFiles[0]?.getRelativeFilePath()).toBe(join("review", "security.md"));
+    },
+  );
+
+  it("marks exactly the recursively scanned targets as supporting nested paths", () => {
+    for (const [toolTarget, factory] of toolSubagentFactories) {
+      expect({ toolTarget, nested: factory.meta.supportsNestedPaths === true }).toEqual({
+        toolTarget,
+        nested: factory.meta.filePattern.startsWith("**/"),
+      });
+    }
+  });
+
+  it("warns but still writes both nested subagents that share a name", async () => {
+    const logger = createMockLogger();
+    const makeSubagent = (relativeFilePath: string) =>
+      new RulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath,
+        frontmatter: { name: "reviewer", description: "Review", targets: ["*"] },
+        body: "Review.",
+      });
     const claudecode = new SubagentsProcessor({
       logger,
       outputRoot: testDir,
       toolTarget: "claudecode",
     });
 
-    expect(await cursor.convertRulesyncFilesToToolFiles([nested])).toEqual([]);
-    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("Skipping nested subagent"));
-    const claudeFiles = await claudecode.convertRulesyncFilesToToolFiles([nested]);
-    expect(claudeFiles).toHaveLength(1);
-    expect(claudeFiles[0]?.getRelativeFilePath()).toBe(join("review", "security.md"));
+    const toolFiles = await claudecode.convertRulesyncFilesToToolFiles([
+      makeSubagent("reviewer.md"),
+      makeSubagent(join("review", "reviewer.md")),
+    ]);
+
+    expect(toolFiles).toHaveLength(2);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('both declare name "reviewer" for claudecode'),
+    );
   });
 
   it("imports empty Roo and Pool aggregates without converting them to one agent", async () => {
@@ -1428,6 +1468,34 @@ Analyze the task.`;
 
       expect(toolFiles).toHaveLength(1);
       expect(toolFiles[0]?.getRelativeFilePath()).toBe(join("research", "researcher.md"));
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Duplicate claudecode subagent "analyst"'),
+      );
+    });
+
+    it("should warn and keep the first claudecode subagent when flat files share a name", async () => {
+      const logger = createMockLogger();
+      processor = new SubagentsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+      });
+      const agentsDir = join(testDir, ".claude", "agents");
+      await ensureDir(agentsDir);
+
+      const subagentContent = `---
+name: analyst
+description: An analyst
+---
+Analyze the task.`;
+
+      await writeFileContent(join(agentsDir, "b-analyst.md"), subagentContent);
+      await writeFileContent(join(agentsDir, "a-analyst.md"), subagentContent);
+
+      const toolFiles = await processor.loadToolFiles();
+
+      expect(toolFiles).toHaveLength(1);
+      expect(toolFiles[0]?.getRelativeFilePath()).toBe("a-analyst.md");
       expect(logger.warn).toHaveBeenCalledWith(
         expect.stringContaining('Duplicate claudecode subagent "analyst"'),
       );

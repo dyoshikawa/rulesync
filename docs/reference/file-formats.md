@@ -632,6 +632,17 @@ import any hand-written nested Claude Code agents you want to keep: nested
 `.claude/agents/**` files are now included in the orphan sweep, at both project
 and global scope.
 
+**Upgrade note:** earlier versions only read Markdown files directly under
+`.rulesync/subagents/` and ignored its subdirectories. Since
+[#3187](https://github.com/dyoshikawa/rulesync/pull/3187), every
+`.rulesync/subagents/**/*.md` is loaded, so an existing file such as
+`_drafts/old.md` starts generating for its targets, and Markdown without valid
+subagent frontmatter (for example `docs/README.md`) is skipped with a warning on
+every run. Move such files out of `.rulesync/subagents/` after upgrading. For
+Claude Code and Kimi Code, which identify agents by frontmatter `name`, two
+sources in different directories that declare the same `name` are both
+generated, with a warning that the tool may load only one of them.
+
 Example:
 
 ```md
