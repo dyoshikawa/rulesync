@@ -55,8 +55,8 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
   ),
   description: z.string(),
   targets: z._default(RulesyncTargetsSchema, ["*"]),
-  // Default for tools that support the flag (claudecode, cursor, zed, pi, qwencode, vibe, grokcli,
-  // factorydroid, dsh, commandcode, lettacode).
+  // Default for tools that support the flag (claudecode, copilot, copilotcli, crush, cursor, zed,
+  // pi, omp, qwencode, vibe, grokcli, factorydroid, dsh, commandcode, lettacode).
   // A target-section value of the same key overrides this default.
   // `devin` also consumes this root value (mapping `true` onto a user-only
   // `triggers` list); it has no section key of the same name, but a
