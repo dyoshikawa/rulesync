@@ -435,7 +435,11 @@ You are a subagent-only helper.
       const testDir = getTestDir();
 
       await writeFileContent(join(testDir, ".rulesync", ".gitkeep"), "");
-      await writeFileContent(join(testDir, orphanPath), "# orphan\n");
+      const orphanContent =
+        target === "claudecode"
+          ? "---\nname: orphan\ndescription: An orphaned agent\n---\n# orphan\n"
+          : "# orphan\n";
+      await writeFileContent(join(testDir, orphanPath), orphanContent);
 
       await expect(
         runGenerate({
@@ -452,7 +456,7 @@ You are a subagent-only helper.
         ),
       });
 
-      expect(await readFileContent(join(testDir, orphanPath))).toBe("# orphan\n");
+      expect(await readFileContent(join(testDir, orphanPath))).toBe(orphanContent);
     },
   );
 });
@@ -674,6 +678,40 @@ Break down tasks into steps.
       join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md"),
     );
     expect(importedContent).toContain("planner");
+  });
+
+  it("should round-trip nested Claude Code subagents through generate --delete", async () => {
+    const testDir = getTestDir();
+    const nestedPath = join("review", "security-reviewer.md");
+    const toolPath = join(testDir, ".claude", "agents", nestedPath);
+    const readmePath = join(testDir, ".claude", "agents", "review", "README.md");
+    await writeFileContent(readmePath, "# Review agents\n");
+    await writeFileContent(
+      toolPath,
+      `---
+name: security-reviewer
+description: Reviews code for security issues
+---
+Review the code for security issues.
+`,
+    );
+
+    await runImport({ target: "claudecode", features: "subagents" });
+
+    const importedContent = await readFileContent(
+      join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, nestedPath),
+    );
+    expect(importedContent).toContain("security-reviewer");
+    expect(importedContent).toContain("targets:\n  - claudecode");
+
+    await runGenerate({
+      target: "claudecode",
+      features: "subagents",
+      deleteFiles: true,
+    });
+
+    expect(await readFileContent(toolPath)).toContain("Review the code for security issues.");
+    expect(await readFileContent(readmePath)).toBe("# Review agents\n");
   });
 
   it("should import codewhale subagents from TOML agent profiles", async () => {

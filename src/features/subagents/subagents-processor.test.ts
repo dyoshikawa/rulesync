@@ -409,6 +409,56 @@ describe("SubagentsProcessor", () => {
     });
   });
 
+  it("skips nested sources for flat targets while keeping Claude Code nesting", async () => {
+    const logger = createMockLogger();
+    const nested = new RulesyncSubagent({
+      outputRoot: testDir,
+      relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+      relativeFilePath: join("review", "security.md"),
+      frontmatter: {
+        name: "security",
+        description: "Review security",
+        targets: ["*"],
+      },
+      body: "Review security.",
+    });
+
+    const cursor = new SubagentsProcessor({ logger, outputRoot: testDir, toolTarget: "cursor" });
+    const claudecode = new SubagentsProcessor({
+      logger,
+      outputRoot: testDir,
+      toolTarget: "claudecode",
+    });
+
+    expect(await cursor.convertRulesyncFilesToToolFiles([nested])).toEqual([]);
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("Skipping nested subagent"));
+    const claudeFiles = await claudecode.convertRulesyncFilesToToolFiles([nested]);
+    expect(claudeFiles).toHaveLength(1);
+    expect(claudeFiles[0]?.getRelativeFilePath()).toBe(join("review", "security.md"));
+  });
+
+  it("imports empty Roo and Pool aggregates without converting them to one agent", async () => {
+    await writeFileContent(join(testDir, ".roomodes"), "customModes: []\n");
+    const roo = new SubagentsProcessor({
+      logger: createMockLogger(),
+      outputRoot: testDir,
+      toolTarget: "roo",
+    });
+    expect(await roo.loadToolFiles()).toHaveLength(1);
+
+    await ensureDir(join(testDir, ".poolside"));
+    await writeFileContent(
+      join(testDir, ".poolside", "settings.yaml"),
+      "subagents:\n  agents: {}\n",
+    );
+    const pool = new SubagentsProcessor({
+      logger: createMockLogger(),
+      outputRoot: testDir,
+      toolTarget: "pool",
+    });
+    expect(await pool.loadToolFiles()).toHaveLength(1);
+  });
+
   describe("convertToolFilesToRulesyncFiles", () => {
     let processor: SubagentsProcessor;
 
@@ -686,6 +736,48 @@ Second agent content`;
         .toSorted();
       expect(names).toEqual(["agent-1", "agent-2"]);
     });
+
+    it("should load nested rulesync subagent files", async () => {
+      const nestedDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "review");
+      await ensureDir(nestedDir);
+      await writeFileContent(
+        join(nestedDir, "security-reviewer.md"),
+        `---
+name: security-reviewer
+description: Reviews code for security issues
+targets: ["claudecode"]
+---
+Review the code for security issues.`,
+      );
+
+      const rulesyncFiles = await processor.loadRulesyncFiles();
+
+      expect(rulesyncFiles).toHaveLength(1);
+      expect(rulesyncFiles[0]?.getRelativeFilePath()).toBe(join("review", "security-reviewer.md"));
+    });
+
+    it.skipIf(process.platform === "win32")(
+      "should follow a linked source directory without importing the same file twice",
+      async () => {
+        const subagentsDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
+        const sharedDir = join(subagentsDir, "shared");
+        await ensureDir(sharedDir);
+        await writeFileContent(
+          join(sharedDir, "reviewer.md"),
+          `---
+name: reviewer
+description: Reviews code
+targets: ["claudecode"]
+---
+Review code.`,
+        );
+        await symlink(sharedDir, join(subagentsDir, "linked"), "dir");
+
+        const rulesyncFiles = await processor.loadRulesyncFiles();
+
+        expect(rulesyncFiles).toHaveLength(1);
+      },
+    );
 
     // Windows needs elevated rights to create symlinks, so this one is POSIX-only.
     it.skipIf(process.platform === "win32")(
@@ -1255,7 +1347,157 @@ Second content`;
       expect(toolFiles.every((file) => file instanceof ClaudecodeSubagent)).toBe(true);
     });
 
-    it("should throw error when file fails to load", async () => {
+    it("should load claudecode subagent files recursively", async () => {
+      const nestedAgentsDir = join(testDir, ".claude", "agents", "review");
+      await ensureDir(nestedAgentsDir);
+
+      const subagentContent = `---
+name: security-reviewer
+description: Reviews code for security issues
+---
+Review the code for security issues.`;
+
+      await writeFileContent(join(nestedAgentsDir, "security-reviewer.md"), subagentContent);
+
+      const toolFiles = await processor.loadToolFiles();
+
+      expect(toolFiles).toHaveLength(1);
+      expect(toolFiles[0]).toBeInstanceOf(ClaudecodeSubagent);
+      expect(toolFiles[0]?.getRelativeFilePath()).toBe(join("review", "security-reviewer.md"));
+    });
+
+    it("should skip a nested README without losing a valid Claude Code agent", async () => {
+      const logger = createMockLogger();
+      processor = new SubagentsProcessor({ logger, outputRoot: testDir, toolTarget: "claudecode" });
+      const nestedAgentsDir = join(testDir, ".claude", "agents", "some-pack");
+      await ensureDir(nestedAgentsDir);
+      await writeFileContent(join(nestedAgentsDir, "README.md"), "# About this agent pack");
+      await writeFileContent(join(nestedAgentsDir, "reviewer.md"), junieSubagentMd("reviewer"));
+
+      const imported = await processor.loadToolFiles();
+      const deletionCandidates = await processor.loadToolFiles({ forDeletion: true });
+
+      expect(imported.map((file) => file.getRelativeFilePath())).toEqual([
+        join("some-pack", "reviewer.md"),
+      ]);
+      expect(deletionCandidates.map((file) => file.getRelativeFilePath())).toEqual([
+        join("some-pack", "reviewer.md"),
+      ]);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("README.md"));
+    });
+
+    it("should treat nested claudecode subagents as deletion candidates", async () => {
+      const nestedAgentsDir = join(testDir, ".claude", "agents", "review");
+      await ensureDir(nestedAgentsDir);
+      await writeFileContent(
+        join(nestedAgentsDir, "manual.md"),
+        `---
+name: manual
+description: A manually managed agent
+---
+Manual agent content.`,
+      );
+
+      const toolFiles = await processor.loadToolFiles({ forDeletion: true });
+
+      expect(toolFiles).toHaveLength(1);
+      expect(toolFiles[0]?.getRelativeFilePath()).toBe(join("review", "manual.md"));
+    });
+
+    it("should warn and keep the first claudecode subagent when nested files share a name", async () => {
+      const logger = createMockLogger();
+      processor = new SubagentsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+      });
+      const agentsDir = join(testDir, ".claude", "agents");
+      await ensureDir(join(agentsDir, "review"));
+      await ensureDir(join(agentsDir, "research"));
+
+      const subagentContent = `---
+name: analyst
+description: An analyst
+---
+Analyze the task.`;
+
+      await writeFileContent(join(agentsDir, "review", "reviewer.md"), subagentContent);
+      await writeFileContent(join(agentsDir, "research", "researcher.md"), subagentContent);
+
+      const toolFiles = await processor.loadToolFiles();
+
+      expect(toolFiles).toHaveLength(1);
+      expect(toolFiles[0]?.getRelativeFilePath()).toBe(join("research", "researcher.md"));
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Duplicate claudecode subagent "analyst"'),
+      );
+    });
+
+    it("should prefer a shallower claudecode subagent when nested files share a name", async () => {
+      const logger = createMockLogger();
+      processor = new SubagentsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+      });
+      const agentsDir = join(testDir, ".claude", "agents");
+      await ensureDir(join(agentsDir, "review"));
+
+      const subagentContent = `---
+name: analyst
+description: An analyst
+---
+Analyze the task.`;
+
+      await writeFileContent(join(agentsDir, "review", "nested.md"), subagentContent);
+      await writeFileContent(join(agentsDir, "top-level.md"), subagentContent);
+
+      const toolFiles = await processor.loadToolFiles();
+
+      expect(toolFiles).toHaveLength(1);
+      expect(toolFiles[0]?.getRelativeFilePath()).toBe("top-level.md");
+    });
+
+    it.skipIf(process.platform !== "linux")(
+      "should reject case-insensitive claudecode path collisions with different names",
+      async () => {
+        const logger = createMockLogger();
+        processor = new SubagentsProcessor({
+          logger,
+          outputRoot: testDir,
+          toolTarget: "claudecode",
+        });
+        const agentsDir = join(testDir, ".claude", "agents");
+        await ensureDir(join(agentsDir, "Review"));
+        await ensureDir(join(agentsDir, "review"));
+        await writeFileContent(
+          join(agentsDir, "Review", "Agent.md"),
+          `---
+name: first-agent
+description: First agent
+---
+First agent.`,
+        );
+        await writeFileContent(
+          join(agentsDir, "review", "agent.md"),
+          `---
+name: second-agent
+description: Second agent
+---
+Second agent.`,
+        );
+
+        const toolFiles = await processor.loadToolFiles();
+
+        expect(toolFiles).toHaveLength(1);
+        expect(toolFiles[0]?.getRelativeFilePath()).toBe(join("Review", "Agent.md"));
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining("same file on a case-insensitive filesystem"),
+        );
+      },
+    );
+
+    it("should warn and skip markdown without agent frontmatter", async () => {
       const agentsDir = join(testDir, ".claude", "agents");
       await ensureDir(agentsDir);
 
@@ -1265,7 +1507,7 @@ Second content`;
         "Invalid format without frontmatter",
       );
 
-      await expect(processor.loadToolFiles()).rejects.toThrow();
+      await expect(processor.loadToolFiles()).resolves.toEqual([]);
     });
 
     describe("global mode", () => {
@@ -1702,7 +1944,7 @@ Second agent`;
       expect(filesToDelete.every((file) => file instanceof ClaudecodeSubagent)).toBe(true);
     });
 
-    it("should succeed even when file has broken frontmatter", async () => {
+    it("should preserve files with broken frontmatter during orphan deletion", async () => {
       const processor = new SubagentsProcessor({
         logger: createMockLogger(),
         outputRoot: testDir,
@@ -1723,12 +1965,10 @@ Content that would fail parsing`;
 
       await writeFileContent(join(agentsDir, "broken-agent.md"), brokenFrontmatter);
 
-      // forDeletion should succeed without parsing file content
+      // A file without valid agent frontmatter must not be an orphan candidate.
       const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
 
-      expect(filesToDelete).toHaveLength(1);
-      expect(filesToDelete[0]).toBeInstanceOf(ClaudecodeSubagent);
-      expect(filesToDelete[0]?.getRelativeFilePath()).toBe("broken-agent.md");
+      expect(filesToDelete).toEqual([]);
     });
   });
 });
