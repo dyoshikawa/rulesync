@@ -810,9 +810,19 @@ export class SubagentsProcessor extends FeatureProcessor {
 
     const factory = this.getFactory(this.toolTarget);
 
-    const targeted = rulesyncSubagents.filter((rulesyncSubagent) =>
-      factory.class.isTargetedByRulesyncSubagent(rulesyncSubagent),
-    );
+    const targeted = rulesyncSubagents.filter((rulesyncSubagent) => {
+      if (!factory.class.isTargetedByRulesyncSubagent(rulesyncSubagent)) {
+        return false;
+      }
+      const path = rulesyncSubagent.getRelativeFilePath();
+      if (!factory.meta.filePattern.startsWith("**/") && /[/\\]/u.test(path)) {
+        this.logger.warn(
+          `Skipping nested subagent "${path}" for ${this.toolTarget}, which only supports flat subagent paths.`,
+        );
+        return false;
+      }
+      return true;
+    });
 
     // Tools whose native format aggregates every subagent into a single shared
     // file (e.g. Roo's `.roomodes`) implement `fromRulesyncSubagents` to emit
@@ -926,7 +936,7 @@ export class SubagentsProcessor extends FeatureProcessor {
     const mdFiles = (
       await findFilesByGlobs("**/*.md", {
         cwd: subagentsDir,
-        followSymbolicLinks: false,
+        followSymbolicLinks: true,
       })
     )
       .map((file) => relative(subagentsDir, file))
@@ -1176,7 +1186,11 @@ export class SubagentsProcessor extends FeatureProcessor {
 
     for (const subagent of loaded) {
       const sourceRelativeFilePath = subagent.getRelativeFilePath();
-      const destinationRelativeFilePath = subagent.toRulesyncSubagent().getRelativeFilePath();
+      // Aggregating formats (Roo and Pool) may contain no agents; converting
+      // their empty config to a single RulesyncSubagent would throw.
+      const destinationRelativeFilePath = subagent.toRulesyncSubagents
+        ? sourceRelativeFilePath
+        : subagent.toRulesyncSubagent().getRelativeFilePath();
       const pathKey = caseFoldIdentity(destinationRelativeFilePath);
       const pathClaim = claimedRelativeFilePaths.get(pathKey);
       if (pathClaim !== undefined) {

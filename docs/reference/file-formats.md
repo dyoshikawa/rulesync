@@ -568,6 +568,14 @@ The command body itself uses a Claude Code-compatible **universal syntax** (e.g.
 
 ## `rulesync/subagents/*.md`
 
+Nested sources such as `.rulesync/subagents/review/security.md` retain their
+directory structure only for targets that support nested agents (Claude Code and
+Kimi Code). Other targets are skipped with a warning; a flat agent with the same
+name can be authored separately for them. Before running `generate --delete`,
+import any hand-written nested Claude Code agents you want to keep: nested
+`.claude/agents/**` files are now included in the orphan sweep, at both project
+and global scope.
+
 Example:
 
 ```md
