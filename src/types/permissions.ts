@@ -891,6 +891,15 @@ export type AntigravityCliPermissionsOverride = z.infer<
  * any future policy field survive untouched. Both project and global scope are
  * supported.
  *
+ * The same override also carries the two plugin-consumption keys Auggie reads
+ * from `settings.json`: `recommendedMarketplaces` (`"owner/repo"` marketplaces
+ * a workspace prompts its contributors to install; honored only in the
+ * project's `.augment/settings.json`) and `enabledPlugins` (plugin ids of the
+ * form `"plugin@marketplace"` mapped to on/off, deep-merged across the user,
+ * project and local tiers).
+ *
+ * @see https://docs.augmentcode.com/cli/plugins
+ *
  * @example
  * { "toolPermissions": [
  *     { "toolName": "github-api",
@@ -911,6 +920,9 @@ const AugmentcodePermissionsOverrideSchema = z.looseObject({
       }),
     ),
   ),
+  // @see https://docs.augmentcode.com/cli/plugins
+  recommendedMarketplaces: z.optional(z.array(z.string())),
+  enabledPlugins: z.optional(z.record(z.string(), z.boolean())),
 });
 export type AugmentcodePermissionsOverride = z.infer<typeof AugmentcodePermissionsOverrideSchema>;
 

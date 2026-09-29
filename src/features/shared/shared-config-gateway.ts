@@ -1554,7 +1554,12 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
     features: {
       mcp: { kind: "replace-owned-keys", ownedKeys: ["mcpServers"] },
       hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
-      permissions: { kind: "replace-owned-keys", ownedKeys: ["toolPermissions"] },
+      // `recommendedMarketplaces` / `enabledPlugins` are patched only when the
+      // `augmentcode` override authors them, so a hand-set value survives.
+      permissions: {
+        kind: "replace-owned-keys",
+        ownedKeys: ["toolPermissions", "recommendedMarketplaces", "enabledPlugins"],
+      },
     },
   },
   // Devin config: `permissions` is recomputed from the existing file

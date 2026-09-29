@@ -35,11 +35,12 @@ compatibility roots are documented unversioned on `/cli/custom-commands` and
 
 `plugins` is **not a Rulesync dimension and has no AugmentCode target** — it is
 listed so a run does not mistake the absence of a row for the absence of an
-upstream surface. Both halves are `unsupported`: the bundle side (tracked as the
-`augmentcode-plugin` proposal) and the consumption keys `recommendedMarketplaces`
-(project only), `enabledPlugins` (any tier, deep-merged), `autoUpdateMarketplaces`
-(user) and `dismissedMarketplaces` (`settings.local.json`, tool-managed), none of
-which Rulesync can author. See #2959.
+upstream surface. The bundle side is `unsupported` (tracked as the
+`augmentcode-plugin` proposal). Of the consumption keys, `recommendedMarketplaces`
+(project only) and `enabledPlugins` (any tier, deep-merged) are authored through
+the tool-scoped `augmentcode` permissions override; `autoUpdateMarketplaces`
+(user) and `dismissedMarketplaces` (`settings.local.json`, tool-managed) are
+deliberately not authored. See #2959.
 
 ## Client Anchors
 
@@ -55,6 +56,6 @@ Common adapter paths: `rulesync-source-map.md`.
 | `subagents`   | `.augment/agents/*.md` at both scopes in `augmentcode-subagent.ts`; `.agents/` is an import-only discovery root                                                                                                                                                   |
 | `skills`      | `.augment/skills/<name>/SKILL.md` at both scopes in `augmentcode-skill.ts`; `.agents/skills/` is an import-only discovery root                                                                                                                                    |
 | `hooks`       | `augmentcode-hooks.ts` merges the `hooks` block into `settings.json`; seven canonical events map onto the PascalCase set — see `AUGMENTCODE_HOOK_EVENTS` in `types/hooks.ts` (`PromptSubmit` ← `beforeSubmitPrompt`, added upstream in 0.27.0)                    |
-| `permissions` | `.augment/settings.json`, `toolPermissions`, tool-name aliases, regex/glob fallback, and fail-closed ordering in `augmentcode-permissions.ts`                                                                                                                     |
+| `permissions` | `.augment/settings.json`, `toolPermissions`, tool-name aliases, regex/glob fallback, and fail-closed ordering in `augmentcode-permissions.ts`; the `augmentcode` override also writes `recommendedMarketplaces` / `enabledPlugins`                                |
 | `checks`      | `.augment/code_review_guidelines.yaml` in `augmentcode-check.ts`; canonical `critical` folds one-way into Augment's `high`, and an unannotated check defaults to `medium`                                                                                         |
 | `plugins`     | No target. `src/types/tool-targets.ts` lists only `antigravity-plugin` and `claudecode-plugin`; Auggie reads `.claude-plugin/` too, so the existing `claudecode-plugin` output is already partly consumable                                                       |

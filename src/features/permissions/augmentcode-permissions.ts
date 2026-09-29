@@ -7,7 +7,11 @@ import {
   AUGMENTCODE_SETTINGS_FILE_NAME,
 } from "../../constants/augmentcode-paths.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
-import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
+import type {
+  AugmentcodePermissionsOverride,
+  PermissionAction,
+  PermissionsConfig,
+} from "../../types/permissions.js";
 import {
   parseAugmentcodeSettingsDocument,
   readAugmentcodeSettingsWithLocalOverlay,
@@ -17,6 +21,7 @@ import { readFileContentOrNull } from "../../utils/file.js";
 import { globToAnchoredRegexSource } from "../../utils/glob.js";
 import { fallbackLogger, type Logger } from "../../utils/logger.js";
 import { lookupOwn } from "../../utils/own-lookup.js";
+import { isPlainObject } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { bashRulesHonoringAllTools } from "./shell-command-categories.js";
@@ -495,7 +500,10 @@ export class AugmentcodePermissions extends ToolPermissions {
       fileKey: sharedConfigFileKey(paths),
       feature: "permissions",
       existingContent,
-      patch: { toolPermissions: [...specialEntries, ...sortedBasic] },
+      patch: {
+        toolPermissions: [...specialEntries, ...sortedBasic],
+        ...buildPluginConsumptionPatch({ override, settings, global, logger }),
+      },
       filePath,
       logger,
     });
@@ -543,8 +551,12 @@ export class AugmentcodePermissions extends ToolPermissions {
     });
 
     const result: Record<string, unknown> = { ...config };
-    if (specialEntries.length > 0) {
-      result.augmentcode = { toolPermissions: specialEntries };
+    const augmentcodeOverride: Record<string, unknown> = {
+      ...(specialEntries.length > 0 ? { toolPermissions: specialEntries } : {}),
+      ...extractPluginConsumptionKeys(settings),
+    };
+    if (Object.keys(augmentcodeOverride).length > 0) {
+      result.augmentcode = augmentcodeOverride;
     }
 
     return this.toRulesyncPermissionsDefault({
@@ -589,6 +601,97 @@ export class AugmentcodePermissions extends ToolPermissions {
       validate: false,
     });
   }
+}
+
+/**
+ * The plugin-consumption keys the `augmentcode` override authors in
+ * `settings.json`. Each is written only when the override states it, so a key
+ * the user set by hand (or through `auggie plugin install --project`) is left
+ * alone otherwise.
+ *
+ * - `recommendedMarketplaces` replaces the list. Auggie honors it only in the
+ *   project's `.augment/settings.json` ("values in user or local settings are
+ *   ignored"), so in global mode it is dropped with a warning instead of
+ *   written somewhere it does nothing.
+ * - `enabledPlugins` is merged over the existing map, the override winning per
+ *   plugin id, because Auggie itself deep-merges this map across tiers and
+ *   `auggie plugin install --project` writes into it.
+ *
+ * Both make Auggie load code the repository did not ship — a recommended
+ * marketplace is one prompt away from being cloned, and an enabled plugin can
+ * carry its own hooks and MCP servers — so writing either is logged.
+ *
+ * @see https://docs.augmentcode.com/cli/plugins
+ */
+function buildPluginConsumptionPatch({
+  override,
+  settings,
+  global,
+  logger,
+}: {
+  override: AugmentcodePermissionsOverride | undefined;
+  settings: AugmentSettings;
+  global: boolean;
+  logger?: Logger;
+}): Record<string, unknown> {
+  const patch: Record<string, unknown> = {};
+
+  const recommendedMarketplaces = override?.recommendedMarketplaces;
+  if (recommendedMarketplaces !== undefined) {
+    if (global) {
+      logger?.warn(
+        "AugmentCode honors `recommendedMarketplaces` only in a project's `.augment/settings.json`; skipping it in global mode.",
+      );
+    } else {
+      patch.recommendedMarketplaces = recommendedMarketplaces;
+      if (recommendedMarketplaces.length > 0) {
+        logger?.warn(
+          `Writing AugmentCode \`recommendedMarketplaces\` (${recommendedMarketplaces.join(", ")}): Auggie prompts everyone who opens this workspace to install these plugin marketplaces.`,
+        );
+      }
+    }
+  }
+
+  const enabledPlugins = override?.enabledPlugins;
+  if (enabledPlugins !== undefined) {
+    const existing = isPlainObject(settings.enabledPlugins) ? settings.enabledPlugins : {};
+    const merged = { ...existing, ...enabledPlugins };
+    if (Object.keys(merged).length > 0) {
+      patch.enabledPlugins = merged;
+    }
+    const enabledIds = Object.keys(enabledPlugins).filter((id) => enabledPlugins[id] === true);
+    if (enabledIds.length > 0) {
+      logger?.warn(
+        `Writing AugmentCode \`enabledPlugins\` (${enabledIds.join(", ")}): enabled plugins can ship their own hooks and MCP servers.`,
+      );
+    }
+  }
+
+  return patch;
+}
+
+/**
+ * Lift the plugin-consumption keys back into the `augmentcode` override on
+ * import, so they round-trip. A value whose shape does not match what Auggie
+ * documents is left out rather than failing the import; generation preserves
+ * it in the file untouched, since the override then does not state the key.
+ */
+function extractPluginConsumptionKeys(settings: AugmentSettings): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  const { recommendedMarketplaces, enabledPlugins } = settings;
+  if (
+    Array.isArray(recommendedMarketplaces) &&
+    recommendedMarketplaces.every((entry) => typeof entry === "string")
+  ) {
+    result.recommendedMarketplaces = recommendedMarketplaces;
+  }
+  if (
+    isPlainObject(enabledPlugins) &&
+    Object.values(enabledPlugins).every((value) => typeof value === "boolean")
+  ) {
+    result.enabledPlugins = enabledPlugins;
+  }
+  return result;
 }
 
 function convertRulesyncToAugmentEntries({
