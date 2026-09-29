@@ -136,6 +136,63 @@ Do not package this rule.
     expect(await fileExists(join(pluginRoot, "assets", "icon.txt"))).toBe(true);
   });
 
+  it("generates and imports an AugmentCode plugin from an explicit plugin root", async () => {
+    const testDir = getTestDir();
+    const pluginRoot = join(testDir, "packages", "review-plugin");
+    const rulesyncRulePath = join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "review.md");
+
+    await writeFileContent(
+      rulesyncRulePath,
+      `---
+targets: ["augmentcode-plugin"]
+description: Review conventions
+augmentcode:
+  type: agent_requested
+---
+Review changes before submission.
+`,
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "project-only.md"),
+      `---
+targets: ["augmentcode"]
+description: Project-only conventions
+---
+Do not package this rule.
+`,
+    );
+    await writeFileContent(
+      join(pluginRoot, ".augment-plugin", "plugin.json"),
+      JSON.stringify({ name: "review-plugin" }, null, 2),
+    );
+
+    await runGenerate({
+      target: "augmentcode-plugin",
+      features: "rules",
+      outputRoots: pluginRoot,
+    });
+
+    const generatedRule = await readFileContent(join(pluginRoot, "rules", "review.md"));
+    expect(generatedRule).toContain("type: agent_requested");
+    expect(generatedRule).toContain("Review changes before submission.");
+    expect(await fileExists(join(pluginRoot, "rules", "project-only.md"))).toBe(false);
+    expect(await fileExists(join(testDir, ".augment", "rules", "review.md"))).toBe(false);
+
+    await removeDirectory(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
+    await ensureDir(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
+
+    await runImport({
+      target: "augmentcode-plugin",
+      features: "rules",
+      outputRoot: pluginRoot,
+    });
+
+    const imported = await readFileContent(rulesyncRulePath);
+    expect(imported).toContain("Review changes before submission.");
+    expect(imported).toContain("type: agent_requested");
+    expect(await fileExists(join(pluginRoot, ".augment-plugin", "plugin.json"))).toBe(true);
+  });
+
   describe.skipIf(process.platform === "win32")("symbolic link safety", () => {
     it("rejects plugin imports containing symbolic links", async () => {
       const testDir = getTestDir();

@@ -24,6 +24,7 @@ describe("tool targets", () => {
         "antigravity-plugin",
         "augmentcode",
         "augmentcode-legacy",
+        "augmentcode-plugin",
         "bob",
         "claudecode",
         "claudecode-legacy",

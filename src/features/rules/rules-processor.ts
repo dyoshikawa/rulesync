@@ -60,6 +60,7 @@ import { AntigravityCliRule } from "./antigravity-cli-rule.js";
 import { AntigravityIdeRule } from "./antigravity-ide-rule.js";
 import { AntigravityPluginRule } from "./antigravity-plugin-rule.js";
 import { AugmentcodeLegacyRule } from "./augmentcode-legacy-rule.js";
+import { AugmentcodePluginRule } from "./augmentcode-plugin-rule.js";
 import { AugmentcodeRule } from "./augmentcode-rule.js";
 import { BobRule } from "./bob-rule.js";
 import { ClaudecodeLanguageSettings } from "./claudecode-language-settings.js";
@@ -525,6 +526,19 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         extension: "md",
         supportsGlobal: false,
         ruleDiscoveryMode: "toon",
+      },
+    },
+  ],
+  [
+    "augmentcode-plugin",
+    {
+      // Auggie plugin bundles ship rules in `<plugin>/rules/`, read with the
+      // same parser as `.augment/rules/`. https://docs.augmentcode.com/cli/plugins
+      class: AugmentcodePluginRule,
+      meta: {
+        extension: "md",
+        supportsGlobal: false,
+        ruleDiscoveryMode: "auto",
       },
     },
   ],

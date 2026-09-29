@@ -1,9 +1,10 @@
 # Plugin Packaging
 
-Rulesync can generate and import configuration components inside existing Claude Code and Google Antigravity plugin directories. Use the packaging targets when the files are distributed as a plugin instead of being installed directly as project or user configuration:
+Rulesync can generate and import configuration components inside existing Claude Code, Google Antigravity and AugmentCode (Auggie) plugin directories. Use the packaging targets when the files are distributed as a plugin instead of being installed directly as project or user configuration:
 
 - `claudecode-plugin`
 - `antigravity-plugin`
+- `augmentcode-plugin`
 
 Packaging targets are project-scope only and are intentionally excluded from `--targets "*"`. With `--global`, `generate` skips an explicitly requested packaging target with a warning, and `import` rejects it with an error. Their component directories, such as `skills/` and `rules/`, live directly under the output root and could otherwise collide with ordinary project directories.
 
@@ -21,6 +22,11 @@ rulesync generate \
   --targets antigravity-plugin \
   --features rules,mcp,subagents,skills,hooks \
   --output-roots ./plugins/review-tools
+
+rulesync generate \
+  --targets augmentcode-plugin \
+  --features rules,mcp,commands,subagents,skills \
+  --output-roots ./plugins/review-tools
 ```
 
 The same configuration can be persisted in `rulesync.jsonc`:
@@ -30,10 +36,12 @@ The same configuration can be persisted in `rulesync.jsonc`:
   "outputRoots": {
     "claudecode-plugin": "./plugins/claude-review-tools",
     "antigravity-plugin": "./plugins/antigravity-review-tools",
+    "augmentcode-plugin": "./plugins/auggie-review-tools",
   },
   "targets": {
     "claudecode-plugin": ["mcp", "commands", "subagents", "skills", "hooks"],
     "antigravity-plugin": ["rules", "mcp", "subagents", "skills", "hooks"],
+    "augmentcode-plugin": ["rules", "mcp", "commands", "subagents", "skills"],
   },
 }
 ```
@@ -42,6 +50,7 @@ Rulesync manages the selected component files but does not create or modify plug
 
 - Claude Code: `.claude-plugin/plugin.json` when the plugin uses a manifest
 - Antigravity: `plugin.json`
+- AugmentCode: `.augment-plugin/plugin.json` (Auggie also accepts `.claude-plugin/plugin.json`), plus `.augment-plugin/marketplace.json` at the marketplace root
 
 The plugin root must already exist. Rulesync rejects symbolic links anywhere in the plugin tree before importing, generating, or deleting files so package components cannot escape the selected root.
 
@@ -61,6 +70,11 @@ rulesync import \
   --targets antigravity-plugin \
   --features rules,mcp,subagents,skills,hooks \
   --output-root ./plugins/review-tools
+
+rulesync import \
+  --targets augmentcode-plugin \
+  --features rules,mcp,commands,subagents,skills \
+  --output-root ./plugins/review-tools
 ```
 
 The `convert` command does not accept packaging targets because it has no separate source and destination plugin roots. Import from the source plugin first, then generate into the destination plugin.
@@ -71,8 +85,17 @@ The `convert` command does not accept packaging targets because it has no separa
 | -------------------- | ------------ | ----------------- | --------------- | ------------- | ------------------- | ------------------ |
 | `claudecode-plugin`  | —            | `.mcp.json`       | `commands/*.md` | `agents/*.md` | `skills/*/SKILL.md` | `hooks/hooks.json` |
 | `antigravity-plugin` | `rules/*.md` | `mcp_config.json` | —               | `agents/*.md` | `skills/*/SKILL.md` | `hooks.json`       |
+| `augmentcode-plugin` | `rules/*.md` | `.mcp.json`       | `commands/*.md` | `agents/*.md` | `skills/*/SKILL.md` | —                  |
 
 Claude-specific frontmatter and hook overrides continue to use the `claudecode` sections in Rulesync source files. Antigravity plugin output uses the `antigravity-ide` conversion model and override sections because its plugin components follow the Antigravity IDE format.
+
+## AugmentCode plugins
+
+[Auggie plugins](https://docs.augmentcode.com/cli/plugins) use the Claude Code plugin layout plus a `rules/` directory, and Auggie reads the components with the same parsers as the matching `.augment/` directories. The `augmentcode-plugin` target therefore writes each component in the `augmentcode` format — rules keep their `type` / `description` frontmatter from the `augmentcode` section of a Rulesync rule — and `.mcp.json` in the Claude-style `mcpServers` shape Auggie documents for plugins. Auggie namespaces plugin commands and subagents under the plugin (`/<plugin>:<command>`), and a nested command directory adds a `:` segment.
+
+Hooks are not generated yet: a plugin hook file lives in `hooks/` and needs its script paths anchored to the plugin root (`${AUGMENT_PLUGIN_ROOT}`), which the `augmentcode` hook converter does not do. Keep a plugin's `hooks/hooks.json` hand-authored for now; Rulesync leaves it untouched.
+
+Since Auggie also accepts `.claude-plugin/` bundles, a `claudecode-plugin` bundle installs in Auggie too, but its rules have nowhere to go and its components carry Claude Code frontmatter; use `augmentcode-plugin` when the bundle targets Auggie.
 
 ## Claude Code plugin constraints
 

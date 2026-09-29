@@ -154,7 +154,7 @@ export class AugmentcodeSkill extends ToolSkill {
     validate = true,
     global = false,
   }: ToolSkillFromRulesyncSkillParams): AugmentcodeSkill {
-    const settablePaths = AugmentcodeSkill.getSettablePaths({ global });
+    const settablePaths = this.getSettablePaths({ global });
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
 
     const augmentcodeFrontmatter: AugmentcodeSkillFrontmatter = {
@@ -182,7 +182,7 @@ export class AugmentcodeSkill extends ToolSkill {
   static async fromDir(params: ToolSkillFromDirParams): Promise<AugmentcodeSkill> {
     const loaded = await this.loadSkillDirContent({
       ...params,
-      getSettablePaths: AugmentcodeSkill.getSettablePaths,
+      getSettablePaths: (options) => this.getSettablePaths(options),
     });
 
     const result = AugmentcodeSkillFrontmatterSchema.safeParse(loaded.frontmatter);
@@ -211,7 +211,7 @@ export class AugmentcodeSkill extends ToolSkill {
     dirName,
     global = false,
   }: ToolSkillForDeletionParams): AugmentcodeSkill {
-    const settablePaths = AugmentcodeSkill.getSettablePaths({ global });
+    const settablePaths = this.getSettablePaths({ global });
     return new AugmentcodeSkill({
       outputRoot,
       relativeDirPath: relativeDirPath ?? settablePaths.relativeDirPath,

@@ -56,6 +56,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | JetBrains AI Assistant    | aiassistant        |  ✅   |   ✅   |  ✅ 🌏   |          |           |   ✅   |       |             |        |
 | JetBrains Junie           | junie              | ✅ 🌏 |   ✅   |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |  🌏   |     🌏      |        |
 | AugmentCode               | augmentcode        | ✅ 🌏 |   ✅   |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |   ✅   |
+| AugmentCode plugin        | augmentcode-plugin |  ✅   |        |    ✅    |    ✅    |    ✅     |   ✅   |       |             |        |
 | Devin Desktop             | devin              | ✅ 🌏 | ✅ 🌏  | ✅ 🌏 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
 | Warp                      | warp               | ✅ 🌏 |   ✅   |  ✅ 🌏   |  ✅ 🌏   |           | ✅ 🌏  |       |     🌏      |        |
 | Replit                    | replit             |  ✅   |        |          |          |           | ✅ 🌏  |       |             |        |

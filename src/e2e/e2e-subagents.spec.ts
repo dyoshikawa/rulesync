@@ -39,6 +39,10 @@ const subagentsGenerateTargets = [
     outputPath: join(".augment", "agents", "planner.md"),
   },
   {
+    target: "augmentcode-plugin",
+    outputPath: join("agents", "planner.md"),
+  },
+  {
     target: "claudecode",
     outputPath: join(".claude", "agents", "planner.md"),
   },

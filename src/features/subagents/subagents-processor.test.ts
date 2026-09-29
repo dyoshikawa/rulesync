@@ -1782,6 +1782,7 @@ Second global content`;
           "antigravity-ide",
           "antigravity-plugin",
           "augmentcode",
+          "augmentcode-plugin",
           "claudecode",
           "claudecode-plugin",
           "claudecode-legacy",

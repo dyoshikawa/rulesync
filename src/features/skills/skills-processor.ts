@@ -36,6 +36,7 @@ import { AmpSkill } from "./amp-skill.js";
 import { AntigravityCliSkill } from "./antigravity-cli-skill.js";
 import { AntigravityIdeSkill } from "./antigravity-ide-skill.js";
 import { AntigravityPluginSkill } from "./antigravity-plugin-skill.js";
+import { AugmentcodePluginSkill } from "./augmentcode-plugin-skill.js";
 import { AugmentcodeSkill } from "./augmentcode-skill.js";
 import { BobSkill } from "./bob-skill.js";
 import { ClaudecodePluginSkill } from "./claudecode-plugin-skill.js";
@@ -320,6 +321,14 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
       // ~/.augment/skills/ (global). https://docs.augmentcode.com/cli/skills
       class: AugmentcodeSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "augmentcode-plugin",
+    {
+      // `<plugin>/skills/<name>/SKILL.md`. https://docs.augmentcode.com/cli/plugins
+      class: AugmentcodePluginSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: false },
     },
   ],
   [
