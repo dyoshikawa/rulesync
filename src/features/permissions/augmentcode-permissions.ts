@@ -21,7 +21,7 @@ import { readFileContentOrNull } from "../../utils/file.js";
 import { globToAnchoredRegexSource } from "../../utils/glob.js";
 import { fallbackLogger, type Logger } from "../../utils/logger.js";
 import { lookupOwn } from "../../utils/own-lookup.js";
-import { isPlainObject } from "../../utils/type-guards.js";
+import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { bashRulesHonoringAllTools } from "./shell-command-categories.js";
@@ -502,7 +502,7 @@ export class AugmentcodePermissions extends ToolPermissions {
       existingContent,
       patch: {
         toolPermissions: [...specialEntries, ...sortedBasic],
-        ...buildPluginConsumptionPatch({ override, settings, global, logger }),
+        ...buildPluginConsumptionPatch({ override, global, logger }),
       },
       filePath,
       logger,
@@ -606,16 +606,15 @@ export class AugmentcodePermissions extends ToolPermissions {
 /**
  * The plugin-consumption keys the `augmentcode` override authors in
  * `settings.json`. Each is written only when the override states it, so a key
- * the user set by hand (or through `auggie plugin install --project`) is left
- * alone otherwise.
+ * the user set by hand is left alone otherwise; once stated, the override is
+ * the source of truth and replaces the value in the file (import lifts the
+ * whole existing value into the override, so nothing is lost on a round-trip,
+ * and a plugin id dropped from the override is disabled rather than left on).
  *
- * - `recommendedMarketplaces` replaces the list. Auggie honors it only in the
- *   project's `.augment/settings.json` ("values in user or local settings are
- *   ignored"), so in global mode it is dropped with a warning instead of
- *   written somewhere it does nothing.
- * - `enabledPlugins` is merged over the existing map, the override winning per
- *   plugin id, because Auggie itself deep-merges this map across tiers and
- *   `auggie plugin install --project` writes into it.
+ * `recommendedMarketplaces` is honored by Auggie only in the project's
+ * `.augment/settings.json` ("values in user or local settings are ignored"), so
+ * in global mode it is dropped with a warning instead of written somewhere it
+ * does nothing.
  *
  * Both make Auggie load code the repository did not ship — a recommended
  * marketplace is one prompt away from being cloned, and an enabled plugin can
@@ -625,12 +624,10 @@ export class AugmentcodePermissions extends ToolPermissions {
  */
 function buildPluginConsumptionPatch({
   override,
-  settings,
   global,
   logger,
 }: {
   override: AugmentcodePermissionsOverride | undefined;
-  settings: AugmentSettings;
   global: boolean;
   logger?: Logger;
 }): Record<string, unknown> {
@@ -646,7 +643,7 @@ function buildPluginConsumptionPatch({
       patch.recommendedMarketplaces = recommendedMarketplaces;
       if (recommendedMarketplaces.length > 0) {
         logger?.warn(
-          `Writing AugmentCode \`recommendedMarketplaces\` (${recommendedMarketplaces.join(", ")}): Auggie prompts everyone who opens this workspace to install these plugin marketplaces.`,
+          `Writing AugmentCode \`recommendedMarketplaces\` (${recommendedMarketplaces.map(quoteValueForWarning).join(", ")}): Auggie prompts everyone who opens this workspace to install these plugin marketplaces.`,
         );
       }
     }
@@ -654,21 +651,20 @@ function buildPluginConsumptionPatch({
 
   const enabledPlugins = override?.enabledPlugins;
   if (enabledPlugins !== undefined) {
-    const existing = isPlainObject(settings.enabledPlugins) ? settings.enabledPlugins : {};
-    const merged = { ...existing, ...enabledPlugins };
-    if (Object.keys(merged).length > 0) {
-      patch.enabledPlugins = merged;
-    }
+    patch.enabledPlugins = enabledPlugins;
     const enabledIds = Object.keys(enabledPlugins).filter((id) => enabledPlugins[id] === true);
     if (enabledIds.length > 0) {
       logger?.warn(
-        `Writing AugmentCode \`enabledPlugins\` (${enabledIds.join(", ")}): enabled plugins can ship their own hooks and MCP servers.`,
+        `Writing AugmentCode \`enabledPlugins\` (${enabledIds.map(quoteValueForWarning).join(", ")}): enabled plugins can ship their own hooks and MCP servers.`,
       );
     }
   }
 
   return patch;
 }
+
+const RecommendedMarketplacesSchema = z.array(z.string());
+const EnabledPluginsSchema = z.record(z.string(), z.boolean());
 
 /**
  * Lift the plugin-consumption keys back into the `augmentcode` override on
@@ -678,18 +674,15 @@ function buildPluginConsumptionPatch({
  */
 function extractPluginConsumptionKeys(settings: AugmentSettings): Record<string, unknown> {
   const result: Record<string, unknown> = {};
-  const { recommendedMarketplaces, enabledPlugins } = settings;
-  if (
-    Array.isArray(recommendedMarketplaces) &&
-    recommendedMarketplaces.every((entry) => typeof entry === "string")
-  ) {
-    result.recommendedMarketplaces = recommendedMarketplaces;
+  const recommendedMarketplaces = RecommendedMarketplacesSchema.safeParse(
+    settings.recommendedMarketplaces,
+  );
+  if (recommendedMarketplaces.success) {
+    result.recommendedMarketplaces = recommendedMarketplaces.data;
   }
-  if (
-    isPlainObject(enabledPlugins) &&
-    Object.values(enabledPlugins).every((value) => typeof value === "boolean")
-  ) {
-    result.enabledPlugins = enabledPlugins;
+  const enabledPlugins = EnabledPluginsSchema.safeParse(settings.enabledPlugins);
+  if (enabledPlugins.success) {
+    result.enabledPlugins = enabledPlugins.data;
   }
   return result;
 }

@@ -1415,7 +1415,7 @@ describe("AugmentcodePermissions", () => {
       expect(content.recommendedMarketplaces).toEqual(["acme/team-plugins", "acme/security-tools"]);
       expect(content.theme).toBe("dark");
       expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining("acme/team-plugins, acme/security-tools"),
+        expect.stringContaining('("acme/team-plugins", "acme/security-tools")'),
       );
     });
 
@@ -1439,9 +1439,9 @@ describe("AugmentcodePermissions", () => {
       );
     });
 
-    it("should merge enabledPlugins over the existing map, the override winning per id", async () => {
+    it("should replace enabledPlugins with the authored map in project mode", async () => {
       await writeSettings({
-        enabledPlugins: { "kept@local-market": true, "flipped@acme": true },
+        enabledPlugins: { "dropped@acme": true, "flipped@acme": true },
       });
       const logger = createMockLogger();
 
@@ -1450,17 +1450,37 @@ describe("AugmentcodePermissions", () => {
         rulesyncPermissions: permissionsWithOverride({
           enabledPlugins: { "flipped@acme": false, "added@acme": true },
         }),
-        global: true,
         logger,
       });
 
       const content = JSON.parse(instance.getFileContent());
-      expect(content.enabledPlugins).toEqual({
-        "kept@local-market": true,
-        "flipped@acme": false,
-        "added@acme": true,
+      expect(content.enabledPlugins).toEqual({ "flipped@acme": false, "added@acme": true });
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('("added@acme")'));
+    });
+
+    it("should write enabledPlugins in global mode", async () => {
+      await writeSettings({ toolPermissions: [] });
+
+      const instance = await AugmentcodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: permissionsWithOverride({ enabledPlugins: { "tool@acme": true } }),
+        global: true,
       });
-      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("(added@acme)"));
+
+      expect(JSON.parse(instance.getFileContent()).enabledPlugins).toEqual({ "tool@acme": true });
+    });
+
+    it("should not warn when enabledPlugins only disables plugins", async () => {
+      await writeSettings({ toolPermissions: [] });
+      const logger = createMockLogger();
+
+      await AugmentcodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: permissionsWithOverride({ enabledPlugins: { "tool@acme": false } }),
+        logger,
+      });
+
+      expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("enabledPlugins"));
     });
 
     it("should leave both keys untouched when the override does not state them", async () => {
@@ -1479,17 +1499,6 @@ describe("AugmentcodePermissions", () => {
       expect(content.enabledPlugins).toEqual({ "tool@acme": true });
     });
 
-    it("should not materialize an empty enabledPlugins map", async () => {
-      await writeSettings({ toolPermissions: [] });
-
-      const instance = await AugmentcodePermissions.fromRulesyncPermissions({
-        outputRoot: testDir,
-        rulesyncPermissions: permissionsWithOverride({ enabledPlugins: {} }),
-      });
-
-      expect(JSON.parse(instance.getFileContent())).not.toHaveProperty("enabledPlugins");
-    });
-
     it("should lift both keys into the augmentcode override on import", () => {
       const instance = new AugmentcodePermissions({
         relativeDirPath: ".augment",
@@ -1506,6 +1515,31 @@ describe("AugmentcodePermissions", () => {
       expect(json.augmentcode).toEqual({
         recommendedMarketplaces: ["acme/team-plugins"],
         enabledPlugins: { "tool@acme": true, "other@acme": false },
+      });
+    });
+
+    it("should ignore a local recommendedMarketplaces on import, as Auggie does", async () => {
+      await writeSettings({
+        toolPermissions: [],
+        recommendedMarketplaces: ["acme/team-plugins"],
+        enabledPlugins: { "shared@acme": true },
+      });
+      await writeFileContent(
+        join(testDir, ".augment", "settings.local.json"),
+        JSON.stringify({
+          recommendedMarketplaces: ["me/personal"],
+          enabledPlugins: { "mine@me": true },
+        }),
+      );
+
+      const instance = await AugmentcodePermissions.fromFile({
+        outputRoot: testDir,
+        logger: createMockLogger(),
+      });
+
+      expect(instance.toRulesyncPermissions().getJson().augmentcode).toEqual({
+        recommendedMarketplaces: ["acme/team-plugins"],
+        enabledPlugins: { "shared@acme": true, "mine@me": true },
       });
     });
 
