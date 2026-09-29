@@ -12,6 +12,8 @@ import {
   BOB_HOOK_EVENTS,
   CLAUDE_HOOK_EVENTS,
   CODEXCLI_HOOK_EVENTS,
+  CODEWHALE_HOOK_EVENTS,
+  CODEWHALE_MATCHER_HOOK_EVENTS,
   COMMANDCODE_HOOK_EVENTS,
   COPILOT_HOOK_EVENTS,
   COPILOTCLI_HOOK_EVENTS,
@@ -26,11 +28,13 @@ import {
   GOOSE_HOOK_EVENTS,
   GROKCLI_HOOK_EVENTS,
   HERMESAGENT_HOOK_EVENTS,
+  GITLABDUO_HOOK_EVENTS,
   JUNIE_HOOK_EVENTS,
   KILO_HOOK_EVENTS,
   KIMI_CODE_HOOK_EVENTS,
   KIRO_HOOK_EVENTS,
   KIRO_IDE_HOOK_EVENTS,
+  LETTACODE_HOOK_EVENTS,
   OPENCODE_HOOK_EVENTS,
   PI_HOOK_EVENTS,
   POOL_HOOK_EVENTS,
@@ -60,6 +64,7 @@ import { BobHooks } from "./bob-hooks.js";
 import { ClaudecodeHooks } from "./claudecode-hooks.js";
 import { ClaudecodePluginHooks } from "./claudecode-plugin-hooks.js";
 import { ClineHooks } from "./cline-hooks.js";
+import { CodewhaleHooks } from "./codewhale-hooks.js";
 import { CodexcliHooks } from "./codexcli-hooks.js";
 import { CommandcodeHooks } from "./commandcode-hooks.js";
 import { ContinueHooks } from "./continue-hooks.js";
@@ -71,6 +76,7 @@ import { CursorHooks } from "./cursor-hooks.js";
 import { DeepagentsHooks } from "./deepagents-hooks.js";
 import { DevinHooks } from "./devin-hooks.js";
 import { FactorydroidHooks } from "./factorydroid-hooks.js";
+import { GitlabduoHooks } from "./gitlabduo-hooks.js";
 import { GooseHooks } from "./goose-hooks.js";
 import { GrokcliHooks } from "./grokcli-hooks.js";
 import { HermesagentHooks } from "./hermesagent-hooks.js";
@@ -80,6 +86,8 @@ import { KimiCodeHooks } from "./kimi-code-hooks.js";
 import { KiroCliHooks } from "./kiro-cli-hooks.js";
 import { KiroHooks } from "./kiro-hooks.js";
 import { KIRO_HOOKS_OVERRIDE_KEY, KiroIdeHooks } from "./kiro-ide-hooks.js";
+import { LettacodeHooks } from "./lettacode-hooks.js";
+import { MimocodeHooks } from "./mimocode-hooks.js";
 import { OpencodeHooks } from "./opencode-hooks.js";
 import { PiHooks } from "./pi-hooks.js";
 import { PoolHooks } from "./pool-hooks.js";
@@ -391,6 +399,30 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
     },
   ],
   [
+    "codewhale",
+    {
+      class: CodewhaleHooks,
+      meta: {
+        // Codewhale hooks live in `.codewhale/hooks.toml` (project, top-level
+        // `[[hooks]]`; honored once the workspace is trusted and the file bytes
+        // approved with `/hooks approve`) and in the `[hooks]` table of
+        // `~/.codewhale/config.toml` (global, shared with every other setting).
+        // https://github.com/Hmbown/Codewhale/blob/main/docs/HOOKS.md
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+      supportedEvents: CODEWHALE_HOOK_EVENTS,
+      supportedHookTypes: ["command"],
+      // A matcher becomes a `tool_name` condition, which Codewhale accepts only
+      // on events that carry a tool.
+      supportsMatcher: true,
+      matcherEvents: CODEWHALE_MATCHER_HOOK_EVENTS,
+      // Override-block keys are emitted verbatim when they are Codewhale's own
+      // event names (as an import files them); the adapter reports the rest.
+    },
+  ],
+  [
     "codexcli",
     {
       class: CodexcliHooks,
@@ -470,6 +502,24 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
         supportsImport: false,
       },
       supportedEvents: KILO_HOOK_EVENTS,
+      supportedHookTypes: ["command"],
+      supportsMatcher: true,
+      matcherEvents: ["preToolUse", "postToolUse"],
+      // The adapter only emits its own native events; unknown override-block
+      // keys are dropped, so report them.
+      dropsUnknownOverrideEvents: true,
+    },
+  ],
+  [
+    "mimocode",
+    {
+      class: MimocodeHooks,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: false,
+      },
+      supportedEvents: OPENCODE_HOOK_EVENTS,
       supportedHookTypes: ["command"],
       supportsMatcher: true,
       matcherEvents: ["preToolUse", "postToolUse"],
@@ -686,6 +736,26 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
     },
   ],
   [
+    "lettacode",
+    {
+      class: LettacodeHooks,
+      meta: {
+        // Letta Code hooks live under the top-level `hooks` key of
+        // `.letta/settings.json` (project) and `~/.letta/settings.json`
+        // (user), in the Claude-Code shape. Only command hooks are emitted,
+        // with timeouts in milliseconds. `matcher` applies to the tool events.
+        // https://github.com/letta-ai/letta-code/blob/main/src/hooks/types.ts
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+      supportedEvents: LETTACODE_HOOK_EVENTS,
+      supportedHookTypes: ["command"],
+      supportsMatcher: true,
+      matcherEvents: ["preToolUse", "postToolUse", "postToolUseFailure", "permissionRequest"],
+    },
+  ],
+  [
     "devin",
     {
       class: DevinHooks,
@@ -752,7 +822,7 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
         // agent handlers. `matcher` is a regex over the event's subject;
         // UserPromptSubmit, Stop, TeammateIdle, TaskCompleted, WorktreeCreate
         // and WorktreeRemove fire unconditionally.
-        // https://github.com/continuedev/continue/blob/main/extensions/cli/src/hooks/types.ts
+        // https://github.com/continuedev/continue/blob/5522c6f44ca0ac3528b37244818fbfa39b5af470/extensions/cli/src/hooks/types.ts
         supportsProject: true,
         supportsGlobal: true,
         supportsImport: true,
@@ -819,6 +889,24 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
         supportsImport: true,
       },
       supportedEvents: JUNIE_HOOK_EVENTS,
+      supportedHookTypes: ["command"],
+      supportsMatcher: true,
+    },
+  ],
+  [
+    "gitlabduo",
+    {
+      class: GitlabduoHooks,
+      meta: {
+        // GitLab Duo CLI reads `~/.gitlab/duo/hooks.json` (user) and
+        // `<project>/.gitlab/duo/hooks.json` (project; opt-in via
+        // `--enable-project-hooks` / `GITLAB_ENABLE_PROJECT_HOOKS=true`).
+        // https://docs.gitlab.com/user/gitlab_duo_cli/customize/
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+      supportedEvents: GITLABDUO_HOOK_EVENTS,
       supportedHookTypes: ["command"],
       supportsMatcher: true,
     },
@@ -972,13 +1060,12 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
   [
     "zcode",
     {
-      // ZCode hooks live under the `hooks` key of its user config file,
-      // `~/.zcode/cli/config.json`, with the event map nested under
-      // `hooks.events`. ZCode never executes workspace config hooks — the
-      // workspace file is ignored regardless of `hooks.enabled` — so rulesync
-      // treats ZCode hooks as global-only.
+      // ZCode hooks live under the `hooks` key of its config file —
+      // `<project>/.zcode/config.json` (workspace) or `~/.zcode/cli/config.json`
+      // (user) — with the event map nested under `hooks.events`. Workspace
+      // hooks run once the user trusts them in ZCode.
       class: ZcodeHooks,
-      meta: { supportsProject: false, supportsGlobal: true, supportsImport: true },
+      meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
       supportedEvents: ZCODE_HOOK_EVENTS,
       supportedHookTypes: ["command"],
       supportsMatcher: true,

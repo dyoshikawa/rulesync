@@ -584,6 +584,19 @@ export class ConfigResolver {
         configByFile.flattenedCommandNaming ?? getDefaults().flattenedCommandNaming,
       language: configByFile.language,
       configFileTargets: extractConfigFileTargets(configByFile.targets),
+      configFileSelection:
+        configByFile.targets === undefined
+          ? undefined
+          : {
+              targets: configByFile.targets,
+              // CLI --features still applies: this is the selection a run
+              // without --targets would use.
+              features: resolveFeaturesAndTargets({
+                features,
+                targets: undefined,
+                configByFile,
+              }).resolvedFeatures,
+            },
     };
     const config = new Config(configParams);
     return config;

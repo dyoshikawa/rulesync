@@ -1019,6 +1019,64 @@ describe("RulesProcessor", () => {
       expect(claudecodePaths).toContain(join("backend", "api-rule.md"));
     });
 
+    it("should skip unreadable and nested files in the shared antigravity-cli global rules directory", async () => {
+      const rulesDir = join(testDir, ".gemini", "config", "rules");
+      await writeFileContent(join(rulesDir, "ok.md"), "---\ntrigger: always_on\n---\n\n# OK");
+      await writeFileContent(join(rulesDir, "broken.md"), "---\ntrigger: 1\n---\n\n# Broken");
+      await writeFileContent(
+        join(rulesDir, "sub", "nested.md"),
+        "---\ntrigger: always_on\n---\n\n# Nested",
+      );
+
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "antigravity-cli",
+        global: true,
+      });
+
+      const files = await processor.loadToolFiles();
+      const paths = files.map((file) => file.getRelativeFilePath());
+
+      expect(paths).toContain("ok.md");
+      expect(paths).not.toContain("broken.md");
+      expect(paths).not.toContain(join("sub", "nested.md"));
+      expect(paths).not.toContain("nested.md");
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("broken.md"));
+    });
+
+    it("should omit the rule reference section from the antigravity-cli global root", async () => {
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "antigravity-cli",
+        global: true,
+      });
+      const rules = [
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: join(".rulesync", "rules"),
+          relativeFilePath: "overview.md",
+          frontmatter: { root: true, targets: ["*"] },
+          body: "# Overview",
+        }),
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: join(".rulesync", "rules"),
+          relativeFilePath: "style.md",
+          frontmatter: { root: false, targets: ["*"] },
+          body: "# Style",
+        }),
+      ];
+
+      const toolFiles = await processor.convertRulesyncFilesToToolFiles(rules);
+      const root = toolFiles.find((file) => file.getRelativeFilePath() === "GEMINI.md");
+      const nonRoot = toolFiles.find((file) => file.getRelativeFilePath() === "style.md");
+
+      expect(root?.getFileContent()).not.toContain("style.md");
+      expect(nonRoot?.getRelativeDirPath()).toBe(join(".gemini", "config", "rules"));
+    });
+
     it("should discover nested AGENTS.md files on import but never for deletion", async () => {
       await writeFileContent(join(testDir, "AGENTS.md"), "# Root");
       await writeFileContent(join(testDir, "packages", "api", "AGENTS.md"), "# API");
@@ -2080,6 +2138,7 @@ Content that would fail parsing`;
         "claudecode-legacy",
         "cline",
         "codebuddy",
+        "codewhale",
         "codexcli",
         "commandcode",
         "continue",
@@ -2089,6 +2148,7 @@ Content that would fail parsing`;
         "deepagents",
         "factorydroid",
         "goose",
+        "gitlabduo",
         "grokcli",
         "junie",
         "kilo",
@@ -2096,7 +2156,10 @@ Content that would fail parsing`;
         "kiro",
         "kiro-cli",
         "kiro-ide",
+        "mimocode",
+        "omp",
         "opencode",
+        "openclaw",
         "pi",
         "pool",
         "qwencode",
@@ -2153,6 +2216,8 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("kimi-code");
       expect(globalTargets).toContain("goose");
       expect(globalTargets).toContain("grokcli");
+      expect(globalTargets).toContain("gitlabduo");
+      expect(globalTargets).toContain("mimocode");
       expect(globalTargets).toContain("opencode");
       expect(globalTargets).toContain("pi");
       expect(globalTargets).toContain("roo");
@@ -2170,7 +2235,8 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("dsh");
       expect(globalTargets).toContain("continue");
       expect(globalTargets).toContain("commandcode");
-      expect(globalTargets.length).toBe(41);
+      expect(globalTargets).toContain("openclaw");
+      expect(globalTargets.length).toBe(46);
 
       // These targets should NOT be in global mode
       expect(globalTargets).not.toContain("cursor");
@@ -4882,14 +4948,17 @@ targets: ["claudecode"]
 
     it("should expose every global-capable folded target to the regression matrix", () => {
       expect(globalFoldTargets).toEqual([
+        "codewhale",
         "codexcli",
         "commandcode",
         "crush",
         "deepagents",
         "goose",
+        "gitlabduo",
         // `grokcli` left this list when it gained `.grok/rules/`.
         "junie",
         "kimi-code",
+        "openclaw",
         "pi",
         "pool",
         "reasonix",
@@ -5649,7 +5718,7 @@ targets: ["*"]
         global: true,
       });
 
-      // Root only: some global layouts (Rovo Dev, Antigravity CLI) have no
+      // Root only: some global layouts (such as Rovo Dev) have no
       // home for a nested rule and reject one.
       const result = await processor.convertRulesyncFilesToToolFiles([rootRule()]);
 

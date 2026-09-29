@@ -18,6 +18,8 @@ import { AugmentcodeMcp } from "./augmentcode-mcp.js";
 import { BobMcp } from "./bob-mcp.js";
 import { ClaudecodeMcp } from "./claudecode-mcp.js";
 import { ClineMcp } from "./cline-mcp.js";
+import { CodebuffMcp } from "./codebuff-mcp.js";
+import { CodewhaleMcp } from "./codewhale-mcp.js";
 import { CodexcliMcp } from "./codexcli-mcp.js";
 import { CommandcodeMcp } from "./commandcode-mcp.js";
 import { ContinueMcp } from "./continue-mcp.js";
@@ -28,7 +30,9 @@ import { CrushMcp } from "./crush-mcp.js";
 import { CursorMcp } from "./cursor-mcp.js";
 import { DeepagentsMcp } from "./deepagents-mcp.js";
 import { DevinMcp } from "./devin-mcp.js";
+import { DshMcp } from "./dsh-mcp.js";
 import { FactorydroidMcp } from "./factorydroid-mcp.js";
+import { GitlabduoMcp } from "./gitlabduo-mcp.js";
 import { GooseMcp } from "./goose-mcp.js";
 import { GrokcliMcp } from "./grokcli-mcp.js";
 import { HermesagentMcp } from "./hermesagent-mcp.js";
@@ -36,7 +40,9 @@ import { JunieMcp } from "./junie-mcp.js";
 import { KiloMcp } from "./kilo-mcp.js";
 import { KimiCodeMcp } from "./kimi-code-mcp.js";
 import { KiroMcp } from "./kiro-mcp.js";
+import { MimocodeMcp } from "./mimocode-mcp.js";
 import { MusecodeMcp } from "./musecode-mcp.js";
+import { OmpMcp } from "./omp-mcp.js";
 import { OpencodeMcp } from "./opencode-mcp.js";
 import { PoolMcp } from "./pool-mcp.js";
 import { QwencodeMcp } from "./qwencode-mcp.js";
@@ -196,7 +202,7 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
     "bob",
     {
       // IBM Bob reads `mcpServers` from the dedicated `<project>/.bob/mcp.json`
-      // (project) and `~/.bob/mcp.json` (global). Bob has `alwaysAllow` for
+      // (project) and `~/.bob/settings/mcp.json` (global). Bob has `alwaysAllow` for
       // auto-approval, not a per-server tool filter, so the enabled/disabled
       // tool lists are not emitted.
       // https://bob.ibm.com/docs/ide/configuration/mcp/mcp-in-bob
@@ -258,6 +264,38 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
         supportsGlobal: true,
         supportsEnabledTools: false,
         supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
+    "codebuff",
+    {
+      // Codebuff (Freebuff) reads `.agents/mcp.json` in the project and
+      // `~/.agents/mcp.json` in the home directory; its server schema has no
+      // per-server tool allow/deny lists.
+      // https://www.codebuff.com/docs/tips/mcp-servers
+      class: CodebuffMcp,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
+    "codewhale",
+    {
+      // Codewhale reads `.codewhale/mcp.json` in a trusted workspace and
+      // `~/.codewhale/mcp.json` for the user; servers carry
+      // `enabled_tools` / `disabled_tools` filters.
+      // https://github.com/Hmbown/Codewhale/blob/main/docs/MCP.md
+      class: CodewhaleMcp,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsEnabledTools: true,
+        supportsDisabledTools: true,
       },
     },
   ],
@@ -389,6 +427,22 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
     },
   ],
   [
+    "dsh",
+    {
+      // DeepSeek Harness persists MCP servers as `@deepseek-ai/dsh-mcp-client`
+      // `insert` rows of the home-level Cordis patch layer
+      // `~/.dsh/cordis.patch.yml`; it has no project-scoped MCP file, and the
+      // client has no per-server tool allow/deny lists.
+      class: DshMcp,
+      meta: {
+        supportsProject: false,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
     "factorydroid",
     {
       class: FactorydroidMcp,
@@ -414,6 +468,22 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
       // https://goose-docs.ai/docs/getting-started/using-extensions/
       // https://github.com/aaif-goose/goose/pull/9471
       class: GooseMcp,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
+    "gitlabduo",
+    {
+      // GitLab Duo CLI reads `.gitlab/duo/mcp.json` (workspace) and
+      // `~/.gitlab/duo/mcp.json` (user) in the `mcpServers` shape. Its only
+      // per-server tool field is `approvedTools` (auto-approval), not a filter.
+      // https://docs.gitlab.com/user/gitlab_duo/model_context_protocol/mcp_clients/
+      class: GitlabduoMcp,
       meta: {
         supportsProject: true,
         supportsGlobal: true,
@@ -541,6 +611,18 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
     },
   ],
   [
+    "mimocode",
+    {
+      class: MimocodeMcp,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsEnabledTools: true,
+        supportsDisabledTools: true,
+      },
+    },
+  ],
+  [
     "musecode",
     {
       // Muse Code reads MCP servers only from the `mcp_servers` block of the
@@ -552,6 +634,18 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
       class: MusecodeMcp,
       meta: {
         supportsProject: false,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
+    "omp",
+    {
+      class: OmpMcp,
+      meta: {
+        supportsProject: true,
         supportsGlobal: true,
         supportsEnabledTools: false,
         supportsDisabledTools: false,

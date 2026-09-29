@@ -46,7 +46,7 @@ export abstract class OpenCodeStyleSubagent extends ToolSubagent {
     this.body = body;
   }
 
-  protected abstract getToolTarget(): Extract<ToolTarget, "opencode" | "kilo">;
+  protected abstract getToolTarget(): Extract<ToolTarget, "opencode" | "kilo" | "mimocode">;
 
   getFrontmatter(): OpenCodeStyleSubagentFrontmatter {
     return this.frontmatter;

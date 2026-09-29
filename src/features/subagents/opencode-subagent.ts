@@ -2,10 +2,7 @@ import { join } from "node:path";
 
 import { z } from "zod/mini";
 
-import {
-  OPENCODE_AGENTS_DIR_PATH,
-  OPENCODE_GLOBAL_AGENTS_DIR_PATH,
-} from "../../constants/opencode-paths.js";
+import { OPENCODE_LAYOUT, type OpencodeLayout } from "../../constants/opencode-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
@@ -81,6 +78,9 @@ async function resolveOpenCodeAgentPrompt({
 }
 
 export class OpenCodeSubagent extends OpenCodeStyleSubagent {
+  /** Directory layout; OpenCode forks (MiMo Code) override it. */
+  protected static readonly layout: OpencodeLayout = OPENCODE_LAYOUT;
+
   declare protected readonly frontmatter: OpenCodeSubagentFrontmatter;
 
   constructor(params: OpenCodeSubagentParams) {
@@ -102,8 +102,8 @@ export class OpenCodeSubagent extends OpenCodeStyleSubagent {
     super({ ...params, frontmatter, validate: false });
   }
 
-  protected getToolTarget(): Extract<ToolTarget, "opencode" | "kilo"> {
-    return "opencode";
+  protected getToolTarget(): Extract<ToolTarget, "opencode" | "kilo" | "mimocode"> {
+    return (this.constructor as typeof OpenCodeSubagent).layout.toolTarget;
   }
 
   getFrontmatter(): OpenCodeSubagentFrontmatter {
@@ -137,7 +137,7 @@ export class OpenCodeSubagent extends OpenCodeStyleSubagent {
     // `agent/` is deprecated upstream (kept only for backwards compatibility),
     // so rulesync emits the plural form to match the documented convention.
     return {
-      relativeDirPath: global ? OPENCODE_GLOBAL_AGENTS_DIR_PATH : OPENCODE_AGENTS_DIR_PATH,
+      relativeDirPath: join(global ? this.layout.globalDir : this.layout.dir, "agents"),
     };
   }
 
@@ -148,7 +148,7 @@ export class OpenCodeSubagent extends OpenCodeStyleSubagent {
     global = false,
   }: ToolSubagentFromRulesyncSubagentParams): ToolSubagent {
     const rulesyncFrontmatter = rulesyncSubagent.getFrontmatter();
-    const opencodeSection = rulesyncFrontmatter.opencode ?? {};
+    const opencodeSection = rulesyncFrontmatter[this.layout.toolTarget] ?? {};
 
     const parseResult = OpenCodeSubagentFrontmatterSchema.safeParse({
       ...opencodeSection,
@@ -167,7 +167,7 @@ export class OpenCodeSubagent extends OpenCodeStyleSubagent {
     const fileContent = stringifyFrontmatter(body, opencodeFrontmatter);
     const paths = this.getSettablePaths({ global });
 
-    return new OpenCodeSubagent({
+    return new this({
       outputRoot,
       frontmatter: opencodeFrontmatter,
       body,
@@ -182,7 +182,7 @@ export class OpenCodeSubagent extends OpenCodeStyleSubagent {
   static isTargetedByRulesyncSubagent(rulesyncSubagent: RulesyncSubagent): boolean {
     return this.isTargetedByRulesyncSubagentDefault({
       rulesyncSubagent,
-      toolTarget: "opencode",
+      toolTarget: this.layout.toolTarget,
     });
   }
 
@@ -206,14 +206,14 @@ export class OpenCodeSubagent extends OpenCodeStyleSubagent {
     outputRoot?: string;
     global?: boolean;
   } = {}): Promise<OpenCodeSubagent[]> {
-    const config = await readOpencodeConfig({ outputRoot, global });
+    const config = await readOpencodeConfig({ outputRoot, global, layout: this.layout });
     const agentEntries = asOpencodeEntries(config.agent);
     if (!agentEntries) {
       return [];
     }
 
     const paths = this.getSettablePaths({ global });
-    const configDir = getOpencodeConfigDir({ outputRoot, global });
+    const configDir = getOpencodeConfigDir({ outputRoot, global, layout: this.layout });
     const subagents: OpenCodeSubagent[] = [];
 
     for (const [name, rawEntry] of Object.entries(agentEntries)) {
@@ -232,7 +232,7 @@ export class OpenCodeSubagent extends OpenCodeStyleSubagent {
       const frontmatter = parseResult.data;
 
       subagents.push(
-        new OpenCodeSubagent({
+        new this({
           outputRoot,
           frontmatter,
           body,
@@ -264,7 +264,7 @@ export class OpenCodeSubagent extends OpenCodeStyleSubagent {
       throw new Error(`Invalid frontmatter in ${filePath}: ${formatError(result.error)}`);
     }
 
-    return new OpenCodeSubagent({
+    return new this({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath,
@@ -282,7 +282,7 @@ export class OpenCodeSubagent extends OpenCodeStyleSubagent {
     relativeFilePath,
     global = false,
   }: ToolSubagentForDeletionParams): OpenCodeSubagent {
-    return new OpenCodeSubagent({
+    return new this({
       outputRoot,
       relativeDirPath,
       relativeFilePath,

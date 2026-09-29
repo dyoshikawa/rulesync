@@ -61,6 +61,10 @@ rulesync install --update
 # Fail if lockfile is missing or out of sync (for CI); fetch missing artifacts using locked refs
 rulesync install --frozen
 
+# Report sources whose lockfile entry is behind the remote, without writing anything
+# (exit 1 if any is behind or not locked, 2 if a source cannot be resolved)
+rulesync install --outdated
+
 # Install then generate (typical workflow)
 rulesync install && rulesync generate
 
@@ -157,6 +161,14 @@ The `generate` command reads source files from one or more rulesync source trees
 | `--delete`                  | Delete existing generated files before writing                                                                                                                                                                                                                                                                                                                                            | From `rulesync.jsonc` |
 | `--watch, -w`               | Keep running and regenerate whenever rulesync source files change                                                                                                                                                                                                                                                                                                                         | `false`               |
 | `--config, -c <path>`       | Path to the configuration file to load (`rulesync.local.jsonc` next to it still overlays it)                                                                                                                                                                                                                                                                                              | `rulesync.jsonc`      |
+
+> **Note on `--check` and shared root files:** A root file that several targets
+> write, such as `AGENTS.md`, is compared against its owner's output. The owner
+> is the last target in `rulesync.jsonc` that generates rules, even when
+> `--targets` selects a different target, and its output is built as
+> `rulesync generate` with the same options but without `--targets` would
+> build it. See
+> [Target Order and File Conflicts](../guide/configuration.md#target-order-and-file-conflicts).
 
 > **Note on `--delete` and shared output directories:** Several targets write
 > into one directory on purpose — `.agents/agents/`, `.agents/skills/`, and the
@@ -272,7 +284,7 @@ The override must be a usable directory: an empty value is ignored (the default 
 
 ### Shared config files are never created empty
 
-Some outputs are files Rulesync merges into rather than owns, because the tool (or you) keeps unrelated settings there: `.amp/settings.json(c)`, `.antigravity/settings.json`, `.claude/settings.json`, `.claude/settings.local.json`, `.codex/config.toml`, `.copilot/settings.json`, `.devin/config.json`, `.factory/settings.json`, `.github/copilot/settings.json`, `.grok/config.toml`, `.vibe/config.toml`, `.vscode/settings.json`, `.zcode/config.json`, `.zcode/cli/config.json`, `.zed/settings.json`, `kilo.json(c)`, `opencode.json(c)`, and `reasonix.toml`. These are deliberately **not** added to `.gitignore` by `rulesync gitignore`, so that settings you hand-author in them stay version-controlled.
+Some outputs are files Rulesync merges into rather than owns, because the tool (or you) keeps unrelated settings there: `.amp/settings.json(c)`, `.antigravity/settings.json`, `.claude/settings.json`, `.claude/settings.local.json`, `.codex/config.toml`, `.copilot/settings.json`, `.devin/config.json`, `.factory/settings.json`, `.github/copilot/settings.json`, `.grok/config.toml`, `.vibe/config.toml`, `.vscode/settings.json`, `.zcode/config.json`, `.zcode/cli/config.json`, `.zed/settings.json`, `kilo.json(c)`, `.mimocode/mimocode.json(c)`, `opencode.json(c)`, and `reasonix.toml`. These are deliberately **not** added to `.gitignore` by `rulesync gitignore`, so that settings you hand-author in them stay version-controlled.
 
 Because they stay committable, `generate` will not **create** one of them just to hold an empty payload: if Rulesync has nothing to contribute (e.g. no permissions map to that tool), the file is left absent instead of being written as `{}`. A file that already exists is always rewritten as usual, so nothing you authored is dropped. Every other generated file is written even when empty, since for a file Rulesync owns its existence is part of the output.
 

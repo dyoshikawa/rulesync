@@ -42,6 +42,7 @@ import { type Logger, warnOnceWithFallback } from "../../utils/logger.js";
 import { AgentsmdCommand } from "../commands/agentsmd-command.js";
 import { CommandsProcessor } from "../commands/commands-processor.js";
 import { KiloMcp } from "../mcp/kilo-mcp.js";
+import { MimocodeMcp } from "../mcp/mimocode-mcp.js";
 import { OpencodeMcp } from "../mcp/opencode-mcp.js";
 import { AgentsmdSkill } from "../skills/agentsmd-skill.js";
 import { RovodevSkill } from "../skills/rovodev-skill.js";
@@ -65,6 +66,7 @@ import { ClaudecodeLegacyRule } from "./claudecode-legacy-rule.js";
 import { ClaudecodeRule } from "./claudecode-rule.js";
 import { ClineRule } from "./cline-rule.js";
 import { CodebuddyRule } from "./codebuddy-rule.js";
+import { CodewhaleRule } from "./codewhale-rule.js";
 import { CodexcliRule } from "./codexcli-rule.js";
 import { CommandcodeRule } from "./commandcode-rule.js";
 import { ContinueRule } from "./continue-rule.js";
@@ -77,6 +79,7 @@ import { DeepagentsRule } from "./deepagents-rule.js";
 import { DevinRule } from "./devin-rule.js";
 import { DshRule } from "./dsh-rule.js";
 import { FactorydroidRule } from "./factorydroid-rule.js";
+import { GitlabduoRule } from "./gitlabduo-rule.js";
 import { GooseRule } from "./goose-rule.js";
 import { GrokcliRule } from "./grokcli-rule.js";
 import { HermesagentRule } from "./hermesagent-rule.js";
@@ -86,7 +89,10 @@ import { KimiCodeRule } from "./kimi-code-rule.js";
 import { KiroCliRule } from "./kiro-cli-rule.js";
 import { KiroIdeRule } from "./kiro-ide-rule.js";
 import { KiroRule } from "./kiro-rule.js";
+import { MimocodeRule } from "./mimocode-rule.js";
 import { MusecodeRule } from "./musecode-rule.js";
+import { OmpRule } from "./omp-rule.js";
+import { OpenclawRule } from "./openclaw-rule.js";
 import { OpenCodeRule } from "./opencode-rule.js";
 import { PiRule } from "./pi-rule.js";
 import { PoolRule } from "./pool-rule.js";
@@ -349,6 +355,19 @@ type ToolRuleFactory = {
     supportsGlobal: boolean;
     /** How non-root rules are discovered or referenced */
     ruleDiscoveryMode: RuleDiscoveryMode;
+    /**
+     * Default discovery mode in global mode, when it differs from
+     * `ruleDiscoveryMode` (e.g. the global non-root directory is auto-loaded
+     * while the project one is referenced from the root file).
+     */
+    ruleDiscoveryModeGlobal?: RuleDiscoveryMode;
+    /**
+     * The global non-root directory is shared with files rulesync did not
+     * write and is read only at its top level by the tool (e.g. Antigravity's
+     * `~/.gemini/config/rules/`). Global import then scans only top-level
+     * files and skips an unreadable one with a warning instead of failing.
+     */
+    sharedGlobalNonRootDir?: boolean;
     /** Configuration for additional convention paths in the root rule */
     additionalConventions?: AdditionalConventionsConfig;
     /** Whether to create a separate rule file for additional conventions instead of prepending to root */
@@ -443,10 +462,14 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
       meta: {
         // The Antigravity CLI shares Gemini-CLI-class context files: a root
         // context file (project `AGENTS.md`, global `~/.gemini/GEMINI.md`) that
-        // @-references non-root memory files under `.agents/rules/`.
+        // @-references non-root memory files under `.agents/rules/`. In global
+        // mode, non-root rules go to `~/.gemini/config/rules/`, which the CLI
+        // loads by itself, so `GEMINI.md` carries no reference block there.
         extension: "md",
         supportsGlobal: true,
         ruleDiscoveryMode: "toon",
+        ruleDiscoveryModeGlobal: "auto",
+        sharedGlobalNonRootDir: true,
       },
     },
   ],
@@ -570,6 +593,23 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         ruleDiscoveryMode: "auto",
         localRootMode: "separate-local-file",
         localRootFileName: CODEBUDDY_LOCAL_RULE_FILE_NAME,
+      },
+    },
+  ],
+  [
+    "codewhale",
+    {
+      class: CodewhaleRule,
+      meta: {
+        // Codewhale auto-loads the workspace-root AGENTS.md followed by every
+        // `.codewhale/rules/*.md` file. The user-scoped `~/.codewhale/AGENTS.md`
+        // has no companion rules directory, so global non-root rules fold into
+        // that single file.
+        // https://github.com/Hmbown/Codewhale/blob/main/docs/CONFIGURATION.md
+        extension: "md",
+        supportsGlobal: true,
+        ruleDiscoveryMode: "auto",
+        collisionPolicy: "fold",
       },
     },
   ],
@@ -767,6 +807,22 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
     },
   ],
   [
+    "gitlabduo",
+    {
+      // GitLab Duo CLI reads one custom rules file, `.gitlab/duo/chat-rules.md`
+      // in the project and `~/.gitlab/duo/chat-rules.md` for the user, with no
+      // rules directory, so topic rules fold into it.
+      // https://docs.gitlab.com/user/duo_agent_platform/customize/custom_rules/
+      class: GitlabduoRule,
+      meta: {
+        extension: "md",
+        supportsGlobal: true,
+        ruleDiscoveryMode: "toon",
+        collisionPolicy: "fold",
+      },
+    },
+  ],
+  [
     "grokcli",
     {
       // Grok Build reads the AGENTS.md instruction-file family natively
@@ -864,6 +920,23 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
     },
   ],
   [
+    "mimocode",
+    {
+      class: MimocodeRule,
+      meta: {
+        extension: "md",
+        supportsGlobal: true,
+        ruleDiscoveryMode: "toon",
+        mcpInstructionsRegistrar: MimocodeMcp,
+        // MiMo Code (an OpenCode fork) reads `instructions` from the global
+        // `~/.config/mimocode/mimocode.jsonc` too, so global non-root rules
+        // are registered there (as `~/`-rooted paths).
+        mcpInstructionsRegistrarGlobal: true,
+        collisionPolicy: "compose",
+      },
+    },
+  ],
+  [
     "musecode",
     {
       class: MusecodeRule,
@@ -881,6 +954,20 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
     },
   ],
   [
+    "omp",
+    {
+      class: OmpRule,
+      meta: {
+        // oh-my-pi loads `.omp/AGENTS.md` plus `.omp/rules/*.md` natively, and
+        // `~/.omp/agent/AGENTS.md` plus `~/.omp/agent/rules/*.md` globally.
+        // https://github.com/can1357/oh-my-pi/blob/main/docs/context-files.md
+        extension: "md",
+        supportsGlobal: true,
+        ruleDiscoveryMode: "auto",
+      },
+    },
+  ],
+  [
     "opencode",
     {
       class: OpenCodeRule,
@@ -894,6 +981,27 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         // generated and registered instead of being dropped.
         mcpInstructionsRegistrarGlobal: true,
         collisionPolicy: "compose",
+      },
+    },
+  ],
+  [
+    "openclaw",
+    {
+      class: OpenclawRule,
+      meta: {
+        // OpenClaw injects the agent workspace's `AGENTS.md`
+        // (`~/.openclaw/workspace/AGENTS.md`) into every session and appends
+        // the execution folder's `AGENTS.md` as project context. It documents
+        // no per-directory walk, so topic rules fold into the root file
+        // (mirrors zcode). Over-long files are truncated with a notice in the
+        // prompt (`bootstrapMaxChars`, 20,000 characters per file by default;
+        // `bootstrapTotalMaxChars`, 60,000 in total) rather than dropped
+        // silently, so no instruction budget warning is emitted.
+        // https://docs.openclaw.ai/concepts/system-prompt
+        extension: "md",
+        supportsGlobal: true,
+        ruleDiscoveryMode: "auto",
+        collisionPolicy: "fold",
       },
     },
   ],
@@ -2223,7 +2331,10 @@ export class RulesProcessor extends FeatureProcessor {
     toolRules: ToolRule[],
   ): string {
     const mode = resolveRuleDiscoveryMode({
-      defaultMode: meta.ruleDiscoveryMode,
+      defaultMode:
+        this.global && meta.ruleDiscoveryModeGlobal
+          ? meta.ruleDiscoveryModeGlobal
+          : meta.ruleDiscoveryMode,
       options: this.featureOptions,
     });
     switch (mode) {
@@ -3176,9 +3287,12 @@ As this project's AI coding tool, you must follow the additional conventions bel
         }
 
         const nonRootOutputRoot = join(this.outputRoot, settablePaths.nonRoot.relativeDirPath);
-        const nonRootFilePaths = await findFilesByGlobs(`**/*.${factory.meta.extension}`, {
-          cwd: nonRootOutputRoot,
-        });
+        const isSharedGlobalNonRootDir =
+          this.global && factory.meta.sharedGlobalNonRootDir === true;
+        const nonRootFilePaths = await findFilesByGlobs(
+          `${isSharedGlobalNonRootDir ? "" : "**/"}*.${factory.meta.extension}`,
+          { cwd: nonRootOutputRoot },
+        );
 
         if (forDeletion) {
           return buildDeletionRulesFromPaths(nonRootFilePaths, {
@@ -3218,21 +3332,34 @@ As this project's AI coding tool, you must follow the additional conventions bel
             relative(nonRootOutputRoot, filePath) !== rootFileNameInSameDir,
         );
 
-        return await Promise.all(
-          nonRootPathsForImport.map((filePath) => {
+        const loadedNonRootRules = await Promise.all(
+          nonRootPathsForImport.map(async (filePath) => {
             const relativeFilePath = relative(nonRootOutputRoot, filePath);
             checkPathTraversal({
               relativePath: relativeFilePath,
               intendedRootDir: nonRootOutputRoot,
             });
-            return factory.class.fromFile({
-              outputRoot: this.outputRoot,
-              relativeDirPath: modularRootRelative,
-              relativeFilePath,
-              global: this.global,
-            });
+            try {
+              return await factory.class.fromFile({
+                outputRoot: this.outputRoot,
+                relativeDirPath: modularRootRelative,
+                relativeFilePath,
+                global: this.global,
+              });
+            } catch (error) {
+              // A shared directory holds files other writers own, so one of
+              // them being unreadable must not abort the whole import.
+              if (!isSharedGlobalNonRootDir) {
+                throw error;
+              }
+              this.logger.warn(
+                `Skipping ${stripControlCharacters(join(modularRootRelative, relativeFilePath))} for ${this.toolTarget}: ${formatError(error)}`,
+              );
+              return undefined;
+            }
           }),
         );
+        return loadedNonRootRules.filter((rule): rule is ToolRule => rule !== undefined);
       })();
       this.logger.debug(`Found ${nonRootToolRules.length} non-root tool rule files`);
 

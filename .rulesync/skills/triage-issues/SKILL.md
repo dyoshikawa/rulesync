@@ -66,7 +66,7 @@ Guidelines:
 
 - Prefer a small, precise set of labels (usually 1–3). Do not over-label.
 - Combine a type label (`bug` / `enhancement` / `documentation` / `refactoring` / `improvement` / `question`) with optional modifiers (`good first issue`, `considering`, `security`, `codex`) when they clearly apply.
-- If the issue is ambiguous or you cannot confidently choose labels, skip it and note it in the final report rather than guessing.
+- If the issue is ambiguous, still apply the best-fitting type label rather than skipping it, and note the ambiguity in the final report. Skip only when the issue is empty or unreadable.
 
 ## Step 5: Apply the Labels
 
@@ -83,6 +83,7 @@ Only add labels; do not remove existing ones (these issues have none by definiti
 Output a concise summary grouped by action:
 
 - `Labeled`: `#<number> <title>` → `label1, label2` (one line per issue)
-- `Skipped (ambiguous)`: `#<number> <title>` → short reason
+- `Labeled (ambiguous)`: `#<number> <title>` → `label` — why it was a close call
+- `Skipped`: `#<number> <title>` → short reason (empty or unreadable only)
 
 Keep the report compact; do not repeat the full issue bodies.

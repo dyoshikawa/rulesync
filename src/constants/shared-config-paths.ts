@@ -5,7 +5,8 @@ import { toPosixPath } from "../utils/file.js";
  * settings files), as paths relative to the output root. Most come straight from
  * a tool's default `getSettablePaths`; the rest are twins a generator only
  * chooses at write time or under non-default options: `.amp/settings.jsonc`
- * (runtime probe twin of `.amp/settings.json`), `opencode.jsonc` / `kilo.jsonc`
+ * (runtime probe twin of `.amp/settings.json`), `opencode.jsonc` / `kilo.jsonc` /
+ * `.mimocode/mimocode.jsonc`
  * (preferred over the `.json` twin when neither file exists yet), and
  * `.claude/settings.local.json` (claudecode ignore `fileMode: "local"`).
  *
@@ -32,6 +33,9 @@ export const SHARED_USER_MANAGED_CONFIG_PATHS: readonly string[] = [
   ".claude/settings.json",
   ".claude/settings.local.json",
   ".codex/config.toml",
+  // Codewhale's user config carries every Codewhale setting beside the
+  // `[hooks]` table rulesync writes.
+  ".codewhale/config.toml",
   // Command Code settings: the project file and the user one share the same
   // `.commandcode/settings.json` layout and carry the user's own settings
   // (`defaultMode`, `model`, ...) beside the `hooks` and `permissions` blocks.
@@ -52,8 +56,15 @@ export const SHARED_USER_MANAGED_CONFIG_PATHS: readonly string[] = [
   ".cortex/settings.json",
   ".snowflake/cortex/hooks.json",
   ".devin/config.json",
+  // DeepSeek Harness home-level Cordis patch layer (`~/.dsh/cordis.patch.yml`):
+  // the user's own patches sit beside the MCP rows rulesync writes.
+  ".dsh/cordis.patch.yml",
   ".factory/settings.json",
   ".grok/config.toml",
+  // Letta Code settings: the project file and the user one share the same
+  // `.letta/settings.json` layout and carry the user's own settings beside the
+  // `hooks` and `permissions` blocks.
+  ".letta/settings.json",
   // Both Rovo Dev project files are documented as repo-committed surfaces
   // (Bitbucket Cloud Agentic Pipelines), so neither is gitignored.
   ".rovodev/config.yml",
@@ -85,6 +96,8 @@ export const SHARED_USER_MANAGED_CONFIG_PATHS: readonly string[] = [
   ".config/crush/crush.json",
   "kilo.json",
   "kilo.jsonc",
+  ".mimocode/mimocode.json",
+  ".mimocode/mimocode.jsonc",
   "opencode.json",
   "opencode.jsonc",
 ];

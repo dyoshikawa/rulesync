@@ -76,9 +76,11 @@ retry — checks can take a few seconds to appear right after the PR is opened.
   stop and report the failing checks to the user instead of merging.
 
 If any fix commit beyond the `draft-release` skill's own version-bump commits was
-pushed, stop before merging and report the extra commits to the user for
-confirmation. The release PR must reach the merge step containing only
-reviewed, expected content.
+pushed, review the extra commits yourself instead of stopping: merge when each
+one is a legitimate CI fix (it does not skip or delete tests, weaken lint or
+type-check configuration, touch `.github/**`, or add a runtime dependency) and
+CI is green, and list the extra commits in the final report. If any extra
+commit fails that check, stop and report it instead of merging.
 
 ## 4. Merge the Release PR
 

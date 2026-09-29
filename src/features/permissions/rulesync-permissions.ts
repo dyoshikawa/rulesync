@@ -488,6 +488,7 @@ export function withoutBlankPermissionKeysIn({
 const NATIVE_PERMISSION_OVERRIDE_TARGETS: ReadonlySet<ToolTarget> = new Set([
   "opencode",
   "kilo",
+  "mimocode",
   "vibe",
 ]);
 

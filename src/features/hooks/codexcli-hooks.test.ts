@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
+import { ClaudecodeHooks } from "./claudecode-hooks.js";
 import { CodexcliConfigToml, CodexcliHooks } from "./codexcli-hooks.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
 
@@ -59,6 +60,58 @@ describe("CodexcliHooks", () => {
       expect(parsed.hooks.PreToolUse[0].matcher).toBe("Bash");
       expect(parsed.hooks.PreToolUse[0].hooks[0].command).toBe("./scripts/lint.sh");
       expect(parsed.hooks.PreToolUse[0].hooks[0].timeout).toBe(30);
+    });
+
+    // https://github.com/dyoshikawa/rulesync/issues/3171 — Codex CLI does not
+    // set CLAUDE_PROJECT_DIR, so a Claude Code hook imported and regenerated for
+    // Codex must not carry the variable anywhere in its command.
+    it("should not leak $CLAUDE_PROJECT_DIR from imported Claude Code hooks", async () => {
+      const claudeCommands = [
+        '"$CLAUDE_PROJECT_DIR"/.claude/hooks/a.sh',
+        '"$CLAUDE_PROJECT_DIR/.claude/hooks/b.sh"',
+        "$CLAUDE_PROJECT_DIR/.claude/hooks/c.sh",
+        "${CLAUDE_PROJECT_DIR}/.claude/hooks/d.sh",
+        'python3 "$CLAUDE_PROJECT_DIR/.claude/hooks/e.py"',
+        'python3 "$CLAUDE_PROJECT_DIR"/.claude/hooks/f.py',
+        "node $CLAUDE_PROJECT_DIR/.claude/hooks/g.js",
+      ];
+      const claudecodeHooks = new ClaudecodeHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".claude",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          hooks: {
+            PreToolUse: [
+              {
+                matcher: "Bash",
+                hooks: claudeCommands.map((command) => ({ type: "command", command })),
+              },
+            ],
+          },
+        }),
+        validate: false,
+      });
+
+      const codexHooks = await CodexcliHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks: claudecodeHooks.toRulesyncHooks(),
+        validate: true,
+      });
+
+      const parsed = JSON.parse(codexHooks.getFileContent());
+      const commands = parsed.hooks.PreToolUse[0].hooks.map(
+        (hook: { command: string }) => hook.command,
+      );
+      expect(commands).toEqual([
+        "./.claude/hooks/a.sh",
+        '"./.claude/hooks/b.sh"',
+        "./.claude/hooks/c.sh",
+        "./.claude/hooks/d.sh",
+        'python3 "./.claude/hooks/e.py"',
+        "python3 ./.claude/hooks/f.py",
+        "node ./.claude/hooks/g.js",
+      ]);
+      expect(codexHooks.getFileContent()).not.toContain("CLAUDE_PROJECT_DIR");
     });
 
     it("should filter unsupported events", async () => {

@@ -1163,6 +1163,7 @@ export const HERMES_WIN32_CONFIG_SHARED_FILE_KEY = "AppData/Local/hermes/config.
 export const HERMES_HOME_CONFIG_SHARED_FILE_KEY = "config.yaml";
 export const TAKT_CONFIG_SHARED_FILE_KEY = ".takt/config.yaml";
 export const CODEXCLI_CONFIG_SHARED_FILE_KEY = ".codex/config.toml";
+export const CODEWHALE_CONFIG_SHARED_FILE_KEY = ".codewhale/config.toml";
 export const GROKCLI_CONFIG_SHARED_FILE_KEY = ".grok/config.toml";
 export const VIBE_CONFIG_SHARED_FILE_KEY = ".vibe/config.toml";
 export const KIMI_CODE_CONFIG_SHARED_FILE_KEY = ".kimi-code/config.toml";
@@ -1280,26 +1281,18 @@ const POOL_SETTINGS_DECLARATION: SharedConfigFileDeclaration = {
 
 /**
  * ZCode's settings file, which also carries model/theme/permission keys
- * rulesync does not own. Both copies are the user's primary ZCode config, so
- * every writer refuses to read-modify-write a file it could not parse rather
- * than replacing it with generated output. `mcp` and `hooks` are owned as
- * whole keys because their writers recompute each from the existing file
- * (non-owned siblings carried over) before applying the patch. ZCode never
- * executes workspace config hooks, so the workspace copy is declared with
- * `mcp` alone and the user copy adds `hooks`.
+ * rulesync does not own. Both copies (`<project>/.zcode/config.json` and
+ * `~/.zcode/cli/config.json`) are the user's primary ZCode config, so every
+ * writer refuses to read-modify-write a file it could not parse rather than
+ * replacing it with generated output. `mcp` and `hooks` are owned as whole
+ * keys because their writers recompute each from the existing file (non-owned
+ * siblings carried over) before applying the patch.
  */
-const ZCODE_WORKSPACE_CONFIG_DECLARATION: SharedConfigFileDeclaration = {
+const ZCODE_CONFIG_DECLARATION: SharedConfigFileDeclaration = {
   format: "json",
   invalidRootPolicy: "error",
   features: {
     mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp"] },
-  },
-};
-
-const ZCODE_USER_CONFIG_DECLARATION: SharedConfigFileDeclaration = {
-  ...ZCODE_WORKSPACE_CONFIG_DECLARATION,
-  features: {
-    ...ZCODE_WORKSPACE_CONFIG_DECLARATION.features,
     hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
   },
 };
@@ -1600,8 +1593,8 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
       mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp_servers", "schema_version"] },
     },
   },
-  ".zcode/config.json": ZCODE_WORKSPACE_CONFIG_DECLARATION,
-  ".zcode/cli/config.json": ZCODE_USER_CONFIG_DECLARATION,
+  ".zcode/config.json": ZCODE_CONFIG_DECLARATION,
+  ".zcode/cli/config.json": ZCODE_CONFIG_DECLARATION,
   // Crush's JSON config: `<project>/crush.json` (or its `.crush.json` twin,
   // which the writers resolve to this same declaration) and
   // `~/.config/crush/crush.json`. Both carry the user's providers, models and
@@ -1651,6 +1644,33 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
   // the adapter itself re-spreads the user's `defaultMode` and the other
   // sibling keys of that object into the regenerated value.
   ".commandcode/settings.json": {
+    format: "json",
+    invalidRootPolicy: "error",
+    features: {
+      hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
+      permissions: { kind: "replace-owned-keys", ownedKeys: ["permissions"] },
+    },
+  },
+  // Codewhale user config: global hooks live in the `[hooks]` table beside
+  // every other Codewhale setting. The hooks writer owns that table, carrying
+  // its own settings (`enabled`, `default_timeout_secs`, `working_dir`) over
+  // from the existing file, and an unparseable root is refused rather than
+  // replaced.
+  [CODEWHALE_CONFIG_SHARED_FILE_KEY]: {
+    format: "toml",
+    invalidRootPolicy: "error",
+    features: {
+      hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
+    },
+  },
+  // Letta Code settings: the project file (`.letta/settings.json`) and the
+  // user file (`~/.letta/settings.json`) share one layout and carry unrelated
+  // Letta Code settings (model, UI preferences, ...), so both are edited in
+  // place and an unparseable root is refused rather than replaced. Hooks own
+  // the `hooks` key (the adapter carries its `disabled` switch over);
+  // permissions own the `permissions` key, and the adapter re-spreads the
+  // sibling keys of that object (`mode`, `additionalDirectories`, ...).
+  ".letta/settings.json": {
     format: "json",
     invalidRootPolicy: "error",
     features: {
@@ -1768,6 +1788,24 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
       // OpenCode reads `instructions` from the global config too; the rules
       // feature registers global non-root rules here (recomputed from the
       // existing list before being applied, like the project-scope entry).
+      rules: { kind: "replace-owned-keys", ownedKeys: ["instructions"] },
+    },
+  },
+  // MiMo Code config (an OpenCode fork; `.mimocode/mimocode.json` or the
+  // preferred `mimocode.jsonc` twin) — same ownership as OpenCode at both scopes.
+  ".mimocode/mimocode.json": {
+    format: "jsonc",
+    features: {
+      mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp", "tools"] },
+      permissions: { kind: "replace-owned-keys", ownedKeys: ["permission"] },
+      rules: { kind: "replace-owned-keys", ownedKeys: ["instructions"] },
+    },
+  },
+  ".config/mimocode/mimocode.json": {
+    format: "jsonc",
+    features: {
+      mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp", "tools"] },
+      permissions: { kind: "replace-owned-keys", ownedKeys: ["permission"] },
       rules: { kind: "replace-owned-keys", ownedKeys: ["instructions"] },
     },
   },

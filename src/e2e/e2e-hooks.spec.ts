@@ -74,6 +74,10 @@ const hooksKeyedEventNames: Record<string, { sessionStart: string; stop: string 
   // .continue/settings.json in both scopes; commands are anchored with
   // $CONTINUE_PROJECT_DIR only when they start with `./`.
   continue: { sessionStart: "SessionStart", stop: "Stop" },
+  // Letta Code stores Claude-style PascalCase events under the `hooks` key of
+  // .letta/settings.json in both scopes; hooks run with the project directory
+  // as their working directory, so commands are written verbatim.
+  lettacode: { sessionStart: "SessionStart", stop: "Stop" },
 };
 
 function assertHooksKeyedEvents({
@@ -105,6 +109,7 @@ const hooksGenerateTargets = [
   { target: "claudecode", outputPath: join(".claude", "settings.json") },
   { target: "claudecode-plugin", outputPath: join("hooks", "hooks.json") },
   { target: "cursor", outputPath: join(".cursor", "hooks.json") },
+  { target: "mimocode", outputPath: join(".mimocode", "plugins", "rulesync-hooks.js") },
   { target: "opencode", outputPath: join(".opencode", "plugins", "rulesync-hooks.js") },
   { target: "kilo", outputPath: join(".kilo", "plugins", "rulesync-hooks.js") },
   { target: "pi", outputPath: join(".pi", "extensions", "rulesync-hooks.ts") },
@@ -130,12 +135,22 @@ const hooksGenerateTargets = [
   { target: "cortexcode", outputPath: join(".cortex", "settings.json") },
   { target: "commandcode", outputPath: join(".commandcode", "settings.json") },
   { target: "continue", outputPath: join(".continue", "settings.json") },
+  { target: "lettacode", outputPath: join(".letta", "settings.json") },
+  { target: "gitlabduo", outputPath: join(".gitlab", "duo", "hooks.json") },
   { target: "grokcli", outputPath: join(".grok", "hooks", "rulesync.json") },
   { target: "cline", outputPath: join(".clinerules", "hooks", "rulesync-hooks.json") },
+  { target: "zcode", outputPath: join(".zcode", "config.json") },
 ] as const;
 
 // Targets exercised by dedicated `it`s (bespoke per-tool serialization).
-const hooksProjectStandaloneTargets = ["vibe", "devin", "reasonix", "crush", "pool"] as const;
+const hooksProjectStandaloneTargets = [
+  "vibe",
+  "codewhale",
+  "devin",
+  "reasonix",
+  "crush",
+  "pool",
+] as const;
 
 describe("E2E: hooks", () => {
   const { getTestDir } = useTestDirectory();
@@ -175,8 +190,8 @@ describe("E2E: hooks", () => {
       expect(generatedContent).toContain('amp.on("agent.end"');
       expect(generatedContent).toContain(".rulesync/hooks/session-start.sh");
       expect(generatedContent).toContain(".rulesync/hooks/audit.sh");
-    } else if (target === "opencode") {
-      // OpenCode generates a JavaScript plugin file, not JSON
+    } else if (target === "opencode" || target === "mimocode") {
+      // OpenCode (and its MiMo Code distribution) generates a JavaScript plugin file, not JSON
       expect(generatedContent).toContain("export const RulesyncHooksPlugin");
       expect(generatedContent).toContain('"session.created"');
       expect(generatedContent).toContain('"session.idle"');
@@ -200,9 +215,9 @@ describe("E2E: hooks", () => {
     } else if (target === "pi") {
       // Pi emits a TypeScript extension (.pi/extensions/rulesync-hooks.ts)
       // that subscribes to snake_case extension events: sessionStart →
-      // session_start, stop → agent_end.
+      // session_start, stop → agent_before_settle.
       expect(generatedContent).toContain('pi.on("session_start"');
-      expect(generatedContent).toContain('pi.on("agent_end"');
+      expect(generatedContent).toContain('pi.on("agent_before_settle"');
       expect(generatedContent).toContain(".rulesync/hooks/session-start.sh");
       expect(generatedContent).toContain(".rulesync/hooks/audit.sh");
     } else {
@@ -249,6 +264,27 @@ describe("E2E: hooks", () => {
         expect(triggers).toContain("Stop");
         expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
         expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/audit.sh");
+      } else if (target === "gitlabduo") {
+        // GitLab Duo CLI documents only SessionStart, so `stop` (audit.sh) is
+        // dropped. Dot-relative commands are anchored to $DUO_PROJECT_DIR, which
+        // the CLI sets for hook processes.
+        expect(Object.keys(parsed.hooks)).toEqual(["SessionStart"]);
+        expect(parsed.hooks.SessionStart).toEqual([
+          {
+            hooks: [
+              { type: "command", command: '"$DUO_PROJECT_DIR"/.rulesync/hooks/session-start.sh' },
+            ],
+          },
+        ]);
+      } else if (target === "zcode") {
+        // ZCode nests the PascalCase event map under `hooks.events` of the
+        // workspace config and states `enabled: true`; the hooks still run only
+        // once each user trusts them in ZCode.
+        expect(parsed.hooks.enabled).toBe(true);
+        expect(parsed.hooks.events.SessionStart).toBeDefined();
+        expect(parsed.hooks.events.Stop).toBeDefined();
+        expect(JSON.stringify(parsed.hooks.events)).toContain(".rulesync/hooks/session-start.sh");
+        expect(JSON.stringify(parsed.hooks.events)).toContain(".rulesync/hooks/audit.sh");
       } else if (target === "deepagents") {
         // deepagents-cli gets the Hooks v2 document: PascalCase HookEvent keys
         // over matcher groups holding string commands (no bash -c argv
@@ -445,6 +481,60 @@ describe("E2E: hooks", () => {
     const importedContent = await readFileContent(join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH));
     expect(importedContent).toContain("preToolUse");
     expect(importedContent).toContain("echo audit");
+  });
+
+  it("should generate codewhale hooks into .codewhale/hooks.toml", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH),
+      JSON.stringify({
+        version: 1,
+        hooks: {
+          sessionStart: [{ command: ".rulesync/hooks/session-start.sh" }],
+          preToolUse: [{ command: ".rulesync/hooks/audit.sh", matcher: "exec_shell", timeout: 10 }],
+        },
+      }),
+    );
+
+    await runGenerate({ target: "codewhale", features: "hooks" });
+
+    const parsed = smolToml.parse(await readFileContent(join(testDir, ".codewhale", "hooks.toml")));
+    // Top-level `[[hooks]]` entries with snake_case events; the matcher
+    // becomes a `tool_name` condition.
+    expect(parsed.hooks).toEqual([
+      { event: "session_start", command: ".rulesync/hooks/session-start.sh" },
+      {
+        event: "tool_call_before",
+        command: ".rulesync/hooks/audit.sh",
+        condition: { type: "tool_name", name: "exec_shell" },
+        timeout_secs: 10,
+      },
+    ]);
+  });
+
+  it("should import codewhale hooks from .codewhale/hooks.toml", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, ".codewhale", "hooks.toml"),
+      [
+        "[[hooks]]",
+        'event = "tool_call_before"',
+        'command = "echo audit"',
+        'condition = { type = "tool_name", name = "exec_shell" }',
+        "",
+      ].join("\n"),
+    );
+
+    await runImport({ target: "codewhale", features: "hooks" });
+
+    const imported = JSON.parse(
+      await readFileContent(join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH)),
+    );
+    expect(imported.hooks.preToolUse).toEqual([
+      { type: "command", command: "echo audit", matcher: "exec_shell" },
+    ]);
   });
 
   it("should generate crush hooks into the hooks.PreToolUse list of crush.json", async () => {
@@ -668,11 +758,13 @@ describe("E2E: hooks", () => {
     // claudecode, kiro use shared config files (isDeletable=false) — excluded.
     // factorydroid now writes a dedicated .factory/hooks.json (isDeletable=true).
     { target: "cursor", orphanPath: join(".cursor", "hooks.json") },
+    { target: "mimocode", orphanPath: join(".mimocode", "plugins", "rulesync-hooks.js") },
     { target: "opencode", orphanPath: join(".opencode", "plugins", "rulesync-hooks.js") },
     { target: "pi", orphanPath: join(".pi", "extensions", "rulesync-hooks.ts") },
     { target: "codexcli", orphanPath: join(".codex", "hooks.json") },
     { target: "copilot", orphanPath: join(".github", "hooks", "copilot-hooks.json") },
     { target: "factorydroid", orphanPath: join(".factory", "hooks.json") },
+    { target: "gitlabduo", orphanPath: join(".gitlab", "duo", "hooks.json") },
   ])(
     "should fail in check mode when delete would remove an orphan $target hooks file",
     async ({ target, orphanPath }) => {
@@ -913,6 +1005,20 @@ describe("E2E: hooks (import)", () => {
       },
     },
     {
+      // Letta Code stores hooks under the `hooks` key of .letta/settings.json
+      // using Claude-style PascalCase event names and millisecond timeouts;
+      // SessionStart round-trips to the canonical `sessionStart` event.
+      target: "lettacode",
+      sourcePath: join(".letta", "settings.json"),
+      sourceContent: {
+        hooks: {
+          SessionStart: [
+            { hooks: [{ type: "command", command: "echo session started", timeout: 30000 }] },
+          ],
+        },
+      },
+    },
+    {
       // deepagents-cli uses the Hooks v2 document (PascalCase HookEvent keys
       // over matcher groups); SessionStart round-trips to canonical `sessionStart`.
       target: "deepagents",
@@ -935,6 +1041,21 @@ describe("E2E: hooks (import)", () => {
           SessionStart: [
             { matcher: "", hooks: [{ type: "command", command: "echo session started" }] },
           ],
+        },
+      },
+    },
+    {
+      // ZCode nests PascalCase events under `hooks.events` of the workspace
+      // config, beside its MCP servers.
+      target: "zcode",
+      sourcePath: join(".zcode", "config.json"),
+      sourceContent: {
+        mcp: { servers: {} },
+        hooks: {
+          enabled: true,
+          events: {
+            SessionStart: [{ hooks: [{ type: "command", command: "echo session started" }] }],
+          },
         },
       },
     },
@@ -964,6 +1085,7 @@ const hooksGlobalTargets = [
     target: "goose",
     outputPath: join(".agents", "plugins", "rulesync", "hooks", "hooks.json"),
   },
+  { target: "mimocode", outputPath: join(".config", "mimocode", "plugins", "rulesync-hooks.js") },
   { target: "opencode", outputPath: join(".config", "opencode", "plugins", "rulesync-hooks.js") },
   { target: "kilo", outputPath: join(".config", "kilo", "plugins", "rulesync-hooks.js") },
   { target: "pi", outputPath: join(".pi", "agent", "extensions", "rulesync-hooks.ts") },
@@ -981,8 +1103,10 @@ const hooksGlobalTargets = [
   { target: "cortexcode", outputPath: join(".snowflake", "cortex", "hooks.json") },
   { target: "commandcode", outputPath: join(".commandcode", "settings.json") },
   { target: "continue", outputPath: join(".continue", "settings.json") },
+  { target: "lettacode", outputPath: join(".letta", "settings.json") },
   { target: "kiro-ide", outputPath: join(".kiro", "hooks", "rulesync.json") },
   { target: "kiro-cli", outputPath: join(".kiro", "hooks", "rulesync.json") },
+  { target: "gitlabduo", outputPath: join(".gitlab", "duo", "hooks.json") },
   { target: "grokcli", outputPath: join(".grok", "hooks", "rulesync.json") },
   { target: "cline", outputPath: join("Documents", "Cline", "Hooks", "rulesync-hooks.json") },
   { target: "zcode", outputPath: join(".zcode", "cli", "config.json") },
@@ -994,6 +1118,7 @@ const hooksGlobalTargets = [
 // exists for each name; keep it in sync with the actual `it`s by hand.
 const hooksGlobalStandaloneTargets = [
   "crush",
+  "codewhale",
   "devin",
   "vibe",
   "hermesagent",
@@ -1046,7 +1171,7 @@ describe("E2E: hooks (global mode)", () => {
         expect(generatedContent).toContain('amp.on("agent.end"');
         expect(generatedContent).toContain(".rulesync/hooks/session-start.sh");
         expect(generatedContent).toContain(".rulesync/hooks/audit.sh");
-      } else if (target === "opencode") {
+      } else if (target === "opencode" || target === "mimocode") {
         expect(generatedContent).toContain("RulesyncHooksPlugin");
         expect(generatedContent).toContain(".rulesync/hooks/session-start.sh");
         expect(generatedContent).toContain(".rulesync/hooks/audit.sh");
@@ -1062,7 +1187,7 @@ describe("E2E: hooks (global mode)", () => {
       } else if (target === "pi") {
         // Pi emits a TypeScript extension subscribing to snake_case events.
         expect(generatedContent).toContain('pi.on("session_start"');
-        expect(generatedContent).toContain('pi.on("agent_end"');
+        expect(generatedContent).toContain('pi.on("agent_before_settle"');
         expect(generatedContent).toContain(".rulesync/hooks/session-start.sh");
         expect(generatedContent).toContain(".rulesync/hooks/audit.sh");
       } else if (target === "copilot" || target === "copilotcli") {
@@ -1072,8 +1197,7 @@ describe("E2E: hooks (global mode)", () => {
         expect(parsed.hooks.sessionStart).toBeDefined();
         expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
       } else if (target === "zcode") {
-        // ZCode never executes workspace config hooks, so generation is
-        // global-only: the `hooks` block (with `enabled: true`) goes to
+        // In global mode the `hooks` block (with `enabled: true`) goes to
         // ~/.zcode/cli/config.json. See CANONICAL_TO_ZCODE_EVENT_NAMES in
         // src/types/hooks.ts.
         const parsedHooks = JSON.parse(generatedContent).hooks;
@@ -1082,6 +1206,11 @@ describe("E2E: hooks (global mode)", () => {
         expect(parsedHooks.events.Stop).toBeDefined();
         expect(JSON.stringify(parsedHooks.events)).toContain(".rulesync/hooks/session-start.sh");
         expect(JSON.stringify(parsedHooks.events)).toContain(".rulesync/hooks/audit.sh");
+      } else if (target === "gitlabduo") {
+        // GitLab Duo CLI documents only SessionStart, so audit.sh is dropped.
+        const parsed = JSON.parse(generatedContent);
+        expect(Object.keys(parsed.hooks)).toEqual(["SessionStart"]);
+        expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
       } else if (target === "junie") {
         // Junie CLI supports SessionStart, UserPromptSubmit, Stop, and SessionEnd
         // (PascalCase), so both `sessionStart` and `stop` (audit.sh) survive.
@@ -1307,6 +1436,49 @@ describe("E2E: hooks (global mode)", () => {
     const regeneratedStop = regenerated.hooks.find(({ event }) => event === "Stop");
     expect(regeneratedStop?.command).toContain("RULESYNC_KIMI_HOOK_CWD=1");
     expect(regeneratedStop?.command).toContain("cd -- '/opt/company/security-hooks' && ./gate.sh");
+  });
+
+  it("should generate codewhale hooks into the [hooks] table of the user config", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(homeDir, ".codewhale", "config.toml"),
+      [
+        'model = "deepseek-v4"',
+        "",
+        "[hooks]",
+        "enabled = false",
+        "default_timeout_secs = 20",
+        "",
+      ].join("\n"),
+    );
+    await writeFileContent(
+      join(projectDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH),
+      JSON.stringify({
+        version: 1,
+        hooks: { stop: [{ command: ".rulesync/hooks/audit.sh" }] },
+      }),
+    );
+
+    await runGenerate({
+      target: "codewhale",
+      features: "hooks",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const parsed = smolToml.parse(
+      await readFileContent(join(homeDir, ".codewhale", "config.toml")),
+    );
+    // Unrelated settings and the `[hooks]` table's own settings survive.
+    expect(parsed.model).toBe("deepseek-v4");
+    expect(parsed.hooks).toEqual({
+      enabled: false,
+      default_timeout_secs: 20,
+      hooks: [{ event: "turn_end", command: ".rulesync/hooks/audit.sh" }],
+    });
+    expect(await fileExists(join(homeDir, ".codewhale", "hooks.toml"))).toBe(false);
   });
 
   it("should generate vibe hooks in home directory", async () => {

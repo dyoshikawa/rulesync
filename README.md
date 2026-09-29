@@ -93,6 +93,7 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 | Claude Code               |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | Claude Code plugin        |       |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |             |        |
 | CodeBuddy Code            |  ✅   |        |     |          |           |        |       |             |        |
+| Codewhale                 |  ✅   |        | ✅  |          |    ✅     |   ✅   |  ✅   |             |        |
 | Codex CLI                 |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | Command Code              |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | GitHub Copilot            |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
@@ -105,6 +106,9 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 | deepagents-cli            |  ✅   |        | ✅  |          |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | Factory Droid             |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |   ✅   |
 | OpenCode                  |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
+| OpenClaw                  |  ✅   |        |     |          |           |        |       |             |        |
+| MiMo Code                 |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
+| GitLab Duo CLI            |  ✅   |        | ✅  |    ✅    |           |   ✅   |  ✅   |             |   ✅   |
 | Cline                     |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | Kilo Code                 |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | Kimi Code                 |  ✅   |        | ✅  |          |    ✅     |   ✅   |  ✅   |     ✅      |        |
@@ -119,9 +123,11 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 | Qwen Code                 |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | Meta Muse Code            |  ✅   |        | ✅  |          |           |   ✅   |       |             |        |
 | Reasonix                  |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
+| Codebuff (Freebuff)       |       |   ✅   | ✅  |          |           |        |       |             |        |
 | Kiro ⚠️                   |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | Kiro CLI                  |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | Kiro IDE                  |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
+| Letta Code                |       |   ✅   |     |          |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | Google Antigravity IDE    |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | Google Antigravity CLI    |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | Google Antigravity plugin |  ✅   |        | ✅  |          |    ✅     |   ✅   |  ✅   |             |        |
@@ -132,10 +138,11 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 | Warp                      |  ✅   |   ✅   | ✅  |    ✅    |           |   ✅   |       |     ✅      |        |
 | Replit                    |  ✅   |        |     |          |           |   ✅   |       |             |        |
 | Pi Coding Agent           |  ✅   |        |     |    ✅    |           |   ✅   |  ✅   |     ✅      |        |
+| oh-my-pi                  |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |       |             |        |
 | Zed                       |  ✅   |   ✅   | ✅  |          |           |   ✅   |       |     ✅      |        |
 | ZCode (Z.ai)              |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |             |        |
 | Pool (Poolside)           |  ✅   |        | ✅  |          |    ✅     |   ✅   |  ✅   |     ✅      |        |
-| DeepSeek Harness          |  ✅   |        |     |          |           |   ✅   |       |             |        |
+| DeepSeek Harness          |  ✅   |        | ✅  |          |           |   ✅   |       |             |        |
 
 <!-- SUPPORTED_TOOLS_AI:END -->
 
@@ -155,7 +162,7 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 ### Target and deprecation notes
 
 - **Ignore feature** — The `ignore` feature is deprecated in favor of the more expressive `permissions` feature. Existing ignore configurations remain supported throughout Rulesync 14.x; removal, if any, will be decided separately and will not occur before a future major release. New `rulesync init` projects scaffold permissions without enabling or creating ignore files. See the [migration guide](https://rulesync.dyoshikawa.com/reference/file-formats#rulesync-aiignore-or-rulesyncignore-deprecated).
-- **Google Antigravity (`antigravity-ide` / `antigravity-cli`)** — Antigravity 2.0 splits into two products with separate global config trees: the desktop **`antigravity-ide`** and the **`antigravity-cli`** (`agy`). For project-scope rules, **both `antigravity-ide` and `antigravity-cli`** emit the root rule as a plain cross-tool **`AGENTS.md`** at the project root (the Gemini-lineage discovery order is `AGENTS.md`, `CONTEXT.md`, `GEMINI.md`; the IDE has read `AGENTS.md` since v1.20.3) and non-root rules under `.agents/rules/`.
+- **Google Antigravity (`antigravity-ide` / `antigravity-cli`)** — Antigravity 2.0 splits into two products with separate global config trees: the desktop **`antigravity-ide`** and the **`antigravity-cli`** (`agy`). For project-scope rules, **both `antigravity-ide` and `antigravity-cli`** emit the root rule as a plain cross-tool **`AGENTS.md`** at the project root (the Gemini-lineage discovery order is `AGENTS.md`, `CONTEXT.md`, `GEMINI.md`; the IDE has read `AGENTS.md` since v1.20.3) and non-root rules under `.agents/rules/`. In `--global` mode, `antigravity-cli` writes the root rule to `~/.gemini/GEMINI.md` and each non-root rule to its own file in `~/.gemini/config/rules/` (with trigger frontmatter), so each rule gets the CLI's 24,000-byte per-file limit to itself; `generate --delete` never removes files from that shared directory.
 - **Plugin packaging (`claudecode-plugin` / `antigravity-plugin`)** — These project-only targets generate and import Rulesync-managed components inside an existing plugin directory selected with `--output-roots` (generate) or `--output-root` (import). They are excluded from `--targets "*"` to avoid writing package-level `skills/`, `rules/`, or `commands/` directories into ordinary projects. Rulesync preserves plugin manifests, marketplace metadata, scripts, and other non-component assets. See the [Plugin Packaging guide](https://rulesync.dyoshikawa.com/guide/plugin-packaging).
 - **Continue (`continue`)** — Continue is end of life: it joined Cursor on 2026-06-18, the [continuedev/continue](https://github.com/continuedev/continue) repository is read-only with a final v2.0.0 release (2026-06-19), and its last commit is from 2026-07-21. The `continue` target stays supported as a frozen-compatibility target verified against that final source tree, so existing output keeps working — it just will not track anything new. See [Supported tools > Deprecation notes](https://rulesync.dyoshikawa.com/reference/supported-tools#deprecation-notes).
 - **Kiro (`kiro`)** — Kiro's IDE and CLI use diverging config formats (IDE: Markdown subagents `.kiro/agents/*.md`; CLI: JSON agent-config subagents `.kiro/agents/*.json`), so `kiro` is split into **`kiro-cli`** and **`kiro-ide`**. The legacy `kiro` target remains as a **deprecated alias** with its current behavior unchanged. The two targets share every surface except **subagents** (Markdown vs JSON); both emit hooks as a single `.kiro/hooks/rulesync.json` (`{ "version": "v1", "hooks": [ ... ] }`) in project (`.kiro/hooks/`) and global (`~/.kiro/hooks/`) scope, the format Kiro CLI 3.0 [migrated to](https://kiro.dev/docs/cli/v3/hooks-migration/). Only the deprecated `kiro` alias still writes hooks into `.kiro/agents/default.json`, which the CLI no longer reads. Global skills (`~/.kiro/skills/`), global ignore (`~/.kiro/settings/kiroignore`), and global Kiro IDE subagents (`~/.kiro/agents/`) are supported too, as are global Kiro CLI commands (`~/.kiro/prompts/`) and subagents (`~/.kiro/agents/`). Kiro MCP generation preserves per-server `disabledTools`, and the deprecated `kiro` alias's hook caching maps `cacheTtl` to `cache_ttl_seconds`.

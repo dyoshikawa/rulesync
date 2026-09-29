@@ -67,6 +67,10 @@ const subagentsGenerateTargets = [
     outputPath: join(".cortex", "agents", "planner.md"),
   },
   {
+    target: "codewhale",
+    outputPath: join(".codewhale", "agents", "planner.toml"),
+  },
+  {
     target: "commandcode",
     outputPath: join(".commandcode", "agents", "planner.md"),
   },
@@ -103,6 +107,10 @@ const subagentsGenerateTargets = [
     outputPath: join(".kiro", "agents", "planner.md"),
   },
   {
+    target: "lettacode",
+    outputPath: join(".letta", "agents", "planner.md"),
+  },
+  {
     target: "kilo",
     outputPath: join(".kilo", "agents", "planner.md"),
   },
@@ -110,6 +118,11 @@ const subagentsGenerateTargets = [
     target: "kimi-code",
     outputPath: join(".kimi-code", "agents", "planner.md"),
   },
+  {
+    target: "mimocode",
+    outputPath: join(".mimocode", "agents", "planner.md"),
+  },
+  { target: "omp", outputPath: join(".omp", "agents", "planner.md") },
   {
     target: "opencode",
     outputPath: join(".opencode", "agents", "planner.md"),
@@ -162,6 +175,10 @@ const subagentsGenerateTargets = [
     target: "hermesagent",
     outputPath: join(".hermes", "rulesync", "subagents", "planner.json"),
   },
+  {
+    target: "zcode",
+    outputPath: join(".zcode", "agents", "planner.md"),
+  },
 ] as const;
 
 const subagentsGlobalTargets = [
@@ -178,11 +195,15 @@ const subagentsGlobalTargets = [
   { target: "qwencode", outputPath: join(".qwen", "agents", "planner.md") },
   { target: "tabnine", outputPath: join(".tabnine", "agent", "agents", "planner.md") },
   { target: "cortexcode", outputPath: join(".snowflake", "cortex", "agents", "planner.md") },
+  { target: "codewhale", outputPath: join(".codewhale", "agents", "planner.toml") },
   { target: "junie", outputPath: join(".junie", "agents", "planner.md") },
   { target: "kiro-cli", outputPath: join(".kiro", "agents", "planner.json") },
   { target: "kiro-ide", outputPath: join(".kiro", "agents", "planner.md") },
+  { target: "lettacode", outputPath: join(".letta", "agents", "planner.md") },
   { target: "kilo", outputPath: join(".config", "kilo", "agents", "planner.md") },
   { target: "kimi-code", outputPath: join(".kimi-code", "agents", "planner.md") },
+  { target: "mimocode", outputPath: join(".config", "mimocode", "agents", "planner.md") },
+  { target: "omp", outputPath: join(".omp", "agent", "agents", "planner.md") },
   { target: "opencode", outputPath: join(".config", "opencode", "agents", "planner.md") },
   { target: "pool", outputPath: join(".config", "poolside", "settings.yaml") },
   { target: "rovodev", outputPath: join(".rovodev", "subagents", "planner.md") },
@@ -393,6 +414,7 @@ You are a subagent-only helper.
     { target: "grokcli", orphanPath: join(".grok", "agents", "orphan.md") },
     { target: "tabnine", orphanPath: join(".tabnine", "agent", "agents", "orphan.md") },
     { target: "cortexcode", orphanPath: join(".cortex", "agents", "orphan.md") },
+    { target: "codewhale", orphanPath: join(".codewhale", "agents", "orphan.toml") },
     { target: "commandcode", orphanPath: join(".commandcode", "agents", "orphan.md") },
     { target: "codexcli", orphanPath: join(".codex", "agents", "orphan.toml") },
     { target: "copilot", orphanPath: join(".github", "agents", "orphan.md") },
@@ -401,6 +423,7 @@ You are a subagent-only helper.
     { target: "kiro", orphanPath: join(".kiro", "agents", "orphan.json") },
     { target: "kiro-cli", orphanPath: join(".kiro", "agents", "orphan.json") },
     { target: "kiro-ide", orphanPath: join(".kiro", "agents", "orphan.md") },
+    { target: "lettacode", orphanPath: join(".letta", "agents", "orphan.md") },
     { target: "junie", orphanPath: join(".junie", "agents", "orphan.md") },
     { target: "factorydroid", orphanPath: join(".factory", "droids", "orphan.md") },
     { target: "cline", orphanPath: join(".cline", "agents", "orphan.yaml") },
@@ -620,14 +643,18 @@ describe("E2E: subagents (import)", () => {
     { target: "tabnine", sourcePath: join(".tabnine", "agent", "agents", "planner.md") },
     { target: "cortexcode", sourcePath: join(".cortex", "agents", "planner.md") },
     { target: "commandcode", sourcePath: join(".commandcode", "agents", "planner.md") },
+    { target: "lettacode", sourcePath: join(".letta", "agents", "planner.md") },
     { target: "copilot", sourcePath: join(".github", "agents", "planner.md") },
     { target: "kimi-code", sourcePath: join(".kimi-code", "agents", "planner.md") },
+    { target: "mimocode", sourcePath: join(".mimocode", "agents", "planner.md") },
+    { target: "omp", sourcePath: join(".omp", "agents", "planner.md") },
     { target: "opencode", sourcePath: join(".opencode", "agents", "planner.md") },
     { target: "deepagents", sourcePath: join(".deepagents", "agents", "planner", "AGENTS.md") },
     { target: "junie", sourcePath: join(".junie", "agents", "planner.md") },
     { target: "factorydroid", sourcePath: join(".factory", "droids", "planner.md") },
     { target: "cline", sourcePath: join(".cline", "agents", "planner.yaml") },
     { target: "devin", sourcePath: join(".devin", "agents", "planner", "AGENT.md") },
+    { target: "zcode", sourcePath: join(".zcode", "agents", "planner.md") },
   ])("should import $target subagents", async ({ target, sourcePath }) => {
     const testDir = getTestDir();
 
@@ -678,6 +705,33 @@ Review the code for security issues.
     });
 
     expect(await readFileContent(toolPath)).toContain("Review the code for security issues.");
+  });
+
+  it("should import codewhale subagents from TOML agent profiles", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, ".codewhale", "agents", "planner.toml"),
+      [
+        'id = "planner"',
+        'display_name = "Planner"',
+        'description = "Plans implementation tasks"',
+        'reasoning_effort = "high"',
+        "",
+        "[instructions]",
+        'text = "Break down tasks into steps."',
+        "",
+      ].join("\n"),
+    );
+
+    await runImport({ target: "codewhale", features: "subagents" });
+
+    const importedContent = await readFileContent(
+      join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md"),
+    );
+    expect(importedContent).toContain("name: Planner");
+    expect(importedContent).toContain("reasoning_effort: high");
+    expect(importedContent).toContain("Break down tasks into steps.");
   });
 
   it("should import junie subagents from the shared .agents directory", async () => {

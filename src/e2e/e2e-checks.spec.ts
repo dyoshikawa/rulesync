@@ -35,6 +35,11 @@ const checksGenerateTargets = [
     outputPath: join(".factory", "skills", "review-guidelines", "SKILL.md"),
   },
   {
+    // GitLab Duo Code Review Flow reads one YAML list of instruction groups.
+    target: "gitlabduo",
+    outputPath: join(".gitlab", "duo", "mr-review-instructions.yaml"),
+  },
+  {
     target: "hermesagent",
     outputPath: join(".hermes", "plugins", "rulesync-checks", "checks", "security.json"),
   },
@@ -106,6 +111,14 @@ Look for injection vulnerabilities.
         expect(generatedContent).toContain("Look for injection vulnerabilities.");
         return;
       }
+      if (target === "gitlabduo") {
+        // One instruction group per check, named after the source file basename.
+        expect(generatedContent).toContain("instructions:");
+        expect(generatedContent).toContain("name: security");
+        expect(generatedContent).toContain("Look for injection vulnerabilities.");
+        expect(generatedContent).not.toContain("severity");
+        return;
+      }
       if (target === "takt") {
         // One quality gate per check, in the shared config's owned block.
         expect(generatedContent).toContain("workflow_overrides:");
@@ -159,6 +172,23 @@ Look for injection vulnerabilities.
       join(testDir, RULESYNC_CHECKS_RELATIVE_DIR_PATH, "review-agent.md"),
     );
     expect(importedContent).toContain("Prefer small, well-named functions.");
+  });
+
+  it("should round-trip gitlabduo checks through import", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, ".gitlab", "duo", "mr-review-instructions.yaml"),
+      "instructions:\n  - name: Ruby Style Guide\n    fileFilters:\n      - '*.rb'\n    instructions: |\n      Use Ruby style.\n",
+    );
+
+    await runImport({ target: "gitlabduo", features: "checks" });
+
+    const importedContent = await readFileContent(
+      join(testDir, RULESYNC_CHECKS_RELATIVE_DIR_PATH, "ruby-style-guide.md"),
+    );
+    expect(importedContent).toContain("name: Ruby Style Guide");
+    expect(importedContent).toContain("Use Ruby style.");
   });
 
   it("should round-trip factorydroid checks through import", async () => {

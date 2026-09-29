@@ -34,6 +34,18 @@ function isUnsafeSkillDirName(name: string): boolean {
   );
 }
 
+const piSkillSectionSchema = z.looseObject({
+  // Pi implements the Agent Skills spec: `allowed-tools` is a
+  // space-delimited string and `compatibility` a 1-500 character string.
+  // Both legacy rulesync forms stay accepted.
+  // https://agentskills.io/specification
+  "allowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
+  "disable-model-invocation": z.optional(z.boolean()),
+  license: z.optional(z.string()),
+  compatibility: z.optional(z.union([z.string(), z.looseObject({})])),
+  metadata: z.optional(z.looseObject({})),
+});
+
 const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
   name: z.string().check(
     z.refine((name) => !isUnsafeSkillDirName(name), {
@@ -43,14 +55,15 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
   ),
   description: z.string(),
   targets: z._default(RulesyncTargetsSchema, ["*"]),
-  // Default for tools that support the flag (claudecode, cursor, zed, pi, qwencode, grokcli, factorydroid, dsh, commandcode).
+  // Default for tools that support the flag (claudecode, cursor, zed, pi, qwencode, grokcli,
+  // factorydroid, dsh, commandcode, lettacode).
   // A target-section value of the same key overrides this default.
   // `devin` also consumes this root value (mapping `true` onto a user-only
   // `triggers` list); it has no section key of the same name, but a
   // `devin.triggers` section value overrides it.
   "disable-model-invocation": z.optional(z.boolean()),
   // Default for tools that support the flag (claudecode, copilot, copilotcli, cursor,
-  // qwencode, vibe, grokcli, factorydroid, dsh, commandcode).
+  // qwencode, vibe, grokcli, factorydroid, dsh, commandcode, lettacode).
   // A target-section value of the same key overrides this default.
   // `devin` also consumes this root value (mapping `false` onto a model-only
   // `triggers` list); it has no section key of the same name, but a
@@ -140,6 +153,16 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
       metadata: z.optional(z.unknown()),
     }),
   ),
+  // Mirrors `opencode` so a skill round-trips through the shared OpenCode
+  // adapter; MiMo Code itself ignores these extra SKILL.md fields.
+  mimocode: z.optional(
+    z.looseObject({
+      "allowed-tools": z.optional(z.array(z.string())),
+      license: z.optional(z.unknown()),
+      compatibility: z.optional(z.unknown()),
+      metadata: z.optional(z.unknown()),
+    }),
+  ),
   kilo: z.optional(
     z.looseObject({
       // `allowed-tools` is not part of Kilo's official SKILL.md frontmatter; it is
@@ -204,19 +227,9 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
       "disable-model-invocation": z.optional(z.boolean()),
     }),
   ),
-  pi: z.optional(
-    z.looseObject({
-      // Pi implements the Agent Skills spec: `allowed-tools` is a
-      // space-delimited string and `compatibility` a 1-500 character string.
-      // Both legacy rulesync forms stay accepted.
-      // https://agentskills.io/specification
-      "allowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
-      "disable-model-invocation": z.optional(z.boolean()),
-      license: z.optional(z.string()),
-      compatibility: z.optional(z.union([z.string(), z.looseObject({})])),
-      metadata: z.optional(z.looseObject({})),
-    }),
-  ),
+  pi: z.optional(piSkillSectionSchema),
+  // oh-my-pi keeps Pi's SKILL.md format, so its section mirrors `pi`.
+  omp: z.optional(piSkillSectionSchema),
   zed: z.optional(
     z.looseObject({
       "disable-model-invocation": z.optional(z.boolean()),
@@ -369,7 +382,20 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
       "user-invocable": z.optional(z.boolean()),
     }),
   ),
+  // Letta Code reads `when_to_use`, `argument-hint`, `category`, `tags` and
+  // both invocation flags from a skill's frontmatter.
+  lettacode: z.optional(
+    z.looseObject({
+      when_to_use: z.optional(z.string()),
+      "argument-hint": z.optional(z.string()),
+      category: z.optional(z.string()),
+      tags: z.optional(z.union([z.string(), z.array(z.string())])),
+      "disable-model-invocation": z.optional(z.boolean()),
+      "user-invocable": z.optional(z.boolean()),
+    }),
+  ),
   cortexcode: z.optional(z.looseObject({})),
+  codewhale: z.optional(z.looseObject({})),
   continue: z.optional(z.looseObject({})),
   tabnine: z.optional(z.looseObject({})),
   takt: z.optional(
@@ -484,6 +510,12 @@ export type RulesyncSkillFrontmatterInput = {
     compatibility?: unknown;
     metadata?: unknown;
   };
+  mimocode?: {
+    "allowed-tools"?: string[];
+    license?: unknown;
+    compatibility?: unknown;
+    metadata?: unknown;
+  };
   kilo?: {
     "allowed-tools"?: string[];
     license?: unknown;
@@ -517,6 +549,13 @@ export type RulesyncSkillFrontmatterInput = {
     "disable-model-invocation"?: boolean;
   };
   pi?: {
+    "allowed-tools"?: string | string[];
+    "disable-model-invocation"?: boolean;
+    license?: string;
+    compatibility?: string | Record<string, unknown>;
+    metadata?: Record<string, unknown>;
+  };
+  omp?: {
     "allowed-tools"?: string | string[];
     "disable-model-invocation"?: boolean;
     license?: string;
@@ -601,7 +640,16 @@ export type RulesyncSkillFrontmatterInput = {
     "allowed-tools"?: string | string[];
   };
   commandcode?: Record<string, unknown>;
+  lettacode?: {
+    when_to_use?: string;
+    "argument-hint"?: string;
+    category?: string;
+    tags?: string | string[];
+    "disable-model-invocation"?: boolean;
+    "user-invocable"?: boolean;
+  };
   cortexcode?: Record<string, unknown>;
+  codewhale?: Record<string, unknown>;
   continue?: Record<string, unknown>;
   tabnine?: Record<string, unknown>;
   takt?: {

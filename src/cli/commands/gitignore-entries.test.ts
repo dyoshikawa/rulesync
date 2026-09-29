@@ -103,6 +103,8 @@ describe("registry derivation", () => {
       // Preferred over `opencode.json` when neither file exists yet, so it is
       // chosen at write time rather than declared by getSettablePaths.
       "**/opencode.jsonc",
+      // Same write-time preference for MiMo Code's `.mimocode/mimocode.jsonc`.
+      "**/.mimocode/mimocode.jsonc",
       // Runtime twin of `crush.json`: written instead of it when the project
       // already keeps a `.crush.json`, so getSettablePaths never declares it.
       "**/.crush.json",
@@ -132,6 +134,15 @@ describe("registry derivation", () => {
       // scope writes `.cortex/settings.json` instead), so project derivation
       // never yields it.
       "**/.snowflake/cortex/hooks.json",
+      // DeepSeek Harness home patch layer: the dsh MCP target is GLOBAL-only,
+      // so project derivation never yields it. It stays listed as a shared
+      // user-managed config so a global generate with no servers does not
+      // create an empty `[]` patch file in the user's home directory.
+      "**/.dsh/cordis.patch.yml",
+      // Codewhale user config: emitted in GLOBAL scope only (project scope
+      // writes hooks to `.codewhale/hooks.toml` instead), so project
+      // derivation never yields it.
+      "**/.codewhale/config.toml",
     ]);
     const rawEntries = new Set(deriveAllGitignoreEntriesUnfiltered().map((tag) => tag.entry));
     const stale = [...DERIVED_PATHS_NOT_GITIGNORED].filter(
@@ -213,6 +224,9 @@ describe("registry derivation", () => {
       // Command Code's personal settings overlay, documented as gitignored
       // and never written by rulesync (issue #3075).
       "commandcode::general::**/.commandcode/settings.local.json",
+      // Letta Code's personal project settings, documented as gitignored and
+      // never written by rulesync (issue #3175).
+      "lettacode::general::**/.letta/settings.local.json",
       "junie::rules::**/.junie/memories/",
       // Legacy outputs of earlier versions (issue #2404): the retired
       // .gooseignore and the inert sub-recipe subagents directory.
@@ -559,6 +573,24 @@ describe("committedOutput check outputs", () => {
     // ignoring them would disable the checks feature (#2487).
     expect(entries).not.toContain("**/.cursor/BUGBOT.md");
     expect(entries).not.toContain("**/.rovodev/.review-agent.md");
+    expect(entries).not.toContain("**/.gitlab/duo/mr-review-instructions.yaml");
+  });
+
+  it("never ignores GitLab Duo's committed root skills directory", () => {
+    const entries = deriveAllGitignoreEntries()
+      .filter((tag) => tag.target === "gitlabduo")
+      .map((tag) => tag.entry);
+    // GitLab Duo reads project skills from the repository-root `skills/`; a
+    // recursive entry for it would also swallow unrelated `skills` directories
+    // such as rulesync's own distributed skills. Its checks file is committed
+    // too; only the shared `.agents/commands/` and its local-only files remain.
+    expect(entries.toSorted()).toEqual([
+      "**/.agents/commands/",
+      "**/.gitlab/duo/chat-rules.md",
+      "**/.gitlab/duo/hooks.json",
+      "**/.gitlab/duo/mcp.json",
+    ]);
+    expect(filterGitignoreEntries()).not.toContain("**/skills/");
   });
 
   it("re-includes a committed output nested inside another feature's ignored directory", () => {
@@ -583,5 +615,10 @@ describe("committedOutput check outputs", () => {
       (factory) => factory.meta.committedOutput === true,
     );
     expect(flagged.length).toBeGreaterThan(0);
+  });
+
+  it("keeps the committedOutput flag meaningful for skills (gitlabduo sets it)", async () => {
+    const { toolSkillFactories } = await import("../../features/skills/skills-processor.js");
+    expect(toolSkillFactories.get("gitlabduo")?.meta.committedOutput).toBe(true);
   });
 });

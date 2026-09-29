@@ -50,6 +50,7 @@ import { CopilotCommand } from "./copilot-command.js";
 import { CursorCommand } from "./cursor-command.js";
 import { DevinCommand } from "./devin-command.js";
 import { FactorydroidCommand } from "./factorydroid-command.js";
+import { GitlabduoCommand } from "./gitlabduo-command.js";
 import {
   getGooseSlashCommandsConfigContent,
   GooseCommand,
@@ -65,6 +66,8 @@ import { KiloCommand } from "./kilo-command.js";
 import { KiroCliCommand } from "./kiro-cli-command.js";
 import { KiroCommand } from "./kiro-command.js";
 import { KiroIdeCommand } from "./kiro-ide-command.js";
+import { MimocodeCommand } from "./mimocode-command.js";
+import { OmpCommand } from "./omp-command.js";
 import { OpenCodeCommand } from "./opencode-command.js";
 import { PiCommand } from "./pi-command.js";
 import { QwencodeCommand } from "./qwencode-command.js";
@@ -417,6 +420,23 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
     },
   ],
   [
+    "gitlabduo",
+    {
+      class: GitlabduoCommand,
+      meta: {
+        // `.agents/commands/*.md` (project) / `~/.gitlab/duo/commands/*.md`
+        // (global). The scan is flat, so nested rulesync commands are
+        // flattened onto their basename.
+        // https://docs.gitlab.com/user/gitlab_duo_cli/customize/
+        extension: "md",
+        supportsProject: true,
+        supportsGlobal: true,
+        isSimulated: false,
+        supportsSubdirectory: false,
+      },
+    },
+  ],
+  [
     "grokcli",
     {
       class: GrokcliCommand,
@@ -510,6 +530,32 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
         extension: "md",
         supportsProject: true,
         supportsGlobal: false,
+        isSimulated: false,
+        supportsSubdirectory: false,
+      },
+    },
+  ],
+  [
+    "mimocode",
+    {
+      class: MimocodeCommand,
+      meta: {
+        extension: "md",
+        supportsProject: true,
+        supportsGlobal: true,
+        isSimulated: false,
+        supportsSubdirectory: true,
+      },
+    },
+  ],
+  [
+    "omp",
+    {
+      class: OmpCommand,
+      meta: {
+        extension: "md",
+        supportsProject: true,
+        supportsGlobal: true,
         isSimulated: false,
         supportsSubdirectory: false,
       },

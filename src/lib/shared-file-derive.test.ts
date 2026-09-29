@@ -161,6 +161,11 @@ describe("shared-file write derivation", () => {
           "commands",
           "mcp",
         ],
+        ".config/mimocode/mimocode.json": [
+          "mcp",
+          "permissions",
+          "rules",
+        ],
         ".config/opencode/opencode.json": [
           "mcp",
           "permissions",
@@ -197,6 +202,15 @@ describe("shared-file write derivation", () => {
           "hooks",
           "permissions",
         ],
+        ".letta/settings.json": [
+          "hooks",
+          "permissions",
+        ],
+        ".mimocode/mimocode.json": [
+          "mcp",
+          "permissions",
+          "rules",
+        ],
         ".poolside/settings.yaml": [
           "hooks",
           "mcp",
@@ -232,6 +246,10 @@ describe("shared-file write derivation", () => {
           "permissions",
         ],
         ".zcode/cli/config.json": [
+          "hooks",
+          "mcp",
+        ],
+        ".zcode/config.json": [
           "hooks",
           "mcp",
         ],

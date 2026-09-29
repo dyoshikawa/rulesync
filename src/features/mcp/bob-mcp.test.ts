@@ -41,10 +41,10 @@ describe("BobMcp", () => {
       expect(paths.relativeFilePath).toBe("mcp.json");
     });
 
-    it("should return .bob/mcp.json for global scope as well", () => {
+    it("should return .bob/settings/mcp.json for global scope", () => {
       const paths = BobMcp.getSettablePaths({ global: true });
 
-      expect(paths.relativeDirPath).toBe(".bob");
+      expect(paths.relativeDirPath).toBe(join(".bob", "settings"));
       expect(paths.relativeFilePath).toBe("mcp.json");
     });
   });
@@ -343,12 +343,12 @@ describe("BobMcp", () => {
       );
     });
 
-    it("should write a non-deletable .bob/mcp.json in global scope", async () => {
+    it("should write a non-deletable .bob/settings/mcp.json in global scope", async () => {
       const rulesyncMcp = buildRulesyncMcp({ git: { command: "git-mcp" } });
 
       const bobMcp = await BobMcp.fromRulesyncMcp({ rulesyncMcp, global: true });
 
-      expect(bobMcp.getRelativeDirPath()).toBe(".bob");
+      expect(bobMcp.getRelativeDirPath()).toBe(join(".bob", "settings"));
       expect(bobMcp.getRelativeFilePath()).toBe("mcp.json");
       expect(bobMcp.isDeletable()).toBe(false);
     });
@@ -383,15 +383,16 @@ describe("BobMcp", () => {
       expect(bobMcp.getJson()).toEqual({ mcpServers: {} });
     });
 
-    it("should read ~/.bob/mcp.json in global scope", async () => {
-      await ensureDir(join(testDir, ".bob"));
+    it("should read ~/.bob/settings/mcp.json in global scope", async () => {
+      await ensureDir(join(testDir, ".bob", "settings"));
       await writeFileContent(
-        join(testDir, ".bob", "mcp.json"),
+        join(testDir, ".bob", "settings", "mcp.json"),
         JSON.stringify({ mcpServers: { git: { command: "git-mcp" } } }),
       );
 
       const bobMcp = await BobMcp.fromFile({ global: true });
 
+      expect(bobMcp.getRelativeDirPath()).toBe(join(".bob", "settings"));
       expect(bobMcp.getRelativeFilePath()).toBe("mcp.json");
       expect(bobMcp.getJson()).toEqual({ mcpServers: { git: { command: "git-mcp" } } });
     });

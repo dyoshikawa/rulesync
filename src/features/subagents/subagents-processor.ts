@@ -34,6 +34,7 @@ import { AugmentcodeSubagent } from "./augmentcode-subagent.js";
 import { ClaudecodePluginSubagent } from "./claudecode-plugin-subagent.js";
 import { ClaudecodeSubagent } from "./claudecode-subagent.js";
 import { ClineSubagent } from "./cline-subagent.js";
+import { CodewhaleSubagent } from "./codewhale-subagent.js";
 import { CodexCliSubagent } from "./codexcli-subagent.js";
 import { CommandcodeSubagent } from "./commandcode-subagent.js";
 import { CopilotSubagent } from "./copilot-subagent.js";
@@ -52,6 +53,9 @@ import { KimiCodeSubagent } from "./kimi-code-subagent.js";
 import { KiroCliSubagent } from "./kiro-cli-subagent.js";
 import { KiroIdeSubagent } from "./kiro-ide-subagent.js";
 import { KiroSubagent } from "./kiro-subagent.js";
+import { LettacodeSubagent } from "./lettacode-subagent.js";
+import { MimocodeSubagent } from "./mimocode-subagent.js";
+import { OmpSubagent } from "./omp-subagent.js";
 import { OpenCodeSubagent } from "./opencode-subagent.js";
 import { PoolSubagent } from "./pool-subagent.js";
 import { QwencodeSubagent } from "./qwencode-subagent.js";
@@ -288,6 +292,21 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
     },
   ],
   [
+    "codewhale",
+    {
+      // Codewhale reads TOML agent profiles from .codewhale/agents/ (project)
+      // and ~/.codewhale/agents/ (user).
+      // https://github.com/Hmbown/Codewhale/blob/main/docs/SUBAGENTS.md
+      class: CodewhaleSubagent,
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: "*.toml",
+      },
+    },
+  ],
+  [
     "codexcli",
     {
       class: CodexCliSubagent,
@@ -511,6 +530,20 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
     },
   ],
   [
+    // Letta Code loads custom subagents from `.letta/agents/` (project) and
+    // `~/.letta/agents/` (user). https://docs.letta.com/configuration/subagents/index.md
+    "lettacode",
+    {
+      class: LettacodeSubagent,
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: "*.md",
+      },
+    },
+  ],
+  [
     "kilo",
     {
       class: KiloSubagent,
@@ -531,6 +564,30 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
         supportsSimulated: false,
         supportsGlobal: true,
         filePattern: "**/*.md",
+      },
+    },
+  ],
+  [
+    "mimocode",
+    {
+      class: MimocodeSubagent,
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: "*.md",
+      },
+    },
+  ],
+  [
+    "omp",
+    {
+      class: OmpSubagent,
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: "*.md",
       },
     },
   ],
@@ -685,13 +742,13 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
     "zcode",
     {
       // ZCode subagents are Markdown files with YAML frontmatter under
-      // `~/.zcode/agents/`. Global only: the current Beta manages user-level
-      // subagents there, and workspace/project-level ones are "not available
-      // yet".
+      // `.zcode/agents/` (project) and `~/.zcode/agents/` (global). The docs
+      // describe only the user directory, but the runtime also loads the
+      // project one (observed in the v3.14.3 agent runtime).
       // https://zcode.z.ai/en/docs/subagents
       class: ZcodeSubagent,
       meta: {
-        supportsProject: false,
+        supportsProject: true,
         supportsSimulated: false,
         supportsGlobal: true,
         filePattern: "*.md",

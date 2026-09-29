@@ -6,6 +6,7 @@ import { Config } from "../../config/config.js";
 import { installApm } from "../../lib/apm/apm-install.js";
 import { apmManifestExists } from "../../lib/apm/apm-manifest.js";
 import { installGh } from "../../lib/gh/gh-install.js";
+import { checkOutdatedSources } from "../../lib/sources-outdated.js";
 import { resolveAndFetchSources } from "../../lib/sources.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { installCommand } from "./install.js";
@@ -13,6 +14,7 @@ import { installCommand } from "./install.js";
 // Mock dependencies
 vi.mock("../../config/config-resolver.js");
 vi.mock("../../lib/sources.js");
+vi.mock("../../lib/sources-outdated.js");
 vi.mock("../../lib/apm/apm-install.js");
 vi.mock("../../lib/apm/apm-manifest.js");
 vi.mock("../../lib/gh/gh-install.js");
@@ -206,6 +208,107 @@ describe("installCommand", () => {
         expect.objectContaining({
           options: expect.objectContaining({ token: "my-token" }),
         }),
+      );
+    });
+  });
+
+  describe("--outdated", () => {
+    const sources: SourceEntry[] = [{ source: "owner/repo" }, { source: "other/repo" }];
+
+    beforeEach(() => {
+      vi.mocked(ConfigResolver.resolve).mockResolvedValue(createMockConfig(sources));
+    });
+
+    it("should succeed without installing when every source is up to date", async () => {
+      vi.mocked(checkOutdatedSources).mockResolvedValue([
+        {
+          source: "owner/repo",
+          transport: "github",
+          status: "up-to-date",
+          requestedRef: "main",
+          lockedRef: "a".repeat(40),
+          latestRef: "a".repeat(40),
+        },
+      ]);
+
+      await installCommand(mockLogger, { outdated: true, token: "t" });
+
+      expect(checkOutdatedSources).toHaveBeenCalledWith({
+        sources,
+        projectRoot: process.cwd(),
+        token: "t",
+        logger: mockLogger,
+      });
+      expect(resolveAndFetchSources).not.toHaveBeenCalled();
+      expect(mockLogger.success).toHaveBeenCalledWith(
+        "All 1 source(s) are up to date with the lockfile.",
+      );
+    });
+
+    it("should exit with code 1 when a source is outdated or not locked", async () => {
+      vi.mocked(checkOutdatedSources).mockResolvedValue([
+        {
+          source: "owner/repo",
+          transport: "github",
+          status: "outdated",
+          requestedRef: "main",
+          lockedRef: "a".repeat(40),
+          latestRef: "b".repeat(40),
+        },
+        {
+          source: "other/repo",
+          transport: "github",
+          status: "not-locked",
+          requestedRef: "main",
+          latestRef: "c".repeat(40),
+        },
+      ]);
+
+      const error = await installCommand(mockLogger, { outdated: true }).catch((e: unknown) => e);
+
+      expect(error).toMatchObject({
+        exitCode: 1,
+        message: expect.stringContaining("2 of 2 source(s)"),
+        details: {
+          sources: expect.arrayContaining([expect.objectContaining({ status: "outdated" })]),
+        },
+      });
+      expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining("outdated"));
+      expect(resolveAndFetchSources).not.toHaveBeenCalled();
+    });
+
+    it("should exit with code 2 when a source cannot be resolved", async () => {
+      vi.mocked(checkOutdatedSources).mockResolvedValue([
+        {
+          source: "owner/repo",
+          transport: "github",
+          status: "outdated",
+          requestedRef: "main",
+          lockedRef: "a".repeat(40),
+          latestRef: "b".repeat(40),
+        },
+        { source: "other/repo", transport: "github", status: "failed", error: "offline" },
+      ]);
+
+      const error = await installCommand(mockLogger, { outdated: true }).catch((e: unknown) => e);
+
+      expect(error).toMatchObject({ exitCode: 2 });
+      expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining("offline"));
+    });
+
+    it("should reject combining --outdated with --update or --frozen", async () => {
+      await expect(installCommand(mockLogger, { outdated: true, update: true })).rejects.toThrow(
+        /cannot be combined/,
+      );
+      await expect(installCommand(mockLogger, { outdated: true, frozen: true })).rejects.toThrow(
+        /cannot be combined/,
+      );
+      expect(checkOutdatedSources).not.toHaveBeenCalled();
+    });
+
+    it("should reject --outdated outside rulesync mode", async () => {
+      await expect(installCommand(mockLogger, { outdated: true, mode: "gh" })).rejects.toThrow(
+        /only supported in rulesync mode/,
       );
     });
   });

@@ -41,6 +41,7 @@ import { BobSkill } from "./bob-skill.js";
 import { ClaudecodePluginSkill } from "./claudecode-plugin-skill.js";
 import { ClaudecodeSkill } from "./claudecode-skill.js";
 import { ClineSkill } from "./cline-skill.js";
+import { CodewhaleSkill } from "./codewhale-skill.js";
 import { CodexCliSkill } from "./codexcli-skill.js";
 import { CommandcodeSkill } from "./commandcode-skill.js";
 import { ContinueSkill } from "./continue-skill.js";
@@ -53,6 +54,7 @@ import { DeepagentsSkill } from "./deepagents-skill.js";
 import { DevinSkill } from "./devin-skill.js";
 import { DshSkill } from "./dsh-skill.js";
 import { FactorydroidSkill } from "./factorydroid-skill.js";
+import { GitlabduoSkill } from "./gitlabduo-skill.js";
 import { GooseSkill } from "./goose-skill.js";
 import { GrokcliSkill } from "./grokcli-skill.js";
 import { HermesagentSkill } from "./hermesagent-skill.js";
@@ -62,7 +64,10 @@ import { KimiCodeSkill } from "./kimi-code-skill.js";
 import { KiroCliSkill } from "./kiro-cli-skill.js";
 import { KiroIdeSkill } from "./kiro-ide-skill.js";
 import { KiroSkill } from "./kiro-skill.js";
+import { LettacodeSkill } from "./lettacode-skill.js";
+import { MimocodeSkill } from "./mimocode-skill.js";
 import { MusecodeSkill } from "./musecode-skill.js";
+import { OmpSkill } from "./omp-skill.js";
 import { OpenCodeSkill } from "./opencode-skill.js";
 import { PiSkill } from "./pi-skill.js";
 import { PoolSkill } from "./pool-skill.js";
@@ -202,6 +207,22 @@ type ToolSkillFactory = {
      * {@link isAgentSkillsInteropRoot}) are always imported leniently.
      */
     lenientImport?: boolean;
+    /**
+     * Whether the upstream tool reads the project skills from the **committed**
+     * repository through a root too generic to ignore (GitLab Duo's top-level
+     * `skills/`). The gitignore derivation skips such outputs: a recursive entry
+     * for `skills/` would swallow every unrelated `skills` directory in the tree.
+     *
+     * The `--delete` orphan sweep also leaves the other skill directories in
+     * such a project root alone (stale files inside a skill directory this run
+     * generates are still cleaned up, as for any tool): a
+     * repository's top-level `skills/` routinely holds hand-authored skills
+     * (skill collections, skills distributed to other tools) that no
+     * `.rulesync/skills/` source accounts for, and nothing on disk tells them
+     * apart from a skill rulesync generated earlier. A stale generated skill
+     * there has to be removed by hand instead.
+     */
+    committedOutput?: boolean;
   };
 };
 
@@ -347,6 +368,16 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
     },
   ],
   [
+    "codewhale",
+    {
+      // Codewhale reads <name>/SKILL.md directories from .codewhale/skills/
+      // (project) and ~/.codewhale/skills/ (user).
+      // https://github.com/Hmbown/Codewhale/blob/main/docs/SKILLS.md
+      class: CodewhaleSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
     "codexcli",
     {
       class: CodexCliSkill,
@@ -370,7 +401,7 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
       // Continue skills are Anthropic-style Agent Skills directories
       // (<name>/SKILL.md) under .continue/skills/ (project) and
       // ~/.continue/skills/ (user).
-      // https://github.com/continuedev/continue/blob/main/extensions/cli/src/util/loadMarkdownSkills.ts
+      // https://github.com/continuedev/continue/blob/5522c6f44ca0ac3528b37244818fbfa39b5af470/extensions/cli/src/util/loadMarkdownSkills.ts
       class: ContinueSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
@@ -453,6 +484,26 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
     },
   ],
   [
+    "gitlabduo",
+    {
+      // GitLab Duo reads project skills from a top-level `skills/` directory
+      // (used by the GitLab UI flows too, from the committed repository) and
+      // user skills from `~/.gitlab/duo/skills/` (CLI only, behind
+      // `--enable-global-skills`).
+      // https://docs.gitlab.com/user/duo_agent_platform/customize/agent_skills/
+      class: GitlabduoSkill,
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: true,
+        // `skills/` is a common, unrelated directory name, so a malformed
+        // SKILL.md there is skipped on import rather than aborting the run.
+        lenientImport: true,
+        committedOutput: true,
+      },
+    },
+  ],
+  [
     "grokcli",
     {
       // Grok Build discovers skills under .grok/skills/ (project) and
@@ -487,6 +538,16 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
     },
   ],
   [
+    "lettacode",
+    {
+      // Letta Code discovers Agent Skills (<name>/SKILL.md) from the shared
+      // `.agents/skills/` root (project) and `~/.letta/skills/` (user).
+      // https://docs.letta.com/configuration/skills/index.md
+      class: LettacodeSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
     "kimi-code",
     {
       class: KimiCodeSkill,
@@ -517,6 +578,13 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
     },
   ],
   [
+    "mimocode",
+    {
+      class: MimocodeSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
     "musecode",
     {
       // Muse Code reads Agent Skills from `.agents/skills/` (project) and from
@@ -524,6 +592,13 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
       // XDG-default `~/.config/muse/skills` is emitted at global scope.
       // https://dev.meta.ai/docs/muse-code/extending.md
       class: MusecodeSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "omp",
+    {
+      class: OmpSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],
@@ -1231,6 +1306,14 @@ export class SkillsProcessor extends DirFeatureProcessor {
 
   async loadToolDirsToDelete(): Promise<AiDir[]> {
     const factory = this.getFactory(this.toolTarget);
+    if (factory.meta.committedOutput === true && !this.global) {
+      // See `committedOutput`: the committed project root is shared with the
+      // user's own skills, so nothing in it is swept as an orphan.
+      this.logger.debug(
+        `Skipping the orphan sweep for ${this.toolTarget} skills: the project root is committed and user-owned`,
+      );
+      return [];
+    }
     const paths = factory.class.getSettablePaths({ global: this.global });
     const roots = toolSkillSearchRoots(paths);
 

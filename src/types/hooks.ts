@@ -424,6 +424,7 @@ export const PI_HOOK_EVENTS: readonly HookEvent[] = [
   "preModelInvocation",
   "postModelInvocation",
   "beforeSubmitPrompt",
+  // `agent_before_settle` (Pi v0.87.0+). See CANONICAL_TO_PI_EVENT_NAMES.
   "stop",
   // `ui_prompt_start` (Pi v0.84.4) fires when an extension opens a blocking
   // UI prompt — Pi's "waiting for user" signal. See CANONICAL_TO_PI_EVENT_NAMES.
@@ -760,6 +761,39 @@ export const AUGMENTCODE_HOOK_EVENTS: readonly HookEvent[] = [
 export const VIBE_HOOK_EVENTS: readonly HookEvent[] = ["preToolUse", "postToolUse", "stop"];
 
 /**
+ * Hook events supported by Codewhale.
+ *
+ * Codewhale fires fifteen snake_case events from `[[hooks]]` entries in
+ * `~/.codewhale/config.toml` (`[hooks]` table) and the workspace
+ * `.codewhale/hooks.toml`. The ten below have a canonical counterpart; the
+ * rest (`mode_change`, `shell_env`, `session_idle`, `waiting_for_user`,
+ * `session_busy`) have none. Only the tool-context events (`tool_call_before`,
+ * `tool_call_after`, `on_error`) accept a `tool_name` condition, which is what
+ * a canonical matcher becomes.
+ * @see https://github.com/Hmbown/Codewhale/blob/main/docs/HOOKS.md
+ * @see https://github.com/Hmbown/Codewhale/blob/main/crates/tui/src/hooks/config.rs
+ */
+export const CODEWHALE_HOOK_EVENTS: readonly HookEvent[] = [
+  "sessionStart",
+  "sessionEnd",
+  "stop",
+  "beforeSubmitPrompt",
+  "preToolUse",
+  "postToolUse",
+  "afterError",
+  "subagentStart",
+  "subagentStop",
+  "stopFailure",
+];
+
+/** The Codewhale events whose hooks can carry a tool-name matcher. */
+export const CODEWHALE_MATCHER_HOOK_EVENTS: readonly HookEvent[] = [
+  "preToolUse",
+  "postToolUse",
+  "afterError",
+];
+
+/**
  * Hook events supported by Pool.
  *
  * Pool's `hooks` settings block fires six events, spelled the Claude Code
@@ -823,6 +857,14 @@ export const JUNIE_HOOK_EVENTS: readonly HookEvent[] = [
   "permissionRequest",
   "sessionEnd",
 ];
+
+/**
+ * Hook events supported by the GitLab Duo CLI. Only `SessionStart` is
+ * documented; its optional regex matcher filters on the session source
+ * (`startup`, `resume`). Only `type: "command"` hooks are supported.
+ * @see https://docs.gitlab.com/user/gitlab_duo_cli/customize/
+ */
+export const GITLABDUO_HOOK_EVENTS: readonly HookEvent[] = ["sessionStart"];
 
 /**
  * Hook events supported by Qwen Code.
@@ -1037,9 +1079,10 @@ export const KIMI_CODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object
  * any other character makes the whole value a case-sensitive JavaScript regex.
  * Rulesync passes matchers through verbatim, so an authored value keeps
  * whichever reading ZCode gives it — worth knowing before escaping one.
- * Configuration hooks are read only from the user config
- * `~/.zcode/cli/config.json` (workspace config hooks are never executed) and
- * additionally require `hooks.enabled: true` to run.
+ * Configuration hooks are read from the workspace config
+ * `<project>/.zcode/config.json` (run only once the user trusts them) and the
+ * user config `~/.zcode/cli/config.json`, and additionally require
+ * `hooks.enabled: true` to run.
  *
  * ZCode also accepts a native `process` hook type (an argv run without a
  * shell) which has no canonical equivalent; see ZcodeHooks.
@@ -1225,6 +1268,50 @@ export const COMMANDCODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Obje
 );
 
 /**
+ * Hook events supported by Letta Code.
+ *
+ * Letta Code reads hooks from the `hooks` key of `.letta/settings.json`
+ * (project), `.letta/settings.local.json` (personal project) and
+ * `~/.letta/settings.json` (user) in the Claude-Code shape. The four tool
+ * events take a regex `matcher`; the other events carry none. `timeout` is in
+ * milliseconds (default 60000) and hooks run with the project directory as
+ * their working directory.
+ *
+ * @see https://github.com/letta-ai/letta-code/blob/main/src/hooks/types.ts
+ */
+export const LETTACODE_HOOK_EVENTS: readonly HookEvent[] = [
+  "sessionStart",
+  "sessionEnd",
+  "preToolUse",
+  "postToolUse",
+  "postToolUseFailure",
+  "permissionRequest",
+  "beforeSubmitPrompt",
+  "notification",
+  "stop",
+  "subagentStop",
+  "preCompact",
+];
+
+export const CANONICAL_TO_LETTACODE_EVENT_NAMES: Record<string, string> = {
+  sessionStart: "SessionStart",
+  sessionEnd: "SessionEnd",
+  preToolUse: "PreToolUse",
+  postToolUse: "PostToolUse",
+  postToolUseFailure: "PostToolUseFailure",
+  permissionRequest: "PermissionRequest",
+  beforeSubmitPrompt: "UserPromptSubmit",
+  notification: "Notification",
+  stop: "Stop",
+  subagentStop: "SubagentStop",
+  preCompact: "PreCompact",
+};
+
+export const LETTACODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
+  Object.entries(CANONICAL_TO_LETTACODE_EVENT_NAMES).map(([k, v]) => [v, k]),
+);
+
+/**
  * Hook events supported by the Continue CLI (`cn`).
  *
  * Continue reads a Claude-Code-compatible `hooks` key from
@@ -1235,8 +1322,8 @@ export const COMMANDCODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Obje
  * the working directory inside commands. The event list is the CLI's
  * `HOOK_EVENT_NAMES`.
  *
- * @see https://github.com/continuedev/continue/blob/main/extensions/cli/src/hooks/types.ts
- * @see https://github.com/continuedev/continue/blob/main/extensions/cli/src/hooks/hookConfig.ts
+ * @see https://github.com/continuedev/continue/blob/5522c6f44ca0ac3528b37244818fbfa39b5af470/extensions/cli/src/hooks/types.ts
+ * @see https://github.com/continuedev/continue/blob/5522c6f44ca0ac3528b37244818fbfa39b5af470/extensions/cli/src/hooks/hookConfig.ts
  */
 export const CONTINUE_HOOK_EVENTS: readonly HookEvent[] = [
   "preToolUse",
@@ -1441,6 +1528,7 @@ export const HooksConfigSchema = z.looseObject({
   copilotcli: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   opencode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   kilo: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  mimocode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   pi: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   amp: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   factorydroid: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
@@ -1456,7 +1544,9 @@ export const HooksConfigSchema = z.looseObject({
   "antigravity-cli": z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   hermesagent: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   junie: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  gitlabduo: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   vibe: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  codewhale: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   reasonix: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   grokcli: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   "kimi-code": z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
@@ -1466,6 +1556,7 @@ export const HooksConfigSchema = z.looseObject({
   bob: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   cortexcode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   commandcode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  lettacode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   continue: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   tabnine: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   qwencode: z.optional(
@@ -1693,11 +1784,15 @@ export const CANONICAL_TO_KILO_EVENT_NAMES: Record<string, string> =
  * Mapping notes: `sessionEnd` → `session_shutdown` (fires on session
  * teardown), `beforeSubmitPrompt` → `input` (user input interception),
  * `preModelInvocation` → `context` (fires before each LLM call), and
- * `stop` → `agent_end` (agent finished responding; unlike Claude Code's
- * Stop, this also fires before Pi auto-retries or auto-compacts —
- * `agent_settled` would skip queued follow-ups instead, a pure trade-off).
- * Pi events without a faithful canonical counterpart (e.g. `turn_start`,
- * `agent_settled`, `ui_prompt_end`) are intentionally unmapped.
+ * `stop` → `agent_before_settle` (Pi v0.87.0+; the last actionable boundary
+ * before a run settles, fired after automatic retries and compaction, so it
+ * runs once per settle like Claude Code's Stop, and a command exiting with
+ * code 2 can ask the agent to continue once). Older Pi never fires it, so a stop hook does
+ * not run there; the notify-only `agent_end` it replaced fired before retries
+ * and compaction too. Pi events without a faithful canonical counterpart
+ * (e.g. `turn_start`, `agent_end`, `ui_prompt_end`) are intentionally
+ * unmapped; the generated extension subscribes to `agent_settled` only to
+ * reset the stop hook's continue-once guard.
  *
  * @see https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/extensions.md
  */
@@ -1720,7 +1815,11 @@ export const CANONICAL_TO_PI_EVENT_NAMES: Record<string, string> = {
   // and exposes only HTTP status/headers.
   postModelInvocation: "message_end",
   beforeSubmitPrompt: "input",
-  stop: "agent_end",
+  // Pi v0.87.0 made `agent_before_settle` actionable: returning
+  // `{ entries, continue: true }` runs one more model request. The generated
+  // handler does that when a stop hook command exits with code 2, at most once
+  // per settled run. https://github.com/earendil-works/pi/blob/v0.87.1/packages/coding-agent/src/core/extensions/types.ts
+  stop: "agent_before_settle",
   // Pi has no built-in permission popup, so its only "waiting for user"
   // signal is `ui_prompt_start`, fired when an extension (Rulesync's or a
   // third party's) opens a blocking `ctx.ui.select/confirm/input/editor/custom`
@@ -2017,6 +2116,20 @@ export const KIRO_IDE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.
 );
 
 /**
+ * Map canonical camelCase event names to GitLab Duo CLI PascalCase.
+ */
+export const CANONICAL_TO_GITLABDUO_EVENT_NAMES: Record<string, string> = {
+  sessionStart: "SessionStart",
+};
+
+/**
+ * Map GitLab Duo CLI PascalCase event names to canonical camelCase.
+ */
+export const GITLABDUO_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
+  Object.entries(CANONICAL_TO_GITLABDUO_EVENT_NAMES).map(([k, v]) => [v, k]),
+);
+
+/**
  * Map canonical camelCase event names to Junie PascalCase.
  * Junie reuses the same PascalCase names as Claude for the events it supports.
  */
@@ -2070,6 +2183,32 @@ export const VIBE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = {
   after_tool: "postToolUse",
   post_agent_turn: "stop",
 };
+
+/**
+ * Map canonical camelCase event names to Codewhale snake_case.
+ *
+ * `stop` → `turn_end` (after each completed turn), `stopFailure` →
+ * `session_error` (a turn that ends in a terminal failure), and `afterError`
+ * → `on_error`.
+ * @see https://github.com/Hmbown/Codewhale/blob/main/docs/HOOKS.md
+ */
+export const CANONICAL_TO_CODEWHALE_EVENT_NAMES: Record<string, string> = {
+  sessionStart: "session_start",
+  sessionEnd: "session_end",
+  stop: "turn_end",
+  beforeSubmitPrompt: "message_submit",
+  preToolUse: "tool_call_before",
+  postToolUse: "tool_call_after",
+  afterError: "on_error",
+  subagentStart: "subagent_spawn",
+  subagentStop: "subagent_complete",
+  stopFailure: "session_error",
+};
+
+/** Map Codewhale snake_case event names to canonical camelCase. */
+export const CODEWHALE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
+  Object.entries(CANONICAL_TO_CODEWHALE_EVENT_NAMES).map(([k, v]) => [v, k]),
+);
 
 /**
  * Canonical -> Crush event names. Crush spells its events the Claude Code
