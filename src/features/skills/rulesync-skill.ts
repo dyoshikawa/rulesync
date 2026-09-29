@@ -55,7 +55,7 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
   ),
   description: z.string(),
   targets: z._default(RulesyncTargetsSchema, ["*"]),
-  // Default for tools that support the flag (claudecode, cursor, zed, pi, qwencode, grokcli,
+  // Default for tools that support the flag (claudecode, cursor, zed, pi, qwencode, vibe, grokcli,
   // factorydroid, dsh, commandcode, lettacode).
   // A target-section value of the same key overrides this default.
   // `devin` also consumes this root value (mapping `true` onto a user-only
@@ -370,6 +370,7 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
       compatibility: z.optional(z.union([z.string(), z.looseObject({})])),
       metadata: z.optional(z.looseObject({})),
       "user-invocable": z.optional(z.boolean()),
+      "disable-model-invocation": z.optional(z.boolean()),
       "allowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
     }),
   ),
@@ -637,6 +638,7 @@ export type RulesyncSkillFrontmatterInput = {
     compatibility?: string | Record<string, unknown>;
     metadata?: Record<string, unknown>;
     "user-invocable"?: boolean;
+    "disable-model-invocation"?: boolean;
     "allowed-tools"?: string | string[];
   };
   commandcode?: Record<string, unknown>;

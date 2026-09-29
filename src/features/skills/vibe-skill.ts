@@ -16,6 +16,7 @@ import {
 } from "./rulesync-skill.js";
 import {
   resolveCompatibility,
+  resolveDisableModelInvocation,
   resolveLicense,
   resolveMetadata,
   resolveUserInvocable,
@@ -35,6 +36,9 @@ export const VibeSkillFrontmatterSchema = z.looseObject({
   compatibility: z.optional(z.union([z.string(), z.looseObject({})])),
   metadata: z.optional(z.looseObject({})),
   "user-invocable": z.optional(z.boolean()),
+  // Vibe v2.25.5+: `true` makes the skill explicit-only (slash invocation
+  // still works, the model cannot load it on its own).
+  "disable-model-invocation": z.optional(z.boolean()),
   "allowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
 });
 
@@ -82,6 +86,10 @@ function buildVibeFrontmatter(rulesyncFrontmatter: RulesyncSkillFrontmatter): Vi
     rootFrontmatter: rulesyncFrontmatter,
     section: vibeSection,
   });
+  const disableModelInvocation = resolveDisableModelInvocation({
+    rootFrontmatter: rulesyncFrontmatter,
+    section: vibeSection,
+  });
 
   return {
     name: rulesyncFrontmatter.name,
@@ -91,6 +99,9 @@ function buildVibeFrontmatter(rulesyncFrontmatter: RulesyncSkillFrontmatter): Vi
     ...(metadata !== undefined && { metadata }),
     ...(resolvedUserInvocable !== undefined && {
       "user-invocable": resolvedUserInvocable,
+    }),
+    ...(disableModelInvocation !== undefined && {
+      "disable-model-invocation": disableModelInvocation,
     }),
     ...(vibeSection?.["allowed-tools"] !== undefined && {
       "allowed-tools": vibeSection["allowed-tools"],
@@ -202,6 +213,9 @@ export class VibeSkill extends ToolSkill {
       ...(frontmatter.metadata !== undefined && { metadata: frontmatter.metadata }),
       ...(frontmatter["user-invocable"] !== undefined && {
         "user-invocable": frontmatter["user-invocable"],
+      }),
+      ...(frontmatter["disable-model-invocation"] !== undefined && {
+        "disable-model-invocation": frontmatter["disable-model-invocation"],
       }),
       ...(frontmatter["allowed-tools"] !== undefined && {
         "allowed-tools": frontmatter["allowed-tools"],
