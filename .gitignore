@@ -346,6 +346,7 @@ rulesync.local.jsonc
 **/.bob/commands/
 **/.claude/commands/
 **/.clinerules/workflows/
+**/.codebuddy/commands/
 **/.commandcode/commands/
 **/.continue/prompts/
 **/.github/prompts/
@@ -374,6 +375,7 @@ rulesync.local.jsonc
 **/.bob/skills/
 **/.claude/skills/
 **/.cline/skills/
+**/.codebuddy/skills/
 **/.codewhale/skills/
 **/.commandcode/skills/
 **/.continue/skills/
@@ -411,6 +413,7 @@ rulesync.local.jsonc
 **/.augment/agents/
 **/.claude/agents/
 **/.cline/agents/
+**/.codebuddy/agents/
 **/.codewhale/agents/
 **/.codex/agents/
 **/.commandcode/agents/

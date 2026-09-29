@@ -41,6 +41,7 @@ import { BobSkill } from "./bob-skill.js";
 import { ClaudecodePluginSkill } from "./claudecode-plugin-skill.js";
 import { ClaudecodeSkill } from "./claudecode-skill.js";
 import { ClineSkill } from "./cline-skill.js";
+import { CodebuddySkill } from "./codebuddy-skill.js";
 import { CodewhaleSkill } from "./codewhale-skill.js";
 import { CodexCliSkill } from "./codexcli-skill.js";
 import { CommandcodeSkill } from "./commandcode-skill.js";
@@ -367,6 +368,20 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
     {
       class: ClineSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "codebuddy",
+    {
+      class: CodebuddySkill,
+      // CodeBuddy Code reads <name>/SKILL.md directories from
+      // .codebuddy/skills/ (project) and ~/.codebuddy/skills/ (user).
+      // https://www.codebuddy.ai/docs/cli/skills
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: true,
+      },
     },
   ],
   [

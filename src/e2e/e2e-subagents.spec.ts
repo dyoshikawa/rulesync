@@ -156,6 +156,10 @@ const subagentsGenerateTargets = [
     outputPath: join(".cline", "agents", "planner.yaml"),
   },
   {
+    target: "codebuddy",
+    outputPath: join(".codebuddy", "agents", "planner.md"),
+  },
+  {
     target: "vibe",
     outputPath: join(".vibe", "agents", "planner.toml"),
   },
@@ -215,6 +219,7 @@ const subagentsGlobalTargets = [
   { target: "takt", outputPath: join(".takt", "facets", "personas", "planner.md") },
   { target: "factorydroid", outputPath: join(".factory", "droids", "planner.md") },
   { target: "cline", outputPath: join(".cline", "agents", "planner.yaml") },
+  { target: "codebuddy", outputPath: join(".codebuddy", "agents", "planner.md") },
   {
     target: "deepagents",
     outputPath: join(".deepagents", "agent", "agents", "planner", "AGENTS.md"),
@@ -433,6 +438,7 @@ You are a subagent-only helper.
     { target: "junie", orphanPath: join(".junie", "agents", "orphan.md") },
     { target: "factorydroid", orphanPath: join(".factory", "droids", "orphan.md") },
     { target: "cline", orphanPath: join(".cline", "agents", "orphan.yaml") },
+    { target: "codebuddy", orphanPath: join(".codebuddy", "agents", "orphan.md") },
     { target: "vibe", orphanPath: join(".vibe", "agents", "orphan.toml") },
     { target: "goose", orphanPath: join(".goose", "agents", "orphan.md") },
   ])(
@@ -664,6 +670,7 @@ describe("E2E: subagents (import)", () => {
     { target: "junie", sourcePath: join(".junie", "agents", "planner.md") },
     { target: "factorydroid", sourcePath: join(".factory", "droids", "planner.md") },
     { target: "cline", sourcePath: join(".cline", "agents", "planner.yaml") },
+    { target: "codebuddy", sourcePath: join(".codebuddy", "agents", "planner.md") },
     { target: "devin", sourcePath: join(".devin", "agents", "planner", "AGENT.md") },
     { target: "zcode", sourcePath: join(".zcode", "agents", "planner.md") },
   ])("should import $target subagents", async ({ target, sourcePath }) => {

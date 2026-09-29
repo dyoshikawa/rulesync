@@ -34,6 +34,7 @@ import { AugmentcodeSubagent } from "./augmentcode-subagent.js";
 import { ClaudecodePluginSubagent } from "./claudecode-plugin-subagent.js";
 import { ClaudecodeSubagent } from "./claudecode-subagent.js";
 import { ClineSubagent } from "./cline-subagent.js";
+import { CodebuddySubagent } from "./codebuddy-subagent.js";
 import { CodewhaleSubagent } from "./codewhale-subagent.js";
 import { CodexCliSubagent } from "./codexcli-subagent.js";
 import { CommandcodeSubagent } from "./commandcode-subagent.js";
@@ -301,6 +302,21 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
         supportsSimulated: false,
         supportsGlobal: true,
         filePattern: "*.{yaml,yml}",
+      },
+    },
+  ],
+  [
+    "codebuddy",
+    {
+      // CodeBuddy Code subagents are Markdown files with YAML frontmatter
+      // under `.codebuddy/agents/` (project) and `~/.codebuddy/agents/`
+      // (global). https://www.codebuddy.ai/docs/cli/sub-agents
+      class: CodebuddySubagent,
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: "*.md",
       },
     },
   ],
