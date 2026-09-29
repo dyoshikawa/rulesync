@@ -1366,6 +1366,26 @@ Review the code for security issues.`;
       expect(toolFiles[0]?.getRelativeFilePath()).toBe(join("review", "security-reviewer.md"));
     });
 
+    it("should skip a nested README without losing a valid Claude Code agent", async () => {
+      const logger = createMockLogger();
+      processor = new SubagentsProcessor({ logger, outputRoot: testDir, toolTarget: "claudecode" });
+      const nestedAgentsDir = join(testDir, ".claude", "agents", "some-pack");
+      await ensureDir(nestedAgentsDir);
+      await writeFileContent(join(nestedAgentsDir, "README.md"), "# About this agent pack");
+      await writeFileContent(join(nestedAgentsDir, "reviewer.md"), junieSubagentMd("reviewer"));
+
+      const imported = await processor.loadToolFiles();
+      const deletionCandidates = await processor.loadToolFiles({ forDeletion: true });
+
+      expect(imported.map((file) => file.getRelativeFilePath())).toEqual([
+        join("some-pack", "reviewer.md"),
+      ]);
+      expect(deletionCandidates.map((file) => file.getRelativeFilePath())).toEqual([
+        join("some-pack", "reviewer.md"),
+      ]);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("README.md"));
+    });
+
     it("should treat nested claudecode subagents as deletion candidates", async () => {
       const nestedAgentsDir = join(testDir, ".claude", "agents", "review");
       await ensureDir(nestedAgentsDir);
@@ -1477,7 +1497,7 @@ Second agent.`,
       },
     );
 
-    it("should throw error when file fails to load", async () => {
+    it("should warn and skip markdown without agent frontmatter", async () => {
       const agentsDir = join(testDir, ".claude", "agents");
       await ensureDir(agentsDir);
 
@@ -1487,7 +1507,7 @@ Second agent.`,
         "Invalid format without frontmatter",
       );
 
-      await expect(processor.loadToolFiles()).rejects.toThrow();
+      await expect(processor.loadToolFiles()).resolves.toEqual([]);
     });
 
     describe("global mode", () => {
@@ -1924,7 +1944,7 @@ Second agent`;
       expect(filesToDelete.every((file) => file instanceof ClaudecodeSubagent)).toBe(true);
     });
 
-    it("should succeed even when file has broken frontmatter", async () => {
+    it("should preserve files with broken frontmatter during orphan deletion", async () => {
       const processor = new SubagentsProcessor({
         logger: createMockLogger(),
         outputRoot: testDir,
@@ -1945,12 +1965,10 @@ Content that would fail parsing`;
 
       await writeFileContent(join(agentsDir, "broken-agent.md"), brokenFrontmatter);
 
-      // forDeletion should succeed without parsing file content
+      // A file without valid agent frontmatter must not be an orphan candidate.
       const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
 
-      expect(filesToDelete).toHaveLength(1);
-      expect(filesToDelete[0]).toBeInstanceOf(ClaudecodeSubagent);
-      expect(filesToDelete[0]?.getRelativeFilePath()).toBe("broken-agent.md");
+      expect(filesToDelete).toEqual([]);
     });
   });
 });

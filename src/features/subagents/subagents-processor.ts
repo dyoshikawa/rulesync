@@ -150,6 +150,8 @@ type ToolSubagentFactory = {
      * accident because `findFilesByGlobs` rewrites backslashes.
      */
     filePattern: string;
+    /** Markdown in this directory may not be an agent; leave invalid files out of imports and orphan sweeps. */
+    skipInvalidFiles?: boolean;
   };
 };
 
@@ -247,6 +249,7 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
         supportsSimulated: false,
         supportsGlobal: true,
         filePattern: "**/*.md",
+        skipInvalidFiles: true,
       },
     },
   ],
@@ -271,6 +274,7 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
         supportsSimulated: false,
         supportsGlobal: true,
         filePattern: "**/*.md",
+        skipInvalidFiles: true,
       },
     },
   ],
@@ -1147,9 +1151,37 @@ export class SubagentsProcessor extends FeatureProcessor {
         ownedFilePaths = subagentFilePaths.filter((_, index) => ownership[index]);
       }
 
+      // Claude's agents directory may also contain README files. Only files
+      // that actually parse as agents are eligible for import or deletion.
+      // Keep filesystem errors fatal: a failed read must never turn a real
+      // agent into an apparent orphan or silently truncate an import.
+      const parsedFiles = factory.meta.skipInvalidFiles
+        ? (
+            await Promise.all(
+              ownedFilePaths.map(async (path) => {
+                try {
+                  const file = await factory.class.fromFile({
+                    outputRoot: rootOutputRoot,
+                    relativeDirPath: dirPath,
+                    relativeFilePath: toRelativeFilePath(path),
+                    global: this.global,
+                    logger: this.logger,
+                  });
+                  return { path, file };
+                } catch (error) {
+                  if (isFileSystemError(error)) throw error;
+                  this.logger.warn(`Skipping non-agent file ${path}: ${formatError(error)}`);
+                  return null;
+                }
+              }),
+            )
+          ).filter((entry): entry is { path: string; file: ToolSubagent } => entry !== null)
+        : null;
+      const parseableFilePaths = parsedFiles?.map(({ path }) => path) ?? ownedFilePaths;
+
       if (forDeletion) {
         await Promise.all(
-          ownedFilePaths.map((path) =>
+          parseableFilePaths.map((path) =>
             assertWritablePathInsideRoot({
               rootPath: baseDir,
               targetPath: path,
@@ -1157,7 +1189,7 @@ export class SubagentsProcessor extends FeatureProcessor {
           ),
         );
         toolSubagents.push(
-          ...ownedFilePaths
+          ...parseableFilePaths
             .map((path) =>
               factory.class.forDeletion({
                 outputRoot: rootOutputRoot,
@@ -1171,17 +1203,19 @@ export class SubagentsProcessor extends FeatureProcessor {
         continue;
       }
 
-      const loaded = await Promise.all(
-        ownedFilePaths.map((path) =>
-          factory.class.fromFile({
-            outputRoot: rootOutputRoot,
-            relativeDirPath: dirPath,
-            relativeFilePath: toRelativeFilePath(path),
-            global: this.global,
-            logger: this.logger,
-          }),
-        ),
-      );
+      const loaded = parsedFiles
+        ? parsedFiles.map(({ file }) => file)
+        : await Promise.all(
+            parseableFilePaths.map((path) =>
+              factory.class.fromFile({
+                outputRoot: rootOutputRoot,
+                relativeDirPath: dirPath,
+                relativeFilePath: toRelativeFilePath(path),
+                global: this.global,
+                logger: this.logger,
+              }),
+            ),
+          );
 
       toolSubagents.push(
         ...this.claimStandaloneSubagents({
