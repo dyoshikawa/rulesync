@@ -37,6 +37,7 @@ const mcpGenerateTargets = [
   { target: "claudecode-plugin", outputPath: ".mcp.json" },
   { target: "codebuff", outputPath: join(".agents", "mcp.json") },
   { target: "cursor", outputPath: join(".cursor", "mcp.json") },
+  { target: "trae", outputPath: join(".trae", "mcp.json") },
   { target: "qwencode", outputPath: join(".qwen", "settings.json") },
   { target: "codexcli", outputPath: join(".codex", "config.toml") },
   { target: "codewhale", outputPath: join(".codewhale", "mcp.json") },
@@ -413,6 +414,7 @@ describe("E2E: mcp", () => {
     { target: "commandcode", orphanPath: ".mcp.json" },
     { target: "continue", orphanPath: join(".continue", "mcpServers", "mcp.json") },
     { target: "cursor", orphanPath: join(".cursor", "mcp.json") },
+    { target: "trae", orphanPath: join(".trae", "mcp.json") },
     { target: "copilot", orphanPath: join(".vscode", "mcp.json") },
     { target: "copilotcli", orphanPath: join(".github", "mcp.json") },
     { target: "deepagents", orphanPath: join(".deepagents", ".mcp.json") },
@@ -752,6 +754,7 @@ describe("E2E: mcp (import)", () => {
     { target: "codebuff", sourcePath: join(".agents", "mcp.json") },
     { target: "commandcode", sourcePath: ".mcp.json" },
     { target: "cursor", sourcePath: join(".cursor", "mcp.json") },
+    { target: "trae", sourcePath: join(".trae", "mcp.json") },
     { target: "codewhale", sourcePath: join(".codewhale", "mcp.json") },
     { target: "omp", sourcePath: join(".omp", "mcp.json") },
     // copilot MCP uses VS Code-specific format — excluded from import test

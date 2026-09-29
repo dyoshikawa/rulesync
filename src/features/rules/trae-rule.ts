@@ -1,0 +1,298 @@
+import { join } from "node:path";
+
+import { dump } from "js-yaml";
+import { z } from "zod/mini";
+
+import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import { TRAE_DIR } from "../../constants/trae-paths.js";
+import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import { splitBraceAwareList } from "../../utils/brace-aware-list.js";
+import { formatError } from "../../utils/error.js";
+import { readFileContent } from "../../utils/file.js";
+import { CursorRule } from "./cursor-rule.js";
+import { RulesyncRule, RulesyncRuleFrontmatter } from "./rulesync-rule.js";
+import {
+  ToolRule,
+  ToolRuleForDeletionParams,
+  ToolRuleFromFileParams,
+  ToolRuleFromRulesyncRuleParams,
+  ToolRuleSettablePaths,
+  buildToolPath,
+} from "./tool-rule.js";
+
+/**
+ * Frontmatter of a Trae project rule. Trae's rule editor writes Cursor's
+ * `alwaysApply` / `description` / `globs` triple, with `globs` as an unquoted,
+ * comma-separated scalar (`globs: *.py`); a YAML list is accepted on import too,
+ * and an empty `globs:` line parses as `null`.
+ */
+const TraeRuleFrontmatterSchema = z.looseObject({
+  // `scene: git_message` also applies the rule to AI-generated commit messages.
+  scene: z.optional(z.nullable(z.string())),
+  description: z.optional(z.nullable(z.string())),
+  globs: z.optional(z.nullable(z.union([z.string(), z.array(z.string())]))),
+  alwaysApply: z.optional(z.nullable(z.boolean())),
+});
+
+export type TraeRuleFrontmatter = z.infer<typeof TraeRuleFrontmatterSchema>;
+
+/** The frontmatter rulesync writes: Cursor's triple, `globs` joined with commas. */
+type TraeRuleOutputFrontmatter = {
+  scene?: string;
+  alwaysApply?: boolean;
+  description?: string;
+  globs?: string;
+};
+
+/** Globs that match every file, and so add nothing to an always-applied rule. */
+const UNIVERSAL_GLOBS = new Set(["**/*", "*"]);
+
+export type TraeRuleParams = {
+  frontmatter: TraeRuleFrontmatter;
+  body: string;
+} & Omit<AiFileParams, "fileContent">;
+
+export type TraeRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
+  nonRoot: {
+    relativeDirPath: string;
+  };
+};
+
+function normalizeGlobs(globs: string | string[] | null | undefined): string[] {
+  if (globs === null || globs === undefined) {
+    return [];
+  }
+  const list = typeof globs === "string" ? splitBraceAwareList(globs) : globs;
+  return list.map((glob) => glob.trim()).filter((glob) => glob.length > 0);
+}
+
+/**
+ * Rule generator for Trae (ByteDance's AI IDE, "TraeCode" in its docs).
+ *
+ * Trae reads project rules from `.trae/rules/*.md` (recursively, up to three
+ * levels of subfolders), each with optional Cursor-style frontmatter that
+ * selects one of four application modes:
+ *
+ * - Always apply: `alwaysApply: true`.
+ * - Specific files: `alwaysApply: false` plus `globs`.
+ * - Apply intelligently: `alwaysApply: false` plus `description`.
+ * - Apply manually (`#Rule` in chat): `alwaysApply: false` alone.
+ *
+ * There is no root rule file, so every rule (the `root: true` one included)
+ * becomes a file under `.trae/rules/`, the same layout as Cursor. Global rules
+ * (`~/.trae/user_rules`) are not supported: the docs do not say whether that
+ * path is a file or a directory, nor what format its content takes.
+ *
+ * @see https://docs.trae.ai/ide/rules?_lang=en
+ */
+export class TraeRule extends ToolRule {
+  private readonly frontmatter: TraeRuleFrontmatter;
+  private readonly body: string;
+
+  static getSettablePaths(
+    options: {
+      global?: boolean;
+      excludeToolDir?: boolean;
+    } = {},
+  ): TraeRuleSettablePaths {
+    return {
+      nonRoot: {
+        relativeDirPath: buildToolPath(TRAE_DIR, "rules", options.excludeToolDir),
+      },
+    };
+  }
+
+  constructor({ frontmatter, body, ...rest }: TraeRuleParams) {
+    if (rest.validate) {
+      const result = TraeRuleFrontmatterSchema.safeParse(frontmatter);
+      if (!result.success) {
+        throw new Error(
+          `Invalid frontmatter in ${join(rest.relativeDirPath, rest.relativeFilePath)}: ${formatError(result.error)}`,
+        );
+      }
+    }
+
+    super({
+      ...rest,
+      fileContent: TraeRule.stringifyFrontmatter(body, frontmatter),
+    });
+
+    this.frontmatter = frontmatter;
+    this.body = body;
+  }
+
+  /**
+   * Writes Cursor's frontmatter serialization (unquoted, comma-separated
+   * `globs`), with Trae's `scene` line added when set.
+   */
+  private static stringifyFrontmatter(body: string, frontmatter: TraeRuleFrontmatter): string {
+    const content = CursorRule.stringifyCursorFrontmatter(body, {
+      alwaysApply: frontmatter.alwaysApply ?? undefined,
+      description: frontmatter.description ?? undefined,
+      globs:
+        typeof frontmatter.globs === "string"
+          ? frontmatter.globs
+          : Array.isArray(frontmatter.globs) && frontmatter.globs.length > 0
+            ? frontmatter.globs.join(",")
+            : undefined,
+    });
+    // Flattened to one line, like Cursor's description, so it stays a plain scalar.
+    const scene =
+      typeof frontmatter.scene === "string"
+        ? frontmatter.scene.replace(/[\r\n\u0085\u2028\u2029]+/g, " ").trim()
+        : "";
+    if (scene === "") {
+      return content;
+    }
+    return content.replace(/^---\n/, `---\n${dump({ scene }, { lineWidth: -1 }).trimEnd()}\n`);
+  }
+
+  /**
+   * Derives Trae's frontmatter from the canonical one. An explicit
+   * `trae.alwaysApply` wins; otherwise specific `globs` make a file-scoped
+   * rule, a `description` on a rule with no `globs` makes an intelligently
+   * applied one, and everything else (the root rule, universal globs, bare
+   * rules) is always applied, mirroring the AI Assistant mapping.
+   */
+  private static buildFrontmatter(frontmatter: RulesyncRuleFrontmatter): TraeRuleOutputFrontmatter {
+    const globs = normalizeGlobs(frontmatter.globs);
+    const specificGlobs = globs.filter((glob) => !UNIVERSAL_GLOBS.has(glob));
+    const isRoot = frontmatter.root === true;
+    const description = frontmatter.description?.trim() || undefined;
+
+    const isFileScoped = specificGlobs.length > 0 && specificGlobs.length === globs.length;
+    const isIntelligent = globs.length === 0 && description !== undefined;
+    const derivedAlwaysApply = isRoot || !(isFileScoped || isIntelligent);
+    const alwaysApply = frontmatter.trae?.alwaysApply ?? derivedAlwaysApply;
+    const scene = frontmatter.trae?.scene;
+
+    return {
+      ...(scene !== undefined && { scene }),
+      alwaysApply,
+      ...(description !== undefined && { description }),
+      ...(specificGlobs.length > 0 && { globs: specificGlobs.join(",") }),
+    };
+  }
+
+  static fromRulesyncRule({
+    outputRoot = process.cwd(),
+    rulesyncRule,
+    validate = true,
+  }: ToolRuleFromRulesyncRuleParams): TraeRule {
+    return new TraeRule({
+      outputRoot,
+      frontmatter: this.buildFrontmatter(rulesyncRule.getFrontmatter()),
+      body: rulesyncRule.getBody(),
+      relativeDirPath: this.getSettablePaths().nonRoot.relativeDirPath,
+      relativeFilePath: rulesyncRule.getRelativeFilePath(),
+      validate,
+    });
+  }
+
+  toRulesyncRule(): RulesyncRule {
+    const sourceGlobs = normalizeGlobs(this.frontmatter.globs);
+    const alwaysApply = this.frontmatter.alwaysApply ?? undefined;
+    const description = this.frontmatter.description?.trim() || undefined;
+    // `alwaysApply: true` with no globs is "every file" for the tools that
+    // know nothing about `alwaysApply`.
+    const globs = sourceGlobs.length === 0 && alwaysApply === true ? ["**/*"] : sourceGlobs;
+
+    const frontmatter: RulesyncRuleFrontmatter = {
+      targets: ["*"],
+      root: false,
+      description,
+      globs,
+    };
+    // `trae.alwaysApply` is carried only when the next generate would not
+    // derive the same value from `globs` / `description` (e.g. a manual rule).
+    const derived = TraeRule.buildFrontmatter(frontmatter).alwaysApply;
+    const needsOverride = alwaysApply !== undefined && alwaysApply !== derived;
+    const scene = this.frontmatter.scene ?? undefined;
+    const trae = {
+      ...(needsOverride && { alwaysApply }),
+      ...(scene !== undefined && { scene }),
+    };
+
+    return new RulesyncRule({
+      frontmatter: {
+        ...frontmatter,
+        ...(Object.keys(trae).length > 0 && { trae }),
+      },
+      body: this.body,
+      relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+      relativeFilePath: this.getRelativeFilePath(),
+      validate: true,
+    });
+  }
+
+  static async fromFile({
+    outputRoot = process.cwd(),
+    relativeFilePath,
+    validate = true,
+  }: ToolRuleFromFileParams): Promise<TraeRule> {
+    const relativeDirPath = this.getSettablePaths().nonRoot.relativeDirPath;
+    const filePath = join(outputRoot, relativeDirPath, relativeFilePath);
+    const fileContent = await readFileContent(filePath);
+    const { frontmatter, body } = CursorRule.parseCursorFrontmatter(fileContent, filePath);
+
+    const result = TraeRuleFrontmatterSchema.safeParse(frontmatter);
+    if (!result.success) {
+      throw new Error(`Invalid frontmatter in ${filePath}: ${formatError(result.error)}`);
+    }
+
+    return new TraeRule({
+      outputRoot,
+      relativeDirPath,
+      relativeFilePath,
+      frontmatter: result.data,
+      body: body.trim(),
+      validate,
+    });
+  }
+
+  static forDeletion({
+    outputRoot = process.cwd(),
+    relativeDirPath,
+    relativeFilePath,
+  }: ToolRuleForDeletionParams): TraeRule {
+    return new TraeRule({
+      outputRoot,
+      relativeDirPath,
+      relativeFilePath,
+      frontmatter: {},
+      body: "",
+      validate: false,
+    });
+  }
+
+  validate(): ValidationResult {
+    if (!this.frontmatter) {
+      return { success: true, error: null };
+    }
+    const result = TraeRuleFrontmatterSchema.safeParse(this.frontmatter);
+    if (result.success) {
+      return { success: true, error: null };
+    }
+    return {
+      success: false,
+      error: new Error(
+        `Invalid frontmatter in ${join(this.relativeDirPath, this.relativeFilePath)}: ${formatError(result.error)}`,
+      ),
+    };
+  }
+
+  getFrontmatter(): TraeRuleFrontmatter {
+    return this.frontmatter;
+  }
+
+  getBody(): string {
+    return this.body;
+  }
+
+  static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
+    return this.isTargetedByRulesyncRuleDefault({
+      rulesyncRule,
+      toolTarget: "trae",
+    });
+  }
+}

@@ -124,6 +124,7 @@ export const RulesyncMcpFileSchema = z.looseObject({
   rovodev: z.optional(toolScopedMcpSchema),
   tabnine: z.optional(toolScopedMcpSchema),
   takt: z.optional(toolScopedMcpSchema),
+  trae: z.optional(toolScopedMcpSchema),
   vibe: z.optional(toolScopedMcpSchema),
   warp: z.optional(toolScopedMcpSchema),
   zed: z.optional(toolScopedMcpSchema),

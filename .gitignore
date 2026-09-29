@@ -336,6 +336,7 @@ rulesync.local.jsonc
 **/TABNINE.md
 **/.tabnine/guidelines/
 **/.takt/facets/policies/
+**/.trae/rules/
 **/.devin/rules/
 **/.rules
 **/.agents/commands/
@@ -399,6 +400,7 @@ rulesync.local.jsonc
 **/.rovodev/skills/
 **/.tabnine/agent/skills/
 **/.takt/facets/knowledge/
+**/.trae/skills/
 **/.vibe/skills/
 **/.zcode/skills/
 **/.dsh/skills/
@@ -453,6 +455,7 @@ rulesync.local.jsonc
 **/.omp/mcp.json
 **/.qwen/settings.json
 **/.roo/mcp.json
+**/.trae/mcp.json
 **/.warp/.mcp.json
 **/.devin/mcp_config.json
 **/.amp/plugins/rulesync-hooks.ts

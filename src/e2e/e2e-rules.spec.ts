@@ -29,6 +29,7 @@ const rulesRootTargets = [
   { target: "claudecode", outputPath: "CLAUDE.md" },
   { target: "codebuddy", outputPath: "CODEBUDDY.md" },
   { target: "cursor", outputPath: join(".cursor", "rules", "overview.mdc") },
+  { target: "trae", outputPath: join(".trae", "rules", "overview.md") },
   { target: "aiassistant", outputPath: join(".aiassistant", "rules", "overview.md") },
   { target: "amp", outputPath: "AGENTS.md" },
   { target: "codexcli", outputPath: "AGENTS.md" },
@@ -1660,6 +1661,11 @@ describe("E2E: rules (import)", () => {
     {
       target: "cursor",
       sourcePath: join(".cursor", "rules", "overview.mdc"),
+      importedFileName: "overview.md",
+    },
+    {
+      target: "trae",
+      sourcePath: join(".trae", "rules", "overview.md"),
       importedFileName: "overview.md",
     },
     { target: "amp", sourcePath: "AGENTS.md", importedFileName: "overview.md" },

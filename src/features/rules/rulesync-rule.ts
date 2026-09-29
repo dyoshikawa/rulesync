@@ -89,6 +89,17 @@ export const RulesyncRuleFrontmatterSchema = z.object({
       globs: z.optional(z.array(z.string())),
     }),
   ),
+  trae: z.optional(
+    z.looseObject({
+      // Overrides the `alwaysApply` value derived from `globs` / `description`
+      // (e.g. `false` with neither set makes a rule apply only when referenced
+      // with `#Rule`). @see https://docs.trae.ai/ide/rules?_lang=en
+      alwaysApply: z.optional(z.boolean()),
+      // Trae's `scene` field; `git_message` makes the rule also apply when
+      // Trae generates a Git commit message.
+      scene: z.optional(z.string()),
+    }),
+  ),
   copilot: z.optional(
     z.looseObject({
       // `cloud-agent` is the current documented value; `coding-agent` is a deprecated alias.

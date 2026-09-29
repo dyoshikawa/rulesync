@@ -59,6 +59,7 @@ import {
   ToolMcpFromRulesyncMcpParams,
   ToolMcpSettablePaths,
 } from "./tool-mcp.js";
+import { TraeMcp } from "./trae-mcp.js";
 import { VibeMcp } from "./vibe-mcp.js";
 import { WarpMcp } from "./warp-mcp.js";
 import { ZcodeMcp } from "./zcode-mcp.js";
@@ -786,6 +787,22 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
       meta: {
         supportsProject: true,
         supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
+    "trae",
+    {
+      // Trae reads project MCP servers from `.trae/mcp.json` (`mcpServers`);
+      // user-level servers are managed in the IDE UI with no documented file,
+      // and the per-server schema has no tool allow/deny list.
+      // https://docs.trae.ai/ide/add-mcp-servers?_lang=en
+      class: TraeMcp,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: false,
         supportsEnabledTools: false,
         supportsDisabledTools: false,
       },
