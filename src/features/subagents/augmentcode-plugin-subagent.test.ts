@@ -18,9 +18,11 @@ const buildRulesyncSubagent = () =>
       description: "Reviews code",
       augmentcode: {
         model: "sonnet",
+        hidden: true,
         tools: ["view"],
         disabled_tools: ["save-file"],
         color: "blue",
+        replace_system_prompt: true,
       },
     },
     body: "Review the changes.",
@@ -40,10 +42,18 @@ describe("AugmentcodePluginSubagent", () => {
 
     expect(subagent.getRelativeDirPath()).toBe("agents");
     const { frontmatter } = parseFrontmatter(subagent.getFileContent(), "reviewer.md");
-    expect(frontmatter).toEqual({ name: "reviewer", description: "Reviews code", model: "sonnet" });
+    expect(frontmatter).toEqual({
+      name: "reviewer",
+      description: "Reviews code",
+      model: "sonnet",
+      hidden: true,
+    });
     expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining("Dropping tools, disabled_tools, color"),
+      expect.stringContaining(
+        "Dropping tools, disabled_tools, color, replace_system_prompt from augmentcode-plugin subagent reviewer.md",
+      ),
     );
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("full tool set"));
   });
 
   it("keeps those fields for the augmentcode target", () => {
