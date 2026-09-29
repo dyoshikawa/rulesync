@@ -91,11 +91,11 @@ Claude-specific frontmatter and hook overrides continue to use the `claudecode` 
 
 ## AugmentCode plugins
 
-[Auggie plugins](https://docs.augmentcode.com/cli/plugins) use the Claude Code plugin layout plus a `rules/` directory, and Auggie reads the components with the same parsers as the matching `.augment/` directories. The `augmentcode-plugin` target therefore writes each component in the `augmentcode` format — rules keep their `type` / `description` frontmatter from the `augmentcode` section of a Rulesync rule — and `.mcp.json` in the Claude-style `mcpServers` shape Auggie documents for plugins. Auggie namespaces plugin commands and subagents under the plugin (`/<plugin>:<command>`), and a nested command directory adds a `:` segment.
+[Auggie plugins](https://docs.augmentcode.com/cli/plugins) use the Claude Code plugin layout plus a `rules/` directory, and Auggie reads plugin rules, commands and skills the same way as the matching `.augment/` directories. The `augmentcode-plugin` target therefore writes each component in the `augmentcode` format — rules keep their `type` / `description` frontmatter from the `augmentcode` section of a Rulesync rule — and `.mcp.json` in the Claude-style `mcpServers` shape Auggie documents for plugins. Auggie namespaces plugin commands and subagents under the plugin (`/<plugin>:<command>`), and a nested command directory adds a `:` segment. Plugin subagents are read more narrowly than `.augment/agents/`: Auggie keeps only the name, `description` and `model`, so `tools`, `disabled_tools` and `color` from the `augmentcode` section are dropped with a warning rather than written as a tool restriction that would be silently ignored.
 
 Hooks are not generated yet: a plugin hook file lives in `hooks/` and needs its script paths anchored to the plugin root (`${AUGMENT_PLUGIN_ROOT}`), which the `augmentcode` hook converter does not do. Keep a plugin's `hooks/hooks.json` hand-authored for now; Rulesync leaves it untouched.
 
-Since Auggie also accepts `.claude-plugin/` bundles, a `claudecode-plugin` bundle installs in Auggie too, but its rules have nowhere to go and its components carry Claude Code frontmatter; use `augmentcode-plugin` when the bundle targets Auggie.
+Since Auggie also accepts `.claude-plugin/` bundles, a `claudecode-plugin` bundle installs in Auggie too, but `claudecode-plugin` does not write `rules/` and its components carry Claude Code frontmatter; use `augmentcode-plugin` when the bundle targets Auggie.
 
 ## Claude Code plugin constraints
 

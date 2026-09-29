@@ -165,6 +165,7 @@ Do not package this rule.
       join(pluginRoot, ".augment-plugin", "plugin.json"),
       JSON.stringify({ name: "review-plugin" }, null, 2),
     );
+    await writeFileContent(join(pluginRoot, "hooks", "hooks.json"), '{"hooks":{}}\n');
 
     await runGenerate({
       target: "augmentcode-plugin",
@@ -191,6 +192,7 @@ Do not package this rule.
     expect(imported).toContain("Review changes before submission.");
     expect(imported).toContain("type: agent_requested");
     expect(await fileExists(join(pluginRoot, ".augment-plugin", "plugin.json"))).toBe(true);
+    expect(await readFileContent(join(pluginRoot, "hooks", "hooks.json"))).toBe('{"hooks":{}}\n');
   });
 
   describe.skipIf(process.platform === "win32")("symbolic link safety", () => {
