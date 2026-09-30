@@ -114,6 +114,7 @@ import {
   ToolRuleSettablePaths,
   ToolRuleSettablePathsGlobal,
 } from "./tool-rule.js";
+import { TraeRule } from "./trae-rule.js";
 import { VibeRule } from "./vibe-rule.js";
 import { WarpRule } from "./warp-rule.js";
 import { ZcodeRule } from "./zcode-rule.js";
@@ -1183,6 +1184,24 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         // No `additionalConventions` here: TAKT does not synthesize a root
         // overview rule (TaktRule.fromRulesyncRule always emits non-root files),
         // so the conventions block would never be rendered anywhere.
+      },
+    },
+  ],
+  [
+    "trae",
+    {
+      // Trae auto-loads every `.trae/rules/*.md` file by its Cursor-style
+      // `alwaysApply` / `description` / `globs` frontmatter and has no root
+      // rule file, so every rule lands there (mirrors cursor). Commands,
+      // subagents and skills need no simulation: Trae has native skills and
+      // no file-based commands or subagents. Global rules (`~/.trae/user_rules`)
+      // are not written because their on-disk format is undocumented.
+      // https://docs.trae.ai/ide/rules?_lang=en
+      class: TraeRule,
+      meta: {
+        extension: "md",
+        supportsGlobal: false,
+        ruleDiscoveryMode: "auto",
       },
     },
   ],

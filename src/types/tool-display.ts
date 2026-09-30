@@ -45,6 +45,7 @@ export const TOOL_DISPLAY: ReadonlyArray<ToolDisplayEntry> = [
   { key: "zoocode", label: "Zoo Code", group: "ai" },
   { key: "rovodev", label: "Rovodev (Atlassian)", group: "ai" },
   { key: "takt", label: "Takt", group: "ai" },
+  { key: "trae", label: "Trae", group: "ai" },
   { key: "tabnine", label: "Tabnine CLI ⚠️", group: "ai" },
   { key: "continue", label: "Continue ⚠️", group: "ai" },
   { key: "cortexcode", label: "Snowflake Cortex Code", group: "ai" },

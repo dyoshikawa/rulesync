@@ -92,6 +92,7 @@ import {
   toolSkillImportRoots,
   toolSkillSearchRoots,
 } from "./tool-skill.js";
+import { TraeSkill } from "./trae-skill.js";
 import { VibeSkill } from "./vibe-skill.js";
 import { WarpSkill } from "./warp-skill.js";
 import { ZcodeSkill } from "./zcode-skill.js";
@@ -695,6 +696,15 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
     "takt",
     {
       class: TaktSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "trae",
+    {
+      // Trae reads Agent Skills from `.trae/skills/` (project) and
+      // `~/.trae/skills/` (user). https://docs.trae.ai/ide/skills?_lang=en
+      class: TraeSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],

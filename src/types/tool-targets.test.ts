@@ -64,6 +64,7 @@ describe("tool targets", () => {
         "rovodev",
         "tabnine",
         "takt",
+        "trae",
         "vibe",
         "warp",
         "devin",

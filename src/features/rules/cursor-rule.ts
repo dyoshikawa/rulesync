@@ -85,12 +85,10 @@ export class CursorRule extends ToolRule {
 
   /**
    * Custom stringify function for Cursor MDC files
-   * MDC files don't support quotes in YAML, so globs patterns must be output without quotes
+   * MDC files don't support quotes in YAML, so globs patterns must be output without quotes.
+   * Also used by Trae, whose `.trae/rules/*.md` files carry the same frontmatter.
    */
-  private static stringifyCursorFrontmatter(
-    body: string,
-    frontmatter: CursorRuleFrontmatter,
-  ): string {
+  static stringifyCursorFrontmatter(body: string, frontmatter: CursorRuleFrontmatter): string {
     // For cursor settings, manually build the YAML frontmatter
     // to ensure they are output without quotes
     const lines: string[] = ["---"];

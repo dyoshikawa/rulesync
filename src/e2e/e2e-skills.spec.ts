@@ -68,6 +68,10 @@ const skillsGenerateTargets = [
     outputPath: join(".cursor", "skills", "test-skill", "SKILL.md"),
   },
   {
+    target: "trae",
+    outputPath: join(".trae", "skills", "test-skill", "SKILL.md"),
+  },
+  {
     target: "codexcli",
     outputPath: join(".agents", "skills", "test-skill", "SKILL.md"),
   },
@@ -380,6 +384,7 @@ This is the test skill body content.
     },
     { target: "continue", orphanPath: join(".continue", "skills", "orphan-skill", "SKILL.md") },
     { target: "cursor", orphanPath: join(".cursor", "skills", "orphan-skill", "SKILL.md") },
+    { target: "trae", orphanPath: join(".trae", "skills", "orphan-skill", "SKILL.md") },
     { target: "codexcli", orphanPath: join(".agents", "skills", "orphan-skill", "SKILL.md") },
     { target: "lettacode", orphanPath: join(".agents", "skills", "orphan-skill", "SKILL.md") },
     { target: "copilot", orphanPath: join(".github", "skills", "orphan-skill", "SKILL.md") },
@@ -478,6 +483,7 @@ describe("E2E: skills (import)", () => {
     },
     { target: "continue", sourcePath: join(".continue", "skills", "test-skill", "SKILL.md") },
     { target: "cursor", sourcePath: join(".cursor", "skills", "test-skill", "SKILL.md") },
+    { target: "trae", sourcePath: join(".trae", "skills", "test-skill", "SKILL.md") },
     { target: "codexcli", sourcePath: join(".agents", "skills", "test-skill", "SKILL.md") },
     { target: "lettacode", sourcePath: join(".agents", "skills", "test-skill", "SKILL.md") },
     { target: "gitlabduo", sourcePath: join("skills", "test-skill", "SKILL.md") },
@@ -1036,6 +1042,10 @@ const skillsGlobalTargets = [
   {
     target: "cursor",
     outputPath: join(".cursor", "skills", "test-skill", "SKILL.md"),
+  },
+  {
+    target: "trae",
+    outputPath: join(".trae", "skills", "test-skill", "SKILL.md"),
   },
   {
     target: "mimocode",
