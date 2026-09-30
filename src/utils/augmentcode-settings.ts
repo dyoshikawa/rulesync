@@ -79,6 +79,16 @@ export function parseAugmentcodeSettingsDocument({
 const AUGMENTCODE_REPLACE_KEYS: ReadonlySet<string> = new Set(["mcpServers", "plugins"]);
 
 /**
+ * Top-level keys AugmentCode reads from the project's `settings.json` only and
+ * ignores in `settings.local.json` ("values in user or local settings are
+ * ignored"), so a local value is dropped rather than combined into what the
+ * import reports as the workspace's settings.
+ *
+ * @see https://docs.augmentcode.com/cli/plugins
+ */
+const AUGMENTCODE_PROJECT_ONLY_KEYS: ReadonlySet<string> = new Set(["recommendedMarketplaces"]);
+
+/**
  * Combine a base settings object with a higher-precedence (local) one following
  * AugmentCode's documented layering: simple values take the local override,
  * `mcpServers` / `plugins` are replaced wholesale, and every other object/list
@@ -88,6 +98,16 @@ const AUGMENTCODE_REPLACE_KEYS: ReadonlySet<string> = new Set(["mcpServers", "pl
  * dropping them when local defines the same top-level key.
  */
 function combineAugmentSettings(
+  base: Record<string, unknown>,
+  local: Record<string, unknown>,
+): Record<string, unknown> {
+  const localWithoutProjectOnlyKeys = Object.fromEntries(
+    Object.entries(local).filter(([key]) => !AUGMENTCODE_PROJECT_ONLY_KEYS.has(key)),
+  );
+  return combineAugmentSettingsLayer(base, localWithoutProjectOnlyKeys);
+}
+
+function combineAugmentSettingsLayer(
   base: Record<string, unknown>,
   local: Record<string, unknown>,
 ): Record<string, unknown> {
@@ -101,7 +121,7 @@ function combineAugmentSettings(
     } else if (Array.isArray(localValue) && Array.isArray(baseValue)) {
       result[key] = [...localValue, ...baseValue];
     } else if (isPlainObject(localValue) && isPlainObject(baseValue)) {
-      result[key] = combineAugmentSettings(baseValue, localValue);
+      result[key] = combineAugmentSettingsLayer(baseValue, localValue);
     } else {
       result[key] = localValue;
     }
@@ -112,9 +132,16 @@ function combineAugmentSettings(
 /**
  * The AugmentCode counterpart of Droid's guardrail keys: the tool-permission
  * rules, the hooks Auggie executes, and the servers and plugins it loads them
- * from. See `readSettingsWithLocalOverlay` for why they are named twice.
+ * from (`enabledPlugins` turns a plugin, with its hooks and servers, on). See
+ * `readSettingsWithLocalOverlay` for why they are named twice.
  */
-const AUGMENTCODE_GUARDRAIL_KEYS = ["toolPermissions", "hooks", "mcpServers", "plugins"] as const;
+const AUGMENTCODE_GUARDRAIL_KEYS = [
+  "toolPermissions",
+  "hooks",
+  "mcpServers",
+  "plugins",
+  "enabledPlugins",
+] as const;
 
 /**
  * Read the base `.augment/settings.json` content and, when a project-scope
