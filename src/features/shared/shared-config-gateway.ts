@@ -1702,6 +1702,17 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
       hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
     },
   },
+  // Qoder user settings (`~/.qoder/settings.json`): `mcpServers` is the only
+  // rulesync-owned key. The file carries every other Qoder setting (model,
+  // theme, trust, ...), so it is edited in place and an unparseable root is
+  // refused rather than replaced with generated output.
+  ".qoder/settings.json": {
+    format: "json",
+    invalidRootPolicy: "error",
+    features: {
+      mcp: { kind: "replace-owned-keys", ownedKeys: ["mcpServers"] },
+    },
+  },
   // Tabnine CLI settings: the project file (`.tabnine/agent/settings.json`)
   // and the user file (`~/.tabnine/agent/settings.json`) share one layout and
   // carry unrelated Tabnine settings (`general`, `context`, `ui`, ...), so they

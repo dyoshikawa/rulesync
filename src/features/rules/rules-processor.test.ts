@@ -2206,6 +2206,7 @@ Content that would fail parsing`;
         "openclaw",
         "pi",
         "pool",
+        "qoder",
         "qwencode",
         "reasonix",
         "roo",
@@ -2280,7 +2281,8 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("continue");
       expect(globalTargets).toContain("commandcode");
       expect(globalTargets).toContain("openclaw");
-      expect(globalTargets.length).toBe(46);
+      expect(globalTargets).toContain("qoder");
+      expect(globalTargets.length).toBe(47);
 
       // These targets should NOT be in global mode
       expect(globalTargets).not.toContain("cursor");

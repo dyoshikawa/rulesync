@@ -71,6 +71,7 @@ import { OmpSkill } from "./omp-skill.js";
 import { OpenCodeSkill } from "./opencode-skill.js";
 import { PiSkill } from "./pi-skill.js";
 import { PoolSkill } from "./pool-skill.js";
+import { QoderSkill } from "./qoder-skill.js";
 import { QwencodeSkill } from "./qwencode-skill.js";
 import { ReasonixSkill } from "./reasonix-skill.js";
 import { ReplitSkill } from "./replit-skill.js";
@@ -625,6 +626,16 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
       // shared `.agents/skills/` roots, which belong to the agentsskills target.
       // https://docs.poolside.ai/skills
       class: PoolSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "qoder",
+    {
+      // Qoder skills are directories (`<name>/SKILL.md`) under `.qoder/skills/`
+      // (project) / `~/.qoder/skills/` (user), shared by the IDE and the CLI.
+      // https://docs.qoder.com/en/cli/04-extending-qoder-cli/Skills
+      class: QoderSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],

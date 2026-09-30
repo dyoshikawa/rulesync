@@ -70,6 +70,7 @@ import { MimocodeCommand } from "./mimocode-command.js";
 import { OmpCommand } from "./omp-command.js";
 import { OpenCodeCommand } from "./opencode-command.js";
 import { PiCommand } from "./pi-command.js";
+import { QoderCommand } from "./qoder-command.js";
 import { QwencodeCommand } from "./qwencode-command.js";
 import { ReasonixCommand } from "./reasonix-command.js";
 import { RooCommand } from "./roo-command.js";
@@ -584,6 +585,23 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
         supportsGlobal: true,
         isSimulated: false,
         supportsSubdirectory: false,
+      },
+    },
+  ],
+  [
+    "qoder",
+    {
+      // Qoder prompt commands are Markdown files under `.qoder/commands/`
+      // (project) / `~/.qoder/commands/` (global); subdirectories namespace
+      // the command (`git/commit.md` -> `/git:commit`).
+      // https://docs.qoder.com/en/cli/04-extending-qoder-cli/command
+      class: QoderCommand,
+      meta: {
+        extension: "md",
+        supportsProject: true,
+        supportsGlobal: true,
+        isSimulated: false,
+        supportsSubdirectory: true,
       },
     },
   ],

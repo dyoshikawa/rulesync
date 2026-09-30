@@ -326,6 +326,7 @@ rulesync.local.jsonc
 **/.opencode/memories/
 **/.pi/APPEND_SYSTEM.md
 **/AGENTS.override.md
+**/.qoder/rules/
 **/QWEN.md
 **/.qwen/rules/
 **/REASONIX.md
@@ -359,6 +360,7 @@ rulesync.local.jsonc
 **/.omp/commands/
 **/.opencode/commands/
 **/.pi/prompts/
+**/.qoder/commands/
 **/.qwen/commands/
 **/.reasonix/commands/
 **/.roo/commands/
@@ -394,6 +396,7 @@ rulesync.local.jsonc
 **/.opencode/skills/
 **/.pi/skills/
 **/.poolside/skills/
+**/.qoder/skills/
 **/.qwen/skills/
 **/.reasonix/skills/
 **/.roo/skills/
@@ -428,6 +431,7 @@ rulesync.local.jsonc
 **/.mimocode/agents/
 **/.omp/agents/
 **/.opencode/agents/
+**/.qoder/agents/
 **/.qwen/agents/
 **/.rovodev/subagents/
 **/.tabnine/agent/agents/

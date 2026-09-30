@@ -382,6 +382,8 @@
     "pycache",
     "PYTHONPATH",
     "QCLI",
+    "qoder",
+    "qodercli",
     "qwen",
     "QWEN",
     "qwencode",

@@ -1119,30 +1119,39 @@ describe("RulesyncMcp", () => {
       expect(Object.keys(effective.getMcpServers())).toEqual(["shared", "extra"]);
     });
 
-    it("should apply both claudecode and commandcode blocks at project scope (shared .mcp.json)", () => {
+    it("should apply the claudecode, commandcode and qoder blocks at project scope (shared .mcp.json)", () => {
       const instance = makeInstance({
         mcpServers: {
           shared: { command: "node" },
           forClaude: { command: "a", targets: ["claudecode"] },
           forCommand: { command: "b", targets: ["commandcode"] },
+          forQoder: { command: "q", targets: ["qoder"] },
           forOther: { command: "c", targets: ["cursor"] },
         },
         claudecode: {
           mcpServers: { claudeExtra: { command: "uvx" }, both: { command: "claude" } },
         },
         commandcode: { mcpServers: { both: { command: "command" } } },
+        qoder: { mcpServers: { qoderExtra: { command: "qoder" } } },
       });
 
-      // All three targets write the project `.mcp.json`, so they must resolve
-      // to one deterministic server set: claudecode block first, commandcode
-      // block second (commandcode wins per server on conflict).
-      for (const toolTarget of ["claudecode", "claudecode-legacy", "commandcode"] as const) {
+      // All four targets write the project `.mcp.json`, so they must resolve
+      // to one deterministic server set: claudecode block first, then
+      // commandcode, then qoder (a later block wins per server on conflict).
+      for (const toolTarget of [
+        "claudecode",
+        "claudecode-legacy",
+        "commandcode",
+        "qoder",
+      ] as const) {
         const servers = instance.forTarget({ toolTarget, global: false }).getMcpServers();
         expect(Object.keys(servers).toSorted()).toEqual([
           "both",
           "claudeExtra",
           "forClaude",
           "forCommand",
+          "forQoder",
+          "qoderExtra",
           "shared",
         ]);
         expect(servers.both).toEqual({ command: "command" });

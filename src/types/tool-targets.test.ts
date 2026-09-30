@@ -57,6 +57,7 @@ describe("tool targets", () => {
         "openclaw",
         "pi",
         "pool",
+        "qoder",
         "qwencode",
         "reasonix",
         "replit",
