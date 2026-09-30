@@ -80,9 +80,13 @@ factorydroid: # factorydroid specific parameters
   # Route this non-root rule's body to one of Factory Droid's fixed files instead
   # of folding it into AGENTS.md / .factory/rules/*.md: "design" → the
   # design-guidelines DESIGN.md, "threat-model" → the Security Review attack-surface
-  # map .factory/threat-model.md. This option is available only if root is false.
-  # Project scope only.
+  # map .factory/threat-model.md (both project scope only); "output-style" → a
+  # custom output style of its own, .factory/output-styles/<rule file name>.md
+  # (project and global scope). This option is available only if root is false.
   channel: "design"
+  # (optional) With channel: "output-style", the style's picker name; Droid
+  # defaults it to the file name without .md.
+  name: "Review Notes"
 ---
 
 # Rulesync Project Overview
@@ -183,7 +187,19 @@ Multiple files can set `root: true` for the same target in project and global mo
 > ---
 > ```
 >
-> See the [Factory Droid AGENTS.md configuration docs](https://docs.factory.ai/cli/configuration/agents-md) and the [Security Review docs](https://docs.factory.ai/software-factory/security-review).
+> A third value, `channel: output-style`, writes the rule as one of Factory Droid's [custom output styles](https://docs.factory.ai/droid-cli/output-styles) — response-presentation instructions a user picks in `/settings` — instead of a concatenated file: each opted-in rule becomes its own `.factory/output-styles/<rule file name>.md` (`~/.factory/output-styles/` with `--global`, the one channel that also works in global mode, since Factory documents the user scope too). The rule's `description` becomes the style's `description` frontmatter (shown below its name in the picker), and the optional `factorydroid.name` its `name` (the picker name, which Droid otherwise takes from the file name). The file is excluded from the TOON reference list like the other channels, and import brings each style back as `.rulesync/rules/<file name>.md` with the same frontmatter. Because Droid loads only direct `.md` children of `output-styles/` and reserves its built-in `Default` and `Concise` styles, generate fails for an output-style rule nested in a subdirectory of `.rulesync/rules/` or whose style name is `default` / `concise` (case-insensitive). Unlike `.factory/rules/`, the directory is not swept by `generate --delete`: it also holds styles written by hand (including personal ones in `~/.factory/output-styles/`) that Rulesync cannot tell apart from its own, so a style no rule produces anymore — after renaming or removing the rule — has to be deleted by hand (or the next import brings it back as a rule). For the same reason `rulesync gitignore` adds no entry for it, and generate overwrites a hand-written style of the same file name. Selecting the style (the `outputStyle` setting) stays with the user. Example:
+>
+> ```yaml
+> ---
+> targets: ["factorydroid"]
+> description: "Put findings before the summary"
+> factorydroid:
+>   channel: output-style # writes .factory/output-styles/<this file name>.md
+>   name: "Review Notes"
+> ---
+> ```
+>
+> See the [Factory Droid AGENTS.md configuration docs](https://docs.factory.ai/cli/configuration/agents-md), the [Security Review docs](https://docs.factory.ai/software-factory/security-review) and the [output styles docs](https://docs.factory.ai/droid-cli/output-styles).
 
 > **Devin note:** The root rule is emitted to the project-root `AGENTS.md` — the file [Devin CLI / Devin Local actually reads](https://docs.devin.ai/cli/extensibility/rules) (its rules page does not list `.devin/rules/` among its sources) — as plain markdown, while non-root rules keep going to `.devin/rules/*.md`, the Devin Desktop Cascade directory whose `trigger` activation modes (`always_on`, `glob`, `manual`, `model_decision`) are driven by the `devin` frontmatter block. Global mode mirrors that layout: the root rule is a plain `~/.config/devin/AGENTS.md`, and non-root rules are emitted one file per rule into `~/.devin/rules/*.md` with the same `trigger`/`globs` frontmatter. Note the directory split — the per-rule global directory is the home `~/.devin/`, not the `~/.config/devin/` tree the global root and Devin's other global surfaces use; that is what the rules page documents (`~/.devin/rules/*.md`, `~/.devin/global_rules.md`).
 

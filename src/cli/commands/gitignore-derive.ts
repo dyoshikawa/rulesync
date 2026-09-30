@@ -145,6 +145,10 @@ const deriveRulesEntries = (): GitignoreEntryTag[] => {
     };
     if (classWithExtraFiles.getExtraFixedFiles) {
       for (const file of classWithExtraFiles.getExtraFixedFiles({ global: false })) {
+        // An import-only entry names a directory shared with hand-written
+        // files (e.g. Factory Droid's output styles), which a team may well
+        // commit, so it is no more a gitignore entry than a deletion target.
+        if (file.importOnly) continue;
         pushEntry(
           entries,
           target,

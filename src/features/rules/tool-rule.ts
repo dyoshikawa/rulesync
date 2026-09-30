@@ -45,14 +45,22 @@ export type ToolRuleForDeletionParams = {
 };
 
 /**
- * A fixed-path file a tool manages beyond its root/non-root rules (e.g. Pi's
- * `APPEND_SYSTEM.md`). Returned by the optional static `getExtraFixedFiles`
+ * A fixed-path file (or a file-name glob within one directory) a tool manages
+ * beyond its root/non-root rules (e.g. Pi's `APPEND_SYSTEM.md`). Returned by the optional static `getExtraFixedFiles`
  * hook, consumed by the RulesProcessor (import/deletion) and the gitignore
  * derivation.
  */
 export type ToolRuleExtraFixedFile = {
   relativeDirPath: string;
+  /** A file name, or a file-name glob such as `*.md` for a whole directory. */
   relativeFilePath: string;
+  /**
+   * Enumerate the file(s) on import only, never for `--delete` and never as
+   * a gitignore entry. For a directory the tool shares with hand-written
+   * files, where sweeping or ignoring it would touch work rulesync never
+   * wrote.
+   */
+  importOnly?: boolean;
 };
 
 /**

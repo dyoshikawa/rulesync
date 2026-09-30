@@ -1096,6 +1096,49 @@ describe("RulesProcessor", () => {
       ).not.toContain(join("packages", "api", "AGENTS.md"));
     });
 
+    it.each([false, true])(
+      "should import factorydroid output styles but never enumerate them for deletion (global: %s)",
+      async (global) => {
+        await writeFileContent(join(testDir, "DESIGN.md"), "# Design");
+        await writeFileContent(
+          join(testDir, ".factory", "output-styles", "review-notes.md"),
+          "Start with findings.",
+        );
+        await writeFileContent(
+          join(testDir, ".factory", "output-styles", "nested", "deep.md"),
+          "# Nested",
+        );
+        await writeFileContent(join(testDir, ".factory", "output-styles", "notes.txt"), "text");
+
+        const processor = new RulesProcessor({
+          logger,
+          outputRoot: testDir,
+          toolTarget: "factorydroid",
+          global,
+        });
+
+        // Droid loads only direct `.md` children of `output-styles/`.
+        const imported = await processor.loadToolFiles();
+        const importedPaths = imported.map((file) =>
+          join(file.getRelativeDirPath(), file.getRelativeFilePath()),
+        );
+        expect(importedPaths).toContain(join(".factory", "output-styles", "review-notes.md"));
+        expect(importedPaths).not.toContain(join(".factory", "output-styles", "nested", "deep.md"));
+        expect(importedPaths).not.toContain(join(".factory", "output-styles", "notes.txt"));
+
+        // The directory also holds hand-written styles, so `--delete` never
+        // sweeps it — while the fixed project channels stay deletion targets.
+        const forDeletion = await processor.loadToolFiles({ forDeletion: true });
+        const deletionPaths = forDeletion.map((file) =>
+          join(file.getRelativeDirPath(), file.getRelativeFilePath()),
+        );
+        expect(deletionPaths).not.toContain(join(".factory", "output-styles", "review-notes.md"));
+        if (!global) {
+          expect(deletionPaths).toContain("DESIGN.md");
+        }
+      },
+    );
+
     it("should import Junie's .junie/rules and playbook but never delete them", async () => {
       // Junie combines a project-root `AGENTS.md` with `.junie/playbook.md`
       // and `.junie/rules/*.md` — the layout a repo is in before it has a
@@ -4944,6 +4987,61 @@ targets: ["claudecode"]
       expect(warnSpy).not.toHaveBeenCalledWith(
         expect.stringContaining("non-root rulesync rules found, but it's in global mode"),
       );
+    });
+
+    it("should keep factorydroid output-style rules in global mode and drop only the other non-root rules", async () => {
+      await ensureDir(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "root.md"),
+        `---
+root: true
+targets: ["factorydroid"]
+---
+# Root`,
+      );
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "review-notes.md"),
+        `---
+targets: ["factorydroid"]
+factorydroid:
+  channel: output-style
+---
+Start with findings.`,
+      );
+      await writeFileContent(
+        join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "non-root.md"),
+        `---
+targets: ["factorydroid"]
+---
+# Non-root`,
+      );
+
+      const warnSpy = vi.spyOn(logger, "warn");
+
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "factorydroid",
+        global: true,
+      });
+
+      // Factory documents `~/.factory/output-styles/` as the user scope of the
+      // output-styles surface, so that rule survives; the plain non-root rule
+      // has no global home and is still reported as ignored.
+      const result = await processor.loadRulesyncFiles();
+      expect(result.map((r) => r.getRelativeFilePath()).toSorted()).toEqual([
+        "review-notes.md",
+        "root.md",
+      ]);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("1 non-root rulesync rules found, but it's in global mode"),
+      );
+      expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining("review-notes.md"));
+
+      const toolFiles = await processor.convertRulesyncFilesToToolFiles(result);
+      expect(
+        toolFiles.map((file) => join(file.getRelativeDirPath(), file.getRelativeFilePath())),
+      ).toEqual(expect.arrayContaining([join(".factory", "output-styles", "review-notes.md")]));
     });
 
     it("should expose every global-capable folded target to the regression matrix", () => {

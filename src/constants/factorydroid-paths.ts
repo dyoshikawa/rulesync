@@ -23,6 +23,25 @@ export const FACTORYDROID_DESIGN_FILE_NAME = "DESIGN.md";
  * @see https://docs.factory.ai/software-factory/security-review
  */
 export const FACTORYDROID_THREAT_MODEL_FILE_NAME = "threat-model.md";
+
+/**
+ * Factory Droid's custom output styles: "Droid loads direct `.md` children of
+ * each `output-styles` directory", at `<repo>/.factory/output-styles/` and
+ * `~/.factory/output-styles/` alike. Relative to the `.factory` directory.
+ * @see https://docs.factory.ai/droid-cli/output-styles
+ */
+export const FACTORYDROID_OUTPUT_STYLES_DIR_NAME = "output-styles";
+
+/**
+ * The built-in output styles Droid reserves: "The built-in `Default` and
+ * `Concise` styles are reserved and cannot be replaced." Compared
+ * case-insensitively against a custom style's name.
+ * @see https://docs.factory.ai/droid-cli/output-styles
+ */
+export const FACTORYDROID_RESERVED_OUTPUT_STYLE_NAMES: ReadonlyArray<string> = [
+  "default",
+  "concise",
+];
 export const FACTORYDROID_MCP_FILE_NAME = "mcp.json";
 export const FACTORYDROID_SETTINGS_FILE_NAME = "settings.json";
 export const FACTORYDROID_HOOKS_FILE_NAME = "hooks.json";

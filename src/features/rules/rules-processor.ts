@@ -339,6 +339,12 @@ type ToolRuleFactory = {
      */
     getExtraFixedFiles?(params: { global?: boolean }): ToolRuleExtraFixedFile[];
     /**
+     * Non-root rules a tool emits in global mode even though it has no global
+     * non-root path, because the rule opts into a surface of its own that has
+     * a home-directory scope. See {@link FactorydroidRule.isEmittedAsGlobalNonRootRule}.
+     */
+    isEmittedAsGlobalNonRootRule?(rulesyncRule: RulesyncRule): boolean;
+    /**
      * Patterns for rule files this tool discovers by glob rather than at a fixed
      * path, used when the tool's scoping mechanism is the same file name repeated
      * in subdirectories (the AGENTS.md standard's nested files). Import-only:
@@ -2688,9 +2694,15 @@ As this project's AI coding tool, you must follow the additional conventions bel
           factory.class.isTargetedByRulesyncRule(rule),
       );
 
-      if (nonRootRules.length > 0 && !supportsGlobalNonRoot) {
+      const globalRoutedRules = supportsGlobalNonRoot
+        ? []
+        : nonRootRules.filter((rule) => factory.class.isEmittedAsGlobalNonRootRule?.(rule));
+      const ignoredNonRootRules = supportsGlobalNonRoot
+        ? []
+        : nonRootRules.filter((rule) => !globalRoutedRules.includes(rule));
+      if (ignoredNonRootRules.length > 0) {
         this.logger.warn(
-          `${nonRootRules.length} non-root rulesync rules found, but it's in global mode, so ignoring them: ${formatRulePaths(nonRootRules)}`,
+          `${ignoredNonRootRules.length} non-root rulesync rules found, but it's in global mode, so ignoring them: ${formatRulePaths(ignoredNonRootRules)}`,
         );
       }
       if (targetedLocalRootRules.length > 0) {
@@ -2698,7 +2710,9 @@ As this project's AI coding tool, you must follow the additional conventions bel
           `${targetedLocalRootRules.length} localRoot rules found, but localRoot is not supported in global mode, ignoring them: ${formatRulePaths(targetedLocalRootRules)}`,
         );
       }
-      return supportsGlobalNonRoot ? [...targetedRootRules, ...nonRootRules] : targetedRootRules;
+      return supportsGlobalNonRoot
+        ? [...targetedRootRules, ...nonRootRules]
+        : [...targetedRootRules, ...globalRoutedRules];
     }
 
     // In project mode, exclude root rules not targeting this tool and filter non-root by target
@@ -3130,16 +3144,21 @@ As this project's AI coding tool, you must follow the additional conventions bel
       })();
 
       // Extra fixed-path files (e.g. Pi's APPEND_SYSTEM.md) enumerated for both
-      // import and deletion so they round-trip and stale files are cleaned up.
+      // import and deletion so they round-trip and stale files are cleaned up —
+      // except `importOnly` entries, which are enumerated on import only.
       const extraFixedToolRules = await (async () => {
-        const extraFiles = factory.class.getExtraFixedFiles?.({ global: this.global });
+        const extraFiles = factory.class
+          .getExtraFixedFiles?.({ global: this.global })
+          .filter((file) => !(forDeletion && file.importOnly));
         if (!extraFiles || extraFiles.length === 0) {
           return [];
         }
 
         const filePaths = await findFilesByGlobs(
           extraFiles.map((file) => rootRelativeGlob(file.relativeDirPath, file.relativeFilePath)),
-          { cwd: this.outputRoot },
+          // Files only: a glob entry such as `*.md` would otherwise match a
+          // directory named `x.md`, which cannot be read as a rule.
+          { cwd: this.outputRoot, type: "file" },
         );
         if (filePaths.length === 0) {
           return [];

@@ -69,7 +69,7 @@ This is a test factorydroid rule.`;
   });
 
   describe("getExtraFixedFiles", () => {
-    it("should include the design-guidelines and threat-model files for project scope", () => {
+    it("should include the design-guidelines, threat-model and output-style files for project scope", () => {
       const files = FactorydroidRule.getExtraFixedFiles();
       expect(files).toEqual([
         {
@@ -80,12 +80,23 @@ This is a test factorydroid rule.`;
           relativeDirPath: ".factory",
           relativeFilePath: "threat-model.md",
         },
+        {
+          relativeDirPath: ".factory/output-styles",
+          relativeFilePath: "*.md",
+          importOnly: true,
+        },
       ]);
     });
 
-    it("should return no extra files for global scope", () => {
+    it("should return only the output-style files for global scope", () => {
       const files = FactorydroidRule.getExtraFixedFiles({ global: true });
-      expect(files).toEqual([]);
+      expect(files).toEqual([
+        {
+          relativeDirPath: ".factory/output-styles",
+          relativeFilePath: "*.md",
+          importOnly: true,
+        },
+      ]);
     });
   });
 
@@ -289,6 +300,101 @@ This is a test factorydroid rule.`;
       expect(factorydroidRule.isExcludedFromRootReferences()).toBe(false);
     });
 
+    const buildOutputStyleRule = ({
+      relativeFilePath = "review-notes.md",
+      root = false,
+      description,
+      name,
+    }: {
+      relativeFilePath?: string;
+      root?: boolean;
+      description?: string;
+      name?: string;
+    } = {}): RulesyncRule =>
+      new RulesyncRule({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+        relativeFilePath,
+        frontmatter: {
+          root,
+          targets: ["factorydroid"],
+          ...(description !== undefined && { description }),
+          factorydroid: { channel: "output-style", ...(name !== undefined && { name }) },
+        },
+        body: "Start with actionable findings.",
+        validate: true,
+      });
+
+    it.each([false, true])(
+      "should write a rule with factorydroid.channel: output-style to .factory/output-styles/<name>.md (global: %s)",
+      (global) => {
+        const factorydroidRule = FactorydroidRule.fromRulesyncRule({
+          outputRoot: testDir,
+          rulesyncRule: buildOutputStyleRule({
+            description: "Put findings before the summary",
+            name: "Review Notes",
+          }),
+          validate: true,
+          global,
+        });
+
+        expect(factorydroidRule.isRoot()).toBe(false);
+        expect(factorydroidRule.getRelativeDirPath()).toBe(".factory/output-styles");
+        expect(factorydroidRule.getRelativeFilePath()).toBe("review-notes.md");
+        expect(factorydroidRule.getFileContent()).toBe(
+          "---\nname: Review Notes\ndescription: Put findings before the summary\n---\nStart with actionable findings.\n",
+        );
+        expect(factorydroidRule.isExcludedFromRootReferences()).toBe(true);
+      },
+    );
+
+    it("should write a bare output style without frontmatter when neither name nor description is set", () => {
+      const factorydroidRule = FactorydroidRule.fromRulesyncRule({
+        outputRoot: testDir,
+        rulesyncRule: buildOutputStyleRule(),
+        validate: true,
+      });
+
+      expect(factorydroidRule.getFileContent()).toBe("Start with actionable findings.");
+    });
+
+    it("should not route a root rule to .factory/output-styles even with factorydroid.channel: output-style", () => {
+      const factorydroidRule = FactorydroidRule.fromRulesyncRule({
+        outputRoot: testDir,
+        rulesyncRule: buildOutputStyleRule({ relativeFilePath: "overview.md", root: true }),
+        validate: true,
+      });
+
+      expect(factorydroidRule.isRoot()).toBe(true);
+      expect(factorydroidRule.getRelativeFilePath()).toBe("AGENTS.md");
+    });
+
+    it("should refuse an output-style rule nested in a subdirectory, since Droid ignores nested style files", () => {
+      expect(() =>
+        FactorydroidRule.fromRulesyncRule({
+          outputRoot: testDir,
+          rulesyncRule: buildOutputStyleRule({ relativeFilePath: "styles/review-notes.md" }),
+          validate: true,
+        }),
+      ).toThrow(/nested in a subdirectory/);
+    });
+
+    it.each([
+      { relativeFilePath: "default.md", name: undefined },
+      { relativeFilePath: "review-notes.md", name: "Concise" },
+    ])(
+      "should refuse an output style named after a reserved built-in style ($relativeFilePath, name: $name)",
+      ({ relativeFilePath, name }) => {
+        expect(() =>
+          FactorydroidRule.fromRulesyncRule({
+            outputRoot: testDir,
+            rulesyncRule: buildOutputStyleRule({ relativeFilePath, name }),
+            validate: true,
+          }),
+        ).toThrow(/reserved/);
+      },
+    );
+
     it("should not route a root rule to DESIGN.md even with factorydroid.channel: design", () => {
       const rulesyncRule = new RulesyncRule({
         outputRoot: testDir,
@@ -480,6 +586,55 @@ This is a test factorydroid rule.`;
   });
 
   describe("toRulesyncRule", () => {
+    it.each([false, true])(
+      "should round-trip an output style back to factorydroid.channel: output-style (global: %s)",
+      async (global) => {
+        await writeFileContent(
+          join(testDir, ".factory", "output-styles", "review-notes.md"),
+          "---\nname: Review Notes\ndescription: Put findings before the summary\n---\n\nStart with actionable findings.\n",
+        );
+
+        const rule = await FactorydroidRule.fromFile({
+          outputRoot: testDir,
+          relativeDirPath: ".factory/output-styles",
+          relativeFilePath: "review-notes.md",
+          validate: true,
+          global,
+        });
+        expect(rule.isExcludedFromRootReferences()).toBe(true);
+
+        const rulesyncRule = rule.toRulesyncRule();
+
+        expect(rulesyncRule.getRelativeFilePath()).toBe("review-notes.md");
+        expect(rulesyncRule.getFrontmatter()).toMatchObject({
+          root: false,
+          targets: ["factorydroid"],
+          description: "Put findings before the summary",
+          factorydroid: { channel: "output-style", name: "Review Notes" },
+        });
+        expect(rulesyncRule.getBody()).toBe("Start with actionable findings.");
+      },
+    );
+
+    it("should import an output style without frontmatter", async () => {
+      await writeFileContent(
+        join(testDir, ".factory", "output-styles", "terse.md"),
+        "Keep answers short.",
+      );
+
+      const rule = await FactorydroidRule.fromFile({
+        outputRoot: testDir,
+        relativeDirPath: ".factory/output-styles",
+        relativeFilePath: "terse.md",
+        validate: true,
+      });
+      const rulesyncRule = rule.toRulesyncRule();
+
+      expect(rulesyncRule.getFrontmatter().factorydroid).toEqual({ channel: "output-style" });
+      expect(rulesyncRule.getFrontmatter().description).toBeUndefined();
+      expect(rulesyncRule.getBody()).toBe("Keep answers short.");
+    });
+
     it("should convert to RulesyncRule", () => {
       const rule = new FactorydroidRule({
         outputRoot: testDir,
@@ -640,6 +795,18 @@ This is a test factorydroid rule.`;
       });
 
       expect(rule).toBeInstanceOf(FactorydroidRule);
+      expect(rule.isRoot()).toBe(false);
+      expect(rule.isExcludedFromRootReferences()).toBe(true);
+    });
+
+    it("should mark an output style as a non-root, excluded-from-references deletion target", () => {
+      const rule = FactorydroidRule.forDeletion({
+        outputRoot: testDir,
+        relativeDirPath: ".factory/output-styles",
+        relativeFilePath: "review-notes.md",
+        global: true,
+      });
+
       expect(rule.isRoot()).toBe(false);
       expect(rule.isExcludedFromRootReferences()).toBe(true);
     });
