@@ -189,10 +189,10 @@ describe("VibeHooks", () => {
     });
 
     describe("backslash in command", () => {
-      // Vibe v2.25.3 skips a hook whose command contains a backslash when it
-      // loads hooks.toml, so the generate side says so instead of leaving the
-      // user to find a hook that never fires.
-      it("should warn and still write the hook when the command contains a backslash", async () => {
+      // Vibe v2.25.1 to v2.25.4 skipped a hook whose command contained a
+      // backslash; v2.25.5 removed that skip and runs hook commands through
+      // the shell again, so the command is written verbatim without a warning.
+      it("should write a backslash command verbatim without warning", async () => {
         const logger = createMockLogger();
         const rulesyncHooks = new RulesyncHooks(
           createMockAiFileParams({
@@ -201,6 +201,7 @@ describe("VibeHooks", () => {
                 preToolUse: [
                   { name: "win-guard", command: "python C:\\tools\\guard.py", matcher: "bash" },
                 ],
+                stop: [{ command: "grep -q '\\.ts$' changed.txt" }],
               },
             }),
           }),
@@ -216,44 +217,9 @@ describe("VibeHooks", () => {
         const parsed = smolToml.parse(vibeHooks.getFileContent()) as {
           hooks: Array<Record<string, unknown>>;
         };
-        expect(parsed.hooks).toHaveLength(1);
+        expect(parsed.hooks).toHaveLength(2);
         expect(parsed.hooks[0]?.command).toBe("python C:\\tools\\guard.py");
-        expect(logger.warn).toHaveBeenCalledTimes(1);
-        expect(logger.warn).toHaveBeenCalledWith(
-          expect.stringMatching(/^the command of hook "win-guard" contains a backslash/),
-        );
-      });
-
-      it("should name the generated hook when the definition has no name", async () => {
-        const logger = createMockLogger();
-        const rulesyncHooks = new RulesyncHooks(
-          createMockAiFileParams({
-            fileContent: JSON.stringify({
-              hooks: { stop: [{ command: "grep -q '\\.ts$' changed.txt" }] },
-            }),
-          }),
-        );
-
-        await VibeHooks.fromRulesyncHooks({ outputRoot: testDir, rulesyncHooks, logger });
-
-        expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('hook "post_agent-0"'));
-      });
-
-      it("should not warn when no command contains a backslash", async () => {
-        const logger = createMockLogger();
-        const rulesyncHooks = new RulesyncHooks(
-          createMockAiFileParams({
-            fileContent: JSON.stringify({
-              hooks: {
-                preToolUse: [{ command: "python /opt/tools/guard.py", matcher: "bash" }],
-                stop: [{ command: "echo turn-end" }],
-              },
-            }),
-          }),
-        );
-
-        await VibeHooks.fromRulesyncHooks({ outputRoot: testDir, rulesyncHooks, logger });
-
+        expect(parsed.hooks[1]?.command).toBe("grep -q '\\.ts$' changed.txt");
         expect(logger.warn).not.toHaveBeenCalled();
       });
     });

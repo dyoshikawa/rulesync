@@ -272,6 +272,90 @@ describe("VibeSkill", () => {
     expect(vibeSkill.getFrontmatter()["user-invocable"]).toBe(false);
   });
 
+  describe("disable-model-invocation", () => {
+    const buildRulesyncSkill = (frontmatter: Record<string, unknown>) =>
+      new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "explicit-only",
+        frontmatter: {
+          name: "explicit-only",
+          description: "Explicit-only skill",
+          targets: ["vibe"],
+          ...frontmatter,
+        },
+        body: "Body",
+      });
+
+    it("should pick up the root-level value when the vibe section omits it", () => {
+      const vibeSkill = VibeSkill.fromRulesyncSkill({
+        outputRoot: testDir,
+        rulesyncSkill: buildRulesyncSkill({ "disable-model-invocation": true }),
+      });
+
+      expect(vibeSkill.getFrontmatter()["disable-model-invocation"]).toBe(true);
+    });
+
+    it("should let the vibe section override the root-level value", () => {
+      const vibeSkill = VibeSkill.fromRulesyncSkill({
+        outputRoot: testDir,
+        rulesyncSkill: buildRulesyncSkill({
+          "disable-model-invocation": true,
+          vibe: { "disable-model-invocation": false },
+        }),
+      });
+
+      expect(vibeSkill.getFrontmatter()["disable-model-invocation"]).toBe(false);
+    });
+
+    it("should omit the key when neither the root nor the vibe section sets it", () => {
+      const vibeSkill = VibeSkill.fromRulesyncSkill({
+        outputRoot: testDir,
+        rulesyncSkill: buildRulesyncSkill({}),
+      });
+
+      expect(vibeSkill.getFrontmatter()).not.toHaveProperty("disable-model-invocation");
+    });
+
+    it("should round-trip the key into the vibe section on import", async () => {
+      const skillDir = join(testDir, ".vibe", "skills", "explicit-only");
+      await ensureDir(skillDir);
+      await writeFileContent(
+        join(skillDir, SKILL_FILE_NAME),
+        `---
+name: explicit-only
+description: Explicit-only skill
+disable-model-invocation: true
+---
+Body`,
+      );
+
+      const vibeSkill = await VibeSkill.fromDir({
+        outputRoot: testDir,
+        relativeDirPath: join(".vibe", "skills"),
+        dirName: "explicit-only",
+      });
+      const rulesyncSkill = vibeSkill.toRulesyncSkill();
+
+      expect(rulesyncSkill.getFrontmatter().vibe).toEqual({ "disable-model-invocation": true });
+      expect(
+        VibeSkill.fromRulesyncSkill({ outputRoot: testDir, rulesyncSkill }).getFrontmatter()[
+          "disable-model-invocation"
+        ],
+      ).toBe(true);
+    });
+
+    it("should reject a non-boolean value", () => {
+      const result = VibeSkillFrontmatterSchema.safeParse({
+        name: "explicit-only",
+        description: "Explicit-only skill",
+        "disable-model-invocation": "yes",
+      });
+
+      expect(result.success).toBe(false);
+    });
+  });
+
   it("should load from .agents/skills import fallback when requested by the processor", async () => {
     const skillDir = join(testDir, ".agents", "skills", "fallback");
     await ensureDir(skillDir);
