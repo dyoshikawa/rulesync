@@ -1,11 +1,11 @@
 import { symlink } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
-import { ensureDir, readFileContent, writeFileContent } from "../utils/file.js";
+import { ensureDir, fileExists, readFileContent, writeFileContent } from "../utils/file.js";
 import { subagentTools } from "./subagents.js";
 
 describe("MCP Subagents Tools", () => {
@@ -307,40 +307,118 @@ targets: ["*"]
       },
     );
 
+    it.skipIf(process.platform === "win32").each([
+      { linkedPath: ".rulesync", targetSuffix: "subagents" },
+      { linkedPath: join(".rulesync", "subagents"), targetSuffix: "" },
+    ])(
+      "should follow a symlinked $linkedPath like the CLI does",
+      async ({ linkedPath, targetSuffix }) => {
+        const externalDir = join(testDir, "dotfiles");
+        const externalSubagentsDir = join(externalDir, targetSuffix);
+        await ensureDir(join(externalSubagentsDir, "review"));
+        await ensureDir(dirname(join(testDir, linkedPath)));
+        await writeFileContent(
+          join(externalSubagentsDir, "review", "linked.md"),
+          `---
+name: linked
+targets: ["*"]
+---
+# Linked body`,
+        );
+        await symlink(externalDir, join(testDir, linkedPath), "dir");
+        const nestedPath = ".rulesync/subagents/review/linked.md";
+
+        expect(JSON.parse(await subagentTools.listSubagents.execute()).subagents).toEqual([
+          { relativePathFromCwd: nestedPath, frontmatter: { name: "linked", targets: ["*"] } },
+        ]);
+        expect(
+          JSON.parse(await subagentTools.getSubagent.execute({ relativePathFromCwd: nestedPath }))
+            .body,
+        ).toBe("# Linked body");
+        await subagentTools.putSubagent.execute({
+          relativePathFromCwd: ".rulesync/subagents/created.md",
+          frontmatter: { name: "created", targets: ["*"] },
+          body: "# Created",
+        });
+        expect(await readFileContent(join(externalSubagentsDir, "created.md"))).toContain(
+          "# Created",
+        );
+        await subagentTools.deleteSubagent.execute({ relativePathFromCwd: nestedPath });
+        expect(await fileExists(join(externalSubagentsDir, "review", "linked.md"))).toBe(false);
+      },
+    );
+
+    it.each([
+      {
+        label: "the subagents directory itself",
+        path: ".rulesync/subagents",
+        error: /must point to a \.md file/,
+      },
+      {
+        label: "a non-markdown file",
+        path: ".rulesync/subagents/review/notes",
+        error: /must point to a \.md file/,
+      },
+      {
+        label: "a dot-prefixed segment",
+        path: ".rulesync/subagents/.drafts/x.md",
+        error: /must point to a \.md file/,
+      },
+      { label: "a bare file name", path: "foo.md", error: /path traversal/i },
+    ])("should reject $label", async ({ path, error }) => {
+      const subagentsDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
+      await ensureDir(join(subagentsDir, "review"));
+      await writeFileContent(join(subagentsDir, "review", "notes"), "keep");
+      await expect(
+        subagentTools.putSubagent.execute({
+          relativePathFromCwd: path,
+          frontmatter: { name: "x", targets: ["*"] },
+          body: "# x",
+        }),
+      ).rejects.toThrow(error);
+      await expect(
+        subagentTools.deleteSubagent.execute({ relativePathFromCwd: path }),
+      ).rejects.toThrow(error);
+      expect(await readFileContent(join(subagentsDir, "review", "notes"))).toBe("keep");
+    });
+
     it.skipIf(process.platform === "win32")(
-      "should reject operations when the subagents root is a directory symlink",
+      "should not list a file symlink that get refuses to read",
       async () => {
-        const rulesyncDir = join(testDir, ".rulesync");
-        const externalDir = join(testDir, "external-subagents-root");
-        const externalFile = join(externalDir, "victim.md");
-        await ensureDir(rulesyncDir);
-        await ensureDir(externalDir);
+        const subagentsDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
+        const externalFile = join(testDir, "external.md");
+        await ensureDir(subagentsDir);
         await writeFileContent(
           externalFile,
           `---
-name: victim
+name: external
 targets: ["*"]
 ---
-# External root sentinel`,
+# External`,
         );
-        await symlink(externalDir, join(rulesyncDir, "subagents"), "dir");
-        const escapedPath = ".rulesync/subagents/victim.md";
+        await symlink(externalFile, join(subagentsDir, "link.md"), "file");
 
-        await expect(
-          subagentTools.getSubagent.execute({ relativePathFromCwd: escapedPath }),
-        ).rejects.toThrow(/symbolic link|inside the root/i);
         expect(JSON.parse(await subagentTools.listSubagents.execute()).subagents).toEqual([]);
         await expect(
-          subagentTools.putSubagent.execute({
-            relativePathFromCwd: escapedPath,
-            frontmatter: { name: "overwritten", targets: ["claudecode"] },
-            body: "# Overwritten",
-          }),
-        ).rejects.toThrow(/symbolic link|inside the root/i);
+          subagentTools.getSubagent.execute({ relativePathFromCwd: ".rulesync/subagents/link.md" }),
+        ).rejects.toThrow(/symbolic link/i);
+      },
+    );
+
+    it.skipIf(process.platform === "win32")(
+      "should report a missing subagents directory under a symlinked .rulesync as not found",
+      async () => {
+        const externalDir = join(testDir, "dotfiles");
+        await ensureDir(externalDir);
+        await symlink(externalDir, join(testDir, ".rulesync"), "dir");
+        const path = ".rulesync/subagents/missing.md";
+
         await expect(
-          subagentTools.deleteSubagent.execute({ relativePathFromCwd: escapedPath }),
-        ).rejects.toThrow(/symbolic link|inside the root/i);
-        expect(await readFileContent(externalFile)).toContain("# External root sentinel");
+          subagentTools.getSubagent.execute({ relativePathFromCwd: path }),
+        ).rejects.toThrow(/does not exist/);
+        expect(
+          JSON.parse(await subagentTools.deleteSubagent.execute({ relativePathFromCwd: path })),
+        ).toEqual({ relativePathFromCwd: path });
       },
     );
 

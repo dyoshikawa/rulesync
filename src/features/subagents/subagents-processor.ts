@@ -152,6 +152,12 @@ type ToolSubagentFactory = {
     filePattern: string;
     /** Markdown in this directory may not be an agent; leave invalid files out of imports and orphan sweeps. */
     skipInvalidFiles?: boolean;
+    /**
+     * The tool discovers agents in subdirectories, so a nested rulesync source
+     * such as `review/security.md` keeps its path. Targets without this flag
+     * only read a flat directory and skip nested sources with a warning.
+     */
+    supportsNestedPaths?: boolean;
   };
 };
 
@@ -249,6 +255,7 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
         supportsSimulated: false,
         supportsGlobal: true,
         filePattern: "**/*.md",
+        supportsNestedPaths: true,
         skipInvalidFiles: true,
       },
     },
@@ -274,6 +281,7 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
         supportsSimulated: false,
         supportsGlobal: true,
         filePattern: "**/*.md",
+        supportsNestedPaths: true,
         skipInvalidFiles: true,
       },
     },
@@ -568,6 +576,7 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
         supportsSimulated: false,
         supportsGlobal: true,
         filePattern: "**/*.md",
+        supportsNestedPaths: true,
       },
     },
   ],
@@ -876,7 +885,7 @@ export class SubagentsProcessor extends FeatureProcessor {
         return false;
       }
       const path = rulesyncSubagent.getRelativeFilePath();
-      if (!factory.meta.filePattern.startsWith("**/") && /[/\\]/u.test(path)) {
+      if (factory.meta.supportsNestedPaths !== true && /[/\\]/u.test(path)) {
         this.logger.warn(
           `Skipping nested subagent "${path}" for ${this.toolTarget}, which only supports flat subagent paths.`,
         );
@@ -884,6 +893,9 @@ export class SubagentsProcessor extends FeatureProcessor {
       }
       return true;
     });
+    if (factory.meta.supportsNestedPaths === true) {
+      this.warnAboutDuplicateNames(targeted);
+    }
 
     // Tools whose native format aggregates every subagent into a single shared
     // file (e.g. Roo's `.roomodes`) implement `fromRulesyncSubagents` to emit
@@ -915,6 +927,28 @@ export class SubagentsProcessor extends FeatureProcessor {
         logger: this.logger,
       }),
     );
+  }
+
+  /**
+   * On a nested layout the file name no longer tells agents apart: both
+   * `reviewer.md` and `review/reviewer.md` can declare `name: reviewer`, and a
+   * tool that identifies agents by name loads only one of them. Both files are
+   * still written; the warning just makes the silent shadowing visible.
+   */
+  private warnAboutDuplicateNames(rulesyncSubagents: readonly RulesyncSubagent[]): void {
+    const pathsByName = new Map<string, string>();
+    for (const rulesyncSubagent of rulesyncSubagents) {
+      const { name } = rulesyncSubagent.getFrontmatter();
+      const path = rulesyncSubagent.getRelativeFilePath();
+      const claimedPath = pathsByName.get(name);
+      if (claimedPath === undefined) {
+        pathsByName.set(name, path);
+        continue;
+      }
+      this.logger.warn(
+        `Subagents "${claimedPath}" and "${path}" both declare name "${name}" for ${this.toolTarget}, which may load only one of them; rename one to keep both.`,
+      );
+    }
   }
 
   async convertToolFilesToRulesyncFiles(toolFiles: ToolFile[]): Promise<RulesyncFile[]> {
