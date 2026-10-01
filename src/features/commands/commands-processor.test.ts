@@ -1333,6 +1333,7 @@ describe("CommandsProcessor", () => {
           "devin",
           "warp",
           "zcode",
+          "zcode-plugin",
         ]),
       );
     });
@@ -1381,6 +1382,7 @@ describe("CommandsProcessor", () => {
           "devin",
           "warp",
           "zcode",
+          "zcode-plugin",
         ]),
       );
     });

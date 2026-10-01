@@ -2707,6 +2707,7 @@ Content that would fail parsing`;
           "devin",
           "zed",
           "zcode",
+          "zcode-plugin",
           "dsh",
         ]),
       );
@@ -2773,6 +2774,7 @@ Content that would fail parsing`;
           "devin",
           "zed",
           "zcode",
+          "zcode-plugin",
           "dsh",
         ]),
       );
@@ -2838,6 +2840,7 @@ Content that would fail parsing`;
           "devin",
           "zed",
           "zcode",
+          "zcode-plugin",
           "dsh",
         ]),
       );

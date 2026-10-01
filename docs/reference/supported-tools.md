@@ -64,6 +64,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | oh-my-pi                  | omp                | ✅ 🌏 |        |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |       |             |        |
 | Zed                       | zed                | ✅ 🌏 | ✅ 🌏  |  ✅ 🌏   |          |           | ✅ 🌏  |       |    ✅ 🌏    |        |
 | ZCode (Z.ai)              | zcode              | ✅ 🌏 |        |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |             |        |
+| ZCode plugin              | zcode-plugin       |       |        |    ✅    |    ✅    |    ✅     |   ✅   |  ✅   |             |        |
 | Pool (Poolside)           | pool               | ✅ 🌏 |        | ✅ 🌏 🔧 |          |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
 | DeepSeek Harness          | dsh                | ✅ 🌏 |        |    🌏    |          |           | ✅ 🌏  |       |             |        |
 

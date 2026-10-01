@@ -841,6 +841,7 @@ describe("HooksProcessor", () => {
         "grokcli",
         "crush",
         "zcode",
+        "zcode-plugin",
       ]);
     });
 
@@ -937,6 +938,7 @@ describe("HooksProcessor", () => {
         "grokcli",
         "crush",
         "zcode",
+        "zcode-plugin",
       ]);
     });
 

@@ -51,6 +51,10 @@ const subagentsGenerateTargets = [
     outputPath: join("agents", "planner.md"),
   },
   {
+    target: "zcode-plugin",
+    outputPath: join("agents", "planner.md"),
+  },
+  {
     target: "cursor",
     outputPath: join(".cursor", "agents", "planner.md"),
   },

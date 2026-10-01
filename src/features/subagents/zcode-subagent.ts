@@ -118,6 +118,14 @@ export class ZcodeSubagent extends ToolSubagent {
     });
   }
 
+  /**
+   * Whether `permissionMode` is dropped on generation. ZCode strips it only
+   * from agents loaded from a project's `.zcode/agents/`.
+   */
+  protected static dropsPermissionMode({ global }: { global: boolean }): boolean {
+    return !global;
+  }
+
   static fromRulesyncSubagent({
     outputRoot = process.cwd(),
     rulesyncSubagent,
@@ -128,15 +136,16 @@ export class ZcodeSubagent extends ToolSubagent {
     const rulesyncFrontmatter = rulesyncSubagent.getFrontmatter();
     const fullSection = rulesyncFrontmatter.zcode ?? {};
     // ZCode discards `permissionMode` on project-scope subagents, so it is
-    // written only for the global scope.
+    // written only where the loader honors it.
     const { permissionMode, ...projectSection } = fullSection;
-    if (!global && permissionMode !== undefined) {
+    const dropsPermissionMode = this.dropsPermissionMode({ global });
+    if (dropsPermissionMode && permissionMode !== undefined) {
       logger?.warn(
         `Dropping "permissionMode" from ZCode subagent "${rulesyncSubagent.getRelativeFilePath()}": ` +
           `ZCode ignores it on project-scope subagents (it is honored in ~/.zcode/agents/ only).`,
       );
     }
-    const zcodeSection = global ? fullSection : projectSection;
+    const zcodeSection = dropsPermissionMode ? projectSection : fullSection;
 
     const zcodeFrontmatter: ZcodeSubagentFrontmatter = {
       name: rulesyncFrontmatter.name,

@@ -77,6 +77,7 @@ import {
   ToolSubagentSettablePaths,
 } from "./tool-subagent.js";
 import { VibeSubagent } from "./vibe-subagent.js";
+import { ZcodePluginSubagent } from "./zcode-plugin-subagent.js";
 import { ZcodeSubagent } from "./zcode-subagent.js";
 import { ZoocodeSubagent } from "./zoocode-subagent.js";
 
@@ -810,6 +811,20 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
         supportsProject: true,
         supportsSimulated: false,
         supportsGlobal: true,
+        filePattern: "*.md",
+      },
+    },
+  ],
+  [
+    "zcode-plugin",
+    {
+      // `<plugin>/agents/*.md`, parsed like `~/.zcode/agents/` ones.
+      // https://zcode.z.ai/en/docs/plugin
+      class: ZcodePluginSubagent,
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: false,
         filePattern: "*.md",
       },
     },

@@ -103,6 +103,7 @@ import type {
 import { ToolHooks } from "./tool-hooks.js";
 import { VibeHooks } from "./vibe-hooks.js";
 import { ZcodeHooks } from "./zcode-hooks.js";
+import { ZcodePluginHooks } from "./zcode-plugin-hooks.js";
 
 export type HooksProcessorToolTarget = (typeof hooksProcessorToolTargetTuple)[number];
 
@@ -254,6 +255,8 @@ function unsupportedMatcherEventNames({
 export const HOOKS_OVERRIDE_KEY_ALIASES: Partial<Record<ToolTarget, string>> = {
   "kiro-cli": KIRO_HOOKS_OVERRIDE_KEY,
   "kiro-ide": KIRO_HOOKS_OVERRIDE_KEY,
+  // A ZCode plugin's hooks are ZCode hooks, so it reads the `zcode` block.
+  "zcode-plugin": "zcode",
 };
 
 /** The targets whose hooks format carries a per-hook on-disk enable flag. */
@@ -261,6 +264,7 @@ const PER_HOOK_ENABLED_TARGETS: ReadonlySet<ToolTarget> = new Set([
   "kiro-cli",
   "kiro-ide",
   "zcode",
+  "zcode-plugin",
 ]);
 
 /** The targets whose hooks format carries the Kiro `confirm` prompt. */
@@ -1066,6 +1070,18 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       // hooks run once the user trusts them in ZCode.
       class: ZcodeHooks,
       meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
+      supportedEvents: ZCODE_HOOK_EVENTS,
+      supportedHookTypes: ["command"],
+      supportsMatcher: true,
+    },
+  ],
+  [
+    "zcode-plugin",
+    {
+      // `<plugin>/hooks/hooks.json`, the event map directly under `hooks`.
+      // https://zcode.z.ai/en/docs/plugin
+      class: ZcodePluginHooks,
+      meta: { supportsProject: true, supportsGlobal: false, supportsImport: true },
       supportedEvents: ZCODE_HOOK_EVENTS,
       supportedHookTypes: ["command"],
       supportsMatcher: true,
