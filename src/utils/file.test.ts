@@ -1609,6 +1609,34 @@ describe("file utilities", () => {
           expect(fileResults.length).toBeLessThan(5);
         });
 
+        it("should terminate on two links back to the walked directory", async () => {
+          // Two self-links double the walk at every level, so without a loop check the
+          // walk grows exponentially until ELOOP and never finishes in practice.
+          const loopDir = join(testDir, "two-self-links");
+          await writeFileContent(join(loopDir, "a.md"), "a");
+          await writeFileContent(join(loopDir, "sub", "b.md"), "b");
+          await symlink(".", join(loopDir, "l1"));
+          await symlink(".", join(loopDir, "l2"));
+
+          const results = await findFilesByGlobs("**/*.md", { cwd: loopDir, type: "file" });
+
+          expect(results).toEqual([join(loopDir, "a.md"), join(loopDir, "sub", "b.md")]);
+        });
+
+        it("should still walk a link to a directory above the walk root", async () => {
+          // `up -> ..` leaves the walk, so its files are reachable through it; only the
+          // descent back into the walk root through `up/<root>` repeats a directory.
+          const parentDir = join(testDir, "link-to-parent");
+          const rootDir = join(parentDir, "root");
+          await writeFileContent(join(parentDir, "outside.md"), "outside");
+          await writeFileContent(join(rootDir, "inside.md"), "inside");
+          await symlink("..", join(rootDir, "up"));
+
+          const results = await findFilesByGlobs("**/*.md", { cwd: rootDir, type: "file" });
+
+          expect(results).toEqual([join(rootDir, "inside.md"), join(rootDir, "up", "outside.md")]);
+        });
+
         it("should represent a file by its real path rather than by a directory alias", async () => {
           // The alias sorts before the real directory, so a representative
           // chosen by sort order alone would hide `zzz` entirely and leave the

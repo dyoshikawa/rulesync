@@ -1,4 +1,4 @@
-import { constants, type Stats } from "node:fs";
+import { constants, readdirSync, realpathSync, type Stats } from "node:fs";
 import type { FileHandle } from "node:fs/promises";
 import {
   cp,
@@ -914,6 +914,47 @@ function chooseRepresentative(candidates: string[], identity: string): string {
   });
 }
 
+/**
+ * A `readdirSync` for one glob walk that reads a directory as empty when its real
+ * path equals the real path of a directory above it in the same walk -- the loop
+ * check `find -L` makes. Without it, globby follows a directory link cycle until the
+ * kernel's ELOOP limit, and two links back to one directory (`a -> .`, `b -> .`)
+ * double the walk at every level, so it never finishes in practice.
+ *
+ * Only ancestors are compared, not every directory seen: a link that aliases a
+ * sibling (`aaa -> zzz`) is still walked, so both names reach the deduplication in
+ * `findFilesByGlobs` and the real path can represent the file. A directory cut here
+ * only repeats one the walk is already inside, so no file goes missing, and every
+ * endless descent must repeat such a real path, so the walk always ends without a
+ * depth cap.
+ */
+function createCycleSafeReaddirSync(): typeof readdirSync {
+  const realPathByDir = new Map<string, string>();
+  const guarded = (dirPath: string, options?: unknown): unknown => {
+    const dir = resolve(dirPath);
+    let real: string | undefined;
+    try {
+      real = realpathSync.native(dir);
+    } catch {
+      // Leave an unresolvable directory to `readdirSync` and its own error.
+    }
+    if (real !== undefined) {
+      let child = dir;
+      let ancestor = dirname(dir);
+      while (ancestor !== child) {
+        if (realPathByDir.get(ancestor) === real) {
+          return [];
+        }
+        child = ancestor;
+        ancestor = dirname(ancestor);
+      }
+      realPathByDir.set(dir, real);
+    }
+    return readdirSync(dir, options as Parameters<typeof readdirSync>[1]);
+  };
+  return guarded as typeof readdirSync;
+}
+
 export async function findFilesByGlobs(
   globs: string | string[],
   options: {
@@ -971,19 +1012,20 @@ export async function findFilesByGlobs(
   // Symlink following defaults to true so callers can share skills/rules without
   // duplication (see issue #1707). Destructive discovery passes false and validates
   // real-path containment before deletion. Untrusted remote content is a separate code
-  // path: git-client.ts (`walkDirectory`) skips symlinks entirely.
+  // path: git-client.ts (`walkDirectory`) skips symlinks entirely. A followed directory
+  // link that leads back above itself is not descended (see `createCycleSafeReaddirSync`).
   const results = globbySync(normalizedGlobs, {
     absolute: true,
     cwd,
     followSymbolicLinks,
+    ...(followSymbolicLinks ? { fs: { readdirSync: createCycleSafeReaddirSync() } } : {}),
     dot,
     ...(ignore ? { ignore: ignore.map((pattern) => pattern.replaceAll("\\", "/")) } : {}),
     ...globbyOptions,
   });
-  // Deduplicate by real file so that directory symlink cycles (which globby follows up to
-  // the kernel ELOOP limit, ~40 levels) do not yield ~40x duplicated entries that would be
-  // read and re-emitted -- and so that a thousand links to one file cost one read of it,
-  // not a thousand. One path per file, chosen by `chooseRepresentative`.
+  // Deduplicate by real file so that a file reached through several directory aliases is
+  // read and re-emitted once -- and so that a thousand links to one file cost one read of
+  // it, not a thousand. One path per file, chosen by `chooseRepresentative`.
   const candidatesByFile = new Map<string, string[]>();
   for (const result of results.toSorted()) {
     const identity = await realFileIdentity(result);
