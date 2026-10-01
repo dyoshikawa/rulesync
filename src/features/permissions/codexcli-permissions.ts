@@ -18,7 +18,8 @@ import {
 import { ToolFile } from "../../types/tool-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
-import { warnWithFallback } from "../../utils/logger.js";
+import { parseGlobPattern } from "../../utils/glob.js";
+import { type Logger, warnWithFallback } from "../../utils/logger.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { bashRulesHonoringAllTools } from "./shell-command-categories.js";
@@ -366,15 +367,17 @@ export class CodexcliRulesFile extends ToolFile {
 export function createCodexcliBashRulesFile({
   outputRoot = process.cwd(),
   config,
+  logger,
 }: {
   outputRoot?: string;
   config: PermissionsConfig;
+  logger?: Logger;
 }): CodexcliRulesFile {
   return new CodexcliRulesFile({
     outputRoot,
     relativeDirPath: CODEXCLI_RULES_DIR_PATH,
     relativeFilePath: CODEXCLI_BASH_RULES_FILE_NAME,
-    fileContent: buildCodexBashRulesContent(config),
+    fileContent: buildCodexBashRulesContent({ config, logger }),
   });
 }
 
@@ -432,8 +435,14 @@ function convertRulesyncToCodexProfile({
       continue;
     }
 
+    // bash is not part of the permission profile; createCodexcliBashRulesFile
+    // writes it to .codex/rules/rulesync.rules.
+    if (toolName === "bash") {
+      continue;
+    }
+
     logger?.warn(
-      `Codex CLI permissions support only read/edit/write/webfetch categories. Skipping: ${toolName}`,
+      `Codex CLI permission profiles support only read/edit/write/webfetch categories (bash goes to .codex/rules/rulesync.rules). Skipping: ${toolName}`,
     );
   }
 
@@ -1706,7 +1715,13 @@ function stripTrailingSlash(pattern: string): string {
   return pattern.length > 1 && pattern.endsWith("/") ? pattern.slice(0, -1) : pattern;
 }
 
-function buildCodexBashRulesContent(config: PermissionsConfig): string {
+function buildCodexBashRulesContent({
+  config,
+  logger,
+}: {
+  config: PermissionsConfig;
+  logger?: Logger;
+}): string {
   const bashRules = bashRulesHonoringAllTools(config.permission);
   const entries = Object.entries(bashRules);
 
@@ -1720,8 +1735,8 @@ function buildCodexBashRulesContent(config: PermissionsConfig): string {
 
   const ruleBlocks = entries
     .map(([pattern, action]) => {
-      const tokens = toCommandPatternTokens(pattern);
-      if (tokens.length === 0) {
+      const tokens = toCodexPrefixRuleTokens({ commandPattern: pattern, action, logger });
+      if (tokens === null) {
         return null;
       }
 
@@ -1729,7 +1744,8 @@ function buildCodexBashRulesContent(config: PermissionsConfig): string {
       const decision = mapBashActionToDecision(action);
       return [
         "",
-        `# ${pattern}`,
+        // A line break in the key would end the comment and let the rest run as rule code.
+        `# ${pattern.replace(/[\r\n\u2028\u2029]+/g, " ")}`,
         "prefix_rule(",
         `    pattern = [${serializedTokens}],`,
         `    decision = ${JSON.stringify(decision)},`,
@@ -1746,12 +1762,76 @@ function buildCodexBashRulesContent(config: PermissionsConfig): string {
   return [...header, ...ruleBlocks].join("\n");
 }
 
-function toCommandPatternTokens(commandPattern: string): string[] {
-  return commandPattern
-    .trim()
-    .split(/\s+/)
-    .map((token) => token.trim())
-    .filter((token) => token.length > 0);
+/**
+ * Turn a canonical bash pattern into the `pattern` of a Codex `prefix_rule`,
+ * or `null` when Codex cannot express it.
+ *
+ * Each element of a Codex pattern is a literal token (or a list of literal
+ * alternatives), and the rule matches any command that starts with those
+ * tokens. Glob characters are therefore not wildcards there: `["sudo", "*"]`
+ * only matches the command `sudo *` typed literally, so a `sudo *` deny would
+ * block nothing.
+ *
+ * A trailing standalone `*` word says "anything after this", which is exactly
+ * what a prefix rule already means, so it is dropped: `sudo *` becomes
+ * `["sudo"]`. That holds for allow, ask and deny alike. The prefix rule also
+ * matches the bare command (`sudo` with no arguments), as the Letta Code and
+ * Tabnine adapters' `<prefix> *` translations do. Any other wildcard
+ * (`npm install*`, `git * --no-verify`) has no prefix-rule equivalent. Cutting
+ * the pattern down to the tokens before it would widen the rule — a deny on
+ * `npm install*` would block every `npm` command, an allow would approve
+ * them all — so the pattern is skipped with a warning instead.
+ *
+ * Wildcards are recognized with rulesync's own glob grammar, so a lone `[`
+ * (the `test` command) stays a literal token.
+ * @see https://developers.openai.com/codex/rules
+ */
+function toCodexPrefixRuleTokens({
+  commandPattern,
+  action,
+  logger,
+}: {
+  commandPattern: string;
+  action: PermissionAction;
+  logger?: Logger;
+}): string[] | null {
+  // A legacy `git:*` spells "any arguments" on the last word, the same as
+  // `git *` (see the deepagents adapter).
+  const normalized = commandPattern.trim().replace(/(?<=\S):\*$/, " *");
+  // Only one trailing wildcard word is dropped: `docker * *` needs at least two
+  // more words, which a prefix rule cannot require, so it falls through to the
+  // skip below instead of becoming a rule for every `docker` command.
+  const rest = normalized.replace(/(^|\s+)\*+$/, "");
+
+  if (rest.length === 0) {
+    if (normalized.length === 0) {
+      return null;
+    }
+    // A pattern of only `*` covers every command. A prefix rule needs at least
+    // one token, so Codex rules cannot say "every command"; the approval
+    // policy can.
+    warnWithFallback(
+      logger,
+      `Skipping Codex CLI bash rule "${commandPattern}" (${action}): it matches every command, which a Codex prefix_rule cannot express, so no rule is written for it. Set codexcli.approval_policy to control how Codex approves commands in general.`,
+    );
+    return null;
+  }
+
+  // Check the whole remainder, not word by word: a class such as `git[ ]status`
+  // spans the space the words are split on.
+  if (hasCommandGlob(rest)) {
+    warnWithFallback(
+      logger,
+      `Skipping Codex CLI bash rule "${commandPattern}" (${action}): Codex prefix_rule patterns are literal tokens, so only a trailing standalone "*" can be translated. The rule is dropped entirely — even a deny — and Codex does NOT enforce it. Rewrite it as literal words, optionally followed by " *".`,
+    );
+    return null;
+  }
+
+  return rest.split(/\s+/);
+}
+
+function hasCommandGlob(token: string): boolean {
+  return parseGlobPattern(token).steps.some((step) => step.kind !== "literal");
 }
 
 function mapBashActionToDecision(action: PermissionAction): "allow" | "prompt" | "forbidden" {

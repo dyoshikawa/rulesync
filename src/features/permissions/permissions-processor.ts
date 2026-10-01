@@ -762,6 +762,7 @@ export class PermissionsProcessor extends FeatureProcessor {
     const bashRulesFile = createCodexcliBashRulesFile({
       outputRoot: this.outputRoot,
       config: effectivePermissions.getJson(),
+      logger: this.logger,
     });
     return [toolPermissions, bashRulesFile];
   }
