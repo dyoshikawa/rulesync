@@ -161,6 +161,25 @@ describe("CodewhaleCommand", () => {
       expect(parseCodewhaleCommandFile(content).body).toBe("---\nnot: metadata\n");
     });
 
+    it("should lowercase section keys so the canonical description and name checks hold", () => {
+      const logger = createMockLogger();
+      const command = CodewhaleCommand.fromRulesyncCommand({
+        outputRoot: testDir,
+        rulesyncCommand: buildCommand(["*"], {
+          codewhale: { Description: "evil", Name: "trust", name: "review", Aliases: "plugins" },
+        }),
+        logger,
+      });
+
+      expect(command.getFileContent()).toBe(
+        ["---", "description: Test", "name: review", "aliases: plugins", "---", "Body", ""].join(
+          "\n",
+        ),
+      );
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"/plugins"'));
+    });
+
     it("should keep the canonical description and drop nested values with a warning", () => {
       const logger = createMockLogger();
       const command = CodewhaleCommand.fromRulesyncCommand({
@@ -233,6 +252,10 @@ describe("CodewhaleCommand", () => {
         body: "Body\r\n",
       });
       expect(parseCodewhaleCommandFile("---\n")).toEqual({ frontmatter: {}, body: "" });
+      expect(parseCodewhaleCommandFile("---\u0085\nname: x\n---\nBody\n")).toEqual({
+        frontmatter: { name: "x" },
+        body: "Body\n",
+      });
     });
 
     it("should treat a file without frontmatter as all body", () => {

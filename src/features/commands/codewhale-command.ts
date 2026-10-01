@@ -54,10 +54,11 @@ export type CodewhaleCommandParams = {
 /**
  * Project commands Codewhale refuses to load under these names (or aliases),
  * because they would stand in for a built-in that grants or revokes authority.
- * Built-in aliases of these commands are refused as well but not listed here.
+ * Codewhale resolves a name through its command registry first, so the
+ * built-in aliases of these commands are refused too and are listed after them.
  * @see https://github.com/Hmbown/Codewhale/blob/main/crates/tui/src/commands/user_registry.rs
  */
-// cspell:ignore jihua zidong
+// cspell:ignore jihua zidong xinren qingchu xitong batonpass dangan gouzi mcps
 const CODEWHALE_PROTECTED_BUILTINS: ReadonlySet<string> = new Set([
   "auth",
   "auto",
@@ -90,13 +91,44 @@ const CODEWHALE_PROTECTED_BUILTINS: ReadonlySet<string> = new Set([
   "update",
   "workspace",
   "zidong",
+  // Aliases of the protected built-ins above.
+  "batonpass",
+  "cwd",
+  "dangan",
+  "extensions",
+  "gouzi",
+  "hook",
+  "law",
+  "mcps",
+  "permission-rules",
+  "permission_rules",
+  "plugins",
+  "qingchu",
+  "remote-control",
+  "upgrade",
+  "xinren",
+  "xitong",
+  "接力",
 ]);
 
 /** A frontmatter key Codewhale's line parser reads back as the same key. */
-const FRONTMATTER_KEY_PATTERN = /^[A-Za-z0-9_-]+$/;
+const FRONTMATTER_KEY_PATTERN = /^[a-z0-9_-]+$/;
+
+/**
+ * Trim like Rust's `str::trim`, which also strips U+0085 (NEL) where
+ * `String.prototype.trim` does not.
+ */
+function trimLikeRust(text: string): string {
+  return text.replace(/^[\s\u0085]+/, "").replace(/[\s\u0085]+$/, "");
+}
+
+/** Lowercase like Rust's `to_ascii_lowercase`, leaving non-ASCII letters alone. */
+function toAsciiLowerCase(text: string): string {
+  return text.replace(/[A-Z]/g, (letter) => letter.toLowerCase());
+}
 
 function isDelimiterLine(line: string): boolean {
-  const trimmed = line.trim();
+  const trimmed = trimLikeRust(line);
   return trimmed.length >= 3 && /^-+$/.test(trimmed);
 }
 
@@ -136,7 +168,7 @@ export function parseCodewhaleCommandFile(content: string): {
     }
     const separator = line.indexOf(":");
     if (separator === -1) {
-      if (line.trim().length > 0) {
+      if (trimLikeRust(line).length > 0) {
         return {
           frontmatter,
           body: lines
@@ -147,8 +179,8 @@ export function parseCodewhaleCommandFile(content: string): {
       }
       continue;
     }
-    const key = line.slice(0, separator).trim().toLowerCase();
-    const rawValue = line.slice(separator + 1).trim();
+    const key = toAsciiLowerCase(trimLikeRust(line.slice(0, separator)));
+    const rawValue = trimLikeRust(line.slice(separator + 1));
     if (key.length === 0 || PROTOTYPE_POLLUTION_KEYS.has(key)) continue;
     frontmatter[key] = key === "allowed-tools" ? rawValue : stripMatchedQuotes(rawValue);
   }
@@ -166,7 +198,7 @@ function stringifyCodewhaleCommandFile(body: string, frontmatter: Record<string,
     if (value === undefined || value === null) continue;
     const text = String(value)
       .split(/\r\n|\r|\n/)
-      .map((part) => part.trim())
+      .map(trimLikeRust)
       .filter((part) => part.length > 0)
       .join(" ");
     const needsWrap = key !== "allowed-tools" && stripMatchedQuotes(text) !== text;
@@ -206,13 +238,17 @@ function toCodewhaleSectionFields({
 }): Record<string, unknown> {
   const fields: Record<string, unknown> = {};
   const droppedKeys: string[] = [];
-  for (const [key, value] of Object.entries(section)) {
+  for (const [rawKey, value] of Object.entries(section)) {
+    // Codewhale lowercases every key and keeps the last value of a repeated
+    // one, so write the lowercased key and let a later spelling overwrite.
+    const key = toAsciiLowerCase(rawKey);
     // The canonical description always wins over a stray same-named key.
     if (key === "description" || PROTOTYPE_POLLUTION_KEYS.has(key)) continue;
     const converted = toCodewhaleFrontmatterValue(value);
     if (converted === undefined || !FRONTMATTER_KEY_PATTERN.test(key)) {
-      droppedKeys.push(key);
+      droppedKeys.push(rawKey);
     } else {
+      delete fields[key];
       fields[key] = converted;
     }
   }
@@ -241,17 +277,17 @@ function warnOnUnusableNames({
   global: boolean;
   logger?: Logger;
 }): void {
-  const normalize = (name: string) => name.trim().replace(/^\/+/, "").toLowerCase();
+  const normalize = (name: string) => toAsciiLowerCase(trimLikeRust(name).replace(/^\/+/, ""));
   const stem = normalize(relativeFilePath.replace(/\.md$/, ""));
   let name = stem;
   if (frontmatter.name !== undefined) {
-    const configured = String(frontmatter.name).trim().replace(/^\//, "");
-    if (configured.length === 0 || /[\s/]/.test(configured)) {
+    const configured = trimLikeRust(String(frontmatter.name)).replace(/^\//, "");
+    if (configured.length === 0 || /[\s\u0085/]/.test(configured)) {
       logger?.warn(
         `Codewhale rejects the name "${String(frontmatter.name)}" of the command ${relativeFilePath} (expected one slash-command token) and falls back to "/${stem}".`,
       );
     } else {
-      name = configured.toLowerCase();
+      name = toAsciiLowerCase(configured);
     }
   }
   if (global) return;
