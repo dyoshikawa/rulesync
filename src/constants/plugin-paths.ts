@@ -19,3 +19,5 @@ export const AUGMENTCODE_PLUGIN_RULES_DIR = "rules";
 export const AUGMENTCODE_PLUGIN_COMMANDS_DIR = "commands";
 export const AUGMENTCODE_PLUGIN_AGENTS_DIR = "agents";
 export const AUGMENTCODE_PLUGIN_SKILLS_DIR = "skills";
+export const AUGMENTCODE_PLUGIN_HOOKS_DIR = "hooks";
+export const AUGMENTCODE_PLUGIN_HOOKS_FILE_NAME = "hooks.json";

@@ -341,6 +341,7 @@ export const hooksProcessorToolTargetTuple = [
   "kiro-ide",
   "devin",
   "augmentcode",
+  "augmentcode-plugin",
   "bob",
   "junie",
   "vibe",

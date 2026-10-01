@@ -130,6 +130,7 @@ const hooksGenerateTargets = [
   { target: "antigravity-plugin", outputPath: "hooks.json" },
   { target: "antigravity-cli", outputPath: join(".agents", "hooks.json") },
   { target: "augmentcode", outputPath: join(".augment", "settings.json") },
+  { target: "augmentcode-plugin", outputPath: join("hooks", "hooks.json") },
   { target: "bob", outputPath: join(".bob", "settings.json") },
   { target: "tabnine", outputPath: join(".tabnine", "agent", "settings.json") },
   { target: "cortexcode", outputPath: join(".cortex", "settings.json") },
@@ -229,6 +230,15 @@ describe("E2E: hooks", () => {
         expect(parsed.hooks.SessionStart).toBeDefined();
         expect(parsed.hooks.Stop).toBeDefined();
         expect(parsed.hooks.SessionStart[0].hooks[0].command).toContain('"$CLAUDE_PROJECT_DIR"/');
+      } else if (target === "augmentcode-plugin") {
+        // Auggie plugin hooks use PascalCase events, and dot-relative scripts
+        // are anchored to the plugin root rather than the consumer's workspace.
+        expect(parsed.hooks.SessionStart[0].hooks[0].command).toBe(
+          '"$AUGMENT_PLUGIN_ROOT"/.rulesync/hooks/session-start.sh',
+        );
+        expect(parsed.hooks.Stop[0].hooks[0].command).toBe(
+          '"$AUGMENT_PLUGIN_ROOT"/.rulesync/hooks/audit.sh',
+        );
       } else if (target === "kiro") {
         // The deprecated `kiro` alias keeps the embedded
         // .kiro/agents/default.json agent-hook format and event mapping:
@@ -1040,6 +1050,21 @@ describe("E2E: hooks (import)", () => {
         hooks: {
           SessionStart: [
             { matcher: "", hooks: [{ type: "command", command: "echo session started" }] },
+          ],
+        },
+      },
+    },
+    {
+      // Auggie plugin bundles ship hooks in `hooks/hooks.json` with PascalCase
+      // events; the documented `${AUGMENT_PLUGIN_ROOT}` prefix is stripped.
+      target: "augmentcode-plugin",
+      sourcePath: join("hooks", "hooks.json"),
+      sourceContent: {
+        hooks: {
+          SessionStart: [
+            {
+              hooks: [{ type: "command", command: "${AUGMENT_PLUGIN_ROOT}/hooks/start.sh" }],
+            },
           ],
         },
       },

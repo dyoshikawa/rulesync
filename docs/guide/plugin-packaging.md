@@ -25,7 +25,7 @@ rulesync generate \
 
 rulesync generate \
   --targets augmentcode-plugin \
-  --features rules,mcp,commands,subagents,skills \
+  --features rules,mcp,commands,subagents,skills,hooks \
   --output-roots ./plugins/review-tools
 ```
 
@@ -41,7 +41,7 @@ The same configuration can be persisted in `rulesync.jsonc`:
   "targets": {
     "claudecode-plugin": ["mcp", "commands", "subagents", "skills", "hooks"],
     "antigravity-plugin": ["rules", "mcp", "subagents", "skills", "hooks"],
-    "augmentcode-plugin": ["rules", "mcp", "commands", "subagents", "skills"],
+    "augmentcode-plugin": ["rules", "mcp", "commands", "subagents", "skills", "hooks"],
   },
 }
 ```
@@ -73,7 +73,7 @@ rulesync import \
 
 rulesync import \
   --targets augmentcode-plugin \
-  --features rules,mcp,commands,subagents,skills \
+  --features rules,mcp,commands,subagents,skills,hooks \
   --output-root ./plugins/review-tools
 ```
 
@@ -85,7 +85,7 @@ The `convert` command does not accept packaging targets because it has no separa
 | -------------------- | ------------ | ----------------- | --------------- | ------------- | ------------------- | ------------------ |
 | `claudecode-plugin`  | —            | `.mcp.json`       | `commands/*.md` | `agents/*.md` | `skills/*/SKILL.md` | `hooks/hooks.json` |
 | `antigravity-plugin` | `rules/*.md` | `mcp_config.json` | —               | `agents/*.md` | `skills/*/SKILL.md` | `hooks.json`       |
-| `augmentcode-plugin` | `rules/*.md` | `.mcp.json`       | `commands/*.md` | `agents/*.md` | `skills/*/SKILL.md` | —                  |
+| `augmentcode-plugin` | `rules/*.md` | `.mcp.json`       | `commands/*.md` | `agents/*.md` | `skills/*/SKILL.md` | `hooks/hooks.json` |
 
 Claude-specific frontmatter and hook overrides continue to use the `claudecode` sections in Rulesync source files. Antigravity plugin output uses the `antigravity-ide` conversion model and override sections because its plugin components follow the Antigravity IDE format.
 
@@ -93,7 +93,7 @@ Claude-specific frontmatter and hook overrides continue to use the `claudecode` 
 
 [Auggie plugins](https://docs.augmentcode.com/cli/plugins) use the Claude Code plugin layout plus a `rules/` directory, and Auggie reads plugin rules and skills the same way as the matching `.augment/` directories. The `augmentcode-plugin` target therefore writes each component in the `augmentcode` format — rules keep their `type` / `description` frontmatter from the `augmentcode` section of a Rulesync rule — and `.mcp.json` in the Claude-style `mcpServers` shape Auggie documents for plugins. Auggie namespaces plugin commands and subagents under the plugin, and a nested command directory adds a `:` segment to the command name. Plugin commands and subagents are read more narrowly than their `.augment/` counterparts: a plugin command keeps only its `description` and `model` (Rulesync drops `argument-hint` and any other field with a warning), and a plugin subagent is named after its file and keeps only `description`, `model` and `hidden`. Rulesync therefore drops every other subagent field from the `augmentcode` section (such as `tools`, `disabled_tools` or `color`) with a warning, since Auggie would ignore it; an agent whose tools were restricted runs with the full tool set when shipped in a plugin, so keep it on the `augmentcode` target if the restriction matters. A subagent whose `name` differs from its file name is warned about, because Auggie shows the file name.
 
-Hooks are not generated yet: a plugin hook file lives in `hooks/` and needs its script paths anchored to the plugin root (`${AUGMENT_PLUGIN_ROOT}`), which the `augmentcode` hook converter does not do. Keep a plugin's `hooks/hooks.json` hand-authored for now; Rulesync leaves it untouched.
+Hooks are written to `hooks/hooks.json` as a `{ "hooks": { ... } }` document in the same format as the `hooks` key of `.augment/settings.json` (PascalCase events, `command` hooks only, `timeout` in milliseconds), and the `augmentcode` override section of `.rulesync/hooks.json` applies to it. Rulesync owns the whole file, so it is overwritten on generate rather than merged. Because hook scripts ship inside the plugin, a relative hook command such as `./hooks/format.sh` is written as `"$AUGMENT_PLUGIN_ROOT"/hooks/format.sh` (Auggie sets that variable for plugin hooks and runs such a command through `bash -c`), and the exec form (a hook with `args`) uses the braced `${AUGMENT_PLUGIN_ROOT}/hooks/format.sh` placeholder that Auggie substitutes itself. Later `./` words that name a script the command runs are anchored the same way, while other arguments and bare commands such as `npx prettier --write ./src` are left as written. Import converts both forms back to the relative command. Auggie's `${AUGGIE_PLUGIN_ROOT}` and `${CLAUDE_PLUGIN_ROOT}` aliases are passed through verbatim on import.
 
 Since Auggie also accepts `.claude-plugin/` bundles, a `claudecode-plugin` bundle installs in Auggie too, but `claudecode-plugin` does not write `rules/` and its components carry Claude Code frontmatter; use `augmentcode-plugin` when the bundle targets Auggie.
 
