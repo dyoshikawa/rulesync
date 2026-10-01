@@ -1618,8 +1618,8 @@ describe("file utilities", () => {
         });
 
         it("should not produce duplicated entries when a directory symlink cycle exists", async () => {
-          // skills/a contains a real file and a link back to skills/, forming a cycle that
-          // globby follows up to the kernel ELOOP limit. Deduplication by real path collapses it.
+          // skills/a contains a real file and a link back to skills/, forming a cycle. The
+          // loop check stops the walk at the link, so each real file is found once.
           const skillsDir = join(testDir, "skills");
           const skillA = join(skillsDir, "a");
           await ensureDir(skillA);
@@ -1630,10 +1630,80 @@ describe("file utilities", () => {
             type: "file",
           });
 
-          // Exactly one entry survives per real file despite the cycle (no ~40x blowup).
+          // Exactly one entry survives per real file despite the cycle.
           const uniqueRealPaths = new Set(await Promise.all(fileResults.map((p) => realpath(p))));
           expect(uniqueRealPaths.size).toBe(fileResults.length);
           expect(fileResults.length).toBeLessThan(5);
+        });
+
+        it("should terminate on two links back to the walked directory", async () => {
+          // Two self-links double the walk at every level, so without a loop check the
+          // walk grows exponentially until ELOOP and never finishes in practice.
+          const loopDir = join(testDir, "two-self-links");
+          await writeFileContent(join(loopDir, "a.md"), "a");
+          await writeFileContent(join(loopDir, "sub", "b.md"), "b");
+          await symlink(".", join(loopDir, "l1"));
+          await symlink(".", join(loopDir, "l2"));
+
+          const results = await findFilesByGlobs("**/*.md", { cwd: loopDir, type: "file" });
+
+          expect(results).toEqual([join(loopDir, "a.md"), join(loopDir, "sub", "b.md")]);
+        });
+
+        it("should terminate on two directories linking to each other", async () => {
+          const mutualDir = join(testDir, "mutual-loop");
+          await writeFileContent(join(mutualDir, "a", "a.md"), "a");
+          await writeFileContent(join(mutualDir, "c", "c.md"), "c");
+          await symlink(join("..", "c"), join(mutualDir, "a", "b"));
+          await symlink(join("..", "a"), join(mutualDir, "c", "d"));
+
+          const results = await findFilesByGlobs("**/*.md", { cwd: mutualDir, type: "file" });
+
+          expect(results).toEqual([join(mutualDir, "a", "a.md"), join(mutualDir, "c", "c.md")]);
+        });
+
+        it("should not let one pattern's walk cut another pattern's walk short", async () => {
+          // `*.txt` reads the root; `sub/*.md` starts its own walk at `sub -> .`, which
+          // must not count the root read by the other pattern as its ancestor.
+          const loopDir = join(testDir, "loop-across-patterns");
+          await writeFileContent(join(loopDir, "a.md"), "a");
+          await writeFileContent(join(loopDir, "x.txt"), "x");
+          await symlink(".", join(loopDir, "sub"));
+
+          const results = await findFilesByGlobs(["*.txt", "sub/*.md"], {
+            cwd: loopDir,
+            type: "file",
+          });
+
+          expect(results).toEqual([join(loopDir, "sub", "a.md"), join(loopDir, "x.txt")]);
+        });
+
+        it("should apply a negative pattern only to the patterns before it", async () => {
+          const negDir = join(testDir, "negative-per-walk");
+          await writeFileContent(join(negDir, "a.md"), "a");
+          await writeFileContent(join(negDir, "b.md"), "b");
+          await writeFileContent(join(negDir, "a.txt"), "a");
+
+          const results = await findFilesByGlobs(["*.md", "!a.*", "*.txt"], {
+            cwd: negDir,
+            type: "file",
+          });
+
+          expect(results).toEqual([join(negDir, "a.txt"), join(negDir, "b.md")]);
+        });
+
+        it("should still walk a link to a directory above the walk root", async () => {
+          // `up -> ..` leaves the walk, so its files are reachable through it; only the
+          // descent back into the walk root through `up/<root>` repeats a directory.
+          const parentDir = join(testDir, "link-to-parent");
+          const rootDir = join(parentDir, "root");
+          await writeFileContent(join(parentDir, "outside.md"), "outside");
+          await writeFileContent(join(rootDir, "inside.md"), "inside");
+          await symlink("..", join(rootDir, "up"));
+
+          const results = await findFilesByGlobs("**/*.md", { cwd: rootDir, type: "file" });
+
+          expect(results).toEqual([join(rootDir, "inside.md"), join(rootDir, "up", "outside.md")]);
         });
 
         it("should represent a file by its real path rather than by a directory alias", async () => {
