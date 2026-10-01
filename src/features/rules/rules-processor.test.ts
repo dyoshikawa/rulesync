@@ -1174,6 +1174,27 @@ describe("RulesProcessor", () => {
       },
     );
 
+    it.skipIf(process.platform === "win32")(
+      "should skip factorydroid output styles reached through a linked directory",
+      async () => {
+        await writeFileContent(join(testDir, "outside", "secret.md"), "Outside the project.");
+        await ensureDir(join(testDir, ".factory"));
+        await symlink(join(testDir, "outside"), join(testDir, ".factory", "output-styles"), "dir");
+
+        const processor = new RulesProcessor({
+          logger,
+          outputRoot: testDir,
+          toolTarget: "factorydroid",
+        });
+
+        const imported = await processor.loadToolFiles();
+        expect(imported.map((file) => file.getFileContent())).not.toContain("Outside the project.");
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining("Skipping symbolic link .factory/output-styles/secret.md"),
+        );
+      },
+    );
+
     it("should import Junie's .junie/rules and playbook but never delete them", async () => {
       // Junie combines a project-root `AGENTS.md` with `.junie/playbook.md`
       // and `.junie/rules/*.md` — the layout a repo is in before it has a
@@ -5103,6 +5124,23 @@ targets: ["factorydroid"]
         }),
         new RulesyncRule({
           relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "default-targets-style.md",
+          frontmatter: { root: false, factorydroid: { channel: "output-style" } },
+          body: "Start with findings.",
+        }),
+        // Never reaches factorydroid, so its factorydroid keys are not reported.
+        new RulesyncRule({
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "claudecode-only.md",
+          frontmatter: {
+            root: false,
+            targets: ["claudecode"],
+            factorydroid: { channel: "output-style", name: "Elsewhere" },
+          },
+          body: "Start with findings.",
+        }),
+        new RulesyncRule({
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
           relativeFilePath: "design.md",
           frontmatter: {
             root: false,
@@ -5122,6 +5160,7 @@ targets: ["factorydroid"]
       const warnings = logger.warn.mock.calls.map(([message]) => String(message));
       expect(warnings.filter((message) => message.includes("also targets other tools"))).toEqual([
         expect.stringContaining("leaky-style.md"),
+        expect.stringContaining("default-targets-style.md"),
       ]);
       expect(warnings.filter((message) => message.includes("sets factorydroid.name"))).toEqual([
         expect.stringContaining("design.md"),

@@ -36,8 +36,8 @@ import {
   fileExists,
   filterOutPathsInGitIgnoredDirectories,
   findFilesByGlobs,
-  isSymlink,
   readFileContent,
+  resolvedRelativePath,
   toPosixPath,
 } from "../../utils/file.js";
 import { type Logger, warnOnceWithFallback } from "../../utils/logger.js";
@@ -1516,7 +1516,7 @@ export class RulesProcessor extends FeatureProcessor {
     const factory = this.getFactory(this.toolTarget);
     const { meta } = factory;
     this.warnForIncludeRootOption(meta);
-    this.warnForFactorydroidRuleOptions(alignedRules);
+    this.warnForFactorydroidRuleOptions({ rules: alignedRules, factory });
     const emittedRules = this.omitsRootFiles()
       ? await this.dropRootRules(alignedRules)
       : alignedRules;
@@ -1858,13 +1858,23 @@ export class RulesProcessor extends FeatureProcessor {
    * rules), and `factorydroid.name` is read only with `channel: output-style`.
    * Checked while generating for factorydroid only, so each warning prints once.
    */
-  private warnForFactorydroidRuleOptions(rules: RulesyncRule[]): void {
+  private warnForFactorydroidRuleOptions({
+    rules,
+    factory,
+  }: {
+    rules: RulesyncRule[];
+    factory: ToolRuleFactory;
+  }): void {
     if (this.toolTarget !== "factorydroid") {
       return;
     }
     for (const rule of rules) {
       const frontmatter = rule.getFrontmatter();
-      if (frontmatter.root || !frontmatter.factorydroid) {
+      if (
+        frontmatter.root ||
+        !frontmatter.factorydroid ||
+        !factory.class.isTargetedByRulesyncRule(rule)
+      ) {
         continue;
       }
       const { channel, name } = frontmatter.factorydroid;
@@ -3273,13 +3283,20 @@ As this project's AI coding tool, you must follow the additional conventions bel
         }
 
         // An `importOnly` directory is shared with hand-written files, so a
-        // symlink there may point anywhere; skip it rather than copy its
-        // target into `.rulesync/rules/`, where it may be committed.
+        // symlink there (the file or a directory above it) may point anywhere;
+        // skip it rather than copy its target into `.rulesync/rules/`, where
+        // it may be committed. A link is detected as a file whose real path,
+        // taken against the real output root, differs from its spelled one.
         const importOnlyFilePaths: string[] = [];
         for (const filePath of await findExtraFiles(extraFiles.filter((file) => file.importOnly))) {
-          if (await isSymlink(filePath)) {
+          const spelledPath = toPosixPath(relative(this.outputRoot, filePath));
+          const realPath = await resolvedRelativePath({
+            rootPath: this.outputRoot,
+            targetPath: filePath,
+          });
+          if (realPath !== spelledPath) {
             this.logger.warn(
-              `Skipping symbolic link ${stripControlCharacters(relative(this.outputRoot, filePath))} on import: ${this.toolTarget} files reached through a link are not copied into ${RULESYNC_RULES_RELATIVE_DIR_PATH}.`,
+              `Skipping symbolic link ${stripControlCharacters(spelledPath)} on import: ${this.toolTarget} files reached through a link are not copied into ${RULESYNC_RULES_RELATIVE_DIR_PATH}.`,
             );
             continue;
           }
