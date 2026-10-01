@@ -313,6 +313,12 @@ export class QoderRule extends ToolRule {
     const keepTrigger =
       !INFERABLE_TRIGGERS.has(trigger) || (trigger === "glob" && fileGlobs.length === 0);
     const section = { ...unmapped, ...(keepTrigger && { trigger }) };
+    if (trigger === "glob" && fileGlobs.length === 0) {
+      warnWithFallback(
+        undefined,
+        `Qoder rule ${this.getRelativeFilePath()} has trigger "glob" without a glob list, so Qoder never applies it. It is imported with qoder.trigger "glob", which the next generate writes as "always_on"; add globs, or set qoder.trigger to "manual" to keep it inactive.`,
+      );
+    }
 
     const rulesyncFrontmatter: RulesyncRuleFrontmatter = {
       targets: ["*"],

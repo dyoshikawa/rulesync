@@ -144,10 +144,17 @@ describe("QoderRule", () => {
       QoderRule.fromRulesyncRule({ outputRoot: testDir, rulesyncRule: extra }).getFrontmatter(),
     ).toEqual({ priority: 3, trigger: "glob", glob: ["src/**/*.ts"] });
 
-    expect((await load("empty-glob.md")).getFrontmatter()).toMatchObject({
+    const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+    const emptyGlob = await load("empty-glob.md");
+    expect(emptyGlob.getFrontmatter()).toMatchObject({
       globs: [],
       qoder: { trigger: "glob" },
     });
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("without a glob list"));
+    // Regenerating it falls back to always_on with a warning.
+    expect(
+      QoderRule.fromRulesyncRule({ outputRoot: testDir, rulesyncRule: emptyGlob }).getFrontmatter(),
+    ).toEqual({ trigger: "always_on" });
   });
 
   it("should import topic rules, resolving the compatibility spellings", async () => {
