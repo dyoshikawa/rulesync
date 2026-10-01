@@ -84,7 +84,12 @@ async function listSubagents(): Promise<
             targetPath: join(subagentsDir, file),
           });
         } catch (error) {
-          logger.debug(`Skipping subagent file ${file}: ${formatError(error)}`);
+          const message = formatError(error);
+          if (/symbolic link|must resolve inside the root/u.test(message)) {
+            logger.debug(`Skipping subagent file ${file}: ${message}`);
+          } else {
+            logger.error(`Failed to read subagent file ${file}: ${message}`);
+          }
           return null;
         }
         try {
