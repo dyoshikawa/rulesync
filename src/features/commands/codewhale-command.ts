@@ -119,7 +119,12 @@ const FRONTMATTER_KEY_PATTERN = /^[a-z0-9_-]+$/;
  * `String.prototype.trim` does not.
  */
 function trimLikeRust(text: string): string {
-  return text.replace(/^[\s\u0085]+/, "").replace(/[\s\u0085]+$/, "");
+  const isSpace = (char: string) => char === "\u0085" || char.trim().length === 0;
+  let start = 0;
+  let end = text.length;
+  while (start < end && isSpace(text.charAt(start))) start += 1;
+  while (end > start && isSpace(text.charAt(end - 1))) end -= 1;
+  return text.slice(start, end);
 }
 
 /** Lowercase like Rust's `to_ascii_lowercase`, leaving non-ASCII letters alone. */
@@ -182,6 +187,9 @@ export function parseCodewhaleCommandFile(content: string): {
     const key = toAsciiLowerCase(trimLikeRust(line.slice(0, separator)));
     const rawValue = trimLikeRust(line.slice(separator + 1));
     if (key.length === 0 || PROTOTYPE_POLLUTION_KEYS.has(key)) continue;
+    // Re-insert a repeated key so it keeps its last position, as the order of
+    // `alias` and `aliases` decides which one Codewhale uses.
+    delete frontmatter[key];
     frontmatter[key] = key === "allowed-tools" ? rawValue : stripMatchedQuotes(rawValue);
   }
   return { frontmatter, body: "" };
