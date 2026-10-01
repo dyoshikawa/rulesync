@@ -13,6 +13,7 @@ import { splitBraceAwareList } from "../../utils/brace-aware-list.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
+import { warnWithFallback } from "../../utils/logger.js";
 import { RulesyncRule, RulesyncRuleFrontmatter } from "./rulesync-rule.js";
 import {
   ToolRule,
@@ -81,7 +82,9 @@ function normalizeGlobList(value: string | string[] | undefined): string[] {
 /**
  * The activation mode a Qoder rule file declares, resolving the compatibility
  * spellings the way Qoder does: `trigger` wins over `alwaysApply`, and bare
- * `glob` / `paths` scope the rule to matching files.
+ * `glob` / `paths` scope the rule to matching files. Qoder documents
+ * `alwaysApply: false` as equivalent to `trigger: manual` (unlike Cursor, a
+ * description or globs next to it do not change the mode).
  */
 function resolveTrigger(frontmatter: QoderRuleFrontmatter): string {
   if (frontmatter.trigger !== undefined) {
@@ -240,7 +243,10 @@ export class QoderRule extends ToolRule {
       outputRoot,
       relativeDirPath: paths.nonRoot.relativeDirPath,
       relativeFilePath: rulesyncRule.getRelativeFilePath(),
-      frontmatter: QoderRule.buildFrontmatter(rulesyncFrontmatter),
+      frontmatter: QoderRule.buildFrontmatter(
+        rulesyncFrontmatter,
+        rulesyncRule.getRelativeFilePath(),
+      ),
       body,
       validate,
       root: false,
@@ -249,6 +255,7 @@ export class QoderRule extends ToolRule {
 
   private static buildFrontmatter(
     rulesyncFrontmatter: RulesyncRuleFrontmatter,
+    relativeFilePath: string,
   ): QoderRuleFrontmatter {
     const {
       trigger: storedTrigger,
@@ -258,8 +265,24 @@ export class QoderRule extends ToolRule {
     const specificGlobs = normalizeGlobList(storedGlob ?? rulesyncFrontmatter.globs).filter(
       (glob) => !UNIVERSAL_GLOBS.has(glob),
     );
-    const trigger = storedTrigger ?? (specificGlobs.length > 0 ? "glob" : "always_on");
+    let trigger = storedTrigger ?? (specificGlobs.length > 0 ? "glob" : "always_on");
     const description = section.description ?? rulesyncFrontmatter.description;
+
+    // Qoder never injects a `glob` rule without a valid `glob`, nor a
+    // `model_decision` rule without a description.
+    if (trigger === "glob" && specificGlobs.length === 0) {
+      warnWithFallback(
+        undefined,
+        `Rule ${relativeFilePath} sets qoder.trigger "glob" without specific globs, which Qoder would never apply. Writing it as "always_on" instead; add specific globs (or qoder.glob) to scope it.`,
+      );
+      trigger = "always_on";
+    }
+    if (trigger === "model_decision" && (description === undefined || description === "")) {
+      warnWithFallback(
+        undefined,
+        `Rule ${relativeFilePath} sets qoder.trigger "model_decision" without a description, so Qoder will not apply it. Add a description.`,
+      );
+    }
 
     return {
       ...section,
@@ -275,15 +298,34 @@ export class QoderRule extends ToolRule {
     }
 
     const trigger = resolveTrigger(this.frontmatter);
-    const fileGlobs = normalizeGlobList(this.frontmatter.glob ?? this.frontmatter.paths);
+    const {
+      trigger: _trigger,
+      alwaysApply: _alwaysApply,
+      description,
+      glob,
+      paths,
+      ...unmapped
+    } = this.frontmatter;
+    const fileGlobs = normalizeGlobList(glob ?? paths);
     const globs = trigger === "glob" ? fileGlobs : trigger === "always_on" ? ["**/*"] : [];
+    // Keep the mode when inference from `globs` would not reproduce it: a
+    // non-inferable mode, or a `glob` rule whose glob list is empty.
+    const keepTrigger =
+      !INFERABLE_TRIGGERS.has(trigger) || (trigger === "glob" && fileGlobs.length === 0);
+    const section = { ...unmapped, ...(keepTrigger && { trigger }) };
+    if (trigger === "glob" && fileGlobs.length === 0) {
+      warnWithFallback(
+        undefined,
+        `Qoder rule ${this.getRelativeFilePath()} has trigger "glob" without a glob list, so Qoder never applies it. It is imported with qoder.trigger "glob", which the next generate writes as "always_on"; add globs, or set qoder.trigger to "manual" to keep it inactive.`,
+      );
+    }
 
     const rulesyncFrontmatter: RulesyncRuleFrontmatter = {
       targets: ["*"],
       root: false,
-      description: this.frontmatter.description,
+      description,
       globs,
-      ...(!INFERABLE_TRIGGERS.has(trigger) && { qoder: { trigger } }),
+      ...(Object.keys(section).length > 0 && { qoder: section }),
     };
 
     return new RulesyncRule({
