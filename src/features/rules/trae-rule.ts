@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-import { dump } from "js-yaml";
+import { dump, load } from "js-yaml";
 import { z } from "zod/mini";
 
 import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
@@ -55,12 +55,22 @@ const UNQUOTED_GLOBS_LINE_REGEX =
   /^globs:[ \t]*(?!(?:null|Null|NULL|~|true|True|TRUE|false|False|FALSE)[ \t]*(?:#[^\r\n]*)?$)(?![|>])([^\s"'][^\r\n]*)$/m;
 
 /**
- * A YAML flow list (`["*.ts", "*.md"]`, optionally followed by a comment),
- * which is left for YAML to read. A leading-`[` value with anything after its
- * closing `]`, such as the character-class glob `[abc]*.ts`, is quoted instead,
- * while one with no `]` on the line opens a multi-line flow list.
+ * Whether a leading-`[` `globs:` value is a YAML flow list, which is left for
+ * YAML to read: a single-line list (`["*.ts", "*.md"]`, optionally followed by
+ * a comment), or the first line of a multi-line one (no `]` yet, or a trailing
+ * `,` or `[`). Anything else, such as the character-class glob `[abc]*.ts`, is
+ * quoted as a glob.
  */
-const FLOW_LIST_VALUE_REGEX = /^\[[^\r\n]*\](?:[ \t]+#[^\r\n]*)?$/;
+function isFlowListValue(value: string): boolean {
+  if (!value.includes("]") || /[,[]$/.test(value)) {
+    return true;
+  }
+  try {
+    return Array.isArray(load(value));
+  } catch {
+    return false;
+  }
+}
 
 /** Globs that match every file, and so add nothing to an always-applied rule. */
 const UNIVERSAL_GLOBS = new Set(["**/*", "*"]);
@@ -230,9 +240,9 @@ export class TraeRule extends ToolRule {
         // Trimmed here rather than in the regex, whose lazy value followed by
         // `[ \t]*$` backtracks quadratically on a long run of blanks.
         const value = rawValue.trimEnd();
-        const isFlowList =
-          value.startsWith("[") && (!value.includes("]") || FLOW_LIST_VALUE_REGEX.test(value));
-        return isFlowList ? match : `globs: ${JSON.stringify(value)}`;
+        return value.startsWith("[") && isFlowListValue(value)
+          ? match
+          : `globs: ${JSON.stringify(value)}`;
       });
     return parseFrontmatter(fileContent.slice(0, start) + block + fileContent.slice(end), filePath);
   }

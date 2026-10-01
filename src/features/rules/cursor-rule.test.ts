@@ -569,6 +569,18 @@ This is the rule content
       expect(rule.getBody()).toBe("Example:\n\nglobs: *.ts");
     });
 
+    it("should trim trailing blanks from an unquoted globs value", async () => {
+      const filePath = join(testDir, ".cursor/rules", "blanks.mdc");
+      await writeFileContent(filePath, "---\nalwaysApply: false\nglobs: *.ts  \n---\nBody\n");
+
+      const rule = await CursorRule.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "blanks.mdc",
+      });
+
+      expect(rule.getFrontmatter().globs).toBe("*.ts");
+    });
+
     it("should not join a body globs line with the next line", async () => {
       const filePath = join(testDir, ".cursor/rules", "empty.mdc");
       await writeFileContent(

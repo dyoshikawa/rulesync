@@ -185,6 +185,9 @@ describe("TraeRule", () => {
       await importFile("---\nalwaysApply: false\nglobs: [abc]*.ts,src/**\n---\nBody\n"),
     ).toMatchObject({ globs: ["[abc]*.ts", "src/**"] });
     expect(
+      await importFile("---\nalwaysApply: false\nglobs: [Dd]ocs/*.[mM][dD],[ab],[cd]\n---\nBody\n"),
+    ).toMatchObject({ globs: ["[Dd]ocs/*.[mM][dD]", "[ab]", "[cd]"] });
+    expect(
       await importFile('---\nalwaysApply: false\nglobs: ["*.ts", "*.md"] # lists\n---\nBody\n'),
     ).toMatchObject({ globs: ["*.ts", "*.md"] });
     expect(
@@ -193,6 +196,9 @@ describe("TraeRule", () => {
     expect(
       await importFile('---\nalwaysApply: false\nglobs: ["*.ts",\n  "*.md"]\n---\nBody\n'),
     ).toMatchObject({ globs: ["*.ts", "*.md"] });
+    expect(
+      await importFile('---\nalwaysApply: false\nglobs: ["a]",\n  "b"]\n---\nBody\n'),
+    ).toMatchObject({ globs: ["a]", "b"] });
   });
 
   it("should trim trailing blanks from an unquoted globs value", async () => {

@@ -182,7 +182,7 @@ export class CursorRule extends ToolRule {
       .slice(blockStart, blockEnd)
       .replace(/^globs:[ \t]*(\*[^\r\n]*?)$/m, (_match, globPattern: string) => {
         // Wrap the glob pattern in quotes for YAML parsing
-        return `globs: ${JSON.stringify(globPattern)}`;
+        return `globs: ${JSON.stringify(globPattern.trimEnd())}`;
       });
     const preprocessedContent =
       fileContent.slice(0, blockStart) + block + fileContent.slice(blockEnd);
