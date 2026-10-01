@@ -6,10 +6,11 @@ import { z } from "zod/mini";
 import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { TRAE_DIR } from "../../constants/trae-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
-import { splitBraceAwareList } from "../../utils/brace-aware-list.js";
+import { expandBraceAlternations, splitBraceAwareList } from "../../utils/brace-aware-list.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
-import { parseFrontmatter } from "../../utils/frontmatter.js";
+import { findFrontmatterBlockBounds, parseFrontmatter } from "../../utils/frontmatter.js";
+import { warnWithFallback } from "../../utils/logger.js";
 import { CursorRule } from "./cursor-rule.js";
 import { RulesyncRule, RulesyncRuleFrontmatter } from "./rulesync-rule.js";
 import {
@@ -44,6 +45,14 @@ type TraeRuleOutputFrontmatter = {
   description?: string;
   globs?: string;
 };
+
+/**
+ * An unquoted `globs:` value to quote before YAML parsing. YAML's null and
+ * boolean keywords and block scalar indicators (`|`, `>`) are left for YAML to
+ * read, so `globs: null` stays null and `globs: |-` stays a block scalar.
+ */
+const UNQUOTED_GLOBS_LINE_REGEX =
+  /^globs:[ \t]*(?!(?:null|Null|NULL|~|true|True|TRUE|false|False|FALSE)[ \t]*$)(?![|>])([^\s"'[][^\r\n]*?)[ \t]*$/m;
 
 /** Globs that match every file, and so add nothing to an always-applied rule. */
 const UNIVERSAL_GLOBS = new Set(["**/*", "*"]);
@@ -159,7 +168,11 @@ export class TraeRule extends ToolRule {
    * rules) is always applied, mirroring the AI Assistant mapping.
    */
   private static buildFrontmatter(frontmatter: RulesyncRuleFrontmatter): TraeRuleOutputFrontmatter {
-    const globs = normalizeGlobs(frontmatter.globs);
+    // Trae splits `globs` on every comma, so a brace alternation such as
+    // `*.{ts,tsx}` is expanded into one glob per branch before it is joined.
+    const globs = normalizeGlobs(frontmatter.globs).flatMap((glob) =>
+      expandBraceAlternations(glob),
+    );
     const specificGlobs = globs.filter((glob) => !UNIVERSAL_GLOBS.has(glob));
     const isRoot = frontmatter.root === true;
     const description = frontmatter.description?.trim() || undefined;
@@ -189,22 +202,23 @@ export class TraeRule extends ToolRule {
    * unquoted, comma-separated scalar, which a YAML parser rejects or misreads
    * when it starts with `*`, `{`, `!` and the like. Such a value is quoted
    * before parsing, inside the frontmatter block only so the body is never
-   * rewritten. A quoted value or a YAML list is left alone.
+   * rewritten. A quoted value, a YAML list, a null or boolean keyword and a
+   * block scalar indicator (`|`, `>`) are left alone. The block bounds are
+   * gray-matter's own (it closes the block at the first `\n---`, even inside a
+   * `----` line), so the quoting never reaches text gray-matter reads as body.
    */
   private static parseTraeFrontmatter(
     fileContent: string,
     filePath: string,
   ): { frontmatter: Record<string, unknown>; body: string } {
-    const opening = /^\uFEFF?---[^\S\r\n]*\r?\n/.exec(fileContent);
-    const closing = opening ? /\r?\n---/.exec(fileContent.slice(opening[0].length)) : null;
-    if (!opening || !closing) {
+    const bounds = findFrontmatterBlockBounds(fileContent);
+    if (!bounds) {
       return parseFrontmatter(fileContent, filePath);
     }
-    const start = opening[0].length;
-    const end = start + closing.index;
+    const { blockStart: start, blockEnd: end } = bounds;
     const block = fileContent
       .slice(start, end)
-      .replace(/^globs:[ \t]*([^\s"'[][^\r\n]*?)[ \t]*$/m, (_match, value: string) => {
+      .replace(UNQUOTED_GLOBS_LINE_REGEX, (_match, value: string) => {
         return `globs: ${JSON.stringify(value)}`;
       });
     return parseFrontmatter(fileContent.slice(0, start) + block + fileContent.slice(end), filePath);
@@ -215,9 +229,21 @@ export class TraeRule extends ToolRule {
     rulesyncRule,
     validate = true,
   }: ToolRuleFromRulesyncRuleParams): TraeRule {
+    const frontmatter = this.buildFrontmatter(rulesyncRule.getFrontmatter());
+    // A glob past the expansion cap, or one with a literal comma, still holds a
+    // comma that Trae reads as a separator.
+    const commaGlobs = normalizeGlobs(rulesyncRule.getFrontmatter().globs)
+      .flatMap((glob) => expandBraceAlternations(glob))
+      .filter((glob) => glob.includes(","));
+    if (frontmatter.globs !== undefined && commaGlobs.length > 0) {
+      warnWithFallback(
+        undefined,
+        `${rulesyncRule.getRelativeFilePath()}: Trae splits globs on every comma, so ${commaGlobs.map((glob) => `"${glob}"`).join(", ")} will not match as written.`,
+      );
+    }
     return new TraeRule({
       outputRoot,
-      frontmatter: this.buildFrontmatter(rulesyncRule.getFrontmatter()),
+      frontmatter,
       body: rulesyncRule.getBody(),
       relativeDirPath: this.getSettablePaths().nonRoot.relativeDirPath,
       relativeFilePath: rulesyncRule.getRelativeFilePath(),
