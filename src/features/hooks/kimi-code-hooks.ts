@@ -142,7 +142,8 @@ function canonicalToKimiCodeHooks({
 }: {
   config: HooksConfig;
   toolOverrideHooks: HooksConfig["hooks"] | undefined;
-  trustedDirectory: string;
+  /** `undefined` emits commands verbatim, running in Kimi's session project directory. */
+  trustedDirectory: string | undefined;
   logger?: Logger;
 }): KimiCodeHookEntry[] {
   const result: KimiCodeHookEntry[] = [];
@@ -170,10 +171,10 @@ function canonicalToKimiCodeHooks({
       }
       result.push({
         event: nativeEvent,
-        command: runFromTrustedDirectory({
-          command: definition.command,
-          trustedDirectory,
-        }),
+        command:
+          trustedDirectory === undefined
+            ? definition.command
+            : runFromTrustedDirectory({ command: definition.command, trustedDirectory }),
         ...resolveMatcherPart({ matcher: definition.matcher, nativeEvent, logger }),
         ...(validTimeout && timeout !== undefined && { timeout }),
       });
@@ -295,7 +296,12 @@ export class KimiCodeHooks extends ToolHooks {
           hooks: canonicalToKimiCodeHooks({
             config,
             toolOverrideHooks: config["kimi-code"]?.hooks,
-            trustedDirectory: resolve(rulesyncHooks.getOutputRoot()),
+            // `runFromSourceDirectory: false` opts out of the trusted-directory
+            // wrapper so hooks run in the session project, as Kimi does natively.
+            trustedDirectory:
+              config["kimi-code"]?.runFromSourceDirectory === false
+                ? undefined
+                : resolve(rulesyncHooks.getOutputRoot()),
             logger,
           }),
         },
