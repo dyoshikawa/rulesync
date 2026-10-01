@@ -442,13 +442,15 @@ describe("SubagentsProcessor", () => {
   );
 
   it("marks only recursively scanned targets as supporting nested paths", () => {
-    const nestedTargets = [...toolSubagentFactories]
+    const factories = [...toolSubagentFactories];
+    const flaggedTargets = factories
       .filter(([, factory]) => factory.meta.supportsNestedPaths === true)
-      .map(([toolTarget, factory]) => {
-        expect(factory.meta.filePattern).toMatch(/^\*\*\//);
-        return toolTarget;
-      });
-    expect(nestedTargets).toEqual(["claudecode", "claudecode-legacy", "kimi-code"]);
+      .map(([toolTarget]) => toolTarget);
+    const recursiveTargets = factories
+      .filter(([, factory]) => factory.meta.filePattern.startsWith("**/"))
+      .map(([toolTarget]) => toolTarget);
+    expect(flaggedTargets).toEqual(recursiveTargets);
+    expect(flaggedTargets).toEqual(["claudecode", "claudecode-legacy", "kimi-code"]);
   });
 
   it("warns but still writes both nested subagents that share a name", async () => {
@@ -475,6 +477,42 @@ describe("SubagentsProcessor", () => {
     expect(toolFiles).toHaveLength(2);
     expect(logger.warn).toHaveBeenCalledWith(
       expect.stringContaining('both declare name "reviewer" for claudecode'),
+    );
+  });
+
+  it("warns about nested Kimi Code subagents whose override resolves to the same name", async () => {
+    const logger = createMockLogger();
+    const kimiCode = new SubagentsProcessor({
+      logger,
+      outputRoot: testDir,
+      toolTarget: "kimi-code",
+    });
+
+    const toolFiles = await kimiCode.convertRulesyncFilesToToolFiles([
+      new RulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath: "reviewer.md",
+        frontmatter: { name: "reviewer", description: "Review", targets: ["*"] },
+        body: "Review.",
+      }),
+      new RulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath: join("review", "security.md"),
+        frontmatter: {
+          name: "security",
+          description: "Security",
+          targets: ["*"],
+          "kimi-code": { name: "reviewer" },
+        },
+        body: "Security.",
+      }),
+    ]);
+
+    expect(toolFiles).toHaveLength(2);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('both declare name "reviewer" for kimi-code'),
     );
   });
 

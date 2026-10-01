@@ -939,9 +939,6 @@ export class SubagentsProcessor extends FeatureProcessor {
       }
       return true;
     });
-    if (factory.meta.supportsNestedPaths === true) {
-      this.warnAboutDuplicateNames(targeted);
-    }
 
     // Tools whose native format aggregates every subagent into a single shared
     // file (e.g. Roo's `.roomodes`) implement `fromRulesyncSubagents` to emit
@@ -964,7 +961,7 @@ export class SubagentsProcessor extends FeatureProcessor {
       return Array.isArray(toolSubagents) ? toolSubagents : [toolSubagents];
     }
 
-    return targeted.map((rulesyncSubagent) =>
+    const toolSubagents = targeted.map((rulesyncSubagent) =>
       factory.class.fromRulesyncSubagent({
         outputRoot: this.outputRoot,
         relativeDirPath: RulesyncSubagent.getSettablePaths().relativeDirPath,
@@ -973,19 +970,25 @@ export class SubagentsProcessor extends FeatureProcessor {
         logger: this.logger,
       }),
     );
+    if (factory.meta.supportsNestedPaths === true) {
+      this.warnAboutDuplicateNames(toolSubagents);
+    }
+    return toolSubagents;
   }
 
   /**
    * On a nested layout the file name no longer tells agents apart: both
    * `reviewer.md` and `review/reviewer.md` can declare `name: reviewer`, and a
    * tool that identifies agents by name loads only one of them. Both files are
-   * still written; the warning just makes the silent shadowing visible.
+   * still written; the warning just makes the silent shadowing visible. The
+   * name is the one the tool resolves (e.g. after a `kimi-code.name` override),
+   * so clashes introduced by a tool-specific override are caught as well.
    */
-  private warnAboutDuplicateNames(rulesyncSubagents: readonly RulesyncSubagent[]): void {
+  private warnAboutDuplicateNames(toolSubagents: readonly ToolSubagent[]): void {
     const pathsByName = new Map<string, string>();
-    for (const rulesyncSubagent of rulesyncSubagents) {
-      const { name } = rulesyncSubagent.getFrontmatter();
-      const path = rulesyncSubagent.getRelativeFilePath();
+    for (const toolSubagent of toolSubagents) {
+      const name = toolSubagent.getImportIdentity();
+      const path = toolSubagent.getRelativeFilePath();
       const claimedPath = pathsByName.get(name);
       if (claimedPath === undefined) {
         pathsByName.set(name, path);

@@ -75,13 +75,19 @@ async function listSubagents(): Promise<
 
     const subagents = await Promise.all(
       mdFiles.map(async (file) => {
+        // Hold `list` to the same confinement as `get`, so a symlinked file
+        // below the subagents directory is not listed and then refused. The
+        // skip is intended, so it is not reported as a read failure.
         try {
-          // Hold `list` to the same confinement as `get`, so a symlinked file
-          // below the subagents directory is not listed and then refused.
           await assertWritablePathInsideRoot({
             rootPath: subagentsDir,
             targetPath: join(subagentsDir, file),
           });
+        } catch (error) {
+          logger.debug(`Skipping subagent file ${file}: ${formatError(error)}`);
+          return null;
+        }
+        try {
           // Read the subagent file using RulesyncSubagent
           const subagent = await RulesyncSubagent.fromFile({
             relativeFilePath: file,
