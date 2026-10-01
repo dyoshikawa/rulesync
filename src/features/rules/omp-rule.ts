@@ -83,6 +83,12 @@ function normalizeGlobs(globs: string | string[] | undefined): string[] {
  * glob-scoped rule without a description gets one generated from its globs,
  * as oh-my-pi itself does for glob-scoped Copilot instructions.
  *
+ * oh-my-pi reads only the top level of its rules directory, so a nested
+ * rulesync rule (`frontend/style.md`) is flattened into a single file name
+ * (`frontend-style.md`). Import reads the same top-level `*.md` and `*.mdc`
+ * files oh-my-pi does; an imported `.mdc` rule becomes a `.md` rulesync rule,
+ * and generation always writes `.md`.
+ *
  * `.omp/RULES.md` (sticky rule) and `.omp/SYSTEM.md` (system prompt
  * replacement) are never emitted.
  *
@@ -240,7 +246,7 @@ export class OmpRule extends ToolRule {
     return new OmpRule({
       outputRoot,
       relativeDirPath: paths.nonRoot.relativeDirPath,
-      relativeFilePath: rulesyncRule.getRelativeFilePath(),
+      relativeFilePath: rulesyncRule.getRelativeFilePath().split(/[\\/]/).join("-"),
       frontmatter,
       body,
       validate,
@@ -267,7 +273,9 @@ export class OmpRule extends ToolRule {
       frontmatter: rulesyncFrontmatter,
       body: this.body,
       relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
-      relativeFilePath: this.isRoot() ? RULESYNC_OVERVIEW_FILE_NAME : this.getRelativeFilePath(),
+      relativeFilePath: this.isRoot()
+        ? RULESYNC_OVERVIEW_FILE_NAME
+        : this.getRelativeFilePath().replace(/\.mdc$/, ".md"),
       validate: true,
     });
   }

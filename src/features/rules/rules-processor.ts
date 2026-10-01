@@ -379,6 +379,15 @@ type ToolRuleFactory = {
      * files and skips an unreadable one with a warning instead of failing.
      */
     sharedGlobalNonRootDir?: boolean;
+    /**
+     * Glob (relative to the non-root directory) that import scans instead of
+     * `**\/*.<extension>`, for a tool that reads its rules directory only at
+     * the top level or also accepts another extension (e.g. oh-my-pi's
+     * `.omp/rules/*.{md,mdc}`). Deletion keeps the default glob, so files
+     * rulesync never writes (another extension) are left alone and nested
+     * files from earlier generations are still cleaned up.
+     */
+    nonRootImportGlob?: string;
     /** Configuration for additional convention paths in the root rule */
     additionalConventions?: AdditionalConventionsConfig;
     /** Whether to create a separate rule file for additional conventions instead of prepending to root */
@@ -986,6 +995,9 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         // `~/.omp/agent/AGENTS.md` plus `~/.omp/agent/rules/*.md` globally.
         // https://github.com/can1357/oh-my-pi/blob/main/docs/context-files.md
         extension: "md",
+        // The rules directory is read non-recursively, as `*.md` and `*.mdc`
+        // (`loadRules` in `packages/coding-agent/src/discovery/builtin.ts`).
+        nonRootImportGlob: "*.{md,mdc}",
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",
       },
@@ -3451,7 +3463,9 @@ As this project's AI coding tool, you must follow the additional conventions bel
         const isSharedGlobalNonRootDir =
           this.global && factory.meta.sharedGlobalNonRootDir === true;
         const nonRootFilePaths = await findFilesByGlobs(
-          `${isSharedGlobalNonRootDir ? "" : "**/"}*.${factory.meta.extension}`,
+          !forDeletion && factory.meta.nonRootImportGlob !== undefined
+            ? factory.meta.nonRootImportGlob
+            : `${isSharedGlobalNonRootDir ? "" : "**/"}*.${factory.meta.extension}`,
           { cwd: nonRootOutputRoot },
         );
 
