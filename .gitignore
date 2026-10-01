@@ -347,6 +347,7 @@ rulesync.local.jsonc
 **/.claude/commands/
 **/.clinerules/workflows/
 **/.codebuddy/commands/
+**/.codewhale/commands/
 **/.commandcode/commands/
 **/.continue/prompts/
 **/.github/prompts/
