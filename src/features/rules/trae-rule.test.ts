@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { writeFileContent } from "../../utils/file.js";
+import { fallbackLogger } from "../../utils/logger.js";
 import { RulesyncRule, type RulesyncRuleFrontmatter } from "./rulesync-rule.js";
 import { TraeRule } from "./trae-rule.js";
 
@@ -62,6 +63,24 @@ describe("TraeRule", () => {
   it("should write specific globs as an unquoted comma-separated list", () => {
     expect(generate({ globs: ["*.ts", "src/**/*.tsx"] }).getFileContent()).toBe(
       "---\nalwaysApply: false\nglobs: *.ts,src/**/*.tsx\n---\n\nRule body",
+    );
+  });
+
+  it("should expand brace alternations, since Trae splits globs on every comma", () => {
+    const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+    expect(generate({ globs: ["src/**/*.{ts,tsx}", "docs/**"] }).getFileContent()).toBe(
+      "---\nalwaysApply: false\nglobs: src/**/*.ts,src/**/*.tsx,docs/**\n---\n\nRule body",
+    );
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  it("should warn when a glob still contains a comma after expansion", () => {
+    const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+    // Nine two-way groups expand to 512 patterns, past the cap, so the glob is kept verbatim.
+    const tooMany = `${"{a,b}".repeat(9)}.ts`;
+    expect(generate({ globs: [tooMany] }).getFrontmatter().globs).toBe(tooMany);
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Trae splits globs on every comma"),
     );
   });
 
@@ -159,6 +178,38 @@ describe("TraeRule", () => {
     expect(
       await importFile("---\nalwaysApply: false\nglobs: !**/test/**\n---\nBody\n"),
     ).toMatchObject({ globs: ["!**/test/**"] });
+  });
+
+  it("should leave YAML null and boolean keywords and block scalars unquoted on import", async () => {
+    expect((await importFile("---\nalwaysApply: false\nglobs: null\n---\nBody\n")).globs).toEqual(
+      [],
+    );
+    expect(
+      (await importFile("---\nalwaysApply: false\nglobs: null # none\n---\nBody\n")).globs,
+    ).toEqual([]);
+    expect(await importFile("---\nalwaysApply: false\nglobs: ~\n---\nBody\n")).toMatchObject({
+      globs: [],
+    });
+    expect(
+      await importFile("---\nalwaysApply: false\nglobs: |-\n  *.ts,*.tsx\n---\nBody\n"),
+    ).toMatchObject({ globs: ["*.ts", "*.tsx"] });
+    await writeFileContent(
+      join(testDir, ".trae", "rules", "a.md"),
+      "---\nalwaysApply: false\nglobs: true\n---\nBody\n",
+    );
+    await expect(
+      TraeRule.fromFile({ outputRoot: testDir, relativeFilePath: "a.md" }),
+    ).rejects.toThrow("Invalid frontmatter");
+  });
+
+  it("should end the frontmatter where gray-matter does, even at a ---- line", async () => {
+    await writeFileContent(
+      join(testDir, ".trae", "rules", "a.md"),
+      "---\ndescription: Rules\n----\nglobs: *.ts\n---\nBody\n",
+    );
+    const rule = await TraeRule.fromFile({ outputRoot: testDir, relativeFilePath: "a.md" });
+    expect(rule.getFrontmatter().globs).toBeUndefined();
+    expect(rule.getBody()).toContain("globs: *.ts");
   });
 
   it("should leave a globs line in the body untouched on import", async () => {
