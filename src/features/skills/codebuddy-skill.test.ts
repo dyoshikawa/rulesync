@@ -46,6 +46,7 @@ describe("CodebuddySkill", () => {
             "allowed-tools": "Read, Write, Bash",
             context: "fork",
             name: "ignored",
+            description: "Ignored description",
           },
         },
         body: "Process PDFs.",

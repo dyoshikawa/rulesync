@@ -66,6 +66,37 @@ describe("CodebuddySubagent", () => {
       expect(subagent.getFileContent()).toContain("tools: Read, Grep, Glob");
       expect(subagent.getBody()).toBe("You review code.");
     });
+
+    it("should keep the canonical name and description over same-named codebuddy keys", () => {
+      const rulesyncSubagent = new RulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath: "code-reviewer.md",
+        frontmatter: {
+          targets: ["*"],
+          name: "code-reviewer",
+          description: "Reviews code",
+          codebuddy: { name: "other-agent", description: "Overridden", model: "inherit" },
+        },
+        body: "You review code.",
+        validate: true,
+      });
+
+      const subagent = CodebuddySubagent.fromRulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: agentsDir,
+        rulesyncSubagent,
+      }) as CodebuddySubagent;
+
+      expect(subagent.getRelativeFilePath()).toBe("code-reviewer.md");
+      expect(subagent.getFrontmatter()).toEqual({
+        name: "code-reviewer",
+        description: "Reviews code",
+        model: "inherit",
+      });
+      expect(subagent.getFileContent()).not.toContain("other-agent");
+      expect(subagent.getFileContent()).not.toContain("Overridden");
+    });
   });
 
   describe("fromFile and toRulesyncSubagent", () => {
