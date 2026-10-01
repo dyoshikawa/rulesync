@@ -720,7 +720,7 @@ function warnAboutRemovedPluginIds({
 }): void {
   if (removed.length === 0) return;
   logger?.warn(
-    `Removing AugmentCode \`${key}\` entries (${removed.map(quoteValueForWarning).join(", ")}) that the existing settings file has but the \`augmentcode\` permissions override does not state. If they were added with \`auggie plugin install\`, run \`rulesync import\` before generating to keep them.`,
+    `Removing AugmentCode \`${key}\` entries (${removed.map(quoteValueForWarning).join(", ")}) that the existing settings file has but the \`augmentcode\` permissions override does not state. If they were added with \`auggie plugin install\`, add them to the override (or run \`rulesync import --targets augmentcode --features permissions\`) before generating to keep them.`,
   );
 }
 
