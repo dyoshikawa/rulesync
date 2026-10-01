@@ -516,7 +516,7 @@ describe("file utilities", () => {
         ).toEqual([filePath]);
       });
 
-      it("should test only the directories above an owned directory", async () => {
+      it("should skip testing only the owned directory's last segment", async () => {
         // `rulesync gitignore` writes `**/.trae/rules/` for Trae's output, whose
         // per-subdirectory copies are what the Trae nested scan discovers.
         await writeFileContent(
