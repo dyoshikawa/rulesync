@@ -1795,22 +1795,18 @@ function toCodexPrefixRuleTokens({
   action: PermissionAction;
   logger?: Logger;
 }): string[] | null {
-  const tokens = commandPattern
-    .trim()
-    .split(/\s+/)
-    .filter((token) => token.length > 0);
-  if (tokens.length === 0) {
-    return null;
-  }
-
+  // A legacy `git:*` spells "any arguments" on the last word, the same as
+  // `git *` (see the deepagents adapter).
+  const normalized = commandPattern.trim().replace(/(?<=\S):\*$/, " *");
   // Only one trailing wildcard word is dropped: `docker * *` needs at least two
   // more words, which a prefix rule cannot require, so it falls through to the
   // skip below instead of becoming a rule for every `docker` command.
-  if (isMatchAnythingToken(tokens.at(-1) ?? "")) {
-    tokens.pop();
-  }
+  const rest = normalized.replace(/(^|\s+)\*+$/, "");
 
-  if (tokens.length === 0) {
+  if (rest.length === 0) {
+    if (normalized.length === 0) {
+      return null;
+    }
     // A pattern of only `*` covers every command. A prefix rule needs at least
     // one token, so Codex rules cannot say "every command"; the approval
     // policy can.
@@ -1821,7 +1817,9 @@ function toCodexPrefixRuleTokens({
     return null;
   }
 
-  if (tokens.some((token) => hasCommandGlob(token))) {
+  // Check the whole remainder, not word by word: a class such as `git[ ]status`
+  // spans the space the words are split on.
+  if (hasCommandGlob(rest)) {
     warnWithFallback(
       logger,
       `Skipping Codex CLI bash rule "${commandPattern}" (${action}): Codex prefix_rule patterns are literal tokens, so only a trailing standalone "*" can be translated. The rule is dropped entirely — even a deny — and Codex does NOT enforce it. Rewrite it as literal words, optionally followed by " *".`,
@@ -1829,11 +1827,7 @@ function toCodexPrefixRuleTokens({
     return null;
   }
 
-  return tokens;
-}
-
-function isMatchAnythingToken(token: string): boolean {
-  return /^\*+$/.test(token);
+  return rest.split(/\s+/);
 }
 
 function hasCommandGlob(token: string): boolean {

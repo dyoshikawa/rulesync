@@ -2554,6 +2554,26 @@ command = "node"
       expect(warnings).toEqual([]);
     });
 
+    it.each([
+      ["git:*", "deny", '["git"]', "forbidden"],
+      ["npm run:*", "allow", '["npm", "run"]', "allow"],
+    ] as const)(
+      "reads the legacy trailing :* of %s (%s) as any arguments",
+      (pattern, action, tokens, decision) => {
+        const { content, warnings } = generateRules({ [pattern]: action });
+        expect(content).toContain(`pattern = ${tokens},\n    decision = "${decision}"`);
+        expect(content).not.toMatch(/pattern = \[[^\]]*:\*/);
+        expect(warnings).toEqual([]);
+      },
+    );
+
+    it("skips a character class that spans a space instead of writing split literal tokens", () => {
+      const { content, warnings } = generateRules({ "git[ ]status": "deny" });
+      expect(content).not.toContain("prefix_rule(");
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]).toContain('"git[ ]status"');
+    });
+
     it("keeps a lone bracket as a literal token, as rulesync's glob grammar does", () => {
       const { content, warnings } = generateRules({ "[ -f": "allow" });
       expect(content).toContain('pattern = ["[", "-f"]');
