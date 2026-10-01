@@ -51,9 +51,82 @@ const CONSUMED_CANONICAL_KEYS = new Set([
   "command",
   "args",
   "timeout",
+  "networkTimeout",
   "enabledTools",
   "disabledTools",
 ]);
+
+/**
+ * Canonical millisecond timeouts and the per-server Codewhale fields they
+ * translate to. Codewhale reads both as whole seconds (`u64`), so a value is
+ * rounded up to the next second rather than written as a fraction, which would
+ * fail the whole file.
+ * - `timeout` → `execute_timeout`: the budget for each `tools/call`.
+ * - `networkTimeout` → `connect_timeout`: spawn, `initialize` and the first
+ *   `tools/list`.
+ *
+ * `read_timeout` has no canonical counterpart and passes through verbatim.
+ * @see https://github.com/Hmbown/Codewhale/blob/main/docs/MCP.md
+ */
+const RULESYNC_TO_CODEWHALE_TIMEOUT_FIELD_MAP = {
+  timeout: "execute_timeout",
+  networkTimeout: "connect_timeout",
+} as const;
+
+const MILLISECONDS_PER_SECOND = 1000;
+
+function isTimeoutValue(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
+}
+
+/**
+ * Write the canonical timeouts as Codewhale's second-based fields. A negative
+ * or non-numeric value is dropped with a warning, since Codewhale rejects it
+ * and would fail to load every server in the file.
+ */
+function convertTimeoutsToCodewhale({
+  serverName,
+  serverConfig,
+  logger,
+}: {
+  serverName: string;
+  serverConfig: Record<string, unknown>;
+  logger?: Logger;
+}): Record<string, number> {
+  const result: Record<string, number> = {};
+  for (const [canonical, codewhale] of Object.entries(RULESYNC_TO_CODEWHALE_TIMEOUT_FIELD_MAP)) {
+    const value = serverConfig[canonical];
+    if (value === undefined) continue;
+    if (!isTimeoutValue(value)) {
+      logger?.warn(
+        `Dropping the "${canonical}" of MCP server "${serverName}" for Codewhale: expected a non-negative number of milliseconds.`,
+      );
+      continue;
+    }
+    result[codewhale] = Math.ceil(value / MILLISECONDS_PER_SECOND);
+  }
+  return result;
+}
+
+/**
+ * Read Codewhale's second-based timeouts back into the canonical millisecond
+ * fields. A value that is not a non-negative number is left under its
+ * Codewhale name.
+ */
+function convertTimeoutsFromCodewhale(serverConfig: Record<string, unknown>): {
+  timeouts: Record<string, number>;
+  rest: Record<string, unknown>;
+} {
+  const timeouts: Record<string, number> = {};
+  const rest: Record<string, unknown> = { ...serverConfig };
+  for (const [canonical, codewhale] of Object.entries(RULESYNC_TO_CODEWHALE_TIMEOUT_FIELD_MAP)) {
+    const value = rest[codewhale];
+    if (!isTimeoutValue(value)) continue;
+    timeouts[canonical] = value * MILLISECONDS_PER_SECOND;
+    delete rest[codewhale];
+  }
+  return { timeouts, rest };
+}
 
 /**
  * Parse a Codewhale MCP file, failing closed on malformed JSON or a non-object
@@ -90,7 +163,10 @@ function parseCodewhaleMcpConfig({
  * Codewhale connects to over Streamable HTTP (falling back to legacy SSE), and
  * `transport: "sse"` is written only for a server declared as SSE. The
  * camelCase tool filters become `enabled_tools` / `disabled_tools`; `env`,
- * `headers`, `cwd`, `disabled` and any other key pass through.
+ * `headers`, `cwd`, `disabled` and any other key pass through. The canonical
+ * `timeout` / `networkTimeout` (milliseconds) become `execute_timeout` /
+ * `connect_timeout` (whole seconds, rounded up); an explicit
+ * `execute_timeout` / `connect_timeout` on the same server wins.
  *
  * A server Codewhale cannot start or reach — no transport, a remote transport
  * without a URL, a WebSocket server, or a stdio entry without a command — is
@@ -158,7 +234,10 @@ function convertToCodewhaleFormat(mcpServers: McpServers, logger?: Logger): Code
     if (Array.isArray(serverConfig.disabledTools)) {
       converted.disabled_tools = serverConfig.disabledTools;
     }
+    Object.assign(converted, convertTimeoutsToCodewhale({ serverName, serverConfig, logger }));
 
+    // Copied last, so a server's explicit Codewhale key (for example
+    // `execute_timeout`) wins over the value derived from its canonical twin.
     for (const [key, value] of Object.entries(serverConfig)) {
       if (PROTOTYPE_POLLUTION_KEYS.has(key) || CONSUMED_CANONICAL_KEYS.has(key)) continue;
       converted[key] = omitPrototypePollutionKeysDeep(value);
@@ -171,8 +250,9 @@ function convertToCodewhaleFormat(mcpServers: McpServers, logger?: Logger): Code
 
 /**
  * Convert Codewhale's server map back to the canonical shape: `transport:
- * "sse"` becomes `type: "sse"`, and the snake_case tool filters become
- * `enabledTools` / `disabledTools`. Everything else passes through with
+ * "sse"` becomes `type: "sse"`, the snake_case tool filters become
+ * `enabledTools` / `disabledTools`, and `execute_timeout` / `connect_timeout`
+ * (seconds) become `timeout` / `networkTimeout` (milliseconds). Everything else passes through with
  * prototype-pollution keys dropped at every nesting level.
  */
 function convertFromCodewhaleFormat(mcpServers: unknown): McpServers {
@@ -183,13 +263,16 @@ function convertFromCodewhaleFormat(mcpServers: unknown): McpServers {
 
   for (const [serverName, serverConfig] of Object.entries(mcpServers)) {
     if (PROTOTYPE_POLLUTION_KEYS.has(serverName) || !isRecord(serverConfig)) continue;
+    const { timeouts, rest: withoutTimeouts } = convertTimeoutsFromCodewhale(
+      omitPrototypePollutionKeysDeep(serverConfig) as Record<string, unknown>,
+    );
     const {
       transport,
       enabled_tools: enabledTools,
       disabled_tools: disabledTools,
       ...rest
-    } = omitPrototypePollutionKeysDeep(serverConfig) as Record<string, unknown>;
-    const converted: Record<string, unknown> = { ...rest };
+    } = withoutTimeouts;
+    const converted: Record<string, unknown> = { ...rest, ...timeouts };
     if (typeof transport === "string" && transport.trim().toLowerCase() === "sse") {
       converted.type = "sse";
     }

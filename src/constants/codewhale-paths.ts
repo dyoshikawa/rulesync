@@ -26,6 +26,13 @@ export const CODEWHALE_SKILLS_DIR_PATH = join(CODEWHALE_DIR, "skills");
 // @see https://github.com/Hmbown/Codewhale/blob/main/crates/tui/src/fleet/profile.rs
 export const CODEWHALE_AGENTS_DIR_PATH = join(CODEWHALE_DIR, "agents");
 
+// Commands: Markdown slash commands under `.codewhale/commands/` and
+// `~/.codewhale/commands/`. The directory is scanned flat; the lowercased file
+// stem is the command name unless frontmatter `name` replaces it.
+// @see https://github.com/Hmbown/Codewhale/blob/main/docs/architecture/command-dispatch.md
+// @see https://github.com/Hmbown/Codewhale/blob/main/crates/tui/src/commands/user_commands.rs
+export const CODEWHALE_COMMANDS_DIR_PATH = join(CODEWHALE_DIR, "commands");
+
 // Hooks. The project file `.codewhale/hooks.toml` carries top-level
 // `[[hooks]]` entries only; the user file `~/.codewhale/config.toml` carries a
 // `[hooks]` table (with `[[hooks.hooks]]` entries) beside unrelated settings.
