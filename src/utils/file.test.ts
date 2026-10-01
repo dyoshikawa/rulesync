@@ -516,6 +516,33 @@ describe("file utilities", () => {
         ).toEqual([filePath]);
       });
 
+      it("should skip testing only the owned directory's last segment", async () => {
+        // `rulesync gitignore` writes `**/.trae/rules/` for Trae's output, whose
+        // per-subdirectory copies are what the Trae nested scan discovers.
+        await writeFileContent(
+          join(testDir, ".gitignore"),
+          "**/.trae/rules/\nvendored/\nignored/.trae/\n",
+        );
+        const kept = join(testDir, "packages", "api", ".trae", "rules", "sub", "api.md");
+        const dropped = join(testDir, "vendored", "dep", ".trae", "rules", "dep.md");
+        // The user's own rule on `<dir>/.trae/` still applies.
+        const droppedTrae = join(testDir, "ignored", ".trae", "rules", "x.md");
+        await writeFileContent(kept, "keep");
+        await writeFileContent(dropped, "drop");
+        await writeFileContent(droppedTrae, "drop");
+
+        expect(
+          filterOutPathsInGitIgnoredDirectories({
+            rootDir: testDir,
+            filePaths: [kept, dropped, droppedTrae],
+            ownedDirPath: join(".trae", "rules"),
+          }),
+        ).toEqual([kept]);
+        expect(
+          filterOutPathsInGitIgnoredDirectories({ rootDir: testDir, filePaths: [kept, dropped] }),
+        ).toEqual([]);
+      });
+
       it("should not recurse forever for a path outside the root", () => {
         // `dirname("/")` is `"/"`, so walking ancestors would not terminate.
         expect(
