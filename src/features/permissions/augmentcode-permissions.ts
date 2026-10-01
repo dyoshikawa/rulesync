@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { isDeepStrictEqual } from "node:util";
 
 import { z } from "zod/mini";
 
@@ -365,7 +366,7 @@ export class AugmentcodePermissions extends ToolPermissions {
     // user-local permission overrides are picked up. The overlay is project-only
     // (no global `~/.augment/settings.local.json` is documented), so it is
     // skipped in global mode.
-    const fileContent = await readAugmentcodeSettingsWithLocalOverlay({
+    const mergedContent = await readAugmentcodeSettingsWithLocalOverlay({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       baseFileName: paths.relativeFilePath,
@@ -373,12 +374,25 @@ export class AugmentcodePermissions extends ToolPermissions {
       includeLocalOverlay: !global,
       logger,
     });
+    // `enabledPlugins` is imported from the committed `settings.json` alone: a
+    // plugin enabled only in `settings.local.json` is personal, and lifting it
+    // into `.rulesync` would turn it (and its hooks and MCP servers) on for
+    // everyone on the next generate.
+    const fileContent = global
+      ? mergedContent
+      : await withBaseEnabledPlugins({
+          mergedContent,
+          baseFilePath: join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
+        });
     return new AugmentcodePermissions({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
       fileContent,
       validate,
+      // Forwarded so `toRulesyncPermissions()` knows which scope it read, which
+      // decides whether `recommendedMarketplaces` is imported; `AiFile` records it.
+      global,
     });
   }
 
@@ -502,7 +516,7 @@ export class AugmentcodePermissions extends ToolPermissions {
       existingContent,
       patch: {
         toolPermissions: [...specialEntries, ...sortedBasic],
-        ...buildPluginConsumptionPatch({ override, global, logger }),
+        ...buildPluginConsumptionPatch({ override, existing: settings, global, logger }),
       },
       filePath,
       logger,
@@ -553,7 +567,7 @@ export class AugmentcodePermissions extends ToolPermissions {
     const result: Record<string, unknown> = { ...config };
     const augmentcodeOverride: Record<string, unknown> = {
       ...(specialEntries.length > 0 ? { toolPermissions: specialEntries } : {}),
-      ...extractPluginConsumptionKeys(settings),
+      ...extractPluginConsumptionKeys({ settings, global: this.global }),
     };
     if (Object.keys(augmentcodeOverride).length > 0) {
       result.augmentcode = augmentcodeOverride;
@@ -608,8 +622,13 @@ export class AugmentcodePermissions extends ToolPermissions {
  * `settings.json`. Each is written only when the override states it, so a key
  * the user set by hand is left alone otherwise; once stated, the override is
  * the source of truth and replaces the value in the file (import lifts the
- * whole existing value into the override, so nothing is lost on a round-trip,
- * and a plugin id dropped from the override is disabled rather than left on).
+ * whole existing value into the override, so nothing is lost on a round-trip).
+ * A plugin id dropped from the override is no longer enabled by the settings
+ * file rulesync writes, though Auggie deep-merges `enabledPlugins` across the
+ * user, project and local tiers, so the other tiers still apply. An id the
+ * existing file has but the override does not state — typically one added
+ * with `auggie plugin install` after the last import — is removed with a
+ * warning that says to re-import.
  *
  * `recommendedMarketplaces` is honored by Auggie only in the project's
  * `.augment/settings.json` ("values in user or local settings are ignored"), so
@@ -618,20 +637,24 @@ export class AugmentcodePermissions extends ToolPermissions {
  *
  * Both make Auggie load code the repository did not ship — a recommended
  * marketplace is one prompt away from being cloned, and an enabled plugin can
- * carry its own hooks and MCP servers — so writing either is logged.
+ * carry its own hooks and MCP servers — so writing either is logged, unless
+ * the file already holds the same value.
  *
  * @see https://docs.augmentcode.com/cli/plugins
  */
 function buildPluginConsumptionPatch({
   override,
+  existing,
   global,
   logger,
 }: {
   override: AugmentcodePermissionsOverride | undefined;
+  existing: AugmentSettings;
   global: boolean;
   logger?: Logger;
 }): Record<string, unknown> {
   const patch: Record<string, unknown> = {};
+  const existingKeys = extractPluginConsumptionKeys({ settings: existing, global });
 
   const recommendedMarketplaces = override?.recommendedMarketplaces;
   if (recommendedMarketplaces !== undefined) {
@@ -641,26 +664,64 @@ function buildPluginConsumptionPatch({
       );
     } else {
       patch.recommendedMarketplaces = recommendedMarketplaces;
-      if (recommendedMarketplaces.length > 0) {
+      const existingMarketplaces = existingKeys.recommendedMarketplaces;
+      if (
+        recommendedMarketplaces.length > 0 &&
+        !isDeepStrictEqual(recommendedMarketplaces, existingMarketplaces)
+      ) {
         logger?.warn(
           `Writing AugmentCode \`recommendedMarketplaces\` (${recommendedMarketplaces.map(quoteValueForWarning).join(", ")}): Auggie prompts everyone who opens this workspace to install these plugin marketplaces.`,
         );
       }
+      warnAboutRemovedPluginIds({
+        key: "recommendedMarketplaces",
+        removed: (existingMarketplaces ?? []).filter(
+          (marketplace) => !recommendedMarketplaces.includes(marketplace),
+        ),
+        logger,
+      });
     }
   }
 
   const enabledPlugins = override?.enabledPlugins;
   if (enabledPlugins !== undefined) {
     patch.enabledPlugins = enabledPlugins;
+    const existingPlugins = existingKeys.enabledPlugins;
     const enabledIds = Object.keys(enabledPlugins).filter((id) => enabledPlugins[id] === true);
-    if (enabledIds.length > 0) {
+    if (enabledIds.length > 0 && !isDeepStrictEqual(enabledPlugins, existingPlugins)) {
       logger?.warn(
         `Writing AugmentCode \`enabledPlugins\` (${enabledIds.map(quoteValueForWarning).join(", ")}): enabled plugins can ship their own hooks and MCP servers.`,
       );
     }
+    warnAboutRemovedPluginIds({
+      key: "enabledPlugins",
+      removed: Object.keys(existingPlugins ?? {}).filter(
+        (id) => !Object.hasOwn(enabledPlugins, id),
+      ),
+      logger,
+    });
   }
 
   return patch;
+}
+
+/**
+ * A stated key replaces the file's value, so an entry Auggie added since the
+ * last import (`auggie plugin install`) would vanish silently; name it instead.
+ */
+function warnAboutRemovedPluginIds({
+  key,
+  removed,
+  logger,
+}: {
+  key: "recommendedMarketplaces" | "enabledPlugins";
+  removed: string[];
+  logger?: Logger;
+}): void {
+  if (removed.length === 0) return;
+  logger?.warn(
+    `Removing AugmentCode \`${key}\` entries (${removed.map(quoteValueForWarning).join(", ")}) that the existing settings file has but the \`augmentcode\` permissions override does not state. If they were added with \`auggie plugin install\`, run \`rulesync import\` before generating to keep them.`,
+  );
 }
 
 const RecommendedMarketplacesSchema = z.array(z.string());
@@ -671,20 +732,70 @@ const EnabledPluginsSchema = z.record(z.string(), z.boolean());
  * import, so they round-trip. A value whose shape does not match what Auggie
  * documents is left out rather than failing the import; generation preserves
  * it in the file untouched, since the override then does not state the key.
+ * `recommendedMarketplaces` is left out in global mode, where Auggie ignores
+ * it and generation would only skip it again with a warning.
  */
-function extractPluginConsumptionKeys(settings: AugmentSettings): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-  const recommendedMarketplaces = RecommendedMarketplacesSchema.safeParse(
-    settings.recommendedMarketplaces,
-  );
-  if (recommendedMarketplaces.success) {
-    result.recommendedMarketplaces = recommendedMarketplaces.data;
+function extractPluginConsumptionKeys({
+  settings,
+  global,
+}: {
+  settings: AugmentSettings;
+  global: boolean;
+}): { recommendedMarketplaces?: string[]; enabledPlugins?: Record<string, boolean> } {
+  const result: { recommendedMarketplaces?: string[]; enabledPlugins?: Record<string, boolean> } =
+    {};
+  if (!global) {
+    const recommendedMarketplaces = RecommendedMarketplacesSchema.safeParse(
+      settings.recommendedMarketplaces,
+    );
+    if (recommendedMarketplaces.success) {
+      result.recommendedMarketplaces = recommendedMarketplaces.data;
+    }
   }
   const enabledPlugins = EnabledPluginsSchema.safeParse(settings.enabledPlugins);
   if (enabledPlugins.success) {
     result.enabledPlugins = enabledPlugins.data;
   }
   return result;
+}
+
+/**
+ * Replace the overlay-merged `enabledPlugins` with the base `settings.json`
+ * value (or drop it when the base has none), so a plugin enabled only in
+ * `settings.local.json` is not imported. Content that does not parse is
+ * returned unchanged for the constructor's validation to report.
+ */
+async function withBaseEnabledPlugins({
+  mergedContent,
+  baseFilePath,
+}: {
+  mergedContent: string;
+  baseFilePath: string;
+}): Promise<string> {
+  const baseContent = await readFileContentOrNull(baseFilePath);
+  let merged: Record<string, unknown>;
+  let base: Record<string, unknown>;
+  try {
+    merged = parseAugmentcodeSettingsDocument({
+      fileContent: mergedContent,
+      configPath: baseFilePath,
+    });
+    base =
+      baseContent === null
+        ? {}
+        : parseAugmentcodeSettingsDocument({ fileContent: baseContent, configPath: baseFilePath });
+  } catch {
+    return mergedContent;
+  }
+  if (isDeepStrictEqual(merged.enabledPlugins, base.enabledPlugins)) {
+    return mergedContent;
+  }
+  const { enabledPlugins: _localEnabledPlugins, ...rest } = merged;
+  return JSON.stringify(
+    base.enabledPlugins === undefined ? rest : { ...rest, enabledPlugins: base.enabledPlugins },
+    null,
+    2,
+  );
 }
 
 function convertRulesyncToAugmentEntries({
