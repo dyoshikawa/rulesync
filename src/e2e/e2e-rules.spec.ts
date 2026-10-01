@@ -12,7 +12,7 @@ import {
 import { getZedGlobalDir } from "../constants/zed-paths.js";
 import { RulesProcessor } from "../features/rules/rules-processor.js";
 import { buildLanguageInstruction } from "../types/language.js";
-import { fileExists, readFileContent, writeFileContent } from "../utils/file.js";
+import { fileExists, readFileContent, removeFile, writeFileContent } from "../utils/file.js";
 import {
   assertGenerateMatrixCoversTargets,
   execFileAsync,
@@ -1879,6 +1879,46 @@ This is a test project for E2E testing.
     expect(await readFileContent(join(testDir, "packages", "api", "AGENTS.md"))).toContain(
       "API Instructions",
     );
+  });
+
+  // Trae reads a `.trae/rules/` folder in any project subdirectory.
+  // https://docs.trae.ai/ide/rules?_lang=en
+  it("should import nested trae rules and round-trip their subproject scope", async () => {
+    const testDir = getTestDir();
+
+    // The entry `rulesync gitignore` writes for Trae must not hide the nested
+    // rules directories from the import scan.
+    await writeFileContent(join(testDir, ".gitignore"), "**/.trae/rules/\nvendored/\n");
+    await writeFileContent(
+      join(testDir, "vendored", "dep", ".trae", "rules", "dep.md"),
+      "# Vendored\n",
+    );
+
+    await writeFileContent(
+      join(testDir, ".trae", "rules", "overview.md"),
+      "---\nalwaysApply: true\n---\n# Project Overview\n",
+    );
+    await writeFileContent(
+      join(testDir, "packages", "api", ".trae", "rules", "api.md"),
+      "---\nalwaysApply: false\ndescription: API rules\n---\n# API Instructions\n",
+    );
+
+    await runImport({ target: "trae", features: "rules" });
+
+    const importedNested = await readFileContent(join(testDir, ".rulesync", "rules", "api.md"));
+    expect(importedNested).toContain("API Instructions");
+    expect(importedNested).toContain("subprojectPath: packages/api");
+    expect(await fileExists(join(testDir, ".rulesync", "rules", "dep.md"))).toBe(false);
+
+    await removeFile(join(testDir, "packages", "api", ".trae", "rules", "api.md"));
+    await runGenerate({ target: "trae", features: "rules" });
+
+    const generated = await readFileContent(
+      join(testDir, "packages", "api", ".trae", "rules", "api.md"),
+    );
+    expect(generated).toContain("API Instructions");
+    expect(generated).toContain("description: API rules");
+    expect(await fileExists(join(testDir, ".trae", "rules", "api.md"))).toBe(false);
   });
 });
 

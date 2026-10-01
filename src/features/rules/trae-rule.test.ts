@@ -1,10 +1,10 @@
-import { join } from "node:path";
+import { join, relative } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { writeFileContent } from "../../utils/file.js";
+import { findFilesByGlobs, toPosixPath, writeFileContent } from "../../utils/file.js";
 import { fallbackLogger } from "../../utils/logger.js";
 import { RulesyncRule, type RulesyncRuleFrontmatter } from "./rulesync-rule.js";
 import { TraeRule } from "./trae-rule.js";
@@ -281,6 +281,95 @@ describe("TraeRule", () => {
     expect(TraeRule.isTargetedByRulesyncRule(make(["trae"]))).toBe(true);
     expect(TraeRule.isTargetedByRulesyncRule(make(["*"]))).toBe(true);
     expect(TraeRule.isTargetedByRulesyncRule(make(["cursor"]))).toBe(false);
+  });
+
+  it("should write a directory-scoped rule to that directory's .trae/rules", () => {
+    const rule = generate(
+      { description: "API", agentsmd: { subprojectPath: "packages/api" } },
+      "api.md",
+    );
+    expect(rule.getFilePath()).toBe(join(testDir, "packages", "api", ".trae", "rules", "api.md"));
+    expect(rule.getFileContent()).toBe(
+      "---\nalwaysApply: false\ndescription: API\n---\n\nRule body",
+    );
+  });
+
+  it("should never nest the root rule or a global rule", () => {
+    const root = generate({ root: true, agentsmd: { subprojectPath: "packages/api" } });
+    expect(root.getRelativeDirPath()).toBe(join(".trae", "rules"));
+    const global = TraeRule.fromRulesyncRule({
+      outputRoot: testDir,
+      global: true,
+      rulesyncRule: new RulesyncRule({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+        relativeFilePath: "a.md",
+        frontmatter: { targets: ["*"], agentsmd: { subprojectPath: "packages/api" } },
+        body: "Rule body",
+      }),
+    });
+    expect(global.getRelativeDirPath()).toBe(join(".trae", "rules"));
+  });
+
+  it("should import a nested rule with its subproject and frontmatter", async () => {
+    await writeFileContent(
+      join(testDir, "packages", "api", ".trae", "rules", "sub", "api.md"),
+      "---\nalwaysApply: true\nscene: git_message\n---\nBody\n",
+    );
+    const rule = await TraeRule.fromFile({
+      outputRoot: testDir,
+      relativeDirPath: join("packages", "api", ".trae", "rules", "sub"),
+      relativeFilePath: "api.md",
+    });
+    expect(rule.getRelativeDirPath()).toBe(join("packages", "api", ".trae", "rules"));
+    expect(rule.getRelativeFilePath()).toBe(join("sub", "api.md"));
+    const rulesyncRule = rule.toRulesyncRule();
+    expect(rulesyncRule.getRelativeFilePath()).toBe(join("sub", "api.md"));
+    expect(rulesyncRule.getFrontmatter()).toMatchObject({
+      targets: ["trae"],
+      globs: ["**/*"],
+      agentsmd: { subprojectPath: "packages/api" },
+      trae: { scene: "git_message" },
+    });
+    // Round trip: the next generate writes the file back where it came from.
+    const regenerated = TraeRule.fromRulesyncRule({ outputRoot: testDir, rulesyncRule });
+    expect(regenerated.getFilePath()).toBe(rule.getFilePath());
+    expect(regenerated.getFrontmatter().alwaysApply).toBe(true);
+  });
+
+  it("should not treat project-root rules as nested", async () => {
+    await writeFileContent(join(testDir, ".trae", "rules", "a.md"), "Body\n");
+    const rule = await TraeRule.fromFile({
+      outputRoot: testDir,
+      relativeDirPath: join(".trae", "rules"),
+      relativeFilePath: "a.md",
+    });
+    const frontmatter = rule.toRulesyncRule().getFrontmatter();
+    expect(frontmatter.targets).toEqual(["*"]);
+    expect(frontmatter.agentsmd).toBeUndefined();
+  });
+
+  it("should scan subdirectory .trae/rules but not the root one or hidden directories", async () => {
+    for (const path of [
+      join(".trae", "rules", "root.md"),
+      join("packages", "api", ".trae", "rules", "api.md"),
+      join("packages", "api", ".trae", "rules", "sub", "deep.md"),
+      join(".worktrees", "feature", ".trae", "rules", "copy.md"),
+      join("packages", "api", "node_modules", "dep", ".trae", "rules", "dep.md"),
+      join("dist", ".trae", "rules", "built.md"),
+    ]) {
+      await writeFileContent(join(testDir, path), "Body\n");
+    }
+    const patterns = TraeRule.getNestedFilePatterns();
+    const matched = await findFilesByGlobs(patterns.include, {
+      cwd: testDir,
+      type: "file",
+      ignore: patterns.ignore,
+    });
+    expect(matched.map((path) => toPosixPath(relative(testDir, path))).toSorted()).toEqual([
+      "packages/api/.trae/rules/api.md",
+      "packages/api/.trae/rules/sub/deep.md",
+    ]);
   });
 
   it("should build a deletion placeholder", () => {
