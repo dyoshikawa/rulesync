@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { ensureDir, fileExists, readFileContent, writeFileContent } from "../utils/file.js";
+import { ConsoleLogger } from "../utils/logger.js";
 import { subagentTools } from "./subagents.js";
 
 describe("MCP Subagents Tools", () => {
@@ -397,8 +398,14 @@ targets: ["*"]
 # External`,
         );
         await symlink(externalFile, join(subagentsDir, "link.md"), "file");
+        const errorSpy = vi.spyOn(ConsoleLogger.prototype, "error");
+        const debugSpy = vi.spyOn(ConsoleLogger.prototype, "debug");
 
         expect(JSON.parse(await subagentTools.listSubagents.execute()).subagents).toEqual([]);
+        expect(errorSpy).not.toHaveBeenCalled();
+        expect(debugSpy).toHaveBeenCalledWith(
+          expect.stringContaining("Skipping subagent file link.md"),
+        );
         await expect(
           subagentTools.getSubagent.execute({ relativePathFromCwd: ".rulesync/subagents/link.md" }),
         ).rejects.toThrow(/symbolic link/i);
