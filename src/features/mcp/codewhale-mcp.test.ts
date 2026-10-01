@@ -103,6 +103,48 @@ describe("CodewhaleMcp", () => {
       });
     });
 
+    it("should map canonical millisecond timeouts to whole-second Codewhale fields", async () => {
+      const mcp = await CodewhaleMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp: buildRulesyncMcp({
+          local: { command: "npx", timeout: 60000, networkTimeout: 1500, read_timeout: 90 },
+        }),
+      });
+
+      expect(mcp.getJson()).toEqual({
+        servers: {
+          local: { command: "npx", execute_timeout: 60, connect_timeout: 2, read_timeout: 90 },
+        },
+      });
+    });
+
+    it("should let an explicit Codewhale timeout win over its canonical twin", async () => {
+      const mcp = await CodewhaleMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp: buildRulesyncMcp({
+          local: { command: "npx", timeout: 60000, execute_timeout: 300 },
+        }),
+      });
+
+      expect(mcp.getJson()).toEqual({
+        servers: { local: { command: "npx", execute_timeout: 300 } },
+      });
+    });
+
+    it("should drop a negative or zero timeout with a warning", async () => {
+      const logger = createMockLogger();
+      const mcp = await CodewhaleMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp: buildRulesyncMcp({
+          local: { command: "npx", timeout: -1, networkTimeout: 0 },
+        }),
+        logger,
+      });
+
+      expect(mcp.getJson()).toEqual({ servers: { local: { command: "npx" } } });
+      expect(logger.warn).toHaveBeenCalledTimes(2);
+    });
+
     it("should fail closed on a malformed existing file", async () => {
       await writeFileContent(join(testDir, ".codewhale", "mcp.json"), "[]");
 
@@ -133,6 +175,23 @@ describe("CodewhaleMcp", () => {
       expect(servers).toEqual({
         legacy: { url: "https://example.com/sse", type: "sse" },
         local: { command: "npx", enabledTools: ["read"], disabledTools: ["write"] },
+      });
+    });
+
+    it("should convert second-based timeouts back to canonical milliseconds", async () => {
+      await writeFileContent(
+        join(testDir, ".codewhale", "mcp.json"),
+        JSON.stringify({
+          servers: {
+            local: { command: "npx", execute_timeout: 60, connect_timeout: 30, read_timeout: 120 },
+          },
+        }),
+      );
+
+      const mcp = await CodewhaleMcp.fromFile({ outputRoot: testDir });
+
+      expect(mcp.toRulesyncMcp().getMcpServers()).toEqual({
+        local: { command: "npx", timeout: 60000, networkTimeout: 30000, read_timeout: 120 },
       });
     });
 

@@ -162,6 +162,7 @@ export const commandsProcessorToolTargetTuple = [
   "claudecode-legacy",
   "cline",
   "codebuddy",
+  "codewhale",
   "codexcli",
   "commandcode",
   "continue",
