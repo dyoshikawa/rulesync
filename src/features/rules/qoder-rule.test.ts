@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { writeFileContent } from "../../utils/file.js";
+import { fallbackLogger } from "../../utils/logger.js";
 import { QoderRule } from "./qoder-rule.js";
 import { RulesyncRule, type RulesyncRuleFrontmatter } from "./rulesync-rule.js";
 
@@ -89,6 +90,63 @@ describe("QoderRule", () => {
     expect(rule.getFrontmatter()).toEqual({
       trigger: "model_decision",
       description: "Use when editing API handlers",
+    });
+  });
+
+  it("should fall back to always_on with a warning for a glob trigger without specific globs", () => {
+    const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
+    const rule = QoderRule.fromRulesyncRule({
+      outputRoot: testDir,
+      rulesyncRule: makeRulesyncRule({ globs: ["**/*"], qoder: { trigger: "glob" } }),
+    });
+
+    expect(rule.getFrontmatter()).toEqual({ trigger: "always_on" });
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('qoder.trigger "glob"'));
+  });
+
+  it("should warn when a model_decision trigger has no description", () => {
+    const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
+    const rule = QoderRule.fromRulesyncRule({
+      outputRoot: testDir,
+      rulesyncRule: makeRulesyncRule({ qoder: { trigger: "model_decision" } }),
+    });
+
+    expect(rule.getFrontmatter()).toEqual({ trigger: "model_decision" });
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('qoder.trigger "model_decision"'));
+  });
+
+  it("should keep unmapped keys and an empty glob trigger in the qoder section on import", async () => {
+    const rulesDir = join(testDir, ".qoder", "rules");
+    await writeFileContent(
+      join(rulesDir, "extra.md"),
+      "---\ntrigger: glob\nglob: src/**/*.ts\npriority: 3\n---\nExtra body",
+    );
+    await writeFileContent(join(rulesDir, "empty-glob.md"), "---\ntrigger: glob\n---\nEmpty");
+
+    const load = async (relativeFilePath: string) =>
+      (
+        await QoderRule.fromFile({
+          outputRoot: testDir,
+          relativeDirPath: join(".qoder", "rules"),
+          relativeFilePath,
+        })
+      ).toRulesyncRule();
+
+    const extra = await load("extra.md");
+    expect(extra.getFrontmatter()).toMatchObject({
+      globs: ["src/**/*.ts"],
+      qoder: { priority: 3 },
+    });
+    expect(extra.getFrontmatter().qoder).not.toHaveProperty("trigger");
+    expect(
+      QoderRule.fromRulesyncRule({ outputRoot: testDir, rulesyncRule: extra }).getFrontmatter(),
+    ).toEqual({ priority: 3, trigger: "glob", glob: ["src/**/*.ts"] });
+
+    expect((await load("empty-glob.md")).getFrontmatter()).toMatchObject({
+      globs: [],
+      qoder: { trigger: "glob" },
     });
   });
 

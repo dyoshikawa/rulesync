@@ -886,6 +886,53 @@ globs: ["src/**/*.ts"]
     expect(nonRootContent).toContain("description: Coding guidelines");
   });
 
+  it("should generate qoder non-root rules into .qoder/rules with trigger frontmatter", async () => {
+    const testDir = getTestDir();
+
+    // Root rule -> AGENTS.md (plain), non-root rule with globs -> .qoder/rules/*.md
+    // with `trigger: glob` + `glob`.
+    const rootRuleContent = `---
+root: true
+targets: ["*"]
+description: "Root rule"
+globs: ["**/*"]
+---
+
+# Root Rule
+`;
+    const nonRootRuleContent = `---
+targets: ["*"]
+description: "Coding guidelines"
+globs: ["src/**/*.ts"]
+---
+
+# Non-Root Rule
+`;
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+      rootRuleContent,
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "coding-guidelines.md"),
+      nonRootRuleContent,
+    );
+
+    await runGenerate({ target: "qoder", features: "rules" });
+
+    const rootContent = await readFileContent(join(testDir, "AGENTS.md"));
+    expect(rootContent).toContain("Root Rule");
+    expect(rootContent).not.toContain("---");
+
+    const nonRootContent = await readFileContent(
+      join(testDir, ".qoder", "rules", "coding-guidelines.md"),
+    );
+    expect(nonRootContent).toContain("Non-Root Rule");
+    expect(nonRootContent).toContain("trigger: glob");
+    expect(nonRootContent).toContain("glob:");
+    expect(nonRootContent).toContain("src/**/*.ts");
+    expect(nonRootContent).toContain("description: Coding guidelines");
+  });
+
   it("should generate cline non-root rules into .clinerules with paths frontmatter", async () => {
     const testDir = getTestDir();
 
@@ -2181,6 +2228,56 @@ globs: ["src/**/*.ts"]
       join(homeDir, ".qwen", "rules", "coding-guidelines.md"),
     );
     expect(nonRootContent).toContain("Global Non-Root Rule");
+    expect(nonRootContent).toContain("src/**/*.ts");
+  });
+
+  it("should generate qoder non-root rules into ~/.qoder/rules in global mode", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    const rootRuleContent = `---
+root: true
+targets: ["*"]
+description: "Root rule"
+globs: ["**/*"]
+---
+
+# Root Rule Content
+`;
+    const nonRootRuleContent = `---
+targets: ["*"]
+description: "Global coding guidelines"
+globs: ["src/**/*.ts"]
+---
+
+# Global Non-Root Rule
+`;
+    await writeFileContent(
+      join(projectDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+      rootRuleContent,
+    );
+    await writeFileContent(
+      join(projectDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "coding-guidelines.md"),
+      nonRootRuleContent,
+    );
+
+    await runGenerate({
+      target: "qoder",
+      features: "rules",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    // Root memory file -> ~/.qoder/AGENTS.md
+    const rootContent = await readFileContent(join(homeDir, ".qoder", "AGENTS.md"));
+    expect(rootContent).toContain("Root Rule Content");
+
+    // Non-root rule -> ~/.qoder/rules/*.md with `trigger: glob` frontmatter
+    const nonRootContent = await readFileContent(
+      join(homeDir, ".qoder", "rules", "coding-guidelines.md"),
+    );
+    expect(nonRootContent).toContain("Global Non-Root Rule");
+    expect(nonRootContent).toContain("trigger: glob");
     expect(nonRootContent).toContain("src/**/*.ts");
   });
 
