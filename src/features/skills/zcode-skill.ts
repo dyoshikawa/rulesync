@@ -205,7 +205,7 @@ export class ZcodeSkill extends ToolSkill {
       ...(metadata !== undefined && { metadata }),
     };
 
-    const settablePaths = ZcodeSkill.getSettablePaths({ global });
+    const settablePaths = this.getSettablePaths({ global });
 
     return new ZcodeSkill({
       outputRoot,
@@ -227,7 +227,7 @@ export class ZcodeSkill extends ToolSkill {
   static async fromDir(params: ToolSkillFromDirParams): Promise<ZcodeSkill> {
     const loaded = await this.loadSkillDirContent({
       ...params,
-      getSettablePaths: ZcodeSkill.getSettablePaths,
+      getSettablePaths: (options) => this.getSettablePaths(options),
     });
 
     const result = ZcodeSkillFrontmatterSchema.safeParse(loaded.frontmatter);

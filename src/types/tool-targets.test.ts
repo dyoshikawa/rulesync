@@ -77,6 +77,7 @@ describe("tool targets", () => {
         "codebuff",
         "lettacode",
         "claudecode-plugin",
+        "zcode-plugin",
         "agentsskills",
       ];
 

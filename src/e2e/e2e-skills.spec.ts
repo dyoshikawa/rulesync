@@ -72,6 +72,10 @@ const skillsGenerateTargets = [
     outputPath: join("skills", "test-skill", "SKILL.md"),
   },
   {
+    target: "zcode-plugin",
+    outputPath: join("skills", "test-skill", "SKILL.md"),
+  },
+  {
     target: "cursor",
     outputPath: join(".cursor", "skills", "test-skill", "SKILL.md"),
   },

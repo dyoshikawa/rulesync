@@ -76,12 +76,21 @@ function asZcodeRemoteType(stated: string | undefined, url: string): "http" | "s
  * Convert canonical rulesync servers to ZCode's native `mcp.servers` shape:
  * stdio servers carry `command`/`args`/`env`, remote servers carry
  * `type` (`http` or `sse`), `url` and optional `headers`. A canonical
- * `disabled: true` maps to ZCode's `enable: false`, which it defaults to `true`
- * when absent.
+ * `disabled: true` maps to ZCode's `enable: false` (`enabled: false` in a
+ * plugin's `.mcp.json`, via `enableKey`), which it defaults to `true` when
+ * absent.
  *
  * @see https://zcode.z.ai/en/docs/mcp-services
  */
-function convertToZcodeFormat(mcpServers: McpServers, logger?: Logger): Record<string, unknown> {
+export function convertToZcodeFormat({
+  mcpServers,
+  logger,
+  enableKey = "enable",
+}: {
+  mcpServers: McpServers;
+  logger?: Logger;
+  enableKey?: string;
+}): Record<string, unknown> {
   const result: Record<string, Record<string, unknown>> = {};
 
   for (const [name, config] of Object.entries(mcpServers)) {
@@ -153,7 +162,7 @@ function convertToZcodeFormat(mcpServers: McpServers, logger?: Logger): Record<s
       }
     }
     if (config.disabled === true) {
-      converted.enable = false;
+      converted[enableKey] = false;
     }
 
     result[name] = converted;
@@ -174,7 +183,13 @@ function convertToZcodeFormat(mcpServers: McpServers, logger?: Logger): Record<s
  * carries no information, and emitting it would push a redundant `disabled`
  * key into every other tool's generated config.
  */
-function convertFromZcodeFormat(zcodeServers: Record<string, unknown>): McpServers {
+export function convertFromZcodeFormat({
+  zcodeServers,
+  enableKey = "enable",
+}: {
+  zcodeServers: Record<string, unknown>;
+  enableKey?: string;
+}): McpServers {
   const result: McpServers = {};
 
   for (const [name, config] of Object.entries(zcodeServers)) {
@@ -183,7 +198,7 @@ function convertFromZcodeFormat(zcodeServers: Record<string, unknown>): McpServe
     const converted: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(config)) {
       if (PROTOTYPE_POLLUTION_KEYS.has(key)) continue;
-      if (key === "enable") {
+      if (key === enableKey) {
         if (value === false) {
           converted.disabled = true;
         }
@@ -270,7 +285,7 @@ export class ZcodeMcp extends ToolMcp {
     const existingContent = (await readFileContentOrNull(filePath)) ?? "";
     const existing = parseZcodeConfig(existingContent, filePath);
 
-    const converted = convertToZcodeFormat(rulesyncMcp.getMcpServers(), logger);
+    const converted = convertToZcodeFormat({ mcpServers: rulesyncMcp.getMcpServers(), logger });
 
     // `mcp` is owned as a whole key, so its non-`servers` siblings (e.g. a
     // `timeout` the user set) are carried over from the existing file before
@@ -300,7 +315,7 @@ export class ZcodeMcp extends ToolMcp {
   toRulesyncMcp(): RulesyncMcp {
     const mcp = isRecord(this.json[ZCODE_MCP_CONFIG_KEY]) ? this.json[ZCODE_MCP_CONFIG_KEY] : {};
     const servers = isRecord(mcp[ZCODE_MCP_SERVERS_KEY]) ? mcp[ZCODE_MCP_SERVERS_KEY] : {};
-    const converted = convertFromZcodeFormat(servers);
+    const converted = convertFromZcodeFormat({ zcodeServers: servers });
 
     // Do not spread the full config JSON: ZCode's own keys (model, theme, ...)
     // must not leak into rulesync mcp.json.

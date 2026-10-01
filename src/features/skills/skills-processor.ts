@@ -98,6 +98,7 @@ import {
 import { TraeSkill } from "./trae-skill.js";
 import { VibeSkill } from "./vibe-skill.js";
 import { WarpSkill } from "./warp-skill.js";
+import { ZcodePluginSkill } from "./zcode-plugin-skill.js";
 import { ZcodeSkill } from "./zcode-skill.js";
 import { ZedSkill } from "./zed-skill.js";
 import { ZoocodeSkill } from "./zoocode-skill.js";
@@ -772,6 +773,14 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
     {
       class: ZcodeSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "zcode-plugin",
+    {
+      // `<plugin>/skills/<name>/SKILL.md`. https://zcode.z.ai/en/docs/plugin
+      class: ZcodePluginSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: false },
     },
   ],
   [

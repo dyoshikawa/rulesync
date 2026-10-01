@@ -108,6 +108,7 @@ const hooksGenerateTargets = [
   { target: "amp", outputPath: join(".amp", "plugins", "rulesync-hooks.ts") },
   { target: "claudecode", outputPath: join(".claude", "settings.json") },
   { target: "claudecode-plugin", outputPath: join("hooks", "hooks.json") },
+  { target: "zcode-plugin", outputPath: join("hooks", "hooks.json") },
   { target: "cursor", outputPath: join(".cursor", "hooks.json") },
   { target: "mimocode", outputPath: join(".mimocode", "plugins", "rulesync-hooks.js") },
   { target: "opencode", outputPath: join(".opencode", "plugins", "rulesync-hooks.js") },
@@ -285,6 +286,14 @@ describe("E2E: hooks", () => {
         expect(parsed.hooks.events.Stop).toBeDefined();
         expect(JSON.stringify(parsed.hooks.events)).toContain(".rulesync/hooks/session-start.sh");
         expect(JSON.stringify(parsed.hooks.events)).toContain(".rulesync/hooks/audit.sh");
+      } else if (target === "zcode-plugin") {
+        // A ZCode plugin's hooks/hooks.json holds the PascalCase event map
+        // directly under `hooks`, without the config file's `events` wrapper.
+        expect(parsed.hooks.events).toBeUndefined();
+        expect(JSON.stringify(parsed.hooks.SessionStart)).toContain(
+          ".rulesync/hooks/session-start.sh",
+        );
+        expect(JSON.stringify(parsed.hooks.Stop)).toContain(".rulesync/hooks/audit.sh");
       } else if (target === "deepagents") {
         // deepagents-cli gets the Hooks v2 document: PascalCase HookEvent keys
         // over matcher groups holding string commands (no bash -c argv

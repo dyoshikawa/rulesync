@@ -91,6 +91,7 @@ describe("Config", () => {
       expect(targets).not.toContain("claudecode-plugin");
       expect(targets).not.toContain("antigravity-plugin");
       expect(targets).not.toContain("augmentcode-plugin");
+      expect(targets).not.toContain("zcode-plugin");
       expect(targets).toContain("claudecode");
       expect(targets).toContain("augmentcode");
     });
@@ -105,7 +106,8 @@ describe("Config", () => {
           t !== "augmentcode-legacy" &&
           t !== "claudecode-plugin" &&
           t !== "antigravity-plugin" &&
-          t !== "augmentcode-plugin",
+          t !== "augmentcode-plugin" &&
+          t !== "zcode-plugin",
       );
 
       expect(targets).toEqual(expectedTargets);
@@ -134,13 +136,20 @@ describe("Config", () => {
 
     it("should preserve packaging targets explicitly listed with wildcard", () => {
       const config = createConfig({
-        targets: ["*", "claudecode-plugin", "antigravity-plugin", "augmentcode-plugin"],
+        targets: [
+          "*",
+          "claudecode-plugin",
+          "antigravity-plugin",
+          "augmentcode-plugin",
+          "zcode-plugin",
+        ],
       });
       const targets = config.getTargets();
 
       expect(targets).toContain("claudecode-plugin");
       expect(targets).toContain("antigravity-plugin");
       expect(targets).toContain("augmentcode-plugin");
+      expect(targets).toContain("zcode-plugin");
       expect(targets).not.toContain("*");
     });
   });

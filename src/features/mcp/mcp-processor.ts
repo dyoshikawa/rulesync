@@ -64,6 +64,7 @@ import { TraeMcp } from "./trae-mcp.js";
 import { VibeMcp } from "./vibe-mcp.js";
 import { WarpMcp } from "./warp-mcp.js";
 import { ZcodeMcp } from "./zcode-mcp.js";
+import { ZcodePluginMcp } from "./zcode-plugin-mcp.js";
 import { ZedMcp } from "./zed-mcp.js";
 
 /**
@@ -896,6 +897,20 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
         // https://zcode.z.ai/en/docs/mcp-services
         supportsProject: true,
         supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
+    "zcode-plugin",
+    {
+      // A ZCode plugin declares its servers in `.mcp.json` (`mcpServers`) at
+      // the plugin root. https://zcode.z.ai/en/docs/plugin
+      class: ZcodePluginMcp,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: false,
         supportsEnabledTools: false,
         supportsDisabledTools: false,
       },

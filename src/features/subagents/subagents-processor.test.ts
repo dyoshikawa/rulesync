@@ -1860,6 +1860,7 @@ Second global content`;
           "takt",
           "vibe",
           "zcode",
+          "zcode-plugin",
         ]),
       );
       expect(Array.isArray(subagentsProcessorToolTargets)).toBe(true);

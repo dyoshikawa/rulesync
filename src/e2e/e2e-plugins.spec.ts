@@ -5,6 +5,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+  RULESYNC_HOOKS_RELATIVE_FILE_PATH,
+  RULESYNC_MCP_RELATIVE_FILE_PATH,
   RULESYNC_RULES_RELATIVE_DIR_PATH,
   RULESYNC_SKILLS_RELATIVE_DIR_PATH,
   RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
@@ -13,6 +15,7 @@ import {
   ensureDir,
   fileExists,
   removeDirectory,
+  removeFile,
   readFileContent,
   writeFileContent,
 } from "../utils/file.js";
@@ -243,6 +246,87 @@ Review the changes.
     expect(importedSubagent).not.toContain("tools:");
     expect(await fileExists(join(pluginRoot, ".augment-plugin", "plugin.json"))).toBe(true);
     expect(await readFileContent(join(pluginRoot, "hooks", "hooks.json"))).toBe('{"hooks":{}}\n');
+  });
+
+  it("generates and imports a ZCode plugin from an explicit plugin root", async () => {
+    const testDir = getTestDir();
+    const pluginRoot = join(testDir, "packages", "review-plugin");
+    const rulesyncSubagentPath = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "reviewer.md");
+    const rulesyncMcpPath = join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH);
+    const rulesyncHooksPath = join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH);
+
+    await writeFileContent(
+      rulesyncSubagentPath,
+      `---
+targets: ["zcode-plugin"]
+name: reviewer
+description: Reviews code
+zcode:
+  permissionMode: plan
+---
+Review the changes.
+`,
+    );
+    await writeFileContent(
+      rulesyncMcpPath,
+      JSON.stringify({
+        mcpServers: { docs: { command: "npx", args: ["-y", "docs-server"], disabled: true } },
+      }),
+    );
+    await writeFileContent(
+      rulesyncHooksPath,
+      JSON.stringify({
+        version: 1,
+        hooks: { sessionStart: [{ type: "command", command: "./scripts/setup.sh" }] },
+      }),
+    );
+    await writeFileContent(
+      join(pluginRoot, ".zcode-plugin", "plugin.json"),
+      JSON.stringify({ name: "review-plugin" }, null, 2),
+    );
+
+    await runGenerate({
+      target: "zcode-plugin",
+      features: "subagents,mcp,hooks",
+      outputRoots: pluginRoot,
+    });
+
+    // Plugin agents keep `permissionMode`, unlike project `.zcode/agents/`.
+    const generatedSubagent = await readFileContent(join(pluginRoot, "agents", "reviewer.md"));
+    expect(generatedSubagent).toContain("permissionMode: plan");
+    expect(JSON.parse(await readFileContent(join(pluginRoot, ".mcp.json")))).toEqual({
+      mcpServers: { docs: { command: "npx", args: ["-y", "docs-server"], enabled: false } },
+    });
+    expect(JSON.parse(await readFileContent(join(pluginRoot, "hooks", "hooks.json")))).toEqual({
+      hooks: {
+        SessionStart: [
+          { hooks: [{ type: "command", command: '"$ZCODE_PLUGIN_ROOT"/scripts/setup.sh' }] },
+        ],
+      },
+    });
+    expect(await fileExists(join(testDir, ".zcode", "config.json"))).toBe(false);
+
+    await removeDirectory(join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH));
+    await ensureDir(join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH));
+    await removeFile(rulesyncMcpPath);
+    await removeFile(rulesyncHooksPath);
+
+    await runImport({
+      target: "zcode-plugin",
+      features: "subagents,mcp,hooks",
+      outputRoot: pluginRoot,
+    });
+
+    const importedSubagent = await readFileContent(rulesyncSubagentPath);
+    expect(importedSubagent).toContain("permissionMode: plan");
+    expect(importedSubagent).toContain("Review the changes.");
+    expect(JSON.parse(await readFileContent(rulesyncMcpPath)).mcpServers).toEqual({
+      docs: { command: "npx", args: ["-y", "docs-server"], disabled: true },
+    });
+    expect(JSON.parse(await readFileContent(rulesyncHooksPath)).hooks).toEqual({
+      sessionStart: [{ type: "command", command: "./scripts/setup.sh" }],
+    });
+    expect(await fileExists(join(pluginRoot, ".zcode-plugin", "plugin.json"))).toBe(true);
   });
 
   describe.skipIf(process.platform === "win32")("symbolic link safety", () => {

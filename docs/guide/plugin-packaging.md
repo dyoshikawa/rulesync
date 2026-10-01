@@ -1,10 +1,11 @@
 # Plugin Packaging
 
-Rulesync can generate and import configuration components inside existing Claude Code, Google Antigravity and AugmentCode (Auggie) plugin directories. Use the packaging targets when the files are distributed as a plugin instead of being installed directly as project or user configuration:
+Rulesync can generate and import configuration components inside existing Claude Code, Google Antigravity, AugmentCode (Auggie) and ZCode plugin directories. Use the packaging targets when the files are distributed as a plugin instead of being installed directly as project or user configuration:
 
 - `claudecode-plugin`
 - `antigravity-plugin`
 - `augmentcode-plugin`
+- `zcode-plugin`
 
 Packaging targets are project-scope only and are intentionally excluded from `--targets "*"`. With `--global`, `generate` skips an explicitly requested packaging target with a warning, and `import` rejects it with an error. Their component directories, such as `skills/` and `rules/`, live directly under the output root and could otherwise collide with ordinary project directories.
 
@@ -27,6 +28,11 @@ rulesync generate \
   --targets augmentcode-plugin \
   --features rules,mcp,commands,subagents,skills \
   --output-roots ./plugins/review-tools
+
+rulesync generate \
+  --targets zcode-plugin \
+  --features mcp,commands,subagents,skills,hooks \
+  --output-roots ./plugins/review-tools
 ```
 
 The same configuration can be persisted in `rulesync.jsonc`:
@@ -37,11 +43,13 @@ The same configuration can be persisted in `rulesync.jsonc`:
     "claudecode-plugin": "./plugins/claude-review-tools",
     "antigravity-plugin": "./plugins/antigravity-review-tools",
     "augmentcode-plugin": "./plugins/auggie-review-tools",
+    "zcode-plugin": "./plugins/zcode-review-tools",
   },
   "targets": {
     "claudecode-plugin": ["mcp", "commands", "subagents", "skills", "hooks"],
     "antigravity-plugin": ["rules", "mcp", "subagents", "skills", "hooks"],
     "augmentcode-plugin": ["rules", "mcp", "commands", "subagents", "skills"],
+    "zcode-plugin": ["mcp", "commands", "subagents", "skills", "hooks"],
   },
 }
 ```
@@ -51,6 +59,7 @@ Rulesync manages the selected component files but does not create or modify plug
 - Claude Code: `.claude-plugin/plugin.json` when the plugin uses a manifest
 - Antigravity: `plugin.json`
 - AugmentCode: `.augment-plugin/plugin.json` (Auggie also accepts `.claude-plugin/plugin.json`), plus `.augment-plugin/marketplace.json` at the marketplace root
+- ZCode: `.zcode-plugin/plugin.json` (ZCode also accepts `.claude-plugin/plugin.json`)
 
 The plugin root must already exist. Rulesync rejects symbolic links anywhere in the plugin tree before importing, generating, or deleting files so package components cannot escape the selected root.
 
@@ -75,6 +84,11 @@ rulesync import \
   --targets augmentcode-plugin \
   --features rules,mcp,commands,subagents,skills \
   --output-root ./plugins/review-tools
+
+rulesync import \
+  --targets zcode-plugin \
+  --features mcp,commands,subagents,skills,hooks \
+  --output-root ./plugins/review-tools
 ```
 
 The `convert` command does not accept packaging targets because it has no separate source and destination plugin roots. Import from the source plugin first, then generate into the destination plugin.
@@ -86,6 +100,7 @@ The `convert` command does not accept packaging targets because it has no separa
 | `claudecode-plugin`  | —            | `.mcp.json`       | `commands/*.md` | `agents/*.md` | `skills/*/SKILL.md` | `hooks/hooks.json` |
 | `antigravity-plugin` | `rules/*.md` | `mcp_config.json` | —               | `agents/*.md` | `skills/*/SKILL.md` | `hooks.json`       |
 | `augmentcode-plugin` | `rules/*.md` | `.mcp.json`       | `commands/*.md` | `agents/*.md` | `skills/*/SKILL.md` | —                  |
+| `zcode-plugin`       | —            | `.mcp.json`       | `commands/*.md` | `agents/*.md` | `skills/*/SKILL.md` | `hooks/hooks.json` |
 
 Claude-specific frontmatter and hook overrides continue to use the `claudecode` sections in Rulesync source files. Antigravity plugin output uses the `antigravity-ide` conversion model and override sections because its plugin components follow the Antigravity IDE format.
 
@@ -96,6 +111,16 @@ Claude-specific frontmatter and hook overrides continue to use the `claudecode` 
 Hooks are not generated yet: a plugin hook file lives in `hooks/` and needs its script paths anchored to the plugin root (`${AUGMENT_PLUGIN_ROOT}`), which the `augmentcode` hook converter does not do. Keep a plugin's `hooks/hooks.json` hand-authored for now; Rulesync leaves it untouched.
 
 Since Auggie also accepts `.claude-plugin/` bundles, a `claudecode-plugin` bundle installs in Auggie too, but `claudecode-plugin` does not write `rules/` and its components carry Claude Code frontmatter; use `augmentcode-plugin` when the bundle targets Auggie.
+
+## ZCode plugins
+
+[ZCode plugins](https://zcode.z.ai/en/docs/plugin) use the Claude Code plugin layout without a `rules/` directory, and ZCode parses plugin commands and skills the same way as `.zcode/commands/` and `.zcode/skills/`. The `zcode-plugin` target therefore writes every component in the `zcode` format and reads the `zcode` sections and hook overrides of Rulesync source files. Plugin components differ from their `.zcode/` counterparts in three ways:
+
+- **Subagents keep `permissionMode`.** ZCode reads plugin agents like user agents in `~/.zcode/agents/`, so the `permissionMode` that the project-scope `zcode` target drops is written.
+- **MCP servers live in `.mcp.json` under `mcpServers`.** Servers keep ZCode's native shape (stdio `command` / `args` / `env`, remote `type` `http` or `sse` with `url` / `headers`), and a disabled server is written as `enabled: false`, the plugin loader's spelling, rather than the `enable: false` of `.zcode/config.json`. Import also accepts a bare server map without the `mcpServers` wrapper.
+- **Hooks live in `hooks/hooks.json` with the event map directly under `hooks`**, without the `enabled` / `events` wrapper of `.zcode/config.json`. Hooks run with the consumer's project as the working directory, so a relative command such as `./scripts/setup.sh` is written as `"$ZCODE_PLUGIN_ROOT"/scripts/setup.sh`; ZCode exports `ZCODE_PLUGIN_ROOT` to plugin hooks. Import converts the anchored form back to the relative command, and skips ZCode `process` hooks with a warning, as the `zcode` target does.
+
+ZCode namespaces plugin commands, agents and MCP servers under the plugin name. Since ZCode also accepts `.claude-plugin/` bundles, a `claudecode-plugin` bundle installs in ZCode too, but its components carry Claude Code frontmatter and its hook commands use `$CLAUDE_PLUGIN_ROOT`; use `zcode-plugin` when the bundle targets ZCode.
 
 ## Claude Code plugin constraints
 
