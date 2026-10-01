@@ -1774,7 +1774,9 @@ function buildCodexBashRulesContent({
  *
  * A trailing standalone `*` word says "anything after this", which is exactly
  * what a prefix rule already means, so it is dropped: `sudo *` becomes
- * `["sudo"]`. That holds for allow, ask and deny alike. Any other wildcard
+ * `["sudo"]`. That holds for allow, ask and deny alike. The prefix rule also
+ * matches the bare command (`sudo` with no arguments), as the Letta Code and
+ * Tabnine adapters' `<prefix> *` translations do. Any other wildcard
  * (`npm install*`, `git * --no-verify`) has no prefix-rule equivalent. Cutting
  * the pattern down to the tokens before it would widen the rule — a deny on
  * `npm install*` would block every `npm` command, an allow would approve
@@ -1801,7 +1803,10 @@ function toCodexPrefixRuleTokens({
     return null;
   }
 
-  while (tokens.length > 0 && isMatchAnythingToken(tokens.at(-1) ?? "")) {
+  // Only one trailing wildcard word is dropped: `docker * *` needs at least two
+  // more words, which a prefix rule cannot require, so it falls through to the
+  // skip below instead of becoming a rule for every `docker` command.
+  if (isMatchAnythingToken(tokens.at(-1) ?? "")) {
     tokens.pop();
   }
 

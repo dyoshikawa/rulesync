@@ -2537,7 +2537,6 @@ command = "node"
       ["rm -rf *", "deny", '["rm", "-rf"]', "forbidden"],
       ["git log *", "allow", '["git", "log"]', "allow"],
       ["npm publish *", "ask", '["npm", "publish"]', "prompt"],
-      ["docker * *", "deny", '["docker"]', "forbidden"],
       ["sudo **", "deny", '["sudo"]', "forbidden"],
     ] as const)(
       "drops the trailing standalone wildcard of %s (%s), since a prefix rule already matches what follows",
@@ -2569,6 +2568,8 @@ command = "node"
       ["ls ?", "allow"],
       ["rm [ab]", "ask"],
       ["git commit* *", "allow"],
+      ["docker * *", "allow"],
+      ["docker * *", "deny"],
     ] as const)(
       "skips %s (%s) with a warning instead of writing a broader or literal rule",
       (pattern, action) => {
