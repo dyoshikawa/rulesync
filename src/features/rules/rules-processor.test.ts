@@ -1140,36 +1140,39 @@ describe("RulesProcessor", () => {
       },
     );
 
-    it("should skip symbolic links when importing factorydroid output styles", async () => {
-      await writeFileContent(join(testDir, "outside", "secret.md"), "Outside the project.");
-      await writeFileContent(
-        join(testDir, ".factory", "output-styles", "review-notes.md"),
-        "Start with findings.",
-      );
-      await symlink(
-        join(testDir, "outside", "secret.md"),
-        join(testDir, ".factory", "output-styles", "linked.md"),
-      );
+    it.skipIf(process.platform === "win32")(
+      "should skip symbolic links when importing factorydroid output styles",
+      async () => {
+        await writeFileContent(join(testDir, "outside", "secret.md"), "Outside the project.");
+        await writeFileContent(
+          join(testDir, ".factory", "output-styles", "review-notes.md"),
+          "Start with findings.",
+        );
+        await symlink(
+          join(testDir, "outside", "secret.md"),
+          join(testDir, ".factory", "output-styles", "linked.md"),
+        );
 
-      const processor = new RulesProcessor({
-        logger,
-        outputRoot: testDir,
-        toolTarget: "factorydroid",
-      });
+        const processor = new RulesProcessor({
+          logger,
+          outputRoot: testDir,
+          toolTarget: "factorydroid",
+        });
 
-      const imported = await processor.loadToolFiles();
-      const importedPaths = imported.map((file) =>
-        join(file.getRelativeDirPath(), file.getRelativeFilePath()),
-      );
-      expect(importedPaths).toContain(join(".factory", "output-styles", "review-notes.md"));
-      expect(importedPaths).not.toContain(join(".factory", "output-styles", "linked.md"));
-      expect(imported.map((file) => file.getFileContent())).not.toContain("Outside the project.");
-      expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining(
-          `Skipping symbolic link ${join(".factory", "output-styles", "linked.md")}`,
-        ),
-      );
-    });
+        const imported = await processor.loadToolFiles();
+        const importedPaths = imported.map((file) =>
+          join(file.getRelativeDirPath(), file.getRelativeFilePath()),
+        );
+        expect(importedPaths).toContain(join(".factory", "output-styles", "review-notes.md"));
+        expect(importedPaths).not.toContain(join(".factory", "output-styles", "linked.md"));
+        expect(imported.map((file) => file.getFileContent())).not.toContain("Outside the project.");
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining(
+            `Skipping symbolic link ${join(".factory", "output-styles", "linked.md")}`,
+          ),
+        );
+      },
+    );
 
     it("should import Junie's .junie/rules and playbook but never delete them", async () => {
       // Junie combines a project-root `AGENTS.md` with `.junie/playbook.md`
