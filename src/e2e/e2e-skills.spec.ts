@@ -112,6 +112,10 @@ const skillsGenerateTargets = [
     outputPath: join(".cline", "skills", "test-skill", "SKILL.md"),
   },
   {
+    target: "codebuddy",
+    outputPath: join(".codebuddy", "skills", "test-skill", "SKILL.md"),
+  },
+  {
     target: "crush",
     outputPath: join(".crush", "skills", "test-skill", "SKILL.md"),
   },
@@ -395,6 +399,10 @@ This is the test skill body content.
     { target: "copilot", orphanPath: join(".github", "skills", "orphan-skill", "SKILL.md") },
     { target: "deepagents", orphanPath: join(".deepagents", "skills", "orphan-skill", "SKILL.md") },
     { target: "cline", orphanPath: join(".cline", "skills", "orphan-skill", "SKILL.md") },
+    {
+      target: "codebuddy",
+      orphanPath: join(".codebuddy", "skills", "orphan-skill", "SKILL.md"),
+    },
     { target: "crush", orphanPath: join(".crush", "skills", "orphan-skill", "SKILL.md") },
     { target: "kilo", orphanPath: join(".kilo", "skills", "orphan-skill", "SKILL.md") },
     { target: "roo", orphanPath: join(".roo", "skills", "orphan-skill", "SKILL.md") },
@@ -499,6 +507,7 @@ describe("E2E: skills (import)", () => {
     { target: "opencode", sourcePath: join(".opencode", "skill", "test-skill", "SKILL.md") },
     { target: "deepagents", sourcePath: join(".deepagents", "skills", "test-skill", "SKILL.md") },
     { target: "cline", sourcePath: join(".cline", "skills", "test-skill", "SKILL.md") },
+    { target: "codebuddy", sourcePath: join(".codebuddy", "skills", "test-skill", "SKILL.md") },
     { target: "crush", sourcePath: join(".crush", "skills", "test-skill", "SKILL.md") },
     { target: "kilo", sourcePath: join(".kilo", "skills", "test-skill", "SKILL.md") },
     {
@@ -1117,6 +1126,10 @@ const skillsGlobalTargets = [
   {
     target: "cline",
     outputPath: join(".cline", "skills", "test-skill", "SKILL.md"),
+  },
+  {
+    target: "codebuddy",
+    outputPath: join(".codebuddy", "skills", "test-skill", "SKILL.md"),
   },
   {
     target: "crush",

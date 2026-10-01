@@ -43,6 +43,7 @@ import { BobCommand } from "./bob-command.js";
 import { ClaudecodeCommand } from "./claudecode-command.js";
 import { ClaudecodePluginCommand } from "./claudecode-plugin-command.js";
 import { ClineCommand } from "./cline-command.js";
+import { CodebuddyCommand } from "./codebuddy-command.js";
 import { CodexcliCommand } from "./codexcli-command.js";
 import { CommandcodeCommand } from "./commandcode-command.js";
 import { ContinueCommand } from "./continue-command.js";
@@ -320,6 +321,23 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
         supportsGlobal: true,
         isSimulated: false,
         supportsSubdirectory: false,
+      },
+    },
+  ],
+  [
+    "codebuddy",
+    {
+      class: CodebuddyCommand,
+      meta: {
+        // CodeBuddy Code reads Markdown slash commands from
+        // `.codebuddy/commands/` (subdirectories become `/dir:name`) and
+        // `~/.codebuddy/commands/`.
+        // https://www.codebuddy.ai/docs/cli/slash-commands
+        extension: "md",
+        supportsProject: true,
+        supportsGlobal: true,
+        isSimulated: false,
+        supportsSubdirectory: true,
       },
     },
   ],
