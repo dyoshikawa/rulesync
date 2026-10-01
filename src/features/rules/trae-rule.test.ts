@@ -180,6 +180,33 @@ describe("TraeRule", () => {
     ).toMatchObject({ globs: ["!**/test/**"] });
   });
 
+  it("should import a leading-[ character-class glob but keep flow lists as lists", async () => {
+    expect(
+      await importFile("---\nalwaysApply: false\nglobs: [abc]*.ts,src/**\n---\nBody\n"),
+    ).toMatchObject({ globs: ["[abc]*.ts", "src/**"] });
+    expect(
+      await importFile("---\nalwaysApply: false\nglobs: [Dd]ocs/*.[mM][dD],[ab],[cd]\n---\nBody\n"),
+    ).toMatchObject({ globs: ["[Dd]ocs/*.[mM][dD]", "[ab]", "[cd]"] });
+    expect(
+      await importFile('---\nalwaysApply: false\nglobs: ["*.ts", "*.md"] # lists\n---\nBody\n'),
+    ).toMatchObject({ globs: ["*.ts", "*.md"] });
+    expect(
+      await importFile('---\nalwaysApply: false\nglobs: [\n  "*.ts",\n  "*.md"\n]\n---\nBody\n'),
+    ).toMatchObject({ globs: ["*.ts", "*.md"] });
+    expect(
+      await importFile('---\nalwaysApply: false\nglobs: ["*.ts",\n  "*.md"]\n---\nBody\n'),
+    ).toMatchObject({ globs: ["*.ts", "*.md"] });
+    expect(
+      await importFile('---\nalwaysApply: false\nglobs: ["a]",\n  "b"]\n---\nBody\n'),
+    ).toMatchObject({ globs: ["a]", "b"] });
+  });
+
+  it("should trim trailing blanks from an unquoted globs value", async () => {
+    expect(
+      await importFile(`---\nalwaysApply: false\nglobs: *.ts${" ".repeat(50_000)}\n---\nBody\n`),
+    ).toMatchObject({ globs: ["*.ts"] });
+  });
+
   it("should leave YAML null and boolean keywords and block scalars unquoted on import", async () => {
     expect((await importFile("---\nalwaysApply: false\nglobs: null\n---\nBody\n")).globs).toEqual(
       [],

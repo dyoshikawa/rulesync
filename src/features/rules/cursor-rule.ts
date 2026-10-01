@@ -9,7 +9,7 @@ import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { RulesyncTargets } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
-import { parseFrontmatter } from "../../utils/frontmatter.js";
+import { findFrontmatterBlockBounds, parseFrontmatter } from "../../utils/frontmatter.js";
 import { RulesyncRule, RulesyncRuleFrontmatter } from "./rulesync-rule.js";
 import {
   ToolRule,
@@ -171,14 +171,21 @@ export class CursorRule extends ToolRule {
     body: string;
   } {
     // Special handling for MDC files: preprocess globs field to handle asterisks
-    // MDC files don't support quotes in YAML, so we need to handle patterns like *.ts specially
-    const preprocessedContent = fileContent.replace(
-      /^globs:\s*(\*[^\n]*?)$/m,
-      (_match, globPattern) => {
+    // MDC files don't support quotes in YAML, so we need to handle patterns like *.ts specially.
+    // Only the frontmatter block is rewritten, so a `globs: *...` line in the body stays as is.
+    const bounds = findFrontmatterBlockBounds(fileContent);
+    if (!bounds) {
+      return parseFrontmatter(fileContent, filePath);
+    }
+    const { blockStart, blockEnd } = bounds;
+    const block = fileContent
+      .slice(blockStart, blockEnd)
+      .replace(/^globs:[ \t]*(\*[^\r\n]*?)$/m, (_match, globPattern: string) => {
         // Wrap the glob pattern in quotes for YAML parsing
-        return `globs: "${globPattern}"`;
-      },
-    );
+        return `globs: ${JSON.stringify(globPattern.trimEnd())}`;
+      });
+    const preprocessedContent =
+      fileContent.slice(0, blockStart) + block + fileContent.slice(blockEnd);
 
     return parseFrontmatter(preprocessedContent, filePath);
   }

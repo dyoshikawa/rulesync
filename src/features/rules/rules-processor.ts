@@ -37,6 +37,7 @@ import {
   filterOutPathsInGitIgnoredDirectories,
   findFilesByGlobs,
   readFileContent,
+  resolvedRelativePath,
   toPosixPath,
 } from "../../utils/file.js";
 import { type Logger, warnOnceWithFallback } from "../../utils/logger.js";
@@ -1515,6 +1516,7 @@ export class RulesProcessor extends FeatureProcessor {
     const factory = this.getFactory(this.toolTarget);
     const { meta } = factory;
     this.warnForIncludeRootOption(meta);
+    this.warnForFactorydroidRuleOptions({ rules: alignedRules, factory });
     const emittedRules = this.omitsRootFiles()
       ? await this.dropRootRules(alignedRules)
       : alignedRules;
@@ -1846,6 +1848,48 @@ export class RulesProcessor extends FeatureProcessor {
       this.logger.warn(
         "The rules option `ruleDiscoveryMode` has no effect with `includeRoot: false` on claudecode: the rule references it adds are written into CLAUDE.md, which is not generated.",
       );
+    }
+  }
+
+  /**
+   * Warn about `factorydroid` frontmatter that does not do what it looks like
+   * it does: an `output-style` rule that also targets other tools reaches them
+   * as an ordinary rule (so presentation instructions end up in their project
+   * rules), and `factorydroid.name` is read only with `channel: output-style`.
+   * Checked while generating for factorydroid only, so each warning prints once.
+   */
+  private warnForFactorydroidRuleOptions({
+    rules,
+    factory,
+  }: {
+    rules: RulesyncRule[];
+    factory: ToolRuleFactory;
+  }): void {
+    if (this.toolTarget !== "factorydroid") {
+      return;
+    }
+    for (const rule of rules) {
+      const frontmatter = rule.getFrontmatter();
+      if (
+        frontmatter.root ||
+        !frontmatter.factorydroid ||
+        !factory.class.isTargetedByRulesyncRule(rule)
+      ) {
+        continue;
+      }
+      const { channel, name } = frontmatter.factorydroid;
+      const fileName = stripControlCharacters(rule.getRelativeFilePath());
+      const targets = frontmatter.targets ?? ["*"];
+      if (channel === "output-style" && targets.some((target) => target !== "factorydroid")) {
+        this.logger.warn(
+          `${fileName} sets factorydroid.channel: output-style but also targets other tools, which receive it as an ordinary rule. Set \`targets: ["factorydroid"]\` to keep the output style to Factory Droid.`,
+        );
+      }
+      if (channel !== "output-style" && name !== undefined) {
+        this.logger.warn(
+          `${fileName} sets factorydroid.name, which is read only with factorydroid.channel: output-style; ignoring it.`,
+        );
+      }
     }
   }
 
@@ -3222,18 +3266,45 @@ As this project's AI coding tool, you must follow the additional conventions bel
           return [];
         }
 
-        const filePaths = await findFilesByGlobs(
-          extraFiles.map((file) => rootRelativeGlob(file.relativeDirPath, file.relativeFilePath)),
-          // Files only: a glob entry such as `*.md` would otherwise match a
-          // directory named `x.md`, which cannot be read as a rule.
-          { cwd: this.outputRoot, type: "file" },
+        // Files only: a glob entry such as `*.md` would otherwise match a
+        // directory named `x.md`, which cannot be read as a rule.
+        const findExtraFiles = async (files: ToolRuleExtraFixedFile[]) =>
+          files.length === 0
+            ? []
+            : await findFilesByGlobs(
+                files.map((file) => rootRelativeGlob(file.relativeDirPath, file.relativeFilePath)),
+                { cwd: this.outputRoot, type: "file" },
+              );
+        const managedFilePaths = await findExtraFiles(
+          extraFiles.filter((file) => !file.importOnly),
         );
-        if (filePaths.length === 0) {
-          return [];
+        if (forDeletion) {
+          return managedFilePaths.length === 0 ? [] : buildDeletionRulesFromPaths(managedFilePaths);
         }
 
-        if (forDeletion) {
-          return buildDeletionRulesFromPaths(filePaths);
+        // An `importOnly` directory is shared with hand-written files, so a
+        // symlink there (the file or a directory above it) may point anywhere;
+        // skip it rather than copy its target into `.rulesync/rules/`, where
+        // it may be committed. A link is detected as a file whose real path,
+        // taken against the real output root, differs from its spelled one.
+        const importOnlyFilePaths: string[] = [];
+        for (const filePath of await findExtraFiles(extraFiles.filter((file) => file.importOnly))) {
+          const spelledPath = toPosixPath(relative(this.outputRoot, filePath));
+          const realPath = await resolvedRelativePath({
+            rootPath: this.outputRoot,
+            targetPath: filePath,
+          });
+          if (realPath !== spelledPath) {
+            this.logger.warn(
+              `Skipping symbolic link ${stripControlCharacters(spelledPath)} on import: ${this.toolTarget} files reached through a link are not copied into ${RULESYNC_RULES_RELATIVE_DIR_PATH}.`,
+            );
+            continue;
+          }
+          importOnlyFilePaths.push(filePath);
+        }
+        const filePaths = [...managedFilePaths, ...importOnlyFilePaths];
+        if (filePaths.length === 0) {
+          return [];
         }
 
         return await Promise.all(

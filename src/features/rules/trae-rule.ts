@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-import { dump } from "js-yaml";
+import { dump, load } from "js-yaml";
 import { z } from "zod/mini";
 
 import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
@@ -52,7 +52,25 @@ type TraeRuleOutputFrontmatter = {
  * read, so `globs: null` stays null and `globs: |-` stays a block scalar.
  */
 const UNQUOTED_GLOBS_LINE_REGEX =
-  /^globs:[ \t]*(?!(?:null|Null|NULL|~|true|True|TRUE|false|False|FALSE)[ \t]*(?:#[^\r\n]*)?$)(?![|>])([^\s"'[][^\r\n]*?)[ \t]*$/m;
+  /^globs:[ \t]*(?!(?:null|Null|NULL|~|true|True|TRUE|false|False|FALSE)[ \t]*(?:#[^\r\n]*)?$)(?![|>])([^\s"'][^\r\n]*)$/m;
+
+/**
+ * Whether a leading-`[` `globs:` value is a YAML flow list, which is left for
+ * YAML to read: a single-line list (`["*.ts", "*.md"]`, optionally followed by
+ * a comment), or the first line of a multi-line one (no `]` yet, or a trailing
+ * `,` or `[`). Anything else, such as the character-class glob `[abc]*.ts`, is
+ * quoted as a glob.
+ */
+function isFlowListValue(value: string): boolean {
+  if (!value.includes("]") || /[,[]$/.test(value)) {
+    return true;
+  }
+  try {
+    return Array.isArray(load(value));
+  } catch {
+    return false;
+  }
+}
 
 /** Globs that match every file, and so add nothing to an always-applied rule. */
 const UNIVERSAL_GLOBS = new Set(["**/*", "*"]);
@@ -202,7 +220,7 @@ export class TraeRule extends ToolRule {
    * unquoted, comma-separated scalar, which a YAML parser rejects or misreads
    * when it starts with `*`, `{`, `!` and the like. Such a value is quoted
    * before parsing, inside the frontmatter block only so the body is never
-   * rewritten. A quoted value, a YAML list, a null or boolean keyword and a
+   * rewritten. A quoted value, a YAML flow list, a null or boolean keyword and a
    * block scalar indicator (`|`, `>`) are left alone. The block bounds are
    * gray-matter's own (it closes the block at the first `\n---`, even inside a
    * `----` line), so the quoting never reaches text gray-matter reads as body.
@@ -218,8 +236,13 @@ export class TraeRule extends ToolRule {
     const { blockStart: start, blockEnd: end } = bounds;
     const block = fileContent
       .slice(start, end)
-      .replace(UNQUOTED_GLOBS_LINE_REGEX, (_match, value: string) => {
-        return `globs: ${JSON.stringify(value)}`;
+      .replace(UNQUOTED_GLOBS_LINE_REGEX, (match, rawValue: string) => {
+        // Trimmed here rather than in the regex, whose lazy value followed by
+        // `[ \t]*$` backtracks quadratically on a long run of blanks.
+        const value = rawValue.trimEnd();
+        return value.startsWith("[") && isFlowListValue(value)
+          ? match
+          : `globs: ${JSON.stringify(value)}`;
       });
     return parseFrontmatter(fileContent.slice(0, start) + block + fileContent.slice(end), filePath);
   }
