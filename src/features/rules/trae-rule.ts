@@ -52,12 +52,13 @@ type TraeRuleOutputFrontmatter = {
  * read, so `globs: null` stays null and `globs: |-` stays a block scalar.
  */
 const UNQUOTED_GLOBS_LINE_REGEX =
-  /^globs:[ \t]*(?!(?:null|Null|NULL|~|true|True|TRUE|false|False|FALSE)[ \t]*(?:#[^\r\n]*)?$)(?![|>])([^\s"'][^\r\n]*?)[ \t]*$/m;
+  /^globs:[ \t]*(?!(?:null|Null|NULL|~|true|True|TRUE|false|False|FALSE)[ \t]*(?:#[^\r\n]*)?$)(?![|>])([^\s"'][^\r\n]*)$/m;
 
 /**
  * A YAML flow list (`["*.ts", "*.md"]`, optionally followed by a comment),
  * which is left for YAML to read. A leading-`[` value with anything after its
- * closing `]`, such as the character-class glob `[abc]*.ts`, is quoted instead.
+ * closing `]`, such as the character-class glob `[abc]*.ts`, is quoted instead,
+ * while one with no `]` on the line opens a multi-line flow list.
  */
 const FLOW_LIST_VALUE_REGEX = /^\[[^\r\n]*\](?:[ \t]+#[^\r\n]*)?$/;
 
@@ -225,8 +226,13 @@ export class TraeRule extends ToolRule {
     const { blockStart: start, blockEnd: end } = bounds;
     const block = fileContent
       .slice(start, end)
-      .replace(UNQUOTED_GLOBS_LINE_REGEX, (match, value: string) => {
-        return FLOW_LIST_VALUE_REGEX.test(value) ? match : `globs: ${JSON.stringify(value)}`;
+      .replace(UNQUOTED_GLOBS_LINE_REGEX, (match, rawValue: string) => {
+        // Trimmed here rather than in the regex, whose lazy value followed by
+        // `[ \t]*$` backtracks quadratically on a long run of blanks.
+        const value = rawValue.trimEnd();
+        const isFlowList =
+          value.startsWith("[") && (!value.includes("]") || FLOW_LIST_VALUE_REGEX.test(value));
+        return isFlowList ? match : `globs: ${JSON.stringify(value)}`;
       });
     return parseFrontmatter(fileContent.slice(0, start) + block + fileContent.slice(end), filePath);
   }
