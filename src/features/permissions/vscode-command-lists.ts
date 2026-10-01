@@ -144,7 +144,7 @@ function resolveInertDenies({
       allowed.length > 0
         ? `Every allow entry (${formatPatterns(allowed)}) has been withheld so no command it ` +
           `was meant to block is auto-approved; `
-        : "";
+        : "Instead, ";
   }
   warnWithFallback(
     logger,

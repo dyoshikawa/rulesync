@@ -243,6 +243,17 @@ describe("BobPermissions", () => {
       expect(warnings(logger).some((message) => message.includes("'read'"))).toBe(true);
     });
 
+    it("warns that an all-tools deny is skipped when no bash category is stated", async () => {
+      const logger = createMockLogger();
+      await BobPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({ "*": { "rm *": "deny" } }),
+        logger,
+      });
+
+      expect(warnings(logger).some((message) => message.includes("'*' was skipped"))).toBe(true);
+    });
+
     it("warns about allow rules in categories it cannot represent", async () => {
       const logger = createMockLogger();
       await BobPermissions.fromRulesyncPermissions({

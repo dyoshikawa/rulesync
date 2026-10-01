@@ -134,9 +134,12 @@ function warnAboutSkippedCategories({
   logger?: Logger | undefined;
 }): void {
   const skipped = Object.entries(permission)
+    // The all-tools category is folded into the command lists only alongside
+    // `bash`; without it, its restrictions are skipped like any other category.
     .filter(
       ([category]) =>
-        category !== SHELL_PERMISSION_CATEGORY && category !== ALL_TOOLS_PERMISSION_CATEGORY,
+        category !== SHELL_PERMISSION_CATEGORY &&
+        (!bashStated || category !== ALL_TOOLS_PERMISSION_CATEGORY),
     )
     .filter(([, rules]) => (bashStated ? Object.values(rules).includes("allow") : true))
     .map(([category]) => category);
