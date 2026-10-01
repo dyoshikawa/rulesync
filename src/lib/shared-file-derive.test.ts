@@ -125,6 +125,10 @@ describe("shared-file write derivation", () => {
           "mcp",
           "permissions",
         ],
+        ".bob/settings/settings.json": [
+          "hooks",
+          "permissions",
+        ],
         ".claude/settings.json": [
           "hooks",
           "ignore",

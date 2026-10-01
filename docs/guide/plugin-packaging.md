@@ -120,7 +120,7 @@ Since Auggie also accepts `.claude-plugin/` bundles, a `claudecode-plugin` bundl
 - **MCP servers live in `.mcp.json` under `mcpServers`.** Servers keep ZCode's native shape (stdio `command` / `args` / `env`, remote `type` `http` or `sse` with `url` / `headers`), and a disabled server is written as `enabled: false`, the plugin loader's spelling, rather than the `enable: false` of `.zcode/config.json`. Import also accepts a bare server map without the `mcpServers` wrapper.
 - **Hooks live in `hooks/hooks.json` with the event map directly under `hooks`**, without the `enabled` / `events` wrapper of `.zcode/config.json`. Hooks run with the consumer's project as the working directory, so a relative command such as `./scripts/setup.sh` is written as `"$ZCODE_PLUGIN_ROOT"/scripts/setup.sh`; ZCode exports `ZCODE_PLUGIN_ROOT` to plugin hooks. Import converts the anchored form back to the relative command, and skips ZCode `process` hooks with a warning, as the `zcode` target does.
 
-ZCode namespaces plugin commands, agents and MCP servers under the plugin name. Since ZCode also accepts `.claude-plugin/` bundles, a `claudecode-plugin` bundle installs in ZCode too, but its components carry Claude Code frontmatter and its hook commands use `$CLAUDE_PLUGIN_ROOT`; use `zcode-plugin` when the bundle targets ZCode.
+ZCode namespaces plugin agents and MCP servers under the plugin name. Since ZCode also accepts `.claude-plugin/` bundles, a `claudecode-plugin` bundle installs in ZCode too, but its components carry Claude Code frontmatter and its hook commands use `$CLAUDE_PLUGIN_ROOT`; use `zcode-plugin` when the bundle targets ZCode.
 
 ## Claude Code plugin constraints
 

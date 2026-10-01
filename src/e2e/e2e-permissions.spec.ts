@@ -80,6 +80,7 @@ const permissionsGlobalTargets = [
   "cursor",
   "kilo",
   "augmentcode",
+  "bob",
   "qwencode",
   "tabnine",
   "continue",
@@ -2131,6 +2132,87 @@ describe("E2E: permissions (global mode)", () => {
       expect(generated).toContain("rm *");
     },
   );
+
+  it("should generate and import bob permissions in ~/.bob/settings/settings.json (global-only)", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+    const settingsPath = join(homeDir, ".bob", "settings", "settings.json");
+
+    // Bob keeps its other settings (and the hooks feature's `hooks` key) in
+    // the same file, and the `approval` block carries group switches rulesync
+    // does not author.
+    await writeFileContent(
+      settingsPath,
+      JSON.stringify({
+        locale: "en",
+        approval: { allowed_permissions: ["read", "execute"] },
+      }),
+    );
+    await writeFileContent(
+      join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "git status": "allow", "git push": "ask", rm: "deny" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({
+      target: "bob",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    expect(JSON.parse(await readFileContent(settingsPath))).toEqual({
+      locale: "en",
+      approval: {
+        allowed_permissions: ["read", "execute"],
+        allowedExecutors: [
+          { toolId: "execute_command", approvedCommands: ["git status"], deniedCommands: ["rm"] },
+        ],
+      },
+    });
+
+    await runImport({
+      target: "bob",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const imported = JSON.parse(
+      await readFileContent(join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH)),
+    );
+    // Bob has no ask tier, so the `ask` rule is never written; the import keeps
+    // it from the existing canonical file rather than dropping it.
+    expect(imported.permission).toEqual({
+      bash: { "git status": "allow", "git push": "ask", rm: "deny" },
+    });
+  });
+
+  it("should not create ~/.bob/settings/settings.json when no bash category is stated", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify({ permission: { read: { "*": "allow" } } }, null, 2),
+    );
+
+    await runGenerate({
+      target: "bob",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    expect(await fileExists(join(homeDir, ".bob", "settings", "settings.json"))).toBe(false);
+  });
 
   it("should generate copilotcli permissions in home directory with --global", async () => {
     const projectDir = getProjectDir();

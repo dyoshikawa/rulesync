@@ -72,9 +72,12 @@ function firstPrefix(text: string, stopAt: RegExp): string | undefined {
   return prefix.trim() === "" ? undefined : prefix;
 }
 
-function classifyPattern(pattern: string): PatternShape {
+function classifyPattern(pattern: string, bareStarIsWildcard: boolean): PatternShape {
   if (pattern === "*") {
-    return { kind: "literal" };
+    // Only the Roo Code lineage documents the bare `"*"` entry as a wildcard.
+    // Elsewhere it is literal prefix text that pins down no command, so it is
+    // reported like any other matcher that names no prefix.
+    return bareStarIsWildcard ? { kind: "literal" } : { kind: "matcher", prefix: undefined };
   }
   // A leading anchor is regex syntax wherever it appears, so the rest is read
   // as a regex whether or not the pattern also carries the `/…/` delimiters.
@@ -110,6 +113,50 @@ function formatAdditions(additions: { from: string; prefix: string }[]): string 
   return additions
     .map(({ from, prefix }) => `${JSON.stringify(from)} → ${JSON.stringify(prefix)}`)
     .join(", ");
+}
+
+/**
+ * Report the denies that pin down no prefix and return the allow entries that
+ * may still be written. With `failClosed`, such a deny withholds every allow:
+ * without a longest-match rule there is no allow it could be weighed against,
+ * so writing them would auto-approve a command the deny was meant to block.
+ */
+function resolveInertDenies({
+  toolLabel,
+  logger,
+  inertDenies,
+  allowed,
+  failClosed,
+}: {
+  toolLabel: string;
+  logger?: Logger | undefined;
+  inertDenies: string[];
+  allowed: string[];
+  failClosed: boolean;
+}): string[] {
+  if (inertDenies.length === 0) {
+    return allowed;
+  }
+  const count = inertDenies.length;
+  let consequence = `That leaves the command auto-approved whenever an allow entry does match; `;
+  if (failClosed) {
+    consequence =
+      allowed.length > 0
+        ? `Every allow entry (${formatPatterns(allowed)}) has been withheld so no command it ` +
+          `was meant to block is auto-approved; `
+        : "Instead, ";
+  }
+  warnWithFallback(
+    logger,
+    `${toolLabel}: deny ${pluralize(count, "pattern", "patterns")} ${formatPatterns(inertDenies)} ` +
+      `${pluralize(count, "uses", "use")} glob or regex syntax that pins down no command ` +
+      `prefix, so ${pluralize(count, "it is", "they are")} written unchanged and will never ` +
+      `match. ` +
+      consequence +
+      `rewrite each one as the literal text a command starts with — an alternation needs one ` +
+      `entry per alternative.`,
+  );
+  return failClosed ? [] : allowed;
 }
 
 /**
@@ -164,16 +211,30 @@ function formatAdditions(additions: { from: string; prefix: string }[]): string 
  *   than it looks like it does, and the rest reach the approval prompt. Adding
  *   its prefix would widen what runs unattended, so allow patterns are passed
  *   through unchanged and only warned about.
+ *
+ * `prefixSemantics` selects which matching rules the warnings describe. The
+ * default, `"roo-lineage"`, is the Roo Code / Zoo Code behavior above. IBM
+ * Bob documents the same prefix lists with a stricter, simpler contract —
+ * `deniedCommands` always takes precedence over `approvedCommands` — and
+ * documents no bare `"*"` wildcard, so `"documented-prefix"` treats `"*"` as
+ * a matcher that pins down no prefix and words the shadowing warning without
+ * the longest-match rule. It also fails closed on a deny that pins down no
+ * prefix: since that deny can never match, every allow entry is withheld so
+ * the command it meant to block reaches the approval prompt instead of being
+ * auto-approved.
  */
 export function buildVscodeCommandLists({
   rules,
   toolLabel,
   logger,
+  prefixSemantics = "roo-lineage",
 }: {
   rules: Record<string, PermissionAction>;
   toolLabel: string;
   logger?: Logger | undefined;
+  prefixSemantics?: "roo-lineage" | "documented-prefix";
 }): { allowed: string[]; denied: string[] | undefined } {
+  const isRooLineage = prefixSemantics === "roo-lineage";
   const allowed: string[] = [];
   const denied: string[] = [];
   const matcherAllows: string[] = [];
@@ -183,7 +244,7 @@ export function buildVscodeCommandLists({
     if (action !== "allow" && action !== "deny") {
       continue;
     }
-    const shape = classifyPattern(pattern);
+    const shape = classifyPattern(pattern, isRooLineage);
     if (action === "allow") {
       allowed.push(pattern);
       if (shape.kind === "matcher") {
@@ -217,22 +278,17 @@ export function buildVscodeCommandLists({
         `everything its pattern named, so review it if that is wider than you intended.`,
     );
   }
-  if (inertDenies.length > 0) {
-    const count = inertDenies.length;
-    warnWithFallback(
-      logger,
-      `${toolLabel}: deny ${pluralize(count, "pattern", "patterns")} ${formatPatterns(inertDenies)} ` +
-        `${pluralize(count, "uses", "use")} glob or regex syntax that pins down no command ` +
-        `prefix, so ${pluralize(count, "it is", "they are")} written unchanged and will never ` +
-        `match. That leaves the command auto-approved whenever an allow entry does match; rewrite ` +
-        `each one as the literal text a command starts with — an alternation needs one entry per ` +
-        `alternative.`,
-    );
-  }
+  const keptAllows = resolveInertDenies({
+    toolLabel,
+    logger,
+    inertDenies,
+    allowed,
+    failClosed: !isRooLineage,
+  });
   // An added prefix can land on a pattern the author allowed. Deny wins on an
   // equal-length match, so the allow entry stops approving anything — the safe
   // direction, but not obviously what was written.
-  const allowedSet = new Set(allowed);
+  const allowedSet = new Set(keptAllows);
   // Deduplicated before it is counted: two matcher denies can pin down the same
   // prefix, and the message names each shadowed allow entry once.
   const shadowedAllows = [
@@ -246,27 +302,35 @@ export function buildVscodeCommandLists({
       logger,
       `${toolLabel}: the added deny ${pluralize(count, "prefix", "prefixes")} ` +
         `${formatPatterns(shadowedAllows)} also ${pluralize(count, "appears", "appear")} ` +
-        `in the allow list. A denied match of equal length wins over an allowed one, so ` +
+        `in the allow list. ${
+          isRooLineage
+            ? "A denied match of equal length wins over an allowed one"
+            : "The deny list takes precedence over the allow list"
+        }, so ` +
         `${pluralize(count, "that allow entry", "those allow entries")} no longer ` +
         `${pluralize(count, "approves", "approve")} anything.`,
     );
   }
-  if (matcherAllows.length > 0) {
-    const count = matcherAllows.length;
+  const reportedMatcherAllows = matcherAllows.filter((pattern) => allowedSet.has(pattern));
+  if (reportedMatcherAllows.length > 0) {
+    const count = reportedMatcherAllows.length;
     warnWithFallback(
       logger,
       `${toolLabel}: allow ${pluralize(count, "pattern", "patterns")} ` +
-        `${formatPatterns(matcherAllows)} will be compared as literal command prefix text, not as ` +
+        `${formatPatterns(reportedMatcherAllows)} will be compared as literal command prefix text, not as ` +
         `a glob or regex, so ${pluralize(count, "it approves", "they approve")} fewer commands ` +
         `than ${pluralize(count, "it looks", "they look")} like. ` +
         `${pluralize(count, "It is", "They are")} left unchanged, since narrowing an allow is the ` +
-        `safe direction; write the literal prefix instead if you meant more. A bare "*" is the one ` +
-        `entry treated as a wildcard.`,
+        `safe direction; write the literal prefix instead if you meant more.` +
+        (isRooLineage ? ` A bare "*" is the one entry treated as a wildcard.` : ""),
     );
   }
 
   // A widened prefix can coincide with another entry — with a second matcher
   // that pins down the same prefix, or with a literal the author already wrote.
   const deduped = [...new Set(denied)];
-  return { allowed, denied: deduped.length > 0 ? deduped : undefined };
+  return {
+    allowed: keptAllows,
+    denied: deduped.length > 0 ? deduped : undefined,
+  };
 }

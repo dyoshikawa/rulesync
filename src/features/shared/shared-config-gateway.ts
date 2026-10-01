@@ -1611,9 +1611,11 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
   // full by the writer and retracted with an explicit `undefined`.
   "crush.json": CRUSH_CONFIG_DECLARATION,
   ".config/crush/crush.json": CRUSH_CONFIG_DECLARATION,
-  // IBM Bob settings: `hooks` is the only rulesync-owned key. The project file
-  // (`.bob/settings.json`) and the user file (`~/.bob/settings/settings.json`)
-  // both carry unrelated Bob settings, so they are edited in place and an
+  // IBM Bob settings: the hooks feature owns `hooks` in both the project file
+  // (`.bob/settings.json`) and the user file (`~/.bob/settings/settings.json`);
+  // the permissions feature owns `approval` in the user file only, and the
+  // adapter re-spreads the parts of it rulesync does not author. Both files
+  // carry unrelated Bob settings, so they are edited in place and an
   // unparseable root is refused rather than replaced with generated output.
   ".bob/settings.json": {
     format: "json",
@@ -1627,6 +1629,7 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
     invalidRootPolicy: "error",
     features: {
       hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
+      permissions: { kind: "replace-owned-keys", ownedKeys: ["approval"] },
     },
   },
   // Continue CLI settings: `hooks` is the only rulesync-owned key of
