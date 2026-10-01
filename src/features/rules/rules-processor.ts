@@ -991,8 +991,9 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
     {
       class: OmpRule,
       meta: {
-        // oh-my-pi loads `.omp/AGENTS.md` plus `.omp/rules/*.md` natively, and
-        // `~/.omp/agent/AGENTS.md` plus `~/.omp/agent/rules/*.md` globally.
+        // oh-my-pi loads `.omp/AGENTS.md` plus `.omp/rules/*.{md,mdc}`
+        // natively, and `~/.omp/agent/AGENTS.md` plus
+        // `~/.omp/agent/rules/*.{md,mdc}` globally.
         // https://github.com/can1357/oh-my-pi/blob/main/docs/context-files.md
         extension: "md",
         // The rules directory is read non-recursively, as `*.md` and `*.mdc`

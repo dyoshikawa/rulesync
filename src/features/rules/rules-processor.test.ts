@@ -1111,6 +1111,24 @@ describe("RulesProcessor", () => {
       ]);
     });
 
+    it("should warn when an oh-my-pi .md and .mdc rule import to the same rulesync rule", async () => {
+      await writeFileContent(
+        join(testDir, ".omp", "rules", "foo.md"),
+        "---\nalwaysApply: true\n---\n# Md",
+      );
+      await writeFileContent(
+        join(testDir, ".omp", "rules", "foo.mdc"),
+        "---\nalwaysApply: true\n---\n# Mdc",
+      );
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "omp" });
+      await processor.convertToolFilesToRulesyncFiles(await processor.loadToolFiles());
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("; the last one wins wherever they collide."),
+      );
+    });
+
     it("should warn when flattening a nested oh-my-pi rule collides with a top-level one", async () => {
       const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "omp" });
       const buildOmpRule = (relativeFilePath: string) =>

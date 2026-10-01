@@ -114,6 +114,16 @@ describe("OmpRule", () => {
       expect(rule.getRelativeFilePath()).toBe("frontend-style.md");
     });
 
+    it("should flatten a nested rulesync rule in global scope too", () => {
+      const rule = OmpRule.fromRulesyncRule({
+        rulesyncRule: buildRule({ relativeFilePath: join("frontend", "style.md") }),
+        global: true,
+      });
+
+      expect(rule.getRelativeDirPath()).toBe(join(".omp", "agent", "rules"));
+      expect(rule.getRelativeFilePath()).toBe("frontend-style.md");
+    });
+
     it("should import a .mdc rule as a .md rulesync rule", async () => {
       await writeFileContent(
         join(testDir, ".omp", "rules", "legacy.mdc"),
