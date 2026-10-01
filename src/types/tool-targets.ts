@@ -22,6 +22,7 @@ export type ToolTarget = z.infer<typeof ToolTargetSchema>;
 
 export const PACKAGING_TOOL_TARGETS = [
   "antigravity-plugin",
+  "augmentcode-plugin",
   "claudecode-plugin",
 ] as const satisfies readonly ToolTarget[];
 

@@ -65,6 +65,7 @@ export const TOOL_DISPLAY: ReadonlyArray<ToolDisplayEntry> = [
   { key: "aiassistant", label: "JetBrains AI Assistant", group: "ai" },
   { key: "junie", label: "JetBrains Junie", group: "ai" },
   { key: "augmentcode", label: "AugmentCode", group: "ai" },
+  { key: "augmentcode-plugin", label: "AugmentCode plugin", group: "ai" },
   { key: "devin", label: "Devin Desktop", group: "ai" },
   { key: "warp", label: "Warp", group: "ai" },
   { key: "replit", label: "Replit", group: "ai" },

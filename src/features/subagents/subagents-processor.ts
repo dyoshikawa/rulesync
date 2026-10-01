@@ -30,6 +30,7 @@ import { AgentsmdSubagent } from "./agentsmd-subagent.js";
 import { AntigravityCliSubagent } from "./antigravity-cli-subagent.js";
 import { AntigravityIdeSubagent } from "./antigravity-ide-subagent.js";
 import { AntigravityPluginSubagent } from "./antigravity-plugin-subagent.js";
+import { AugmentcodePluginSubagent } from "./augmentcode-plugin-subagent.js";
 import { AugmentcodeSubagent } from "./augmentcode-subagent.js";
 import { ClaudecodePluginSubagent } from "./claudecode-plugin-subagent.js";
 import { ClaudecodeSubagent } from "./claudecode-subagent.js";
@@ -244,6 +245,19 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
         supportsProject: true,
         supportsSimulated: false,
         supportsGlobal: true,
+        filePattern: "*.md",
+      },
+    },
+  ],
+  [
+    "augmentcode-plugin",
+    {
+      // `<plugin>/agents/*.md`. https://docs.augmentcode.com/cli/plugins
+      class: AugmentcodePluginSubagent,
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: false,
         filePattern: "*.md",
       },
     },

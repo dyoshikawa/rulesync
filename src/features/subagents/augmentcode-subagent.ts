@@ -11,6 +11,7 @@ import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
+import type { Logger } from "../../utils/logger.js";
 import { RulesyncSubagent, RulesyncSubagentFrontmatter } from "./rulesync-subagent.js";
 import {
   ToolSubagent,
@@ -58,7 +59,7 @@ const AugmentcodeSubagentFrontmatterSchema = z.looseObject({
   disabled_tools: z.optional(AugmentcodeToolListSchema),
 });
 
-type AugmentcodeSubagentFrontmatter = z.infer<typeof AugmentcodeSubagentFrontmatterSchema>;
+export type AugmentcodeSubagentFrontmatter = z.infer<typeof AugmentcodeSubagentFrontmatterSchema>;
 
 type AugmentcodeSubagentParams = {
   frontmatter: AugmentcodeSubagentFrontmatter;
@@ -152,15 +153,20 @@ export class AugmentcodeSubagent extends ToolSubagent {
     rulesyncSubagent,
     validate = true,
     global = false,
+    logger,
   }: ToolSubagentFromRulesyncSubagentParams): ToolSubagent {
     const rulesyncFrontmatter = rulesyncSubagent.getFrontmatter();
     const augmentcodeSection = rulesyncFrontmatter.augmentcode ?? {};
 
-    const augmentcodeFrontmatter: AugmentcodeSubagentFrontmatter = {
-      name: rulesyncFrontmatter.name,
-      description: rulesyncFrontmatter.description,
-      ...augmentcodeSection,
-    };
+    const augmentcodeFrontmatter = this.sanitizeFrontmatter({
+      frontmatter: {
+        name: rulesyncFrontmatter.name,
+        description: rulesyncFrontmatter.description,
+        ...augmentcodeSection,
+      },
+      relativeFilePath: rulesyncSubagent.getRelativeFilePath(),
+      logger,
+    });
 
     const body = rulesyncSubagent.getBody();
     const fileContent = stringifyFrontmatter(body, augmentcodeFrontmatter, {
@@ -178,6 +184,21 @@ export class AugmentcodeSubagent extends ToolSubagent {
       validate,
       global,
     });
+  }
+
+  /**
+   * Hook for subclasses whose destination honors fewer frontmatter fields.
+   * The `.augment/agents/` loader reads every documented field, so this is the
+   * identity here.
+   */
+  protected static sanitizeFrontmatter({
+    frontmatter,
+  }: {
+    frontmatter: AugmentcodeSubagentFrontmatter;
+    relativeFilePath: string;
+    logger?: Logger;
+  }): AugmentcodeSubagentFrontmatter {
+    return frontmatter;
   }
 
   validate(): ValidationResult {

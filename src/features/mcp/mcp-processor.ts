@@ -201,6 +201,20 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
     },
   ],
   [
+    "augmentcode-plugin",
+    {
+      // An Auggie plugin declares its servers in a Claude-style `.mcp.json`
+      // (`mcpServers`) at the plugin root. https://docs.augmentcode.com/cli/plugins
+      class: ClaudecodeMcp,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: false,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
     "bob",
     {
       // IBM Bob reads `mcpServers` from the dedicated `<project>/.bob/mcp.json`

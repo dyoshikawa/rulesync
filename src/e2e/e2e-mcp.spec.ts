@@ -35,6 +35,7 @@ const mcpGenerateTargets = [
   { target: "amp", outputPath: join(".amp", "settings.json") },
   { target: "claudecode", outputPath: ".mcp.json" },
   { target: "claudecode-plugin", outputPath: ".mcp.json" },
+  { target: "augmentcode-plugin", outputPath: ".mcp.json" },
   { target: "codebuff", outputPath: join(".agents", "mcp.json") },
   { target: "cursor", outputPath: join(".cursor", "mcp.json") },
   { target: "trae", outputPath: join(".trae", "mcp.json") },

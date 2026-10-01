@@ -39,8 +39,8 @@ the optional `factorydroid.name` as the style's frontmatter. The `outputStyle`
 selection setting is not authored.
 
 `plugins` is **not a Rulesync dimension and has no Factory Droid
-target**. `src/types/tool-targets.ts` lists only `antigravity-plugin` and
-`claudecode-plugin`. The consumption half is different: `extraKnownMarketplaces`
+target**. `PACKAGING_TOOL_TARGETS` in `src/types/tool-targets.ts` has no
+Factory Droid entry. The consumption half is different: `extraKnownMarketplaces`
 and `enabledPlugins` _are_ authorable, through the `factorydroid` permissions
 override — see `FACTORYDROID_OVERRIDE_KEYS`.
 
