@@ -935,6 +935,7 @@ export class CommandsProcessor extends FeatureProcessor {
           outputRoot: this.outputRoot,
           rulesyncCommand: commandToConvert,
           global: this.global,
+          logger: this.logger,
         });
       })
       .filter((command): command is ToolCommand => command !== null);
