@@ -1078,6 +1078,82 @@ describe("RulesProcessor", () => {
       expect(nonRoot?.getRelativeDirPath()).toBe(join(".gemini", "config", "rules"));
     });
 
+    it("should import only top-level .md and .mdc oh-my-pi rules but delete nested .md ones", async () => {
+      await writeFileContent(
+        join(testDir, ".omp", "rules", "style.md"),
+        "---\nalwaysApply: true\n---\n# Style",
+      );
+      await writeFileContent(
+        join(testDir, ".omp", "rules", "legacy.mdc"),
+        "---\nalwaysApply: true\n---\n# Legacy",
+      );
+      await writeFileContent(join(testDir, ".omp", "rules", "frontend", "nested.md"), "# Nested");
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "omp" });
+
+      // oh-my-pi reads `.omp/rules/` non-recursively, as `*.md` and `*.mdc`.
+      const imported = await processor.loadToolFiles();
+      expect(imported.map((file) => file.getRelativeFilePath()).toSorted()).toEqual([
+        "legacy.mdc",
+        "style.md",
+      ]);
+      const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(imported);
+      expect(rulesyncFiles.map((file) => file.getRelativeFilePath()).toSorted()).toEqual([
+        "legacy.md",
+        "style.md",
+      ]);
+
+      // Rulesync never writes `.mdc`, but earlier generations wrote nested files.
+      const forDeletion = await processor.loadToolFiles({ forDeletion: true });
+      expect(forDeletion.map((file) => file.getRelativeFilePath()).toSorted()).toEqual([
+        join("frontend", "nested.md"),
+        "style.md",
+      ]);
+    });
+
+    it("should warn when an oh-my-pi .md and .mdc rule import to the same rulesync rule", async () => {
+      await writeFileContent(
+        join(testDir, ".omp", "rules", "foo.md"),
+        "---\nalwaysApply: true\n---\n# Md",
+      );
+      await writeFileContent(
+        join(testDir, ".omp", "rules", "foo.mdc"),
+        "---\nalwaysApply: true\n---\n# Mdc",
+      );
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "omp" });
+      await processor.convertToolFilesToRulesyncFiles(await processor.loadToolFiles());
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(`import to ${join(RULESYNC_RULES_RELATIVE_DIR_PATH, "foo.md")}`),
+      );
+    });
+
+    it("should warn when flattening a nested oh-my-pi rule collides with a top-level one", async () => {
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "omp" });
+      const buildOmpRule = (relativeFilePath: string) =>
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath,
+          frontmatter: { root: false, targets: ["omp"], globs: ["**/*"] },
+          body: `# ${relativeFilePath}`,
+        });
+
+      const result = await processor.convertRulesyncFilesToToolFiles([
+        buildOmpRule(join("frontend", "style.md")),
+        buildOmpRule("frontend-style.md"),
+      ]);
+
+      expect(result.map((file) => file.getRelativeFilePath())).toEqual([
+        "frontend-style.md",
+        "frontend-style.md",
+      ]);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("; the last one wins wherever they collide."),
+      );
+    });
+
     it("should discover nested AGENTS.md files on import but never for deletion", async () => {
       await writeFileContent(join(testDir, "AGENTS.md"), "# Root");
       await writeFileContent(join(testDir, "packages", "api", "AGENTS.md"), "# API");

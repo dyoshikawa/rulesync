@@ -95,6 +95,7 @@ const rulesNonRootTargets = [
   { target: "devin", outputPath: join(".devin", "rules", "overview.md") },
   { target: "codewhale", outputPath: join(".codewhale", "rules", "overview.md") },
   { target: "takt", outputPath: join(".takt", "facets", "policies", "overview.md") },
+  { target: "omp", outputPath: join(".omp", "rules", "overview.md") },
 ] as const;
 
 describe("E2E: rules", () => {
@@ -214,6 +215,34 @@ description: "Additional project root rule"
       expect(generatedContent.split("# Additional Project Root Fragment")).toHaveLength(2);
     },
   );
+
+  it("should flatten nested omp rules into the top-level .omp/rules directory", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "frontend", "style.md"),
+      `---
+targets: ["omp"]
+description: "Frontend style"
+globs: ["src/**/*.tsx"]
+---
+
+# Frontend Style
+`,
+    );
+
+    // A nested file an earlier Rulesync version wrote is swept by `--delete`.
+    await writeFileContent(join(testDir, ".omp", "rules", "frontend", "style.md"), "# Stale\n");
+
+    await runGenerate({ target: "omp", features: "rules", deleteFiles: true });
+
+    // oh-my-pi reads `.omp/rules/` non-recursively.
+    const generatedContent = await readFileContent(
+      join(testDir, ".omp", "rules", "frontend-style.md"),
+    );
+    expect(generatedContent).toContain("Frontend Style");
+    expect(await fileExists(join(testDir, ".omp", "rules", "frontend", "style.md"))).toBe(false);
+  });
 
   it("should fold pi non-root rules into the root AGENTS.md", async () => {
     const testDir = getTestDir();
