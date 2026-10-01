@@ -1591,8 +1591,8 @@ describe("file utilities", () => {
         });
 
         it("should not produce duplicated entries when a directory symlink cycle exists", async () => {
-          // skills/a contains a real file and a link back to skills/, forming a cycle that
-          // globby follows up to the kernel ELOOP limit. Deduplication by real path collapses it.
+          // skills/a contains a real file and a link back to skills/, forming a cycle. The
+          // loop check stops the walk at the link, so each real file is found once.
           const skillsDir = join(testDir, "skills");
           const skillA = join(skillsDir, "a");
           await ensureDir(skillA);
@@ -1603,7 +1603,7 @@ describe("file utilities", () => {
             type: "file",
           });
 
-          // Exactly one entry survives per real file despite the cycle (no ~40x blowup).
+          // Exactly one entry survives per real file despite the cycle.
           const uniqueRealPaths = new Set(await Promise.all(fileResults.map((p) => realpath(p))));
           expect(uniqueRealPaths.size).toBe(fileResults.length);
           expect(fileResults.length).toBeLessThan(5);
@@ -1621,6 +1621,22 @@ describe("file utilities", () => {
           const results = await findFilesByGlobs("**/*.md", { cwd: loopDir, type: "file" });
 
           expect(results).toEqual([join(loopDir, "a.md"), join(loopDir, "sub", "b.md")]);
+        });
+
+        it("should not let one pattern's walk cut another pattern's walk short", async () => {
+          // `*.txt` reads the root; `sub/*.md` starts its own walk at `sub -> .`, which
+          // must not count the root read by the other pattern as its ancestor.
+          const loopDir = join(testDir, "loop-across-patterns");
+          await writeFileContent(join(loopDir, "a.md"), "a");
+          await writeFileContent(join(loopDir, "x.txt"), "x");
+          await symlink(".", join(loopDir, "sub"));
+
+          const results = await findFilesByGlobs(["*.txt", "sub/*.md"], {
+            cwd: loopDir,
+            type: "file",
+          });
+
+          expect(results).toEqual([join(loopDir, "sub", "a.md"), join(loopDir, "x.txt")]);
         });
 
         it("should still walk a link to a directory above the walk root", async () => {
