@@ -60,6 +60,7 @@ import { AmpHooks } from "./amp-hooks.js";
 import { AntigravityCliHooks, AntigravityIdeHooks } from "./antigravity-hooks.js";
 import { AntigravityPluginHooks } from "./antigravity-plugin-hooks.js";
 import { AugmentcodeHooks } from "./augmentcode-hooks.js";
+import { AugmentcodePluginHooks } from "./augmentcode-plugin-hooks.js";
 import { BobHooks } from "./bob-hooks.js";
 import { ClaudecodeHooks } from "./claudecode-hooks.js";
 import { ClaudecodePluginHooks } from "./claudecode-plugin-hooks.js";
@@ -253,6 +254,9 @@ function unsupportedMatcherEventNames({
  * (`PERMISSION_OVERRIDE_KEY_ALIASES`) features for the files they share.
  */
 export const HOOKS_OVERRIDE_KEY_ALIASES: Partial<Record<ToolTarget, string>> = {
+  // Auggie plugin components are written in the `augmentcode` format, so the
+  // packaging target reads the `augmentcode` block like its other features do.
+  "augmentcode-plugin": "augmentcode",
   "kiro-cli": KIRO_HOOKS_OVERRIDE_KEY,
   "kiro-ide": KIRO_HOOKS_OVERRIDE_KEY,
   // A ZCode plugin's hooks are ZCode hooks, so it reads the `zcode` block.
@@ -787,6 +791,22 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
         // mirroring Claude Code's per-event matcher arrays.
         supportsProject: true,
         supportsGlobal: true,
+        supportsImport: true,
+      },
+      supportedEvents: AUGMENTCODE_HOOK_EVENTS,
+      supportedHookTypes: ["command"],
+      supportsMatcher: true,
+    },
+  ],
+  [
+    "augmentcode-plugin",
+    {
+      class: AugmentcodePluginHooks,
+      meta: {
+        // Auggie plugin bundles ship hooks in `<plugin>/hooks/hooks.json`.
+        // https://docs.augmentcode.com/cli/plugins
+        supportsProject: true,
+        supportsGlobal: false,
         supportsImport: true,
       },
       supportedEvents: AUGMENTCODE_HOOK_EVENTS,

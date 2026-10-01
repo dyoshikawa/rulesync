@@ -136,7 +136,7 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 | JetBrains AI Assistant    |  ✅   |   ✅   | ✅  |          |           |   ✅   |       |             |        |
 | JetBrains Junie           |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | AugmentCode               |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |   ✅   |
-| AugmentCode plugin        |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |       |             |        |
+| AugmentCode plugin        |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |             |        |
 | Devin Desktop             |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | Warp                      |  ✅   |   ✅   | ✅  |    ✅    |           |   ✅   |       |     ✅      |        |
 | Replit                    |  ✅   |        |     |          |           |   ✅   |       |             |        |
