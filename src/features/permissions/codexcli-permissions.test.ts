@@ -2514,9 +2514,120 @@ command = "node"
     const content = rulesFile.getFileContent();
     expect(content).toContain('pattern = ["git", "status"]');
     expect(content).toContain('decision = "allow"');
-    expect(content).toContain('pattern = ["rm", "*"]');
+    expect(content).toContain('pattern = ["rm"]');
     expect(content).toContain('decision = "forbidden"');
-    expect(content).not.toMatch(/pattern = \["rm", "\*"\][\s\S]*decision = "allow"/);
+    expect(content).not.toMatch(/pattern = \["rm"\],\s*decision = "allow"/);
+  });
+
+  describe("bash wildcards in Codex prefix rules", () => {
+    const generateRules = (bash: Record<string, "allow" | "ask" | "deny">) => {
+      const logger = createMockLogger();
+      const content = createCodexcliBashRulesFile({
+        outputRoot: testDir,
+        config: { permission: { bash } },
+        logger,
+      }).getFileContent();
+      const warnings = logger.warn.mock.calls.map(([message]) => String(message));
+      return { content, warnings };
+    };
+
+    it.each([
+      ["sudo *", "deny", '["sudo"]', "forbidden"],
+      ["git push --force *", "deny", '["git", "push", "--force"]', "forbidden"],
+      ["rm -rf *", "deny", '["rm", "-rf"]', "forbidden"],
+      ["git log *", "allow", '["git", "log"]', "allow"],
+      ["npm publish *", "ask", '["npm", "publish"]', "prompt"],
+      ["docker * *", "deny", '["docker"]', "forbidden"],
+      ["sudo **", "deny", '["sudo"]', "forbidden"],
+    ] as const)(
+      "drops the trailing standalone wildcard of %s (%s), since a prefix rule already matches what follows",
+      (pattern, action, tokens, decision) => {
+        const { content, warnings } = generateRules({ [pattern]: action });
+        expect(content).toContain(`pattern = ${tokens},\n    decision = "${decision}"`);
+        expect(content).not.toContain('"*"');
+        expect(warnings).toEqual([]);
+      },
+    );
+
+    it("keeps a pattern without wildcards as literal tokens", () => {
+      const { content, warnings } = generateRules({ yay: "deny" });
+      expect(content).toContain('pattern = ["yay"],\n    decision = "forbidden"');
+      expect(warnings).toEqual([]);
+    });
+
+    it("keeps a lone bracket as a literal token, as rulesync's glob grammar does", () => {
+      const { content, warnings } = generateRules({ "[ -f": "allow" });
+      expect(content).toContain('pattern = ["[", "-f"]');
+      expect(warnings).toEqual([]);
+    });
+
+    it.each([
+      ["npm install*", "deny"],
+      ["docker compose up*", "deny"],
+      ["git * --no-verify*", "deny"],
+      ["gh pr merge * --repo acme/private *", "deny"],
+      ["ls ?", "allow"],
+      ["rm [ab]", "ask"],
+      ["git commit* *", "allow"],
+    ] as const)(
+      "skips %s (%s) with a warning instead of writing a broader or literal rule",
+      (pattern, action) => {
+        const { content, warnings } = generateRules({ [pattern]: action, yay: "deny" });
+        expect(content).not.toContain(`# ${pattern}\n`);
+        expect(content).toContain('pattern = ["yay"]');
+        // Never cut the pattern down to the words before the wildcard: a deny
+        // on `npm install*` must not become a deny on every `npm` command.
+        const firstWord = pattern.split(" ")[0] ?? "";
+        expect(content).not.toContain(`pattern = ["${firstWord}"]`);
+        expect(warnings).toHaveLength(1);
+        expect(warnings[0]).toContain(`"${pattern}"`);
+        expect(warnings[0]).toContain("Codex does NOT enforce it");
+      },
+    );
+
+    it.each(["ask", "deny", "allow"] as const)(
+      "skips a bare * (%s) with a warning, since a prefix rule cannot match every command",
+      (action) => {
+        const { content, warnings } = generateRules({ "*": action });
+        expect(content).not.toContain("prefix_rule(");
+        expect(content).toContain("# No valid bash patterns were found.");
+        expect(warnings).toHaveLength(1);
+        expect(warnings[0]).toContain('"*"');
+        expect(warnings[0]).toContain("codexcli.approval_policy");
+      },
+    );
+
+    it("translates an all-tools deny with a trailing wildcard the same way", () => {
+      const logger = createMockLogger();
+      const content = createCodexcliBashRulesFile({
+        outputRoot: testDir,
+        config: { permission: { "*": { "sudo *": "deny" } } },
+        logger,
+      }).getFileContent();
+      expect(content).toContain('pattern = ["sudo"],\n    decision = "forbidden"');
+    });
+  });
+
+  it("does not warn that bash is skipped when building the permission profile", async () => {
+    const logger = createMockLogger();
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: { bash: { "sudo *": "deny" }, glob: { "**/*.ts": "allow" } },
+      }),
+    });
+
+    await CodexcliPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+      logger,
+    });
+
+    const warnings = logger.warn.mock.calls.map(([message]) => String(message));
+    expect(warnings.some((message) => message.includes("Skipping: bash"))).toBe(false);
+    expect(warnings.some((message) => message.includes("Skipping: glob"))).toBe(true);
   });
 
   describe("codexcli override (approval_policy / sandbox_mode / apps)", () => {
