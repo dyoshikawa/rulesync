@@ -1886,6 +1886,10 @@ This is a test project for E2E testing.
   it("should import nested trae rules and round-trip their subproject scope", async () => {
     const testDir = getTestDir();
 
+    // The entry `rulesync gitignore` writes for Trae must not hide the nested
+    // rules directories from the import scan.
+    await writeFileContent(join(testDir, ".gitignore"), "**/.trae/rules/\n");
+
     await writeFileContent(
       join(testDir, ".trae", "rules", "overview.md"),
       "---\nalwaysApply: true\n---\n# Project Overview\n",

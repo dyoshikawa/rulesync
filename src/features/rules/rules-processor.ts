@@ -3357,6 +3357,7 @@ As this project's AI coding tool, you must follow the additional conventions bel
         const filePaths = filterOutPathsInGitIgnoredDirectories({
           rootDir: this.outputRoot,
           filePaths: matchedPaths,
+          ownedDirPath: patterns.ownedDirPath,
         });
 
         return await Promise.all(

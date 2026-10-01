@@ -177,13 +177,20 @@ export async function ensureDir(dirPath: string): Promise<void> {
  * Ignore rules come from the `.gitignore` files at and below `rootDir`; a parent
  * repository's rules are not consulted, so running against a subdirectory of a
  * repository only sees that subdirectory's own rules.
+ *
+ * `ownedDirPath` names a tool-owned directory (such as `.trae/rules`) whose
+ * per-subdirectory copies are what the scan discovers. `rulesync gitignore`
+ * ignores those directories themselves (`**\/.trae/rules/`), so only the
+ * directories above the last such segment are tested.
  */
 export function filterOutPathsInGitIgnoredDirectories({
   rootDir,
   filePaths,
+  ownedDirPath,
 }: {
   rootDir: string;
   filePaths: string[];
+  ownedDirPath?: string;
 }): string[] {
   if (filePaths.length === 0) {
     // Building the matcher scans the tree for `.gitignore` files, which is not
@@ -212,7 +219,19 @@ export function filterOutPathsInGitIgnoredDirectories({
     return ignored;
   };
 
-  return filePaths.filter((filePath) => !isInIgnoredDirectory(dirname(resolve(filePath))));
+  const ownedSegment = ownedDirPath === undefined ? undefined : `/${toPosixPath(ownedDirPath)}/`;
+  const testedDirectory = (filePath: string): string => {
+    const directory = dirname(resolve(filePath));
+    if (ownedSegment === undefined) {
+      return directory;
+    }
+    // Separators are one character on every platform, so an index into the
+    // POSIX form is also an index into the native one.
+    const index = `${toPosixPath(directory)}/`.lastIndexOf(ownedSegment);
+    return index === -1 ? directory : directory.slice(0, index);
+  };
+
+  return filePaths.filter((filePath) => !isInIgnoredDirectory(testedDirectory(filePath)));
 }
 
 /**

@@ -422,6 +422,9 @@ export class TraeRule extends ToolRule {
         ...NESTED_SCAN_EXCLUDED_DIRS_ANY_DEPTH.map((dir) => `**/${dir}/**`),
         ...NESTED_SCAN_EXCLUDED_ROOT_DIRS.map((dir) => `${dir}/**`),
       ],
+      // `rulesync gitignore` ignores `**/.trae/rules/`, so only the subproject
+      // directories above it are checked against `.gitignore`.
+      ownedDirPath: rulesDirPath,
     };
   }
 
