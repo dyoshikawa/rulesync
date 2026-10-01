@@ -1037,7 +1037,9 @@ export async function findFilesByGlobs(
         cwd,
         followSymbolicLinks,
         ...(followSymbolicLinks
-          ? { fs: { readdirSync: createCycleSafeReaddirSync(), statSync } }
+          ? // `statSync` keeps globby's check that `cwd` is a directory, which it skips
+            // for a custom `fs` without one.
+            { fs: { readdirSync: createCycleSafeReaddirSync(), statSync } }
           : {}),
         dot,
         ...(ignore ? { ignore: ignore.map((pattern) => pattern.replaceAll("\\", "/")) } : {}),

@@ -1623,6 +1623,18 @@ describe("file utilities", () => {
           expect(results).toEqual([join(loopDir, "a.md"), join(loopDir, "sub", "b.md")]);
         });
 
+        it("should terminate on two directories linking to each other", async () => {
+          const mutualDir = join(testDir, "mutual-loop");
+          await writeFileContent(join(mutualDir, "a", "a.md"), "a");
+          await writeFileContent(join(mutualDir, "c", "c.md"), "c");
+          await symlink(join("..", "c"), join(mutualDir, "a", "b"));
+          await symlink(join("..", "a"), join(mutualDir, "c", "d"));
+
+          const results = await findFilesByGlobs("**/*.md", { cwd: mutualDir, type: "file" });
+
+          expect(results).toEqual([join(mutualDir, "a", "a.md"), join(mutualDir, "c", "c.md")]);
+        });
+
         it("should not let one pattern's walk cut another pattern's walk short", async () => {
           // `*.txt` reads the root; `sub/*.md` starts its own walk at `sub -> .`, which
           // must not count the root read by the other pattern as its ancestor.
