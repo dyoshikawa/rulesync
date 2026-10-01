@@ -18,6 +18,7 @@ The table below shows how each placeholder is translated for the supported tools
 | Tool              | `$ARGUMENTS`           | `` !`cmd` ``                |
 | ----------------- | ---------------------- | --------------------------- |
 | Claude Code       | pass-through           | pass-through                |
+| CodeBuddy Code    | pass-through           | pass-through                |
 | Codex CLI[^codex] | pass-through (literal) | pass-through (literal)      |
 | JetBrains Junie   | `$prompt`[^junie]      | pass-through (literal)      |
 | Pi                | pass-through           | pass-through (literal)[^pi] |
