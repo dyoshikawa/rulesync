@@ -6,7 +6,7 @@ import { CODEWHALE_COMMANDS_DIR_PATH } from "../../constants/codewhale-paths.js"
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
-import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
+import { stringifyFrontmatter } from "../../utils/frontmatter.js";
 import type { Logger } from "../../utils/logger.js";
 import { PROTOTYPE_POLLUTION_KEYS } from "../../utils/prototype-pollution.js";
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
@@ -29,9 +29,11 @@ import {
  * round-trips through the `codewhale` section.
  *
  * Codewhale reads the frontmatter line by line as `key: value` pairs rather
- * than as YAML, and splits `allowed-tools` and `aliases` on commas. Generation
- * therefore writes every value on a single line and joins a list of strings
- * with `, `.
+ * than as YAML: it splits each line at the first `:`, strips one matched pair
+ * of outer quotes (except from `allowed-tools`) without unescaping anything,
+ * and splits `allowed-tools` and `aliases` on commas. A YAML writer's quoting
+ * would therefore leak into the values, and a valid Codewhale file need not be
+ * valid YAML, so this adapter reads and writes that line format directly.
  *
  * @see https://github.com/Hmbown/Codewhale/blob/main/docs/architecture/command-dispatch.md
  * @see https://github.com/Hmbown/Codewhale/blob/main/crates/tui/src/commands/user_commands.rs
@@ -48,6 +50,131 @@ export type CodewhaleCommandParams = {
   frontmatter: CodewhaleCommandFrontmatter;
   body: string;
 } & Omit<AiFileParams, "fileContent">;
+
+/**
+ * Project commands Codewhale refuses to load under these names (or aliases),
+ * because they would stand in for a built-in that grants or revokes authority.
+ * Built-in aliases of these commands are refused as well but not listed here.
+ * @see https://github.com/Hmbown/Codewhale/blob/main/crates/tui/src/commands/user_registry.rs
+ */
+// cspell:ignore jihua zidong
+const CODEWHALE_PROTECTED_BUILTINS: ReadonlySet<string> = new Set([
+  "auth",
+  "auto",
+  "config",
+  "constitution",
+  "hooks",
+  "jihua",
+  "login",
+  "logout",
+  "mcp",
+  "mode",
+  "network",
+  "permissions",
+  "plug",
+  "plugin",
+  "profile",
+  "provider",
+  "purge",
+  "rc",
+  "relay",
+  "remote-env",
+  "restore",
+  "sessions",
+  "settings",
+  "setup",
+  "share",
+  "system",
+  "trust",
+  "undo",
+  "update",
+  "workspace",
+  "zidong",
+]);
+
+/** A frontmatter key Codewhale's line parser reads back as the same key. */
+const FRONTMATTER_KEY_PATTERN = /^[A-Za-z0-9_-]+$/;
+
+function isDelimiterLine(line: string): boolean {
+  const trimmed = line.trim();
+  return trimmed.length >= 3 && /^-+$/.test(trimmed);
+}
+
+function stripMatchedQuotes(value: string): string {
+  if (value.length >= 2 && (value[0] === '"' || value[0] === "'") && value.endsWith(value[0])) {
+    return value.slice(1, -1);
+  }
+  return value;
+}
+
+/**
+ * Parse a command file the way Codewhale does (`parse_frontmatter` in
+ * `user_commands.rs`): `key: value` lines between `---` delimiters, keys
+ * lowercased, values trimmed and, except for `allowed-tools`, stripped of one
+ * matched pair of outer quotes. Every value stays a string. A non-empty line
+ * without a `:` ends the metadata of an unclosed block and starts the body.
+ */
+export function parseCodewhaleCommandFile(content: string): {
+  frontmatter: Record<string, string>;
+  body: string;
+} {
+  const lines = content.split(/(?<=\n)/);
+  if (lines.length < 2 || !isDelimiterLine(lines[0] ?? "")) {
+    return { frontmatter: {}, body: content };
+  }
+  const frontmatter: Record<string, string> = {};
+  for (const [index, rawLine] of lines.slice(1).entries()) {
+    const line = rawLine.replace(/\r?\n$/, "");
+    if (isDelimiterLine(line)) {
+      return {
+        frontmatter,
+        body: lines
+          .slice(index + 2)
+          .join("")
+          .replace(/^[\r\n]+/, ""),
+      };
+    }
+    const separator = line.indexOf(":");
+    if (separator === -1) {
+      if (line.trim().length > 0) {
+        return {
+          frontmatter,
+          body: lines
+            .slice(index + 1)
+            .join("")
+            .replace(/^[\r\n]+/, ""),
+        };
+      }
+      continue;
+    }
+    const key = line.slice(0, separator).trim().toLowerCase();
+    const rawValue = line.slice(separator + 1).trim();
+    if (key.length === 0 || PROTOTYPE_POLLUTION_KEYS.has(key)) continue;
+    frontmatter[key] = key === "allowed-tools" ? rawValue : stripMatchedQuotes(rawValue);
+  }
+  return { frontmatter, body: "" };
+}
+
+/**
+ * Write frontmatter as Codewhale's `key: value` lines. Each value is collapsed
+ * to one line and written verbatim; a value that would itself look quoted is
+ * wrapped in one more pair of double quotes, which Codewhale strips again.
+ */
+function stringifyCodewhaleCommandFile(body: string, frontmatter: Record<string, unknown>): string {
+  const lines: string[] = [];
+  for (const [key, value] of Object.entries(frontmatter)) {
+    if (value === undefined || value === null) continue;
+    const text = String(value)
+      .replace(/\s*[\r\n]+\s*/g, " ")
+      .trim();
+    const needsWrap = key !== "allowed-tools" && stripMatchedQuotes(text) !== text;
+    lines.push(`${key}: ${needsWrap ? `"${text}"` : text}`);
+  }
+  if (lines.length === 0) {
+    return body.endsWith("\n") ? body : `${body}\n`;
+  }
+  return ["---", ...lines, "---", body.endsWith("\n") ? body : `${body}\n`].join("\n");
+}
 
 /**
  * Turn a `codewhale` section value into one Codewhale's line-based parser
@@ -78,7 +205,7 @@ function toCodewhaleSectionFields({
     // The canonical description always wins over a stray same-named key.
     if (key === "description" || PROTOTYPE_POLLUTION_KEYS.has(key)) continue;
     const converted = toCodewhaleFrontmatterValue(value);
-    if (converted === undefined) {
+    if (converted === undefined || !FRONTMATTER_KEY_PATTERN.test(key)) {
       droppedKeys.push(key);
     } else {
       fields[key] = converted;
@@ -86,10 +213,45 @@ function toCodewhaleSectionFields({
   }
   if (droppedKeys.length > 0) {
     logger?.warn(
-      `Dropping codewhale command keys in ${relativeFilePath}: ${droppedKeys.join(", ")}. Codewhale reads command frontmatter as single-line key: value pairs, so only strings, numbers, booleans and lists of strings are supported.`,
+      `Dropping codewhale command keys in ${relativeFilePath}: ${droppedKeys.join(", ")}. Codewhale reads command frontmatter as single-line key: value pairs, so only keys of letters, digits, "-" and "_" with a string, number, boolean or list-of-strings value are supported.`,
     );
   }
   return fields;
+}
+
+/**
+ * Warn when a project command would take the name of a protected built-in,
+ * which Codewhale refuses to load (or, for an alias, ignores).
+ */
+function warnOnProtectedNames({
+  frontmatter,
+  relativeFilePath,
+  logger,
+}: {
+  frontmatter: Record<string, unknown>;
+  relativeFilePath: string;
+  logger?: Logger;
+}): void {
+  const normalize = (name: string) => name.trim().replace(/^\/+/, "").toLowerCase();
+  const name =
+    typeof frontmatter.name === "string"
+      ? normalize(frontmatter.name)
+      : normalize(relativeFilePath.replace(/\.md$/, ""));
+  if (CODEWHALE_PROTECTED_BUILTINS.has(name)) {
+    logger?.warn(
+      `Codewhale will not load the project command ${relativeFilePath}: "/${name}" is a protected built-in command. Rename it.`,
+    );
+  }
+  const aliases = [frontmatter.alias, frontmatter.aliases]
+    .filter((value): value is string => typeof value === "string")
+    .flatMap((value) => value.split(","))
+    .map(normalize)
+    .filter((alias) => CODEWHALE_PROTECTED_BUILTINS.has(alias));
+  if (aliases.length > 0) {
+    logger?.warn(
+      `Codewhale ignores the aliases ${aliases.map((alias) => `"/${alias}"`).join(", ")} of the project command ${relativeFilePath}: they are protected built-in commands.`,
+    );
+  }
 }
 
 export class CodewhaleCommand extends ToolCommand {
@@ -109,7 +271,7 @@ export class CodewhaleCommand extends ToolCommand {
 
     super({
       ...rest,
-      fileContent: stringifyFrontmatter(body, frontmatter, { avoidBlockScalars: true }),
+      fileContent: stringifyCodewhaleCommandFile(body, frontmatter),
     });
 
     this.frontmatter = frontmatter;
@@ -176,6 +338,14 @@ export class CodewhaleCommand extends ToolCommand {
         : {}),
     };
 
+    if (!global) {
+      warnOnProtectedNames({
+        frontmatter: codewhaleFrontmatter,
+        relativeFilePath: rulesyncCommand.getRelativeFilePath(),
+        logger,
+      });
+    }
+
     const body = rulesyncCommand.getBody();
     const paths = this.getSettablePaths({ global });
 
@@ -223,7 +393,7 @@ export class CodewhaleCommand extends ToolCommand {
     const paths = this.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, relativeFilePath);
     const fileContent = await readFileContent(filePath);
-    const { frontmatter, body: content } = parseFrontmatter(fileContent, filePath);
+    const { frontmatter, body: content } = parseCodewhaleCommandFile(fileContent);
 
     const result = CodewhaleCommandFrontmatterSchema.safeParse(frontmatter);
     if (!result.success) {

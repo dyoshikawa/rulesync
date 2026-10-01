@@ -7,7 +7,7 @@ import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import type { RulesyncTargets } from "../../types/tool-targets.js";
 import { writeFileContent } from "../../utils/file.js";
-import { CodewhaleCommand } from "./codewhale-command.js";
+import { CodewhaleCommand, parseCodewhaleCommandFile } from "./codewhale-command.js";
 import { RulesyncCommand } from "./rulesync-command.js";
 
 const commandsDir = join(".codewhale", "commands");
@@ -82,18 +82,69 @@ describe("CodewhaleCommand", () => {
       );
     });
 
+    it("should write values verbatim instead of YAML-quoting them", () => {
+      const command = CodewhaleCommand.fromRulesyncCommand({
+        outputRoot: testDir,
+        rulesyncCommand: buildCommand(["*"], {
+          description: "Review: don't merge",
+          codewhale: { "allowed-tools": ["*", "read_file"], usage: '"quoted"' },
+        }),
+      });
+
+      expect(command.getFileContent()).toBe(
+        [
+          "---",
+          "description: Review: don't merge",
+          "allowed-tools: *, read_file",
+          'usage: ""quoted""',
+          "---",
+          "Body",
+          "",
+        ].join("\n"),
+      );
+    });
+
+    it("should warn about a project command named after a protected built-in", () => {
+      const logger = createMockLogger();
+      CodewhaleCommand.fromRulesyncCommand({
+        outputRoot: testDir,
+        rulesyncCommand: buildCommand(["*"], { codewhale: { name: "/Trust", aliases: "x, undo" } }),
+        logger,
+      });
+
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"/trust"'));
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"/undo"'));
+    });
+
+    it("should not warn about protected names in the global scope", () => {
+      const logger = createMockLogger();
+      CodewhaleCommand.fromRulesyncCommand({
+        outputRoot: testDir,
+        rulesyncCommand: buildCommand(["*"], { codewhale: { name: "trust" } }),
+        global: true,
+        logger,
+      });
+
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
     it("should keep the canonical description and drop nested values with a warning", () => {
       const logger = createMockLogger();
       const command = CodewhaleCommand.fromRulesyncCommand({
         outputRoot: testDir,
         rulesyncCommand: buildCommand(["*"], {
-          codewhale: { description: "Ignored", name: "renamed", nested: { a: 1 } },
+          codewhale: {
+            description: "Ignored",
+            name: "renamed",
+            nested: { a: 1 },
+            "bad\nkey": "x",
+          },
         }),
         logger,
       });
 
       expect(command.getFrontmatter()).toEqual({ description: "Test", name: "renamed" });
-      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("nested"));
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("nested, bad"));
     });
   });
 
@@ -113,10 +164,41 @@ describe("CodewhaleCommand", () => {
       expect(rulesyncCommand.getFrontmatter()).toEqual({
         targets: ["*"],
         description: "Review a change",
-        codewhale: { "argument-hint": "<pr>", pausable: true },
+        codewhale: { "argument-hint": "<pr>", pausable: "true" },
       });
       expect(rulesyncCommand.getBody()).toBe("Review $1");
       expect(rulesyncCommand.getRelativeFilePath()).toBe("review.md");
+    });
+  });
+
+  describe("parseCodewhaleCommandFile", () => {
+    it("should read files that are valid for Codewhale but not valid YAML", () => {
+      expect(
+        parseCodewhaleCommandFile(
+          "---\ndescription: Fix: the bug\nallowed-tools: \"exec_shell\", 'read_file'\nName: 'x'\n---\n\nRun it\n",
+        ),
+      ).toEqual({
+        frontmatter: {
+          description: "Fix: the bug",
+          "allowed-tools": "\"exec_shell\", 'read_file'",
+          name: "x",
+        },
+        body: "Run it\n",
+      });
+    });
+
+    it("should start the body at the first non-metadata line of an unclosed block", () => {
+      expect(parseCodewhaleCommandFile("---\ndescription: Broken\nRun the body\n")).toEqual({
+        frontmatter: { description: "Broken" },
+        body: "Run the body\n",
+      });
+    });
+
+    it("should treat a file without frontmatter as all body", () => {
+      expect(parseCodewhaleCommandFile("Just a prompt\n")).toEqual({
+        frontmatter: {},
+        body: "Just a prompt\n",
+      });
     });
   });
 

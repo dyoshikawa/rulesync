@@ -204,6 +204,8 @@ export class CodewhaleSubagent extends ToolSubagent {
 
     const sectionFields: Record<string, unknown> = {};
     const droppedKeys: string[] = [];
+    // Which spelling each written key came from, to name a superseded alias.
+    const sectionSpellings = new Map<string, string>();
     for (const [rawKey, value] of Object.entries(rawSection)) {
       // An alias spelling is written under its canonical key, which is never
       // overridden by an alias of the same key.
@@ -215,15 +217,21 @@ export class CodewhaleSubagent extends ToolSubagent {
         typeof value === "string"
       ) {
         if (key === rawKey || sectionFields[key] === undefined) {
+          if (sectionFields[key] !== undefined) {
+            droppedKeys.push(sectionSpellings.get(key) ?? key);
+          }
           sectionFields[key] = value;
+          sectionSpellings.set(key, rawKey);
+        } else {
+          droppedKeys.push(rawKey);
         }
       } else {
-        droppedKeys.push(key);
+        droppedKeys.push(rawKey);
       }
     }
     if (droppedKeys.length > 0) {
       logger?.warn(
-        `Dropping unsupported codewhale subagent keys in ${rulesyncSubagent.getRelativeFilePath()}: ${droppedKeys.join(", ")}. Codewhale rejects agent profiles with unknown fields or non-string values there; supported keys are ${CODEWHALE_SECTION_KEYS.join(", ")}, each a string.`,
+        `Dropping unsupported or duplicate codewhale subagent keys in ${rulesyncSubagent.getRelativeFilePath()}: ${droppedKeys.join(", ")}. Codewhale rejects agent profiles with unknown fields, non-string values there, or two spellings of one key; supported keys are ${CODEWHALE_SECTION_KEYS.join(", ")}, each a string (the canonical spelling wins over an alias).`,
       );
     }
 

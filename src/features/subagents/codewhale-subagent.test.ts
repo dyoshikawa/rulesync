@@ -126,7 +126,25 @@ describe("CodewhaleSubagent", () => {
       expect(parsed.reasoning_effort).toBe("high");
       expect(parsed).not.toHaveProperty("model_hint");
       expect(parsed).not.toHaveProperty("thinking");
-      expect(logger.warn).not.toHaveBeenCalled();
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining(": thinking."));
+    });
+
+    it("should report the user's spelling for a dropped alias and a duplicate alias", () => {
+      const logger = createMockLogger();
+      const subagent = CodewhaleSubagent.fromRulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: join(".codewhale", "agents"),
+        rulesyncSubagent: buildRulesyncSubagent({
+          frontmatter: { codewhale: { model_hint: "a", model_id: "b", reasoning: 3 } },
+        }),
+        logger,
+      });
+
+      const parsed = smolToml.parse(subagent.getFileContent());
+      expect(parsed.model).toBe("a");
+      expect(parsed).not.toHaveProperty("reasoning_effort");
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining(": model_id, reasoning."));
     });
 
     it("should drop non-string section values, with a warning", () => {
