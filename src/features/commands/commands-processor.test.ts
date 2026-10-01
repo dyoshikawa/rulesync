@@ -299,6 +299,7 @@ describe("CommandsProcessor", () => {
         outputRoot: expect.any(String),
         rulesyncCommand: mockRulesyncCommand,
         global: false,
+        logger: expect.anything(),
       });
       expect(result).toEqual([mockClaudecodeCommand]);
     });
@@ -341,6 +342,7 @@ describe("CommandsProcessor", () => {
         outputRoot: expect.any(String),
         rulesyncCommand: mockRulesyncCommand,
         global: true,
+        logger: expect.anything(),
       });
     });
 
@@ -378,6 +380,7 @@ describe("CommandsProcessor", () => {
         outputRoot: expect.any(String),
         rulesyncCommand: mockRulesyncCommand,
         global: false,
+        logger: expect.anything(),
       });
       expect(result).toEqual([mockRooCommand]);
     });
@@ -418,6 +421,7 @@ describe("CommandsProcessor", () => {
         outputRoot: expect.any(String),
         rulesyncCommand: mockRulesyncCommand,
         global: true,
+        logger: expect.anything(),
       });
     });
 

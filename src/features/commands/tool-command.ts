@@ -1,6 +1,7 @@
 import { AiFile, AiFileFromFileParams, AiFileParams } from "../../types/ai-file.js";
 import type { ToolFile } from "../../types/tool-file.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
+import type { Logger } from "../../utils/logger.js";
 import type { RulesyncCommand } from "./rulesync-command.js";
 
 export type ToolCommandFromRulesyncCommandParams = Omit<
@@ -8,6 +9,8 @@ export type ToolCommandFromRulesyncCommandParams = Omit<
   "fileContent" | "relativeFilePath" | "relativeDirPath"
 > & {
   rulesyncCommand: RulesyncCommand;
+  /** Used to report frontmatter a target drops or rewrites during generation. */
+  logger?: Logger;
 };
 
 export type ToolCommandFromFileParams = AiFileFromFileParams;

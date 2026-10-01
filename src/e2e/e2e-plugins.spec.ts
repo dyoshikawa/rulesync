@@ -4,8 +4,10 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
+  RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
   RULESYNC_RULES_RELATIVE_DIR_PATH,
   RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+  RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
 import {
   ensureDir,
@@ -166,10 +168,38 @@ Do not package this rule.
       JSON.stringify({ name: "review-plugin" }, null, 2),
     );
     await writeFileContent(join(pluginRoot, "hooks", "hooks.json"), '{"hooks":{}}\n');
+    const rulesyncCommandPath = join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "review.md");
+    await writeFileContent(
+      rulesyncCommandPath,
+      `---
+targets: ["augmentcode-plugin"]
+description: Review the changes
+augmentcode:
+  model: sonnet
+  argument-hint: "<branch>"
+---
+Review the current branch.
+`,
+    );
+    const rulesyncSubagentPath = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "reviewer.md");
+    await writeFileContent(
+      rulesyncSubagentPath,
+      `---
+targets: ["augmentcode-plugin"]
+name: reviewer
+description: Reviews code
+augmentcode:
+  model: sonnet
+  tools: ["view"]
+  color: blue
+---
+Review the changes.
+`,
+    );
 
     await runGenerate({
       target: "augmentcode-plugin",
-      features: "rules",
+      features: "rules,commands,subagents",
       outputRoots: pluginRoot,
     });
 
@@ -179,18 +209,38 @@ Do not package this rule.
     expect(await fileExists(join(pluginRoot, "rules", "project-only.md"))).toBe(false);
     expect(await fileExists(join(testDir, ".augment", "rules", "review.md"))).toBe(false);
 
-    await removeDirectory(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
-    await ensureDir(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
+    const generatedCommand = await readFileContent(join(pluginRoot, "commands", "review.md"));
+    expect(generatedCommand).toContain("model: sonnet");
+    expect(generatedCommand).not.toContain("argument-hint");
+    const generatedSubagent = await readFileContent(join(pluginRoot, "agents", "reviewer.md"));
+    expect(generatedSubagent).toContain("description: Reviews code");
+    expect(generatedSubagent).not.toContain("tools:");
+    expect(generatedSubagent).not.toContain("color:");
+
+    for (const dir of [
+      RULESYNC_RULES_RELATIVE_DIR_PATH,
+      RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+      RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+    ]) {
+      await removeDirectory(join(testDir, dir));
+      await ensureDir(join(testDir, dir));
+    }
 
     await runImport({
       target: "augmentcode-plugin",
-      features: "rules",
+      features: "rules,commands,subagents",
       outputRoot: pluginRoot,
     });
 
     const imported = await readFileContent(rulesyncRulePath);
     expect(imported).toContain("Review changes before submission.");
     expect(imported).toContain("type: agent_requested");
+    const importedCommand = await readFileContent(rulesyncCommandPath);
+    expect(importedCommand).toContain("Review the current branch.");
+    expect(importedCommand).not.toContain("argument-hint");
+    const importedSubagent = await readFileContent(rulesyncSubagentPath);
+    expect(importedSubagent).toContain("Review the changes.");
+    expect(importedSubagent).not.toContain("tools:");
     expect(await fileExists(join(pluginRoot, ".augment-plugin", "plugin.json"))).toBe(true);
     expect(await readFileContent(join(pluginRoot, "hooks", "hooks.json"))).toBe('{"hooks":{}}\n');
   });
