@@ -131,16 +131,18 @@ describe("CodewhaleMcp", () => {
       });
     });
 
-    it("should drop a negative timeout with a warning", async () => {
+    it("should drop a negative or zero timeout with a warning", async () => {
       const logger = createMockLogger();
       const mcp = await CodewhaleMcp.fromRulesyncMcp({
         outputRoot: testDir,
-        rulesyncMcp: buildRulesyncMcp({ local: { command: "npx", timeout: -1 } }),
+        rulesyncMcp: buildRulesyncMcp({
+          local: { command: "npx", timeout: -1, networkTimeout: 0 },
+        }),
         logger,
       });
 
       expect(mcp.getJson()).toEqual({ servers: { local: { command: "npx" } } });
-      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledTimes(2);
     });
 
     it("should fail closed on a malformed existing file", async () => {

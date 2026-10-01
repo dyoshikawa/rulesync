@@ -128,6 +128,39 @@ describe("CodewhaleCommand", () => {
       expect(logger.warn).not.toHaveBeenCalled();
     });
 
+    it("should warn about an invalid name and check the file stem instead", () => {
+      const logger = createMockLogger();
+      CodewhaleCommand.fromRulesyncCommand({
+        outputRoot: testDir,
+        rulesyncCommand: buildCommand(["*"], { codewhale: { name: "two words" } }),
+        logger,
+      });
+
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('falls back to "/test"'));
+    });
+
+    it("should only check the alias key that Codewhale keeps", () => {
+      const logger = createMockLogger();
+      CodewhaleCommand.fromRulesyncCommand({
+        outputRoot: testDir,
+        rulesyncCommand: buildCommand(["*"], { codewhale: { alias: "undo", aliases: "t" } }),
+        logger,
+      });
+
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("should keep a body that opens with a delimiter out of the metadata", () => {
+      const command = CodewhaleCommand.fromRulesyncCommand({
+        outputRoot: testDir,
+        rulesyncCommand: buildCommand(["*"], { description: undefined }, "---\nnot: metadata"),
+      });
+
+      const content = command.getFileContent();
+      expect(content).toBe("---\n---\n---\nnot: metadata\n");
+      expect(parseCodewhaleCommandFile(content).body).toBe("---\nnot: metadata\n");
+    });
+
     it("should keep the canonical description and drop nested values with a warning", () => {
       const logger = createMockLogger();
       const command = CodewhaleCommand.fromRulesyncCommand({
@@ -192,6 +225,14 @@ describe("CodewhaleCommand", () => {
         frontmatter: { description: "Broken" },
         body: "Run the body\n",
       });
+    });
+
+    it("should handle CRLF, unmatched quotes, and a lone delimiter", () => {
+      expect(parseCodewhaleCommandFile("---\r\nusage: 'x\"\r\n---\r\nBody\r\n")).toEqual({
+        frontmatter: { usage: "'x\"" },
+        body: "Body\r\n",
+      });
+      expect(parseCodewhaleCommandFile("---\n")).toEqual({ frontmatter: {}, body: "" });
     });
 
     it("should treat a file without frontmatter as all body", () => {

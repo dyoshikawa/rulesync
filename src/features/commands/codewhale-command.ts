@@ -119,7 +119,7 @@ export function parseCodewhaleCommandFile(content: string): {
   body: string;
 } {
   const lines = content.split(/(?<=\n)/);
-  if (lines.length < 2 || !isDelimiterLine(lines[0] ?? "")) {
+  if (!content.includes("\n") || !isDelimiterLine(lines[0] ?? "")) {
     return { frontmatter: {}, body: content };
   }
   const frontmatter: Record<string, string> = {};
@@ -165,15 +165,20 @@ function stringifyCodewhaleCommandFile(body: string, frontmatter: Record<string,
   for (const [key, value] of Object.entries(frontmatter)) {
     if (value === undefined || value === null) continue;
     const text = String(value)
-      .replace(/\s*[\r\n]+\s*/g, " ")
-      .trim();
+      .split(/\r\n|\r|\n/)
+      .map((part) => part.trim())
+      .filter((part) => part.length > 0)
+      .join(" ");
     const needsWrap = key !== "allowed-tools" && stripMatchedQuotes(text) !== text;
     lines.push(`${key}: ${needsWrap ? `"${text}"` : text}`);
   }
-  if (lines.length === 0) {
-    return body.endsWith("\n") ? body : `${body}\n`;
+  const terminatedBody = body.endsWith("\n") ? body : `${body}\n`;
+  // Without metadata the body is written alone, unless it opens with a
+  // delimiter line that Codewhale would take for the start of frontmatter.
+  if (lines.length === 0 && !isDelimiterLine(body.split("\n", 1)[0] ?? "")) {
+    return terminatedBody;
   }
-  return ["---", ...lines, "---", body.endsWith("\n") ? body : `${body}\n`].join("\n");
+  return ["---", ...lines, "---", terminatedBody].join("\n");
 }
 
 /**
@@ -220,31 +225,47 @@ function toCodewhaleSectionFields({
 }
 
 /**
- * Warn when a project command would take the name of a protected built-in,
- * which Codewhale refuses to load (or, for an alias, ignores).
+ * Warn about command names Codewhale will not use: a frontmatter `name` that
+ * is not one slash-command token (Codewhale falls back to the file stem with a
+ * load error), and, for a project command, a name or alias that would take a
+ * protected built-in (Codewhale skips the command or ignores the alias).
  */
-function warnOnProtectedNames({
+function warnOnUnusableNames({
   frontmatter,
   relativeFilePath,
+  global,
   logger,
 }: {
   frontmatter: Record<string, unknown>;
   relativeFilePath: string;
+  global: boolean;
   logger?: Logger;
 }): void {
   const normalize = (name: string) => name.trim().replace(/^\/+/, "").toLowerCase();
-  const name =
-    typeof frontmatter.name === "string"
-      ? normalize(frontmatter.name)
-      : normalize(relativeFilePath.replace(/\.md$/, ""));
+  const stem = normalize(relativeFilePath.replace(/\.md$/, ""));
+  let name = stem;
+  if (frontmatter.name !== undefined) {
+    const configured = String(frontmatter.name).trim().replace(/^\//, "");
+    if (configured.length === 0 || /[\s/]/.test(configured)) {
+      logger?.warn(
+        `Codewhale rejects the name "${String(frontmatter.name)}" of the command ${relativeFilePath} (expected one slash-command token) and falls back to "/${stem}".`,
+      );
+    } else {
+      name = configured.toLowerCase();
+    }
+  }
+  if (global) return;
   if (CODEWHALE_PROTECTED_BUILTINS.has(name)) {
     logger?.warn(
       `Codewhale will not load the project command ${relativeFilePath}: "/${name}" is a protected built-in command. Rename it.`,
     );
   }
-  const aliases = [frontmatter.alias, frontmatter.aliases]
-    .filter((value): value is string => typeof value === "string")
-    .flatMap((value) => value.split(","))
+  // Codewhale assigns `alias` and `aliases` to the same list, so whichever
+  // comes last in the frontmatter is the one it keeps.
+  const aliasValue = Object.entries(frontmatter)
+    .filter(([key]) => key === "alias" || key === "aliases")
+    .at(-1)?.[1];
+  const aliases = (typeof aliasValue === "string" ? aliasValue.split(",") : [])
     .map(normalize)
     .filter((alias) => CODEWHALE_PROTECTED_BUILTINS.has(alias));
   if (aliases.length > 0) {
@@ -338,13 +359,12 @@ export class CodewhaleCommand extends ToolCommand {
         : {}),
     };
 
-    if (!global) {
-      warnOnProtectedNames({
-        frontmatter: codewhaleFrontmatter,
-        relativeFilePath: rulesyncCommand.getRelativeFilePath(),
-        logger,
-      });
-    }
+    warnOnUnusableNames({
+      frontmatter: codewhaleFrontmatter,
+      relativeFilePath: rulesyncCommand.getRelativeFilePath(),
+      global,
+      logger,
+    });
 
     const body = rulesyncCommand.getBody();
     const paths = this.getSettablePaths({ global });

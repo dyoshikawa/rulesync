@@ -80,9 +80,18 @@ function isTimeoutValue(value: unknown): value is number {
 }
 
 /**
+ * Codewhale passes a timeout straight to `tokio::time::timeout` with no
+ * "disabled" sentinel, so a zero budget fails every connect or call at once
+ * and is not worth writing.
+ */
+function isPositiveTimeoutValue(value: unknown): value is number {
+  return isTimeoutValue(value) && value > 0;
+}
+
+/**
  * Write the canonical timeouts as Codewhale's second-based fields. A negative
  * or non-numeric value is dropped with a warning, since Codewhale rejects it
- * and would fail to load every server in the file.
+ * and would fail to load every server in the file; so is zero.
  */
 function convertTimeoutsToCodewhale({
   serverName,
@@ -97,9 +106,9 @@ function convertTimeoutsToCodewhale({
   for (const [canonical, codewhale] of Object.entries(RULESYNC_TO_CODEWHALE_TIMEOUT_FIELD_MAP)) {
     const value = serverConfig[canonical];
     if (value === undefined) continue;
-    if (!isTimeoutValue(value)) {
+    if (!isPositiveTimeoutValue(value)) {
       logger?.warn(
-        `Dropping the "${canonical}" of MCP server "${serverName}" for Codewhale: expected a non-negative number of milliseconds.`,
+        `Dropping the "${canonical}" of MCP server "${serverName}" for Codewhale: expected a positive number of milliseconds (Codewhale times out at once on a zero budget).`,
       );
       continue;
     }
