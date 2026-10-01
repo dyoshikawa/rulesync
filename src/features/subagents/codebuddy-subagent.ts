@@ -114,7 +114,12 @@ export class CodebuddySubagent extends ToolSubagent {
     global = false,
   }: ToolSubagentFromRulesyncSubagentParams): ToolSubagent {
     const rulesyncFrontmatter = rulesyncSubagent.getFrontmatter();
-    const codebuddySection = rulesyncFrontmatter.codebuddy ?? {};
+    // Canonical name/description always win over a stray same-named key in
+    // the `codebuddy` section, so `name` never diverges from the file name.
+    const codebuddySection = this.filterToolSpecificSection(rulesyncFrontmatter.codebuddy ?? {}, [
+      "name",
+      "description",
+    ]);
 
     const codebuddyFrontmatter: CodebuddySubagentFrontmatter = {
       name: rulesyncFrontmatter.name,

@@ -72,6 +72,21 @@ describe("CodebuddyCommand", () => {
       });
       expect(command.getBody()).toBe("Body");
     });
+
+    it("should keep the canonical description over a same-named codebuddy key", () => {
+      const command = CodebuddyCommand.fromRulesyncCommand({
+        outputRoot: testDir,
+        rulesyncCommand: buildCommand(["*"], {
+          codebuddy: { description: "Overridden", "argument-hint": "[test-file]" },
+        }),
+      }) as CodebuddyCommand;
+
+      expect(command.getFrontmatter()).toEqual({
+        description: "Test",
+        "argument-hint": "[test-file]",
+      });
+      expect(command.getFileContent()).not.toContain("Overridden");
+    });
   });
 
   describe("fromFile and toRulesyncCommand", () => {

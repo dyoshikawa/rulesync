@@ -111,7 +111,9 @@ export class CodebuddyCommand extends ToolCommand {
   }: ToolCommandFromRulesyncCommandParams): CodebuddyCommand {
     const rulesyncFrontmatter = rulesyncCommand.getFrontmatter();
 
-    const codebuddyFields = rulesyncFrontmatter.codebuddy ?? {};
+    // The canonical description always wins over a stray same-named key in
+    // the `codebuddy` section, matching the CodeBuddy skill and subagent.
+    const { description: _description, ...codebuddyFields } = rulesyncFrontmatter.codebuddy ?? {};
 
     const codebuddyFrontmatter: CodebuddyCommandFrontmatter = {
       description: rulesyncFrontmatter.description,
