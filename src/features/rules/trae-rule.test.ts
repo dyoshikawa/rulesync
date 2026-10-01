@@ -184,6 +184,9 @@ describe("TraeRule", () => {
     expect((await importFile("---\nalwaysApply: false\nglobs: null\n---\nBody\n")).globs).toEqual(
       [],
     );
+    expect(
+      (await importFile("---\nalwaysApply: false\nglobs: null # none\n---\nBody\n")).globs,
+    ).toEqual([]);
     expect(await importFile("---\nalwaysApply: false\nglobs: ~\n---\nBody\n")).toMatchObject({
       globs: [],
     });

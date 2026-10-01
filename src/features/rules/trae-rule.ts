@@ -52,7 +52,7 @@ type TraeRuleOutputFrontmatter = {
  * read, so `globs: null` stays null and `globs: |-` stays a block scalar.
  */
 const UNQUOTED_GLOBS_LINE_REGEX =
-  /^globs:[ \t]*(?!(?:null|Null|NULL|~|true|True|TRUE|false|False|FALSE)[ \t]*$)(?![|>])([^\s"'[][^\r\n]*?)[ \t]*$/m;
+  /^globs:[ \t]*(?!(?:null|Null|NULL|~|true|True|TRUE|false|False|FALSE)[ \t]*(?:#[^\r\n]*)?$)(?![|>])([^\s"'[][^\r\n]*?)[ \t]*$/m;
 
 /** Globs that match every file, and so add nothing to an always-applied rule. */
 const UNIVERSAL_GLOBS = new Set(["**/*", "*"]);
