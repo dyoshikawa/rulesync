@@ -241,7 +241,9 @@ function buildBobCommandLists({
  *
  * Glob- and regex-shaped patterns are handled by `buildVscodeCommandLists`,
  * which reasons about the same prefix lists for the Roo Code lineage Bob's
- * settings resemble. The rest of the `approval` block — the whole-group
+ * settings resemble. A deny that pins down no prefix can never match, so it
+ * withholds every allow entry rather than leaving them auto-approving what it
+ * meant to block. The rest of the `approval` block — the whole-group
  * `allowed_permissions` switches and `permissionOptions` — has no per-pattern
  * canonical counterpart and is preserved as authored, as is every other
  * settings key (the `hooks` key belongs to the hooks feature).

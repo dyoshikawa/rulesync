@@ -124,6 +124,45 @@ describe("BobPermissions", () => {
       );
     });
 
+    it("withholds every allow when a deny pins down no prefix", async () => {
+      // Neither `"*"` nor `"*.sh"` can match as a Bob prefix, so writing `ls`
+      // would auto-approve commands the canonical deny blocks.
+      for (const inert of ["*", "*.sh"]) {
+        const logger = createMockLogger();
+        const permissions = await BobPermissions.fromRulesyncPermissions({
+          outputRoot: testDir,
+          rulesyncPermissions: createRulesyncPermissions({
+            bash: { [inert]: "deny", ls: "allow" },
+          }),
+          logger,
+        });
+
+        const entry = JSON.parse(permissions.getFileContent()).approval.allowedExecutors[0];
+        expect(entry.approvedCommands).toEqual([]);
+        expect(entry.deniedCommands).toEqual([inert]);
+        expect(
+          warnings(logger).some((message) =>
+            message.includes('allow entry ("ls") has been withheld'),
+          ),
+        ).toBe(true);
+      }
+    });
+
+    it("folds the all-tools * category deny into the command lists", async () => {
+      const permissions = await BobPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          bash: { "rm -rf": "allow", ls: "allow" },
+          "*": { "rm *": "deny" },
+        }),
+        logger: createMockLogger(),
+      });
+
+      const entry = JSON.parse(permissions.getFileContent()).approval.allowedExecutors[0];
+      expect(entry.approvedCommands).toEqual(["ls"]);
+      expect(entry.deniedCommands).toEqual(["rm *", "rm "]);
+    });
+
     it("writes an empty approvedCommands list and drops an empty deny list", async () => {
       await writeSettings(
         testDir,

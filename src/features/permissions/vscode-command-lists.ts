@@ -116,6 +116,50 @@ function formatAdditions(additions: { from: string; prefix: string }[]): string 
 }
 
 /**
+ * Report the denies that pin down no prefix and return the allow entries that
+ * may still be written. With `failClosed`, such a deny withholds every allow:
+ * without a longest-match rule there is no allow it could be weighed against,
+ * so writing them would auto-approve a command the deny was meant to block.
+ */
+function resolveInertDenies({
+  toolLabel,
+  logger,
+  inertDenies,
+  allowed,
+  failClosed,
+}: {
+  toolLabel: string;
+  logger?: Logger | undefined;
+  inertDenies: string[];
+  allowed: string[];
+  failClosed: boolean;
+}): string[] {
+  if (inertDenies.length === 0) {
+    return allowed;
+  }
+  const count = inertDenies.length;
+  let consequence = `That leaves the command auto-approved whenever an allow entry does match; `;
+  if (failClosed) {
+    consequence =
+      allowed.length > 0
+        ? `Every allow entry (${formatPatterns(allowed)}) has been withheld so no command it ` +
+          `was meant to block is auto-approved; `
+        : "";
+  }
+  warnWithFallback(
+    logger,
+    `${toolLabel}: deny ${pluralize(count, "pattern", "patterns")} ${formatPatterns(inertDenies)} ` +
+      `${pluralize(count, "uses", "use")} glob or regex syntax that pins down no command ` +
+      `prefix, so ${pluralize(count, "it is", "they are")} written unchanged and will never ` +
+      `match. ` +
+      consequence +
+      `rewrite each one as the literal text a command starts with — an alternation needs one ` +
+      `entry per alternative.`,
+  );
+  return failClosed ? [] : allowed;
+}
+
+/**
  * Split one canonical category's rules into the two command lists the Roo Code
  * and Zoo Code lineages read from `.vscode/settings.json`.
  *
@@ -174,7 +218,10 @@ function formatAdditions(additions: { from: string; prefix: string }[]): string 
  * `deniedCommands` always takes precedence over `approvedCommands` — and
  * documents no bare `"*"` wildcard, so `"documented-prefix"` treats `"*"` as
  * a matcher that pins down no prefix and words the shadowing warning without
- * the longest-match rule.
+ * the longest-match rule. It also fails closed on a deny that pins down no
+ * prefix: since that deny can never match, every allow entry is withheld so
+ * the command it meant to block reaches the approval prompt instead of being
+ * auto-approved.
  */
 export function buildVscodeCommandLists({
   rules,
@@ -231,22 +278,17 @@ export function buildVscodeCommandLists({
         `everything its pattern named, so review it if that is wider than you intended.`,
     );
   }
-  if (inertDenies.length > 0) {
-    const count = inertDenies.length;
-    warnWithFallback(
-      logger,
-      `${toolLabel}: deny ${pluralize(count, "pattern", "patterns")} ${formatPatterns(inertDenies)} ` +
-        `${pluralize(count, "uses", "use")} glob or regex syntax that pins down no command ` +
-        `prefix, so ${pluralize(count, "it is", "they are")} written unchanged and will never ` +
-        `match. That leaves the command auto-approved whenever an allow entry does match; rewrite ` +
-        `each one as the literal text a command starts with — an alternation needs one entry per ` +
-        `alternative.`,
-    );
-  }
+  const keptAllows = resolveInertDenies({
+    toolLabel,
+    logger,
+    inertDenies,
+    allowed,
+    failClosed: !isRooLineage,
+  });
   // An added prefix can land on a pattern the author allowed. Deny wins on an
   // equal-length match, so the allow entry stops approving anything — the safe
   // direction, but not obviously what was written.
-  const allowedSet = new Set(allowed);
+  const allowedSet = new Set(keptAllows);
   // Deduplicated before it is counted: two matcher denies can pin down the same
   // prefix, and the message names each shadowed allow entry once.
   const shadowedAllows = [
@@ -269,12 +311,13 @@ export function buildVscodeCommandLists({
         `${pluralize(count, "approves", "approve")} anything.`,
     );
   }
-  if (matcherAllows.length > 0) {
-    const count = matcherAllows.length;
+  const reportedMatcherAllows = matcherAllows.filter((pattern) => allowedSet.has(pattern));
+  if (reportedMatcherAllows.length > 0) {
+    const count = reportedMatcherAllows.length;
     warnWithFallback(
       logger,
       `${toolLabel}: allow ${pluralize(count, "pattern", "patterns")} ` +
-        `${formatPatterns(matcherAllows)} will be compared as literal command prefix text, not as ` +
+        `${formatPatterns(reportedMatcherAllows)} will be compared as literal command prefix text, not as ` +
         `a glob or regex, so ${pluralize(count, "it approves", "they approve")} fewer commands ` +
         `than ${pluralize(count, "it looks", "they look")} like. ` +
         `${pluralize(count, "It is", "They are")} left unchanged, since narrowing an allow is the ` +
@@ -286,5 +329,8 @@ export function buildVscodeCommandLists({
   // A widened prefix can coincide with another entry — with a second matcher
   // that pins down the same prefix, or with a literal the author already wrote.
   const deduped = [...new Set(denied)];
-  return { allowed, denied: deduped.length > 0 ? deduped : undefined };
+  return {
+    allowed: keptAllows,
+    denied: deduped.length > 0 ? deduped : undefined,
+  };
 }
