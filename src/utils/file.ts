@@ -180,8 +180,9 @@ export async function ensureDir(dirPath: string): Promise<void> {
  *
  * `ownedDirPath` names a tool-owned directory (such as `.trae/rules`) whose
  * per-subdirectory copies are what the scan discovers. `rulesync gitignore`
- * ignores those directories themselves (`**\/.trae/rules/`), so only the
- * directories above the last such segment are tested.
+ * ignores those directories themselves (`**\/.trae/rules/`), so the last
+ * segment of the last such match and everything below it are not tested; its
+ * parents (`<dir>/.trae`) still are, so a user's own ignore rule there holds.
  */
 export function filterOutPathsInGitIgnoredDirectories({
   rootDir,
@@ -219,16 +220,17 @@ export function filterOutPathsInGitIgnoredDirectories({
     return ignored;
   };
 
-  const ownedSegment = ownedDirPath === undefined ? undefined : `/${toPosixPath(ownedDirPath)}/`;
+  const ownedPosix = ownedDirPath === undefined ? undefined : toPosixPath(ownedDirPath);
   const testedDirectory = (filePath: string): string => {
     const directory = dirname(resolve(filePath));
-    if (ownedSegment === undefined) {
+    if (ownedPosix === undefined) {
       return directory;
     }
     // Separators are one character on every platform, so an index into the
     // POSIX form is also an index into the native one.
-    const index = `${toPosixPath(directory)}/`.lastIndexOf(ownedSegment);
-    return index === -1 ? directory : directory.slice(0, index);
+    const index = `${toPosixPath(directory)}/`.lastIndexOf(`/${ownedPosix}/`);
+    // Cut before the owned directory's last segment (`.../pkg/.trae`).
+    return index === -1 ? directory : directory.slice(0, index + 1 + ownedPosix.lastIndexOf("/"));
   };
 
   return filePaths.filter((filePath) => !isInIgnoredDirectory(testedDirectory(filePath)));

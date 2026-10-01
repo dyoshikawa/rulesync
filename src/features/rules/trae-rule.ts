@@ -405,8 +405,9 @@ export class TraeRule extends ToolRule {
   /**
    * The `.trae/rules/` folders of project subdirectories, which Trae applies
    * when files in that directory are read or mentioned. The shared nested scan
-   * skips every hidden directory, which would skip `.trae` itself, so hidden
-   * directories are instead rejected by `extractSubprojectPath` on import.
+   * ignores every hidden directory, which would skip `.trae` itself, so only a
+   * `.trae/rules/` below another hidden directory is ignored here
+   * (`extractSubprojectPath` rejects one again on import).
    * Import-only, like every other nested scan: these files sit outside the
    * rulesync-owned root `.trae/rules/`, so `--delete` never sweeps them.
    * @see https://docs.trae.ai/ide/rules?_lang=en
@@ -422,8 +423,8 @@ export class TraeRule extends ToolRule {
         ...NESTED_SCAN_EXCLUDED_DIRS_ANY_DEPTH.map((dir) => `**/${dir}/**`),
         ...NESTED_SCAN_EXCLUDED_ROOT_DIRS.map((dir) => `${dir}/**`),
       ],
-      // `rulesync gitignore` ignores `**/.trae/rules/`, so only the subproject
-      // directories above it are checked against `.gitignore`.
+      // `rulesync gitignore` ignores `**/.trae/rules/`, so the gitignore filter
+      // stops at `<dir>/.trae` instead of testing the rules directory itself.
       ownedDirPath: rulesDirPath,
     };
   }

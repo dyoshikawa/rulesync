@@ -84,7 +84,7 @@ export type ToolRuleNestedFilePatterns = {
   /**
    * The tool-owned directory each match sits in (e.g. `.trae/rules`), for a
    * target whose nested unit is a directory rather than a file. The gitignore
-   * filter then tests only the directories above it, because `rulesync
+   * filter then skips testing that directory's last segment, because `rulesync
    * gitignore` ignores that directory itself.
    */
   ownedDirPath?: string;

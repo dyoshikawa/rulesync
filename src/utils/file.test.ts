@@ -519,16 +519,22 @@ describe("file utilities", () => {
       it("should test only the directories above an owned directory", async () => {
         // `rulesync gitignore` writes `**/.trae/rules/` for Trae's output, whose
         // per-subdirectory copies are what the Trae nested scan discovers.
-        await writeFileContent(join(testDir, ".gitignore"), "**/.trae/rules/\nvendored/\n");
+        await writeFileContent(
+          join(testDir, ".gitignore"),
+          "**/.trae/rules/\nvendored/\nignored/.trae/\n",
+        );
         const kept = join(testDir, "packages", "api", ".trae", "rules", "sub", "api.md");
         const dropped = join(testDir, "vendored", "dep", ".trae", "rules", "dep.md");
+        // The user's own rule on `<dir>/.trae/` still applies.
+        const droppedTrae = join(testDir, "ignored", ".trae", "rules", "x.md");
         await writeFileContent(kept, "keep");
         await writeFileContent(dropped, "drop");
+        await writeFileContent(droppedTrae, "drop");
 
         expect(
           filterOutPathsInGitIgnoredDirectories({
             rootDir: testDir,
-            filePaths: [kept, dropped],
+            filePaths: [kept, dropped, droppedTrae],
             ownedDirPath: join(".trae", "rules"),
           }),
         ).toEqual([kept]);
