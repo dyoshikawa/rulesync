@@ -132,16 +132,11 @@ function combineAugmentSettingsLayer(
 /**
  * The AugmentCode counterpart of Droid's guardrail keys: the tool-permission
  * rules, the hooks Auggie executes, and the servers and plugins it loads them
- * from (`enabledPlugins` turns a plugin, with its hooks and servers, on). See
- * `readSettingsWithLocalOverlay` for why they are named twice.
+ * from. See `readSettingsWithLocalOverlay` for why they are named twice.
+ * `enabledPlugins` is not among them: the permissions import reads it from the
+ * base `settings.json` only, so a local value never reaches `.rulesync`.
  */
-const AUGMENTCODE_GUARDRAIL_KEYS = [
-  "toolPermissions",
-  "hooks",
-  "mcpServers",
-  "plugins",
-  "enabledPlugins",
-] as const;
+const AUGMENTCODE_GUARDRAIL_KEYS = ["toolPermissions", "hooks", "mcpServers", "plugins"] as const;
 
 /**
  * Read the base `.augment/settings.json` content and, when a project-scope
