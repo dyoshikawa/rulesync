@@ -1639,6 +1639,20 @@ describe("file utilities", () => {
           expect(results).toEqual([join(loopDir, "sub", "a.md"), join(loopDir, "x.txt")]);
         });
 
+        it("should apply a negative pattern only to the patterns before it", async () => {
+          const negDir = join(testDir, "negative-per-walk");
+          await writeFileContent(join(negDir, "a.md"), "a");
+          await writeFileContent(join(negDir, "b.md"), "b");
+          await writeFileContent(join(negDir, "a.txt"), "a");
+
+          const results = await findFilesByGlobs(["*.md", "!a.*", "*.txt"], {
+            cwd: negDir,
+            type: "file",
+          });
+
+          expect(results).toEqual([join(negDir, "a.txt"), join(negDir, "b.md")]);
+        });
+
         it("should still walk a link to a directory above the walk root", async () => {
           // `up -> ..` leaves the walk, so its files are reachable through it; only the
           // descent back into the walk root through `up/<root>` repeats a directory.

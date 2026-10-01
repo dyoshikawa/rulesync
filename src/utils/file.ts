@@ -1018,7 +1018,11 @@ export async function findFilesByGlobs(
   // That check needs one walk per pattern: fast-glob runs every pattern's walk through
   // the same `fs`, and a directory one pattern read must not count as an ancestor in
   // another's walk. Each walk keeps the negative patterns that follow its pattern, which
-  // are the ones globby applies to it.
+  // are the ones globby applies to it (an absolute negative pattern is still resolved
+  // against the positive patterns of its own walk only; prefer `ignore`). fast-glob also
+  // splits a single brace pattern whose alternatives have different bases, such as
+  // `{*.txt,sub/*.md}`, into walks that share the check; pass such alternatives as
+  // separate patterns instead.
   const walks = followSymbolicLinks
     ? normalizedGlobs.flatMap((pattern, index) =>
         pattern.startsWith("!")
