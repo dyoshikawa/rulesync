@@ -1381,6 +1381,36 @@ describe("E2E: hooks (global mode)", () => {
     }
   });
 
+  it("should emit Kimi Code hook commands verbatim when runFromSourceDirectory is false", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(projectDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH),
+      JSON.stringify({
+        version: 1,
+        hooks: {
+          preToolUse: [{ matcher: "Bash", command: "$HOME/hooks/guard.py" }],
+        },
+        "kimi-code": { runFromSourceDirectory: false },
+      }),
+    );
+
+    await runGenerate({
+      target: "kimi-code",
+      features: "hooks",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const parsed = smolToml.parse(
+      await readFileContent(join(homeDir, ".kimi-code", "config.toml")),
+    ) as { hooks: Array<{ event: string; command: string; matcher?: string }> };
+    expect(parsed.hooks).toEqual([
+      { event: "PreToolUse", command: "$HOME/hooks/guard.py", matcher: "Bash" },
+    ]);
+  });
+
   it("should import Kimi Code hooks from the shared user config", async () => {
     const homeDir = getHomeDir();
 

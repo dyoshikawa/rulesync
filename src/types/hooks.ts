@@ -1549,7 +1549,14 @@ export const HooksConfigSchema = z.looseObject({
   codewhale: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   reasonix: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   grokcli: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
-  "kimi-code": z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  "kimi-code": z.optional(
+    z.looseObject({
+      hooks: z.optional(hooksRecordSchema),
+      // When false, commands are emitted verbatim instead of being wrapped to
+      // `cd` into the directory holding the source `.rulesync/hooks.jsonc`.
+      runFromSourceDirectory: z.optional(z.boolean()),
+    }),
+  ),
   zcode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   crush: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   pool: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
