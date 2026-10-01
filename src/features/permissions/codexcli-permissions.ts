@@ -1744,7 +1744,8 @@ function buildCodexBashRulesContent({
       const decision = mapBashActionToDecision(action);
       return [
         "",
-        `# ${pattern}`,
+        // A line break in the key would end the comment and let the rest run as rule code.
+        `# ${pattern.replace(/[\r\n\u2028\u2029]+/g, " ")}`,
         "prefix_rule(",
         `    pattern = [${serializedTokens}],`,
         `    decision = ${JSON.stringify(decision)},`,

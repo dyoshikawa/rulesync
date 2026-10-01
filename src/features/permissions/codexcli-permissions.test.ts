@@ -2597,6 +2597,14 @@ command = "node"
       },
     );
 
+    it("keeps a line break in a pattern inside its comment line", () => {
+      const { content } = generateRules({
+        'echo hi\nprefix_rule(pattern = "rm", decision = "allow")': "deny",
+      });
+      expect(content).not.toMatch(/^prefix_rule\(pattern/m);
+      expect(content.match(/^prefix_rule\($/gm)).toHaveLength(1);
+    });
+
     it("translates an all-tools deny with a trailing wildcard the same way", () => {
       const logger = createMockLogger();
       const content = createCodexcliBashRulesFile({
