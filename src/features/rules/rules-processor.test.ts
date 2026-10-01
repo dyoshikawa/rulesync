@@ -1,3 +1,4 @@
+import { symlink } from "node:fs/promises";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -1136,6 +1137,61 @@ describe("RulesProcessor", () => {
         if (!global) {
           expect(deletionPaths).toContain("DESIGN.md");
         }
+      },
+    );
+
+    it.skipIf(process.platform === "win32")(
+      "should skip symbolic links when importing factorydroid output styles",
+      async () => {
+        await writeFileContent(join(testDir, "outside", "secret.md"), "Outside the project.");
+        await writeFileContent(
+          join(testDir, ".factory", "output-styles", "review-notes.md"),
+          "Start with findings.",
+        );
+        await symlink(
+          join(testDir, "outside", "secret.md"),
+          join(testDir, ".factory", "output-styles", "linked.md"),
+        );
+
+        const processor = new RulesProcessor({
+          logger,
+          outputRoot: testDir,
+          toolTarget: "factorydroid",
+        });
+
+        const imported = await processor.loadToolFiles();
+        const importedPaths = imported.map((file) =>
+          join(file.getRelativeDirPath(), file.getRelativeFilePath()),
+        );
+        expect(importedPaths).toContain(join(".factory", "output-styles", "review-notes.md"));
+        expect(importedPaths).not.toContain(join(".factory", "output-styles", "linked.md"));
+        expect(imported.map((file) => file.getFileContent())).not.toContain("Outside the project.");
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining(
+            `Skipping symbolic link ${join(".factory", "output-styles", "linked.md")}`,
+          ),
+        );
+      },
+    );
+
+    it.skipIf(process.platform === "win32")(
+      "should skip factorydroid output styles reached through a linked directory",
+      async () => {
+        await writeFileContent(join(testDir, "outside", "secret.md"), "Outside the project.");
+        await ensureDir(join(testDir, ".factory"));
+        await symlink(join(testDir, "outside"), join(testDir, ".factory", "output-styles"), "dir");
+
+        const processor = new RulesProcessor({
+          logger,
+          outputRoot: testDir,
+          toolTarget: "factorydroid",
+        });
+
+        const imported = await processor.loadToolFiles();
+        expect(imported.map((file) => file.getFileContent())).not.toContain("Outside the project.");
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining("Skipping symbolic link .factory/output-styles/secret.md"),
+        );
       },
     );
 
@@ -5046,6 +5102,78 @@ targets: ["factorydroid"]
       expect(
         toolFiles.map((file) => join(file.getRelativeDirPath(), file.getRelativeFilePath())),
       ).toEqual(expect.arrayContaining([join(".factory", "output-styles", "review-notes.md")]));
+    });
+
+    it("should warn about factorydroid options that leak to other tools or are ignored", async () => {
+      const rules = [
+        new RulesyncRule({
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "leaky-style.md",
+          frontmatter: { root: false, targets: ["*"], factorydroid: { channel: "output-style" } },
+          body: "Start with findings.",
+        }),
+        new RulesyncRule({
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "scoped-style.md",
+          frontmatter: {
+            root: false,
+            targets: ["factorydroid"],
+            factorydroid: { channel: "output-style", name: "Scoped" },
+          },
+          body: "Start with findings.",
+        }),
+        new RulesyncRule({
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "default-targets-style.md",
+          frontmatter: { root: false, factorydroid: { channel: "output-style" } },
+          body: "Start with findings.",
+        }),
+        // Never reaches factorydroid, so its factorydroid keys are not reported.
+        new RulesyncRule({
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "claudecode-only.md",
+          frontmatter: {
+            root: false,
+            targets: ["claudecode"],
+            factorydroid: { channel: "output-style", name: "Elsewhere" },
+          },
+          body: "Start with findings.",
+        }),
+        new RulesyncRule({
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "design.md",
+          frontmatter: {
+            root: false,
+            targets: ["factorydroid"],
+            factorydroid: { channel: "design", name: "Unused" },
+          },
+          body: "# Design",
+        }),
+      ];
+
+      await new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "factorydroid",
+      }).convertRulesyncFilesToToolFiles(rules);
+
+      const warnings = logger.warn.mock.calls.map(([message]) => String(message));
+      expect(warnings.filter((message) => message.includes("also targets other tools"))).toEqual([
+        expect.stringContaining("leaky-style.md"),
+        expect.stringContaining("default-targets-style.md"),
+      ]);
+      expect(warnings.filter((message) => message.includes("sets factorydroid.name"))).toEqual([
+        expect.stringContaining("design.md"),
+      ]);
+
+      // Other targets do not repeat the factorydroid-specific warnings.
+      logger.warn.mockClear();
+      await new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "claudecode",
+      }).convertRulesyncFilesToToolFiles(rules);
+      expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("factorydroid"));
     });
 
     it("should expose every global-capable folded target to the regression matrix", () => {

@@ -225,8 +225,8 @@ export const RulesyncRuleFrontmatterSchema = z.object({
       channel: z.optional(z.enum(["design", "threat-model", "output-style"])),
       // The output style's picker name (`name` in the emitted frontmatter).
       // Only read with `channel: output-style`; Droid defaults it to the file
-      // name without `.md`.
-      name: z.optional(z.string().check(z.minLength(1))),
+      // name without `.md`. Trimmed first, so a blank name is refused.
+      name: z.optional(z.string().check(z.trim(), z.minLength(1))),
     }),
   ),
 });

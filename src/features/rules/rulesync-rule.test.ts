@@ -967,6 +967,19 @@ globs: ["packages/api/**/*"]
       expect(result.success).toBe(false);
     });
 
+    it("should trim factorydroid.name and reject a blank one", () => {
+      const trimmed = RulesyncRuleFrontmatterSchema.safeParse({
+        factorydroid: { channel: "output-style", name: "  Review Notes  " },
+      });
+      expect(trimmed.success).toBe(true);
+      expect(trimmed.data?.factorydroid?.name).toBe("Review Notes");
+
+      const blank = RulesyncRuleFrontmatterSchema.safeParse({
+        factorydroid: { channel: "output-style", name: "   " },
+      });
+      expect(blank.success).toBe(false);
+    });
+
     it("should reject invalid description field", () => {
       const result = RulesyncRuleFrontmatterSchema.safeParse({
         description: 123,
