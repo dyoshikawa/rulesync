@@ -1228,7 +1228,9 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
     {
       // Trae auto-loads every `.trae/rules/*.md` file by its Cursor-style
       // `alwaysApply` / `description` / `globs` frontmatter and has no root
-      // rule file, so every rule lands there (mirrors cursor). Commands,
+      // rule file, so every rule lands there (mirrors cursor) — except
+      // directory-scoped rules (`agentsmd.subprojectPath`), which go to
+      // `<dir>/.trae/rules/` (imported back via `getNestedFilePatterns`). Commands,
       // subagents and skills need no simulation: Trae has native skills and
       // no file-based commands or subagents. Global rules (`~/.trae/user_rules`)
       // are not written because their on-disk format is undocumented.
