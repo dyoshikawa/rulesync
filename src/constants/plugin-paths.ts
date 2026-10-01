@@ -21,3 +21,13 @@ export const AUGMENTCODE_PLUGIN_AGENTS_DIR = "agents";
 export const AUGMENTCODE_PLUGIN_SKILLS_DIR = "skills";
 export const AUGMENTCODE_PLUGIN_HOOKS_DIR = "hooks";
 export const AUGMENTCODE_PLUGIN_HOOKS_FILE_NAME = "hooks.json";
+
+// ZCode plugin components live directly under the plugin root, in the Claude
+// Code plugin layout; the manifest is `.zcode-plugin/plugin.json`.
+// @see https://zcode.z.ai/en/docs/plugin
+export const ZCODE_PLUGIN_COMMANDS_DIR = "commands";
+export const ZCODE_PLUGIN_AGENTS_DIR = "agents";
+export const ZCODE_PLUGIN_SKILLS_DIR = "skills";
+export const ZCODE_PLUGIN_HOOKS_DIR = "hooks";
+export const ZCODE_PLUGIN_HOOKS_FILE_NAME = "hooks.json";
+export const ZCODE_PLUGIN_MCP_FILE_NAME = ".mcp.json";

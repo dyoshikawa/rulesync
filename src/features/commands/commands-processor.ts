@@ -90,6 +90,7 @@ import {
 } from "./tool-command.js";
 import { WarpCommand } from "./warp-command.js";
 import { ZcodeCommand } from "./zcode-command.js";
+import { ZcodePluginCommand } from "./zcode-plugin-command.js";
 import { ZoocodeCommand } from "./zoocode-command.js";
 
 /**
@@ -820,6 +821,21 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
         extension: "md",
         supportsProject: true,
         supportsGlobal: true,
+        isSimulated: false,
+        supportsSubdirectory: false,
+      },
+    },
+  ],
+  [
+    "zcode-plugin",
+    {
+      // `<plugin>/commands/*.md`, parsed like `.zcode/commands/`.
+      // https://zcode.z.ai/en/docs/plugin
+      class: ZcodePluginCommand,
+      meta: {
+        extension: "md",
+        supportsProject: true,
+        supportsGlobal: false,
         isSimulated: false,
         supportsSubdirectory: false,
       },

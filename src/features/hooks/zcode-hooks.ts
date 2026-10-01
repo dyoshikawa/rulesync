@@ -58,7 +58,7 @@ function parseZcodeConfig(fileContent: string, filePath?: string): Record<string
  * something else than the file states. Matcher groups left without hooks are
  * dropped with them.
  */
-function stripProcessHooks({
+export function stripProcessHooks({
   events,
   logger,
 }: {
@@ -101,7 +101,7 @@ function stripProcessHooks({
 // upstream capability.
 const ZCODE_NO_MATCHER_EVENTS: ReadonlySet<string> = new Set(["beforeSubmitPrompt", "stop"]);
 
-const ZCODE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
+export const ZCODE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   supportedEvents: ZCODE_HOOK_EVENTS,
   canonicalToToolEventNames: CANONICAL_TO_ZCODE_EVENT_NAMES,
   toolToCanonicalEventNames: ZCODE_TO_CANONICAL_EVENT_NAMES,

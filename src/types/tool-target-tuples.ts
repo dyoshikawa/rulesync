@@ -146,6 +146,7 @@ export const mcpProcessorToolTargetTuple = [
   "warp",
   "devin",
   "zcode",
+  "zcode-plugin",
   "zed",
   "zoocode",
 ] as const;
@@ -193,6 +194,7 @@ export const commandsProcessorToolTargetTuple = [
   "devin",
   "warp",
   "zcode",
+  "zcode-plugin",
 ] as const;
 
 export const subagentsProcessorToolTargetTuple = [
@@ -245,6 +247,7 @@ export const subagentsProcessorToolTargetTuple = [
   "takt",
   "vibe",
   "zcode",
+  "zcode-plugin",
 ] as const;
 
 export const skillsProcessorToolTargetTuple = [
@@ -303,6 +306,7 @@ export const skillsProcessorToolTargetTuple = [
   "warp",
   "devin",
   "zcode",
+  "zcode-plugin",
   "zed",
   "zoocode",
   "dsh",
@@ -352,6 +356,7 @@ export const hooksProcessorToolTargetTuple = [
   "gitlabduo",
   "lettacode",
   "zcode",
+  "zcode-plugin",
 ] as const;
 
 export const permissionsProcessorToolTargetTuple = [
