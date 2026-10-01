@@ -1456,6 +1456,52 @@ describe("AugmentcodePermissions", () => {
       const content = JSON.parse(instance.getFileContent());
       expect(content.enabledPlugins).toEqual({ "flipped@acme": false, "added@acme": true });
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('("added@acme")'));
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringMatching(
+          /Removing AugmentCode `enabledPlugins` entries \("dropped@acme"\).*rulesync import/,
+        ),
+      );
+    });
+
+    it("should warn about recommendedMarketplaces entries the override would remove", async () => {
+      await writeSettings({ recommendedMarketplaces: ["acme/team-plugins", "acme/installed"] });
+      const logger = createMockLogger();
+
+      await AugmentcodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: permissionsWithOverride({
+          recommendedMarketplaces: ["acme/team-plugins"],
+        }),
+        logger,
+      });
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          'Removing AugmentCode `recommendedMarketplaces` entries ("acme/installed")',
+        ),
+      );
+    });
+
+    it("should not repeat the trust warnings when the file already holds the stated values", async () => {
+      await writeSettings({
+        recommendedMarketplaces: ["acme/team-plugins"],
+        enabledPlugins: { "tool@acme": true },
+      });
+      const logger = createMockLogger();
+
+      await AugmentcodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: permissionsWithOverride({
+          recommendedMarketplaces: ["acme/team-plugins"],
+          enabledPlugins: { "tool@acme": true },
+        }),
+        logger,
+      });
+
+      expect(logger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining("recommendedMarketplaces"),
+      );
+      expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("enabledPlugins"));
     });
 
     it("should write enabledPlugins in global mode", async () => {
@@ -1518,7 +1564,21 @@ describe("AugmentcodePermissions", () => {
       });
     });
 
-    it("should ignore a local recommendedMarketplaces on import, as Auggie does", async () => {
+    it("should not lift recommendedMarketplaces on a global import, where Auggie ignores it", async () => {
+      await writeSettings({
+        toolPermissions: [],
+        recommendedMarketplaces: ["acme/team-plugins"],
+        enabledPlugins: { "tool@acme": true },
+      });
+
+      const instance = await AugmentcodePermissions.fromFile({ outputRoot: testDir, global: true });
+
+      expect(instance.toRulesyncPermissions().getJson().augmentcode).toEqual({
+        enabledPlugins: { "tool@acme": true },
+      });
+    });
+
+    it("should import only the base file's plugin keys, ignoring the local file's", async () => {
       await writeSettings({
         toolPermissions: [],
         recommendedMarketplaces: ["acme/team-plugins"],
@@ -1539,8 +1599,23 @@ describe("AugmentcodePermissions", () => {
 
       expect(instance.toRulesyncPermissions().getJson().augmentcode).toEqual({
         recommendedMarketplaces: ["acme/team-plugins"],
-        enabledPlugins: { "shared@acme": true, "mine@me": true },
+        enabledPlugins: { "shared@acme": true },
       });
+    });
+
+    it("should not import an enabledPlugins that only the local file states", async () => {
+      await writeSettings({ toolPermissions: [] });
+      await writeFileContent(
+        join(testDir, ".augment", "settings.local.json"),
+        JSON.stringify({ enabledPlugins: { "mine@me": true } }),
+      );
+
+      const instance = await AugmentcodePermissions.fromFile({
+        outputRoot: testDir,
+        logger: createMockLogger(),
+      });
+
+      expect(instance.toRulesyncPermissions().getJson()).not.toHaveProperty("augmentcode");
     });
 
     it("should not lift values whose shape Auggie does not document", () => {

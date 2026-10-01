@@ -408,7 +408,7 @@ function repairFrontmatterLine(line: string): RepairedLine {
  * here would run past gray-matter's delimiter and act on text that is really
  * the body.
  */
-function findFrontmatterBlockBounds(
+export function findFrontmatterBlockBounds(
   content: string,
 ): { blockStart: number; blockEnd: number } | undefined {
   const opening = /^\uFEFF?---[^\S\r\n]*\r?\n/.exec(content);

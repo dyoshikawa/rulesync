@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { writeFileContent } from "../../utils/file.js";
+import { fallbackLogger } from "../../utils/logger.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import { TraeMcp } from "./trae-mcp.js";
 
@@ -57,6 +58,47 @@ describe("TraeMcp", () => {
       },
       remote: { url: "https://example.com/mcp", headers: { Authorization: "Bearer x" } },
     });
+  });
+
+  it("should keep hand-added top-level keys of an existing .trae/mcp.json", async () => {
+    await writeFileContent(
+      join(testDir, ".trae", "mcp.json"),
+      JSON.stringify({ custom: { keep: true }, mcpServers: { old: { command: "old" } } }),
+    );
+    const rulesyncMcp = new RulesyncMcp({
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: "mcp.json",
+      fileContent: JSON.stringify({ mcpServers: { local: { command: "node" } } }),
+    });
+
+    const mcp = await TraeMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+
+    expect(mcp.getJson()).toEqual({
+      custom: { keep: true },
+      mcpServers: { local: { command: "node" } },
+    });
+  });
+
+  it("should warn about env/headers references Trae does not expand", async () => {
+    const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+    const rulesyncMcp = new RulesyncMcp({
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: "mcp.json",
+      fileContent: JSON.stringify({
+        mcpServers: {
+          plain: { command: "node", env: { ROOT: "${workspaceFolder}/x" } },
+          secret: { url: "https://example.com/mcp", headers: { Authorization: "Bearer ${TOKEN}" } },
+        },
+      }),
+    });
+
+    const mcp = await TraeMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+
+    expect(mcp.getJson().mcpServers).toMatchObject({
+      secret: { headers: { Authorization: "Bearer ${TOKEN}" } },
+    });
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('"secret"'));
   });
 
   it("should import .trae/mcp.json back into rulesync", async () => {

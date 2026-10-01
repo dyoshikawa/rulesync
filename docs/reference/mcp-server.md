@@ -29,6 +29,9 @@ The `rule` operations expose the authored frontmatter, the value written in the 
 
 Unlike `rule` and `command`, which take a file name and place it in their `.rulesync/` directory, the `subagent` operations take a `relativePathFromCwd` that must point inside `.rulesync/subagents/` and end in `.md`, for example `.rulesync/subagents/planner.md` or, for a nested agent, `.rulesync/subagents/review/security.md`. A bare file name, a path outside that directory, a non-Markdown file, a path with a dot-prefixed segment (which `list` and `generate` skip), or the directory itself is rejected. `list` returns the same paths, so they can be passed back to `get`, `put`, and `delete` unchanged. `.rulesync` and `.rulesync/subagents` may be symbolic links (for example into a dotfiles repository), and the server then reads and writes wherever the link points, as the CLI does; a symbolic link below `.rulesync/subagents/` is neither listed nor read, written, or deleted through.
 
+> [!WARNING]
+> Because a symlinked `.rulesync` or `.rulesync/subagents` is followed even when it points outside the project, running the MCP server in an untrusted checkout lets `subagent` `put` and `delete` create directories and create, overwrite, or remove `.md` files wherever a committed symbolic link points, and lets `list` and `get` read `.md` files from there. Inspect `.rulesync` before connecting an AI agent to the server in a repository you do not trust.
+
 ### `skill` other files
 
 A skill directory may contain files other than `SKILL.md`. They are passed as `otherFiles`, where each entry has:
