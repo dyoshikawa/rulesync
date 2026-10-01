@@ -1,3 +1,5 @@
+import { basename, extname } from "node:path";
+
 import { AUGMENTCODE_PLUGIN_AGENTS_DIR } from "../../constants/plugin-paths.js";
 import type { Logger } from "../../utils/logger.js";
 import {
@@ -14,7 +16,9 @@ import type { ToolSubagentSettablePaths } from "./tool-subagent.js";
  * `.augment/agents/` loader honors — `tools`, `disabled_tools`, `color`,
  * provider and prompt settings — is silently ignored for a plugin agent, so it
  * is dropped with a warning instead of being shipped in the bundle.
- * `name` is kept because rulesync's subagent format requires it.
+ * `name` is kept because rulesync's subagent format requires it; when it
+ * differs from the file name, Auggie shows the file name, so that is warned
+ * about.
  */
 const PLUGIN_SUPPORTED_FIELDS: ReadonlySet<string> = new Set([
   "name",
@@ -62,6 +66,14 @@ export class AugmentcodePluginSubagent extends AugmentcodeSubagent {
         `Dropping ${dropped.join(", ")} from augmentcode-plugin subagent ${relativeFilePath}: ` +
           `Auggie ignores these fields for plugin-shipped agents` +
           (restrictsTools ? ", so the agent runs with the full tool set." : "."),
+      );
+    }
+    const fileName = basename(relativeFilePath, extname(relativeFilePath));
+    if (typeof sanitized.name === "string" && sanitized.name !== fileName) {
+      logger?.warn(
+        `augmentcode-plugin subagent ${relativeFilePath} is named ${JSON.stringify(sanitized.name)}, ` +
+          `but Auggie names a plugin agent after its file, so it will appear as ${JSON.stringify(fileName)}. ` +
+          `Rename the file or the subagent to make them match.`,
       );
     }
     return sanitized;

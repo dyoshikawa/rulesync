@@ -56,6 +56,52 @@ describe("AugmentcodePluginSubagent", () => {
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("full tool set"));
   });
 
+  it("warns when the subagent name differs from its file name, which Auggie uses", () => {
+    const logger = createMockLogger();
+
+    const subagent = AugmentcodePluginSubagent.fromRulesyncSubagent({
+      outputRoot: ".",
+      relativeDirPath: "agents",
+      rulesyncSubagent: new RulesyncSubagent({
+        outputRoot: ".",
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath: "code-reviewer.md",
+        frontmatter: { targets: ["*"], name: "reviewer", description: "Reviews code" },
+        body: "Review the changes.",
+        validate: false,
+      }),
+      logger,
+    });
+
+    expect(subagent.getRelativeFilePath()).toBe("code-reviewer.md");
+    expect(logger.warn).toHaveBeenCalledTimes(1);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining(
+        'augmentcode-plugin subagent code-reviewer.md is named "reviewer", but Auggie names a plugin agent after its file, so it will appear as "code-reviewer".',
+      ),
+    );
+  });
+
+  it("does not warn about the name when it matches the file name", () => {
+    const logger = createMockLogger();
+
+    AugmentcodePluginSubagent.fromRulesyncSubagent({
+      outputRoot: ".",
+      relativeDirPath: "agents",
+      rulesyncSubagent: new RulesyncSubagent({
+        outputRoot: ".",
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath: "reviewer.md",
+        frontmatter: { targets: ["*"], name: "reviewer", description: "Reviews code" },
+        body: "Review the changes.",
+        validate: false,
+      }),
+      logger,
+    });
+
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
   it("keeps those fields for the augmentcode target", () => {
     const subagent = AugmentcodeSubagent.fromRulesyncSubagent({
       outputRoot: ".",
