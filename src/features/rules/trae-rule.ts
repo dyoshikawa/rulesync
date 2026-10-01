@@ -52,7 +52,14 @@ type TraeRuleOutputFrontmatter = {
  * read, so `globs: null` stays null and `globs: |-` stays a block scalar.
  */
 const UNQUOTED_GLOBS_LINE_REGEX =
-  /^globs:[ \t]*(?!(?:null|Null|NULL|~|true|True|TRUE|false|False|FALSE)[ \t]*(?:#[^\r\n]*)?$)(?![|>])([^\s"'[][^\r\n]*?)[ \t]*$/m;
+  /^globs:[ \t]*(?!(?:null|Null|NULL|~|true|True|TRUE|false|False|FALSE)[ \t]*(?:#[^\r\n]*)?$)(?![|>])([^\s"'][^\r\n]*?)[ \t]*$/m;
+
+/**
+ * A YAML flow list (`["*.ts", "*.md"]`, optionally followed by a comment),
+ * which is left for YAML to read. A leading-`[` value with anything after its
+ * closing `]`, such as the character-class glob `[abc]*.ts`, is quoted instead.
+ */
+const FLOW_LIST_VALUE_REGEX = /^\[[^\r\n]*\](?:[ \t]+#[^\r\n]*)?$/;
 
 /** Globs that match every file, and so add nothing to an always-applied rule. */
 const UNIVERSAL_GLOBS = new Set(["**/*", "*"]);
@@ -202,7 +209,7 @@ export class TraeRule extends ToolRule {
    * unquoted, comma-separated scalar, which a YAML parser rejects or misreads
    * when it starts with `*`, `{`, `!` and the like. Such a value is quoted
    * before parsing, inside the frontmatter block only so the body is never
-   * rewritten. A quoted value, a YAML list, a null or boolean keyword and a
+   * rewritten. A quoted value, a YAML flow list, a null or boolean keyword and a
    * block scalar indicator (`|`, `>`) are left alone. The block bounds are
    * gray-matter's own (it closes the block at the first `\n---`, even inside a
    * `----` line), so the quoting never reaches text gray-matter reads as body.
@@ -218,8 +225,8 @@ export class TraeRule extends ToolRule {
     const { blockStart: start, blockEnd: end } = bounds;
     const block = fileContent
       .slice(start, end)
-      .replace(UNQUOTED_GLOBS_LINE_REGEX, (_match, value: string) => {
-        return `globs: ${JSON.stringify(value)}`;
+      .replace(UNQUOTED_GLOBS_LINE_REGEX, (match, value: string) => {
+        return FLOW_LIST_VALUE_REGEX.test(value) ? match : `globs: ${JSON.stringify(value)}`;
       });
     return parseFrontmatter(fileContent.slice(0, start) + block + fileContent.slice(end), filePath);
   }

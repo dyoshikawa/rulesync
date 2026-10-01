@@ -553,6 +553,38 @@ This is the rule content
       expect(rule.getRelativeFilePath()).toBe("test.mdc");
     });
 
+    it("should leave a globs line in the body untouched", async () => {
+      const filePath = join(testDir, ".cursor/rules", "format.mdc");
+      await writeFileContent(
+        filePath,
+        "---\ndescription: How to write rules\nalwaysApply: false\n---\nExample:\n\nglobs: *.ts\n",
+      );
+
+      const rule = await CursorRule.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "format.mdc",
+      });
+
+      expect(rule.getFrontmatter().globs).toBeUndefined();
+      expect(rule.getBody()).toBe("Example:\n\nglobs: *.ts");
+    });
+
+    it("should not join a body globs line with the next line", async () => {
+      const filePath = join(testDir, ".cursor/rules", "empty.mdc");
+      await writeFileContent(
+        filePath,
+        "---\ndescription: Manual\nalwaysApply: false\n---\nglobs:\n*Emphasis* body\n",
+      );
+
+      const rule = await CursorRule.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "empty.mdc",
+      });
+
+      expect(rule.getFrontmatter()).toEqual({ description: "Manual", alwaysApply: false });
+      expect(rule.getBody()).toBe("globs:\n*Emphasis* body");
+    });
+
     it("should round-trip a description containing YAML-special characters", async () => {
       // A description with a ": " sequence (and other YAML indicators) must be emitted
       // as a quoted scalar; otherwise the generated frontmatter is invalid YAML and
