@@ -1269,6 +1269,7 @@ export const PermissionsConfigSchema = z.looseObject({
   // Tools without tool-specific override keys still accept the canonical
   // tool-scoped `permission` block (see ToolScopedPermissionSchema).
   "antigravity-ide": z.optional(CanonicalPermissionsOverrideSchema),
+  bob: z.optional(CanonicalPermissionsOverrideSchema),
   continue: z.optional(CanonicalPermissionsOverrideSchema),
   copilot: z.optional(CanonicalPermissionsOverrideSchema),
   commandcode: z.optional(CanonicalPermissionsOverrideSchema),

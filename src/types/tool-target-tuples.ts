@@ -358,6 +358,7 @@ export const permissionsProcessorToolTargetTuple = [
   "antigravity-cli",
   "antigravity-ide",
   "augmentcode",
+  "bob",
   "claudecode",
   "cline",
   "codexcli",

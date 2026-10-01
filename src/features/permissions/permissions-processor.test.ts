@@ -119,6 +119,7 @@ describe("PermissionsProcessor", () => {
         "amp",
         "antigravity-cli",
         "augmentcode",
+        "bob",
         "claudecode",
         "codexcli",
         "commandcode",
