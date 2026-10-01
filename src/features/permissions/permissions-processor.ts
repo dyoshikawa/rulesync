@@ -17,6 +17,7 @@ import { AmpPermissions } from "./amp-permissions.js";
 import { AntigravityCliPermissions } from "./antigravity-cli-permissions.js";
 import { AntigravityIdePermissions } from "./antigravity-ide-permissions.js";
 import { AugmentcodePermissions } from "./augmentcode-permissions.js";
+import { BobPermissions } from "./bob-permissions.js";
 import { ClaudecodePermissions } from "./claudecode-permissions.js";
 import { ClinePermissions } from "./cline-permissions.js";
 import { CodexcliPermissions, createCodexcliBashRulesFile } from "./codexcli-permissions.js";
@@ -133,6 +134,21 @@ export const toolPermissionsFactories = new Map<
       class: AugmentcodePermissions,
       meta: {
         supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+    },
+  ],
+  [
+    "bob",
+    {
+      class: BobPermissions,
+      meta: {
+        // IBM Bob documents its `approval` block only in the user settings file
+        // `~/.bob/settings/settings.json` (shared by Bob IDE and Bob Shell);
+        // whether a workspace `.bob/settings.json` honors it is undocumented.
+        // https://bob.ibm.com/docs/shell/configuration/approval-settings
+        supportsProject: false,
         supportsGlobal: true,
         supportsImport: true,
       },

@@ -72,9 +72,12 @@ function firstPrefix(text: string, stopAt: RegExp): string | undefined {
   return prefix.trim() === "" ? undefined : prefix;
 }
 
-function classifyPattern(pattern: string): PatternShape {
+function classifyPattern(pattern: string, bareStarIsWildcard: boolean): PatternShape {
   if (pattern === "*") {
-    return { kind: "literal" };
+    // Only the Roo Code lineage documents the bare `"*"` entry as a wildcard.
+    // Elsewhere it is literal prefix text that pins down no command, so it is
+    // reported like any other matcher that names no prefix.
+    return bareStarIsWildcard ? { kind: "literal" } : { kind: "matcher", prefix: undefined };
   }
   // A leading anchor is regex syntax wherever it appears, so the rest is read
   // as a regex whether or not the pattern also carries the `/…/` delimiters.
@@ -164,16 +167,27 @@ function formatAdditions(additions: { from: string; prefix: string }[]): string 
  *   than it looks like it does, and the rest reach the approval prompt. Adding
  *   its prefix would widen what runs unattended, so allow patterns are passed
  *   through unchanged and only warned about.
+ *
+ * `prefixSemantics` selects which matching rules the warnings describe. The
+ * default, `"roo-lineage"`, is the Roo Code / Zoo Code behavior above. IBM
+ * Bob documents the same prefix lists with a stricter, simpler contract —
+ * `deniedCommands` always takes precedence over `approvedCommands` — and
+ * documents no bare `"*"` wildcard, so `"documented-prefix"` treats `"*"` as
+ * a matcher that pins down no prefix and words the shadowing warning without
+ * the longest-match rule.
  */
 export function buildVscodeCommandLists({
   rules,
   toolLabel,
   logger,
+  prefixSemantics = "roo-lineage",
 }: {
   rules: Record<string, PermissionAction>;
   toolLabel: string;
   logger?: Logger | undefined;
+  prefixSemantics?: "roo-lineage" | "documented-prefix";
 }): { allowed: string[]; denied: string[] | undefined } {
+  const isRooLineage = prefixSemantics === "roo-lineage";
   const allowed: string[] = [];
   const denied: string[] = [];
   const matcherAllows: string[] = [];
@@ -183,7 +197,7 @@ export function buildVscodeCommandLists({
     if (action !== "allow" && action !== "deny") {
       continue;
     }
-    const shape = classifyPattern(pattern);
+    const shape = classifyPattern(pattern, isRooLineage);
     if (action === "allow") {
       allowed.push(pattern);
       if (shape.kind === "matcher") {
@@ -246,7 +260,11 @@ export function buildVscodeCommandLists({
       logger,
       `${toolLabel}: the added deny ${pluralize(count, "prefix", "prefixes")} ` +
         `${formatPatterns(shadowedAllows)} also ${pluralize(count, "appears", "appear")} ` +
-        `in the allow list. A denied match of equal length wins over an allowed one, so ` +
+        `in the allow list. ${
+          isRooLineage
+            ? "A denied match of equal length wins over an allowed one"
+            : "The deny list takes precedence over the allow list"
+        }, so ` +
         `${pluralize(count, "that allow entry", "those allow entries")} no longer ` +
         `${pluralize(count, "approves", "approve")} anything.`,
     );
@@ -260,8 +278,8 @@ export function buildVscodeCommandLists({
         `a glob or regex, so ${pluralize(count, "it approves", "they approve")} fewer commands ` +
         `than ${pluralize(count, "it looks", "they look")} like. ` +
         `${pluralize(count, "It is", "They are")} left unchanged, since narrowing an allow is the ` +
-        `safe direction; write the literal prefix instead if you meant more. A bare "*" is the one ` +
-        `entry treated as a wildcard.`,
+        `safe direction; write the literal prefix instead if you meant more.` +
+        (isRooLineage ? ` A bare "*" is the one entry treated as a wildcard.` : ""),
     );
   }
 
