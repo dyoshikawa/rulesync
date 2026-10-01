@@ -231,7 +231,10 @@ globs: ["src/**/*.tsx"]
 `,
     );
 
-    await runGenerate({ target: "omp", features: "rules" });
+    // A nested file an earlier Rulesync version wrote is swept by `--delete`.
+    await writeFileContent(join(testDir, ".omp", "rules", "frontend", "style.md"), "# Stale\n");
+
+    await runGenerate({ target: "omp", features: "rules", deleteFiles: true });
 
     // oh-my-pi reads `.omp/rules/` non-recursively.
     const generatedContent = await readFileContent(

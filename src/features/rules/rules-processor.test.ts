@@ -1125,7 +1125,7 @@ describe("RulesProcessor", () => {
       await processor.convertToolFilesToRulesyncFiles(await processor.loadToolFiles());
 
       expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining("; the last one wins wherever they collide."),
+        expect.stringContaining(`import to ${join(RULESYNC_RULES_RELATIVE_DIR_PATH, "foo.md")}`),
       );
     });
 
