@@ -106,6 +106,30 @@ describe("AugmentcodePluginHooks", () => {
       });
     });
 
+    it("should leave bare commands intact and anchor later script words", async () => {
+      const pluginHooks = await AugmentcodePluginHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks: buildRulesyncHooks({
+          testDir,
+          config: {
+            version: 1,
+            hooks: {
+              stop: [
+                { type: "command", command: "npx prettier --write ./src" },
+                { type: "command", command: "node ./hooks/check.js" },
+              ],
+            },
+          },
+        }),
+        validate: false,
+      });
+
+      expect(JSON.parse(pluginHooks.getFileContent()).hooks.Stop[0].hooks).toEqual([
+        { type: "command", command: "npx prettier --write ./src" },
+        { type: "command", command: 'node "$AUGMENT_PLUGIN_ROOT"/hooks/check.js' },
+      ]);
+    });
+
     it("should read the augmentcode override block", async () => {
       const pluginHooks = await AugmentcodePluginHooks.fromRulesyncHooks({
         outputRoot: testDir,
@@ -175,6 +199,31 @@ describe("AugmentcodePluginHooks", () => {
         { type: "command", matcher: "save-file", command: "./hooks/format.sh", timeout: 30 },
       ]);
       expect(json.hooks.sessionStart).toEqual([{ type: "command", command: "./hooks/start.sh" }]);
+    });
+
+    it("should pass Auggie's other plugin-root aliases through verbatim", async () => {
+      await writeFileContent(
+        join(testDir, "hooks", "hooks.json"),
+        JSON.stringify({
+          hooks: {
+            Stop: [
+              {
+                hooks: [
+                  { type: "command", command: "${AUGGIE_PLUGIN_ROOT}/hooks/a.sh" },
+                  { type: "command", command: "${CLAUDE_PLUGIN_ROOT}/hooks/b.sh" },
+                ],
+              },
+            ],
+          },
+        }),
+      );
+
+      const pluginHooks = await AugmentcodePluginHooks.fromFile({ outputRoot: testDir });
+
+      expect(pluginHooks.toRulesyncHooks().getJson().hooks.stop).toEqual([
+        { type: "command", command: "${AUGGIE_PLUGIN_ROOT}/hooks/a.sh" },
+        { type: "command", command: "${CLAUDE_PLUGIN_ROOT}/hooks/b.sh" },
+      ]);
     });
 
     it("should treat a missing hooks.json as empty", async () => {

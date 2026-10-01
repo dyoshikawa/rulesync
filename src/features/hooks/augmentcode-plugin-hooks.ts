@@ -33,6 +33,13 @@ import {
  * it substitutes the braced `${AUGMENT_PLUGIN_ROOT}` itself in the exec form
  * (`args`). Bare commands such as `npx prettier --write` are left intact.
  *
+ * The quoted `"$AUGMENT_PLUGIN_ROOT"/...` shell form is chosen over the braced
+ * placeholder because Auggie tokenizes a substituted command on whitespace
+ * when it needs no shell, which would break plugin paths containing spaces.
+ * The trade-off is Windows: Auggie runs such a command through `cmd.exe /c`,
+ * which does not expand `$VAR`, so the shell form is POSIX-only (the exec form
+ * works on both).
+ *
  * @see https://docs.augmentcode.com/cli/plugins
  */
 const AUGMENTCODE_PLUGIN_CONVERTER_CONFIG: ToolHooksConverterConfig = {
