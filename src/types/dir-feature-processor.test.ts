@@ -519,6 +519,24 @@ describe("DirFeatureProcessor", () => {
       expect(logger.info).not.toHaveBeenCalledWith(expect.stringContaining("kept"));
     });
 
+    it("should report removed directories relative to the output root", async () => {
+      const processor = new TestDirProcessor({
+        logger: createMockLogger(),
+        outputRoot: "/path/to",
+        dryRun: true,
+      });
+
+      await processor.removeOrphanAiDirs(
+        [
+          createMockDir({ dirPath: "/path/to/orphan1" }),
+          createMockDir({ dirPath: "/path/to/kept" }),
+        ],
+        [createMockDir({ dirPath: "/path/to/kept" })],
+      );
+
+      expect(processor.getRemovedPaths()).toEqual([{ path: "orphan1", kind: "directory" }]);
+    });
+
     it("should never remove a candidate that only points at a shared root", async () => {
       // Regression test for #2777. `TaktSkill` drops `dirName` from
       // `getDirPath()` because takt skills are flat files under a shared root,
@@ -1156,6 +1174,21 @@ describe("DirFeatureProcessor", () => {
       expect(logger.info).toHaveBeenCalledWith(
         `[DRY RUN] Would delete file: ${JSON.stringify(join(root, "stale.md"))}`,
       );
+    });
+
+    it("should report a removed flat file relative to the output root", async () => {
+      const processor = new TestDirProcessor({
+        logger: createMockLogger(),
+        outputRoot: root,
+        dryRun: true,
+      });
+
+      await processor.removeOrphanFlatFiles({
+        existingFlatFiles: [createMockFlatDir({ root, fileName: "stale.md" })],
+        generatedDirs: [createMockFlatDir({ root, fileName: "kept.md" })],
+      });
+
+      expect(processor.getRemovedPaths()).toEqual([{ path: "stale.md", kind: "file" }]);
     });
 
     it("should refuse a candidate that names no file", async () => {

@@ -1,6 +1,7 @@
 import { join } from "node:path";
 
 import { RULESYNC_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
+import type { DeletedPath } from "../lib/orphan-sweep.js";
 import { fileContentIsEmptyPayload, fileContentsEquivalent } from "../utils/content-equivalence.js";
 import { quoteForLog, stripControlCharacters } from "../utils/control-characters.js";
 import {
@@ -39,6 +40,11 @@ export abstract class FeatureProcessor extends RulesyncSourceConsumer {
   protected readonly inputRoots: readonly [string, ...string[]];
   protected readonly dryRun: boolean;
   protected readonly logger: Logger;
+  /**
+   * Paths the orphan sweep deleted (or, under `--dry-run`, would delete),
+   * relative to the output root like the paths `writeAiFiles` reports.
+   */
+  private readonly removedPaths: DeletedPath[] = [];
   constructor({
     outputRoot = process.cwd(),
     inputRoots,
@@ -206,9 +212,18 @@ export abstract class FeatureProcessor extends RulesyncSourceConsumer {
         // another vendor disappeared without a trace.
         this.logger.info(`Deleted: ${loggedPath}`);
       }
+      this.removedPaths.push({ path: aiFile.getRelativePathFromCwd(), kind: "file" });
     }
 
     return orphanFiles.length;
+  }
+
+  /**
+   * The paths {@link removeOrphanAiFiles} deleted, or would have deleted under
+   * `--dry-run`, so a preview and the run it previews report the same list.
+   */
+  getRemovedPaths(): readonly DeletedPath[] {
+    return this.removedPaths;
   }
 }
 

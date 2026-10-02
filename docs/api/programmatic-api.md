@@ -64,6 +64,13 @@ Generates configuration files for the specified targets and features.
 > before treating a run as successful. (Those features also keep their existing
 > generated files: `delete` skips their orphan sweep.)
 
+With `delete: true`, the result's `deletedPathsByFeature` lists what the orphan
+sweep deleted — or, with `dryRun` or `check`, would delete — per feature, as
+`{ path, kind }` entries (`kind` is `"file"` or `"directory"`, `path` is
+relative to the output root and sorted). A feature that deleted nothing is
+absent. The CLI's `--json` output turns this and the written paths into a
+versioned `plan`; see [CLI Commands](../reference/cli-commands.md).
+
 ## `importFromTool(options)`
 
 Imports existing tool configurations into `.rulesync/` directory.

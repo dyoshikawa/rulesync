@@ -269,6 +269,44 @@ rulesync generate --check --targets "*" --features "*"
 rulesync generate --watch
 ```
 
+### Mutation plan in JSON output
+
+With the global `--json` flag, `generate` reports every file operation it performed — or, under `--dry-run` and `--check`, would perform — as a versioned `plan`, next to the existing per-feature `features` summary:
+
+```json
+{
+  "success": true,
+  "command": "generate",
+  "data": {
+    "features": { "…": "…" },
+    "plan": {
+      "version": 1,
+      "operations": [
+        { "action": "write", "kind": "file", "feature": "rules", "path": "CLAUDE.md" },
+        {
+          "action": "delete",
+          "kind": "file",
+          "feature": "rules",
+          "path": ".claude/rules/retired.md"
+        },
+        {
+          "action": "delete",
+          "kind": "directory",
+          "feature": "skills",
+          "path": ".claude/skills/retired"
+        }
+      ]
+    }
+  }
+}
+```
+
+- `action` is `write` or `delete`; `kind` is `file` or `directory`. A deleted directory is listed once, by its own path, together with everything under it. Deletions come from the `--delete` orphan sweep, so without `--delete` the plan holds writes only.
+- `path` is relative to the output root, with `/` separators. A path several targets write is listed once.
+- The order is deterministic — features in summary order, writes before deletes within a feature, paths sorted — so a `--dry-run` plan can be compared operation by operation with the plan the following real run reports.
+- A failing command's document carries no `data`, so when `--check` finds the tree out of date the plan is reported as `error.details.plan` instead.
+- A shared configuration file Rulesync merges into (`.claude/settings.json`, `.codex/config.toml`, …) appears as a `write` of the whole file, even when only Rulesync-managed keys change. `version` is bumped whenever an operation gains a new `action` or `kind` value or an existing field changes meaning, so a consumer that authorizes operations should refuse a version it does not know.
+
 ### Watch mode
 
 `generate --watch` runs one generation immediately and then keeps running, regenerating whenever the rulesync sources change. It is meant for iterating on rules, commands, subagents or skills without re-running the command by hand.

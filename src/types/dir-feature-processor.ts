@@ -1,6 +1,7 @@
 import { dirname, join, relative, resolve } from "node:path";
 
 import { RULESYNC_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
+import type { DeletedPath } from "../lib/orphan-sweep.js";
 import {
   companionFileContentsEquivalent,
   fileContentsEquivalent,
@@ -93,6 +94,11 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
   protected readonly dryRun: boolean;
   protected readonly avoidBlockScalars: boolean;
   protected readonly logger: Logger;
+  /**
+   * Paths the orphan sweeps deleted (or, under `--dry-run`, would delete),
+   * relative to the output root like the paths `writeAiDirs` reports.
+   */
+  private readonly removedPaths: DeletedPath[] = [];
   constructor({
     outputRoot = process.cwd(),
     inputRoots,
@@ -604,9 +610,22 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
         await (kind === "directory" ? removeDirectory(targetPath) : removeFile(targetPath));
         this.logger.info(`Deleted ${kind}: ${loggedPath}`);
       }
+      this.removedPaths.push({
+        path: toPosixPath(relative(resolve(this.outputRoot), resolve(targetPath))),
+        kind,
+      });
     }
 
     return paths.size;
+  }
+
+  /**
+   * The paths the orphan sweeps deleted, or would have deleted under
+   * `--dry-run`, so a preview and the run it previews report the same list.
+   * A deleted directory is listed once, by its own path.
+   */
+  getRemovedPaths(): readonly DeletedPath[] {
+    return this.removedPaths;
   }
 
   /**
