@@ -41,3 +41,14 @@ export const VIBE_PLUGIN_MCP_FILE_NAME = "mcp.json";
 export const VIBE_PLUGIN_EXTENSION_DIR = "ai.mistral.vibe";
 export const VIBE_PLUGIN_AGENTS_DIR_NAME = "agents";
 export const VIBE_PLUGIN_HOOKS_FILE_NAME = "hooks.toml";
+
+// Devin plugin components live directly under the plugin root: an always-on
+// `AGENTS.md`, triggered `rules/`, `agents/<name>/AGENT.md` subagents, a root
+// `hooks.json`, `.mcp.json` and `skills/`. The manifest is
+// `.devin-plugin/plugin.json`.
+// @see https://docs.devin.ai/cli/extensibility/plugins/overview
+export const DEVIN_PLUGIN_RULES_DIR = "rules";
+export const DEVIN_PLUGIN_AGENTS_DIR = "agents";
+export const DEVIN_PLUGIN_SKILLS_DIR = "skills";
+export const DEVIN_PLUGIN_HOOKS_FILE_NAME = "hooks.json";
+export const DEVIN_PLUGIN_MCP_FILE_NAME = ".mcp.json";

@@ -1835,6 +1835,7 @@ Second global content`;
           "cursor",
           "deepagents",
           "devin",
+          "devin-plugin",
           "factorydroid",
           "goose",
           "hermesagent",

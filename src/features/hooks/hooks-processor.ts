@@ -80,6 +80,7 @@ import { CrushHooks } from "./crush-hooks.js";
 import { CursorHooks } from "./cursor-hooks.js";
 import { DeepagentsHooks } from "./deepagents-hooks.js";
 import { DevinHooks } from "./devin-hooks.js";
+import { DevinPluginHooks } from "./devin-plugin-hooks.js";
 import { FactorydroidHooks } from "./factorydroid-hooks.js";
 import { GitlabduoHooks } from "./gitlabduo-hooks.js";
 import { GooseHooks } from "./goose-hooks.js";
@@ -269,6 +270,8 @@ export const HOOKS_OVERRIDE_KEY_ALIASES: Partial<Record<ToolTarget, string>> = {
   "zcode-plugin": "zcode",
   // A Vibe plugin's hooks are Vibe hooks, so it reads the `vibe` block.
   "vibe-plugin": "vibe",
+  // A Devin plugin's hooks are Devin hooks, so it reads the `devin` block.
+  "devin-plugin": "devin",
 };
 
 /** The targets whose hooks format carries a per-hook on-disk enable flag. */
@@ -808,6 +811,18 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
         supportsGlobal: true,
         supportsImport: true,
       },
+      supportedEvents: DEVIN_HOOK_EVENTS,
+      supportedHookTypes: ["command", "prompt"],
+      supportsMatcher: true,
+    },
+  ],
+  [
+    "devin-plugin",
+    {
+      // `<plugin>/hooks.json`, the same bare event map as `.devin/hooks.v1.json`.
+      // https://docs.devin.ai/cli/extensibility/plugins/overview
+      class: DevinPluginHooks,
+      meta: { supportsProject: true, supportsGlobal: false, supportsImport: true },
       supportedEvents: DEVIN_HOOK_EVENTS,
       supportedHookTypes: ["command", "prompt"],
       supportsMatcher: true,

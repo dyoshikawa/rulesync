@@ -59,6 +59,7 @@ const rulesRootTargets = [
   // The root rule goes to the project-root AGENTS.md Devin CLI/Local reads
   // (issue #2406); .devin/rules/ holds non-root Cascade rules.
   { target: "devin", outputPath: "AGENTS.md" },
+  { target: "devin-plugin", outputPath: "AGENTS.md" },
   { target: "replit", outputPath: "replit.md" },
   { target: "pi", outputPath: "AGENTS.md" },
   { target: "zed", outputPath: ".rules" },
@@ -93,6 +94,7 @@ const rulesNonRootTargets = [
   { target: "tabnine", outputPath: join(".tabnine", "guidelines", "overview.md") },
   { target: "continue", outputPath: join(".continue", "rules", "overview.md") },
   { target: "devin", outputPath: join(".devin", "rules", "overview.md") },
+  { target: "devin-plugin", outputPath: join("rules", "overview.md") },
   { target: "codewhale", outputPath: join(".codewhale", "rules", "overview.md") },
   { target: "takt", outputPath: join(".takt", "facets", "policies", "overview.md") },
   { target: "omp", outputPath: join(".omp", "rules", "overview.md") },

@@ -417,6 +417,131 @@ Review the changes.
     expect(await fileExists(join(pluginRoot, "plugin.json"))).toBe(true);
   });
 
+  it("generates and imports a Devin plugin from an explicit plugin root", async () => {
+    const testDir = getTestDir();
+    const pluginRoot = join(testDir, "packages", "review-plugin");
+    const rulesyncRulesDir = join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH);
+    const rulesyncSubagentPath = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "reviewer.md");
+    const rulesyncSkillPath = join(
+      testDir,
+      RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+      "review",
+      "SKILL.md",
+    );
+    const rulesyncMcpPath = join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH);
+    const rulesyncHooksPath = join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH);
+
+    await writeFileContent(
+      join(rulesyncRulesDir, "overview.md"),
+      `---
+root: true
+targets: ["devin-plugin"]
+---
+Always follow the review checklist.
+`,
+    );
+    await writeFileContent(
+      join(rulesyncRulesDir, "typescript.md"),
+      `---
+targets: ["devin-plugin"]
+globs: ["**/*.ts"]
+---
+Prefer strict TypeScript.
+`,
+    );
+    await writeFileContent(
+      rulesyncSubagentPath,
+      `---
+targets: ["devin-plugin"]
+name: reviewer
+description: Reviews code
+---
+Review the changes.
+`,
+    );
+    await writeFileContent(
+      rulesyncSkillPath,
+      `---
+name: review
+description: Review code changes
+targets: ["devin-plugin"]
+---
+Review the current changes.
+`,
+    );
+    await writeFileContent(
+      rulesyncMcpPath,
+      JSON.stringify({ mcpServers: { docs: { command: "npx", args: ["-y", "docs-server"] } } }),
+    );
+    await writeFileContent(
+      rulesyncHooksPath,
+      JSON.stringify({
+        version: 1,
+        hooks: { preToolUse: [{ command: "./scripts/audit.sh", matcher: "exec" }] },
+      }),
+    );
+    await writeFileContent(
+      join(pluginRoot, ".devin-plugin", "plugin.json"),
+      JSON.stringify({ name: "review-plugin", version: "1.0.0" }, null, 2),
+    );
+
+    await runGenerate({
+      target: "devin-plugin",
+      features: "rules,subagents,skills,mcp,hooks",
+      outputRoots: pluginRoot,
+    });
+
+    expect(await readFileContent(join(pluginRoot, "AGENTS.md"))).toContain(
+      "Always follow the review checklist.",
+    );
+    const generatedRule = await readFileContent(join(pluginRoot, "rules", "typescript.md"));
+    expect(generatedRule).toContain("trigger: glob");
+    expect(generatedRule).toContain("Prefer strict TypeScript.");
+    expect(await readFileContent(join(pluginRoot, "agents", "reviewer", "AGENT.md"))).toContain(
+      "Review the changes.",
+    );
+    expect(await readFileContent(join(pluginRoot, "skills", "review", "SKILL.md"))).toContain(
+      "Review the current changes.",
+    );
+    expect(JSON.parse(await readFileContent(join(pluginRoot, ".mcp.json")))).toEqual({
+      mcpServers: { docs: { command: "npx", args: ["-y", "docs-server"] } },
+    });
+    expect(JSON.parse(await readFileContent(join(pluginRoot, "hooks.json")))).toEqual({
+      PreToolUse: [
+        { matcher: "exec", hooks: [{ type: "command", command: "./scripts/audit.sh" }] },
+      ],
+    });
+    expect(await fileExists(join(testDir, ".devin"))).toBe(false);
+
+    await removeDirectory(rulesyncRulesDir);
+    await ensureDir(rulesyncRulesDir);
+    await removeDirectory(join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH));
+    await ensureDir(join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH));
+    await removeDirectory(join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH));
+    await ensureDir(join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH));
+    await removeFile(rulesyncMcpPath);
+    await removeFile(rulesyncHooksPath);
+
+    await runImport({
+      target: "devin-plugin",
+      features: "rules,subagents,skills,mcp,hooks",
+      outputRoot: pluginRoot,
+    });
+
+    expect(await readFileContent(join(rulesyncRulesDir, "typescript.md"))).toContain(
+      "Prefer strict TypeScript.",
+    );
+    expect(await readFileContent(rulesyncSubagentPath)).toContain("Review the changes.");
+    expect(await readFileContent(rulesyncSkillPath)).toContain("Review the current changes.");
+    expect(JSON.parse(await readFileContent(rulesyncMcpPath)).mcpServers).toEqual({
+      docs: { command: "npx", args: ["-y", "docs-server"] },
+    });
+    expect(JSON.parse(await readFileContent(rulesyncHooksPath)).hooks.preToolUse).toEqual([
+      expect.objectContaining({ command: "./scripts/audit.sh", matcher: "exec" }),
+    ]);
+    expect(await fileExists(join(pluginRoot, ".devin-plugin", "plugin.json"))).toBe(true);
+  });
+
   describe.skipIf(process.platform === "win32")("symbolic link safety", () => {
     it("rejects plugin imports containing symbolic links", async () => {
       const testDir = getTestDir();
