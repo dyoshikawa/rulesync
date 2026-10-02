@@ -213,6 +213,40 @@ describe("E2E: mcp", () => {
     });
   });
 
+  it("should generate and import the Qwen Code server allow/deny lists", async () => {
+    const testDir = getTestDir();
+
+    // Hand-written keys in `mcp` that rulesync does not manage must survive.
+    await writeFileContent(
+      join(testDir, ".qwen", "settings.json"),
+      JSON.stringify({ mcp: { serverCommand: "keep-me" } }),
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH),
+      JSON.stringify({
+        mcpServers: { local: { type: "stdio", command: "node", args: ["server.js"] } },
+        qwencode: { allowed: ["local"], excluded: ["legacy-*"] },
+      }),
+    );
+
+    await runGenerate({ target: "qwencode", features: "mcp" });
+
+    const generated = JSON.parse(await readFileContent(join(testDir, ".qwen", "settings.json")));
+    expect(generated.mcp).toEqual({
+      serverCommand: "keep-me",
+      allowed: ["local"],
+      excluded: ["legacy-*"],
+    });
+    expect(generated.mcpServers.local.command).toBe("node");
+
+    await runImport({ target: "qwencode", features: "mcp" });
+
+    const imported = JSON.parse(
+      await readFileContent(join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH)),
+    );
+    expect(imported.qwencode).toEqual({ allowed: ["local"], excluded: ["legacy-*"] });
+  });
+
   it("should translate copilotcli enabledTools into the tools allowlist in both directions", async () => {
     const testDir = getTestDir();
 

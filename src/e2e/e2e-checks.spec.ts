@@ -184,6 +184,22 @@ Look for injection vulnerabilities.
     expect(importedContent).toContain("Prefer small, well-named functions.");
   });
 
+  it("should round-trip qwencode checks through import", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, ".qwen", "review-rules.md"),
+      "Prefer small, well-named functions.\n",
+    );
+
+    await runImport({ target: "qwencode", features: "checks" });
+
+    const importedContent = await readFileContent(
+      join(testDir, RULESYNC_CHECKS_RELATIVE_DIR_PATH, "review-rules.md"),
+    );
+    expect(importedContent).toContain("Prefer small, well-named functions.");
+  });
+
   it("should round-trip gitlabduo checks through import", async () => {
     const testDir = getTestDir();
 

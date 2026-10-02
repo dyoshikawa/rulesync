@@ -803,12 +803,33 @@ export class RulesyncMcp extends RulesyncFile {
     const rest = Object.fromEntries(
       Object.entries(json).filter(([key]) => !MCP_TOOL_BLOCK_KEYS.has(key)),
     );
+    // Tool-wide fields the target's translator reads from its own block (e.g.
+    // Qwen Code's server allow/deny lists) are carried through under that
+    // block's key; every other field of the block has been resolved above.
+    const retainedBlocks: Record<string, Record<string, unknown>> = {};
+    for (const blockKey of blockKeys) {
+      const toolBlock = json[blockKey];
+      const retainedFields = MCP_TOOL_BLOCK_RETAINED_FIELDS[blockKey];
+      if (!isRecord(toolBlock) || retainedFields === undefined) continue;
+      const retained = Object.fromEntries(
+        retainedFields
+          .filter((field) => field in toolBlock)
+          .map((field) => [field, toolBlock[field]]),
+      );
+      if (Object.keys(retained).length > 0) {
+        retainedBlocks[blockKey] = retained;
+      }
+    }
 
     return new RulesyncMcp({
       outputRoot: this.outputRoot,
       relativeDirPath: this.relativeDirPath,
       relativeFilePath: this.relativeFilePath,
-      fileContent: JSON.stringify({ ...rest, mcpServers: effectiveServers }, null, 2),
+      fileContent: JSON.stringify(
+        { ...rest, ...retainedBlocks, mcpServers: effectiveServers },
+        null,
+        2,
+      ),
     });
   }
 
@@ -845,6 +866,16 @@ export class RulesyncMcp extends RulesyncFile {
  * covered automatically.
  */
 const MCP_TOOL_BLOCK_KEYS: ReadonlySet<string> = new Set(mcpProcessorToolTargetTuple);
+
+/**
+ * Tool-wide (not per-server) fields of a tool-scoped block that `forTarget`
+ * keeps for that tool's own translator instead of stripping with the rest of
+ * the block. Only fields a translator maps into the generated config belong
+ * here, so translators that spread the whole rulesync JSON never see them.
+ */
+const MCP_TOOL_BLOCK_RETAINED_FIELDS: Readonly<Record<string, readonly string[]>> = {
+  qwencode: ["allowed", "excluded"],
+};
 
 /**
  * Targets whose `{toolname}.mcpServers` block key is ALWAYS another target's
