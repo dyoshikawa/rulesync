@@ -1243,8 +1243,8 @@ export const CORTEXCODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Objec
  *
  * CodeBuddy Code reads hooks from the `hooks` key of `.codebuddy/settings.json`
  * (project) and `~/.codebuddy/settings.json` (user) in the Claude-Code shape:
- * PascalCase event names, a regex `matcher`, and `command` or `prompt` hooks
- * with a `timeout` in seconds. The hooks reference documents ten events; the
+ * PascalCase event names, a regex `matcher`, and `command`, `http`, `prompt`
+ * or `agent` hooks with a `timeout` in seconds. The hooks reference documents ten events; the
  * plugins reference lists the full set, stating that plugin hooks "respond to
  * the same lifecycle events as user-defined hooks", so every event listed
  * there is supported here.
