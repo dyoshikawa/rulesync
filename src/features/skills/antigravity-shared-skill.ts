@@ -48,7 +48,9 @@ export type AntigravitySharedSkillParams = {
  *
  * Frontmatter beyond `name`/`description` (e.g. `disable-slash-command`,
  * `metadata`) comes from the rulesync section named after that target, with the
- * root-level `user-invocable` / `metadata` as defaults.
+ * root-level `user-invocable` / `metadata` as defaults. On the shared project
+ * `.agents/skills/` tree both targets merge the `antigravity-ide` and
+ * `antigravity-cli` sections so their output never diverges.
  */
 export class AntigravitySharedSkill extends ToolSkill {
   constructor({
@@ -170,11 +172,20 @@ export class AntigravitySharedSkill extends ToolSkill {
     global = false,
   }: ToolSkillFromRulesyncSkillParams): AntigravitySharedSkill {
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
-    const rawSection = rulesyncFrontmatter[this.getToolTarget()];
-    const section: Record<string, unknown> | undefined = isRecord(rawSection)
-      ? rawSection
-      : undefined;
-    const { name: _name, description: _description, ...sectionFields } = section ?? {};
+    const settablePaths = this.getSettablePaths({ global });
+    // The IDE and the CLI write the same project `.agents/skills/` tree, so
+    // there both read the two sections (CLI keys win) and emit identical files
+    // whichever target runs last. Any other tree reads only the own section.
+    const sectionKeys: ToolTarget[] =
+      !global && settablePaths.relativeDirPath === ANTIGRAVITY_SKILLS_DIR_PATH
+        ? ["antigravity-ide", "antigravity-cli"]
+        : [this.getToolTarget()];
+    const section: Record<string, unknown> = {};
+    for (const key of sectionKeys) {
+      const rawSection = rulesyncFrontmatter[key];
+      if (isRecord(rawSection)) Object.assign(section, rawSection);
+    }
+    const { name: _name, description: _description, ...sectionFields } = section;
 
     // `disable-slash-command: true` hides the skill from the `/` menu while
     // keeping it model-invocable (Antigravity CLI 1.1.12), which is what the
@@ -200,8 +211,6 @@ export class AntigravitySharedSkill extends ToolSkill {
       ...(disableSlashCommand !== undefined && { "disable-slash-command": disableSlashCommand }),
       ...(metadata !== undefined && { metadata }),
     };
-
-    const settablePaths = this.getSettablePaths({ global });
 
     return new this({
       outputRoot,

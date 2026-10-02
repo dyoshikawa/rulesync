@@ -1226,7 +1226,7 @@ vibe: # for Vibe Code-specific parameters (optional)
   user-invocable: false # (optional) hide from slash-command invocation, keep model access
   disable-model-invocation: true # (optional, Vibe v2.25.5+) explicit-only: keep the slash command, block model-initiated loading
   allowed-tools: "Bash Read" # (optional) space-delimited or list of allowed tool names
-antigravity-cli: # for Antigravity CLI-specific parameters (optional; `antigravity-ide` takes the same keys, and `antigravity-plugin` reads the `antigravity-ide` section)
+antigravity-cli: # for Antigravity CLI-specific parameters (optional; `antigravity-ide` takes the same keys. Both targets write the shared project `.agents/skills/`, so there each reads `antigravity-ide` then `antigravity-cli` merged, the CLI winning; globally each reads its own. `antigravity-plugin` reads the `antigravity-ide` section)
   disable-slash-command: true # (optional, CLI v1.1.12+) hide from the / menu, keep model access; overrides the root user-invocable
   metadata: # (optional) free-form metadata; overrides the root value outright
     icon: "📦" # (optional, CLI v1.1.20+) emoji shown in the /skills catalog and slash-command autocompletion

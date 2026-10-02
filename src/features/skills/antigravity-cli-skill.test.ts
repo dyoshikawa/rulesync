@@ -7,6 +7,7 @@ import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-path
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { AntigravityCliSkill } from "./antigravity-cli-skill.js";
+import { AntigravityIdeSkill } from "./antigravity-ide-skill.js";
 import { RulesyncSkill } from "./rulesync-skill.js";
 
 describe("AntigravityCliSkill", () => {
@@ -309,11 +310,30 @@ Missing description field.`;
       expect(skill.getFrontmatter().metadata).toEqual({ icon: "📦" });
     });
 
-    it("should ignore the antigravity-ide section", () => {
+    it("should write the same project SKILL.md as antigravity-ide, with the CLI section winning", () => {
+      const rulesyncSkill = buildRulesyncSkill({
+        "antigravity-ide": { "disable-slash-command": true, metadata: { icon: "📦" } },
+        "antigravity-cli": { "disable-slash-command": false },
+      });
+
+      const cliSkill = AntigravityCliSkill.fromRulesyncSkill({ rulesyncSkill });
+      const ideSkill = AntigravityIdeSkill.fromRulesyncSkill({ rulesyncSkill });
+
+      expect(cliSkill.getFrontmatter()).toEqual({
+        name: "flagged",
+        description: "Flagged skill",
+        "disable-slash-command": false,
+        metadata: { icon: "📦" },
+      });
+      expect(ideSkill.getFrontmatter()).toEqual(cliSkill.getFrontmatter());
+    });
+
+    it("should ignore the antigravity-ide section in the global skills tree", () => {
       const skill = AntigravityCliSkill.fromRulesyncSkill({
         rulesyncSkill: buildRulesyncSkill({
           "antigravity-ide": { "disable-slash-command": true },
         }),
+        global: true,
       });
 
       expect(skill.getFrontmatter()).not.toHaveProperty("disable-slash-command");
