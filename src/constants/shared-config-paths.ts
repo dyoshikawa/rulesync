@@ -32,6 +32,10 @@ export const SHARED_USER_MANAGED_CONFIG_PATHS: readonly string[] = [
   ".bob/settings/settings.json",
   ".claude/settings.json",
   ".claude/settings.local.json",
+  // CodeBuddy Code settings: the project file and the user one share the same
+  // `.codebuddy/settings.json` layout and carry the user's own settings
+  // (`model`, `env`, ...) beside the `hooks` and `permissions` blocks.
+  ".codebuddy/settings.json",
   ".codex/config.toml",
   // Codewhale's user config carries every Codewhale setting beside the
   // `[hooks]` table rulesync writes.

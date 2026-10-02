@@ -1644,6 +1644,21 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
       hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
     },
   },
+  // CodeBuddy Code settings: the project file (`.codebuddy/settings.json`) and
+  // the user file (`~/.codebuddy/settings.json`) share one layout and carry
+  // unrelated CodeBuddy settings (`model`, `env`, ...), so both are edited in
+  // place and an unparseable root is refused rather than replaced. Hooks own
+  // the `hooks` key; permissions own the `permissions` key, and the adapter
+  // re-spreads the sibling keys of that object (`defaultMode`,
+  // `additionalDirectories`, ...).
+  ".codebuddy/settings.json": {
+    format: "json",
+    invalidRootPolicy: "error",
+    features: {
+      hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
+      permissions: { kind: "replace-owned-keys", ownedKeys: ["permissions"] },
+    },
+  },
   // Command Code settings: the project file (`.commandcode/settings.json`) and
   // the user file (`~/.commandcode/settings.json`) share one layout and carry
   // unrelated Command Code settings (`model`, `env`, ...), so both are edited
