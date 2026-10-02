@@ -734,6 +734,8 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
     {
       // Qwen Code reads MCP servers from the `mcpServers` key of
       // `.qwen/settings.json` (project) / `~/.qwen/settings.json` (global).
+      // Project import also reads the Claude-parity root `.mcp.json` beneath
+      // settings (settings win); generation never writes it.
       // It supports per-server tool filtering via `includeTools` (allowlist)
       // and `excludeTools` (denylist), which the adapter maps to/from
       // rulesync's `enabledTools`/`disabledTools`.
