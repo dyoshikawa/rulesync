@@ -76,6 +76,7 @@ export const ignoreProcessorToolTargetTuple = [
   "continue",
   "crush",
   "cursor",
+  "grokcli",
   "hermesagent",
   "junie",
   "kilo",

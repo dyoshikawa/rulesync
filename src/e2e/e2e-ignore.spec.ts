@@ -8,6 +8,7 @@ import {
   DEVIN_GLOBAL_IGNORE_DIR_PATH,
   DEVIN_GLOBAL_IGNORE_FILE_NAME,
 } from "../constants/devin-paths.js";
+import { GROKCLI_DIR, GROKCLI_SANDBOX_FILE_NAME } from "../constants/grokcli-paths.js";
 import {
   KIRO_GLOBAL_IGNORE_FILE_NAME,
   KIRO_IGNORE_FILE_NAME,
@@ -79,6 +80,11 @@ const ignoreGenerateTargets = [
     outputPath: REASONIX_PROJECT_PERMISSIONS_FILE_NAME,
     format: "toml" as const,
   },
+  {
+    target: "grokcli",
+    outputPath: join(GROKCLI_DIR, GROKCLI_SANDBOX_FILE_NAME),
+    format: "toml" as const,
+  },
 ] as const;
 
 describe("E2E: ignore", () => {
@@ -135,6 +141,16 @@ credentials/
         expect(parsed.permissions?.deny).toEqual(
           expect.arrayContaining(["Read(tmp/)", "Read(credentials/)", "Read(*.secret)"]),
         );
+      } else if (format === "toml" && target === "grokcli") {
+        // Grok CLI writes a deny list into the rulesync sandbox profile,
+        // anchoring unanchored gitignore patterns with a leading `**`.
+        const parsed = parseToml(generatedContent) as {
+          profiles?: { rulesync?: { extends?: string; deny?: string[] } };
+        };
+        expect(parsed.profiles?.rulesync).toEqual({
+          extends: "workspace",
+          deny: ["**/tmp", "**/credentials", "**/*.secret"],
+        });
       } else if (format === "json" && target === "zed") {
         // Zed uses JSON format with private_files
         const parsed = JSON.parse(generatedContent);
@@ -210,7 +226,8 @@ credentials/
     { target: "devin", orphanPath: ".devinignore" },
     { target: "vibe", orphanPath: ".vibeignore" },
     { target: "warp", orphanPath: ".warpindexingignore" },
-    // zed ignore uses .zed/settings.json which is not deletable by rulesync
+    // zed ignore uses .zed/settings.json which is not deletable by rulesync,
+    // and grokcli's .grok/sandbox.toml holds the user's own sandbox profiles
   ])(
     "should fail in check mode when delete would remove an orphan $target ignore file",
     async ({ target, orphanPath }) => {
@@ -323,6 +340,22 @@ credentials/
     expect(importedContent).toContain("credentials/");
     expect(importedContent).not.toContain("Bash(rm *)");
   });
+
+  it("should import grokcli ignore from the rulesync sandbox profile", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, GROKCLI_DIR, GROKCLI_SANDBOX_FILE_NAME),
+      '[profiles.mine]\ndeny = ["mine-only"]\n\n[profiles.rulesync]\ndeny = ["**/tmp", "**/*.secret"]\n',
+    );
+
+    await runImport({ target: "grokcli", features: "ignore" });
+
+    const importedContent = await readFileContent(
+      join(testDir, RULESYNC_AIIGNORE_RELATIVE_FILE_PATH),
+    );
+    expect(importedContent.trim().split("\n")).toEqual(["tmp", "*.secret"]);
+  });
 });
 
 describe("E2E: ignore (global mode)", () => {
@@ -344,6 +377,7 @@ describe("E2E: ignore (global mode)", () => {
       target: "zed",
       outputPath: join(getZedGlobalDir(), ZED_SETTINGS_FILE_NAME),
     },
+    { target: "grokcli", outputPath: join(GROKCLI_DIR, GROKCLI_SANDBOX_FILE_NAME) },
   ] as const;
 
   it("global matrix must cover every native global ignore tool target", () => {
@@ -372,7 +406,8 @@ describe("E2E: ignore (global mode)", () => {
       });
 
       const generatedContent = await readFileContent(join(homeDir, outputPath));
-      expect(generatedContent).toContain("credentials/");
+      // Grok CLI's sandbox deny globs drop the trailing `/` Grok rejects.
+      expect(generatedContent).toContain(target === "grokcli" ? "**/credentials" : "credentials/");
       expect(generatedContent).toContain("*.secret");
     },
   );

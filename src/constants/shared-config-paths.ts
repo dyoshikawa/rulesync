@@ -65,6 +65,9 @@ export const SHARED_USER_MANAGED_CONFIG_PATHS: readonly string[] = [
   ".dsh/cordis.patch.yml",
   ".factory/settings.json",
   ".grok/config.toml",
+  // Grok sandbox profiles: rulesync owns only `[profiles.rulesync]`; the
+  // user's own custom profiles sit beside it in both scopes.
+  ".grok/sandbox.toml",
   // Letta Code settings: the project file and the user one share the same
   // `.letta/settings.json` layout and carry the user's own settings beside the
   // `hooks` and `permissions` blocks.
