@@ -248,10 +248,10 @@ describe("ReasonixHooks", () => {
               matcher: "bash",
               command: "./guard.sh",
               cwd: "scripts",
-              env: { MODE: "strict" },
+              env: { MODE: "strict", "PATH=/tmp/evil": "x", "": "y" },
             },
           ],
-          stop: [{ command: "echo done", cwd: "" }],
+          stop: [{ command: "echo done", cwd: "", env: { "A=B": "c" } }],
         },
       };
       const rulesyncHooks = new RulesyncHooks({
@@ -483,7 +483,7 @@ describe("ReasonixHooks", () => {
             Stop: [
               { command: "audit.sh", cwd: "tools", env: { LEVEL: "1" } },
               { command: "bad.sh", cwd: 42, env: { LEVEL: 1 } },
-              { command: "nl.sh", env: { LEVEL: "a\nb" } },
+              { command: "nl.sh", env: { LEVEL: "a\nb", "PATH=/tmp/evil": "x", KEEP: "ok" } },
             ],
           },
         }),
@@ -498,7 +498,11 @@ describe("ReasonixHooks", () => {
         env: { LEVEL: "1" },
       });
       expect(json.hooks.stop?.[1]).toEqual({ type: "command", command: "bad.sh" });
-      expect(json.hooks.stop?.[2]).toEqual({ type: "command", command: "nl.sh" });
+      expect(json.hooks.stop?.[2]).toEqual({
+        type: "command",
+        command: "nl.sh",
+        env: { KEEP: "ok" },
+      });
     });
 
     it("should carry an event named toString through as a plain string key (#2757)", () => {
