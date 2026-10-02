@@ -234,48 +234,52 @@ describe("config-resolver", () => {
   });
 
   describe("retireTargets", () => {
-    const writeConfig = (extra: Record<string, unknown>) =>
-      writeFileContent(
+    beforeEach(async () => {
+      await writeFileContent(
         join(testDir, "rulesync.jsonc"),
-        JSON.stringify({ outputRoots: ["./"], targets: ["claudecode"], ...extra }),
+        JSON.stringify({ outputRoots: ["./"], targets: ["claudecode"] }),
       );
+    });
 
     it("defaults to no retired targets", async () => {
-      await writeConfig({});
       const config = await ConfigResolver.resolve({ configPath: join(testDir, "rulesync.jsonc") });
       expect(config.getRetireTargets()).toEqual([]);
     });
 
-    it("loads retireTargets from the config file", async () => {
-      await writeConfig({ retireTargets: ["cursor"] });
-      const config = await ConfigResolver.resolve({ configPath: join(testDir, "rulesync.jsonc") });
+    it("takes retired targets from the CLI", async () => {
+      const config = await ConfigResolver.resolve({
+        configPath: join(testDir, "rulesync.jsonc"),
+        retireTargets: ["cursor"],
+      });
       expect(config.getRetireTargets()).toEqual(["cursor"]);
     });
 
-    it("lets the CLI flag override the config file", async () => {
-      await writeConfig({ retireTargets: ["cursor"] });
-      const config = await ConfigResolver.resolve({
-        configPath: join(testDir, "rulesync.jsonc"),
-        retireTargets: ["copilot"],
-      });
-      expect(config.getRetireTargets()).toEqual(["copilot"]);
-    });
-
-    it("lets rulesync.local.jsonc override the base config file", async () => {
-      await writeConfig({ retireTargets: ["cursor"] });
-      await writeFileContent(
-        join(testDir, "rulesync.local.jsonc"),
-        JSON.stringify({ retireTargets: ["copilot"] }),
-      );
-      const config = await ConfigResolver.resolve({ configPath: join(testDir, "rulesync.jsonc") });
-      expect(config.getRetireTargets()).toEqual(["copilot"]);
+    it("rejects --retire-targets combined with --targets", async () => {
+      await expect(
+        ConfigResolver.resolve({
+          configPath: join(testDir, "rulesync.jsonc"),
+          targets: ["claudecode"],
+          retireTargets: ["cursor"],
+        }),
+      ).rejects.toThrow(/cannot be combined with --targets/);
     });
 
     it("rejects retiring a target the config file still declares", async () => {
-      await writeConfig({ retireTargets: ["claudecode"] });
       await expect(
-        ConfigResolver.resolve({ configPath: join(testDir, "rulesync.jsonc") }),
+        ConfigResolver.resolve({
+          configPath: join(testDir, "rulesync.jsonc"),
+          retireTargets: ["claudecode"],
+        }),
       ).rejects.toThrow(/still configured: claudecode/);
+    });
+
+    it("is not a config-file option", async () => {
+      await writeFileContent(
+        join(testDir, "rulesync.jsonc"),
+        JSON.stringify({ outputRoots: ["./"], targets: ["claudecode"], retireTargets: ["cursor"] }),
+      );
+      const config = await ConfigResolver.resolve({ configPath: join(testDir, "rulesync.jsonc") });
+      expect(config.getRetireTargets()).toEqual([]);
     });
   });
 

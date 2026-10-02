@@ -144,6 +144,46 @@ describe("generate with retireTargets", () => {
     expect(await fileExists(settings)).toBe(true);
   });
 
+  it("keeps a legacy root file that Rulesync never writes", async () => {
+    const legacyRoot = join(testDir, ".claude", "CLAUDE.md");
+    await writeFileContent(legacyRoot, "# Hand-written\n");
+
+    await generate({
+      config: createConfig({ targets: ["cursor"], retireTargets: ["claudecode"] }),
+      logger: createMockLogger(),
+    });
+
+    expect(await fileExists(legacyRoot)).toBe(true);
+  });
+
+  it("skips retirement when a source file could not be read", async () => {
+    const stale = await writeStaleCursorRule();
+    await writeFileContent(join(testDir, ".rulesync", "mcp.json"), "{ not json");
+    const logger = createMockLogger();
+
+    const result = await generate({
+      config: createConfig({ features: ["rules", "mcp"], retireTargets: ["cursor"] }),
+      logger,
+    });
+
+    expect(result.sourceLoadFailed).toBe(true);
+    expect(await fileExists(stale)).toBe(true);
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("could not be read"));
+  });
+
+  it("reports a diff in check mode while retired outputs remain", async () => {
+    await generate({ config: createConfig({}), logger: createMockLogger() });
+    const stale = await writeStaleCursorRule();
+
+    const result = await generate({
+      config: createConfig({ retireTargets: ["cursor"], check: true }),
+      logger: createMockLogger(),
+    });
+
+    expect(result.hasDiff).toBe(true);
+    expect(await fileExists(stale)).toBe(true);
+  });
+
   it("retires skill directories", async () => {
     await writeFileContent(join(testDir, ".rulesync", "skills", "demo", "SKILL.md"), SKILL);
     await generate({

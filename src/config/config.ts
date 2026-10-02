@@ -31,7 +31,6 @@ import {
   RulesyncTargets,
   ToolTarget,
   ToolTargets,
-  ToolTargetsSchema,
 } from "../types/tool-targets.js";
 import { hasControlCharacters } from "../utils/validation.js";
 
@@ -150,11 +149,6 @@ export const ConfigParamsSchema = z.object({
   gitignoreDestination: optional(GitignoreDestinationSchema),
   dryRun: optional(z.boolean()),
   check: optional(z.boolean()),
-  // Targets the project has retired: `generate` removes the outputs they would
-  // otherwise own, using the same managed-output definition as `--delete`.
-  // Explicit on purpose — a target merely left out of `targets` or `--targets`
-  // is never swept, so a scoped run cannot delete another client's files.
-  retireTargets: optional(ToolTargetsSchema),
   // Deprecated: parent-of-`.rulesync/` shorthand kept for backward
   // compatibility. Expanded to `inputRoots: [join(inputRoot, ".rulesync")]`
   // (see `normalizeInputRoots`). Prefer the plural `inputRoots` field and
@@ -204,6 +198,13 @@ export type ConfigParams = Omit<InferredConfigParams, "targets" | "features"> & 
   targets?: RulesyncConfigTargets;
   features?: RulesyncFeatures;
   configFileTargets?: ToolTarget[];
+  // Targets the project has dropped: `generate` removes the outputs they would
+  // otherwise own, using the same managed-output listing as `--delete`.
+  // Explicit on purpose — a target merely left out of `targets` is never
+  // swept. A one-shot action, so it is a CLI flag (`--retire-targets`) and
+  // stays out of `ConfigParamsSchema`: kept in `rulesync.jsonc` it would delete
+  // whatever the user later puts at those paths by hand, on every run.
+  retireTargets?: ToolTarget[];
   // The `targets` / `features` selection exactly as the configuration file
   // declares it, before any CLI override. Set by `ConfigResolver`; lets a
   // `--targets`/`--features` run ask which features a target has in a full run.

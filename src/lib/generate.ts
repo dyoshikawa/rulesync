@@ -882,7 +882,12 @@ export async function generate(params: {
 
   // Queued last so every claim of this run is registered before a retired
   // target's outputs are compared against them.
-  scheduleRetiredTargetSweeps({ config, logger, sweepPlan });
+  scheduleRetiredTargetSweeps({
+    config,
+    logger,
+    sweepPlan,
+    sourceLoadFailed: [...resultsById.values()].some((result) => result.sourceLoadFailed),
+  });
 
   // Deletion runs only now, once every step has written: a sweep that ran inline
   // would remove files a later step is about to write, which is both destructive

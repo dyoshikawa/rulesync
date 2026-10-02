@@ -1,3 +1,5 @@
+import { resolve } from "node:path";
+
 import type { Config } from "../config/config.js";
 import { ChecksProcessor } from "../features/checks/checks-processor.js";
 import { CommandsProcessor } from "../features/commands/commands-processor.js";
@@ -5,7 +7,7 @@ import { HooksProcessor } from "../features/hooks/hooks-processor.js";
 import { IgnoreProcessor } from "../features/ignore/ignore-processor.js";
 import { McpProcessor } from "../features/mcp/mcp-processor.js";
 import { PermissionsProcessor } from "../features/permissions/permissions-processor.js";
-import { RulesProcessor } from "../features/rules/rules-processor.js";
+import { RulesProcessor, toolRuleFactories } from "../features/rules/rules-processor.js";
 import { SkillsProcessor } from "../features/skills/skills-processor.js";
 import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
 import type { DirFeatureProcessor } from "../types/dir-feature-processor.js";
@@ -30,6 +32,8 @@ type RetirementSpec =
       kind: "file";
       supportedTargets: (config: Config) => ToolTarget[];
       create: (params: ProcessorParams, config: Config) => FeatureProcessor;
+      /** Paths the deletion listing may contain that Rulesync never writes. */
+      unownedPaths?: (params: ProcessorParams) => string[];
     }
   | {
       kind: "dir";
@@ -50,6 +54,15 @@ const RETIREMENT_SPECS: Record<Feature, RetirementSpec> = {
         simulateSubagents: config.getSimulateSubagents(),
         simulateSkills: config.getSimulateSkills(),
       }),
+    // A legacy root such as `.claude/CLAUDE.md` is listed for deletion when the
+    // primary root is absent, but it is hand-authored: Rulesync reads it and
+    // never writes it, so retiring the tool must leave it alone.
+    unownedPaths: ({ toolTarget, outputRoot }) =>
+      (
+        toolRuleFactories
+          .get(toolTarget as Parameters<typeof toolRuleFactories.get>[0])
+          ?.class.getSettablePaths().alternativeRoots ?? []
+      ).map((alt) => resolve(outputRoot, alt.relativeDirPath, alt.relativeFilePath)),
   },
   ignore: {
     kind: "file",
@@ -109,11 +122,26 @@ const RETIREMENT_SPECS: Record<Feature, RetirementSpec> = {
  * those targets share with a retired one (`AGENTS.md`, `.agents/skills/`)
  * would otherwise look unclaimed.
  */
-function canRetire({ config, logger }: { config: Config; logger: Logger }): boolean {
+function canRetire({
+  config,
+  logger,
+  sourceLoadFailed,
+}: {
+  config: Config;
+  logger: Logger;
+  sourceLoadFailed: boolean;
+}): boolean {
   const retireTargets = config.getRetireTargets();
   if (retireTargets.length === 0) return false;
 
   const skipping = `Skipping retirement of ${retireTargets.join(", ")}`;
+  // A step that could not read its source claims nothing, so a file it shares
+  // with a retired target would look unclaimed. "Could not be read" is not "no
+  // longer wanted", exactly as for the `--delete` sweeps.
+  if (sourceLoadFailed) {
+    logger.warn(`${skipping}: some .rulesync source files could not be read.`);
+    return false;
+  }
   if (config.getGlobal()) {
     logger.warn(`${skipping}: retireTargets is not supported in global mode.`);
     return false;
@@ -143,12 +171,14 @@ export function scheduleRetiredTargetSweeps({
   config,
   logger,
   sweepPlan,
+  sourceLoadFailed,
 }: {
   config: Config;
   logger: Logger;
   sweepPlan: OrphanSweepPlan;
+  sourceLoadFailed: boolean;
 }): void {
-  if (!canRetire({ config, logger })) return;
+  if (!canRetire({ config, logger, sourceLoadFailed })) return;
 
   for (const toolTarget of config.getRetireTargets()) {
     const outputRoots = config.getOutputRoots(toolTarget);
@@ -175,7 +205,12 @@ export function scheduleRetiredTargetSweeps({
         sweepPlan.defer({
           sweep:
             spec.kind === "file"
-              ? () => sweepFiles({ processor: spec.create(params, config), sweepPlan })
+              ? () =>
+                  sweepFiles({
+                    processor: spec.create(params, config),
+                    sweepPlan,
+                    unownedPaths: new Set(spec.unownedPaths?.(params)),
+                  })
               : () => sweepDirs({ processor: spec.create(params, config), sweepPlan }),
         });
       }
@@ -186,14 +221,18 @@ export function scheduleRetiredTargetSweeps({
 async function sweepFiles({
   processor,
   sweepPlan,
+  unownedPaths,
 }: {
   processor: FeatureProcessor;
   sweepPlan: OrphanSweepPlan;
+  unownedPaths: Set<string>;
 }): Promise<boolean> {
-  const candidates = sweepPlan.rejectClaimed({
-    items: await processor.loadToolFiles({ forDeletion: true }),
-    getPath: (f) => f.getFilePath(),
-  });
+  const candidates = sweepPlan
+    .rejectClaimed({
+      items: await processor.loadToolFiles({ forDeletion: true }),
+      getPath: (f) => f.getFilePath(),
+    })
+    .filter((f) => !unownedPaths.has(resolve(f.getFilePath())));
   // Single-file features list their settable path whether or not it exists,
   // so a target that left nothing behind would otherwise report a deletion
   // on every run and keep `--check` failing.

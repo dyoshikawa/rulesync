@@ -75,7 +75,6 @@ const getDefaults = (): ConfigDefaults => ({
   gitignoreDestination: "gitignore",
   dryRun: false,
   check: false,
-  retireTargets: [],
   inputRoot: undefined,
   inputRoots: undefined,
   sources: [],
@@ -130,20 +129,6 @@ export function mergeInputRootConfigs({
   };
 }
 
-// Split out of `mergeConfigs` only to keep that function under the lint
-// complexity cap; the precedence rule is the same.
-const mergeRunModeConfigs = ({
-  baseConfig,
-  localConfig,
-}: {
-  baseConfig: PartialConfigParams;
-  localConfig: PartialConfigParams;
-}): Pick<PartialConfigParams, "dryRun" | "check" | "retireTargets"> => ({
-  dryRun: localConfig.dryRun ?? baseConfig.dryRun,
-  check: localConfig.check ?? baseConfig.check,
-  retireTargets: localConfig.retireTargets ?? baseConfig.retireTargets,
-});
-
 const mergeConfigs = (
   baseConfig: PartialConfigParams,
   localConfig: PartialConfigParams,
@@ -168,7 +153,8 @@ const mergeConfigs = (
     language: localConfig.language ?? baseConfig.language,
     gitignoreTargetsOnly: localConfig.gitignoreTargetsOnly ?? baseConfig.gitignoreTargetsOnly,
     gitignoreDestination: localConfig.gitignoreDestination ?? baseConfig.gitignoreDestination,
-    ...mergeRunModeConfigs({ baseConfig, localConfig }),
+    dryRun: localConfig.dryRun ?? baseConfig.dryRun,
+    check: localConfig.check ?? baseConfig.check,
     ...mergeInputRootConfigs({ baseConfig, localConfig }),
     sources: localConfig.sources ?? baseConfig.sources,
   };
@@ -366,6 +352,24 @@ export function resolveEffectiveInputRoots({
   };
 }
 
+/**
+ * Retiring is the one place where leaving a target out means "delete it", so
+ * it only runs over the configuration's full target list: a `--targets` run
+ * skips configured targets, which then claim none of the files they share with
+ * a retired one.
+ */
+function assertRetireTargetsUnscoped({
+  retireTargets,
+  targets,
+}: {
+  retireTargets?: unknown[];
+  targets?: unknown;
+}): void {
+  if (retireTargets !== undefined && retireTargets.length > 0 && targets !== undefined) {
+    throw new Error("--retire-targets cannot be combined with --targets.");
+  }
+}
+
 // oxlint-disable-next-line no-extraneous-class
 export class ConfigResolver {
   public static async resolve(
@@ -403,6 +407,7 @@ export class ConfigResolver {
     // `inputRoots` winning (see `resolveEffectiveInputRoots`).
     assertInputRootFieldsExclusive({ inputRoot, inputRoots });
     assertInputRootsNonEmpty({ inputRoots });
+    assertRetireTargetsUnscoped({ retireTargets, targets });
 
     // Validate configPath to prevent path traversal attacks.
     //
@@ -586,11 +591,7 @@ export class ConfigResolver {
       }),
       dryRun: pick({ cli: dryRun, file: configByFile.dryRun, fallback: getDefaults().dryRun }),
       check: pick({ cli: check, file: configByFile.check, fallback: getDefaults().check }),
-      retireTargets: pick({
-        cli: retireTargets,
-        file: configByFile.retireTargets,
-        fallback: getDefaults().retireTargets,
-      }),
+      retireTargets,
       // Pass the fully-resolved absolute list so `Config.getInputRoots()` is
       // pure and never re-reads `process.cwd()` after construction. When
       // neither CLI nor config file supplied a root, the list is `[cwd]`.
