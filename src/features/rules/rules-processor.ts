@@ -79,6 +79,7 @@ import { CortexcodeRule } from "./cortexcode-rule.js";
 import { CrushRule } from "./crush-rule.js";
 import { CursorRule } from "./cursor-rule.js";
 import { DeepagentsRule } from "./deepagents-rule.js";
+import { DevinPluginRule } from "./devin-plugin-rule.js";
 import { DevinRule } from "./devin-rule.js";
 import { DshRule } from "./dsh-rule.js";
 import { FactorydroidRule } from "./factorydroid-rule.js";
@@ -1315,6 +1316,21 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         // @see https://docs.devin.ai/cli/extensibility/rules
         localRootMode: "separate-local-file",
         localRootFileName: "AGENTS.local.md",
+      },
+    },
+  ],
+  [
+    "devin-plugin",
+    {
+      // Devin plugin bundles ship the root rule as an always-on
+      // `<plugin>/AGENTS.md` and triggered rules in `<plugin>/rules/`, read
+      // with the same `trigger` frontmatter as `.devin/rules/`.
+      // https://docs.devin.ai/cli/extensibility/plugins/overview
+      class: DevinPluginRule,
+      meta: {
+        extension: "md",
+        supportsGlobal: false,
+        ruleDiscoveryMode: "auto",
       },
     },
   ],

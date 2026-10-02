@@ -31,6 +31,7 @@ import { CrushMcp } from "./crush-mcp.js";
 import { CursorMcp } from "./cursor-mcp.js";
 import { DeepagentsMcp } from "./deepagents-mcp.js";
 import { DevinMcp } from "./devin-mcp.js";
+import { DevinPluginMcp } from "./devin-plugin-mcp.js";
 import { DshMcp } from "./dsh-mcp.js";
 import { FactorydroidMcp } from "./factorydroid-mcp.js";
 import { GitlabduoMcp } from "./gitlabduo-mcp.js";
@@ -914,6 +915,22 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
         // concept.
         supportsProject: true,
         supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: true,
+      },
+    },
+  ],
+  [
+    "devin-plugin",
+    {
+      // A Devin plugin declares its servers in a root `.mcp.json`, read with
+      // the same server shape (including `disabledTools`) as
+      // `.devin/mcp_config.json`.
+      // https://docs.devin.ai/cli/extensibility/plugins/overview
+      class: DevinPluginMcp,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: false,
         supportsEnabledTools: false,
         supportsDisabledTools: true,
       },

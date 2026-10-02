@@ -53,6 +53,7 @@ import { CortexcodeSkill } from "./cortexcode-skill.js";
 import { CrushSkill } from "./crush-skill.js";
 import { CursorSkill } from "./cursor-skill.js";
 import { DeepagentsSkill } from "./deepagents-skill.js";
+import { DevinPluginSkill } from "./devin-plugin-skill.js";
 import { DevinSkill } from "./devin-skill.js";
 import { DshSkill } from "./dsh-skill.js";
 import { FactorydroidSkill } from "./factorydroid-skill.js";
@@ -776,6 +777,15 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
     {
       class: DevinSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "devin-plugin",
+    {
+      // `<plugin>/skills/<name>/SKILL.md`.
+      // https://docs.devin.ai/cli/extensibility/plugins/overview
+      class: DevinPluginSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: false },
     },
   ],
   [

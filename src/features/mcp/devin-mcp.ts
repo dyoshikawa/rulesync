@@ -194,7 +194,7 @@ export class DevinMcp extends ToolMcp {
     relativeFilePath,
     global = false,
   }: ToolMcpForDeletionParams): DevinMcp {
-    return new DevinMcp({
+    return new this({
       outputRoot,
       relativeDirPath,
       relativeFilePath,

@@ -1,12 +1,13 @@
 # Plugin Packaging
 
-Rulesync can generate and import configuration components inside existing Claude Code, Google Antigravity, AugmentCode (Auggie), ZCode and Vibe Code plugin directories. Use the packaging targets when the files are distributed as a plugin instead of being installed directly as project or user configuration:
+Rulesync can generate and import configuration components inside existing Claude Code, Google Antigravity, AugmentCode (Auggie), ZCode, Vibe Code and Devin plugin directories. Use the packaging targets when the files are distributed as a plugin instead of being installed directly as project or user configuration:
 
 - `claudecode-plugin`
 - `antigravity-plugin`
 - `augmentcode-plugin`
 - `zcode-plugin`
 - `vibe-plugin`
+- `devin-plugin`
 
 Packaging targets are project-scope only and are intentionally excluded from `--targets "*"`. With `--global`, `generate` skips an explicitly requested packaging target with a warning, and `import` rejects it with an error. Their component directories, such as `skills/` and `rules/`, live directly under the output root and could otherwise collide with ordinary project directories.
 
@@ -39,6 +40,11 @@ rulesync generate \
   --targets vibe-plugin \
   --features mcp,subagents,skills,hooks \
   --output-roots ./plugins/review-tools
+
+rulesync generate \
+  --targets devin-plugin \
+  --features rules,mcp,subagents,skills,hooks \
+  --output-roots ./plugins/review-tools
 ```
 
 The same configuration can be persisted in `rulesync.jsonc`:
@@ -51,6 +57,7 @@ The same configuration can be persisted in `rulesync.jsonc`:
     "augmentcode-plugin": "./plugins/auggie-review-tools",
     "zcode-plugin": "./plugins/zcode-review-tools",
     "vibe-plugin": "./plugins/vibe-review-tools",
+    "devin-plugin": "./plugins/devin-review-tools",
   },
   "targets": {
     "claudecode-plugin": ["mcp", "commands", "subagents", "skills", "hooks"],
@@ -58,6 +65,7 @@ The same configuration can be persisted in `rulesync.jsonc`:
     "augmentcode-plugin": ["rules", "mcp", "commands", "subagents", "skills", "hooks"],
     "zcode-plugin": ["mcp", "commands", "subagents", "skills", "hooks"],
     "vibe-plugin": ["mcp", "subagents", "skills", "hooks"],
+    "devin-plugin": ["rules", "mcp", "subagents", "skills", "hooks"],
   },
 }
 ```
@@ -69,6 +77,7 @@ Rulesync manages the selected component files but does not create or modify plug
 - AugmentCode: `.augment-plugin/plugin.json` (Auggie also accepts `.claude-plugin/plugin.json`), plus `.augment-plugin/marketplace.json` at the marketplace root
 - ZCode: `.zcode-plugin/plugin.json` (ZCode also accepts `.claude-plugin/plugin.json`)
 - Vibe Code: `plugin.json` with the Agent Plugins `$schema`, plus the `ai.mistral.vibe` extension block for subagents and hooks (see [Vibe Code plugins](#vibe-code-plugins))
+- Devin: `.devin-plugin/plugin.json`
 
 The plugin root must already exist. Rulesync rejects symbolic links anywhere in the plugin tree before importing, generating, or deleting files so package components cannot escape the selected root.
 
@@ -103,19 +112,25 @@ rulesync import \
   --targets vibe-plugin \
   --features mcp,subagents,skills,hooks \
   --output-root ./plugins/review-tools
+
+rulesync import \
+  --targets devin-plugin \
+  --features rules,mcp,subagents,skills,hooks \
+  --output-root ./plugins/review-tools
 ```
 
 The `convert` command does not accept packaging targets because it has no separate source and destination plugin roots. Import from the source plugin first, then generate into the destination plugin.
 
 ## Component paths
 
-| Target               | Rules        | MCP               | Commands        | Subagents                       | Skills              | Hooks                        |
-| -------------------- | ------------ | ----------------- | --------------- | ------------------------------- | ------------------- | ---------------------------- |
-| `claudecode-plugin`  | —            | `.mcp.json`       | `commands/*.md` | `agents/*.md`                   | `skills/*/SKILL.md` | `hooks/hooks.json`           |
-| `antigravity-plugin` | `rules/*.md` | `mcp_config.json` | —               | `agents/*.md`                   | `skills/*/SKILL.md` | `hooks.json`                 |
-| `augmentcode-plugin` | `rules/*.md` | `.mcp.json`       | `commands/*.md` | `agents/*.md`                   | `skills/*/SKILL.md` | `hooks/hooks.json`           |
-| `zcode-plugin`       | —            | `.mcp.json`       | `commands/*.md` | `agents/*.md`                   | `skills/*/SKILL.md` | `hooks/hooks.json`           |
-| `vibe-plugin`        | —            | `mcp.json`        | —               | `ai.mistral.vibe/agents/*.toml` | `skills/*/SKILL.md` | `ai.mistral.vibe/hooks.toml` |
+| Target               | Rules                     | MCP               | Commands        | Subagents                       | Skills              | Hooks                        |
+| -------------------- | ------------------------- | ----------------- | --------------- | ------------------------------- | ------------------- | ---------------------------- |
+| `claudecode-plugin`  | —                         | `.mcp.json`       | `commands/*.md` | `agents/*.md`                   | `skills/*/SKILL.md` | `hooks/hooks.json`           |
+| `antigravity-plugin` | `rules/*.md`              | `mcp_config.json` | —               | `agents/*.md`                   | `skills/*/SKILL.md` | `hooks.json`                 |
+| `augmentcode-plugin` | `rules/*.md`              | `.mcp.json`       | `commands/*.md` | `agents/*.md`                   | `skills/*/SKILL.md` | `hooks/hooks.json`           |
+| `zcode-plugin`       | —                         | `.mcp.json`       | `commands/*.md` | `agents/*.md`                   | `skills/*/SKILL.md` | `hooks/hooks.json`           |
+| `vibe-plugin`        | —                         | `mcp.json`        | —               | `ai.mistral.vibe/agents/*.toml` | `skills/*/SKILL.md` | `ai.mistral.vibe/hooks.toml` |
+| `devin-plugin`       | `AGENTS.md`, `rules/*.md` | `.mcp.json`       | —               | `agents/*/AGENT.md`             | `skills/*/SKILL.md` | `hooks.json`                 |
 
 Claude-specific frontmatter and hook overrides continue to use the `claudecode` sections in Rulesync source files. Antigravity plugin output uses the `antigravity-ide` conversion model and override sections because its plugin components follow the Antigravity IDE format.
 
@@ -157,6 +172,18 @@ The `vibe-plugin` target reads the `vibe` sections and hook overrides of Rulesyn
 - **Hooks live in `ai.mistral.vibe/hooks.toml`** in the same format as `.vibe/hooks.toml`. Vibe runs plugin hooks in the plugin root and exports `PLUGIN_ROOT` and `PLUGIN_DATA` to them, so a relative command such as `./scripts/audit.sh` is written as is.
 
 Rules have no plugin location: Vibe's `ai.mistral.vibe/knowledge/<name>/KNOWLEDGE.md` entries are loaded on demand rather than always applied, so `vibe-plugin` does not write them. Vibe also adapts `.claude-plugin/plugin.json` bundles that have no native `plugin.json`, so a `claudecode-plugin` bundle installs in Vibe too, but Vibe then reads its skills, commands (as skills), MCP servers and hooks and ignores its subagents; use `vibe-plugin` when the bundle targets Vibe.
+
+## Devin plugins
+
+[Devin plugins](https://docs.devin.ai/cli/extensibility/plugins/overview) bundle the same components as the `.devin/` directory, and Devin reads each of them in the same format. The `devin-plugin` target therefore writes every component in the `devin` format and reads the `devin` sections and hook overrides of Rulesync source files. The bundle layout follows Devin's plugin documentation and Cognition's [plugin template](https://github.com/CognitionAI/plugin-template):
+
+- **Rules**: the root rule becomes the always-on `AGENTS.md` at the plugin root, and other rules go to `rules/<name>.md` with the same `trigger` frontmatter as `.devin/rules/`. Rules with `localRoot: true` are personal and are not packaged.
+- **MCP servers** live in `.mcp.json` under `mcpServers`, in the same server shape as `.devin/mcp_config.json`. Rulesync owns the whole file, so it is overwritten on generate rather than merged.
+- **Subagents** are written as `agents/<name>/AGENT.md`, the same directory-per-agent form as `.devin/agents/`. Devin also reads a flat `agents/<name>.md`, but Rulesync only reads and writes the directory form.
+- **Skills** keep the `.devin/skills/` format in `skills/<name>/SKILL.md`.
+- **Hooks** live in `hooks.json` at the plugin root as the same bare event map as `.devin/hooks.v1.json` (no `hooks` wrapper key). Devin documents no plugin-root variable for hook commands, so commands are written as authored.
+
+Plugins have no commands directory, so `devin-plugin` does not support the `commands` feature. Rulesync does not write `.devin-plugin/plugin.json`, marketplace catalogs, or the repository-level plugin settings in `.devin/config.json`.
 
 ## Claude Code plugin constraints
 

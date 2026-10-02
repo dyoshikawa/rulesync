@@ -59,6 +59,10 @@ const subagentsGenerateTargets = [
     outputPath: join("ai.mistral.vibe", "agents", "planner.toml"),
   },
   {
+    target: "devin-plugin",
+    outputPath: join("agents", "planner", "AGENT.md"),
+  },
+  {
     target: "cursor",
     outputPath: join(".cursor", "agents", "planner.md"),
   },
