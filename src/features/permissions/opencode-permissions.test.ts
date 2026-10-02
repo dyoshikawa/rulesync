@@ -411,11 +411,12 @@ describe("OpencodePermissions", () => {
     // Keys are evaluated in order with the last match winning, so a `*` key
     // emitted after `edit` would override the edit deny.
     const editLast = await build({
-      write: { "*": "deny" },
+      write: { "*": "ask" },
       "*": { "*": "allow" },
       edit: { "*": "deny" },
     });
     expect(Object.keys(editLast)).toEqual(["*", "edit"]);
+    expect(editLast.edit).toEqual({ "*": "deny" });
 
     const editFirst = await build({
       edit: { "*": "deny" },
