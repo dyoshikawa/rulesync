@@ -1340,6 +1340,84 @@ export const CODEBUDDY_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object
 );
 
 /**
+ * Hook events supported by Qoder (the Qoder CLI, IDE and JetBrains plugin).
+ *
+ * Qoder reads `hooks` from `~/.qoder/settings.json` (user),
+ * `<project>/.qoder/settings.json` and `<project>/.qoder/settings.local.json`
+ * in the Claude-Code-shaped layout: PascalCase event names, a `matcher` per
+ * group, and `command` / `http` / `prompt` / `agent` handlers with a `timeout`
+ * in seconds. These are the 27 documented events; Claude Code's
+ * `MessageDisplay`, `UserPromptExpansion`, `PostToolBatch` and `DirectoryAdded`
+ * have no Qoder counterpart.
+ *
+ * @see https://docs.qoder.com/en/cli/hooks-reference
+ * @see https://docs.qoder.com/en/cli/hooks
+ */
+export const QODER_HOOK_EVENTS: readonly HookEvent[] = [
+  "sessionStart",
+  "sessionEnd",
+  "preToolUse",
+  "postToolUse",
+  "postToolUseFailure",
+  "beforeSubmitPrompt",
+  "stop",
+  "stopFailure",
+  "subagentStart",
+  "subagentStop",
+  "preCompact",
+  "postCompact",
+  "notification",
+  "configChange",
+  "instructionsLoaded",
+  "cwdChanged",
+  "fileChanged",
+  "worktreeCreate",
+  "worktreeRemove",
+  "elicitation",
+  "elicitationResult",
+  "taskCreated",
+  "taskCompleted",
+  "permissionRequest",
+  "permissionDenied",
+  "teammateIdle",
+  "setup",
+];
+
+export const CANONICAL_TO_QODER_EVENT_NAMES: Record<string, string> = {
+  sessionStart: "SessionStart",
+  sessionEnd: "SessionEnd",
+  preToolUse: "PreToolUse",
+  postToolUse: "PostToolUse",
+  postToolUseFailure: "PostToolUseFailure",
+  beforeSubmitPrompt: "UserPromptSubmit",
+  stop: "Stop",
+  stopFailure: "StopFailure",
+  subagentStart: "SubagentStart",
+  subagentStop: "SubagentStop",
+  preCompact: "PreCompact",
+  postCompact: "PostCompact",
+  notification: "Notification",
+  configChange: "ConfigChange",
+  instructionsLoaded: "InstructionsLoaded",
+  cwdChanged: "CwdChanged",
+  fileChanged: "FileChanged",
+  worktreeCreate: "WorktreeCreate",
+  worktreeRemove: "WorktreeRemove",
+  elicitation: "Elicitation",
+  elicitationResult: "ElicitationResult",
+  taskCreated: "TaskCreated",
+  taskCompleted: "TaskCompleted",
+  permissionRequest: "PermissionRequest",
+  permissionDenied: "PermissionDenied",
+  teammateIdle: "TeammateIdle",
+  setup: "Setup",
+};
+
+export const QODER_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
+  Object.entries(CANONICAL_TO_QODER_EVENT_NAMES).map(([k, v]) => [v, k]),
+);
+
+/**
  * Hook events supported by Command Code.
  *
  * Command Code reads hooks from the `hooks` key of `.commandcode/settings.json`

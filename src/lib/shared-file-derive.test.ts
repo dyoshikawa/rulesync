@@ -225,6 +225,11 @@ describe("shared-file write derivation", () => {
           "permissions",
           "subagents",
         ],
+        ".qoder/settings.json": [
+          "hooks",
+          "mcp",
+          "permissions",
+        ],
         ".qwen/settings.json": [
           "hooks",
           "mcp",

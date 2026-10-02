@@ -29,6 +29,7 @@ import { JunieIgnore } from "./junie-ignore.js";
 import { KiloIgnore } from "./kilo-ignore.js";
 import { KiroIgnore } from "./kiro-ignore.js";
 import { LettacodeIgnore } from "./lettacode-ignore.js";
+import { QoderIgnore } from "./qoder-ignore.js";
 import { QwencodeIgnore } from "./qwencode-ignore.js";
 import { ReasonixIgnore } from "./reasonix-ignore.js";
 import { RooIgnore } from "./roo-ignore.js";
@@ -87,6 +88,7 @@ export const toolIgnoreFactories = new Map<IgnoreProcessorToolTarget, ToolIgnore
   ["kiro-ide", { class: KiroIgnore }],
   // Letta Code reads `.letta/.lettaignore` from the project only.
   ["lettacode", { class: LettacodeIgnore }],
+  ["qoder", { class: QoderIgnore }],
   ["qwencode", { class: QwencodeIgnore }],
   ["reasonix", { class: ReasonixIgnore }],
   ["roo", { class: RooIgnore }],
