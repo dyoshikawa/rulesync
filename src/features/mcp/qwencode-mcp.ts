@@ -7,7 +7,9 @@ import {
 } from "../../constants/qwencode-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { McpServers } from "../../types/mcp.js";
+import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import type { Logger } from "../../utils/logger.js";
 import { isPlainObject, isStringArray } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
@@ -117,14 +119,29 @@ function buildMcpSettingsPatch({
 /**
  * Read the `mcpServers` of the project-root `.mcp.json`, or `{}` when the file
  * is absent or declares no server map. Entries keep Claude's `type`-based
- * transport shape, which is already rulesync's canonical shape.
+ * transport shape, which is already rulesync's canonical shape. Like Qwen Code,
+ * a malformed file is reported and skipped so it cannot hide the servers of
+ * `.qwen/settings.json`.
  */
-async function readProjectMcpJsonServers(outputRoot: string): Promise<Record<string, unknown>> {
-  const content = await readFileContentOrNull(join(outputRoot, QWENCODE_PROJECT_MCP_FILE_NAME));
+async function readProjectMcpJsonServers({
+  outputRoot,
+  logger,
+}: {
+  outputRoot: string;
+  logger?: Logger;
+}): Promise<Record<string, unknown>> {
+  const filePath = join(outputRoot, QWENCODE_PROJECT_MCP_FILE_NAME);
+  const content = await readFileContentOrNull(filePath);
   if (content === null) {
     return {};
   }
-  const parsed: unknown = JSON.parse(content);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(content);
+  } catch (error) {
+    logger?.warn(`Skipping malformed ${filePath} for Qwen Code MCP import: ${formatError(error)}`);
+    return {};
+  }
   return isPlainObject(parsed) && isPlainObject(parsed.mcpServers) ? parsed.mcpServers : {};
 }
 
@@ -157,6 +174,7 @@ export class QwencodeMcp extends ToolMcp {
     outputRoot = process.cwd(),
     validate = true,
     global = false,
+    logger,
   }: ToolMcpFromFileParams): Promise<QwencodeMcp> {
     const paths = this.getSettablePaths({ global });
     const fileContent =
@@ -167,10 +185,13 @@ export class QwencodeMcp extends ToolMcp {
     // In project scope Qwen Code also loads the Claude-parity `.mcp.json`
     // beneath `.qwen/settings.json`, so its servers are merged in underneath
     // and a same-named settings server wins. It has no global counterpart.
-    const projectMcpJsonServers = global ? {} : await readProjectMcpJsonServers(outputRoot);
+    const projectMcpJsonServers = global
+      ? {}
+      : await readProjectMcpJsonServers({ outputRoot, logger });
+    const settingsServers = isPlainObject(json.mcpServers) ? json.mcpServers : {};
     const newJson = {
       ...json,
-      mcpServers: { ...projectMcpJsonServers, ...json.mcpServers },
+      mcpServers: { ...projectMcpJsonServers, ...settingsServers },
     };
 
     return new QwencodeMcp({

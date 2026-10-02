@@ -6,6 +6,7 @@ import {
   RULESYNC_MCP_SCHEMA_URL,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { QwencodeMcp } from "./qwencode-mcp.js";
@@ -303,6 +304,17 @@ describe("QwencodeMcp", () => {
       const qwencodeMcp = await QwencodeMcp.fromFile({ outputRoot: testDir });
 
       expect(qwencodeMcp.getJson().mcpServers).toEqual({ server: { command: "node" } });
+    });
+
+    it("should warn about and skip a malformed .mcp.json, keeping the settings.json servers", async () => {
+      await writeSettings({ server: { command: "node" } });
+      await writeFileContent(join(testDir, ".mcp.json"), "{ not json");
+      const logger = createMockLogger();
+
+      const qwencodeMcp = await QwencodeMcp.fromFile({ outputRoot: testDir, logger });
+
+      expect(qwencodeMcp.getJson().mcpServers).toEqual({ server: { command: "node" } });
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining(".mcp.json"));
     });
 
     it("should not read the project .mcp.json in global mode", async () => {
