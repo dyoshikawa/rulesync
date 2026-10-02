@@ -77,6 +77,20 @@ const kimiCodeScopedMcpSchema = z.extend(toolScopedMcpSchema, {
   toolTimeoutMs: z.optional(z.number()),
 });
 
+/**
+ * Qwen Code's tool-scoped block also carries the server-level allow/deny lists
+ * from `settings.json` (`mcp.allowed` / `mcp.excluded`): MCP server names or
+ * `*` / `?` globs over the `mcpServers` keys, with `excluded` winning when a
+ * server matches both. They gate every server, including ones rulesync did not
+ * write, so they live here rather than on a canonical server entry.
+ *
+ * @see https://qwenlm.github.io/qwen-code-docs/en/users/features/mcp/
+ */
+const qwencodeScopedMcpSchema = z.extend(toolScopedMcpSchema, {
+  allowed: z.optional(z.array(z.string())),
+  excluded: z.optional(z.array(z.string())),
+});
+
 export const RulesyncMcpFileSchema = z.looseObject({
   $schema: z.optional(z.string()),
   ...RulesyncMcpConfigSchema.shape,
@@ -121,7 +135,7 @@ export const RulesyncMcpFileSchema = z.looseObject({
   omp: z.optional(toolScopedMcpSchema),
   opencode: z.optional(toolScopedMcpSchema),
   qoder: z.optional(toolScopedMcpSchema),
-  qwencode: z.optional(toolScopedMcpSchema),
+  qwencode: z.optional(qwencodeScopedMcpSchema),
   reasonix: z.optional(toolScopedMcpSchema),
   roo: z.optional(toolScopedMcpSchema),
   rovodev: z.optional(toolScopedMcpSchema),
@@ -147,7 +161,8 @@ export type RulesyncMcpSettablePaths = RulesyncSourceSettablePaths;
  * Derived from `RulesyncMcpFileSchema`'s own shape so this set can never drift
  * from the schema — every tool-scoped block declared above is treated as a
  * "merge servers by name" site by `mergeMcpJsonOverlays`, and everything else
- * (including `$schema` and top-level Kimi Code timeout fields) is replaced
+ * (including `$schema`, top-level Kimi Code timeout fields and Qwen Code's
+ * `allowed` / `excluded` lists) is replaced
  * atomically.
  */
 const TOOL_SCOPED_MCP_KEYS = new Set<string>(

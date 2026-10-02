@@ -12,3 +12,8 @@ export const QWENCODE_RULE_FILE_NAME = "QWEN.md";
 export const QWENCODE_LOCAL_RULE_FILE_NAME = "QWEN.local.md";
 export const QWENCODE_IGNORE_FILE_NAME = ".qwenignore";
 export const QWENCODE_SETTINGS_FILE_NAME = "settings.json";
+// Project review rules read by `/review` ahead of its fallbacks
+// (`.github/copilot-instructions.md`, then a `## Code Review` section in
+// AGENTS.md / QWEN.md). PR reviews read it from the base branch.
+// https://qwenlm.github.io/qwen-code-docs/en/users/features/code-review/
+export const QWENCODE_REVIEW_RULES_FILE_NAME = "review-rules.md";

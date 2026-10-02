@@ -4,6 +4,7 @@ import { QWENCODE_DIR, QWENCODE_SETTINGS_FILE_NAME } from "../../constants/qwenc
 import { ValidationResult } from "../../types/ai-file.js";
 import { McpServers } from "../../types/mcp.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import { isPlainObject, isStringArray } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
@@ -58,6 +59,55 @@ function convertFromQwencodeFormat(mcpServers: Record<string, unknown>): Record<
       return [serverName, newServer];
     }),
   );
+}
+
+/**
+ * Server-level allow/deny lists Qwen Code reads from the `mcp` object in
+ * `settings.json`, carried in rulesync as `qwencode.allowed` /
+ * `qwencode.excluded` in `.rulesync/mcp.json`.
+ * https://qwenlm.github.io/qwen-code-docs/en/users/features/mcp/
+ */
+const QWENCODE_MCP_SERVER_LIST_KEYS = ["allowed", "excluded"] as const;
+
+function pickServerLists(source: unknown): Record<string, string[]> {
+  if (!isPlainObject(source)) {
+    return {};
+  }
+  return Object.fromEntries(
+    QWENCODE_MCP_SERVER_LIST_KEYS.flatMap((key) => {
+      const value = source[key];
+      return isStringArray(value) ? [[key, value]] : [];
+    }),
+  );
+}
+
+/**
+ * Build the `mcp` patch for `settings.json`, or `undefined` when the rulesync
+ * source authors neither list. The gateway replaces `mcp` wholesale, so the
+ * object is recomputed from the existing file: keys rulesync does not manage
+ * (`mcp.serverCommand`, timeouts, …) and a list the source leaves out survive.
+ */
+function buildMcpSettingsPatch({
+  rulesyncMcp,
+  existingContent,
+}: {
+  rulesyncMcp: RulesyncMcp;
+  existingContent: string;
+}): Record<string, unknown> | undefined {
+  const lists = pickServerLists((rulesyncMcp.getJson() as Record<string, unknown>).qwencode);
+  if (Object.keys(lists).length === 0) {
+    return undefined;
+  }
+  let existingMcp: Record<string, unknown> = {};
+  try {
+    const parsed: unknown = JSON.parse(existingContent);
+    if (isPlainObject(parsed) && isPlainObject(parsed.mcp)) {
+      existingMcp = parsed.mcp;
+    }
+  } catch {
+    // An unparseable file is reported by the gateway when the patch is applied.
+  }
+  return { ...existingMcp, ...lists };
 }
 
 export class QwencodeMcp extends ToolMcp {
@@ -118,6 +168,7 @@ export class QwencodeMcp extends ToolMcp {
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const existingContent =
       (await readFileContentOrNull(filePath)) ?? JSON.stringify({ mcpServers: {} }, null, 2);
+    const mcpPatch = buildMcpSettingsPatch({ rulesyncMcp, existingContent });
 
     return new QwencodeMcp({
       outputRoot,
@@ -131,7 +182,10 @@ export class QwencodeMcp extends ToolMcp {
         fileKey: sharedConfigFileKey(paths),
         feature: "mcp",
         existingContent,
-        patch: { mcpServers: convertToQwencodeFormat(rulesyncMcp.getMcpServers()) },
+        patch: {
+          mcpServers: convertToQwencodeFormat(rulesyncMcp.getMcpServers()),
+          ...(mcpPatch !== undefined && { mcp: mcpPatch }),
+        },
         filePath,
       }),
       validate,
@@ -142,8 +196,16 @@ export class QwencodeMcp extends ToolMcp {
     const mcpServers = convertFromQwencodeFormat(
       (this.json.mcpServers as Record<string, unknown>) ?? {},
     );
+    const serverLists = pickServerLists(this.json.mcp);
     return this.toRulesyncMcpDefault({
-      fileContent: JSON.stringify({ mcpServers }, null, 2),
+      fileContent: JSON.stringify(
+        {
+          mcpServers,
+          ...(Object.keys(serverLists).length > 0 && { qwencode: serverLists }),
+        },
+        null,
+        2,
+      ),
     });
   }
 

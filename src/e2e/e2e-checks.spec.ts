@@ -44,6 +44,11 @@ const checksGenerateTargets = [
     outputPath: join(".hermes", "plugins", "rulesync-checks", "checks", "security.json"),
   },
   {
+    // Qwen Code's `/review` reads one plain-Markdown project rules file.
+    target: "qwencode",
+    outputPath: join(".qwen", "review-rules.md"),
+  },
+  {
     // Rovo Dev reads one plain-Markdown instruction file for code reviews.
     target: "rovodev",
     outputPath: join(".rovodev", ".review-agent.md"),
@@ -126,7 +131,12 @@ Look for injection vulnerabilities.
         expect(generatedContent).toContain("Look for injection vulnerabilities.");
         return;
       }
-      if (target === "cursor" || target === "rovodev" || target === "factorydroid") {
+      if (
+        target === "cursor" ||
+        target === "rovodev" ||
+        target === "factorydroid" ||
+        target === "qwencode"
+      ) {
         // One marked-up section per check, keyed by the source file basename.
         expect(generatedContent).toContain("<!-- rulesync:check:security -->");
         expect(generatedContent).toContain("## security");

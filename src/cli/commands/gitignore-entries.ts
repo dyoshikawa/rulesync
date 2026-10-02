@@ -164,6 +164,18 @@ export const HAND_MAINTAINED_GITIGNORE_ENTRIES: ReadonlyArray<GitignoreEntryTag>
     entry: `**/${LETTACODE_DIR}/${LETTACODE_SETTINGS_LOCAL_FILE_NAME}`,
   },
   { target: "rovodev", feature: "general", entry: "**/.rovodev/.rulesync/" },
+  // Qwen Code's per-run by-products under the project `.qwen/`, which Qwen Code
+  // never gitignores itself: the `/review` cache (its docs tell users to ignore
+  // it), saved review reports, the `/review` scratch worktrees and findings
+  // under `tmp/`, and the fixed `<repoRoot>/.qwen/worktrees/` location of
+  // general-purpose and agent worktrees. Listed per path rather than as `.qwen/`
+  // so the committed config there (and `.qwen/team-memory/`) stays trackable.
+  // https://qwenlm.github.io/qwen-code-docs/en/users/features/code-review/
+  // https://qwenlm.github.io/qwen-code-docs/en/users/features/worktree/
+  { target: "qwencode", feature: "general", entry: `**/${QWENCODE_DIR}/review-cache/` },
+  { target: "qwencode", feature: "general", entry: `**/${QWENCODE_DIR}/reviews/` },
+  { target: "qwencode", feature: "general", entry: `**/${QWENCODE_DIR}/tmp/` },
+  { target: "qwencode", feature: "general", entry: `**/${QWENCODE_DIR}/worktrees/` },
   { target: "takt", feature: "general", entry: "**/.takt/runs/" },
   { target: "takt", feature: "general", entry: "**/.takt/tasks/" },
   { target: "takt", feature: "general", entry: "**/.takt/.cache/" },
