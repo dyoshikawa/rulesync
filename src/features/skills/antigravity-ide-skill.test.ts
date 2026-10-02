@@ -244,6 +244,37 @@ Missing description field.`;
     });
   });
 
+  describe("antigravity-ide section", () => {
+    it("should read disable-slash-command and metadata from the antigravity-ide section", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "flagged",
+        frontmatter: {
+          name: "flagged",
+          description: "Flagged skill",
+          targets: ["*"],
+          "antigravity-ide": { "disable-slash-command": true, metadata: { icon: "📦" } },
+          "antigravity-cli": { "disable-slash-command": false },
+        },
+        body: "Body",
+        validate: true,
+      });
+
+      const skill = AntigravityIdeSkill.fromRulesyncSkill({ rulesyncSkill });
+
+      expect(skill.getFrontmatter()).toEqual({
+        name: "flagged",
+        description: "Flagged skill",
+        "disable-slash-command": true,
+        metadata: { icon: "📦" },
+      });
+      expect(skill.toRulesyncSkill().getFrontmatter()["antigravity-ide"]).toEqual({
+        "disable-slash-command": true,
+        metadata: { icon: "📦" },
+      });
+    });
+  });
+
   describe("isTargetedByRulesyncSkill", () => {
     it("should return true when targets includes '*'", () => {
       const rulesyncSkill = new RulesyncSkill({

@@ -46,6 +46,11 @@ const piSkillSectionSchema = z.looseObject({
   metadata: z.optional(z.looseObject({})),
 });
 
+const antigravitySkillSectionSchema = z.looseObject({
+  "disable-slash-command": z.optional(z.boolean()),
+  metadata: z.optional(z.looseObject({})),
+});
+
 const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
   name: z.string().check(
     z.refine((name) => !isUnsafeSkillDirName(name), {
@@ -68,6 +73,9 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
   // `devin` also consumes this root value (mapping `false` onto a model-only
   // `triggers` list); it has no section key of the same name, but a
   // `devin.triggers` section value overrides it.
+  // The Antigravity targets also consume this root value (mapping `false` onto
+  // `disable-slash-command: true`); their section's `disable-slash-command`
+  // overrides it.
   "user-invocable": z.optional(z.boolean()),
   // Shared defaults for the three Agent Skills standard packaging fields. Each
   // applies to every tool that models the field, and a target-section value of
@@ -444,6 +452,9 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
       metadata: z.optional(z.looseObject({})),
     }),
   ),
+  // `antigravity-plugin` reads the `antigravity-ide` section.
+  "antigravity-ide": z.optional(antigravitySkillSectionSchema),
+  "antigravity-cli": z.optional(antigravitySkillSectionSchema),
 });
 
 // Export schema with targets optional for input but guaranteed in output
@@ -683,6 +694,14 @@ export type RulesyncSkillFrontmatterInput = {
     license?: string;
     metadata?: Record<string, unknown>;
   };
+  "antigravity-ide"?: AntigravitySkillSectionInput;
+  "antigravity-cli"?: AntigravitySkillSectionInput;
+};
+
+type AntigravitySkillSectionInput = {
+  "disable-slash-command"?: boolean;
+  metadata?: Record<string, unknown>;
+  [key: string]: unknown;
 };
 
 // Type for output/validated data (targets is always present after validation)

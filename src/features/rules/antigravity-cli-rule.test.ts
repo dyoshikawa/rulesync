@@ -5,7 +5,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { writeFileContent } from "../../utils/file.js";
+import { parseFrontmatter } from "../../utils/frontmatter.js";
 import { AntigravityCliRule } from "./antigravity-cli-rule.js";
+import { AntigravityIdeRule } from "./antigravity-ide-rule.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 
 const buildRule = (targets: string[]): RulesyncRule =>
@@ -271,7 +273,7 @@ describe("AntigravityCliRule", () => {
       expect(cliRule.getFileContent().trim()).toBe("# Root Memory\n\nPlain body.");
     });
 
-    it("should place a non-root rule in .agents/rules", () => {
+    it("should place a non-root rule in .agents/rules with trigger frontmatter", () => {
       const rulesyncRule = new RulesyncRule({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: "coding-style.md",
@@ -288,7 +290,46 @@ describe("AntigravityCliRule", () => {
       expect(cliRule.getRelativeDirPath()).toBe(join(".agents", "rules"));
       expect(cliRule.getRelativeFilePath()).toBe("coding-style.md");
       expect(cliRule.isRoot()).toBe(false);
-      expect(cliRule.getFileContent().trim()).toBe("# Coding Style");
+      const { frontmatter, body } = parseFrontmatter(cliRule.getFileContent());
+      expect(frontmatter).toEqual({ trigger: "glob", globs: "**/*.ts" });
+      expect(body.trim()).toBe("# Coding Style");
+    });
+
+    it("should give a plain non-root rule an always_on trigger", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "general.md",
+        frontmatter: { root: false, targets: ["*"] },
+        body: "# General",
+      });
+
+      const cliRule = AntigravityCliRule.fromRulesyncRule({ rulesyncRule });
+
+      expect(parseFrontmatter(cliRule.getFileContent()).frontmatter).toEqual({
+        trigger: "always_on",
+      });
+    });
+
+    it("should write the same non-root file content as antigravity-ide", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "api.md",
+        frontmatter: {
+          root: false,
+          targets: ["*"],
+          description: "API rules",
+          globs: ["src/api/**/*.ts"],
+          antigravity: { trigger: "model_decision" },
+        },
+        body: "# API",
+      });
+
+      const cliRule = AntigravityCliRule.fromRulesyncRule({ rulesyncRule });
+      const ideRule = AntigravityIdeRule.fromRulesyncRule({ rulesyncRule });
+
+      expect(cliRule.getRelativeDirPath()).toBe(ideRule.getRelativeDirPath());
+      expect(cliRule.getRelativeFilePath()).toBe(ideRule.getRelativeFilePath());
+      expect(cliRule.getFileContent()).toBe(ideRule.getFileContent());
     });
 
     it("should use custom outputRoot for non-root rule", () => {
@@ -331,6 +372,47 @@ describe("AntigravityCliRule", () => {
       expect(result).toBeInstanceOf(RulesyncRule);
       expect(result.getFrontmatter().root).toBe(false);
       expect(result.getBody().trim()).toBe("# Round Trip\n\nContent");
+    });
+
+    it("should round-trip the trigger and globs of a project non-root rule", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "proto.md",
+        frontmatter: {
+          root: false,
+          targets: ["*"],
+          globs: ["*.proto"],
+        },
+        body: "# Proto",
+      });
+
+      const result = AntigravityCliRule.fromRulesyncRule({ rulesyncRule }).toRulesyncRule();
+
+      expect(result.getFrontmatter().globs).toEqual(["*.proto"]);
+      expect(result.getFrontmatter().antigravity).toEqual({ trigger: "glob", globs: ["*.proto"] });
+      expect(result.getBody().trim()).toBe("# Proto");
+    });
+
+    it("should import a frontmatter-less project non-root rule as an always-applied rule", async () => {
+      await writeFileContent(join(testDir, ".agents", "rules", "legacy.md"), "# Legacy\n");
+
+      const cliRule = await AntigravityCliRule.fromFile({ relativeFilePath: "legacy.md" });
+      const result = cliRule.toRulesyncRule();
+
+      expect(result.getFrontmatter().root).toBe(false);
+      expect(result.getFrontmatter().globs).toEqual(["**/*"]);
+      expect(result.getBody().trim()).toBe("# Legacy");
+    });
+
+    it("should reject a project non-root rule with invalid frontmatter", async () => {
+      await writeFileContent(
+        join(testDir, ".agents", "rules", "broken.md"),
+        "---\ntrigger: 42\n---\n# Broken\n",
+      );
+
+      await expect(AntigravityCliRule.fromFile({ relativeFilePath: "broken.md" })).rejects.toThrow(
+        /Invalid frontmatter/,
+      );
     });
 
     it("should round-trip the body for a root rule", () => {
