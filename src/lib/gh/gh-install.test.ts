@@ -1,9 +1,24 @@
+import type { ExecFileOptionsWithStringEncoding } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockExecFileAsync } = vi.hoisted(() => ({ mockExecFileAsync: vi.fn() }));
+type GhExecOptions = ExecFileOptionsWithStringEncoding & {
+  cwd: string;
+  env: NodeJS.ProcessEnv;
+  maxBuffer: number;
+};
+
+type GhExecFileAsync = (
+  file: string,
+  args: readonly string[],
+  options: GhExecOptions,
+) => Promise<{ stdout: string; stderr: string }>;
+
+const { mockExecFileAsync } = vi.hoisted(() => ({
+  mockExecFileAsync: vi.fn<GhExecFileAsync>(),
+}));
 
 vi.mock("node:child_process", () => ({ execFile: vi.fn() }));
 vi.mock("node:util", () => ({ promisify: () => mockExecFileAsync }));
@@ -13,7 +28,7 @@ import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { installGh } from "./gh-install.js";
 
-function source(overrides: Partial<SourceEntry> & { source: string }): SourceEntry {
+function source(overrides: SourceEntry): SourceEntry {
   return overrides;
 }
 
@@ -40,7 +55,7 @@ describe("installGh", () => {
     });
 
     expect(result).toEqual({ sourcesProcessed: 1, failedSourceCount: 0 });
-    expect(mockExecFileAsync.mock.calls.map((call: any[]) => call[1])).toContainEqual([
+    expect(mockExecFileAsync.mock.calls.map(([, args]) => args)).toContainEqual([
       "skill",
       "install",
       "--agent",
@@ -52,13 +67,13 @@ describe("installGh", () => {
       "https://github.com/owner/repo",
       "cleanup@v1.2",
     ]);
-    expect(mockExecFileAsync.mock.calls.flatMap((call: any[]) => call[1])).not.toContain("--pin");
+    expect(mockExecFileAsync.mock.calls.flatMap(([, args]) => args)).not.toContain("--pin");
   });
 
   it("uses gh --all when no skill filter or ref is declared", async () => {
     await installGh({ projectRoot: testDir, sources: [source({ source: "owner/repo" })], logger });
 
-    expect(mockExecFileAsync.mock.calls.map((call: any[]) => call[1])).toContainEqual([
+    expect(mockExecFileAsync.mock.calls.map(([, args]) => args)).toContainEqual([
       "skill",
       "install",
       "--agent",
@@ -73,7 +88,7 @@ describe("installGh", () => {
   });
 
   it("discovers exact root skill paths for a ref, then installs each selected path", async () => {
-    mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+    mockExecFileAsync.mockImplementation(async (_bin, args) => {
       if (args[0] === "api")
         return {
           stdout: JSON.stringify({
@@ -96,7 +111,7 @@ describe("installGh", () => {
       logger,
     });
 
-    expect(mockExecFileAsync.mock.calls.map((call: any[]) => call[1])).toEqual([
+    expect(mockExecFileAsync.mock.calls.map(([, args]) => args)).toEqual([
       ["skill", "install", "--help"],
       ["api", "--hostname", "github.com", "repos/owner/repo/git/trees/release%2Fv2?recursive=1"],
       [
@@ -124,7 +139,7 @@ describe("installGh", () => {
       logger,
     });
 
-    const installs = mockExecFileAsync.mock.calls.slice(1).map((call: any[]) => call[1]);
+    const installs = mockExecFileAsync.mock.calls.slice(1).map(([, args]) => args);
     expect(installs).toContainEqual([
       "skill",
       "install",
@@ -150,7 +165,7 @@ describe("installGh", () => {
       "s",
     ]);
     expect(
-      mockExecFileAsync.mock.calls.slice(1).every((call: any[]) => call[2].cwd === testDir),
+      mockExecFileAsync.mock.calls.slice(1).every(([, , options]) => options.cwd === testDir),
     ).toBe(true);
   });
 
@@ -162,10 +177,10 @@ describe("installGh", () => {
       logger,
     });
 
-    for (const call of mockExecFileAsync.mock.calls as any[][]) {
-      expect(call[1].join(" ")).not.toContain("secret-value");
-      expect(call[2].env.GH_TOKEN).toBe("secret-value");
-      expect(call[2].env.GH_PROMPT_DISABLED).toBe("1");
+    for (const [, args, options] of mockExecFileAsync.mock.calls) {
+      expect(args.join(" ")).not.toContain("secret-value");
+      expect(options.env.GH_TOKEN).toBe("secret-value");
+      expect(options.env.GH_PROMPT_DISABLED).toBe("1");
     }
   });
 
@@ -208,7 +223,7 @@ describe("installGh", () => {
   });
 
   it("counts a failed source and continues installing subsequent sources", async () => {
-    mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+    mockExecFileAsync.mockImplementation(async (_bin, args) => {
       if (args.some((arg) => arg.includes("owner/bad"))) throw new Error("permission denied");
       return { stdout: "", stderr: "" };
     });
@@ -224,8 +239,8 @@ describe("installGh", () => {
 
     expect(result).toEqual({ sourcesProcessed: 2, failedSourceCount: 1 });
     expect(
-      mockExecFileAsync.mock.calls.some((call: any[]) =>
-        call[1].some((arg: string) => arg.includes("owner/good")),
+      mockExecFileAsync.mock.calls.some(([, args]) =>
+        args.some((arg) => arg.includes("owner/good")),
       ),
     ).toBe(true);
   });
@@ -239,12 +254,12 @@ describe("installGh", () => {
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("obsolete and ignored"));
     expect(await readFile(lockPath, "utf8")).toBe("invalid: [old lock");
     expect(
-      mockExecFileAsync.mock.calls.some((call: any[]) => call[1].includes("rulesync-gh.lock.yaml")),
+      mockExecFileAsync.mock.calls.some(([, args]) => args.includes("rulesync-gh.lock.yaml")),
     ).toBe(false);
   });
 
   it("fails a source when GitHub returns a truncated tree", async () => {
-    mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) =>
+    mockExecFileAsync.mockImplementation(async (_bin, args) =>
       args[0] === "api"
         ? { stdout: JSON.stringify({ truncated: true, tree: [] }), stderr: "" }
         : { stdout: "", stderr: "" },
@@ -260,12 +275,10 @@ describe("installGh", () => {
     expect(logger.warn).toHaveBeenCalledWith(
       expect.stringContaining("Repository tree is truncated"),
     );
-    expect(mockExecFileAsync.mock.calls.filter((call: any[]) => call[1][0] === "api")).toHaveLength(
-      1,
-    );
+    expect(mockExecFileAsync.mock.calls.filter(([, args]) => args[0] === "api")).toHaveLength(1);
     expect(
       mockExecFileAsync.mock.calls.filter(
-        (call: any[]) => call[1][0] === "skill" && call[1][1] === "install",
+        ([, args]) => args[0] === "skill" && args[1] === "install",
       ),
     ).toEqual([["gh", ["skill", "install", "--help"], expect.any(Object)]]);
   });
