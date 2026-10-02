@@ -22,6 +22,8 @@ export const OpenCodeCommandFrontmatterSchema = z.looseObject({
   agent: optional(z.string()),
   subtask: optional(z.boolean()),
   model: optional(z.string()),
+  // Default model variant for the command (e.g. a provider reasoning preset).
+  variant: optional(z.string()),
 });
 
 export type OpenCodeCommandFrontmatter = z.infer<typeof OpenCodeCommandFrontmatterSchema>;

@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { isDeepStrictEqual } from "node:util";
 
 import { parse as parseJsonc } from "jsonc-parser";
 import { z } from "zod/mini";
@@ -19,7 +20,11 @@ import { isRecord } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { honorAllToolsOnBash } from "./shell-command-categories.js";
-import { collapseRulesToSingleAction, hasPatternSpecificRules } from "./single-action-collapse.js";
+import {
+  collapseRulesToSingleAction,
+  hasPatternSpecificRules,
+  PERMISSION_ACTION_PRIORITY,
+} from "./single-action-collapse.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -120,8 +125,66 @@ const OPENCODE_TO_CANONICAL_PERMISSION_KEYS: Record<string, string> = Object.fro
   ]),
 );
 
+/**
+ * Canonical categories folded into another OpenCode key on generate only.
+ * OpenCode has no `write` key: its write tool asks for the `edit` permission
+ * ("`edit` — file modifications including edit, write, patch"), so a canonical
+ * `write` rule is merged into `edit`. The fold is one-way, so an imported
+ * `edit` stays the canonical `edit` rather than splitting into two categories.
+ *
+ * @see https://opencode.ai/docs/permissions/
+ */
+const CANONICAL_TO_OPENCODE_FOLDED_PERMISSION_KEYS: Record<string, string> = {
+  write: "edit",
+};
+
+/**
+ * Canonical categories OpenCode has no tool for at all. Writing them into
+ * `opencode.json` would leave a rule OpenCode validates and never consults, so
+ * they are skipped with a warning instead.
+ */
+const OPENCODE_UNSUPPORTED_PERMISSION_CATEGORIES = new Set(["notebookedit"]);
+
 function toOpencodePermissionKey(canonical: string): string {
-  return CANONICAL_TO_OPENCODE_PERMISSION_KEYS[canonical] ?? canonical;
+  return (
+    CANONICAL_TO_OPENCODE_PERMISSION_KEYS[canonical] ??
+    CANONICAL_TO_OPENCODE_FOLDED_PERMISSION_KEYS[canonical] ??
+    canonical
+  );
+}
+
+/**
+ * Merge two canonical pattern maps that land on the same OpenCode key.
+ *
+ * OpenCode evaluates a key's patterns in order and the last match wins, so
+ * interleaving two maps could let one map's later `allow` shadow the other's
+ * `deny`. Identical maps are kept as-is; otherwise each pattern keeps the
+ * stricter action and the entries are ordered allow → ask → deny, which makes
+ * the result at least as strict as either input for every path (it may be
+ * stricter, never looser).
+ */
+function mergePatternRules(
+  base: Record<string, PermissionAction>,
+  incoming: Record<string, PermissionAction>,
+): Record<string, PermissionAction> {
+  if (isDeepStrictEqual(Object.entries(base), Object.entries(incoming))) {
+    return base;
+  }
+  const merged: Record<string, PermissionAction> = { ...base };
+  for (const [pattern, action] of Object.entries(incoming)) {
+    const existing = Object.hasOwn(merged, pattern) ? merged[pattern] : undefined;
+    if (
+      existing === undefined ||
+      PERMISSION_ACTION_PRIORITY[action] > PERMISSION_ACTION_PRIORITY[existing]
+    ) {
+      merged[pattern] = action;
+    }
+  }
+  return Object.fromEntries(
+    Object.entries(merged).toSorted(
+      ([, a], [, b]) => PERMISSION_ACTION_PRIORITY[a] - PERMISSION_ACTION_PRIORITY[b],
+    ),
+  );
 }
 
 function toCanonicalPermissionKey(opencodeKey: string): string {
@@ -252,13 +315,32 @@ export class OpencodePermissions extends ToolPermissions {
     const overridePermission = rulesyncJson[this.layout.toolTarget]?.permission ?? {};
 
     // Translate canonical category names into OpenCode's native permission keys
-    // (`agent` → `task`) before emitting them, so subagent-launch gating is
-    // written under the key OpenCode actually reads.
-    const sharedPermission: Record<string, OpencodePermission> = {};
+    // (`agent` → `task`, `write` → `edit`) before emitting them, so each rule is
+    // written under the key OpenCode actually reads. A folded `write` is merged
+    // with any canonical `edit` rules rather than replacing them.
+    const sharedPermission: Record<string, Record<string, PermissionAction>> = {};
     for (const [category, value] of Object.entries(
       honorAllToolsOnBash(rulesyncJson.permission ?? {}),
     )) {
-      sharedPermission[toOpencodePermissionKey(category)] = value;
+      if (OPENCODE_UNSUPPORTED_PERMISSION_CATEGORIES.has(category)) {
+        logger?.warn(
+          `OpenCode has no permission key for the "${category}" category; its rules were skipped.`,
+        );
+        continue;
+      }
+      const key = toOpencodePermissionKey(category);
+      const existing = Object.hasOwn(sharedPermission, key) ? sharedPermission[key] : undefined;
+      if (existing) {
+        const merged = mergePatternRules(existing, value);
+        if (merged !== existing) {
+          logger?.warn(
+            `Several canonical categories map to OpenCode's "${key}" key, so their rules were merged; patterns were reordered allow, ask, deny so no rule set is loosened.`,
+          );
+        }
+        sharedPermission[key] = merged;
+      } else {
+        sharedPermission[key] = value;
+      }
     }
 
     const permission: Record<string, OpencodePermission> = {};
