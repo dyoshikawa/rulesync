@@ -10,7 +10,7 @@ import {
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
 import { HooksProcessor } from "../features/hooks/hooks-processor.js";
-import { fileExists, readFileContent, writeFileContent } from "../utils/file.js";
+import { fileExists, readFileContent, removeFile, writeFileContent } from "../utils/file.js";
 import { getHermesagentGlobalDir } from "../utils/hermesagent.js";
 import {
   assertGenerateMatrixCoversTargets,
@@ -158,6 +158,7 @@ const hooksGenerateTargets = [
 const hooksProjectStandaloneTargets = [
   "vibe",
   "vibe-plugin",
+  "devin-plugin",
   "codewhale",
   "devin",
   "reasonix",
@@ -532,6 +533,36 @@ describe("E2E: hooks", () => {
     expect(generatedContent).toContain('type = "pre_tool"');
     expect(generatedContent).toContain('command = "./scripts/audit.sh"');
     expect(await fileExists(join(testDir, ".vibe", "hooks.toml"))).toBe(false);
+  });
+
+  it("should generate devin-plugin hooks into the plugin-root hooks.json", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH),
+      JSON.stringify({
+        version: 1,
+        hooks: { preToolUse: [{ command: "./scripts/audit.sh", matcher: "exec" }] },
+      }),
+    );
+
+    await runGenerate({ target: "devin-plugin", features: "hooks" });
+
+    // Same bare event map as `.devin/hooks.v1.json`, at the plugin root.
+    const parsed = JSON.parse(await readFileContent(join(testDir, "hooks.json")));
+    expect(parsed).toEqual({
+      PreToolUse: [
+        { matcher: "exec", hooks: [{ type: "command", command: "./scripts/audit.sh" }] },
+      ],
+    });
+    expect(await fileExists(join(testDir, ".devin", "hooks.v1.json"))).toBe(false);
+
+    await removeFile(join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH));
+    await runImport({ target: "devin-plugin", features: "hooks" });
+
+    const importedContent = await readFileContent(join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH));
+    expect(importedContent).toContain("preToolUse");
+    expect(importedContent).toContain("./scripts/audit.sh");
   });
 
   it("should generate codewhale hooks into .codewhale/hooks.toml", async () => {

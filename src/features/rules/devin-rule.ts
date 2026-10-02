@@ -357,6 +357,14 @@ export class DevinRule extends ToolRule {
       : { relativeDirPath: ".", relativeFilePath: "AGENTS.md" };
   }
 
+  /**
+   * The directory holding non-root (triggered) rules in project scope, which
+   * `fromFile` and `forDeletion` use to tell them from the root `AGENTS.md`.
+   */
+  protected static getNonRootDirPath(): string {
+    return buildToolPath(DEVIN_DIR, "rules");
+  }
+
   static getSettablePaths({
     global = false,
     excludeToolDir,
@@ -399,7 +407,7 @@ export class DevinRule extends ToolRule {
     validate = true,
     global = false,
   }: ToolRuleFromFileParams): Promise<DevinRule> {
-    const nonRootDirPath = buildToolPath(DEVIN_DIR, "rules");
+    const nonRootDirPath = this.getNonRootDirPath();
     // Dispatch on the directory the processor resolved, not on the file name: a
     // rule file legitimately named `AGENTS.md` inside the rules directory would
     // otherwise be misread as the always-on root file. `relativeDirPath` is
@@ -417,7 +425,7 @@ export class DevinRule extends ToolRule {
       const fileContent = await readFileContent(
         join(outputRoot, rootPath.relativeDirPath, rootPath.relativeFilePath),
       );
-      return new DevinRule({
+      return new this({
         outputRoot,
         relativeDirPath: rootPath.relativeDirPath,
         relativeFilePath: rootPath.relativeFilePath,
@@ -444,7 +452,7 @@ export class DevinRule extends ToolRule {
       parsedFrontmatter = frontmatter as DevinRuleFrontmatter;
     }
 
-    return new DevinRule({
+    return new this({
       outputRoot,
       relativeDirPath: nonRootDirPath,
       relativeFilePath,
@@ -468,7 +476,7 @@ export class DevinRule extends ToolRule {
       // markdown without Cascade frontmatter — the project root in project
       // scope, `~/.config/devin/AGENTS.md` in global scope.
       const rootPath = DevinRule.getRootPath(global);
-      return new DevinRule({
+      return new this({
         outputRoot,
         relativeDirPath: rootPath.relativeDirPath,
         relativeFilePath: rootPath.relativeFilePath,
@@ -495,9 +503,9 @@ export class DevinRule extends ToolRule {
     // root rule returned above went to the always-on AGENTS.md instead).
     const kebabCaseFilename = toKebabCaseFilename(rulesyncRule.getRelativeFilePath());
 
-    return new DevinRule({
+    return new this({
       outputRoot,
-      relativeDirPath: buildToolPath(DEVIN_DIR, "rules"),
+      relativeDirPath: this.getNonRootDirPath(),
       relativeFilePath: kebabCaseFilename,
       frontmatter,
       body: rulesyncRule.getBody(),
@@ -568,7 +576,7 @@ export class DevinRule extends ToolRule {
     relativeDirPath,
     relativeFilePath,
   }: ToolRuleForDeletionParams): DevinRule {
-    return new DevinRule({
+    return new this({
       outputRoot,
       relativeDirPath,
       relativeFilePath,
@@ -577,7 +585,7 @@ export class DevinRule extends ToolRule {
       validate: false,
       // Derived from the directory rather than the scope: since global scope
       // gained `~/.devin/rules/`, `global` no longer implies the root file.
-      root: relativeDirPath !== buildToolPath(DEVIN_DIR, "rules"),
+      root: relativeDirPath !== this.getNonRootDirPath(),
     });
   }
 

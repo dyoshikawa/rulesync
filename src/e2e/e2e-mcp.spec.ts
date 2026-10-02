@@ -38,6 +38,7 @@ const mcpGenerateTargets = [
   { target: "augmentcode-plugin", outputPath: ".mcp.json" },
   { target: "zcode-plugin", outputPath: ".mcp.json" },
   { target: "vibe-plugin", outputPath: "mcp.json" },
+  { target: "devin-plugin", outputPath: ".mcp.json" },
   { target: "codebuff", outputPath: join(".agents", "mcp.json") },
   { target: "cursor", outputPath: join(".cursor", "mcp.json") },
   { target: "trae", outputPath: join(".trae", "mcp.json") },

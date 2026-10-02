@@ -44,6 +44,7 @@ import { CopilotcliSubagent } from "./copilotcli-subagent.js";
 import { CortexcodeSubagent } from "./cortexcode-subagent.js";
 import { CursorSubagent } from "./cursor-subagent.js";
 import { DeepagentsSubagent } from "./deepagents-subagent.js";
+import { DevinPluginSubagent } from "./devin-plugin-subagent.js";
 import { DevinSubagent } from "./devin-subagent.js";
 import { FactorydroidSubagent } from "./factorydroid-subagent.js";
 import { GooseSubagent } from "./goose-subagent.js";
@@ -463,6 +464,20 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
         supportsProject: true,
         supportsSimulated: false,
         supportsGlobal: true,
+        filePattern: "*/AGENT.md",
+      },
+    },
+  ],
+  [
+    "devin-plugin",
+    {
+      // `<plugin>/agents/<name>/AGENT.md`, the same profile format as
+      // `.devin/agents/`. https://docs.devin.ai/cli/extensibility/plugins/overview
+      class: DevinPluginSubagent,
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: false,
         filePattern: "*/AGENT.md",
       },
     },

@@ -68,6 +68,7 @@ export const TOOL_DISPLAY: ReadonlyArray<ToolDisplayEntry> = [
   { key: "augmentcode", label: "AugmentCode", group: "ai" },
   { key: "augmentcode-plugin", label: "AugmentCode plugin", group: "ai" },
   { key: "devin", label: "Devin Desktop", group: "ai" },
+  { key: "devin-plugin", label: "Devin plugin", group: "ai" },
   { key: "warp", label: "Warp", group: "ai" },
   { key: "replit", label: "Replit", group: "ai" },
   { key: "pi", label: "Pi Coding Agent", group: "ai" },
