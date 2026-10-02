@@ -117,10 +117,11 @@ const RETIREMENT_SPECS: Record<Feature, RetirementSpec> = {
 /**
  * Whether this run may retire anything. Retirement is the one place where
  * leaving a target out means "delete it", so it only runs when the run covers
- * every target the configuration file declares: a scoped `--targets` run does
- * not register the outputs of the configured targets it skipped, and a file
- * those targets share with a retired one (`AGENTS.md`, `.agents/skills/`)
- * would otherwise look unclaimed.
+ * every target the configuration file declares: a target the run skips does
+ * not register its outputs, and a file it shares with a retired one
+ * (`AGENTS.md`, `.agents/skills/`) would otherwise look unclaimed. The resolver
+ * already rejects `--retire-targets` with `--targets`; this check is what
+ * protects a `Config` built directly.
  */
 function canRetire({
   config,
@@ -150,7 +151,7 @@ function canRetire({
   const skippedTargets = config.getConfigFileTargets().filter((target) => !runTargets.has(target));
   if (skippedTargets.length > 0) {
     logger.warn(
-      `${skipping}: this run does not include configured target(s) ${skippedTargets.join(", ")}. Run 'rulesync generate' without --targets to retire them.`,
+      `${skipping}: this run does not include configured target(s) ${skippedTargets.join(", ")}.`,
     );
     return false;
   }

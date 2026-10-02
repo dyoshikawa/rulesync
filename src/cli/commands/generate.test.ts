@@ -1591,6 +1591,10 @@ describe("assertWatchModeCompatible", () => {
     { params: { isCheck: true, isDryRun: false, isJsonMode: false }, expected: "--check" },
     { params: { isCheck: false, isDryRun: true, isJsonMode: false }, expected: "--dry-run" },
     { params: { isCheck: false, isDryRun: false, isJsonMode: true }, expected: "--json" },
+    {
+      params: { isCheck: false, isDryRun: false, isJsonMode: false, isRetiring: true },
+      expected: "--retire-targets",
+    },
   ])("rejects $expected", ({ params, expected }) => {
     try {
       assertWatchModeCompatible(params);

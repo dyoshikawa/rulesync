@@ -250,8 +250,28 @@ describe("config-resolver", () => {
       const config = await ConfigResolver.resolve({
         configPath: join(testDir, "rulesync.jsonc"),
         retireTargets: ["cursor"],
+        features: ["rules"],
       });
       expect(config.getRetireTargets()).toEqual(["cursor"]);
+    });
+
+    it("requires --features", async () => {
+      await expect(
+        ConfigResolver.resolve({
+          configPath: join(testDir, "rulesync.jsonc"),
+          retireTargets: ["cursor"],
+        }),
+      ).rejects.toThrow(/requires --features/);
+    });
+
+    it("rejects the '*' feature wildcard", async () => {
+      await expect(
+        ConfigResolver.resolve({
+          configPath: join(testDir, "rulesync.jsonc"),
+          retireTargets: ["cursor"],
+          features: ["*"],
+        }),
+      ).rejects.toThrow(/requires --features/);
     });
 
     it("rejects --retire-targets combined with --targets", async () => {
@@ -269,6 +289,7 @@ describe("config-resolver", () => {
         ConfigResolver.resolve({
           configPath: join(testDir, "rulesync.jsonc"),
           retireTargets: ["claudecode"],
+          features: ["rules"],
         }),
       ).rejects.toThrow(/still configured: claudecode/);
     });

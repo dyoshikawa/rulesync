@@ -353,20 +353,33 @@ export function resolveEffectiveInputRoots({
 }
 
 /**
- * Retiring is the one place where leaving a target out means "delete it", so
- * it only runs over the configuration's full target list: a `--targets` run
- * skips configured targets, which then claim none of the files they share with
- * a retired one.
+ * Retirement deletes files nothing regenerates afterwards, so everything about
+ * it has to be named on the command line rather than inferred:
+ * - It only runs over the configuration's full target list: a `--targets` run
+ *   skips configured targets, which then claim none of the files they share
+ *   with a retired one.
+ * - The features to retire must be listed explicitly. The retired tool is no
+ *   longer in the configuration, so nothing records which of its features
+ *   Rulesync generated, and sweeping every feature would delete hand-written
+ *   files (such as `.vscode/mcp.json`) it never owned.
  */
-function assertRetireTargetsUnscoped({
+function assertRetireTargetsExplicit({
   retireTargets,
   targets,
+  features,
 }: {
   retireTargets?: unknown[];
   targets?: unknown;
+  features?: unknown;
 }): void {
-  if (retireTargets !== undefined && retireTargets.length > 0 && targets !== undefined) {
+  if (retireTargets === undefined || retireTargets.length === 0) return;
+  if (targets !== undefined) {
     throw new Error("--retire-targets cannot be combined with --targets.");
+  }
+  if (!Array.isArray(features) || features.length === 0 || features.includes("*")) {
+    throw new Error(
+      "--retire-targets requires --features listing the features Rulesync generated for the retired tool(s) ('*' is not allowed).",
+    );
   }
 }
 
@@ -407,7 +420,7 @@ export class ConfigResolver {
     // `inputRoots` winning (see `resolveEffectiveInputRoots`).
     assertInputRootFieldsExclusive({ inputRoot, inputRoots });
     assertInputRootsNonEmpty({ inputRoots });
-    assertRetireTargetsUnscoped({ retireTargets, targets });
+    assertRetireTargetsExplicit({ retireTargets, targets, features });
 
     // Validate configPath to prevent path traversal attacks.
     //
