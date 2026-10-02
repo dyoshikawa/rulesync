@@ -328,6 +328,20 @@ describe("Config retireTargets validation", () => {
     ).toThrow(/still configured: cursor/);
   });
 
+  it("rejects an unknown retired feature", () => {
+    expect(
+      () =>
+        new Config({
+          ...base,
+          targets: { claudecode: ["rules"] },
+          features: undefined,
+          retireTargets: ["cursor"],
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+          retireFeatures: ["rule" as "rules"],
+        }),
+    ).toThrow(/Unknown feature 'rule'/);
+  });
+
   it("rejects an unknown target", () => {
     expect(
       () =>

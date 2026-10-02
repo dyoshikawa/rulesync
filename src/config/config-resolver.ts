@@ -387,7 +387,9 @@ function assertRetireTargetsExplicit({
  * The CLI `--features` of a retiring run names the features to retire. It also
  * scopes the run as usual — except with object-form `targets`, where per-target
  * features live in the configuration file and a CLI `features` list may not
- * replace them, so the run keeps the configured features.
+ * replace them, so the run keeps the configured features. Only the file's
+ * `targets` decides the form: `--targets` cannot be combined with
+ * `--retire-targets` (see `assertRetireTargetsExplicit`).
  */
 function splitRetireFeatures({
   features,

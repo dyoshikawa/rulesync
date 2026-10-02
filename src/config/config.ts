@@ -637,6 +637,16 @@ export class Config {
         );
       }
     }
+    // With object-form `targets`, the CLI `--features` list reaches only
+    // here, never the run's own feature validation.
+    const validFeatures = new Set<string>([...ALL_FEATURES, "*"]);
+    for (const feature of this.retireFeatures ?? []) {
+      if (!validFeatures.has(feature)) {
+        throw new Error(
+          `Unknown feature '${feature}' in --features. Valid features: ${ALL_FEATURES.join(", ")}.`,
+        );
+      }
+    }
     const activeTargets = new Set([...this.getTargets(), ...(configFileTargets ?? [])]);
     const conflicting = this.retireTargets.filter((target) => activeTargets.has(target));
     if (conflicting.length > 0) {
@@ -954,7 +964,7 @@ export class Config {
   public getRetireFeatures(): Features {
     return this.retireFeatures === undefined
       ? this.getFeatures()
-      : Config.normalizeFeatureList(this.retireFeatures);
+      : [...new Set(Config.normalizeFeatureList(this.retireFeatures))];
   }
 
   public getGlobal(): boolean {
