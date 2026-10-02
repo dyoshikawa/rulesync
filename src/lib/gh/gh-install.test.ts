@@ -251,7 +251,7 @@ describe("installGh", () => {
 
     await installGh({ projectRoot: testDir, sources: [source({ source: "owner/repo" })], logger });
 
-    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("obsolete and ignored"));
+    expect(logger.warn).not.toHaveBeenCalled();
     expect(await readFile(lockPath, "utf8")).toBe("invalid: [old lock");
     expect(
       mockExecFileAsync.mock.calls.some(([, args]) => args.includes("rulesync-gh.lock.yaml")),

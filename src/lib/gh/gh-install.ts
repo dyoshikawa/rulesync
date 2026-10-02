@@ -1,12 +1,10 @@
 import { execFile } from "node:child_process";
-import { join } from "node:path";
 import { promisify } from "node:util";
 
 import { z } from "zod/mini";
 
 import type { SourceEntry } from "../../config/config.js";
 import { formatError } from "../../utils/error.js";
-import { fileExists } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { parseSource } from "../source-parser.js";
 
@@ -47,13 +45,6 @@ export async function installGh(params: {
   validateGhOptions(options);
   const resolved = sources.map(resolveGhSource);
   if (resolved.length === 0) return { sourcesProcessed: 0, failedSourceCount: 0 };
-
-  // Never parse or reuse the old lock: even an invalid lock must not block migration.
-  if (await fileExists(join(projectRoot, "rulesync-gh.lock.yaml"))) {
-    logger.warn(
-      "rulesync-gh.lock.yaml is obsolete and ignored. This install refreshes the declared refs through gh. Remove the old lockfile after a successful install; see the declarative sources migration guide.",
-    );
-  }
 
   const runGh = async (args: string[]): Promise<string> => {
     try {
