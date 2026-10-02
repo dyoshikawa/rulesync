@@ -258,6 +258,19 @@ describe("generate with retireTargets", () => {
     }
   });
 
+  it("skips a retired target that object-form outputRoots does not locate", async () => {
+    const stale = await writeStaleCursorRule();
+    const logger = createMockLogger();
+
+    await generate({
+      config: createConfig({ outputRoots: { claudecode: [testDir] }, retireTargets: ["cursor"] }),
+      logger,
+    });
+
+    expect(await fileExists(stale)).toBe(true);
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("Cannot retire cursor"));
+  });
+
   it("only reports what it would delete in dry-run mode", async () => {
     const stale = await writeStaleCursorRule();
     const logger = createMockLogger();
