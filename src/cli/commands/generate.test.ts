@@ -63,6 +63,7 @@ describe("generateCommand", () => {
       getFeatureOptions: vi.fn().mockReturnValue(undefined),
       getConfigFileFeatureOptions: vi.fn().mockReturnValue(undefined),
       getDelete: vi.fn().mockReturnValue(false),
+      getRetireTargets: vi.fn().mockReturnValue([]),
       getGlobal: vi.fn().mockReturnValue(false),
       getSimulateCommands: vi.fn().mockReturnValue(false),
       getSimulateSubagents: vi.fn().mockReturnValue(false),
@@ -1590,6 +1591,10 @@ describe("assertWatchModeCompatible", () => {
     { params: { isCheck: true, isDryRun: false, isJsonMode: false }, expected: "--check" },
     { params: { isCheck: false, isDryRun: true, isJsonMode: false }, expected: "--dry-run" },
     { params: { isCheck: false, isDryRun: false, isJsonMode: true }, expected: "--json" },
+    {
+      params: { isCheck: false, isDryRun: false, isJsonMode: false, isRetiring: true },
+      expected: "--retire-targets",
+    },
   ])("rejects $expected", ({ params, expected }) => {
     try {
       assertWatchModeCompatible(params);

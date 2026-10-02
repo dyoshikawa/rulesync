@@ -163,6 +163,7 @@ The `generate` command reads source files from one or more rulesync source trees
 | `--simulate-subagents`      | Generate simulated subagents for tools that do not support them natively                                                                                                                                                                                                                                                                                                                  | `false`               |
 | `--simulate-skills`         | Generate simulated skills for tools that do not support them natively                                                                                                                                                                                                                                                                                                                     | `false`               |
 | `--delete`                  | Delete existing generated files before writing                                                                                                                                                                                                                                                                                                                                            | From `rulesync.jsonc` |
+| `--retire-targets <tools>`  | Comma-separated list of tools the project no longer uses; deletes the outputs Rulesync manages for them (requires `--features`; see below)                                                                                                                                                                                                                                                | -                     |
 | `--watch, -w`               | Keep running and regenerate whenever rulesync source files change                                                                                                                                                                                                                                                                                                                         | `false`               |
 | `--config, -c <path>`       | Path to the configuration file to load (`rulesync.local.jsonc` next to it still overlays it)                                                                                                                                                                                                                                                                                              | `rulesync.jsonc`      |
 
@@ -173,6 +174,45 @@ The `generate` command reads source files from one or more rulesync source trees
 > `rulesync generate` with the same options but without `--targets` would
 > build it. See
 > [Target Order and File Conflicts](../guide/configuration.md#target-order-and-file-conflicts).
+
+> **Retiring a target:** Leaving a tool out of `targets` (or out of
+> `--targets`) never deletes its files — not even with `--delete` — because an
+> omitted target only means "not processed in this run". To remove the outputs
+> of a tool the project has dropped, name it and the features Rulesync
+> generated for it explicitly:
+>
+> ```bash
+> # rulesync.jsonc no longer lists cursor; Rulesync generated its rules and mcp
+> rulesync generate --retire-targets cursor --features rules,mcp --dry-run   # preview
+> rulesync generate --retire-targets cursor --features rules,mcp
+> ```
+>
+> For each listed feature, Rulesync deletes the files it would sweep with
+> `--delete` for that tool — the same managed paths, nothing else. Note that
+> `--features` scopes the whole run, not only the retirement — except with the
+> object form of `targets`, where the run keeps each target's configured
+> features and `--features` only names what to retire. The listed features
+> apply to every retired tool, and a managed path is deleted even if you
+> edited it by hand, so preview with `--dry-run` first.
+>
+> - Unrelated files beside the managed paths stay, a shared file another tool
+>   merges into (such as `.claude/settings.json`) is never removed, and a
+>   hand-written legacy root Rulesync only reads (such as `.claude/CLAUDE.md`)
+>   is kept.
+> - A path a configured target writes in the same run (for example
+>   `AGENTS.md` written by `codexcli` while `agentsmd` is retired) is kept.
+> - Retirement is idempotent, so an interrupted run can simply be repeated.
+>   `--check` fails while retired outputs remain, and `--json` lists the
+>   retired paths among the deletions.
+> - The option is CLI-only on purpose: retirement is a one-off migration step,
+>   not a standing setting. It requires `--features` (without `*`), and cannot
+>   be combined with `--targets` or `--watch`. A retired target may not also
+>   appear in `targets`.
+> - Retirement is skipped with a warning in global mode, when the
+>   configuration file declares targets the run does not cover, and when any
+>   `.rulesync` source file could not be read.
+> - With the object form of `outputRoots`, keep an entry for the retired
+>   target so its outputs can be located.
 
 > **Note on `--delete` and shared output directories:** Several targets write
 > into one directory on purpose — `.agents/agents/`, `.agents/skills/`, and the
