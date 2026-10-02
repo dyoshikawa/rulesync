@@ -52,6 +52,7 @@ import { resolveToolOutputRoot } from "../utils/tool-output-root.js";
 import { resetRunWarningState } from "../utils/warned-once.js";
 import { createFoldRootOverwriteWatch } from "./fold-root-overwrite-watch.js";
 import { createOrphanSweepPlan, type DeletedPath, type OrphanSweepPlan } from "./orphan-sweep.js";
+import { scheduleRetiredTargetSweeps } from "./retire-targets.js";
 import { deriveSharedWriteSteps } from "./shared-file-derive.js";
 
 export type GenerateResult = {
@@ -901,6 +902,15 @@ export async function generate(params: {
   for (const step of orderedSteps) {
     resultsById.set(step.id, await step.run());
   }
+
+  // Queued last so every claim of this run is registered before a retired
+  // target's outputs are compared against them.
+  scheduleRetiredTargetSweeps({
+    config,
+    logger,
+    sweepPlan,
+    sourceLoadFailed: [...resultsById.values()].some((result) => result.sourceLoadFailed),
+  });
 
   // Deletion runs only now, once every step has written: a sweep that ran inline
   // would remove files a later step is about to write, which is both destructive

@@ -352,6 +352,65 @@ export function resolveEffectiveInputRoots({
   };
 }
 
+/**
+ * Retirement deletes files nothing regenerates afterwards, so everything about
+ * it has to be named on the command line rather than inferred:
+ * - It only runs over the configuration's full target list: a `--targets` run
+ *   skips configured targets, which then claim none of the files they share
+ *   with a retired one.
+ * - The features to retire must be listed explicitly. The retired tool is no
+ *   longer in the configuration, so nothing records which of its features
+ *   Rulesync generated, and sweeping every feature would delete hand-written
+ *   files (such as `.vscode/mcp.json`) it never owned.
+ */
+function assertRetireTargetsExplicit({
+  retireTargets,
+  targets,
+  features,
+}: {
+  retireTargets?: unknown[];
+  targets?: unknown;
+  features?: unknown;
+}): void {
+  if (retireTargets === undefined || retireTargets.length === 0) return;
+  if (targets !== undefined) {
+    throw new Error("--retire-targets cannot be combined with --targets.");
+  }
+  if (!Array.isArray(features) || features.length === 0 || features.includes("*")) {
+    throw new Error(
+      "--retire-targets requires --features listing the features Rulesync generated for the retired tool(s) ('*' is not allowed).",
+    );
+  }
+}
+
+/**
+ * The CLI `--features` of a retiring run names the features to retire. It also
+ * scopes the run as usual — except with object-form `targets`, where per-target
+ * features live in the configuration file and a CLI `features` list may not
+ * replace them, so the run keeps the configured features. Only the file's
+ * `targets` decides the form: `--targets` cannot be combined with
+ * `--retire-targets` (see `assertRetireTargetsExplicit`).
+ */
+function splitRetireFeatures({
+  features,
+  retireTargets,
+  configByFile,
+}: {
+  features: ConfigResolverResolveParams["features"];
+  retireTargets: ConfigResolverResolveParams["retireTargets"];
+  configByFile: PartialConfigParams;
+}): {
+  runFeatures: ConfigResolverResolveParams["features"];
+  retireFeatures: ConfigResolverResolveParams["features"];
+} {
+  if (retireTargets === undefined || retireTargets.length === 0) {
+    return { runFeatures: features, retireFeatures: undefined };
+  }
+  const targetsIsObject =
+    configByFile.targets !== undefined && !Array.isArray(configByFile.targets);
+  return { runFeatures: targetsIsObject ? undefined : features, retireFeatures: features };
+}
+
 // oxlint-disable-next-line no-extraneous-class
 export class ConfigResolver {
   public static async resolve(
@@ -371,6 +430,7 @@ export class ConfigResolver {
       gitignoreTargetsOnly,
       dryRun,
       check,
+      retireTargets,
       gitignoreDestination,
       inputRoot,
       inputRoots,
@@ -388,6 +448,7 @@ export class ConfigResolver {
     // `inputRoots` winning (see `resolveEffectiveInputRoots`).
     assertInputRootFieldsExclusive({ inputRoot, inputRoots });
     assertInputRootsNonEmpty({ inputRoots });
+    assertRetireTargetsExplicit({ retireTargets, targets, features });
 
     // Validate configPath to prevent path traversal attacks.
     //
@@ -511,8 +572,13 @@ export class ConfigResolver {
       validatedConfigPath,
     });
 
-    const { resolvedFeatures, resolvedTargets } = resolveFeaturesAndTargets({
+    const { runFeatures, retireFeatures } = splitRetireFeatures({
       features,
+      retireTargets,
+      configByFile,
+    });
+    const { resolvedFeatures, resolvedTargets } = resolveFeaturesAndTargets({
+      features: runFeatures,
       targets,
       configByFile,
     });
@@ -571,6 +637,8 @@ export class ConfigResolver {
       }),
       dryRun: pick({ cli: dryRun, file: configByFile.dryRun, fallback: getDefaults().dryRun }),
       check: pick({ cli: check, file: configByFile.check, fallback: getDefaults().check }),
+      retireTargets,
+      retireFeatures,
       // Pass the fully-resolved absolute list so `Config.getInputRoots()` is
       // pure and never re-reads `process.cwd()` after construction. When
       // neither CLI nor config file supplied a root, the list is `[cwd]`.

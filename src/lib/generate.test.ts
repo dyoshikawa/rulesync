@@ -256,6 +256,7 @@ describe("generate", () => {
     getFeatures: ReturnType<typeof vi.fn>;
     getFeatureOptions: ReturnType<typeof vi.fn>;
     getDelete: ReturnType<typeof vi.fn>;
+    getRetireTargets: ReturnType<typeof vi.fn>;
     getCheck: ReturnType<typeof vi.fn>;
     getGlobal: ReturnType<typeof vi.fn>;
     getSimulateCommands: ReturnType<typeof vi.fn>;
@@ -285,6 +286,7 @@ describe("generate", () => {
       getFeatureOptions: vi.fn().mockReturnValue(undefined),
       getConfigFileFeatureOptions: vi.fn().mockReturnValue(undefined),
       getDelete: vi.fn().mockReturnValue(false),
+      getRetireTargets: vi.fn().mockReturnValue([]),
       getCheck: vi.fn().mockReturnValue(false),
       getGlobal: vi.fn().mockReturnValue(false),
       getSimulateCommands: vi.fn().mockReturnValue(false),

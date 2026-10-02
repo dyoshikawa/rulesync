@@ -331,21 +331,26 @@ async function generateOnce(
  * Rejects flag combinations that contradict a long-running watch: `--check`
  * and `--dry-run` are one-shot verification modes (the former is meant to exit
  * non-zero), and `--json` buffers a single result document until the command
- * returns, which never happens while watching.
+ * returns, which never happens while watching. `--retire-targets` is a one-off
+ * migration step: repeated on every change, it would keep deleting whatever
+ * reappears at the retired tool's paths.
  */
 export function assertWatchModeCompatible({
   isCheck,
   isDryRun,
   isJsonMode,
+  isRetiring = false,
 }: {
   isCheck: boolean;
   isDryRun: boolean;
   isJsonMode: boolean;
+  isRetiring?: boolean;
 }): void {
   const conflicts = [
     isCheck ? "--check" : undefined,
     isDryRun ? "--dry-run" : undefined,
     isJsonMode ? "--json" : undefined,
+    isRetiring ? "--retire-targets" : undefined,
   ].filter((flag): flag is string => flag !== undefined);
 
   if (conflicts.length > 0) {
@@ -364,6 +369,7 @@ async function generateWatchCommand(logger: Logger, options: GenerateOptions): P
     isCheck: config.getCheck(),
     isDryRun: config.getDryRun(),
     isJsonMode: logger.jsonMode,
+    isRetiring: config.getRetireTargets().length > 0,
   });
 
   const inputRoots = config.getInputRoots();
