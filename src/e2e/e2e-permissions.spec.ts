@@ -38,6 +38,7 @@ const permissionsGenerateTargets = [
   "zed",
   "amp",
   "devin",
+  "codebuddy",
   "codexcli",
   "commandcode",
   "cursor",
@@ -73,6 +74,7 @@ const permissionsGlobalTargets = [
   "pi",
   "opencode",
   "mimocode",
+  "codebuddy",
   "codexcli",
   "commandcode",
   "copilotcli",
@@ -126,6 +128,7 @@ describe("E2E: permissions", () => {
     // `.github/copilot/settings.json` is upstream's committed repository
     // settings file, so an empty payload must not leave a bare `{}` behind.
     { target: "copilotcli", relativePaths: [[".github", "copilot", "settings.json"]] },
+    { target: "codebuddy", relativePaths: [[".codebuddy", "settings.json"]] },
     { target: "commandcode", relativePaths: [[".commandcode", "settings.json"]] },
     { target: "lettacode", relativePaths: [[".letta", "settings.json"]] },
     { target: "qoder", relativePaths: [[".qoder", "settings.json"]] },
@@ -651,6 +654,63 @@ web_search_request = true
     expect(generated.deniedUrls).toEqual(["https://evil.example.com/*"]);
     expect(generated.allowedUrls).toBeUndefined();
     expect(generated.model).toBe("claude-sonnet-4.5");
+  });
+
+  it("should generate codebuddy permissions into .codebuddy/settings.json", async () => {
+    const testDir = getTestDir();
+
+    // Pre-existing settings owned by the user (and by the hooks feature) must
+    // survive the merge, including the siblings of the rule lists.
+    await writeFileContent(
+      join(testDir, ".codebuddy", "settings.json"),
+      JSON.stringify(
+        {
+          model: "gpt-5",
+          hooks: { Stop: [{ hooks: [{ type: "command", command: "echo done" }] }] },
+          permissions: { defaultMode: "acceptEdits", allow: ["Bash(stale)", "WebSearch"] },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await writeFileContent(
+      join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "git:*": "allow", "rm -rf *": "deny", "npm publish *": "ask" },
+            read: { "*": "allow" },
+            write: { ".env*": "deny" },
+            webfetch: { "domain:docs.example.com": "allow" },
+            mcp: { "*": "deny" },
+            mcp__github: { "*": "allow" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({ target: "codebuddy", features: "permissions" });
+
+    const generated = JSON.parse(
+      await readFileContent(join(testDir, ".codebuddy", "settings.json")),
+    );
+    expect(generated.model).toBe("gpt-5");
+    expect(generated.hooks.Stop).toHaveLength(1);
+    expect(generated.permissions).toEqual({
+      defaultMode: "acceptEdits",
+      allow: [
+        "WebSearch",
+        "Bash(git:*)",
+        "Read",
+        "WebFetch(domain:docs.example.com)",
+        "mcp__github",
+      ],
+      ask: ["Bash(npm publish *)"],
+      deny: ["Bash(rm -rf *)", "Write(.env*)", "mcp__*"],
+    });
   });
 
   it("should generate commandcode permissions into .commandcode/settings.json", async () => {
@@ -1999,6 +2059,38 @@ enabled = true
     expect(content.permission.webfetch["https://evil.example.com/*"]).toBe("deny");
   });
 
+  it("should import codebuddy permissions into .rulesync/permissions.jsonc", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, ".codebuddy", "settings.json"),
+      JSON.stringify(
+        {
+          model: "gpt-5",
+          permissions: {
+            defaultMode: "acceptEdits",
+            allow: ["Bash(git:*)", "Read", "mcp__github"],
+            ask: ["Bash(npm publish *)"],
+            deny: ["Write(.env*)", "mcp__*"],
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runImport({ target: "codebuddy", features: "permissions" });
+
+    const content = JSON.parse(
+      await readFileContent(join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH)),
+    );
+    expect(content.permission.bash).toEqual({ "git:*": "allow", "npm publish *": "ask" });
+    expect(content.permission.read).toEqual({ "*": "allow" });
+    expect(content.permission.write).toEqual({ ".env*": "deny" });
+    expect(content.permission.mcp).toEqual({ "*": "deny" });
+    expect(content.permission.mcp__github).toEqual({ "*": "allow" });
+  });
+
   it("should import commandcode permissions into .rulesync/permissions.jsonc", async () => {
     const testDir = getTestDir();
 
@@ -2332,6 +2424,38 @@ describe("E2E: permissions (global mode)", () => {
     // User scope is the only scope that accepts an allow list.
     expect(generated.allowedUrls).toEqual(["https://docs.example.com/*"]);
     expect(generated.deniedUrls).toEqual(["https://evil.example.com/*"]);
+  });
+
+  it("should generate codebuddy permissions in home directory with --global", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: { bash: { "git:*": "allow", "rm -rf *": "deny" }, websearch: { "*": "ask" } },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({
+      target: "codebuddy",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const generated = JSON.parse(
+      await readFileContent(join(homeDir, ".codebuddy", "settings.json")),
+    );
+    expect(generated.permissions).toEqual({
+      allow: ["Bash(git:*)"],
+      ask: ["WebSearch"],
+      deny: ["Bash(rm -rf *)"],
+    });
   });
 
   it("should generate commandcode permissions in home directory with --global", async () => {

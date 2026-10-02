@@ -11,6 +11,8 @@ import {
   AUGMENTCODE_HOOK_EVENTS,
   BOB_HOOK_EVENTS,
   CLAUDE_HOOK_EVENTS,
+  CODEBUDDY_HOOK_EVENTS,
+  CODEBUDDY_MATCHER_HOOK_EVENTS,
   CODEXCLI_HOOK_EVENTS,
   CODEWHALE_HOOK_EVENTS,
   CODEWHALE_MATCHER_HOOK_EVENTS,
@@ -66,6 +68,7 @@ import { BobHooks } from "./bob-hooks.js";
 import { ClaudecodeHooks } from "./claudecode-hooks.js";
 import { ClaudecodePluginHooks } from "./claudecode-plugin-hooks.js";
 import { ClineHooks } from "./cline-hooks.js";
+import { CodebuddyHooks } from "./codebuddy-hooks.js";
 import { CodewhaleHooks } from "./codewhale-hooks.js";
 import { CodexcliHooks } from "./codexcli-hooks.js";
 import { CommandcodeHooks } from "./commandcode-hooks.js";
@@ -409,6 +412,30 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       // The adapter only emits its own native events; unknown override-block
       // keys are dropped, so report them.
       dropsUnknownOverrideEvents: true,
+    },
+  ],
+  [
+    "codebuddy",
+    {
+      class: CodebuddyHooks,
+      meta: {
+        // CodeBuddy Code hooks live under the top-level `hooks` key of
+        // `.codebuddy/settings.json` (project) and `~/.codebuddy/settings.json`
+        // (user), in the Claude-Code shape with command, http, prompt and
+        // agent hooks.
+        // `matcher` is a regex over the tool name (or the event's source);
+        // UserPromptSubmit, Stop, SubagentStop and PostCompact fire
+        // unconditionally.
+        // https://www.codebuddy.ai/docs/cli/hooks
+        // https://www.codebuddy.ai/docs/cli/plugins-reference
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+      supportedEvents: CODEBUDDY_HOOK_EVENTS,
+      supportedHookTypes: ["command", "http", "prompt", "agent"],
+      supportsMatcher: true,
+      matcherEvents: CODEBUDDY_MATCHER_HOOK_EVENTS,
     },
   ],
   [
