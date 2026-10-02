@@ -383,6 +383,32 @@ function assertRetireTargetsExplicit({
   }
 }
 
+/**
+ * The CLI `--features` of a retiring run names the features to retire. It also
+ * scopes the run as usual — except with object-form `targets`, where per-target
+ * features live in the configuration file and a CLI `features` list may not
+ * replace them, so the run keeps the configured features.
+ */
+function splitRetireFeatures({
+  features,
+  retireTargets,
+  configByFile,
+}: {
+  features: ConfigResolverResolveParams["features"];
+  retireTargets: ConfigResolverResolveParams["retireTargets"];
+  configByFile: PartialConfigParams;
+}): {
+  runFeatures: ConfigResolverResolveParams["features"];
+  retireFeatures: ConfigResolverResolveParams["features"];
+} {
+  if (retireTargets === undefined || retireTargets.length === 0) {
+    return { runFeatures: features, retireFeatures: undefined };
+  }
+  const targetsIsObject =
+    configByFile.targets !== undefined && !Array.isArray(configByFile.targets);
+  return { runFeatures: targetsIsObject ? undefined : features, retireFeatures: features };
+}
+
 // oxlint-disable-next-line no-extraneous-class
 export class ConfigResolver {
   public static async resolve(
@@ -544,8 +570,13 @@ export class ConfigResolver {
       validatedConfigPath,
     });
 
-    const { resolvedFeatures, resolvedTargets } = resolveFeaturesAndTargets({
+    const { runFeatures, retireFeatures } = splitRetireFeatures({
       features,
+      retireTargets,
+      configByFile,
+    });
+    const { resolvedFeatures, resolvedTargets } = resolveFeaturesAndTargets({
+      features: runFeatures,
       targets,
       configByFile,
     });
@@ -605,6 +636,7 @@ export class ConfigResolver {
       dryRun: pick({ cli: dryRun, file: configByFile.dryRun, fallback: getDefaults().dryRun }),
       check: pick({ cli: check, file: configByFile.check, fallback: getDefaults().check }),
       retireTargets,
+      retireFeatures,
       // Pass the fully-resolved absolute list so `Config.getInputRoots()` is
       // pure and never re-reads `process.cwd()` after construction. When
       // neither CLI nor config file supplied a root, the list is `[cwd]`.

@@ -294,6 +294,30 @@ describe("config-resolver", () => {
       ).rejects.toThrow(/still configured: claudecode/);
     });
 
+    it("keeps the configured per-target features with object-form targets", async () => {
+      await writeFileContent(
+        join(testDir, "rulesync.jsonc"),
+        JSON.stringify({ outputRoots: ["./"], targets: { claudecode: ["rules"] } }),
+      );
+      const config = await ConfigResolver.resolve({
+        configPath: join(testDir, "rulesync.jsonc"),
+        retireTargets: ["cursor"],
+        features: ["mcp"],
+      });
+      expect(config.getFeatures("claudecode")).toEqual(["rules"]);
+      expect(config.getRetireFeatures()).toEqual(["mcp"]);
+    });
+
+    it("scopes an array-form run to the retired features", async () => {
+      const config = await ConfigResolver.resolve({
+        configPath: join(testDir, "rulesync.jsonc"),
+        retireTargets: ["cursor"],
+        features: ["mcp"],
+      });
+      expect(config.getFeatures()).toEqual(["mcp"]);
+      expect(config.getRetireFeatures()).toEqual(["mcp"]);
+    });
+
     it("is not a config-file option", async () => {
       await writeFileContent(
         join(testDir, "rulesync.jsonc"),

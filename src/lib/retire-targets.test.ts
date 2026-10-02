@@ -220,6 +220,26 @@ describe("generate with retireTargets", () => {
     expect(await fileExists(ignoreFile)).toBe(true);
   });
 
+  it("retires the listed features with object-form targets", async () => {
+    const stale = await writeStaleCursorRule();
+    const ignoreFile = join(testDir, ".cursorignore");
+    await writeFileContent(ignoreFile, "secret\n");
+
+    await generate({
+      config: createConfig({
+        targets: { claudecode: ["rules"] },
+        features: undefined,
+        retireTargets: ["cursor"],
+        retireFeatures: ["rules"],
+      }),
+      logger: createMockLogger(),
+    });
+
+    expect(await fileExists(stale)).toBe(false);
+    expect(await fileExists(ignoreFile)).toBe(true);
+    expect(await fileExists(join(testDir, "CLAUDE.md"))).toBe(true);
+  });
+
   it("retires the target in every output root", async () => {
     const { testDir: secondRoot, cleanup: cleanupSecond } = await setupTestDirectory();
     try {

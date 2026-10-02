@@ -205,6 +205,9 @@ export type ConfigParams = Omit<InferredConfigParams, "targets" | "features"> & 
   // stays out of `ConfigParamsSchema`: kept in `rulesync.jsonc` it would delete
   // whatever the user later puts at those paths by hand, on every run.
   retireTargets?: ToolTarget[];
+  // The features whose outputs `retireTargets` removes (the CLI `--features`
+  // of a retiring run). Defaults to the run's features.
+  retireFeatures?: RulesyncFeatures;
   // The `targets` / `features` selection exactly as the configuration file
   // declares it, before any CLI override. Set by `ConfigResolver`; lets a
   // `--targets`/`--features` run ask which features a target has in a full run.
@@ -454,6 +457,7 @@ export class Config {
   private readonly dryRun: boolean;
   private readonly check: boolean;
   private readonly retireTargets: ToolTarget[];
+  private readonly retireFeatures: RulesyncFeatures | undefined;
   /**
    * Ordered, absolute-path list of rulesync source trees. Each entry is a
    * source tree itself — the directory that directly contains `rules/`,
@@ -494,6 +498,7 @@ export class Config {
     dryRun,
     check,
     retireTargets,
+    retireFeatures,
     inputRoot,
     inputRoots,
     configFilePath,
@@ -561,6 +566,7 @@ export class Config {
     this.dryRun = dryRun ?? false;
     this.check = check ?? false;
     this.retireTargets = [...new Set(retireTargets ?? [])];
+    this.retireFeatures = retireFeatures;
     this.validateRetireTargets({ configFileTargets });
     // Capture the input roots once at construction time so subsequent
     // `getInputRoots()` calls are pure (independent of any later `chdir`).
@@ -943,6 +949,12 @@ export class Config {
    */
   public getRetireTargets(): ToolTarget[] {
     return this.retireTargets;
+  }
+
+  public getRetireFeatures(): Features {
+    return this.retireFeatures === undefined
+      ? this.getFeatures()
+      : Config.normalizeFeatureList(this.retireFeatures);
   }
 
   public getGlobal(): boolean {

@@ -190,7 +190,7 @@ export function scheduleRetiredTargetSweeps({
       continue;
     }
 
-    for (const feature of config.getFeatures()) {
+    for (const feature of config.getRetireFeatures()) {
       const spec = RETIREMENT_SPECS[feature];
       if (!spec.supportedTargets(config).includes(toolTarget)) continue;
 

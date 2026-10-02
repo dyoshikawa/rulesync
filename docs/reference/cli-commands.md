@@ -189,7 +189,9 @@ The `generate` command reads source files from one or more rulesync source trees
 >
 > For each listed feature, Rulesync deletes the files it would sweep with
 > `--delete` for that tool — the same managed paths, nothing else. Note that
-> `--features` scopes the whole run, not only the retirement.
+> `--features` scopes the whole run, not only the retirement — except with the
+> object form of `targets`, where the run keeps each target's configured
+> features and `--features` only names what to retire.
 >
 > - Unrelated files beside the managed paths stay, a shared file another tool
 >   merges into (such as `.claude/settings.json`) is never removed, and a
