@@ -103,6 +103,7 @@ import type {
 } from "./tool-hooks.js";
 import { ToolHooks } from "./tool-hooks.js";
 import { VibeHooks } from "./vibe-hooks.js";
+import { VibePluginHooks } from "./vibe-plugin-hooks.js";
 import { ZcodeHooks } from "./zcode-hooks.js";
 import { ZcodePluginHooks } from "./zcode-plugin-hooks.js";
 
@@ -261,6 +262,8 @@ export const HOOKS_OVERRIDE_KEY_ALIASES: Partial<Record<ToolTarget, string>> = {
   "kiro-ide": KIRO_HOOKS_OVERRIDE_KEY,
   // A ZCode plugin's hooks are ZCode hooks, so it reads the `zcode` block.
   "zcode-plugin": "zcode",
+  // A Vibe plugin's hooks are Vibe hooks, so it reads the `vibe` block.
+  "vibe-plugin": "vibe",
 };
 
 /** The targets whose hooks format carries a per-hook on-disk enable flag. */
@@ -974,6 +977,20 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       supportsMatcher: true,
       // The adapter only emits its own native events; unknown override-block
       // keys are dropped, so report them.
+      dropsUnknownOverrideEvents: true,
+    },
+  ],
+  [
+    "vibe-plugin",
+    {
+      // `<plugin>/ai.mistral.vibe/hooks.toml`, the same `[[hooks]]` array as
+      // `.vibe/hooks.toml`.
+      // https://github.com/mistralai/mistral-vibe/blob/v2.25.8/vibe/core/plugins/_native.py
+      class: VibePluginHooks,
+      meta: { supportsProject: true, supportsGlobal: false, supportsImport: true },
+      supportedEvents: VIBE_HOOK_EVENTS,
+      supportedHookTypes: ["command"],
+      supportsMatcher: true,
       dropsUnknownOverrideEvents: true,
     },
   ],
