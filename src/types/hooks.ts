@@ -257,6 +257,8 @@ export const HOOK_EVENTS = [
   "elicitation",
   "elicitationResult",
   "sessionDelete",
+  "preModelSwitch",
+  "postModelSwitch",
 ] as const;
 
 /** All canonical hook event names. */
@@ -330,6 +332,12 @@ export const CLAUDE_HOOK_EVENTS: readonly HookEvent[] = [
   "postCompact",
   "elicitation",
   "elicitationResult",
+  // Added in 2.1.251. `PreModelSwitch` runs before a requested model switch and
+  // can block it; `PostModelSwitch` runs after the session's model changes. Both
+  // match on the canonical name of the model being switched to.
+  // https://code.claude.com/docs/en/hooks
+  "preModelSwitch",
+  "postModelSwitch",
 ];
 
 /**
@@ -1792,6 +1800,8 @@ export const CANONICAL_TO_CLAUDE_EVENT_NAMES: Record<string, string> = {
   postCompact: "PostCompact",
   elicitation: "Elicitation",
   elicitationResult: "ElicitationResult",
+  preModelSwitch: "PreModelSwitch",
+  postModelSwitch: "PostModelSwitch",
 };
 
 /**
