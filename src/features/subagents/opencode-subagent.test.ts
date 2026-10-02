@@ -233,6 +233,24 @@ Assist with any tasks`,
     );
   });
 
+  it("should type the hidden, color, steps, and variant agent fields", () => {
+    expect(
+      OpenCodeSubagentFrontmatterSchema.safeParse({
+        description: "Agent",
+        hidden: true,
+        color: "#FF5733",
+        steps: 5,
+        variant: "high",
+      }).success,
+    ).toBe(true);
+    expect(
+      OpenCodeSubagentFrontmatterSchema.safeParse({ description: "Agent", hidden: "yes" }).success,
+    ).toBe(false);
+    expect(
+      OpenCodeSubagentFrontmatterSchema.safeParse({ description: "Agent", steps: "five" }).success,
+    ).toBe(false);
+  });
+
   it("should apply default mode 'subagent' when mode is omitted", async () => {
     const dirPath = join(testDir, ".opencode", "agents");
     const filePath = join(dirPath, "no-mode.md");
