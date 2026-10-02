@@ -2259,6 +2259,40 @@ enabled = true
     expect(content.permission.bash["rm -rf"]).toBe("deny");
     expect(content.permission.bash["curl "]).toBeUndefined();
   });
+
+  it("should merge successive imports from different tools per category", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, ".claude", "settings.json"),
+      JSON.stringify(
+        {
+          permissions: {
+            allow: ["Bash(git *)", "Edit(src/**)"],
+            deny: ["Read(.env)"],
+          },
+        },
+        null,
+        2,
+      ),
+    );
+    await writeFileContent(
+      join(testDir, ".vscode", "settings.json"),
+      JSON.stringify({ "roo-cline.allowedCommands": ["npm "] }, null, 2),
+    );
+
+    await runImport({ target: "claudecode", features: "permissions" });
+    await runImport({ target: "roo", features: "permissions" });
+
+    const content = JSON.parse(
+      await readFileContent(join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH)),
+    );
+    // Roo Code maps only shell commands, so it replaces the `bash` category and
+    // leaves the categories the Claude Code import produced in place.
+    expect(content.permission.bash).toEqual({ "npm ": "allow" });
+    expect(content.permission.edit).toEqual({ "src/**": "allow" });
+    expect(content.permission.read).toEqual({ ".env": "deny" });
+  });
 });
 
 describe("E2E: permissions (global mode)", () => {
