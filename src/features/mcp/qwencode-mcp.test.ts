@@ -236,6 +236,85 @@ describe("QwencodeMcp", () => {
     });
   });
 
+  describe("fromFile", () => {
+    const writeSettings = async (mcpServers: Record<string, unknown>) => {
+      await ensureDir(join(testDir, ".qwen"));
+      await writeFileContent(
+        join(testDir, ".qwen", "settings.json"),
+        JSON.stringify({ mcpServers }, null, 2),
+      );
+    };
+    const writeProjectMcpJson = async (mcpServers: Record<string, unknown>) => {
+      await writeFileContent(join(testDir, ".mcp.json"), JSON.stringify({ mcpServers }, null, 2));
+    };
+
+    it("should import servers from the project .mcp.json when settings.json is absent", async () => {
+      await writeProjectMcpJson({
+        claude: { type: "stdio", command: "node", args: ["claude.js"] },
+      });
+
+      const qwencodeMcp = await QwencodeMcp.fromFile({ outputRoot: testDir });
+
+      expect(qwencodeMcp.getJson().mcpServers).toEqual({
+        claude: { type: "stdio", command: "node", args: ["claude.js"] },
+      });
+      expect(qwencodeMcp.getRelativeDirPath()).toBe(".qwen");
+      expect(qwencodeMcp.getRelativeFilePath()).toBe("settings.json");
+    });
+
+    it("should merge .mcp.json servers beneath settings.json, letting settings win on a name clash", async () => {
+      await writeSettings({
+        shared: { command: "settings-cmd" },
+        settingsOnly: { command: "settings-only" },
+      });
+      await writeProjectMcpJson({
+        shared: { type: "stdio", command: "mcp-json-cmd" },
+        mcpJsonOnly: { type: "http", url: "https://example.com/mcp" },
+      });
+
+      const qwencodeMcp = await QwencodeMcp.fromFile({ outputRoot: testDir });
+
+      expect(qwencodeMcp.getJson().mcpServers).toEqual({
+        shared: { command: "settings-cmd" },
+        settingsOnly: { command: "settings-only" },
+        mcpJsonOnly: { type: "http", url: "https://example.com/mcp" },
+      });
+    });
+
+    it("should map includeTools/excludeTools declared in .mcp.json on import", async () => {
+      await writeProjectMcpJson({
+        filtered: { command: "node", includeTools: ["read"], excludeTools: ["write"] },
+      });
+
+      const qwencodeMcp = await QwencodeMcp.fromFile({ outputRoot: testDir });
+      const exported = JSON.parse(qwencodeMcp.toRulesyncMcp().getFileContent());
+
+      expect(exported.mcpServers.filtered).toEqual({
+        command: "node",
+        enabledTools: ["read"],
+        disabledTools: ["write"],
+      });
+    });
+
+    it("should ignore a .mcp.json without an mcpServers object", async () => {
+      await writeSettings({ server: { command: "node" } });
+      await writeFileContent(join(testDir, ".mcp.json"), JSON.stringify({ mcpServers: [] }));
+
+      const qwencodeMcp = await QwencodeMcp.fromFile({ outputRoot: testDir });
+
+      expect(qwencodeMcp.getJson().mcpServers).toEqual({ server: { command: "node" } });
+    });
+
+    it("should not read the project .mcp.json in global mode", async () => {
+      await writeSettings({ globalServer: { command: "node" } });
+      await writeProjectMcpJson({ claude: { command: "claude" } });
+
+      const qwencodeMcp = await QwencodeMcp.fromFile({ outputRoot: testDir, global: true });
+
+      expect(qwencodeMcp.getJson().mcpServers).toEqual({ globalServer: { command: "node" } });
+    });
+  });
+
   describe("toRulesyncMcp", () => {
     it("should round-trip and map includeTools->enabledTools / excludeTools->disabledTools", () => {
       const jsonData = {

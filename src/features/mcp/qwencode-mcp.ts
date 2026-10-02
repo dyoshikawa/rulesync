@@ -1,6 +1,10 @@
 import { join } from "node:path";
 
-import { QWENCODE_DIR, QWENCODE_SETTINGS_FILE_NAME } from "../../constants/qwencode-paths.js";
+import {
+  QWENCODE_DIR,
+  QWENCODE_PROJECT_MCP_FILE_NAME,
+  QWENCODE_SETTINGS_FILE_NAME,
+} from "../../constants/qwencode-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { McpServers } from "../../types/mcp.js";
 import { readFileContentOrNull } from "../../utils/file.js";
@@ -110,6 +114,20 @@ function buildMcpSettingsPatch({
   return { ...existingMcp, ...lists };
 }
 
+/**
+ * Read the `mcpServers` of the project-root `.mcp.json`, or `{}` when the file
+ * is absent or declares no server map. Entries keep Claude's `type`-based
+ * transport shape, which is already rulesync's canonical shape.
+ */
+async function readProjectMcpJsonServers(outputRoot: string): Promise<Record<string, unknown>> {
+  const content = await readFileContentOrNull(join(outputRoot, QWENCODE_PROJECT_MCP_FILE_NAME));
+  if (content === null) {
+    return {};
+  }
+  const parsed: unknown = JSON.parse(content);
+  return isPlainObject(parsed) && isPlainObject(parsed.mcpServers) ? parsed.mcpServers : {};
+}
+
 export class QwencodeMcp extends ToolMcp {
   private readonly json: Record<string, unknown>;
 
@@ -146,7 +164,14 @@ export class QwencodeMcp extends ToolMcp {
         join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
       )) ?? '{"mcpServers":{}}';
     const json = JSON.parse(fileContent);
-    const newJson = { ...json, mcpServers: json.mcpServers ?? {} };
+    // In project scope Qwen Code also loads the Claude-parity `.mcp.json`
+    // beneath `.qwen/settings.json`, so its servers are merged in underneath
+    // and a same-named settings server wins. It has no global counterpart.
+    const projectMcpJsonServers = global ? {} : await readProjectMcpJsonServers(outputRoot);
+    const newJson = {
+      ...json,
+      mcpServers: { ...projectMcpJsonServers, ...json.mcpServers },
+    };
 
     return new QwencodeMcp({
       outputRoot,
