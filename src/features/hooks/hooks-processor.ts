@@ -38,6 +38,7 @@ import {
   KIRO_IDE_HOOK_EVENTS,
   LETTACODE_HOOK_EVENTS,
   OPENCODE_HOOK_EVENTS,
+  OPENCODE_MATCHER_HOOK_EVENTS,
   PI_HOOK_EVENTS,
   POOL_HOOK_EVENTS,
   QODER_HOOK_EVENTS,
@@ -547,7 +548,7 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       supportedEvents: KILO_HOOK_EVENTS,
       supportedHookTypes: ["command"],
       supportsMatcher: true,
-      matcherEvents: ["preToolUse", "postToolUse"],
+      matcherEvents: OPENCODE_MATCHER_HOOK_EVENTS,
       // The adapter only emits its own native events; unknown override-block
       // keys are dropped, so report them.
       dropsUnknownOverrideEvents: true,
@@ -565,7 +566,7 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       supportedEvents: OPENCODE_HOOK_EVENTS,
       supportedHookTypes: ["command"],
       supportsMatcher: true,
-      matcherEvents: ["preToolUse", "postToolUse"],
+      matcherEvents: OPENCODE_MATCHER_HOOK_EVENTS,
       // The adapter only emits its own native events; unknown override-block
       // keys are dropped, so report them.
       dropsUnknownOverrideEvents: true,
@@ -583,7 +584,7 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       supportedEvents: OPENCODE_HOOK_EVENTS,
       supportedHookTypes: ["command"],
       supportsMatcher: true,
-      matcherEvents: ["preToolUse", "postToolUse"],
+      matcherEvents: OPENCODE_MATCHER_HOOK_EVENTS,
       // The adapter only emits its own native events; unknown override-block
       // keys are dropped, so report them.
       dropsUnknownOverrideEvents: true,

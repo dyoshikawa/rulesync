@@ -126,6 +126,39 @@ describe("KiloHooks", () => {
       expect(content).not.toContain('event.type === "chat.message"');
     });
 
+    it("emits the session-deleted, slash-command and model-request events", () => {
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            sessionDelete: [{ command: "on-delete.sh" }],
+            userPromptExpansion: [{ command: "deploy-command.sh", matcher: "^deploy$" }],
+            preModelInvocation: [{ command: "pre-model.sh" }],
+          },
+        }),
+        validate: false,
+      });
+
+      const content = KiloHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      }).getFileContent();
+
+      // Kilo's plugin docs list `session.deleted`, `command.execute.before`
+      // and `chat.params` alongside the rest of OpenCode's surface.
+      expect(content).toContain('event.type === "session.deleted"');
+      expect(content).toContain("on-delete.sh");
+      expect(content).toContain('"command.execute.before": async (input) => {');
+      expect(content).toContain("if (__re.test(input.command)) {");
+      expect(content).toContain("deploy-command.sh");
+      expect(content).toContain('"chat.params": async (input) => {');
+      expect(content).toContain("pre-model.sh");
+    });
+
     it("should generate tool event handlers with matcher support", () => {
       const config = {
         version: 1,

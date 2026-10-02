@@ -63,6 +63,15 @@ describe("OpenCodeCommand", () => {
     });
   });
 
+  it("should type the variant field", () => {
+    expect(
+      OpenCodeCommandFrontmatterSchema.safeParse({ description: "Cmd", variant: "high" }).success,
+    ).toBe(true);
+    expect(
+      OpenCodeCommandFrontmatterSchema.safeParse({ description: "Cmd", variant: 1 }).success,
+    ).toBe(false);
+  });
+
   describe("getSettablePaths", () => {
     it("should return project and global paths", () => {
       expect(OpenCodeCommand.getSettablePaths()).toEqual({
