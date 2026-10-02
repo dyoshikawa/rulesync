@@ -116,9 +116,7 @@ describe("installGh", () => {
     },
   ])("treats skills ['*'] as all skills $label", async ({ entry, treeOutput, skills }) => {
     mockExecFileAsync.mockImplementation(async (_bin, args) =>
-      args[0] === "api"
-        ? { stdout: treeOutput ?? "", stderr: "" }
-        : { stdout: "", stderr: "" },
+      args[0] === "api" ? { stdout: treeOutput ?? "", stderr: "" } : { stdout: "", stderr: "" },
     );
 
     const result = await installGh({ projectRoot: testDir, sources: [entry], logger });
