@@ -251,6 +251,7 @@ export function createProgram(): Command {
       "--update",
       "Force re-resolve all source refs, ignoring lockfile (not supported in gh mode)",
     )
+    .option("-f, --force", "Overwrite existing skills without prompting (gh mode only)")
     .option(
       "--frozen",
       "Fail if lockfile is missing or out of sync (for CI); fetches missing skills using locked refs (not supported in gh mode)",
@@ -269,6 +270,7 @@ export function createProgram(): Command {
         const mode = parseInstallMode(rawMode);
         await installCommand(logger, {
           mode,
+          force: (options as { force?: boolean }).force,
           update: (options as { update?: boolean }).update,
           frozen: (options as { frozen?: boolean }).frozen,
           outdated: (options as { outdated?: boolean }).outdated,

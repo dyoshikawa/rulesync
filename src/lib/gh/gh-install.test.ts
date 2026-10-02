@@ -1,4 +1,5 @@
-import type { ExecFileOptionsWithStringEncoding } from "node:child_process";
+import type { ExecFileOptionsWithStringEncoding, SpawnOptions } from "node:child_process";
+import { EventEmitter } from "node:events";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -16,11 +17,13 @@ type GhExecFileAsync = (
   options: GhExecOptions,
 ) => Promise<{ stdout: string; stderr: string }>;
 
-const { mockExecFileAsync } = vi.hoisted(() => ({
+const { mockExecFileAsync, mockSpawn } = vi.hoisted(() => ({
   mockExecFileAsync: vi.fn<GhExecFileAsync>(),
+  mockSpawn:
+    vi.fn<(file: string, args: readonly string[], options: SpawnOptions) => EventEmitter>(),
 }));
 
-vi.mock("node:child_process", () => ({ execFile: vi.fn() }));
+vi.mock("node:child_process", () => ({ execFile: vi.fn(), spawn: mockSpawn }));
 vi.mock("node:util", () => ({ promisify: () => mockExecFileAsync }));
 
 import type { SourceEntry } from "../../config/config.js";
@@ -35,7 +38,7 @@ function source(overrides: SourceEntry): SourceEntry {
 describe("installGh", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
-  const logger = createMockLogger();
+  const logger = { ...createMockLogger(), jsonMode: true };
 
   beforeEach(async () => {
     ({ testDir, cleanup } = await setupTestDirectory());
@@ -45,6 +48,7 @@ describe("installGh", () => {
   afterEach(async () => {
     await cleanup();
     vi.clearAllMocks();
+    vi.unstubAllEnvs();
   });
 
   it("delegates a selected skill and explicit ref to gh without --pin", async () => {
@@ -62,7 +66,6 @@ describe("installGh", () => {
       "github-copilot",
       "--scope",
       "project",
-      "--force",
       "--",
       "https://github.com/owner/repo",
       "cleanup@v1.2",
@@ -80,7 +83,6 @@ describe("installGh", () => {
       "github-copilot",
       "--scope",
       "project",
-      "--force",
       "--all",
       "--",
       "https://github.com/owner/repo",
@@ -137,7 +139,6 @@ describe("installGh", () => {
           "github-copilot",
           "--scope",
           "project",
-          "--force",
           "--all",
           "--",
           "https://github.com/owner/repo",
@@ -181,7 +182,6 @@ describe("installGh", () => {
         "github-copilot",
         "--scope",
         "project",
-        "--force",
         "--",
         "https://github.com/owner/repo",
         "skills/alpha/SKILL.md@release/v2",
@@ -207,7 +207,6 @@ describe("installGh", () => {
       "gemini-cli",
       "--scope",
       "user",
-      "--force",
       "--",
       "https://github.com/owner/one",
       "s",
@@ -219,7 +218,6 @@ describe("installGh", () => {
       "custom-agent",
       "--scope",
       "user",
-      "--force",
       "--",
       "https://github.com/owner/two",
       "s",
@@ -230,6 +228,7 @@ describe("installGh", () => {
   });
 
   it("passes a token only through GH_TOKEN in the child environment", async () => {
+    vi.stubEnv("GH_PROMPT_DISABLED", undefined);
     await installGh({
       projectRoot: testDir,
       sources: [source({ source: "owner/repo", skills: ["s"] })],
@@ -240,24 +239,116 @@ describe("installGh", () => {
     for (const [, args, options] of mockExecFileAsync.mock.calls) {
       expect(args.join(" ")).not.toContain("secret-value");
       expect(options.env.GH_TOKEN).toBe("secret-value");
-      expect(options.env.GH_PROMPT_DISABLED).toBe("1");
+      expect(options.env.GH_PROMPT_DISABLED).toBeUndefined();
     }
   });
 
-  it.each([{ frozen: true }, { update: true }])(
-    "rejects unsupported options before any gh call: %o",
-    async (options) => {
-      await expect(
-        installGh({
-          projectRoot: testDir,
-          sources: [source({ source: "owner/repo" })],
-          options,
-          logger,
-        }),
-      ).rejects.toThrow(options.frozen ? /--frozen is not supported/ : /--update is not supported/);
-      expect(mockExecFileAsync).not.toHaveBeenCalled();
-    },
-  );
+  it.each(["update", "frozen"] as const)("rejects --%s before invoking gh", async (flag) => {
+    await expect(
+      installGh({
+        projectRoot: testDir,
+        sources: [source({ source: "owner/repo" })],
+        options: { [flag]: true },
+        logger,
+      }),
+    ).rejects.toThrow(`--${flag} is not supported`);
+    expect(mockExecFileAsync).not.toHaveBeenCalled();
+    expect(mockSpawn).not.toHaveBeenCalled();
+  });
+
+  it("passes --force only when explicitly requested", async () => {
+    const result = await installGh({
+      projectRoot: testDir,
+      sources: [source({ source: "owner/repo", ref: "v1.2", skills: ["cleanup"] })],
+      options: { force: true },
+      logger,
+    });
+
+    const calls = mockExecFileAsync.mock.calls.map(([, args]) => args);
+    const allArgs = calls.flat();
+    expect(result).toEqual({ sourcesProcessed: 1, failedSourceCount: 0 });
+    expect(calls).toContainEqual([
+      "skill",
+      "install",
+      "--agent",
+      "github-copilot",
+      "--scope",
+      "project",
+      "--force",
+      "--",
+      "https://github.com/owner/repo",
+      "cleanup@v1.2",
+    ]);
+    expect(calls.some((args) => args[0] === "skill" && args[1] === "update")).toBe(false);
+    expect(allArgs).not.toContain("--pin");
+    expect(allArgs).not.toContain("rulesync-gh.lock.yaml");
+  });
+
+  it("lets gh use the existing terminal for normal output", async () => {
+    const child = new EventEmitter();
+    // Only the child lifecycle is simulated; gh owns terminal detection and prompts.
+    mockSpawn.mockReturnValue(child);
+    vi.stubEnv("GH_PROMPT_DISABLED", "1");
+    const result = installGh({
+      projectRoot: testDir,
+      sources: [source({ source: "owner/repo", skills: ["s"] })],
+      options: { token: "secret-value" },
+      logger: createMockLogger(),
+    });
+    await vi.waitFor(() => expect(mockSpawn).toHaveBeenCalledOnce());
+    expect(mockSpawn).toHaveBeenCalledWith(
+      "gh",
+      [
+        "skill",
+        "install",
+        "--agent",
+        "github-copilot",
+        "--scope",
+        "project",
+        "--",
+        "https://github.com/owner/repo",
+        "s",
+      ],
+      expect.objectContaining({
+        cwd: testDir,
+        stdio: "inherit",
+        env: expect.objectContaining({ GH_TOKEN: "secret-value", GH_PROMPT_DISABLED: "1" }),
+      }),
+    );
+    child.emit("close", 0, null);
+    expect(await result).toEqual({ sourcesProcessed: 1, failedSourceCount: 0 });
+  });
+
+  it.each([
+    { event: "close", values: [1, null], message: "gh exited with code 1" },
+    { event: "close", values: [null, "SIGTERM"], message: "gh terminated by SIGTERM" },
+    { event: "error", values: [new Error("spawn failed")], message: "spawn failed" },
+  ])("reports inherited subprocess failure: $message", async ({ event, values, message }) => {
+    const child = new EventEmitter();
+    mockSpawn.mockReturnValue(child);
+    const textLogger = createMockLogger();
+    const result = installGh({
+      projectRoot: testDir,
+      sources: [source({ source: "owner/repo", skills: ["s"] })],
+      logger: textLogger,
+    });
+    await vi.waitFor(() => expect(mockSpawn).toHaveBeenCalledOnce());
+    child.emit(event, ...values);
+    expect(await result).toEqual({ sourcesProcessed: 1, failedSourceCount: 1 });
+    expect(textLogger.warn).toHaveBeenCalledWith(expect.stringContaining(message));
+  });
+
+  it.each([{ jsonMode: true }, { silent: true }])("captures gh output for %o", async (output) => {
+    mockExecFileAsync.mockResolvedValue({ stdout: "Installed skill", stderr: "" });
+    const outputLogger = { ...createMockLogger(), ...output };
+    await installGh({
+      projectRoot: testDir,
+      sources: [source({ source: "owner/repo", skills: ["s"] })],
+      logger: outputLogger,
+    });
+    expect(mockSpawn).not.toHaveBeenCalled();
+    expect(outputLogger.info).toHaveBeenCalledWith("Installed skill");
+  });
 
   it.each([{ path: "skills" }, { skills: [""] }])(
     "validates every source before invoking gh: %o",

@@ -387,12 +387,32 @@ describe("installCommand", () => {
         expect.objectContaining({
           sources,
           projectRoot: process.cwd(),
-          options: { update: undefined, frozen: undefined, token: undefined },
+          options: { force: undefined, update: undefined, frozen: undefined, token: undefined },
         }),
       );
-      expect(mockLogger.success).toHaveBeenCalledWith(
-        "Installed skills from 1 gh source(s) using GitHub CLI.",
+      expect(mockLogger.success).toHaveBeenCalledWith("Processed 1 gh source(s) using GitHub CLI.");
+    });
+
+    it("forwards explicit force to gh", async () => {
+      vi.mocked(ConfigResolver.resolve).mockResolvedValue(
+        createMockConfig([{ source: "owner/repo" }]),
       );
+      vi.mocked(installGh).mockResolvedValue({ sourcesProcessed: 1, failedSourceCount: 0 });
+      await installCommand(mockLogger, { mode: "gh", force: true });
+      expect(installGh).toHaveBeenCalledWith(
+        expect.objectContaining({
+          options: expect.objectContaining({ force: true }),
+        }),
+      );
+    });
+
+    it.each([undefined, "rulesync", "apm"] as const)("rejects --force in mode %s", async (mode) => {
+      await expect(installCommand(mockLogger, { mode, force: true })).rejects.toThrow(
+        "--force is only supported in gh mode.",
+      );
+      expect(installGh).not.toHaveBeenCalled();
+      expect(installApm).not.toHaveBeenCalled();
+      expect(resolveAndFetchSources).not.toHaveBeenCalled();
     });
 
     it("warns when no sources are defined", async () => {

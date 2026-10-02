@@ -10,7 +10,7 @@ const exec = promisify(execFile);
 const repo = process.env.RULESYNC_GH_TEST_REPO;
 
 // RULESYNC_GH_TEST_REPO=owner/disposable-repo npx vitest run src/cli/commands/install-gh.integration.test.ts
-// Use a repository with no other skills or releases: this test writes two commits.
+// Use a repository with no other skills or releases: this test writes three commits.
 // Uses real gh, real GitHub, and the full Rulesync CLI, with isolated homes.
 it.skipIf(!repo)(
   "installs, migrates, and updates through real gh after the source advances",
@@ -73,13 +73,7 @@ it.skipIf(!repo)(
       const firstSha = await publish("version-one", previousSha);
       const branch = JSON.parse(await gh(["api", `repos/${repo}`])).default_branch as string;
       const legacyDir = join(project, ".claude", "skills", "rulesync-interop");
-      await mkdir(legacyDir, { recursive: true });
       const extra = join(legacyDir, "extra.txt");
-      await writeFile(extra, "old extra file");
-      await writeFile(
-        join(legacyDir, "SKILL.md"),
-        `---\nname: rulesync-interop\nsource: https://github.com/${repo}\nrepository: ${repo}\nref: old\n---\nlegacy\n`,
-      );
       const lock = join(project, "rulesync-gh.lock.yaml");
       await writeFile(lock, "invalid old lock: [");
       await writeFile(
@@ -92,11 +86,7 @@ it.skipIf(!repo)(
           ],
         }),
       );
-      expect(await gh(["skill", "update", "--dry-run", "--all"])).toContain(
-        "has no GitHub metadata",
-      );
       await install();
-      expect(await readFile(extra, "utf8")).toBe("old extra file");
       const list = JSON.parse(
         await gh(["skill", "list", "--json", "skillName,sourceURL,version,pinned,path"]),
       );
@@ -110,6 +100,25 @@ it.skipIf(!repo)(
         });
         expect(await readFile(join(skill.path, "SKILL.md"), "utf8")).toContain("github-tree-sha:");
       }
+      const installed = join(legacyDir, "SKILL.md");
+      const fresh = await readFile(installed, "utf8");
+      await expect(install()).rejects.toMatchObject({
+        code: 1,
+        stderr: expect.stringContaining("use --force to overwrite"),
+      });
+      expect(await readFile(installed, "utf8")).toBe(fresh);
+
+      const legacy = `---\nname: rulesync-interop\nsource: https://github.com/${repo}\nrepository: ${repo}\nref: old\n---\nlegacy\n`;
+      await writeFile(installed, legacy);
+      await writeFile(extra, "old extra file");
+      expect(await gh(["skill", "update", "--dry-run", "--all"])).toContain(
+        "has no GitHub metadata",
+      );
+      await expect(install()).rejects.toThrow("use --force to overwrite");
+      expect(await readFile(installed, "utf8")).toBe(legacy);
+      await install(["--force"]);
+      expect(await readFile(extra, "utf8")).toBe("old extra file");
+      expect(await readFile(installed, "utf8")).toBe(fresh);
       expect(await readFile(lock, "utf8")).toBe("invalid old lock: [");
       await rm(lock);
       const nativeLock = JSON.parse(
@@ -122,7 +131,7 @@ it.skipIf(!repo)(
       const installedBefore = await readFile(join(legacyDir, "SKILL.md"), "utf8");
       expect(installedBefore).toContain("version-one");
       expect(installedBefore).not.toContain("\nrepository:");
-      await publish("version-two", firstSha);
+      const secondSha = await publish("version-two", firstSha);
       expect(await gh(["skill", "update", "--dry-run", "--all"])).toContain("update(s) available");
       expect(await readFile(join(legacyDir, "SKILL.md"), "utf8")).toBe(installedBefore);
       expect(await gh(["skill", "update", "--all"])).toContain("Updated rulesync-interop");
@@ -132,7 +141,11 @@ it.skipIf(!repo)(
       }
       await expect(install(["--frozen"])).rejects.toThrow("--frozen is not supported");
       await expect(install(["--update"])).rejects.toThrow("--update is not supported");
-      await install();
+      await publish("version-three", secondSha);
+      await install(["--force"]);
+      for (const skill of list) {
+        expect(await readFile(join(skill.path, "SKILL.md"), "utf8")).toContain("version-three");
+      }
       await expect(readFile(lock)).rejects.toMatchObject({ code: "ENOENT" });
     } finally {
       await rm(root, { recursive: true, force: true });

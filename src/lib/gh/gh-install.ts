@@ -1,4 +1,4 @@
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
 
 import { z } from "zod/mini";
@@ -11,6 +11,7 @@ import { parseSource } from "../source-parser.js";
 const execFileAsync = promisify(execFile);
 
 export type GhInstallOptions = {
+  force?: boolean;
   update?: boolean;
   frozen?: boolean;
   token?: string;
@@ -22,14 +23,14 @@ export type GhInstallResult = {
 };
 
 export function validateGhOptions(options: GhInstallOptions): void {
+  if (options.update) {
+    throw new Error(
+      "--update is not supported in gh mode. Use --force to overwrite skills from the declared sources, or 'gh skill update --all' for GitHub CLI's update behavior.",
+    );
+  }
   if (options.frozen) {
     throw new Error(
       "--frozen is not supported in gh mode: GitHub CLI does not provide a frozen install. Use an explicit full commit SHA in source.ref for a fixed installation, or --mode rulesync for lockfile-based installs.",
-    );
-  }
-  if (options.update) {
-    throw new Error(
-      "--update is not supported in gh mode. Use 'gh skill update --all' (optionally with --dir) for GitHub CLI's update policy, or 'rulesync install --mode gh' to reinstall the declared refs.",
     );
   }
 }
@@ -46,15 +47,35 @@ export async function installGh(params: {
   const resolved = sources.map(resolveGhSource);
   if (resolved.length === 0) return { sourcesProcessed: 0, failedSourceCount: 0 };
 
-  const runGh = async (args: string[]): Promise<string> => {
+  const runGh = async ({
+    args,
+    inheritStdio = false,
+  }: {
+    args: string[];
+    inheritStdio?: boolean;
+  }): Promise<string> => {
+    const env = {
+      ...process.env,
+      ...(options.token ? { GH_TOKEN: options.token } : {}),
+    };
     try {
+      if (inheritStdio) {
+        await new Promise<void>((resolve, reject) => {
+          const child = spawn("gh", args, { cwd: projectRoot, env, stdio: "inherit" });
+          child.once("error", reject);
+          child.once("close", (code, signal) => {
+            if (code === 0) resolve();
+            else
+              reject(
+                new Error(signal ? `gh terminated by ${signal}` : `gh exited with code ${code}`),
+              );
+          });
+        });
+        return "";
+      }
       const { stdout, stderr } = await execFileAsync("gh", args, {
         cwd: projectRoot,
-        env: {
-          ...process.env,
-          GH_PROMPT_DISABLED: "1",
-          ...(options.token ? { GH_TOKEN: options.token } : {}),
-        },
+        env,
         maxBuffer: 16 * 1024 * 1024,
       });
       if (stderr.trim()) logger.info(stderr.trim());
@@ -70,20 +91,22 @@ export async function installGh(params: {
   };
 
   // Fail before installing anything when gh is missing or predates gh skill.
-  await runGh(["skill", "install", "--help"]);
+  await runGh({ args: ["skill", "install", "--help"] });
   let failedSourceCount = 0;
   for (const source of resolved) {
     try {
-      let skills = source.entry.skills?.includes("*") ? undefined : source.entry.skills;
+      let skills = source.skills;
       if ((!skills || skills.length === 0) && source.ref) {
         // gh --all cannot be combined with skill@ref. Preserve the existing
         // root skills/* selection at an explicit ref, then let gh install it.
-        const output = await runGh([
-          "api",
-          "--hostname",
-          "github.com",
-          `repos/${source.owner}/${source.repo}/git/trees/${encodeURIComponent(source.ref)}?recursive=1`,
-        ]);
+        const output = await runGh({
+          args: [
+            "api",
+            "--hostname",
+            "github.com",
+            `repos/${source.owner}/${source.repo}/git/trees/${encodeURIComponent(source.ref)}?recursive=1`,
+          ],
+        });
         const tree = z
           .object({
             truncated: z.boolean(),
@@ -100,19 +123,24 @@ export async function installGh(params: {
       }
       const selections = skills?.length ? skills : [undefined];
       for (const skill of selections) {
-        const stdout = await runGh([
-          "skill",
-          "install",
-          "--agent",
-          source.agent,
-          "--scope",
-          source.entry.scope ?? "project",
-          "--force",
-          ...(skill ? [] : ["--all"]),
-          "--",
-          `https://github.com/${source.owner}/${source.repo}`,
-          ...(skill ? [source.ref ? `${skill}@${source.ref}` : skill] : []),
-        ]);
+        const stdout = await runGh({
+          // Let gh detect the terminal and own its overwrite prompts. Capture
+          // output only when Rulesync must provide JSON or silent output.
+          inheritStdio: !logger.jsonMode && !logger.silent,
+          args: [
+            "skill",
+            "install",
+            "--agent",
+            source.agent,
+            "--scope",
+            source.entry.scope ?? "project",
+            ...(options.force ? ["--force"] : []),
+            ...(skill ? [] : ["--all"]),
+            "--",
+            `https://github.com/${source.owner}/${source.repo}`,
+            ...(skill ? [source.ref ? `${skill}@${source.ref}` : skill] : []),
+          ],
+        });
         if (stdout.trim()) logger.info(stdout.trim());
       }
     } catch (error) {
@@ -142,6 +170,7 @@ function resolveGhSource(entry: SourceEntry) {
   return {
     ...parsed,
     entry,
+    skills: entry.skills?.includes("*") ? undefined : entry.skills,
     ref: entry.ref ?? parsed.ref,
     // Retain the old Rulesync spelling while using GitHub CLI's agent ID.
     agent: entry.agent === "gemini" ? "gemini-cli" : (entry.agent ?? "github-copilot"),

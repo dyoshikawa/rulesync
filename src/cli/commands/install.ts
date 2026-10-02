@@ -12,6 +12,7 @@ export type InstallMode = (typeof INSTALL_MODES)[number];
 
 export type InstallCommandOptions = {
   mode?: InstallMode;
+  force?: boolean;
   update?: boolean;
   frozen?: boolean;
   outdated?: boolean;
@@ -26,6 +27,10 @@ export async function installCommand(
   options: InstallCommandOptions,
 ): Promise<void> {
   const mode: InstallMode = options.mode ?? "rulesync";
+
+  if (options.force && mode !== "gh") {
+    throw new Error("--force is only supported in gh mode.");
+  }
 
   if (options.outdated) {
     if (mode !== "rulesync") {
@@ -260,6 +265,7 @@ async function runGhInstall(logger: Logger, options: InstallCommandOptions): Pro
     projectRoot,
     sources,
     options: {
+      force: options.force,
       update: options.update,
       frozen: options.frozen,
       token: options.token,
@@ -278,5 +284,5 @@ async function runGhInstall(logger: Logger, options: InstallCommandOptions): Pro
     );
   }
 
-  logger.success(`Installed skills from ${result.sourcesProcessed} gh source(s) using GitHub CLI.`);
+  logger.success(`Processed ${result.sourcesProcessed} gh source(s) using GitHub CLI.`);
 }

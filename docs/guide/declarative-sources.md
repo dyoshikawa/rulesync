@@ -172,7 +172,17 @@ Omitting `skills`, using an empty array, or including `"*"` installs all skills.
 }
 ```
 
-Each `rulesync install --mode gh` reinstalls the declarations with `gh skill install --force`. Sources run in declaration order, so later sources can overwrite earlier installations at the same destination. Reinstallation refreshes the declared ref and overwrites files supplied by that source. It does not prune removed declarations or extra files; manage those explicitly. GitHub CLI owns the destination layout, including shared destinations such as `.agents/skills` for several agents.
+`rulesync install --mode gh` calls `gh skill install` for the declared sources. It passes `--force` only when you supply `rulesync install --mode gh --force`. GitHub CLI decides whether to overwrite an existing skill:
+
+| Situation                               | Without `--force`                      | With `--force`           |
+| --------------------------------------- | -------------------------------------- | ------------------------ |
+| Skill is not installed                  | Install                                | Install                  |
+| Skill exists in an interactive terminal | Ask whether to overwrite (default: No) | Overwrite without asking |
+| Skill exists in a script or CI          | Fail with a message to use `--force`   | Overwrite without asking |
+
+The existence check applies even when the installed files are identical. Normal text output shares the terminal with gh; Rulesync adds no prompt of its own. JSON and silent output capture gh's output and are noninteractive.
+
+Sources run in declaration order. With `--force`, later sources can overwrite earlier installations at the same destination. Reinstallation resolves the declared ref again and overwrites files supplied by that source. It does not prune removed declarations or extra files; manage those explicitly. GitHub CLI owns the destination layout, including shared destinations such as `.agents/skills` for several agents.
 
 #### Updates and fixed revisions
 
@@ -188,18 +198,20 @@ gh skill update --all
 gh skill update --dir .agents/skills --dry-run --all
 ```
 
-GitHub CLI 2.102.0 selects the latest release or default branch when updating, even if installation used `skill@branch`. The recorded `github-ref` describes the installation, not a branch-tracking policy. Inline `@ref` does not set `github-pinned`; gh skips persistent pins created with its own pin flag. Native updates can therefore move a skill away from a Rulesync-declared ref. Re-run `rulesync install --mode gh` to restore that declaration. See the [current ref resolution](https://github.com/cli/cli/blob/v2.102.0/internal/skills/discovery/discovery.go) and [update implementation](https://github.com/cli/cli/blob/v2.102.0/pkg/cmd/skills/update/update.go); preview behavior can change.
+GitHub CLI 2.102.0 selects the latest release or default branch when updating, even if installation used `skill@branch`. The recorded `github-ref` describes the installation, not a branch-tracking policy. Inline `@ref` does not set `github-pinned`; gh skips persistent pins created with its own pin flag. Native updates can therefore move a skill away from a Rulesync-declared ref. Run `rulesync install --mode gh --force` to restore that declaration. See the [current ref resolution](https://github.com/cli/cli/blob/v2.102.0/internal/skills/discovery/discovery.go) and [update implementation](https://github.com/cli/cli/blob/v2.102.0/pkg/cmd/skills/update/update.go); preview behavior can change.
 
-Rulesync rejects `--update` in gh mode: use the native updater for its update policy, or plain install to reapply the declared refs. It also rejects `--frozen` before starting gh. There is no gh-mode frozen-install guarantee. For a fixed source revision, declare a full commit SHA in `ref`; branches and movable tags are not immutable, and a subsequent native update can still replace that installation. Use `--mode rulesync` when you need Rulesync's lockfile and frozen-install contract.
+Rulesync rejects `--update` in gh mode. To replace an installed skill with the current contents of its declared branch, tag, or commit, use `rulesync install --mode gh --force`. For example, `ref: "main"` requests the files currently on `main`. To use GitHub CLI's release/default-branch update selection instead, run `gh skill update` directly.
+
+Rulesync rejects `--frozen` before starting gh. There is no gh-mode frozen-install guarantee. For a fixed source revision, declare a full commit SHA in `ref`; branches and movable tags are not immutable, and a subsequent native update can still replace that installation. Use `--mode rulesync` when you need Rulesync's lockfile and frozen-install contract.
 
 #### Migrating earlier gh-mode installations
 
 Earlier Rulesync versions wrote top-level `source`, `repository`, and `ref` fields that gh's updater does not recognize. Merely appearing in `gh skill list` did not establish update compatibility.
 
 1. Review your source declarations. If you need the old recorded revision for the migration, copy the relevant `resolved_commit` from `rulesync-gh.lock.yaml` into the corresponding source's `ref` before installing. Otherwise migration resolves the declared ref anew.
-2. Run `rulesync install --mode gh`. The old lock is ignored, including malformed files, and gh overwrites the declared skills with its own metadata. Local edits to source-owned files are overwritten.
+2. Run `rulesync install --mode gh --force`. The old lock is ignored, including malformed files, and gh overwrites the declared skills with its own metadata. Local edits to source-owned files are overwritten. Without `--force`, gh asks to overwrite in a terminal or fails in a script.
 3. Verify the source and version with `gh skill list` and inspect `gh skill update --dry-run --all`.
-4. Remove `rulesync-gh.lock.yaml` from the project and version control after successful migration. Remove obsolete `--frozen`/`--update` gh-mode invocations from CI and scripts. Skills no longer declared and files no longer supplied by the source need explicit cleanup; the old lock's `deployed_files` can help identify them.
+4. Remove `rulesync-gh.lock.yaml` from the project and version control after successful migration. Replace gh-mode `--update` invocations with the appropriate command above and remove unsupported `--frozen` invocations. Skills no longer declared and files no longer supplied by the source need explicit cleanup; the old lock's `deployed_files` can help identify them.
 
 GitHub CLI 2.102.0's installer retains extra files on forced reinstall. Its updater replaces a changed skill's directory contents, including removal of extra files. Rulesync delegates those behaviors to gh and does not maintain a second ownership ledger.
 
@@ -210,7 +222,8 @@ The `install` command accepts these flags:
 | Flag              | Description                                                                                                                                                                                               |
 | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `--mode <mode>`   | Install mode: `rulesync` (default), `apm`, or `gh`. See **Install Modes** above.                                                                                                                          |
-| `--update`        | Force re-resolve source refs, ignoring the lockfile. Rejected in gh mode; use `gh skill update`.                                                                                                          |
+| `--force`         | Overwrite existing skills without prompting (gh mode only).                                                                                                                                               |
+| `--update`        | Force re-resolve source refs, ignoring the lockfile. Rejected in gh mode.                                                                                                                                 |
 | `--frozen`        | Fail if a lockfile is missing or does not cover declared sources and their skill and rule selections. Fetches missing locked artifacts without updating the lockfile. Useful for CI. Rejected in gh mode. |
 | `--outdated`      | Report which sources are behind in the lockfile without installing or writing anything. See **Checking for Outdated Sources** below.                                                                      |
 | `--token <token>` | GitHub token for private repositories.                                                                                                                                                                    |
