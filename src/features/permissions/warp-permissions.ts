@@ -527,7 +527,7 @@ export function liftExecutionProfileOverride(
 }
 
 /**
- * Read a `[...]` class starting at its `[`` and return the index just past its
+ * Read a `[...]` class starting at its `[` and return the index just past its
  * `]`, or `undefined` when it cannot be read that simply. Regex class rules
  * apply: a `]` in the first position is a member rather than the terminator and
  * a backslash escapes the character after it. A nested `[` gives up: Rust's
