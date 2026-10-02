@@ -232,6 +232,7 @@ rulesync.local.jsonc
 **/CODEBUDDY.local.md
 **/.codebuddy/CODEBUDDY.local.md
 **/CRUSH.local.md
+**/REASONIX.local.md
 **/.vibe/prompts/
 **/.claude/*.lock
 **/.claude/settings.local.json

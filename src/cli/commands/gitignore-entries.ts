@@ -24,6 +24,7 @@ import {
   LETTACODE_SETTINGS_LOCAL_FILE_NAME,
 } from "../../constants/lettacode-paths.js";
 import { QWENCODE_DIR, QWENCODE_LOCAL_RULE_FILE_NAME } from "../../constants/qwencode-paths.js";
+import { REASONIX_LOCAL_RULE_FILE_NAME } from "../../constants/reasonix-paths.js";
 import {
   RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH,
   RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH,
@@ -108,6 +109,7 @@ export const HAND_MAINTAINED_GITIGNORE_ENTRIES: ReadonlyArray<GitignoreEntryTag>
   // Crush's personal project context file. Unlike CodeBuddy Code, Crush does
   // not add it to `.gitignore` itself, so the derived list has to.
   { target: "crush", feature: "rules", entry: `**/${CRUSH_LOCAL_RULE_FILE_NAME}` },
+  { target: "reasonix", feature: "rules", entry: `**/${REASONIX_LOCAL_RULE_FILE_NAME}` },
 
   // Vibe subagent system prompts: written by the subagents feature next to the
   // agent TOML, but outside `getSettablePaths` (which names only
