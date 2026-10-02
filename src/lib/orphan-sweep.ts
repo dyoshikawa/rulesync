@@ -1,5 +1,8 @@
 import { dirname, resolve } from "node:path";
 
+/** A path an orphan sweep deleted, or would delete under `--dry-run`/`--check`. */
+export type DeletedPath = { path: string; kind: "file" | "directory" };
+
 /**
  * Run-scoped bookkeeping that keeps the `--delete` orphan sweep from turning
  * one target's output into another target's orphan.
@@ -60,16 +63,43 @@ export type OrphanSweepPlan = {
   isGeneratedExactly(params: { path: string }): boolean;
   /** Drop every item this run claims; what remains is a genuine orphan candidate. */
   rejectClaimed<T>(params: { items: T[]; getPath: (item: T) => string }): T[];
-  /** Hold a sweep back until every generation step has written its files. */
-  defer(params: { sweep: () => Promise<boolean> }): void;
+  /**
+   * Hold a sweep back until every generation step has written its files.
+   *
+   * `reportDeleted`, read once the sweep has run, names the paths it deleted
+   * (or, under `--dry-run`/`--check`, would have deleted). It is attributed to
+   * the feature of the {@link forFeature} view the sweep was deferred through.
+   */
+  defer(params: {
+    sweep: () => Promise<boolean>;
+    reportDeleted?: () => readonly DeletedPath[];
+  }): void;
   /** Run the deferred sweeps in registration order; true if anything changed. */
   run(): Promise<boolean>;
+  /**
+   * A view of this plan whose deferred sweeps report their deletions under
+   * `feature`. Every other method acts on the shared plan unchanged.
+   */
+  forFeature(feature: string): OrphanSweepPlan;
+  /**
+   * The paths the sweeps that already ran reported as deleted, keyed by the
+   * feature they were deferred under and sorted within each feature, so two
+   * previews of the same tree list them identically.
+   */
+  getDeletedPathsByFeature(): ReadonlyMap<string, readonly DeletedPath[]>;
+};
+
+type DeferredSweep = {
+  sweep: () => Promise<boolean>;
+  reportDeleted?: () => readonly DeletedPath[];
+  feature?: string;
 };
 
 export function createOrphanSweepPlan(): OrphanSweepPlan {
   const generatedPaths = new Set<string>();
   const generatedTrees = new Set<string>();
-  const deferredSweeps: Array<() => Promise<boolean>> = [];
+  const deferredSweeps: DeferredSweep[] = [];
+  const deletedPathsByFeature = new Map<string, DeletedPath[]>();
 
   const isInsideGeneratedTree = (absolutePath: string): boolean => {
     let current = absolutePath;
@@ -113,16 +143,39 @@ export function createOrphanSweepPlan(): OrphanSweepPlan {
     rejectClaimed({ items, getPath }) {
       return items.filter((item) => !plan.isGenerated({ path: getPath(item) }));
     },
-    defer({ sweep }) {
-      deferredSweeps.push(sweep);
+    defer({ sweep, reportDeleted }) {
+      deferredSweeps.push({ sweep, reportDeleted });
     },
     async run() {
       let hasDiff = false;
-      for (const sweep of deferredSweeps) {
+      for (const { sweep, reportDeleted, feature } of deferredSweeps) {
         if (await sweep()) hasDiff = true;
+        if (feature === undefined || reportDeleted === undefined) continue;
+        const deleted = reportDeleted();
+        if (deleted.length === 0) continue;
+        const existing = deletedPathsByFeature.get(feature) ?? [];
+        existing.push(...deleted);
+        deletedPathsByFeature.set(feature, existing);
       }
       deferredSweeps.length = 0;
       return hasDiff;
+    },
+    forFeature(feature) {
+      return {
+        ...plan,
+        defer({ sweep, reportDeleted }) {
+          deferredSweeps.push({ sweep, reportDeleted, feature });
+        },
+      };
+    },
+    getDeletedPathsByFeature() {
+      return new Map(
+        [...deletedPathsByFeature].map(([feature, deleted]) => {
+          // Keyed path-first so the sort below orders by path, independent of locale.
+          const unique = new Map(deleted.map((entry) => [`${entry.path}\0${entry.kind}`, entry]));
+          return [feature, [...unique.keys()].toSorted().map((key) => unique.get(key)!)];
+        }),
+      );
     },
   };
 

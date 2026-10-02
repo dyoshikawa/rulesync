@@ -113,6 +113,29 @@ describe("FeatureProcessor", () => {
       expect(logger.info).not.toHaveBeenCalledWith(expect.stringContaining("kept.md"));
     });
 
+    it("should report the same removed paths on a dry run as on a real run", async () => {
+      const existingFiles = [
+        createMockFile("/path/to/orphan.md"),
+        createMockFile("/path/to/kept.md"),
+      ];
+      const generatedFiles = [createMockFile("/path/to/kept.md")];
+
+      const dryRunProcessor = new TestProcessor({
+        logger: createMockLogger(),
+        outputRoot: testDir,
+        dryRun: true,
+      });
+      await dryRunProcessor.removeOrphanAiFiles(existingFiles, generatedFiles);
+
+      const realProcessor = new TestProcessor({ logger: createMockLogger(), outputRoot: testDir });
+      await realProcessor.removeOrphanAiFiles(existingFiles, generatedFiles);
+
+      const expected = [{ path: "/path/to/orphan.md", kind: "file" }];
+      expect(dryRunProcessor.getRemovedPaths()).toEqual(expected);
+      expect(realProcessor.getRemovedPaths()).toEqual(expected);
+      expect(removeFile).toHaveBeenCalledExactlyOnceWith("/path/to/orphan.md");
+    });
+
     it("should strip control characters from the deletion log", async () => {
       const logger = createMockLogger();
       const processor = new TestProcessor({ logger, outputRoot: testDir });

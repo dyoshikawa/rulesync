@@ -1,3 +1,5 @@
+import { sep } from "node:path";
+
 import { ConfigResolver, type ConfigResolverResolveParams } from "../../config/config-resolver.js";
 import type { Config } from "../../config/config.js";
 import {
@@ -6,6 +8,7 @@ import {
   inspectInputRoots,
   type GenerateResult,
 } from "../../lib/generate.js";
+import type { DeletedPath } from "../../lib/orphan-sweep.js";
 import {
   buildConfigFilePaths,
   buildWatchTargets,
@@ -30,10 +33,71 @@ export type GenerateOptions = ConfigResolverResolveParams & {
  * watcher should stay up for that correction.
  */
 export class SourceLoadFailedError extends CLIError {
-  constructor({ message, features }: { message: string; features: readonly string[] }) {
-    super(message, ErrorCodes.GENERATION_FAILED, 1, { sourceLoadFailedFeatures: [...features] });
+  constructor({
+    message,
+    features,
+    plan,
+  }: {
+    message: string;
+    features: readonly string[];
+    /** What the rest of the run wrote and deleted, which a failing JSON document would otherwise drop. */
+    plan?: GeneratePlan;
+  }) {
+    super(message, ErrorCodes.GENERATION_FAILED, 1, {
+      sourceLoadFailedFeatures: [...features],
+      ...(plan === undefined ? {} : { plan }),
+    });
     this.name = "SourceLoadFailedError";
   }
+}
+
+/**
+ * Version of the `plan` document `generate --json` emits. Bump it whenever an
+ * existing field changes meaning or a new `action`/`kind` value is added, so a
+ * consumer that authorizes operations can refuse a plan it does not understand.
+ */
+export const GENERATE_PLAN_VERSION = 1;
+
+export type GeneratePlanOperation = {
+  action: "write" | "delete";
+  kind: "file" | "directory";
+  feature: string;
+  /** Relative to the output root, with `/` separators. */
+  path: string;
+};
+
+export type GeneratePlan = {
+  version: typeof GENERATE_PLAN_VERSION;
+  operations: GeneratePlanOperation[];
+};
+
+/**
+ * Flatten the per-feature results into one ordered list of file operations:
+ * features in the order the summary lists them, writes before deletes within a
+ * feature, and paths sorted within each, so repeated previews of the same tree
+ * produce identical plans and a preview can be compared with the run it
+ * previews.
+ */
+export function buildGeneratePlan({
+  featureResults,
+  deletedPathsByFeature,
+}: {
+  featureResults: Record<string, { paths: readonly string[] }>;
+  deletedPathsByFeature: Readonly<Record<string, readonly DeletedPath[] | undefined>>;
+}): GeneratePlan {
+  const toPlanPath = (path: string): string => path.split(sep).join("/");
+  const operations: GeneratePlanOperation[] = [];
+
+  for (const [feature, { paths }] of Object.entries(featureResults)) {
+    for (const path of [...new Set(paths.map(toPlanPath))].toSorted()) {
+      operations.push({ action: "write", kind: "file", feature, path });
+    }
+    for (const { path, kind } of deletedPathsByFeature[feature] ?? []) {
+      operations.push({ action: "delete", kind, feature, path: toPlanPath(path) });
+    }
+  }
+
+  return { version: GENERATE_PLAN_VERSION, operations };
 }
 
 /**
@@ -204,12 +268,18 @@ async function generateOnce(
     });
   }
 
+  const plan = buildGeneratePlan({
+    featureResults,
+    deletedPathsByFeature: result.deletedPathsByFeature,
+  });
+
   // Capture JSON data if in JSON mode
   if (logger.jsonMode) {
     logger.captureData("features", featureResults);
     logger.captureData("totalFiles", totalGenerated);
     logger.captureData("hasDiff", result.hasDiff);
     logger.captureData("skills", result.skills ?? []);
+    logger.captureData("plan", plan);
   }
 
   // A source file that failed to load was already reported as an error, but
@@ -221,15 +291,20 @@ async function generateOnce(
     throw new SourceLoadFailedError({
       message: sourceLoadFailureMessage,
       features: result.sourceLoadFailedFeatures,
+      plan,
     });
   }
 
   // Check mode must fail even when the change is delete-only and no files are written.
   if (check) {
     if (result.hasDiff) {
+      // A failing command's JSON document carries no `data`, so the plan rides
+      // on `error.details` — exactly the run a consumer most needs it for.
       throw new CLIError(
         "Files are not up to date. Run 'rulesync generate' to update.",
         ErrorCodes.GENERATION_FAILED,
+        1,
+        { plan },
       );
     }
 

@@ -98,6 +98,50 @@ describe("createOrphanSweepPlan", () => {
       await expect(createOrphanSweepPlan().run()).resolves.toBe(false);
     });
 
+    it("should attribute reported deletions to the feature they were deferred under", async () => {
+      const plan = createOrphanSweepPlan();
+
+      plan.forFeature("rules").defer({
+        sweep: async () => true,
+        reportDeleted: () => [
+          { path: "b.md", kind: "file" },
+          { path: "a.md", kind: "file" },
+        ],
+      });
+      plan.forFeature("skills").defer({
+        sweep: async () => true,
+        reportDeleted: () => [{ path: ".claude/skills/old", kind: "directory" }],
+      });
+      plan.forFeature("rules").defer({
+        sweep: async () => true,
+        // A second output root or target reporting a path already listed.
+        reportDeleted: () => [{ path: "a.md", kind: "file" }],
+      });
+      // Deferred on the plan itself: run, but attributed to no feature.
+      plan.defer({
+        sweep: async () => true,
+        reportDeleted: () => [{ path: "x.md", kind: "file" }],
+      });
+
+      await plan.run();
+
+      expect(Object.fromEntries(plan.getDeletedPathsByFeature())).toEqual({
+        rules: [
+          { path: "a.md", kind: "file" },
+          { path: "b.md", kind: "file" },
+        ],
+        skills: [{ path: ".claude/skills/old", kind: "directory" }],
+      });
+    });
+
+    it("should share claims between a feature view and the plan", () => {
+      const plan = createOrphanSweepPlan();
+
+      plan.forFeature("rules").registerGenerated({ paths: [join("out", "a.md")] });
+
+      expect(plan.isGenerated({ path: join("out", "a.md") })).toBe(true);
+    });
+
     it("should not re-run a sweep on a second run", async () => {
       // `generate()` builds a fresh plan per run, so a second drain is never
       // part of the normal flow; draining once keeps it that way rather than

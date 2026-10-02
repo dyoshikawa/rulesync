@@ -51,7 +51,7 @@ import type { FeatureGenerateResult } from "../utils/result.js";
 import { resolveToolOutputRoot } from "../utils/tool-output-root.js";
 import { resetRunWarningState } from "../utils/warned-once.js";
 import { createFoldRootOverwriteWatch } from "./fold-root-overwrite-watch.js";
-import { createOrphanSweepPlan, type OrphanSweepPlan } from "./orphan-sweep.js";
+import { createOrphanSweepPlan, type DeletedPath, type OrphanSweepPlan } from "./orphan-sweep.js";
 import { scheduleRetiredTargetSweeps } from "./retire-targets.js";
 import { deriveSharedWriteSteps } from "./shared-file-derive.js";
 
@@ -89,6 +89,13 @@ export type GenerateResult = {
    * when `sourceLoadFailed` is false.
    */
   sourceLoadFailedFeatures: GenerationStepId[];
+  /**
+   * The paths the `--delete` orphan sweep removed — or, under `--dry-run` and
+   * `--check`, would remove — per feature, relative to the output root like
+   * the `*Paths` lists above and sorted. A feature that deleted nothing is
+   * absent.
+   */
+  deletedPathsByFeature: Partial<Record<GenerationStepId, readonly DeletedPath[]>>;
 };
 
 /**
@@ -161,6 +168,7 @@ async function processFeatureGeneration<T extends AiFile>(params: {
         );
         return orphanCount > 0;
       },
+      reportDeleted: () => processor.getRemovedPaths(),
     });
   }
 
@@ -277,6 +285,7 @@ async function processDirFeatureGeneration(params: {
 
         return orphanDirCount + orphanFileCount + orphanInDirCount > 0;
       },
+      reportDeleted: () => processor.getRemovedPaths(),
     });
   }
 
@@ -314,6 +323,7 @@ async function processEmptyFeatureGeneration(params: {
         const orphanCount = await processor.removeOrphanAiFiles(filesToDelete, []);
         return orphanCount > 0;
       },
+      reportDeleted: () => processor.getRemovedPaths(),
     });
   }
 
@@ -854,18 +864,31 @@ export async function generate(params: {
   const sweepPlan = createOrphanSweepPlan();
 
   const runners: Record<GenerationStepId, () => Promise<FeatureGenerateResult>> = {
-    ignore: () => generateIgnoreCore({ config, logger, sweepPlan }),
-    mcp: () => generateMcpCore({ config, logger, sweepPlan }),
-    commands: () => generateCommandsCore({ config, logger, sweepPlan }),
-    subagents: () => generateSubagentsCore({ config, logger, sweepPlan }),
+    ignore: () => generateIgnoreCore({ config, logger, sweepPlan: sweepPlan.forFeature("ignore") }),
+    mcp: () => generateMcpCore({ config, logger, sweepPlan: sweepPlan.forFeature("mcp") }),
+    commands: () =>
+      generateCommandsCore({ config, logger, sweepPlan: sweepPlan.forFeature("commands") }),
+    subagents: () =>
+      generateSubagentsCore({ config, logger, sweepPlan: sweepPlan.forFeature("subagents") }),
     skills: async () => {
-      skillsResult = await generateSkillsCore({ config, logger, sweepPlan });
+      skillsResult = await generateSkillsCore({
+        config,
+        logger,
+        sweepPlan: sweepPlan.forFeature("skills"),
+      });
       return skillsResult;
     },
-    hooks: () => generateHooksCore({ config, logger, sweepPlan }),
-    permissions: () => generatePermissionsCore({ config, logger, sweepPlan }),
-    checks: () => generateChecksCore({ config, logger, sweepPlan }),
-    rules: () => generateRulesCore({ config, logger, sweepPlan, skills: skillsResult?.skills }),
+    hooks: () => generateHooksCore({ config, logger, sweepPlan: sweepPlan.forFeature("hooks") }),
+    permissions: () =>
+      generatePermissionsCore({ config, logger, sweepPlan: sweepPlan.forFeature("permissions") }),
+    checks: () => generateChecksCore({ config, logger, sweepPlan: sweepPlan.forFeature("checks") }),
+    rules: () =>
+      generateRulesCore({
+        config,
+        logger,
+        sweepPlan: sweepPlan.forFeature("rules"),
+        skills: skillsResult?.skills,
+      }),
   };
 
   const steps: GenerationStep[] = GENERATION_STEP_GRAPH.map((meta) => ({
@@ -950,6 +973,7 @@ export async function generate(params: {
     hasDiff,
     sourceLoadFailed: sourceLoadFailedFeatures.length > 0,
     sourceLoadFailedFeatures,
+    deletedPathsByFeature: Object.fromEntries(sweepPlan.getDeletedPathsByFeature()),
   };
 }
 

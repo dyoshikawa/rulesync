@@ -202,17 +202,23 @@ export function scheduleRetiredTargetSweeps({
           dryRun: config.isPreviewMode(),
           logger,
         };
-        sweepPlan.defer({
-          sweep:
-            spec.kind === "file"
-              ? () =>
-                  sweepFiles({
-                    processor: spec.create(params, config),
-                    sweepPlan,
-                    unownedPaths: new Set(spec.unownedPaths?.(params)),
-                  })
-              : () => sweepDirs({ processor: spec.create(params, config), sweepPlan }),
-        });
+        // Reported under the feature like any other sweep, so a `--json` plan
+        // lists what retirement deletes.
+        const featurePlan = sweepPlan.forFeature(feature);
+        if (spec.kind === "file") {
+          const processor = spec.create(params, config);
+          const unownedPaths = new Set(spec.unownedPaths?.(params));
+          featurePlan.defer({
+            sweep: () => sweepFiles({ processor, sweepPlan, unownedPaths }),
+            reportDeleted: () => processor.getRemovedPaths(),
+          });
+        } else {
+          const processor = spec.create(params, config);
+          featurePlan.defer({
+            sweep: () => sweepDirs({ processor, sweepPlan }),
+            reportDeleted: () => processor.getRemovedPaths(),
+          });
+        }
       }
     }
   }

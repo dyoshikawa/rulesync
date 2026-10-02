@@ -195,8 +195,8 @@ The `generate` command reads source files from one or more rulesync source trees
 > is kept. Narrow what is retired with `--features`. A path a configured
 > target writes in the same run (for example `AGENTS.md` written by `codexcli`
 > while `agentsmd` is retired) is kept. Retirement is idempotent, so an
-> interrupted run can simply be repeated, and `--check` fails while retired
-> outputs remain. A retired target may not also appear in `targets`, and
+> interrupted run can simply be repeated, `--check` fails while retired
+> outputs remain, and `--json` lists the retired paths among the deletions. A retired target may not also appear in `targets`, and
 > `--retire-targets` cannot be combined with `--targets`. Retirement is skipped
 > with a warning in global mode, when the configuration file declares targets
 > the run does not cover, and when any `.rulesync` source file could not be
@@ -297,6 +297,44 @@ rulesync generate --check --targets "*" --features "*"
 # Watch mode: regenerate on every change to the sources
 rulesync generate --watch
 ```
+
+### Mutation plan in JSON output
+
+With the global `--json` flag, `generate` reports the files it wrote and the orphans it deleted — or, under `--dry-run` and `--check`, would write and delete — as a versioned `plan`, next to the existing per-feature `features` summary:
+
+```json
+{
+  "success": true,
+  "command": "generate",
+  "data": {
+    "features": { "…": "…" },
+    "plan": {
+      "version": 1,
+      "operations": [
+        { "action": "write", "kind": "file", "feature": "rules", "path": "CLAUDE.md" },
+        {
+          "action": "delete",
+          "kind": "file",
+          "feature": "rules",
+          "path": ".claude/rules/retired.md"
+        },
+        {
+          "action": "delete",
+          "kind": "directory",
+          "feature": "skills",
+          "path": ".claude/skills/retired"
+        }
+      ]
+    }
+  }
+}
+```
+
+- `action` is `write` or `delete`; `kind` is `file` or `directory`. A deleted directory is listed once, by its own path, together with everything under it. Deletions come from the `--delete` orphan sweep, so without `--delete` the plan holds writes only.
+- `path` is relative to the output root, with `/` separators, and the operation does not name the root. A path several targets write is listed once, and so is a relative path that stands for a file in each of several output roots (`--output-roots a b`, or a tool home override such as `HERMES_HOME`): run one output root at a time when a consumer has to tell them apart.
+- The order is deterministic — features in summary order, writes before deletes within a feature, paths sorted — so a `--dry-run` plan can be compared operation by operation with the plan the following real run reports.
+- A failing command's document carries no `data`, so when `--check` finds the tree out of date, or a `.rulesync/` source could not be read, the plan is reported as `error.details.plan` instead.
+- A shared configuration file Rulesync merges into (`.claude/settings.json`, `.codex/config.toml`, …) appears as a `write` of the whole file, even when only Rulesync-managed keys change. Two rewrites the `--delete` sweep itself makes are not listed at all: disabling the Hermes Agent commands plugin in its `config.yaml` and retracting Goose slash commands — so `--check` can fail with an empty `operations` list when one of them is the only difference. `version` is bumped whenever an operation gains a new `action` or `kind` value or an existing field changes meaning, so a consumer that authorizes operations should refuse a version it does not know.
 
 ### Watch mode
 

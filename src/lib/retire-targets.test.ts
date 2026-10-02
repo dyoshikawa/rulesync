@@ -250,6 +250,9 @@ describe("generate with retireTargets", () => {
     expect(result.hasDiff).toBe(true);
     expect(await fileExists(stale)).toBe(true);
     expect(logger.info).toHaveBeenCalledWith(`[DRY RUN] Would delete: ${stale}`);
+    expect(result.deletedPathsByFeature.rules).toEqual([
+      { path: ".cursor/rules/old.mdc", kind: "file" },
+    ]);
   });
 
   it("never retires anything in a run scoped below the configured targets", async () => {
