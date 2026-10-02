@@ -87,6 +87,68 @@ describe("installGh", () => {
     ]);
   });
 
+  it.each([
+    {
+      label: "without a ref",
+      entry: source({ source: "owner/repo", skills: ["*"] }),
+      treeOutput: undefined,
+      skills: undefined,
+    },
+    {
+      label: "with a named selector",
+      entry: source({ source: "owner/repo", skills: ["*", "alpha"] }),
+      treeOutput: undefined,
+      skills: undefined,
+    },
+    {
+      label: "with a ref",
+      entry: source({ source: "owner/repo", ref: "v1.0", skills: ["*"] }),
+      treeOutput: JSON.stringify({
+        truncated: false,
+        tree: [
+          { path: "skills/alpha/SKILL.md", type: "blob" },
+          { path: "skills/beta/SKILL.md", type: "blob" },
+          { path: "skills/deep/nested/SKILL.md", type: "blob" },
+          { path: "docs/SKILL.md", type: "blob" },
+        ],
+      }),
+      skills: ["skills/alpha/SKILL.md@v1.0", "skills/beta/SKILL.md@v1.0"],
+    },
+  ])("treats skills ['*'] as all skills $label", async ({ entry, treeOutput, skills }) => {
+    mockExecFileAsync.mockImplementation(async (_bin, args) =>
+      args[0] === "api"
+        ? { stdout: treeOutput ?? "", stderr: "" }
+        : { stdout: "", stderr: "" },
+    );
+
+    const result = await installGh({ projectRoot: testDir, sources: [entry], logger });
+    const installCalls = mockExecFileAsync.mock.calls
+      .map(([, args]) => args)
+      .filter((args) => args[0] === "skill" && args[1] === "install" && args[2] !== "--help");
+
+    expect(result).toEqual({ sourcesProcessed: 1, failedSourceCount: 0 });
+    if (skills) {
+      expect(installCalls.map((args) => args.at(-1))).toEqual(skills);
+      expect(installCalls.every((args) => !args.includes("--all"))).toBe(true);
+    } else {
+      expect(installCalls).toEqual([
+        [
+          "skill",
+          "install",
+          "--agent",
+          "github-copilot",
+          "--scope",
+          "project",
+          "--force",
+          "--all",
+          "--",
+          "https://github.com/owner/repo",
+        ],
+      ]);
+      expect(mockExecFileAsync.mock.calls.some(([, args]) => args[0] === "api")).toBe(false);
+    }
+  });
+
   it("discovers exact root skill paths for a ref, then installs each selected path", async () => {
     mockExecFileAsync.mockImplementation(async (_bin, args) => {
       if (args[0] === "api")

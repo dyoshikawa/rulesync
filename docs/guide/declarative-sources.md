@@ -155,7 +155,7 @@ Rulesync provides the declaration; GitHub CLI owns the installed state. It write
 | `transport`                  | Omit or use `github`. Other transports require `--mode rulesync`.                                                                                                                           |
 | `path`, `rules`, `rulesPath` | Rejected. Select individual skill paths with `skills`; install declarative rules with `--mode rulesync`.                                                                                    |
 
-Omitting `skills` or using an empty array installs all skills. Without a ref this delegates to `gh skill install --all`, including gh's supported discovery conventions. With an explicit ref, Rulesync discovers the existing `skills/<name>/SKILL.md` layout through `gh api`, then installs each exact path at that ref. GitHub CLI does not allow `--all` with `skill@ref`; declare explicit skill paths for other layouts at a specified ref.
+Omitting `skills`, using an empty array, or including `"*"` installs all skills. Without a ref this delegates to `gh skill install --all`, including gh's supported discovery conventions. With an explicit ref, Rulesync discovers the existing `skills/<name>/SKILL.md` layout through `gh api`, then installs each exact path at that ref. GitHub CLI does not allow `--all` with `skill@ref`; declare explicit skill paths for other layouts at a specified ref.
 
 ```jsonc
 {

@@ -87,8 +87,8 @@ it.skipIf(!repo)(
         JSON.stringify({
           sources: [
             { source: repo, ref: branch, skills: ["rulesync-interop"], agent: "claude-code" },
-            { source: repo, ref: branch, agent: "universal", scope: "user" },
-            { source: repo, agent: "universal" },
+            { source: repo, ref: branch, skills: ["*"], agent: "universal", scope: "user" },
+            { source: repo, skills: ["*"], agent: "universal" },
           ],
         }),
       );

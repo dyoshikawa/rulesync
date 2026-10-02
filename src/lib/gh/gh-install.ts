@@ -74,7 +74,7 @@ export async function installGh(params: {
   let failedSourceCount = 0;
   for (const source of resolved) {
     try {
-      let skills = source.entry.skills;
+      let skills = source.entry.skills?.includes("*") ? undefined : source.entry.skills;
       if ((!skills || skills.length === 0) && source.ref) {
         // gh --all cannot be combined with skill@ref. Preserve the existing
         // root skills/* selection at an explicit ref, then let gh install it.
