@@ -38,6 +38,11 @@ Example:
   // Delete existing files before generating
   "delete": true,
 
+  // Tools the project no longer uses. `generate` deletes the outputs Rulesync
+  // manages for them; leaving a tool out of `targets` alone never does. See
+  // "Retiring a target" in the CLI reference.
+  "retireTargets": [],
+
   // Verbose output
   "verbose": false,
 

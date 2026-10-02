@@ -31,6 +31,7 @@ import {
   RulesyncTargets,
   ToolTarget,
   ToolTargets,
+  ToolTargetsSchema,
 } from "../types/tool-targets.js";
 import { hasControlCharacters } from "../utils/validation.js";
 
@@ -149,6 +150,11 @@ export const ConfigParamsSchema = z.object({
   gitignoreDestination: optional(GitignoreDestinationSchema),
   dryRun: optional(z.boolean()),
   check: optional(z.boolean()),
+  // Targets the project has retired: `generate` removes the outputs they would
+  // otherwise own, using the same managed-output definition as `--delete`.
+  // Explicit on purpose — a target merely left out of `targets` or `--targets`
+  // is never swept, so a scoped run cannot delete another client's files.
+  retireTargets: optional(ToolTargetsSchema),
   // Deprecated: parent-of-`.rulesync/` shorthand kept for backward
   // compatibility. Expanded to `inputRoots: [join(inputRoot, ".rulesync")]`
   // (see `normalizeInputRoots`). Prefer the plural `inputRoots` field and
@@ -446,6 +452,7 @@ export class Config {
   private readonly gitignoreDestination: GitignoreDestination;
   private readonly dryRun: boolean;
   private readonly check: boolean;
+  private readonly retireTargets: ToolTarget[];
   /**
    * Ordered, absolute-path list of rulesync source trees. Each entry is a
    * source tree itself — the directory that directly contains `rules/`,
@@ -485,6 +492,7 @@ export class Config {
     gitignoreDestination,
     dryRun,
     check,
+    retireTargets,
     inputRoot,
     inputRoots,
     configFilePath,
@@ -551,6 +559,8 @@ export class Config {
     this.gitignoreDestination = gitignoreDestination ?? "gitignore";
     this.dryRun = dryRun ?? false;
     this.check = check ?? false;
+    this.retireTargets = [...new Set(retireTargets ?? [])];
+    this.validateRetireTargets({ configFileTargets });
     // Capture the input roots once at construction time so subsequent
     // `getInputRoots()` calls are pure (independent of any later `chdir`).
     // Relative entries are resolved against the current working directory
@@ -596,6 +606,36 @@ export class Config {
       if (!validTargets.has(key)) {
         throw new Error(`Unknown target '${key}'. Valid targets: ${ALL_TOOL_TARGETS.join(", ")}.`);
       }
+    }
+  }
+
+  /**
+   * A retired target must not also be generated: the run would write its
+   * outputs and sweep them in the same breath. The configuration file's
+   * targets count too, so a `--targets` run cannot retire a target the project
+   * still declares.
+   */
+  private validateRetireTargets({
+    configFileTargets,
+  }: {
+    configFileTargets: ToolTarget[] | undefined;
+  }): void {
+    if (this.retireTargets.length === 0) return;
+    // The CLI flag reaches here without passing through the schema.
+    const validTargets = new Set<string>(ALL_TOOL_TARGETS);
+    for (const target of this.retireTargets) {
+      if (!validTargets.has(target)) {
+        throw new Error(
+          `Unknown target '${target}' in retireTargets. Valid targets: ${ALL_TOOL_TARGETS.join(", ")}.`,
+        );
+      }
+    }
+    const activeTargets = new Set([...this.getTargets(), ...(configFileTargets ?? [])]);
+    const conflicting = this.retireTargets.filter((target) => activeTargets.has(target));
+    if (conflicting.length > 0) {
+      throw new Error(
+        `Cannot retire target(s) that are still configured: ${conflicting.join(", ")}. Remove them from 'targets' first.`,
+      );
     }
   }
 
@@ -894,6 +934,14 @@ export class Config {
 
   public getDelete(): boolean {
     return this.delete;
+  }
+
+  /**
+   * Targets whose managed outputs `generate` removes. Never overlaps
+   * {@link getTargets}.
+   */
+  public getRetireTargets(): ToolTarget[] {
+    return this.retireTargets;
   }
 
   public getGlobal(): boolean {

@@ -75,6 +75,7 @@ const getDefaults = (): ConfigDefaults => ({
   gitignoreDestination: "gitignore",
   dryRun: false,
   check: false,
+  retireTargets: [],
   inputRoot: undefined,
   inputRoots: undefined,
   sources: [],
@@ -129,6 +130,20 @@ export function mergeInputRootConfigs({
   };
 }
 
+// Split out of `mergeConfigs` only to keep that function under the lint
+// complexity cap; the precedence rule is the same.
+const mergeRunModeConfigs = ({
+  baseConfig,
+  localConfig,
+}: {
+  baseConfig: PartialConfigParams;
+  localConfig: PartialConfigParams;
+}): Pick<PartialConfigParams, "dryRun" | "check" | "retireTargets"> => ({
+  dryRun: localConfig.dryRun ?? baseConfig.dryRun,
+  check: localConfig.check ?? baseConfig.check,
+  retireTargets: localConfig.retireTargets ?? baseConfig.retireTargets,
+});
+
 const mergeConfigs = (
   baseConfig: PartialConfigParams,
   localConfig: PartialConfigParams,
@@ -153,8 +168,7 @@ const mergeConfigs = (
     language: localConfig.language ?? baseConfig.language,
     gitignoreTargetsOnly: localConfig.gitignoreTargetsOnly ?? baseConfig.gitignoreTargetsOnly,
     gitignoreDestination: localConfig.gitignoreDestination ?? baseConfig.gitignoreDestination,
-    dryRun: localConfig.dryRun ?? baseConfig.dryRun,
-    check: localConfig.check ?? baseConfig.check,
+    ...mergeRunModeConfigs({ baseConfig, localConfig }),
     ...mergeInputRootConfigs({ baseConfig, localConfig }),
     sources: localConfig.sources ?? baseConfig.sources,
   };
@@ -371,6 +385,7 @@ export class ConfigResolver {
       gitignoreTargetsOnly,
       dryRun,
       check,
+      retireTargets,
       gitignoreDestination,
       inputRoot,
       inputRoots,
@@ -571,6 +586,11 @@ export class ConfigResolver {
       }),
       dryRun: pick({ cli: dryRun, file: configByFile.dryRun, fallback: getDefaults().dryRun }),
       check: pick({ cli: check, file: configByFile.check, fallback: getDefaults().check }),
+      retireTargets: pick({
+        cli: retireTargets,
+        file: configByFile.retireTargets,
+        fallback: getDefaults().retireTargets,
+      }),
       // Pass the fully-resolved absolute list so `Config.getInputRoots()` is
       // pure and never re-reads `process.cwd()` after construction. When
       // neither CLI nor config file supplied a root, the list is `[cwd]`.
