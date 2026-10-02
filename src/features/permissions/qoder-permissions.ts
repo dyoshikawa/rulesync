@@ -52,8 +52,10 @@ const QODER_TOOL_TO_CATEGORY: Record<string, string> = Object.fromEntries(
 /**
  * Qoder checks path-scoped writes against `Edit(...)` rules (covering `Edit`,
  * `Write` and `NotebookEdit`) and path-scoped reads against `Read(...)` rules,
- * so a `write` or `glob` rule with a path is written in that form. A tool-name
- * rule with no path keeps its own tool name.
+ * so a `write` or `glob` rule with a path is written in that form. Qoder does
+ * not document `Glob` payloads; the `Glob` -> `Read` alias follows Claude
+ * Code, whose permission model Qoder mirrors. A tool-name rule with no path
+ * keeps its own tool name.
  */
 const QODER_PATH_RULE_ALIASES: Record<string, string> = {
   Write: "Edit",
