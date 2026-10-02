@@ -7,6 +7,7 @@ import {
   RULESYNC_MCP_LEGACY_RELATIVE_FILE_PATH,
   RULESYNC_MCP_RELATIVE_FILE_PATH,
   RULESYNC_PERMISSIONS_LEGACY_RELATIVE_FILE_PATH,
+  RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
 import { ChecksProcessor } from "../features/checks/checks-processor.js";
@@ -1009,6 +1010,115 @@ describe("importFromTool", () => {
 
         const writtenFiles = mockProcessor.writeAiFiles.mock.calls[0]?.[0] as RulesyncPermissions[];
         expect(writtenFiles[0]?.getRelativeFilePath()).toBe("permissions.json");
+      } finally {
+        await cleanup();
+      }
+    });
+
+    it("should merge imported permissions into the existing source per category", async () => {
+      const { testDir, cleanup } = await setupTestDirectory();
+      try {
+        await ensureDir(join(testDir, RULESYNC_RELATIVE_DIR_PATH));
+        await writeFileContent(
+          join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+          [
+            "{",
+            '  "$schema": "https://example.com/permissions-schema.json",',
+            '  "permission": {',
+            "    // Imported from Claude Code earlier.",
+            '    "bash": { "git *": "allow" },',
+            '    "read": { ".env": "deny" },',
+            '    "edit": { "src/**": "allow" },',
+            "  },",
+            '  "claudecode": { "permissions": { "additionalDirectories": ["../old"] } },',
+            '  "opencode": { "permission": { "external_directory": "deny" } },',
+            "}",
+          ].join("\n"),
+        );
+        const mockProcessor = createMockProcessor({
+          convertedFiles: [
+            new RulesyncPermissions({
+              outputRoot: testDir,
+              relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+              relativeFilePath: "permissions.jsonc",
+              fileContent: JSON.stringify({
+                permission: { bash: { "npm *": "allow", "rm *": "deny" }, read: {} },
+                claudecode: { permissions: { defaultMode: "plan" } },
+              }),
+            }),
+          ],
+        });
+        vi.mocked(PermissionsProcessor).mockImplementation(function () {
+          return mockProcessor as unknown as PermissionsProcessor;
+        });
+        mockConfig.getFeatures.mockReturnValue(["permissions"]);
+        mockConfig.getOutputRoots.mockReturnValue([testDir]);
+
+        await importFromTool({
+          logger,
+          config: mockConfig as never,
+          tool: "claudecode",
+        });
+
+        const writtenFiles = mockProcessor.writeAiFiles.mock.calls[0]?.[0] as RulesyncPermissions[];
+        expect(writtenFiles).toHaveLength(1);
+        const written = writtenFiles[0];
+        expect(written?.getRelativeFilePath()).toBe("permissions.jsonc");
+        expect(written?.getJson()).toEqual({
+          $schema: "https://example.com/permissions-schema.json",
+          permission: {
+            // The imported category replaces the existing one wholesale.
+            bash: { "npm *": "allow", "rm *": "deny" },
+            // An empty imported category does not wipe the existing one.
+            read: { ".env": "deny" },
+            // A category the import does not carry is kept.
+            edit: { "src/**": "allow" },
+          },
+          // The importing tool's own block is replaced wholesale ...
+          claudecode: { permissions: { defaultMode: "plan" } },
+          // ... while another tool's block is kept.
+          opencode: { permission: { external_directory: "deny" } },
+        });
+        expect(written?.getFileContent()).toContain("// Imported from Claude Code earlier.");
+      } finally {
+        await cleanup();
+      }
+    });
+
+    it("should refuse to overwrite an existing permissions source that fails validation", async () => {
+      const { testDir, cleanup } = await setupTestDirectory();
+      try {
+        await ensureDir(join(testDir, RULESYNC_RELATIVE_DIR_PATH));
+        await writeFileContent(
+          join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+          '{ "permission": { "bash": { "git *": "sometimes" } } }',
+        );
+        const mockProcessor = createMockProcessor({
+          convertedFiles: [
+            new RulesyncPermissions({
+              outputRoot: testDir,
+              relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+              relativeFilePath: "permissions.jsonc",
+              fileContent: '{ "permission": { "bash": { "npm *": "allow" } } }',
+            }),
+          ],
+        });
+        vi.mocked(PermissionsProcessor).mockImplementation(function () {
+          return mockProcessor as unknown as PermissionsProcessor;
+        });
+        mockConfig.getFeatures.mockReturnValue(["permissions"]);
+        mockConfig.getOutputRoots.mockReturnValue([testDir]);
+
+        await expect(
+          importFromTool({
+            logger,
+            config: mockConfig as never,
+            tool: "claudecode",
+          }),
+        ).rejects.toThrow(
+          /Cannot merge imported permissions into .*permissions\.jsonc: the existing file is invalid/,
+        );
+        expect(mockProcessor.writeAiFiles).not.toHaveBeenCalled();
       } finally {
         await cleanup();
       }

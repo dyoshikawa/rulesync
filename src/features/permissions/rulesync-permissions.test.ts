@@ -1078,3 +1078,133 @@ describe("PermissionsConfigSchema tool keys", () => {
     expect(actual).toEqual(expected);
   });
 });
+
+describe("RulesyncPermissions.mergeImportedJson", () => {
+  it("replaces imported categories wholesale and keeps the others", () => {
+    const merged = RulesyncPermissions.mergeImportedJson({
+      existing: {
+        permission: {
+          bash: { "git *": "allow", "*": "ask" },
+          read: { ".env": "deny" },
+          webfetch: { "*": "ask" },
+        },
+      },
+      imported: { permission: { bash: { "npm *": "allow" } } },
+      toolTarget: "roo",
+    });
+
+    expect(merged).toEqual({
+      permission: {
+        bash: { "npm *": "allow" },
+        read: { ".env": "deny" },
+        webfetch: { "*": "ask" },
+      },
+    });
+  });
+
+  it("does not let an empty imported category replace an existing one", () => {
+    const merged = RulesyncPermissions.mergeImportedJson({
+      existing: { permission: { read: { ".env": "deny" } } },
+      imported: { permission: { read: {}, toString: {} } },
+      toolTarget: "claudecode",
+    });
+
+    expect(merged).toEqual({ permission: { read: { ".env": "deny" }, toString: {} } });
+  });
+
+  it("replaces the importing tool's own override block wholesale", () => {
+    const merged = RulesyncPermissions.mergeImportedJson({
+      existing: {
+        $schema: "https://example.com/schema.json",
+        claudecode: {
+          permission: { edit: { "src/**": "allow" } },
+          permissions: { additionalDirectories: ["../secrets"], defaultMode: "default" },
+        },
+        opencode: { permission: { external_directory: "deny" } },
+      },
+      imported: {
+        permission: { bash: { "git *": "allow" } },
+        claudecode: { permissions: { defaultMode: "plan" } },
+      },
+      toolTarget: "claudecode",
+    });
+
+    expect(merged).toEqual({
+      $schema: "https://example.com/schema.json",
+      permission: { bash: { "git *": "allow" } },
+      claudecode: { permissions: { defaultMode: "plan" } },
+      opencode: { permission: { external_directory: "deny" } },
+    });
+  });
+
+  it("removes the importing tool's own override block when the import has none", () => {
+    const merged = RulesyncPermissions.mergeImportedJson({
+      existing: {
+        permission: { read: { ".env": "deny" } },
+        opencode: { permission: { external_directory: "deny" } },
+      },
+      imported: { permission: { bash: { "*": "ask" } } },
+      toolTarget: "opencode",
+    });
+
+    expect(merged).toEqual({ permission: { read: { ".env": "deny" }, bash: { "*": "ask" } } });
+  });
+
+  it("resolves the importing tool's own block through the override key aliases", () => {
+    const merged = RulesyncPermissions.mergeImportedJson({
+      existing: { permission: {}, kiro: { permission: { bash: { "*": "ask" } } } },
+      imported: { permission: { bash: { "git *": "allow" } } },
+      toolTarget: "kiro-cli",
+    });
+
+    expect(merged).toEqual({ permission: { bash: { "git *": "allow" } } });
+  });
+
+  it("merges another tool's override block field by field and its permission per category", () => {
+    const merged = RulesyncPermissions.mergeImportedJson({
+      existing: {
+        claudecode: {
+          permission: { bash: { "*": "ask" }, edit: { "src/**": "allow" } },
+          permissions: { defaultMode: "default" },
+          sandbox: { enabled: true },
+        },
+      },
+      imported: {
+        permission: { bash: { "git *": "allow" } },
+        claudecode: {
+          permission: { bash: { "git *": "allow" } },
+          permissions: { defaultMode: "plan" },
+        },
+      },
+      toolTarget: "hermesagent",
+    });
+
+    expect(merged).toEqual({
+      permission: { bash: { "git *": "allow" } },
+      claudecode: {
+        permission: { bash: { "git *": "allow" }, edit: { "src/**": "allow" } },
+        permissions: { defaultMode: "plan" },
+        sandbox: { enabled: true },
+      },
+    });
+  });
+
+  it("is idempotent when the same document is imported twice", () => {
+    const importedDocument = {
+      permission: { bash: { "git *": "allow" } },
+      claudecode: { permissions: { defaultMode: "plan" } },
+    };
+    const once = RulesyncPermissions.mergeImportedJson({
+      existing: { permission: { read: { ".env": "deny" } } },
+      imported: importedDocument,
+      toolTarget: "claudecode",
+    });
+    const twice = RulesyncPermissions.mergeImportedJson({
+      existing: once,
+      imported: importedDocument,
+      toolTarget: "claudecode",
+    });
+
+    expect(twice).toEqual(once);
+  });
+});
