@@ -135,62 +135,36 @@ When `rulesync install` runs and `sources` is configured:
 | ---------- | ---------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
 | `rulesync` | `rulesync.jsonc` `sources`   | `rulesync.lock` (+ `rulesync-npm.lock.json` for npm sources) | `.rulesync/rules/.curated/<name>.md`, `.rulesync/skills/.curated/<name>/` (then re-emitted by `rulesync generate`) |
 | `apm`      | `apm.yml` `dependencies.apm` | `rulesync-apm.lock.yaml`                                     | `.github/instructions/`, `.github/skills/` (APM v1 layout)                                                         |
-| `gh`       | `rulesync.jsonc` `sources`   | `rulesync-gh.lock.yaml`                                      | Per-agent / per-scope dirs (matching `gh skill install`)                                                           |
+| `gh`       | `rulesync.jsonc` `sources`   | GitHub CLI installed metadata (no Rulesync lockfile)         | Native `gh skill install` destinations                                                                             |
 
 When `--mode` is omitted, rulesync defaults to `rulesync` mode. If `apm.yml` is present and `sources` is also defined, you must pass `--mode apm` or `--mode rulesync` to disambiguate.
 
-### `--mode gh` — gh-skill-install–compatible layout
+### `--mode gh`: installation through GitHub CLI
 
-`--mode gh` reads the same `sources` array from `rulesync.jsonc` but writes each discovered skill into the agent-specific directory expected by `gh skill install`. Each source supports two extra fields:
+`--mode gh` reads `rulesync.jsonc.sources` and runs the installed [GitHub CLI's skill installer](https://cli.github.com/manual/gh_skill_install). Install a current `gh` with `gh skill` support and authenticate with `gh auth login`, `GH_TOKEN`, or `GITHUB_TOKEN`. Rulesync's `--token` is passed to the child process as `GH_TOKEN`, never as a command argument. GitHub CLI's skills commands are in preview; its installed implementation determines discovery, placement, metadata, and update behavior.
 
-| Property | Type     | Default          | Description                                                                               |
-| -------- | -------- | ---------------- | ----------------------------------------------------------------------------------------- |
-| `agent`  | `string` | `github-copilot` | One of `github-copilot`, `claude-code`, `cursor`, `codex`, `gemini`, `antigravity`.       |
-| `scope`  | `string` | `project`        | `project` writes inside the project root; `user` writes inside the user's home directory. |
+Rulesync provides the declaration; GitHub CLI owns the installed state. It writes source tracking into `SKILL.md` under `metadata.github-repo`, `metadata.github-ref`, `metadata.github-tree-sha`, and `metadata.github-path`, and maintains its own user-level `~/.agents/.skill-lock.json`. Rulesync does not read or write a gh-mode lockfile.
 
-Agent → install directory mapping:
+| Field                        | Behavior in gh mode                                                                                                                                                                         |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `source`                     | GitHub repository: `owner/repo`, `owner/repo@ref`, or a GitHub URL.                                                                                                                         |
+| `skills`                     | Skill names or repository-relative skill paths accepted by `gh skill install`. Prefer exact paths ending in `SKILL.md` for large repositories. Missing skills fail the source installation. |
+| `ref`                        | Install from this branch, tag, or commit, overriding an inline source ref. Passed as `skill@ref`. Without a ref, gh selects the latest release, falling back to the default branch.         |
+| `agent`                      | Any agent ID supported by the installed gh; defaults to `github-copilot`. The legacy Rulesync value `gemini` maps to `gemini-cli`.                                                          |
+| `scope`                      | `project` (default) or `user`, passed to gh. Project placement follows gh's Git repository root discovery, falling back to the working directory outside Git.                               |
+| `transport`                  | Omit or use `github`. Other transports require `--mode rulesync`.                                                                                                                           |
+| `path`, `rules`, `rulesPath` | Rejected. Select individual skill paths with `skills`; install declarative rules with `--mode rulesync`.                                                                                    |
 
-| Agent            | Project scope (relative to project root) | User scope (relative to home) |
-| ---------------- | ---------------------------------------- | ----------------------------- |
-| `github-copilot` | `.agents/skills`                         | `.copilot/skills`             |
-| `claude-code`    | `.claude/skills`                         | `.claude/skills`              |
-| `cursor`         | `.agents/skills`                         | `.cursor/skills`              |
-| `codex`          | `.agents/skills`                         | `.agents/skills`              |
-| `gemini`         | `.agents/skills`                         | `.gemini/skills`              |
-| `antigravity`    | `.agents/skills`                         | `.gemini/antigravity/skills`  |
-
-For each skill discovered as `skills/<name>/SKILL.md` in the remote repository, rulesync deploys the entire skill directory to `<install-dir>/<name>/` and injects a provenance frontmatter block (`source`, `repository`, `ref`) into the deployed `SKILL.md`. The lockfile `rulesync-gh.lock.yaml` records one entry per `(source, agent, scope, skill)` tuple.
-
-Per-source field support in `--mode gh`:
-
-| Field       | Status                                                                                                                                       |
-| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `source`    | Required. Must resolve to a GitHub repository (`owner/repo`, `owner/repo@ref`, or an `https://github.com/...` URL).                          |
-| `skills`    | Optional. When set, only the listed skill names are installed; remote skills not in the list are skipped, and missing names log a warning.   |
-| `rules`     | **Rejected.** Declarative rules are supported only in `--mode rulesync`.                                                                     |
-| `rulesPath` | **Rejected.** Declarative rules are supported only in `--mode rulesync`.                                                                     |
-| `ref`       | Optional. Pins a tag, branch, or commit SHA. When omitted, gh mode resolves to the latest release's tag, falling back to the default branch. |
-| `agent`     | Optional. Defaults to `github-copilot`. See the agent table above.                                                                           |
-| `scope`     | Optional. Defaults to `project`.                                                                                                             |
-| `transport` | **Rejected.** gh mode is GitHub-only and does not honor the `git` transport. Drop the field or switch to `--mode rulesync`.                  |
-| `path`      | **Rejected.** The remote layout is fixed to `skills/<name>/SKILL.md`. Repositories that store skills elsewhere are not supported in gh mode. |
-
-The remote repository must use the layout `skills/<name>/SKILL.md` (one directory per skill, each containing a `SKILL.md`). Other layouts are not auto-discovered.
-
-Example `rulesync.jsonc`:
+Omitting `skills` or using an empty array installs all skills. Without a ref this delegates to `gh skill install --all`, including gh's supported discovery conventions. With an explicit ref, Rulesync discovers the existing `skills/<name>/SKILL.md` layout through `gh api`, then installs each exact path at that ref. GitHub CLI does not allow `--all` with `skill@ref`; declare explicit skill paths for other layouts at a specified ref.
 
 ```jsonc
 {
-  "targets": ["claudecode"],
-  "features": ["rules"],
   "sources": [
-    // Default: agent=github-copilot, scope=project -> .agents/skills/git-commit/
-    { "source": "acme/skills", "skills": ["git-commit"] },
-
-    // Same source, deployed for Claude Code at user scope -> ~/.claude/skills/git-commit/
+    { "source": "acme/skills", "skills": ["git-commit"], "agent": "universal" },
     {
       "source": "acme/skills",
-      "skills": ["git-commit"],
+      "ref": "main",
+      "skills": ["skills/git-commit/SKILL.md"],
       "agent": "claude-code",
       "scope": "user",
     },
@@ -198,19 +172,48 @@ Example `rulesync.jsonc`:
 }
 ```
 
-Run with `npx rulesync install --mode gh`.
+Each `rulesync install --mode gh` reinstalls the declarations with `gh skill install --force`. Sources run in declaration order, so later sources can overwrite earlier installations at the same destination. Reinstallation refreshes the declared ref and overwrites files supplied by that source. It does not prune removed declarations or extra files; manage those explicitly. GitHub CLI owns the destination layout, including shared destinations such as `.agents/skills` for several agents.
+
+#### Updates and fixed revisions
+
+Use [`gh skill list`](https://cli.github.com/manual/gh_skill_list) and [`gh skill update`](https://cli.github.com/manual/gh_skill_update) directly:
+
+```bash
+rulesync install --mode gh
+gh skill list --json skillName,sourceURL,version,pinned,path
+gh skill update --dry-run --all
+gh skill update --all
+
+# Limit the native update to one installation directory
+gh skill update --dir .agents/skills --dry-run --all
+```
+
+GitHub CLI 2.102.0 selects the latest release or default branch when updating, even if installation used `skill@branch`. The recorded `github-ref` describes the installation, not a branch-tracking policy. Inline `@ref` does not set `github-pinned`; gh skips persistent pins created with its own pin flag. Native updates can therefore move a skill away from a Rulesync-declared ref. Re-run `rulesync install --mode gh` to restore that declaration. See the [current ref resolution](https://github.com/cli/cli/blob/v2.102.0/internal/skills/discovery/discovery.go) and [update implementation](https://github.com/cli/cli/blob/v2.102.0/pkg/cmd/skills/update/update.go); preview behavior can change.
+
+Rulesync rejects `--update` in gh mode: use the native updater for its update policy, or plain install to reapply the declared refs. It also rejects `--frozen` before starting gh. There is no gh-mode frozen-install guarantee. For a fixed source revision, declare a full commit SHA in `ref`; branches and movable tags are not immutable, and a subsequent native update can still replace that installation. Use `--mode rulesync` when you need Rulesync's lockfile and frozen-install contract.
+
+#### Migrating earlier gh-mode installations
+
+Earlier Rulesync versions wrote top-level `source`, `repository`, and `ref` fields that gh's updater does not recognize. Merely appearing in `gh skill list` did not establish update compatibility.
+
+1. Review your source declarations. If you need the old recorded revision for the migration, copy the relevant `resolved_commit` from `rulesync-gh.lock.yaml` into the corresponding source's `ref` before installing. Otherwise migration resolves the declared ref anew.
+2. Run `rulesync install --mode gh`. The old lock is ignored, including malformed files, and gh overwrites the declared skills with its own metadata. Local edits to source-owned files are overwritten.
+3. Verify the source and version with `gh skill list` and inspect `gh skill update --dry-run --all`.
+4. Remove `rulesync-gh.lock.yaml` from the project and version control after successful migration. Remove obsolete `--frozen`/`--update` gh-mode invocations from CI and scripts. Skills no longer declared and files no longer supplied by the source need explicit cleanup; the old lock's `deployed_files` can help identify them.
+
+GitHub CLI 2.102.0's installer retains extra files on forced reinstall. Its updater replaces a changed skill's directory contents, including removal of extra files. Rulesync delegates those behaviors to gh and does not maintain a second ownership ledger.
 
 ## CLI Options
 
 The `install` command accepts these flags:
 
-| Flag              | Description                                                                                                                                                                          |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `--mode <mode>`   | Install mode: `rulesync` (default), `apm`, or `gh`. See **Install Modes** above.                                                                                                     |
-| `--update`        | Force re-resolve all source refs, ignoring the lockfile (useful to pull new updates).                                                                                                |
-| `--frozen`        | Fail if a lockfile is missing or does not cover declared sources and their skill and rule selections. Fetches missing locked artifacts without updating the lockfile. Useful for CI. |
-| `--outdated`      | Report which sources are behind in the lockfile without installing or writing anything. See **Checking for Outdated Sources** below.                                                 |
-| `--token <token>` | GitHub token for private repositories.                                                                                                                                               |
+| Flag              | Description                                                                                                                                                                                               |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--mode <mode>`   | Install mode: `rulesync` (default), `apm`, or `gh`. See **Install Modes** above.                                                                                                                          |
+| `--update`        | Force re-resolve source refs, ignoring the lockfile. Rejected in gh mode; use `gh skill update`.                                                                                                          |
+| `--frozen`        | Fail if a lockfile is missing or does not cover declared sources and their skill and rule selections. Fetches missing locked artifacts without updating the lockfile. Useful for CI. Rejected in gh mode. |
+| `--outdated`      | Report which sources are behind in the lockfile without installing or writing anything. See **Checking for Outdated Sources** below.                                                                      |
+| `--token <token>` | GitHub token for private repositories.                                                                                                                                                                    |
 
 ```bash
 # Install rules and skills using locked refs

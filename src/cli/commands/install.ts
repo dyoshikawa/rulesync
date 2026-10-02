@@ -1,7 +1,7 @@
 import { ConfigResolver } from "../../config/config-resolver.js";
 import { installApm } from "../../lib/apm/apm-install.js";
 import { apmManifestExists } from "../../lib/apm/apm-manifest.js";
-import { installGh } from "../../lib/gh/gh-install.js";
+import { installGh, validateGhOptions } from "../../lib/gh/gh-install.js";
 import { checkOutdatedSources } from "../../lib/sources-outdated.js";
 import { resolveAndFetchSources } from "../../lib/sources.js";
 import { CLIError, ErrorCodes } from "../../types/json-output.js";
@@ -39,6 +39,7 @@ export async function installCommand(
   }
 
   if (mode === "gh") {
+    validateGhOptions(options);
     await runGhInstall(logger, options);
     return;
   }
@@ -268,7 +269,6 @@ async function runGhInstall(logger: Logger, options: InstallCommandOptions): Pro
 
   if (logger.jsonMode) {
     logger.captureData("sourcesProcessed", result.sourcesProcessed);
-    logger.captureData("installedSkillCount", result.installedSkillCount);
     logger.captureData("failedSourceCount", result.failedSourceCount);
   }
 
@@ -278,11 +278,5 @@ async function runGhInstall(logger: Logger, options: InstallCommandOptions): Pro
     );
   }
 
-  if (result.installedSkillCount > 0) {
-    logger.success(
-      `Installed ${result.installedSkillCount} skill(s) from ${result.sourcesProcessed} gh source(s).`,
-    );
-  } else {
-    logger.success(`All gh sources up to date (${result.sourcesProcessed} checked).`);
-  }
+  logger.success(`Installed skills from ${result.sourcesProcessed} gh source(s) using GitHub CLI.`);
 }

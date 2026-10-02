@@ -247,10 +247,13 @@ export function createProgram(): Command {
       "--mode <mode>",
       `Install layout to produce (${INSTALL_MODES.join("|")}). Default: rulesync`,
     )
-    .option("--update", "Force re-resolve all source refs, ignoring lockfile")
+    .option(
+      "--update",
+      "Force re-resolve all source refs, ignoring lockfile (not supported in gh mode)",
+    )
     .option(
       "--frozen",
-      "Fail if lockfile is missing or out of sync (for CI); fetches missing skills using locked refs",
+      "Fail if lockfile is missing or out of sync (for CI); fetches missing skills using locked refs (not supported in gh mode)",
     )
     .option(
       "--outdated",

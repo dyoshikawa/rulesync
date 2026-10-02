@@ -94,9 +94,7 @@ export const SourceEntrySchema = z
     ),
     // gh-mode-only fields. Ignored by --mode rulesync. Defaults applied at the
     // gh install site (`agent` defaults to "github-copilot", `scope` to "project").
-    agent: optional(
-      z.enum(["github-copilot", "claude-code", "cursor", "codex", "gemini", "antigravity"]),
-    ),
+    agent: optional(z.string().check(minLength(1, "agent must be a non-empty string"))),
     scope: optional(z.enum(["project", "user"])),
   })
   .check(
