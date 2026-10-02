@@ -1030,7 +1030,8 @@ describe("importFromTool", () => {
             '    "read": { ".env": "deny" },',
             '    "edit": { "src/**": "allow" },',
             "  },",
-            '  "claudecode": { "permission": { "webfetch": { "*": "ask" } } },',
+            '  "claudecode": { "permissions": { "additionalDirectories": ["../old"] } },',
+            '  "opencode": { "permission": { "external_directory": "deny" } },',
             "}",
           ].join("\n"),
         );
@@ -1073,10 +1074,10 @@ describe("importFromTool", () => {
             // A category the import does not carry is kept.
             edit: { "src/**": "allow" },
           },
-          claudecode: {
-            permission: { webfetch: { "*": "ask" } },
-            permissions: { defaultMode: "plan" },
-          },
+          // The importing tool's own block is replaced wholesale ...
+          claudecode: { permissions: { defaultMode: "plan" } },
+          // ... while another tool's block is kept.
+          opencode: { permission: { external_directory: "deny" } },
         });
         expect(written?.getFileContent()).toContain("// Imported from Claude Code earlier.");
       } finally {
@@ -1114,7 +1115,9 @@ describe("importFromTool", () => {
             config: mockConfig as never,
             tool: "claudecode",
           }),
-        ).rejects.toThrow();
+        ).rejects.toThrow(
+          /Cannot merge imported permissions into .*permissions\.jsonc: the existing file is invalid/,
+        );
         expect(mockProcessor.writeAiFiles).not.toHaveBeenCalled();
       } finally {
         await cleanup();

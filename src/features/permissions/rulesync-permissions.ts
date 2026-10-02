@@ -128,20 +128,28 @@ export class RulesyncPermissions extends RulesyncFile {
    * "Rulesync manages this category and it has no rules" and would make the
    * next `generate` delete rules another tool's import produced.
    *
-   * Tool-scoped override blocks (`claudecode`, `codexcli`, ...) merge one level
-   * down the same way: an imported field replaces the existing field, fields
-   * the import does not name are kept, and a `permission` record inside the
-   * block merges per category. Every other top-level key — `$schema` included —
-   * is kept unless the import names it.
+   * The importing tool's own override block (`toolTarget`, resolved through
+   * `PERMISSION_OVERRIDE_KEY_ALIASES`) is replaced wholesale, and removed when
+   * the import does not produce one: only that tool's import ever writes it, so
+   * a setting removed from the tool's own config has to disappear here too.
+   * Any other tool's override block the import carries (Hermes restores them
+   * from its provenance) merges one level down: an imported field replaces the
+   * existing field, fields the import does not name are kept, and a
+   * `permission` record inside the block merges per category. Every other
+   * top-level key — `$schema` included — is kept unless the import names it.
    */
   static mergeImportedJson({
     existing,
     imported,
+    toolTarget,
   }: {
     existing: Record<string, unknown>;
     imported: Record<string, unknown>;
+    toolTarget: ToolTarget;
   }): Record<string, unknown> {
+    const ownOverrideKey = PERMISSION_OVERRIDE_KEY_ALIASES[toolTarget] ?? toolTarget;
     const merged: Record<string, unknown> = { ...existing };
+    delete merged[ownOverrideKey];
     for (const [key, value] of Object.entries(imported)) {
       const current = merged[key];
       if (key === "permission") {

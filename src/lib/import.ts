@@ -521,7 +521,7 @@ async function importPermissionsCore(params: {
     paths: RulesyncPermissions.getSettablePaths(),
     sourceClass: RulesyncPermissions,
   });
-  const mergedFiles = await mergeIntoExistingPermissions({ files: rulesyncFiles, logger });
+  const mergedFiles = await mergeIntoExistingPermissions({ files: rulesyncFiles, tool, logger });
   const { count: writtenCount } = await permissionsProcessor.writeAiFiles(mergedFiles);
 
   if (config.getVerbose() && writtenCount > 0) {
@@ -541,9 +541,11 @@ async function importPermissionsCore(params: {
  */
 async function mergeIntoExistingPermissions({
   files,
+  tool,
   logger,
 }: {
   files: RulesyncFile[];
+  tool: ToolTarget;
   logger: Logger;
 }): Promise<RulesyncFile[]> {
   const first = files[0];
@@ -551,47 +553,45 @@ async function mergeIntoExistingPermissions({
     return files;
   }
 
-  const existingContent = await readFileContent(first.getFilePath());
-  let current = new RulesyncPermissions({
-    outputRoot: first.getOutputRoot(),
-    relativeDirPath: first.getRelativeDirPath(),
-    relativeFilePath: first.getRelativeFilePath(),
-    fileContent: existingContent,
-    validate: true,
-  });
-  for (const file of files) {
-    if (!(file instanceof RulesyncPermissions)) {
-      continue;
-    }
-    const merged = RulesyncPermissions.mergeImportedJson({
-      existing: current.getJson(),
-      imported: file.getJson(),
-    });
-    current = new RulesyncPermissions({
-      outputRoot: current.getOutputRoot(),
-      relativeDirPath: current.getRelativeDirPath(),
-      relativeFilePath: current.getRelativeFilePath(),
-      fileContent: JSON.stringify(merged, null, 2),
-      validate: true,
-    });
-  }
-
-  const fileContent = serializeSharedConfig({
-    format: "jsonc",
-    document: current.getJson(),
-    existingContent,
-    filePath: current.getRelativePathFromCwd(),
-    logger,
-  });
-  return [
+  const withContent = (fileContent: string): RulesyncPermissions =>
     new RulesyncPermissions({
-      outputRoot: current.getOutputRoot(),
-      relativeDirPath: current.getRelativeDirPath(),
-      relativeFilePath: current.getRelativeFilePath(),
+      outputRoot: first.getOutputRoot(),
+      relativeDirPath: first.getRelativeDirPath(),
+      relativeFilePath: first.getRelativeFilePath(),
       fileContent,
       validate: true,
-    }),
-  ];
+    });
+
+  const existingContent = await readFileContent(first.getFilePath());
+  let existing: Record<string, unknown>;
+  try {
+    existing = withContent(existingContent).getJson();
+  } catch (error) {
+    throw new Error(
+      `Cannot merge imported permissions into ${first.getRelativePathFromCwd()}: the existing file is invalid (${formatError(error)}). Fix or remove it, then import again.`,
+      { cause: error },
+    );
+  }
+
+  const merged = files.reduce(
+    (document, file) =>
+      file instanceof RulesyncPermissions
+        ? RulesyncPermissions.mergeImportedJson({
+            existing: document,
+            imported: file.getJson(),
+            toolTarget: tool,
+          })
+        : document,
+    existing,
+  );
+  const fileContent = serializeSharedConfig({
+    format: "jsonc",
+    document: merged,
+    existingContent,
+    filePath: first.getRelativePathFromCwd(),
+    logger,
+  });
+  return [withContent(fileContent)];
 }
 
 async function importChecksCore(params: {
