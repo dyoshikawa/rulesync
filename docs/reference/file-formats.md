@@ -1745,6 +1745,16 @@ Importing removes a blank key rather than reproducing it: keeping one would writ
 
 When removing a blank pattern leaves a category with no rules at all, the category itself is removed rather than left as an empty object. An empty category means "Rulesync manages this category and it has no rules", which makes the next `generate` delete the entries the tool's own config already had; removing the category leaves them alone. When that empties a tool-scoped block outright, the `permission` key is dropped too — and with it the whole `{toolname}` block if nothing else was authored under it — so no empty override is left behind for the next reader to puzzle over. In a tool-scoped block the removal also changes what the block means, from "override this category with nothing" to "inherit the shared block"; that is deliberate, since the alternative is the next `generate` deleting rules written by hand in the tool's own config, and every removal is warned about.
 
+**Importing merges into the existing file.** `rulesync import --features permissions` merges what it imports into an existing `.rulesync/permissions.jsonc` (or legacy `.rulesync/permissions.json`) **per category** instead of replacing the file, so importing from a second tool keeps what the first import produced. Each tool maps only some categories — Roo Code, for instance, maps shell commands to `bash` and nothing else — so importing from Roo Code after Claude Code replaces `bash` and keeps `read`, `edit`, `webfetch`, and the rest:
+
+- A category the import carries replaces the existing category wholesale: the imported tool is authoritative for the categories it maps, so patterns are never mixed across tools and a re-import from the same tool reproduces the same category. There is no pattern-level conflict to resolve; the last import of a category wins.
+- A category the import does not carry is kept, and so is every other top-level key (`$schema`, other tools' `{toolname}` blocks).
+- An imported category with no rules never replaces an existing one, since an empty category would make the next `generate` delete the rules another tool's import produced.
+- A `{toolname}` block the import produces merges field by field into the existing block, and its `permission` record merges per category the same way.
+- Comments in the existing JSONC file are kept wherever the edit allows. An existing file that fails validation stops the import instead of being overwritten.
+
+Because the file on disk is the merge base, a category deleted by hand comes back only when the next import carries it again; delete it from the tool's own config too to keep it gone. Only the permissions import merges this way; the other features' imports are unchanged.
+
 ### Tool-scoped permission blocks (`{toolname}.permission`)
 
 The shared `permission` block applies to every targeted tool. To scope rules to a single tool, add a tool-scoped `{toolname}` block with a `permission` record of the same shape — mirroring `{toolname}.hooks` in `.rulesync/hooks.jsonc` and `{toolname}.mcpServers` in `.rulesync/mcp.jsonc`:

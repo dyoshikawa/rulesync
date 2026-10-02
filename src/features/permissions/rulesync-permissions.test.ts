@@ -1078,3 +1078,79 @@ describe("PermissionsConfigSchema tool keys", () => {
     expect(actual).toEqual(expected);
   });
 });
+
+describe("RulesyncPermissions.mergeImportedJson", () => {
+  it("replaces imported categories wholesale and keeps the others", () => {
+    const merged = RulesyncPermissions.mergeImportedJson({
+      existing: {
+        permission: {
+          bash: { "git *": "allow", "*": "ask" },
+          read: { ".env": "deny" },
+          webfetch: { "*": "ask" },
+        },
+      },
+      imported: { permission: { bash: { "npm *": "allow" } } },
+    });
+
+    expect(merged).toEqual({
+      permission: {
+        bash: { "npm *": "allow" },
+        read: { ".env": "deny" },
+        webfetch: { "*": "ask" },
+      },
+    });
+  });
+
+  it("does not let an empty imported category replace an existing one", () => {
+    const merged = RulesyncPermissions.mergeImportedJson({
+      existing: { permission: { read: { ".env": "deny" } } },
+      imported: { permission: { read: {}, toString: {} } },
+    });
+
+    expect(merged).toEqual({ permission: { read: { ".env": "deny" }, toString: {} } });
+  });
+
+  it("merges tool-scoped override blocks field by field and their permission per category", () => {
+    const merged = RulesyncPermissions.mergeImportedJson({
+      existing: {
+        $schema: "https://example.com/schema.json",
+        claudecode: {
+          permission: { bash: { "*": "ask" }, edit: { "src/**": "allow" } },
+          permissions: { defaultMode: "default" },
+        },
+        opencode: { permission: { external_directory: "deny" } },
+      },
+      imported: {
+        permission: { bash: { "git *": "allow" } },
+        claudecode: {
+          permission: { bash: { "git *": "allow" } },
+          permissions: { defaultMode: "plan" },
+        },
+      },
+    });
+
+    expect(merged).toEqual({
+      $schema: "https://example.com/schema.json",
+      permission: { bash: { "git *": "allow" } },
+      claudecode: {
+        permission: { bash: { "git *": "allow" }, edit: { "src/**": "allow" } },
+        permissions: { defaultMode: "plan" },
+      },
+      opencode: { permission: { external_directory: "deny" } },
+    });
+  });
+
+  it("is idempotent when the same document is imported twice", () => {
+    const importedDocument = { permission: { bash: { "git *": "allow" } } };
+    const once = RulesyncPermissions.mergeImportedJson({
+      existing: { permission: { read: { ".env": "deny" } } },
+      imported: importedDocument,
+    });
+    const twice = RulesyncPermissions.mergeImportedJson({
+      existing: once,
+      imported: importedDocument,
+    });
+
+    expect(twice).toEqual(once);
+  });
+});

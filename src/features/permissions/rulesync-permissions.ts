@@ -116,6 +116,52 @@ export class RulesyncPermissions extends RulesyncFile {
     });
   }
 
+  /**
+   * Merge an imported canonical document into the one already on disk, so
+   * importing from a second tool does not discard what the first contributed.
+   *
+   * The rule mirrors {@link RulesyncPermissions.forTarget}: categories merge
+   * **per category**. A category the import carries replaces the existing
+   * category wholesale (the imported tool is authoritative for what it maps);
+   * a category it does not carry is kept. An imported category with no rules
+   * never replaces an existing one, because an empty category reads as
+   * "Rulesync manages this category and it has no rules" and would make the
+   * next `generate` delete rules another tool's import produced.
+   *
+   * Tool-scoped override blocks (`claudecode`, `codexcli`, ...) merge one level
+   * down the same way: an imported field replaces the existing field, fields
+   * the import does not name are kept, and a `permission` record inside the
+   * block merges per category. Every other top-level key — `$schema` included —
+   * is kept unless the import names it.
+   */
+  static mergeImportedJson({
+    existing,
+    imported,
+  }: {
+    existing: Record<string, unknown>;
+    imported: Record<string, unknown>;
+  }): Record<string, unknown> {
+    const merged: Record<string, unknown> = { ...existing };
+    for (const [key, value] of Object.entries(imported)) {
+      const current = merged[key];
+      if (key === "permission") {
+        merged[key] = mergePermissionCategories({ existing: current, imported: value });
+      } else if (isRecord(current) && isRecord(value)) {
+        const block: Record<string, unknown> = { ...current };
+        for (const [field, fieldValue] of Object.entries(value)) {
+          block[field] =
+            field === "permission"
+              ? mergePermissionCategories({ existing: block[field], imported: fieldValue })
+              : fieldValue;
+        }
+        merged[key] = block;
+      } else {
+        merged[key] = value;
+      }
+    }
+    return merged;
+  }
+
   validate(): ValidationResult {
     if (this.droppedKeys.length > 0) {
       return {
@@ -232,6 +278,31 @@ export class RulesyncPermissions extends RulesyncFile {
       fileContent: JSON.stringify(merged, null, 2),
     });
   }
+}
+
+/**
+ * Per-category merge used by {@link RulesyncPermissions.mergeImportedJson}. A
+ * value that is not a record on either side is taken from the import as is,
+ * since there are no categories to merge.
+ */
+function mergePermissionCategories({
+  existing,
+  imported,
+}: {
+  existing: unknown;
+  imported: unknown;
+}): unknown {
+  if (!isRecord(imported)) {
+    return imported;
+  }
+  const merged: Record<string, unknown> = isRecord(existing) ? { ...existing } : {};
+  for (const [category, rules] of Object.entries(imported)) {
+    if (isRecord(rules) && Object.keys(rules).length === 0 && Object.hasOwn(merged, category)) {
+      continue;
+    }
+    merged[category] = rules;
+  }
+  return merged;
 }
 
 /**
