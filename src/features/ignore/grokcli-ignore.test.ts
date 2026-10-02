@@ -10,7 +10,7 @@ import {
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { readFileContent, writeFileContent } from "../../utils/file.js";
 import { fallbackLogger } from "../../utils/logger.js";
-import { GrokcliIgnore, toGrokcliDenyEntry } from "./grokcli-ignore.js";
+import { GrokcliIgnore, toGrokcliDenyEntries } from "./grokcli-ignore.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 
 const rulesyncIgnoreOf = (fileContent: string): RulesyncIgnore =>
@@ -42,32 +42,43 @@ describe("GrokcliIgnore", () => {
     });
   });
 
-  describe("toGrokcliDenyEntry", () => {
+  describe("toGrokcliDenyEntries", () => {
     it.each([
-      ["*.pem", "**/*.pem"],
-      [".env", "**/.env"],
-      ["tmp/", "**/tmp"],
-      ["/secrets", "secrets"],
-      ["/build/", "build"],
-      ["config/secrets.json", "config/secrets.json"],
-      ["certs/**/*.key", "certs/**/*.key"],
-      ["**/.ssh", "**/.ssh"],
-      ["key[0-9].txt", "**/key[0-9].txt"],
-    ])("should translate %j to %j", (pattern, entry) => {
-      expect(toGrokcliDenyEntry(pattern)).toEqual({ entry });
+      ["*.pem", ["**/*.pem", "**/*.pem/**"]],
+      [".env", ["**/.env", "**/.env/**"]],
+      ["tmp", ["**/tmp", "**/tmp/**"]],
+      ["tmp/", ["**/tmp/**"]],
+      ["/secrets", ["secrets"]],
+      ["//secrets", ["secrets"]],
+      ["/build/", ["build"]],
+      ["config/secrets.json", ["config/secrets.json"]],
+      ["certs/**/*.key", ["certs/**/*.key", "certs/**/*.key/**"]],
+      ["**/.ssh", ["**/.ssh", "**/.ssh/**"]],
+      ["cache/**", ["cache/**"]],
+      ["key[0-9].txt", ["**/key[0-9].txt", "**/key[0-9].txt/**"]],
+      ["key[!0-9].txt", ["**/key[!0-9].txt", "**/key[!0-9].txt/**"]],
+      ["/{draft}.md", ["{draft}.md"]],
+    ])("should translate %j to %j", (pattern, entries) => {
+      expect(toGrokcliDenyEntries(pattern)).toEqual({ entries });
     });
 
     it.each([
       ["!keep.env", /negation/],
       ["*.{pem,key}", /brace/],
-      ["foo\\ bar", /backslash/],
+      ["foo\\ bar*", /backslash/],
       ["a//b", /empty path segments/],
       ["../outside", /`\.` and `\.\.`/],
-      ["[[:digit:]]", /character classes/],
+      ["**.log", /whole path segment/],
+      ["logs/foo**", /whole path segment/],
+      ["[[:digit:]]", /nested/],
+      ["[]a]", /literal `\]`/],
+      ["[!]a]", /literal `\]`/],
+      ["[^]a]", /literal `\]`/],
+      ["key[0-9", /not closed/],
       ["/", /whole workspace/],
     ])("should reject %j", (pattern, reason) => {
-      const result = toGrokcliDenyEntry(pattern);
-      expect(result.entry).toBeUndefined();
+      const result = toGrokcliDenyEntries(pattern);
+      expect(result.entries).toBeUndefined();
       expect(result.reason).toMatch(reason);
     });
   });
@@ -83,10 +94,18 @@ describe("GrokcliIgnore", () => {
       expect(grokcliIgnore.getRelativeFilePath()).toBe("sandbox.toml");
       expect(parseToml(grokcliIgnore.getFileContent())).toEqual({
         profiles: {
-          rulesync: { extends: "workspace", deny: ["**/*.pem", "**/tmp", "secrets"] },
+          rulesync: {
+            extends: "workspace",
+            deny: ["**/*.pem", "**/*.pem/**", "**/tmp/**", "secrets"],
+          },
         },
       });
-      expect(grokcliIgnore.getPatterns()).toEqual(["**/*.pem", "**/tmp", "secrets"]);
+      expect(grokcliIgnore.getPatterns()).toEqual([
+        "**/*.pem",
+        "**/*.pem/**",
+        "**/tmp/**",
+        "secrets",
+      ]);
     });
 
     it("should skip patterns Grok cannot express, with a warning", async () => {
@@ -98,7 +117,7 @@ describe("GrokcliIgnore", () => {
       });
 
       expect(parseToml(grokcliIgnore.getFileContent())).toEqual({
-        profiles: { rulesync: { extends: "workspace", deny: ["**/*.env"] } },
+        profiles: { rulesync: { extends: "workspace", deny: ["**/*.env", "**/*.env/**"] } },
       });
       expect(warn).toHaveBeenCalledTimes(2);
       expect(warn).toHaveBeenCalledWith(expect.stringContaining('"!keep.env"'));
@@ -108,10 +127,10 @@ describe("GrokcliIgnore", () => {
     it("should deduplicate patterns that translate to the same entry", async () => {
       const grokcliIgnore = await GrokcliIgnore.fromRulesyncIgnore({
         outputRoot: testDir,
-        rulesyncIgnore: rulesyncIgnoreOf("tmp\ntmp/\n"),
+        rulesyncIgnore: rulesyncIgnoreOf("*.log\n*.log/\n"),
       });
 
-      expect(grokcliIgnore.getPatterns()).toEqual(["**/tmp"]);
+      expect(grokcliIgnore.getPatterns()).toEqual(["**/*.log", "**/*.log/**"]);
     });
 
     it("should preserve other profiles, top-level keys and keys added to the rulesync profile", async () => {
@@ -141,12 +160,16 @@ describe("GrokcliIgnore", () => {
         note: "mine",
         profiles: {
           mine: { extends: "strict", deny: ["/data"] },
-          rulesync: { extends: "read-only", restrict_network: true, deny: ["**/*.pem"] },
+          rulesync: {
+            extends: "read-only",
+            restrict_network: true,
+            deny: ["**/*.pem", "**/*.pem/**"],
+          },
         },
       });
     });
 
-    it("should remove the rulesync profile when there are no patterns", async () => {
+    it("should keep an existing rulesync profile with an empty deny list when there are no patterns", async () => {
       await writeFileContent(
         join(testDir, ".grok", "sandbox.toml"),
         '[profiles.mine]\ndeny = ["/data"]\n\n[profiles.rulesync]\ndeny = ["**/old"]\n',
@@ -158,16 +181,22 @@ describe("GrokcliIgnore", () => {
       });
 
       expect(parseToml(grokcliIgnore.getFileContent())).toEqual({
-        profiles: { mine: { deny: ["/data"] } },
+        profiles: { mine: { deny: ["/data"] }, rulesync: { extends: "workspace", deny: [] } },
       });
     });
 
-    it("should drop an emptied profiles table", async () => {
-      await writeFileContent(
-        join(testDir, ".grok", "sandbox.toml"),
-        '[profiles.rulesync]\ndeny = ["**/old"]\n',
-      );
+    it("should not create the rulesync profile when there are no patterns", async () => {
+      await writeFileContent(join(testDir, ".grok", "sandbox.toml"), 'note = "mine"\n');
 
+      const grokcliIgnore = await GrokcliIgnore.fromRulesyncIgnore({
+        outputRoot: testDir,
+        rulesyncIgnore: rulesyncIgnoreOf("# nothing\n"),
+      });
+
+      expect(parseToml(grokcliIgnore.getFileContent())).toEqual({ note: "mine" });
+    });
+
+    it("should write nothing for a missing file and no patterns", async () => {
       const grokcliIgnore = await GrokcliIgnore.fromRulesyncIgnore({
         outputRoot: testDir,
         rulesyncIgnore: rulesyncIgnoreOf(""),
@@ -192,9 +221,20 @@ describe("GrokcliIgnore", () => {
       expect(parseToml(grokcliIgnore.getFileContent())).toEqual({
         profiles: {
           mine: { deny: ["/data"] },
-          rulesync: { extends: "workspace", deny: ["**/*.pem"] },
+          rulesync: { extends: "workspace", deny: ["**/*.pem", "**/*.pem/**"] },
         },
       });
+    });
+
+    it("should refuse to overwrite a sandbox file whose profiles key is not a table", async () => {
+      await writeFileContent(join(testDir, ".grok", "sandbox.toml"), 'profiles = "mine"\n');
+
+      await expect(
+        GrokcliIgnore.fromRulesyncIgnore({
+          outputRoot: testDir,
+          rulesyncIgnore: rulesyncIgnoreOf("*.pem\n"),
+        }),
+      ).rejects.toThrow(/to be a table/);
     });
 
     it("should refuse to overwrite a sandbox file it cannot parse", async () => {
@@ -218,7 +258,10 @@ describe("GrokcliIgnore", () => {
           'deny = ["mine-only"]',
           "",
           "[profiles.rulesync]",
-          'deny = ["**/*.pem", "**/tmp", "secrets", "config/secrets.json", "/etc/shadow", "**/a/b"]',
+          "deny = [",
+          '  "**/*.pem", "**/*.pem/**", "**/tmp", "**/cache/**", "**/*.log/**", "secrets",',
+          '  "config/secrets.json", "/etc/shadow", "!keep", "#note", "**/a/b",',
+          "]",
           "",
         ].join("\n"),
       );
@@ -229,20 +272,24 @@ describe("GrokcliIgnore", () => {
       expect(rulesyncIgnore.getRelativeDirPath()).toBe(RULESYNC_RELATIVE_DIR_PATH);
       expect(rulesyncIgnore.getRelativeFilePath()).toBe(RULESYNC_AIIGNORE_FILE_NAME);
       expect(rulesyncIgnore.getFileContent()).toBe(
-        ["*.pem", "tmp", "/secrets", "config/secrets.json", "**/a/b"].join("\n"),
+        ["*.pem", "tmp", "cache/", "*.log/", "/secrets", "config/secrets.json", "**/a/b"].join(
+          "\n",
+        ),
       );
     });
 
     it("should round-trip generated entries back to equivalent patterns", async () => {
       const generated = await GrokcliIgnore.fromRulesyncIgnore({
         outputRoot: testDir,
-        rulesyncIgnore: rulesyncIgnoreOf("*.pem\n/secrets\nconfig/app.key\n"),
+        rulesyncIgnore: rulesyncIgnoreOf("*.pem\n*.log/\n/secrets\nconfig/app.key\n"),
       });
       await writeFileContent(generated.getFilePath(), generated.getFileContent());
 
       const imported = await GrokcliIgnore.fromFile({ outputRoot: testDir });
 
-      expect(imported.toRulesyncIgnore().getFileContent()).toBe("*.pem\n/secrets\nconfig/app.key");
+      expect(imported.toRulesyncIgnore().getFileContent()).toBe(
+        "*.pem\n*.log/\n/secrets\nconfig/app.key",
+      );
       expect(await readFileContent(generated.getFilePath())).toContain("[profiles.rulesync]");
     });
 

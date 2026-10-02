@@ -149,7 +149,7 @@ credentials/
         };
         expect(parsed.profiles?.rulesync).toEqual({
           extends: "workspace",
-          deny: ["**/tmp", "**/credentials", "**/*.secret"],
+          deny: ["**/tmp/**", "**/credentials/**", "**/*.secret", "**/*.secret/**"],
         });
       } else if (format === "json" && target === "zed") {
         // Zed uses JSON format with private_files
@@ -346,7 +346,7 @@ credentials/
 
     await writeFileContent(
       join(testDir, GROKCLI_DIR, GROKCLI_SANDBOX_FILE_NAME),
-      '[profiles.mine]\ndeny = ["mine-only"]\n\n[profiles.rulesync]\ndeny = ["**/tmp", "**/*.secret"]\n',
+      '[profiles.mine]\ndeny = ["mine-only"]\n\n[profiles.rulesync]\ndeny = ["**/tmp/**", "**/*.secret", "**/*.secret/**"]\n',
     );
 
     await runImport({ target: "grokcli", features: "ignore" });
@@ -354,7 +354,7 @@ credentials/
     const importedContent = await readFileContent(
       join(testDir, RULESYNC_AIIGNORE_RELATIVE_FILE_PATH),
     );
-    expect(importedContent.trim().split("\n")).toEqual(["tmp", "*.secret"]);
+    expect(importedContent.trim().split("\n")).toEqual(["tmp/", "*.secret"]);
   });
 });
 
@@ -407,7 +407,9 @@ describe("E2E: ignore (global mode)", () => {
 
       const generatedContent = await readFileContent(join(homeDir, outputPath));
       // Grok CLI's sandbox deny globs drop the trailing `/` Grok rejects.
-      expect(generatedContent).toContain(target === "grokcli" ? "**/credentials" : "credentials/");
+      expect(generatedContent).toContain(
+        target === "grokcli" ? "**/credentials/**" : "credentials/",
+      );
       expect(generatedContent).toContain("*.secret");
     },
   );
