@@ -200,6 +200,9 @@ describe("registry derivation", () => {
       // Crush's personal project context file: Crush reads `CRUSH.local.md`
       // but, unlike CodeBuddy Code, does not gitignore it itself (issue #2954).
       "crush::rules::**/CRUSH.local.md",
+      // Reasonix loads `REASONIX.local.md` beside each `REASONIX.md` in the
+      // workspace chain as the personal, uncommitted variant.
+      "reasonix::rules::**/REASONIX.local.md",
       "claudecode::general::**/.claude/*.lock",
       "claudecode::general::**/.claude/settings.local.json",
       "claudecode::general::**/.claude/memories/",

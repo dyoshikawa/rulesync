@@ -9,6 +9,7 @@ import { CRUSH_LOCAL_RULE_FILE_NAME } from "../../constants/crush-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { QODER_LOCAL_RULE_FILE_NAME } from "../../constants/qoder-paths.js";
 import { QWENCODE_DIR, QWENCODE_LOCAL_RULE_FILE_NAME } from "../../constants/qwencode-paths.js";
+import { REASONIX_LOCAL_RULE_FILE_NAME } from "../../constants/reasonix-paths.js";
 import {
   CURATED_RULES_FEATURE_SUBDIR,
   RULES_FEATURE_SUBDIR,
@@ -1127,11 +1128,14 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         // (mirrors codexcli) — except directory-scoped rules
         // (`agentsmd.subprojectPath`), which Context Engine v2 (v1.18.0) loads
         // per-directory and are emitted as nested `<dir>/REASONIX.md` files
-        // (imported back via `getNestedFilePatterns`).
+        // (imported back via `getNestedFilePatterns`). A `localRoot` rule goes
+        // to the uncommitted `REASONIX.local.md` Reasonix loads beside it.
         extension: "md",
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",
         collisionPolicy: "fold",
+        localRootMode: "separate-local-file",
+        localRootFileName: REASONIX_LOCAL_RULE_FILE_NAME,
       },
     },
   ],
@@ -2442,10 +2446,14 @@ export class RulesProcessor extends FeatureProcessor {
         localRoot,
       });
     }
-    if (isClassOrSubclassOf({ candidate: factory.class, base: CrushRule })) {
-      // Crush reads `CRUSH.local.md` from the working directory root, the same
-      // place as the shared `CRUSH.md`; it has no tool directory to put it in.
-      return new CrushRule({
+    // Crush and Reasonix both read their `.local` file from the working
+    // directory root, next to the shared root file (`CRUSH.md` / `REASONIX.md`);
+    // neither has a tool directory to put it in.
+    const workingRootClass = [CrushRule, ReasonixRule].find((base) =>
+      isClassOrSubclassOf({ candidate: factory.class, base }),
+    );
+    if (workingRootClass) {
+      return new workingRootClass({
         outputRoot: this.outputRoot,
         relativeDirPath: relativeDirPath ?? ".",
         relativeFilePath: fileName,
