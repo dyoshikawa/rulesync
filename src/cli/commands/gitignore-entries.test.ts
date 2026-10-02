@@ -22,10 +22,13 @@ const logger = createMockLogger();
 // only into a user-owned shared settings file that rulesync must not gitignore.
 // Note: `amp` now has a `skills` entry (`.agents/skills/`); its MCP output still
 // lands in the user-owned `.amp/settings.{json,jsonc}`, which is not gitignored.
+// `warpcli` is global-only: its MCP and permissions files live in the Warp
+// Agent CLI's config root under the home directory, never in a project.
 const TARGETS_WITHOUT_GITIGNORE_ENTRIES = new Set([
   "agentsskills",
   "augmentcode-legacy",
   "claudecode-legacy",
+  "warpcli",
 ]);
 
 describe("GITIGNORE_ENTRY_REGISTRY", () => {

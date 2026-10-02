@@ -79,6 +79,7 @@ describe("tool targets", () => {
         "lettacode",
         "claudecode-plugin",
         "vibe-plugin",
+        "warpcli",
         "zcode-plugin",
         "agentsskills",
       ];

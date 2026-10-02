@@ -47,10 +47,10 @@ const DENYLIST_KEY = "agent_mode_command_execution_denylist";
 // Profiles fill missing fields with defaults on load, so a partial record
 // stays valid.
 // https://github.com/warpdotdev/warp/blob/main/specs/file-backed-execution-profile-collection/TECH.md
-const EXECUTION_PROFILES_KEY = "execution_profiles";
-const DEFAULT_PROFILE_KEY = "default";
-const PROFILE_ALLOWLIST_KEY = "command_allowlist";
-const PROFILE_DENYLIST_KEY = "command_denylist";
+export const EXECUTION_PROFILES_KEY = "execution_profiles";
+export const DEFAULT_PROFILE_KEY = "default";
+export const PROFILE_ALLOWLIST_KEY = "command_allowlist";
+export const PROFILE_DENYLIST_KEY = "command_denylist";
 
 // File-read/read-only autonomy keys under `[agents.profiles]` that the `warp`
 // override authors and that round-trip back into it on import. rulesync still
@@ -67,8 +67,8 @@ const WARP_OVERRIDE_KEYS = [
 // `app/src/ai/execution_profiles/config.rs`). Profile-management keys (name,
 // model overrides, context window limit, plan sync, web search toggle) are
 // deliberately not lifted — they are not permissions.
-const WARP_EXECUTION_PROFILE_OVERRIDE_KEY = "execution_profile";
-const WARP_EXECUTION_PROFILE_KEYS = [
+export const WARP_EXECUTION_PROFILE_OVERRIDE_KEY = "execution_profile";
+export const WARP_EXECUTION_PROFILE_KEYS = [
   "read_files",
   "apply_code_diffs",
   "execute_commands",
@@ -276,14 +276,7 @@ export class WarpPermissions extends ToolPermissions {
 
     agents.profiles = profiles;
 
-    if (mergedDeny.length > 0 && logger) {
-      logger.warn(
-        `Warp's command_denylist replaces its built-in default denylist, which covers rm, curl, ` +
-          `wget, eval, ssh, shells, and other risky command patterns. The ${mergedDeny.length} ` +
-          `deny rule(s) from .rulesync/permissions.jsonc are now the whole denylist — add ` +
-          `equivalents for the built-in patterns you want to keep.`,
-      );
-    }
+    warnAboutDenylistReplacement({ toolLabel: "Warp", denyCount: mergedDeny.length, logger });
 
     mergeIntoDefaultExecutionProfile({
       agents,
@@ -397,6 +390,31 @@ export class WarpPermissions extends ToolPermissions {
       global: true,
     });
   }
+}
+
+/**
+ * Writing `command_denylist` at all replaces Warp's built-in default denylist,
+ * so any non-empty list rulesync writes deserves a heads-up.
+ * https://docs.warp.dev/agents/cli/permissions-and-profiles/
+ */
+export function warnAboutDenylistReplacement({
+  toolLabel,
+  denyCount,
+  logger,
+}: {
+  toolLabel: string;
+  denyCount: number;
+  logger?: Logger;
+}): void {
+  if (denyCount === 0 || !logger) {
+    return;
+  }
+  logger.warn(
+    `${toolLabel}'s command_denylist replaces its built-in default denylist, which covers rm, curl, ` +
+      `wget, eval, ssh, shells, and other risky command patterns. The ${denyCount} ` +
+      `deny rule(s) from .rulesync/permissions.jsonc are now the whole denylist — add ` +
+      `equivalents for the built-in patterns you want to keep.`,
+  );
 }
 
 /**
@@ -777,12 +795,16 @@ function warpCommandPatternToGlob(pattern: string): string {
  * adds. Other categories are dropped (with a warning when they carry `deny`
  * rules).
  */
-function convertRulesyncToWarpPermissions({
+export function convertRulesyncToWarpPermissions({
   config,
   logger,
+  toolLabel = "Warp",
+  surfaceLabel = "agent_mode_command_execution_allowlist/denylist",
 }: {
   config: PermissionsConfig;
   logger?: Logger;
+  toolLabel?: string;
+  surfaceLabel?: string;
 }): { allow: string[]; deny: string[] } {
   const { rules, foreignRestrictingCategories, ignoredAllToolsAllowPatterns } =
     collectShellCommandRules(config.permission);
@@ -802,13 +824,13 @@ function convertRulesyncToWarpPermissions({
     normalizePattern: warpCommandPatternToGlob,
   });
   warnAboutUnwrittenCommandRules({
-    toolLabel: "Warp",
-    surfaceLabel: "agent_mode_command_execution_allowlist/denylist",
+    toolLabel,
+    surfaceLabel,
     foreignRestrictingCategories,
     shadowedAllowPatterns,
     unwrittenDenyPatterns,
     unwrittenDenyReason:
-      "Writing any denylist replaces Warp's built-in default one, and a pattern written " +
+      `Writing any denylist replaces ${toolLabel}'s built-in default one, and a pattern written ` +
       "under '*' need not be a command at all.",
     unenforcedAllToolsAskPatterns,
     ignoredAllToolsAllowPatterns,
@@ -823,7 +845,7 @@ function convertRulesyncToWarpPermissions({
  * Convert Warp command allow/deny regex lists back to rulesync config under the
  * `bash` category.
  */
-function convertWarpToRulesyncPermissions(params: {
+export function convertWarpToRulesyncPermissions(params: {
   allow: string[];
   deny: string[];
 }): PermissionsConfig {

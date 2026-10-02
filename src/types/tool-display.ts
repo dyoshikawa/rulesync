@@ -70,6 +70,7 @@ export const TOOL_DISPLAY: ReadonlyArray<ToolDisplayEntry> = [
   { key: "devin", label: "Devin Desktop", group: "ai" },
   { key: "devin-plugin", label: "Devin plugin", group: "ai" },
   { key: "warp", label: "Warp", group: "ai" },
+  { key: "warpcli", label: "Warp Agent CLI", group: "ai" },
   { key: "replit", label: "Replit", group: "ai" },
   { key: "pi", label: "Pi Coding Agent", group: "ai" },
   { key: "omp", label: "oh-my-pi", group: "ai" },

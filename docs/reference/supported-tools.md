@@ -61,6 +61,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Devin Desktop             | devin              | ✅ 🌏 | ✅ 🌏  | ✅ 🌏 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
 | Devin plugin              | devin-plugin       |  ✅   |        |  ✅ 🔧   |          |    ✅     |   ✅   |  ✅   |             |        |
 | Warp                      | warp               | ✅ 🌏 |   ✅   |  ✅ 🌏   |  ✅ 🌏   |           | ✅ 🌏  |       |     🌏      |        |
+| Warp Agent CLI            | warpcli            |       |        |    🌏    |          |           |        |       |     🌏      |        |
 | Replit                    | replit             |  ✅   |        |          |          |           | ✅ 🌏  |       |             |        |
 | Pi Coding Agent           | pi                 | ✅ 🌏 |        |          |  ✅ 🌏   |           | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
 | oh-my-pi                  | omp                | ✅ 🌏 |        |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |       |             |        |

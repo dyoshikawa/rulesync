@@ -152,6 +152,7 @@ describe("PermissionsProcessor", () => {
         "takt",
         "vibe",
         "warp",
+        "warpcli",
         "zed",
       ]);
     });
