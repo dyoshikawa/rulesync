@@ -90,6 +90,7 @@ import { GrokcliRule } from "./grokcli-rule.js";
 import { HermesagentRule } from "./hermesagent-rule.js";
 import { JunieRule } from "./junie-rule.js";
 import { KiloRule } from "./kilo-rule.js";
+import { KimiCodePluginRule } from "./kimi-code-plugin-rule.js";
 import { KimiCodeRule } from "./kimi-code-rule.js";
 import { KiroCliRule } from "./kiro-cli-rule.js";
 import { KiroIdeRule } from "./kiro-ide-rule.js";
@@ -913,6 +914,21 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
       meta: {
         extension: "md",
         supportsGlobal: true,
+        ruleDiscoveryMode: "auto",
+        collisionPolicy: "fold",
+      },
+    },
+  ],
+  [
+    "kimi-code-plugin",
+    {
+      // A Kimi Code plugin contributes one instructions file, `<plugin>/SYSTEM.md`
+      // (referenced by `systemPromptPath`), so topic rules fold into it.
+      // https://github.com/MoonshotAI/kimi-code/blob/%40moonshot-ai/kimi-code%402.1.1/docs/en/customization/plugins.md
+      class: KimiCodePluginRule,
+      meta: {
+        extension: "md",
+        supportsGlobal: false,
         ruleDiscoveryMode: "auto",
         collisionPolicy: "fold",
       },

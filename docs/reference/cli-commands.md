@@ -34,6 +34,7 @@ rulesync generate --targets augmentcode-plugin --features rules,mcp,commands,sub
 rulesync generate --targets zcode-plugin --features mcp,commands,subagents,skills,hooks --output-roots ./plugins/review-tools
 rulesync generate --targets vibe-plugin --features mcp,subagents,skills,hooks --output-roots ./plugins/review-tools
 rulesync generate --targets devin-plugin --features rules,mcp,subagents,skills,hooks --output-roots ./plugins/review-tools
+rulesync generate --targets kimi-code-plugin --features rules,commands,subagents,skills --output-roots ./plugins/review-tools
 
 # Generate only rules (no MCP, permissions, commands, or subagents)
 rulesync generate --targets "*" --features rules

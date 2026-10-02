@@ -1,6 +1,6 @@
 # Plugin Packaging
 
-Rulesync can generate and import configuration components inside existing Claude Code, Google Antigravity, AugmentCode (Auggie), ZCode, Vibe Code and Devin plugin directories. Use the packaging targets when the files are distributed as a plugin instead of being installed directly as project or user configuration:
+Rulesync can generate and import configuration components inside existing Claude Code, Google Antigravity, AugmentCode (Auggie), ZCode, Vibe Code, Devin and Kimi Code plugin directories. Use the packaging targets when the files are distributed as a plugin instead of being installed directly as project or user configuration:
 
 - `claudecode-plugin`
 - `antigravity-plugin`
@@ -8,6 +8,7 @@ Rulesync can generate and import configuration components inside existing Claude
 - `zcode-plugin`
 - `vibe-plugin`
 - `devin-plugin`
+- `kimi-code-plugin`
 
 Packaging targets are project-scope only and are intentionally excluded from `--targets "*"`. With `--global`, `generate` skips an explicitly requested packaging target with a warning, and `import` rejects it with an error. Their component directories, such as `skills/` and `rules/`, live directly under the output root and could otherwise collide with ordinary project directories.
 
@@ -45,6 +46,11 @@ rulesync generate \
   --targets devin-plugin \
   --features rules,mcp,subagents,skills,hooks \
   --output-roots ./plugins/review-tools
+
+rulesync generate \
+  --targets kimi-code-plugin \
+  --features rules,commands,subagents,skills \
+  --output-roots ./plugins/review-tools
 ```
 
 The same configuration can be persisted in `rulesync.jsonc`:
@@ -58,6 +64,7 @@ The same configuration can be persisted in `rulesync.jsonc`:
     "zcode-plugin": "./plugins/zcode-review-tools",
     "vibe-plugin": "./plugins/vibe-review-tools",
     "devin-plugin": "./plugins/devin-review-tools",
+    "kimi-code-plugin": "./plugins/kimi-review-tools",
   },
   "targets": {
     "claudecode-plugin": ["mcp", "commands", "subagents", "skills", "hooks"],
@@ -66,6 +73,7 @@ The same configuration can be persisted in `rulesync.jsonc`:
     "zcode-plugin": ["mcp", "commands", "subagents", "skills", "hooks"],
     "vibe-plugin": ["mcp", "subagents", "skills", "hooks"],
     "devin-plugin": ["rules", "mcp", "subagents", "skills", "hooks"],
+    "kimi-code-plugin": ["rules", "commands", "subagents", "skills"],
   },
 }
 ```
@@ -78,6 +86,7 @@ Rulesync manages the selected component files but does not create or modify plug
 - ZCode: `.zcode-plugin/plugin.json` (ZCode also accepts `.claude-plugin/plugin.json`)
 - Vibe Code: `plugin.json` with the Agent Plugins `$schema`, plus the `ai.mistral.vibe` extension block for subagents and hooks (see [Vibe Code plugins](#vibe-code-plugins))
 - Devin: `.devin-plugin/plugin.json`
+- Kimi Code: `kimi.plugin.json` (or `.kimi-plugin/plugin.json`) declaring the generated components (see [Kimi Code plugins](#kimi-code-plugins))
 
 The plugin root must already exist. Rulesync rejects symbolic links anywhere in the plugin tree before importing, generating, or deleting files so package components cannot escape the selected root.
 
@@ -117,20 +126,26 @@ rulesync import \
   --targets devin-plugin \
   --features rules,mcp,subagents,skills,hooks \
   --output-root ./plugins/review-tools
+
+rulesync import \
+  --targets kimi-code-plugin \
+  --features rules,commands,subagents,skills \
+  --output-root ./plugins/review-tools
 ```
 
 The `convert` command does not accept packaging targets because it has no separate source and destination plugin roots. Import from the source plugin first, then generate into the destination plugin.
 
 ## Component paths
 
-| Target               | Rules                     | MCP               | Commands        | Subagents                       | Skills              | Hooks                        |
-| -------------------- | ------------------------- | ----------------- | --------------- | ------------------------------- | ------------------- | ---------------------------- |
-| `claudecode-plugin`  | —                         | `.mcp.json`       | `commands/*.md` | `agents/*.md`                   | `skills/*/SKILL.md` | `hooks/hooks.json`           |
-| `antigravity-plugin` | `rules/*.md`              | `mcp_config.json` | —               | `agents/*.md`                   | `skills/*/SKILL.md` | `hooks.json`                 |
-| `augmentcode-plugin` | `rules/*.md`              | `.mcp.json`       | `commands/*.md` | `agents/*.md`                   | `skills/*/SKILL.md` | `hooks/hooks.json`           |
-| `zcode-plugin`       | —                         | `.mcp.json`       | `commands/*.md` | `agents/*.md`                   | `skills/*/SKILL.md` | `hooks/hooks.json`           |
-| `vibe-plugin`        | —                         | `mcp.json`        | —               | `ai.mistral.vibe/agents/*.toml` | `skills/*/SKILL.md` | `ai.mistral.vibe/hooks.toml` |
-| `devin-plugin`       | `AGENTS.md`, `rules/*.md` | `.mcp.json`       | —               | `agents/*/AGENT.md`             | `skills/*/SKILL.md` | `hooks.json`                 |
+| Target               | Rules                     | MCP               | Commands           | Subagents                       | Skills              | Hooks                        |
+| -------------------- | ------------------------- | ----------------- | ------------------ | ------------------------------- | ------------------- | ---------------------------- |
+| `claudecode-plugin`  | —                         | `.mcp.json`       | `commands/*.md`    | `agents/*.md`                   | `skills/*/SKILL.md` | `hooks/hooks.json`           |
+| `antigravity-plugin` | `rules/*.md`              | `mcp_config.json` | —                  | `agents/*.md`                   | `skills/*/SKILL.md` | `hooks.json`                 |
+| `augmentcode-plugin` | `rules/*.md`              | `.mcp.json`       | `commands/*.md`    | `agents/*.md`                   | `skills/*/SKILL.md` | `hooks/hooks.json`           |
+| `zcode-plugin`       | —                         | `.mcp.json`       | `commands/*.md`    | `agents/*.md`                   | `skills/*/SKILL.md` | `hooks/hooks.json`           |
+| `vibe-plugin`        | —                         | `mcp.json`        | —                  | `ai.mistral.vibe/agents/*.toml` | `skills/*/SKILL.md` | `ai.mistral.vibe/hooks.toml` |
+| `devin-plugin`       | `AGENTS.md`, `rules/*.md` | `.mcp.json`       | —                  | `agents/*/AGENT.md`             | `skills/*/SKILL.md` | `hooks.json`                 |
+| `kimi-code-plugin`   | `SYSTEM.md`               | —                 | `commands/**/*.md` | `agents/*.md`                   | `skills/*/SKILL.md` | —                            |
 
 Claude-specific frontmatter and hook overrides continue to use the `claudecode` sections in Rulesync source files. Antigravity plugin output uses the `antigravity-ide` conversion model and override sections because its plugin components follow the Antigravity IDE format.
 
@@ -184,6 +199,28 @@ Rules have no plugin location: Vibe's `ai.mistral.vibe/knowledge/<name>/KNOWLEDG
 - **Hooks** live in `hooks.json` at the plugin root as the same bare event map as `.devin/hooks.v1.json` (no `hooks` wrapper key). Devin documents no plugin-root variable for hook commands, so commands are written as authored.
 
 Plugins have no commands directory, so `devin-plugin` does not support the `commands` feature. Rulesync does not write `.devin-plugin/plugin.json`, marketplace catalogs, or the repository-level plugin settings in `.devin/config.json`.
+
+## Kimi Code plugins
+
+[Kimi Code plugins](https://moonshotai.github.io/kimi-code/en/customization/plugins.html) are installed per user and declare their components in `kimi.plugin.json` (or `.kimi-plugin/plugin.json`). The `kimi-code-plugin` target writes each component in the `kimi-code` format and reads the `kimi-code` sections of Rulesync source files, except where noted:
+
+- **Rules** are concatenated into `SYSTEM.md` at the plugin root, which Kimi appends to the system prompt when the manifest sets `"systemPromptPath": "./SYSTEM.md"`. Kimi has no per-file rule directory for plugins, so every non-root rule is folded into the same file, and rules with `localRoot: true` are not packaged. Kimi ignores a `systemPromptPath` file larger than 32 KB, so keep packaged rules short.
+- **Commands** are written as Markdown files under `commands/`, keeping subdirectories, and are invoked as `/<plugin>:<name>`. Rulesync writes the `description` and any fields of a `kimi-code-plugin` section (such as `name`) as frontmatter; Kimi substitutes `$ARGUMENTS` in the body. Declare them with `"commands": "./commands/"`.
+- **Subagents** are written as `agents/<name>.md` in the same format as `.kimi-code/agents/`. Kimi discovers `agents/` automatically when the manifest omits `agents`.
+- **Skills** keep the `.kimi-code/skills/` format in `skills/<name>/SKILL.md`. Kimi reads only a root `SKILL.md` unless the manifest declares `"skills": "./skills/"`.
+
+A minimal manifest for a bundle generated with every `kimi-code-plugin` feature is:
+
+```json
+{
+  "name": "review-tools",
+  "systemPromptPath": "./SYSTEM.md",
+  "commands": "./commands/",
+  "skills": "./skills/"
+}
+```
+
+Kimi declares plugin MCP servers and hooks only inline in the manifest (`mcpServers` and `hooks`), and Rulesync never writes the manifest, so `kimi-code-plugin` does not support the `mcp` or `hooks` features.
 
 ## Claude Code plugin constraints
 

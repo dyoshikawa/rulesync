@@ -63,6 +63,7 @@ import { GrokcliSkill } from "./grokcli-skill.js";
 import { HermesagentSkill } from "./hermesagent-skill.js";
 import { JunieSkill } from "./junie-skill.js";
 import { KiloSkill } from "./kilo-skill.js";
+import { KimiCodePluginSkill } from "./kimi-code-plugin-skill.js";
 import { KimiCodeSkill } from "./kimi-code-skill.js";
 import { KiroCliSkill } from "./kiro-cli-skill.js";
 import { KiroIdeSkill } from "./kiro-ide-skill.js";
@@ -581,6 +582,16 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
     {
       class: KimiCodeSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "kimi-code-plugin",
+    {
+      // `<plugin>/skills/<name>/SKILL.md`, read when the manifest declares
+      // `"skills": "./skills/"`.
+      // https://github.com/MoonshotAI/kimi-code/blob/%40moonshot-ai/kimi-code%402.1.1/docs/en/customization/plugins.md
+      class: KimiCodePluginSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: false },
     },
   ],
   [
@@ -1228,7 +1239,7 @@ export class SkillsProcessor extends DirFeatureProcessor {
       if (!factory.class.fromFlatFile) {
         continue;
       }
-      const fromFlatFile = factory.class.fromFlatFile;
+      const fromFlatFile = factory.class.fromFlatFile.bind(factory.class);
       const directoryStems = new Set(ownedDirNames);
       const flatFileNames = this.keepAddressableNames({
         // The suffix is applied while reading rather than after, so a `.md`
