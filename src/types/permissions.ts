@@ -1279,6 +1279,7 @@ export const PermissionsConfigSchema = z.looseObject({
   crush: z.optional(CanonicalPermissionsOverrideSchema),
   goose: z.optional(CanonicalPermissionsOverrideSchema),
   pool: z.optional(CanonicalPermissionsOverrideSchema),
+  qoder: z.optional(CanonicalPermissionsOverrideSchema),
   grokcli: z.optional(CanonicalPermissionsOverrideSchema),
   "kimi-code": z.optional(KimiCodePermissionsOverrideSchema),
   roo: z.optional(CanonicalPermissionsOverrideSchema),
