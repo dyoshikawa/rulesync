@@ -274,6 +274,7 @@ Missing description field.`;
         metadata: { icon: "📦" },
       });
     });
+
     it("should read only the antigravity-ide section for the antigravity-plugin skills tree", () => {
       const rulesyncSkill = new RulesyncSkill({
         relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
