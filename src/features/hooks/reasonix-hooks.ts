@@ -34,6 +34,8 @@ type ReasonixHookEntry = {
   command: string;
   description?: string;
   timeout?: number;
+  cwd?: string;
+  env?: Record<string, string>;
 };
 
 /**
@@ -108,7 +110,7 @@ function canonicalToReasonixHooks({
         // while Reasonix's `timeout` field is milliseconds, so convert.
         entry.timeout = Math.round(def.timeout * 1000);
       }
-      entries.push(entry);
+      entries.push({ ...entry, ...toReasonixInvocationContext(def) });
     }
     if (entries.length > 0) {
       result[reasonixEvent] = [
@@ -118,6 +120,38 @@ function canonicalToReasonixHooks({
     }
   }
   return result;
+}
+
+/**
+ * The per-hook `cwd` / `env` pair (upstream `HookConfig.Cwd` / `HookConfig.Env`).
+ * `env` is a canonical field; `cwd` is not a canonical schema key, so — as with
+ * Copilot's hooks — it rides on the loose canonical definition as a
+ * passthrough field.
+ */
+function toReasonixInvocationContext(def: HookDefinition): Pick<ReasonixHookEntry, "cwd" | "env"> {
+  const cwd: unknown = def["cwd"];
+  return {
+    ...(typeof cwd === "string" && cwd !== "" && { cwd }),
+    ...(def.env !== undefined && Object.keys(def.env).length > 0 && { env: def.env }),
+  };
+}
+
+function fromReasonixInvocationContext(
+  entry: Record<string, unknown>,
+): Pick<HookDefinition, "env"> & { cwd?: string } {
+  return {
+    ...(typeof entry.cwd === "string" && entry.cwd !== "" && { cwd: entry.cwd }),
+    ...(isStringRecord(entry.env) && { env: entry.env }),
+  };
+}
+
+function isStringRecord(value: unknown): value is Record<string, string> {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    Object.values(value).every((v) => typeof v === "string")
+  );
 }
 
 /**
@@ -154,7 +188,7 @@ function reasonixHooksToCanonical(hooks: unknown): HooksConfig["hooks"] {
       if (typeof entry.timeout === "number") {
         def.timeout = entry.timeout / 1000;
       }
-      defs.push(def);
+      defs.push({ ...def, ...fromReasonixInvocationContext(entry) });
     }
     if (defs.length > 0) {
       canonical[canonicalEvent] = [

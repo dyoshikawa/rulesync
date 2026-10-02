@@ -33,6 +33,11 @@ export const REASONIX_COMMANDS_DIR_PATH = join(REASONIX_DIR, "commands");
 // `~/.reasonix/REASONIX.md` (global scope, via the processor's home-relative
 // outputRoot under REASONIX_GLOBAL_DIR).
 export const REASONIX_RULE_FILE_NAME = "REASONIX.md";
+// The personal, uncommitted counterpart Reasonix loads next to each `REASONIX.md`
+// in the workspace chain, ahead of it (`LocalDocumentNames` in upstream
+// `internal/instruction/resolver.go`). Project scope only: the Reasonix home
+// directory loads no local variant.
+export const REASONIX_LOCAL_RULE_FILE_NAME = "REASONIX.local.md";
 
 // Skills: Anthropic-style directory-layout skills under `.reasonix/skills/`
 // (project) / `~/.reasonix/skills/` (global), each `<name>/SKILL.md`.

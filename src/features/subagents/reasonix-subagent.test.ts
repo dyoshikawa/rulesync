@@ -211,6 +211,26 @@ You are a reviewer.`;
       expect(rulesyncSubagent.getRelativeFilePath()).toBe("reviewer.md");
     });
 
+    it("should root the rulesync subagent at the project, not the tool's output root", () => {
+      // A global import reads `~/.reasonix/skills/`; the converted file must
+      // still land in the project's `.rulesync/subagents/`, not `~/.rulesync/`.
+      const subagent = new ReasonixSubagent({
+        outputRoot: join(testDir, "home"),
+        relativeDirPath: SKILLS_DIR,
+        relativeFilePath: join("reviewer", "SKILL.md"),
+        frontmatter: {
+          name: "reviewer",
+          description: "Reviews things.",
+          invocation: "manual",
+          runAs: "subagent",
+        },
+        body: "You are a reviewer.",
+        global: true,
+      });
+
+      expect(subagent.toRulesyncSubagent().getOutputRoot()).toBe(".");
+    });
+
     it("should store Reasonix-specific fields in the reasonix tool-specific section", () => {
       const subagent = new ReasonixSubagent({
         outputRoot: testDir,

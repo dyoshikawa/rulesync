@@ -16,6 +16,12 @@ import {
 
 export type ReasonixRuleParams = AiFileParams & {
   root?: boolean;
+  /**
+   * Set when the file is `REASONIX.local.md` rather than the shared
+   * `REASONIX.md`, so the import flow maps it back to a canonical
+   * `localRoot: true` rule instead of overwriting the shared root rule.
+   */
+  localRoot?: boolean;
 };
 
 /**
