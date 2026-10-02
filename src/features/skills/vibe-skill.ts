@@ -176,6 +176,15 @@ export class VibeSkill extends ToolSkill {
     };
   }
 
+  /**
+   * Whether a skill named after a Vibe built-in is shadowed. Loose skills
+   * collide with the built-ins; plugin skills are namespaced as
+   * `<plugin>:<name>` and do not.
+   */
+  protected static reservesBuiltinSkillNames(): boolean {
+    return true;
+  }
+
   getFrontmatter(): VibeSkillFrontmatter {
     return VibeSkillFrontmatterSchema.parse(this.requireMainFileFrontmatter());
   }
@@ -247,11 +256,13 @@ export class VibeSkill extends ToolSkill {
     global = false,
     logger,
   }: ToolSkillFromRulesyncSkillParams): VibeSkill {
-    const settablePaths = VibeSkill.getSettablePaths({ global });
+    const settablePaths = this.getSettablePaths({ global });
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
 
     const vibeFrontmatter = buildVibeFrontmatter(rulesyncFrontmatter);
-    warnAboutReservedSkillName({ name: vibeFrontmatter.name, logger });
+    if (this.reservesBuiltinSkillNames()) {
+      warnAboutReservedSkillName({ name: vibeFrontmatter.name, logger });
+    }
 
     return new VibeSkill({
       outputRoot,
@@ -273,7 +284,7 @@ export class VibeSkill extends ToolSkill {
   static async fromDir(params: ToolSkillFromDirParams): Promise<VibeSkill> {
     const loaded = await this.loadSkillDirContent({
       ...params,
-      getSettablePaths: VibeSkill.getSettablePaths,
+      getSettablePaths: (options) => this.getSettablePaths(options),
     });
 
     const result = VibeSkillFrontmatterSchema.safeParse(loaded.frontmatter);
@@ -302,7 +313,7 @@ export class VibeSkill extends ToolSkill {
     dirName,
     global = false,
   }: ToolSkillForDeletionParams): VibeSkill {
-    const settablePaths = VibeSkill.getSettablePaths({ global });
+    const settablePaths = this.getSettablePaths({ global });
     return new VibeSkill({
       outputRoot,
       relativeDirPath: relativeDirPath ?? settablePaths.relativeDirPath,

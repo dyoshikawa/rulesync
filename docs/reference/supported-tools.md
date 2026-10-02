@@ -41,6 +41,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Continue ⚠️               | continue           | ✅ 🌏 | ✅ 🌏  |  ✅ 🌏   |  ✅ 🌏   |           | ✅ 🌏  | ✅ 🌏 |     🌏      |        |
 | Snowflake Cortex Code     | cortexcode         |  ✅   |        |    🌏    |          |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |             |        |
 | Vibe Code                 | vibe               | ✅ 🌏 |   ✅   | ✅ 🌏 🔧 |          |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
+| Vibe Code plugin          | vibe-plugin        |       |        |    ✅    |          |    ✅     |   ✅   |  ✅   |             |        |
 | Qoder                     | qoder              | ✅ 🌏 |        |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |       |             |        |
 | Qwen Code                 | qwencode           | ✅ 🌏 |   ✅   | ✅ 🌏 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
 | Meta Muse Code            | musecode           |  ✅   |        |    🌏    |          |           | ✅ 🌏  |       |             |        |

@@ -230,10 +230,10 @@ export class VibeHooks extends ToolHooks {
     validate = true,
     global = false,
   }: ToolHooksFromFileParams): Promise<VibeHooks> {
-    const paths = VibeHooks.getSettablePaths({ global });
+    const paths = this.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const fileContent = (await readFileContentOrNull(filePath)) ?? smolToml.stringify({});
-    return new VibeHooks({
+    return new this({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
@@ -248,7 +248,7 @@ export class VibeHooks extends ToolHooks {
     validate = true,
     global = false,
   }: ToolHooksFromRulesyncHooksParams & { global?: boolean }): Promise<VibeHooks> {
-    const paths = VibeHooks.getSettablePaths({ global });
+    const paths = this.getSettablePaths({ global });
     const config = rulesyncHooks.getJson();
     const vibeHooks = canonicalToVibeHooks({
       config,
@@ -256,7 +256,7 @@ export class VibeHooks extends ToolHooks {
     });
     const fileContent = smolToml.stringify(vibeHooks);
 
-    return new VibeHooks({
+    return new this({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
@@ -302,7 +302,7 @@ export class VibeHooks extends ToolHooks {
     relativeDirPath,
     relativeFilePath,
   }: ToolHooksForDeletionParams): VibeHooks {
-    return new VibeHooks({
+    return new this({
       outputRoot,
       relativeDirPath,
       relativeFilePath,

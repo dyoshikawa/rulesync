@@ -76,6 +76,7 @@ import {
   ToolSubagentFromRulesyncSubagentParams,
   ToolSubagentSettablePaths,
 } from "./tool-subagent.js";
+import { VibePluginSubagent } from "./vibe-plugin-subagent.js";
 import { VibeSubagent } from "./vibe-subagent.js";
 import { ZcodePluginSubagent } from "./zcode-plugin-subagent.js";
 import { ZcodeSubagent } from "./zcode-subagent.js";
@@ -794,6 +795,20 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
         supportsProject: true,
         supportsSimulated: false,
         supportsGlobal: true,
+        filePattern: "*.toml",
+      },
+    },
+  ],
+  [
+    "vibe-plugin",
+    {
+      // `<plugin>/ai.mistral.vibe/agents/*.toml`, with the prompt inline.
+      // https://github.com/mistralai/mistral-vibe/blob/v2.25.8/vibe/core/plugins/_native.py
+      class: VibePluginSubagent,
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: false,
         filePattern: "*.toml",
       },
     },

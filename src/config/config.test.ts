@@ -92,6 +92,7 @@ describe("Config", () => {
       expect(targets).not.toContain("antigravity-plugin");
       expect(targets).not.toContain("augmentcode-plugin");
       expect(targets).not.toContain("zcode-plugin");
+      expect(targets).not.toContain("vibe-plugin");
       expect(targets).toContain("claudecode");
       expect(targets).toContain("augmentcode");
     });
@@ -107,7 +108,8 @@ describe("Config", () => {
           t !== "claudecode-plugin" &&
           t !== "antigravity-plugin" &&
           t !== "augmentcode-plugin" &&
-          t !== "zcode-plugin",
+          t !== "zcode-plugin" &&
+          t !== "vibe-plugin",
       );
 
       expect(targets).toEqual(expectedTargets);
@@ -142,6 +144,7 @@ describe("Config", () => {
           "antigravity-plugin",
           "augmentcode-plugin",
           "zcode-plugin",
+          "vibe-plugin",
         ],
       });
       const targets = config.getTargets();
@@ -150,6 +153,7 @@ describe("Config", () => {
       expect(targets).toContain("antigravity-plugin");
       expect(targets).toContain("augmentcode-plugin");
       expect(targets).toContain("zcode-plugin");
+      expect(targets).toContain("vibe-plugin");
       expect(targets).not.toContain("*");
     });
   });

@@ -96,6 +96,7 @@ import {
   toolSkillSearchRoots,
 } from "./tool-skill.js";
 import { TraeSkill } from "./trae-skill.js";
+import { VibePluginSkill } from "./vibe-plugin-skill.js";
 import { VibeSkill } from "./vibe-skill.js";
 import { WarpSkill } from "./warp-skill.js";
 import { ZcodePluginSkill } from "./zcode-plugin-skill.js";
@@ -752,6 +753,15 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
       // `~/.vibe/skills/` and `~/.agents/skills/` at user scope.
       class: VibeSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "vibe-plugin",
+    {
+      // `<plugin>/skills/<name>/SKILL.md`, parsed like `.vibe/skills/`.
+      // https://github.com/mistralai/mistral-vibe/blob/v2.25.8/vibe/core/plugins/_native.py
+      class: VibePluginSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: false },
     },
   ],
   [
