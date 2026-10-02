@@ -779,7 +779,7 @@ function isNotADirectoryError(error: unknown): boolean {
  * is how a link chain could be spelled to pass the check and still land
  * outside the root.
  */
-async function writeLandingPath(targetPath: string): Promise<string | null> {
+export async function writeLandingPath(targetPath: string): Promise<string | null> {
   const start = splitAbsolutePath(isAbsolute(targetPath) ? targetPath : resolve(targetPath));
   let current = start.root;
   let pending = start.segments;

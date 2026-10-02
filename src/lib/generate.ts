@@ -160,7 +160,7 @@ async function processFeatureGeneration<T extends AiFile>(params: {
         // equivalent today, because a path this run claims is a path that
         // processor also lists in `generatedFiles`.
         const orphanCount = await processor.removeOrphanAiFiles(
-          sweepPlan.rejectClaimed({
+          await sweepPlan.rejectClaimed({
             items: existingToolFiles,
             getPath: (f) => f.getFilePath(),
           }),
@@ -233,7 +233,7 @@ async function processDirFeatureGeneration(params: {
       sweep: async () => {
         const existingToolDirs = await processor.loadToolDirsToDelete();
         const orphanDirCount = await processor.removeOrphanAiDirs(
-          sweepPlan.rejectClaimed({
+          await sweepPlan.rejectClaimed({
             items: existingToolDirs,
             getPath: (d) => d.getDirPath(),
           }),
@@ -246,7 +246,7 @@ async function processDirFeatureGeneration(params: {
         // keyed on that same file path, registered by name just above.
         const existingFlatFiles = await processor.loadToolFlatFilesToDelete();
         const orphanFileCount = await processor.removeOrphanFlatFiles({
-          existingFlatFiles: sweepPlan.rejectClaimed({
+          existingFlatFiles: await sweepPlan.rejectClaimed({
             items: existingFlatFiles,
             // The directory stands in for a candidate that names no file, so
             // the key is always a real path. Nothing is lost by it: such a
@@ -316,9 +316,12 @@ async function processEmptyFeatureGeneration(params: {
       sweep: async () => {
         const existingToolFiles = await processor.loadToolFiles({ forDeletion: true });
 
-        const filesToDelete = sweepPlan
-          .rejectClaimed({ items: existingToolFiles, getPath: (f) => f.getFilePath() })
-          .filter((f) => !skipFilePaths?.has(f.getRelativePathFromCwd()));
+        const filesToDelete = (
+          await sweepPlan.rejectClaimed({
+            items: existingToolFiles,
+            getPath: (f) => f.getFilePath(),
+          })
+        ).filter((f) => !skipFilePaths?.has(f.getRelativePathFromCwd()));
 
         const orphanCount = await processor.removeOrphanAiFiles(filesToDelete, []);
         return orphanCount > 0;

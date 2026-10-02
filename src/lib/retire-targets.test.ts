@@ -1,3 +1,4 @@
+import { symlink } from "node:fs/promises";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -5,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Config, type ConfigParams } from "../config/config.js";
 import { createMockLogger } from "../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
-import { fileExists, writeFileContent } from "../utils/file.js";
+import { ensureDir, fileExists, writeFileContent } from "../utils/file.js";
 import { generate } from "./generate.js";
 
 const RULE = `---
@@ -102,6 +103,27 @@ describe("generate with retireTargets", () => {
     });
     expect(await fileExists(agentsMd)).toBe(false);
   });
+
+  it.skipIf(process.platform === "win32")(
+    "keeps a configured target's commands when the retired target's directory links to them",
+    async () => {
+      const command = join(testDir, ".claude", "commands", "demo.md");
+      await writeFileContent(
+        join(testDir, ".rulesync", "commands", "demo.md"),
+        ["---", 'targets: ["*"]', 'description: "Demo"', "---", "Demo body."].join("\n"),
+      );
+      await ensureDir(join(testDir, ".claude", "commands"));
+      await ensureDir(join(testDir, ".cursor"));
+      await symlink(join(testDir, ".claude", "commands"), join(testDir, ".cursor", "commands"));
+
+      await generate({
+        config: createConfig({ features: ["commands"], retireTargets: ["cursor"] }),
+        logger: createMockLogger(),
+      });
+
+      expect(await fileExists(command)).toBe(true);
+    },
+  );
 
   it("skips retirement in global mode", async () => {
     const stale = await writeStaleCursorRule();
