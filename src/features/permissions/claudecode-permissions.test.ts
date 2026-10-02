@@ -1058,6 +1058,9 @@ describe("ClaudecodePermissions", () => {
         desktopSessionCleanupPeriodDays: 30,
         feedbackDrafts: "off",
         modelPicker: { options: [{ model: "opus", label: "Opus" }] },
+        appendPlugins: ["audit@acme"],
+        prependPlugins: ["sec-default@builtin"],
+        syncClaudeAiPlugins: false,
       };
       const rulesyncPermissions = new RulesyncPermissions({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
@@ -1110,6 +1113,15 @@ describe("ClaudecodePermissions", () => {
         managedMcpServers: "managed settings",
         managedSourcesBehavior: "managed settings",
         modelPricing: "managed settings",
+        allowClaudeInChromeWithManagedMcp: "managed settings",
+        allowedProviders: "managed settings",
+        availableModelsMatch: "managed settings",
+        deniedModels: "managed settings",
+        claudeInChromeDefaultEnabled: "~/.claude.json",
+        copyFullResponse: "~/.claude.json",
+        defaultToAgentsView: "~/.claude.json",
+        leftArrowOpensAgents: "~/.claude.json",
+        prStatusFooterEnabled: "~/.claude.json",
       };
       const rulesyncPermissions = new RulesyncPermissions({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
@@ -1123,6 +1135,15 @@ describe("ClaudecodePermissions", () => {
             managedMcpServers: { search: { type: "http", url: "https://example.com/mcp" } },
             managedSourcesBehavior: "merge",
             modelPricing: { multiplier: 0.5 },
+            allowClaudeInChromeWithManagedMcp: true,
+            allowedProviders: ["anthropic"],
+            availableModelsMatch: "exact",
+            deniedModels: ["claude-haiku-.*"],
+            claudeInChromeDefaultEnabled: true,
+            copyFullResponse: true,
+            defaultToAgentsView: true,
+            leftArrowOpensAgents: true,
+            prStatusFooterEnabled: false,
           },
         }),
       });
@@ -1371,6 +1392,7 @@ describe("ClaudecodePermissions", () => {
       const instance = await ClaudecodePermissions.fromRulesyncPermissions({
         outputRoot: testDir,
         rulesyncPermissions,
+        global: true,
         logger: mockLogger,
       });
 
@@ -1488,12 +1510,49 @@ describe("ClaudecodePermissions", () => {
       const instance = await ClaudecodePermissions.fromRulesyncPermissions({
         outputRoot: testDir,
         rulesyncPermissions,
+        global: true,
         logger: mockLogger,
       });
 
       expect(JSON.parse(instance.getFileContent()).permissions.defaultMode).toBe(mode);
       expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining(expected));
     });
+
+    it.each(["auto", "bypassPermissions"])(
+      "drops a project-scope defaultMode of %s, which Claude Code ignores there",
+      async (mode) => {
+        const mockLogger = createMockLogger();
+        const warnSpy = vi.spyOn(mockLogger, "warn");
+        const rulesyncPermissions = new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: { bash: { "git *": "allow" } },
+            claudecode: { permissions: { defaultMode: mode, additionalDirectories: [] } },
+          }),
+        });
+
+        const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+          outputRoot: testDir,
+          rulesyncPermissions,
+          logger: mockLogger,
+        });
+
+        const content = JSON.parse(instance.getFileContent());
+        expect(content.permissions.defaultMode).toBeUndefined();
+        expect(content.permissions.additionalDirectories).toEqual([]);
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining(
+            `'permissions.defaultMode: "${mode}"' is not honored in the project-scoped settings.json`,
+          ),
+        );
+        // The widening warning would describe a mode that never takes effect.
+        expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining("auto-approved"));
+        expect(warnSpy).not.toHaveBeenCalledWith(
+          expect.stringContaining("no permission prompts at all"),
+        );
+      },
+    );
 
     it("stays quiet about a defaultMode that widens nothing", async () => {
       const mockLogger = createMockLogger();

@@ -224,6 +224,52 @@ const CLAUDECODE_WIDENING_DEFAULT_MODES: Readonly<Record<string, string>> = {
 };
 
 /**
+ * The `permissions.defaultMode` values Claude Code ignores in a project's
+ * `.claude/settings.json` and `.claude/settings.local.json` — the two files
+ * rulesync writes at project scope. `auto` there falls back to the built-in
+ * default (skipping a `defaultMode` from `~/.claude/settings.json`), and
+ * `bypassPermissions` starts the session in Manual mode, so both are dropped at
+ * project scope rather than committed as a mode that never applies. Every other
+ * value applies from any settings file. Since v2.1.257.
+ *
+ * @see https://code.claude.com/docs/en/permission-modes#which-mode-a-session-starts-in
+ */
+const CLAUDECODE_PROJECT_SCOPE_IGNORED_DEFAULT_MODES: ReadonlySet<string> = new Set([
+  "auto",
+  "bypassPermissions",
+]);
+
+/**
+ * Drop a project-scope `permissions.defaultMode` Claude Code ignores there (see
+ * {@link CLAUDECODE_PROJECT_SCOPE_IGNORED_DEFAULT_MODES}), warning in the same
+ * voice as the other values the project-scoped file cannot honor.
+ */
+function stripProjectScopeIgnoredDefaultMode({
+  fields,
+  global,
+  relativeFilePath,
+  logger,
+}: {
+  fields: Record<string, unknown>;
+  global: boolean;
+  relativeFilePath: string;
+  logger?: Logger;
+}): void {
+  const { defaultMode } = fields;
+  if (
+    global ||
+    typeof defaultMode !== "string" ||
+    !CLAUDECODE_PROJECT_SCOPE_IGNORED_DEFAULT_MODES.has(defaultMode)
+  ) {
+    return;
+  }
+  logger?.warn(
+    `Claude Code permissions: 'permissions.defaultMode: "${defaultMode}"' is not honored in the project-scoped ${relativeFilePath}, so it is not written there — Claude Code applies "auto" and "bypassPermissions" only from user or managed settings or the --permission-mode flag. Author it in the global scope instead, and check that file for a stale value an earlier generate may have left there.`,
+  );
+  delete fields.defaultMode;
+}
+
+/**
  * The `permissions` fields that widen rather than restrict: a `defaultMode` that
  * removes prompts, and `additionalDirectories`, which moves the
  * working-directory boundary. Reported for the same reason `disableAllHooks` is:
@@ -580,6 +626,7 @@ const CLAUDECODE_NON_PASSTHROUGH_OVERRIDE_KEYS: ReadonlySet<string> = new Set([
  * @see https://code.claude.com/docs/en/settings-reference
  */
 const CLAUDECODE_USER_SCOPE_ONLY_KEYS: ReadonlySet<string> = new Set([
+  "appendPlugins",
   "askUserQuestionTimeout",
   "autoContinueAtUsageLimit",
   "autoMode",
@@ -590,10 +637,12 @@ const CLAUDECODE_USER_SCOPE_ONLY_KEYS: ReadonlySet<string> = new Set([
   "footerLinksRegexes",
   "modelPicker",
   "pluginConfigs",
+  "prependPlugins",
   "skipAutoPermissionPrompt",
   "skipDangerousModePermissionPrompt",
   "spellcheck",
   "sshConfigs",
+  "syncClaudeAiPlugins",
   "syncClaudeAiSkills",
   "useAutoModeDuringPlan",
   "vimInsertModeRemaps",
@@ -612,17 +661,24 @@ const CLAUDECODE_USER_SCOPE_ONLY_KEYS: ReadonlySet<string> = new Set([
  */
 const CLAUDECODE_UNHONORED_KEY_SOURCES: Readonly<Record<string, string>> = {
   allowAllClaudeAiMcps: "managed settings",
+  allowClaudeInChromeWithManagedMcp: "managed settings",
   allowedChannelPlugins: "managed settings",
+  allowedProviders: "managed settings",
   allowManagedHooksOnly: "managed settings",
   allowManagedMcpServersOnly: "managed settings",
   allowManagedPermissionRulesOnly: "managed settings",
   autoConnectIde: "~/.claude.json",
   autoInstallIdeExtension: "~/.claude.json",
+  availableModelsMatch: "managed settings",
   blockedMarketplaces: "managed settings",
   browserExternalPageTools: "managed settings",
   channelsEnabled: "managed settings",
+  claudeInChromeDefaultEnabled: "~/.claude.json",
   claudeMd: "managed settings",
+  copyFullResponse: "~/.claude.json",
   copyOnSelect: "~/.claude.json",
+  defaultToAgentsView: "~/.claude.json",
+  deniedModels: "managed settings",
   diffTool: "~/.claude.json",
   disableBrowserExternalNavigation: "managed settings",
   disableCommandPluginSources: "managed settings",
@@ -633,6 +689,7 @@ const CLAUDECODE_UNHONORED_KEY_SOURCES: Readonly<Record<string, string>> = {
   forceLoginGatewayUrl: "managed settings",
   forceRemoteSettingsRefresh: "managed settings",
   gatewayInternalNetworks: "managed settings",
+  leftArrowOpensAgents: "~/.claude.json",
   managedMcpServers: "managed settings",
   managedSourcesBehavior: "managed settings",
   modelPricing: "managed settings",
@@ -640,6 +697,7 @@ const CLAUDECODE_UNHONORED_KEY_SOURCES: Readonly<Record<string, string>> = {
   permissionExplainerEnabled: "~/.claude.json",
   pluginSuggestionMarketplaces: "managed settings",
   pluginTrustMessage: "managed settings",
+  prStatusFooterEnabled: "~/.claude.json",
   requiredMaximumVersion: "managed settings",
   requiredMinimumVersion: "managed settings",
   sshHostAllowlist: "managed settings",
@@ -997,6 +1055,12 @@ export class ClaudecodePermissions extends ToolPermissions {
       const nonListFields = Object.fromEntries(
         Object.entries(rest).filter(([key]) => !PROTOTYPE_POLLUTION_KEYS.has(key)),
       );
+      stripProjectScopeIgnoredDefaultMode({
+        fields: nonListFields,
+        global,
+        relativeFilePath: paths.relativeFilePath,
+        logger,
+      });
       trustAffecting.push(...collectWideningPermissionFields({ fields: nonListFields }));
       settings.permissions = { ...settings.permissions, ...nonListFields };
     }

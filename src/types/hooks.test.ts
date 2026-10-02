@@ -200,6 +200,14 @@ describe("Claude Code event naming", () => {
   it("should list messageDisplay as a supported Claude hook event", () => {
     expect(CLAUDE_HOOK_EVENTS).toContain("messageDisplay");
   });
+
+  it("should support the PreModelSwitch and PostModelSwitch events", () => {
+    // Verified against https://code.claude.com/docs/en/hooks (added in v2.1.251)
+    expect(CANONICAL_TO_CLAUDE_EVENT_NAMES.preModelSwitch).toBe("PreModelSwitch");
+    expect(CANONICAL_TO_CLAUDE_EVENT_NAMES.postModelSwitch).toBe("PostModelSwitch");
+    expect(CLAUDE_HOOK_EVENTS).toContain("preModelSwitch");
+    expect(CLAUDE_HOOK_EVENTS).toContain("postModelSwitch");
+  });
 });
 
 describe("Qwen Code event naming", () => {
