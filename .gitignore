@@ -243,6 +243,10 @@ rulesync.local.jsonc
 **/.commandcode/settings.local.json
 **/.letta/settings.local.json
 **/.rovodev/.rulesync/
+**/.qwen/review-cache/
+**/.qwen/reviews/
+**/.qwen/tmp/
+**/.qwen/worktrees/
 **/.takt/runs/
 **/.takt/tasks/
 **/.takt/.cache/

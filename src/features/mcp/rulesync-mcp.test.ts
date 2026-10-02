@@ -997,6 +997,36 @@ describe("RulesyncMcp", () => {
       expect(Object.keys(effective.getMcpServers())).toEqual(["other"]);
     });
 
+    it("should keep Qwen Code's server allow/deny lists for its own target only", () => {
+      const instance = makeInstance({
+        mcpServers: { shared: { command: "node" } },
+        qwencode: { allowed: ["shared"], excluded: ["legacy-*"] },
+      });
+
+      expect(instance.forTarget({ toolTarget: "qwencode" }).getJson()).toEqual({
+        mcpServers: { shared: { command: "node" } },
+        qwencode: { allowed: ["shared"], excluded: ["legacy-*"] },
+      });
+      expect(instance.forTarget({ toolTarget: "cursor" }).getJson()).toEqual({
+        mcpServers: { shared: { command: "node" } },
+      });
+    });
+
+    it("should not carry a tool block's other fields into the target view", () => {
+      const instance = makeInstance({
+        mcpServers: {},
+        "kimi-code": { startupTimeoutMs: 45000 },
+        qwencode: { mcpServers: { extra: { command: "uvx" } } },
+      });
+
+      expect(instance.forTarget({ toolTarget: "kimi-code" }).getJson()).toEqual({
+        mcpServers: {},
+      });
+      expect(instance.forTarget({ toolTarget: "qwencode" }).getJson()).toEqual({
+        mcpServers: { extra: { command: "uvx" } },
+      });
+    });
+
     it("should honor the deprecated targets filter and warn", () => {
       const logger = makeLogger();
       const instance = makeInstance({

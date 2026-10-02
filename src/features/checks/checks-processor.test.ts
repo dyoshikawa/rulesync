@@ -26,6 +26,7 @@ describe("ChecksProcessor.getToolTargets", () => {
       "factorydroid",
       "gitlabduo",
       "hermesagent",
+      "qwencode",
       "rovodev",
       "takt",
     ]);

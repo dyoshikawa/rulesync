@@ -202,6 +202,12 @@ describe("registry derivation", () => {
       "claudecode::general::**/.claude/memories/",
       "opencode::general::**/.opencode/package-lock.json",
       "rovodev::general::**/.rovodev/.rulesync/",
+      // Qwen Code's `/review` cache, reports and scratch worktrees, and its
+      // fixed worktree root (issue #2668).
+      "qwencode::general::**/.qwen/review-cache/",
+      "qwencode::general::**/.qwen/reviews/",
+      "qwencode::general::**/.qwen/tmp/",
+      "qwencode::general::**/.qwen/worktrees/",
       "takt::general::**/.takt/runs/",
       "takt::general::**/.takt/tasks/",
       "takt::general::**/.takt/.cache/",
@@ -583,6 +589,7 @@ describe("committedOutput check outputs", () => {
     // ignoring them would disable the checks feature (#2487).
     expect(entries).not.toContain("**/.cursor/BUGBOT.md");
     expect(entries).not.toContain("**/.rovodev/.review-agent.md");
+    expect(entries).not.toContain("**/.qwen/review-rules.md");
     expect(entries).not.toContain("**/.gitlab/duo/mr-review-instructions.yaml");
   });
 
