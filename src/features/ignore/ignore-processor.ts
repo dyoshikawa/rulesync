@@ -24,6 +24,7 @@ import { ContinueIgnore } from "./continue-ignore.js";
 import { CrushIgnore } from "./crush-ignore.js";
 import { CursorIgnore } from "./cursor-ignore.js";
 import { DevinIgnore } from "./devin-ignore.js";
+import { GrokcliIgnore } from "./grokcli-ignore.js";
 import { HermesagentIgnore } from "./hermesagent-ignore.js";
 import { JunieIgnore } from "./junie-ignore.js";
 import { KiloIgnore } from "./kilo-ignore.js";
@@ -80,6 +81,8 @@ export const toolIgnoreFactories = new Map<IgnoreProcessorToolTarget, ToolIgnore
   ["continue", { class: ContinueIgnore }],
   ["crush", { class: CrushIgnore }],
   ["cursor", { class: CursorIgnore }],
+  // Grok CLI has no ignore file; the deny list goes into a sandbox profile.
+  ["grokcli", { class: GrokcliIgnore }],
   ["hermesagent", { class: HermesagentIgnore }],
   ["junie", { class: JunieIgnore }],
   ["kilo", { class: KiloIgnore }],
@@ -105,6 +108,7 @@ const ignoreProcessorToolTargets: ToolTarget[] = [...toolIgnoreFactories.keys()]
 const ignoreProcessorGlobalToolTargets: ToolTarget[] = [
   "continue",
   "devin",
+  "grokcli",
   "kiro",
   "kiro-cli",
   "kiro-ide",

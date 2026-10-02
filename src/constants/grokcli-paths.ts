@@ -79,3 +79,23 @@ export const GROKCLI_COMMANDS_DIR_PATH = join(GROKCLI_DIR, "commands");
  * @see https://docs.x.ai/build/overview
  */
 export const GROKCLI_RULES_DIR_PATH = join(GROKCLI_DIR, "rules");
+
+/**
+ * Sandbox profile file. Grok Build loads custom sandbox profiles from
+ * `~/.grok/sandbox.toml` (global) and then `<workspace>/.grok/sandbox.toml`
+ * (project); a profile name the user file already defines is not replaced by
+ * the project file. A custom profile's `deny` list (paths or gitignore-style
+ * globs) is kernel-enforced for reads and writes while that profile is active.
+ *
+ * Verified against `xai-org/grok-build` at `2bdd1d6` (2026-09-29):
+ * `crates/codegen/xai-grok-sandbox/src/profiles.rs` (`load_sandbox_config`,
+ * `merge_project_profiles`) and `user-guide/18-sandbox.md`.
+ * @see https://docs.x.ai/build/features/sandbox
+ */
+export const GROKCLI_SANDBOX_FILE_NAME = "sandbox.toml";
+
+/**
+ * Name of the rulesync-owned custom sandbox profile (`[profiles.rulesync]`).
+ * Grok rejects a custom profile that reuses a built-in profile name.
+ */
+export const GROKCLI_SANDBOX_PROFILE_NAME = "rulesync";
