@@ -14,8 +14,9 @@ const CODEBUDDY_NO_MATCHER_EVENTS: ReadonlySet<string> = new Set(CODEBUDDY_NO_MA
 // `$CODEBUDDY_PROJECT_DIR` is the documented project-root variable for hook
 // commands, so dot-relative scripts are anchored to it the way Claude Code
 // anchors them to `$CLAUDE_PROJECT_DIR`. `timeout` is in seconds (canonical
-// unit). Settings-file hooks document the `command` and `prompt` types, and
-// prompt hooks take an optional `continueOnBlock` flag.
+// unit). The hook reference and plugins reference document the `command`,
+// `http`, `prompt` and `agent` types, and prompt hooks take an optional
+// `continueOnBlock` flag.
 const CODEBUDDY_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   supportedEvents: CODEBUDDY_HOOK_EVENTS,
   canonicalToToolEventNames: CANONICAL_TO_CODEBUDDY_EVENT_NAMES,
@@ -23,7 +24,7 @@ const CODEBUDDY_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   projectDirVar: "$CODEBUDDY_PROJECT_DIR",
   prefixDotRelativeCommandsOnly: true,
   noMatcherEvents: CODEBUDDY_NO_MATCHER_EVENTS,
-  supportedHookTypes: new Set(["command", "prompt"]),
+  supportedHookTypes: new Set(["command", "http", "prompt", "agent"]),
   booleanPassthroughFields: [{ canonical: "continueOnBlock", tool: "continueOnBlock" }],
 };
 
@@ -39,7 +40,7 @@ const CODEBUDDY_SPEC: SettingsJsonHooksSpec = {
  * Hooks live under the top-level `hooks` key of `.codebuddy/settings.json`
  * (project) and `~/.codebuddy/settings.json` (user), in the Claude-Code shape:
  * `{ "<Event>": [{ "matcher"?: "<regex>", "hooks": [{ "type": "command" |
- * "prompt", ..., "timeout"?: <seconds> }] }] }`. Both files hold settings
+ * "http" | "prompt" | "agent", ..., "timeout"?: <seconds> }] }] }`. Both files hold settings
  * rulesync does not own, so generation merges the `hooks` key into them (see
  * `SHARED_CONFIG_OWNERSHIP`) instead of overwriting them, and neither file is
  * removed wholesale.

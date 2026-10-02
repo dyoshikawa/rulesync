@@ -67,8 +67,8 @@ const hooksKeyedEventNames: Record<string, { sessionStart: string; stop: string 
   // $CORTEX_PROJECT_DIR only when they start with `./`.
   cortexcode: { sessionStart: "SessionStart", stop: "Stop" },
   // CodeBuddy Code stores Claude-style PascalCase events under the `hooks`
-  // key of .codebuddy/settings.json in both scopes; commands are anchored with
-  // $CODEBUDDY_PROJECT_DIR only when they start with `./`.
+  // key of .codebuddy/settings.json in both scopes; dot-relative commands are
+  // anchored with $CODEBUDDY_PROJECT_DIR.
   codebuddy: { sessionStart: "SessionStart", stop: "Stop" },
   // Command Code stores Claude-style PascalCase events under the `hooks` key
   // of .commandcode/settings.json in both scopes; commands are anchored with

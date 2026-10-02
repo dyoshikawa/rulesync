@@ -200,6 +200,15 @@ function buildCodebuddyRuleLists({
       if (rule === null) {
         continue;
       }
+      // The bare `mcp` category emits `mcp__<server>` rules, which an existing
+      // entry is matched against by its own category, so record the emitted
+      // rule's category too: flipping `mcp.github` from deny to allow must
+      // replace the old `mcp__github` deny rather than leave it beside the
+      // new allow.
+      const emittedCategory = categoryOfRule(rule);
+      if (emittedCategory !== undefined) {
+        managedCategories.add(emittedCategory);
+      }
       const existing = ranked.get(rule);
       if (
         existing === undefined ||

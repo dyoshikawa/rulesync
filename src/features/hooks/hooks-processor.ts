@@ -416,7 +416,8 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       meta: {
         // CodeBuddy Code hooks live under the top-level `hooks` key of
         // `.codebuddy/settings.json` (project) and `~/.codebuddy/settings.json`
-        // (user), in the Claude-Code shape with command and prompt hooks.
+        // (user), in the Claude-Code shape with command, http, prompt and
+        // agent hooks.
         // `matcher` is a regex over the tool name (or the event's source);
         // UserPromptSubmit, Stop, SubagentStop and PostCompact fire
         // unconditionally.
@@ -427,7 +428,7 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
         supportsImport: true,
       },
       supportedEvents: CODEBUDDY_HOOK_EVENTS,
-      supportedHookTypes: ["command", "prompt"],
+      supportedHookTypes: ["command", "http", "prompt", "agent"],
       supportsMatcher: true,
       matcherEvents: CODEBUDDY_MATCHER_HOOK_EVENTS,
     },

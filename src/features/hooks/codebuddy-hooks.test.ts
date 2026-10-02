@@ -100,7 +100,7 @@ describe("CodebuddyHooks", () => {
       expect(parsed.hooks.PreToolUse[0].hooks[0]).toEqual({ type: "command", command: "pre.sh" });
     });
 
-    it("should emit prompt hooks with continueOnBlock and skip unsupported hook types", async () => {
+    it("should emit http and prompt hooks with continueOnBlock and skip unsupported hook types", async () => {
       const rulesyncHooks = buildRulesyncHooks(testDir, {
         version: 1,
         hooks: {
@@ -108,6 +108,7 @@ describe("CodebuddyHooks", () => {
             { type: "command", command: "stop.sh", timeout: 30 },
             { type: "prompt", prompt: "Is the task done?", timeout: 20, continueOnBlock: true },
             { type: "http", url: "https://example.com/hook" },
+            { type: "mcp_tool", server: "guard", tool: "check" },
           ],
         },
       });
@@ -123,6 +124,7 @@ describe("CodebuddyHooks", () => {
       expect(emitted).toEqual([
         { type: "command", command: "stop.sh", timeout: 30 },
         { type: "prompt", prompt: "Is the task done?", timeout: 20, continueOnBlock: true },
+        { type: "http", url: "https://example.com/hook" },
       ]);
     });
 

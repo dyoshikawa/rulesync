@@ -179,6 +179,18 @@ describe("CodebuddyPermissions", () => {
       });
     });
 
+    it("replaces an existing mcp__ entry emitted from the bare mcp category", async () => {
+      await writeSettings(testDir, {
+        permissions: { deny: ["mcp__github", "mcp__slack"] },
+      });
+
+      const settings = await generate(testDir, { mcp: { github: "allow" } });
+
+      expect(settings).toEqual({
+        permissions: { allow: ["mcp__github"], deny: ["mcp__slack"] },
+      });
+    });
+
     it("throws on an unparseable settings file", async () => {
       await writeSettings(testDir, "{ nope");
 
