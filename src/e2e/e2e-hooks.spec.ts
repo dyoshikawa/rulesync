@@ -66,6 +66,10 @@ const hooksKeyedEventNames: Record<string, { sessionStart: string; stop: string 
   // ~/.snowflake/cortex/hooks.json (global); commands are anchored with
   // $CORTEX_PROJECT_DIR only when they start with `./`.
   cortexcode: { sessionStart: "SessionStart", stop: "Stop" },
+  // CodeBuddy Code stores Claude-style PascalCase events under the `hooks`
+  // key of .codebuddy/settings.json in both scopes; dot-relative commands are
+  // anchored with $CODEBUDDY_PROJECT_DIR.
+  codebuddy: { sessionStart: "SessionStart", stop: "Stop" },
   // Command Code stores Claude-style PascalCase events under the `hooks` key
   // of .commandcode/settings.json in both scopes; commands are anchored with
   // $COMMANDCODE_PROJECT_DIR only when they start with `./`.
@@ -135,6 +139,7 @@ const hooksGenerateTargets = [
   { target: "bob", outputPath: join(".bob", "settings.json") },
   { target: "tabnine", outputPath: join(".tabnine", "agent", "settings.json") },
   { target: "cortexcode", outputPath: join(".cortex", "settings.json") },
+  { target: "codebuddy", outputPath: join(".codebuddy", "settings.json") },
   { target: "commandcode", outputPath: join(".commandcode", "settings.json") },
   { target: "continue", outputPath: join(".continue", "settings.json") },
   { target: "lettacode", outputPath: join(".letta", "settings.json") },
@@ -1018,6 +1023,20 @@ describe("E2E: hooks (import)", () => {
       },
     },
     {
+      // CodeBuddy Code stores hooks under the `hooks` key of
+      // .codebuddy/settings.json using Claude-style PascalCase event names;
+      // SessionStart round-trips to the canonical `sessionStart` event.
+      target: "codebuddy",
+      sourcePath: join(".codebuddy", "settings.json"),
+      sourceContent: {
+        hooks: {
+          SessionStart: [
+            { hooks: [{ type: "command", command: "echo session started", timeout: 30 }] },
+          ],
+        },
+      },
+    },
+    {
       // Command Code stores hooks under the `hooks` key of
       // .commandcode/settings.json using Claude-style PascalCase event names;
       // SessionStart round-trips to the canonical `sessionStart` event.
@@ -1157,6 +1176,7 @@ const hooksGlobalTargets = [
   { target: "bob", outputPath: join(".bob", "settings", "settings.json") },
   { target: "tabnine", outputPath: join(".tabnine", "agent", "settings.json") },
   { target: "cortexcode", outputPath: join(".snowflake", "cortex", "hooks.json") },
+  { target: "codebuddy", outputPath: join(".codebuddy", "settings.json") },
   { target: "commandcode", outputPath: join(".commandcode", "settings.json") },
   { target: "continue", outputPath: join(".continue", "settings.json") },
   { target: "lettacode", outputPath: join(".letta", "settings.json") },

@@ -139,6 +139,10 @@ describe("shared-file write derivation", () => {
           "ignore",
           "rules",
         ],
+        ".codebuddy/settings.json": [
+          "hooks",
+          "permissions",
+        ],
         ".codex/config.toml": [
           "hooks",
           "mcp",

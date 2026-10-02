@@ -85,8 +85,8 @@ export const RulesyncMcpFileSchema = z.looseObject({
   // the Kiro IDE/CLI targets read the `kiro` block (all three write the same
   // `.kiro/settings/mcp.json`, so per-variant blocks would make that shared
   // file depend on generation order). In project mode `claudecode`,
-  // `commandcode` and `qoder` share the root `.mcp.json`, so all of them apply
-  // all three blocks there.
+  // `codebuddy`, `commandcode` and `qoder` share the root `.mcp.json`, so all
+  // of them apply all four blocks there.
   amp: z.optional(toolScopedMcpSchema),
   "antigravity-cli": z.optional(toolScopedMcpSchema),
   "antigravity-ide": z.optional(toolScopedMcpSchema),
@@ -95,6 +95,7 @@ export const RulesyncMcpFileSchema = z.looseObject({
   bob: z.optional(toolScopedMcpSchema),
   claudecode: z.optional(toolScopedMcpSchema),
   cline: z.optional(toolScopedMcpSchema),
+  codebuddy: z.optional(toolScopedMcpSchema),
   codewhale: z.optional(toolScopedMcpSchema),
   codexcli: z.optional(toolScopedMcpSchema),
   commandcode: z.optional(toolScopedMcpSchema),
@@ -866,10 +867,11 @@ type McpTargetResolution = {
  *   `config`) — so both targets always apply both blocks in a fixed order
  *   (`antigravity-ide` first, `antigravity-cli` second — the CLI block wins
  *   per server on conflict).
- * - `claudecode` (and its legacy alias), `commandcode` and `qoder` share the
- *   root `.mcp.json` in PROJECT mode only (their global files differ:
- *   `~/.claude.json`, `~/.commandcode/mcp.json` and `~/.qoder/settings.json`),
- *   so in project mode the four apply the `claudecode`, `commandcode` and
+ * - `claudecode` (and its legacy alias), `codebuddy`, `commandcode` and `qoder`
+ *   share the root `.mcp.json` in PROJECT mode only (their global files
+ *   differ: `~/.claude.json`, `~/.codebuddy/.mcp.json`,
+ *   `~/.commandcode/mcp.json` and `~/.qoder/settings.json`), so in project
+ *   mode the five apply the `claudecode`, `codebuddy`, `commandcode` and
  *   `qoder` blocks in that fixed order (a later block wins per server on
  *   conflict); in global mode each reads its own block.
  */
@@ -881,10 +883,22 @@ function resolveMcpTarget({
   global: boolean;
 }): McpTargetResolution {
   const isClaudecode = toolTarget === "claudecode" || toolTarget === "claudecode-legacy";
-  if (!global && (isClaudecode || toolTarget === "commandcode" || toolTarget === "qoder")) {
+  if (
+    !global &&
+    (isClaudecode ||
+      toolTarget === "codebuddy" ||
+      toolTarget === "commandcode" ||
+      toolTarget === "qoder")
+  ) {
     return {
-      blockKeys: ["claudecode", "commandcode", "qoder"],
-      acceptedTargetNames: new Set(["claudecode", "claudecode-legacy", "commandcode", "qoder"]),
+      blockKeys: ["claudecode", "codebuddy", "commandcode", "qoder"],
+      acceptedTargetNames: new Set([
+        "claudecode",
+        "claudecode-legacy",
+        "codebuddy",
+        "commandcode",
+        "qoder",
+      ]),
     };
   }
   if (isClaudecode) {

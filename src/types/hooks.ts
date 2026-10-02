@@ -1239,6 +1239,107 @@ export const CORTEXCODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Objec
 );
 
 /**
+ * Hook events supported by CodeBuddy Code.
+ *
+ * CodeBuddy Code reads hooks from the `hooks` key of `.codebuddy/settings.json`
+ * (project) and `~/.codebuddy/settings.json` (user) in the Claude-Code shape:
+ * PascalCase event names, a regex `matcher`, and `command`, `http`, `prompt`
+ * or `agent` hooks with a `timeout` in seconds. The hooks reference documents ten events; the
+ * plugins reference lists the full set, stating that plugin hooks "respond to
+ * the same lifecycle events as user-defined hooks", so every event listed
+ * there is supported here.
+ *
+ * @see https://www.codebuddy.ai/docs/cli/hooks
+ * @see https://www.codebuddy.ai/docs/cli/plugins-reference
+ */
+export const CODEBUDDY_HOOK_EVENTS: readonly HookEvent[] = [
+  "sessionStart",
+  "beforeSubmitPrompt",
+  "preToolUse",
+  "permissionRequest",
+  "permissionDenied",
+  "postToolUse",
+  "postToolUseFailure",
+  "notification",
+  "subagentStart",
+  "subagentStop",
+  "taskCreated",
+  "taskCompleted",
+  "stop",
+  "stopFailure",
+  "teammateIdle",
+  "instructionsLoaded",
+  "configChange",
+  "cwdChanged",
+  "fileChanged",
+  "worktreeCreate",
+  "worktreeRemove",
+  "preCompact",
+  "postCompact",
+  "elicitation",
+  "elicitationResult",
+  "sessionEnd",
+];
+
+/**
+ * CodeBuddy Code events that fire on every occurrence and take no `matcher`.
+ * The hooks reference's event matrix marks UserPromptSubmit, Stop,
+ * SubagentStop and PostCompact as matcher-less; the plugin-only events that
+ * fire on every occurrence follow Claude Code's documented set.
+ * @see https://www.codebuddy.ai/docs/cli/hooks
+ */
+export const CODEBUDDY_NO_MATCHER_HOOK_EVENTS: readonly HookEvent[] = [
+  "beforeSubmitPrompt",
+  "stop",
+  "subagentStop",
+  "postCompact",
+  "taskCreated",
+  "taskCompleted",
+  "teammateIdle",
+  "cwdChanged",
+  "worktreeCreate",
+  "worktreeRemove",
+];
+
+/** CodeBuddy Code events whose hooks accept a `matcher`. */
+export const CODEBUDDY_MATCHER_HOOK_EVENTS: readonly HookEvent[] = CODEBUDDY_HOOK_EVENTS.filter(
+  (event) => !CODEBUDDY_NO_MATCHER_HOOK_EVENTS.includes(event),
+);
+
+export const CANONICAL_TO_CODEBUDDY_EVENT_NAMES: Record<string, string> = {
+  sessionStart: "SessionStart",
+  beforeSubmitPrompt: "UserPromptSubmit",
+  preToolUse: "PreToolUse",
+  permissionRequest: "PermissionRequest",
+  permissionDenied: "PermissionDenied",
+  postToolUse: "PostToolUse",
+  postToolUseFailure: "PostToolUseFailure",
+  notification: "Notification",
+  subagentStart: "SubagentStart",
+  subagentStop: "SubagentStop",
+  taskCreated: "TaskCreated",
+  taskCompleted: "TaskCompleted",
+  stop: "Stop",
+  stopFailure: "StopFailure",
+  teammateIdle: "TeammateIdle",
+  instructionsLoaded: "InstructionsLoaded",
+  configChange: "ConfigChange",
+  cwdChanged: "CwdChanged",
+  fileChanged: "FileChanged",
+  worktreeCreate: "WorktreeCreate",
+  worktreeRemove: "WorktreeRemove",
+  preCompact: "PreCompact",
+  postCompact: "PostCompact",
+  elicitation: "Elicitation",
+  elicitationResult: "ElicitationResult",
+  sessionEnd: "SessionEnd",
+};
+
+export const CODEBUDDY_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
+  Object.entries(CANONICAL_TO_CODEBUDDY_EVENT_NAMES).map(([k, v]) => [v, k]),
+);
+
+/**
  * Hook events supported by Command Code.
  *
  * Command Code reads hooks from the `hooks` key of `.commandcode/settings.json`
@@ -1561,6 +1662,7 @@ export const HooksConfigSchema = z.looseObject({
   crush: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   pool: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   bob: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  codebuddy: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   cortexcode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   commandcode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   lettacode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),

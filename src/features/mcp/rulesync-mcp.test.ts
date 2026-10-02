@@ -1119,11 +1119,12 @@ describe("RulesyncMcp", () => {
       expect(Object.keys(effective.getMcpServers())).toEqual(["shared", "extra"]);
     });
 
-    it("should apply the claudecode, commandcode and qoder blocks at project scope (shared .mcp.json)", () => {
+    it("should apply the claudecode, codebuddy, commandcode and qoder blocks at project scope (shared .mcp.json)", () => {
       const instance = makeInstance({
         mcpServers: {
           shared: { command: "node" },
           forClaude: { command: "a", targets: ["claudecode"] },
+          forCodebuddy: { command: "d", targets: ["codebuddy"] },
           forCommand: { command: "b", targets: ["commandcode"] },
           forQoder: { command: "q", targets: ["qoder"] },
           forOther: { command: "c", targets: ["cursor"] },
@@ -1131,16 +1132,19 @@ describe("RulesyncMcp", () => {
         claudecode: {
           mcpServers: { claudeExtra: { command: "uvx" }, both: { command: "claude" } },
         },
+        codebuddy: { mcpServers: { codebuddyExtra: { command: "codebuddy" } } },
         commandcode: { mcpServers: { both: { command: "command" } } },
         qoder: { mcpServers: { qoderExtra: { command: "qoder" } } },
       });
 
-      // All four targets write the project `.mcp.json`, so they must resolve
+      // All five targets write the project `.mcp.json`, so they must resolve
       // to one deterministic server set: claudecode block first, then
-      // commandcode, then qoder (a later block wins per server on conflict).
+      // codebuddy, commandcode and qoder (a later block wins per server on
+      // conflict).
       for (const toolTarget of [
         "claudecode",
         "claudecode-legacy",
+        "codebuddy",
         "commandcode",
         "qoder",
       ] as const) {
@@ -1148,7 +1152,9 @@ describe("RulesyncMcp", () => {
         expect(Object.keys(servers).toSorted()).toEqual([
           "both",
           "claudeExtra",
+          "codebuddyExtra",
           "forClaude",
+          "forCodebuddy",
           "forCommand",
           "forQoder",
           "qoderExtra",
