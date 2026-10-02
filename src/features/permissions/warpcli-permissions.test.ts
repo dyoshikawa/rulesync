@@ -95,6 +95,21 @@ describe("WarpcliPermissions", () => {
       );
     });
 
+    it("creates the default execution profile from the override alone", async () => {
+      const perms = await WarpcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          permission: {},
+          warpcli: { execution_profile: { read_files: "always_allow" } },
+        }),
+        global: true,
+      });
+
+      expect(smolToml.parse(perms.getFileContent())).toEqual({
+        agents: { execution_profiles: { default: { read_files: "always_allow" } } },
+      });
+    });
+
     it("merges into the default profile and keeps every other setting", async () => {
       await writeSettings(
         [
@@ -211,6 +226,17 @@ describe("WarpcliPermissions", () => {
       await generate({ permission: {} });
 
       expect(await fileExists(settingsPath())).toBe(false);
+    });
+
+    it("writes settings.toml when only the override maps", async () => {
+      await generate({
+        permission: {},
+        warpcli: { execution_profile: { run_agents: "always_ask" } },
+      });
+
+      expect(smolToml.parse(await readFileContent(settingsPath()))).toEqual({
+        agents: { execution_profiles: { default: { run_agents: "always_ask" } } },
+      });
     });
 
     it("writes settings.toml when a rule maps", async () => {

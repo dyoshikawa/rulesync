@@ -21,9 +21,10 @@ import {
   convertWarpToRulesyncPermissions,
   DEFAULT_PROFILE_KEY,
   EXECUTION_PROFILES_KEY,
+  liftExecutionProfileOverride,
+  mergeDefaultExecutionProfile,
   PROFILE_ALLOWLIST_KEY,
   PROFILE_DENYLIST_KEY,
-  WARP_EXECUTION_PROFILE_KEYS,
   WARP_EXECUTION_PROFILE_OVERRIDE_KEY,
   warnAboutDenylistReplacement,
 } from "./warp-permissions.js";
@@ -144,25 +145,23 @@ export class WarpcliPermissions extends ToolPermissions {
       logger,
     });
 
-    const agents = isRecord(settings.agents) ? { ...settings.agents } : {};
-    const executionProfiles = isRecord(agents[EXECUTION_PROFILES_KEY])
-      ? { ...agents[EXECUTION_PROFILES_KEY] }
-      : {};
-    const defaultProfile = isRecord(executionProfiles[DEFAULT_PROFILE_KEY])
-      ? { ...executionProfiles[DEFAULT_PROFILE_KEY] }
-      : {};
-
-    // Override keys merge first (verbatim, so forward-compat keys pass
-    // through); the rulesync-owned command lists below always win.
     const override = config.warpcli;
-    if (isRecord(override) && isRecord(override[WARP_EXECUTION_PROFILE_OVERRIDE_KEY])) {
-      Object.assign(defaultProfile, override[WARP_EXECUTION_PROFILE_OVERRIDE_KEY]);
-    }
-    setOrDeleteList(defaultProfile, PROFILE_ALLOWLIST_KEY, mergedAllow);
-    setOrDeleteList(defaultProfile, PROFILE_DENYLIST_KEY, mergedDeny);
+    const executionProfileOverride =
+      isRecord(override) && isRecord(override[WARP_EXECUTION_PROFILE_OVERRIDE_KEY])
+        ? override[WARP_EXECUTION_PROFILE_OVERRIDE_KEY]
+        : undefined;
 
-    executionProfiles[DEFAULT_PROFILE_KEY] = defaultProfile;
-    agents[EXECUTION_PROFILES_KEY] = executionProfiles;
+    // Unlike the app, the CLI has no settings migration to wait for, so the
+    // collection is created when absent.
+    const agents = isRecord(settings.agents) ? { ...settings.agents } : {};
+    agents[EXECUTION_PROFILES_KEY] = mergeDefaultExecutionProfile({
+      executionProfiles: isRecord(agents[EXECUTION_PROFILES_KEY])
+        ? agents[EXECUTION_PROFILES_KEY]
+        : {},
+      mergedAllow,
+      mergedDeny,
+      executionProfileOverride,
+    });
     settings.agents = agents;
 
     return new WarpcliPermissions({
@@ -204,13 +203,10 @@ export class WarpcliPermissions extends ToolPermissions {
 
     // Lift the `default` profile's autonomy keys into the `warpcli` override so
     // they round-trip.
-    const executionProfileOverride: Record<string, unknown> = {};
-    for (const key of WARP_EXECUTION_PROFILE_KEYS) {
-      if (defaultProfile[key] !== undefined) executionProfileOverride[key] = defaultProfile[key];
-    }
+    const executionProfileOverride = liftExecutionProfileOverride(defaultProfile);
 
     const result: Record<string, unknown> = { ...config };
-    if (Object.keys(executionProfileOverride).length > 0) {
+    if (executionProfileOverride) {
       result.warpcli = { [WARP_EXECUTION_PROFILE_OVERRIDE_KEY]: executionProfileOverride };
     }
 
@@ -236,13 +232,5 @@ export class WarpcliPermissions extends ToolPermissions {
       validate: false,
       global: true,
     });
-  }
-}
-
-function setOrDeleteList(record: Record<string, unknown>, key: string, list: string[]): void {
-  if (list.length > 0) {
-    record[key] = list;
-  } else {
-    delete record[key];
   }
 }

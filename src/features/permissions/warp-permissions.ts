@@ -68,7 +68,7 @@ const WARP_OVERRIDE_KEYS = [
 // model overrides, context window limit, plan sync, web search toggle) are
 // deliberately not lifted — they are not permissions.
 export const WARP_EXECUTION_PROFILE_OVERRIDE_KEY = "execution_profile";
-export const WARP_EXECUTION_PROFILE_KEYS = [
+const WARP_EXECUTION_PROFILE_KEYS = [
   "read_files",
   "apply_code_diffs",
   "execute_commands",
@@ -352,14 +352,11 @@ export class WarpPermissions extends ToolPermissions {
 
     // Lift the `default` execution profile's autonomy keys into the nested
     // `execution_profile` override so they round-trip on migrated installs.
-    if (defaultProfile) {
-      const executionProfileOverride: Record<string, unknown> = {};
-      for (const key of WARP_EXECUTION_PROFILE_KEYS) {
-        if (defaultProfile[key] !== undefined) executionProfileOverride[key] = defaultProfile[key];
-      }
-      if (Object.keys(executionProfileOverride).length > 0) {
-        warpOverride[WARP_EXECUTION_PROFILE_OVERRIDE_KEY] = executionProfileOverride;
-      }
+    const executionProfileOverride = defaultProfile
+      ? liftExecutionProfileOverride(defaultProfile)
+      : undefined;
+    if (executionProfileOverride) {
+      warpOverride[WARP_EXECUTION_PROFILE_OVERRIDE_KEY] = executionProfileOverride;
     }
 
     const result: Record<string, unknown> = { ...config };
@@ -456,27 +453,12 @@ function mergeIntoDefaultExecutionProfile({
     return;
   }
 
-  const executionProfiles = { ...agents[EXECUTION_PROFILES_KEY] };
-  const defaultProfile = isRecord(executionProfiles[DEFAULT_PROFILE_KEY])
-    ? { ...executionProfiles[DEFAULT_PROFILE_KEY] }
-    : {};
-  // Autonomy keys from the `warp.execution_profile` override merge first
-  // (verbatim, so forward-compat keys like `write_to_pty` pass through); the
-  // rulesync-owned command lists below always win over the override.
-  if (executionProfileOverride) {
-    Object.assign(defaultProfile, executionProfileOverride);
-  }
-  if (mergedAllow.length > 0) {
-    defaultProfile[PROFILE_ALLOWLIST_KEY] = mergedAllow;
-  } else {
-    delete defaultProfile[PROFILE_ALLOWLIST_KEY];
-  }
-  if (mergedDeny.length > 0) {
-    defaultProfile[PROFILE_DENYLIST_KEY] = mergedDeny;
-  } else {
-    delete defaultProfile[PROFILE_DENYLIST_KEY];
-  }
-  executionProfiles[DEFAULT_PROFILE_KEY] = defaultProfile;
+  const executionProfiles = mergeDefaultExecutionProfile({
+    executionProfiles: agents[EXECUTION_PROFILES_KEY],
+    mergedAllow,
+    mergedDeny,
+    executionProfileOverride,
+  });
   agents[EXECUTION_PROFILES_KEY] = executionProfiles;
 
   // Runtime enforcement reads the *active* profile, and rulesync manages only
@@ -493,7 +475,59 @@ function mergeIntoDefaultExecutionProfile({
 }
 
 /**
- * Read a `[...]` class starting at its `[` and return the index just past its
+ * Return a copy of an `[agents.execution_profiles]` collection whose `default`
+ * record carries the command lists and the execution-profile override's
+ * autonomy keys, keeping every other key and profile ID. The override merges
+ * first (verbatim, so forward-compat keys like `write_to_pty` pass through) and
+ * the rulesync-owned command lists always win over it; an empty list removes
+ * the key.
+ */
+export function mergeDefaultExecutionProfile({
+  executionProfiles,
+  mergedAllow,
+  mergedDeny,
+  executionProfileOverride,
+}: {
+  executionProfiles: Record<string, unknown>;
+  mergedAllow: string[];
+  mergedDeny: string[];
+  executionProfileOverride: Record<string, unknown> | undefined;
+}): Record<string, unknown> {
+  const defaultProfile = isRecord(executionProfiles[DEFAULT_PROFILE_KEY])
+    ? { ...executionProfiles[DEFAULT_PROFILE_KEY] }
+    : {};
+  if (executionProfileOverride) {
+    Object.assign(defaultProfile, executionProfileOverride);
+  }
+  if (mergedAllow.length > 0) {
+    defaultProfile[PROFILE_ALLOWLIST_KEY] = mergedAllow;
+  } else {
+    delete defaultProfile[PROFILE_ALLOWLIST_KEY];
+  }
+  if (mergedDeny.length > 0) {
+    defaultProfile[PROFILE_DENYLIST_KEY] = mergedDeny;
+  } else {
+    delete defaultProfile[PROFILE_DENYLIST_KEY];
+  }
+  return { ...executionProfiles, [DEFAULT_PROFILE_KEY]: defaultProfile };
+}
+
+/**
+ * Collect the permission keys of an execution profile record (the counterpart
+ * of the `execution_profile` override), or `undefined` when it holds none.
+ */
+export function liftExecutionProfileOverride(
+  profile: Record<string, unknown>,
+): Record<string, unknown> | undefined {
+  const override: Record<string, unknown> = {};
+  for (const key of WARP_EXECUTION_PROFILE_KEYS) {
+    if (profile[key] !== undefined) override[key] = profile[key];
+  }
+  return Object.keys(override).length > 0 ? override : undefined;
+}
+
+/**
+ * Read a `[...]` class starting at its `[`` and return the index just past its
  * `]`, or `undefined` when it cannot be read that simply. Regex class rules
  * apply: a `]` in the first position is a member rather than the terminator and
  * a backslash escapes the character after it. A nested `[` gives up: Rust's
