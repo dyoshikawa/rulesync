@@ -49,3 +49,8 @@ export const QODER_AGENTS_DIR_PATH = join(QODER_DIR, "agents");
 // `~/.qoder/skills/` (user).
 // @see https://docs.qoder.com/en/cli/04-extending-qoder-cli/Skills
 export const QODER_SKILLS_DIR_PATH = join(QODER_DIR, "skills");
+
+// Ignore file: `.qoderignore` at the project root, in gitignore syntax. Qoder
+// IDE excludes the listed paths from codebase indexing (beside `.gitignore`).
+// @see https://docs.qoder.com/user-guide/indexing
+export const QODER_IGNORE_FILE_NAME = ".qoderignore";

@@ -50,6 +50,7 @@ const permissionsGenerateTargets = [
   "kiro-ide",
   "kilo",
   "lettacode",
+  "qoder",
   "antigravity-ide",
   "augmentcode",
   "cline",
@@ -101,6 +102,7 @@ const permissionsGlobalTargets = [
   "factorydroid",
   "junie",
   "lettacode",
+  "qoder",
 ] as const;
 
 describe("E2E: permissions", () => {
@@ -126,6 +128,7 @@ describe("E2E: permissions", () => {
     { target: "copilotcli", relativePaths: [[".github", "copilot", "settings.json"]] },
     { target: "commandcode", relativePaths: [[".commandcode", "settings.json"]] },
     { target: "lettacode", relativePaths: [[".letta", "settings.json"]] },
+    { target: "qoder", relativePaths: [[".qoder", "settings.json"]] },
     // opencode writes the `.jsonc` twin when neither file exists yet, so both
     // spellings must stay absent.
     { target: "opencode", relativePaths: [["opencode.json"], ["opencode.jsonc"]] },
@@ -750,6 +753,58 @@ web_search_request = true
       allow: ["Task", "Bash(git:*)", "Read"],
       alwaysAsk: ["Bash(npm publish)"],
       deny: ["Bash(rm -rf:*)", "Write(.env*)"],
+    });
+  });
+
+  it("should generate qoder permissions into .qoder/settings.json", async () => {
+    const testDir = getTestDir();
+
+    // Pre-existing settings owned by the user (and by the hooks feature) must
+    // survive the merge, including the siblings of the rule lists.
+    await writeFileContent(
+      join(testDir, ".qoder", "settings.json"),
+      JSON.stringify(
+        {
+          model: "auto",
+          hooks: { Stop: [{ hooks: [{ type: "command", command: "echo done" }] }] },
+          permissions: {
+            additionalDirectories: ["../shared"],
+            allow: ["Bash(stale:*)", "NotebookEdit"],
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await writeFileContent(
+      join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "git *": "allow", "rm -rf *": "deny", "npm publish": "ask" },
+            read: { "*": "allow" },
+            write: { ".env*": "deny" },
+            mcp__github__create_issue: { "*": "ask" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({ target: "qoder", features: "permissions" });
+
+    const generated = JSON.parse(await readFileContent(join(testDir, ".qoder", "settings.json")));
+    expect(generated.model).toBe("auto");
+    expect(generated.hooks.Stop).toHaveLength(1);
+    // A path-scoped `write` rule is written as `Edit(path)`, the form Qoder's
+    // file-write checks match.
+    expect(generated.permissions).toEqual({
+      additionalDirectories: ["../shared"],
+      allow: ["NotebookEdit", "Bash(git *)", "Read"],
+      ask: ["Bash(npm publish)", "mcp__github__create_issue"],
+      deny: ["Bash(rm -rf *)", "Edit(.env*)"],
     });
   });
 
@@ -2004,6 +2059,37 @@ enabled = true
     expect(content.permission.write).toEqual({ ".env*": "deny" });
   });
 
+  it("should import qoder permissions into .rulesync/permissions.jsonc", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, ".qoder", "settings.json"),
+      JSON.stringify(
+        {
+          permissions: {
+            trustDirectories: ["~/work"],
+            allow: ["Bash(git log:*)", "Read", "mcp__context7__*"],
+            ask: ["WebFetch"],
+            deny: ["Edit(/.git/**)"],
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runImport({ target: "qoder", features: "permissions" });
+
+    const content = JSON.parse(
+      await readFileContent(join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH)),
+    );
+    expect(content.permission.bash).toEqual({ "git log:*": "allow" });
+    expect(content.permission.read).toEqual({ "*": "allow" });
+    expect(content.permission.webfetch).toEqual({ "*": "ask" });
+    expect(content.permission.edit).toEqual({ "/.git/**": "deny" });
+    expect(content.permission["mcp__context7__*"]).toEqual({ "*": "allow" });
+  });
+
   it("should import copilot permissions into .rulesync/permissions.jsonc", async () => {
     const testDir = getTestDir();
 
@@ -2300,6 +2386,29 @@ describe("E2E: permissions (global mode)", () => {
     expect(generated.permissions).toEqual({
       allow: ["Bash(git:*)"],
       deny: ["Bash(rm -rf:*)"],
+    });
+  });
+
+  it("should generate qoder permissions in home directory with --global", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify({ permission: { bash: { "git *": "allow", "rm -rf *": "deny" } } }, null, 2),
+    );
+
+    await runGenerate({
+      target: "qoder",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const generated = JSON.parse(await readFileContent(join(homeDir, ".qoder", "settings.json")));
+    expect(generated.permissions).toEqual({
+      allow: ["Bash(git *)"],
+      deny: ["Bash(rm -rf *)"],
     });
   });
 

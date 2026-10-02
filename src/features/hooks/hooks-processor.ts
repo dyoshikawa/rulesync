@@ -38,6 +38,7 @@ import {
   OPENCODE_HOOK_EVENTS,
   PI_HOOK_EVENTS,
   POOL_HOOK_EVENTS,
+  QODER_HOOK_EVENTS,
   QWENCODE_HOOK_EVENTS,
   REASONIX_HOOK_EVENTS,
   TABNINE_HOOK_EVENTS,
@@ -92,6 +93,7 @@ import { MimocodeHooks } from "./mimocode-hooks.js";
 import { OpencodeHooks } from "./opencode-hooks.js";
 import { PiHooks } from "./pi-hooks.js";
 import { PoolHooks } from "./pool-hooks.js";
+import { QoderHooks } from "./qoder-hooks.js";
 import { QwencodeHooks } from "./qwencode-hooks.js";
 import { ReasonixHooks } from "./reasonix-hooks.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
@@ -1011,6 +1013,46 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       supportsMatcher: true,
       // Event names under the `pool.hooks` override (e.g. ones an import
       // filed there) are emitted verbatim by the adapter.
+    },
+  ],
+  [
+    "qoder",
+    {
+      // Qoder hooks live under the `hooks` key of `.qoder/settings.json`
+      // (project) / `~/.qoder/settings.json` (global) in the Claude-Code shape.
+      // UserPromptSubmit, Stop, CwdChanged, WorktreeCreate/Remove and the
+      // task/teammate events carry no matcher.
+      // https://docs.qoder.com/en/cli/hooks
+      class: QoderHooks,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+      supportedEvents: QODER_HOOK_EVENTS,
+      supportedHookTypes: ["command", "http", "prompt", "agent"],
+      supportsMatcher: true,
+      matcherEvents: [
+        "sessionStart",
+        "sessionEnd",
+        "preToolUse",
+        "postToolUse",
+        "postToolUseFailure",
+        "stopFailure",
+        "subagentStart",
+        "subagentStop",
+        "preCompact",
+        "postCompact",
+        "notification",
+        "configChange",
+        "instructionsLoaded",
+        "fileChanged",
+        "elicitation",
+        "elicitationResult",
+        "permissionRequest",
+        "permissionDenied",
+        "setup",
+      ],
     },
   ],
   [

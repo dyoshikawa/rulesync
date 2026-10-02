@@ -78,6 +78,10 @@ const hooksKeyedEventNames: Record<string, { sessionStart: string; stop: string 
   // .letta/settings.json in both scopes; hooks run with the project directory
   // as their working directory, so commands are written verbatim.
   lettacode: { sessionStart: "SessionStart", stop: "Stop" },
+  // Qoder stores Claude-style PascalCase events under the `hooks` key of
+  // .qoder/settings.json in both scopes; commands are anchored with
+  // $QODER_PROJECT_DIR only when they start with `./`.
+  qoder: { sessionStart: "SessionStart", stop: "Stop" },
 };
 
 function assertHooksKeyedEvents({
@@ -138,6 +142,7 @@ const hooksGenerateTargets = [
   { target: "commandcode", outputPath: join(".commandcode", "settings.json") },
   { target: "continue", outputPath: join(".continue", "settings.json") },
   { target: "lettacode", outputPath: join(".letta", "settings.json") },
+  { target: "qoder", outputPath: join(".qoder", "settings.json") },
   { target: "gitlabduo", outputPath: join(".gitlab", "duo", "hooks.json") },
   { target: "grokcli", outputPath: join(".grok", "hooks", "rulesync.json") },
   { target: "cline", outputPath: join(".clinerules", "hooks", "rulesync-hooks.json") },
@@ -1060,6 +1065,20 @@ describe("E2E: hooks (import)", () => {
       },
     },
     {
+      // Qoder stores hooks under the `hooks` key of .qoder/settings.json using
+      // Claude-style PascalCase event names and second timeouts; SessionStart
+      // round-trips to the canonical `sessionStart` event.
+      target: "qoder",
+      sourcePath: join(".qoder", "settings.json"),
+      sourceContent: {
+        hooks: {
+          SessionStart: [
+            { hooks: [{ type: "command", command: "echo session started", timeout: 30 }] },
+          ],
+        },
+      },
+    },
+    {
       // deepagents-cli uses the Hooks v2 document (PascalCase HookEvent keys
       // over matcher groups); SessionStart round-trips to canonical `sessionStart`.
       target: "deepagents",
@@ -1160,6 +1179,7 @@ const hooksGlobalTargets = [
   { target: "commandcode", outputPath: join(".commandcode", "settings.json") },
   { target: "continue", outputPath: join(".continue", "settings.json") },
   { target: "lettacode", outputPath: join(".letta", "settings.json") },
+  { target: "qoder", outputPath: join(".qoder", "settings.json") },
   { target: "kiro-ide", outputPath: join(".kiro", "hooks", "rulesync.json") },
   { target: "kiro-cli", outputPath: join(".kiro", "hooks", "rulesync.json") },
   { target: "gitlabduo", outputPath: join(".gitlab", "duo", "hooks.json") },

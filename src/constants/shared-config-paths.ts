@@ -65,8 +65,9 @@ export const SHARED_USER_MANAGED_CONFIG_PATHS: readonly string[] = [
   // `.letta/settings.json` layout and carry the user's own settings beside the
   // `hooks` and `permissions` blocks.
   ".letta/settings.json",
-  // Qoder settings: the user file `~/.qoder/settings.json` carries the user's
-  // own Qoder settings beside the `mcpServers` block rulesync writes.
+  // Qoder settings: the project file and the user one share the same
+  // `.qoder/settings.json` layout and carry the user's own Qoder settings
+  // beside the `mcpServers` (user only), `hooks` and `permissions` blocks.
   ".qoder/settings.json",
   // Both Rovo Dev project files are documented as repo-committed surfaces
   // (Bitbucket Cloud Agentic Pipelines), so neither is gitignored.

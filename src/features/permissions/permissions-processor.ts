@@ -42,6 +42,7 @@ import { MimocodePermissions } from "./mimocode-permissions.js";
 import { OpencodePermissions } from "./opencode-permissions.js";
 import { PiPermissions } from "./pi-permissions.js";
 import { PoolPermissions } from "./pool-permissions.js";
+import { QoderPermissions } from "./qoder-permissions.js";
 import { QwencodePermissions } from "./qwencode-permissions.js";
 import { ReasonixPermissions } from "./reasonix-permissions.js";
 import { RooPermissions } from "./roo-permissions.js";
@@ -484,6 +485,17 @@ export const toolPermissionsFactories = new Map<
         // `~/.config/poolside/settings.yaml` (global), the same file the MCP
         // servers are written to; the merge is in place.
         // https://docs.poolside.ai/settings-file-reference
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+    },
+  ],
+  [
+    "qoder",
+    {
+      class: QoderPermissions,
+      meta: {
         supportsProject: true,
         supportsGlobal: true,
         supportsImport: true,

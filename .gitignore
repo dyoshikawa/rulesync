@@ -504,6 +504,7 @@ rulesync.local.jsonc
 **/.kilocodeignore
 **/.kiroignore
 **/.letta/.lettaignore
+**/.qoderignore
 **/.qwenignore
 **/.rooignore
 **/.devinignore
