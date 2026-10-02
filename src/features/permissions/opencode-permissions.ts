@@ -339,6 +339,13 @@ export class OpencodePermissions extends ToolPermissions {
             `Several canonical categories map to OpenCode's "${key}" key, so their rules were merged; patterns were reordered allow, ask, deny so no rule set is loosened, which disables an allow carve-out under a broader ask or deny pattern. Set opencode.permission.${key} to control the exact order.`,
           );
         }
+        // OpenCode flattens every key's rules in object order and the last
+        // match wins across keys too (a `*` key also matches `edit`), so the
+        // merged map takes the native category's own position, never the
+        // folded one's: placing it earlier could let a later key override it.
+        if (category === key) {
+          delete sharedPermission[key];
+        }
         sharedPermission[key] = merged;
       } else {
         sharedPermission[key] = value;

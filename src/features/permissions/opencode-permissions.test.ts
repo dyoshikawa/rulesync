@@ -393,6 +393,39 @@ describe("OpencodePermissions", () => {
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("carve-out"));
   });
 
+  it("should place the merged `edit` map at the canonical `edit` key's position", async () => {
+    const build = async (permission: Record<string, unknown>) => {
+      const rulesyncPermissions = new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({ permission }),
+      });
+      const instance = await OpencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+      return JSON.parse(instance.getFileContent()).permission;
+    };
+
+    // Keys are evaluated in order with the last match winning, so a `*` key
+    // emitted after `edit` would override the edit deny.
+    const editLast = await build({
+      write: { "*": "deny" },
+      "*": { "*": "allow" },
+      edit: { "*": "deny" },
+    });
+    expect(Object.keys(editLast)).toEqual(["*", "edit"]);
+
+    const editFirst = await build({
+      edit: { "*": "deny" },
+      "*": { "*": "allow" },
+      write: { "*": "ask" },
+    });
+    expect(Object.keys(editFirst)).toEqual(["edit", "*"]);
+    expect(editFirst.edit).toEqual({ "*": "deny" });
+  });
+
   it("should keep identical `write` and `edit` maps in their original order", async () => {
     const logger = { warn: vi.fn() } as any;
     const rules = { "*": "deny", "src/**": "allow" };
