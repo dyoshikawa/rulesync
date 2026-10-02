@@ -331,6 +331,7 @@ describe("OpencodePermissions", () => {
   });
 
   it("should merge `write` into `edit` keeping the stricter action per pattern", async () => {
+    const logger = { warn: vi.fn() } as any;
     const rulesyncPermissions = new RulesyncPermissions({
       outputRoot: testDir,
       relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
@@ -346,6 +347,7 @@ describe("OpencodePermissions", () => {
     const instance = await OpencodePermissions.fromRulesyncPermissions({
       outputRoot: testDir,
       rulesyncPermissions,
+      logger,
     });
     const json = JSON.parse(instance.getFileContent());
 
@@ -358,6 +360,37 @@ describe("OpencodePermissions", () => {
       ["*.env", "deny"],
     ]);
     expect(json.permission.write).toBeUndefined();
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('OpenCode\'s "edit" key'));
+  });
+
+  it("should fail closed on an allow carve-out when merging differing maps", async () => {
+    const logger = { warn: vi.fn() } as any;
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: JSON.stringify({
+        permission: {
+          edit: { "*": "deny", "src/**": "allow" },
+          write: { "*": "deny", "src/**": "allow", "tmp/**": "allow" },
+        },
+      }),
+    });
+
+    const instance = await OpencodePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+      logger,
+    });
+    const json = JSON.parse(instance.getFileContent());
+
+    // The trailing `*` deny shadows both carve-outs: stricter, never looser.
+    expect(Object.entries(json.permission.edit)).toEqual([
+      ["src/**", "allow"],
+      ["tmp/**", "allow"],
+      ["*", "deny"],
+    ]);
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("carve-out"));
   });
 
   it("should keep identical `write` and `edit` maps in their original order", async () => {

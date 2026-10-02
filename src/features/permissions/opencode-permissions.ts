@@ -161,7 +161,9 @@ function toOpencodePermissionKey(canonical: string): string {
  * `deny`. Identical maps are kept as-is; otherwise each pattern keeps the
  * stricter action and the entries are ordered allow → ask → deny, which makes
  * the result at least as strict as either input for every path (it may be
- * stricter, never looser).
+ * stricter, never looser). The intersection of two ordered glob rule lists is
+ * not expressible in general, so the merge fails closed: an `allow` carve-out
+ * under a broader `ask`/`deny` pattern no longer takes effect.
  */
 function mergePatternRules(
   base: Record<string, PermissionAction>,
@@ -334,7 +336,7 @@ export class OpencodePermissions extends ToolPermissions {
         const merged = mergePatternRules(existing, value);
         if (merged !== existing) {
           logger?.warn(
-            `Several canonical categories map to OpenCode's "${key}" key, so their rules were merged; patterns were reordered allow, ask, deny so no rule set is loosened.`,
+            `Several canonical categories map to OpenCode's "${key}" key, so their rules were merged; patterns were reordered allow, ask, deny so no rule set is loosened, which disables an allow carve-out under a broader ask or deny pattern. Set opencode.permission.${key} to control the exact order.`,
           );
         }
         sharedPermission[key] = merged;
