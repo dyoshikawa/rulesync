@@ -41,12 +41,12 @@ jobs:
         uses: ./.github/actions/git-config
 
       - name: Setup mise
-        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        uses: jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
         with:
           experimental: true
 
       - name: Setup Takumi Guard npm registry
-        uses: flatt-security/setup-takumi-guard-npm@6d4182745c1e474c35a023573c2612c085be45a4 # v1
+        uses: flatt-security/setup-takumi-guard-npm@14f07d0cbc739b42a1b7c70a04c2b84cd1318ddd # v1.4.0
 
       - name: Install dependencies
         run: pnpm install --ignore-scripts
@@ -61,7 +61,7 @@ jobs:
           input-text: ${{ inputs.model }}
 
       - name: Run OpenCode to draft release
-        uses: anomalyco/opencode/github@3a103fe0aff726a4edc7492f03f7b88195d9e4c9 # v2.0.16
+        uses: anomalyco/opencode/github@8a8bd622a3d7dc29ccf30ec17f84e363ed95ed72 # v2.0.21
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           ZHIPU_API_KEY: ${{ secrets.ZHIPU_API_KEY }}
