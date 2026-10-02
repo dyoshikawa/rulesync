@@ -52,6 +52,7 @@ import { GrokcliSubagent } from "./grokcli-subagent.js";
 import { HermesagentSubagent } from "./hermesagent-subagent.js";
 import { JunieSubagent } from "./junie-subagent.js";
 import { KiloSubagent } from "./kilo-subagent.js";
+import { KimiCodePluginSubagent } from "./kimi-code-plugin-subagent.js";
 import { KimiCodeSubagent } from "./kimi-code-subagent.js";
 import { KiroCliSubagent } from "./kiro-cli-subagent.js";
 import { KiroIdeSubagent } from "./kiro-ide-subagent.js";
@@ -625,6 +626,20 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
         supportsGlobal: true,
         filePattern: "**/*.md",
         supportsNestedPaths: true,
+      },
+    },
+  ],
+  [
+    "kimi-code-plugin",
+    {
+      // `<plugin>/agents/*.md`, auto-discovered in the `.kimi-code/agents/` format.
+      // https://github.com/MoonshotAI/kimi-code/blob/%40moonshot-ai/kimi-code%402.1.1/docs/en/customization/plugins.md
+      class: KimiCodePluginSubagent,
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: false,
+        filePattern: "*.md",
       },
     },
   ],

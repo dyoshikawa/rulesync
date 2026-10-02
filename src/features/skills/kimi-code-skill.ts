@@ -156,6 +156,18 @@ export class KimiCodeSkill extends ToolSkill {
         };
   }
 
+  /**
+   * Where the imported `.rulesync/` file is written: the native output root in
+   * project scope, or the rulesync home when `KIMI_CODE_HOME` redirects the
+   * global profile.
+   */
+  protected getRulesyncOutputRoot(): string {
+    return getKimiCodeRulesyncOutputRoot({
+      nativeOutputRoot: this.outputRoot,
+      global: this.global,
+    });
+  }
+
   toRulesyncSkill(): RulesyncSkill {
     const { name, description, disableModelInvocation, ...kimiCodeFrontmatter } =
       this.getFrontmatter();
@@ -175,10 +187,7 @@ export class KimiCodeSkill extends ToolSkill {
     };
 
     return new RulesyncSkill({
-      outputRoot: getKimiCodeRulesyncOutputRoot({
-        nativeOutputRoot: this.outputRoot,
-        global: this.global,
-      }),
+      outputRoot: this.getRulesyncOutputRoot(),
       relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
       dirName: logicalSkillDirName(name),
       frontmatter,
@@ -206,7 +215,7 @@ export class KimiCodeSkill extends ToolSkill {
       ...kimiCodeSection,
     };
 
-    return new KimiCodeSkill({
+    return new this({
       outputRoot,
       relativeDirPath: this.getSettablePaths({ global }).relativeDirPath,
       dirName: rulesyncSkill.getDirName(),
@@ -226,7 +235,7 @@ export class KimiCodeSkill extends ToolSkill {
   static async fromDir(params: ToolSkillFromDirParams): Promise<KimiCodeSkill> {
     const loaded = await this.loadSkillDirContent({
       ...params,
-      getSettablePaths: KimiCodeSkill.getSettablePaths,
+      getSettablePaths: (options) => this.getSettablePaths(options),
     });
     const result = KimiCodeSkillFrontmatterSchema.safeParse(loaded.frontmatter);
     if (!result.success) {
@@ -234,7 +243,7 @@ export class KimiCodeSkill extends ToolSkill {
         `Invalid frontmatter in ${join(loaded.outputRoot, loaded.relativeDirPath, loaded.dirName, SKILL_FILE_NAME)}: ${formatError(result.error)}`,
       );
     }
-    return new KimiCodeSkill({
+    return new this({
       ...loaded,
       frontmatter: result.data,
       validate: true,
@@ -270,7 +279,7 @@ export class KimiCodeSkill extends ToolSkill {
       description: normalizedFrontmatter.description,
     });
 
-    return new KimiCodeSkill({
+    return new this({
       outputRoot,
       relativeDirPath,
       dirName: fileName,
@@ -287,7 +296,7 @@ export class KimiCodeSkill extends ToolSkill {
     dirName,
     global = false,
   }: ToolSkillForDeletionParams): KimiCodeSkill {
-    return new KimiCodeSkill({
+    return new this({
       outputRoot,
       relativeDirPath: relativeDirPath ?? this.getSettablePaths({ global }).relativeDirPath,
       dirName,
