@@ -50,6 +50,7 @@ export const TOOL_DISPLAY: ReadonlyArray<ToolDisplayEntry> = [
   { key: "continue", label: "Continue ⚠️", group: "ai" },
   { key: "cortexcode", label: "Snowflake Cortex Code", group: "ai" },
   { key: "vibe", label: "Vibe Code", group: "ai" },
+  { key: "vibe-plugin", label: "Vibe Code plugin", group: "ai" },
   { key: "qoder", label: "Qoder", group: "ai" },
   { key: "qwencode", label: "Qwen Code", group: "ai" },
   { key: "musecode", label: "Meta Muse Code", group: "ai" },

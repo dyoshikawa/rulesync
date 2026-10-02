@@ -55,6 +55,10 @@ const subagentsGenerateTargets = [
     outputPath: join("agents", "planner.md"),
   },
   {
+    target: "vibe-plugin",
+    outputPath: join("ai.mistral.vibe", "agents", "planner.toml"),
+  },
+  {
     target: "cursor",
     outputPath: join(".cursor", "agents", "planner.md"),
   },

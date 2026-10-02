@@ -63,6 +63,7 @@ import {
 } from "./tool-mcp.js";
 import { TraeMcp } from "./trae-mcp.js";
 import { VibeMcp } from "./vibe-mcp.js";
+import { VibePluginMcp } from "./vibe-plugin-mcp.js";
 import { WarpMcp } from "./warp-mcp.js";
 import { ZcodeMcp } from "./zcode-mcp.js";
 import { ZcodePluginMcp } from "./zcode-plugin-mcp.js";
@@ -871,6 +872,21 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
         // dropped — re-enabling the tools the user had disabled.
         supportsEnabledTools: false,
         supportsDisabledTools: true,
+      },
+    },
+  ],
+  [
+    "vibe-plugin",
+    {
+      // A Vibe plugin declares its servers in an Agent Plugins `mcp.json` at
+      // the plugin root, which has no tool filters.
+      // https://github.com/mistralai/mistral-vibe/blob/v2.25.8/vibe/core/plugins/_native.py
+      class: VibePluginMcp,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: false,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
       },
     },
   ],

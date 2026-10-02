@@ -1859,6 +1859,7 @@ Second global content`;
           "tabnine",
           "takt",
           "vibe",
+          "vibe-plugin",
           "zcode",
           "zcode-plugin",
         ]),

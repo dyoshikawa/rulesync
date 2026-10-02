@@ -31,3 +31,13 @@ export const ZCODE_PLUGIN_SKILLS_DIR = "skills";
 export const ZCODE_PLUGIN_HOOKS_DIR = "hooks";
 export const ZCODE_PLUGIN_HOOKS_FILE_NAME = "hooks.json";
 export const ZCODE_PLUGIN_MCP_FILE_NAME = ".mcp.json";
+
+// Vibe plugins follow Agent Plugins 1.0: `plugin.json`, `mcp.json` and
+// `skills/` at the plugin root, and Vibe-specific components under the
+// `ai.mistral.vibe/` extension directory.
+// @see https://github.com/mistralai/mistral-vibe/blob/v2.25.8/vibe/core/plugins/_native.py
+export const VIBE_PLUGIN_SKILLS_DIR = "skills";
+export const VIBE_PLUGIN_MCP_FILE_NAME = "mcp.json";
+export const VIBE_PLUGIN_EXTENSION_DIR = "ai.mistral.vibe";
+export const VIBE_PLUGIN_AGENTS_DIR_NAME = "agents";
+export const VIBE_PLUGIN_HOOKS_FILE_NAME = "hooks.toml";

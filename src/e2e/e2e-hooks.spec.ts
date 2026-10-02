@@ -152,6 +152,7 @@ const hooksGenerateTargets = [
 // Targets exercised by dedicated `it`s (bespoke per-tool serialization).
 const hooksProjectStandaloneTargets = [
   "vibe",
+  "vibe-plugin",
   "codewhale",
   "devin",
   "reasonix",
@@ -505,6 +506,27 @@ describe("E2E: hooks", () => {
     const importedContent = await readFileContent(join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH));
     expect(importedContent).toContain("preToolUse");
     expect(importedContent).toContain("echo audit");
+  });
+
+  it("should generate vibe-plugin hooks into ai.mistral.vibe/hooks.toml", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH),
+      JSON.stringify({
+        version: 1,
+        hooks: { preToolUse: [{ command: "./scripts/audit.sh", matcher: "bash" }] },
+      }),
+    );
+
+    await runGenerate({ target: "vibe-plugin", features: "hooks" });
+
+    // Same `[[hooks]]` array as `.vibe/hooks.toml`; Vibe runs plugin hooks in
+    // the plugin root, so the relative command is kept as written.
+    const generatedContent = await readFileContent(join(testDir, "ai.mistral.vibe", "hooks.toml"));
+    expect(generatedContent).toContain('type = "pre_tool"');
+    expect(generatedContent).toContain('command = "./scripts/audit.sh"');
+    expect(await fileExists(join(testDir, ".vibe", "hooks.toml"))).toBe(false);
   });
 
   it("should generate codewhale hooks into .codewhale/hooks.toml", async () => {
