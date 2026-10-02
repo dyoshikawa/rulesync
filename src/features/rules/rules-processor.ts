@@ -482,15 +482,14 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
     {
       class: AntigravityCliRule,
       meta: {
-        // The Antigravity CLI shares Gemini-CLI-class context files: a root
-        // context file (project `AGENTS.md`, global `~/.gemini/GEMINI.md`) that
-        // @-references non-root memory files under `.agents/rules/`. In global
-        // mode, non-root rules go to `~/.gemini/config/rules/`, which the CLI
-        // loads by itself, so `GEMINI.md` carries no reference block there.
+        // The Antigravity CLI loads non-root rules by itself — trigger-tagged
+        // files under `.agents/rules/` (project) and `~/.gemini/config/rules/`
+        // (global) — so the root context file (project `AGENTS.md`, global
+        // `~/.gemini/GEMINI.md`) carries no reference block, matching
+        // `antigravity-ide`, which writes the same project files.
         extension: "md",
         supportsGlobal: true,
-        ruleDiscoveryMode: "toon",
-        ruleDiscoveryModeGlobal: "auto",
+        ruleDiscoveryMode: "auto",
         sharedGlobalNonRootDir: true,
       },
     },

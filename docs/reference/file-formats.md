@@ -983,6 +983,9 @@ disable-model-invocation: true
 # Any of those tool sections can override it by setting their own `user-invocable` value below.
 # devin also reads this root value (false maps onto a model-only `triggers`
 # list); it has no section key of the same name, but devin.triggers overrides it.
+# antigravity-ide, antigravity-cli and antigravity-plugin also read this root value
+# (false maps onto `disable-slash-command: true`); their section's
+# `disable-slash-command` overrides it.
 user-invocable: false
 # (optional) shared defaults for the three Agent Skills standard packaging fields.
 # Each applies to every tool that models the field, and any of those tool sections
@@ -998,7 +1001,8 @@ license: MIT
 # `compatibility`: the same tools minus copilot, copilotcli and zcode. A free-form string
 # per the Agent Skills spec (1–500 chars); the object form is also accepted.
 compatibility: "Requires git and jq"
-# `metadata`: the same tools as `compatibility`, plus cursor, zcode, and dsh.
+# `metadata`: the same tools as `compatibility`, plus cursor, zcode, dsh, antigravity-ide,
+# antigravity-cli and antigravity-plugin (Antigravity CLI renders `metadata.icon`).
 metadata:
   author: example-org
 claudecode: # for claudecode-specific parameters
@@ -1226,6 +1230,10 @@ vibe: # for Vibe Code-specific parameters (optional)
   user-invocable: false # (optional) hide from slash-command invocation, keep model access
   disable-model-invocation: true # (optional, Vibe v2.25.5+) explicit-only: keep the slash command, block model-initiated loading
   allowed-tools: "Bash Read" # (optional) space-delimited or list of allowed tool names
+antigravity-cli: # for Antigravity CLI-specific parameters (optional; `antigravity-ide` takes the same keys. Both targets write the shared project `.agents/skills/`, so there each reads `antigravity-ide` then `antigravity-cli` merged, the CLI winning; globally each reads its own. `antigravity-plugin` reads the `antigravity-ide` section)
+  disable-slash-command: true # (optional, CLI v1.1.12+) hide from the / menu, keep model access; overrides the root user-invocable
+  metadata: # (optional) free-form metadata; overrides the root value outright
+    icon: "📦" # (optional, CLI v1.1.20+) emoji shown in the /skills catalog and slash-command autocompletion
 ---
 
 This is the skill body content.
