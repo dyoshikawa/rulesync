@@ -12,8 +12,7 @@ inside `.qwen/`.
 Every row below was re-verified against the `v0.23.0` docs and source, so no row
 in the Official Docs table carries a sentinel phrase: `commands`, `subagents`
 and `hooks` each have a documented upstream surface and a shipped Rulesync
-adapter. The one sentinel left is the Client Anchors row for `checks`, and it is
-deliberate and accurate: the upstream surface exists, no Rulesync adapter does.
+adapter, and `checks` has had a project-scope adapter since #2668.
 
 ## Official Docs
 
@@ -31,12 +30,15 @@ deliberate and accurate: the upstream surface exists, no Rulesync adapter does.
 | `permissions` | `https://qwenlm.github.io/qwen-code-docs/en/users/features/approval-mode/`    | `permissions.allow` / `ask` / `deny` plus the `tools` and `security` groups of `settings.json`; approval mode and tool approval controls                                                                                            |
 | `checks`      | `https://qwenlm.github.io/qwen-code-docs/en/users/features/code-review/`      | `<project>/.qwen/review-rules.md` — the native review-guidance file `/review` reads first. See below                                                                                                                                |
 
-`checks` is **`unsupported`**: there is no `qwencode-check.ts` adapter, so
-`.qwen/review-rules.md` cannot be authored from `.rulesync/`. The row is listed
-so a run does not mistake the absence of a row for the absence of an upstream
-surface. The same page also documents `.qwen/review-context.json` (a bounded
-JSON guidance manifest) and the tool-managed `.qwen/tmp/`, `.qwen/review-cache/`
-and `.qwen/reviews/` by-product directories, none of which Rulesync writes.
+`checks` is project scope only: `/review` reads `.qwen/review-rules.md` from the
+repository (the base branch for PR reviews), and there is no user-level rules
+file. The `review.*` settings are reviewer policy honored only in user/system
+settings — do not wire global checks to them. The same page also documents
+`.qwen/review-context.json` (a bounded JSON guidance manifest, not review
+criteria, so not a checks output) and the tool-managed `.qwen/tmp/`,
+`.qwen/review-cache/` and `.qwen/reviews/` by-product directories, which
+Rulesync never writes but gitignores (with `.qwen/worktrees/`) through
+`HAND_MAINTAINED_GITIGNORE_ENTRIES`.
 
 ## Client Anchors
 
@@ -47,13 +49,13 @@ Common adapter paths: `rulesync-source-map.md`.
 | paths         | `qwencode-paths.ts` — the `.qwen/` subdirectories, `QWEN.md` / `QWEN.local.md`, `.qwenignore` and `settings.json`                                                                                                                       |
 | `rules`       | Qwen context-file conversion and target gating in `qwencode-rule.ts`                                                                                                                                                                    |
 | `ignore`      | `.qwenignore` passthrough in `qwencode-ignore.ts`                                                                                                                                                                                       |
-| `mcp`         | `qwencode-mcp.ts` merges the `mcpServers` block into `settings.json` at either scope                                                                                                                                                    |
+| `mcp`         | `qwencode-mcp.ts` merges the `mcpServers` block into `settings.json` at either scope, plus the server-level `mcp.allowed` / `mcp.excluded` lists from the `qwencode` block of `.rulesync/mcp.jsonc`                                     |
 | `commands`    | `.qwen/commands/*.md` (project) and `~/.qwen/commands/*.md` (global) in `qwencode-command.ts`                                                                                                                                           |
 | `subagents`   | `.qwen/agents/*.md` at both scopes in `qwencode-subagent.ts`                                                                                                                                                                            |
 | `skills`      | `.qwen/skills/<name>/SKILL.md` at both scopes in `qwencode-skill.ts`                                                                                                                                                                    |
 | `hooks`       | `qwencode-hooks.ts` merges the `hooks` block into `settings.json`; the canonical events map onto the PascalCase set in `QWENCODE_HOOK_EVENTS` (`src/types/hooks.ts`), which tracks the upstream list release by release                 |
 | `permissions` | `qwencode-permissions.ts` — `permissions.allow` / `ask` / `deny` mapping and tool aliases, plus the curated `QWEN_OVERRIDE_TOOLS_KEYS` / `QWEN_OVERRIDE_SECURITY_KEYS` allow-lists and the `QWEN_SCOPED_*_KEYS` scope rules beside them |
-| `checks`      | No Rulesync-supported checks target in map — `.qwen/review-rules.md` is unauthorable; see #2668                                                                                                                                         |
+| `checks`      | `qwencode-check.ts` aggregates every check into `.qwen/review-rules.md` (project scope only) via `AggregatedToolCheck`                                                                                                                  |
 
 ### Adding a `tools` / `security` key
 

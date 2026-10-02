@@ -6,6 +6,7 @@ import { AUGMENTCODE_CODE_REVIEW_GUIDELINES_FILE_NAME } from "../../constants/au
 import { CURSOR_BUGBOT_FILE_NAME } from "../../constants/cursor-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { GITLABDUO_MR_REVIEW_INSTRUCTIONS_FILE_NAME } from "../../constants/gitlabduo-paths.js";
+import { QWENCODE_REVIEW_RULES_FILE_NAME } from "../../constants/qwencode-paths.js";
 import { ROVODEV_REVIEW_AGENT_FILE_NAME } from "../../constants/rovodev-paths.js";
 import { CHECKS_FEATURE_SUBDIR } from "../../constants/rulesync-paths.js";
 import { TAKT_CONFIG_FILE_NAME } from "../../constants/takt-paths.js";
@@ -28,6 +29,7 @@ import { CursorCheck } from "./cursor-check.js";
 import { FactorydroidCheck } from "./factorydroid-check.js";
 import { GitlabduoCheck } from "./gitlabduo-check.js";
 import { HermesagentCheck } from "./hermesagent-check.js";
+import { QwencodeCheck } from "./qwencode-check.js";
 import { RovodevCheck } from "./rovodev-check.js";
 import { RulesyncCheck } from "./rulesync-check.js";
 import { TaktCheck } from "./takt-check.js";
@@ -168,6 +170,22 @@ export const toolCheckFactories = new Map<ChecksProcessorToolTarget, ToolCheckFa
     {
       class: HermesagentCheck,
       meta: { supportsGlobal: false, filePattern: "*.json" },
+    },
+  ],
+  [
+    "qwencode",
+    {
+      // Qwen Code's `/review` reads one plain-Markdown rules file, so every
+      // check targeting Qwen Code collapses into `.qwen/review-rules.md`.
+      // https://qwenlm.github.io/qwen-code-docs/en/users/features/code-review/
+      class: QwencodeCheck,
+      // `committedOutput`: PR reviews read the rules from the base branch, so
+      // the derived .gitignore must not ignore the file.
+      meta: {
+        supportsGlobal: false,
+        filePattern: QWENCODE_REVIEW_RULES_FILE_NAME,
+        committedOutput: true,
+      },
     },
   ],
   [
