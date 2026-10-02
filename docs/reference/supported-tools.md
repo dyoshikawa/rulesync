@@ -32,6 +32,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Cline                     | cline              | ✅ 🌏 |   ✅   |    🌏    |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |     ✅      |        |
 | Kilo Code                 | kilo               | ✅ 🌏 |   ✅   | ✅ 🌏 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
 | Kimi Code                 | kimi-code          | ✅ 🌏 |        | ✅ 🌏 🔧 |          |   ✅ 🌏   | ✅ 🌏  |  🌏   |     🌏      |        |
+| Kimi Code plugin          | kimi-code-plugin   |  ✅   |        |          |    ✅    |    ✅     |   ✅   |       |             |        |
 | Roo Code ⚠️               | roo                | ✅ 🌏 |   ✅   |  ✅ 🔧   |  ✅ 🌏   |    ✅     | ✅ 🌏  |       |     ✅      |        |
 | Zoo Code                  | zoocode            | ✅ 🌏 |   ✅   |  ✅ 🔧   |  ✅ 🌏   |    ✅     | ✅ 🌏  |       |     ✅      |        |
 | Rovodev (Atlassian)       | rovodev            | ✅ 🌏 |        |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  |       |    ✅ 🌏    |   ✅   |

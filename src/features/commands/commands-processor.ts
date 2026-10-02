@@ -66,6 +66,7 @@ import {
 } from "./hermesagent-command.js";
 import { JunieCommand } from "./junie-command.js";
 import { KiloCommand } from "./kilo-command.js";
+import { KimiCodePluginCommand } from "./kimi-code-plugin-command.js";
 import { KiroCliCommand } from "./kiro-cli-command.js";
 import { KiroCommand } from "./kiro-command.js";
 import { KiroIdeCommand } from "./kiro-ide-command.js";
@@ -544,6 +545,23 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
         supportsGlobal: true,
         isSimulated: false,
         supportsSubdirectory: false,
+      },
+    },
+  ],
+  [
+    "kimi-code-plugin",
+    {
+      // `<plugin>/commands/**/*.md`, registered as `/<plugin>:<name>` once the
+      // manifest declares `"commands": "./commands/"`. Kimi collects the
+      // directory recursively and names nested files by their relative path.
+      // https://github.com/MoonshotAI/kimi-code/blob/%40moonshot-ai/kimi-code%402.1.1/docs/en/customization/plugins.md
+      class: KimiCodePluginCommand,
+      meta: {
+        extension: "md",
+        supportsProject: true,
+        supportsGlobal: false,
+        isSimulated: false,
+        supportsSubdirectory: true,
       },
     },
   ],

@@ -25,6 +25,7 @@ export const PACKAGING_TOOL_TARGETS = [
   "augmentcode-plugin",
   "claudecode-plugin",
   "devin-plugin",
+  "kimi-code-plugin",
   "vibe-plugin",
   "zcode-plugin",
 ] as const satisfies readonly ToolTarget[];

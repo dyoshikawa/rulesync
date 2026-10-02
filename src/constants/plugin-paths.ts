@@ -52,3 +52,13 @@ export const DEVIN_PLUGIN_AGENTS_DIR = "agents";
 export const DEVIN_PLUGIN_SKILLS_DIR = "skills";
 export const DEVIN_PLUGIN_HOOKS_FILE_NAME = "hooks.json";
 export const DEVIN_PLUGIN_MCP_FILE_NAME = ".mcp.json";
+
+// Kimi Code plugin components live directly under the plugin root. Only
+// `agents/` is auto-discovered; `skills`, `commands` and `systemPromptPath` must
+// be declared in the `kimi.plugin.json` manifest, which also carries the inline
+// `mcpServers` and `hooks` that rulesync does not write.
+// @see https://github.com/MoonshotAI/kimi-code/blob/%40moonshot-ai/kimi-code%402.1.1/docs/en/customization/plugins.md
+export const KIMI_CODE_PLUGIN_SYSTEM_PROMPT_FILE_NAME = "SYSTEM.md";
+export const KIMI_CODE_PLUGIN_COMMANDS_DIR = "commands";
+export const KIMI_CODE_PLUGIN_AGENTS_DIR = "agents";
+export const KIMI_CODE_PLUGIN_SKILLS_DIR = "skills";

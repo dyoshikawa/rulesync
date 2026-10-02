@@ -1843,6 +1843,7 @@ Second global content`;
           "junie",
           "kilo",
           "kimi-code",
+          "kimi-code-plugin",
           "kiro",
           "kiro-cli",
           "kiro-ide",

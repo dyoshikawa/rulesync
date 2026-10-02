@@ -60,6 +60,7 @@ const rulesRootTargets = [
   // (issue #2406); .devin/rules/ holds non-root Cascade rules.
   { target: "devin", outputPath: "AGENTS.md" },
   { target: "devin-plugin", outputPath: "AGENTS.md" },
+  { target: "kimi-code-plugin", outputPath: "SYSTEM.md" },
   { target: "replit", outputPath: "replit.md" },
   { target: "pi", outputPath: "AGENTS.md" },
   { target: "zed", outputPath: ".rules" },

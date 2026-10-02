@@ -19,6 +19,7 @@ const commandsGenerateTargets = [
   { target: "claudecode-plugin", outputPath: join("commands", "review-pr.md") },
   { target: "augmentcode-plugin", outputPath: join("commands", "review-pr.md") },
   { target: "zcode-plugin", outputPath: join("commands", "review-pr.md") },
+  { target: "kimi-code-plugin", outputPath: join("commands", "review-pr.md") },
   { target: "cursor", outputPath: join(".cursor", "commands", "review-pr.md") },
   { target: "augmentcode", outputPath: join(".augment", "commands", "review-pr.md") },
   { target: "bob", outputPath: join(".bob", "commands", "review-pr.md") },

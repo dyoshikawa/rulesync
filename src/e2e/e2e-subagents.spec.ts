@@ -63,6 +63,10 @@ const subagentsGenerateTargets = [
     outputPath: join("agents", "planner", "AGENT.md"),
   },
   {
+    target: "kimi-code-plugin",
+    outputPath: join("agents", "planner.md"),
+  },
+  {
     target: "cursor",
     outputPath: join(".cursor", "agents", "planner.md"),
   },

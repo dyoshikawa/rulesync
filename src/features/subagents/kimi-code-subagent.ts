@@ -109,6 +109,18 @@ export class KimiCodeSubagent extends ToolSubagent {
     return KimiCodeAgentNameSchema.parse(this.frontmatter.name ?? fileName).toLowerCase();
   }
 
+  /**
+   * Where the imported `.rulesync/` file is written: the native output root in
+   * project scope, or the rulesync home when `KIMI_CODE_HOME` redirects the
+   * global profile.
+   */
+  protected getRulesyncOutputRoot(): string {
+    return getKimiCodeRulesyncOutputRoot({
+      nativeOutputRoot: this.outputRoot,
+      global: this.global,
+    });
+  }
+
   toRulesyncSubagent(): RulesyncSubagent {
     const { name: _name, description, ...rest } = this.frontmatter;
     const resolvedName = this.getImportIdentity();
@@ -120,10 +132,7 @@ export class KimiCodeSubagent extends ToolSubagent {
     };
 
     return new RulesyncSubagent({
-      outputRoot: getKimiCodeRulesyncOutputRoot({
-        nativeOutputRoot: this.outputRoot,
-        global: this.global,
-      }),
+      outputRoot: this.getRulesyncOutputRoot(),
       relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
       relativeFilePath: `${resolvedName}.md`,
       frontmatter,
@@ -148,7 +157,7 @@ export class KimiCodeSubagent extends ToolSubagent {
     });
     const body = rulesyncSubagent.getBody();
 
-    return new KimiCodeSubagent({
+    return new this({
       outputRoot,
       relativeDirPath: this.getSettablePaths({ global }).relativeDirPath,
       relativeFilePath: rulesyncSubagent.getRelativeFilePath(),
@@ -197,7 +206,7 @@ export class KimiCodeSubagent extends ToolSubagent {
     if (!result.success) {
       throw new Error(`Invalid frontmatter in ${filePath}: ${formatError(result.error)}`);
     }
-    return new KimiCodeSubagent({
+    return new this({
       outputRoot,
       relativeDirPath: actualRelativeDirPath,
       relativeFilePath,
@@ -215,7 +224,7 @@ export class KimiCodeSubagent extends ToolSubagent {
     relativeFilePath,
     global = false,
   }: ToolSubagentForDeletionParams): KimiCodeSubagent {
-    return new KimiCodeSubagent({
+    return new this({
       outputRoot,
       relativeDirPath,
       relativeFilePath,
