@@ -15,7 +15,7 @@ runs:
       id: auth
       if: inputs.bot-id != ''
       continue-on-error: true
-      uses: flatt-security/shisho-cloud-action@9b68d33503ebf75d7c285d489b288f96ef3df758 # v1.1.0
+      uses: flatt-security/shisho-cloud-action@85917b87b9344f2d6de761ac2c8ef4433775bcf3 # v1.2.0
       with:
         bot-id: ${{ inputs.bot-id }}
         export-token: true
