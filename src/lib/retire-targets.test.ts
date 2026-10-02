@@ -116,6 +116,34 @@ describe("generate with retireTargets", () => {
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("global mode"));
   });
 
+  it("reports no change when a retired target left nothing behind", async () => {
+    const logger = createMockLogger();
+    const config = createConfig({ features: ["*"], retireTargets: ["cursor"] });
+    await generate({ config, logger: createMockLogger() });
+
+    const result = await generate({ config, logger });
+
+    expect(result.hasDiff).toBe(false);
+    expect(logger.info).not.toHaveBeenCalledWith(expect.stringContaining("Deleted:"));
+  });
+
+  it("never removes a shared settings file the retired tool merges into", async () => {
+    const settings = join(testDir, ".claude", "settings.json");
+    const content = JSON.stringify({ hooks: {}, permissions: { allow: ["Bash(ls)"] } });
+    await writeFileContent(settings, content);
+
+    await generate({
+      config: createConfig({
+        targets: ["cursor"],
+        features: ["hooks", "permissions", "ignore"],
+        retireTargets: ["claudecode"],
+      }),
+      logger: createMockLogger(),
+    });
+
+    expect(await fileExists(settings)).toBe(true);
+  });
+
   it("retires skill directories", async () => {
     await writeFileContent(join(testDir, ".rulesync", "skills", "demo", "SKILL.md"), SKILL);
     await generate({

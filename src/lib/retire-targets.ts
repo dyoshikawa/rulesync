@@ -12,6 +12,7 @@ import type { DirFeatureProcessor } from "../types/dir-feature-processor.js";
 import type { FeatureProcessor } from "../types/feature-processor.js";
 import type { Feature } from "../types/features.js";
 import type { ToolTarget } from "../types/tool-targets.js";
+import { fileExists } from "../utils/file.js";
 import type { Logger } from "../utils/logger.js";
 import type { OrphanSweepPlan } from "./orphan-sweep.js";
 
@@ -189,9 +190,16 @@ async function sweepFiles({
   processor: FeatureProcessor;
   sweepPlan: OrphanSweepPlan;
 }): Promise<boolean> {
-  const existingFiles = await processor.loadToolFiles({ forDeletion: true });
+  const candidates = sweepPlan.rejectClaimed({
+    items: await processor.loadToolFiles({ forDeletion: true }),
+    getPath: (f) => f.getFilePath(),
+  });
+  // Single-file features list their settable path whether or not it exists,
+  // so a target that left nothing behind would otherwise report a deletion
+  // on every run and keep `--check` failing.
+  const present = await Promise.all(candidates.map((f) => fileExists(f.getFilePath())));
   const removed = await processor.removeOrphanAiFiles(
-    sweepPlan.rejectClaimed({ items: existingFiles, getPath: (f) => f.getFilePath() }),
+    candidates.filter((_, index) => present[index]),
     [],
   );
   return removed > 0;
