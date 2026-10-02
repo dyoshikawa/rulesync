@@ -33,8 +33,20 @@ export type GenerateOptions = ConfigResolverResolveParams & {
  * watcher should stay up for that correction.
  */
 export class SourceLoadFailedError extends CLIError {
-  constructor({ message, features }: { message: string; features: readonly string[] }) {
-    super(message, ErrorCodes.GENERATION_FAILED, 1, { sourceLoadFailedFeatures: [...features] });
+  constructor({
+    message,
+    features,
+    plan,
+  }: {
+    message: string;
+    features: readonly string[];
+    /** What the rest of the run wrote and deleted, which a failing JSON document would otherwise drop. */
+    plan?: GeneratePlan;
+  }) {
+    super(message, ErrorCodes.GENERATION_FAILED, 1, {
+      sourceLoadFailedFeatures: [...features],
+      ...(plan === undefined ? {} : { plan }),
+    });
     this.name = "SourceLoadFailedError";
   }
 }
@@ -279,6 +291,7 @@ async function generateOnce(
     throw new SourceLoadFailedError({
       message: sourceLoadFailureMessage,
       features: result.sourceLoadFailedFeatures,
+      plan,
     });
   }
 

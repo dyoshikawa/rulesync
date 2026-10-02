@@ -1437,7 +1437,7 @@ describe("generateCommand", () => {
         // Naming the feature is what makes the exit code actionable without
         // re-reading the whole log.
         message: expect.stringContaining("mcp"),
-        details: { sourceLoadFailedFeatures: ["mcp"] },
+        details: { sourceLoadFailedFeatures: ["mcp"], plan: { version: 1, operations: [] } },
       });
       expect(mockLogger.success).not.toHaveBeenCalled();
     });
