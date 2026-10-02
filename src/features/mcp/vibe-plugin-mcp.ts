@@ -6,6 +6,7 @@ import type { McpServer, McpServers } from "../../types/mcp.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
+import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { isRecord } from "../../utils/type-guards.js";
 import type { RulesyncMcp } from "./rulesync-mcp.js";
 import {
@@ -155,6 +156,10 @@ function toVibePluginServers({
 }): Record<string, VibePluginMcpServer> {
   const result: Record<string, VibePluginMcpServer> = {};
   for (const [name, server] of Object.entries(mcpServers)) {
+    if (isPrototypePollutionKey(name)) {
+      logger?.warn(`Skipping vibe-plugin MCP server "${name}": the name is reserved.`);
+      continue;
+    }
     if (server.disabled === true) {
       logger?.warn(
         `Skipping disabled vibe-plugin MCP server "${name}": Vibe's plugin mcp.json has no ` +
@@ -205,7 +210,7 @@ function toVibePluginServers({
 function fromVibePluginServers(servers: Record<string, unknown>): McpServers {
   const result: McpServers = {};
   for (const [name, raw] of Object.entries(servers)) {
-    if (!isRecord(raw)) continue;
+    if (isPrototypePollutionKey(name) || !isRecord(raw)) continue;
     const { type, ...rest } = raw;
     if (type === "stdio") {
       result[name] = { ...rest };
