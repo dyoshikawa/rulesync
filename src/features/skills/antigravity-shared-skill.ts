@@ -9,11 +9,13 @@ import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-path
 import { ValidationResult } from "../../types/ai-dir.js";
 import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
+import { isRecord } from "../../utils/type-guards.js";
 import {
   AntigravitySkillFrontmatter,
   AntigravitySkillFrontmatterSchema,
 } from "./antigravity-skill.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
+import { resolveMetadata } from "./skills-utils.js";
 import {
   ToolSkill,
   ToolSkillForDeletionParams,
@@ -43,6 +45,12 @@ export type AntigravitySharedSkillParams = {
  * name they answer to; each concrete subclass supplies those via
  * {@link AntigravitySharedSkill.getGlobalSubdir} and
  * {@link AntigravitySharedSkill.getToolTarget}.
+ *
+ * Frontmatter beyond `name`/`description` (e.g. `disable-slash-command`,
+ * `metadata`) comes from the rulesync section named after that target, with the
+ * root-level `user-invocable` / `metadata` as defaults. On the shared project
+ * `.agents/skills/` tree both targets merge the `antigravity-ide` and
+ * `antigravity-cli` sections so their output never diverges.
  */
 export class AntigravitySharedSkill extends ToolSkill {
   constructor({
@@ -133,11 +141,16 @@ export class AntigravitySharedSkill extends ToolSkill {
   }
 
   toRulesyncSkill(): RulesyncSkill {
-    const frontmatter = this.getFrontmatter();
+    const { name, description, ...antigravityFields } = this.getFrontmatter();
+    // Every key beyond `name`/`description` (e.g. `disable-slash-command`,
+    // `metadata`) is kept under the target's own section so the next generate
+    // writes it back unchanged.
+    const sectionKey = (this.constructor as typeof AntigravitySharedSkill).getToolTarget();
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
-      name: frontmatter.name,
-      description: frontmatter.description,
+      name,
+      description,
       targets: ["*"],
+      ...(Object.keys(antigravityFields).length > 0 && { [sectionKey]: antigravityFields }),
     };
 
     return new RulesyncSkill({
@@ -159,13 +172,45 @@ export class AntigravitySharedSkill extends ToolSkill {
     global = false,
   }: ToolSkillFromRulesyncSkillParams): AntigravitySharedSkill {
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
+    const settablePaths = this.getSettablePaths({ global });
+    // The IDE and the CLI write the same project `.agents/skills/` tree, so
+    // there both read the two sections (CLI keys win) and emit identical files
+    // whichever target runs last. Any other tree reads only the own section.
+    const sectionKeys: ToolTarget[] =
+      !global && settablePaths.relativeDirPath === ANTIGRAVITY_SKILLS_DIR_PATH
+        ? ["antigravity-ide", "antigravity-cli"]
+        : [this.getToolTarget()];
+    const section: Record<string, unknown> = {};
+    for (const key of sectionKeys) {
+      const rawSection = rulesyncFrontmatter[key];
+      if (isRecord(rawSection)) Object.assign(section, rawSection);
+    }
+    const { name: _name, description: _description, ...sectionFields } = section;
+
+    // `disable-slash-command: true` hides the skill from the `/` menu while
+    // keeping it model-invocable (Antigravity CLI 1.1.12), which is what the
+    // shared root-level `user-invocable: false` means; a section value wins.
+    const sectionDisableSlashCommand = sectionFields["disable-slash-command"];
+    const disableSlashCommand =
+      typeof sectionDisableSlashCommand === "boolean"
+        ? sectionDisableSlashCommand
+        : rulesyncFrontmatter["user-invocable"] === false
+          ? true
+          : undefined;
+    const metadata = resolveMetadata({
+      rootFrontmatter: rulesyncFrontmatter,
+      section: sectionFields,
+    });
 
     const antigravityFrontmatter: AntigravitySkillFrontmatter = {
+      // The section is written first so the canonical `name`/`description` and
+      // the resolved fields still own their keys.
+      ...sectionFields,
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
+      ...(disableSlashCommand !== undefined && { "disable-slash-command": disableSlashCommand }),
+      ...(metadata !== undefined && { metadata }),
     };
-
-    const settablePaths = this.getSettablePaths({ global });
 
     return new this({
       outputRoot,

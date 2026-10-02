@@ -7,6 +7,7 @@ import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-path
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { AntigravityCliSkill } from "./antigravity-cli-skill.js";
+import { AntigravityIdeSkill } from "./antigravity-ide-skill.js";
 import { RulesyncSkill } from "./rulesync-skill.js";
 
 describe("AntigravityCliSkill", () => {
@@ -241,6 +242,121 @@ Missing description field.`;
         name: "Test Skill",
         description: "Test skill description",
       });
+    });
+  });
+
+  describe("frontmatter beyond name and description", () => {
+    const buildRulesyncSkill = (frontmatter: Record<string, unknown>) =>
+      new RulesyncSkill({
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "flagged",
+        frontmatter: {
+          name: "flagged",
+          description: "Flagged skill",
+          targets: ["*"],
+          ...frontmatter,
+        },
+        body: "Body",
+        validate: true,
+      });
+
+    it("should map the root user-invocable: false to disable-slash-command: true", () => {
+      const skill = AntigravityCliSkill.fromRulesyncSkill({
+        rulesyncSkill: buildRulesyncSkill({ "user-invocable": false }),
+      });
+
+      expect(skill.getFrontmatter()).toEqual({
+        name: "flagged",
+        description: "Flagged skill",
+        "disable-slash-command": true,
+      });
+    });
+
+    it("should not emit disable-slash-command for user-invocable: true", () => {
+      const skill = AntigravityCliSkill.fromRulesyncSkill({
+        rulesyncSkill: buildRulesyncSkill({ "user-invocable": true }),
+      });
+
+      expect(skill.getFrontmatter()).not.toHaveProperty("disable-slash-command");
+    });
+
+    it("should let the antigravity-cli section override the root defaults", () => {
+      const skill = AntigravityCliSkill.fromRulesyncSkill({
+        rulesyncSkill: buildRulesyncSkill({
+          "user-invocable": false,
+          metadata: { icon: "📦" },
+          "antigravity-cli": {
+            "disable-slash-command": false,
+            metadata: { icon: "🧪" },
+            "future-key": "kept",
+          },
+        }),
+      });
+
+      expect(skill.getFrontmatter()).toEqual({
+        name: "flagged",
+        description: "Flagged skill",
+        "disable-slash-command": false,
+        metadata: { icon: "🧪" },
+        "future-key": "kept",
+      });
+    });
+
+    it("should emit the root metadata", () => {
+      const skill = AntigravityCliSkill.fromRulesyncSkill({
+        rulesyncSkill: buildRulesyncSkill({ metadata: { icon: "📦" } }),
+      });
+
+      expect(skill.getFrontmatter().metadata).toEqual({ icon: "📦" });
+    });
+
+    it("should write the same project SKILL.md as antigravity-ide, with the CLI section winning", () => {
+      const rulesyncSkill = buildRulesyncSkill({
+        "antigravity-ide": { "disable-slash-command": true, metadata: { icon: "📦" } },
+        "antigravity-cli": { "disable-slash-command": false },
+      });
+
+      const cliSkill = AntigravityCliSkill.fromRulesyncSkill({ rulesyncSkill });
+      const ideSkill = AntigravityIdeSkill.fromRulesyncSkill({ rulesyncSkill });
+
+      expect(cliSkill.getFrontmatter()).toEqual({
+        name: "flagged",
+        description: "Flagged skill",
+        "disable-slash-command": false,
+        metadata: { icon: "📦" },
+      });
+      expect(ideSkill.getFrontmatter()).toEqual(cliSkill.getFrontmatter());
+    });
+
+    it("should ignore the antigravity-ide section in the global skills tree", () => {
+      const skill = AntigravityCliSkill.fromRulesyncSkill({
+        rulesyncSkill: buildRulesyncSkill({
+          "antigravity-ide": { "disable-slash-command": true },
+        }),
+        global: true,
+      });
+
+      expect(skill.getFrontmatter()).not.toHaveProperty("disable-slash-command");
+    });
+
+    it("should keep imported extra keys under the antigravity-cli section", async () => {
+      const skillDir = join(testDir, ".agents", "skills", "flagged");
+      await ensureDir(skillDir);
+      await writeFileContent(
+        join(skillDir, SKILL_FILE_NAME),
+        "---\nname: flagged\ndescription: Flagged skill\ndisable-slash-command: true\nmetadata:\n  icon: 📦\n---\nBody\n",
+      );
+
+      const skill = await AntigravityCliSkill.fromDir({ dirName: "flagged" });
+      const rulesyncSkill = skill.toRulesyncSkill();
+
+      expect(rulesyncSkill.getFrontmatter()["antigravity-cli"]).toEqual({
+        "disable-slash-command": true,
+        metadata: { icon: "📦" },
+      });
+
+      const regenerated = AntigravityCliSkill.fromRulesyncSkill({ rulesyncSkill });
+      expect(regenerated.getFrontmatter()).toEqual(skill.getFrontmatter());
     });
   });
 

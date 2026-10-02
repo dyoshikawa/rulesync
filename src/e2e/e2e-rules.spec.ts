@@ -87,6 +87,7 @@ const rulesNonRootTargets = [
   { target: "kiro-cli", outputPath: join(".kiro", "steering", "overview.md") },
   { target: "kiro-ide", outputPath: join(".kiro", "steering", "overview.md") },
   { target: "antigravity-ide", outputPath: join(".agents", "rules", "overview.md") },
+  { target: "antigravity-cli", outputPath: join(".agents", "rules", "overview.md") },
   { target: "antigravity-plugin", outputPath: join("rules", "overview.md") },
   { target: "augmentcode-plugin", outputPath: join("rules", "overview.md") },
   { target: "augmentcode", outputPath: join(".augment", "rules", "overview.md") },

@@ -7,6 +7,7 @@ import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-path
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { AntigravityIdeSkill } from "./antigravity-ide-skill.js";
+import { AntigravityPluginSkill } from "./antigravity-plugin-skill.js";
 import { RulesyncSkill } from "./rulesync-skill.js";
 
 describe("AntigravityIdeSkill", () => {
@@ -241,6 +242,57 @@ Missing description field.`;
         name: "Test Skill",
         description: "Test skill description",
       });
+    });
+  });
+
+  describe("antigravity-ide section", () => {
+    it("should read only the antigravity-ide section in the global skills tree", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "flagged",
+        frontmatter: {
+          name: "flagged",
+          description: "Flagged skill",
+          targets: ["*"],
+          "antigravity-ide": { "disable-slash-command": true, metadata: { icon: "📦" } },
+          "antigravity-cli": { "disable-slash-command": false },
+        },
+        body: "Body",
+        validate: true,
+      });
+
+      const skill = AntigravityIdeSkill.fromRulesyncSkill({ rulesyncSkill, global: true });
+
+      expect(skill.getFrontmatter()).toEqual({
+        name: "flagged",
+        description: "Flagged skill",
+        "disable-slash-command": true,
+        metadata: { icon: "📦" },
+      });
+      expect(skill.toRulesyncSkill().getFrontmatter()["antigravity-ide"]).toEqual({
+        "disable-slash-command": true,
+        metadata: { icon: "📦" },
+      });
+    });
+
+    it("should read only the antigravity-ide section for the antigravity-plugin skills tree", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "flagged",
+        frontmatter: {
+          name: "flagged",
+          description: "Flagged skill",
+          targets: ["*"],
+          "antigravity-ide": { "disable-slash-command": true },
+          "antigravity-cli": { "disable-slash-command": false },
+        },
+        body: "Body",
+        validate: true,
+      });
+
+      const skill = AntigravityPluginSkill.fromRulesyncSkill({ rulesyncSkill });
+
+      expect(skill.getFrontmatter()["disable-slash-command"]).toBe(true);
     });
   });
 
