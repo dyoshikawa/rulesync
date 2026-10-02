@@ -225,8 +225,8 @@ const CLAUDECODE_WIDENING_DEFAULT_MODES: Readonly<Record<string, string>> = {
 
 /**
  * The `permissions.defaultMode` values Claude Code ignores in a project's
- * `.claude/settings.json` and `.claude/settings.local.json` — the two files
- * rulesync writes at project scope. `auto` there falls back to the built-in
+ * `.claude/settings.json` and `.claude/settings.local.json`; rulesync writes the
+ * former at project scope. `auto` there falls back to the built-in
  * default (skipping a `defaultMode` from `~/.claude/settings.json`), and
  * `bypassPermissions` starts the session in Manual mode, so both are dropped at
  * project scope rather than committed as a mode that never applies. Every other
@@ -264,7 +264,7 @@ function stripProjectScopeIgnoredDefaultMode({
     return;
   }
   logger?.warn(
-    `Claude Code permissions: 'permissions.defaultMode: "${defaultMode}"' is not honored in the project-scoped ${relativeFilePath}, so it is not written there — Claude Code applies "auto" and "bypassPermissions" only from user or managed settings or the --permission-mode flag. Author it in the global scope instead, and check that file for a stale value an earlier generate may have left there.`,
+    `Claude Code permissions: 'permissions.defaultMode: "${defaultMode}"' is not honored in the project-scoped ${relativeFilePath}, so it is not written there — Claude Code applies "auto" and "bypassPermissions" only from user or managed settings or the --permission-mode flag. Author it in the global scope instead, and remove any defaultMode an earlier generate may have left in ${relativeFilePath}.`,
   );
   delete fields.defaultMode;
 }
