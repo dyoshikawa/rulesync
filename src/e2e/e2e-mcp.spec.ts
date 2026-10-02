@@ -11,6 +11,7 @@ import {
   RULESYNC_MCP_RELATIVE_FILE_PATH,
   RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH,
 } from "../constants/rulesync-paths.js";
+import { warpcliConfigDir } from "../constants/warp-paths.js";
 import { getZedGlobalDir } from "../constants/zed-paths.js";
 import { McpProcessor } from "../features/mcp/mcp-processor.js";
 import { fileExists, readFileContent, writeFileContent } from "../utils/file.js";
@@ -1021,6 +1022,7 @@ const mcpGlobalTargets = [
     outputPath: join(".gemini", "config", "mcp_config.json"),
   },
   { target: "warp", outputPath: join(".warp", ".mcp.json") },
+  { target: "warpcli", outputPath: join(warpcliConfigDir(), ".mcp.json") },
   { target: "zed", outputPath: join(getZedGlobalDir(), "settings.json") },
   {
     target: "devin",

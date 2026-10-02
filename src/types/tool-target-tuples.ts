@@ -148,6 +148,7 @@ export const mcpProcessorToolTargetTuple = [
   "vibe",
   "vibe-plugin",
   "warp",
+  "warpcli",
   "devin",
   "devin-plugin",
   "zcode",
@@ -414,6 +415,7 @@ export const permissionsProcessorToolTargetTuple = [
   "takt",
   "vibe",
   "warp",
+  "warpcli",
   "zed",
   "zoocode",
 ] as const;

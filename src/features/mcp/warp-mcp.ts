@@ -98,7 +98,7 @@ export class WarpMcp extends ToolMcp {
     const json = this.parseJsonOrThrow(fileContent, paths.relativeDirPath, paths.relativeFilePath);
     const newJson = { ...json, mcpServers: json.mcpServers ?? {} };
 
-    return new WarpMcp({
+    return new this({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
@@ -130,7 +130,7 @@ export class WarpMcp extends ToolMcp {
     );
     const warpConfig = { ...json, mcpServers };
 
-    return new WarpMcp({
+    return new this({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
@@ -162,7 +162,7 @@ export class WarpMcp extends ToolMcp {
     relativeFilePath,
     global = false,
   }: ToolMcpForDeletionParams): WarpMcp {
-    return new WarpMcp({
+    return new this({
       outputRoot,
       relativeDirPath,
       relativeFilePath,

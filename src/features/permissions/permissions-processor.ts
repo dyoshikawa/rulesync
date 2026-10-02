@@ -60,6 +60,7 @@ import type {
 import { ToolPermissions } from "./tool-permissions.js";
 import { VibePermissions } from "./vibe-permissions.js";
 import { WarpPermissions } from "./warp-permissions.js";
+import { WarpcliPermissions } from "./warpcli-permissions.js";
 import { ZedPermissions } from "./zed-permissions.js";
 import { ZoocodePermissions } from "./zoocode-permissions.js";
 
@@ -624,6 +625,22 @@ export const toolPermissionsFactories = new Map<
         // `settings.toml` (`[agents.profiles]` allowlist/denylist); there is no
         // project-scoped Warp permissions file. The settings.toml path differs
         // per platform, resolved in WarpPermissions.getSettablePaths.
+        supportsProject: false,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+    },
+  ],
+  [
+    "warpcli",
+    {
+      class: WarpcliPermissions,
+      meta: {
+        // The standalone Warp Agent CLI reads permissions only from the
+        // `default` execution profile in its own global `settings.toml`,
+        // separate from the Warp app's. The path differs per platform,
+        // resolved in WarpcliPermissions.getSettablePaths.
+        // https://docs.warp.dev/agents/cli/permissions-and-profiles/
         supportsProject: false,
         supportsGlobal: true,
         supportsImport: true,

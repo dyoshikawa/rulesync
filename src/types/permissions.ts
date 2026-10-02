@@ -546,6 +546,25 @@ const WarpPermissionsOverrideSchema = z.looseObject({
 export type WarpPermissionsOverride = z.infer<typeof WarpPermissionsOverrideSchema>;
 
 /**
+ * Tool-scoped override block for the standalone Warp Agent CLI. The CLI reads
+ * its permissions only from the reserved `default` record of
+ * `[agents.execution_profiles.<id>]` in its own `settings.toml` (it never read
+ * the app's legacy `[agents.profiles]` keys), so only the nested
+ * `execution_profile` block is offered; it is merged into that record, and the
+ * shared `permission.bash` block still drives `command_allowlist` /
+ * `command_denylist`.
+ *
+ * @example
+ * { "execution_profile": { "apply_code_diffs": "always_ask", "run_agents": "never_allow" } }
+ *
+ * @see https://docs.warp.dev/agents/cli/permissions-and-profiles/
+ */
+const WarpcliPermissionsOverrideSchema = z.looseObject({
+  permission: z.optional(ToolScopedPermissionSchema),
+  execution_profile: z.optional(WarpExecutionProfileOverrideSchema),
+});
+
+/**
  * deepagents-cli's approval-mode knobs under `[startup]` in
  * `~/.deepagents/config.toml`. They gate what dcode does without asking, but
  * none of them is a per-command rule, so they are authored here rather than in
@@ -1255,6 +1274,7 @@ export const PermissionsConfigSchema = z.looseObject({
   reasonix: z.optional(ReasonixPermissionsOverrideSchema),
   factorydroid: z.optional(FactorydroidPermissionsOverrideSchema),
   warp: z.optional(WarpPermissionsOverrideSchema),
+  warpcli: z.optional(WarpcliPermissionsOverrideSchema),
   junie: z.optional(JuniePermissionsOverrideSchema),
   tabnine: z.optional(TabninePermissionsOverrideSchema),
   takt: z.optional(TaktPermissionsOverrideSchema),
