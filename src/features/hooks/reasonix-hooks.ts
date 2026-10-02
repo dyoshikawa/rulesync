@@ -8,6 +8,7 @@ import {
   type HooksConfig,
   REASONIX_HOOK_EVENTS,
   REASONIX_TO_CANONICAL_EVENT_NAMES,
+  safeString,
 } from "../../types/hooks.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
@@ -141,16 +142,18 @@ function fromReasonixInvocationContext(
 ): Pick<HookDefinition, "env"> & { cwd?: string } {
   return {
     ...(typeof entry.cwd === "string" && entry.cwd !== "" && { cwd: entry.cwd }),
-    ...(isStringRecord(entry.env) && { env: entry.env }),
+    ...(isSafeStringRecord(entry.env) && { env: entry.env }),
   };
 }
 
-function isStringRecord(value: unknown): value is Record<string, string> {
+// Matches the canonical `env` schema (newline / CR / NUL rejected), so an
+// imported map never fails validation of the whole hooks file later.
+function isSafeStringRecord(value: unknown): value is Record<string, string> {
   return (
     value !== null &&
     typeof value === "object" &&
     !Array.isArray(value) &&
-    Object.values(value).every((v) => typeof v === "string")
+    Object.values(value).every((v) => safeString.safeParse(v).success)
   );
 }
 
