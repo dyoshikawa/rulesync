@@ -129,6 +129,9 @@ describe("registry derivation", () => {
       // generate with nothing to contribute does not create a bare
       // `mcp_servers: {}` in the user's home directory.
       "**/.config/poolside/settings.yaml",
+      // oh-my-pi user config: emitted in GLOBAL scope only (project scope
+      // writes `.omp/config.yml` instead), so project derivation never yields it.
+      "**/.omp/agent/config.yml",
       // IBM Bob user settings: emitted in GLOBAL scope only (project scope
       // writes `.bob/settings.json` instead), so project derivation never
       // yields it.

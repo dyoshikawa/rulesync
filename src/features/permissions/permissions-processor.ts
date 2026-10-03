@@ -41,6 +41,7 @@ import { KimiCodePermissions } from "./kimi-code-permissions.js";
 import { KiroPermissions } from "./kiro-permissions.js";
 import { LettacodePermissions } from "./lettacode-permissions.js";
 import { MimocodePermissions } from "./mimocode-permissions.js";
+import { OmpPermissions } from "./omp-permissions.js";
 import { OpencodePermissions } from "./opencode-permissions.js";
 import { PiPermissions } from "./pi-permissions.js";
 import { PoolPermissions } from "./pool-permissions.js";
@@ -474,6 +475,19 @@ export const toolPermissionsFactories = new Map<
     {
       class: MimocodePermissions,
       meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+    },
+  ],
+  [
+    "omp",
+    {
+      class: OmpPermissions,
+      meta: {
+        // `tools.approval` and `bash.patterns` in `.omp/config.yml` (project)
+        // and `~/.omp/agent/config.yml` (global, default profile).
         supportsProject: true,
         supportsGlobal: true,
         supportsImport: true,

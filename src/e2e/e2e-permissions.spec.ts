@@ -35,6 +35,7 @@ import {
 const permissionsGenerateTargets = [
   "opencode",
   "mimocode",
+  "omp",
   "pi",
   "zed",
   "amp",
@@ -72,6 +73,7 @@ const permissionsGenerateTargets = [
 // Permissions targets exercised by the global-scope generate `it`s below.
 const permissionsGlobalTargets = [
   "claudecode",
+  "omp",
   "pi",
   "opencode",
   "mimocode",
@@ -1398,6 +1400,54 @@ web_search_request = true
     // The MCP [[plugins]] table (written by the MCP adapter) must survive.
     expect(toTableArray(parsed.plugins)).toMatchObject([{ name: "filesystem", command: "npx" }]);
     expect(parsed.default_model).toBe("deepseek");
+  });
+
+  it("should generate omp permissions into .omp/config.yml and import them back", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, ".omp", "config.yml"),
+      ["theme:", "  dark: titanium", "tools:", "  approvalMode: write", ""].join("\n"),
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "git *": "allow", "rm -rf *": "deny" },
+            read: { "*": "allow" },
+            agent: { "*": "ask" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({ target: "omp", features: "permissions" });
+
+    const parsed = load(await readFileContent(join(testDir, ".omp", "config.yml")));
+    expect(parsed).toEqual({
+      theme: { dark: "titanium" },
+      tools: { approvalMode: "write", approval: { read: "allow", task: "prompt" } },
+      bash: {
+        patterns: [
+          { match: "rm -rf *", approval: "deny" },
+          { match: "git *", approval: "allow" },
+        ],
+      },
+    });
+
+    await runImport({ target: "omp", features: "permissions" });
+
+    const imported = JSON.parse(
+      await readFileContent(join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH)),
+    );
+    expect(imported.permission).toEqual({
+      bash: { "rm -rf *": "deny", "git *": "allow" },
+      read: { "*": "allow" },
+      agent: { "*": "ask" },
+    });
   });
 
   it("should generate pi permissions into .pi/settings.json and preserve unrelated keys", async () => {
@@ -4075,6 +4125,30 @@ describe("E2E: permissions (global mode)", () => {
       memory: { write_approval: false },
     });
     expect(imported.model).toBeUndefined();
+  });
+
+  it("should generate omp permissions in home directory with --global", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify({ permission: { bash: { "*": "allow" } } }, null, 2),
+    );
+    await writeFileContent(
+      join(homeDir, ".omp", "agent", "config.yml"),
+      ["tools:", "  approval:", "    eval: prompt", ""].join("\n"),
+    );
+
+    await runGenerate({
+      target: "omp",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const parsed = load(await readFileContent(join(homeDir, ".omp", "agent", "config.yml")));
+    expect(parsed).toEqual({ tools: { approval: { eval: "prompt", bash: "allow" } } });
   });
 
   it("should generate pi permissions in home directory with --global", async () => {

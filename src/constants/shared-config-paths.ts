@@ -76,6 +76,11 @@ export const SHARED_USER_MANAGED_CONFIG_PATHS: readonly string[] = [
   // `.qoder/settings.json` layout and carry the user's own Qoder settings
   // beside the `mcpServers` (user only), `hooks` and `permissions` blocks.
   ".qoder/settings.json",
+  // oh-my-pi config: the project file and the user one under `~/.omp/agent/`
+  // carry every omp setting beside the `tools.approval` and `bash.patterns`
+  // permissions keys.
+  ".omp/config.yml",
+  ".omp/agent/config.yml",
   // Both Rovo Dev project files are documented as repo-committed surfaces
   // (Bitbucket Cloud Agentic Pipelines), so neither is gitignored.
   ".rovodev/config.yml",
