@@ -54,3 +54,11 @@ export const BOB_SKILLS_DIR_PATH = join(BOB_DIR, "skills");
 // @see https://bob.ibm.com/docs/ide/configuration/lifecycle-hooks
 export const BOB_SETTINGS_FILE_NAME = "settings.json";
 export const BOB_GLOBAL_SETTINGS_DIR_PATH = join(BOB_DIR, "settings");
+
+// Custom modes (rulesync's subagents): an aggregated `customModes` YAML file in
+// Roo's format at `<project>/.bob/custom_modes.yaml`. Only the project file is
+// emitted, because the docs disagree on the global one (Bob IDE names
+// `~/.bob/settings/custom_modes.yaml`, Bob Shell `~/.bob/custom_modes.yaml`).
+// @see https://bob.ibm.com/docs/ide/configuration/custom-modes
+// @see https://bob.ibm.com/docs/shell/configuration/custom-modes-bobshell
+export const BOB_CUSTOM_MODES_FILE_NAME = "custom_modes.yaml";

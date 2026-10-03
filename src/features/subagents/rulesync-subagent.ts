@@ -34,6 +34,18 @@ export const RulesyncSubagentFrontmatterSchema = z.looseObject({
       groups: z.optional(z.array(z.unknown())),
     }),
   ),
+  // IBM Bob custom modes: Roo's mode fields, in their own section because Bob
+  // spells its tool groups differently (`execute` rather than `command`).
+  bob: z.optional(
+    z.looseObject({
+      slug: z.optional(z.string()),
+      whenToUse: z.optional(z.string()),
+      roleDefinition: z.optional(z.string()),
+      customInstructions: z.optional(z.string()),
+      groups: z.optional(z.array(z.unknown())),
+      allowedSubagents: z.optional(z.array(z.string())),
+    }),
+  ),
   // Zoo Code (community continuation of Roo Code): shared mode fields ride the
   // `roo:` section above; this section carries only the post-fork divergence.
   zoocode: z.optional(
