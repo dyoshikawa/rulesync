@@ -1370,6 +1370,15 @@ export class SkillsProcessor extends DirFeatureProcessor {
    * path and vetted as writable inside this run's output root. Shared by the
    * two halves of the orphan sweep so both look in exactly the same places,
    * under exactly the same guard.
+   *
+   * A root that fails the guard — a symbolic link, even one that stays inside
+   * the output root, such as a dotfiles checkout linked from the home
+   * directory — is left out with a warning rather than failing the run. The
+   * write path already wrote through such a link, and the sweep runs after
+   * those writes land, so throwing here would report a failure for a run whose
+   * output is in place. Sweeping through the link is not an option either: it
+   * can lead to a directory rulesync does not manage, and its entries would be
+   * deleted as orphans.
    */
   private async loadExistingSkillsRoots(
     paths: ToolSkillSettablePaths,
@@ -1380,10 +1389,18 @@ export class SkillsProcessor extends DirFeatureProcessor {
       if (!(await directoryExists(skillsDirPath))) {
         continue;
       }
-      await assertWritablePathInsideRoot({
-        rootPath: this.outputRoot,
-        targetPath: skillsDirPath,
-      });
+      try {
+        await assertWritablePathInsideRoot({
+          rootPath: this.outputRoot,
+          targetPath: skillsDirPath,
+        });
+      } catch (error) {
+        this.logger.warn(
+          `Skipping the orphan sweep for ${quoteForLog(skillsDirPath)}; nothing under it is ` +
+            `deleted: ${stripControlCharacters(formatError(error))}`,
+        );
+        continue;
+      }
       existingRoots.push({ root, skillsDirPath });
     }
     return existingRoots;
