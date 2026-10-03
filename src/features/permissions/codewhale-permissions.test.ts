@@ -343,6 +343,27 @@ describe("CodewhalePermissions", () => {
       });
     });
 
+    it("keeps a workspace-scoped grant exactly once across generate, import and generate", async () => {
+      const grant = {
+        tool: "exec_shell",
+        command: "cargo test",
+        command_exact: true,
+        workspace: "/home/me/project",
+        action: "allow",
+      };
+      await writePermissions(smolToml.stringify({ rules: [grant] }));
+      const first = await generate({ permission: { bash: { "rm *": "deny" } } });
+      await writePermissions(first.getFileContent());
+
+      const imported = fromContent(first.getFileContent()).toRulesyncPermissions().getJson();
+      const second = await generate(imported);
+
+      expect(parseRules(second)).toEqual([
+        grant,
+        { tool: "exec_shell", command: "rm", action: "deny" },
+      ]);
+    });
+
     it("round-trips generated output through import and generate", async () => {
       const source = {
         permission: {
