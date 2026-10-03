@@ -168,17 +168,19 @@ export class OmpPermissions extends ToolPermissions {
     const existingContent = (await readFileContentOrNull(filePath)) ?? "";
     const existing = parseSharedConfig({ format: "yaml", fileContent: existingContent, filePath });
 
-    const { approval, patterns } = convertRulesyncToOmp({
+    const { approval, patterns, floor } = convertRulesyncToOmp({
       config: rulesyncPermissions.getJson(),
       logger,
     });
 
     const existingTools = isRecord(existing.tools) ? existing.tools : {};
+    // A kept key is still raised to the all-tools floor, so a hand-written
+    // `eval: allow` cannot outlive an all-tools deny.
     const keptApproval = isRecord(existingTools.approval)
       ? Object.fromEntries(
-          Object.entries(existingTools.approval).filter(
-            ([tool]) => !MANAGED_OMP_TOOLS.has(tool) && !Object.hasOwn(approval, tool),
-          ),
+          Object.entries(existingTools.approval)
+            .filter(([tool]) => !MANAGED_OMP_TOOLS.has(tool) && !Object.hasOwn(approval, tool))
+            .map(([tool, value]) => [tool, raisedApproval(value, floor)]),
         )
       : {};
     const nextApproval = { ...keptApproval, ...approval };
@@ -296,7 +298,8 @@ function allToolsFloor(rules: Record<string, PermissionAction> | undefined): {
  * left as is: matched literally it approves less, never more.
  */
 function widenRestrictionPattern(pattern: string): string {
-  return pattern.replace(/\[[^\]]*\]|\?/gu, "*").replace(/\*{2,}/gu, "*");
+  // A class may open with `!` and a literal `]`; an unclosed `[` widens too.
+  return pattern.replace(/\[!?\]?[^\]]*\]|\[|\?/gu, "*").replace(/\*{2,}/gu, "*");
 }
 
 /**
@@ -370,6 +373,7 @@ function applyAllToolsFloor({
 function convertRulesyncToOmp({ config, logger }: { config: PermissionsConfig; logger?: Logger }): {
   approval: Record<string, OmpApproval>;
   patterns: OmpBashPattern[];
+  floor: PermissionAction | undefined;
 } {
   const actions: Record<string, PermissionAction> = {};
   const patterns: OmpBashPattern[] = [];
@@ -438,7 +442,17 @@ function convertRulesyncToOmp({ config, logger }: { config: PermissionsConfig; l
   const approval: Record<string, OmpApproval> = Object.fromEntries(
     Object.entries(actions).map(([tool, action]) => [tool, ACTION_TO_OMP_APPROVAL[action]]),
   );
-  return { approval, patterns };
+  return { approval, patterns, floor: allTools.floor };
+}
+
+/** An existing `tools.approval` value raised to the all-tools floor, if any. */
+function raisedApproval(value: unknown, floor: PermissionAction | undefined): unknown {
+  if (floor === undefined) {
+    return value;
+  }
+  const approval = toOmpApproval(value);
+  const current = approval === undefined ? undefined : OMP_APPROVAL_TO_ACTION[approval];
+  return ACTION_TO_OMP_APPROVAL[stricter(current, floor)];
 }
 
 function toOmpApproval(value: unknown): OmpApproval | undefined {

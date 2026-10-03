@@ -244,6 +244,23 @@ describe("OmpPermissions", () => {
     });
   });
 
+  it("should raise kept unmanaged approval keys to an all-tools restriction", async () => {
+    await writeFileContent(
+      join(testDir, ".omp", "config.yml"),
+      ["tools:", "  approval:", "    eval: allow", "    mcp__x_y: deny", ""].join("\n"),
+    );
+
+    const permissions = await OmpPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: rulesyncPermissionsFrom({ permission: { "*": { "*": "ask" } } }),
+    });
+
+    expect(loadYaml(permissions.getFileContent())).toMatchObject({
+      tools: { approval: { eval: "prompt", mcp__x_y: "deny", read: "prompt" } },
+      bash: { patterns: [{ match: "*", approval: "prompt" }] },
+    });
+  });
+
   it("should write the stricter policy when agent and task share the task key", async () => {
     const permissions = await OmpPermissions.fromRulesyncPermissions({
       outputRoot: testDir,
@@ -263,7 +280,13 @@ describe("OmpPermissions", () => {
       outputRoot: testDir,
       rulesyncPermissions: rulesyncPermissionsFrom({
         permission: {
-          bash: { "ls ?": "allow", "rm -r? *": "deny", "git [pP]ush *": "ask" },
+          bash: {
+            "ls ?": "allow",
+            "rm -r? *": "deny",
+            "git [pP]ush *": "ask",
+            "mv []a] *": "deny",
+            "cp [": "deny",
+          },
         },
       }),
       logger: logger as never,
@@ -273,6 +296,8 @@ describe("OmpPermissions", () => {
       bash: {
         patterns: [
           { match: "rm -r* *", approval: "deny" },
+          { match: "mv * *", approval: "deny" },
+          { match: "cp *", approval: "deny" },
           { match: "git *ush *", approval: "prompt" },
           { match: "ls ?", approval: "allow" },
         ],
