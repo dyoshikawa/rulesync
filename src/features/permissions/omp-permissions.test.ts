@@ -221,6 +221,7 @@ describe("OmpPermissions", () => {
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"webfetch"'));
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"notebookedit"'));
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"*" category'));
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("mcp__<server>_<tool>"));
   });
 
   it("should apply an all-tools catch-all deny to every tool even without a bash category", async () => {
@@ -370,9 +371,9 @@ describe("OmpPermissions", () => {
     const json = permissions.toRulesyncPermissions().getJson();
 
     expect(json.permission).toEqual({
-      // A `*` pattern beats a `prompt` tool policy (only a user deny is absolute).
+      // A `prompt` policy behind a lone `*` allow pattern stays `ask`.
       // Whitespace runs collapse, and the later duplicate is never consulted.
-      bash: { "git status": "allow", "rm -rf *": "deny", "*": "allow" },
+      bash: { "git status": "allow", "rm -rf *": "deny", "*": "ask" },
       websearch: { "*": "deny" },
       // A verbatim `agent` key and `task` import to one category; the stricter wins.
       agent: { "*": "deny" },
@@ -400,6 +401,40 @@ describe("OmpPermissions", () => {
     });
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("critical command"));
     expect(permissions.toRulesyncPermissions().getJson().permission).toEqual(source);
+  });
+
+  it("should keep a hand-written prompt bash policy behind a lone * allow pattern as ask", async () => {
+    await writeFileContent(
+      join(testDir, ".omp", "config.yml"),
+      [
+        "tools:",
+        "  approval:",
+        "    bash: prompt",
+        "bash:",
+        "  patterns:",
+        "    - match: git status",
+        "      approval: allow",
+        "    - match: '*'",
+        "      approval: allow",
+        "",
+      ].join("\n"),
+    );
+
+    const permissions = await OmpPermissions.fromFile({ outputRoot: testDir });
+
+    expect(permissions.toRulesyncPermissions().getJson().permission).toEqual({
+      bash: { "git status": "allow", "*": "ask" },
+    });
+  });
+
+  it("should round-trip ask-only bash rules without adding a catch-all", async () => {
+    const source = { bash: { "git push *": "ask", "git *": "allow" } };
+    const generated = await OmpPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: rulesyncPermissionsFrom({ permission: source }),
+    });
+
+    expect(generated.toRulesyncPermissions().getJson().permission).toEqual(source);
   });
 
   it("should import a tools.approval.bash deny over a * allow pattern", async () => {
