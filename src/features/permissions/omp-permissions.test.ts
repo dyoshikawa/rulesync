@@ -196,7 +196,19 @@ describe("OmpPermissions", () => {
     });
 
     expect(loadYaml(permissions.getFileContent())).toEqual({
-      tools: { approval: { mcp__github__create_issue: "deny" } },
+      tools: {
+        // A pattern-specific all-tools deny makes every other tool prompt.
+        approval: {
+          mcp__github__create_issue: "deny",
+          read: "prompt",
+          edit: "prompt",
+          write: "prompt",
+          grep: "prompt",
+          glob: "prompt",
+          web_search: "prompt",
+          task: "prompt",
+        },
+      },
       bash: {
         // A bash allow that an all-tools restriction overlaps is withheld.
         patterns: [{ match: "npm publish *", approval: "deny" }],
@@ -207,17 +219,67 @@ describe("OmpPermissions", () => {
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"*" category'));
   });
 
-  it("should warn that ? and [ are matched literally in bash patterns", async () => {
-    const logger = createLogger();
-    await OmpPermissions.fromRulesyncPermissions({
+  it("should apply an all-tools catch-all deny to every tool even without a bash category", async () => {
+    const permissions = await OmpPermissions.fromRulesyncPermissions({
       outputRoot: testDir,
       rulesyncPermissions: rulesyncPermissionsFrom({
-        permission: { bash: { "ls ?": "allow" } },
+        permission: { "*": { "*": "deny" }, read: { "*": "allow" }, eval: { "*": "allow" } },
+      }),
+    });
+
+    expect(loadYaml(permissions.getFileContent())).toEqual({
+      tools: {
+        approval: {
+          read: "deny",
+          eval: "deny",
+          edit: "deny",
+          write: "deny",
+          grep: "deny",
+          glob: "deny",
+          web_search: "deny",
+          task: "deny",
+        },
+      },
+      bash: { patterns: [{ match: "*", approval: "deny" }] },
+    });
+  });
+
+  it("should write the stricter policy when agent and task share the task key", async () => {
+    const permissions = await OmpPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: rulesyncPermissionsFrom({
+        permission: { task: { "*": "deny" }, agent: { "*": "allow" } },
+      }),
+    });
+
+    expect(loadYaml(permissions.getFileContent())).toEqual({
+      tools: { approval: { task: "deny" } },
+    });
+  });
+
+  it("should widen ? and [...] in bash deny and ask patterns and keep them literal in allow", async () => {
+    const logger = createLogger();
+    const permissions = await OmpPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: rulesyncPermissionsFrom({
+        permission: {
+          bash: { "ls ?": "allow", "rm -r? *": "deny", "git [pP]ush *": "ask" },
+        },
       }),
       logger: logger as never,
     });
 
+    expect(loadYaml(permissions.getFileContent())).toEqual({
+      bash: {
+        patterns: [
+          { match: "rm -r* *", approval: "deny" },
+          { match: "git *ush *", approval: "prompt" },
+          { match: "ls ?", approval: "allow" },
+        ],
+      },
+    });
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"ls ?"'));
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"rm -r? *"'));
   });
 
   it("should write the tool-scoped omp block over the shared one", async () => {
@@ -257,6 +319,7 @@ describe("OmpPermissions", () => {
         "    bash: Prompt",
         "    web_search: deny",
         "    task: allow",
+        "    agent: deny",
         "    eval: prompt",
         "    read: bogus",
         "bash:",
@@ -281,7 +344,8 @@ describe("OmpPermissions", () => {
       // Whitespace runs collapse, and the later duplicate is never consulted.
       bash: { "git status": "allow", "rm -rf *": "deny", "*": "ask" },
       websearch: { "*": "deny" },
-      agent: { "*": "allow" },
+      // A verbatim `agent` key and `task` import to one category; the stricter wins.
+      agent: { "*": "deny" },
       eval: { "*": "ask" },
     });
   });

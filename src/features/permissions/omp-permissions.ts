@@ -14,7 +14,11 @@ import {
   sharedConfigFileKey,
 } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
-import { honorAllToolsOnBash } from "./shell-command-categories.js";
+import {
+  ALL_TOOLS_PERMISSION_CATEGORY,
+  bashRulesHonoringAllTools,
+  SHELL_PERMISSION_CATEGORY,
+} from "./shell-command-categories.js";
 import {
   collapseRulesToSingleAction,
   hasPatternSpecificRules,
@@ -33,8 +37,6 @@ type OmpApproval = "allow" | "prompt" | "deny";
 type OmpBashPattern = { match: string; approval: OmpApproval };
 
 const CATCH_ALL_PATTERN = "*";
-const ALL_TOOLS_CATEGORY = "*";
-const BASH_CATEGORY = "bash";
 
 const ACTION_TO_OMP_APPROVAL: Record<PermissionAction, OmpApproval> = {
   allow: "allow",
@@ -64,11 +66,13 @@ const OMP_TOOL_TO_CATEGORY: Record<string, string> = Object.fromEntries(
 
 // Canonical categories with no oh-my-pi tool to key a policy on: web pages are
 // fetched through `read` (or a mounted device), and there is no notebook tool.
+// Their rules are skipped with a warning rather than widened onto `read`.
 const UNSUPPORTED_CATEGORIES: ReadonlySet<string> = new Set(["webfetch", "notebookedit"]);
 
 // The `tools.approval` keys rulesync manages. They are rewritten on every
-// generate (so a rule removed from the source disappears), while any other key
-// — an `eval` or `computer` policy written by hand — is kept.
+// generate (so a rule removed from the source disappears). Any other key — an
+// `eval` or MCP tool policy — is kept unless rulesync writes it this time, so a
+// rule for such a tool removed from the source stays in `config.yml`.
 const MANAGED_OMP_TOOLS: ReadonlySet<string> = new Set([
   "bash",
   "read",
@@ -95,8 +99,13 @@ const MANAGED_OMP_TOOLS: ReadonlySet<string> = new Set([
  *   of command globs (only `*` is a wildcard). Every `bash` rule except a
  *   catch-all `allow` is written there, ordered deny → prompt → allow so that
  *   the first match agrees with rulesync's deny > ask > allow precedence. A
- *   catch-all `allow` goes to `tools.approval.bash` instead, because an `allow`
- *   pattern never approves a compound command line while the tool policy does.
+ *   catch-all `allow` goes to `tools.approval.bash` instead, because by default
+ *   (without `bash.allowCompoundCommands`) an `allow` pattern never approves a
+ *   compound command line while the tool policy does. oh-my-pi expands no `?`
+ *   or `[...]`, so a deny or ask pattern widens them to `*`.
+ * - The all-tools `*` category has no key of its own: its rules restrict bash
+ *   commands, and its deny / ask also restrict every other tool's policy (a
+ *   catch-all one at its own strictness, a pattern-specific one as `prompt`).
  *
  * `config.yml` carries every other oh-my-pi setting, so only `tools.approval`
  * (the keys rulesync manages) and `bash.patterns` are rewritten; sibling keys
@@ -251,47 +260,154 @@ function renamed(map: Record<string, string>, name: string): string {
   return Object.hasOwn(map, name) ? (map[name] ?? name) : name;
 }
 
+function stricter(a: PermissionAction | undefined, b: PermissionAction): PermissionAction {
+  return a !== undefined && PERMISSION_ACTION_PRIORITY[a] >= PERMISSION_ACTION_PRIORITY[b] ? a : b;
+}
+
+/**
+ * The floor the all-tools `*` category puts under every tool's single policy:
+ * a catch-all deny / ask at its own strictness, and a pattern-specific one as
+ * `ask`, since some input of each tool may match it and a per-tool policy
+ * cannot single that input out. `undefined` when `*` restricts nothing.
+ */
+function allToolsFloor(rules: Record<string, PermissionAction> | undefined): {
+  floor: PermissionAction | undefined;
+  patternSpecific: boolean;
+} {
+  let floor: PermissionAction | undefined;
+  let patternSpecific = false;
+  for (const [pattern, action] of Object.entries(rules ?? {})) {
+    if (action === "allow" || isPrototypePollutionKey(pattern)) {
+      continue;
+    }
+    if (pattern === CATCH_ALL_PATTERN) {
+      floor = stricter(floor, action);
+    } else {
+      patternSpecific = true;
+      floor = stricter(floor, "ask");
+    }
+  }
+  return { floor, patternSpecific };
+}
+
+/**
+ * oh-my-pi expands only `*`, so a `?` or `[...]` in a deny / ask pattern widens
+ * to `*` (a literal match would restrict almost nothing). An allow pattern is
+ * left as is: matched literally it approves less, never more.
+ */
+function widenRestrictionPattern(pattern: string): string {
+  return pattern.replace(/\[[^\]]*\]|\?/gu, "*").replace(/\*{2,}/gu, "*");
+}
+
+/**
+ * A `bash` category as `bash.patterns` entries (unsorted), plus whether it
+ * holds a catch-all `allow` (written as `tools.approval.bash` instead).
+ */
+function convertBashRules({
+  rules,
+  logger,
+}: {
+  rules: Record<string, PermissionAction>;
+  logger?: Logger;
+}): { patterns: OmpBashPattern[]; catchAllAllow: boolean } {
+  const patterns: OmpBashPattern[] = [];
+  let catchAllAllow = false;
+  for (const [pattern, action] of Object.entries(rules)) {
+    if (isPrototypePollutionKey(pattern)) {
+      continue;
+    }
+    if (pattern === CATCH_ALL_PATTERN && action === "allow") {
+      catchAllAllow = true;
+      continue;
+    }
+    let match = pattern;
+    if (/[?[]/u.test(pattern)) {
+      if (action === "allow") {
+        logger?.warn(
+          `oh-my-pi matches only "*" as a wildcard, so "?" and "[" in the bash allow ` +
+            `pattern "${pattern}" are matched literally.`,
+        );
+      } else {
+        match = widenRestrictionPattern(pattern);
+        logger?.warn(
+          `oh-my-pi matches only "*" as a wildcard, so the bash ${action} pattern ` +
+            `"${pattern}" was widened to "${match}".`,
+        );
+      }
+    }
+    patterns.push({ match, approval: ACTION_TO_OMP_APPROVAL[action] });
+  }
+  return { patterns, catchAllAllow };
+}
+
+/** Raise every non-bash tool policy to the all-tools floor (bash is handled by patterns). */
+function applyAllToolsFloor({
+  actions,
+  allTools,
+  logger,
+}: {
+  actions: Record<string, PermissionAction>;
+  allTools: ReturnType<typeof allToolsFloor>;
+  logger?: Logger;
+}): void {
+  const { floor } = allTools;
+  if (floor === undefined) {
+    return;
+  }
+  if (allTools.patternSpecific) {
+    logger?.warn(
+      'oh-my-pi sets one approval policy per tool, so the pattern-specific "*" category ' +
+        `restrictions were written as "${ACTION_TO_OMP_APPROVAL[floor]}" for every non-bash tool.`,
+    );
+  }
+  for (const tool of new Set([...MANAGED_OMP_TOOLS, ...Object.keys(actions)])) {
+    if (tool !== SHELL_PERMISSION_CATEGORY) {
+      actions[tool] = stricter(actions[tool], floor);
+    }
+  }
+}
+
 function convertRulesyncToOmp({ config, logger }: { config: PermissionsConfig; logger?: Logger }): {
   approval: Record<string, OmpApproval>;
   patterns: OmpBashPattern[];
 } {
-  const approval: Record<string, OmpApproval> = {};
+  const actions: Record<string, PermissionAction> = {};
   const patterns: OmpBashPattern[] = [];
+  const permission = config.permission;
+  const allTools = allToolsFloor(permission[ALL_TOOLS_PERMISSION_CATEGORY]);
+  // All-tools restrictions cover shell commands even when there is no `bash`
+  // category of its own.
+  const categories =
+    permission[ALL_TOOLS_PERMISSION_CATEGORY] === undefined
+      ? permission
+      : { ...permission, bash: bashRulesHonoringAllTools(permission) };
 
-  for (const [category, rules] of Object.entries(honorAllToolsOnBash(config.permission))) {
+  for (const [category, rules] of Object.entries(categories)) {
     if (isPrototypePollutionKey(category) || Object.keys(rules).length === 0) {
       continue;
     }
-    if (category === ALL_TOOLS_CATEGORY) {
-      logger?.warn(
-        'oh-my-pi has no all-tools approval key, so the "*" category is not written ' +
-          "(its deny and ask rules still restrict bash commands).",
-      );
+    if (category === ALL_TOOLS_PERMISSION_CATEGORY) {
+      // Its deny / ask are applied to bash above and to every other tool below.
+      if (Object.values(rules).includes("allow")) {
+        logger?.warn(
+          'oh-my-pi has no all-tools approval key, so the "*" category allow rules were skipped.',
+        );
+      }
       continue;
     }
     if (UNSUPPORTED_CATEGORIES.has(category)) {
       logger?.warn(
-        `oh-my-pi has no "${category}" tool to set an approval policy on, so its rules were skipped.`,
+        `oh-my-pi has no "${category}" tool to set an approval policy on, so its rules were skipped` +
+          (category === "webfetch" ? " (oh-my-pi fetches web pages through `read`)." : "."),
       );
       continue;
     }
 
-    if (category === BASH_CATEGORY) {
-      for (const [pattern, action] of Object.entries(rules)) {
-        if (isPrototypePollutionKey(pattern)) {
-          continue;
-        }
-        if (pattern === CATCH_ALL_PATTERN && action === "allow") {
-          approval.bash = "allow";
-          continue;
-        }
-        if (/[?[]/.test(pattern)) {
-          logger?.warn(
-            `oh-my-pi matches only "*" as a wildcard, so "?" and "[" in the bash ${action} ` +
-              `pattern "${pattern}" are matched literally.`,
-          );
-        }
-        patterns.push({ match: pattern, approval: ACTION_TO_OMP_APPROVAL[action] });
+    if (category === SHELL_PERMISSION_CATEGORY) {
+      const bash = convertBashRules({ rules, logger });
+      patterns.push(...bash.patterns);
+      if (bash.catchAllAllow) {
+        actions.bash = "allow";
       }
       continue;
     }
@@ -306,8 +422,12 @@ function convertRulesyncToOmp({ config, logger }: { config: PermissionsConfig; l
           `rules were collapsed to "${ACTION_TO_OMP_APPROVAL[action]}" (deny > ask > allow).`,
       );
     }
-    approval[renamed(CATEGORY_TO_OMP_TOOL, category)] = ACTION_TO_OMP_APPROVAL[action];
+    // `agent` and a verbatim `task` share one key, so the stricter one wins.
+    const tool = renamed(CATEGORY_TO_OMP_TOOL, category);
+    actions[tool] = stricter(actions[tool], action);
   }
+
+  applyAllToolsFloor({ actions, allTools, logger });
 
   // First match wins, so the strictest rules lead; the sort is stable, keeping
   // source order within an action.
@@ -315,6 +435,9 @@ function convertRulesyncToOmp({ config, logger }: { config: PermissionsConfig; l
     -PERMISSION_ACTION_PRIORITY[OMP_APPROVAL_TO_ACTION[pattern.approval]];
   patterns.sort((a, b) => order(a) - order(b));
 
+  const approval: Record<string, OmpApproval> = Object.fromEntries(
+    Object.entries(actions).map(([tool, action]) => [tool, ACTION_TO_OMP_APPROVAL[action]]),
+  );
   return { approval, patterns };
 }
 
@@ -362,18 +485,15 @@ function convertOmpToRulesync(config: Record<string, unknown>): PermissionsConfi
         continue;
       }
       const action = OMP_APPROVAL_TO_ACTION[approval];
-      if (tool === BASH_CATEGORY) {
-        const current = bashRules[CATCH_ALL_PATTERN];
-        if (
-          current === undefined ||
-          PERMISSION_ACTION_PRIORITY[action] > PERMISSION_ACTION_PRIORITY[current]
-        ) {
-          bashRules[CATCH_ALL_PATTERN] = action;
-        }
+      if (tool === SHELL_PERMISSION_CATEGORY) {
+        bashRules[CATCH_ALL_PATTERN] = stricter(bashRules[CATCH_ALL_PATTERN], action);
         continue;
       }
+      // A verbatim `agent` key and `task` import to one category; the stricter wins.
       const category = renamed(OMP_TOOL_TO_CATEGORY, tool);
-      permission[category] = { [CATCH_ALL_PATTERN]: action };
+      permission[category] = {
+        [CATCH_ALL_PATTERN]: stricter(permission[category]?.[CATCH_ALL_PATTERN], action),
+      };
     }
   }
 
