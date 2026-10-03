@@ -109,6 +109,8 @@ const ignoreProcessorGlobalToolTargets: ToolTarget[] = [
   "continue",
   "devin",
   "grokcli",
+  // Kilo's global ignore file is the legacy `~/.kilocode/.kilocodeignore`.
+  "kilo",
   "kiro",
   "kiro-cli",
   "kiro-ide",

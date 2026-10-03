@@ -18,6 +18,13 @@ export const KILO_PLUGIN_DIR_PATH = join(KILO_DIR, "plugin");
 export const KILO_GLOBAL_PLUGIN_DIR_PATH = join(KILO_GLOBAL_DIR, "plugin");
 export const KILO_RULE_FILE_NAME = "AGENTS.md";
 export const KILO_IGNORE_FILE_NAME = ".kilocodeignore";
+// The global ignore file still lives in the legacy `~/.kilocode/` tree, not
+// `~/.config/kilo/` or `~/.kilo/`: Kilo loads `~/.kilocode/.kilocodeignore` on
+// every config load (`GLOBAL_KILOCODEIGNORE` in `kilocode/ignore-migrator.ts`).
+export const KILO_LEGACY_GLOBAL_DIR = ".kilocode";
 export const KILO_JSONC_FILE_NAME = "kilo.jsonc";
 export const KILO_JSON_FILE_NAME = "kilo.json";
 export const KILO_HOOKS_FILE_NAME = "rulesync-hooks.js";
+// Kilo Code Reviews reads repository guidance from a root-level `REVIEW.md`.
+// https://kilo.ai/docs/automate/code-reviews
+export const KILO_REVIEW_FILE_NAME = "REVIEW.md";

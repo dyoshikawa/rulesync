@@ -44,6 +44,11 @@ const checksGenerateTargets = [
     outputPath: join(".hermes", "plugins", "rulesync-checks", "checks", "security.json"),
   },
   {
+    // Kilo Code Reviews reads one plain-Markdown guidance file at the root.
+    target: "kilo",
+    outputPath: "REVIEW.md",
+  },
+  {
     // Qwen Code's `/review` reads one plain-Markdown project rules file.
     target: "qwencode",
     outputPath: join(".qwen", "review-rules.md"),
@@ -135,7 +140,8 @@ Look for injection vulnerabilities.
         target === "cursor" ||
         target === "rovodev" ||
         target === "factorydroid" ||
-        target === "qwencode"
+        target === "qwencode" ||
+        target === "kilo"
       ) {
         // One marked-up section per check, keyed by the source file basename.
         expect(generatedContent).toContain("<!-- rulesync:check:security -->");
