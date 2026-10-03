@@ -46,8 +46,20 @@ export const OpenCodeSubagentFrontmatterSchema = z.looseObject({
   top_p: z.optional(z.number()),
   prompt: z.optional(z.string()),
   disable: z.optional(z.boolean()),
+  // Hides a subagent from the `@` autocomplete menu; it stays invocable through
+  // the task tool.
+  hidden: z.optional(z.boolean()),
+  // A hex color or a theme color name, shown in the UI.
+  color: z.optional(z.string()),
+  // Maximum agentic iterations before the agent must answer in text. It
+  // supersedes the deprecated `maxSteps`, which still round-trips as an
+  // unknown field.
+  steps: z.optional(z.number().check(z.int(), z.gte(1))),
+  // Default model variant for the agent (e.g. a provider reasoning preset).
+  variant: z.optional(z.string()),
   // OpenCode accepts a per-tool enable map (`{ <tool>: boolean }`) as well as a
-  // per-tool permission object, so both are kept permissive.
+  // per-tool permission object, so both are kept permissive. OpenCode marks
+  // `tools` as deprecated in favor of `permission`, but still reads it.
   tools: z.optional(z.record(z.string(), z.unknown())),
   permission: z.optional(z.union([z.string(), z.record(z.string(), z.unknown())])),
 });

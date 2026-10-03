@@ -536,6 +536,58 @@ describe("ClaudecodeHooks", () => {
       expect(parsed.hooks.DirectoryAdded[0].matcher).toBe("slash_command");
     });
 
+    it("keeps the matcher on PreModelSwitch and PostModelSwitch", async () => {
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(join(testDir, ".claude", "settings.json"), JSON.stringify({}));
+
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            preModelSwitch: [{ matcher: ".*opus.*", command: "guard-model.sh" }],
+            postModelSwitch: [{ command: "log-model.sh" }],
+          },
+        }),
+        validate: false,
+      });
+
+      const claudecodeHooks = await ClaudecodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const parsed = JSON.parse(claudecodeHooks.getFileContent());
+      expect(parsed.hooks.PreModelSwitch[0].matcher).toBe(".*opus.*");
+      expect(parsed.hooks.PreModelSwitch[0].hooks[0].command).toBe("guard-model.sh");
+      expect(parsed.hooks.PostModelSwitch[0].hooks[0].command).toBe("log-model.sh");
+    });
+
+    it("should import PreModelSwitch and PostModelSwitch", () => {
+      const claudecodeHooks = new ClaudecodeHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".claude",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          hooks: {
+            PreModelSwitch: [{ matcher: "claude-opus-5", hooks: [{ command: "guard-model.sh" }] }],
+            PostModelSwitch: [{ hooks: [{ command: "log-model.sh" }] }],
+          },
+        }),
+        validate: false,
+      });
+
+      const parsed = claudecodeHooks.toRulesyncHooks().getJson();
+      expect(parsed.hooks.preModelSwitch?.[0]).toMatchObject({
+        matcher: "claude-opus-5",
+        command: "guard-model.sh",
+      });
+      expect(parsed.hooks.postModelSwitch?.[0]).toMatchObject({ command: "log-model.sh" });
+    });
+
     it("should only prefix dot-relative commands with $CLAUDE_PROJECT_DIR", async () => {
       await ensureDir(join(testDir, ".claude"));
       await writeFileContent(join(testDir, ".claude", "settings.json"), JSON.stringify({}));

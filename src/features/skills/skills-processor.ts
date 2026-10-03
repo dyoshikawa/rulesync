@@ -63,6 +63,7 @@ import { GrokcliSkill } from "./grokcli-skill.js";
 import { HermesagentSkill } from "./hermesagent-skill.js";
 import { JunieSkill } from "./junie-skill.js";
 import { KiloSkill } from "./kilo-skill.js";
+import { KimiCodePluginSkill } from "./kimi-code-plugin-skill.js";
 import { KimiCodeSkill } from "./kimi-code-skill.js";
 import { KiroCliSkill } from "./kiro-cli-skill.js";
 import { KiroIdeSkill } from "./kiro-ide-skill.js";
@@ -581,6 +582,16 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
     {
       class: KimiCodeSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "kimi-code-plugin",
+    {
+      // `<plugin>/skills/<name>/SKILL.md`, read when the manifest declares
+      // `"skills": "./skills/"`.
+      // https://github.com/MoonshotAI/kimi-code/blob/%40moonshot-ai/kimi-code%402.1.1/docs/en/customization/plugins.md
+      class: KimiCodePluginSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: false },
     },
   ],
   [
@@ -1228,7 +1239,7 @@ export class SkillsProcessor extends DirFeatureProcessor {
       if (!factory.class.fromFlatFile) {
         continue;
       }
-      const fromFlatFile = factory.class.fromFlatFile;
+      const fromFlatFile = factory.class.fromFlatFile.bind(factory.class);
       const directoryStems = new Set(ownedDirNames);
       const flatFileNames = this.keepAddressableNames({
         // The suffix is applied while reading rather than after, so a `.md`
@@ -1359,6 +1370,15 @@ export class SkillsProcessor extends DirFeatureProcessor {
    * path and vetted as writable inside this run's output root. Shared by the
    * two halves of the orphan sweep so both look in exactly the same places,
    * under exactly the same guard.
+   *
+   * A root that fails the guard — a symbolic link, even one that stays inside
+   * the output root, such as a dotfiles checkout linked from the home
+   * directory — is left out with a warning rather than failing the run. The
+   * write path already wrote through such a link, and the sweep runs after
+   * those writes land, so throwing here would report a failure for a run whose
+   * output is in place. Sweeping through the link is not an option either: it
+   * can lead to a directory rulesync does not manage, and its entries would be
+   * deleted as orphans.
    */
   private async loadExistingSkillsRoots(
     paths: ToolSkillSettablePaths,
@@ -1369,10 +1389,18 @@ export class SkillsProcessor extends DirFeatureProcessor {
       if (!(await directoryExists(skillsDirPath))) {
         continue;
       }
-      await assertWritablePathInsideRoot({
-        rootPath: this.outputRoot,
-        targetPath: skillsDirPath,
-      });
+      try {
+        await assertWritablePathInsideRoot({
+          rootPath: this.outputRoot,
+          targetPath: skillsDirPath,
+        });
+      } catch (error) {
+        this.logger.warn(
+          `Skipping the orphan sweep for ${quoteForLog(skillsDirPath)}; nothing under it is ` +
+            `deleted: ${stripControlCharacters(formatError(error))}`,
+        );
+        continue;
+      }
       existingRoots.push({ root, skillsDirPath });
     }
     return existingRoots;

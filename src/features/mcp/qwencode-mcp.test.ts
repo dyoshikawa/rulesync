@@ -6,6 +6,7 @@ import {
   RULESYNC_MCP_SCHEMA_URL,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { QwencodeMcp } from "./qwencode-mcp.js";
@@ -174,6 +175,50 @@ describe("QwencodeMcp", () => {
       expect(json.mcpServers.server.command).toBe("node");
     });
 
+    it("should write qwencode.allowed/excluded into the mcp object, keeping its other keys", async () => {
+      await ensureDir(join(testDir, ".qwen"));
+      await writeFileContent(
+        join(testDir, ".qwen/settings.json"),
+        JSON.stringify({
+          mcpServers: {},
+          mcp: { serverCommand: "run-mcp", allowed: ["old"], excluded: ["keep-me"] },
+        }),
+      );
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {},
+          qwencode: { allowed: ["my-trusted-server", "*-internal"] },
+        }),
+      });
+
+      const qwencodeMcp = await QwencodeMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+
+      expect((qwencodeMcp.getJson() as any).mcp).toEqual({
+        serverCommand: "run-mcp",
+        allowed: ["my-trusted-server", "*-internal"],
+        excluded: ["keep-me"],
+      });
+    });
+
+    it("should leave an existing mcp object alone when no list is authored", async () => {
+      await ensureDir(join(testDir, ".qwen"));
+      await writeFileContent(
+        join(testDir, ".qwen/settings.json"),
+        JSON.stringify({ mcpServers: {}, mcp: { excluded: ["experimental-server"] } }),
+      );
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({ mcpServers: {} }),
+      });
+
+      const qwencodeMcp = await QwencodeMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+
+      expect((qwencodeMcp.getJson() as any).mcp).toEqual({ excluded: ["experimental-server"] });
+    });
+
     it("should create instance in global mode", async () => {
       const rulesyncMcp = new RulesyncMcp({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
@@ -189,6 +234,96 @@ describe("QwencodeMcp", () => {
 
       expect(qwencodeMcp.getRelativeDirPath()).toBe(".qwen");
       expect(qwencodeMcp.getRelativeFilePath()).toBe("settings.json");
+    });
+  });
+
+  describe("fromFile", () => {
+    const writeSettings = async (mcpServers: Record<string, unknown>) => {
+      await ensureDir(join(testDir, ".qwen"));
+      await writeFileContent(
+        join(testDir, ".qwen", "settings.json"),
+        JSON.stringify({ mcpServers }, null, 2),
+      );
+    };
+    const writeProjectMcpJson = async (mcpServers: Record<string, unknown>) => {
+      await writeFileContent(join(testDir, ".mcp.json"), JSON.stringify({ mcpServers }, null, 2));
+    };
+
+    it("should import servers from the project .mcp.json when settings.json is absent", async () => {
+      await writeProjectMcpJson({
+        claude: { type: "stdio", command: "node", args: ["claude.js"] },
+      });
+
+      const qwencodeMcp = await QwencodeMcp.fromFile({ outputRoot: testDir });
+
+      expect(qwencodeMcp.getJson().mcpServers).toEqual({
+        claude: { type: "stdio", command: "node", args: ["claude.js"] },
+      });
+      expect(qwencodeMcp.getRelativeDirPath()).toBe(".qwen");
+      expect(qwencodeMcp.getRelativeFilePath()).toBe("settings.json");
+    });
+
+    it("should merge .mcp.json servers beneath settings.json, letting settings win on a name clash", async () => {
+      await writeSettings({
+        shared: { command: "settings-cmd" },
+        settingsOnly: { command: "settings-only" },
+      });
+      await writeProjectMcpJson({
+        shared: { type: "stdio", command: "mcp-json-cmd" },
+        mcpJsonOnly: { type: "http", url: "https://example.com/mcp" },
+      });
+
+      const qwencodeMcp = await QwencodeMcp.fromFile({ outputRoot: testDir });
+
+      expect(qwencodeMcp.getJson().mcpServers).toEqual({
+        shared: { command: "settings-cmd" },
+        settingsOnly: { command: "settings-only" },
+        mcpJsonOnly: { type: "http", url: "https://example.com/mcp" },
+      });
+    });
+
+    it("should map includeTools/excludeTools declared in .mcp.json on import", async () => {
+      await writeProjectMcpJson({
+        filtered: { command: "node", includeTools: ["read"], excludeTools: ["write"] },
+      });
+
+      const qwencodeMcp = await QwencodeMcp.fromFile({ outputRoot: testDir });
+      const exported = JSON.parse(qwencodeMcp.toRulesyncMcp().getFileContent());
+
+      expect(exported.mcpServers.filtered).toEqual({
+        command: "node",
+        enabledTools: ["read"],
+        disabledTools: ["write"],
+      });
+    });
+
+    it("should ignore a .mcp.json without an mcpServers object", async () => {
+      await writeSettings({ server: { command: "node" } });
+      await writeFileContent(join(testDir, ".mcp.json"), JSON.stringify({ mcpServers: [] }));
+
+      const qwencodeMcp = await QwencodeMcp.fromFile({ outputRoot: testDir });
+
+      expect(qwencodeMcp.getJson().mcpServers).toEqual({ server: { command: "node" } });
+    });
+
+    it("should warn about and skip a malformed .mcp.json, keeping the settings.json servers", async () => {
+      await writeSettings({ server: { command: "node" } });
+      await writeFileContent(join(testDir, ".mcp.json"), "{ not json");
+      const logger = createMockLogger();
+
+      const qwencodeMcp = await QwencodeMcp.fromFile({ outputRoot: testDir, logger });
+
+      expect(qwencodeMcp.getJson().mcpServers).toEqual({ server: { command: "node" } });
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining(".mcp.json"));
+    });
+
+    it("should not read the project .mcp.json in global mode", async () => {
+      await writeSettings({ globalServer: { command: "node" } });
+      await writeProjectMcpJson({ claude: { command: "claude" } });
+
+      const qwencodeMcp = await QwencodeMcp.fromFile({ outputRoot: testDir, global: true });
+
+      expect(qwencodeMcp.getJson().mcpServers).toEqual({ globalServer: { command: "node" } });
     });
   });
 
@@ -226,6 +361,31 @@ describe("QwencodeMcp", () => {
       expect(exported.mcpServers.server.excludeTools).toBeUndefined();
       expect(exported.mcpServers.remote.httpUrl).toBe("https://example.com/mcp");
       expect(rulesyncMcp.getRelativeDirPath()).toBe(RULESYNC_RELATIVE_DIR_PATH);
+    });
+
+    it("should import mcp.allowed/excluded into the qwencode block", () => {
+      const qwencodeMcp = new QwencodeMcp({
+        relativeDirPath: ".qwen",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          mcpServers: {},
+          mcp: { allowed: ["a", "b-*"], excluded: ["c"], serverCommand: "run-mcp" },
+        }),
+      });
+
+      const exported = JSON.parse(qwencodeMcp.toRulesyncMcp().getFileContent());
+      expect(exported.qwencode).toEqual({ allowed: ["a", "b-*"], excluded: ["c"] });
+    });
+
+    it("should not emit a qwencode block when the mcp object has no lists", () => {
+      const qwencodeMcp = new QwencodeMcp({
+        relativeDirPath: ".qwen",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({ mcpServers: {}, mcp: { serverCommand: "run-mcp" } }),
+      });
+
+      const exported = JSON.parse(qwencodeMcp.toRulesyncMcp().getFileContent());
+      expect(exported.qwencode).toBeUndefined();
     });
 
     it("should handle empty mcpServers object", () => {

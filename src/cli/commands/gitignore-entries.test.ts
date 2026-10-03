@@ -22,10 +22,13 @@ const logger = createMockLogger();
 // only into a user-owned shared settings file that rulesync must not gitignore.
 // Note: `amp` now has a `skills` entry (`.agents/skills/`); its MCP output still
 // lands in the user-owned `.amp/settings.{json,jsonc}`, which is not gitignored.
+// `warpcli` is global-only: its MCP and permissions files live in the Warp
+// Agent CLI's config root under the home directory, never in a project.
 const TARGETS_WITHOUT_GITIGNORE_ENTRIES = new Set([
   "agentsskills",
   "augmentcode-legacy",
   "claudecode-legacy",
+  "warpcli",
 ]);
 
 describe("GITIGNORE_ENTRY_REGISTRY", () => {
@@ -197,11 +200,20 @@ describe("registry derivation", () => {
       // Crush's personal project context file: Crush reads `CRUSH.local.md`
       // but, unlike CodeBuddy Code, does not gitignore it itself (issue #2954).
       "crush::rules::**/CRUSH.local.md",
+      // Reasonix loads `REASONIX.local.md` beside each `REASONIX.md` in the
+      // workspace chain as the personal, uncommitted variant.
+      "reasonix::rules::**/REASONIX.local.md",
       "claudecode::general::**/.claude/*.lock",
       "claudecode::general::**/.claude/settings.local.json",
       "claudecode::general::**/.claude/memories/",
       "opencode::general::**/.opencode/package-lock.json",
       "rovodev::general::**/.rovodev/.rulesync/",
+      // Qwen Code's `/review` cache, reports and scratch worktrees, and its
+      // fixed worktree root (issue #2668).
+      "qwencode::general::**/.qwen/review-cache/",
+      "qwencode::general::**/.qwen/reviews/",
+      "qwencode::general::**/.qwen/tmp/",
+      "qwencode::general::**/.qwen/worktrees/",
       "takt::general::**/.takt/runs/",
       "takt::general::**/.takt/tasks/",
       "takt::general::**/.takt/.cache/",
@@ -583,6 +595,7 @@ describe("committedOutput check outputs", () => {
     // ignoring them would disable the checks feature (#2487).
     expect(entries).not.toContain("**/.cursor/BUGBOT.md");
     expect(entries).not.toContain("**/.rovodev/.review-agent.md");
+    expect(entries).not.toContain("**/.qwen/review-rules.md");
     expect(entries).not.toContain("**/.gitlab/duo/mr-review-instructions.yaml");
   });
 

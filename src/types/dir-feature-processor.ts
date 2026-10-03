@@ -1,6 +1,7 @@
 import { dirname, join, relative, resolve } from "node:path";
 
 import { RULESYNC_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
+import type { DeletedPath } from "../lib/orphan-sweep.js";
 import {
   companionFileContentsEquivalent,
   fileContentsEquivalent,
@@ -93,6 +94,11 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
   protected readonly dryRun: boolean;
   protected readonly avoidBlockScalars: boolean;
   protected readonly logger: Logger;
+  /**
+   * Paths the orphan sweeps deleted (or, under `--dry-run`, would delete),
+   * relative to the output root like the paths `writeAiDirs` reports.
+   */
+  private readonly removedPaths: DeletedPath[] = [];
   constructor({
     outputRoot = process.cwd(),
     inputRoots,
@@ -438,7 +444,7 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
     isClaimed,
   }: {
     generatedDirs: AiDir[];
-    isClaimed: (path: string) => boolean;
+    isClaimed: (path: string) => boolean | Promise<boolean>;
   }): Promise<number> {
     if (hasIncompleteCarriedFiles()) {
       // Once per run, not once per target: the message is about the sources,
@@ -511,8 +517,13 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
       // symbolic link — to a vendored checkout, say — reads back a tree this
       // run never wrote and unlinks through the link into it. The other sweeps
       // never meet one: their candidates come from an enumeration that does not
-      // follow links. This one's come from the sources, so it asks here.
+      // follow links. This one's come from the sources, so it asks here — of
+      // the root as well, under the same guard the directory sweep puts on it:
+      // a root that is itself a link, such as a dotfiles checkout linked from
+      // the home directory, has its sweep skipped there, and a directory
+      // inside it must not be swept through the link here either.
       try {
+        await assertWritablePathInsideRoot({ rootPath: this.outputRoot, targetPath: root });
         await assertWritablePathInsideRoot({ rootPath: this.outputRoot, targetPath: dirPath });
       } catch (error) {
         this.logger.warn(
@@ -573,7 +584,7 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
           );
           continue;
         }
-        if (isClaimed(filePath)) {
+        if (await isClaimed(filePath)) {
           continue;
         }
         orphanPaths.add(filePath);
@@ -604,9 +615,22 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
         await (kind === "directory" ? removeDirectory(targetPath) : removeFile(targetPath));
         this.logger.info(`Deleted ${kind}: ${loggedPath}`);
       }
+      this.removedPaths.push({
+        path: toPosixPath(relative(resolve(this.outputRoot), resolve(targetPath))),
+        kind,
+      });
     }
 
     return paths.size;
+  }
+
+  /**
+   * The paths the orphan sweeps deleted, or would have deleted under
+   * `--dry-run`, so a preview and the run it previews report the same list.
+   * A deleted directory is listed once, by its own path.
+   */
+  getRemovedPaths(): readonly DeletedPath[] {
+    return this.removedPaths;
   }
 
   /**

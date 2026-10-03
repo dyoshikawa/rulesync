@@ -66,6 +66,7 @@ import { TraeMcp } from "./trae-mcp.js";
 import { VibeMcp } from "./vibe-mcp.js";
 import { VibePluginMcp } from "./vibe-plugin-mcp.js";
 import { WarpMcp } from "./warp-mcp.js";
+import { WarpcliMcp } from "./warpcli-mcp.js";
 import { ZcodeMcp } from "./zcode-mcp.js";
 import { ZcodePluginMcp } from "./zcode-plugin-mcp.js";
 import { ZedMcp } from "./zed-mcp.js";
@@ -733,6 +734,8 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
     {
       // Qwen Code reads MCP servers from the `mcpServers` key of
       // `.qwen/settings.json` (project) / `~/.qwen/settings.json` (global).
+      // Project import also reads the Claude-parity root `.mcp.json` beneath
+      // settings (settings win); generation never writes it.
       // It supports per-server tool filtering via `includeTools` (allowlist)
       // and `excludeTools` (denylist), which the adapter maps to/from
       // rulesync's `enabledTools`/`disabledTools`.
@@ -897,6 +900,23 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
       class: WarpMcp,
       meta: {
         supportsProject: true,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
+    "warpcli",
+    {
+      // The standalone Warp Agent CLI reads MCP servers only from its own
+      // global `.mcp.json` ("Project-scoped MCP config files in repositories
+      // are not detected"); the path differs per platform, resolved in
+      // WarpcliMcp.getSettablePaths.
+      // https://docs.warp.dev/agents/cli/configuration/
+      class: WarpcliMcp,
+      meta: {
+        supportsProject: false,
         supportsGlobal: true,
         supportsEnabledTools: false,
         supportsDisabledTools: false,

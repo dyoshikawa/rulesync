@@ -127,7 +127,7 @@ export class ReasonixSubagent extends ToolSubagent {
     };
 
     return new RulesyncSubagent({
-      outputRoot: this.getOutputRoot(),
+      outputRoot: ".", // RulesyncSubagent outputRoot is always the project root directory
       frontmatter: rulesyncFrontmatter,
       body: this.body,
       relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,

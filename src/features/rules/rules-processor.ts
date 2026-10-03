@@ -9,6 +9,7 @@ import { CRUSH_LOCAL_RULE_FILE_NAME } from "../../constants/crush-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { QODER_LOCAL_RULE_FILE_NAME } from "../../constants/qoder-paths.js";
 import { QWENCODE_DIR, QWENCODE_LOCAL_RULE_FILE_NAME } from "../../constants/qwencode-paths.js";
+import { REASONIX_LOCAL_RULE_FILE_NAME } from "../../constants/reasonix-paths.js";
 import {
   CURATED_RULES_FEATURE_SUBDIR,
   RULES_FEATURE_SUBDIR,
@@ -89,6 +90,7 @@ import { GrokcliRule } from "./grokcli-rule.js";
 import { HermesagentRule } from "./hermesagent-rule.js";
 import { JunieRule } from "./junie-rule.js";
 import { KiloRule } from "./kilo-rule.js";
+import { KimiCodePluginRule } from "./kimi-code-plugin-rule.js";
 import { KimiCodeRule } from "./kimi-code-rule.js";
 import { KiroCliRule } from "./kiro-cli-rule.js";
 import { KiroIdeRule } from "./kiro-ide-rule.js";
@@ -481,15 +483,14 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
     {
       class: AntigravityCliRule,
       meta: {
-        // The Antigravity CLI shares Gemini-CLI-class context files: a root
-        // context file (project `AGENTS.md`, global `~/.gemini/GEMINI.md`) that
-        // @-references non-root memory files under `.agents/rules/`. In global
-        // mode, non-root rules go to `~/.gemini/config/rules/`, which the CLI
-        // loads by itself, so `GEMINI.md` carries no reference block there.
+        // The Antigravity CLI loads non-root rules by itself — trigger-tagged
+        // files under `.agents/rules/` (project) and `~/.gemini/config/rules/`
+        // (global) — so the root context file (project `AGENTS.md`, global
+        // `~/.gemini/GEMINI.md`) carries no reference block, matching
+        // `antigravity-ide`, which writes the same project files.
         extension: "md",
         supportsGlobal: true,
-        ruleDiscoveryMode: "toon",
-        ruleDiscoveryModeGlobal: "auto",
+        ruleDiscoveryMode: "auto",
         sharedGlobalNonRootDir: true,
       },
     },
@@ -919,6 +920,21 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
     },
   ],
   [
+    "kimi-code-plugin",
+    {
+      // A Kimi Code plugin contributes one instructions file, `<plugin>/SYSTEM.md`
+      // (referenced by `systemPromptPath`), so topic rules fold into it.
+      // https://github.com/MoonshotAI/kimi-code/blob/%40moonshot-ai/kimi-code%402.1.1/docs/en/customization/plugins.md
+      class: KimiCodePluginRule,
+      meta: {
+        extension: "md",
+        supportsGlobal: false,
+        ruleDiscoveryMode: "auto",
+        collisionPolicy: "fold",
+      },
+    },
+  ],
+  [
     "kiro",
     {
       class: KiroRule,
@@ -1128,11 +1144,14 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         // (mirrors codexcli) — except directory-scoped rules
         // (`agentsmd.subprojectPath`), which Context Engine v2 (v1.18.0) loads
         // per-directory and are emitted as nested `<dir>/REASONIX.md` files
-        // (imported back via `getNestedFilePatterns`).
+        // (imported back via `getNestedFilePatterns`). A `localRoot` rule goes
+        // to the uncommitted `REASONIX.local.md` Reasonix loads beside it.
         extension: "md",
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",
         collisionPolicy: "fold",
+        localRootMode: "separate-local-file",
+        localRootFileName: REASONIX_LOCAL_RULE_FILE_NAME,
       },
     },
   ],
@@ -2443,10 +2462,14 @@ export class RulesProcessor extends FeatureProcessor {
         localRoot,
       });
     }
-    if (isClassOrSubclassOf({ candidate: factory.class, base: CrushRule })) {
-      // Crush reads `CRUSH.local.md` from the working directory root, the same
-      // place as the shared `CRUSH.md`; it has no tool directory to put it in.
-      return new CrushRule({
+    // Crush and Reasonix both read their `.local` file from the working
+    // directory root, next to the shared root file (`CRUSH.md` / `REASONIX.md`);
+    // neither has a tool directory to put it in.
+    const workingRootClass = [CrushRule, ReasonixRule].find((base) =>
+      isClassOrSubclassOf({ candidate: factory.class, base }),
+    );
+    if (workingRootClass) {
+      return new workingRootClass({
         outputRoot: this.outputRoot,
         relativeDirPath: relativeDirPath ?? ".",
         relativeFilePath: fileName,

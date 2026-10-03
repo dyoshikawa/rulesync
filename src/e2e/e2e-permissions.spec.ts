@@ -12,6 +12,7 @@ import {
   RULESYNC_PERMISSIONS_SCHEMA_URL,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
+import { warpcliConfigDir } from "../constants/warp-paths.js";
 import { getZedGlobalDir } from "../constants/zed-paths.js";
 import { PermissionsProcessor } from "../features/permissions/permissions-processor.js";
 import { fileExists, readFileContent, writeFileContent } from "../utils/file.js";
@@ -89,6 +90,7 @@ const permissionsGlobalTargets = [
   "continue",
   "antigravity-cli",
   "warp",
+  "warpcli",
   "deepagents",
   "zed",
   "amp",
@@ -3451,6 +3453,45 @@ describe("E2E: permissions (global mode)", () => {
     expect(generated).toContain("agent_mode_command_execution_allowlist");
     expect(generated).toContain("git status .*");
     expect(generated).toContain("rm -rf .*");
+  });
+
+  it("should generate warpcli permissions in home directory with --global", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "git status .*": "allow", "rm -rf .*": "deny" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({
+      target: "warpcli",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    // The Warp Agent CLI keeps its own platform-specific settings.toml and
+    // always runs the `default` execution profile, so the command lists land
+    // there directly — no legacy [agents.profiles] keys.
+    const generated = smolToml.parse(
+      await readFileContent(join(homeDir, warpcliConfigDir(), "settings.toml")),
+    );
+    expect(generated).toEqual({
+      agents: {
+        execution_profiles: {
+          default: { command_allowlist: ["git status .*"], command_denylist: ["rm -rf .*"] },
+        },
+      },
+    });
   });
 
   it("should generate deepagents permissions in home directory with --global", async () => {

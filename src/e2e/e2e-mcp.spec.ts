@@ -11,6 +11,7 @@ import {
   RULESYNC_MCP_RELATIVE_FILE_PATH,
   RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH,
 } from "../constants/rulesync-paths.js";
+import { warpcliConfigDir } from "../constants/warp-paths.js";
 import { getZedGlobalDir } from "../constants/zed-paths.js";
 import { McpProcessor } from "../features/mcp/mcp-processor.js";
 import { fileExists, readFileContent, writeFileContent } from "../utils/file.js";
@@ -212,6 +213,40 @@ describe("E2E: mcp", () => {
         url: "https://example.com/events",
       },
     });
+  });
+
+  it("should generate and import the Qwen Code server allow/deny lists", async () => {
+    const testDir = getTestDir();
+
+    // Hand-written keys in `mcp` that rulesync does not manage must survive.
+    await writeFileContent(
+      join(testDir, ".qwen", "settings.json"),
+      JSON.stringify({ mcp: { serverCommand: "keep-me" } }),
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH),
+      JSON.stringify({
+        mcpServers: { local: { type: "stdio", command: "node", args: ["server.js"] } },
+        qwencode: { allowed: ["local"], excluded: ["legacy-*"] },
+      }),
+    );
+
+    await runGenerate({ target: "qwencode", features: "mcp" });
+
+    const generated = JSON.parse(await readFileContent(join(testDir, ".qwen", "settings.json")));
+    expect(generated.mcp).toEqual({
+      serverCommand: "keep-me",
+      allowed: ["local"],
+      excluded: ["legacy-*"],
+    });
+    expect(generated.mcpServers.local.command).toBe("node");
+
+    await runImport({ target: "qwencode", features: "mcp" });
+
+    const imported = JSON.parse(
+      await readFileContent(join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH)),
+    );
+    expect(imported.qwencode).toEqual({ allowed: ["local"], excluded: ["legacy-*"] });
   });
 
   it("should translate copilotcli enabledTools into the tools allowlist in both directions", async () => {
@@ -987,6 +1022,7 @@ const mcpGlobalTargets = [
     outputPath: join(".gemini", "config", "mcp_config.json"),
   },
   { target: "warp", outputPath: join(".warp", ".mcp.json") },
+  { target: "warpcli", outputPath: join(warpcliConfigDir(), ".mcp.json") },
   { target: "zed", outputPath: join(getZedGlobalDir(), "settings.json") },
   {
     target: "devin",

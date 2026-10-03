@@ -256,6 +256,7 @@ describe("generate", () => {
     getFeatures: ReturnType<typeof vi.fn>;
     getFeatureOptions: ReturnType<typeof vi.fn>;
     getDelete: ReturnType<typeof vi.fn>;
+    getRetireTargets: ReturnType<typeof vi.fn>;
     getCheck: ReturnType<typeof vi.fn>;
     getGlobal: ReturnType<typeof vi.fn>;
     getSimulateCommands: ReturnType<typeof vi.fn>;
@@ -285,6 +286,7 @@ describe("generate", () => {
       getFeatureOptions: vi.fn().mockReturnValue(undefined),
       getConfigFileFeatureOptions: vi.fn().mockReturnValue(undefined),
       getDelete: vi.fn().mockReturnValue(false),
+      getRetireTargets: vi.fn().mockReturnValue([]),
       getCheck: vi.fn().mockReturnValue(false),
       getGlobal: vi.fn().mockReturnValue(false),
       getSimulateCommands: vi.fn().mockReturnValue(false),
@@ -1038,6 +1040,7 @@ describe("generate", () => {
           {
             dir: "skill",
             getDirPath: () => "/path/to/skill",
+            getOutputRoot: () => "/path/to",
             ownsDirTree: () => true,
             getMainFile: () => undefined,
             getOtherFiles: () => [],
@@ -1109,6 +1112,7 @@ describe("generate", () => {
         {
           dir: "existing-skill",
           getDirPath: () => "/path/to/existing",
+          getOutputRoot: () => "/path/to",
           ownsDirTree: () => true,
           getMainFile: () => undefined,
           getOtherFiles: () => [],
@@ -1118,6 +1122,7 @@ describe("generate", () => {
         {
           dir: "generated-skill",
           getDirPath: () => "/path/to/generated",
+          getOutputRoot: () => "/path/to",
           ownsDirTree: () => true,
           getMainFile: () => undefined,
           getOtherFiles: () => [],
@@ -1203,6 +1208,7 @@ describe("generate", () => {
       const generatedDirs = [
         {
           getDirPath: () => "/path/to/.claude/skills/kept",
+          getOutputRoot: () => "/path/to",
           ownsDirTree: () => true,
           getMainFile: () => ({ name: "SKILL.md", body: "" }),
           getOtherFiles: () => [],

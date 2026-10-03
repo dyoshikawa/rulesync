@@ -60,6 +60,7 @@ const rulesRootTargets = [
   // (issue #2406); .devin/rules/ holds non-root Cascade rules.
   { target: "devin", outputPath: "AGENTS.md" },
   { target: "devin-plugin", outputPath: "AGENTS.md" },
+  { target: "kimi-code-plugin", outputPath: "SYSTEM.md" },
   { target: "replit", outputPath: "replit.md" },
   { target: "pi", outputPath: "AGENTS.md" },
   { target: "zed", outputPath: ".rules" },
@@ -87,6 +88,7 @@ const rulesNonRootTargets = [
   { target: "kiro-cli", outputPath: join(".kiro", "steering", "overview.md") },
   { target: "kiro-ide", outputPath: join(".kiro", "steering", "overview.md") },
   { target: "antigravity-ide", outputPath: join(".agents", "rules", "overview.md") },
+  { target: "antigravity-cli", outputPath: join(".agents", "rules", "overview.md") },
   { target: "antigravity-plugin", outputPath: join("rules", "overview.md") },
   { target: "augmentcode-plugin", outputPath: join("rules", "overview.md") },
   { target: "augmentcode", outputPath: join(".augment", "rules", "overview.md") },

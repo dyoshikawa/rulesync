@@ -273,6 +273,73 @@ describe("OpencodeHooks", () => {
       expect(content).not.toContain("input.tool");
     });
 
+    it("emits the session-deleted, slash-command and model-request events", () => {
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            sessionDelete: [{ command: "on-delete.sh" }],
+            userPromptExpansion: [
+              { command: "any-command.sh" },
+              { command: "deploy-command.sh", matcher: "^deploy$" },
+            ],
+            preModelInvocation: [{ command: "pre-model.sh" }],
+          },
+        }),
+        validate: false,
+      });
+
+      const content = OpencodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      }).getFileContent();
+
+      expect(content).toContain('event.type === "session.deleted"');
+      expect(content).toContain("on-delete.sh");
+
+      // command.execute.before is a named hook whose matcher is tested
+      // against the slash command name.
+      expect(content).toContain('"command.execute.before": async (input) => {');
+      expect(content).toContain("any-command.sh");
+      expect(content).toContain('const __re = new RegExp("^deploy$");');
+      expect(content).toContain("if (__re.test(input.command)) {");
+      expect(content).toContain("deploy-command.sh");
+      expect(content).not.toContain('event.type === "command.execute.before"');
+
+      // chat.params is a named hook fired before every LLM request.
+      expect(content).toContain('"chat.params": async (input) => {');
+      expect(content).toContain("pre-model.sh");
+      expect(content).not.toContain('event.type === "chat.params"');
+
+      execFileSync("node", ["--input-type=module", "--check"], { input: content });
+    });
+
+    it("drops a matcher on the model-request hook, which has nothing to match on", () => {
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: { preModelInvocation: [{ command: "pre-model.sh", matcher: "build" }] },
+        }),
+        validate: false,
+      });
+
+      const content = OpencodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      }).getFileContent();
+
+      expect(content).not.toContain("pre-model.sh");
+      expect(content).not.toContain("new RegExp");
+    });
+
     it("should generate tool event handlers with matcher support", () => {
       const config = {
         version: 1,

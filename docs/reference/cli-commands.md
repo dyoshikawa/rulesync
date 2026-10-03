@@ -34,6 +34,7 @@ rulesync generate --targets augmentcode-plugin --features rules,mcp,commands,sub
 rulesync generate --targets zcode-plugin --features mcp,commands,subagents,skills,hooks --output-roots ./plugins/review-tools
 rulesync generate --targets vibe-plugin --features mcp,subagents,skills,hooks --output-roots ./plugins/review-tools
 rulesync generate --targets devin-plugin --features rules,mcp,subagents,skills,hooks --output-roots ./plugins/review-tools
+rulesync generate --targets kimi-code-plugin --features rules,commands,subagents,skills --output-roots ./plugins/review-tools
 
 # Generate only rules (no MCP, permissions, commands, or subagents)
 rulesync generate --targets "*" --features rules
@@ -163,6 +164,7 @@ The `generate` command reads source files from one or more rulesync source trees
 | `--simulate-subagents`      | Generate simulated subagents for tools that do not support them natively                                                                                                                                                                                                                                                                                                                  | `false`               |
 | `--simulate-skills`         | Generate simulated skills for tools that do not support them natively                                                                                                                                                                                                                                                                                                                     | `false`               |
 | `--delete`                  | Delete existing generated files before writing                                                                                                                                                                                                                                                                                                                                            | From `rulesync.jsonc` |
+| `--retire-targets <tools>`  | Comma-separated list of tools the project no longer uses; deletes the outputs Rulesync manages for them (requires `--features`; see below)                                                                                                                                                                                                                                                | -                     |
 | `--watch, -w`               | Keep running and regenerate whenever rulesync source files change                                                                                                                                                                                                                                                                                                                         | `false`               |
 | `--config, -c <path>`       | Path to the configuration file to load (`rulesync.local.jsonc` next to it still overlays it)                                                                                                                                                                                                                                                                                              | `rulesync.jsonc`      |
 
@@ -173,6 +175,45 @@ The `generate` command reads source files from one or more rulesync source trees
 > `rulesync generate` with the same options but without `--targets` would
 > build it. See
 > [Target Order and File Conflicts](../guide/configuration.md#target-order-and-file-conflicts).
+
+> **Retiring a target:** Leaving a tool out of `targets` (or out of
+> `--targets`) never deletes its files — not even with `--delete` — because an
+> omitted target only means "not processed in this run". To remove the outputs
+> of a tool the project has dropped, name it and the features Rulesync
+> generated for it explicitly:
+>
+> ```bash
+> # rulesync.jsonc no longer lists cursor; Rulesync generated its rules and mcp
+> rulesync generate --retire-targets cursor --features rules,mcp --dry-run   # preview
+> rulesync generate --retire-targets cursor --features rules,mcp
+> ```
+>
+> For each listed feature, Rulesync deletes the files it would sweep with
+> `--delete` for that tool — the same managed paths, nothing else. Note that
+> `--features` scopes the whole run, not only the retirement — except with the
+> object form of `targets`, where the run keeps each target's configured
+> features and `--features` only names what to retire. The listed features
+> apply to every retired tool, and a managed path is deleted even if you
+> edited it by hand, so preview with `--dry-run` first.
+>
+> - Unrelated files beside the managed paths stay, a shared file another tool
+>   merges into (such as `.claude/settings.json`) is never removed, and a
+>   hand-written legacy root Rulesync only reads (such as `.claude/CLAUDE.md`)
+>   is kept.
+> - A path a configured target writes in the same run (for example
+>   `AGENTS.md` written by `codexcli` while `agentsmd` is retired) is kept.
+> - Retirement is idempotent, so an interrupted run can simply be repeated.
+>   `--check` fails while retired outputs remain, and `--json` lists the
+>   retired paths among the deletions.
+> - The option is CLI-only on purpose: retirement is a one-off migration step,
+>   not a standing setting. It requires `--features` (without `*`), and cannot
+>   be combined with `--targets` or `--watch`. A retired target may not also
+>   appear in `targets`.
+> - Retirement is skipped with a warning in global mode, when the
+>   configuration file declares targets the run does not cover, and when any
+>   `.rulesync` source file could not be read.
+> - With the object form of `outputRoots`, keep an entry for the retired
+>   target so its outputs can be located.
 
 > **Note on `--delete` and shared output directories:** Several targets write
 > into one directory on purpose — `.agents/agents/`, `.agents/skills/`, and the
@@ -213,6 +254,14 @@ The `generate` command reads source files from one or more rulesync source trees
 > warning — sweeps no skill directory from the inside at all: with the source
 > only partly read, a generated file it cannot account for may be one it still
 > wants.
+>
+> An output directory reached through a symbolic link that leads outside the
+> output root — a checked-out `.cursor/commands -> ~/notes`, say — is not swept
+> either: what the sweep would list there are files in the link's target, not
+> Rulesync's output, so each one is kept and named in a `Refusing to delete`
+> warning, the same way a write through such a link is refused. A link that stays
+> inside the output root is followed as usual, and an orphan that is itself a
+> symbolic link is removed as a link, leaving its target untouched.
 
 > **Note on unreadable sources:** This applies to the single-file features —
 > `mcp`, `hooks`, `permissions`, and `ignore` — each of which is generated from
@@ -269,6 +318,44 @@ rulesync generate --check --targets "*" --features "*"
 rulesync generate --watch
 ```
 
+### Mutation plan in JSON output
+
+With the global `--json` flag, `generate` reports the files it wrote and the orphans it deleted — or, under `--dry-run` and `--check`, would write and delete — as a versioned `plan`, next to the existing per-feature `features` summary:
+
+```json
+{
+  "success": true,
+  "command": "generate",
+  "data": {
+    "features": { "…": "…" },
+    "plan": {
+      "version": 1,
+      "operations": [
+        { "action": "write", "kind": "file", "feature": "rules", "path": "CLAUDE.md" },
+        {
+          "action": "delete",
+          "kind": "file",
+          "feature": "rules",
+          "path": ".claude/rules/retired.md"
+        },
+        {
+          "action": "delete",
+          "kind": "directory",
+          "feature": "skills",
+          "path": ".claude/skills/retired"
+        }
+      ]
+    }
+  }
+}
+```
+
+- `action` is `write` or `delete`; `kind` is `file` or `directory`. A deleted directory is listed once, by its own path, together with everything under it. Deletions come from the `--delete` orphan sweep, so without `--delete` the plan holds writes only.
+- `path` is relative to the output root, with `/` separators, and the operation does not name the root. A path several targets write is listed once, and so is a relative path that stands for a file in each of several output roots (`--output-roots a b`, or a tool home override such as `HERMES_HOME`): run one output root at a time when a consumer has to tell them apart.
+- The order is deterministic — features in summary order, writes before deletes within a feature, paths sorted — so a `--dry-run` plan can be compared operation by operation with the plan the following real run reports.
+- A failing command's document carries no `data`, so when `--check` finds the tree out of date, or a `.rulesync/` source could not be read, the plan is reported as `error.details.plan` instead.
+- A shared configuration file Rulesync merges into (`.claude/settings.json`, `.codex/config.toml`, …) appears as a `write` of the whole file, even when only Rulesync-managed keys change. Two rewrites the `--delete` sweep itself makes are not listed at all: disabling the Hermes Agent commands plugin in its `config.yaml` and retracting Goose slash commands — so `--check` can fail with an empty `operations` list when one of them is the only difference. `version` is bumped whenever an operation gains a new `action` or `kind` value or an existing field changes meaning, so a consumer that authorizes operations should refuse a version it does not know.
+
 ### Watch mode
 
 `generate --watch` runs one generation immediately and then keeps running, regenerating whenever the rulesync sources change. It is meant for iterating on rules, commands, subagents or skills without re-running the command by hand.
@@ -288,7 +375,7 @@ The override must be a usable directory: an empty value is ignored (the default 
 
 ### Shared config files are never created empty
 
-Some outputs are files Rulesync merges into rather than owns, because the tool (or you) keeps unrelated settings there: `.amp/settings.json(c)`, `.antigravity/settings.json`, `.claude/settings.json`, `.claude/settings.local.json`, `.codex/config.toml`, `.copilot/settings.json`, `.devin/config.json`, `.factory/settings.json`, `.github/copilot/settings.json`, `.grok/config.toml`, `.vibe/config.toml`, `.vscode/settings.json`, `.zcode/config.json`, `.zcode/cli/config.json`, `.zed/settings.json`, `kilo.json(c)`, `.mimocode/mimocode.json(c)`, `opencode.json(c)`, and `reasonix.toml`. These are deliberately **not** added to `.gitignore` by `rulesync gitignore`, so that settings you hand-author in them stay version-controlled.
+Some outputs are files Rulesync merges into rather than owns, because the tool (or you) keeps unrelated settings there: `.amp/settings.json(c)`, `.antigravity/settings.json`, `.claude/settings.json`, `.claude/settings.local.json`, `.codex/config.toml`, `.copilot/settings.json`, `.devin/config.json`, `.factory/settings.json`, `.github/copilot/settings.json`, `.grok/config.toml`, `.grok/sandbox.toml`, `.vibe/config.toml`, `.vscode/settings.json`, `.zcode/config.json`, `.zcode/cli/config.json`, `.zed/settings.json`, `kilo.json(c)`, `.mimocode/mimocode.json(c)`, `opencode.json(c)`, and `reasonix.toml`. These are deliberately **not** added to `.gitignore` by `rulesync gitignore`, so that settings you hand-author in them stay version-controlled.
 
 Because they stay committable, `generate` will not **create** one of them just to hold an empty payload: if Rulesync has nothing to contribute (e.g. no permissions map to that tool), the file is left absent instead of being written as `{}`. A file that already exists is always rewritten as usual, so nothing you authored is dropped. Every other generated file is written even when empty, since for a file Rulesync owns its existence is part of the output.
 

@@ -232,6 +232,7 @@ rulesync.local.jsonc
 **/CODEBUDDY.local.md
 **/.codebuddy/CODEBUDDY.local.md
 **/CRUSH.local.md
+**/REASONIX.local.md
 **/.vibe/prompts/
 **/.claude/*.lock
 **/.claude/settings.local.json
@@ -243,6 +244,10 @@ rulesync.local.jsonc
 **/.commandcode/settings.local.json
 **/.letta/settings.local.json
 **/.rovodev/.rulesync/
+**/.qwen/review-cache/
+**/.qwen/reviews/
+**/.qwen/tmp/
+**/.qwen/worktrees/
 **/.takt/runs/
 **/.takt/tasks/
 **/.takt/.cache/

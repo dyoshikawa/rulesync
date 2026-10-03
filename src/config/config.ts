@@ -196,6 +196,16 @@ export type ConfigParams = Omit<InferredConfigParams, "targets" | "features"> & 
   targets?: RulesyncConfigTargets;
   features?: RulesyncFeatures;
   configFileTargets?: ToolTarget[];
+  // Targets the project has dropped: `generate` removes the outputs they would
+  // otherwise own, using the same managed-output listing as `--delete`.
+  // Explicit on purpose — a target merely left out of `targets` is never
+  // swept. A one-shot action, so it is a CLI flag (`--retire-targets`) and
+  // stays out of `ConfigParamsSchema`: kept in `rulesync.jsonc` it would delete
+  // whatever the user later puts at those paths by hand, on every run.
+  retireTargets?: ToolTarget[];
+  // The features whose outputs `retireTargets` removes (the CLI `--features`
+  // of a retiring run). Defaults to the run's features.
+  retireFeatures?: RulesyncFeatures;
   // The `targets` / `features` selection exactly as the configuration file
   // declares it, before any CLI override. Set by `ConfigResolver`; lets a
   // `--targets`/`--features` run ask which features a target has in a full run.
@@ -444,6 +454,8 @@ export class Config {
   private readonly gitignoreDestination: GitignoreDestination;
   private readonly dryRun: boolean;
   private readonly check: boolean;
+  private readonly retireTargets: ToolTarget[];
+  private readonly retireFeatures: RulesyncFeatures | undefined;
   /**
    * Ordered, absolute-path list of rulesync source trees. Each entry is a
    * source tree itself — the directory that directly contains `rules/`,
@@ -483,6 +495,8 @@ export class Config {
     gitignoreDestination,
     dryRun,
     check,
+    retireTargets,
+    retireFeatures,
     inputRoot,
     inputRoots,
     configFilePath,
@@ -549,6 +563,9 @@ export class Config {
     this.gitignoreDestination = gitignoreDestination ?? "gitignore";
     this.dryRun = dryRun ?? false;
     this.check = check ?? false;
+    this.retireTargets = [...new Set(retireTargets ?? [])];
+    this.retireFeatures = retireFeatures;
+    this.validateRetireTargets({ configFileTargets });
     // Capture the input roots once at construction time so subsequent
     // `getInputRoots()` calls are pure (independent of any later `chdir`).
     // Relative entries are resolved against the current working directory
@@ -594,6 +611,46 @@ export class Config {
       if (!validTargets.has(key)) {
         throw new Error(`Unknown target '${key}'. Valid targets: ${ALL_TOOL_TARGETS.join(", ")}.`);
       }
+    }
+  }
+
+  /**
+   * A retired target must not also be generated: the run would write its
+   * outputs and sweep them in the same breath. The configuration file's
+   * targets count too, so a `--targets` run cannot retire a target the project
+   * still declares.
+   */
+  private validateRetireTargets({
+    configFileTargets,
+  }: {
+    configFileTargets: ToolTarget[] | undefined;
+  }): void {
+    if (this.retireTargets.length === 0) return;
+    // The CLI flag reaches here without passing through the schema.
+    const validTargets = new Set<string>(ALL_TOOL_TARGETS);
+    for (const target of this.retireTargets) {
+      if (!validTargets.has(target)) {
+        throw new Error(
+          `Unknown target '${target}' in retireTargets. Valid targets: ${ALL_TOOL_TARGETS.join(", ")}.`,
+        );
+      }
+    }
+    // With object-form `targets`, the CLI `--features` list reaches only
+    // here, never the run's own feature validation.
+    const validFeatures = new Set<string>([...ALL_FEATURES, "*"]);
+    for (const feature of this.retireFeatures ?? []) {
+      if (!validFeatures.has(feature)) {
+        throw new Error(
+          `Unknown feature '${feature}' in --features. Valid features: ${ALL_FEATURES.join(", ")}.`,
+        );
+      }
+    }
+    const activeTargets = new Set([...this.getTargets(), ...(configFileTargets ?? [])]);
+    const conflicting = this.retireTargets.filter((target) => activeTargets.has(target));
+    if (conflicting.length > 0) {
+      throw new Error(
+        `Cannot retire target(s) that are still configured: ${conflicting.join(", ")}. Remove them from 'targets' first.`,
+      );
     }
   }
 
@@ -892,6 +949,20 @@ export class Config {
 
   public getDelete(): boolean {
     return this.delete;
+  }
+
+  /**
+   * Targets whose managed outputs `generate` removes. Never overlaps
+   * {@link getTargets}.
+   */
+  public getRetireTargets(): ToolTarget[] {
+    return this.retireTargets;
+  }
+
+  public getRetireFeatures(): Features {
+    return this.retireFeatures === undefined
+      ? this.getFeatures()
+      : [...new Set(Config.normalizeFeatureList(this.retireFeatures))];
   }
 
   public getGlobal(): boolean {

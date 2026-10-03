@@ -2290,6 +2290,34 @@ Test skill content`;
       expect(dirsToDelete[0]?.getDirName()).toBe("test-skill");
     });
 
+    it.skipIf(process.platform === "win32")(
+      "should warn and skip a skills root that is a symbolic link, even one inside the output root",
+      async () => {
+        // A dotfiles checkout linked from inside the home directory. Sweeping
+        // through the link could delete entries rulesync does not manage, and
+        // the writes already landed, so the root is skipped rather than
+        // failing the run.
+        const logger = createMockLogger();
+        const processor = new SkillsProcessor({
+          logger,
+          outputRoot: testDir,
+          toolTarget: "claudecode",
+        });
+        const linkedSkillsDir = join(testDir, "dotfiles", "claude-skills");
+        await writeFileContent(
+          join(linkedSkillsDir, "stale", "SKILL.md"),
+          "---\nname: stale\ndescription: Test skill\n---\nContent",
+        );
+        await ensureDir(join(testDir, ".claude"));
+        await symlink(linkedSkillsDir, join(testDir, ".claude", "skills"));
+
+        expect(await processor.loadToolDirsToDelete()).toEqual([]);
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining("Skipping the orphan sweep"),
+        );
+      },
+    );
+
     it("should not sweep a committed project skills root (gitlabduo)", async () => {
       // GitLab Duo reads project skills from the repository-root `skills/`,
       // which routinely holds hand-authored skills rulesync never generated.
@@ -2682,6 +2710,7 @@ Content that would fail parsing`;
           "junie",
           "kilo",
           "kimi-code",
+          "kimi-code-plugin",
           "kiro",
           "kiro-cli",
           "kiro-ide",
@@ -2751,6 +2780,7 @@ Content that would fail parsing`;
           "junie",
           "kilo",
           "kimi-code",
+          "kimi-code-plugin",
           "kiro",
           "kiro-cli",
           "kiro-ide",
@@ -2819,6 +2849,7 @@ Content that would fail parsing`;
           "junie",
           "kilo",
           "kimi-code",
+          "kimi-code-plugin",
           "kiro",
           "kiro-cli",
           "kiro-ide",

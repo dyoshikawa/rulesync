@@ -257,6 +257,8 @@ export const HOOK_EVENTS = [
   "elicitation",
   "elicitationResult",
   "sessionDelete",
+  "preModelSwitch",
+  "postModelSwitch",
 ] as const;
 
 /** All canonical hook event names. */
@@ -330,6 +332,12 @@ export const CLAUDE_HOOK_EVENTS: readonly HookEvent[] = [
   "postCompact",
   "elicitation",
   "elicitationResult",
+  // Added in 2.1.251. `PreModelSwitch` runs before a requested model switch and
+  // can block it; `PostModelSwitch` runs after the session's model changes. Both
+  // match on the canonical name of the model being switched to.
+  // https://code.claude.com/docs/en/hooks
+  "preModelSwitch",
+  "postModelSwitch",
 ];
 
 /**
@@ -387,12 +395,16 @@ export const OPENCODE_HOOK_EVENTS: readonly HookEvent[] = [
   "notification",
   "permissionDenied",
   "beforeSubmitPrompt",
+  "sessionDelete",
+  "userPromptExpansion",
+  "preModelInvocation",
 ];
 
 /**
  * Hook events supported by Kilo. Kilo's plugin docs list the same event surface
  * as OpenCode's — including `session.compacted`, `session.error`,
- * `file.watcher.updated`, `permission.replied`, `chat.message` and the
+ * `file.watcher.updated`, `permission.replied`, `session.deleted`,
+ * `chat.message`, `chat.params`, `command.execute.before` and the
  * experimental compaction hook — with one exception: they document no TUI
  * events at all, so `tui.toast.show` (canonical `notification`) is left out
  * rather than emitted into a plugin where it may never fire.
@@ -402,6 +414,19 @@ export const OPENCODE_HOOK_EVENTS: readonly HookEvent[] = [
 export const KILO_HOOK_EVENTS: readonly HookEvent[] = OPENCODE_HOOK_EVENTS.filter(
   (event) => event !== "notification",
 );
+
+/**
+ * OpenCode-style (OpenCode, Kilo, MiMo Code) events whose generated handler
+ * can honor a `matcher`: the named hooks that expose a matchable subject —
+ * `tool.execute.before/after` (`input.tool`) and `command.execute.before`
+ * (`input.command`). See `NAMED_HOOK_MATCHER_SUBJECTS` in
+ * `opencode-style-generator.ts`.
+ */
+export const OPENCODE_MATCHER_HOOK_EVENTS: readonly HookEvent[] = [
+  "preToolUse",
+  "postToolUse",
+  "userPromptExpansion",
+];
 
 /**
  * Hook events supported by Pi Coding Agent, bridged through a generated
@@ -1792,6 +1817,8 @@ export const CANONICAL_TO_CLAUDE_EVENT_NAMES: Record<string, string> = {
   postCompact: "PostCompact",
   elicitation: "Elicitation",
   elicitationResult: "ElicitationResult",
+  preModelSwitch: "PreModelSwitch",
+  postModelSwitch: "PostModelSwitch",
 };
 
 /**
@@ -1949,9 +1976,15 @@ export const CANONICAL_TO_OPENCODE_EVENT_NAMES: Record<string, string> = {
   // `NAMED_HOOK_MATCHER_SUBJECTS` in `opencode-style-generator.ts`.
   preCompact: "experimental.session.compacting",
   beforeSubmitPrompt: "chat.message",
+  // Fires only for slash commands, on the expanded parts right before they
+  // are submitted (`chat.message` covers every prompt).
+  userPromptExpansion: "command.execute.before",
+  // Fires before every LLM request, for the main agent and subagents alike.
+  preModelInvocation: "chat.params",
   postCompact: "session.compacted",
   afterError: "session.error",
   fileChanged: "file.watcher.updated",
+  sessionDelete: "session.deleted",
 };
 
 /**

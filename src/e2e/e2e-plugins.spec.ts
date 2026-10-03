@@ -542,6 +542,122 @@ Review the current changes.
     expect(await fileExists(join(pluginRoot, ".devin-plugin", "plugin.json"))).toBe(true);
   });
 
+  it("generates and imports a Kimi Code plugin from an explicit plugin root", async () => {
+    const testDir = getTestDir();
+    const pluginRoot = join(testDir, "packages", "review-plugin");
+    const rulesyncRulesDir = join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH);
+    const rulesyncCommandPath = join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "review.md");
+    const rulesyncSubagentPath = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "reviewer.md");
+    const rulesyncSkillPath = join(
+      testDir,
+      RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+      "review",
+      "SKILL.md",
+    );
+    const manifest = {
+      name: "review-plugin",
+      skills: "./skills/",
+      commands: "./commands/",
+      systemPromptPath: "./SYSTEM.md",
+    };
+
+    await writeFileContent(
+      join(rulesyncRulesDir, "overview.md"),
+      `---
+root: true
+targets: ["kimi-code-plugin"]
+---
+Always follow the review checklist.
+`,
+    );
+    await writeFileContent(
+      join(rulesyncRulesDir, "typescript.md"),
+      `---
+targets: ["kimi-code-plugin"]
+globs: ["**/*.ts"]
+---
+Prefer strict TypeScript.
+`,
+    );
+    await writeFileContent(
+      rulesyncCommandPath,
+      `---
+targets: ["kimi-code-plugin"]
+description: Review a pull request
+---
+Review pull request $ARGUMENTS.
+`,
+    );
+    await writeFileContent(
+      rulesyncSubagentPath,
+      `---
+targets: ["kimi-code-plugin"]
+name: reviewer
+description: Reviews code
+---
+Review the changes.
+`,
+    );
+    await writeFileContent(
+      rulesyncSkillPath,
+      `---
+name: review
+description: Review code changes
+targets: ["kimi-code-plugin"]
+---
+Review the current changes.
+`,
+    );
+    await writeFileContent(join(pluginRoot, "kimi.plugin.json"), JSON.stringify(manifest, null, 2));
+
+    await runGenerate({
+      target: "kimi-code-plugin",
+      features: "rules,commands,subagents,skills",
+      outputRoots: pluginRoot,
+    });
+
+    const systemPrompt = await readFileContent(join(pluginRoot, "SYSTEM.md"));
+    expect(systemPrompt).toContain("Always follow the review checklist.");
+    expect(systemPrompt).toContain("Prefer strict TypeScript.");
+    const command = await readFileContent(join(pluginRoot, "commands", "review.md"));
+    expect(command).toContain("description: Review a pull request");
+    expect(command).toContain("Review pull request $ARGUMENTS.");
+    expect(await readFileContent(join(pluginRoot, "agents", "reviewer.md"))).toContain(
+      "Review the changes.",
+    );
+    expect(await readFileContent(join(pluginRoot, "skills", "review", "SKILL.md"))).toContain(
+      "Review the current changes.",
+    );
+    expect(await fileExists(join(testDir, ".kimi-code"))).toBe(false);
+    expect(JSON.parse(await readFileContent(join(pluginRoot, "kimi.plugin.json")))).toEqual(
+      manifest,
+    );
+
+    await removeDirectory(rulesyncRulesDir);
+    await ensureDir(rulesyncRulesDir);
+    await removeDirectory(join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH));
+    await ensureDir(join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH));
+    await removeDirectory(join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH));
+    await ensureDir(join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH));
+    await removeDirectory(join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH));
+    await ensureDir(join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH));
+
+    await runImport({
+      target: "kimi-code-plugin",
+      features: "rules,commands,subagents,skills",
+      outputRoot: pluginRoot,
+    });
+
+    // Imported files land in the project's `.rulesync/`, not inside the plugin.
+    expect(await readFileContent(join(rulesyncRulesDir, "overview.md"))).toContain(
+      "Always follow the review checklist.",
+    );
+    expect(await readFileContent(rulesyncCommandPath)).toContain("Review pull request $ARGUMENTS.");
+    expect(await readFileContent(rulesyncSubagentPath)).toContain("Review the changes.");
+    expect(await readFileContent(rulesyncSkillPath)).toContain("Review the current changes.");
+    expect(await fileExists(join(pluginRoot, ".rulesync"))).toBe(false);
+  });
+
   describe.skipIf(process.platform === "win32")("symbolic link safety", () => {
     it("rejects plugin imports containing symbolic links", async () => {
       const testDir = getTestDir();

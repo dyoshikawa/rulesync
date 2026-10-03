@@ -233,6 +233,101 @@ describe("config-resolver", () => {
     });
   });
 
+  describe("retireTargets", () => {
+    beforeEach(async () => {
+      await writeFileContent(
+        join(testDir, "rulesync.jsonc"),
+        JSON.stringify({ outputRoots: ["./"], targets: ["claudecode"] }),
+      );
+    });
+
+    it("defaults to no retired targets", async () => {
+      const config = await ConfigResolver.resolve({ configPath: join(testDir, "rulesync.jsonc") });
+      expect(config.getRetireTargets()).toEqual([]);
+    });
+
+    it("takes retired targets from the CLI", async () => {
+      const config = await ConfigResolver.resolve({
+        configPath: join(testDir, "rulesync.jsonc"),
+        retireTargets: ["cursor"],
+        features: ["rules"],
+      });
+      expect(config.getRetireTargets()).toEqual(["cursor"]);
+    });
+
+    it("requires --features", async () => {
+      await expect(
+        ConfigResolver.resolve({
+          configPath: join(testDir, "rulesync.jsonc"),
+          retireTargets: ["cursor"],
+        }),
+      ).rejects.toThrow(/requires --features/);
+    });
+
+    it("rejects the '*' feature wildcard", async () => {
+      await expect(
+        ConfigResolver.resolve({
+          configPath: join(testDir, "rulesync.jsonc"),
+          retireTargets: ["cursor"],
+          features: ["*"],
+        }),
+      ).rejects.toThrow(/requires --features/);
+    });
+
+    it("rejects --retire-targets combined with --targets", async () => {
+      await expect(
+        ConfigResolver.resolve({
+          configPath: join(testDir, "rulesync.jsonc"),
+          targets: ["claudecode"],
+          retireTargets: ["cursor"],
+        }),
+      ).rejects.toThrow(/cannot be combined with --targets/);
+    });
+
+    it("rejects retiring a target the config file still declares", async () => {
+      await expect(
+        ConfigResolver.resolve({
+          configPath: join(testDir, "rulesync.jsonc"),
+          retireTargets: ["claudecode"],
+          features: ["rules"],
+        }),
+      ).rejects.toThrow(/still configured: claudecode/);
+    });
+
+    it("keeps the configured per-target features with object-form targets", async () => {
+      await writeFileContent(
+        join(testDir, "rulesync.jsonc"),
+        JSON.stringify({ outputRoots: ["./"], targets: { claudecode: ["rules"] } }),
+      );
+      const config = await ConfigResolver.resolve({
+        configPath: join(testDir, "rulesync.jsonc"),
+        retireTargets: ["cursor"],
+        features: ["mcp"],
+      });
+      expect(config.getFeatures("claudecode")).toEqual(["rules"]);
+      expect(config.getRetireFeatures()).toEqual(["mcp"]);
+    });
+
+    it("scopes an array-form run to the retired features", async () => {
+      const config = await ConfigResolver.resolve({
+        configPath: join(testDir, "rulesync.jsonc"),
+        retireTargets: ["cursor"],
+        features: ["mcp"],
+      });
+      expect(config.getFeatures()).toEqual(["mcp"]);
+      expect(config.getRetireFeatures()).toEqual(["mcp"]);
+    });
+
+    it("is not a config-file option", async () => {
+      await writeFileContent(
+        join(testDir, "rulesync.jsonc"),
+        JSON.stringify({ outputRoots: ["./"], targets: ["claudecode"], retireTargets: ["cursor"] }),
+      );
+      const config = await ConfigResolver.resolve({ configPath: join(testDir, "rulesync.jsonc") });
+      expect(config.getRetireTargets()).toEqual([]);
+    });
+  });
+
   describe("config file targets (getConfigFileTargets)", () => {
     it("expands wildcard targets ['*'] to the full non-legacy target list", async () => {
       // Regression for #1981 / #1894: a `targets: ["*"]` config must not collapse

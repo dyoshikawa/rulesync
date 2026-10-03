@@ -17,6 +17,7 @@ import { RulesyncFile } from "../../types/rulesync-file.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { subagentsProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
+import { quoteForLog, stripControlCharacters } from "../../utils/control-characters.js";
 import { formatError } from "../../utils/error.js";
 import {
   assertWritablePathInsideRoot,
@@ -52,6 +53,7 @@ import { GrokcliSubagent } from "./grokcli-subagent.js";
 import { HermesagentSubagent } from "./hermesagent-subagent.js";
 import { JunieSubagent } from "./junie-subagent.js";
 import { KiloSubagent } from "./kilo-subagent.js";
+import { KimiCodePluginSubagent } from "./kimi-code-plugin-subagent.js";
 import { KimiCodeSubagent } from "./kimi-code-subagent.js";
 import { KiroCliSubagent } from "./kiro-cli-subagent.js";
 import { KiroIdeSubagent } from "./kiro-ide-subagent.js";
@@ -625,6 +627,20 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
         supportsGlobal: true,
         filePattern: "**/*.md",
         supportsNestedPaths: true,
+      },
+    },
+  ],
+  [
+    "kimi-code-plugin",
+    {
+      // `<plugin>/agents/*.md`, auto-discovered in the `.kimi-code/agents/` format.
+      // https://github.com/MoonshotAI/kimi-code/blob/%40moonshot-ai/kimi-code%402.1.1/docs/en/customization/plugins.md
+      class: KimiCodePluginSubagent,
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: false,
+        filePattern: "*.md",
       },
     },
   ],
@@ -1239,10 +1255,23 @@ export class SubagentsProcessor extends FeatureProcessor {
       const dirPath = typeof root === "string" ? root : root.relativeDirPath;
       const baseDir = join(rootOutputRoot, dirPath);
       if (forDeletion && (await directoryExists(baseDir))) {
-        await assertWritablePathInsideRoot({
-          rootPath: rootOutputRoot,
-          targetPath: baseDir,
-        });
+        // A root that is a symbolic link, even one inside the output root
+        // (a dotfiles checkout linked from the home directory), is not swept
+        // through the link: it can lead to files rulesync does not manage. The
+        // writes already went through it, so the run warns and carries on
+        // rather than failing after its output landed.
+        try {
+          await assertWritablePathInsideRoot({
+            rootPath: rootOutputRoot,
+            targetPath: baseDir,
+          });
+        } catch (error) {
+          this.logger.warn(
+            `Skipping the orphan sweep for ${quoteForLog(baseDir)}; nothing under it is ` +
+              `deleted: ${stripControlCharacters(formatError(error))}`,
+          );
+          continue;
+        }
       }
       const subagentFilePaths = (
         await findFilesByGlobs(factory.meta.filePattern, {

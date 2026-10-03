@@ -24,7 +24,7 @@ type KimiCodeRuleParams = AiFileParams & {
   root?: boolean;
 };
 
-type KimiCodeRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> & {
+export type KimiCodeRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> & {
   root: {
     relativeDirPath: string;
     relativeFilePath: string;
@@ -72,7 +72,7 @@ export class KimiCodeRule extends ToolRule {
       join(outputRoot, root.relativeDirPath, root.relativeFilePath),
     );
 
-    return new KimiCodeRule({
+    return new this({
       outputRoot,
       relativeDirPath: root.relativeDirPath,
       relativeFilePath: root.relativeFilePath,
@@ -90,7 +90,7 @@ export class KimiCodeRule extends ToolRule {
     global = false,
   }: ToolRuleFromRulesyncRuleParams): KimiCodeRule {
     const { root } = this.getSettablePaths({ global });
-    return new KimiCodeRule({
+    return new this({
       outputRoot,
       relativeDirPath: root.relativeDirPath,
       relativeFilePath: root.relativeFilePath,
@@ -101,12 +101,21 @@ export class KimiCodeRule extends ToolRule {
     });
   }
 
+  /**
+   * Where the imported `.rulesync/` file is written: the native output root in
+   * project scope, or the rulesync home when `KIMI_CODE_HOME` redirects the
+   * global profile.
+   */
+  protected getRulesyncOutputRoot(): string {
+    return getKimiCodeRulesyncOutputRoot({
+      nativeOutputRoot: this.outputRoot,
+      global: this.global,
+    });
+  }
+
   toRulesyncRule(): RulesyncRule {
     return new RulesyncRule({
-      outputRoot: getKimiCodeRulesyncOutputRoot({
-        nativeOutputRoot: this.outputRoot,
-        global: this.global,
-      }),
+      outputRoot: this.getRulesyncOutputRoot(),
       relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
       relativeFilePath: RULESYNC_OVERVIEW_FILE_NAME,
       frontmatter: {
@@ -128,16 +137,15 @@ export class KimiCodeRule extends ToolRule {
     relativeFilePath,
     global = false,
   }: ToolRuleForDeletionParams): KimiCodeRule {
-    return new KimiCodeRule({
+    const { root } = this.getSettablePaths({ global });
+    return new this({
       outputRoot,
       relativeDirPath,
       relativeFilePath,
       fileContent: "",
       validate: false,
       global,
-      root:
-        relativeDirPath === getKimiCodeRelativeDirPath({ global }) &&
-        relativeFilePath === KIMI_CODE_RULE_FILE_NAME,
+      root: relativeDirPath === root.relativeDirPath && relativeFilePath === root.relativeFilePath,
     });
   }
 

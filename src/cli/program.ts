@@ -21,7 +21,7 @@ import { resolveGitignoreTargets } from "./commands/resolve-gitignore-targets.js
 import { updateCommand, UpdateCommandOptions } from "./commands/update.js";
 import { wrapCommand as _wrapCommand } from "./wrap-command.js";
 
-const getVersion = () => "25.0.0";
+const getVersion = () => "26.0.0";
 const FEATURES_HELP = `${ALL_FEATURES.join(",")}; ignore is deprecated, use permissions`;
 
 function wrapCommand(
@@ -296,6 +296,11 @@ export function createProgram(): Command {
       parseCommaSeparatedList,
     )
     .option("--delete", "Delete all existing files in output directories before generating")
+    .option(
+      "--retire-targets <tools>",
+      "Comma-separated list of tools the project no longer uses; deletes the outputs rulesync manages for them (requires --features; not with --targets or --watch)",
+      parseCommaSeparatedList,
+    )
     .option(
       "-o, --output-roots <paths>",
       "Output root directories to generate files into (comma-separated for multiple paths)",

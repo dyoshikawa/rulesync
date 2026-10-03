@@ -240,6 +240,34 @@ describe("RulesProcessor", () => {
       expect(rootRule?.getFileContent()).not.toContain("Personal overrides");
     });
 
+    it("should emit a localRoot rule to REASONIX.local.md for reasonix", async () => {
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "reasonix" });
+
+      const result = await processor.convertRulesyncFilesToToolFiles([
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "root.md",
+          frontmatter: { targets: ["*"], root: true },
+          body: "Shared team instructions",
+        }),
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "local.md",
+          frontmatter: { targets: ["*"], localRoot: true },
+          body: "Personal overrides",
+        }),
+      ]);
+
+      const localRule = result.find((rule) => rule.getRelativeFilePath() === "REASONIX.local.md");
+      expect(localRule?.getRelativeDirPath()).toBe(".");
+      expect(localRule?.getFileContent()).toBe("Personal overrides");
+      // The personal body must not also be folded into the committed root file.
+      const rootRule = result.find((rule) => rule.getRelativeFilePath() === "REASONIX.md");
+      expect(rootRule?.getFileContent()).not.toContain("Personal overrides");
+    });
+
     // `buildLocalRootFile` dispatches on the rule class and returns `null` for
     // any class it has no branch for, which drops the file silently. That is how
     // `zoocode` (fixed by `isClassOrSubclassOf`) and later `codebuddy` ended up
@@ -1076,6 +1104,40 @@ describe("RulesProcessor", () => {
 
       expect(root?.getFileContent()).not.toContain("style.md");
       expect(nonRoot?.getRelativeDirPath()).toBe(join(".gemini", "config", "rules"));
+    });
+
+    it("should write the same project AGENTS.md and rule files for antigravity-cli and antigravity-ide", async () => {
+      const rules = [
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: join(".rulesync", "rules"),
+          relativeFilePath: "overview.md",
+          frontmatter: { root: true, targets: ["*"] },
+          body: "# Overview",
+        }),
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: join(".rulesync", "rules"),
+          relativeFilePath: "style.md",
+          frontmatter: { root: false, targets: ["*"], globs: ["src/**/*.ts"] },
+          body: "# Style",
+        }),
+      ];
+      const render = async (toolTarget: "antigravity-cli" | "antigravity-ide") => {
+        const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget });
+        const toolFiles = await processor.convertRulesyncFilesToToolFiles(rules);
+        return toolFiles
+          .map((file) => [file.getRelativePathFromCwd(), file.getFileContent()])
+          .toSorted(([a], [b]) => String(a).localeCompare(String(b)));
+      };
+
+      const cliFiles = await render("antigravity-cli");
+
+      expect(cliFiles).toEqual(await render("antigravity-ide"));
+      const root = cliFiles.find(([path]) => path === "AGENTS.md");
+      // Antigravity loads `.agents/rules/*.md` by itself, so the root carries
+      // no reference block for them.
+      expect(root?.[1]).not.toContain("style.md");
     });
 
     it("should import only top-level .md and .mdc oh-my-pi rules but delete nested .md ones", async () => {
@@ -2226,6 +2288,20 @@ Content that would fail parsing`;
 
       const filePaths = filesToDelete.map((f) => f.getRelativeFilePath());
       expect(filePaths).toContain("AGENTS.local.md");
+    });
+
+    it("should include REASONIX.local.md for deletion for reasonix", async () => {
+      await writeFileContent(join(testDir, "REASONIX.md"), "# Root");
+      await writeFileContent(join(testDir, "REASONIX.local.md"), "# Local");
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "reasonix" });
+
+      const filesToDelete = await processor.loadToolFiles({
+        forDeletion: true,
+      });
+
+      const filePaths = filesToDelete.map((f) => f.getRelativeFilePath());
+      expect(filePaths).toContain("REASONIX.local.md");
     });
 
     it("should include AGENTS.local.md for deletion for roo (issue #2409)", async () => {
@@ -3432,6 +3508,21 @@ globs: ["packages/api/**/*"]
       const localRule = findLocalRule(rulesyncFiles, "AGENTS.local.md");
       expect(localRule).toBeInstanceOf(RulesyncRule);
       expect((localRule as RulesyncRule).getFrontmatter().localRoot).toBe(true);
+    });
+
+    it("should import REASONIX.local.md as a localRoot rulesync rule for reasonix", async () => {
+      await writeFileContent(join(testDir, "REASONIX.md"), "# Root");
+      await writeFileContent(join(testDir, "REASONIX.local.md"), "# Personal reasonix rules");
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "reasonix" });
+      const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(
+        await processor.loadToolFiles(),
+      );
+
+      const localRule = findLocalRule(rulesyncFiles, "REASONIX.local.md");
+      expect(localRule).toBeInstanceOf(RulesyncRule);
+      expect((localRule as RulesyncRule).getFrontmatter().localRoot).toBe(true);
+      expect((localRule as RulesyncRule).getFrontmatter().targets).toEqual(["reasonix"]);
     });
 
     it("should import .claude/CLAUDE.local.md from the alternative root directory", async () => {
