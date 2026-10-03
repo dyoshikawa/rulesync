@@ -21,6 +21,7 @@ import { BobPermissions } from "./bob-permissions.js";
 import { ClaudecodePermissions } from "./claudecode-permissions.js";
 import { ClinePermissions } from "./cline-permissions.js";
 import { CodebuddyPermissions } from "./codebuddy-permissions.js";
+import { CodewhalePermissions } from "./codewhale-permissions.js";
 import { CodexcliPermissions, createCodexcliBashRulesFile } from "./codexcli-permissions.js";
 import { CommandcodePermissions } from "./commandcode-permissions.js";
 import { ContinuePermissions } from "./continue-permissions.js";
@@ -185,6 +186,21 @@ export const toolPermissionsFactories = new Map<
       class: CodebuddyPermissions,
       meta: {
         supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+    },
+  ],
+  [
+    "codewhale",
+    {
+      class: CodewhalePermissions,
+      meta: {
+        // Codewhale reads typed permission rules only from the global
+        // `~/.codewhale/permissions.toml`; the project `.codewhale/config.toml`
+        // overlay can only tighten approval and sandbox settings.
+        // https://github.com/Hmbown/Codewhale/blob/main/docs/AUTHORIZATION_ORDER.md
+        supportsProject: false,
         supportsGlobal: true,
         supportsImport: true,
       },

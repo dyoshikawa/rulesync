@@ -124,6 +124,7 @@ describe("PermissionsProcessor", () => {
         "bob",
         "claudecode",
         "codebuddy",
+        "codewhale",
         "codexcli",
         "commandcode",
         "continue",

@@ -76,6 +76,7 @@ const permissionsGlobalTargets = [
   "opencode",
   "mimocode",
   "codebuddy",
+  "codewhale",
   "codexcli",
   "commandcode",
   "copilotcli",
@@ -2426,6 +2427,115 @@ describe("E2E: permissions (global mode)", () => {
     });
 
     expect(await fileExists(join(homeDir, ".bob", "settings", "settings.json"))).toBe(false);
+  });
+
+  it("should generate and import codewhale permissions in ~/.codewhale/permissions.toml (global-only)", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+    const permissionsPath = join(homeDir, ".codewhale", "permissions.toml");
+
+    // A grant Codewhale's approval card remembered for one repository survives
+    // the regenerate; the plain rule is replaced by the canonical block.
+    await writeFileContent(
+      permissionsPath,
+      smolToml.stringify({
+        rules: [
+          { tool: "exec_shell", command: "make", action: "ask" },
+          {
+            tool: "exec_shell",
+            command: "cargo test",
+            command_exact: true,
+            workspace: "/home/me/project",
+            action: "allow",
+          },
+        ],
+      }),
+    );
+    await writeFileContent(
+      join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "git status": "allow", "git push *": "ask", "rm *": "deny" },
+            read: { ".env": "deny" },
+            edit: { "*": "ask" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({
+      target: "codewhale",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    expect(smolToml.parse(await readFileContent(permissionsPath))).toEqual({
+      rules: [
+        { tool: "exec_shell", command: "rm", action: "deny" },
+        { tool: "read_file", path: ".env", action: "deny" },
+        { tool: "apply_patch", action: "ask" },
+        { tool: "edit_file", action: "ask" },
+        { tool: "exec_shell", command: "git push", action: "ask" },
+        { tool: "exec_shell", command: "git status", command_exact: true, action: "allow" },
+        {
+          tool: "exec_shell",
+          command: "cargo test",
+          command_exact: true,
+          workspace: "/home/me/project",
+          action: "allow",
+        },
+      ],
+    });
+
+    await runImport({
+      target: "codewhale",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const imported = JSON.parse(
+      await readFileContent(join(homeDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH)),
+    );
+    expect(imported.permission).toEqual({
+      bash: { "git status": "allow", "git push *": "ask", "rm *": "deny" },
+      read: { ".env": "deny" },
+      edit: { "*": "ask" },
+    });
+    expect(imported.codewhale).toEqual({
+      rules: [
+        {
+          tool: "exec_shell",
+          command: "cargo test",
+          command_exact: true,
+          workspace: "/home/me/project",
+          action: "allow",
+        },
+      ],
+    });
+  });
+
+  it("should not create ~/.codewhale/permissions.toml when no category maps to Codewhale", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify({ permission: { webfetch: { "*": "allow" } } }, null, 2),
+    );
+
+    await runGenerate({
+      target: "codewhale",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    expect(await fileExists(join(homeDir, ".codewhale", "permissions.toml"))).toBe(false);
   });
 
   it("should generate copilotcli permissions in home directory with --global", async () => {
