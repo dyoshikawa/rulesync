@@ -46,3 +46,10 @@ export const CODEWHALE_CONFIG_FILE_NAME = "config.toml";
 // @see https://github.com/Hmbown/Codewhale/blob/main/docs/MCP.md
 // @see https://github.com/Hmbown/Codewhale/blob/main/crates/tui/src/mcp.rs
 export const CODEWHALE_MCP_FILE_NAME = "mcp.json";
+
+// Permissions: typed `[[rules]]` records in `~/.codewhale/permissions.toml`, the
+// sibling of the user `config.toml`. It is the only permission-rule source;
+// there is no project-local `permissions.toml`.
+// @see https://github.com/Hmbown/Codewhale/blob/main/docs/AUTHORIZATION_ORDER.md
+// @see https://github.com/Hmbown/Codewhale/blob/main/docs/CONFIGURATION.md
+export const CODEWHALE_PERMISSIONS_FILE_NAME = "permissions.toml";

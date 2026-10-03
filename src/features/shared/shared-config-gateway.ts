@@ -1425,6 +1425,24 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
       permissions: { kind: "replace-owned-keys", ownedKeys: ["agent"] },
     },
   },
+  // oh-my-pi `config.yml` carries every omp setting. The permissions writer
+  // recomputes `tools` and `bash` from the existing file (sibling keys such as
+  // `tools.approvalMode` and `bash.enabled` carried over, `tools.approval` and
+  // `bash.patterns` replaced) before patching, so both whole keys are owned.
+  ".omp/config.yml": {
+    format: "yaml",
+    invalidRootPolicy: "error",
+    features: {
+      permissions: { kind: "replace-owned-keys", ownedKeys: ["tools", "bash"] },
+    },
+  },
+  ".omp/agent/config.yml": {
+    format: "yaml",
+    invalidRootPolicy: "error",
+    features: {
+      permissions: { kind: "replace-owned-keys", ownedKeys: ["tools", "bash"] },
+    },
+  },
   // Pi Coding Agent settings (`.pi/settings.json` project /
   // `~/.pi/agent/settings.json` global): a hand-edited file carrying `theme`,
   // `defaultModel`, `packages`, `sessionDir` and more. Permissions owns the one

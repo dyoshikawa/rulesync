@@ -85,6 +85,36 @@ const CanonicalPermissionsOverrideSchema = z.looseObject({
 });
 export type CanonicalPermissionsOverride = z.infer<typeof CanonicalPermissionsOverrideSchema>;
 
+/**
+ * One Codewhale `[[rules]]` record of `~/.codewhale/permissions.toml`, written
+ * verbatim. Codewhale parses the file with unknown fields denied, so a single
+ * misspelled key would make it reject every rule in the file; the record is
+ * therefore strict here, surfacing the typo on the rulesync source instead.
+ *
+ * @see https://github.com/Hmbown/Codewhale/blob/main/docs/CONFIGURATION.md
+ */
+export const CodewhalePermissionRuleSchema = z.strictObject({
+  tool: z.string(),
+  command: z.optional(z.string()),
+  command_exact: z.optional(z.boolean()),
+  path: z.optional(z.string()),
+  workspace: z.optional(z.string()),
+  action: z.optional(PermissionActionSchema),
+});
+export type CodewhalePermissionRule = z.infer<typeof CodewhalePermissionRuleSchema>;
+
+/**
+ * Tool-scoped override block for Codewhale. `rules` carries native records the
+ * canonical category/pattern shape cannot express — a `workspace`-scoped rule,
+ * a tool rulesync does not map, an exact-command deny — and is emitted ahead of
+ * the rules converted from the canonical block.
+ */
+const CodewhalePermissionsOverrideSchema = z.looseObject({
+  permission: z.optional(ToolScopedPermissionSchema),
+  rules: z.optional(z.array(CodewhalePermissionRuleSchema)),
+});
+export type CodewhalePermissionsOverride = z.infer<typeof CodewhalePermissionsOverrideSchema>;
+
 const KimiCodePermissionsOverrideSchema = z.looseObject({
   permission: z.optional(ToolScopedPermissionSchema),
   defaultPermissionMode: z.optional(z.enum(["manual", "yolo", "auto"])),
@@ -1284,6 +1314,7 @@ export const PermissionsConfigSchema = z.looseObject({
   augmentcode: z.optional(AugmentcodePermissionsOverrideSchema),
   kiro: z.optional(KiroPermissionsOverrideSchema),
   codexcli: z.optional(CodexcliPermissionsOverrideSchema),
+  codewhale: z.optional(CodewhalePermissionsOverrideSchema),
   zed: z.optional(ZedPermissionsOverrideSchema),
   devin: z.optional(DevinPermissionsOverrideSchema),
   // Tools without tool-specific override keys still accept the canonical
@@ -1298,6 +1329,7 @@ export const PermissionsConfigSchema = z.looseObject({
   copilotcli: z.optional(CanonicalPermissionsOverrideSchema),
   crush: z.optional(CanonicalPermissionsOverrideSchema),
   goose: z.optional(CanonicalPermissionsOverrideSchema),
+  omp: z.optional(CanonicalPermissionsOverrideSchema),
   pool: z.optional(CanonicalPermissionsOverrideSchema),
   qoder: z.optional(CanonicalPermissionsOverrideSchema),
   grokcli: z.optional(CanonicalPermissionsOverrideSchema),

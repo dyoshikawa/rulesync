@@ -21,6 +21,7 @@ import { BobPermissions } from "./bob-permissions.js";
 import { ClaudecodePermissions } from "./claudecode-permissions.js";
 import { ClinePermissions } from "./cline-permissions.js";
 import { CodebuddyPermissions } from "./codebuddy-permissions.js";
+import { CodewhalePermissions } from "./codewhale-permissions.js";
 import { CodexcliPermissions, createCodexcliBashRulesFile } from "./codexcli-permissions.js";
 import { CommandcodePermissions } from "./commandcode-permissions.js";
 import { ContinuePermissions } from "./continue-permissions.js";
@@ -40,6 +41,7 @@ import { KimiCodePermissions } from "./kimi-code-permissions.js";
 import { KiroPermissions } from "./kiro-permissions.js";
 import { LettacodePermissions } from "./lettacode-permissions.js";
 import { MimocodePermissions } from "./mimocode-permissions.js";
+import { OmpPermissions } from "./omp-permissions.js";
 import { OpencodePermissions } from "./opencode-permissions.js";
 import { PiPermissions } from "./pi-permissions.js";
 import { PoolPermissions } from "./pool-permissions.js";
@@ -185,6 +187,21 @@ export const toolPermissionsFactories = new Map<
       class: CodebuddyPermissions,
       meta: {
         supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+    },
+  ],
+  [
+    "codewhale",
+    {
+      class: CodewhalePermissions,
+      meta: {
+        // Codewhale reads typed permission rules only from the global
+        // `~/.codewhale/permissions.toml`; the project `.codewhale/config.toml`
+        // overlay can only tighten approval and sandbox settings.
+        // https://github.com/Hmbown/Codewhale/blob/main/docs/AUTHORIZATION_ORDER.md
+        supportsProject: false,
         supportsGlobal: true,
         supportsImport: true,
       },
@@ -458,6 +475,19 @@ export const toolPermissionsFactories = new Map<
     {
       class: MimocodePermissions,
       meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+    },
+  ],
+  [
+    "omp",
+    {
+      class: OmpPermissions,
+      meta: {
+        // `tools.approval` and `bash.patterns` in `.omp/config.yml` (project)
+        // and `~/.omp/agent/config.yml` (global, default profile).
         supportsProject: true,
         supportsGlobal: true,
         supportsImport: true,

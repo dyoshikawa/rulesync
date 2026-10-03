@@ -93,7 +93,7 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 | Claude Code               |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | Claude Code plugin        |       |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |             |        |
 | CodeBuddy Code            |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
-| Codewhale                 |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |             |        |
+| Codewhale                 |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | Codex CLI                 |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | Command Code              |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | GitHub Copilot            |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
@@ -145,7 +145,7 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 | Warp Agent CLI            |       |        | ✅  |          |           |        |       |     ✅      |        |
 | Replit                    |  ✅   |        |     |          |           |   ✅   |       |             |        |
 | Pi Coding Agent           |  ✅   |        |     |    ✅    |           |   ✅   |  ✅   |     ✅      |        |
-| oh-my-pi                  |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |       |             |        |
+| oh-my-pi                  |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |       |     ✅      |        |
 | Zed                       |  ✅   |   ✅   | ✅  |          |           |   ✅   |       |     ✅      |        |
 | ZCode (Z.ai)              |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |             |        |
 | ZCode plugin              |       |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |             |        |

@@ -35,6 +35,7 @@ import {
 const permissionsGenerateTargets = [
   "opencode",
   "mimocode",
+  "omp",
   "pi",
   "zed",
   "amp",
@@ -72,10 +73,12 @@ const permissionsGenerateTargets = [
 // Permissions targets exercised by the global-scope generate `it`s below.
 const permissionsGlobalTargets = [
   "claudecode",
+  "omp",
   "pi",
   "opencode",
   "mimocode",
   "codebuddy",
+  "codewhale",
   "codexcli",
   "commandcode",
   "copilotcli",
@@ -1399,6 +1402,54 @@ web_search_request = true
     expect(parsed.default_model).toBe("deepseek");
   });
 
+  it("should generate omp permissions into .omp/config.yml and import them back", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, ".omp", "config.yml"),
+      ["theme:", "  dark: titanium", "tools:", "  approvalMode: write", ""].join("\n"),
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "git *": "allow", "rm -rf *": "deny" },
+            read: { "*": "allow" },
+            agent: { "*": "ask" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({ target: "omp", features: "permissions" });
+
+    const parsed = load(await readFileContent(join(testDir, ".omp", "config.yml")));
+    expect(parsed).toEqual({
+      theme: { dark: "titanium" },
+      tools: { approvalMode: "write", approval: { read: "allow", task: "prompt" } },
+      bash: {
+        patterns: [
+          { match: "rm -rf *", approval: "deny" },
+          { match: "git *", approval: "allow" },
+        ],
+      },
+    });
+
+    await runImport({ target: "omp", features: "permissions" });
+
+    const imported = JSON.parse(
+      await readFileContent(join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH)),
+    );
+    expect(imported.permission).toEqual({
+      bash: { "rm -rf *": "deny", "git *": "allow" },
+      read: { "*": "allow" },
+      agent: { "*": "ask" },
+    });
+  });
+
   it("should generate pi permissions into .pi/settings.json and preserve unrelated keys", async () => {
     const testDir = getTestDir();
 
@@ -2426,6 +2477,115 @@ describe("E2E: permissions (global mode)", () => {
     });
 
     expect(await fileExists(join(homeDir, ".bob", "settings", "settings.json"))).toBe(false);
+  });
+
+  it("should generate and import codewhale permissions in ~/.codewhale/permissions.toml (global-only)", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+    const permissionsPath = join(homeDir, ".codewhale", "permissions.toml");
+
+    // A grant Codewhale's approval card remembered for one repository survives
+    // the regenerate; the plain rule is replaced by the canonical block.
+    await writeFileContent(
+      permissionsPath,
+      smolToml.stringify({
+        rules: [
+          { tool: "exec_shell", command: "make", action: "ask" },
+          {
+            tool: "exec_shell",
+            command: "cargo test",
+            command_exact: true,
+            workspace: "/home/me/project",
+            action: "allow",
+          },
+        ],
+      }),
+    );
+    await writeFileContent(
+      join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "git status": "allow", "git push *": "ask", "rm *": "deny" },
+            read: { ".env": "deny" },
+            edit: { "*": "ask" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({
+      target: "codewhale",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    expect(smolToml.parse(await readFileContent(permissionsPath))).toEqual({
+      rules: [
+        { tool: "exec_shell", command: "rm", action: "deny" },
+        { tool: "read_file", path: ".env", action: "deny" },
+        { tool: "apply_patch", action: "ask" },
+        { tool: "edit_file", action: "ask" },
+        { tool: "exec_shell", command: "git push", action: "ask" },
+        { tool: "exec_shell", command: "git status", command_exact: true, action: "allow" },
+        {
+          tool: "exec_shell",
+          command: "cargo test",
+          command_exact: true,
+          workspace: "/home/me/project",
+          action: "allow",
+        },
+      ],
+    });
+
+    await runImport({
+      target: "codewhale",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const imported = JSON.parse(
+      await readFileContent(join(homeDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH)),
+    );
+    expect(imported.permission).toEqual({
+      bash: { "git status": "allow", "git push *": "ask", "rm *": "deny" },
+      read: { ".env": "deny" },
+      edit: { "*": "ask" },
+    });
+    expect(imported.codewhale).toEqual({
+      rules: [
+        {
+          tool: "exec_shell",
+          command: "cargo test",
+          command_exact: true,
+          workspace: "/home/me/project",
+          action: "allow",
+        },
+      ],
+    });
+  });
+
+  it("should not create ~/.codewhale/permissions.toml when no category maps to Codewhale", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify({ permission: { webfetch: { "*": "allow" } } }, null, 2),
+    );
+
+    await runGenerate({
+      target: "codewhale",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    expect(await fileExists(join(homeDir, ".codewhale", "permissions.toml"))).toBe(false);
   });
 
   it("should generate copilotcli permissions in home directory with --global", async () => {
@@ -3965,6 +4125,30 @@ describe("E2E: permissions (global mode)", () => {
       memory: { write_approval: false },
     });
     expect(imported.model).toBeUndefined();
+  });
+
+  it("should generate omp permissions in home directory with --global", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify({ permission: { bash: { "*": "allow" } } }, null, 2),
+    );
+    await writeFileContent(
+      join(homeDir, ".omp", "agent", "config.yml"),
+      ["tools:", "  approval:", "    eval: prompt", ""].join("\n"),
+    );
+
+    await runGenerate({
+      target: "omp",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const parsed = load(await readFileContent(join(homeDir, ".omp", "agent", "config.yml")));
+    expect(parsed).toEqual({ tools: { approval: { eval: "prompt", bash: "allow" } } });
   });
 
   it("should generate pi permissions in home directory with --global", async () => {
