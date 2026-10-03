@@ -1321,6 +1321,9 @@ describe("E2E: skills (global mode)", () => {
       const homeDir = getHomeDir();
       const dotfilesSkillsDir = join(homeDir, "dotfiles", "cursor-skills");
       const staleFile = join(dotfilesSkillsDir, "stale", "SKILL.md");
+      // A hand-placed file inside a directory this run generates: not swept
+      // through the link either.
+      const userFile = join(dotfilesSkillsDir, "demo", "notes.md");
       await writeFileContent(
         join(projectDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "demo", "SKILL.md"),
         ["---", "name: demo", "description: demo", "---", "Demo body."].join("\n"),
@@ -1329,6 +1332,7 @@ describe("E2E: skills (global mode)", () => {
         staleFile,
         ["---", "name: stale", "description: stale", "---", "Stale body."].join("\n"),
       );
+      await writeFileContent(userFile, "User notes.");
       await ensureDir(join(homeDir, ".cursor"));
       await symlink(
         dotfilesSkillsDir,
@@ -1349,6 +1353,7 @@ describe("E2E: skills (global mode)", () => {
       expect(stderr).toContain("Skipping the orphan sweep");
       expect(stderr).toContain(join(".cursor", "skills"));
       expect(await fileExists(staleFile)).toBe(true);
+      expect(await readFileContent(userFile)).toBe("User notes.");
       expect(await fileExists(join(dotfilesSkillsDir, "demo", "SKILL.md"))).toBe(!dryRun);
     },
   );
