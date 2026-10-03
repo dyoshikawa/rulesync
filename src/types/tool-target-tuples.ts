@@ -409,6 +409,7 @@ export const permissionsProcessorToolTargetTuple = [
   "kiro-ide",
   "lettacode",
   "mimocode",
+  "omp",
   "opencode",
   "pi",
   "pool",

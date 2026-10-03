@@ -1329,6 +1329,7 @@ export const PermissionsConfigSchema = z.looseObject({
   copilotcli: z.optional(CanonicalPermissionsOverrideSchema),
   crush: z.optional(CanonicalPermissionsOverrideSchema),
   goose: z.optional(CanonicalPermissionsOverrideSchema),
+  omp: z.optional(CanonicalPermissionsOverrideSchema),
   pool: z.optional(CanonicalPermissionsOverrideSchema),
   qoder: z.optional(CanonicalPermissionsOverrideSchema),
   grokcli: z.optional(CanonicalPermissionsOverrideSchema),
