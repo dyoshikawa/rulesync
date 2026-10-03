@@ -1040,6 +1040,7 @@ describe("generate", () => {
           {
             dir: "skill",
             getDirPath: () => "/path/to/skill",
+            getOutputRoot: () => "/path/to",
             ownsDirTree: () => true,
             getMainFile: () => undefined,
             getOtherFiles: () => [],
@@ -1111,6 +1112,7 @@ describe("generate", () => {
         {
           dir: "existing-skill",
           getDirPath: () => "/path/to/existing",
+          getOutputRoot: () => "/path/to",
           ownsDirTree: () => true,
           getMainFile: () => undefined,
           getOtherFiles: () => [],
@@ -1120,6 +1122,7 @@ describe("generate", () => {
         {
           dir: "generated-skill",
           getDirPath: () => "/path/to/generated",
+          getOutputRoot: () => "/path/to",
           ownsDirTree: () => true,
           getMainFile: () => undefined,
           getOtherFiles: () => [],
@@ -1205,6 +1208,7 @@ describe("generate", () => {
       const generatedDirs = [
         {
           getDirPath: () => "/path/to/.claude/skills/kept",
+          getOutputRoot: () => "/path/to",
           ownsDirTree: () => true,
           getMainFile: () => ({ name: "SKILL.md", body: "" }),
           getOtherFiles: () => [],
