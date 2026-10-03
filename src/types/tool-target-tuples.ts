@@ -432,6 +432,7 @@ export const checksProcessorToolTargetTuple = [
   "factorydroid",
   "gitlabduo",
   "hermesagent",
+  "kilo",
   "qwencode",
   "rovodev",
   "takt",

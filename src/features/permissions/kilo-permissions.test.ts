@@ -19,6 +19,13 @@ const withSandbox = (sandbox: Record<string, unknown>): RulesyncPermissions =>
     fileContent: JSON.stringify({ permission: {}, kilo: { sandbox } }),
   });
 
+const withKiloPermission = (permission: Record<string, unknown>): RulesyncPermissions =>
+  new RulesyncPermissions({
+    relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+    relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+    fileContent: JSON.stringify({ permission: {}, kilo: { permission } }),
+  });
+
 describe("KiloPermissions", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
@@ -468,6 +475,89 @@ describe("KiloPermissions", () => {
       }),
     ).rejects.toThrow(/Failed to parse Kilo Code config/);
   });
+  describe("markdown_source", () => {
+    it("should drop non-deny patterns at project scope with a warning", async () => {
+      const logger = createMockLogger();
+
+      const instance = await KiloPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: withKiloPermission({
+          markdown_source: { "/shared/commands/*": "allow", "/private/*": "deny" },
+        }),
+        logger,
+      });
+
+      expect(JSON.parse(instance.getFileContent()).permission.markdown_source).toEqual({
+        "/private/*": "deny",
+      });
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("/shared/commands/*"));
+    });
+
+    it("should remove a stale project entry when nothing survives narrowing", async () => {
+      await writeFileContent(
+        join(testDir, "kilo.jsonc"),
+        JSON.stringify({ permission: { markdown_source: { "/shared/*": "allow" } } }),
+      );
+
+      const instance = await KiloPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: withKiloPermission({ markdown_source: { "/shared/*": "allow" } }),
+      });
+
+      expect(JSON.parse(instance.getFileContent()).permission).not.toHaveProperty(
+        "markdown_source",
+      );
+    });
+
+    it("should keep a bare deny and drop a bare allow at project scope", async () => {
+      const denied = await KiloPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: withKiloPermission({ markdown_source: "deny" }),
+      });
+      const allowed = await KiloPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: withKiloPermission({ markdown_source: "allow" }),
+      });
+
+      expect(JSON.parse(denied.getFileContent()).permission.markdown_source).toBe("deny");
+      expect(JSON.parse(allowed.getFileContent()).permission).not.toHaveProperty("markdown_source");
+    });
+
+    it("should leave a project entry alone when rulesync does not author the key", async () => {
+      await writeFileContent(
+        join(testDir, "kilo.jsonc"),
+        JSON.stringify({ permission: { markdown_source: { "/shared/*": "allow" } } }),
+      );
+
+      const instance = await KiloPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: withKiloPermission({ edit: "ask" }),
+      });
+
+      expect(JSON.parse(instance.getFileContent()).permission.markdown_source).toEqual({
+        "/shared/*": "allow",
+      });
+    });
+
+    it("should write every pattern verbatim at global scope", async () => {
+      const logger = createMockLogger();
+
+      const instance = await KiloPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: withKiloPermission({
+          markdown_source: { "/shared/commands/*": "allow" },
+        }),
+        global: true,
+        logger,
+      });
+
+      expect(JSON.parse(instance.getFileContent()).permission.markdown_source).toEqual({
+        "/shared/commands/*": "allow",
+      });
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+  });
+
   describe("sandbox override", () => {
     it("should write the tighten-only keys at project scope", async () => {
       const instance = await KiloPermissions.fromRulesyncPermissions({

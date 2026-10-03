@@ -110,7 +110,7 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 | MiMo Code                 |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | GitLab Duo CLI            |  ✅   |        | ✅  |    ✅    |           |   ✅   |  ✅   |             |   ✅   |
 | Cline                     |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
-| Kilo Code                 |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
+| Kilo Code                 |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |   ✅   |
 | Kimi Code                 |  ✅   |        | ✅  |          |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | Kimi Code plugin          |  ✅   |        |     |    ✅    |    ✅     |   ✅   |       |             |        |
 | Roo Code ⚠️               |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |       |     ✅      |        |
