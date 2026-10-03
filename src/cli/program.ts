@@ -247,14 +247,10 @@ export function createProgram(): Command {
       "--mode <mode>",
       `Install layout to produce (${INSTALL_MODES.join("|")}). Default: rulesync`,
     )
-    .option(
-      "--update",
-      "Force re-resolve all source refs, ignoring lockfile (not supported in gh mode)",
-    )
-    .option("-f, --force", "Overwrite existing skills without prompting (gh mode only)")
+    .option("--update", "Force re-resolve all source refs, ignoring lockfile")
     .option(
       "--frozen",
-      "Fail if lockfile is missing or out of sync (for CI); fetches missing skills using locked refs (not supported in gh mode)",
+      "Fail if lockfile is missing or out of sync (for CI); fetches missing skills using locked refs",
     )
     .option(
       "--outdated",
@@ -270,7 +266,6 @@ export function createProgram(): Command {
         const mode = parseInstallMode(rawMode);
         await installCommand(logger, {
           mode,
-          force: (options as { force?: boolean }).force,
           update: (options as { update?: boolean }).update,
           frozen: (options as { frozen?: boolean }).frozen,
           outdated: (options as { outdated?: boolean }).outdated,

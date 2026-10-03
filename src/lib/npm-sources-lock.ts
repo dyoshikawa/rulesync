@@ -11,7 +11,8 @@ import type { Logger } from "../utils/logger.js";
  * `rulesync-npm.lock.json` at the project root. Kept separate from the main
  * `rulesync.lock` because that lockfile pins git commit SHAs, while npm
  * sources pin a resolved package version plus the registry tarball integrity.
- * Like `rulesync-apm.lock.yaml`, it is specific to its mode or transport.
+ * Mirrors the conventions of the gh (`rulesync-gh.lock.yaml`) and apm
+ * (`rulesync-apm.lock.yaml`) lockfiles, which are also mode/transport-specific.
  */
 
 /** Current npm lockfile format version. Bump when the schema changes. */

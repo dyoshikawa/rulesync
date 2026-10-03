@@ -1,7 +1,7 @@
 import { ConfigResolver } from "../../config/config-resolver.js";
 import { installApm } from "../../lib/apm/apm-install.js";
 import { apmManifestExists } from "../../lib/apm/apm-manifest.js";
-import { installGh, validateGhOptions } from "../../lib/gh/gh-install.js";
+import { installGh } from "../../lib/gh/gh-install.js";
 import { checkOutdatedSources } from "../../lib/sources-outdated.js";
 import { resolveAndFetchSources } from "../../lib/sources.js";
 import { CLIError, ErrorCodes } from "../../types/json-output.js";
@@ -12,7 +12,6 @@ export type InstallMode = (typeof INSTALL_MODES)[number];
 
 export type InstallCommandOptions = {
   mode?: InstallMode;
-  force?: boolean;
   update?: boolean;
   frozen?: boolean;
   outdated?: boolean;
@@ -28,10 +27,6 @@ export async function installCommand(
 ): Promise<void> {
   const mode: InstallMode = options.mode ?? "rulesync";
 
-  if (options.force && mode !== "gh") {
-    throw new Error("--force is only supported in gh mode.");
-  }
-
   if (options.outdated) {
     if (mode !== "rulesync") {
       throw new Error("--outdated is only supported in rulesync mode.");
@@ -44,7 +39,6 @@ export async function installCommand(
   }
 
   if (mode === "gh") {
-    validateGhOptions(options);
     await runGhInstall(logger, options);
     return;
   }
@@ -265,7 +259,6 @@ async function runGhInstall(logger: Logger, options: InstallCommandOptions): Pro
     projectRoot,
     sources,
     options: {
-      force: options.force,
       update: options.update,
       frozen: options.frozen,
       token: options.token,
@@ -275,6 +268,7 @@ async function runGhInstall(logger: Logger, options: InstallCommandOptions): Pro
 
   if (logger.jsonMode) {
     logger.captureData("sourcesProcessed", result.sourcesProcessed);
+    logger.captureData("installedSkillCount", result.installedSkillCount);
     logger.captureData("failedSourceCount", result.failedSourceCount);
   }
 
@@ -284,5 +278,11 @@ async function runGhInstall(logger: Logger, options: InstallCommandOptions): Pro
     );
   }
 
-  logger.success(`Processed ${result.sourcesProcessed} gh source(s) using GitHub CLI.`);
+  if (result.installedSkillCount > 0) {
+    logger.success(
+      `Installed ${result.installedSkillCount} skill(s) from ${result.sourcesProcessed} gh source(s).`,
+    );
+  } else {
+    logger.success(`All gh sources up to date (${result.sourcesProcessed} checked).`);
+  }
 }

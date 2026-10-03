@@ -1,155 +1,146 @@
-import { execFile } from "node:child_process";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
-import { promisify } from "node:util";
+import { join } from "node:path";
 
-import { expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const exec = promisify(execFile);
-const repo = process.env.RULESYNC_GH_TEST_REPO;
+import { getGhLockPath } from "../../lib/gh/gh-lock.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
+import { setupTestDirectory } from "../../test-utils/test-directories.js";
+import { fileExists, readFileContent, writeFileContent } from "../../utils/file.js";
+import { installCommand } from "./install.js";
 
-// RULESYNC_GH_TEST_REPO=owner/disposable-repo npx vitest run src/cli/commands/install-gh.integration.test.ts
-// Use a repository with no other skills or releases: this test writes three commits.
-// Uses real gh, real GitHub, and the full Rulesync CLI, with isolated homes.
-it.skipIf(!repo)(
-  "installs, migrates, and updates through real gh after the source advances",
-  async () => {
-    const root = await mkdtemp(join(tmpdir(), "rulesync-gh-"));
-    const project = join(root, "project");
-    const home = join(root, "home");
-    await mkdir(project);
-    await mkdir(home);
-    const token =
-      process.env.GH_TOKEN ??
-      process.env.GITHUB_TOKEN ??
-      (await exec("gh", ["auth", "token"])).stdout.trim();
-    const env = {
-      ...process.env,
-      HOME: home,
-      USERPROFILE: home,
-      HOME_DIR: home,
-      GH_TOKEN: token,
-      GH_PROMPT_DISABLED: "1",
-      NODE_ENV: "e2e",
-    };
-    const gh = async (args: string[]) => {
-      const result = await exec("gh", args, { cwd: project, env });
-      return result.stdout + result.stderr;
-    };
-    const cli = [
-      resolve("node_modules/tsx/dist/cli.mjs"),
-      resolve("src/cli/index.ts"),
-      "install",
-      "--mode",
-      "gh",
-    ];
-    const install = (flags: string[] = []) =>
-      exec(process.execPath, [...cli, ...flags], { cwd: project, env });
-    const endpoint = `repos/${repo}/contents/skills/rulesync-interop/SKILL.md`;
-    const body = (version: string) =>
-      `---\nname: rulesync-interop\ndescription: Interoperability fixture\n---\n${version}\n`;
-    const publish = async (version: string, sha?: string) => {
-      const result = await gh([
-        "api",
-        "--method",
-        "PUT",
-        endpoint,
-        "-f",
-        `message=Test fixture ${version}`,
-        "-f",
-        `content=${Buffer.from(body(version)).toString("base64")}`,
-        ...(sha ? ["-f", `sha=${sha}`] : []),
-      ]);
-      return JSON.parse(result).content.sha as string;
-    };
-    try {
-      let previousSha: string | undefined;
-      try {
-        previousSha = JSON.parse(await gh(["api", endpoint])).sha;
-      } catch {
-        /* empty fixture repo */
-      }
-      const firstSha = await publish("version-one", previousSha);
-      const branch = JSON.parse(await gh(["api", `repos/${repo}`])).default_branch as string;
-      const legacyDir = join(project, ".claude", "skills", "rulesync-interop");
-      const extra = join(legacyDir, "extra.txt");
-      const lock = join(project, "rulesync-gh.lock.yaml");
-      await writeFile(lock, "invalid old lock: [");
-      await writeFile(
-        join(project, "rulesync.jsonc"),
-        JSON.stringify({
-          sources: [
-            { source: repo, ref: branch, skills: ["rulesync-interop"], agent: "claude-code" },
-            { source: repo, ref: branch, skills: ["*"], agent: "universal", scope: "user" },
-            { source: repo, skills: ["*"], agent: "universal" },
-          ],
-        }),
-      );
-      await install();
-      const list = JSON.parse(
-        await gh(["skill", "list", "--json", "skillName,sourceURL,version,pinned,path"]),
-      );
-      expect(list).toHaveLength(3);
-      for (const skill of list) {
-        expect(skill).toMatchObject({
-          skillName: "rulesync-interop",
-          sourceURL: `https://github.com/${repo}`,
-          version: branch,
-          pinned: false,
-        });
-        expect(await readFile(join(skill.path, "SKILL.md"), "utf8")).toContain("github-tree-sha:");
-      }
-      const installed = join(legacyDir, "SKILL.md");
-      const fresh = await readFile(installed, "utf8");
-      await expect(install()).rejects.toMatchObject({
-        code: 1,
-        stderr: expect.stringContaining("use --force to overwrite"),
-      });
-      expect(await readFile(installed, "utf8")).toBe(fresh);
+// Mock only the network boundary. Everything else (config loader, lockfile
+// read/write, filesystem deployment) runs for real against a temp directory —
+// this is the happy-path E2E for --mode gh.
+let mockClientInstance: any;
 
-      const legacy = `---\nname: rulesync-interop\nsource: https://github.com/${repo}\nrepository: ${repo}\nref: old\n---\nlegacy\n`;
-      await writeFile(installed, legacy);
-      await writeFile(extra, "old extra file");
-      expect(await gh(["skill", "update", "--dry-run", "--all"])).toContain(
-        "has no GitHub metadata",
-      );
-      await expect(install()).rejects.toThrow("use --force to overwrite");
-      expect(await readFile(installed, "utf8")).toBe(legacy);
-      await install(["--force"]);
-      expect(await readFile(extra, "utf8")).toBe("old extra file");
-      expect(await readFile(installed, "utf8")).toBe(fresh);
-      expect(await readFile(lock, "utf8")).toBe("invalid old lock: [");
-      await rm(lock);
-      const nativeLock = JSON.parse(
-        await readFile(join(home, ".agents", ".skill-lock.json"), "utf8"),
-      );
-      expect(nativeLock.skills["rulesync-interop"].source).toBe(repo);
-      expect(await gh(["skill", "update", "--dry-run", "--all"])).not.toContain(
-        "has no GitHub metadata",
-      );
-      const installedBefore = await readFile(join(legacyDir, "SKILL.md"), "utf8");
-      expect(installedBefore).toContain("version-one");
-      expect(installedBefore).not.toContain("\nrepository:");
-      const secondSha = await publish("version-two", firstSha);
-      expect(await gh(["skill", "update", "--dry-run", "--all"])).toContain("update(s) available");
-      expect(await readFile(join(legacyDir, "SKILL.md"), "utf8")).toBe(installedBefore);
-      expect(await gh(["skill", "update", "--all"])).toContain("Updated rulesync-interop");
-      await expect(readFile(extra)).rejects.toMatchObject({ code: "ENOENT" });
-      for (const skill of list) {
-        expect(await readFile(join(skill.path, "SKILL.md"), "utf8")).toContain("version-two");
-      }
-      await expect(install(["--frozen"])).rejects.toThrow("--frozen is not supported");
-      await expect(install(["--update"])).rejects.toThrow("--update is not supported");
-      await publish("version-three", secondSha);
-      await install(["--force"]);
-      for (const skill of list) {
-        expect(await readFile(join(skill.path, "SKILL.md"), "utf8")).toContain("version-three");
-      }
-      await expect(readFile(lock)).rejects.toMatchObject({ code: "ENOENT" });
-    } finally {
-      await rm(root, { recursive: true, force: true });
+vi.mock("../../lib/github-client.js", () => ({
+  GitHubClient: class MockGitHubClient {
+    static resolveToken = vi.fn().mockReturnValue(undefined);
+
+    getDefaultBranch(...args: any[]) {
+      return mockClientInstance.getDefaultBranch(...args);
+    }
+    getLatestRelease(...args: any[]) {
+      return mockClientInstance.getLatestRelease(...args);
+    }
+    resolveRefToSha(...args: any[]) {
+      return mockClientInstance.resolveRefToSha(...args);
+    }
+    listDirectory(...args: any[]) {
+      return mockClientInstance.listDirectory(...args);
+    }
+    getFileContent(...args: any[]) {
+      return mockClientInstance.getFileContent(...args);
+    }
+    getFileInfo(...args: any[]) {
+      return mockClientInstance.getFileInfo(...args);
     }
   },
-  180_000,
-);
+  GitHubClientError: class GitHubClientError extends Error {
+    statusCode?: number;
+    constructor(message: string, statusCode?: number) {
+      super(message);
+      this.statusCode = statusCode;
+    }
+  },
+  logGitHubAuthHints: vi.fn(),
+}));
+
+const VALID_SHA = "a".repeat(40);
+
+describe("installCommand --mode gh (happy path)", () => {
+  let testDir: string;
+  let cleanup: () => Promise<void>;
+  const logger = createMockLogger();
+
+  beforeEach(async () => {
+    ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
+
+    mockClientInstance = {
+      getDefaultBranch: vi.fn().mockResolvedValue("main"),
+      getLatestRelease: vi.fn().mockResolvedValue({
+        tag_name: "v1.2.3",
+        name: "v1.2.3",
+        prerelease: false,
+        draft: false,
+        assets: [],
+      }),
+      resolveRefToSha: vi.fn().mockResolvedValue(VALID_SHA),
+      listDirectory: vi.fn(),
+      getFileContent: vi.fn(),
+      getFileInfo: vi.fn(),
+    };
+  });
+
+  afterEach(async () => {
+    await cleanup();
+    vi.clearAllMocks();
+  });
+
+  it("installs declared sources into agent dirs and writes rulesync-gh.lock.yaml", async () => {
+    // rulesync.jsonc with a gh-mode source pinned to claude-code / project scope.
+    await writeFileContent(
+      join(testDir, "rulesync.jsonc"),
+      `{
+  "targets": ["claudecode"],
+  "features": ["rules"],
+  "sources": [
+    { "source": "acme/skills", "agent": "claude-code", "scope": "project" }
+  ]
+}
+`,
+    );
+
+    mockClientInstance.listDirectory.mockImplementation(
+      async (_owner: string, _repo: string, path: string) => {
+        if (path === "skills") {
+          return [{ name: "git-commit", path: "skills/git-commit", type: "dir", size: 0 }];
+        }
+        if (path === "skills/git-commit") {
+          return [
+            {
+              name: "SKILL.md",
+              path: "skills/git-commit/SKILL.md",
+              type: "file",
+              size: 100,
+            },
+          ];
+        }
+        const err = new Error(`Not found: ${path}`) as Error & { statusCode?: number };
+        err.statusCode = 404;
+        throw err;
+      },
+    );
+    mockClientInstance.getFileInfo.mockImplementation(
+      async (_owner: string, _repo: string, path: string) =>
+        path === "skills/git-commit/SKILL.md"
+          ? { name: "SKILL.md", path, type: "file", size: 100 }
+          : null,
+    );
+    mockClientInstance.getFileContent.mockImplementation(
+      async (_owner: string, _repo: string, path: string) => `# Git Commit\n\nbody from ${path}\n`,
+    );
+
+    await installCommand(logger, { mode: "gh" });
+
+    const skillPath = join(testDir, ".claude/skills/git-commit/SKILL.md");
+    expect(await fileExists(skillPath)).toBe(true);
+    const content = await readFileContent(skillPath);
+    // Provenance frontmatter must be injected at the top.
+    expect(content.startsWith("---\n")).toBe(true);
+    expect(content).toContain("source: https://github.com/acme/skills");
+    expect(content).toContain("repository: acme/skills");
+    expect(content).toContain("ref: v1.2.3");
+    // Original body preserved.
+    expect(content).toContain("# Git Commit");
+
+    expect(await fileExists(getGhLockPath(testDir))).toBe(true);
+    const lockContent = await readFileContent(getGhLockPath(testDir));
+    expect(lockContent).toContain("lockfile_version:");
+    expect(lockContent).toContain("agent: claude-code");
+    expect(lockContent).toContain("scope: project");
+    expect(lockContent).toContain(VALID_SHA);
+    expect(lockContent).toContain(".claude/skills/git-commit/SKILL.md");
+  });
+});
