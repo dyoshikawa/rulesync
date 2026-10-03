@@ -1,5 +1,5 @@
 import { symlink } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -1015,6 +1015,39 @@ This is the fallback skill body content.`;
 
     expect(await readFileContent(handAuthoredPath)).toContain("Hand-authored architecture notes.");
   });
+
+  it.skipIf(process.platform === "win32")(
+    "should not let a skill directory linked out of the project silence other sweeps",
+    async () => {
+      // The skill write through `.claude/skills/review -> <parent of project>`
+      // is refused; it must not also claim that whole tree, or no file under
+      // the project would ever read as an orphan again.
+      const testDir = getTestDir();
+      const stalePath = join(testDir, ".claude", "commands", "stale.md");
+      await writeFileContent(
+        join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "review", "SKILL.md"),
+        ["---", "name: review", 'description: "Review"', "---", "Review body."].join("\n"),
+      );
+      await writeFileContent(
+        join(testDir, ".rulesync", "commands", "kept.md"),
+        ["---", 'description: "Kept"', "---", "Kept body."].join("\n"),
+      );
+      await writeFileContent(stalePath, "Stale command.");
+      await ensureDir(join(testDir, ".claude", "skills"));
+      await symlink(dirname(testDir), join(testDir, ".claude", "skills", "review"));
+
+      await runGenerate({
+        target: "claudecode",
+        features: "skills,commands",
+        deleteFiles: true,
+      });
+
+      expect(await fileExists(stalePath)).toBe(false);
+      expect(await readFileContent(join(testDir, ".claude", "commands", "kept.md"))).toContain(
+        "Kept body.",
+      );
+    },
+  );
 
   it("should reject a symlinked Kimi managed skills root during deletion", async () => {
     const testDir = getTestDir();

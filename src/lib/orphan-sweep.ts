@@ -1,6 +1,8 @@
 import { dirname, resolve } from "node:path";
 
+import { quoteForLog } from "../utils/control-characters.js";
 import { writeLandingPath } from "../utils/file.js";
+import type { Logger } from "../utils/logger.js";
 
 /** A path an orphan sweep deleted, or would delete under `--dry-run`/`--check`. */
 export type DeletedPath = { path: string; kind: "file" | "directory" };
@@ -40,6 +42,13 @@ export type DeletedPath = { path: string; kind: "file" | "directory" };
  * spellings, so a file only one tool generates must not read as the other's
  * orphan. Following links only adds matches, so it never sweeps a path the
  * lexical comparison keeps.
+ *
+ * The landing includes the last segment, so an orphan that is itself a link
+ * onto a claimed path (`.cursor/commands/foo.md -> ../../.claude/commands/foo.md`)
+ * is kept rather than unlinked: the link is the user's, and keeping it is the
+ * answer that never removes something this run cannot account for. A path
+ * whose links cannot be followed at all — a cycle, or a parent that cannot be
+ * read — is kept too, with a warning.
  */
 export type OrphanSweepPlan = {
   /** Record paths this run writes, so no later sweep treats them as orphans. */
@@ -54,7 +63,14 @@ export type OrphanSweepPlan = {
    * *file* feature's sweep now runs after the skills step has written.
    */
   registerGeneratedTree(params: { paths: string[] }): void;
-  /** True when some target in this run wrote, or intends to write, `path`. */
+  /**
+   * True when some target in this run wrote, or intends to write, `path`.
+   *
+   * Compares the path as spelled only, without following links, so a `false`
+   * here does not make `path` an orphan. A sweep deciding what to delete asks
+   * {@link rejectClaimed} or {@link isGeneratedExactly}, which also compare
+   * where the path lands.
+   */
   isGenerated(params: { path: string }): boolean;
   /**
    * True when some target in this run wrote, or intends to write, exactly
@@ -100,11 +116,13 @@ type DeferredSweep = {
   feature?: string;
 };
 
-export function createOrphanSweepPlan(): OrphanSweepPlan {
+export function createOrphanSweepPlan({ logger }: { logger?: Logger } = {}): OrphanSweepPlan {
   const generatedPaths = new Set<string>();
   const generatedTrees = new Set<string>();
   const deferredSweeps: DeferredSweep[] = [];
   const deletedPathsByFeature = new Map<string, DeletedPath[]>();
+  // Several sweeps can ask about one path; it is reported once.
+  const warnedUnresolvable = new Set<string>();
 
   // Built on first use and dropped when a claim is added.
   let landingClaims: Promise<{ paths: Set<string>; trees: Set<string> }> | undefined;
@@ -135,6 +153,10 @@ export function createOrphanSweepPlan(): OrphanSweepPlan {
     return new Set(landings.filter((landing): landing is string => landing !== null));
   };
 
+  // Every claim is followed at once, in one unbounded `Promise.all`, on the
+  // first candidate that misses lexically: one `lstat` per path segment of
+  // every claim. That cost is paid once per run in practice, since every claim
+  // is registered before the deferred sweeps start.
   const getLandingClaims = () => {
     landingClaims ??= Promise.all([landingsOf(generatedPaths), landingsOf(generatedTrees)]).then(
       ([paths, trees]) => ({
@@ -148,8 +170,18 @@ export function createOrphanSweepPlan(): OrphanSweepPlan {
 
   const landsOnClaim = async ({ path, exactly }: { path: string; exactly: boolean }) => {
     // A path whose links cannot be followed is kept: not deleting is the safe answer.
-    const landing = await followLinks(resolve(path));
-    if (landing === null) return true;
+    const resolved = resolve(path);
+    const landing = await followLinks(resolved);
+    if (landing === null) {
+      if (!warnedUnresolvable.has(resolved)) {
+        warnedUnresolvable.add(resolved);
+        logger?.warn(
+          `Refusing to sweep ${quoteForLog(resolved)}: its symbolic links cannot be followed ` +
+            `(a link cycle or an unreadable directory)`,
+        );
+      }
+      return true;
+    }
     const claims = await getLandingClaims();
     return (
       claims.paths.has(landing) ||
@@ -190,11 +222,10 @@ export function createOrphanSweepPlan(): OrphanSweepPlan {
     },
     async rejectClaimed({ items, getPath }) {
       const claimed = await Promise.all(
-        items.map(
-          async (item) =>
-            plan.isGenerated({ path: getPath(item) }) ||
-            (await landsOnClaim({ path: getPath(item), exactly: false })),
-        ),
+        items.map(async (item) => {
+          const path = getPath(item);
+          return plan.isGenerated({ path }) || (await landsOnClaim({ path, exactly: false }));
+        }),
       );
       return items.filter((_, index) => !claimed[index]);
     },

@@ -40,6 +40,7 @@ import {
   fileExists,
   isPresentButUnresolvable,
   toPosixPath,
+  writablePathEscapesRoot,
 } from "../utils/file.js";
 import type { Logger } from "../utils/logger.js";
 import {
@@ -207,8 +208,23 @@ async function processDirFeatureGeneration(params: {
   // `TaktSkill` overrides `getDirPath()` to drop `dirName` and return the shared
   // root every takt skill flattens into; claiming *that* as a tree would exempt
   // every sibling under the root from the sweep.
+  //
+  // Nor does a directory that leads out of the output root: `writeAiDirs`
+  // refused to write it, and a `.claude/skills/foo -> $HOME` link would
+  // otherwise claim the whole home directory and silence every sweep in the run.
   const ownedTrees = toolDirs.filter((d) => d.ownsDirTree());
-  sweepPlan.registerGeneratedTree({ paths: ownedTrees.map((d) => d.getDirPath()) });
+  const treesInsideRoot = await Promise.all(
+    ownedTrees.map(
+      async (d) =>
+        !(await writablePathEscapesRoot({
+          rootPath: d.getOutputRoot(),
+          targetPath: d.getDirPath(),
+        })),
+    ),
+  );
+  sweepPlan.registerGeneratedTree({
+    paths: ownedTrees.filter((_, index) => treesInsideRoot[index]).map((d) => d.getDirPath()),
+  });
 
   // Claim the directory and the files inside it by name as well, so a feature
   // that flattens into a shared root — and therefore gets no tree claim — still
@@ -864,7 +880,7 @@ export async function generate(params: {
   // One plan for the whole run: every step registers what it writes into it, and
   // every `--delete` sweep is held back until the last step has written, so no
   // target sweeps a directory it shares with a target that has not run yet.
-  const sweepPlan = createOrphanSweepPlan();
+  const sweepPlan = createOrphanSweepPlan({ logger });
 
   const runners: Record<GenerationStepId, () => Promise<FeatureGenerateResult>> = {
     ignore: () => generateIgnoreCore({ config, logger, sweepPlan: sweepPlan.forFeature("ignore") }),
