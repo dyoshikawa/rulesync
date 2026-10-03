@@ -338,14 +338,51 @@ describe("CodewhalePermissions", () => {
       ]);
     });
 
-    it("compares a literal [ in an allowed command as a single character", async () => {
+    it("treats a [...] class in a bash pattern as a wildcard Codewhale cannot match", async () => {
+      const logger = createMockLogger();
+      const perms = await generate(
+        {
+          permission: {
+            bash: { "[g]it push *": "deny", "git *": "allow", "test [ -f x ]": "allow" },
+          },
+        },
+        logger,
+      );
+
+      expect(parseRules(perms)).toEqual([]);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('skipping bash deny "[g]it push *"'),
+      );
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('skipping bash allow "test [ -f x ]"'),
+      );
+    });
+
+    it("compares a literal [ in a workspace grant as a single character", async () => {
+      const grant = {
+        tool: "exec_shell",
+        command: "test [ -f x ]",
+        command_exact: true,
+        workspace: "/home/me/project",
+        action: "allow",
+      };
+      await writePermissions(smolToml.stringify({ rules: [grant] }));
+
+      const perms = await generate({ permission: { bash: { "* -f *": "deny" } } });
+
+      expect(parseRules(perms)).toEqual([]);
+    });
+
+    it("withholds a directory-rooted allow when a dropped restriction lies under it", async () => {
       const perms = await generate({
-        permission: { bash: { "* -f *": "deny", "test [ -f x ]": "allow", ls: "allow" } },
+        permission: {
+          grep: { ".": "allow", "secrets/**": "deny" },
+          list: { src: "allow", docs: "allow", "src/**/*.pem": "deny" },
+          read: { "secrets/{a,{b,c}}": "deny", "secrets/b": "allow" },
+        },
       });
 
-      expect(parseRules(perms)).toEqual([
-        { tool: "exec_shell", command: "ls", command_exact: true, action: "allow" },
-      ]);
+      expect(parseRules(perms)).toEqual([{ tool: "list_dir", path: "docs", action: "allow" }]);
     });
 
     it("turns a ** bash or all-tools restriction into a tool-wide rule", async () => {

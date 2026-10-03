@@ -83,7 +83,7 @@ const CODEWHALE_TOOL_TO_PATH_CATEGORIES: Record<string, readonly string[]> = {
 const CODEWHALE_GLOBAL_ONLY_MESSAGE =
   "Codewhale permissions are global-only; use --global to sync ~/.codewhale/permissions.toml";
 
-const COMMAND_WILDCARD_CHARACTERS = /[*?]/;
+const COMMAND_WILDCARD_CHARACTERS = /[*?[]/;
 const PATH_GLOB_CHARACTERS = /[*?[\]{}]/;
 
 type ResolvedCodewhaleRule = CodewhalePermissionRule & { action: PermissionAction };
@@ -289,11 +289,11 @@ function normalizeCommandGlob(glob: string): string {
  * compared lowercased (for case-insensitive file systems) with those segments
  * dropped, a `{a,b}` group widens to `*`, a `**` segment widens so it also
  * matches no directory at all (a leading `**` segment before `*.pem` reaches
- * `dev.pem`, and `secrets/**` reaches `secrets`), and a path that is absolute, home-relative or climbs with
- * `..` widens to `*` outright, since it cannot be compared against a
- * workspace-relative one. Every rewrite only widens a pattern, so an inexact
- * comparison withholds an `allow` rather than writing one a dropped
- * restriction overlaps.
+ * `dev.pem`, and `secrets/**` reaches `secrets`), and a path that is absolute,
+ * home-relative or climbs with `..` widens to `*` outright, since it cannot be
+ * compared against a workspace-relative one. Every rewrite only widens a
+ * pattern, so an inexact comparison withholds an `allow` rather than writing
+ * one a dropped restriction overlaps.
  */
 function normalizePathGlob(glob: string): string {
   const normalized = glob.trim().replaceAll("\\", "/").toLowerCase();
@@ -304,7 +304,7 @@ function normalizePathGlob(glob: string): string {
     .split("/")
     .filter((segment) => segment !== "" && segment !== ".")
     .join("/")
-    .replace(/\{[^}]*\}/g, "*")
+    .replace(/\{.*\}/g, "*")
     .replace(/\*\*\//g, "*")
     .replace(/\/\*\*$/, "*");
 }
@@ -319,14 +319,30 @@ function pathRestrictionGlob(pattern: string): string {
   return normalizePathGlob(widenRestrictionClasses(pattern));
 }
 
-/** The globs a written `allow` rule approves, for comparison with dropped restrictions. */
+/**
+ * The file tools whose `path` is the directory a search or listing starts from,
+ * so an `allow` on a directory reaches everything under it.
+ */
+const CODEWHALE_DIRECTORY_ROOTED_TOOLS: ReadonlySet<string> = new Set([
+  "grep_files",
+  "file_search",
+  "list_dir",
+]);
+
+/**
+ * The globs a written `allow` rule approves, for comparison with dropped
+ * restrictions. A path that normalizes to the workspace root (`.`) approves
+ * everything, and a directory-rooted tool's path approves what lies under it.
+ */
 function allowRuleComparisonGlobs(rule: CodewhalePermissionRule): string[] {
   if (rule.tool === CODEWHALE_SHELL_TOOL) {
     if (rule.command === undefined) return ["*"];
     const command = normalizeCommandGlob(literalAsGlob(rule.command));
     return rule.command_exact ? [command] : [command, `${command} *`];
   }
-  return [rule.path === undefined ? "*" : normalizePathGlob(literalAsGlob(rule.path))];
+  const path = rule.path === undefined ? "" : normalizePathGlob(literalAsGlob(rule.path));
+  if (path === "") return ["*"];
+  return CODEWHALE_DIRECTORY_ROOTED_TOOLS.has(rule.tool) ? [path, `${path}/*`] : [path];
 }
 
 /**
