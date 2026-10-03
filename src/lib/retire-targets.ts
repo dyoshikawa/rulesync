@@ -234,12 +234,12 @@ async function sweepFiles({
   sweepPlan: OrphanSweepPlan;
   unownedPaths: Set<string>;
 }): Promise<boolean> {
-  const candidates = sweepPlan
-    .rejectClaimed({
+  const candidates = (
+    await sweepPlan.rejectClaimed({
       items: await processor.loadToolFiles({ forDeletion: true }),
       getPath: (f) => f.getFilePath(),
     })
-    .filter((f) => !unownedPaths.has(resolve(f.getFilePath())));
+  ).filter((f) => !unownedPaths.has(resolve(f.getFilePath())));
   // Single-file features list their settable path whether or not it exists,
   // so a target that left nothing behind would otherwise report a deletion
   // on every run and keep `--check` failing.
@@ -259,14 +259,14 @@ async function sweepDirs({
   sweepPlan: OrphanSweepPlan;
 }): Promise<boolean> {
   const removedDirs = await processor.removeOrphanAiDirs(
-    sweepPlan.rejectClaimed({
+    await sweepPlan.rejectClaimed({
       items: await processor.loadToolDirsToDelete(),
       getPath: (d) => d.getDirPath(),
     }),
     [],
   );
   const removedFlatFiles = await processor.removeOrphanFlatFiles({
-    existingFlatFiles: sweepPlan.rejectClaimed({
+    existingFlatFiles: await sweepPlan.rejectClaimed({
       items: await processor.loadToolFlatFilesToDelete(),
       getPath: (d) => d.getFlatFilePath() ?? d.getDirPath(),
     }),

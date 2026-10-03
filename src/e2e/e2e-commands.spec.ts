@@ -1,10 +1,17 @@
+import { symlink } from "node:fs/promises";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
 import { RULESYNC_COMMANDS_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import { CommandsProcessor } from "../features/commands/commands-processor.js";
-import { fileExists, readFileContent, removeFile, writeFileContent } from "../utils/file.js";
+import {
+  ensureDir,
+  fileExists,
+  readFileContent,
+  removeFile,
+  writeFileContent,
+} from "../utils/file.js";
 import { getHermesagentGlobalDir } from "../utils/hermesagent.js";
 import {
   assertGenerateMatrixCoversTargets,
@@ -248,6 +255,46 @@ Check the PR diff and provide feedback.
       });
 
       expect(await readFileContent(join(testDir, orphanPath))).toBe("# orphan\n");
+    },
+  );
+
+  it.skipIf(process.platform === "win32")(
+    "should keep both targets' commands when one commands directory is a link to the other",
+    async () => {
+      // `.cursor/commands -> .claude/commands` is one directory under two
+      // spellings, so the cursor sweep must not read the claudecode-only
+      // command as its orphan.
+      const testDir = getTestDir();
+      const stalePath = join(testDir, ".claude", "commands", "left-over.md");
+      await writeFileContent(
+        join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "claude-only.md"),
+        [
+          "---",
+          'targets: ["claudecode"]',
+          'description: "Claude only"',
+          "---",
+          "Claude body.",
+        ].join("\n"),
+      );
+      await writeFileContent(stalePath, "# left over\n");
+      await ensureDir(join(testDir, ".cursor"));
+      await symlink(join(testDir, ".claude", "commands"), join(testDir, ".cursor", "commands"));
+
+      await runGenerate({ target: "claudecode,cursor", features: "commands", deleteFiles: true });
+
+      expect(
+        await readFileContent(join(testDir, ".claude", "commands", "claude-only.md")),
+      ).toContain("Claude body.");
+      expect(await fileExists(stalePath)).toBe(false);
+      await expect(
+        runGenerate({
+          target: "claudecode,cursor",
+          features: "commands",
+          deleteFiles: true,
+          check: true,
+          env: { NODE_ENV: "e2e" },
+        }),
+      ).resolves.toMatchObject({ stdout: expect.stringContaining("All files are up to date") });
     },
   );
 });

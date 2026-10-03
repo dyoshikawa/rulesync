@@ -444,7 +444,7 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
     isClaimed,
   }: {
     generatedDirs: AiDir[];
-    isClaimed: (path: string) => boolean;
+    isClaimed: (path: string) => boolean | Promise<boolean>;
   }): Promise<number> {
     if (hasIncompleteCarriedFiles()) {
       // Once per run, not once per target: the message is about the sources,
@@ -579,7 +579,7 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
           );
           continue;
         }
-        if (isClaimed(filePath)) {
+        if (await isClaimed(filePath)) {
           continue;
         }
         orphanPaths.add(filePath);
