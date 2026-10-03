@@ -254,6 +254,14 @@ The `generate` command reads source files from one or more rulesync source trees
 > warning — sweeps no skill directory from the inside at all: with the source
 > only partly read, a generated file it cannot account for may be one it still
 > wants.
+>
+> An output directory reached through a symbolic link that leads outside the
+> output root — a checked-out `.cursor/commands -> ~/notes`, say — is not swept
+> either: what the sweep would list there are files in the link's target, not
+> Rulesync's output, so each one is kept and named in a `Refusing to delete`
+> warning, the same way a write through such a link is refused. A link that stays
+> inside the output root is followed as usual, and an orphan that is itself a
+> symbolic link is removed as a link, leaving its target untouched.
 
 > **Note on unreadable sources:** This applies to the single-file features —
 > `mcp`, `hooks`, `permissions`, and `ignore` — each of which is generated from

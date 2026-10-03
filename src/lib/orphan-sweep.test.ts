@@ -1,8 +1,9 @@
-import { symlink } from "node:fs/promises";
+import { symlink, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { createMockLogger } from "../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { ensureDir } from "../utils/file.js";
 import { createOrphanSweepPlan } from "./orphan-sweep.js";
@@ -331,6 +332,72 @@ describe("createOrphanSweepPlan", () => {
       ).toBe(true);
       expect(await plan.isGeneratedExactly({ path: join(cursorDir, "shared", "stale.md") })).toBe(
         false,
+      );
+    });
+
+    it("should keep an orphan that is itself a link onto a claimed file", async () => {
+      // The link is the user's own wiring of one tool's file into another's
+      // directory; the sweep keeps it rather than unlinking it.
+      await ensureDir(claudeDir);
+      await ensureDir(cursorDir);
+      await writeFile(join(claudeDir, "foo.md"), "foo");
+      await symlink(join(claudeDir, "foo.md"), join(cursorDir, "foo.md"));
+      const plan = createOrphanSweepPlan();
+
+      plan.registerGenerated({ paths: [join(claudeDir, "foo.md")] });
+
+      expect(
+        await plan.rejectClaimed({ items: [join(cursorDir, "foo.md")], getPath: (path) => path }),
+      ).toEqual([]);
+    });
+
+    it("should see a claim registered after the claims were first followed", async () => {
+      await ensureDir(claudeDir);
+      await ensureDir(join(testDir, "home", ".cursor"));
+      await symlink(claudeDir, cursorDir);
+      const plan = createOrphanSweepPlan();
+      const candidate = join(cursorDir, "late.md");
+
+      plan.registerGenerated({ paths: [join(claudeDir, "early.md")] });
+      // Misses lexically, so this follows every claim registered so far.
+      expect(await plan.rejectClaimed({ items: [candidate], getPath: (path) => path })).toEqual([
+        candidate,
+      ]);
+
+      plan.registerGenerated({ paths: [join(claudeDir, "late.md")] });
+      expect(await plan.rejectClaimed({ items: [candidate], getPath: (path) => path })).toEqual([]);
+    });
+
+    it("should see a tree claim registered after the claims were first followed", async () => {
+      await ensureDir(join(claudeDir, "late"));
+      await ensureDir(join(testDir, "home", ".cursor"));
+      await symlink(claudeDir, cursorDir);
+      const plan = createOrphanSweepPlan();
+      const candidate = join(cursorDir, "late", "SKILL.md");
+
+      expect(await plan.rejectClaimed({ items: [candidate], getPath: (path) => path })).toEqual([
+        candidate,
+      ]);
+
+      plan.registerGeneratedTree({ paths: [join(claudeDir, "late")] });
+      expect(await plan.rejectClaimed({ items: [candidate], getPath: (path) => path })).toEqual([]);
+    });
+
+    it("should keep and warn once about a candidate whose links form a cycle", async () => {
+      const first = join(testDir, "first");
+      const second = join(testDir, "second");
+      await symlink(second, first);
+      await symlink(first, second);
+      const logger = createMockLogger();
+      const plan = createOrphanSweepPlan({ logger });
+      const candidate = join(first, "stale.md");
+
+      expect(await plan.rejectClaimed({ items: [candidate], getPath: (path) => path })).toEqual([]);
+      expect(await plan.isGeneratedExactly({ path: candidate })).toBe(true);
+
+      expect(logger.warn).toHaveBeenCalledExactlyOnceWith(
+        `Refusing to sweep ${JSON.stringify(candidate)}: its symbolic links cannot be followed ` +
+          `(a link cycle or an unreadable directory)`,
       );
     });
   });

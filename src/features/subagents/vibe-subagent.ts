@@ -142,7 +142,7 @@ export class VibeSubagent extends ToolSubagent {
     };
 
     return new RulesyncSubagent({
-      outputRoot: this.outputRoot,
+      outputRoot: ".", // RulesyncSubagent outputRoot is always the project root directory
       frontmatter: rulesyncFrontmatter,
       body: resolvedBody ?? "",
       relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
