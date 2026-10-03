@@ -164,9 +164,11 @@ const KILO_MARKDOWN_SOURCE_KEY = "markdown_source";
 /**
  * Narrow an authored `markdown_source` rule to what a *project* `kilo.jsonc`
  * can mean. Kilo only grants it when the winning pattern came from the global
- * config ("Project configuration cannot grant this permission"), so a project
- * `allow` / `ask` is inert; a project `deny` still wins over a global `allow`
- * under last-match-wins, so denies are kept — a project config may only tighten.
+ * config with the action `allow` ("Project configuration cannot grant this
+ * permission"). A project pattern that wins last-match-wins therefore never
+ * grants: `deny` and `ask` both block, so they are kept — a project config may
+ * only tighten. A project `allow` would block too, the opposite of what it
+ * says, so it is dropped with a warning pointing at `--global`.
  * Returns `undefined` when nothing is left to write.
  * @see https://kilo.ai/docs/customize/workflows
  * @see https://github.com/Kilo-Org/kilocode/blob/main/packages/opencode/src/kilocode/config/external-markdown.ts
@@ -181,19 +183,19 @@ function narrowMarkdownSourceToProjectScope({
   let emitted: unknown;
   let dropped: string[];
   if (typeof authored === "string") {
-    emitted = authored === "deny" ? authored : undefined;
-    dropped = authored === "deny" ? [] : ["*"];
+    emitted = authored === "allow" ? undefined : authored;
+    dropped = authored === "allow" ? ["*"] : [];
   } else {
     const entries = Object.entries(asKiloRecord(authored));
-    const denies = entries.filter(([, action]) => action === "deny");
-    emitted = denies.length > 0 ? Object.fromEntries(denies) : undefined;
-    dropped = entries.filter(([, action]) => action !== "deny").map(([pattern]) => pattern);
+    const kept = entries.filter(([, action]) => action !== "allow");
+    emitted = kept.length > 0 ? Object.fromEntries(kept) : undefined;
+    dropped = entries.filter(([, action]) => action === "allow").map(([pattern]) => pattern);
   }
   if (dropped.length > 0) {
     logger?.warn(
-      `Kilo grants '${KILO_MARKDOWN_SOURCE_KEY}' from the global config only, so these non-deny ` +
+      `Kilo grants '${KILO_MARKDOWN_SOURCE_KEY}' from the global config only, so these 'allow' ` +
         `patterns were dropped from the project config: ${dropped.join(", ")}. A project config ` +
-        `may only deny it; generate with --global to grant access.`,
+        `may only deny or ask; generate with --global to grant access.`,
     );
   }
   return emitted;

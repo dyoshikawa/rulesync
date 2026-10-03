@@ -476,19 +476,24 @@ describe("KiloPermissions", () => {
     ).rejects.toThrow(/Failed to parse Kilo Code config/);
   });
   describe("markdown_source", () => {
-    it("should drop non-deny patterns at project scope with a warning", async () => {
+    it("should drop allow patterns at project scope with a warning", async () => {
       const logger = createMockLogger();
 
       const instance = await KiloPermissions.fromRulesyncPermissions({
         outputRoot: testDir,
         rulesyncPermissions: withKiloPermission({
-          markdown_source: { "/shared/commands/*": "allow", "/private/*": "deny" },
+          markdown_source: {
+            "/shared/commands/*": "allow",
+            "/private/*": "deny",
+            "/review/*": "ask",
+          },
         }),
         logger,
       });
 
       expect(JSON.parse(instance.getFileContent()).permission.markdown_source).toEqual({
         "/private/*": "deny",
+        "/review/*": "ask",
       });
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("/shared/commands/*"));
     });
@@ -509,10 +514,14 @@ describe("KiloPermissions", () => {
       );
     });
 
-    it("should keep a bare deny and drop a bare allow at project scope", async () => {
+    it("should keep a bare deny or ask and drop a bare allow at project scope", async () => {
       const denied = await KiloPermissions.fromRulesyncPermissions({
         outputRoot: testDir,
         rulesyncPermissions: withKiloPermission({ markdown_source: "deny" }),
+      });
+      const asked = await KiloPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: withKiloPermission({ markdown_source: "ask" }),
       });
       const allowed = await KiloPermissions.fromRulesyncPermissions({
         outputRoot: testDir,
@@ -520,6 +529,7 @@ describe("KiloPermissions", () => {
       });
 
       expect(JSON.parse(denied.getFileContent()).permission.markdown_source).toBe("deny");
+      expect(JSON.parse(asked.getFileContent()).permission.markdown_source).toBe("ask");
       expect(JSON.parse(allowed.getFileContent()).permission).not.toHaveProperty("markdown_source");
     });
 
