@@ -1056,7 +1056,7 @@ This is the fallback skill body content.`;
     },
   );
 
-  it("should reject a symlinked Kimi managed skills root during deletion", async () => {
+  it("should skip the sweep of a symlinked Kimi managed skills root with a warning", async () => {
     const testDir = getTestDir();
     const protectedDir = join(testDir, "protected-skills");
     const protectedFile = join(protectedDir, "protected", "SKILL.md");
@@ -1069,13 +1069,19 @@ This is the fallback skill body content.`;
     await ensureDir(join(testDir, ".kimi-code"));
     await symlink(protectedDir, managedRoot, process.platform === "win32" ? "junction" : "dir");
 
-    await expect(
-      runGenerate({
-        target: "kimi-code",
-        features: "skills",
-        deleteFiles: true,
-      }),
-    ).rejects.toThrow();
+    // The link stays inside the project, but sweeping through it would delete
+    // a directory rulesync does not manage: the root's sweep is skipped with a
+    // warning, and the run itself still succeeds.
+    // NODE_ENV=test would suppress the warning in the child process.
+    const { stderr } = await runGenerate({
+      target: "kimi-code",
+      features: "skills",
+      deleteFiles: true,
+      env: { NODE_ENV: "e2e" },
+    });
+
+    expect(stderr).toContain("Skipping the orphan sweep");
+    expect(stderr).toContain(join(".kimi-code", "skills"));
     expect(await readFileContent(protectedFile)).toContain("Keep me.");
   });
 });
@@ -1301,6 +1307,56 @@ describe("E2E: skills (global mode)", () => {
       global: true,
     });
   });
+
+  it.each([
+    { label: "generate", dryRun: false },
+    { label: "dry run", dryRun: true },
+  ])(
+    "should write through a skills root linked inside the home directory and skip its sweep ($label)",
+    async ({ dryRun }) => {
+      // A dotfiles checkout linked from inside the home directory: writes go
+      // through the link, but `--delete` does not sweep through it, and the
+      // run succeeds instead of failing after the writes land.
+      const projectDir = getProjectDir();
+      const homeDir = getHomeDir();
+      const dotfilesSkillsDir = join(homeDir, "dotfiles", "cursor-skills");
+      const staleFile = join(dotfilesSkillsDir, "stale", "SKILL.md");
+      // A hand-placed file inside a directory this run generates: not swept
+      // through the link either.
+      const userFile = join(dotfilesSkillsDir, "demo", "notes.md");
+      await writeFileContent(
+        join(projectDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "demo", "SKILL.md"),
+        ["---", "name: demo", "description: demo", "---", "Demo body."].join("\n"),
+      );
+      await writeFileContent(
+        staleFile,
+        ["---", "name: stale", "description: stale", "---", "Stale body."].join("\n"),
+      );
+      await writeFileContent(userFile, "User notes.");
+      await ensureDir(join(homeDir, ".cursor"));
+      await symlink(
+        dotfilesSkillsDir,
+        join(homeDir, ".cursor", "skills"),
+        process.platform === "win32" ? "junction" : "dir",
+      );
+
+      // NODE_ENV=test would suppress the warning in the child process.
+      const { stderr } = await runGenerate({
+        target: "cursor",
+        features: "skills",
+        global: true,
+        deleteFiles: true,
+        dryRun,
+        env: { HOME_DIR: homeDir, NODE_ENV: "e2e" },
+      });
+
+      expect(stderr).toContain("Skipping the orphan sweep");
+      expect(stderr).toContain(join(".cursor", "skills"));
+      expect(await fileExists(staleFile)).toBe(true);
+      expect(await readFileContent(userFile)).toBe("User notes.");
+      expect(await fileExists(join(dotfilesSkillsDir, "demo", "SKILL.md"))).toBe(!dryRun);
+    },
+  );
 
   it("should import Hermes skill metadata into a target override", async () => {
     const homeDir = getHomeDir();

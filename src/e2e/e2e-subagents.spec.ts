@@ -1184,6 +1184,46 @@ describe("E2E: subagents (global mode)", () => {
     expect(importedContent).toContain("Break down tasks into steps.");
   });
 
+  it("should write through a subagents root linked inside the home directory and skip its sweep", async () => {
+    // A dotfiles checkout linked from inside the home directory: writes go
+    // through the link, but `--delete` does not sweep through it, and the run
+    // succeeds instead of failing after the writes land.
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+    const dotfilesAgentsDir = join(homeDir, "dotfiles", "claude-agents");
+    const staleFile = join(dotfilesAgentsDir, "stale.md");
+    await writeFileContent(
+      join(projectDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "demo.md"),
+      ["---", "name: demo", 'description: "Demo"', 'targets: ["*"]', "---", "Demo body."].join(
+        "\n",
+      ),
+    );
+    await writeFileContent(
+      staleFile,
+      ["---", "name: stale", 'description: "Stale"', "---", "Stale body."].join("\n"),
+    );
+    await ensureDir(join(homeDir, ".claude"));
+    await symlink(
+      dotfilesAgentsDir,
+      join(homeDir, ".claude", "agents"),
+      process.platform === "win32" ? "junction" : "dir",
+    );
+
+    // NODE_ENV=test would suppress the warning in the child process.
+    const { stderr } = await runGenerate({
+      target: "claudecode",
+      features: "subagents",
+      global: true,
+      deleteFiles: true,
+      env: { HOME_DIR: homeDir, NODE_ENV: "e2e" },
+    });
+
+    expect(stderr).toContain("Skipping the orphan sweep");
+    expect(stderr).toContain(join(".claude", "agents"));
+    expect(await fileExists(staleFile)).toBe(true);
+    expect(await readFileContent(join(dotfilesAgentsDir, "demo.md"))).toContain("Demo body.");
+  });
+
   it("global matrix must cover every native global subagents tool target", () => {
     assertGenerateMatrixCoversTargets({
       processor: SubagentsProcessor,

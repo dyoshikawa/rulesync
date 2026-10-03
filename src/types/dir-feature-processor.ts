@@ -517,8 +517,13 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
       // symbolic link — to a vendored checkout, say — reads back a tree this
       // run never wrote and unlinks through the link into it. The other sweeps
       // never meet one: their candidates come from an enumeration that does not
-      // follow links. This one's come from the sources, so it asks here.
+      // follow links. This one's come from the sources, so it asks here — of
+      // the root as well, under the same guard the directory sweep puts on it:
+      // a root that is itself a link, such as a dotfiles checkout linked from
+      // the home directory, has its sweep skipped there, and a directory
+      // inside it must not be swept through the link here either.
       try {
+        await assertWritablePathInsideRoot({ rootPath: this.outputRoot, targetPath: root });
         await assertWritablePathInsideRoot({ rootPath: this.outputRoot, targetPath: dirPath });
       } catch (error) {
         this.logger.warn(

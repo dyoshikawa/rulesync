@@ -17,6 +17,7 @@ import { RulesyncFile } from "../../types/rulesync-file.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { subagentsProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
+import { quoteForLog, stripControlCharacters } from "../../utils/control-characters.js";
 import { formatError } from "../../utils/error.js";
 import {
   assertWritablePathInsideRoot,
@@ -1254,10 +1255,23 @@ export class SubagentsProcessor extends FeatureProcessor {
       const dirPath = typeof root === "string" ? root : root.relativeDirPath;
       const baseDir = join(rootOutputRoot, dirPath);
       if (forDeletion && (await directoryExists(baseDir))) {
-        await assertWritablePathInsideRoot({
-          rootPath: rootOutputRoot,
-          targetPath: baseDir,
-        });
+        // A root that is a symbolic link, even one inside the output root
+        // (a dotfiles checkout linked from the home directory), is not swept
+        // through the link: it can lead to files rulesync does not manage. The
+        // writes already went through it, so the run warns and carries on
+        // rather than failing after its output landed.
+        try {
+          await assertWritablePathInsideRoot({
+            rootPath: rootOutputRoot,
+            targetPath: baseDir,
+          });
+        } catch (error) {
+          this.logger.warn(
+            `Skipping the orphan sweep for ${quoteForLog(baseDir)}; nothing under it is ` +
+              `deleted: ${stripControlCharacters(formatError(error))}`,
+          );
+          continue;
+        }
       }
       const subagentFilePaths = (
         await findFilesByGlobs(factory.meta.filePattern, {
