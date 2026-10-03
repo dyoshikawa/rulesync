@@ -193,6 +193,7 @@ describe("OmpPermissions", () => {
           bash: { "npm *": "allow" },
           webfetch: { "*": "allow" },
           notebookedit: { "*": "deny" },
+          mcp: { "*": "deny" },
           mcp__github__create_issue: { "*": "deny" },
         },
       }),
@@ -220,6 +221,7 @@ describe("OmpPermissions", () => {
     });
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"webfetch"'));
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"notebookedit"'));
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"mcp"'));
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"*" category'));
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("mcp__<server>_<tool>"));
   });
@@ -424,6 +426,27 @@ describe("OmpPermissions", () => {
 
     expect(permissions.toRulesyncPermissions().getJson().permission).toEqual({
       bash: { "git status": "allow", "*": "ask" },
+    });
+  });
+
+  it("should import a lone * allow pattern without an allow policy as ask", async () => {
+    await writeFileContent(
+      join(testDir, ".omp", "config.yml"),
+      [
+        "bash:",
+        "  patterns:",
+        "    - match: rm *",
+        "      approval: deny",
+        "    - match: '*'",
+        "      approval: allow",
+        "",
+      ].join("\n"),
+    );
+
+    const permissions = await OmpPermissions.fromFile({ outputRoot: testDir });
+
+    expect(permissions.toRulesyncPermissions().getJson().permission).toEqual({
+      bash: { "rm *": "deny", "*": "ask" },
     });
   });
 
