@@ -76,7 +76,9 @@ describe("OmpPermissions", () => {
     expect(loadYaml(permissions.getFileContent())).toEqual({
       tools: {
         approval: {
-          bash: "allow",
+          // An ask rule makes the bash policy prompt, and the catch-all allow
+          // becomes a trailing pattern.
+          bash: "prompt",
           read: "allow",
           edit: "prompt",
           web_search: "deny",
@@ -88,6 +90,7 @@ describe("OmpPermissions", () => {
           { match: "rm -rf *", approval: "deny" },
           { match: "git push *", approval: "prompt" },
           { match: "git *", approval: "allow" },
+          { match: "*", approval: "allow" },
         ],
       },
     });
@@ -102,6 +105,7 @@ describe("OmpPermissions", () => {
     });
 
     expect(loadYaml(permissions.getFileContent())).toEqual({
+      tools: { approval: { bash: "prompt" } },
       bash: {
         patterns: [
           { match: "*", approval: "prompt" },
@@ -293,6 +297,7 @@ describe("OmpPermissions", () => {
     });
 
     expect(loadYaml(permissions.getFileContent())).toEqual({
+      tools: { approval: { bash: "prompt" } },
       bash: {
         patterns: [
           { match: "rm -r* *", approval: "deny" },
@@ -365,13 +370,57 @@ describe("OmpPermissions", () => {
     const json = permissions.toRulesyncPermissions().getJson();
 
     expect(json.permission).toEqual({
-      // The stricter of `tools.approval.bash` and a `*` pattern wins.
+      // A `*` pattern beats a `prompt` tool policy (only a user deny is absolute).
       // Whitespace runs collapse, and the later duplicate is never consulted.
-      bash: { "git status": "allow", "rm -rf *": "deny", "*": "ask" },
+      bash: { "git status": "allow", "rm -rf *": "deny", "*": "allow" },
       websearch: { "*": "deny" },
       // A verbatim `agent` key and `task` import to one category; the stricter wins.
       agent: { "*": "deny" },
       eval: { "*": "ask" },
+    });
+  });
+
+  it("should keep a prompt bash policy so a critical command cannot skip an ask rule", async () => {
+    const logger = createLogger();
+    const source = { bash: { "*": "allow", "rm *": "ask" } };
+    const permissions = await OmpPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: rulesyncPermissionsFrom({ permission: source }),
+      logger: logger as never,
+    });
+
+    expect(loadYaml(permissions.getFileContent())).toEqual({
+      tools: { approval: { bash: "prompt" } },
+      bash: {
+        patterns: [
+          { match: "rm *", approval: "prompt" },
+          { match: "*", approval: "allow" },
+        ],
+      },
+    });
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("critical command"));
+    expect(permissions.toRulesyncPermissions().getJson().permission).toEqual(source);
+  });
+
+  it("should import a tools.approval.bash deny over a * allow pattern", async () => {
+    await writeFileContent(
+      join(testDir, ".omp", "config.yml"),
+      [
+        "tools:",
+        "  approval:",
+        "    bash: deny",
+        "bash:",
+        "  patterns:",
+        "    - match: '*'",
+        "      approval: allow",
+        "",
+      ].join("\n"),
+    );
+
+    const permissions = await OmpPermissions.fromFile({ outputRoot: testDir });
+
+    expect(permissions.toRulesyncPermissions().getJson().permission).toEqual({
+      bash: { "*": "deny" },
     });
   });
 

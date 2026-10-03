@@ -101,7 +101,9 @@ const MANAGED_OMP_TOOLS: ReadonlySet<string> = new Set([
  *   the first match agrees with rulesync's deny > ask > allow precedence. A
  *   catch-all `allow` goes to `tools.approval.bash` instead, because by default
  *   (without `bash.allowCompoundCommands`) an `allow` pattern never approves a
- *   compound command line while the tool policy does. oh-my-pi expands no `?`
+ *   compound command line while the tool policy does — unless the category has
+ *   an `ask` rule, which makes `tools.approval.bash` `prompt` (see
+ *   `convertBashRules`) and the catch-all `allow` a trailing pattern. oh-my-pi expands no `?`
  *   or `[...]`, so a deny or ask pattern widens them to `*`.
  * - The all-tools `*` category has no key of its own: its rules restrict bash
  *   commands, and its deny / ask also restrict every other tool's policy (a
@@ -303,8 +305,15 @@ function widenRestrictionPattern(pattern: string): string {
 }
 
 /**
- * A `bash` category as `bash.patterns` entries (unsorted), plus whether it
- * holds a catch-all `allow` (written as `tools.approval.bash` instead).
+ * A `bash` category as `bash.patterns` entries (unsorted), plus the
+ * `tools.approval.bash` policy it needs.
+ *
+ * oh-my-pi replaces a `prompt` (or `allow`) pattern match on a critical command
+ * such as `rm -rf /` with an override that carries no policy, which yolo mode
+ * then resolves by `tools.approval.bash` alone. So any `ask` rule sets the tool
+ * policy to `prompt`, and a catch-all `allow` then becomes a trailing
+ * `match: "*"` allow pattern (patterns beat the tool policy) instead of an
+ * `allow` policy that would wave such a command through.
  */
 function convertBashRules({
   rules,
@@ -312,15 +321,25 @@ function convertBashRules({
 }: {
   rules: Record<string, PermissionAction>;
   logger?: Logger;
-}): { patterns: OmpBashPattern[]; catchAllAllow: boolean } {
+}): { patterns: OmpBashPattern[]; policy: PermissionAction | undefined } {
   const patterns: OmpBashPattern[] = [];
-  let catchAllAllow = false;
-  for (const [pattern, action] of Object.entries(rules)) {
-    if (isPrototypePollutionKey(pattern)) {
-      continue;
-    }
+  const entries = Object.entries(rules).filter(([pattern]) => !isPrototypePollutionKey(pattern));
+  const hasAsk = entries.some(([, action]) => action === "ask");
+  let policy: PermissionAction | undefined = hasAsk ? "ask" : undefined;
+  if (hasAsk && rules[CATCH_ALL_PATTERN] !== "ask") {
+    logger?.warn(
+      "oh-my-pi lets a critical command (such as `rm -rf /`) skip a bash prompt pattern unless " +
+        'the bash tool policy prompts, so `tools.approval.bash` was set to "prompt": a command ' +
+        "no bash allow pattern matches now prompts in every approval mode.",
+    );
+  }
+  for (const [pattern, action] of entries) {
     if (pattern === CATCH_ALL_PATTERN && action === "allow") {
-      catchAllAllow = true;
+      if (hasAsk) {
+        patterns.push({ match: CATCH_ALL_PATTERN, approval: "allow" });
+      } else {
+        policy = "allow";
+      }
       continue;
     }
     let match = pattern;
@@ -340,7 +359,7 @@ function convertBashRules({
     }
     patterns.push({ match, approval: ACTION_TO_OMP_APPROVAL[action] });
   }
-  return { patterns, catchAllAllow };
+  return { patterns, policy };
 }
 
 /** Raise every non-bash tool policy to the all-tools floor (bash is handled by patterns). */
@@ -410,8 +429,8 @@ function convertRulesyncToOmp({ config, logger }: { config: PermissionsConfig; l
     if (category === SHELL_PERMISSION_CATEGORY) {
       const bash = convertBashRules({ rules, logger });
       patterns.push(...bash.patterns);
-      if (bash.catchAllAllow) {
-        actions.bash = "allow";
+      if (bash.policy !== undefined) {
+        actions.bash = bash.policy;
       }
       continue;
     }
@@ -466,31 +485,38 @@ function toOmpApproval(value: unknown): OmpApproval | undefined {
     : undefined;
 }
 
+/** `bash.patterns` as canonical `bash` rules, in first-match order. */
+function importBashPatterns(value: unknown): Record<string, PermissionAction> {
+  const bashRules: Record<string, PermissionAction> = {};
+  if (!Array.isArray(value)) {
+    return bashRules;
+  }
+  for (const entry of value) {
+    if (!isRecord(entry) || typeof entry.match !== "string") {
+      continue;
+    }
+    // oh-my-pi collapses whitespace runs before matching, so `git  status`
+    // and `git status` are one pattern.
+    const match = entry.match.trim().replace(/\s+/gu, " ");
+    const approval = toOmpApproval(entry.approval);
+    // First match wins, so a later duplicate of a pattern is never consulted.
+    if (match === "" || approval === undefined || Object.hasOwn(bashRules, match)) {
+      continue;
+    }
+    if (isPrototypePollutionKey(match)) {
+      continue;
+    }
+    bashRules[match] = OMP_APPROVAL_TO_ACTION[approval];
+  }
+  return bashRules;
+}
+
 function convertOmpToRulesync(config: Record<string, unknown>): PermissionsConfig {
   const permission: Record<string, Record<string, PermissionAction>> = {};
   const tools = isRecord(config.tools) ? config.tools : {};
   const bash = isRecord(config.bash) ? config.bash : {};
 
-  const bashRules: Record<string, PermissionAction> = {};
-  if (Array.isArray(bash.patterns)) {
-    for (const entry of bash.patterns) {
-      if (!isRecord(entry) || typeof entry.match !== "string") {
-        continue;
-      }
-      // oh-my-pi collapses whitespace runs before matching, so `git  status`
-      // and `git status` are one pattern.
-      const match = entry.match.trim().replace(/\s+/gu, " ");
-      const approval = toOmpApproval(entry.approval);
-      // First match wins, so a later duplicate of a pattern is never consulted.
-      if (match === "" || approval === undefined || Object.hasOwn(bashRules, match)) {
-        continue;
-      }
-      if (isPrototypePollutionKey(match)) {
-        continue;
-      }
-      bashRules[match] = OMP_APPROVAL_TO_ACTION[approval];
-    }
-  }
+  const bashRules = importBashPatterns(bash.patterns);
 
   if (isRecord(tools.approval)) {
     for (const [tool, value] of Object.entries(tools.approval)) {
@@ -500,7 +526,11 @@ function convertOmpToRulesync(config: Record<string, unknown>): PermissionsConfi
       }
       const action = OMP_APPROVAL_TO_ACTION[approval];
       if (tool === SHELL_PERMISSION_CATEGORY) {
-        bashRules[CATCH_ALL_PATTERN] = stricter(bashRules[CATCH_ALL_PATTERN], action);
+        // A user `deny` is absolute; otherwise a `*` pattern beats the tool
+        // policy, which then only reaches compound and critical command lines.
+        if (action === "deny" || !Object.hasOwn(bashRules, CATCH_ALL_PATTERN)) {
+          bashRules[CATCH_ALL_PATTERN] = action;
+        }
         continue;
       }
       // A verbatim `agent` key and `task` import to one category; the stricter wins.
