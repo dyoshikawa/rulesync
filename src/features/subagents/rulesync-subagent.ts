@@ -43,7 +43,8 @@ export const RulesyncSubagentFrontmatterSchema = z.looseObject({
       roleDefinition: z.optional(z.string()),
       customInstructions: z.optional(z.string()),
       groups: z.optional(z.array(z.unknown())),
-      allowedSubagents: z.optional(z.array(z.string())),
+      // `allowedSubagents` is left untyped: import lifts whatever a hand-written
+      // file holds, and generation emits it only when it is a string list.
     }),
   ),
   // Zoo Code (community continuation of Roo Code): shared mode fields ride the

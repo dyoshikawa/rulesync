@@ -20,7 +20,10 @@ import type { ToolSubagentSettablePaths } from "./tool-subagent.js";
  * says `command`, plus `skill`, `workflow`, `todo`, `subtask`, `subagent` and
  * `mode`), so a `roo.groups` list is not valid for Bob. A mode without
  * `bob.groups` gets `["read", "edit", "execute", "mcp"]`, Roo's default with
- * Bob's spelling. `bob.allowedSubagents` (Bob IDE) is emitted as well, and
+ * Bob IDE's spelling — the one Bob's shared approval settings use too. The Bob
+ * Shell custom-modes page still lists Roo's `command` / `browser` groups, so a
+ * mode meant for the Shell should spell its groups out in `bob.groups`.
+ * `bob.allowedSubagents` (Bob IDE) is emitted when it is a string list, and
  * every other mode field is lifted back into `bob:` on import.
  *
  * @see https://bob.ibm.com/docs/ide/configuration/custom-modes

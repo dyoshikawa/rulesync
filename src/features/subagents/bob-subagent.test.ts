@@ -160,6 +160,35 @@ describe("BobSubagent", () => {
     });
   });
 
+  it("imports a non-list allowedSubagents without failing and does not emit it", async () => {
+    await writeFileContent(
+      join(testDir, ".bob", "custom_modes.yaml"),
+      [
+        "customModes:",
+        "  - slug: planner",
+        "    name: Planner",
+        "    roleDefinition: You are a planner.",
+        "    allowedSubagents: explore",
+        "",
+      ].join("\n"),
+    );
+
+    const imported = await BobSubagent.fromFile({
+      outputRoot: testDir,
+      relativeFilePath: "custom_modes.yaml",
+    });
+    const subagents = imported.toRulesyncSubagents();
+    expect((subagents[0]!.getFrontmatter() as Record<string, any>).bob.allowedSubagents).toBe(
+      "explore",
+    );
+
+    const regenerated = BobSubagent.fromRulesyncSubagents({
+      outputRoot: testDir,
+      rulesyncSubagents: subagents,
+    });
+    expect(regenerated.getModes()[0]).not.toHaveProperty("allowedSubagents");
+  });
+
   it("round-trips a generated file through import", async () => {
     const generated = BobSubagent.fromRulesyncSubagents({
       outputRoot: testDir,
