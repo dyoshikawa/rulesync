@@ -278,6 +278,62 @@ describe("CodewhalePermissions", () => {
       );
     });
 
+    it("withholds only the allow rules a restriction that cannot be written overlaps", async () => {
+      const logger = createMockLogger();
+      const perms = await generate(
+        {
+          permission: {
+            "*": { "**/.env": "deny", "git push *": "deny" },
+            bash: { "git status": "allow", "Git  Log *": "allow", "*.env*": "ask" },
+            read: { "src/a.ts": "allow", "./secrets/a.txt": "allow", "secrets/*": "deny" },
+            list: { "*": "allow" },
+          },
+        },
+        logger,
+      );
+
+      expect(parseRules(perms)).toEqual([
+        { tool: "exec_shell", command: "git push", action: "deny" },
+        { tool: "exec_shell", command: "git status", command_exact: true, action: "allow" },
+        { tool: "read_file", path: "src/a.ts", action: "allow" },
+      ]);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('withholding exec_shell allow "Git  Log"'),
+      );
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('withholding read_file allow "./secrets/a.txt"'),
+      );
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('withholding list_dir allow "*"'),
+      );
+    });
+
+    it("withholds an absolute allow path it cannot compare with a dropped restriction", async () => {
+      const perms = await generate({
+        permission: { read: { "/repo/src/a.ts": "allow", "secrets/**": "deny" } },
+      });
+
+      expect(parseRules(perms)).toEqual([]);
+    });
+
+    it("turns a ** bash or all-tools restriction into a tool-wide rule", async () => {
+      const perms = await generate({
+        permission: { "*": { "**": "deny" }, bash: { "git status": "allow" } },
+      });
+
+      expect(parseRules(perms)).toEqual([
+        { tool: "apply_patch", action: "deny" },
+        { tool: "edit_file", action: "deny" },
+        { tool: "exec_shell", action: "deny" },
+        { tool: "file_search", action: "deny" },
+        { tool: "grep_files", action: "deny" },
+        { tool: "list_dir", action: "deny" },
+        { tool: "read_file", action: "deny" },
+        { tool: "write_file", action: "deny" },
+        { tool: "exec_shell", command: "git status", command_exact: true, action: "allow" },
+      ]);
+    });
+
     it("prepends codewhale.rules verbatim, defaulting their action to ask", async () => {
       const perms = await generate({
         permission: { bash: { "git *": "allow" } },
@@ -334,6 +390,27 @@ describe("CodewhalePermissions", () => {
           action: "allow",
         },
       ]);
+    });
+
+    it("withholds a workspace-scoped allow that a restriction which cannot be written overlaps", async () => {
+      const prefixGrant = {
+        tool: "exec_shell",
+        command: "git push",
+        workspace: "/home/me/project",
+        action: "allow",
+      };
+      const exactGrant = { ...prefixGrant, command: "cargo test", command_exact: true };
+      await writePermissions(smolToml.stringify({ rules: [prefixGrant, exactGrant] }));
+      const logger = createMockLogger();
+
+      const perms = await generate({ permission: { bash: { "* --force": "deny" } } }, logger);
+
+      expect(parseRules(perms)).toEqual([exactGrant]);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          'withholding exec_shell allow "git push" (workspace /home/me/project)',
+        ),
+      );
     });
 
     it("drops an existing record Codewhale would reject instead of writing it back", async () => {

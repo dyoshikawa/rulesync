@@ -12,11 +12,13 @@ import {
 } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import { createIntersectionBudget } from "../../utils/glob.js";
 import type { Logger } from "../../utils/logger.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   ALL_TOOLS_PERMISSION_CATEGORY,
   collectShellCommandRules,
+  createShadowingRestrictionsTest,
   SHELL_PERMISSION_CATEGORY,
 } from "./shell-command-categories.js";
 import { PERMISSION_ACTION_PRIORITY } from "./single-action-collapse.js";
@@ -110,7 +112,7 @@ function literalCommandPrefix(pattern: string): string {
  * word-boundary prefix of the invocation (or the whole invocation with
  * `command_exact = true`); it expands no wildcards.
  *
- * - `*` → a tool-wide rule.
+ * - `*` / `**` → a tool-wide rule.
  * - `git *` → the prefix `git`.
  * - A wildcard-free `allow` → an exact command, so it approves nothing more
  *   than the command it names. A wildcard-free `deny` / `ask` → a prefix, the
@@ -133,7 +135,7 @@ function convertShellRule({
   logger?: Logger;
 }): ResolvedCodewhaleRule | null {
   const trimmed = pattern.trim();
-  if (trimmed === "*") {
+  if (isCatchAllPattern(trimmed)) {
     return { tool: CODEWHALE_SHELL_TOOL, action };
   }
   if (trimmed === "") {
@@ -237,22 +239,119 @@ function sortRules(rules: ResolvedCodewhaleRule[]): ResolvedCodewhaleRule[] {
 }
 
 /**
+ * The `deny` / `ask` patterns that could not be written, per Codewhale tool, as
+ * globs an `allow` rule for that tool is compared against.
+ */
+type DroppedRestrictions = Map<string, string[]>;
+
+function recordDroppedRestriction({
+  dropped,
+  tools,
+  glob,
+}: {
+  dropped: DroppedRestrictions;
+  tools: readonly string[];
+  glob: string;
+}): void {
+  for (const tool of tools) {
+    dropped.set(tool, [...(dropped.get(tool) ?? []), glob]);
+  }
+}
+
+/**
+ * Codewhale matches commands case-insensitively and word by word, so commands
+ * are compared lowercased with their whitespace collapsed.
+ */
+function shellComparisonGlob(pattern: string): string {
+  return pattern.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+/**
+ * Codewhale normalizes a rule's path against the workspace, so the same file
+ * can be spelled several ways. Paths are compared lowercased (for
+ * case-insensitive file systems) without a leading `./`, a `{a,b}` group widens
+ * to `*`, and a path that is absolute, home-relative or climbs with `..` widens
+ * to `*` outright, since it cannot be compared against a workspace-relative one.
+ * Every rewrite only widens a pattern, so an inexact comparison withholds an
+ * `allow` rather than writing one a dropped restriction overlaps.
+ */
+function pathComparisonGlob(pattern: string): string {
+  const normalized = pattern.trim().replaceAll("\\", "/").toLowerCase();
+  if (/^(?:\/|~|[a-z]:)/.test(normalized) || /(?:^|\/)\.\.(?:\/|$)/.test(normalized)) {
+    return "*";
+  }
+  return normalized.replace(/^(?:\.\/)+/, "").replace(/\{[^}]*\}/g, "*");
+}
+
+/** The globs a written `allow` rule approves, for comparison with dropped restrictions. */
+function allowRuleComparisonGlobs(rule: CodewhalePermissionRule): string[] {
+  if (rule.tool === CODEWHALE_SHELL_TOOL) {
+    if (rule.command === undefined) return ["*"];
+    const command = shellComparisonGlob(rule.command);
+    return rule.command_exact ? [command] : [command, `${command} *`];
+  }
+  return [rule.path === undefined ? "*" : pathComparisonGlob(rule.path)];
+}
+
+/**
+ * Drop every `allow` rule that a restriction which could not be written
+ * overlaps (any one command or path matches both), so what the restriction
+ * named reaches Codewhale's approval prompt instead of being auto-approved. An
+ * `allow` no dropped restriction overlaps is kept. Comparisons share one budget;
+ * once it runs out every comparison answers "overlaps", so the rule is withheld.
+ */
+function withholdShadowedAllowRules<T extends CodewhalePermissionRule>({
+  rules,
+  dropped,
+  logger,
+}: {
+  rules: T[];
+  dropped: DroppedRestrictions;
+  logger?: Logger;
+}): T[] {
+  const budget = createIntersectionBudget();
+  const tests = new Map(
+    [...dropped].map(([tool, globs]) => [
+      tool,
+      createShadowingRestrictionsTest(
+        globs.map((pattern) => ({ pattern, fromAllToolsCategory: false })),
+        { budget },
+      ),
+    ]),
+  );
+  return rules.filter((rule) => {
+    const test = tests.get(rule.tool);
+    if ((rule.action ?? "ask") !== "allow" || test === undefined) {
+      return true;
+    }
+    const shadowing = [...new Set(allowRuleComparisonGlobs(rule).flatMap((glob) => test(glob)))];
+    if (shadowing.length === 0) {
+      return true;
+    }
+    logger?.warn(
+      `Codewhale permissions: withholding ${rule.tool} allow ${JSON.stringify(rule.command ?? rule.path ?? "*")}${rule.workspace === undefined ? "" : ` (workspace ${rule.workspace})`} because the deny/ask rule(s) ${shadowing.map((pattern) => JSON.stringify(pattern)).join(", ")} for ${rule.tool} could not be written; those calls keep Codewhale's approval prompt.`,
+    );
+    return false;
+  });
+}
+
+/**
  * An all-tools `deny` / `ask` names paths as much as commands (`secrets/**`
  * under `*` denies a path), so it is written for every file tool as well. A
- * pattern Codewhale cannot match as a path withholds every file tool's `allow`
- * rules instead, the same way a skipped restriction of a path category does.
+ * pattern Codewhale cannot match as a path is recorded as dropped for every file
+ * tool instead, the same way a skipped restriction of a path category is.
  */
 function convertAllToolsPathRestriction({
   pattern,
   action,
   converted,
-  toolsWithDroppedRestrictions,
+  dropped,
   logger,
 }: {
   pattern: string;
   action: PermissionAction;
   converted: ResolvedCodewhaleRule[];
-  toolsWithDroppedRestrictions: Set<string>;
+  dropped: DroppedRestrictions;
   logger?: Logger;
 }): void {
   const categories = Object.keys(CODEWHALE_PATH_CATEGORY_TOOLS);
@@ -267,25 +366,28 @@ function convertAllToolsPathRestriction({
     `Codewhale permissions: all-tools ${action} "${pattern}" cannot be written for Codewhale's file tools, which match exact paths and expand no globs.`,
   );
   for (const category of categories) {
-    for (const tool of pathCategoryTools(category, action)) toolsWithDroppedRestrictions.add(tool);
+    recordDroppedRestriction({
+      dropped,
+      tools: pathCategoryTools(category, action),
+      glob: pathComparisonGlob(pattern),
+    });
   }
 }
 
 /**
  * Convert the rules that govern shell commands (`bash`, plus the restricting
  * rules of the all-tools `*` category) into `converted`, recording in
- * `toolsWithDroppedRestrictions` a tool one of their restrictions could not be written
- * for.
+ * `dropped` each restriction that could not be written.
  */
 function convertShellCommandRules({
   config,
   converted,
-  toolsWithDroppedRestrictions,
+  dropped,
   logger,
 }: {
   config: PermissionsConfig;
   converted: ResolvedCodewhaleRule[];
-  toolsWithDroppedRestrictions: Set<string>;
+  dropped: DroppedRestrictions;
   logger?: Logger;
 }): void {
   const { rules: shellRules, ignoredAllToolsAllowPatterns } = collectShellCommandRules(
@@ -301,14 +403,18 @@ function convertShellCommandRules({
     if (rule) {
       converted.push(rule);
     } else if (action !== "allow") {
-      toolsWithDroppedRestrictions.add(CODEWHALE_SHELL_TOOL);
+      recordDroppedRestriction({
+        dropped,
+        tools: [CODEWHALE_SHELL_TOOL],
+        glob: shellComparisonGlob(pattern),
+      });
     }
     if (fromAllToolsCategory) {
       convertAllToolsPathRestriction({
         pattern,
         action,
         converted,
-        toolsWithDroppedRestrictions,
+        dropped,
         logger,
       });
     }
@@ -327,21 +433,25 @@ function convertShellCommandRules({
  * file tool as well.
  *
  * A `deny` / `ask` Codewhale cannot express is not merely skipped: every
- * `allow` rule for a tool it was meant to restrict is withheld too, so the
+ * `allow` rule it overlaps for a tool it was meant to restrict is withheld too —
+ * the generated ones and the preserved workspace-scoped grants alike — so the
  * commands or paths it named reach Codewhale's approval prompt instead of being
  * auto-approved by a broader `allow` (`{ "*": "allow", "secrets/**": "deny" }`
- * must not become a bare tool-wide allow).
+ * must not become a bare tool-wide allow). The `codewhale.rules` passthrough is
+ * written as it stands.
  */
 function canonicalToCodewhaleRules({
   config,
+  preservedRules,
   logger,
 }: {
   config: PermissionsConfig;
+  preservedRules: CodewhalePermissionRule[];
   logger?: Logger;
-}): ResolvedCodewhaleRule[] {
+}): CodewhalePermissionRule[] {
   const converted: ResolvedCodewhaleRule[] = [];
-  const toolsWithDroppedRestrictions = new Set<string>();
-  convertShellCommandRules({ config, converted, toolsWithDroppedRestrictions, logger });
+  const dropped: DroppedRestrictions = new Map();
+  convertShellCommandRules({ config, converted, dropped, logger });
 
   for (const [category, rules] of Object.entries(config.permission)) {
     if (category === SHELL_PERMISSION_CATEGORY || category === ALL_TOOLS_PERMISSION_CATEGORY) {
@@ -359,23 +469,19 @@ function canonicalToCodewhaleRules({
       const pathRules = convertPathRules({ category, pattern, action, logger });
       converted.push(...pathRules);
       if (pathRules.length === 0 && action !== "allow") {
-        for (const tool of pathCategoryTools(category, action))
-          toolsWithDroppedRestrictions.add(tool);
+        recordDroppedRestriction({
+          dropped,
+          tools: pathCategoryTools(category, action),
+          glob: pathComparisonGlob(pattern),
+        });
       }
     }
   }
 
-  const kept = converted.filter((rule) => {
-    if (rule.action !== "allow" || !toolsWithDroppedRestrictions.has(rule.tool)) {
-      return true;
-    }
-    logger?.warn(
-      `Codewhale permissions: withholding ${rule.tool} allow ${JSON.stringify(rule.command ?? rule.path ?? "*")} because a deny/ask rule for ${rule.tool} could not be written; those calls keep Codewhale's approval prompt.`,
-    );
-    return false;
-  });
+  const kept = withholdShadowedAllowRules({ rules: converted, dropped, logger });
+  const keptPreserved = withholdShadowedAllowRules({ rules: preservedRules, dropped, logger });
   const overrideRules = (config.codewhale?.rules ?? []).map(withExplicitAction);
-  return [...overrideRules, ...sortRules(kept)];
+  return [...overrideRules, ...sortRules(kept), ...keptPreserved];
 }
 
 function parsePermissionsDocument({
@@ -661,17 +767,12 @@ export class CodewhalePermissions extends ToolPermissions {
 
     const generated = canonicalToCodewhaleRules({
       config: rulesyncPermissions.getJson(),
+      preservedRules: collectWorkspaceScopedRules({ document: existing, logger }),
       logger,
     });
     const seen = new Set<string>();
     const rules: CodewhalePermissionRule[] = [];
     for (const rule of generated) {
-      const key = ruleKey(rule);
-      if (seen.has(key)) continue;
-      seen.add(key);
-      rules.push(rule);
-    }
-    for (const rule of collectWorkspaceScopedRules({ document: existing, logger })) {
       const key = ruleKey(rule);
       if (seen.has(key)) continue;
       seen.add(key);
