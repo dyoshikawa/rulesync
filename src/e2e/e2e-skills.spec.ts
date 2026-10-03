@@ -1016,12 +1016,15 @@ This is the fallback skill body content.`;
     expect(await readFileContent(handAuthoredPath)).toContain("Hand-authored architecture notes.");
   });
 
-  it.skipIf(process.platform === "win32")(
-    "should not let a skill directory linked out of the project silence other sweeps",
-    async () => {
-      // The skill write through `.claude/skills/review -> <parent of project>`
-      // is refused; it must not also claim that whole tree, or no file under
-      // the project would ever read as an orphan again.
+  it.skipIf(process.platform === "win32").each([
+    { label: "out of the project", linkTarget: (testDir: string) => dirname(testDir) },
+    { label: "onto the project root", linkTarget: (testDir: string) => testDir },
+  ])(
+    "should not let a skill directory linked $label silence other sweeps",
+    async ({ label, linkTarget }) => {
+      // A skill directory that does not land strictly below the project must
+      // not claim the tree it lands on, or no file under the project would ever
+      // read as an orphan again.
       const testDir = getTestDir();
       const stalePath = join(testDir, ".claude", "commands", "stale.md");
       await writeFileContent(
@@ -1034,7 +1037,7 @@ This is the fallback skill body content.`;
       );
       await writeFileContent(stalePath, "Stale command.");
       await ensureDir(join(testDir, ".claude", "skills"));
-      await symlink(dirname(testDir), join(testDir, ".claude", "skills", "review"));
+      await symlink(linkTarget(testDir), join(testDir, ".claude", "skills", "review"));
 
       await runGenerate({
         target: "claudecode",
@@ -1046,6 +1049,10 @@ This is the fallback skill body content.`;
       expect(await readFileContent(join(testDir, ".claude", "commands", "kept.md"))).toContain(
         "Kept body.",
       );
+      if (label === "out of the project") {
+        // The write through the link was refused, not just its claim.
+        expect(await fileExists(join(dirname(testDir), "SKILL.md"))).toBe(false);
+      }
     },
   );
 

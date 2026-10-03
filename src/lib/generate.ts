@@ -1,4 +1,4 @@
-import { basename, extname, join } from "node:path";
+import { basename, extname, join, relative } from "node:path";
 
 import { intersection } from "es-toolkit";
 
@@ -39,8 +39,9 @@ import {
   directoryExists,
   fileExists,
   isPresentButUnresolvable,
+  pathEscapesRoot,
   toPosixPath,
-  writablePathEscapesRoot,
+  writeLandingPath,
 } from "../utils/file.js";
 import type { Logger } from "../utils/logger.js";
 import {
@@ -181,6 +182,26 @@ async function processFeatureGeneration<T extends AiFile>(params: {
   };
 }
 
+/**
+ * Whether a write to `targetPath` lands strictly below `rootPath` once every
+ * link on the way to either is followed. A cycle on either side answers false.
+ */
+async function landsStrictlyBelowRoot({
+  rootPath,
+  targetPath,
+}: {
+  rootPath: string;
+  targetPath: string;
+}): Promise<boolean> {
+  const [rootLanding, targetLanding] = await Promise.all([
+    writeLandingPath(rootPath),
+    writeLandingPath(targetPath),
+  ]);
+  if (rootLanding === null || targetLanding === null) return false;
+  const relativePath = relative(rootLanding, targetLanding);
+  return relativePath !== "" && !pathEscapesRoot(relativePath);
+}
+
 async function processDirFeatureGeneration(params: {
   config: Config;
   processor: DirFeatureProcessor;
@@ -209,21 +230,19 @@ async function processDirFeatureGeneration(params: {
   // root every takt skill flattens into; claiming *that* as a tree would exempt
   // every sibling under the root from the sweep.
   //
-  // Nor does a directory that leads out of the output root: `writeAiDirs`
-  // refused to write it, and a `.claude/skills/foo -> $HOME` link would
-  // otherwise claim the whole home directory and silence every sweep in the run.
+  // Nor does a directory that does not land strictly below the output root. One
+  // that leads out of it was refused by `writeAiDirs`, and one that lands on the
+  // root itself is the root: either way a `.claude/skills/foo -> $HOME` link
+  // would otherwise claim the whole home directory and silence every sweep in
+  // the run.
   const ownedTrees = toolDirs.filter((d) => d.ownsDirTree());
-  const treesInsideRoot = await Promise.all(
-    ownedTrees.map(
-      async (d) =>
-        !(await writablePathEscapesRoot({
-          rootPath: d.getOutputRoot(),
-          targetPath: d.getDirPath(),
-        })),
+  const treesBelowRoot = await Promise.all(
+    ownedTrees.map((d) =>
+      landsStrictlyBelowRoot({ rootPath: d.getOutputRoot(), targetPath: d.getDirPath() }),
     ),
   );
   sweepPlan.registerGeneratedTree({
-    paths: ownedTrees.filter((_, index) => treesInsideRoot[index]).map((d) => d.getDirPath()),
+    paths: ownedTrees.filter((_, index) => treesBelowRoot[index]).map((d) => d.getDirPath()),
   });
 
   // Claim the directory and the files inside it by name as well, so a feature
