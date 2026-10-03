@@ -222,19 +222,26 @@ describe("CodewhalePermissions", () => {
       ]);
     });
 
-    it("folds all-tools restrictions into shell rules and a catch-all into every file tool", async () => {
+    it("writes all-tools restrictions for shell commands and every file tool", async () => {
       const logger = createMockLogger();
       const perms = await generate(
         {
           permission: {
-            "*": { "rm *": "deny", "*": "ask", "git *": "allow" },
+            "*": { ".env": "deny", "*": "ask", "git *": "allow" },
           },
         },
         logger,
       );
 
       expect(parseRules(perms)).toEqual([
-        { tool: "exec_shell", command: "rm", action: "deny" },
+        { tool: "apply_patch", path: ".env", action: "deny" },
+        { tool: "edit_file", path: ".env", action: "deny" },
+        { tool: "exec_shell", command: ".env", action: "deny" },
+        { tool: "file_search", path: ".env", action: "deny" },
+        { tool: "grep_files", path: ".env", action: "deny" },
+        { tool: "list_dir", path: ".env", action: "deny" },
+        { tool: "read_file", path: ".env", action: "deny" },
+        { tool: "write_file", path: ".env", action: "deny" },
         { tool: "apply_patch", action: "ask" },
         { tool: "edit_file", action: "ask" },
         { tool: "exec_shell", action: "ask" },
@@ -246,6 +253,28 @@ describe("CodewhalePermissions", () => {
       ]);
       expect(logger.warn).toHaveBeenCalledWith(
         expect.stringContaining('skipping all-tools allow rule(s) "git *"'),
+      );
+    });
+
+    it("withholds every file tool's allow rules for an all-tools glob restriction", async () => {
+      const logger = createMockLogger();
+      const perms = await generate(
+        {
+          permission: {
+            "*": { "secrets/**": "deny" },
+            read: { "*": "allow" },
+            bash: { "rm *": "deny" },
+          },
+        },
+        logger,
+      );
+
+      expect(parseRules(perms)).toEqual([{ tool: "exec_shell", command: "rm", action: "deny" }]);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('all-tools deny "secrets/**" cannot be written'),
+      );
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('withholding read_file allow "*"'),
       );
     });
 

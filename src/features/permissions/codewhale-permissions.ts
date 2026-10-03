@@ -123,15 +123,22 @@ function literalCommandPrefix(pattern: string): string {
 function convertShellRule({
   pattern,
   action,
+  source = SHELL_PERMISSION_CATEGORY,
   logger,
 }: {
   pattern: string;
   action: PermissionAction;
+  /** The canonical category the rule was written under, for warnings. */
+  source?: string;
   logger?: Logger;
 }): ResolvedCodewhaleRule | null {
   const trimmed = pattern.trim();
   if (trimmed === "*") {
     return { tool: CODEWHALE_SHELL_TOOL, action };
+  }
+  if (trimmed === "") {
+    logger?.warn(`Codewhale permissions: skipping empty ${source} ${action} pattern.`);
+    return null;
   }
   if (!COMMAND_WILDCARD_CHARACTERS.test(trimmed)) {
     return action === "allow"
@@ -144,19 +151,19 @@ function convertShellRule({
   }
   if (action === "allow") {
     logger?.warn(
-      `Codewhale permissions: skipping bash allow "${pattern}" because Codewhale matches commands by prefix and expands no wildcards.`,
+      `Codewhale permissions: skipping ${source} allow "${pattern}" because Codewhale matches commands by prefix and expands no wildcards.`,
     );
     return null;
   }
   const prefix = literalCommandPrefix(trimmed);
   if (prefix === "") {
     logger?.warn(
-      `Codewhale permissions: skipping bash ${action} "${pattern}" because it pins down no literal command prefix Codewhale could match.`,
+      `Codewhale permissions: skipping ${source} ${action} "${pattern}" because it pins down no literal command prefix Codewhale could match.`,
     );
     return null;
   }
   logger?.warn(
-    `Codewhale permissions: broadening bash ${action} "${pattern}" to the command prefix "${prefix}" because Codewhale expands no wildcards.`,
+    `Codewhale permissions: broadening ${source} ${action} "${pattern}" to the command prefix "${prefix}" because Codewhale expands no wildcards.`,
   );
   return { tool: CODEWHALE_SHELL_TOOL, command: prefix, action };
 }
@@ -184,7 +191,7 @@ function convertPathRules({
   if (isCatchAllPattern(trimmed)) {
     return tools.map((tool) => ({ tool, action }));
   }
-  if (PATH_GLOB_CHARACTERS.test(trimmed)) {
+  if (trimmed === "" || PATH_GLOB_CHARACTERS.test(trimmed)) {
     logger?.warn(
       `Codewhale permissions: skipping ${category} ${action} "${pattern}" because Codewhale matches exact paths and expands no globs.`,
     );
@@ -230,6 +237,41 @@ function sortRules(rules: ResolvedCodewhaleRule[]): ResolvedCodewhaleRule[] {
 }
 
 /**
+ * An all-tools `deny` / `ask` names paths as much as commands (`secrets/**`
+ * under `*` denies a path), so it is written for every file tool as well. A
+ * pattern Codewhale cannot match as a path withholds every file tool's `allow`
+ * rules instead, the same way a skipped restriction of a path category does.
+ */
+function convertAllToolsPathRestriction({
+  pattern,
+  action,
+  converted,
+  toolsWithDroppedRestrictions,
+  logger,
+}: {
+  pattern: string;
+  action: PermissionAction;
+  converted: ResolvedCodewhaleRule[];
+  toolsWithDroppedRestrictions: Set<string>;
+  logger?: Logger;
+}): void {
+  const categories = Object.keys(CODEWHALE_PATH_CATEGORY_TOOLS);
+  const pathRules = categories.flatMap((category) =>
+    convertPathRules({ category, pattern, action }),
+  );
+  if (pathRules.length > 0) {
+    converted.push(...pathRules);
+    return;
+  }
+  logger?.warn(
+    `Codewhale permissions: all-tools ${action} "${pattern}" cannot be written for Codewhale's file tools, which match exact paths and expand no globs.`,
+  );
+  for (const category of categories) {
+    for (const tool of pathCategoryTools(category, action)) toolsWithDroppedRestrictions.add(tool);
+  }
+}
+
+/**
  * Convert the rules that govern shell commands (`bash`, plus the restricting
  * rules of the all-tools `*` category) into `converted`, recording in
  * `toolsWithDroppedRestrictions` a tool one of their restrictions could not be written
@@ -250,16 +292,25 @@ function convertShellCommandRules({
     config.permission,
   );
   for (const { pattern, action, fromAllToolsCategory } of shellRules) {
-    const rule = convertShellRule({ pattern, action, logger });
+    const rule = convertShellRule({
+      pattern,
+      action,
+      source: fromAllToolsCategory ? "all-tools (as a shell command)" : SHELL_PERMISSION_CATEGORY,
+      logger,
+    });
     if (rule) {
       converted.push(rule);
     } else if (action !== "allow") {
       toolsWithDroppedRestrictions.add(CODEWHALE_SHELL_TOOL);
     }
-    if (fromAllToolsCategory && isCatchAllPattern(pattern.trim())) {
-      for (const category of Object.keys(CODEWHALE_PATH_CATEGORY_TOOLS)) {
-        converted.push(...convertPathRules({ category, pattern, action, logger }));
-      }
+    if (fromAllToolsCategory) {
+      convertAllToolsPathRestriction({
+        pattern,
+        action,
+        converted,
+        toolsWithDroppedRestrictions,
+        logger,
+      });
     }
   }
   if (ignoredAllToolsAllowPatterns.length > 0) {
