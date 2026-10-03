@@ -1,0 +1,528 @@
+import { join } from "node:path";
+
+import * as smolToml from "smol-toml";
+
+import { CODEWHALE_DIR, CODEWHALE_PERMISSIONS_FILE_NAME } from "../../constants/codewhale-paths.js";
+import type { AiFileParams } from "../../types/ai-file.js";
+import {
+  type CodewhalePermissionRule,
+  CodewhalePermissionRuleSchema,
+  type PermissionAction,
+  type PermissionsConfig,
+} from "../../types/permissions.js";
+import { formatError } from "../../utils/error.js";
+import { readFileContentOrNull } from "../../utils/file.js";
+import type { Logger } from "../../utils/logger.js";
+import { isRecord } from "../../utils/type-guards.js";
+import { RulesyncPermissions } from "./rulesync-permissions.js";
+import { SHELL_PERMISSION_CATEGORY } from "./shell-command-categories.js";
+import { PERMISSION_ACTION_PRIORITY } from "./single-action-collapse.js";
+import {
+  ToolPermissions,
+  type ToolPermissionsForDeletionParams,
+  type ToolPermissionsFromFileParams,
+  type ToolPermissionsFromRulesyncPermissionsParams,
+  type ToolPermissionsSettablePaths,
+} from "./tool-permissions.js";
+
+const CODEWHALE_SHELL_TOOL = "exec_shell";
+
+/**
+ * Canonical path categories and the Codewhale policy tool names their rules are
+ * written for. Codewhale consults typed rules only for `exec_shell` and these
+ * file tools, so a rule for any other tool (`fetch_url`, `web_search`, an MCP
+ * tool, ...) is never evaluated. `edit` covers `apply_patch` too: both modify
+ * existing files, and an `edit` deny that left `apply_patch` open would not
+ * hold.
+ *
+ * @see https://github.com/Hmbown/Codewhale/blob/main/crates/tui/src/core/engine.rs (`file_tool_permission_paths`)
+ * @see https://github.com/Hmbown/Codewhale/blob/main/crates/tui/src/tools/canonical_action.rs
+ */
+const CODEWHALE_PATH_CATEGORY_TOOLS: Record<string, readonly string[]> = {
+  read: ["read_file"],
+  write: ["write_file"],
+  edit: ["edit_file", "apply_patch"],
+  grep: ["grep_files"],
+  glob: ["file_search"],
+  list: ["list_dir"],
+};
+
+const CODEWHALE_TOOL_TO_PATH_CATEGORY: Record<string, string> = Object.fromEntries(
+  Object.entries(CODEWHALE_PATH_CATEGORY_TOOLS).flatMap(([category, tools]) =>
+    tools.map((tool) => [tool, category]),
+  ),
+);
+
+const CODEWHALE_GLOBAL_ONLY_MESSAGE =
+  "Codewhale permissions are global-only; use --global to sync ~/.codewhale/permissions.toml";
+
+const COMMAND_WILDCARD_CHARACTERS = /[*?]/;
+const PATH_GLOB_CHARACTERS = /[*?[\]{}]/;
+
+type ResolvedCodewhaleRule = CodewhalePermissionRule & { action: PermissionAction };
+
+function isCatchAllPattern(pattern: string): boolean {
+  return pattern === "*" || pattern === "**";
+}
+
+/**
+ * The literal command prefix a wildcard pattern pins down, cut back to a word
+ * boundary so it never names a partial word (`git push* --force` pins down
+ * `git`, not `git push`). Empty when the pattern starts with a wildcard.
+ */
+function literalCommandPrefix(pattern: string): string {
+  const firstWildcard = pattern.search(COMMAND_WILDCARD_CHARACTERS);
+  const head = pattern.slice(0, firstWildcard);
+  if (/\s$/.test(head)) {
+    return head.trim();
+  }
+  const lastBoundary = head.search(/\s\S*$/);
+  return lastBoundary < 0 ? "" : head.slice(0, lastBoundary).trim();
+}
+
+/**
+ * Convert one canonical `bash` rule. Codewhale matches `command` as a
+ * word-boundary prefix of the invocation (or the whole invocation with
+ * `command_exact = true`); it expands no wildcards.
+ *
+ * - `*` → a tool-wide rule.
+ * - `git *` → the prefix `git`.
+ * - A wildcard-free `allow` → an exact command, so it approves nothing more
+ *   than the command it names. A wildcard-free `deny` / `ask` → a prefix, the
+ *   way Codewhale's own deny rules are matched, so the restriction also covers
+ *   the command with more arguments.
+ * - Any other wildcard: a restricting rule is broadened to the literal prefix
+ *   it pins down; an `allow` is skipped, since no prefix approves only what it
+ *   names.
+ */
+function convertShellRule({
+  pattern,
+  action,
+  logger,
+}: {
+  pattern: string;
+  action: PermissionAction;
+  logger?: Logger;
+}): ResolvedCodewhaleRule | null {
+  const trimmed = pattern.trim();
+  if (trimmed === "*") {
+    return { tool: CODEWHALE_SHELL_TOOL, action };
+  }
+  if (!COMMAND_WILDCARD_CHARACTERS.test(trimmed)) {
+    return action === "allow"
+      ? { tool: CODEWHALE_SHELL_TOOL, command: trimmed, command_exact: true, action }
+      : { tool: CODEWHALE_SHELL_TOOL, command: trimmed, action };
+  }
+  const trailingPrefix = trimmed.endsWith(" *") ? trimmed.slice(0, -2).trim() : null;
+  if (trailingPrefix && !COMMAND_WILDCARD_CHARACTERS.test(trailingPrefix)) {
+    return { tool: CODEWHALE_SHELL_TOOL, command: trailingPrefix, action };
+  }
+  if (action === "allow") {
+    logger?.warn(
+      `Codewhale permissions: skipping bash allow "${pattern}" because Codewhale matches commands by prefix and expands no wildcards.`,
+    );
+    return null;
+  }
+  const prefix = literalCommandPrefix(trimmed);
+  if (prefix === "") {
+    logger?.warn(
+      `Codewhale permissions: skipping bash ${action} "${pattern}" because it pins down no literal command prefix Codewhale could match.`,
+    );
+    return null;
+  }
+  logger?.warn(
+    `Codewhale permissions: broadening bash ${action} "${pattern}" to the command prefix "${prefix}" because Codewhale expands no wildcards.`,
+  );
+  return { tool: CODEWHALE_SHELL_TOOL, command: prefix, action };
+}
+
+/**
+ * Convert one canonical path rule. Codewhale matches `path` exactly (after
+ * normalizing it against the workspace) and expands no globs, so `*` / `**`
+ * become a tool-wide rule and any other glob is skipped: narrowing it to a
+ * single path would leave the rest of the glob unrestricted, and widening it to
+ * the whole tool would restrict far more than written.
+ */
+function convertPathRules({
+  category,
+  pattern,
+  action,
+  logger,
+}: {
+  category: string;
+  pattern: string;
+  action: PermissionAction;
+  logger?: Logger;
+}): ResolvedCodewhaleRule[] {
+  const tools = CODEWHALE_PATH_CATEGORY_TOOLS[category] ?? [];
+  const trimmed = pattern.trim();
+  if (isCatchAllPattern(trimmed)) {
+    return tools.map((tool) => ({ tool, action }));
+  }
+  if (PATH_GLOB_CHARACTERS.test(trimmed)) {
+    logger?.warn(
+      `Codewhale permissions: skipping ${category} ${action} "${pattern}" because Codewhale matches exact paths and expands no globs.`,
+    );
+    return [];
+  }
+  return tools.map((tool) => ({ tool, path: trimmed, action }));
+}
+
+function ruleKey(rule: CodewhalePermissionRule): string {
+  return JSON.stringify([
+    rule.tool,
+    rule.command ?? null,
+    rule.command_exact ?? false,
+    rule.path ?? null,
+    rule.workspace ?? null,
+    rule.action ?? "ask",
+  ]);
+}
+
+function withExplicitAction(rule: CodewhalePermissionRule): ResolvedCodewhaleRule {
+  return { ...rule, action: rule.action ?? "ask" };
+}
+
+/**
+ * Codewhale picks the matching rule by action (`deny` > `ask` > `allow`) before
+ * specificity, so file order never changes a decision. The rules are still
+ * sorted that way, then by tool, so the output is stable and reads in the order
+ * Codewhale applies it.
+ */
+function sortRules(rules: ResolvedCodewhaleRule[]): ResolvedCodewhaleRule[] {
+  return rules
+    .map((rule, index) => ({ rule, index }))
+    .toSorted((left, right) => {
+      const actionOrder =
+        PERMISSION_ACTION_PRIORITY[right.rule.action] -
+        PERMISSION_ACTION_PRIORITY[left.rule.action];
+      if (actionOrder !== 0) return actionOrder;
+      const toolOrder = left.rule.tool.localeCompare(right.rule.tool);
+      if (toolOrder !== 0) return toolOrder;
+      return left.index - right.index;
+    })
+    .map(({ rule }) => rule);
+}
+
+function canonicalToCodewhaleRules({
+  config,
+  logger,
+}: {
+  config: PermissionsConfig;
+  logger?: Logger;
+}): ResolvedCodewhaleRule[] {
+  const converted: ResolvedCodewhaleRule[] = [];
+  for (const [category, rules] of Object.entries(config.permission)) {
+    const isShell = category === SHELL_PERMISSION_CATEGORY;
+    if (!isShell && CODEWHALE_PATH_CATEGORY_TOOLS[category] === undefined) {
+      if (Object.keys(rules).length > 0) {
+        logger?.warn(
+          `Codewhale permissions: skipping unsupported category "${category}"; Codewhale evaluates permission rules only for shell commands and file tools.`,
+        );
+      }
+      continue;
+    }
+    for (const [pattern, action] of Object.entries(rules)) {
+      if (isShell) {
+        const rule = convertShellRule({ pattern, action, logger });
+        if (rule) converted.push(rule);
+      } else {
+        converted.push(...convertPathRules({ category, pattern, action, logger }));
+      }
+    }
+  }
+  const overrideRules = (config.codewhale?.rules ?? []).map(withExplicitAction);
+  return [...overrideRules, ...sortRules(converted)];
+}
+
+function parsePermissionsDocument({
+  fileContent,
+  filePath,
+}: {
+  fileContent: string;
+  filePath: string;
+}): Record<string, unknown> {
+  if (fileContent.trim() === "") {
+    return {};
+  }
+  try {
+    return smolToml.parse(fileContent);
+  } catch (error) {
+    throw new Error(
+      `Failed to parse existing Codewhale permissions at ${filePath}: ${formatError(error)}`,
+      { cause: error },
+    );
+  }
+}
+
+/**
+ * The workspace-scoped rules already in the file. Codewhale's approval card
+ * appends one ("Always allow this exact rule in this repo") with the absolute
+ * `workspace` it was granted in, and rulesync never derives a `workspace` from
+ * the canonical block, so these are remembered grants rather than earlier
+ * rulesync output and survive a regenerate.
+ */
+function collectWorkspaceScopedRules(document: Record<string, unknown>): Record<string, unknown>[] {
+  const rules = document.rules;
+  if (!Array.isArray(rules)) {
+    return [];
+  }
+  return rules.filter(
+    (rule): rule is Record<string, unknown> => isRecord(rule) && typeof rule.workspace === "string",
+  );
+}
+
+type ImportCandidate = {
+  category: string;
+  pattern: string;
+  rule: ResolvedCodewhaleRule;
+};
+
+/**
+ * The canonical `bash` pattern a native shell rule round-trips through, or
+ * `null` when the next generate would not write the same rule back from it.
+ */
+function shellRuleToPattern(rule: ResolvedCodewhaleRule): string | null {
+  if (rule.path !== undefined) {
+    return null;
+  }
+  if (rule.command === undefined) {
+    return rule.command_exact ? null : "*";
+  }
+  const command = rule.command.trim();
+  if (command === "" || COMMAND_WILDCARD_CHARACTERS.test(command)) {
+    return null;
+  }
+  if (rule.command_exact) {
+    // Only an `allow` is written back as an exact command.
+    return rule.action === "allow" ? command : null;
+  }
+  return `${command} *`;
+}
+
+function pathRuleToPattern(rule: ResolvedCodewhaleRule): string | null {
+  if (rule.command !== undefined || rule.command_exact) {
+    return null;
+  }
+  if (rule.path === undefined) {
+    return "*";
+  }
+  const path = rule.path.trim();
+  return path === "" || PATH_GLOB_CHARACTERS.test(path) ? null : path;
+}
+
+function toImportCandidate(rule: ResolvedCodewhaleRule): ImportCandidate | null {
+  if (rule.workspace !== undefined) {
+    return null;
+  }
+  if (rule.tool === CODEWHALE_SHELL_TOOL) {
+    const pattern = shellRuleToPattern(rule);
+    return pattern === null ? null : { category: SHELL_PERMISSION_CATEGORY, pattern, rule };
+  }
+  const category = CODEWHALE_TOOL_TO_PATH_CATEGORY[rule.tool];
+  if (category === undefined) {
+    return null;
+  }
+  const pattern = pathRuleToPattern(rule);
+  return pattern === null ? null : { category, pattern, rule };
+}
+
+/**
+ * Split the native rules into the canonical block and the `codewhale.rules`
+ * passthrough so that the next generate writes the same file back. A canonical
+ * pattern is taken only when every tool its category expands to carries the
+ * same rule (`edit` needs both `edit_file` and `apply_patch`); everything else,
+ * including the weaker of two rules for one pattern, stays native.
+ */
+function codewhaleRulesToCanonical(rules: ResolvedCodewhaleRule[]): {
+  permission: PermissionsConfig["permission"];
+  nativeRules: ResolvedCodewhaleRule[];
+} {
+  const permission: PermissionsConfig["permission"] = {};
+  const nativeIndexes = new Set<number>();
+  const grouped = new Map<string, Array<ImportCandidate & { index: number }>>();
+  for (const [index, rule] of rules.entries()) {
+    const candidate = toImportCandidate(rule);
+    if (!candidate) {
+      nativeIndexes.add(index);
+      continue;
+    }
+    const key = JSON.stringify([candidate.category, candidate.pattern, rule.action]);
+    grouped.set(key, [...(grouped.get(key) ?? []), { ...candidate, index }]);
+  }
+
+  const strongestFirst = [...grouped.values()].toSorted(
+    (left, right) =>
+      PERMISSION_ACTION_PRIORITY[right[0]!.rule.action] -
+      PERMISSION_ACTION_PRIORITY[left[0]!.rule.action],
+  );
+  for (const group of strongestFirst) {
+    const { category, pattern, rule } = group[0]!;
+    const expectedTools =
+      category === SHELL_PERMISSION_CATEGORY
+        ? [CODEWHALE_SHELL_TOOL]
+        : (CODEWHALE_PATH_CATEGORY_TOOLS[category] ?? []);
+    const presentTools = new Set(group.map((candidate) => candidate.rule.tool));
+    const complete = expectedTools.every((tool) => presentTools.has(tool));
+    const categoryRules = permission[category] ?? {};
+    if (!complete || Object.hasOwn(categoryRules, pattern)) {
+      for (const candidate of group) nativeIndexes.add(candidate.index);
+      continue;
+    }
+    permission[category] = { ...categoryRules, [pattern]: rule.action };
+  }
+
+  // Native rules keep the order they had in the file.
+  const nativeRules = rules.filter((_rule, index) => nativeIndexes.has(index));
+  return { permission, nativeRules };
+}
+
+/**
+ * Codewhale permission rules in `~/.codewhale/permissions.toml`.
+ *
+ * The file holds a `rules` array of typed records (`tool`, optional `command`
+ * prefix or exact `path`, optional `command_exact`, optional absolute
+ * `workspace`, and `action`). It is the only permission-rule source Codewhale
+ * reads — the project `.codewhale/config.toml` overlay cannot carry rules — so
+ * the feature is global-only.
+ *
+ * rulesync owns the file's rules, except for workspace-scoped ones: those are
+ * the grants Codewhale's approval card remembers per repository, and they are
+ * kept across a regenerate. Codewhale also appends plain `exec_shell` ask rules
+ * from the approval card (`S`), which cannot be told apart from rulesync's own
+ * output and are replaced; run an import first to keep them.
+ *
+ * @see https://github.com/Hmbown/Codewhale/blob/main/docs/CONFIGURATION.md
+ * @see https://github.com/Hmbown/Codewhale/blob/main/docs/AUTHORIZATION_ORDER.md
+ */
+export class CodewhalePermissions extends ToolPermissions {
+  constructor(params: AiFileParams) {
+    super({
+      ...params,
+      fileContent: params.fileContent ?? "",
+    });
+  }
+
+  /**
+   * Codewhale's approval card writes to the same file, so this feature never
+   * deletes it.
+   */
+  override isDeletable(): boolean {
+    return false;
+  }
+
+  override shouldSkipCreationWhenPayloadEmpty(): boolean {
+    return true;
+  }
+
+  static getSettablePaths(_options?: { global?: boolean }): ToolPermissionsSettablePaths {
+    return {
+      relativeDirPath: CODEWHALE_DIR,
+      relativeFilePath: CODEWHALE_PERMISSIONS_FILE_NAME,
+    };
+  }
+
+  static async fromFile({
+    outputRoot = process.cwd(),
+    validate = true,
+    global = false,
+  }: ToolPermissionsFromFileParams): Promise<CodewhalePermissions> {
+    if (!global) {
+      throw new Error(CODEWHALE_GLOBAL_ONLY_MESSAGE);
+    }
+    const paths = CodewhalePermissions.getSettablePaths();
+    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
+    return new CodewhalePermissions({
+      outputRoot,
+      relativeDirPath: paths.relativeDirPath,
+      relativeFilePath: paths.relativeFilePath,
+      fileContent: (await readFileContentOrNull(filePath)) ?? "",
+      validate,
+      global: true,
+    });
+  }
+
+  static async fromRulesyncPermissions({
+    outputRoot = process.cwd(),
+    rulesyncPermissions,
+    logger,
+    global = false,
+  }: ToolPermissionsFromRulesyncPermissionsParams): Promise<CodewhalePermissions> {
+    if (!global) {
+      throw new Error(CODEWHALE_GLOBAL_ONLY_MESSAGE);
+    }
+    const paths = CodewhalePermissions.getSettablePaths();
+    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
+    // Read without initializing so a dry run or `--check` stays side-effect-free.
+    const existingContent = (await readFileContentOrNull(filePath)) ?? "";
+    const existing = parsePermissionsDocument({ fileContent: existingContent, filePath });
+
+    const generated = canonicalToCodewhaleRules({
+      config: rulesyncPermissions.getJson(),
+      logger,
+    });
+    const seen = new Set<string>();
+    const rules: Record<string, unknown>[] = [];
+    for (const rule of generated) {
+      const key = ruleKey(rule);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      rules.push(rule);
+    }
+    for (const rule of collectWorkspaceScopedRules(existing)) {
+      const parsed = CodewhalePermissionRuleSchema.safeParse(rule);
+      if (parsed.success && seen.has(ruleKey(parsed.data))) continue;
+      rules.push(rule);
+    }
+
+    return new CodewhalePermissions({
+      outputRoot,
+      relativeDirPath: paths.relativeDirPath,
+      relativeFilePath: paths.relativeFilePath,
+      fileContent: rules.length > 0 ? smolToml.stringify({ rules }) : "",
+      validate: true,
+      global: true,
+    });
+  }
+
+  toRulesyncPermissions(): RulesyncPermissions {
+    const document = parsePermissionsDocument({
+      fileContent: this.getFileContent(),
+      filePath: join(this.getRelativeDirPath(), this.getRelativeFilePath()),
+    });
+    const rawRules = Array.isArray(document.rules) ? document.rules : [];
+    // A record Codewhale itself would reject (an unknown key, a wrong type) is
+    // not carried over: it cannot be expressed, and writing it back would make
+    // Codewhale refuse the whole file.
+    const rules = rawRules.flatMap((raw) => {
+      const parsed = CodewhalePermissionRuleSchema.safeParse(raw);
+      return parsed.success ? [withExplicitAction(parsed.data)] : [];
+    });
+    const { permission, nativeRules } = codewhaleRulesToCanonical(rules);
+    return this.toRulesyncPermissionsDefault({
+      fileContent: JSON.stringify(
+        {
+          permission,
+          ...(nativeRules.length > 0 && { codewhale: { rules: nativeRules } }),
+        },
+        null,
+        2,
+      ),
+    });
+  }
+
+  static forDeletion({
+    outputRoot = process.cwd(),
+    relativeDirPath,
+    relativeFilePath,
+  }: ToolPermissionsForDeletionParams): CodewhalePermissions {
+    return new CodewhalePermissions({
+      outputRoot,
+      relativeDirPath,
+      relativeFilePath,
+      fileContent: "",
+      validate: false,
+      global: true,
+    });
+  }
+}

@@ -387,6 +387,7 @@ export const permissionsProcessorToolTargetTuple = [
   "claudecode",
   "cline",
   "codebuddy",
+  "codewhale",
   "codexcli",
   "commandcode",
   "continue",
