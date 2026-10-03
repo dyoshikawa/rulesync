@@ -259,38 +259,74 @@ function recordDroppedRestriction({
 }
 
 /**
- * Codewhale matches commands case-insensitively and word by word, so commands
- * are compared lowercased with their whitespace collapsed.
+ * A `[...]` class in a restriction widens to `?` (any one character): matched
+ * after lowercasing, a negated or mixed-case class would otherwise narrow what
+ * the restriction covers.
  */
-function shellComparisonGlob(pattern: string): string {
-  return pattern.trim().replace(/\s+/g, " ").toLowerCase();
+function widenRestrictionClasses(pattern: string): string {
+  return pattern.replace(/\[[!^]?\]?[^\]]*\]/g, "?");
 }
 
 /**
- * Codewhale normalizes a rule's path against the workspace, so the same file
- * can be spelled several ways. Paths are compared lowercased (for
- * case-insensitive file systems) without a leading `./`, a `{a,b}` group widens
- * to `*`, and a path that is absolute, home-relative or climbs with `..` widens
- * to `*` outright, since it cannot be compared against a workspace-relative one.
- * Every rewrite only widens a pattern, so an inexact comparison withholds an
- * `allow` rather than writing one a dropped restriction overlaps.
+ * An `allow` rule names a literal command or path, so a `[` in it widens to `?`
+ * rather than opening a class that would not even match the rule itself.
  */
-function pathComparisonGlob(pattern: string): string {
-  const normalized = pattern.trim().replaceAll("\\", "/").toLowerCase();
+function literalAsGlob(value: string): string {
+  return value.replaceAll("[", "?");
+}
+
+/**
+ * Codewhale matches commands case-insensitively and word by word, so commands
+ * are compared lowercased with their whitespace collapsed.
+ */
+function normalizeCommandGlob(glob: string): string {
+  return glob.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+/**
+ * Codewhale normalizes a rule's path against the workspace, dropping empty and
+ * `.` segments, so the same file can be spelled several ways. Paths are
+ * compared lowercased (for case-insensitive file systems) with those segments
+ * dropped, a `{a,b}` group widens to `*`, a `**` segment widens so it also
+ * matches no directory at all (a leading `**` segment before `*.pem` reaches
+ * `dev.pem`, and `secrets/**` reaches `secrets`), and a path that is absolute, home-relative or climbs with
+ * `..` widens to `*` outright, since it cannot be compared against a
+ * workspace-relative one. Every rewrite only widens a pattern, so an inexact
+ * comparison withholds an `allow` rather than writing one a dropped
+ * restriction overlaps.
+ */
+function normalizePathGlob(glob: string): string {
+  const normalized = glob.trim().replaceAll("\\", "/").toLowerCase();
   if (/^(?:\/|~|[a-z]:)/.test(normalized) || /(?:^|\/)\.\.(?:\/|$)/.test(normalized)) {
     return "*";
   }
-  return normalized.replace(/^(?:\.\/)+/, "").replace(/\{[^}]*\}/g, "*");
+  return normalized
+    .split("/")
+    .filter((segment) => segment !== "" && segment !== ".")
+    .join("/")
+    .replace(/\{[^}]*\}/g, "*")
+    .replace(/\*\*\//g, "*")
+    .replace(/\/\*\*$/, "*");
+}
+
+/** A dropped `bash` (or all-tools) restriction, as a glob to compare `allow` rules against. */
+function shellRestrictionGlob(pattern: string): string {
+  return normalizeCommandGlob(widenRestrictionClasses(pattern));
+}
+
+/** A dropped path restriction, as a glob to compare `allow` rules against. */
+function pathRestrictionGlob(pattern: string): string {
+  return normalizePathGlob(widenRestrictionClasses(pattern));
 }
 
 /** The globs a written `allow` rule approves, for comparison with dropped restrictions. */
 function allowRuleComparisonGlobs(rule: CodewhalePermissionRule): string[] {
   if (rule.tool === CODEWHALE_SHELL_TOOL) {
     if (rule.command === undefined) return ["*"];
-    const command = shellComparisonGlob(rule.command);
+    const command = normalizeCommandGlob(literalAsGlob(rule.command));
     return rule.command_exact ? [command] : [command, `${command} *`];
   }
-  return [rule.path === undefined ? "*" : pathComparisonGlob(rule.path)];
+  return [rule.path === undefined ? "*" : normalizePathGlob(literalAsGlob(rule.path))];
 }
 
 /**
@@ -369,7 +405,7 @@ function convertAllToolsPathRestriction({
     recordDroppedRestriction({
       dropped,
       tools: pathCategoryTools(category, action),
-      glob: pathComparisonGlob(pattern),
+      glob: pathRestrictionGlob(pattern),
     });
   }
 }
@@ -406,7 +442,7 @@ function convertShellCommandRules({
       recordDroppedRestriction({
         dropped,
         tools: [CODEWHALE_SHELL_TOOL],
-        glob: shellComparisonGlob(pattern),
+        glob: shellRestrictionGlob(pattern),
       });
     }
     if (fromAllToolsCategory) {
@@ -472,7 +508,7 @@ function canonicalToCodewhaleRules({
         recordDroppedRestriction({
           dropped,
           tools: pathCategoryTools(category, action),
-          glob: pathComparisonGlob(pattern),
+          glob: pathRestrictionGlob(pattern),
         });
       }
     }

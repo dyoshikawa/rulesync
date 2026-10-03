@@ -316,6 +316,38 @@ describe("CodewhalePermissions", () => {
       expect(parseRules(perms)).toEqual([]);
     });
 
+    it("compares paths the way Codewhale normalizes them, widening ** segments and classes", async () => {
+      const perms = await generate({
+        permission: {
+          read: {
+            "**/*.pem": "deny",
+            "secrets/key*": "deny",
+            "dev.pem": "allow",
+            "secrets//key1": "allow",
+            "secrets/./key2": "allow",
+            "src/a.ts": "allow",
+          },
+          grep: { "[!a-z]*": "ask", readme: "allow" },
+          list: { "secrets/**": "deny", secrets: "allow", src: "allow" },
+        },
+      });
+
+      expect(parseRules(perms)).toEqual([
+        { tool: "list_dir", path: "src", action: "allow" },
+        { tool: "read_file", path: "src/a.ts", action: "allow" },
+      ]);
+    });
+
+    it("compares a literal [ in an allowed command as a single character", async () => {
+      const perms = await generate({
+        permission: { bash: { "* -f *": "deny", "test [ -f x ]": "allow", ls: "allow" } },
+      });
+
+      expect(parseRules(perms)).toEqual([
+        { tool: "exec_shell", command: "ls", command_exact: true, action: "allow" },
+      ]);
+    });
+
     it("turns a ** bash or all-tools restriction into a tool-wide rule", async () => {
       const perms = await generate({
         permission: { "*": { "**": "deny" }, bash: { "git status": "allow" } },
