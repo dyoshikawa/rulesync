@@ -1821,6 +1821,7 @@ Second global content`;
           "antigravity-plugin",
           "augmentcode",
           "augmentcode-plugin",
+          "bob",
           "claudecode",
           "claudecode-plugin",
           "claudecode-legacy",

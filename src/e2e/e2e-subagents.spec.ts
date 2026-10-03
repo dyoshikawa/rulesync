@@ -43,6 +43,10 @@ const subagentsGenerateTargets = [
     outputPath: join("agents", "planner.md"),
   },
   {
+    target: "bob",
+    outputPath: join(".bob", "custom_modes.yaml"),
+  },
+  {
     target: "claudecode",
     outputPath: join(".claude", "agents", "planner.md"),
   },

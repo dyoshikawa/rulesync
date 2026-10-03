@@ -214,6 +214,7 @@ export const subagentsProcessorToolTargetTuple = [
   "antigravity-plugin",
   "augmentcode",
   "augmentcode-plugin",
+  "bob",
   "claudecode",
   "claudecode-plugin",
   "claudecode-legacy",

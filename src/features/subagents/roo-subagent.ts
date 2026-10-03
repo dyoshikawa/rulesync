@@ -6,6 +6,7 @@ import { z } from "zod/mini";
 import { ROO_MODES_FILE_NAME } from "../../constants/roo-paths.js";
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
 import { loadYaml } from "../../utils/yaml.js";
@@ -88,6 +89,18 @@ function stringifyRooModes(modes: RooMode[]): string {
  * @see https://roocodeinc.github.io/Roo-Code/features/custom-modes
  */
 export class RooSubagent extends ToolSubagent {
+  /** Name of the aggregated custom-modes file inside `getSettablePaths().relativeDirPath`. */
+  protected static readonly modesFileName: string = ROO_MODES_FILE_NAME;
+
+  /** Frontmatter section of a rulesync subagent that carries the mode fields. */
+  protected static readonly modeSectionKey: string = "roo";
+
+  /** Tool groups a generated mode gets when its section sets no `groups`. */
+  protected static readonly defaultGroups: readonly string[] = DEFAULT_GROUPS;
+
+  /** Tool target written into the frontmatter of imported subagents. */
+  protected static readonly importTarget: ToolTarget = "roo";
+
   private readonly modes: RooMode[];
 
   constructor({ modes, ...rest }: RooSubagentParams) {
@@ -95,7 +108,7 @@ export class RooSubagent extends ToolSubagent {
       const result = RooModesFileSchema.safeParse({ customModes: modes });
       if (!result.success) {
         throw new Error(
-          `Invalid .roomodes in ${join(rest.relativeDirPath, rest.relativeFilePath)}: ${formatError(result.error)}`,
+          `Invalid custom modes in ${join(rest.relativeDirPath, rest.relativeFilePath)}: ${formatError(result.error)}`,
         );
       }
     }
@@ -124,14 +137,16 @@ export class RooSubagent extends ToolSubagent {
 
   /**
    * Map a single rulesync subagent to a Roo custom mode. The body becomes
-   * `roleDefinition`; the optional `roo:` frontmatter section supplies
+   * `roleDefinition`; the optional `roo:` frontmatter section (the
+   * {@link RooSubagent.modeSectionKey} section) supplies
    * `groups`, `whenToUse`, `customInstructions`, an explicit `slug`, and may
    * override `roleDefinition`. rulesync `name`/`description` are preferred,
    * while tool-specific `roo:` values take precedence where defined.
    */
   static toRooMode(rulesyncSubagent: RulesyncSubagent): RooMode {
     const frontmatter = rulesyncSubagent.getFrontmatter();
-    const rawSection = (frontmatter.roo ?? {}) as Record<string, unknown>;
+    const rawSection = ((frontmatter as Record<string, unknown>)[this.modeSectionKey] ??
+      {}) as Record<string, unknown>;
 
     const slug =
       typeof rawSection.slug === "string" && rawSection.slug.length > 0
@@ -145,7 +160,7 @@ export class RooSubagent extends ToolSubagent {
 
     const groups = Array.isArray(rawSection.groups)
       ? (rawSection.groups as RooMode["groups"])
-      : [...DEFAULT_GROUPS];
+      : [...this.defaultGroups];
 
     const mode: RooMode = {
       slug,
@@ -189,7 +204,7 @@ export class RooSubagent extends ToolSubagent {
     return new this({
       outputRoot,
       relativeDirPath: this.getSettablePaths().relativeDirPath,
-      relativeFilePath: ROO_MODES_FILE_NAME,
+      relativeFilePath: this.modesFileName,
       modes: [...bySlug.values()],
       validate,
     });
@@ -213,6 +228,7 @@ export class RooSubagent extends ToolSubagent {
    * direction (one `.roomodes` tool file fans out to N rulesync files).
    */
   toRulesyncSubagents(): RulesyncSubagent[] {
+    const { modeSectionKey, importTarget } = this.constructor as typeof RooSubagent;
     return this.modes.map((mode) => {
       const {
         slug,
@@ -225,7 +241,7 @@ export class RooSubagent extends ToolSubagent {
         ...rest
       } = mode;
 
-      const rooSection: Record<string, unknown> = {
+      const modeSection: Record<string, unknown> = {
         ...rest,
         slug,
         ...(groups ? { groups } : {}),
@@ -234,10 +250,10 @@ export class RooSubagent extends ToolSubagent {
       };
 
       const rulesyncFrontmatter: RulesyncSubagentFrontmatter = {
-        targets: ["roo"],
+        targets: [importTarget],
         name,
         ...(description !== undefined ? { description } : {}),
-        roo: rooSection,
+        [modeSectionKey]: modeSection,
       };
 
       return new RulesyncSubagent({
@@ -258,7 +274,9 @@ export class RooSubagent extends ToolSubagent {
     const subagents = this.toRulesyncSubagents();
     const first = subagents[0];
     if (!first) {
-      throw new Error("No custom modes found in .roomodes to convert.");
+      throw new Error(
+        `No custom modes found in ${join(this.relativeDirPath, this.relativeFilePath)} to convert.`,
+      );
     }
     return first;
   }
@@ -271,7 +289,7 @@ export class RooSubagent extends ToolSubagent {
     return {
       success: false,
       error: new Error(
-        `Invalid .roomodes in ${join(this.relativeDirPath, this.relativeFilePath)}: ${formatError(result.error)}`,
+        `Invalid custom modes in ${join(this.relativeDirPath, this.relativeFilePath)}: ${formatError(result.error)}`,
       ),
     };
   }
@@ -296,14 +314,14 @@ export class RooSubagent extends ToolSubagent {
     try {
       parsed = loadYaml(fileContent);
     } catch (error) {
-      throw new Error(`Failed to parse .roomodes (${filePath}): ${formatError(error)}`, {
+      throw new Error(`Failed to parse custom modes (${filePath}): ${formatError(error)}`, {
         cause: error,
       });
     }
 
     const result = RooModesFileSchema.safeParse(parsed ?? { customModes: [] });
     if (!result.success) {
-      throw new Error(`Invalid .roomodes in ${filePath}: ${formatError(result.error)}`);
+      throw new Error(`Invalid custom modes in ${filePath}: ${formatError(result.error)}`);
     }
 
     return new this({

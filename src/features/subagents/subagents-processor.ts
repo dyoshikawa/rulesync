@@ -33,6 +33,7 @@ import { AntigravityIdeSubagent } from "./antigravity-ide-subagent.js";
 import { AntigravityPluginSubagent } from "./antigravity-plugin-subagent.js";
 import { AugmentcodePluginSubagent } from "./augmentcode-plugin-subagent.js";
 import { AugmentcodeSubagent } from "./augmentcode-subagent.js";
+import { BobSubagent } from "./bob-subagent.js";
 import { ClaudecodePluginSubagent } from "./claudecode-plugin-subagent.js";
 import { ClaudecodeSubagent } from "./claudecode-subagent.js";
 import { ClineSubagent } from "./cline-subagent.js";
@@ -264,6 +265,22 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
         supportsSimulated: false,
         supportsGlobal: false,
         filePattern: "*.md",
+      },
+    },
+  ],
+  [
+    "bob",
+    {
+      // IBM Bob has no file-based subagents, but reads custom modes from the
+      // aggregated `.bob/custom_modes.yaml` (Roo's `customModes` YAML).
+      // rulesync collapses every targeted subagent into that file.
+      // https://bob.ibm.com/docs/ide/configuration/custom-modes
+      class: BobSubagent,
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: false,
+        filePattern: "custom_modes.yaml",
       },
     },
   ],
