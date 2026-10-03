@@ -166,9 +166,10 @@ const KILO_MARKDOWN_SOURCE_KEY = "markdown_source";
  * can mean. Kilo only grants it when the winning pattern came from the global
  * config with the action `allow` ("Project configuration cannot grant this
  * permission"). A project pattern that wins last-match-wins therefore never
- * grants: `deny` and `ask` both block, so they are kept — a project config may
- * only tighten. A project `allow` would block too, the opposite of what it
- * says, so it is dropped with a warning pointing at `--global`.
+ * grants: `deny` and `ask` both block (Kilo never prompts for it), so they
+ * are kept — a project config may only tighten. A project `allow` would block
+ * too, the opposite of what it says, so it is dropped with a warning pointing
+ * at `--global`.
  * Returns `undefined` when nothing is left to write.
  * @see https://kilo.ai/docs/customize/workflows
  * @see https://github.com/Kilo-Org/kilocode/blob/main/packages/opencode/src/kilocode/config/external-markdown.ts
@@ -195,7 +196,7 @@ function narrowMarkdownSourceToProjectScope({
     logger?.warn(
       `Kilo grants '${KILO_MARKDOWN_SOURCE_KEY}' from the global config only, so these 'allow' ` +
         `patterns were dropped from the project config: ${dropped.join(", ")}. A project config ` +
-        `may only deny or ask; generate with --global to grant access.`,
+        `can only block it ('deny' or 'ask'); generate with --global to grant access.`,
     );
   }
   return emitted;

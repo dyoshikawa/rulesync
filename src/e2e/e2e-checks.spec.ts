@@ -140,7 +140,8 @@ Look for injection vulnerabilities.
         target === "cursor" ||
         target === "rovodev" ||
         target === "factorydroid" ||
-        target === "qwencode"
+        target === "qwencode" ||
+        target === "kilo"
       ) {
         // One marked-up section per check, keyed by the source file basename.
         expect(generatedContent).toContain("<!-- rulesync:check:security -->");
