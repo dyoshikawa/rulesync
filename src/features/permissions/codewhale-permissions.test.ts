@@ -134,7 +134,7 @@ describe("CodewhalePermissions", () => {
       );
     });
 
-    it("maps path categories to file tools, fanning edit out to apply_patch", async () => {
+    it("maps path categories to file tools, fanning edit and write restrictions out to apply_patch", async () => {
       const perms = await generate({
         permission: {
           read: { "*": "allow", ".env": "deny" },
@@ -147,6 +147,7 @@ describe("CodewhalePermissions", () => {
       });
 
       expect(parseRules(perms)).toEqual([
+        { tool: "apply_patch", path: "secrets/key.pem", action: "deny" },
         { tool: "read_file", path: ".env", action: "deny" },
         { tool: "write_file", path: "secrets/key.pem", action: "deny" },
         { tool: "apply_patch", action: "ask" },
@@ -180,6 +181,71 @@ describe("CodewhalePermissions", () => {
       );
       expect(logger.warn).toHaveBeenCalledWith(
         expect.stringContaining('unsupported category "mcp"'),
+      );
+    });
+
+    it("withholds a tool's allow rules when a restriction for it cannot be written", async () => {
+      const logger = createMockLogger();
+      const perms = await generate(
+        {
+          permission: {
+            bash: { "*": "allow", "* --force*": "deny", "git status": "deny" },
+            read: { "*": "allow", "secrets/**": "deny" },
+            list: { "*": "allow" },
+          },
+        },
+        logger,
+      );
+
+      expect(parseRules(perms)).toEqual([
+        { tool: "exec_shell", command: "git status", action: "deny" },
+        { tool: "list_dir", action: "allow" },
+      ]);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('withholding exec_shell allow "*"'),
+      );
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('withholding read_file allow "*"'),
+      );
+    });
+
+    it("writes a write restriction for apply_patch but not a write allow", async () => {
+      const perms = await generate({
+        permission: { write: { "*": "deny" }, edit: { "*": "allow" } },
+      });
+
+      expect(parseRules(perms)).toEqual([
+        { tool: "apply_patch", action: "deny" },
+        { tool: "write_file", action: "deny" },
+        { tool: "apply_patch", action: "allow" },
+        { tool: "edit_file", action: "allow" },
+      ]);
+    });
+
+    it("folds all-tools restrictions into shell rules and a catch-all into every file tool", async () => {
+      const logger = createMockLogger();
+      const perms = await generate(
+        {
+          permission: {
+            "*": { "rm *": "deny", "*": "ask", "git *": "allow" },
+          },
+        },
+        logger,
+      );
+
+      expect(parseRules(perms)).toEqual([
+        { tool: "exec_shell", command: "rm", action: "deny" },
+        { tool: "apply_patch", action: "ask" },
+        { tool: "edit_file", action: "ask" },
+        { tool: "exec_shell", action: "ask" },
+        { tool: "file_search", action: "ask" },
+        { tool: "grep_files", action: "ask" },
+        { tool: "list_dir", action: "ask" },
+        { tool: "read_file", action: "ask" },
+        { tool: "write_file", action: "ask" },
+      ]);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('skipping all-tools allow rule(s) "git *"'),
       );
     });
 
@@ -239,6 +305,34 @@ describe("CodewhalePermissions", () => {
           action: "allow",
         },
       ]);
+    });
+
+    it("drops an existing record Codewhale would reject instead of writing it back", async () => {
+      const logger = createMockLogger();
+      await writePermissions(
+        smolToml.stringify({
+          rules: [{ tool: "exec_shell", command: "ls", workspace: "/w", action: "allow", x: 1 }],
+        }),
+      );
+
+      const perms = await generate({ permission: { bash: { "rm *": "deny" } } }, logger);
+
+      expect(parseRules(perms)).toEqual([{ tool: "exec_shell", command: "rm", action: "deny" }]);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("dropping 1 existing rule record(s)"),
+      );
+    });
+
+    it("warns when CODEWHALE_HOME moves the file Codewhale reads", async () => {
+      vi.stubEnv("CODEWHALE_HOME", "/elsewhere");
+      const logger = createMockLogger();
+      try {
+        await generate({ permission: { bash: { "rm *": "deny" } } }, logger);
+      } finally {
+        vi.unstubAllEnvs();
+      }
+
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("CODEWHALE_HOME is set"));
     });
 
     it("throws when the existing file is malformed TOML", async () => {
@@ -364,12 +458,29 @@ describe("CodewhalePermissions", () => {
       ]);
     });
 
+    it("imports a write restriction paired with apply_patch without a native leftover", () => {
+      const perms = fromContent(
+        smolToml.stringify({
+          rules: [
+            { tool: "apply_patch", path: "a.txt", action: "deny" },
+            { tool: "write_file", path: "a.txt", action: "deny" },
+            { tool: "edit_file", path: "a.txt", action: "deny" },
+          ],
+        }),
+      );
+
+      expect(perms.toRulesyncPermissions().getJson()).toEqual({
+        permission: { edit: { "a.txt": "deny" }, write: { "a.txt": "deny" } },
+      });
+    });
+
     it("round-trips generated output through import and generate", async () => {
       const source = {
         permission: {
           bash: { "git status": "allow", "npm *": "allow", "rm -rf": "deny", "*": "ask" },
           edit: { "*": "ask", "README.md": "allow" },
           read: { ".env": "deny" },
+          write: { dist: "deny", "*": "allow" },
         },
       };
       const first = await generate(source);
