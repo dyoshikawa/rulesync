@@ -428,11 +428,39 @@ function readExistingKiloMcpEntries(fileContent: string | null): Record<string, 
   return entries;
 }
 
+// Kilo rejects any `{env:` in an untrusted (project) JSON config — Cursor's
+// `${env:VAR}` included — so this is broader than `BRACE_ENV_VAR_PATTERN`.
+const KILO_UNTRUSTED_ENV_REF_PATTERN = /\{env:[^}]+\}/;
+
+/**
+ * Judged on the entry as written, not the canonical server: fields the entry
+ * drops (a toggle keeps only `enabled`) cannot make Kilo reject the file.
+ */
+function rejectUntrustedEnvRef(
+  serverName: string,
+  converted: KiloMcpServer | null,
+  rejectEnvRefs: boolean,
+  logger?: Logger,
+): KiloMcpServer | null {
+  if (!rejectEnvRefs || converted === null) {
+    return converted;
+  }
+  if (!KILO_UNTRUSTED_ENV_REF_PATTERN.test(JSON.stringify(converted))) {
+    return converted;
+  }
+  return warnAndSkipMcpServer({
+    toolName: "Kilo",
+    serverName,
+    reason: "an {env:...} reference, which makes Kilo reject the whole project config",
+    logger,
+  });
+}
+
 function convertToKiloFormat(
   mcpServers: McpServers,
   existingMcp: Record<string, KiloMcpServer>,
   logger?: Logger,
-  blockedServerNames: ReadonlySet<string> = new Set(),
+  rejectEnvRefs = false,
 ): {
   mcp: Record<string, KiloMcpServer>;
   tools: Record<string, boolean>;
@@ -442,22 +470,20 @@ function convertToKiloFormat(
   const mcp = Object.fromEntries(
     Object.entries(mcpServers)
       .map(([serverName, serverConfig]) => {
-        const converted = blockedServerNames.has(serverName)
-          ? warnAndSkipMcpServer({
-              toolName: "Kilo",
-              serverName,
-              reason: "an {env:...} reference, which makes Kilo reject the whole project config",
-              logger,
-            })
-          : convertServerToKiloFormat(
-              serverName,
-              serverConfig,
-              // Own properties only: a server named `constructor` would otherwise
-              // resolve to something off `Object.prototype` and be mistaken for a
-              // toggle already in the file.
-              Object.hasOwn(existingMcp, serverName) ? existingMcp[serverName] : undefined,
-              logger,
-            );
+        const converted = rejectUntrustedEnvRef(
+          serverName,
+          convertServerToKiloFormat(
+            serverName,
+            serverConfig,
+            // Own properties only: a server named `constructor` would otherwise
+            // resolve to something off `Object.prototype` and be mistaken for a
+            // toggle already in the file.
+            Object.hasOwn(existingMcp, serverName) ? existingMcp[serverName] : undefined,
+            logger,
+          ),
+          rejectEnvRefs,
+          logger,
+        );
         // Collected whether or not an entry is written: Kilo's `tools` map is
         // keyed by server name and reaches servers `mcp` does not list at all,
         // so a filter turning off a dangerous tool of a server another config
@@ -472,18 +498,13 @@ function convertToKiloFormat(
   return { mcp, tools };
 }
 
-// Kilo rejects any `{env:` in an untrusted (project) JSON config — Cursor's
-// `${env:VAR}` included — so this is broader than `BRACE_ENV_VAR_PATTERN`.
-const KILO_UNTRUSTED_ENV_REF_PATTERN = /\{env:[^}]+\}/;
-
 /**
  * Kilo expands only `{env:VAR}`, never the canonical `${VAR}`, and only in a
  * trusted config: the global `~/.config/kilo/kilo.jsonc`. A project config is
  * untrusted, so any `{env:` in it makes Kilo drop the whole file (or, in MCP
  * headers, the server). In project scope canonical references are therefore
- * left as written — Kilo passes them through literally — with a warning, and a
- * server already carrying `{env:` anywhere is reported in `blockedServerNames`
- * so it is skipped rather than costing the rest of the shared config.
+ * left as written — Kilo passes them through literally — with a warning (a
+ * written entry already carrying `{env:` is skipped by `convertToKiloFormat`).
  * @see https://github.com/Kilo-Org/kilocode/blob/main/packages/opencode/src/config/variable.ts
  */
 function resolveKiloEnvVarRefs({
@@ -494,22 +515,12 @@ function resolveKiloEnvVarRefs({
   mcpServers: McpServers;
   global: boolean;
   logger?: Logger;
-}): { mcpServers: McpServers; blockedServerNames: Set<string> } {
+}): McpServers {
   if (global) {
-    return {
-      mcpServers: convertEnvVarRefsToToolFormat({ mcpServers, replacement: "{env:$1}" }),
-      blockedServerNames: new Set(),
-    };
+    return convertEnvVarRefsToToolFormat({ mcpServers, replacement: "{env:$1}" });
   }
 
-  const blockedServerNames = new Set(
-    Object.entries(mcpServers)
-      .filter(([, config]) => KILO_UNTRUSTED_ENV_REF_PATTERN.test(JSON.stringify(config)))
-      .map(([name]) => name),
-  );
-  const serverNames = findServersWithEnvVarRefs(mcpServers).filter(
-    (name) => !blockedServerNames.has(name),
-  );
+  const serverNames = findServersWithEnvVarRefs(mcpServers);
   if (serverNames.length > 0) {
     logger?.warn(
       `Kilo MCP servers ${serverNames.map((name) => `"${name}"`).join(", ")} use environment ` +
@@ -518,7 +529,7 @@ function resolveKiloEnvVarRefs({
         "them expanded.",
     );
   }
-  return { mcpServers, blockedServerNames };
+  return mcpServers;
 }
 
 export class KiloMcp extends ToolMcp {
@@ -667,16 +678,12 @@ export class KiloMcp extends ToolMcp {
     // decide that every other server stays switched on.
     const existingMcp = readExistingKiloMcpEntries(fileContent);
 
-    const { mcpServers, blockedServerNames } = resolveKiloEnvVarRefs({
-      mcpServers: rulesyncMcp.getMcpServers(),
-      global,
-      logger,
-    });
     const { mcp: convertedMcp, tools: mcpTools } = convertToKiloFormat(
-      mcpServers,
+      resolveKiloEnvVarRefs({ mcpServers: rulesyncMcp.getMcpServers(), global, logger }),
       existingMcp,
       logger,
-      blockedServerNames,
+      // Kilo only expands `{env:` in the trusted global config.
+      !global,
     );
 
     return new KiloMcp({

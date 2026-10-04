@@ -3098,24 +3098,20 @@ describe("KiloMcp env var references", () => {
     expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('skipping "urlRef"'));
   });
 
-  it("keeps a server carrying ${env:VAR} in global mode", async () => {
+  it("keeps a toggle in project mode even when its dropped fields carry {env:", async () => {
+    // A toggle keeps only `enabled`, so the dropped `env` cannot reach the file;
+    // skipping it would switch back on a server another layer disabled.
     const rulesyncMcp = new RulesyncMcp({
       relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
       relativeFilePath: ".mcp.json",
       fileContent: JSON.stringify({
-        mcpServers: { cursorStyle: { command: "node", env: { KEY: "${env:MY_KEY}" } } },
+        mcpServers: { toggled: { disabled: true, env: { KEY: "${env:MY_KEY}" } } },
       }),
     });
 
-    const kiloMcp = await KiloMcp.fromRulesyncMcp({
-      outputRoot: testDir,
-      rulesyncMcp,
-      global: true,
-    });
+    const kiloMcp = await KiloMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
 
-    expect(JSON.parse(kiloMcp.getFileContent()).mcp.cursorStyle.environment).toEqual({
-      KEY: "${env:MY_KEY}",
-    });
+    expect(JSON.parse(kiloMcp.getFileContent()).mcp).toEqual({ toggled: { enabled: false } });
   });
 
   it("does not warn in project mode when no server uses env var references", async () => {
