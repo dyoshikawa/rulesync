@@ -333,7 +333,8 @@ const QWEN_SCOPE_RULES: Record<
 };
 
 // Which keys each rule covers, transcribed from Qwen Code's own
-// `WORKSPACE_RESTRICTED_SETTINGS` and `WORKSPACE_NON_OVERRIDING_SETTINGS` in
+// `WORKSPACE_RESTRICTED_SETTINGS`, `WORKSPACE_NON_OVERRIDING_SETTINGS` and
+// `WORKSPACE_TIGHTEN_ONLY_SETTINGS` in
 // `packages/cli/src/config/settingsUtils.ts`, verified against v0.24.7. Upstream
 // may add entries; an addition rulesync has not picked up means it writes a key
 // Qwen Code now ignores, so re-check these lists when supporting a new version.
@@ -341,9 +342,10 @@ const QWEN_SCOPED_TOOLS_KEYS = {
   workflowsEnabled: { rule: "workspace-stripped" },
   executionSandbox: {
     rule: "workspace-stripped",
-    // A containment policy rather than a grant, so every global value is worth
-    // announcing — an object is always truthy, which the default `grants` reads
-    // as a grant.
+    // A containment policy rather than a grant, so every global change is worth
+    // announcing — including a falsy one such as `null`, which removes the
+    // policy and is the loosening direction.
+    grants: () => true,
     globalNote:
       "Qwen Code ignores this key in workspace settings so a repository cannot choose its own sandbox; in the global scope it sets the filesystem and network policy every tool command runs under for every project on this machine (a System value still replaces it, and Qwen Code needs a restart to pick it up).",
   },

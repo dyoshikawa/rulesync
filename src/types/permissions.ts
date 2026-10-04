@@ -366,7 +366,7 @@ export type CursorPermissionsOverride = z.infer<typeof CursorPermissionsOverride
  * `tools.executionSandbox`, `security.allowPrivateNetworkHooks` and
  * `security.allowedInsecureVoiceBaseUrls` out of workspace settings, so generate
  * skips those four in project scope and announces a granting value in global
- * scope (any `executionSandbox` object counts). `tools.workflowNameOnly` is
+ * scope (any `executionSandbox` change counts). `tools.workflowNameOnly` is
  * written in both scopes, but a workspace may only turn it on, which the
  * project-scope note says. `security.allowedHttpHookUrls` (honored in a workspace only while no
  * higher scope sets it) and `security.folderTrust` (the initial trust decision

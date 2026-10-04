@@ -535,6 +535,37 @@ describe("QwencodePermissions", () => {
       expect(announced).not.toContain("cannot grant it per project");
     });
 
+    it("announces a global tools.executionSandbox that removes the policy (issue #2668)", async () => {
+      const settingsDir = join(testDir, ".qwen");
+      await ensureDir(settingsDir);
+      await writeFileContent(
+        join(settingsDir, "settings.json"),
+        JSON.stringify({
+          tools: { executionSandbox: { filesystem: "read-only", network: "closed" } },
+        }),
+      );
+      const logger = createMockLogger();
+      await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        global: true,
+        logger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { tools: { executionSandbox: null } },
+          }),
+        }),
+      });
+
+      // Dropping the policy is the loosening direction, so a falsy value is
+      // announced rather than filtered out as a non-grant.
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('wrote "tools.executionSandbox" = null'),
+      );
+    });
+
     it("lifts tools.executionSandbox back into the override on import (issue #2668)", () => {
       const warn = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
       const executionSandbox = { filesystem: "workspace-write", network: "closed" };
