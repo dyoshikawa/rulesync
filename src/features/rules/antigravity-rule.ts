@@ -16,13 +16,6 @@ export const AntigravityRuleFrontmatterSchema = z.looseObject({
 
 export type AntigravityRuleFrontmatter = z.infer<typeof AntigravityRuleFrontmatterSchema>;
 
-// --- Helper Functions for Globs Conversion ---
-
-/**
- * Converts a comma-separated globs string or array to an array of globs.
- * @param globs - Comma-separated globs string (e.g., "*.ts,*.js") or array of globs
- * @returns Array of glob patterns
- */
 /**
  * File name of a non-root rule in the shared global `~/.gemini/config/rules/`
  * directory. Antigravity reads only its top level, so a nested rulesync rule
@@ -34,6 +27,13 @@ export function toGlobalRuleFileName(relativeFilePath: string): string {
   return relativeFilePath.split(/[\\/]/).join("-");
 }
 
+// --- Helper Functions for Globs Conversion ---
+
+/**
+ * Converts a comma-separated globs string or array to an array of globs.
+ * @param globs - Comma-separated globs string (e.g., "*.ts,*.js") or array of globs
+ * @returns Array of glob patterns
+ */
 export function parseGlobsString(globs: string | string[] | undefined): string[] {
   if (!globs) {
     return [];
