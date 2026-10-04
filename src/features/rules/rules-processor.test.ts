@@ -178,6 +178,90 @@ describe("RulesProcessor", () => {
       );
     });
 
+    describe("Warp legacy WARP.md", () => {
+      const warpRules = () => [
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "style.md",
+          frontmatter: { targets: ["*"] },
+          body: "Style guide",
+        }),
+      ];
+      const findWarning = () =>
+        logger.warn.mock.calls
+          .map(([message]) => String(message))
+          .find((message) => message.includes("Warp reads WARP.md instead of AGENTS.md"));
+
+      it("should warn that an existing WARP.md shadows the generated AGENTS.md", async () => {
+        // Warp gives `WARP.md` priority over `AGENTS.md` in the same directory,
+        // so the generated file would be silently ignored.
+        await writeFileContent(join(testDir, "WARP.md"), "# Legacy");
+        const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "warp" });
+
+        await processor.convertRulesyncFilesToToolFiles(warpRules());
+
+        const warning = findWarning();
+        expect(warning).toBeDefined();
+        expect(warning).toContain("WARP.md exists next to AGENTS.md");
+        expect(warning).toContain(RULESYNC_RULES_RELATIVE_DIR_PATH);
+        expect(await readFileContent(join(testDir, "WARP.md"))).toBe("# Legacy");
+      });
+
+      it("should not warn when no WARP.md exists", async () => {
+        const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "warp" });
+
+        await processor.convertRulesyncFilesToToolFiles(warpRules());
+
+        expect(findWarning()).toBeUndefined();
+      });
+
+      it("should not warn when no rule targets warp", async () => {
+        await writeFileContent(join(testDir, "WARP.md"), "# Legacy");
+        const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "warp" });
+
+        await processor.convertRulesyncFilesToToolFiles([
+          new RulesyncRule({
+            outputRoot: testDir,
+            relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+            relativeFilePath: "cursor-rule.md",
+            frontmatter: { targets: ["cursor"] },
+            body: "Cursor specific rule",
+          }),
+        ]);
+
+        expect(findWarning()).toBeUndefined();
+      });
+
+      it("should not warn in global mode", async () => {
+        await writeFileContent(join(testDir, ".agents", "WARP.md"), "# Legacy");
+        await writeFileContent(join(testDir, "WARP.md"), "# Legacy");
+        const processor = new RulesProcessor({
+          logger,
+          outputRoot: testDir,
+          toolTarget: "warp",
+          global: true,
+        });
+
+        await processor.convertRulesyncFilesToToolFiles(warpRules());
+
+        expect(findWarning()).toBeUndefined();
+      });
+
+      it("should not warn for other targets", async () => {
+        await writeFileContent(join(testDir, "WARP.md"), "# Legacy");
+        const processor = new RulesProcessor({
+          logger,
+          outputRoot: testDir,
+          toolTarget: "agentsmd",
+        });
+
+        await processor.convertRulesyncFilesToToolFiles(warpRules());
+
+        expect(findWarning()).toBeUndefined();
+      });
+    });
+
     it("should emit a localRoot rule to .qwen/QWEN.local.md for qwencode", async () => {
       const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "qwencode" });
 
@@ -1048,63 +1132,69 @@ describe("RulesProcessor", () => {
       expect(claudecodePaths).toContain(join("backend", "api-rule.md"));
     });
 
-    it("should skip unreadable and nested files in the shared antigravity-cli global rules directory", async () => {
-      const rulesDir = join(testDir, ".gemini", "config", "rules");
-      await writeFileContent(join(rulesDir, "ok.md"), "---\ntrigger: always_on\n---\n\n# OK");
-      await writeFileContent(join(rulesDir, "broken.md"), "---\ntrigger: 1\n---\n\n# Broken");
-      await writeFileContent(
-        join(rulesDir, "sub", "nested.md"),
-        "---\ntrigger: always_on\n---\n\n# Nested",
-      );
+    it.each(["antigravity-cli", "antigravity-ide"] as const)(
+      "should skip unreadable and nested files in the shared %s global rules directory",
+      async (toolTarget) => {
+        const rulesDir = join(testDir, ".gemini", "config", "rules");
+        await writeFileContent(join(rulesDir, "ok.md"), "---\ntrigger: always_on\n---\n\n# OK");
+        await writeFileContent(join(rulesDir, "broken.md"), "---\ntrigger: 1\n---\n\n# Broken");
+        await writeFileContent(
+          join(rulesDir, "sub", "nested.md"),
+          "---\ntrigger: always_on\n---\n\n# Nested",
+        );
 
-      const processor = new RulesProcessor({
-        logger,
-        outputRoot: testDir,
-        toolTarget: "antigravity-cli",
-        global: true,
-      });
-
-      const files = await processor.loadToolFiles();
-      const paths = files.map((file) => file.getRelativeFilePath());
-
-      expect(paths).toContain("ok.md");
-      expect(paths).not.toContain("broken.md");
-      expect(paths).not.toContain(join("sub", "nested.md"));
-      expect(paths).not.toContain("nested.md");
-      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("broken.md"));
-    });
-
-    it("should omit the rule reference section from the antigravity-cli global root", async () => {
-      const processor = new RulesProcessor({
-        logger,
-        outputRoot: testDir,
-        toolTarget: "antigravity-cli",
-        global: true,
-      });
-      const rules = [
-        new RulesyncRule({
+        const processor = new RulesProcessor({
+          logger,
           outputRoot: testDir,
-          relativeDirPath: join(".rulesync", "rules"),
-          relativeFilePath: "overview.md",
-          frontmatter: { root: true, targets: ["*"] },
-          body: "# Overview",
-        }),
-        new RulesyncRule({
+          toolTarget,
+          global: true,
+        });
+
+        const files = await processor.loadToolFiles();
+        const paths = files.map((file) => file.getRelativeFilePath());
+
+        expect(paths).toContain("ok.md");
+        expect(paths).not.toContain("broken.md");
+        expect(paths).not.toContain(join("sub", "nested.md"));
+        expect(paths).not.toContain("nested.md");
+        expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("broken.md"));
+      },
+    );
+
+    it.each(["antigravity-cli", "antigravity-ide"] as const)(
+      "should omit the rule reference section from the %s global root",
+      async (toolTarget) => {
+        const processor = new RulesProcessor({
+          logger,
           outputRoot: testDir,
-          relativeDirPath: join(".rulesync", "rules"),
-          relativeFilePath: "style.md",
-          frontmatter: { root: false, targets: ["*"] },
-          body: "# Style",
-        }),
-      ];
+          toolTarget,
+          global: true,
+        });
+        const rules = [
+          new RulesyncRule({
+            outputRoot: testDir,
+            relativeDirPath: join(".rulesync", "rules"),
+            relativeFilePath: "overview.md",
+            frontmatter: { root: true, targets: ["*"] },
+            body: "# Overview",
+          }),
+          new RulesyncRule({
+            outputRoot: testDir,
+            relativeDirPath: join(".rulesync", "rules"),
+            relativeFilePath: "style.md",
+            frontmatter: { root: false, targets: ["*"] },
+            body: "# Style",
+          }),
+        ];
 
-      const toolFiles = await processor.convertRulesyncFilesToToolFiles(rules);
-      const root = toolFiles.find((file) => file.getRelativeFilePath() === "GEMINI.md");
-      const nonRoot = toolFiles.find((file) => file.getRelativeFilePath() === "style.md");
+        const toolFiles = await processor.convertRulesyncFilesToToolFiles(rules);
+        const root = toolFiles.find((file) => file.getRelativeFilePath() === "GEMINI.md");
+        const nonRoot = toolFiles.find((file) => file.getRelativeFilePath() === "style.md");
 
-      expect(root?.getFileContent()).not.toContain("style.md");
-      expect(nonRoot?.getRelativeDirPath()).toBe(join(".gemini", "config", "rules"));
-    });
+        expect(root?.getFileContent()).not.toContain("style.md");
+        expect(nonRoot?.getRelativeDirPath()).toBe(join(".gemini", "config", "rules"));
+      },
+    );
 
     it("should write the same project AGENTS.md and rule files for antigravity-cli and antigravity-ide", async () => {
       const rules = [

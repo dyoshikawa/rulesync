@@ -16,6 +16,17 @@ export const AntigravityRuleFrontmatterSchema = z.looseObject({
 
 export type AntigravityRuleFrontmatter = z.infer<typeof AntigravityRuleFrontmatterSchema>;
 
+/**
+ * File name of a non-root rule in the shared global `~/.gemini/config/rules/`
+ * directory. Antigravity reads only its top level, so a nested rulesync rule
+ * (`frontend/style.md`) is flattened into a single file name
+ * (`frontend-style.md`). The IDE and the CLI both use it so they write the
+ * same file for the same rule.
+ */
+export function toGlobalRuleFileName(relativeFilePath: string): string {
+  return relativeFilePath.split(/[\\/]/).join("-");
+}
+
 // --- Helper Functions for Globs Conversion ---
 
 /**
