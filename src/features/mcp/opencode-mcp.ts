@@ -13,7 +13,7 @@ import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-co
 import {
   convertEnvVarRefsFromToolFormat,
   convertEnvVarRefsToToolFormat,
-  OPENCODE_ENV_VAR_PATTERN,
+  BRACE_ENV_VAR_PATTERN,
 } from "./mcp-env-var-format.js";
 import {
   declaresNoTransport,
@@ -705,7 +705,7 @@ export class OpencodeMcp extends ToolMcp {
     const convertedMcpServers = convertFromOpencodeFormat(this.json.mcp ?? {}, this.json.tools);
     const transformedServers = convertEnvVarRefsFromToolFormat({
       mcpServers: convertedMcpServers,
-      pattern: OPENCODE_ENV_VAR_PATTERN,
+      pattern: BRACE_ENV_VAR_PATTERN,
     });
     // A transport-less server is an OpenCode idea — a filter for a server
     // another config layer defines — so it goes in the block only OpenCode

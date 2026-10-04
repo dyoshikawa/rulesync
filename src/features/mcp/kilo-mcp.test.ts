@@ -3049,7 +3049,7 @@ describe("KiloMcp env var references", () => {
     expect(mockLogger.warn).not.toHaveBeenCalled();
   });
 
-  it("never writes {env: in project mode, keeping ${VAR} literal with a warning", async () => {
+  it("does not convert ${VAR} in project mode, keeping it literal with a warning", async () => {
     // Kilo treats a project config as untrusted: any `{env:` makes it drop the
     // whole file, or the server when it is in MCP headers.
     const mockLogger = { warn: vi.fn() } as unknown as Logger;
@@ -3067,6 +3067,55 @@ describe("KiloMcp env var references", () => {
     expect(mockLogger.warn).toHaveBeenCalledTimes(1);
     expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('"local", "remote"'));
     expect(mockLogger.warn).not.toHaveBeenCalledWith(expect.stringContaining('"plain"'));
+  });
+
+  it("skips a server already carrying {env: in project mode instead of breaking the config", async () => {
+    // Kilo rejects any `{env:` in a project JSON config, Cursor's `${env:VAR}`
+    // included, and would drop the whole shared `kilo.jsonc` with it.
+    const mockLogger = { warn: vi.fn() } as unknown as Logger;
+    const rulesyncMcp = new RulesyncMcp({
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: ".mcp.json",
+      fileContent: JSON.stringify({
+        mcpServers: {
+          cursorStyle: { command: "node", env: { KEY: "${env:MY_KEY}" } },
+          urlRef: { type: "http", url: "https://example.com/{env:TENANT}/mcp" },
+          plain: { command: "plain-server" },
+        },
+      }),
+    });
+
+    const kiloMcp = await KiloMcp.fromRulesyncMcp({
+      outputRoot: testDir,
+      rulesyncMcp,
+      logger: mockLogger,
+    });
+    const content = kiloMcp.getFileContent();
+
+    expect(content).not.toContain("{env:");
+    expect(Object.keys(JSON.parse(content).mcp)).toEqual(["plain"]);
+    expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('skipping "cursorStyle"'));
+    expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('skipping "urlRef"'));
+  });
+
+  it("keeps a server carrying ${env:VAR} in global mode", async () => {
+    const rulesyncMcp = new RulesyncMcp({
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: ".mcp.json",
+      fileContent: JSON.stringify({
+        mcpServers: { cursorStyle: { command: "node", env: { KEY: "${env:MY_KEY}" } } },
+      }),
+    });
+
+    const kiloMcp = await KiloMcp.fromRulesyncMcp({
+      outputRoot: testDir,
+      rulesyncMcp,
+      global: true,
+    });
+
+    expect(JSON.parse(kiloMcp.getFileContent()).mcp.cursorStyle.environment).toEqual({
+      KEY: "${env:MY_KEY}",
+    });
   });
 
   it("does not warn in project mode when no server uses env var references", async () => {

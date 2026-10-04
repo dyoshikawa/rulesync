@@ -12,7 +12,7 @@ const CANONICAL_ENV_VAR_PATTERN = /\$\{(?!env:)([^}:]+)\}/g;
  * OpenCode / Kilo `{env:VAR}` env var reference pattern. The negative lookbehind
  * avoids matching Cursor's `${env:VAR}` format.
  */
-export const OPENCODE_ENV_VAR_PATTERN = /(?<!\$)\{env:([^}:]+)\}/g;
+export const BRACE_ENV_VAR_PATTERN = /(?<!\$)\{env:([^}:]+)\}/g;
 
 function convertRecordValues({
   record,
