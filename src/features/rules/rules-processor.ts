@@ -15,6 +15,7 @@ import {
   RULES_FEATURE_SUBDIR,
   RULESYNC_RULES_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
+import { WARP_LEGACY_RULE_FILE_NAME } from "../../constants/warp-paths.js";
 import {
   caseFoldIdentity,
   FeatureProcessor,
@@ -1611,6 +1612,7 @@ export class RulesProcessor extends FeatureProcessor {
     const outputFiles = [...toolRules, ...extraFiles];
     this.warnForOutputPathCollisions({ outputFiles, convertedRules });
     await this.warnForDeactivatedImportOnlyRoots({ toolRules, factory });
+    await this.warnForWarpLegacyRootFile(toolRules);
     this.warnForInstructionBudget({ toolRules, meta });
     return outputFiles;
   }
@@ -2323,6 +2325,34 @@ export class RulesProcessor extends FeatureProcessor {
     const remainingCount = names.length - listedNames.length;
     this.logger.warn(
       `Writing ${stripControlCharacters(rootFileRelativePath)} for ${this.toolTarget} means ${listedNames.join(", ")}${remainingCount > 0 ? ` and ${remainingCount} more` : ""} will no longer be read. Run \`rulesync import --targets ${this.toolTarget}\` first to carry that content into ${RULESYNC_RULES_RELATIVE_DIR_PATH}, or delete ${listedNames.length === 1 ? "it" : "them"} once you have checked the content is already in the root file.`,
+    );
+  }
+
+  /**
+   * Warp still reads a legacy `WARP.md`, and when both `WARP.md` and
+   * `AGENTS.md` sit in the same directory, `WARP.md` takes priority — so the
+   * `AGENTS.md` this run writes would never be read. Rulesync neither writes
+   * nor deletes `WARP.md` (it is hand-authored), so the only thing it can do is
+   * say so. Project scope only: the documented precedence is about project
+   * rules, and Warp's global rule source is `~/.agents/AGENTS.md`.
+   * @see https://docs.warp.dev/agents/capabilities/rules/
+   */
+  private async warnForWarpLegacyRootFile(toolRules: ToolRule[]): Promise<void> {
+    if (this.toolTarget !== "warp" || this.global) {
+      return;
+    }
+    // Every Warp rule, root or not, is written to the single root `AGENTS.md`.
+    if (toolRules.length === 0) {
+      return;
+    }
+    const { root } = WarpRule.getSettablePaths();
+    const legacyRelativePath = join(root.relativeDirPath, WARP_LEGACY_RULE_FILE_NAME);
+    if (!(await fileExists(join(this.outputRoot, legacyRelativePath)))) {
+      return;
+    }
+    const rootRelativePath = join(root.relativeDirPath, root.relativeFilePath);
+    this.logger.warn(
+      `${legacyRelativePath} exists next to ${rootRelativePath}, and Warp reads WARP.md instead of AGENTS.md when both are present, so the generated ${rootRelativePath} is ignored by Warp. Move any content you still need into ${RULESYNC_RULES_RELATIVE_DIR_PATH}, then delete or rename ${legacyRelativePath}.`,
     );
   }
 

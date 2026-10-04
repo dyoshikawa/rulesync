@@ -39,6 +39,10 @@ export function warpcliConfigDir(): string {
 }
 
 export const WARP_RULE_FILE_NAME = "AGENTS.md";
+// Legacy project rule file name Warp still reads; it takes priority over
+// `AGENTS.md` in the same directory.
+// @see https://docs.warp.dev/agents/capabilities/rules/
+export const WARP_LEGACY_RULE_FILE_NAME = "WARP.md";
 // Warp reads a global rules file from `~/.agents/AGENTS.md` (the cross-tool
 // agent config directory), alongside project rules and Warp Drive rules.
 // @see https://docs.warp.dev/terminal/settings/file-locations/
