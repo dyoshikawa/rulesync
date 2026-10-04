@@ -159,6 +159,17 @@ const QWEN_OVERRIDE_TOOLS_KEYS = [
   // (`Config.isWorkflowsEnabled`), so a value written here is not the last word.
   // https://github.com/QwenLM/qwen-code/pull/9098
   "workflowsEnabled",
+  // Restricts the Workflow tool to named workflows (`Workflow({ name, args })`),
+  // so every run the model starts can be matched by a `Workflow(name:...)`
+  // permission rule. A workspace may only turn it on — see
+  // `QWEN_SCOPED_TOOLS_KEYS`. `QWEN_CODE_WORKFLOW_NAME_ONLY=1` turns it on too.
+  // Added in Qwen Code v0.24.1. https://github.com/QwenLM/qwen-code/pull/12078
+  "workflowNameOnly",
+  // The Linux tool-execution sandbox policy, `{ filesystem, network, backend? }`.
+  // Honored in user/system settings only (a System value replaces the whole
+  // object), and changing it requires a restart. Added in Qwen Code v0.24.4.
+  // https://github.com/QwenLM/qwen-code/pull/12267
+  "executionSandbox",
 ] as const;
 // `allowedHttpHookUrls` (URL patterns allowed as `type: "http"` hook targets; an
 // empty list means allow-all) and `allowPrivateNetworkHooks` (relaxes the SSRF
@@ -182,12 +193,12 @@ const QWEN_OVERRIDE_SECURITY_KEYS = [
  * - `workspace-stripped` — named in `WORKSPACE_RESTRICTED_SETTINGS`
  *   (`packages/cli/src/config/settingsUtils.ts`) and removed from workspace
  *   settings before the merge, so a project-scoped value is dead configuration.
- *   That list also names `goals.modelProposed` and
- *   `outboundCorrelation.allowDynamicHeaderValues`, which sit in settings
- *   groups the `qwencode` override does not author at all. (Its former
- *   `agents.crossSessionMessaging` and `agents.crossSessionInbound` entries
- *   moved to `WORKSPACE_TIGHTEN_ONLY_SETTINGS`, where a workspace value may
- *   only tighten the user's.)
+ *   That list also names keys in settings groups the `qwencode` override does
+ *   not author at all (`goals.modelProposed`, for instance).
+ *   `WORKSPACE_TIGHTEN_ONLY_SETTINGS`, where a workspace value may only tighten
+ *   the user's, has no rule of its own: its one `tools` entry,
+ *   `workflowNameOnly`, is modeled as `global-machine-wide` with notes that say
+ *   only a project `true` takes effect.
  * - `workspace-non-overriding` — named in `WORKSPACE_NON_OVERRIDING_SETTINGS`.
  *   A workspace value survives only while no user, system, or system-defaults
  *   scope sets the key: a repository may narrow where its own hooks send data,
@@ -322,12 +333,33 @@ const QWEN_SCOPE_RULES: Record<
 };
 
 // Which keys each rule covers, transcribed from Qwen Code's own
-// `WORKSPACE_RESTRICTED_SETTINGS` and `WORKSPACE_NON_OVERRIDING_SETTINGS` in
-// `packages/cli/src/config/settingsUtils.ts`, verified against v0.23.4. Upstream
+// `WORKSPACE_RESTRICTED_SETTINGS`, `WORKSPACE_NON_OVERRIDING_SETTINGS` and
+// `WORKSPACE_TIGHTEN_ONLY_SETTINGS` in
+// `packages/cli/src/config/settingsUtils.ts`, verified against v0.24.7. Upstream
 // may add entries; an addition rulesync has not picked up means it writes a key
 // Qwen Code now ignores, so re-check these lists when supporting a new version.
 const QWEN_SCOPED_TOOLS_KEYS = {
   workflowsEnabled: { rule: "workspace-stripped" },
+  executionSandbox: {
+    rule: "workspace-stripped",
+    // A containment policy rather than a grant, so every global change is worth
+    // announcing, falsy values included: Qwen Code treats only an absent key as
+    // "no policy" and rejects `null` or a malformed object as invalid config.
+    grants: () => true,
+    globalNote:
+      "Qwen Code ignores this key in workspace settings so a repository cannot choose its own sandbox; in the global scope it sets the filesystem and network policy every tool command runs under for every project on this machine (a System value still replaces it, and Qwen Code needs a restart to pick it up).",
+  },
+  workflowNameOnly: {
+    // On `WORKSPACE_TIGHTEN_ONLY_SETTINGS`: a workspace `true` is honored, a
+    // workspace value that would loosen a higher scope's `true` is dropped, and
+    // a System value overrides both. Honored in either scope otherwise, so it
+    // shares the rule with the keys that are not scope-restricted at all.
+    rule: "global-machine-wide",
+    projectNote: ({ qualifiedKey, quotedValue, filePath }) =>
+      `${qualifiedKey} = ${quotedValue} was written to the project-scoped ${filePath}. Qwen Code lets a workspace only turn this key on: \`true\` restricts the model to named workflows in this repository, while any other value cannot lift a restriction set in user or system settings.`,
+    globalNote:
+      "Qwen Code honors this key in the global scope for every project on this machine, and a repository can only add the restriction, never lift it, so this decides whether the model may run inline or path-based workflow scripts anywhere a workspace does not turn the restriction on itself.",
+  },
   // The autonomy and containment controls. Qwen Code accepts them in any scope,
   // but `approvalMode: "yolo"`, `autoAccept`, a disabled `sandbox` or a
   // `sandboxImage` naming someone else's image are exactly the settings a global
