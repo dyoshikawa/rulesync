@@ -417,6 +417,7 @@ rulesync.local.jsonc
 **/.dsh/skills/
 **/.agents/agents/
 **/.augment/agents/
+**/.bob/custom_modes.yaml
 **/.claude/agents/
 **/.cline/agents/
 **/.codebuddy/agents/
