@@ -13,6 +13,7 @@ import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-co
 import {
   convertEnvVarRefsFromToolFormat,
   convertEnvVarRefsToToolFormat,
+  OPENCODE_ENV_VAR_PATTERN,
 } from "./mcp-env-var-format.js";
 import {
   declaresNoTransport,
@@ -33,9 +34,6 @@ import {
   ToolMcpParams,
   ToolMcpSettablePaths,
 } from "./tool-mcp.js";
-
-// Negative lookbehind avoids matching Cursor's ${env:VAR} format
-const OPENCODE_ENV_VAR_PATTERN = /(?<!\$)\{env:([^}:]+)\}/g;
 
 // OpenCode MCP server schemas
 // OpenCode uses "local"/"remote" instead of "stdio"/"sse"/"http",

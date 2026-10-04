@@ -4,6 +4,7 @@ import { McpServers } from "../../types/mcp.js";
 import {
   convertEnvVarRefsFromToolFormat,
   convertEnvVarRefsToToolFormat,
+  findServersWithEnvVarRefs,
 } from "./mcp-env-var-format.js";
 
 const TOOL_PATTERN = /\{tool:([^}:]+)\}/g;
@@ -207,6 +208,22 @@ describe("mcp-env-var-format", () => {
 
       expect(backToCanonical["server"]?.env).toEqual(original["server"]?.env);
       expect(backToCanonical["server"]?.headers).toEqual(original["server"]?.headers);
+    });
+  });
+
+  describe("findServersWithEnvVarRefs", () => {
+    it("returns the servers with a canonical reference in env or headers", () => {
+      const mcpServers: McpServers = {
+        envRef: { command: "a", env: { KEY: "${KEY}" } },
+        headerRef: { url: "https://example.com", headers: { Authorization: "Bearer ${TOKEN}" } },
+        cursorStyle: { command: "b", env: { KEY: "${env:KEY}" } },
+        plain: { command: "c", env: { DEBUG: "true" } },
+        none: { command: "d" },
+      };
+
+      // Called twice: the shared global pattern must not carry state across calls.
+      expect(findServersWithEnvVarRefs(mcpServers)).toEqual(["envRef", "headerRef"]);
+      expect(findServersWithEnvVarRefs(mcpServers)).toEqual(["envRef", "headerRef"]);
     });
   });
 });

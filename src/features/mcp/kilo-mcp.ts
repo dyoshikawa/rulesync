@@ -18,6 +18,12 @@ import type { Logger } from "../../utils/logger.js";
 import { isRecord } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import {
+  convertEnvVarRefsFromToolFormat,
+  convertEnvVarRefsToToolFormat,
+  findServersWithEnvVarRefs,
+  OPENCODE_ENV_VAR_PATTERN,
+} from "./mcp-env-var-format.js";
+import {
   declaresNoTransport,
   isRemoteMcpServer,
   type McpServerConfig,
@@ -458,6 +464,39 @@ function convertToKiloFormat(
   return { mcp, tools };
 }
 
+/**
+ * Kilo expands only `{env:VAR}`, never the canonical `${VAR}`, and only in a
+ * trusted config: the global `~/.config/kilo/kilo.jsonc`. A project config is
+ * untrusted, so any `{env:` in it makes Kilo drop the whole file (or, in MCP
+ * headers, the server). In project scope the references are therefore left as
+ * written — Kilo passes them through literally — with a warning.
+ * @see https://github.com/Kilo-Org/kilocode/blob/main/packages/opencode/src/config/variable.ts
+ */
+function resolveKiloEnvVarRefs({
+  mcpServers,
+  global,
+  logger,
+}: {
+  mcpServers: McpServers;
+  global: boolean;
+  logger?: Logger;
+}): McpServers {
+  if (global) {
+    return convertEnvVarRefsToToolFormat({ mcpServers, replacement: "{env:$1}" });
+  }
+
+  const serverNames = findServersWithEnvVarRefs(mcpServers);
+  if (serverNames.length > 0) {
+    logger?.warn(
+      `Kilo MCP servers ${serverNames.map((name) => `"${name}"`).join(", ")} use environment ` +
+        "variable references (${VAR}), which Kilo does not resolve in a project config; " +
+        "they are written literally. Use global mode (~/.config/kilo/kilo.jsonc) to have " +
+        "them expanded.",
+    );
+  }
+  return mcpServers;
+}
+
 export class KiloMcp extends ToolMcp {
   private readonly json: KiloConfig;
 
@@ -605,7 +644,7 @@ export class KiloMcp extends ToolMcp {
     const existingMcp = readExistingKiloMcpEntries(fileContent);
 
     const { mcp: convertedMcp, tools: mcpTools } = convertToKiloFormat(
-      rulesyncMcp.getMcpServers(),
+      resolveKiloEnvVarRefs({ mcpServers: rulesyncMcp.getMcpServers(), global, logger }),
       existingMcp,
       logger,
     );
@@ -720,7 +759,12 @@ export class KiloMcp extends ToolMcp {
   }
 
   toRulesyncMcp(): RulesyncMcp {
-    const convertedMcpServers = convertFromKiloFormat(this.json.mcp ?? {}, this.json.tools);
+    // Kilo's `{env:VAR}` maps back to the canonical `${VAR}` so the Kilo-only
+    // syntax does not leak into every other target's config.
+    const convertedMcpServers = convertEnvVarRefsFromToolFormat({
+      mcpServers: convertFromKiloFormat(this.json.mcp ?? {}, this.json.tools),
+      pattern: OPENCODE_ENV_VAR_PATTERN,
+    });
     // A transport-less server is a Kilo idea — a toggle for a server another
     // config layer defines, or a filter for one — so it goes in the block only
     // Kilo reads rather than into the shared map every other tool writes out.
