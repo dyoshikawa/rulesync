@@ -500,11 +500,13 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
     {
       class: AntigravityIdeRule,
       meta: {
-        // The Antigravity IDE auto-discovers rule files under `.agents/rules/`,
-        // so no reference section is needed in the root rule.
+        // The Antigravity IDE auto-discovers rule files under `.agents/rules/`
+        // (project) and `~/.gemini/config/rules/` (global, shared with
+        // `antigravity-cli`), so no reference section is needed in the root rule.
         extension: "md",
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",
+        sharedGlobalNonRootDir: true,
       },
     },
   ],

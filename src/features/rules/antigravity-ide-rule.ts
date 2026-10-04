@@ -4,6 +4,7 @@ import {
   ANTIGRAVITY_IDE_AGENTS_DIR,
   ANTIGRAVITY_IDE_GEMINI_DIR,
   ANTIGRAVITY_IDE_GLOBAL_RULE_FILE_NAME,
+  ANTIGRAVITY_IDE_GLOBAL_RULES_SUBDIR,
   ANTIGRAVITY_IDE_RULE_FILE_NAME,
 } from "../../constants/antigravity-ide-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
@@ -16,6 +17,7 @@ import {
   STRATEGIES,
   normalizeStoredAntigravity,
   parseGlobsString,
+  toGlobalRuleFileName,
 } from "./antigravity-rule.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
@@ -24,7 +26,6 @@ import {
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
   ToolRuleParams,
-  ToolRuleSettablePathsGlobal,
   buildToolPath,
 } from "./tool-rule.js";
 
@@ -56,8 +57,12 @@ export type AntigravityIdeRuleSettablePaths = {
  *
  * - Project scope: every rule is placed as a non-root file in
  *   `.agents/rules/` with Antigravity trigger frontmatter.
- * - Global scope: a single plain `~/.gemini/GEMINI.md` root file (shared with
- *   the Antigravity CLI), without frontmatter.
+ * - Global scope: a plain `~/.gemini/GEMINI.md` root file without
+ *   frontmatter, and non-root rules with trigger frontmatter in
+ *   `~/.gemini/config/rules/`. Both are shared with the Antigravity CLI, which
+ *   writes the same files for the same rules.
+ *
+ * @see https://antigravity.google/docs/rules
  */
 export class AntigravityIdeRule extends ToolRule {
   private readonly frontmatter: AntigravityRuleFrontmatter;
@@ -75,8 +80,8 @@ export class AntigravityIdeRule extends ToolRule {
 
     super({
       ...rest,
-      // Global root rules are plain markdown (GEMINI.md); project rules carry
-      // Antigravity trigger frontmatter.
+      // Root rules are plain markdown (`AGENTS.md` / `GEMINI.md`); non-root
+      // rules carry Antigravity trigger frontmatter.
       fileContent: rest.root ? body : stringifyFrontmatter(body, frontmatter),
     });
     this.frontmatter = frontmatter;
@@ -109,10 +114,17 @@ export class AntigravityIdeRule extends ToolRule {
   }: {
     global?: boolean;
     excludeToolDir?: boolean;
-  } = {}): AntigravityIdeRuleSettablePaths | ToolRuleSettablePathsGlobal {
+  } = {}): AntigravityIdeRuleSettablePaths {
     if (global) {
       return {
         root: this.getGlobalRootPath(excludeToolDir),
+        nonRoot: {
+          relativeDirPath: buildToolPath(
+            ANTIGRAVITY_IDE_GEMINI_DIR,
+            ANTIGRAVITY_IDE_GLOBAL_RULES_SUBDIR,
+            excludeToolDir,
+          ),
+        },
       };
     }
     // Project scope: the root rule is emitted as a plain cross-tool `AGENTS.md`
@@ -129,31 +141,20 @@ export class AntigravityIdeRule extends ToolRule {
 
   static async fromFile({
     outputRoot = process.cwd(),
+    relativeDirPath,
     relativeFilePath,
     validate = true,
     global = false,
   }: ToolRuleFromFileParams): Promise<AntigravityIdeRule> {
     const paths = this.getSettablePaths({ global });
-    if (global) {
-      const rootPath = paths.root;
-      const fileContent = await readFileContent(
-        join(outputRoot, rootPath.relativeDirPath, rootPath.relativeFilePath),
-      );
-      // GEMINI.md is plain markdown without Antigravity frontmatter.
-      return new this({
-        outputRoot,
-        relativeDirPath: rootPath.relativeDirPath,
-        relativeFilePath: rootPath.relativeFilePath,
-        frontmatter: {},
-        body: fileContent,
-        validate,
-        root: true,
-      });
-    }
-
-    // Project root rule: a plain cross-tool `AGENTS.md` without Antigravity
-    // trigger frontmatter.
-    if (relativeFilePath === paths.root.relativeFilePath) {
+    // Root rules (project `AGENTS.md`, global `GEMINI.md`) are plain markdown
+    // without Antigravity trigger frontmatter. A non-root file that happens to
+    // share the root file's name (e.g. `~/.gemini/config/rules/GEMINI.md`) is
+    // not the root rule.
+    const isRoot =
+      relativeFilePath === paths.root.relativeFilePath &&
+      (relativeDirPath === undefined || relativeDirPath === paths.root.relativeDirPath);
+    if (isRoot) {
       const rootPath = paths.root;
       const rootContent = await readFileContent(
         join(outputRoot, rootPath.relativeDirPath, rootPath.relativeFilePath),
@@ -166,12 +167,10 @@ export class AntigravityIdeRule extends ToolRule {
         body: rootContent,
         validate,
         root: true,
+        global,
       });
     }
 
-    if (!("nonRoot" in paths) || !paths.nonRoot) {
-      throw new Error(`nonRoot path is not set for ${relativeFilePath}`);
-    }
     const nonRootDirPath = paths.nonRoot.relativeDirPath;
     const filePath = join(outputRoot, nonRootDirPath, relativeFilePath);
     const fileContent = await readFileContent(filePath);
@@ -197,6 +196,7 @@ export class AntigravityIdeRule extends ToolRule {
       frontmatter: parsedFrontmatter,
       validate,
       root: false,
+      global,
     });
   }
 
@@ -207,23 +207,10 @@ export class AntigravityIdeRule extends ToolRule {
     global = false,
   }: ToolRuleFromRulesyncRuleParams): AntigravityIdeRule {
     const paths = this.getSettablePaths({ global });
-    if (global) {
-      // Global scope is a single plain GEMINI.md root file.
-      const rootPath = paths.root;
-      return new this({
-        outputRoot,
-        relativeDirPath: rootPath.relativeDirPath,
-        relativeFilePath: rootPath.relativeFilePath,
-        frontmatter: {},
-        body: rulesyncRule.getBody(),
-        validate,
-        root: true,
-      });
-    }
 
-    // Project root rule: emit a plain cross-tool `AGENTS.md` (no Antigravity
-    // trigger frontmatter), mirroring the agentsmd adapter. Non-root rules keep
-    // their trigger frontmatter under `.agents/rules/`.
+    // Root rule: emit a plain project `AGENTS.md` or global `GEMINI.md` (no
+    // Antigravity trigger frontmatter), mirroring the agentsmd adapter.
+    // Non-root rules keep their trigger frontmatter.
     if (rulesyncRule.getFrontmatter().root) {
       const rootPath = paths.root;
       return new this({
@@ -234,6 +221,7 @@ export class AntigravityIdeRule extends ToolRule {
         body: rulesyncRule.getBody(),
         validate,
         root: true,
+        global,
       });
     }
 
@@ -250,19 +238,21 @@ export class AntigravityIdeRule extends ToolRule {
 
     const frontmatter = strategy.generateFrontmatter(normalized, rulesyncFrontmatter);
 
-    if (!("nonRoot" in paths) || !paths.nonRoot) {
-      throw new Error(`nonRoot path is not set for ${rulesyncRule.getRelativeFilePath()}`);
-    }
-    const kebabCaseFilename = toKebabCaseFilename(rulesyncRule.getRelativeFilePath());
+    // The global rules directory is shared with the CLI, so use its file name
+    // there to keep both targets writing the same file.
+    const relativeFilePath = global
+      ? toGlobalRuleFileName(rulesyncRule.getRelativeFilePath())
+      : toKebabCaseFilename(rulesyncRule.getRelativeFilePath());
 
     return new this({
       outputRoot,
       relativeDirPath: paths.nonRoot.relativeDirPath,
-      relativeFilePath: kebabCaseFilename,
+      relativeFilePath,
       frontmatter,
       body: rulesyncRule.getBody(),
       validate,
       root: false,
+      global,
     });
   }
 
@@ -322,6 +312,15 @@ export class AntigravityIdeRule extends ToolRule {
     return { success: true, error: null };
   }
 
+  /**
+   * `~/.gemini/config/rules/` is shared with the Antigravity CLI and holds
+   * global rules the user created outside rulesync, which cannot be told apart
+   * from generated ones, so the orphan sweep never removes files there.
+   */
+  override isDeletable(): boolean {
+    return !this.global || this.root;
+  }
+
   static forDeletion({
     outputRoot = process.cwd(),
     relativeDirPath,
@@ -329,10 +328,13 @@ export class AntigravityIdeRule extends ToolRule {
     global = false,
   }: ToolRuleForDeletionParams): AntigravityIdeRule {
     // The global GEMINI.md and the project-root AGENTS.md are both plain root
-    // files; non-root rules live under `.agents/rules/`.
+    // files; non-root rules live under `.agents/rules/` or
+    // `~/.gemini/config/rules/`.
+    const rootPath = this.getSettablePaths({ global }).root;
     const isRoot =
-      global || (relativeFilePath === ANTIGRAVITY_IDE_RULE_FILE_NAME && relativeDirPath === ".");
-    return new AntigravityIdeRule({
+      relativeFilePath === rootPath.relativeFilePath &&
+      relativeDirPath === rootPath.relativeDirPath;
+    return new this({
       outputRoot,
       relativeDirPath,
       relativeFilePath,
@@ -340,6 +342,7 @@ export class AntigravityIdeRule extends ToolRule {
       body: "",
       validate: false,
       root: isRoot,
+      global,
     });
   }
 
