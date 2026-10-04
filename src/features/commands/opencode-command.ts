@@ -40,12 +40,14 @@ export type OpenCodeCommandFrontmatter = z.infer<typeof OpenCodeCommandFrontmatt
  *
  * @see https://opencode.ai/v2/docs/commands/
  */
-function foldSubagentAlias<T extends Record<string, unknown>>(fields: T): T {
+function foldSubagentAlias<T extends Record<string, unknown>>(
+  fields: T,
+): T | (Omit<T, "subagent"> & { subtask: boolean }) {
   if (typeof fields.subagent !== "boolean") {
     return fields;
   }
   const { subagent, ...rest } = fields;
-  return { ...rest, subtask: subagent } as unknown as T;
+  return { ...rest, subtask: subagent };
 }
 
 export type OpenCodeCommandParams = {
@@ -98,7 +100,8 @@ export class OpenCodeCommand extends ToolCommand {
   }
 
   toRulesyncCommand(): RulesyncCommand {
-    const { description, ...restFields } = foldSubagentAlias(this.frontmatter);
+    const { description, ...toolFields } = this.frontmatter;
+    const restFields = foldSubagentAlias(toolFields);
     const { toolTarget } = (this.constructor as typeof OpenCodeCommand).layout;
 
     const rulesyncFrontmatter: RulesyncCommandFrontmatter = {
@@ -232,7 +235,7 @@ export class OpenCodeCommand extends ToolCommand {
       }
 
       const body = typeof entry.template === "string" ? entry.template : "";
-      const subtask = typeof entry.subagent === "boolean" ? entry.subagent : entry.subtask;
+      const { subtask } = foldSubagentAlias(entry);
       const frontmatter: OpenCodeCommandFrontmatter = {
         ...(typeof entry.description === "string" && { description: entry.description }),
         ...(typeof entry.agent === "string" && { agent: entry.agent }),
