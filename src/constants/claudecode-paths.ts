@@ -21,6 +21,12 @@ export const CLAUDECODE_LOCAL_RULE_FILE_NAME = "CLAUDE.local.md";
 export const CLAUDECODE_RULES_DIR_NAME = "rules";
 /** Memories directory name under `.claude/` (legacy format). */
 export const CLAUDECODE_MEMORIES_DIR_NAME = "memories";
+/**
+ * Directory under `.claude/` where Claude Code keeps the memory of a subagent
+ * declared with `memory: local`; documented as not checked into version control.
+ * @see https://code.claude.com/docs/en/sub-agents#enable-persistent-memory
+ */
+export const CLAUDECODE_AGENT_MEMORY_LOCAL_DIR_NAME = "agent-memory-local";
 
 // Feature directories under `.claude/`.
 export const CLAUDECODE_COMMANDS_DIR_PATH = join(CLAUDECODE_DIR, "commands");

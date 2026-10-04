@@ -3,6 +3,7 @@ import {
   AUGMENTCODE_SETTINGS_LOCAL_FILE_NAME,
 } from "../../constants/augmentcode-paths.js";
 import {
+  CLAUDECODE_AGENT_MEMORY_LOCAL_DIR_NAME,
   CLAUDECODE_DIR,
   CLAUDECODE_LOCAL_RULE_FILE_NAME,
   CLAUDECODE_MEMORIES_DIR_NAME,
@@ -127,6 +128,14 @@ export const HAND_MAINTAINED_GITIGNORE_ENTRIES: ReadonlyArray<GitignoreEntryTag>
     target: "claudecode",
     feature: "general",
     entry: `**/${CLAUDECODE_DIR}/${CLAUDECODE_MEMORIES_DIR_NAME}/`,
+  },
+  // Memory of a subagent with `memory: local`, which Claude Code documents as
+  // not checked into version control. `memory: project` (`.claude/agent-memory/`)
+  // is meant to be committed, so it is deliberately not listed.
+  {
+    target: "claudecode",
+    feature: "general",
+    entry: `**/${CLAUDECODE_DIR}/${CLAUDECODE_AGENT_MEMORY_LOCAL_DIR_NAME}/`,
   },
   { target: "opencode", feature: "general", entry: "**/.opencode/package-lock.json" },
   // Devin's personal MCP override (documented as gitignored; never emitted by

@@ -688,7 +688,7 @@ claudecode: # for claudecode-specific parameters
   maxTurns: 20 # (optional) maximum agentic turns
   skills: ["skill-creator"] # (optional) Agent Skills to utilize (string or list)
   color: cyan # (optional) UI color (e.g. red, blue, green, cyan, ...)
-  memory: project # (optional) user | project | local
+  memory: project # (optional) user | project | local (`rulesync gitignore` ignores the `local` tree, `.claude/agent-memory-local/`)
   effort: high # (optional) low | medium | high | xhigh | max
   isolation: worktree # (optional) run the subagent in an isolated git worktree
   background: false # (optional) run the subagent in the background
