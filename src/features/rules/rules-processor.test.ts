@@ -178,6 +178,90 @@ describe("RulesProcessor", () => {
       );
     });
 
+    describe("Warp legacy WARP.md", () => {
+      const warpRules = () => [
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "style.md",
+          frontmatter: { targets: ["*"] },
+          body: "Style guide",
+        }),
+      ];
+      const findWarning = () =>
+        logger.warn.mock.calls
+          .map(([message]) => String(message))
+          .find((message) => message.includes("Warp reads WARP.md instead of AGENTS.md"));
+
+      it("should warn that an existing WARP.md shadows the generated AGENTS.md", async () => {
+        // Warp gives `WARP.md` priority over `AGENTS.md` in the same directory,
+        // so the generated file would be silently ignored.
+        await writeFileContent(join(testDir, "WARP.md"), "# Legacy");
+        const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "warp" });
+
+        await processor.convertRulesyncFilesToToolFiles(warpRules());
+
+        const warning = findWarning();
+        expect(warning).toBeDefined();
+        expect(warning).toContain("WARP.md exists next to AGENTS.md");
+        expect(warning).toContain(RULESYNC_RULES_RELATIVE_DIR_PATH);
+        expect(await readFileContent(join(testDir, "WARP.md"))).toBe("# Legacy");
+      });
+
+      it("should not warn when no WARP.md exists", async () => {
+        const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "warp" });
+
+        await processor.convertRulesyncFilesToToolFiles(warpRules());
+
+        expect(findWarning()).toBeUndefined();
+      });
+
+      it("should not warn when no rule targets warp", async () => {
+        await writeFileContent(join(testDir, "WARP.md"), "# Legacy");
+        const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "warp" });
+
+        await processor.convertRulesyncFilesToToolFiles([
+          new RulesyncRule({
+            outputRoot: testDir,
+            relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+            relativeFilePath: "cursor-rule.md",
+            frontmatter: { targets: ["cursor"] },
+            body: "Cursor specific rule",
+          }),
+        ]);
+
+        expect(findWarning()).toBeUndefined();
+      });
+
+      it("should not warn in global mode", async () => {
+        await writeFileContent(join(testDir, ".agents", "WARP.md"), "# Legacy");
+        await writeFileContent(join(testDir, "WARP.md"), "# Legacy");
+        const processor = new RulesProcessor({
+          logger,
+          outputRoot: testDir,
+          toolTarget: "warp",
+          global: true,
+        });
+
+        await processor.convertRulesyncFilesToToolFiles(warpRules());
+
+        expect(findWarning()).toBeUndefined();
+      });
+
+      it("should not warn for other targets", async () => {
+        await writeFileContent(join(testDir, "WARP.md"), "# Legacy");
+        const processor = new RulesProcessor({
+          logger,
+          outputRoot: testDir,
+          toolTarget: "agentsmd",
+        });
+
+        await processor.convertRulesyncFilesToToolFiles(warpRules());
+
+        expect(findWarning()).toBeUndefined();
+      });
+    });
+
     it("should emit a localRoot rule to .qwen/QWEN.local.md for qwencode", async () => {
       const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "qwencode" });
 
