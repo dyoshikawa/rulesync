@@ -209,6 +209,8 @@ describe("registry derivation", () => {
       "claudecode::general::**/.claude/*.lock",
       "claudecode::general::**/.claude/settings.local.json",
       "claudecode::general::**/.claude/memories/",
+      // Memory of a `memory: local` subagent (issue #2664).
+      "claudecode::general::**/.claude/agent-memory-local/",
       "opencode::general::**/.opencode/package-lock.json",
       "rovodev::general::**/.rovodev/.rulesync/",
       // Qwen Code's `/review` cache, reports and scratch worktrees, and its
@@ -513,6 +515,8 @@ describe("filterGitignoreEntries", () => {
 
       // claudecode general (always included for selected target)
       expect(result).toContain("**/.claude/memories/");
+      expect(result).toContain("**/.claude/agent-memory-local/");
+      expect(result).not.toContain("**/.claude/agent-memory/");
 
       // claudecode non-rules features should NOT be included
       expect(result).not.toContain("**/.claude/commands/");
