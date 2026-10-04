@@ -9,6 +9,7 @@ import {
   DEVIN_GLOBAL_IGNORE_FILE_NAME,
 } from "../constants/devin-paths.js";
 import { GROKCLI_DIR, GROKCLI_SANDBOX_FILE_NAME } from "../constants/grokcli-paths.js";
+import { KILO_IGNORE_FILE_NAME, KILO_LEGACY_GLOBAL_DIR } from "../constants/kilo-paths.js";
 import {
   KIRO_GLOBAL_IGNORE_FILE_NAME,
   KIRO_IGNORE_FILE_NAME,
@@ -366,6 +367,8 @@ describe("E2E: ignore (global mode)", () => {
       target: "devin",
       outputPath: join(DEVIN_GLOBAL_IGNORE_DIR_PATH, DEVIN_GLOBAL_IGNORE_FILE_NAME),
     },
+    // Kilo's global ignore file stays in the legacy `~/.kilocode/` tree.
+    { target: "kilo", outputPath: join(KILO_LEGACY_GLOBAL_DIR, KILO_IGNORE_FILE_NAME) },
     { target: "kiro", outputPath: join(KIRO_SETTINGS_DIR_PATH, KIRO_GLOBAL_IGNORE_FILE_NAME) },
     { target: "kiro-cli", outputPath: join(KIRO_SETTINGS_DIR_PATH, KIRO_GLOBAL_IGNORE_FILE_NAME) },
     { target: "kiro-ide", outputPath: join(KIRO_SETTINGS_DIR_PATH, KIRO_GLOBAL_IGNORE_FILE_NAME) },

@@ -30,7 +30,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | MiMo Code                 | mimocode           | ✅ 🌏 |        | ✅ 🌏 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
 | GitLab Duo CLI            | gitlabduo          | ✅ 🌏 |        |  ✅ 🌏   |  ✅ 🌏   |           | ✅ 🌏  | ✅ 🌏 |             |   ✅   |
 | Cline                     | cline              | ✅ 🌏 |   ✅   |    🌏    |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |     ✅      |        |
-| Kilo Code                 | kilo               | ✅ 🌏 |   ✅   | ✅ 🌏 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
+| Kilo Code                 | kilo               | ✅ 🌏 | ✅ 🌏  | ✅ 🌏 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |   ✅   |
 | Kimi Code                 | kimi-code          | ✅ 🌏 |        | ✅ 🌏 🔧 |          |   ✅ 🌏   | ✅ 🌏  |  🌏   |     🌏      |        |
 | Kimi Code plugin          | kimi-code-plugin   |  ✅   |        |          |    ✅    |    ✅     |   ✅   |       |             |        |
 | Roo Code ⚠️               | roo                | ✅ 🌏 |   ✅   |  ✅ 🔧   |  ✅ 🌏   |    ✅     | ✅ 🌏  |       |     ✅      |        |

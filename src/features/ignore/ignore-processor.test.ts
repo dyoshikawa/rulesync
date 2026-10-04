@@ -517,6 +517,7 @@ describe("IgnoreProcessor", () => {
         "continue",
         "devin",
         "grokcli",
+        "kilo",
         "kiro",
         "kiro-cli",
         "kiro-ide",

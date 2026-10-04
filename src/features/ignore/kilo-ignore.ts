@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-import { KILO_IGNORE_FILE_NAME } from "../../constants/kilo-paths.js";
+import { KILO_IGNORE_FILE_NAME, KILO_LEGACY_GLOBAL_DIR } from "../../constants/kilo-paths.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import {
@@ -9,13 +9,16 @@ import {
   ToolIgnoreFromFileParams,
   ToolIgnoreFromRulesyncIgnoreParams,
   ToolIgnoreSettablePaths,
+  ToolIgnoreSettablePathsParams,
 } from "./tool-ignore.js";
 
 /**
  * KiloIgnore represents ignore patterns for the Kilo Code VSCode extension.
  *
  * Based on the Kilo Code specification:
- * - File location: Workspace root folder only (.kilocodeignore)
+ * - File location: workspace root (.kilocodeignore) for project scope, and
+ *   `~/.kilocode/.kilocodeignore` for global scope. Kilo merges the global
+ *   patterns first and the project ones after, so the project file wins.
  * - Syntax: Same as .gitignore
  * - Immediate reflection when saved
  * - Complete blocking of file access for ignored patterns
@@ -23,11 +26,14 @@ import {
  *
  * Kilo reads `.kilocodeignore` (not `.kiloignore`), so emitting `.kiloignore`
  * left the file inert. https://kilo.ai/docs/customize/context/kilocodeignore
+ * @see https://github.com/Kilo-Org/kilocode/blob/main/packages/opencode/src/kilocode/ignore-migrator.ts
  */
 export class KiloIgnore extends ToolIgnore {
-  static getSettablePaths(): ToolIgnoreSettablePaths {
+  static getSettablePaths({
+    global = false,
+  }: ToolIgnoreSettablePathsParams = {}): ToolIgnoreSettablePaths {
     return {
-      relativeDirPath: ".",
+      relativeDirPath: global ? KILO_LEGACY_GLOBAL_DIR : ".",
       relativeFilePath: KILO_IGNORE_FILE_NAME,
     };
   }
@@ -45,14 +51,17 @@ export class KiloIgnore extends ToolIgnore {
   static fromRulesyncIgnore({
     outputRoot = process.cwd(),
     rulesyncIgnore,
+    global = false,
   }: ToolIgnoreFromRulesyncIgnoreParams): KiloIgnore {
     const body = rulesyncIgnore.getFileContent();
+    const paths = this.getSettablePaths({ global });
 
     return new KiloIgnore({
       outputRoot,
-      relativeDirPath: this.getSettablePaths().relativeDirPath,
-      relativeFilePath: this.getSettablePaths().relativeFilePath,
+      relativeDirPath: paths.relativeDirPath,
+      relativeFilePath: paths.relativeFilePath,
       fileContent: body,
+      global,
     });
   }
 
@@ -62,21 +71,20 @@ export class KiloIgnore extends ToolIgnore {
   static async fromFile({
     outputRoot = process.cwd(),
     validate = true,
+    global = false,
   }: ToolIgnoreFromFileParams): Promise<KiloIgnore> {
+    const paths = this.getSettablePaths({ global });
     const fileContent = await readFileContent(
-      join(
-        outputRoot,
-        this.getSettablePaths().relativeDirPath,
-        this.getSettablePaths().relativeFilePath,
-      ),
+      join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
     );
 
     return new KiloIgnore({
       outputRoot,
-      relativeDirPath: this.getSettablePaths().relativeDirPath,
-      relativeFilePath: this.getSettablePaths().relativeFilePath,
+      relativeDirPath: paths.relativeDirPath,
+      relativeFilePath: paths.relativeFilePath,
       fileContent,
       validate,
+      global,
     });
   }
 
@@ -84,6 +92,7 @@ export class KiloIgnore extends ToolIgnore {
     outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
+    global = false,
   }: ToolIgnoreForDeletionParams): KiloIgnore {
     return new KiloIgnore({
       outputRoot,
@@ -91,6 +100,7 @@ export class KiloIgnore extends ToolIgnore {
       relativeFilePath,
       fileContent: "",
       validate: false,
+      global,
     });
   }
 }

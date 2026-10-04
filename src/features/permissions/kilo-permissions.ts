@@ -159,6 +159,49 @@ function narrowSandboxToProjectScope({
   return emitted;
 }
 
+const KILO_MARKDOWN_SOURCE_KEY = "markdown_source";
+
+/**
+ * Narrow an authored `markdown_source` rule to what a *project* `kilo.jsonc`
+ * can mean. Kilo only grants it when the winning pattern came from the global
+ * config with the action `allow` ("Project configuration cannot grant this
+ * permission"). A project pattern that wins last-match-wins therefore never
+ * grants: `deny` and `ask` both block (Kilo never prompts for it), so they
+ * are kept — a project config may only tighten. A project `allow` would block
+ * too, the opposite of what it says, so it is dropped with a warning pointing
+ * at `--global`.
+ * Returns `undefined` when nothing is left to write.
+ * @see https://kilo.ai/docs/customize/workflows
+ * @see https://github.com/Kilo-Org/kilocode/blob/main/packages/opencode/src/kilocode/config/external-markdown.ts
+ */
+function narrowMarkdownSourceToProjectScope({
+  authored,
+  logger,
+}: {
+  authored: unknown;
+  logger?: Logger | undefined;
+}): unknown {
+  let emitted: unknown;
+  let dropped: string[];
+  if (typeof authored === "string") {
+    emitted = authored === "allow" ? undefined : authored;
+    dropped = authored === "allow" ? ["*"] : [];
+  } else {
+    const entries = Object.entries(asKiloRecord(authored));
+    const kept = entries.filter(([, action]) => action !== "allow");
+    emitted = kept.length > 0 ? Object.fromEntries(kept) : undefined;
+    dropped = entries.filter(([, action]) => action === "allow").map(([pattern]) => pattern);
+  }
+  if (dropped.length > 0) {
+    logger?.warn(
+      `Kilo grants '${KILO_MARKDOWN_SOURCE_KEY}' from the global config only, so these 'allow' ` +
+        `patterns were dropped from the project config: ${dropped.join(", ")}. A project config ` +
+        `can only block it ('deny' or 'ask'); generate with --global to grant access.`,
+    );
+  }
+  return emitted;
+}
+
 export class KiloPermissions extends ToolPermissions {
   private readonly json: KiloPermissionsConfig;
 
@@ -294,6 +337,15 @@ export class KiloPermissions extends ToolPermissions {
       ...honorAllToolsOnBash(rulesyncJson.permission),
       ...kiloOverride?.permission,
     };
+    if (!global && Object.hasOwn(incomingPermission, KILO_MARKDOWN_SOURCE_KEY)) {
+      const narrowed = narrowMarkdownSourceToProjectScope({
+        authored: incomingPermission[KILO_MARKDOWN_SOURCE_KEY],
+        logger,
+      });
+      // Still owned when nothing survives, so a stale project entry (an earlier
+      // rulesync wrote the rule verbatim) is removed rather than kept.
+      incomingPermission[KILO_MARKDOWN_SOURCE_KEY] = narrowed;
+    }
 
     // Detect `deny` patterns that disappear from any key rulesync now owns —
     // including override keys — so a regenerate that silently weakens a
@@ -323,6 +375,9 @@ export class KiloPermissions extends ToolPermissions {
       ...existingPermission,
       ...incomingPermission,
     };
+    if (mergedPermission[KILO_MARKDOWN_SOURCE_KEY] === undefined) {
+      delete mergedPermission[KILO_MARKDOWN_SOURCE_KEY];
+    }
 
     const nextJson: Record<string, unknown> = {
       ...parsed,
