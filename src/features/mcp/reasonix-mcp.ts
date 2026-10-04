@@ -83,10 +83,11 @@ type ReasonixPlugin = Record<string, unknown> & {
 // settling which wins when a canonical `disabled` and a hand-written
 // `auto_start` disagree — in both the write and the import direction — is its
 // own decision, left on #2599.
-// Unlike the other passthrough fields, these two are value-checked on the way
-// out (`invalidSchedulingFieldReason`): Reasonix decodes `reasonix.toml` with
+// These two are also value-checked on the way out
+// (`invalidSchedulingFieldReason`): Reasonix decodes `reasonix.toml` with
 // BurntSushi/toml into a `string` / `*bool`, and a type mismatch fails the load
-// of the whole file, not just this entry.
+// of the whole file, not just this entry. The other passthrough fields are not
+// checked yet.
 // @see https://github.com/esengine/DeepSeek-Reasonix/blob/main-v2/docs/SPEC.md
 // (§3.16 for `concurrency`) and `internal/config/plugin_entry.go` for the
 // `[[plugins]]` field names.

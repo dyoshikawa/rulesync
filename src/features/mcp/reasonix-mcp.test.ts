@@ -603,7 +603,7 @@ describe("ReasonixMcp", () => {
       expect(logger.warn).not.toHaveBeenCalled();
     });
 
-    it.each([["false"], [0], ["yes"]])(
+    it.each([["false"], [0], ["yes"], [null]])(
       "should drop a non-boolean auto_start of %j with a warning",
       async (autoStart) => {
         const { plugin, logger } = await exportServer({ auto_start: autoStart });
@@ -616,7 +616,7 @@ describe("ReasonixMcp", () => {
       },
     );
 
-    it.each([[1], [true], [["serial"]]])(
+    it.each([[1], [true], [["serial"]], [null]])(
       "should drop a non-string concurrency of %j with a warning",
       async (concurrency) => {
         const { plugin, logger } = await exportServer({ concurrency });
