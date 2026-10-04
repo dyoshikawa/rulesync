@@ -21,12 +21,32 @@ export const OpenCodeCommandFrontmatterSchema = z.looseObject({
   description: z.optional(z.string()),
   agent: optional(z.string()),
   subtask: optional(z.boolean()),
+  // OpenCode V2 spelling of `subtask` (V2 keeps `subtask` as a deprecated
+  // alias). OpenCode V1 only knows `subtask`, so rulesync folds `subagent`
+  // into `subtask` on both import and generate; see `foldSubagentAlias`.
+  subagent: optional(z.boolean()),
   model: optional(z.string()),
   // Default model variant for the command (e.g. a provider reasoning preset).
   variant: optional(z.string()),
 });
 
 export type OpenCodeCommandFrontmatter = z.infer<typeof OpenCodeCommandFrontmatterSchema>;
+
+/**
+ * Rewrites a boolean `subagent` (OpenCode V2) into `subtask`, the key both V1
+ * and V2 read: V1's command schema rejects unknown keys, while V2 resolves
+ * `subagent ?? subtask`. `subagent` therefore wins when both are set, matching
+ * V2. A non-boolean `subagent` is left untouched for validation to report.
+ *
+ * @see https://opencode.ai/v2/docs/commands/
+ */
+function foldSubagentAlias<T extends Record<string, unknown>>(fields: T): T {
+  if (typeof fields.subagent !== "boolean") {
+    return fields;
+  }
+  const { subagent, ...rest } = fields;
+  return { ...rest, subtask: subagent } as unknown as T;
+}
 
 export type OpenCodeCommandParams = {
   frontmatter: OpenCodeCommandFrontmatter;
@@ -78,7 +98,7 @@ export class OpenCodeCommand extends ToolCommand {
   }
 
   toRulesyncCommand(): RulesyncCommand {
-    const { description, ...restFields } = this.frontmatter;
+    const { description, ...restFields } = foldSubagentAlias(this.frontmatter);
     const { toolTarget } = (this.constructor as typeof OpenCodeCommand).layout;
 
     const rulesyncFrontmatter: RulesyncCommandFrontmatter = {
@@ -107,7 +127,7 @@ export class OpenCodeCommand extends ToolCommand {
     global = false,
   }: ToolCommandFromRulesyncCommandParams): OpenCodeCommand {
     const rulesyncFrontmatter = rulesyncCommand.getFrontmatter();
-    const opencodeFields = rulesyncFrontmatter[this.layout.toolTarget] ?? {};
+    const opencodeFields = foldSubagentAlias(rulesyncFrontmatter[this.layout.toolTarget] ?? {});
 
     const opencodeFrontmatter: OpenCodeCommandFrontmatter = {
       description: rulesyncFrontmatter.description,
@@ -181,7 +201,8 @@ export class OpenCodeCommand extends ToolCommand {
    * Imports commands defined inline in `opencode.json` / `opencode.jsonc` under
    * the top-level `command` key (in addition to the Markdown files under
    * `.opencode/commands/`). Each entry's `template` becomes the command body,
-   * while `description` / `agent` / `model` / `subtask` map to the frontmatter.
+   * while `description` / `agent` / `model` / `subtask` map to the frontmatter
+   * (a V2 `subagent` is read as `subtask`, taking precedence like V2 does).
    *
    * Import-only: this is invoked by the commands processor when loading tool
    * files for conversion to rulesync, never for orphan deletion.
@@ -211,11 +232,12 @@ export class OpenCodeCommand extends ToolCommand {
       }
 
       const body = typeof entry.template === "string" ? entry.template : "";
+      const subtask = typeof entry.subagent === "boolean" ? entry.subagent : entry.subtask;
       const frontmatter: OpenCodeCommandFrontmatter = {
         ...(typeof entry.description === "string" && { description: entry.description }),
         ...(typeof entry.agent === "string" && { agent: entry.agent }),
         ...(typeof entry.model === "string" && { model: entry.model }),
-        ...(typeof entry.subtask === "boolean" && { subtask: entry.subtask }),
+        ...(typeof subtask === "boolean" && { subtask }),
       };
 
       commands.push(
