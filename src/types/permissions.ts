@@ -360,12 +360,15 @@ export type CursorPermissionsOverride = z.infer<typeof CursorPermissionsOverride
  * autonomy/sandbox controls with no canonical permission category — under
  * `tools` (`approvalMode` = plan/default/auto-edit/auto/yolo, `autoAccept`,
  * `sandbox`, `sandboxImage`, `disabled`, `visible`, `eager`, `listDirectory`,
- * `todoWrite`, `workflowsEnabled`) and `security` (`folderTrust`, `allowedHttpHookUrls`,
- * `allowPrivateNetworkHooks`, `allowedInsecureVoiceBaseUrls`). Qwen Code strips
- * `tools.workflowsEnabled`, `security.allowPrivateNetworkHooks` and
+ * `todoWrite`, `workflowsEnabled`, `workflowNameOnly`, `executionSandbox`) and
+ * `security` (`folderTrust`, `allowedHttpHookUrls`, `allowPrivateNetworkHooks`,
+ * `allowedInsecureVoiceBaseUrls`). Qwen Code strips `tools.workflowsEnabled`,
+ * `tools.executionSandbox`, `security.allowPrivateNetworkHooks` and
  * `security.allowedInsecureVoiceBaseUrls` out of workspace settings, so generate
- * skips those three in project scope and announces a granting value in global
- * scope. `security.allowedHttpHookUrls` (honored in a workspace only while no
+ * skips those four in project scope and announces a granting value in global
+ * scope (any `executionSandbox` object counts). `tools.workflowNameOnly` is
+ * written in both scopes, but a workspace may only turn it on, which the
+ * project-scope note says. `security.allowedHttpHookUrls` (honored in a workspace only while no
  * higher scope sets it) and `security.folderTrust` (the initial trust decision
  * is made from user/system settings alone, before the workspace merge) are
  * written in both scopes, with a note in project scope and an announcement of
