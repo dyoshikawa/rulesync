@@ -535,7 +535,7 @@ describe("QwencodePermissions", () => {
       expect(announced).not.toContain("cannot grant it per project");
     });
 
-    it("announces a global tools.executionSandbox that removes the policy (issue #2668)", async () => {
+    it("announces a falsy global tools.executionSandbox (issue #2668)", async () => {
       const settingsDir = join(testDir, ".qwen");
       await ensureDir(settingsDir);
       await writeFileContent(
@@ -559,8 +559,8 @@ describe("QwencodePermissions", () => {
         }),
       });
 
-      // Dropping the policy is the loosening direction, so a falsy value is
-      // announced rather than filtered out as a non-grant.
+      // The key is a policy rather than a switch, so a falsy value is announced
+      // rather than filtered out as a non-grant.
       expect(logger.warn).toHaveBeenCalledWith(
         expect.stringContaining('wrote "tools.executionSandbox" = null'),
       );

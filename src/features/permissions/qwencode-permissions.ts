@@ -343,8 +343,8 @@ const QWEN_SCOPED_TOOLS_KEYS = {
   executionSandbox: {
     rule: "workspace-stripped",
     // A containment policy rather than a grant, so every global change is worth
-    // announcing — including a falsy one such as `null`, which removes the
-    // policy and is the loosening direction.
+    // announcing, falsy values included: Qwen Code treats only an absent key as
+    // "no policy" and rejects `null` or a malformed object as invalid config.
     grants: () => true,
     globalNote:
       "Qwen Code ignores this key in workspace settings so a repository cannot choose its own sandbox; in the global scope it sets the filesystem and network policy every tool command runs under for every project on this machine (a System value still replaces it, and Qwen Code needs a restart to pick it up).",
