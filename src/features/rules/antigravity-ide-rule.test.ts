@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
+import { AntigravityCliRule } from "./antigravity-cli-rule.js";
 import { AntigravityIdeRule } from "./antigravity-ide-rule.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 
@@ -52,6 +53,154 @@ describe("AntigravityIdeRule", () => {
       const root = (paths as { root: { relativeDirPath: string; relativeFilePath: string } }).root;
       expect(root.relativeDirPath).toBe(".gemini");
       expect(root.relativeFilePath).toBe("GEMINI.md");
+    });
+
+    it("should return global nonRoot path under .gemini/config/rules for global scope", () => {
+      const paths = AntigravityIdeRule.getSettablePaths({ global: true });
+
+      expect(paths.nonRoot.relativeDirPath).toBe(join(".gemini", "config", "rules"));
+    });
+  });
+
+  describe("global non-root rules", () => {
+    const buildNonRootRule = (frontmatter: Partial<RulesyncRule["frontmatter"]> = {}) =>
+      new RulesyncRule({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "coding-style.md",
+        frontmatter: {
+          root: false,
+          targets: ["*"],
+          globs: ["**/*"],
+          ...frontmatter,
+        },
+        body: "# Coding Style",
+      });
+
+    it("should write a plain non-root rule to .gemini/config/rules with always_on trigger", () => {
+      const ideRule = AntigravityIdeRule.fromRulesyncRule({
+        rulesyncRule: buildNonRootRule(),
+        global: true,
+      });
+
+      expect(ideRule.getRelativeDirPath()).toBe(join(".gemini", "config", "rules"));
+      expect(ideRule.getRelativeFilePath()).toBe("coding-style.md");
+      expect(ideRule.isRoot()).toBe(false);
+      expect(ideRule.getFileContent()).toBe("---\ntrigger: always_on\n---\n# Coding Style\n");
+    });
+
+    it("should write the same global files as antigravity-cli", () => {
+      const rulesyncRules = [
+        buildNonRootRule({
+          description: "API rules",
+          globs: ["src/api/**/*.ts"],
+          antigravity: { trigger: "model_decision" },
+        }),
+        buildNonRootRule({ root: true }),
+        new RulesyncRule({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: join("frontend", "styleGuide.md"),
+          frontmatter: { root: false, targets: ["*"], globs: ["src/**/*.tsx"] },
+          body: "# Frontend Style",
+        }),
+      ];
+
+      for (const rulesyncRule of rulesyncRules) {
+        const ideRule = AntigravityIdeRule.fromRulesyncRule({ rulesyncRule, global: true });
+        const cliRule = AntigravityCliRule.fromRulesyncRule({ rulesyncRule, global: true });
+
+        expect(ideRule.getRelativeDirPath()).toBe(cliRule.getRelativeDirPath());
+        expect(ideRule.getRelativeFilePath()).toBe(cliRule.getRelativeFilePath());
+        expect(ideRule.getFileContent()).toBe(cliRule.getFileContent());
+      }
+    });
+
+    it("should flatten a nested rule into a top-level file name", () => {
+      const ideRule = AntigravityIdeRule.fromRulesyncRule({
+        rulesyncRule: new RulesyncRule({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: join("frontend", "style.md"),
+          frontmatter: { root: false, targets: ["*"], globs: [] },
+          body: "# Frontend Style",
+        }),
+        global: true,
+      });
+
+      expect(ideRule.getRelativeDirPath()).toBe(join(".gemini", "config", "rules"));
+      expect(ideRule.getRelativeFilePath()).toBe("frontend-style.md");
+    });
+
+    it("should load a global non-root rule from .gemini/config/rules", async () => {
+      await writeFileContent(
+        join(testDir, ".gemini", "config", "rules", "style.md"),
+        "---\ntrigger: glob\nglobs: src/**/*.ts\n---\n# Style\n",
+      );
+
+      const ideRule = await AntigravityIdeRule.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "style.md",
+        global: true,
+      });
+
+      expect(ideRule.isRoot()).toBe(false);
+      expect(ideRule.getRelativeDirPath()).toBe(join(".gemini", "config", "rules"));
+      const result = ideRule.toRulesyncRule();
+      expect(result.getFrontmatter().globs).toEqual(["src/**/*.ts"]);
+      expect(result.getFrontmatter().antigravity?.trigger).toBe("glob");
+      expect(result.getBody().trim()).toBe("# Style");
+    });
+
+    it("should load a non-root GEMINI.md in .gemini/config/rules as a non-root rule", async () => {
+      await writeFileContent(
+        join(testDir, ".gemini", "config", "rules", "GEMINI.md"),
+        "---\ntrigger: always_on\n---\n# Named Like Root\n",
+      );
+
+      const ideRule = await AntigravityIdeRule.fromFile({
+        outputRoot: testDir,
+        relativeDirPath: join(".gemini", "config", "rules"),
+        relativeFilePath: "GEMINI.md",
+        global: true,
+      });
+
+      expect(ideRule.isRoot()).toBe(false);
+      expect(ideRule.getRelativeDirPath()).toBe(join(".gemini", "config", "rules"));
+    });
+
+    it("should still load the global GEMINI.md as the root rule", async () => {
+      await writeFileContent(join(testDir, ".gemini", "GEMINI.md"), "# Global Root\n");
+
+      const ideRule = await AntigravityIdeRule.fromFile({
+        outputRoot: testDir,
+        relativeDirPath: ".gemini",
+        relativeFilePath: "GEMINI.md",
+        global: true,
+      });
+
+      expect(ideRule.isRoot()).toBe(true);
+      expect(ideRule.getFileContent()).toBe("# Global Root\n");
+    });
+
+    it("should never let the orphan sweep delete files in the shared global rules directory", () => {
+      const nonRootRule = AntigravityIdeRule.forDeletion({
+        relativeDirPath: join(".gemini", "config", "rules"),
+        relativeFilePath: "user-rule.md",
+        global: true,
+      });
+      const rootRule = AntigravityIdeRule.forDeletion({
+        relativeDirPath: ".gemini",
+        relativeFilePath: "GEMINI.md",
+        global: true,
+      });
+      const projectRule = AntigravityIdeRule.forDeletion({
+        relativeDirPath: join(".agents", "rules"),
+        relativeFilePath: "style.md",
+      });
+
+      expect(nonRootRule.isRoot()).toBe(false);
+      expect(nonRootRule.isDeletable()).toBe(false);
+      expect(rootRule.isRoot()).toBe(true);
+      expect(rootRule.isDeletable()).toBe(true);
+      expect(projectRule.isDeletable()).toBe(true);
     });
   });
 

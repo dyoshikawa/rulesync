@@ -16,6 +16,7 @@ import {
   STRATEGIES,
   normalizeStoredAntigravity,
   parseGlobsString,
+  toGlobalRuleFileName,
 } from "./antigravity-rule.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
@@ -185,10 +186,7 @@ export class AntigravityCliRule extends ToolRule {
 
     return new AntigravityCliRule({
       ...params,
-      // The CLI reads only the top level of `~/.gemini/config/rules/`, so a
-      // nested rulesync rule (`frontend/style.md`) is flattened into a single
-      // file name (`frontend-style.md`) there.
-      relativeFilePath: params.relativeFilePath.split(/[\\/]/).join("-"),
+      relativeFilePath: toGlobalRuleFileName(params.relativeFilePath),
       fileContent,
       global,
     });
