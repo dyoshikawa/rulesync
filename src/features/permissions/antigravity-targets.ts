@@ -61,7 +61,9 @@ function toPathTarget(pattern: string): TargetResult {
   if (MATCH_ALL_PATH_GLOBS.has(path)) {
     return { target: "*" };
   }
-  const directory = path.replace(DIRECTORY_CONTENTS_SUFFIX, "");
+  // `/**` leaves an empty directory, which is the filesystem root.
+  const directory =
+    path.replace(DIRECTORY_CONTENTS_SUFFIX, "") || (path.startsWith("/") ? "/" : "");
   if (directory !== path && directory.length > 0 && !hasGlob(directory)) {
     return { target: directory };
   }
@@ -85,9 +87,10 @@ function toUrlTarget(pattern: string): TargetResult {
     return { target: "*" };
   }
   const withoutScheme = withoutPrefix.replace(/^[a-z][a-z0-9+.-]*:\/\//i, "");
-  const slashIndex = withoutScheme.indexOf("/");
-  const authority = slashIndex === -1 ? withoutScheme : withoutScheme.slice(0, slashIndex);
-  const path = slashIndex === -1 ? "" : withoutScheme.slice(slashIndex);
+  // The authority ends at the path, the query or the fragment.
+  const authorityEnd = withoutScheme.search(/[/?#]/);
+  const authority = authorityEnd === -1 ? withoutScheme : withoutScheme.slice(0, authorityEnd);
+  const path = authorityEnd === -1 ? "" : withoutScheme.slice(authorityEnd);
   const host = authority
     .replace(/^[^@]*@/, "")
     .replace(/:\d+$/, "")

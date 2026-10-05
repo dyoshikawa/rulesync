@@ -32,6 +32,8 @@ describe("buildAntigravityPermissionEntry", () => {
       ["src/**/*", "read_file(src)"],
       ["./src/**", "read_file(src)"],
       ["/etc/**", "read_file(/etc)"],
+      ["/**", "read_file(/)"],
+      ["/**/*", "read_file(/)"],
       [".env", "read_file(.env)"],
       ["./secrets/key.pem", "read_file(secrets/key.pem)"],
       ["*", "read_file"],
@@ -88,6 +90,15 @@ describe("buildAntigravityPermissionEntry", () => {
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("all of example.com"));
     });
 
+    it.each(["https://example.com?key=*", "https://example.com#top"])(
+      "ends the hostname of %s at the query or fragment",
+      (pattern) => {
+        const { entry, logger } = build({ action: "read_url", pattern });
+        expect(entry).toBe("read_url(example.com)");
+        expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("all of example.com"));
+      },
+    );
+
     it("widens a deny with a path to the whole domain without a warning", () => {
       const { entry, logger } = build({
         action: "read_url",
@@ -120,6 +131,9 @@ describe("buildAntigravityPermissionEntry", () => {
       ["docker * *", "command(regex:^docker$ ^.*$)"],
       ["git log*", "command(regex:^git$ ^log.*$)"],
       ["regex:^ls$ ^-la$", "command(regex:^ls$ ^-la$)"],
+      // Range endpoints are escaped, so `\\` through `z` stays a range.
+      ["x[\\-z] *", "command(regex:^x[\\\\-z]$)"],
+      ["x[]-a] *", "command(regex:^x[\\]-a]$)"],
     ])("writes %s as %s", (pattern, expected) => {
       const { entry, logger } = build({ action: "command", pattern });
       expect(entry).toBe(expected);
@@ -143,6 +157,12 @@ describe("buildAntigravityPermissionEntry", () => {
       });
       expect(entry).toBe("command(git status)");
       expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("skips a bracket range that runs backwards", () => {
+      const { entry, logger } = build({ action: "command", pattern: "x[z-a] *", decision: "deny" });
+      expect(entry).toBeUndefined();
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("runs backwards"));
     });
 
     it.each(["git push * --force", "git * status", "* --force", "git commit-* --amend", "a[ ]b"])(

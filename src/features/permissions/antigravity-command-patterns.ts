@@ -47,6 +47,18 @@ function escapeRegexCharacter(character: string): string {
   return REGEX_METACHARACTERS.test(character) ? `\\${character}` : character;
 }
 
+// Inside `[...]`, only these characters carry meaning. Range endpoints are
+// escaped too, so `[\-z]` stays a range rather than becoming `-` or `z`.
+function escapeClassCharacter(character: string): string {
+  return /[\\\]^-]/.test(character) ? `\\${character}` : character;
+}
+
+// A range that runs backwards is an invalid regex, and a deny that fails to
+// compile blocks nothing.
+function hasBackwardRange(step: GlobStep): boolean {
+  return step.kind === "class" && step.ranges.some(([low, high]) => low > high);
+}
+
 // A bracket class that holds a space can match across two words.
 function classMatchesWhitespace(step: GlobStep): boolean {
   return (
@@ -102,11 +114,10 @@ function wordToRegexSource(word: readonly GlobStep[]): string {
         source += escapeRegexCharacter(step.character);
         break;
       case "class": {
-        const members = [...step.members].map((member) =>
-          /[\\\]^-]/.test(member) ? `\\${member}` : member,
-        );
+        const members = [...step.members].map(escapeClassCharacter);
         const ranges = step.ranges.map(
-          ([low, high]) => `${String.fromCodePoint(low)}-${String.fromCodePoint(high)}`,
+          ([low, high]) =>
+            `${escapeClassCharacter(String.fromCodePoint(low))}-${escapeClassCharacter(String.fromCodePoint(high))}`,
         );
         source += `[${step.negated ? "^" : ""}${members.join("")}${ranges.join("")}]`;
         break;
@@ -132,6 +143,9 @@ export function toAntigravityCommandTarget(pattern: string): CommandTargetResult
       skipReason:
         "A bracket that matches a space spans two words, and Antigravity matches a command word by word",
     };
+  }
+  if (steps.some(hasBackwardRange)) {
+    return { skipReason: "A bracket range runs backwards, so it has no regex spelling" };
   }
   const words = splitIntoWords(steps);
   // Extra words after the target already match, so a trailing ` *` adds nothing.
