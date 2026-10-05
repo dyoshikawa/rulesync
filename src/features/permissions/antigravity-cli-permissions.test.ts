@@ -59,7 +59,7 @@ describe("AntigravityCliPermissions", () => {
     expect(permissions.validate()).toEqual({ success: true, error: null });
   });
 
-  it("should convert rulesync bash rules into Claude-Code-style command entries", async () => {
+  it("should turn a trailing ' *' into the literal command prefix Antigravity matches", async () => {
     const rulesyncPermissions = new RulesyncPermissions({
       outputRoot: testDir,
       relativeDirPath: ".rulesync",
@@ -77,8 +77,68 @@ describe("AntigravityCliPermissions", () => {
     });
 
     const settings = JSON.parse(permissions.getFileContent()) as SettingsJson;
-    expect(settings.permissions?.allow).toContain("command(git status *)");
-    expect(settings.permissions?.deny).toContain("command(rm -rf *)");
+    // Antigravity reads a plain command target as a literal token prefix, so a
+    // `*` copied into it would be a literal character and never match.
+    expect(settings.permissions?.allow).toEqual(["command(git status)"]);
+    expect(settings.permissions?.deny).toEqual(["command(rm -rf)"]);
+  });
+
+  it("should write other bash globs and exact commands as anchored regex rules", async () => {
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          bash: {
+            "git status": "allow",
+            "git push * --force": "deny",
+            "npm install*": "ask",
+            "docker * *": "deny",
+          },
+        },
+      }),
+    });
+
+    const permissions = await AntigravityCliPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    const settings = JSON.parse(permissions.getFileContent()) as SettingsJson;
+    // A plain target would be a prefix, broader than the exact canonical match.
+    expect(settings.permissions?.allow).toEqual(["command(regex:^git status$)"]);
+    expect(settings.permissions?.ask).toEqual(["command(regex:^npm install.*$)"]);
+    expect(settings.permissions?.deny).toEqual([
+      "command(regex:^docker .* .*$)",
+      "command(regex:^git push .* --force$)",
+    ]);
+  });
+
+  it("should escape regex metacharacters and keep glob classes", async () => {
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          bash: { "cat ./a.txt": "allow", "git[ ]status?": "deny", "regex:^ls( -la)?$": "allow" },
+        },
+      }),
+    });
+
+    const permissions = await AntigravityCliPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    const settings = JSON.parse(permissions.getFileContent()) as SettingsJson;
+    expect(settings.permissions?.allow).toEqual([
+      "command(regex:^cat \\./a\\.txt$)",
+      // A rule that is already an Antigravity regex passes through.
+      "command(regex:^ls( -la)?$)",
+    ]);
+    expect(settings.permissions?.deny).toEqual(["command(regex:^git[ ]status.$)"]);
   });
 
   it("should map an ask action and emit a bare tool name for a match-all pattern", async () => {
@@ -228,7 +288,7 @@ describe("AntigravityCliPermissions", () => {
 
     const settings = JSON.parse(permissions.getFileContent()) as SettingsJson;
     expect(settings.permissions?.allow).toContain("execute_url(https://deploy.example.com)");
-    expect(settings.permissions?.allow).toContain("command(git status *)");
+    expect(settings.permissions?.allow).toContain("command(git status)");
     // Unrelated top-level settings are also preserved.
     expect(settings.someOtherSetting).toBe(true);
   });
@@ -294,7 +354,7 @@ describe("AntigravityCliPermissions", () => {
     const settings = JSON.parse(permissions.getFileContent()) as SettingsJson;
     // The previous "command(...)" entry is managed, so it is dropped and replaced.
     expect(settings.permissions?.allow).not.toContain("command(old command *)");
-    expect(settings.permissions?.allow).toContain("command(git status *)");
+    expect(settings.permissions?.allow).toContain("command(git status)");
   });
 
   it("should parse settings.json command entries back into canonical bash rules", () => {
@@ -304,16 +364,24 @@ describe("AntigravityCliPermissions", () => {
       relativeFilePath: "settings.json",
       fileContent: JSON.stringify({
         permissions: {
-          allow: ["command(git status *)"],
-          deny: ["command(rm -rf *)"],
+          allow: ["command(git status)", "command(regex:^git log .* --oneline$)"],
+          ask: ["command(regex:^cat \\./a\\.txt$)"],
+          deny: ["command(rm -rf)", "command(regex:echo rx .*)", "command(regex:^ls( -la)?$)"],
         },
       }),
       global: true,
     });
 
     const json = permissions.toRulesyncPermissions().getJson();
+    // A plain target is a prefix, which the canonical form spells `<prefix> *`.
     expect(json.permission.bash?.["git status *"]).toBe("allow");
     expect(json.permission.bash?.["rm -rf *"]).toBe("deny");
+    // An anchored regex that only uses `.*`, `.` and escapes reads back as a glob.
+    expect(json.permission.bash?.["git log * --oneline"]).toBe("allow");
+    expect(json.permission.bash?.["cat ./a.txt"]).toBe("ask");
+    // Any other regex has no glob spelling and is kept as written.
+    expect(json.permission.bash?.["regex:echo rx .*"]).toBe("deny");
+    expect(json.permission.bash?.["regex:^ls( -la)?$"]).toBe("deny");
   });
 
   it("should treat a parenthesis-less entry as a match-all pattern when parsing", () => {
@@ -340,7 +408,13 @@ describe("AntigravityCliPermissions", () => {
       relativeFilePath: "permissions.json",
       fileContent: JSON.stringify({
         permission: {
-          bash: { "git status *": "allow", "rm -rf *": "deny" },
+          bash: {
+            "git status *": "allow",
+            "rm -rf *": "deny",
+            "git status": "allow",
+            "git push * --force": "deny",
+            "regex:^ls( -la)?$": "ask",
+          },
         },
       }),
     });
@@ -359,8 +433,13 @@ describe("AntigravityCliPermissions", () => {
     });
 
     const json = reloaded.toRulesyncPermissions().getJson();
-    expect(json.permission.bash?.["git status *"]).toBe("allow");
-    expect(json.permission.bash?.["rm -rf *"]).toBe("deny");
+    expect(json.permission.bash).toEqual({
+      "git status *": "allow",
+      "rm -rf *": "deny",
+      "git status": "allow",
+      "git push * --force": "deny",
+      "regex:^ls( -la)?$": "ask",
+    });
   });
 
   it("should load an existing settings.json from disk via fromFile", async () => {
@@ -368,7 +447,7 @@ describe("AntigravityCliPermissions", () => {
     await ensureDir(dir);
     await writeFileContent(
       join(dir, "settings.json"),
-      JSON.stringify({ permissions: { allow: ["command(git status *)"] } }),
+      JSON.stringify({ permissions: { allow: ["command(git status)"] } }),
     );
 
     const loaded = await AntigravityCliPermissions.fromFile({ outputRoot: testDir });
@@ -407,7 +486,7 @@ describe("AntigravityCliPermissions", () => {
       expect(settings.toolPermission).toBe("strict");
       expect(settings.enableTerminalSandbox).toBe(true);
       // The permissions arrays are unaffected.
-      expect(settings.permissions?.allow).toContain("command(git *)");
+      expect(settings.permissions?.allow).toContain("command(git)");
     });
 
     it("round-trips the override through import", async () => {
@@ -418,7 +497,7 @@ describe("AntigravityCliPermissions", () => {
         JSON.stringify({
           toolPermission: "always-proceed",
           enableTerminalSandbox: false,
-          permissions: { deny: ["command(rm -rf *)"] },
+          permissions: { deny: ["command(rm -rf)"] },
         }),
       );
 

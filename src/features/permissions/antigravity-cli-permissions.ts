@@ -17,6 +17,10 @@ import {
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { fallbackLogger, type Logger } from "../../utils/logger.js";
+import {
+  fromAntigravityCommandTarget,
+  toAntigravityCommandTarget,
+} from "./antigravity-command-patterns.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { honorAllToolsOnBash } from "./shell-command-categories.js";
 import {
@@ -78,7 +82,9 @@ function pickDocumentedValue({
  *
  * The CLI reuses the Claude-Code-style `permissions.allow/ask/deny` arrays of
  * `Tool(pattern)` entries rather than the Gemini-CLI TOML Policy Engine, so the
- * conversion logic mirrors {@link ClaudecodePermissions}.
+ * conversion logic mirrors {@link ClaudecodePermissions}. Only the syntax is
+ * shared: a `command` target is a literal prefix or a `regex:`, not a glob, so
+ * bash patterns are translated (see `antigravity-command-patterns.ts`).
  */
 type AntigravityCliSettingsJson = {
   permissions?: {
@@ -128,7 +134,7 @@ function toCanonicalToolName(cliName: string): string {
 }
 
 /**
- * Parse an Antigravity CLI permission entry like "command(npm run *)" into tool
+ * Parse an Antigravity CLI permission entry like "command(npm run)" into tool
  * name and pattern. The tool name is everything before the first "(" and the
  * pattern is everything up to the final ")", so patterns that themselves
  * contain parentheses (e.g. "command(echo (a))") round-trip correctly — this
@@ -151,14 +157,15 @@ function parsePermissionEntry(entry: string): { toolName: string; pattern: strin
 }
 
 /**
- * Build an Antigravity CLI permission entry like "command(npm run *)".
- * If the pattern is "*", returns just the tool name.
+ * Build an Antigravity CLI permission entry like "command(npm run)" from a
+ * canonical pattern. If the pattern is "*", returns just the tool name.
  */
 function buildPermissionEntry(toolName: string, pattern: string): string {
   if (pattern === "*") {
     return toolName;
   }
-  return `${toolName}(${pattern})`;
+  const target = toolName === "command" ? toAntigravityCommandTarget(pattern) : pattern;
+  return `${toolName}(${target})`;
 }
 
 /**
@@ -427,8 +434,10 @@ function convertAntigravityCliToRulesyncPermissions(params: {
 
   const processEntries = (entries: string[], action: PermissionAction) => {
     for (const entry of entries) {
-      const { toolName, pattern } = parsePermissionEntry(entry);
+      const { toolName, pattern: target } = parsePermissionEntry(entry);
       const canonical = toCanonicalToolName(toolName);
+      const pattern =
+        toolName === "command" && target !== "*" ? fromAntigravityCommandTarget(target) : target;
       if (!permission[canonical]) {
         permission[canonical] = {};
       }

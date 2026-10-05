@@ -10,6 +10,10 @@ import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import {
+  fromAntigravityCommandTarget,
+  toAntigravityCommandTarget,
+} from "./antigravity-command-patterns.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { honorAllToolsOnBash } from "./shell-command-categories.js";
 import {
@@ -75,7 +79,7 @@ function toCanonicalCategory(ideAction: string): string {
 }
 
 /**
- * Parse an Antigravity entry like "command(npm run *)" into action and pattern.
+ * Parse an Antigravity entry like "command(npm run)" into action and pattern.
  * The action is everything before the first "(" and the pattern is everything
  * up to the final ")", so patterns containing parentheses (e.g.
  * "command(npm run (build|test))") round-trip. Entries without parentheses use
@@ -95,12 +99,17 @@ function parsePermissionEntry(entry: string): { action: string; pattern: string 
   return { action, pattern: pattern || "*" };
 }
 
-/** Build an Antigravity entry like "command(npm run *)"; a "*" pattern is bare. */
+/**
+ * Build an Antigravity entry like "command(npm run)" from a canonical pattern;
+ * a "*" pattern is bare. Bash globs are translated, because a `command` target
+ * is a literal prefix or a `regex:` (see `antigravity-command-patterns.ts`).
+ */
 function buildPermissionEntry(action: string, pattern: string): string {
   if (pattern === "*") {
     return action;
   }
-  return `${action}(${pattern})`;
+  const target = action === "command" ? toAntigravityCommandTarget(pattern) : pattern;
+  return `${action}(${target})`;
 }
 
 /**
@@ -287,8 +296,10 @@ function convertAntigravityIdeToRulesyncPermissions(params: {
 
   const processEntries = (entries: string[], action: PermissionAction) => {
     for (const entry of entries) {
-      const { action: ideAction, pattern } = parsePermissionEntry(entry);
+      const { action: ideAction, pattern: target } = parsePermissionEntry(entry);
       const canonical = toCanonicalCategory(ideAction);
+      const pattern =
+        ideAction === "command" && target !== "*" ? fromAntigravityCommandTarget(target) : target;
       if (!permission[canonical]) {
         permission[canonical] = {};
       }
