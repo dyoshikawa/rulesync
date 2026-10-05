@@ -61,11 +61,29 @@ function hasBackwardRange(step: GlobStep): boolean {
   return step.kind === "class" && step.ranges.some(([low, high]) => low > high);
 }
 
-// Antigravity (Go) uses RE2, not JavaScript regex. The two agree on what a
-// word like `^ls(` is: unbalanced, so the rule would never compile.
+// Syntax JavaScript accepts and RE2 refuses: lookahead, lookbehind and backreferences.
+const JAVASCRIPT_ONLY_REGEX = /\(\?<?[=!]|\\[1-9]|\\k</;
+
+/**
+ * Whether Antigravity (Go, RE2) would refuse a regex word, so that a word like
+ * `^ls(` is caught. There is no RE2 here, so the check runs in JavaScript:
+ * syntax only JavaScript has fails, and RE2's own spellings (`(?P<name>`,
+ * `(?i)`, `(?-i)`, `\A`, `\z`, `[[:alpha:]]`) are rewritten into JavaScript
+ * before it compiles. `(?<name>` is valid in both (RE2 since Go 1.22).
+ */
 function isInvalidRegex(source: string): boolean {
+  if (JAVASCRIPT_ONLY_REGEX.test(source)) {
+    return true;
+  }
+  const asJavaScript = source
+    .replace(/\(\?P</g, "(?<")
+    .replace(/\(\?[imsU]*-?[imsU]*\)/g, "")
+    .replace(/\(\?[imsU]*-?[imsU]*:/g, "(?:")
+    .replace(/\\A/g, "^")
+    .replace(/\\z/g, "$")
+    .replace(/\[:\^?[a-z]+:\]/g, "a");
   try {
-    new RegExp(source);
+    new RegExp(asJavaScript);
     return false;
   } catch {
     return true;

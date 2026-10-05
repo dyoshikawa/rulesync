@@ -33,6 +33,10 @@ describe("buildAntigravityPermissionEntry", () => {
       ["./src/**", "read_file(src)"],
       ["/etc/**", "read_file(/etc)"],
       ["/**", "read_file(/)"],
+      ["./**", "read_file(.)"],
+      ["./**/*", "read_file(.)"],
+      ["./", "read_file(.)"],
+      [".", "read_file(.)"],
       ["/**/*", "read_file(/)"],
       [".env", "read_file(.env)"],
       ["./secrets/key.pem", "read_file(secrets/key.pem)"],
@@ -45,7 +49,7 @@ describe("buildAntigravityPermissionEntry", () => {
       expect(logger.warn).not.toHaveBeenCalled();
     });
 
-    it.each(["**/*.env", "src/*", "*.pem", "src/{a,b}/**", "a?/**"])(
+    it.each(["**/*.env", "src/*", "*.pem", "src/{a,b}/**", "a?/**", "./*"])(
       "skips the glob %s with a warning",
       (pattern) => {
         const { entry, logger } = build({ action: "write_file", pattern, decision: "ask" });
@@ -151,6 +155,11 @@ describe("buildAntigravityPermissionEntry", () => {
       ["git log*", "command(regex:^git$ ^log.*$)"],
       ["regex:^ls$ ^-la$", "command(regex:^ls$ ^-la$)"],
       ["regex:^ls$ ^-(la|l)$", "command(regex:^ls$ ^-(la|l)$)"],
+      // RE2 spellings JavaScript lacks are still valid.
+      ["regex:(?P<cmd>ls) (?i)^-LA$", "command(regex:(?P<cmd>ls) (?i)^-LA$)"],
+      ["regex:(?-i)^npm$ (?i-s:run)", "command(regex:(?-i)^npm$ (?i-s:run))"],
+      ["regex:(?<cmd>ls)", "command(regex:(?<cmd>ls))"],
+      ["regex:\\Als\\z [[:alpha:]]+", "command(regex:\\Als\\z [[:alpha:]]+)"],
       // Range endpoints are escaped, so `\\` through `z` stays a range.
       ["x[\\-z]*", "command(regex:^x[\\\\-z].*$)"],
       ["x[]-a]*", "command(regex:^x[\\]-a].*$)"],
@@ -191,6 +200,15 @@ describe("buildAntigravityPermissionEntry", () => {
       );
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("NOT enforced"));
     });
+
+    it.each(["regex:(?=ls)ls", "regex:(ls) \\1", "regex:ls (?<!x)-la", "regex:(?<c>l)\\k<c>"])(
+      "skips %s, which RE2 cannot compile",
+      (pattern) => {
+        const { entry, logger } = build({ action: "command", pattern, decision: "deny" });
+        expect(entry).toBeUndefined();
+        expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("not a valid regex"));
+      },
+    );
 
     it("skips a bracket range that runs backwards", () => {
       const { entry, logger } = build({ action: "command", pattern: "x[z-a] *", decision: "deny" });

@@ -57,9 +57,15 @@ function hasGlob(pattern: string): boolean {
  * covers everything inside it. `*` is the bare action.
  */
 function toPathTarget(pattern: string): TargetResult {
-  const path = pattern.startsWith("./") ? pattern.slice(2) : pattern;
-  if (MATCH_ALL_PATH_GLOBS.has(path)) {
+  // Checked before `./` is stripped, so `./*` (the root's own files) is not
+  // read as every path.
+  if (MATCH_ALL_PATH_GLOBS.has(pattern)) {
     return { target: "*" };
+  }
+  const path = pattern.startsWith("./") ? pattern.slice(2) : pattern;
+  // `./`, `.` and `./**` name the workspace root, which covers all inside it.
+  if (["", ".", "**", "**/*"].includes(path)) {
+    return { target: "." };
   }
   // `/**` leaves an empty directory, which is the filesystem root.
   const directory =
