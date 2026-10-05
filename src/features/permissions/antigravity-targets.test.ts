@@ -112,7 +112,47 @@ describe("buildAntigravityPermissionEntry", () => {
     expect(build({ action: "mcp", pattern: "linter/*" }).entry).toBe("mcp(linter/*)");
   });
 
-  it("translates command patterns", () => {
-    expect(build({ action: "command", pattern: "npm run *" }).entry).toBe("command(npm run)");
+  describe("command targets", () => {
+    it.each([
+      ["npm run *", "command(npm run)"],
+      ["npm   run *", "command(npm run)"],
+      ["npm run test:*", "command(regex:^npm$ ^run$ ^test:.*$)"],
+      ["docker * *", "command(regex:^docker$ ^.*$)"],
+      ["git log*", "command(regex:^git$ ^log.*$)"],
+      ["regex:^ls$ ^-la$", "command(regex:^ls$ ^-la$)"],
+    ])("writes %s as %s", (pattern, expected) => {
+      const { entry, logger } = build({ action: "command", pattern });
+      expect(entry).toBe(expected);
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ["git status", "command(git status)"],
+      ["rm /tmp/?", "command(regex:^rm$ ^/tmp/.$)"],
+    ])("warns that the allow %s also matches more words", (pattern, expected) => {
+      const { entry, logger } = build({ action: "command", pattern });
+      expect(entry).toBe(expected);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("more words after it"));
+    });
+
+    it("does not warn when a deny matches more words", () => {
+      const { entry, logger } = build({
+        action: "command",
+        pattern: "git status",
+        decision: "deny",
+      });
+      expect(entry).toBe("command(git status)");
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it.each(["git push * --force", "git * status", "* --force", "git commit-* --amend", "a[ ]b"])(
+      "skips %s, which spans words, and says the deny is not enforced",
+      (pattern) => {
+        const { entry, logger } = build({ action: "command", pattern, decision: "deny" });
+        expect(entry).toBeUndefined();
+        expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("NOT enforced"));
+        expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("word by word"));
+      },
+    );
   });
 });

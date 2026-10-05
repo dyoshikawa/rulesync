@@ -78,16 +78,25 @@ describe("AntigravityIdePermissions", () => {
       expect(json.permissions.ask).toContain("command");
     });
 
-    it("writes globs Antigravity can match: a literal prefix or an anchored regex", async () => {
+    it("writes globs Antigravity can match: literal words or a per-word regex", async () => {
       const perms = await AntigravityIdePermissions.fromRulesyncPermissions({
         outputRoot: testDir,
         rulesyncPermissions: rulesyncPermissions({
-          bash: { "npm run *": "allow", "git status": "allow", "git push * --force": "deny" },
+          bash: {
+            "npm run *": "allow",
+            "npm test:*": "allow",
+            "git push * --force": "deny",
+            "git push -f*": "deny",
+          },
         }),
       });
       const json = JSON.parse(perms.getFileContent());
-      expect(json.permissions.allow).toEqual(["command(npm run)", "command(regex:^git status$)"]);
-      expect(json.permissions.deny).toEqual(["command(regex:^git push .* --force$)"]);
+      expect(json.permissions.allow).toEqual([
+        "command(npm run)",
+        "command(regex:^npm$ ^test:.*$)",
+      ]);
+      // `git push * --force` has no word-by-word spelling, so it is skipped.
+      expect(json.permissions.deny).toEqual(["command(regex:^git$ ^push$ ^-f.*$)"]);
     });
 
     it("uses a bare action name for the catch-all '*' pattern", async () => {
@@ -147,21 +156,22 @@ describe("AntigravityIdePermissions", () => {
       expect(config.permission.mcp["server/*"]).toBe("ask");
     });
 
-    it("reads an anchored regex it could have written back as a glob", () => {
+    it("reads a per-word regex it could have written back as a glob", () => {
       const perms = new AntigravityIdePermissions({
         outputRoot: testDir,
         relativeDirPath: ".antigravity",
         relativeFilePath: "settings.json",
         fileContent: JSON.stringify({
           permissions: {
-            deny: ["command(regex:^git push .* --force$)", "command(regex:echo .*)"],
+            deny: ["command(regex:^git$ ^push$ ^-f.*$)", "command(regex:^git push .* --force$)"],
           },
         }),
       });
       const config = JSON.parse(perms.toRulesyncPermissions().getFileContent());
       expect(config.permission.bash).toEqual({
-        "git push * --force": "deny",
-        "regex:echo .*": "deny",
+        "git push -f*": "deny",
+        // `.*` matches one word here, which a glob cannot say.
+        "regex:^git push .* --force$": "deny",
       });
     });
 

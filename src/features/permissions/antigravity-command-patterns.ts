@@ -5,19 +5,26 @@ import { parseGlobPattern } from "../../utils/glob.js";
  * Antigravity `command(...)` permission rules, shared by the Antigravity CLI
  * and IDE generators (both use the same permissions engine).
  *
- * The canonical patterns use Claude Code glob semantics: `npm run *` matches
- * anything that starts with `npm run`, and `git status` matches only that
- * command. Antigravity reads a `command` target differently. A plain target is
- * a literal, token-based prefix, and a target that starts with `regex:` is a
- * regular expression. A `*` inside a plain target is a literal character, so a
- * glob copied verbatim (`command(rm -rf *)`) never matches a real command — a
- * deny written that way blocks nothing.
+ * The canonical patterns use Claude Code glob semantics over the whole command
+ * line: `npm run *` matches anything that starts with `npm run`, and a `*` can
+ * span several words. Antigravity matches word by word instead. It splits both
+ * the command and the target on whitespace and compares them one word at a
+ * time; extra words at the end of the command still match. A plain target
+ * compares each word literally. A `regex:` target holds one regex per word, and
+ * each is anchored to its word, so `.*` never spans a space and
+ * `regex:^git status$` also matches `git status --short`. A `*` inside a plain
+ * target is a literal character, so a glob copied verbatim
+ * (`command(rm -rf *)`) never matches a real command, and a deny written that
+ * way blocks nothing.
  *
- * - `<literal> *` becomes the literal prefix `<literal>`, which is what a
- *   prefix match already means.
- * - Any other pattern becomes an anchored `regex:^...$`. That includes a
- *   pattern with no wildcard at all: a plain target would be read as a prefix,
- *   which is broader than the exact match the canonical pattern asks for.
+ * - Literal words become a plain target (`git status *` → `git status`). An
+ *   exact command cannot be expressed: its target also matches the command
+ *   with more words after it.
+ * - A word with a glob in it becomes a per-word regex, and so do the literal
+ *   words around it (`npm run test:*` → `regex:^npm$ ^run$ ^test:.*$`).
+ * - A trailing ` *` is dropped, since extra words already match. A `*` that
+ *   has a literal word after it can stand for any number of words, which a
+ *   word-by-word match cannot say, so such a pattern is not translated.
  * - A canonical pattern that already starts with `regex:` is passed through,
  *   so a rule imported from Antigravity round-trips.
  *
@@ -30,17 +37,60 @@ const REGEX_PREFIX = "regex:";
 // when they stand for themselves.
 const REGEX_METACHARACTERS = /[\\^$.|?*+()[\]{}]/;
 
+const WHITESPACE = /\s/;
+
+type GlobStep = ReturnType<typeof parseGlobPattern>["steps"][number];
+
+export type CommandTargetResult = { target: string; note?: string } | { skipReason: string };
+
 function escapeRegexCharacter(character: string): string {
   return REGEX_METACHARACTERS.test(character) ? `\\${character}` : character;
 }
 
-function hasGlob(pattern: string): boolean {
-  return parseGlobPattern(pattern).steps.some((step) => step.kind !== "literal");
+// A bracket class that holds a space can match across two words.
+function classMatchesWhitespace(step: GlobStep): boolean {
+  return (
+    step.kind === "class" &&
+    ([...step.members].some((member) => WHITESPACE.test(member)) ||
+      step.ranges.some(([low, high]) => low <= 0x20 && high >= 0x20))
+  );
 }
 
-function globToRegexSource(glob: string): string {
+/** Split parsed glob steps into words at literal whitespace. */
+function splitIntoWords(steps: readonly GlobStep[]): GlobStep[][] {
+  const words: GlobStep[][] = [];
+  let current: GlobStep[] = [];
+  for (const step of steps) {
+    if (step.kind === "literal" && WHITESPACE.test(step.character)) {
+      if (current.length > 0) {
+        words.push(current);
+        current = [];
+      }
+    } else {
+      current.push(step);
+    }
+  }
+  if (current.length > 0) {
+    words.push(current);
+  }
+  return words;
+}
+
+function isLiteralWord(word: readonly GlobStep[]): boolean {
+  return word.every((step) => step.kind === "literal");
+}
+
+function isStarWord(word: readonly GlobStep[]): boolean {
+  return word.length === 1 && word[0]?.kind === "star";
+}
+
+function wordToLiteral(word: readonly GlobStep[]): string {
+  return word.map((step) => (step.kind === "literal" ? step.character : "")).join("");
+}
+
+function wordToRegexSource(word: readonly GlobStep[]): string {
   let source = "";
-  for (const step of parseGlobPattern(glob).steps) {
+  for (const step of word) {
     switch (step.kind) {
       case "star":
         source += ".*";
@@ -67,32 +117,64 @@ function globToRegexSource(glob: string): string {
 }
 
 /**
- * Turn a canonical bash pattern into an Antigravity `command` target. The bare
- * `*` (every command) is left to the caller, which writes a bare `command`.
+ * Turn a canonical bash pattern into an Antigravity `command` target, or say
+ * why it has none. The bare `*` (every command) is left to the caller, which
+ * writes a bare `command`. A `note` says the target matches more than the
+ * pattern does.
  */
-export function toAntigravityCommandTarget(pattern: string): string {
+export function toAntigravityCommandTarget(pattern: string): CommandTargetResult {
   if (pattern.startsWith(REGEX_PREFIX)) {
-    return pattern;
+    return { target: pattern };
   }
-  // Only one trailing wildcard word is a prefix: `docker * *` needs at least
-  // two more words, which a prefix cannot require.
-  const prefix = pattern.replace(/\s+\*$/, "");
-  if (prefix !== pattern && prefix.length > 0 && !hasGlob(prefix)) {
-    return prefix;
+  const steps = parseGlobPattern(pattern).steps;
+  if (steps.some(classMatchesWhitespace)) {
+    return {
+      skipReason:
+        "A bracket that matches a space spans two words, and Antigravity matches a command word by word",
+    };
   }
-  return `${REGEX_PREFIX}${globToRegexSource(pattern)}`;
+  const words = splitIntoWords(steps);
+  // Extra words after the target already match, so a trailing ` *` adds nothing.
+  if (words.length > 1 && isStarWord(words.at(-1) ?? [])) {
+    words.pop();
+  }
+  // A `*` stands for any number of words, but each regex word matches one. Only
+  // `*` words may follow it, since they each take one word and the rest of the
+  // command is free anyway.
+  const multiWordStar = words.some(
+    (word, index) =>
+      word.some((step) => step.kind === "star") &&
+      !words.slice(index + 1).every((later) => isStarWord(later)),
+  );
+  if (multiWordStar) {
+    return {
+      skipReason:
+        "A `*` before another word can stand for several words, and Antigravity matches a command word by word",
+    };
+  }
+  // A pattern that ends in `*` already covers whatever follows.
+  const note =
+    steps.at(-1)?.kind === "star"
+      ? undefined
+      : "Antigravity also matches the command with more words after it";
+  if (words.every(isLiteralWord)) {
+    return { target: words.map(wordToLiteral).join(" "), note };
+  }
+  return { target: `${REGEX_PREFIX}${words.map(wordToRegexSource).join(" ")}`, note };
 }
 
 /**
- * Read an anchored regex body back as a glob, or `undefined` when it uses
- * anything a glob cannot say. Only escaped characters, `.` and `.*` translate;
- * a literal `*`, `?` or `[` has no glob spelling and keeps the rule a regex.
+ * Read one regex word back as a glob, or `undefined` when it uses anything a
+ * glob cannot say. Antigravity anchors each word anyway, so `^` and `$` are
+ * optional. Only escaped characters, `.` and `.*` translate; a literal `*`,
+ * `?` or `[` has no glob spelling and keeps the rule a regex.
  */
-function regexSourceToGlob(source: string): string | undefined {
-  if (!source.startsWith("^") || !source.endsWith("$") || source.length < 2) {
+function regexWordToGlob(word: string): string | undefined {
+  const body = word.replace(/^\^/, "").replace(/(?<!\\)\$$/, "");
+  const characters = Array.from(body);
+  if (characters.length === 0) {
     return undefined;
   }
-  const characters = Array.from(source.slice(1, -1));
   let glob = "";
   for (let index = 0; index < characters.length; index++) {
     const character = characters[index] ?? "";
@@ -119,15 +201,40 @@ function regexSourceToGlob(source: string): string | undefined {
   return glob;
 }
 
+/** Read a per-word regex back as a glob, or `undefined` when it has no glob spelling. */
+function regexToGlob(source: string): string | undefined {
+  const globs: string[] = [];
+  for (const word of source.trim().split(/\s+/)) {
+    const glob = regexWordToGlob(word);
+    if (glob === undefined) {
+      return undefined;
+    }
+    globs.push(glob);
+  }
+  // In Antigravity a `*` stays inside its word; as a glob followed by a literal
+  // word it would stand for any number of words.
+  const multiWordStar = globs.some(
+    (glob, index) => glob.includes("*") && !globs.slice(index + 1).every((later) => later === "*"),
+  );
+  if (multiWordStar) {
+    return undefined;
+  }
+  // Extra words after the last one still match. A last word like `install*`
+  // already says so; a `*` word still needs a word of its own.
+  const last = globs.at(-1) ?? "";
+  const glob = globs.join(" ");
+  return last.endsWith("*") && last !== "*" ? glob : `${glob} *`;
+}
+
 /**
  * Turn an Antigravity `command` target back into a canonical bash pattern. A
- * plain target is a prefix, so it imports as `<target> *`. A `regex:` target
- * that this module could have written imports as the glob it came from; any
- * other `regex:` target is kept as is.
+ * plain target matches extra words, so it imports as `<target> *`. A `regex:`
+ * target that only uses what a glob can say imports as that glob; any other
+ * `regex:` target is kept as is.
  */
 export function fromAntigravityCommandTarget(target: string): string {
   if (target.startsWith(REGEX_PREFIX)) {
-    return regexSourceToGlob(target.slice(REGEX_PREFIX.length)) ?? target;
+    return regexToGlob(target.slice(REGEX_PREFIX.length)) ?? target;
   }
   if (target === "*") {
     return target;

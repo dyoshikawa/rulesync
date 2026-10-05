@@ -84,7 +84,8 @@ describe("AntigravityCliPermissions", () => {
     expect(settings.permissions?.deny).toEqual(["command(rm -rf)"]);
   });
 
-  it("should write other bash globs and exact commands as anchored regex rules", async () => {
+  it("should write globs inside words as per-word regex rules", async () => {
+    const logger = createMockLogger();
     const rulesyncPermissions = new RulesyncPermissions({
       outputRoot: testDir,
       relativeDirPath: ".rulesync",
@@ -93,9 +94,9 @@ describe("AntigravityCliPermissions", () => {
         permission: {
           bash: {
             "git status": "allow",
-            "git push * --force": "deny",
             "npm install*": "ask",
             "docker * *": "deny",
+            "rm -rf /tmp/?": "deny",
           },
         },
       }),
@@ -104,26 +105,35 @@ describe("AntigravityCliPermissions", () => {
     const permissions = await AntigravityCliPermissions.fromRulesyncPermissions({
       outputRoot: testDir,
       rulesyncPermissions,
+      logger,
     });
 
     const settings = JSON.parse(permissions.getFileContent()) as SettingsJson;
-    // A plain target would be a prefix, broader than the exact canonical match.
-    expect(settings.permissions?.allow).toEqual(["command(regex:^git status$)"]);
-    expect(settings.permissions?.ask).toEqual(["command(regex:^npm install.*$)"]);
+    // Antigravity matches word by word and lets extra words follow, so an exact
+    // command can only be written as its prefix.
+    expect(settings.permissions?.allow).toEqual(["command(git status)"]);
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"git status": "allow"'));
+    expect(settings.permissions?.ask).toEqual(["command(regex:^npm$ ^install.*$)"]);
+    // Each regex word matches one word; the trailing ` *` is free.
     expect(settings.permissions?.deny).toEqual([
-      "command(regex:^docker .* .*$)",
-      "command(regex:^git push .* --force$)",
+      "command(regex:^docker$ ^.*$)",
+      "command(regex:^rm$ ^-rf$ ^/tmp/.$)",
     ]);
   });
 
-  it("should escape regex metacharacters and keep glob classes", async () => {
+  it("should skip a `*` with a word after it and warn that the deny is not enforced", async () => {
+    const logger = createMockLogger();
     const rulesyncPermissions = new RulesyncPermissions({
       outputRoot: testDir,
       relativeDirPath: ".rulesync",
       relativeFilePath: "permissions.json",
       fileContent: JSON.stringify({
         permission: {
-          bash: { "cat ./a.txt": "allow", "git[ ]status?": "deny", "regex:^ls( -la)?$": "allow" },
+          bash: {
+            "git push * --force": "deny",
+            "git commit-* --amend": "deny",
+            "git push *": "deny",
+          },
         },
       }),
     });
@@ -131,15 +141,54 @@ describe("AntigravityCliPermissions", () => {
     const permissions = await AntigravityCliPermissions.fromRulesyncPermissions({
       outputRoot: testDir,
       rulesyncPermissions,
+      logger,
+    });
+
+    const settings = JSON.parse(permissions.getFileContent()) as SettingsJson;
+    // `*` there can stand for several words; a regex word matches only one.
+    expect(settings.permissions?.deny).toEqual(["command(git push)"]);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('"git push * --force": "deny"'),
+    );
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('"git commit-* --amend": "deny"'),
+    );
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("NOT enforced"));
+  });
+
+  it("should escape regex metacharacters and keep glob classes", async () => {
+    const logger = createMockLogger();
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          bash: {
+            "cat ./a?.txt": "allow",
+            "git status[!x] *": "deny",
+            "git[ ]status": "deny",
+            "regex:^ls( -la)?$": "allow",
+          },
+        },
+      }),
+    });
+
+    const permissions = await AntigravityCliPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+      logger,
     });
 
     const settings = JSON.parse(permissions.getFileContent()) as SettingsJson;
     expect(settings.permissions?.allow).toEqual([
-      "command(regex:^cat \\./a\\.txt$)",
+      "command(regex:^cat$ ^\\./a.\\.txt$)",
       // A rule that is already an Antigravity regex passes through.
       "command(regex:^ls( -la)?$)",
     ]);
-    expect(settings.permissions?.deny).toEqual(["command(regex:^git[ ]status.$)"]);
+    // A class that matches a space would join two words, so it is skipped.
+    expect(settings.permissions?.deny).toEqual(["command(regex:^git$ ^status[^x]$)"]);
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"git[ ]status": "deny"'));
   });
 
   it("should map an ask action and emit a bare tool name for a match-all pattern", async () => {
@@ -391,8 +440,8 @@ describe("AntigravityCliPermissions", () => {
       relativeFilePath: "settings.json",
       fileContent: JSON.stringify({
         permissions: {
-          allow: ["command(git status)", "command(regex:^git log .* --oneline$)"],
-          ask: ["command(regex:^cat \\./a\\.txt$)"],
+          allow: ["command(git status)", "command(regex:^git$ ^log$ ^.*$ ^--oneline$)"],
+          ask: ["command(regex:^cat$ ^\\./a\\.txt$)", "command(regex:^npm$ ^install.*$)"],
           deny: ["command(rm -rf)", "command(regex:echo rx .*)", "command(regex:^ls( -la)?$)"],
         },
       }),
@@ -403,11 +452,16 @@ describe("AntigravityCliPermissions", () => {
     // A plain target is a prefix, which the canonical form spells `<prefix> *`.
     expect(json.permission.bash?.["git status *"]).toBe("allow");
     expect(json.permission.bash?.["rm -rf *"]).toBe("deny");
-    // An anchored regex that only uses `.*`, `.` and escapes reads back as a glob.
-    expect(json.permission.bash?.["git log * --oneline"]).toBe("allow");
-    expect(json.permission.bash?.["cat ./a.txt"]).toBe("ask");
-    // Any other regex has no glob spelling and is kept as written.
-    expect(json.permission.bash?.["regex:echo rx .*"]).toBe("deny");
+    // A per-word regex that only uses `.*`, `.` and escapes reads back as a
+    // glob. Extra words still match, so it ends in `*`.
+    expect(json.permission.bash?.["cat ./a.txt *"]).toBe("ask");
+    expect(json.permission.bash?.["npm install*"]).toBe("ask");
+    // Antigravity anchors each word, so `^` and `$` are optional.
+    // A `.*` word still needs a word, so the extra words come after it.
+    expect(json.permission.bash?.["echo rx * *"]).toBe("deny");
+    // A `.*` word followed by a literal one matches exactly one word, which no
+    // glob can say, so it is kept as written. So is any other regex.
+    expect(json.permission.bash?.["regex:^git$ ^log$ ^.*$ ^--oneline$"]).toBe("allow");
     expect(json.permission.bash?.["regex:^ls( -la)?$"]).toBe("deny");
   });
 
@@ -438,8 +492,8 @@ describe("AntigravityCliPermissions", () => {
           bash: {
             "git status *": "allow",
             "rm -rf *": "deny",
-            "git status": "allow",
-            "git push * --force": "deny",
+            "npm install*": "ask",
+            "docker * *": "deny",
             "regex:^ls( -la)?$": "ask",
           },
         },
@@ -463,8 +517,8 @@ describe("AntigravityCliPermissions", () => {
     expect(json.permission.bash).toEqual({
       "git status *": "allow",
       "rm -rf *": "deny",
-      "git status": "allow",
-      "git push * --force": "deny",
+      "npm install*": "ask",
+      "docker * *": "deny",
       "regex:^ls( -la)?$": "ask",
     });
   });

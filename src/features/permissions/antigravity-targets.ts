@@ -14,8 +14,8 @@ import { toAntigravityCommandTarget } from "./antigravity-command-patterns.js";
  *   every file.
  * - `read_url` takes a domain and covers its subdomains. The URL path is
  *   ignored, and `*` covers every domain.
- * - `command` takes a literal prefix or a `regex:` (see
- *   `antigravity-command-patterns.ts`).
+ * - `command` takes literal words or a per-word `regex:`, matched word by
+ *   word (see `antigravity-command-patterns.ts`).
  *
  * A glob copied verbatim (`read_file(**\/*.env)`) is a literal path that
  * matches nothing, so a deny written that way blocks nothing. A pattern with
@@ -34,6 +34,13 @@ const DIRECTORY_CONTENTS_SUFFIX = /\/\*\*(?:\/\*)?$/;
 
 // Hostnames as Antigravity matches them: letters, digits, dots and hyphens.
 const HOSTNAME = /^[a-z0-9-]+(?:\.[a-z0-9-]+)*$/;
+
+// What to deny instead when a deny pattern has no Antigravity spelling.
+const DENY_HINTS: Record<string, string> = {
+  read_file: "deny a directory or file path instead",
+  write_file: "deny a directory or file path instead",
+  command: "deny the first words of the command instead",
+};
 
 type TargetResult = { target: string; note?: string } | { skipReason: string };
 
@@ -99,7 +106,7 @@ function toUrlTarget(pattern: string): TargetResult {
 
 function toTarget(action: string, pattern: string): TargetResult {
   if (action === "command") {
-    return { target: toAntigravityCommandTarget(pattern) };
+    return toAntigravityCommandTarget(pattern);
   }
   if (PATH_ACTIONS.has(action)) {
     return toPathTarget(pattern);
@@ -135,7 +142,7 @@ export function buildAntigravityPermissionEntry({
   if ("skipReason" in result) {
     const consequence =
       decision === "deny"
-        ? `This deny is NOT enforced in ${toolLabel}; deny a directory or file path instead`
+        ? `This deny is NOT enforced in ${toolLabel}; ${DENY_HINTS[action] ?? "write it in a form Antigravity can match"}`
         : `${toolLabel} falls back to its default for it`;
     logger.warn(
       `${toolLabel} permissions: skipping ${rule}. ${result.skipReason}. ${consequence}.`,
