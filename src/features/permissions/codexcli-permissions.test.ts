@@ -2606,14 +2606,20 @@ command = "node"
       },
     );
 
-    it.each(["ask", "deny", "allow"] as const)(
-      "skips a bare * (%s) with a warning, since a prefix rule cannot match every command",
-      (action) => {
-        const { content, warnings } = generateRules({ "*": action });
+    it.each([
+      ["*", "ask"],
+      ["*", "deny"],
+      ["*", "allow"],
+      ["* *", "deny"],
+      ["*:*", "deny"],
+    ] as const)(
+      "skips an all-command pattern %s (%s) with a warning, since a prefix rule cannot match every command",
+      (pattern, action) => {
+        const { content, warnings } = generateRules({ [pattern]: action });
         expect(content).not.toContain("prefix_rule(");
         expect(content).toContain("# No valid bash patterns were found.");
         expect(warnings).toHaveLength(1);
-        expect(warnings[0]).toContain('"*"');
+        expect(warnings[0]).toContain(`"${pattern}"`);
         expect(warnings[0]).toContain("codexcli.approval_policy");
       },
     );

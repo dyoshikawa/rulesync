@@ -1798,24 +1798,25 @@ function toCodexPrefixRuleTokens({
   // A legacy `git:*` spells "any arguments" on the last word, the same as
   // `git *` (see the deepagents adapter).
   const normalized = commandPattern.trim().replace(/(?<=\S):\*$/, " *");
-  // Only one trailing wildcard word is dropped: `docker * *` needs at least two
-  // more words, which a prefix rule cannot require, so it falls through to the
-  // skip below instead of becoming a rule for every `docker` command.
-  const rest = normalized.replace(/(^|\s+)\*+$/, "");
+  if (normalized.length === 0) {
+    return null;
+  }
 
-  if (rest.length === 0) {
-    if (normalized.length === 0) {
-      return null;
-    }
-    // A pattern of only `*` covers every command. A prefix rule needs at least
-    // one token, so Codex rules cannot say "every command"; the approval
-    // policy can.
+  // A pattern of only wildcard words (`*`, `* *`, or the legacy `*:*`) covers
+  // every command. A prefix rule needs at least one token, so Codex rules
+  // cannot say "every command"; the approval policy can.
+  if (/^\*+(\s+\*+)*$/.test(normalized)) {
     warnWithFallback(
       logger,
       `Skipping Codex CLI bash rule "${commandPattern}" (${action}): it matches every command, which a Codex prefix_rule cannot express, so no rule is written for it. Set codexcli.approval_policy to control how Codex approves commands in general.`,
     );
     return null;
   }
+
+  // Only one trailing wildcard word is dropped: `docker * *` needs at least two
+  // more words, which a prefix rule cannot require, so it falls through to the
+  // skip below instead of becoming a rule for every `docker` command.
+  const rest = normalized.replace(/\s+\*+$/, "");
 
   // Check the whole remainder, not word by word: a class such as `git[ ]status`
   // spans the space the words are split on.
