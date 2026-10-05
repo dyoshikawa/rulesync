@@ -10,10 +10,9 @@ import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
-import {
-  fromAntigravityCommandTarget,
-  toAntigravityCommandTarget,
-} from "./antigravity-command-patterns.js";
+import { fallbackLogger, type Logger } from "../../utils/logger.js";
+import { fromAntigravityCommandTarget } from "./antigravity-command-patterns.js";
+import { buildAntigravityPermissionEntry } from "./antigravity-targets.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { honorAllToolsOnBash } from "./shell-command-categories.js";
 import {
@@ -100,19 +99,6 @@ function parsePermissionEntry(entry: string): { action: string; pattern: string 
 }
 
 /**
- * Build an Antigravity entry like "command(npm run)" from a canonical pattern;
- * a "*" pattern is bare. Bash globs are translated, because a `command` target
- * is a literal prefix or a `regex:` (see `antigravity-command-patterns.ts`).
- */
-function buildPermissionEntry(action: string, pattern: string): string {
-  if (pattern === "*") {
-    return action;
-  }
-  const target = action === "command" ? toAntigravityCommandTarget(pattern) : pattern;
-  return `${action}(${target})`;
-}
-
-/**
  * Permissions generator for the Google Antigravity IDE (Antigravity 2.0).
  *
  * Writes the agent permission allow/ask/deny lists to the workspace
@@ -159,6 +145,7 @@ export class AntigravityIdePermissions extends ToolPermissions {
   static async fromRulesyncPermissions({
     outputRoot = process.cwd(),
     rulesyncPermissions,
+    logger = fallbackLogger,
   }: ToolPermissionsFromRulesyncPermissionsParams): Promise<AntigravityIdePermissions> {
     const paths = AntigravityIdePermissions.getSettablePaths();
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
@@ -174,7 +161,7 @@ export class AntigravityIdePermissions extends ToolPermissions {
     }
 
     const config = rulesyncPermissions.getJson();
-    const { allow, ask, deny } = convertRulesyncToAntigravityIdePermissions(config);
+    const { allow, ask, deny } = convertRulesyncToAntigravityIdePermissions({ config, logger });
 
     // Tool actions managed by this permissions config (so existing entries for
     // other actions are preserved on regeneration).
@@ -254,7 +241,13 @@ export class AntigravityIdePermissions extends ToolPermissions {
 /**
  * Convert rulesync permissions config to Antigravity IDE allow/ask/deny arrays.
  */
-function convertRulesyncToAntigravityIdePermissions(config: PermissionsConfig): {
+function convertRulesyncToAntigravityIdePermissions({
+  config,
+  logger,
+}: {
+  config: PermissionsConfig;
+  logger: Logger;
+}): {
   allow: string[];
   ask: string[];
   deny: string[];
@@ -266,7 +259,17 @@ function convertRulesyncToAntigravityIdePermissions(config: PermissionsConfig): 
   for (const [category, rules] of Object.entries(honorAllToolsOnBash(config.permission))) {
     const action = toIdeAction(category);
     for (const [pattern, permissionAction] of Object.entries(rules)) {
-      const entry = buildPermissionEntry(action, pattern);
+      const entry = buildAntigravityPermissionEntry({
+        action,
+        category,
+        pattern,
+        decision: permissionAction,
+        logger,
+        toolLabel: "Antigravity IDE",
+      });
+      if (entry === undefined) {
+        continue;
+      }
       switch (permissionAction) {
         case "allow":
           allow.push(entry);

@@ -67,8 +67,8 @@ describe("AntigravityIdePermissions", () => {
       const json = JSON.parse(perms.getFileContent());
       expect(json.permissions.allow).toEqual(
         expect.arrayContaining([
-          "read_file(src/**)",
-          "write_file(src/**)",
+          "read_file(src)",
+          "write_file(src)",
           "command(git)",
           "read_url(example.com)",
           "mcp(linter/*)",

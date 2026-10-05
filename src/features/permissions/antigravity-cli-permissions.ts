@@ -17,10 +17,8 @@ import {
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { fallbackLogger, type Logger } from "../../utils/logger.js";
-import {
-  fromAntigravityCommandTarget,
-  toAntigravityCommandTarget,
-} from "./antigravity-command-patterns.js";
+import { fromAntigravityCommandTarget } from "./antigravity-command-patterns.js";
+import { buildAntigravityPermissionEntry } from "./antigravity-targets.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { honorAllToolsOnBash } from "./shell-command-categories.js";
 import {
@@ -83,8 +81,8 @@ function pickDocumentedValue({
  * The CLI reuses the Claude-Code-style `permissions.allow/ask/deny` arrays of
  * `Tool(pattern)` entries rather than the Gemini-CLI TOML Policy Engine, so the
  * conversion logic mirrors {@link ClaudecodePermissions}. Only the syntax is
- * shared: a `command` target is a literal prefix or a `regex:`, not a glob, so
- * bash patterns are translated (see `antigravity-command-patterns.ts`).
+ * shared: no target is a glob, so patterns are translated (see
+ * `antigravity-targets.ts`).
  */
 type AntigravityCliSettingsJson = {
   permissions?: {
@@ -157,18 +155,6 @@ function parsePermissionEntry(entry: string): { toolName: string; pattern: strin
 }
 
 /**
- * Build an Antigravity CLI permission entry like "command(npm run)" from a
- * canonical pattern. If the pattern is "*", returns just the tool name.
- */
-function buildPermissionEntry(toolName: string, pattern: string): string {
-  if (pattern === "*") {
-    return toolName;
-  }
-  const target = toolName === "command" ? toAntigravityCommandTarget(pattern) : pattern;
-  return `${toolName}(${target})`;
-}
-
-/**
  * Permissions generator for the Google Antigravity CLI (`agy`, Antigravity 2.0).
  *
  * Permissions are written to the global `~/.gemini/antigravity-cli/settings.json`
@@ -221,6 +207,7 @@ export class AntigravityCliPermissions extends ToolPermissions {
   static async fromRulesyncPermissions({
     outputRoot = process.cwd(),
     rulesyncPermissions,
+    logger = moduleLogger,
   }: ToolPermissionsFromRulesyncPermissionsParams): Promise<AntigravityCliPermissions> {
     const paths = AntigravityCliPermissions.getSettablePaths();
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
@@ -236,7 +223,7 @@ export class AntigravityCliPermissions extends ToolPermissions {
     }
 
     const config = rulesyncPermissions.getJson();
-    const { allow, ask, deny } = convertRulesyncToAntigravityCliPermissions(config);
+    const { allow, ask, deny } = convertRulesyncToAntigravityCliPermissions({ config, logger });
 
     // Determine which tool names are managed by the permissions config
     const managedToolNames = new Set(
@@ -392,7 +379,13 @@ export class AntigravityCliPermissions extends ToolPermissions {
 /**
  * Convert rulesync permissions config to Antigravity CLI allow/ask/deny arrays.
  */
-function convertRulesyncToAntigravityCliPermissions(config: PermissionsConfig): {
+function convertRulesyncToAntigravityCliPermissions({
+  config,
+  logger,
+}: {
+  config: PermissionsConfig;
+  logger: Logger;
+}): {
   allow: string[];
   ask: string[];
   deny: string[];
@@ -404,7 +397,17 @@ function convertRulesyncToAntigravityCliPermissions(config: PermissionsConfig): 
   for (const [category, rules] of Object.entries(honorAllToolsOnBash(config.permission))) {
     const cliToolName = toAntigravityCliToolName(category);
     for (const [pattern, action] of Object.entries(rules)) {
-      const entry = buildPermissionEntry(cliToolName, pattern);
+      const entry = buildAntigravityPermissionEntry({
+        action: cliToolName,
+        category,
+        pattern,
+        decision: action,
+        logger,
+        toolLabel: "Antigravity CLI",
+      });
+      if (entry === undefined) {
+        continue;
+      }
       switch (action) {
         case "allow":
           allow.push(entry);

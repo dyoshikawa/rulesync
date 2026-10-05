@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { fallbackLogger } from "../../utils/logger.js";
@@ -206,11 +207,37 @@ describe("AntigravityCliPermissions", () => {
     });
 
     const settings = JSON.parse(permissions.getFileContent()) as SettingsJson;
-    expect(settings.permissions?.allow).toContain("read_file(src/**)");
-    expect(settings.permissions?.deny).toContain("write_file(dist/**)");
+    // File targets are paths: a directory covers everything inside it.
+    expect(settings.permissions?.allow).toContain("read_file(src)");
+    expect(settings.permissions?.deny).toContain("write_file(dist)");
     // edit collapses onto write_file as well.
-    expect(settings.permissions?.ask).toContain("write_file(config/**)");
-    expect(settings.permissions?.allow).toContain("read_url(https://example.com/*)");
+    expect(settings.permissions?.ask).toContain("write_file(config)");
+    // URL targets are domains.
+    expect(settings.permissions?.allow).toContain("read_url(example.com)");
+  });
+
+  it("should skip a file glob Antigravity cannot express and warn that the deny is not enforced", async () => {
+    const logger = createMockLogger();
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: { read: { "**/*.env": "deny", "secrets/**": "deny" } },
+      }),
+    });
+
+    const permissions = await AntigravityCliPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+      logger,
+    });
+
+    const settings = JSON.parse(permissions.getFileContent()) as SettingsJson;
+    // read_file(**/*.env) would be a literal path that matches nothing.
+    expect(settings.permissions?.deny).toEqual(["read_file(secrets)"]);
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"**/*.env": "deny"'));
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("NOT enforced"));
   });
 
   it("should round-trip read_file/write_file/read_url back into canonical categories", () => {
@@ -322,7 +349,7 @@ describe("AntigravityCliPermissions", () => {
     const settings = JSON.parse(permissions.getFileContent()) as SettingsJson;
     // `read` maps to the managed `read_file` action, so the stale entry is dropped.
     expect(settings.permissions?.allow).not.toContain("read_file(old/**)");
-    expect(settings.permissions?.allow).toContain("read_file(src/**)");
+    expect(settings.permissions?.allow).toContain("read_file(src)");
   });
 
   it("should replace existing entries for managed tools instead of accumulating them", async () => {
