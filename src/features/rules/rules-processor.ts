@@ -9,11 +9,13 @@ import { CRUSH_LOCAL_RULE_FILE_NAME } from "../../constants/crush-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { QODER_LOCAL_RULE_FILE_NAME } from "../../constants/qoder-paths.js";
 import { QWENCODE_DIR, QWENCODE_LOCAL_RULE_FILE_NAME } from "../../constants/qwencode-paths.js";
+import { REASONIX_LOCAL_RULE_FILE_NAME } from "../../constants/reasonix-paths.js";
 import {
   CURATED_RULES_FEATURE_SUBDIR,
   RULES_FEATURE_SUBDIR,
   RULESYNC_RULES_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
+import { WARP_LEGACY_RULE_FILE_NAME } from "../../constants/warp-paths.js";
 import {
   caseFoldIdentity,
   FeatureProcessor,
@@ -79,6 +81,7 @@ import { CortexcodeRule } from "./cortexcode-rule.js";
 import { CrushRule } from "./crush-rule.js";
 import { CursorRule } from "./cursor-rule.js";
 import { DeepagentsRule } from "./deepagents-rule.js";
+import { DevinPluginRule } from "./devin-plugin-rule.js";
 import { DevinRule } from "./devin-rule.js";
 import { DshRule } from "./dsh-rule.js";
 import { FactorydroidRule } from "./factorydroid-rule.js";
@@ -88,6 +91,7 @@ import { GrokcliRule } from "./grokcli-rule.js";
 import { HermesagentRule } from "./hermesagent-rule.js";
 import { JunieRule } from "./junie-rule.js";
 import { KiloRule } from "./kilo-rule.js";
+import { KimiCodePluginRule } from "./kimi-code-plugin-rule.js";
 import { KimiCodeRule } from "./kimi-code-rule.js";
 import { KiroCliRule } from "./kiro-cli-rule.js";
 import { KiroIdeRule } from "./kiro-ide-rule.js";
@@ -379,6 +383,15 @@ type ToolRuleFactory = {
      * files and skips an unreadable one with a warning instead of failing.
      */
     sharedGlobalNonRootDir?: boolean;
+    /**
+     * Glob (relative to the non-root directory) that import scans instead of
+     * `**\/*.<extension>`, for a tool that reads its rules directory only at
+     * the top level or also accepts another extension (e.g. oh-my-pi's
+     * `.omp/rules/*.{md,mdc}`). Deletion keeps the default glob, so files
+     * rulesync never writes (another extension) are left alone and nested
+     * files from earlier generations are still cleaned up.
+     */
+    nonRootImportGlob?: string;
     /** Configuration for additional convention paths in the root rule */
     additionalConventions?: AdditionalConventionsConfig;
     /** Whether to create a separate rule file for additional conventions instead of prepending to root */
@@ -471,15 +484,14 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
     {
       class: AntigravityCliRule,
       meta: {
-        // The Antigravity CLI shares Gemini-CLI-class context files: a root
-        // context file (project `AGENTS.md`, global `~/.gemini/GEMINI.md`) that
-        // @-references non-root memory files under `.agents/rules/`. In global
-        // mode, non-root rules go to `~/.gemini/config/rules/`, which the CLI
-        // loads by itself, so `GEMINI.md` carries no reference block there.
+        // The Antigravity CLI loads non-root rules by itself — trigger-tagged
+        // files under `.agents/rules/` (project) and `~/.gemini/config/rules/`
+        // (global) — so the root context file (project `AGENTS.md`, global
+        // `~/.gemini/GEMINI.md`) carries no reference block, matching
+        // `antigravity-ide`, which writes the same project files.
         extension: "md",
         supportsGlobal: true,
-        ruleDiscoveryMode: "toon",
-        ruleDiscoveryModeGlobal: "auto",
+        ruleDiscoveryMode: "auto",
         sharedGlobalNonRootDir: true,
       },
     },
@@ -489,11 +501,13 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
     {
       class: AntigravityIdeRule,
       meta: {
-        // The Antigravity IDE auto-discovers rule files under `.agents/rules/`,
-        // so no reference section is needed in the root rule.
+        // The Antigravity IDE auto-discovers rule files under `.agents/rules/`
+        // (project) and `~/.gemini/config/rules/` (global, shared with
+        // `antigravity-cli`), so no reference section is needed in the root rule.
         extension: "md",
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",
+        sharedGlobalNonRootDir: true,
       },
     },
   ],
@@ -909,6 +923,21 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
     },
   ],
   [
+    "kimi-code-plugin",
+    {
+      // A Kimi Code plugin contributes one instructions file, `<plugin>/SYSTEM.md`
+      // (referenced by `systemPromptPath`), so topic rules fold into it.
+      // https://github.com/MoonshotAI/kimi-code/blob/%40moonshot-ai/kimi-code%402.1.1/docs/en/customization/plugins.md
+      class: KimiCodePluginRule,
+      meta: {
+        extension: "md",
+        supportsGlobal: false,
+        ruleDiscoveryMode: "auto",
+        collisionPolicy: "fold",
+      },
+    },
+  ],
+  [
     "kiro",
     {
       class: KiroRule,
@@ -982,10 +1011,14 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
     {
       class: OmpRule,
       meta: {
-        // oh-my-pi loads `.omp/AGENTS.md` plus `.omp/rules/*.md` natively, and
-        // `~/.omp/agent/AGENTS.md` plus `~/.omp/agent/rules/*.md` globally.
+        // oh-my-pi loads `.omp/AGENTS.md` plus `.omp/rules/*.{md,mdc}`
+        // natively, and `~/.omp/agent/AGENTS.md` plus
+        // `~/.omp/agent/rules/*.{md,mdc}` globally.
         // https://github.com/can1357/oh-my-pi/blob/main/docs/context-files.md
         extension: "md",
+        // The rules directory is read non-recursively, as `*.md` and `*.mdc`
+        // (`loadRules` in `packages/coding-agent/src/discovery/builtin.ts`).
+        nonRootImportGlob: "*.{md,mdc}",
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",
       },
@@ -1114,11 +1147,14 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         // (mirrors codexcli) — except directory-scoped rules
         // (`agentsmd.subprojectPath`), which Context Engine v2 (v1.18.0) loads
         // per-directory and are emitted as nested `<dir>/REASONIX.md` files
-        // (imported back via `getNestedFilePatterns`).
+        // (imported back via `getNestedFilePatterns`). A `localRoot` rule goes
+        // to the uncommitted `REASONIX.local.md` Reasonix loads beside it.
         extension: "md",
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",
         collisionPolicy: "fold",
+        localRootMode: "separate-local-file",
+        localRootFileName: REASONIX_LOCAL_RULE_FILE_NAME,
       },
     },
   ],
@@ -1228,7 +1264,9 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
     {
       // Trae auto-loads every `.trae/rules/*.md` file by its Cursor-style
       // `alwaysApply` / `description` / `globs` frontmatter and has no root
-      // rule file, so every rule lands there (mirrors cursor). Commands,
+      // rule file, so every rule lands there (mirrors cursor) — except
+      // directory-scoped rules (`agentsmd.subprojectPath`), which go to
+      // `<dir>/.trae/rules/` (imported back via `getNestedFilePatterns`). Commands,
       // subagents and skills need no simulation: Trae has native skills and
       // no file-based commands or subagents. Global rules (`~/.trae/user_rules`)
       // are not written because their on-disk format is undocumented.
@@ -1300,6 +1338,21 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         // @see https://docs.devin.ai/cli/extensibility/rules
         localRootMode: "separate-local-file",
         localRootFileName: "AGENTS.local.md",
+      },
+    },
+  ],
+  [
+    "devin-plugin",
+    {
+      // Devin plugin bundles ship the root rule as an always-on
+      // `<plugin>/AGENTS.md` and triggered rules in `<plugin>/rules/`, read
+      // with the same `trigger` frontmatter as `.devin/rules/`.
+      // https://docs.devin.ai/cli/extensibility/plugins/overview
+      class: DevinPluginRule,
+      meta: {
+        extension: "md",
+        supportsGlobal: false,
+        ruleDiscoveryMode: "auto",
       },
     },
   ],
@@ -1559,6 +1612,7 @@ export class RulesProcessor extends FeatureProcessor {
     const outputFiles = [...toolRules, ...extraFiles];
     this.warnForOutputPathCollisions({ outputFiles, convertedRules });
     await this.warnForDeactivatedImportOnlyRoots({ toolRules, factory });
+    await this.warnForWarpLegacyRootFile(toolRules);
     this.warnForInstructionBudget({ toolRules, meta });
     return outputFiles;
   }
@@ -2275,6 +2329,34 @@ export class RulesProcessor extends FeatureProcessor {
   }
 
   /**
+   * Warp still reads a legacy `WARP.md`, and when both `WARP.md` and
+   * `AGENTS.md` sit in the same directory, `WARP.md` takes priority — so the
+   * `AGENTS.md` this run writes would never be read. Rulesync neither writes
+   * nor deletes `WARP.md` (it is hand-authored), so the only thing it can do is
+   * say so. Project scope only: the documented precedence is about project
+   * rules, and Warp's global rule source is `~/.agents/AGENTS.md`.
+   * @see https://docs.warp.dev/agents/capabilities/rules/
+   */
+  private async warnForWarpLegacyRootFile(toolRules: ToolRule[]): Promise<void> {
+    if (this.toolTarget !== "warp" || this.global) {
+      return;
+    }
+    // Every Warp rule, root or not, is written to the single root `AGENTS.md`.
+    if (toolRules.length === 0) {
+      return;
+    }
+    const { root } = WarpRule.getSettablePaths();
+    const legacyRelativePath = join(root.relativeDirPath, WARP_LEGACY_RULE_FILE_NAME);
+    if (!(await fileExists(join(this.outputRoot, legacyRelativePath)))) {
+      return;
+    }
+    const rootRelativePath = join(root.relativeDirPath, root.relativeFilePath);
+    this.logger.warn(
+      `${legacyRelativePath} exists next to ${rootRelativePath}, and Warp reads WARP.md instead of AGENTS.md when both are present, so the generated ${rootRelativePath} is ignored by Warp. Move any content you still need into ${RULESYNC_RULES_RELATIVE_DIR_PATH}, then delete or rename ${legacyRelativePath}.`,
+    );
+  }
+
+  /**
    * Handle localRoot rule generation based on tool target.
    * - `separate-local-file`: writes a dedicated `*.local.md` root file
    *   (claudecode/legacy: `./CLAUDE.local.md`, rovodev: `./AGENTS.local.md`)
@@ -2412,10 +2494,14 @@ export class RulesProcessor extends FeatureProcessor {
         localRoot,
       });
     }
-    if (isClassOrSubclassOf({ candidate: factory.class, base: CrushRule })) {
-      // Crush reads `CRUSH.local.md` from the working directory root, the same
-      // place as the shared `CRUSH.md`; it has no tool directory to put it in.
-      return new CrushRule({
+    // Crush and Reasonix both read their `.local` file from the working
+    // directory root, next to the shared root file (`CRUSH.md` / `REASONIX.md`);
+    // neither has a tool directory to put it in.
+    const workingRootClass = [CrushRule, ReasonixRule].find((base) =>
+      isClassOrSubclassOf({ candidate: factory.class, base }),
+    );
+    if (workingRootClass) {
+      return new workingRootClass({
         outputRoot: this.outputRoot,
         relativeDirPath: relativeDirPath ?? ".",
         relativeFilePath: fileName,
@@ -3355,6 +3441,7 @@ As this project's AI coding tool, you must follow the additional conventions bel
         const filePaths = filterOutPathsInGitIgnoredDirectories({
           rootDir: this.outputRoot,
           filePaths: matchedPaths,
+          ownedDirPath: patterns.ownedDirPath,
         });
 
         return await Promise.all(
@@ -3448,7 +3535,9 @@ As this project's AI coding tool, you must follow the additional conventions bel
         const isSharedGlobalNonRootDir =
           this.global && factory.meta.sharedGlobalNonRootDir === true;
         const nonRootFilePaths = await findFilesByGlobs(
-          `${isSharedGlobalNonRootDir ? "" : "**/"}*.${factory.meta.extension}`,
+          !forDeletion && factory.meta.nonRootImportGlob !== undefined
+            ? factory.meta.nonRootImportGlob
+            : `${isSharedGlobalNonRootDir ? "" : "**/"}*.${factory.meta.extension}`,
           { cwd: nonRootOutputRoot },
         );
 

@@ -35,3 +35,17 @@ export const CODEBUDDY_AGENTS_DIR_PATH = join(CODEBUDDY_DIR, "agents");
 // subdirectories group commands) and `~/.codebuddy/commands/` (user).
 // @see https://www.codebuddy.ai/docs/cli/slash-commands
 export const CODEBUDDY_COMMANDS_DIR_PATH = join(CODEBUDDY_DIR, "commands");
+
+// Settings: `.codebuddy/settings.json` (project, committed) and
+// `~/.codebuddy/settings.json` (user) hold the `hooks` and `permissions` keys
+// beside every other CodeBuddy setting. The gitignored
+// `.codebuddy/settings.local.json` layer is CodeBuddy's own and never written.
+// @see https://www.codebuddy.ai/docs/cli/settings
+export const CODEBUDDY_SETTINGS_FILE_NAME = "settings.json";
+
+// MCP servers: `<project>/.mcp.json` (the same file Claude Code reads) and
+// `~/.codebuddy/.mcp.json` (user; `~/.codebuddy/mcp.json` and
+// `~/.codebuddy.json` are deprecated / legacy fallbacks CodeBuddy only reads
+// when the recommended file is absent).
+// @see https://www.codebuddy.ai/docs/cli/mcp
+export const CODEBUDDY_MCP_FILE_NAME = ".mcp.json";

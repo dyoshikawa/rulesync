@@ -3,6 +3,7 @@ import {
   AUGMENTCODE_SETTINGS_LOCAL_FILE_NAME,
 } from "../../constants/augmentcode-paths.js";
 import {
+  CLAUDECODE_AGENT_MEMORY_LOCAL_DIR_NAME,
   CLAUDECODE_DIR,
   CLAUDECODE_LOCAL_RULE_FILE_NAME,
   CLAUDECODE_MEMORIES_DIR_NAME,
@@ -24,6 +25,7 @@ import {
   LETTACODE_SETTINGS_LOCAL_FILE_NAME,
 } from "../../constants/lettacode-paths.js";
 import { QWENCODE_DIR, QWENCODE_LOCAL_RULE_FILE_NAME } from "../../constants/qwencode-paths.js";
+import { REASONIX_LOCAL_RULE_FILE_NAME } from "../../constants/reasonix-paths.js";
 import {
   RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH,
   RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH,
@@ -108,6 +110,7 @@ export const HAND_MAINTAINED_GITIGNORE_ENTRIES: ReadonlyArray<GitignoreEntryTag>
   // Crush's personal project context file. Unlike CodeBuddy Code, Crush does
   // not add it to `.gitignore` itself, so the derived list has to.
   { target: "crush", feature: "rules", entry: `**/${CRUSH_LOCAL_RULE_FILE_NAME}` },
+  { target: "reasonix", feature: "rules", entry: `**/${REASONIX_LOCAL_RULE_FILE_NAME}` },
 
   // Vibe subagent system prompts: written by the subagents feature next to the
   // agent TOML, but outside `getSettablePaths` (which names only
@@ -125,6 +128,14 @@ export const HAND_MAINTAINED_GITIGNORE_ENTRIES: ReadonlyArray<GitignoreEntryTag>
     target: "claudecode",
     feature: "general",
     entry: `**/${CLAUDECODE_DIR}/${CLAUDECODE_MEMORIES_DIR_NAME}/`,
+  },
+  // Memory of a subagent with `memory: local`, which Claude Code documents as
+  // not checked into version control. `memory: project` (`.claude/agent-memory/`)
+  // is meant to be committed, so it is deliberately not listed.
+  {
+    target: "claudecode",
+    feature: "general",
+    entry: `**/${CLAUDECODE_DIR}/${CLAUDECODE_AGENT_MEMORY_LOCAL_DIR_NAME}/`,
   },
   { target: "opencode", feature: "general", entry: "**/.opencode/package-lock.json" },
   // Devin's personal MCP override (documented as gitignored; never emitted by
@@ -164,6 +175,18 @@ export const HAND_MAINTAINED_GITIGNORE_ENTRIES: ReadonlyArray<GitignoreEntryTag>
     entry: `**/${LETTACODE_DIR}/${LETTACODE_SETTINGS_LOCAL_FILE_NAME}`,
   },
   { target: "rovodev", feature: "general", entry: "**/.rovodev/.rulesync/" },
+  // Qwen Code's per-run by-products under the project `.qwen/`, which Qwen Code
+  // never gitignores itself: the `/review` cache (its docs tell users to ignore
+  // it), saved review reports, the `/review` scratch worktrees and findings
+  // under `tmp/`, and the fixed `<repoRoot>/.qwen/worktrees/` location of
+  // general-purpose and agent worktrees. Listed per path rather than as `.qwen/`
+  // so the committed config there (and `.qwen/team-memory/`) stays trackable.
+  // https://qwenlm.github.io/qwen-code-docs/en/users/features/code-review/
+  // https://qwenlm.github.io/qwen-code-docs/en/users/features/worktree/
+  { target: "qwencode", feature: "general", entry: `**/${QWENCODE_DIR}/review-cache/` },
+  { target: "qwencode", feature: "general", entry: `**/${QWENCODE_DIR}/reviews/` },
+  { target: "qwencode", feature: "general", entry: `**/${QWENCODE_DIR}/tmp/` },
+  { target: "qwencode", feature: "general", entry: `**/${QWENCODE_DIR}/worktrees/` },
   { target: "takt", feature: "general", entry: "**/.takt/runs/" },
   { target: "takt", feature: "general", entry: "**/.takt/tasks/" },
   { target: "takt", feature: "general", entry: "**/.takt/.cache/" },

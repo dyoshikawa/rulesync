@@ -5,6 +5,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+  RULESYNC_HOOKS_RELATIVE_FILE_PATH,
+  RULESYNC_MCP_RELATIVE_FILE_PATH,
   RULESYNC_RULES_RELATIVE_DIR_PATH,
   RULESYNC_SKILLS_RELATIVE_DIR_PATH,
   RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
@@ -13,6 +15,7 @@ import {
   ensureDir,
   fileExists,
   removeDirectory,
+  removeFile,
   readFileContent,
   writeFileContent,
 } from "../utils/file.js";
@@ -243,6 +246,416 @@ Review the changes.
     expect(importedSubagent).not.toContain("tools:");
     expect(await fileExists(join(pluginRoot, ".augment-plugin", "plugin.json"))).toBe(true);
     expect(await readFileContent(join(pluginRoot, "hooks", "hooks.json"))).toBe('{"hooks":{}}\n');
+  });
+
+  it("generates and imports a ZCode plugin from an explicit plugin root", async () => {
+    const testDir = getTestDir();
+    const pluginRoot = join(testDir, "packages", "review-plugin");
+    const rulesyncSubagentPath = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "reviewer.md");
+    const rulesyncMcpPath = join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH);
+    const rulesyncHooksPath = join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH);
+
+    await writeFileContent(
+      rulesyncSubagentPath,
+      `---
+targets: ["zcode-plugin"]
+name: reviewer
+description: Reviews code
+zcode:
+  permissionMode: plan
+---
+Review the changes.
+`,
+    );
+    await writeFileContent(
+      rulesyncMcpPath,
+      JSON.stringify({
+        mcpServers: { docs: { command: "npx", args: ["-y", "docs-server"], disabled: true } },
+      }),
+    );
+    await writeFileContent(
+      rulesyncHooksPath,
+      JSON.stringify({
+        version: 1,
+        hooks: { sessionStart: [{ type: "command", command: "./scripts/setup.sh" }] },
+      }),
+    );
+    await writeFileContent(
+      join(pluginRoot, ".zcode-plugin", "plugin.json"),
+      JSON.stringify({ name: "review-plugin" }, null, 2),
+    );
+
+    await runGenerate({
+      target: "zcode-plugin",
+      features: "subagents,mcp,hooks",
+      outputRoots: pluginRoot,
+    });
+
+    // Plugin agents keep `permissionMode`, unlike project `.zcode/agents/`.
+    const generatedSubagent = await readFileContent(join(pluginRoot, "agents", "reviewer.md"));
+    expect(generatedSubagent).toContain("permissionMode: plan");
+    expect(JSON.parse(await readFileContent(join(pluginRoot, ".mcp.json")))).toEqual({
+      mcpServers: { docs: { command: "npx", args: ["-y", "docs-server"], enabled: false } },
+    });
+    expect(JSON.parse(await readFileContent(join(pluginRoot, "hooks", "hooks.json")))).toEqual({
+      hooks: {
+        SessionStart: [
+          { hooks: [{ type: "command", command: '"$ZCODE_PLUGIN_ROOT"/scripts/setup.sh' }] },
+        ],
+      },
+    });
+    expect(await fileExists(join(testDir, ".zcode", "config.json"))).toBe(false);
+
+    await removeDirectory(join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH));
+    await ensureDir(join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH));
+    await removeFile(rulesyncMcpPath);
+    await removeFile(rulesyncHooksPath);
+
+    await runImport({
+      target: "zcode-plugin",
+      features: "subagents,mcp,hooks",
+      outputRoot: pluginRoot,
+    });
+
+    const importedSubagent = await readFileContent(rulesyncSubagentPath);
+    expect(importedSubagent).toContain("permissionMode: plan");
+    expect(importedSubagent).toContain("Review the changes.");
+    expect(JSON.parse(await readFileContent(rulesyncMcpPath)).mcpServers).toEqual({
+      docs: { command: "npx", args: ["-y", "docs-server"], disabled: true },
+    });
+    expect(JSON.parse(await readFileContent(rulesyncHooksPath)).hooks).toEqual({
+      sessionStart: [{ type: "command", command: "./scripts/setup.sh" }],
+    });
+    expect(await fileExists(join(pluginRoot, ".zcode-plugin", "plugin.json"))).toBe(true);
+  });
+
+  it("generates and imports a Vibe plugin from an explicit plugin root", async () => {
+    const testDir = getTestDir();
+    const pluginRoot = join(testDir, "packages", "review-plugin");
+    const rulesyncSubagentPath = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "reviewer.md");
+    const rulesyncMcpPath = join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH);
+    const rulesyncHooksPath = join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH);
+
+    await writeFileContent(
+      rulesyncSubagentPath,
+      `---
+targets: ["vibe-plugin"]
+name: reviewer
+description: Reviews code
+vibe:
+  safety: safe
+---
+Review the changes.
+`,
+    );
+    await writeFileContent(
+      rulesyncMcpPath,
+      JSON.stringify({ mcpServers: { docs: { command: "npx", args: ["-y", "docs-server"] } } }),
+    );
+    await writeFileContent(
+      rulesyncHooksPath,
+      JSON.stringify({
+        version: 1,
+        hooks: { preToolUse: [{ command: "./scripts/audit.sh", matcher: "bash" }] },
+      }),
+    );
+    await writeFileContent(
+      join(pluginRoot, "plugin.json"),
+      JSON.stringify(
+        {
+          $schema: "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+          name: "review-plugin",
+          extensions: { "ai.mistral.vibe": { schemaVersion: 1 } },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({
+      target: "vibe-plugin",
+      features: "subagents,mcp,hooks",
+      outputRoots: pluginRoot,
+    });
+
+    // Plugin agents carry the prompt inline as `instructions`.
+    const generatedSubagent = await readFileContent(
+      join(pluginRoot, "ai.mistral.vibe", "agents", "reviewer.toml"),
+    );
+    expect(generatedSubagent).toContain('agent_type = "subagent"');
+    expect(generatedSubagent).toContain('safety = "safe"');
+    expect(generatedSubagent).toContain("Review the changes.");
+    expect(JSON.parse(await readFileContent(join(pluginRoot, "mcp.json")))).toEqual({
+      $schema: "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+      mcpServers: { docs: { type: "stdio", command: "npx", args: ["-y", "docs-server"] } },
+    });
+    const generatedHooks = await readFileContent(join(pluginRoot, "ai.mistral.vibe", "hooks.toml"));
+    expect(generatedHooks).toContain('type = "pre_tool"');
+    expect(generatedHooks).toContain('command = "./scripts/audit.sh"');
+    expect(await fileExists(join(testDir, ".vibe", "config.toml"))).toBe(false);
+
+    await removeDirectory(join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH));
+    await ensureDir(join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH));
+    await removeFile(rulesyncMcpPath);
+    await removeFile(rulesyncHooksPath);
+
+    await runImport({
+      target: "vibe-plugin",
+      features: "subagents,mcp,hooks",
+      outputRoot: pluginRoot,
+    });
+
+    const importedSubagent = await readFileContent(rulesyncSubagentPath);
+    expect(importedSubagent).toContain("safety: safe");
+    expect(importedSubagent).toContain("Review the changes.");
+    expect(JSON.parse(await readFileContent(rulesyncMcpPath)).mcpServers).toEqual({
+      docs: { command: "npx", args: ["-y", "docs-server"] },
+    });
+    expect(JSON.parse(await readFileContent(rulesyncHooksPath)).hooks.preToolUse).toEqual([
+      expect.objectContaining({ command: "./scripts/audit.sh", matcher: "bash" }),
+    ]);
+    expect(await fileExists(join(pluginRoot, "plugin.json"))).toBe(true);
+  });
+
+  it("generates and imports a Devin plugin from an explicit plugin root", async () => {
+    const testDir = getTestDir();
+    const pluginRoot = join(testDir, "packages", "review-plugin");
+    const rulesyncRulesDir = join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH);
+    const rulesyncSubagentPath = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "reviewer.md");
+    const rulesyncSkillPath = join(
+      testDir,
+      RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+      "review",
+      "SKILL.md",
+    );
+    const rulesyncMcpPath = join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH);
+    const rulesyncHooksPath = join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH);
+
+    await writeFileContent(
+      join(rulesyncRulesDir, "overview.md"),
+      `---
+root: true
+targets: ["devin-plugin"]
+---
+Always follow the review checklist.
+`,
+    );
+    await writeFileContent(
+      join(rulesyncRulesDir, "typescript.md"),
+      `---
+targets: ["devin-plugin"]
+globs: ["**/*.ts"]
+---
+Prefer strict TypeScript.
+`,
+    );
+    await writeFileContent(
+      rulesyncSubagentPath,
+      `---
+targets: ["devin-plugin"]
+name: reviewer
+description: Reviews code
+---
+Review the changes.
+`,
+    );
+    await writeFileContent(
+      rulesyncSkillPath,
+      `---
+name: review
+description: Review code changes
+targets: ["devin-plugin"]
+---
+Review the current changes.
+`,
+    );
+    await writeFileContent(
+      rulesyncMcpPath,
+      JSON.stringify({ mcpServers: { docs: { command: "npx", args: ["-y", "docs-server"] } } }),
+    );
+    await writeFileContent(
+      rulesyncHooksPath,
+      JSON.stringify({
+        version: 1,
+        hooks: { preToolUse: [{ command: "./scripts/audit.sh", matcher: "exec" }] },
+      }),
+    );
+    await writeFileContent(
+      join(pluginRoot, ".devin-plugin", "plugin.json"),
+      JSON.stringify({ name: "review-plugin", version: "1.0.0" }, null, 2),
+    );
+
+    await runGenerate({
+      target: "devin-plugin",
+      features: "rules,subagents,skills,mcp,hooks",
+      outputRoots: pluginRoot,
+    });
+
+    expect(await readFileContent(join(pluginRoot, "AGENTS.md"))).toContain(
+      "Always follow the review checklist.",
+    );
+    const generatedRule = await readFileContent(join(pluginRoot, "rules", "typescript.md"));
+    expect(generatedRule).toContain("trigger: glob");
+    expect(generatedRule).toContain("Prefer strict TypeScript.");
+    expect(await readFileContent(join(pluginRoot, "agents", "reviewer", "AGENT.md"))).toContain(
+      "Review the changes.",
+    );
+    expect(await readFileContent(join(pluginRoot, "skills", "review", "SKILL.md"))).toContain(
+      "Review the current changes.",
+    );
+    expect(JSON.parse(await readFileContent(join(pluginRoot, ".mcp.json")))).toEqual({
+      mcpServers: { docs: { command: "npx", args: ["-y", "docs-server"] } },
+    });
+    expect(JSON.parse(await readFileContent(join(pluginRoot, "hooks.json")))).toEqual({
+      PreToolUse: [
+        { matcher: "exec", hooks: [{ type: "command", command: "./scripts/audit.sh" }] },
+      ],
+    });
+    expect(await fileExists(join(testDir, ".devin"))).toBe(false);
+
+    await removeDirectory(rulesyncRulesDir);
+    await ensureDir(rulesyncRulesDir);
+    await removeDirectory(join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH));
+    await ensureDir(join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH));
+    await removeDirectory(join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH));
+    await ensureDir(join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH));
+    await removeFile(rulesyncMcpPath);
+    await removeFile(rulesyncHooksPath);
+
+    await runImport({
+      target: "devin-plugin",
+      features: "rules,subagents,skills,mcp,hooks",
+      outputRoot: pluginRoot,
+    });
+
+    expect(await readFileContent(join(rulesyncRulesDir, "typescript.md"))).toContain(
+      "Prefer strict TypeScript.",
+    );
+    expect(await readFileContent(rulesyncSubagentPath)).toContain("Review the changes.");
+    expect(await readFileContent(rulesyncSkillPath)).toContain("Review the current changes.");
+    expect(JSON.parse(await readFileContent(rulesyncMcpPath)).mcpServers).toEqual({
+      docs: { command: "npx", args: ["-y", "docs-server"] },
+    });
+    expect(JSON.parse(await readFileContent(rulesyncHooksPath)).hooks.preToolUse).toEqual([
+      expect.objectContaining({ command: "./scripts/audit.sh", matcher: "exec" }),
+    ]);
+    expect(await fileExists(join(pluginRoot, ".devin-plugin", "plugin.json"))).toBe(true);
+  });
+
+  it("generates and imports a Kimi Code plugin from an explicit plugin root", async () => {
+    const testDir = getTestDir();
+    const pluginRoot = join(testDir, "packages", "review-plugin");
+    const rulesyncRulesDir = join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH);
+    const rulesyncCommandPath = join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "review.md");
+    const rulesyncSubagentPath = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "reviewer.md");
+    const rulesyncSkillPath = join(
+      testDir,
+      RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+      "review",
+      "SKILL.md",
+    );
+    const manifest = {
+      name: "review-plugin",
+      skills: "./skills/",
+      commands: "./commands/",
+      systemPromptPath: "./SYSTEM.md",
+    };
+
+    await writeFileContent(
+      join(rulesyncRulesDir, "overview.md"),
+      `---
+root: true
+targets: ["kimi-code-plugin"]
+---
+Always follow the review checklist.
+`,
+    );
+    await writeFileContent(
+      join(rulesyncRulesDir, "typescript.md"),
+      `---
+targets: ["kimi-code-plugin"]
+globs: ["**/*.ts"]
+---
+Prefer strict TypeScript.
+`,
+    );
+    await writeFileContent(
+      rulesyncCommandPath,
+      `---
+targets: ["kimi-code-plugin"]
+description: Review a pull request
+---
+Review pull request $ARGUMENTS.
+`,
+    );
+    await writeFileContent(
+      rulesyncSubagentPath,
+      `---
+targets: ["kimi-code-plugin"]
+name: reviewer
+description: Reviews code
+---
+Review the changes.
+`,
+    );
+    await writeFileContent(
+      rulesyncSkillPath,
+      `---
+name: review
+description: Review code changes
+targets: ["kimi-code-plugin"]
+---
+Review the current changes.
+`,
+    );
+    await writeFileContent(join(pluginRoot, "kimi.plugin.json"), JSON.stringify(manifest, null, 2));
+
+    await runGenerate({
+      target: "kimi-code-plugin",
+      features: "rules,commands,subagents,skills",
+      outputRoots: pluginRoot,
+    });
+
+    const systemPrompt = await readFileContent(join(pluginRoot, "SYSTEM.md"));
+    expect(systemPrompt).toContain("Always follow the review checklist.");
+    expect(systemPrompt).toContain("Prefer strict TypeScript.");
+    const command = await readFileContent(join(pluginRoot, "commands", "review.md"));
+    expect(command).toContain("description: Review a pull request");
+    expect(command).toContain("Review pull request $ARGUMENTS.");
+    expect(await readFileContent(join(pluginRoot, "agents", "reviewer.md"))).toContain(
+      "Review the changes.",
+    );
+    expect(await readFileContent(join(pluginRoot, "skills", "review", "SKILL.md"))).toContain(
+      "Review the current changes.",
+    );
+    expect(await fileExists(join(testDir, ".kimi-code"))).toBe(false);
+    expect(JSON.parse(await readFileContent(join(pluginRoot, "kimi.plugin.json")))).toEqual(
+      manifest,
+    );
+
+    await removeDirectory(rulesyncRulesDir);
+    await ensureDir(rulesyncRulesDir);
+    await removeDirectory(join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH));
+    await ensureDir(join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH));
+    await removeDirectory(join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH));
+    await ensureDir(join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH));
+    await removeDirectory(join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH));
+    await ensureDir(join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH));
+
+    await runImport({
+      target: "kimi-code-plugin",
+      features: "rules,commands,subagents,skills",
+      outputRoot: pluginRoot,
+    });
+
+    // Imported files land in the project's `.rulesync/`, not inside the plugin.
+    expect(await readFileContent(join(rulesyncRulesDir, "overview.md"))).toContain(
+      "Always follow the review checklist.",
+    );
+    expect(await readFileContent(rulesyncCommandPath)).toContain("Review pull request $ARGUMENTS.");
+    expect(await readFileContent(rulesyncSubagentPath)).toContain("Review the changes.");
+    expect(await readFileContent(rulesyncSkillPath)).toContain("Review the current changes.");
+    expect(await fileExists(join(pluginRoot, ".rulesync"))).toBe(false);
   });
 
   describe.skipIf(process.platform === "win32")("symbolic link safety", () => {

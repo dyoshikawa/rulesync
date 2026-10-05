@@ -44,6 +44,16 @@ const checksGenerateTargets = [
     outputPath: join(".hermes", "plugins", "rulesync-checks", "checks", "security.json"),
   },
   {
+    // Kilo Code Reviews reads one plain-Markdown guidance file at the root.
+    target: "kilo",
+    outputPath: "REVIEW.md",
+  },
+  {
+    // Qwen Code's `/review` reads one plain-Markdown project rules file.
+    target: "qwencode",
+    outputPath: join(".qwen", "review-rules.md"),
+  },
+  {
     // Rovo Dev reads one plain-Markdown instruction file for code reviews.
     target: "rovodev",
     outputPath: join(".rovodev", ".review-agent.md"),
@@ -126,7 +136,13 @@ Look for injection vulnerabilities.
         expect(generatedContent).toContain("Look for injection vulnerabilities.");
         return;
       }
-      if (target === "cursor" || target === "rovodev" || target === "factorydroid") {
+      if (
+        target === "cursor" ||
+        target === "rovodev" ||
+        target === "factorydroid" ||
+        target === "qwencode" ||
+        target === "kilo"
+      ) {
         // One marked-up section per check, keyed by the source file basename.
         expect(generatedContent).toContain("<!-- rulesync:check:security -->");
         expect(generatedContent).toContain("## security");
@@ -170,6 +186,22 @@ Look for injection vulnerabilities.
 
     const importedContent = await readFileContent(
       join(testDir, RULESYNC_CHECKS_RELATIVE_DIR_PATH, "review-agent.md"),
+    );
+    expect(importedContent).toContain("Prefer small, well-named functions.");
+  });
+
+  it("should round-trip qwencode checks through import", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, ".qwen", "review-rules.md"),
+      "Prefer small, well-named functions.\n",
+    );
+
+    await runImport({ target: "qwencode", features: "checks" });
+
+    const importedContent = await readFileContent(
+      join(testDir, RULESYNC_CHECKS_RELATIVE_DIR_PATH, "review-rules.md"),
     );
     expect(importedContent).toContain("Prefer small, well-named functions.");
   });

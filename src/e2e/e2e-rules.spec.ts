@@ -12,7 +12,7 @@ import {
 import { getZedGlobalDir } from "../constants/zed-paths.js";
 import { RulesProcessor } from "../features/rules/rules-processor.js";
 import { buildLanguageInstruction } from "../types/language.js";
-import { fileExists, readFileContent, writeFileContent } from "../utils/file.js";
+import { fileExists, readFileContent, removeFile, writeFileContent } from "../utils/file.js";
 import {
   assertGenerateMatrixCoversTargets,
   execFileAsync,
@@ -59,6 +59,8 @@ const rulesRootTargets = [
   // The root rule goes to the project-root AGENTS.md Devin CLI/Local reads
   // (issue #2406); .devin/rules/ holds non-root Cascade rules.
   { target: "devin", outputPath: "AGENTS.md" },
+  { target: "devin-plugin", outputPath: "AGENTS.md" },
+  { target: "kimi-code-plugin", outputPath: "SYSTEM.md" },
   { target: "replit", outputPath: "replit.md" },
   { target: "pi", outputPath: "AGENTS.md" },
   { target: "zed", outputPath: ".rules" },
@@ -86,6 +88,7 @@ const rulesNonRootTargets = [
   { target: "kiro-cli", outputPath: join(".kiro", "steering", "overview.md") },
   { target: "kiro-ide", outputPath: join(".kiro", "steering", "overview.md") },
   { target: "antigravity-ide", outputPath: join(".agents", "rules", "overview.md") },
+  { target: "antigravity-cli", outputPath: join(".agents", "rules", "overview.md") },
   { target: "antigravity-plugin", outputPath: join("rules", "overview.md") },
   { target: "augmentcode-plugin", outputPath: join("rules", "overview.md") },
   { target: "augmentcode", outputPath: join(".augment", "rules", "overview.md") },
@@ -93,8 +96,10 @@ const rulesNonRootTargets = [
   { target: "tabnine", outputPath: join(".tabnine", "guidelines", "overview.md") },
   { target: "continue", outputPath: join(".continue", "rules", "overview.md") },
   { target: "devin", outputPath: join(".devin", "rules", "overview.md") },
+  { target: "devin-plugin", outputPath: join("rules", "overview.md") },
   { target: "codewhale", outputPath: join(".codewhale", "rules", "overview.md") },
   { target: "takt", outputPath: join(".takt", "facets", "policies", "overview.md") },
+  { target: "omp", outputPath: join(".omp", "rules", "overview.md") },
 ] as const;
 
 describe("E2E: rules", () => {
@@ -214,6 +219,34 @@ description: "Additional project root rule"
       expect(generatedContent.split("# Additional Project Root Fragment")).toHaveLength(2);
     },
   );
+
+  it("should flatten nested omp rules into the top-level .omp/rules directory", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "frontend", "style.md"),
+      `---
+targets: ["omp"]
+description: "Frontend style"
+globs: ["src/**/*.tsx"]
+---
+
+# Frontend Style
+`,
+    );
+
+    // A nested file an earlier Rulesync version wrote is swept by `--delete`.
+    await writeFileContent(join(testDir, ".omp", "rules", "frontend", "style.md"), "# Stale\n");
+
+    await runGenerate({ target: "omp", features: "rules", deleteFiles: true });
+
+    // oh-my-pi reads `.omp/rules/` non-recursively.
+    const generatedContent = await readFileContent(
+      join(testDir, ".omp", "rules", "frontend-style.md"),
+    );
+    expect(generatedContent).toContain("Frontend Style");
+    expect(await fileExists(join(testDir, ".omp", "rules", "frontend", "style.md"))).toBe(false);
+  });
 
   it("should fold pi non-root rules into the root AGENTS.md", async () => {
     const testDir = getTestDir();
@@ -1880,6 +1913,46 @@ This is a test project for E2E testing.
       "API Instructions",
     );
   });
+
+  // Trae reads a `.trae/rules/` folder in any project subdirectory.
+  // https://docs.trae.ai/ide/rules?_lang=en
+  it("should import nested trae rules and round-trip their subproject scope", async () => {
+    const testDir = getTestDir();
+
+    // The entry `rulesync gitignore` writes for Trae must not hide the nested
+    // rules directories from the import scan.
+    await writeFileContent(join(testDir, ".gitignore"), "**/.trae/rules/\nvendored/\n");
+    await writeFileContent(
+      join(testDir, "vendored", "dep", ".trae", "rules", "dep.md"),
+      "# Vendored\n",
+    );
+
+    await writeFileContent(
+      join(testDir, ".trae", "rules", "overview.md"),
+      "---\nalwaysApply: true\n---\n# Project Overview\n",
+    );
+    await writeFileContent(
+      join(testDir, "packages", "api", ".trae", "rules", "api.md"),
+      "---\nalwaysApply: false\ndescription: API rules\n---\n# API Instructions\n",
+    );
+
+    await runImport({ target: "trae", features: "rules" });
+
+    const importedNested = await readFileContent(join(testDir, ".rulesync", "rules", "api.md"));
+    expect(importedNested).toContain("API Instructions");
+    expect(importedNested).toContain("subprojectPath: packages/api");
+    expect(await fileExists(join(testDir, ".rulesync", "rules", "dep.md"))).toBe(false);
+
+    await removeFile(join(testDir, "packages", "api", ".trae", "rules", "api.md"));
+    await runGenerate({ target: "trae", features: "rules" });
+
+    const generated = await readFileContent(
+      join(testDir, "packages", "api", ".trae", "rules", "api.md"),
+    );
+    expect(generated).toContain("API Instructions");
+    expect(generated).toContain("description: API rules");
+    expect(await fileExists(join(testDir, ".trae", "rules", "api.md"))).toBe(false);
+  });
 });
 
 const rulesGlobalTargets = [
@@ -2281,11 +2354,13 @@ globs: ["src/**/*.ts"]
     expect(nonRootContent).toContain("src/**/*.ts");
   });
 
-  it("should generate antigravity-cli non-root rules into ~/.gemini/config/rules in global mode", async () => {
-    const projectDir = getProjectDir();
-    const homeDir = getHomeDir();
+  it.each(["antigravity-cli", "antigravity-ide"])(
+    "should generate %s non-root rules into ~/.gemini/config/rules in global mode",
+    async (target) => {
+      const projectDir = getProjectDir();
+      const homeDir = getHomeDir();
 
-    const rootRuleContent = `---
+      const rootRuleContent = `---
 root: true
 targets: ["*"]
 description: "Root rule"
@@ -2294,7 +2369,7 @@ globs: ["**/*"]
 
 # Root Rule Content
 `;
-    const nonRootRuleContent = `---
+      const nonRootRuleContent = `---
 targets: ["*"]
 description: "Global coding guidelines"
 globs: ["**/*"]
@@ -2302,44 +2377,45 @@ globs: ["**/*"]
 
 # Global Non-Root Rule
 `;
-    await writeFileContent(
-      join(projectDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
-      rootRuleContent,
-    );
-    await writeFileContent(
-      join(projectDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "coding-guidelines.md"),
-      nonRootRuleContent,
-    );
+      await writeFileContent(
+        join(projectDir, RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME),
+        rootRuleContent,
+      );
+      await writeFileContent(
+        join(projectDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "coding-guidelines.md"),
+        nonRootRuleContent,
+      );
 
-    // A global rule the user created outside rulesync in the shared directory.
-    const userRulePath = join(homeDir, ".gemini", "config", "rules", "user-rule.md");
-    await writeFileContent(userRulePath, "---\ntrigger: always_on\n---\n# User Rule\n");
+      // A global rule the user created outside rulesync in the shared directory.
+      const userRulePath = join(homeDir, ".gemini", "config", "rules", "user-rule.md");
+      await writeFileContent(userRulePath, "---\ntrigger: always_on\n---\n# User Rule\n");
 
-    await runGenerate({
-      target: "antigravity-cli",
-      features: "rules",
-      global: true,
-      deleteFiles: true,
-      env: { HOME_DIR: homeDir },
-    });
+      await runGenerate({
+        target,
+        features: "rules",
+        global: true,
+        deleteFiles: true,
+        env: { HOME_DIR: homeDir },
+      });
 
-    // The shared directory is never swept, so the user's own rule survives.
-    expect(await readFileContent(userRulePath)).toContain("User Rule");
+      // The shared directory is never swept, so the user's own rule survives.
+      expect(await readFileContent(userRulePath)).toContain("User Rule");
 
-    // Root rule -> ~/.gemini/GEMINI.md, with no reference to the non-root rule
-    // because the CLI loads ~/.gemini/config/rules/ by itself.
-    const rootContent = await readFileContent(join(homeDir, ".gemini", "GEMINI.md"));
-    expect(rootContent).toContain("Root Rule Content");
-    expect(rootContent).not.toContain("Global Non-Root Rule");
-    expect(rootContent).not.toContain("coding-guidelines.md");
+      // Root rule -> ~/.gemini/GEMINI.md, with no reference to the non-root rule
+      // because Antigravity loads ~/.gemini/config/rules/ by itself.
+      const rootContent = await readFileContent(join(homeDir, ".gemini", "GEMINI.md"));
+      expect(rootContent).toContain("Root Rule Content");
+      expect(rootContent).not.toContain("Global Non-Root Rule");
+      expect(rootContent).not.toContain("coding-guidelines.md");
 
-    // Non-root rule -> ~/.gemini/config/rules/*.md with `trigger` frontmatter
-    const nonRootContent = await readFileContent(
-      join(homeDir, ".gemini", "config", "rules", "coding-guidelines.md"),
-    );
-    expect(nonRootContent).toContain("trigger: always_on");
-    expect(nonRootContent).toContain("Global Non-Root Rule");
-  });
+      // Non-root rule -> ~/.gemini/config/rules/*.md with `trigger` frontmatter
+      const nonRootContent = await readFileContent(
+        join(homeDir, ".gemini", "config", "rules", "coding-guidelines.md"),
+      );
+      expect(nonRootContent).toContain("trigger: always_on");
+      expect(nonRootContent).toContain("Global Non-Root Rule");
+    },
+  );
 
   it("should generate devin non-root rules into ~/.devin/rules in global mode", async () => {
     const projectDir = getProjectDir();

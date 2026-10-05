@@ -32,6 +32,10 @@ export const SHARED_USER_MANAGED_CONFIG_PATHS: readonly string[] = [
   ".bob/settings/settings.json",
   ".claude/settings.json",
   ".claude/settings.local.json",
+  // CodeBuddy Code settings: the project file and the user one share the same
+  // `.codebuddy/settings.json` layout and carry the user's own settings
+  // (`model`, `env`, ...) beside the `hooks` and `permissions` blocks.
+  ".codebuddy/settings.json",
   ".codex/config.toml",
   // Codewhale's user config carries every Codewhale setting beside the
   // `[hooks]` table rulesync writes.
@@ -61,13 +65,22 @@ export const SHARED_USER_MANAGED_CONFIG_PATHS: readonly string[] = [
   ".dsh/cordis.patch.yml",
   ".factory/settings.json",
   ".grok/config.toml",
+  // Grok sandbox profiles: rulesync owns only `[profiles.rulesync]`; the
+  // user's own custom profiles sit beside it in both scopes.
+  ".grok/sandbox.toml",
   // Letta Code settings: the project file and the user one share the same
   // `.letta/settings.json` layout and carry the user's own settings beside the
   // `hooks` and `permissions` blocks.
   ".letta/settings.json",
-  // Qoder settings: the user file `~/.qoder/settings.json` carries the user's
-  // own Qoder settings beside the `mcpServers` block rulesync writes.
+  // Qoder settings: the project file and the user one share the same
+  // `.qoder/settings.json` layout and carry the user's own Qoder settings
+  // beside the `mcpServers` (user only), `hooks` and `permissions` blocks.
   ".qoder/settings.json",
+  // oh-my-pi config: the project file and the user one under `~/.omp/agent/`
+  // carry every omp setting beside the `tools.approval` and `bash.patterns`
+  // permissions keys.
+  ".omp/config.yml",
+  ".omp/agent/config.yml",
   // Both Rovo Dev project files are documented as repo-committed surfaces
   // (Bitbucket Cloud Agentic Pipelines), so neither is gitignored.
   ".rovodev/config.yml",

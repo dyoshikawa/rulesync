@@ -16,6 +16,7 @@ import {
   STRATEGIES,
   normalizeStoredAntigravity,
   parseGlobsString,
+  toGlobalRuleFileName,
 } from "./antigravity-rule.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
@@ -41,18 +42,18 @@ export type AntigravityCliRuleSettablePathsGlobal = ToolRuleSettablePathsGlobal;
  * Rule generator for the Google Antigravity CLI (`agy`, the Gemini-CLI
  * successor in Antigravity 2.0).
  *
- * The CLI reads the same plain-markdown context files as Gemini CLI — a root
- * context file plus non-root memory files in `.agents/rules/` — so this class
- * follows that same plain-markdown approach but points at the new `.agents/` tree.
+ * The root context file is plain markdown; every non-root file under a
+ * `rules/` directory must carry a valid `trigger` frontmatter or the CLI
+ * silently discards it, so non-root rules get the same trigger-strategy
+ * frontmatter as the IDE's non-root rules (which also keeps the two targets
+ * writing identical files to the shared `.agents/rules/` tree).
  *
  * - Project scope: root `AGENTS.md` (the cross-tool standard, matching
  *   `antigravity-ide`); non-root `.agents/rules/*.md`.
  * - Global scope: root plain `~/.gemini/GEMINI.md` (shared with the IDE);
  *   non-root `~/.gemini/config/rules/*.md`. The CLI truncates each rule file at
  *   24,000 bytes, so keeping non-root rules as separate files stops a large rule
- *   set from being cut off. Every file in that directory must carry a valid
- *   `trigger` frontmatter or the CLI discards it, so these files get the same
- *   trigger-strategy frontmatter as the IDE's non-root rules.
+ *   set from being cut off.
  *
  * @see https://antigravity.google/docs/rules
  */
@@ -159,13 +160,13 @@ export class AntigravityCliRule extends ToolRule {
       rootPath: paths.root,
       nonRootPath: paths.nonRoot,
     });
-    if (!global || params.root) {
+    if (params.root) {
       return new AntigravityCliRule({ ...params, global });
     }
 
-    // Global non-root rules live in `~/.gemini/config/rules/`, where a file
-    // without a valid `trigger` is discarded, so derive it the same way the
-    // IDE does for its non-root rules (a plain rule becomes `always_on`).
+    // Non-root rules live in a `rules/` directory, where a file without a
+    // valid `trigger` is discarded, so derive it the same way the IDE does for
+    // its non-root rules (a plain rule becomes `always_on`).
     const rulesyncFrontmatter = rulesyncRule.getFrontmatter();
     const storedAntigravity = rulesyncFrontmatter.antigravity;
     const storedTrigger = storedAntigravity?.trigger;
@@ -178,23 +179,25 @@ export class AntigravityCliRule extends ToolRule {
       rulesyncFrontmatter,
     );
 
+    const fileContent = stringifyFrontmatter(rulesyncRule.getBody(), frontmatter);
+    if (!global) {
+      return new AntigravityCliRule({ ...params, fileContent, global });
+    }
+
     return new AntigravityCliRule({
       ...params,
-      // The CLI reads only the top level of `~/.gemini/config/rules/`, so a
-      // nested rulesync rule (`frontend/style.md`) is flattened into a single
-      // file name (`frontend-style.md`) there.
-      relativeFilePath: params.relativeFilePath.split(/[\\/]/).join("-"),
-      fileContent: stringifyFrontmatter(rulesyncRule.getBody(), frontmatter),
+      relativeFilePath: toGlobalRuleFileName(params.relativeFilePath),
+      fileContent,
       global,
     });
   }
 
   toRulesyncRule(): RulesyncRule {
-    if (!this.global || this.root) {
+    if (this.root) {
       return this.toRulesyncRuleDefault();
     }
 
-    const { frontmatter, body } = this.parseGlobalNonRootContent();
+    const { frontmatter, body } = this.parseNonRootContent();
     const strategy = STRATEGIES.find((s) => s.canHandle(frontmatter.trigger));
     const rulesyncData = strategy
       ? strategy.exportRulesyncData(frontmatter)
@@ -218,14 +221,14 @@ export class AntigravityCliRule extends ToolRule {
   }
 
   validate() {
-    // Project rules and the global GEMINI.md are plain markdown without
-    // frontmatter requirements; global non-root rules need Antigravity
-    // trigger frontmatter.
-    if (!this.global || this.root) {
+    // Root rules (`AGENTS.md` / `GEMINI.md`) are plain markdown without
+    // frontmatter requirements; non-root rules need Antigravity trigger
+    // frontmatter.
+    if (this.root) {
       return { success: true as const, error: null };
     }
     try {
-      const { frontmatter } = this.parseGlobalNonRootContent();
+      const { frontmatter } = this.parseNonRootContent();
       const result = AntigravityRuleFrontmatterSchema.safeParse(frontmatter);
       if (!result.success) {
         return { success: false as const, error: new Error(formatError(result.error)) };
@@ -248,7 +251,7 @@ export class AntigravityCliRule extends ToolRule {
     return !this.global || this.root;
   }
 
-  private parseGlobalNonRootContent(): {
+  private parseNonRootContent(): {
     frontmatter: AntigravityRuleFrontmatter;
     body: string;
   } {

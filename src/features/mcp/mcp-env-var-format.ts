@@ -8,6 +8,12 @@ import { McpServers } from "../../types/mcp.js";
  */
 const CANONICAL_ENV_VAR_PATTERN = /\$\{(?!env:)([^}:]+)\}/g;
 
+/**
+ * OpenCode / Kilo `{env:VAR}` env var reference pattern. The negative lookbehind
+ * avoids matching Cursor's `${env:VAR}` format.
+ */
+export const BRACE_ENV_VAR_PATTERN = /(?<!\$)\{env:([^}:]+)\}/g;
+
 function convertRecordValues({
   record,
   pattern,
@@ -95,4 +101,17 @@ export function convertEnvVarRefsToToolFormat({
       },
     ]),
   );
+}
+
+/**
+ * Names of the servers whose `env` or `headers` values carry at least one
+ * canonical `${VAR}` env var reference.
+ */
+export function findServersWithEnvVarRefs(mcpServers: McpServers): string[] {
+  // `search` ignores `lastIndex`, so the shared global pattern stays stateless.
+  const hasRef = (record: Record<string, string> | undefined): boolean =>
+    Object.values(record ?? {}).some((value) => value.search(CANONICAL_ENV_VAR_PATTERN) !== -1);
+  return Object.entries(mcpServers)
+    .filter(([, config]) => hasRef(config.env) || hasRef(config.headers))
+    .map(([name]) => name);
 }

@@ -108,6 +108,45 @@ describe("CodewhaleSubagent", () => {
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("tools, unknown"));
     });
 
+    it("should normalize Codewhale's alias spellings to the canonical keys", () => {
+      const logger = createMockLogger();
+      const subagent = CodewhaleSubagent.fromRulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: join(".codewhale", "agents"),
+        rulesyncSubagent: buildRulesyncSubagent({
+          frontmatter: {
+            codewhale: { model_hint: "m", reasoning_effort: "high", thinking: "low" },
+          },
+        }),
+        logger,
+      });
+
+      const parsed = smolToml.parse(subagent.getFileContent());
+      expect(parsed.model).toBe("m");
+      expect(parsed.reasoning_effort).toBe("high");
+      expect(parsed).not.toHaveProperty("model_hint");
+      expect(parsed).not.toHaveProperty("thinking");
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining(": thinking."));
+    });
+
+    it("should report the user's spelling for a dropped alias and a duplicate alias", () => {
+      const logger = createMockLogger();
+      const subagent = CodewhaleSubagent.fromRulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: join(".codewhale", "agents"),
+        rulesyncSubagent: buildRulesyncSubagent({
+          frontmatter: { codewhale: { model_hint: "a", model_id: "b", reasoning: 3 } },
+        }),
+        logger,
+      });
+
+      const parsed = smolToml.parse(subagent.getFileContent());
+      expect(parsed.model).toBe("a");
+      expect(parsed).not.toHaveProperty("reasoning_effort");
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining(": model_id, reasoning."));
+    });
+
     it("should drop non-string section values, with a warning", () => {
       const logger = createMockLogger();
       const subagent = CodewhaleSubagent.fromRulesyncSubagent({
@@ -196,6 +235,23 @@ describe("CodewhaleSubagent", () => {
 
       expect(rulesyncSubagent.getFrontmatter().name).toBe("old");
       expect(rulesyncSubagent.getBody()).toBe("Legacy persona");
+    });
+
+    it("should import Codewhale's alias spellings under the canonical keys", async () => {
+      await writeFileContent(
+        join(testDir, ".codewhale", "agents", "scout.toml"),
+        'id = "scout"\nmodel_id = "deepseek-v4"\nthinking = "high"\n',
+      );
+
+      const subagent = await CodewhaleSubagent.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "scout.toml",
+      });
+
+      expect(subagent.toRulesyncSubagent().getFrontmatter().codewhale).toEqual({
+        model: "deepseek-v4",
+        reasoning_effort: "high",
+      });
     });
 
     it("should reject invalid TOML", async () => {

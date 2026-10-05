@@ -1,5 +1,12 @@
 import { dirname, resolve } from "node:path";
 
+import { quoteForLog } from "../utils/control-characters.js";
+import { writeLandingPath } from "../utils/file.js";
+import type { Logger } from "../utils/logger.js";
+
+/** A path an orphan sweep deleted, or would delete under `--dry-run`/`--check`. */
+export type DeletedPath = { path: string; kind: "file" | "directory" };
+
 /**
  * Run-scoped bookkeeping that keeps the `--delete` orphan sweep from turning
  * one target's output into another target's orphan.
@@ -24,14 +31,24 @@ import { dirname, resolve } from "node:path";
  *   `generate --check` report a permanently out-of-date tree.
  *
  * Paths are keyed by {@link resolve} so that the same file reached through
- * different-but-equivalent output roots compares equal. Two normalizations are
- * deliberately *not* applied: case folding (a separate, filesystem-dependent
- * concern) and symlink resolution (`resolve` is purely lexical, so two output
- * roots that reach one directory through different symlinks still hash apart).
- * Neither can invent a claim, only miss one — but a missed claim is not free:
- * with the sweeps deferred, both writers of such a directory now sweep after
- * both have written, so a spelling this plan cannot match loses the accidental
- * protection that write/sweep interleaving used to give one of them.
+ * different-but-equivalent output roots compares equal. Case folding is
+ * deliberately *not* applied: it is a separate, filesystem-dependent concern,
+ * and it can only miss a claim, never invent one.
+ *
+ * The checks a sweep asks before it deletes ({@link OrphanSweepPlan.rejectClaimed}
+ * and {@link OrphanSweepPlan.isGeneratedExactly}) also follow symbolic links: a
+ * path that matches no claim as spelled is compared again by where it lands.
+ * `.cursor/commands` linked to `.claude/commands` is one directory under two
+ * spellings, so a file only one tool generates must not read as the other's
+ * orphan. Following links only adds matches, so it never sweeps a path the
+ * lexical comparison keeps.
+ *
+ * The landing includes the last segment, so an orphan that is itself a link
+ * onto a claimed path (`.cursor/commands/foo.md -> ../../.claude/commands/foo.md`)
+ * is kept rather than unlinked: the link is the user's, and keeping it is the
+ * answer that never removes something this run cannot account for. A path
+ * whose links cannot be followed at all — a cycle, or a parent that cannot be
+ * read — is kept too, with a warning.
  */
 export type OrphanSweepPlan = {
   /** Record paths this run writes, so no later sweep treats them as orphans. */
@@ -46,7 +63,14 @@ export type OrphanSweepPlan = {
    * *file* feature's sweep now runs after the skills step has written.
    */
   registerGeneratedTree(params: { paths: string[] }): void;
-  /** True when some target in this run wrote, or intends to write, `path`. */
+  /**
+   * True when some target in this run wrote, or intends to write, `path`.
+   *
+   * Compares the path as spelled only, without following links, so a `false`
+   * here does not make `path` an orphan. A sweep deciding what to delete asks
+   * {@link rejectClaimed} or {@link isGeneratedExactly}, which also compare
+   * where the path lands.
+   */
   isGenerated(params: { path: string }): boolean;
   /**
    * True when some target in this run wrote, or intends to write, exactly
@@ -57,39 +81,123 @@ export type OrphanSweepPlan = {
    * deciding whether to delete the tree and useless for one deciding which
    * files within it the run actually wrote.
    */
-  isGeneratedExactly(params: { path: string }): boolean;
+  isGeneratedExactly(params: { path: string }): Promise<boolean>;
   /** Drop every item this run claims; what remains is a genuine orphan candidate. */
-  rejectClaimed<T>(params: { items: T[]; getPath: (item: T) => string }): T[];
-  /** Hold a sweep back until every generation step has written its files. */
-  defer(params: { sweep: () => Promise<boolean> }): void;
+  rejectClaimed<T>(params: { items: T[]; getPath: (item: T) => string }): Promise<T[]>;
+  /**
+   * Hold a sweep back until every generation step has written its files.
+   *
+   * `reportDeleted`, read once the sweep has run, names the paths it deleted
+   * (or, under `--dry-run`/`--check`, would have deleted). It is attributed to
+   * the feature of the {@link forFeature} view the sweep was deferred through.
+   */
+  defer(params: {
+    sweep: () => Promise<boolean>;
+    reportDeleted?: () => readonly DeletedPath[];
+  }): void;
   /** Run the deferred sweeps in registration order; true if anything changed. */
   run(): Promise<boolean>;
+  /**
+   * A view of this plan whose deferred sweeps report their deletions under
+   * `feature`. Every other method acts on the shared plan unchanged.
+   */
+  forFeature(feature: string): OrphanSweepPlan;
+  /**
+   * The paths the sweeps that already ran reported as deleted, keyed by the
+   * feature they were deferred under and sorted within each feature, so two
+   * previews of the same tree list them identically.
+   */
+  getDeletedPathsByFeature(): ReadonlyMap<string, readonly DeletedPath[]>;
 };
 
-export function createOrphanSweepPlan(): OrphanSweepPlan {
+type DeferredSweep = {
+  sweep: () => Promise<boolean>;
+  reportDeleted?: () => readonly DeletedPath[];
+  feature?: string;
+};
+
+export function createOrphanSweepPlan({ logger }: { logger?: Logger } = {}): OrphanSweepPlan {
   const generatedPaths = new Set<string>();
   const generatedTrees = new Set<string>();
-  const deferredSweeps: Array<() => Promise<boolean>> = [];
+  const deferredSweeps: DeferredSweep[] = [];
+  const deletedPathsByFeature = new Map<string, DeletedPath[]>();
+  // Several sweeps can ask about one path; it is reported once.
+  const warnedUnresolvable = new Set<string>();
 
-  const isInsideGeneratedTree = (absolutePath: string): boolean => {
-    let current = absolutePath;
+  // Built on first use and dropped when a claim is added.
+  let landingClaims: Promise<{ paths: Set<string>; trees: Set<string> }> | undefined;
+
+  const isInsideTree = ({ path, trees }: { path: string; trees: Set<string> }): boolean => {
+    let current = path;
     let parent = dirname(current);
     // `dirname` is its own fixed point at the filesystem root, which ends the walk.
     while (parent !== current) {
-      if (generatedTrees.has(parent)) return true;
+      if (trees.has(parent)) return true;
       current = parent;
       parent = dirname(current);
     }
     return false;
   };
 
+  // `null` for a cycle or a link that cannot be read.
+  const followLinks = async (path: string): Promise<string | null> => {
+    try {
+      return await writeLandingPath(path);
+    } catch {
+      return null;
+    }
+  };
+
+  const landingsOf = async (paths: Set<string>): Promise<Set<string>> => {
+    const landings = await Promise.all([...paths].map((path) => followLinks(path)));
+    return new Set(landings.filter((landing): landing is string => landing !== null));
+  };
+
+  // Every claim is followed at once, in one unbounded `Promise.all`, on the
+  // first candidate that misses lexically: one `lstat` per path segment of
+  // every claim. That cost is paid once per run in practice, since every claim
+  // is registered before the deferred sweeps start.
+  const getLandingClaims = () => {
+    landingClaims ??= Promise.all([landingsOf(generatedPaths), landingsOf(generatedTrees)]).then(
+      ([paths, trees]) => ({
+        paths,
+        // The same guard `registerGeneratedTree` applies to the spelled path.
+        trees: new Set([...trees].filter((tree) => dirname(tree) !== tree)),
+      }),
+    );
+    return landingClaims;
+  };
+
+  const landsOnClaim = async ({ path, exactly }: { path: string; exactly: boolean }) => {
+    // A path whose links cannot be followed is kept: not deleting is the safe answer.
+    const resolved = resolve(path);
+    const landing = await followLinks(resolved);
+    if (landing === null) {
+      if (!warnedUnresolvable.has(resolved)) {
+        warnedUnresolvable.add(resolved);
+        logger?.warn(
+          `Refusing to sweep ${quoteForLog(resolved)}: its symbolic links cannot be followed ` +
+            `(a link cycle or an unreadable directory)`,
+        );
+      }
+      return true;
+    }
+    const claims = await getLandingClaims();
+    return (
+      claims.paths.has(landing) ||
+      (!exactly && isInsideTree({ path: landing, trees: claims.trees }))
+    );
+  };
+
   const plan: OrphanSweepPlan = {
     registerGenerated({ paths }) {
+      landingClaims = undefined;
       for (const path of paths) {
         generatedPaths.add(resolve(path));
       }
     },
     registerGeneratedTree({ paths }) {
+      landingClaims = undefined;
       for (const path of paths) {
         const resolved = resolve(path);
         generatedPaths.add(resolved);
@@ -105,24 +213,55 @@ export function createOrphanSweepPlan(): OrphanSweepPlan {
     },
     isGenerated({ path }) {
       const resolved = resolve(path);
-      return generatedPaths.has(resolved) || isInsideGeneratedTree(resolved);
+      return (
+        generatedPaths.has(resolved) || isInsideTree({ path: resolved, trees: generatedTrees })
+      );
     },
-    isGeneratedExactly({ path }) {
-      return generatedPaths.has(resolve(path));
+    async isGeneratedExactly({ path }) {
+      return generatedPaths.has(resolve(path)) || (await landsOnClaim({ path, exactly: true }));
     },
-    rejectClaimed({ items, getPath }) {
-      return items.filter((item) => !plan.isGenerated({ path: getPath(item) }));
+    async rejectClaimed({ items, getPath }) {
+      const claimed = await Promise.all(
+        items.map(async (item) => {
+          const path = getPath(item);
+          return plan.isGenerated({ path }) || (await landsOnClaim({ path, exactly: false }));
+        }),
+      );
+      return items.filter((_, index) => !claimed[index]);
     },
-    defer({ sweep }) {
-      deferredSweeps.push(sweep);
+    defer({ sweep, reportDeleted }) {
+      deferredSweeps.push({ sweep, reportDeleted });
     },
     async run() {
       let hasDiff = false;
-      for (const sweep of deferredSweeps) {
+      for (const { sweep, reportDeleted, feature } of deferredSweeps) {
         if (await sweep()) hasDiff = true;
+        if (feature === undefined || reportDeleted === undefined) continue;
+        const deleted = reportDeleted();
+        if (deleted.length === 0) continue;
+        const existing = deletedPathsByFeature.get(feature) ?? [];
+        existing.push(...deleted);
+        deletedPathsByFeature.set(feature, existing);
       }
       deferredSweeps.length = 0;
       return hasDiff;
+    },
+    forFeature(feature) {
+      return {
+        ...plan,
+        defer({ sweep, reportDeleted }) {
+          deferredSweeps.push({ sweep, reportDeleted, feature });
+        },
+      };
+    },
+    getDeletedPathsByFeature() {
+      return new Map(
+        [...deletedPathsByFeature].map(([feature, deleted]) => {
+          // Keyed path-first so the sort below orders by path, independent of locale.
+          const unique = new Map(deleted.map((entry) => [`${entry.path}\0${entry.kind}`, entry]));
+          return [feature, [...unique.keys()].toSorted().map((key) => unique.get(key)!)];
+        }),
+      );
     },
   };
 

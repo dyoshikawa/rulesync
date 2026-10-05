@@ -233,4 +233,20 @@ describe("VibeSubagent", () => {
       },
     });
   });
+
+  it("should root the rulesync subagent at the project, not the tool's output root", () => {
+    // A global import reads `~/.vibe/agents/`; the converted file must still
+    // land in the project's `.rulesync/subagents/`, not `~/.rulesync/`.
+    const toml = ['agent_type = "subagent"', 'system_prompt = "Review."'].join("\n");
+    const vibeSubagent = new VibeSubagent({
+      outputRoot: join(testDir, "home"),
+      relativeDirPath: VibeSubagent.getSettablePaths({ global: true }).relativeDirPath,
+      relativeFilePath: "reviewer.toml",
+      body: toml,
+      fileContent: toml,
+      global: true,
+    });
+
+    expect(vibeSubagent.toRulesyncSubagent().getOutputRoot()).toBe(".");
+  });
 });

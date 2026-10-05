@@ -18,6 +18,7 @@ import { AugmentcodeMcp } from "./augmentcode-mcp.js";
 import { BobMcp } from "./bob-mcp.js";
 import { ClaudecodeMcp } from "./claudecode-mcp.js";
 import { ClineMcp } from "./cline-mcp.js";
+import { CodebuddyMcp } from "./codebuddy-mcp.js";
 import { CodebuffMcp } from "./codebuff-mcp.js";
 import { CodewhaleMcp } from "./codewhale-mcp.js";
 import { CodexcliMcp } from "./codexcli-mcp.js";
@@ -30,6 +31,7 @@ import { CrushMcp } from "./crush-mcp.js";
 import { CursorMcp } from "./cursor-mcp.js";
 import { DeepagentsMcp } from "./deepagents-mcp.js";
 import { DevinMcp } from "./devin-mcp.js";
+import { DevinPluginMcp } from "./devin-plugin-mcp.js";
 import { DshMcp } from "./dsh-mcp.js";
 import { FactorydroidMcp } from "./factorydroid-mcp.js";
 import { GitlabduoMcp } from "./gitlabduo-mcp.js";
@@ -62,8 +64,11 @@ import {
 } from "./tool-mcp.js";
 import { TraeMcp } from "./trae-mcp.js";
 import { VibeMcp } from "./vibe-mcp.js";
+import { VibePluginMcp } from "./vibe-plugin-mcp.js";
 import { WarpMcp } from "./warp-mcp.js";
+import { WarpcliMcp } from "./warpcli-mcp.js";
 import { ZcodeMcp } from "./zcode-mcp.js";
+import { ZcodePluginMcp } from "./zcode-plugin-mcp.js";
 import { ZedMcp } from "./zed-mcp.js";
 
 /**
@@ -277,6 +282,22 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
       class: ClineMcp,
       meta: {
         supportsProject: false,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
+    "codebuddy",
+    {
+      // CodeBuddy Code reads the project `.mcp.json` at the repository root and
+      // the user `~/.codebuddy/.mcp.json`; it has no per-server tool
+      // allow/deny lists.
+      // https://www.codebuddy.ai/docs/cli/mcp
+      class: CodebuddyMcp,
+      meta: {
+        supportsProject: true,
         supportsGlobal: true,
         supportsEnabledTools: false,
         supportsDisabledTools: false,
@@ -713,6 +734,8 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
     {
       // Qwen Code reads MCP servers from the `mcpServers` key of
       // `.qwen/settings.json` (project) / `~/.qwen/settings.json` (global).
+      // Project import also reads the Claude-parity root `.mcp.json` beneath
+      // settings (settings win); generation never writes it.
       // It supports per-server tool filtering via `includeTools` (allowlist)
       // and `excludeTools` (denylist), which the adapter maps to/from
       // rulesync's `enabledTools`/`disabledTools`.
@@ -857,11 +880,43 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
     },
   ],
   [
+    "vibe-plugin",
+    {
+      // A Vibe plugin declares its servers in an Agent Plugins `mcp.json` at
+      // the plugin root, which has no tool filters.
+      // https://github.com/mistralai/mistral-vibe/blob/v2.25.8/vibe/core/plugins/_native.py
+      class: VibePluginMcp,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: false,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
     "warp",
     {
       class: WarpMcp,
       meta: {
         supportsProject: true,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
+    "warpcli",
+    {
+      // The standalone Warp Agent CLI reads MCP servers only from its own
+      // global `.mcp.json` ("Project-scoped MCP config files in repositories
+      // are not detected"); the path differs per platform, resolved in
+      // WarpcliMcp.getSettablePaths.
+      // https://docs.warp.dev/agents/cli/configuration/
+      class: WarpcliMcp,
+      meta: {
+        supportsProject: false,
         supportsGlobal: true,
         supportsEnabledTools: false,
         supportsDisabledTools: false,
@@ -886,6 +941,22 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
     },
   ],
   [
+    "devin-plugin",
+    {
+      // A Devin plugin declares its servers in a root `.mcp.json`, read with
+      // the same server shape (including `disabledTools`) as
+      // `.devin/mcp_config.json`.
+      // https://docs.devin.ai/cli/extensibility/plugins/overview
+      class: DevinPluginMcp,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: false,
+        supportsEnabledTools: false,
+        supportsDisabledTools: true,
+      },
+    },
+  ],
+  [
     "zcode",
     {
       class: ZcodeMcp,
@@ -896,6 +967,20 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
         // https://zcode.z.ai/en/docs/mcp-services
         supportsProject: true,
         supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
+    "zcode-plugin",
+    {
+      // A ZCode plugin declares its servers in `.mcp.json` (`mcpServers`) at
+      // the plugin root. https://zcode.z.ai/en/docs/plugin
+      class: ZcodePluginMcp,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: false,
         supportsEnabledTools: false,
         supportsDisabledTools: false,
       },

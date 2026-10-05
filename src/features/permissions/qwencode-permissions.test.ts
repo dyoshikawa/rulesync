@@ -479,6 +479,170 @@ describe("QwencodePermissions", () => {
       expect(json.qwencode).toEqual({ tools: { workflowsEnabled: true } });
     });
 
+    it("skips tools.executionSandbox with a warning in project scope (issue #2668)", async () => {
+      const logger = createMockLogger();
+      const instance = await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        logger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: {
+              tools: {
+                approvalMode: "auto-edit",
+                executionSandbox: { filesystem: "workspace-write", network: "closed" },
+              },
+            },
+          }),
+        }),
+      });
+
+      // Qwen Code strips a Workspace-scoped `executionSandbox`, so a repository
+      // cannot choose the sandbox its own commands run in.
+      const content = JSON.parse(instance.getFileContent());
+      expect(content.tools).toEqual({ approvalMode: "auto-edit" });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          `"tools.executionSandbox" = {"filesystem":"workspace-write","network":"closed"} is only honored in user/system settings, so it is skipped`,
+        ),
+      );
+    });
+
+    it("authors tools.executionSandbox in global scope with its own note (issue #2668)", async () => {
+      const logger = createMockLogger();
+      const executionSandbox = { filesystem: "read-only", network: "open", backend: "auto" };
+      const instance = await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        global: true,
+        logger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { tools: { executionSandbox } },
+          }),
+        }),
+      });
+
+      expect(JSON.parse(instance.getFileContent()).tools).toEqual({ executionSandbox });
+      const announced = logger.warn.mock.calls
+        .map(([message]) => String(message))
+        .find((message) => message.includes("tools.executionSandbox"));
+      expect(announced).toContain("filesystem and network policy every tool command runs under");
+      expect(announced).not.toContain("cannot grant it per project");
+    });
+
+    it("announces a falsy global tools.executionSandbox (issue #2668)", async () => {
+      const settingsDir = join(testDir, ".qwen");
+      await ensureDir(settingsDir);
+      await writeFileContent(
+        join(settingsDir, "settings.json"),
+        JSON.stringify({
+          tools: { executionSandbox: { filesystem: "read-only", network: "closed" } },
+        }),
+      );
+      const logger = createMockLogger();
+      await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        global: true,
+        logger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { tools: { executionSandbox: null } },
+          }),
+        }),
+      });
+
+      // The key is a policy rather than a switch, so a falsy value is announced
+      // rather than filtered out as a non-grant.
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('wrote "tools.executionSandbox" = null'),
+      );
+    });
+
+    it("lifts tools.executionSandbox back into the override on import (issue #2668)", () => {
+      const warn = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+      const executionSandbox = { filesystem: "workspace-write", network: "closed" };
+      const json = new QwencodePermissions({
+        relativeDirPath: ".qwen",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({ tools: { executionSandbox, workflowsEnabled: true } }),
+      })
+        .toRulesyncPermissions()
+        .getJson();
+
+      expect(json.qwencode).toEqual({ tools: { executionSandbox, workflowsEnabled: true } });
+      // Read from the project file, so a `--global` regenerate would promote it.
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('imported "tools.executionSandbox"'),
+      );
+    });
+
+    it("writes tools.workflowNameOnly in project scope with the tighten-only note (issue #2668)", async () => {
+      const logger = createMockLogger();
+      const instance = await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        logger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { tools: { workflowNameOnly: true } },
+          }),
+        }),
+      });
+
+      // Unlike the stripped keys, a workspace `true` is honored, so it is written.
+      expect(JSON.parse(instance.getFileContent()).tools).toEqual({ workflowNameOnly: true });
+      const noted = logger.warn.mock.calls
+        .map(([message]) => String(message))
+        .find((message) => message.includes("tools.workflowNameOnly"));
+      expect(noted).toContain("Qwen Code lets a workspace only turn this key on");
+      expect(noted).not.toContain("not a key rulesync models");
+    });
+
+    it("describes a global tools.workflowNameOnly as itself (issue #2668)", async () => {
+      const logger = createMockLogger();
+      await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        global: true,
+        logger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { tools: { workflowNameOnly: false } },
+          }),
+        }),
+      });
+
+      const announced = logger.warn.mock.calls
+        .map(([message]) => String(message))
+        .find((message) => message.includes("tools.workflowNameOnly"));
+      expect(announced).toContain("a repository can only add the restriction, never lift it");
+      expect(announced).not.toContain("how far approvals are skipped");
+    });
+
+    it("lifts tools.workflowNameOnly back into the override on import (issue #2668)", () => {
+      const json = new QwencodePermissions({
+        relativeDirPath: ".qwen",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({ tools: { workflowNameOnly: true } }),
+      })
+        .toRulesyncPermissions()
+        .getJson();
+
+      expect(json.qwencode).toEqual({ tools: { workflowNameOnly: true } });
+    });
+
     it("announces a truthy non-boolean global grant instead of writing it silently (issue #2668)", async () => {
       const logger = createMockLogger();
       const instance = await QwencodePermissions.fromRulesyncPermissions({

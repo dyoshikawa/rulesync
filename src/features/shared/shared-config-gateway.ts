@@ -1425,6 +1425,24 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
       permissions: { kind: "replace-owned-keys", ownedKeys: ["agent"] },
     },
   },
+  // oh-my-pi `config.yml` carries every omp setting. The permissions writer
+  // recomputes `tools` and `bash` from the existing file (sibling keys such as
+  // `tools.approvalMode` and `bash.enabled` carried over, `tools.approval` and
+  // `bash.patterns` replaced) before patching, so both whole keys are owned.
+  ".omp/config.yml": {
+    format: "yaml",
+    invalidRootPolicy: "error",
+    features: {
+      permissions: { kind: "replace-owned-keys", ownedKeys: ["tools", "bash"] },
+    },
+  },
+  ".omp/agent/config.yml": {
+    format: "yaml",
+    invalidRootPolicy: "error",
+    features: {
+      permissions: { kind: "replace-owned-keys", ownedKeys: ["tools", "bash"] },
+    },
+  },
   // Pi Coding Agent settings (`.pi/settings.json` project /
   // `~/.pi/agent/settings.json` global): a hand-edited file carrying `theme`,
   // `defaultModel`, `packages`, `sessionDir` and more. Permissions owns the one
@@ -1526,13 +1544,14 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
   },
   // Qwen Code settings: `permissions` is recomputed from the existing file
   // (unmanaged-tool entries preserved, managed ones replaced) before being
-  // applied, and so are the `tools`/`security` override groups. Keys like
+  // applied, and so are the `tools`/`security` override groups and the MCP
+  // feature's `mcp` object (server allow/deny lists). Keys like
   // `disableAllHooks` are only present in the patch when authored, so an
   // existing user value survives an unrelated regeneration.
   ".qwen/settings.json": {
     format: "json",
     features: {
-      mcp: { kind: "replace-owned-keys", ownedKeys: ["mcpServers"] },
+      mcp: { kind: "replace-owned-keys", ownedKeys: ["mcpServers", "mcp"] },
       hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks", "disableAllHooks"] },
       permissions: {
         kind: "replace-owned-keys",
@@ -1611,9 +1630,11 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
   // full by the writer and retracted with an explicit `undefined`.
   "crush.json": CRUSH_CONFIG_DECLARATION,
   ".config/crush/crush.json": CRUSH_CONFIG_DECLARATION,
-  // IBM Bob settings: `hooks` is the only rulesync-owned key. The project file
-  // (`.bob/settings.json`) and the user file (`~/.bob/settings/settings.json`)
-  // both carry unrelated Bob settings, so they are edited in place and an
+  // IBM Bob settings: the hooks feature owns `hooks` in both the project file
+  // (`.bob/settings.json`) and the user file (`~/.bob/settings/settings.json`);
+  // the permissions feature owns `approval` in the user file only, and the
+  // adapter re-spreads the parts of it rulesync does not author. Both files
+  // carry unrelated Bob settings, so they are edited in place and an
   // unparseable root is refused rather than replaced with generated output.
   ".bob/settings.json": {
     format: "json",
@@ -1627,6 +1648,7 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
     invalidRootPolicy: "error",
     features: {
       hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
+      permissions: { kind: "replace-owned-keys", ownedKeys: ["approval"] },
     },
   },
   // Continue CLI settings: `hooks` is the only rulesync-owned key of
@@ -1639,6 +1661,21 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
     invalidRootPolicy: "error",
     features: {
       hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
+    },
+  },
+  // CodeBuddy Code settings: the project file (`.codebuddy/settings.json`) and
+  // the user file (`~/.codebuddy/settings.json`) share one layout and carry
+  // unrelated CodeBuddy settings (`model`, `env`, ...), so both are edited in
+  // place and an unparseable root is refused rather than replaced. Hooks own
+  // the `hooks` key; permissions own the `permissions` key, and the adapter
+  // re-spreads the sibling keys of that object (`defaultMode`,
+  // `additionalDirectories`, ...).
+  ".codebuddy/settings.json": {
+    format: "json",
+    invalidRootPolicy: "error",
+    features: {
+      hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
+      permissions: { kind: "replace-owned-keys", ownedKeys: ["permissions"] },
     },
   },
   // Command Code settings: the project file (`.commandcode/settings.json`) and
@@ -1702,15 +1739,21 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
       hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
     },
   },
-  // Qoder user settings (`~/.qoder/settings.json`): `mcpServers` is the only
-  // rulesync-owned key. The file carries every other Qoder setting (model,
-  // theme, trust, ...), so it is edited in place and an unparseable root is
-  // refused rather than replaced with generated output.
+  // Qoder settings: the project file (`.qoder/settings.json`) and the user file
+  // (`~/.qoder/settings.json`) share one layout and carry every other Qoder
+  // setting (model, theme, trust, ...), so both are edited in place and an
+  // unparseable root is refused rather than replaced with generated output.
+  // MCP owns `mcpServers` (user scope only; project servers go to `.mcp.json`),
+  // hooks own `hooks`, and permissions own `permissions` (the adapter
+  // re-spreads the sibling keys of that object: `additionalDirectories`,
+  // `trustDirectories`, ...).
   ".qoder/settings.json": {
     format: "json",
     invalidRootPolicy: "error",
     features: {
       mcp: { kind: "replace-owned-keys", ownedKeys: ["mcpServers"] },
+      hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
+      permissions: { kind: "replace-owned-keys", ownedKeys: ["permissions"] },
     },
   },
   // Tabnine CLI settings: the project file (`.tabnine/agent/settings.json`)

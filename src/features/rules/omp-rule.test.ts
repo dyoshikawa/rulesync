@@ -104,6 +104,43 @@ describe("OmpRule", () => {
     });
   });
 
+  describe("nested rules", () => {
+    it("should flatten a nested rulesync rule into the top-level rules directory", () => {
+      const rule = OmpRule.fromRulesyncRule({
+        rulesyncRule: buildRule({ relativeFilePath: join("frontend", "style.md") }),
+      });
+
+      expect(rule.getRelativeDirPath()).toBe(join(".omp", "rules"));
+      expect(rule.getRelativeFilePath()).toBe("frontend-style.md");
+    });
+
+    it("should flatten a nested rulesync rule in global scope too", () => {
+      const rule = OmpRule.fromRulesyncRule({
+        rulesyncRule: buildRule({ relativeFilePath: join("frontend", "style.md") }),
+        global: true,
+      });
+
+      expect(rule.getRelativeDirPath()).toBe(join(".omp", "agent", "rules"));
+      expect(rule.getRelativeFilePath()).toBe("frontend-style.md");
+    });
+
+    it("should import a .mdc rule as a .md rulesync rule", async () => {
+      await writeFileContent(
+        join(testDir, ".omp", "rules", "legacy.mdc"),
+        "---\ndescription: Legacy\nglobs: src/**/*.ts\n---\n# Legacy\n",
+      );
+
+      const rule = await OmpRule.fromFile({ outputRoot: testDir, relativeFilePath: "legacy.mdc" });
+      const rulesyncRule = rule.toRulesyncRule();
+
+      expect(rulesyncRule.getRelativeFilePath()).toBe("legacy.md");
+      expect(rulesyncRule.getFrontmatter()).toMatchObject({
+        description: "Legacy",
+        globs: ["src/**/*.ts"],
+      });
+    });
+  });
+
   describe("fromFile / toRulesyncRule", () => {
     it("should import the root context file", async () => {
       await writeFileContent(join(testDir, ".omp", "AGENTS.md"), "# Root\n");

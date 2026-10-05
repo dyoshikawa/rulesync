@@ -20,6 +20,7 @@ import { DevinIgnore } from "./devin-ignore.js";
 import { IgnoreProcessor } from "./ignore-processor.js";
 import { JunieIgnore } from "./junie-ignore.js";
 import { KiroIgnore } from "./kiro-ignore.js";
+import { QoderIgnore } from "./qoder-ignore.js";
 import { QwencodeIgnore } from "./qwencode-ignore.js";
 import { RooIgnore } from "./roo-ignore.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
@@ -289,6 +290,20 @@ describe("IgnoreProcessor", () => {
       expect(ignores[0]).toBeInstanceOf(KiroIgnore);
     });
 
+    it("should load QoderIgnore for qoder target", async () => {
+      await writeFileContent(join(testDir, ".qoderignore"), "*.log\nnode_modules/");
+
+      const processor = new IgnoreProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "qoder",
+      });
+
+      const ignores = await processor.loadToolIgnores();
+      expect(ignores).toHaveLength(1);
+      expect(ignores[0]).toBeInstanceOf(QoderIgnore);
+    });
+
     it("should load QwencodeIgnore for qwencode target", async () => {
       await writeFileContent(join(testDir, ".qwenignore"), "*.log\nnode_modules/");
 
@@ -474,6 +489,7 @@ describe("IgnoreProcessor", () => {
         "continue",
         "crush",
         "cursor",
+        "grokcli",
         "hermesagent",
         "junie",
         "kilo",
@@ -481,6 +497,7 @@ describe("IgnoreProcessor", () => {
         "kiro-cli",
         "kiro-ide",
         "lettacode",
+        "qoder",
         "qwencode",
         "reasonix",
         "roo",
@@ -499,6 +516,8 @@ describe("IgnoreProcessor", () => {
       expect(IgnoreProcessor.getToolTargets({ global: true })).toEqual([
         "continue",
         "devin",
+        "grokcli",
+        "kilo",
         "kiro",
         "kiro-cli",
         "kiro-ide",

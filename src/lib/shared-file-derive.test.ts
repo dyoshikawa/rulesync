@@ -125,6 +125,10 @@ describe("shared-file write derivation", () => {
           "mcp",
           "permissions",
         ],
+        ".bob/settings/settings.json": [
+          "hooks",
+          "permissions",
+        ],
         ".claude/settings.json": [
           "hooks",
           "ignore",
@@ -134,6 +138,10 @@ describe("shared-file write derivation", () => {
         ".claude/settings.local.json": [
           "ignore",
           "rules",
+        ],
+        ".codebuddy/settings.json": [
+          "hooks",
+          "permissions",
         ],
         ".codex/config.toml": [
           "hooks",
@@ -216,6 +224,11 @@ describe("shared-file write derivation", () => {
           "mcp",
           "permissions",
           "subagents",
+        ],
+        ".qoder/settings.json": [
+          "hooks",
+          "mcp",
+          "permissions",
         ],
         ".qwen/settings.json": [
           "hooks",

@@ -17,8 +17,11 @@ import { AmpPermissions } from "./amp-permissions.js";
 import { AntigravityCliPermissions } from "./antigravity-cli-permissions.js";
 import { AntigravityIdePermissions } from "./antigravity-ide-permissions.js";
 import { AugmentcodePermissions } from "./augmentcode-permissions.js";
+import { BobPermissions } from "./bob-permissions.js";
 import { ClaudecodePermissions } from "./claudecode-permissions.js";
 import { ClinePermissions } from "./cline-permissions.js";
+import { CodebuddyPermissions } from "./codebuddy-permissions.js";
+import { CodewhalePermissions } from "./codewhale-permissions.js";
 import { CodexcliPermissions, createCodexcliBashRulesFile } from "./codexcli-permissions.js";
 import { CommandcodePermissions } from "./commandcode-permissions.js";
 import { ContinuePermissions } from "./continue-permissions.js";
@@ -38,9 +41,11 @@ import { KimiCodePermissions } from "./kimi-code-permissions.js";
 import { KiroPermissions } from "./kiro-permissions.js";
 import { LettacodePermissions } from "./lettacode-permissions.js";
 import { MimocodePermissions } from "./mimocode-permissions.js";
+import { OmpPermissions } from "./omp-permissions.js";
 import { OpencodePermissions } from "./opencode-permissions.js";
 import { PiPermissions } from "./pi-permissions.js";
 import { PoolPermissions } from "./pool-permissions.js";
+import { QoderPermissions } from "./qoder-permissions.js";
 import { QwencodePermissions } from "./qwencode-permissions.js";
 import { ReasonixPermissions } from "./reasonix-permissions.js";
 import { RooPermissions } from "./roo-permissions.js";
@@ -57,6 +62,7 @@ import type {
 import { ToolPermissions } from "./tool-permissions.js";
 import { VibePermissions } from "./vibe-permissions.js";
 import { WarpPermissions } from "./warp-permissions.js";
+import { WarpcliPermissions } from "./warpcli-permissions.js";
 import { ZedPermissions } from "./zed-permissions.js";
 import { ZoocodePermissions } from "./zoocode-permissions.js";
 
@@ -139,6 +145,21 @@ export const toolPermissionsFactories = new Map<
     },
   ],
   [
+    "bob",
+    {
+      class: BobPermissions,
+      meta: {
+        // IBM Bob documents its `approval` block only in the user settings file
+        // `~/.bob/settings/settings.json` (shared by Bob IDE and Bob Shell);
+        // whether a workspace `.bob/settings.json` honors it is undocumented.
+        // https://bob.ibm.com/docs/shell/configuration/approval-settings
+        supportsProject: false,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+    },
+  ],
+  [
     "claudecode",
     {
       class: ClaudecodePermissions,
@@ -156,6 +177,32 @@ export const toolPermissionsFactories = new Map<
       meta: {
         supportsProject: true,
         supportsGlobal: false,
+        supportsImport: true,
+      },
+    },
+  ],
+  [
+    "codebuddy",
+    {
+      class: CodebuddyPermissions,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+    },
+  ],
+  [
+    "codewhale",
+    {
+      class: CodewhalePermissions,
+      meta: {
+        // Codewhale reads typed permission rules only from the global
+        // `~/.codewhale/permissions.toml`; the project `.codewhale/config.toml`
+        // overlay can only tighten approval and sandbox settings.
+        // https://github.com/Hmbown/Codewhale/blob/main/docs/AUTHORIZATION_ORDER.md
+        supportsProject: false,
+        supportsGlobal: true,
         supportsImport: true,
       },
     },
@@ -435,6 +482,19 @@ export const toolPermissionsFactories = new Map<
     },
   ],
   [
+    "omp",
+    {
+      class: OmpPermissions,
+      meta: {
+        // `tools.approval` and `bash.patterns` in `.omp/config.yml` (project)
+        // and `~/.omp/agent/config.yml` (global, default profile).
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+    },
+  ],
+  [
     "opencode",
     {
       class: OpencodePermissions,
@@ -468,6 +528,17 @@ export const toolPermissionsFactories = new Map<
         // `~/.config/poolside/settings.yaml` (global), the same file the MCP
         // servers are written to; the merge is in place.
         // https://docs.poolside.ai/settings-file-reference
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+    },
+  ],
+  [
+    "qoder",
+    {
+      class: QoderPermissions,
+      meta: {
         supportsProject: true,
         supportsGlobal: true,
         supportsImport: true,
@@ -584,6 +655,22 @@ export const toolPermissionsFactories = new Map<
         // `settings.toml` (`[agents.profiles]` allowlist/denylist); there is no
         // project-scoped Warp permissions file. The settings.toml path differs
         // per platform, resolved in WarpPermissions.getSettablePaths.
+        supportsProject: false,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+    },
+  ],
+  [
+    "warpcli",
+    {
+      class: WarpcliPermissions,
+      meta: {
+        // The standalone Warp Agent CLI reads permissions only from the
+        // `default` execution profile in its own global `settings.toml`,
+        // separate from the Warp app's. The path differs per platform,
+        // resolved in WarpcliPermissions.getSettablePaths.
+        // https://docs.warp.dev/agents/cli/permissions-and-profiles/
         supportsProject: false,
         supportsGlobal: true,
         supportsImport: true,

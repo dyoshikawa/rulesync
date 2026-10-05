@@ -85,6 +85,36 @@ const CanonicalPermissionsOverrideSchema = z.looseObject({
 });
 export type CanonicalPermissionsOverride = z.infer<typeof CanonicalPermissionsOverrideSchema>;
 
+/**
+ * One Codewhale `[[rules]]` record of `~/.codewhale/permissions.toml`, written
+ * verbatim. Codewhale parses the file with unknown fields denied, so a single
+ * misspelled key would make it reject every rule in the file; the record is
+ * therefore strict here, surfacing the typo on the rulesync source instead.
+ *
+ * @see https://github.com/Hmbown/Codewhale/blob/main/docs/CONFIGURATION.md
+ */
+export const CodewhalePermissionRuleSchema = z.strictObject({
+  tool: z.string(),
+  command: z.optional(z.string()),
+  command_exact: z.optional(z.boolean()),
+  path: z.optional(z.string()),
+  workspace: z.optional(z.string()),
+  action: z.optional(PermissionActionSchema),
+});
+export type CodewhalePermissionRule = z.infer<typeof CodewhalePermissionRuleSchema>;
+
+/**
+ * Tool-scoped override block for Codewhale. `rules` carries native records the
+ * canonical category/pattern shape cannot express — a `workspace`-scoped rule,
+ * a tool rulesync does not map, an exact-command deny — and is emitted ahead of
+ * the rules converted from the canonical block.
+ */
+const CodewhalePermissionsOverrideSchema = z.looseObject({
+  permission: z.optional(ToolScopedPermissionSchema),
+  rules: z.optional(z.array(CodewhalePermissionRuleSchema)),
+});
+export type CodewhalePermissionsOverride = z.infer<typeof CodewhalePermissionsOverrideSchema>;
+
 const KimiCodePermissionsOverrideSchema = z.looseObject({
   permission: z.optional(ToolScopedPermissionSchema),
   defaultPermissionMode: z.optional(z.enum(["manual", "yolo", "auto"])),
@@ -330,12 +360,15 @@ export type CursorPermissionsOverride = z.infer<typeof CursorPermissionsOverride
  * autonomy/sandbox controls with no canonical permission category — under
  * `tools` (`approvalMode` = plan/default/auto-edit/auto/yolo, `autoAccept`,
  * `sandbox`, `sandboxImage`, `disabled`, `visible`, `eager`, `listDirectory`,
- * `todoWrite`, `workflowsEnabled`) and `security` (`folderTrust`, `allowedHttpHookUrls`,
- * `allowPrivateNetworkHooks`, `allowedInsecureVoiceBaseUrls`). Qwen Code strips
- * `tools.workflowsEnabled`, `security.allowPrivateNetworkHooks` and
+ * `todoWrite`, `workflowsEnabled`, `workflowNameOnly`, `executionSandbox`) and
+ * `security` (`folderTrust`, `allowedHttpHookUrls`, `allowPrivateNetworkHooks`,
+ * `allowedInsecureVoiceBaseUrls`). Qwen Code strips `tools.workflowsEnabled`,
+ * `tools.executionSandbox`, `security.allowPrivateNetworkHooks` and
  * `security.allowedInsecureVoiceBaseUrls` out of workspace settings, so generate
- * skips those three in project scope and announces a granting value in global
- * scope. `security.allowedHttpHookUrls` (honored in a workspace only while no
+ * skips those four in project scope and announces a granting value in global
+ * scope (any `executionSandbox` change counts). `tools.workflowNameOnly` is
+ * written in both scopes, but a workspace may only turn it on, which the
+ * project-scope note says. `security.allowedHttpHookUrls` (honored in a workspace only while no
  * higher scope sets it) and `security.folderTrust` (the initial trust decision
  * is made from user/system settings alone, before the workspace merge) are
  * written in both scopes, with a note in project scope and an announcement of
@@ -544,6 +577,25 @@ const WarpPermissionsOverrideSchema = z.looseObject({
   execution_profile: z.optional(WarpExecutionProfileOverrideSchema),
 });
 export type WarpPermissionsOverride = z.infer<typeof WarpPermissionsOverrideSchema>;
+
+/**
+ * Tool-scoped override block for the standalone Warp Agent CLI. The CLI reads
+ * its permissions only from the reserved `default` record of
+ * `[agents.execution_profiles.<id>]` in its own `settings.toml` (it never read
+ * the app's legacy `[agents.profiles]` keys), so only the nested
+ * `execution_profile` block is offered; it is merged into that record, and the
+ * shared `permission.bash` block still drives `command_allowlist` /
+ * `command_denylist`.
+ *
+ * @example
+ * { "execution_profile": { "apply_code_diffs": "always_ask", "run_agents": "never_allow" } }
+ *
+ * @see https://docs.warp.dev/agents/cli/permissions-and-profiles/
+ */
+const WarpcliPermissionsOverrideSchema = z.looseObject({
+  permission: z.optional(ToolScopedPermissionSchema),
+  execution_profile: z.optional(WarpExecutionProfileOverrideSchema),
+});
 
 /**
  * deepagents-cli's approval-mode knobs under `[startup]` in
@@ -1255,6 +1307,7 @@ export const PermissionsConfigSchema = z.looseObject({
   reasonix: z.optional(ReasonixPermissionsOverrideSchema),
   factorydroid: z.optional(FactorydroidPermissionsOverrideSchema),
   warp: z.optional(WarpPermissionsOverrideSchema),
+  warpcli: z.optional(WarpcliPermissionsOverrideSchema),
   junie: z.optional(JuniePermissionsOverrideSchema),
   tabnine: z.optional(TabninePermissionsOverrideSchema),
   takt: z.optional(TaktPermissionsOverrideSchema),
@@ -1264,19 +1317,24 @@ export const PermissionsConfigSchema = z.looseObject({
   augmentcode: z.optional(AugmentcodePermissionsOverrideSchema),
   kiro: z.optional(KiroPermissionsOverrideSchema),
   codexcli: z.optional(CodexcliPermissionsOverrideSchema),
+  codewhale: z.optional(CodewhalePermissionsOverrideSchema),
   zed: z.optional(ZedPermissionsOverrideSchema),
   devin: z.optional(DevinPermissionsOverrideSchema),
   // Tools without tool-specific override keys still accept the canonical
   // tool-scoped `permission` block (see ToolScopedPermissionSchema).
   "antigravity-ide": z.optional(CanonicalPermissionsOverrideSchema),
+  bob: z.optional(CanonicalPermissionsOverrideSchema),
   continue: z.optional(CanonicalPermissionsOverrideSchema),
   copilot: z.optional(CanonicalPermissionsOverrideSchema),
+  codebuddy: z.optional(CanonicalPermissionsOverrideSchema),
   commandcode: z.optional(CanonicalPermissionsOverrideSchema),
   lettacode: z.optional(CanonicalPermissionsOverrideSchema),
   copilotcli: z.optional(CanonicalPermissionsOverrideSchema),
   crush: z.optional(CanonicalPermissionsOverrideSchema),
   goose: z.optional(CanonicalPermissionsOverrideSchema),
+  omp: z.optional(CanonicalPermissionsOverrideSchema),
   pool: z.optional(CanonicalPermissionsOverrideSchema),
+  qoder: z.optional(CanonicalPermissionsOverrideSchema),
   grokcli: z.optional(CanonicalPermissionsOverrideSchema),
   "kimi-code": z.optional(KimiCodePermissionsOverrideSchema),
   roo: z.optional(CanonicalPermissionsOverrideSchema),

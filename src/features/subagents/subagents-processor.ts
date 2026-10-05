@@ -17,6 +17,7 @@ import { RulesyncFile } from "../../types/rulesync-file.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { subagentsProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
+import { quoteForLog, stripControlCharacters } from "../../utils/control-characters.js";
 import { formatError } from "../../utils/error.js";
 import {
   assertWritablePathInsideRoot,
@@ -32,6 +33,7 @@ import { AntigravityIdeSubagent } from "./antigravity-ide-subagent.js";
 import { AntigravityPluginSubagent } from "./antigravity-plugin-subagent.js";
 import { AugmentcodePluginSubagent } from "./augmentcode-plugin-subagent.js";
 import { AugmentcodeSubagent } from "./augmentcode-subagent.js";
+import { BobSubagent } from "./bob-subagent.js";
 import { ClaudecodePluginSubagent } from "./claudecode-plugin-subagent.js";
 import { ClaudecodeSubagent } from "./claudecode-subagent.js";
 import { ClineSubagent } from "./cline-subagent.js";
@@ -44,6 +46,7 @@ import { CopilotcliSubagent } from "./copilotcli-subagent.js";
 import { CortexcodeSubagent } from "./cortexcode-subagent.js";
 import { CursorSubagent } from "./cursor-subagent.js";
 import { DeepagentsSubagent } from "./deepagents-subagent.js";
+import { DevinPluginSubagent } from "./devin-plugin-subagent.js";
 import { DevinSubagent } from "./devin-subagent.js";
 import { FactorydroidSubagent } from "./factorydroid-subagent.js";
 import { GooseSubagent } from "./goose-subagent.js";
@@ -51,6 +54,7 @@ import { GrokcliSubagent } from "./grokcli-subagent.js";
 import { HermesagentSubagent } from "./hermesagent-subagent.js";
 import { JunieSubagent } from "./junie-subagent.js";
 import { KiloSubagent } from "./kilo-subagent.js";
+import { KimiCodePluginSubagent } from "./kimi-code-plugin-subagent.js";
 import { KimiCodeSubagent } from "./kimi-code-subagent.js";
 import { KiroCliSubagent } from "./kiro-cli-subagent.js";
 import { KiroIdeSubagent } from "./kiro-ide-subagent.js";
@@ -76,7 +80,9 @@ import {
   ToolSubagentFromRulesyncSubagentParams,
   ToolSubagentSettablePaths,
 } from "./tool-subagent.js";
+import { VibePluginSubagent } from "./vibe-plugin-subagent.js";
 import { VibeSubagent } from "./vibe-subagent.js";
+import { ZcodePluginSubagent } from "./zcode-plugin-subagent.js";
 import { ZcodeSubagent } from "./zcode-subagent.js";
 import { ZoocodeSubagent } from "./zoocode-subagent.js";
 
@@ -259,6 +265,22 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
         supportsSimulated: false,
         supportsGlobal: false,
         filePattern: "*.md",
+      },
+    },
+  ],
+  [
+    "bob",
+    {
+      // IBM Bob has no file-based subagents, but reads custom modes from the
+      // aggregated `.bob/custom_modes.yaml` (Roo's `customModes` YAML).
+      // rulesync collapses every targeted subagent into that file.
+      // https://bob.ibm.com/docs/ide/configuration/custom-modes
+      class: BobSubagent,
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: false,
+        filePattern: "custom_modes.yaml",
       },
     },
   ],
@@ -466,6 +488,20 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
     },
   ],
   [
+    "devin-plugin",
+    {
+      // `<plugin>/agents/<name>/AGENT.md`, the same profile format as
+      // `.devin/agents/`. https://docs.devin.ai/cli/extensibility/plugins/overview
+      class: DevinPluginSubagent,
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: false,
+        filePattern: "*/AGENT.md",
+      },
+    },
+  ],
+  [
     "factorydroid",
     {
       // Factory Droid custom droids are native Markdown files under
@@ -608,6 +644,20 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
         supportsGlobal: true,
         filePattern: "**/*.md",
         supportsNestedPaths: true,
+      },
+    },
+  ],
+  [
+    "kimi-code-plugin",
+    {
+      // `<plugin>/agents/*.md`, auto-discovered in the `.kimi-code/agents/` format.
+      // https://github.com/MoonshotAI/kimi-code/blob/%40moonshot-ai/kimi-code%402.1.1/docs/en/customization/plugins.md
+      class: KimiCodePluginSubagent,
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: false,
+        filePattern: "*.md",
       },
     },
   ],
@@ -798,6 +848,20 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
     },
   ],
   [
+    "vibe-plugin",
+    {
+      // `<plugin>/ai.mistral.vibe/agents/*.toml`, with the prompt inline.
+      // https://github.com/mistralai/mistral-vibe/blob/v2.25.8/vibe/core/plugins/_native.py
+      class: VibePluginSubagent,
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: false,
+        filePattern: "*.toml",
+      },
+    },
+  ],
+  [
     "zcode",
     {
       // ZCode subagents are Markdown files with YAML frontmatter under
@@ -810,6 +874,20 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
         supportsProject: true,
         supportsSimulated: false,
         supportsGlobal: true,
+        filePattern: "*.md",
+      },
+    },
+  ],
+  [
+    "zcode-plugin",
+    {
+      // `<plugin>/agents/*.md`, parsed like `~/.zcode/agents/` ones.
+      // https://zcode.z.ai/en/docs/plugin
+      class: ZcodePluginSubagent,
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: false,
         filePattern: "*.md",
       },
     },
@@ -1194,10 +1272,23 @@ export class SubagentsProcessor extends FeatureProcessor {
       const dirPath = typeof root === "string" ? root : root.relativeDirPath;
       const baseDir = join(rootOutputRoot, dirPath);
       if (forDeletion && (await directoryExists(baseDir))) {
-        await assertWritablePathInsideRoot({
-          rootPath: rootOutputRoot,
-          targetPath: baseDir,
-        });
+        // A root that is a symbolic link, even one inside the output root
+        // (a dotfiles checkout linked from the home directory), is not swept
+        // through the link: it can lead to files rulesync does not manage. The
+        // writes already went through it, so the run warns and carries on
+        // rather than failing after its output landed.
+        try {
+          await assertWritablePathInsideRoot({
+            rootPath: rootOutputRoot,
+            targetPath: baseDir,
+          });
+        } catch (error) {
+          this.logger.warn(
+            `Skipping the orphan sweep for ${quoteForLog(baseDir)}; nothing under it is ` +
+              `deleted: ${stripControlCharacters(formatError(error))}`,
+          );
+          continue;
+        }
       }
       const subagentFilePaths = (
         await findFilesByGlobs(factory.meta.filePattern, {

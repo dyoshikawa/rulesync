@@ -8,16 +8,21 @@ import { TRAE_DIR } from "../../constants/trae-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { expandBraceAlternations, splitBraceAwareList } from "../../utils/brace-aware-list.js";
 import { formatError } from "../../utils/error.js";
-import { readFileContent } from "../../utils/file.js";
+import { readFileContent, toPosixPath } from "../../utils/file.js";
 import { findFrontmatterBlockBounds, parseFrontmatter } from "../../utils/frontmatter.js";
 import { warnWithFallback } from "../../utils/logger.js";
 import { CursorRule } from "./cursor-rule.js";
+import {
+  NESTED_SCAN_EXCLUDED_DIRS_ANY_DEPTH,
+  NESTED_SCAN_EXCLUDED_ROOT_DIRS,
+} from "./nested-scan-exclusions.js";
 import { RulesyncRule, RulesyncRuleFrontmatter } from "./rulesync-rule.js";
 import {
   ToolRule,
   ToolRuleForDeletionParams,
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
+  ToolRuleNestedFilePatterns,
   ToolRuleSettablePaths,
   buildToolPath,
 } from "./tool-rule.js";
@@ -107,7 +112,11 @@ function normalizeGlobs(globs: string | string[] | null | undefined): string[] {
  * - Apply manually (`#Rule` in chat): `alwaysApply: false` alone.
  *
  * There is no root rule file, so every rule (the `root: true` one included)
- * becomes a file under `.trae/rules/`, the same layout as Cursor. Global rules
+ * becomes a file under `.trae/rules/`, the same layout as Cursor. Trae also
+ * reads a `.trae/rules/` folder in any project subdirectory and applies it
+ * when files in that directory are read or mentioned, so a rule carrying
+ * `agentsmd.subprojectPath` is written to `<dir>/.trae/rules/` instead (project
+ * scope only) and imported back through `getNestedFilePatterns`. Global rules
  * (`~/.trae/user_rules`) are not supported: the docs do not say whether that
  * path is a file or a directory, nor what format its content takes.
  *
@@ -251,6 +260,7 @@ export class TraeRule extends ToolRule {
     outputRoot = process.cwd(),
     rulesyncRule,
     validate = true,
+    global = false,
   }: ToolRuleFromRulesyncRuleParams): TraeRule {
     const frontmatter = this.buildFrontmatter(rulesyncRule.getFrontmatter());
     // A glob past the expansion cap, or one with a literal comma, still holds a
@@ -264,14 +274,57 @@ export class TraeRule extends ToolRule {
         `${rulesyncRule.getRelativeFilePath()}: Trae splits globs on every comma, so ${commaGlobs.map((glob) => `"${glob}"`).join(", ")} will not match as written.`,
       );
     }
+    // A directory-scoped rule goes to that directory's own `.trae/rules/`,
+    // which Trae applies only while working on files under it. Project scope
+    // only: there is no workspace tree to nest under in global scope.
+    const { root, agentsmd } = rulesyncRule.getFrontmatter();
+    const subprojectPath = !global && root !== true ? agentsmd?.subprojectPath : undefined;
+    const relativeDirPath = subprojectPath
+      ? join(subprojectPath, TRAE_DIR, "rules")
+      : this.getSettablePaths().nonRoot.relativeDirPath;
     return new TraeRule({
       outputRoot,
       frontmatter,
       body: rulesyncRule.getBody(),
-      relativeDirPath: this.getSettablePaths().nonRoot.relativeDirPath,
+      relativeDirPath,
       relativeFilePath: rulesyncRule.getRelativeFilePath(),
       validate,
     });
+  }
+
+  /**
+   * The subproject directory whose own `.trae/rules/` holds this rule, or
+   * `undefined` for a rule in the project-root `.trae/rules/`.
+   */
+  private getSubprojectPath(): string | undefined {
+    return TraeRule.extractSubprojectPath(this.getRelativeDirPath())?.subprojectPath;
+  }
+
+  /**
+   * Splits a nested rule directory such as `packages/api/.trae/rules/sub` into
+   * the subproject (`packages/api`) and the folder inside its rules directory
+   * (`sub`). Returns `undefined` for the project-root `.trae/rules/`, for a
+   * path with no `.trae/rules` segment, and for one under a hidden directory —
+   * another tool's output or a worktree, not a subproject.
+   */
+  private static extractSubprojectPath(
+    relativeDirPath: string,
+  ): { subprojectPath: string; innerDirPath: string } | undefined {
+    const segments = toPosixPath(relativeDirPath).split("/");
+    const index = segments.findIndex(
+      (segment, i) => segment === TRAE_DIR && segments[i + 1] === "rules",
+    );
+    if (index <= 0) {
+      return undefined;
+    }
+    const subprojectSegments = segments.slice(0, index);
+    if (subprojectSegments.some((segment) => segment === "" || segment.startsWith("."))) {
+      return undefined;
+    }
+    return {
+      subprojectPath: subprojectSegments.join("/"),
+      innerDirPath: segments.slice(index + 2).join("/"),
+    };
   }
 
   toRulesyncRule(): RulesyncRule {
@@ -298,9 +351,20 @@ export class TraeRule extends ToolRule {
       ...(scene !== undefined && { scene }),
     };
 
+    // A nested rule carries its directory back through `agentsmd.subprojectPath`
+    // and targets trae only, so the next generate neither surprises other
+    // tools with new nested files nor folds it into their root files. Its
+    // `globs` are kept as written rather than replaced with the directory: a
+    // directory glob would turn an always-applied rule into a file-scoped one.
+    const subprojectPath = this.getSubprojectPath();
+
     return new RulesyncRule({
       frontmatter: {
         ...frontmatter,
+        ...(subprojectPath !== undefined && {
+          targets: ["trae"],
+          agentsmd: { subprojectPath },
+        }),
         ...(Object.keys(trae).length > 0 && { trae }),
       },
       body: this.body,
@@ -312,10 +376,21 @@ export class TraeRule extends ToolRule {
 
   static async fromFile({
     outputRoot = process.cwd(),
-    relativeFilePath,
+    relativeFilePath: givenRelativeFilePath,
+    relativeDirPath: overrideDirPath,
     validate = true,
   }: ToolRuleFromFileParams): Promise<TraeRule> {
-    const relativeDirPath = this.getSettablePaths().nonRoot.relativeDirPath;
+    // A file discovered by `getNestedFilePatterns` arrives as its own directory
+    // plus its basename; it is re-split into the subproject's rules directory
+    // and the path inside it, matching how the root `.trae/rules/` is read.
+    const nested =
+      overrideDirPath === undefined ? undefined : TraeRule.extractSubprojectPath(overrideDirPath);
+    const relativeDirPath = nested
+      ? join(nested.subprojectPath, TRAE_DIR, "rules")
+      : (overrideDirPath ?? this.getSettablePaths().nonRoot.relativeDirPath);
+    const relativeFilePath = nested
+      ? join(nested.innerDirPath, givenRelativeFilePath)
+      : givenRelativeFilePath;
     const filePath = join(outputRoot, relativeDirPath, relativeFilePath);
     const fileContent = await readFileContent(filePath);
     const { frontmatter, body } = TraeRule.parseTraeFrontmatter(fileContent, filePath);
@@ -348,6 +423,33 @@ export class TraeRule extends ToolRule {
       body: "",
       validate: false,
     });
+  }
+
+  /**
+   * The `.trae/rules/` folders of project subdirectories, which Trae applies
+   * when files in that directory are read or mentioned. The shared nested scan
+   * ignores every hidden directory, which would skip `.trae` itself, so only a
+   * `.trae/rules/` below another hidden directory is ignored here
+   * (`extractSubprojectPath` rejects one again on import).
+   * Import-only, like every other nested scan: these files sit outside the
+   * rulesync-owned root `.trae/rules/`, so `--delete` never sweeps them.
+   * @see https://docs.trae.ai/ide/rules?_lang=en
+   */
+  static getNestedFilePatterns(): ToolRuleNestedFilePatterns {
+    const rulesDirPath = `${TRAE_DIR}/rules`;
+    return {
+      include: [`**/${rulesDirPath}/**/*.md`],
+      ignore: [
+        // The project-root rules directory is read as the `nonRoot` one.
+        `${rulesDirPath}/**`,
+        `**/.*/**/${rulesDirPath}/**`,
+        ...NESTED_SCAN_EXCLUDED_DIRS_ANY_DEPTH.map((dir) => `**/${dir}/**`),
+        ...NESTED_SCAN_EXCLUDED_ROOT_DIRS.map((dir) => `${dir}/**`),
+      ],
+      // `rulesync gitignore` ignores `**/.trae/rules/`, so the gitignore filter
+      // stops at `<dir>/.trae` instead of testing the rules directory itself.
+      ownedDirPath: rulesDirPath,
+    };
   }
 
   validate(): ValidationResult {

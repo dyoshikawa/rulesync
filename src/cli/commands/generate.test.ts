@@ -13,7 +13,7 @@ import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { CLIError, ErrorCodes } from "../../types/json-output.js";
 import { directoryExists, fileExists } from "../../utils/file.js";
 import type { GenerateOptions } from "./generate.js";
-import { assertWatchModeCompatible, generateCommand } from "./generate.js";
+import { assertWatchModeCompatible, buildGeneratePlan, generateCommand } from "./generate.js";
 
 // Mock all dependencies
 vi.mock("../../config/config-resolver.js");
@@ -63,6 +63,7 @@ describe("generateCommand", () => {
       getFeatureOptions: vi.fn().mockReturnValue(undefined),
       getConfigFileFeatureOptions: vi.fn().mockReturnValue(undefined),
       getDelete: vi.fn().mockReturnValue(false),
+      getRetireTargets: vi.fn().mockReturnValue([]),
       getGlobal: vi.fn().mockReturnValue(false),
       getSimulateCommands: vi.fn().mockReturnValue(false),
       getSimulateSubagents: vi.fn().mockReturnValue(false),
@@ -1375,6 +1376,44 @@ describe("generateCommand", () => {
       expect(removeOrphanMock).toHaveBeenCalled();
     });
 
+    it("should carry the orphan deletion in the check-mode error details", async () => {
+      // A failing command's JSON document has no `data`, so the plan has to
+      // ride on `error.details` for `--check --json` consumers to see it.
+      mockConfig.getFeatures.mockReturnValue(["rules"]);
+      mockConfig.getCheck.mockReturnValue(true);
+      mockConfig.getDelete.mockReturnValue(true);
+      mockLogger = { ...mockLogger, jsonMode: true };
+
+      vi.mocked(RulesProcessor).mockImplementation(function () {
+        return {
+          ...mockProcessorBase(),
+          loadToolFiles: vi.fn().mockResolvedValue([]),
+          removeOrphanAiFiles: vi.fn().mockResolvedValue(1),
+          getRemovedPaths: vi
+            .fn()
+            .mockReturnValue([{ path: ".claude/rules/orphan.md", kind: "file" }]),
+          loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
+          convertRulesyncFilesToToolFiles: vi
+            .fn()
+            .mockResolvedValue([{ tool: "converted", getFilePath: () => "/path/to/converted" }]),
+          writeAiFiles: vi.fn().mockResolvedValue({ count: 0, paths: [] }),
+        } as any;
+      });
+
+      const expectedPlan = {
+        version: 1,
+        operations: [
+          { action: "delete", kind: "file", feature: "rules", path: ".claude/rules/orphan.md" },
+        ],
+      };
+
+      await expect(generateCommand(mockLogger, {})).rejects.toMatchObject({
+        code: ErrorCodes.GENERATION_FAILED,
+        details: { plan: expectedPlan },
+      });
+      expect(mockLogger.captureData).toHaveBeenCalledWith("plan", expectedPlan);
+    });
+
     it("should fail when a rulesync source could not be loaded", async () => {
       // Regression test for #2789: a source that fails to load writes nothing,
       // which every counter reports exactly like "there was nothing to write".
@@ -1399,7 +1438,7 @@ describe("generateCommand", () => {
         // Naming the feature is what makes the exit code actionable without
         // re-reading the whole log.
         message: expect.stringContaining("mcp"),
-        details: { sourceLoadFailedFeatures: ["mcp"] },
+        details: { sourceLoadFailedFeatures: ["mcp"], plan: { version: 1, operations: [] } },
       });
       expect(mockLogger.success).not.toHaveBeenCalled();
     });
@@ -1552,6 +1591,10 @@ describe("assertWatchModeCompatible", () => {
     { params: { isCheck: true, isDryRun: false, isJsonMode: false }, expected: "--check" },
     { params: { isCheck: false, isDryRun: true, isJsonMode: false }, expected: "--dry-run" },
     { params: { isCheck: false, isDryRun: false, isJsonMode: true }, expected: "--json" },
+    {
+      params: { isCheck: false, isDryRun: false, isJsonMode: false, isRetiring: true },
+      expected: "--retire-targets",
+    },
   ])("rejects $expected", ({ params, expected }) => {
     try {
       assertWatchModeCompatible(params);
@@ -1567,5 +1610,49 @@ describe("assertWatchModeCompatible", () => {
     expect(() =>
       assertWatchModeCompatible({ isCheck: true, isDryRun: true, isJsonMode: true }),
     ).toThrow("--watch cannot be combined with --check, --dry-run, --json.");
+  });
+});
+
+describe("buildGeneratePlan", () => {
+  it("should list writes before deletes per feature, sorted, in feature order", () => {
+    const plan = buildGeneratePlan({
+      featureResults: {
+        mcp: { paths: [".mcp.json"] },
+        rules: { paths: ["CLAUDE.md", ".claude/rules/b.md", ".claude/rules/a.md"] },
+        skills: { paths: [] },
+      },
+      deletedPathsByFeature: {
+        rules: [{ path: ".claude/rules/old.md", kind: "file" }],
+        skills: [{ path: ".claude/skills/retired", kind: "directory" }],
+      },
+    });
+
+    expect(plan).toEqual({
+      version: 1,
+      operations: [
+        { action: "write", kind: "file", feature: "mcp", path: ".mcp.json" },
+        { action: "write", kind: "file", feature: "rules", path: ".claude/rules/a.md" },
+        { action: "write", kind: "file", feature: "rules", path: ".claude/rules/b.md" },
+        { action: "write", kind: "file", feature: "rules", path: "CLAUDE.md" },
+        { action: "delete", kind: "file", feature: "rules", path: ".claude/rules/old.md" },
+        {
+          action: "delete",
+          kind: "directory",
+          feature: "skills",
+          path: ".claude/skills/retired",
+        },
+      ],
+    });
+  });
+
+  it("should list a path written by several targets once", () => {
+    const plan = buildGeneratePlan({
+      featureResults: { rules: { paths: ["AGENTS.md", "AGENTS.md"] } },
+      deletedPathsByFeature: {},
+    });
+
+    expect(plan.operations).toEqual([
+      { action: "write", kind: "file", feature: "rules", path: "AGENTS.md" },
+    ]);
   });
 });

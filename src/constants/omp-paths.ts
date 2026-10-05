@@ -16,6 +16,7 @@ export const OMP_RULE_FILE_NAME = "AGENTS.md";
 export const OMP_RULES_DIR_NAME = "rules";
 export const OMP_AGENTS_DIR_NAME = "agents";
 export const OMP_MCP_FILE_NAME = "mcp.json";
+export const OMP_CONFIG_FILE_NAME = "config.yml";
 
 export const OMP_LAYOUT: PiLayout = {
   toolTarget: "omp",

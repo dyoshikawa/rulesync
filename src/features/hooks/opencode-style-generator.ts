@@ -11,6 +11,11 @@ import { HooksConfig, CONTROL_CHARS } from "../../types/hooks.js";
  * per-invocation identifier worth matching on, so it takes `null`.
  * `chat.message` receives `(input, output)` with the prompt text living in
  * `output.parts` rather than a single matchable field, so it takes `null` too.
+ * `chat.params` receives the agent, model and provider objects of an LLM
+ * request but no tool name or command to match on, so it takes `null` as well.
+ * `command.execute.before` fires only for slash commands and receives the
+ * command name as `input.command`, which a matcher is tested against — the
+ * same subject Claude Code's `UserPromptExpansion` matcher filters on.
  *
  * @see https://opencode.ai/docs/plugins/
  */
@@ -19,6 +24,8 @@ const NAMED_HOOK_MATCHER_SUBJECTS: Record<string, string | null> = {
   "tool.execute.after": "input.tool",
   "experimental.session.compacting": null,
   "chat.message": null,
+  "chat.params": null,
+  "command.execute.before": "input.command",
 };
 
 /**
@@ -51,7 +58,7 @@ const GENERIC_EVENT_PROPERTY_GATES: Record<string, string> = {
  * tool (the `.env protection` pattern in the OpenCode plugins doc), so these
  * canonical events are emitted into those named hooks with an implicit
  * `input.tool === "bash"` gate. Matchers on them are dropped upstream with a
- * warning (`matcherEvents` covers only `preToolUse`/`postToolUse`) — the
+ * warning (`OPENCODE_MATCHER_HOOK_EVENTS` leaves them out) — the
  * named hooks expose no command text to match against.
  *
  * @see https://opencode.ai/docs/plugins/
@@ -106,8 +113,9 @@ function collectOpencodeStyleHandlers({
     if (!toolEvent) continue;
 
     // Matchers are honored only on the named hooks with a matchable subject
-    // (`tool.execute.*` via `input.tool`). Everywhere else — the bash-gated
-    // shell events, the subject-less `experimental.session.compacting`, and
+    // (`tool.execute.*` via `input.tool`, `command.execute.before` via
+    // `input.command`). Everywhere else — the bash-gated
+    // shell events, the subject-less named hooks, and
     // the generic `event.type` dispatches — there is nothing to test the regex
     // against, so a matcher-carrying definition is skipped here to match the
     // "Skipped matcher hook(s)" warning the processor already emitted.

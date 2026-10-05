@@ -1,4 +1,4 @@
-import { constants, type Stats } from "node:fs";
+import { constants, readdirSync, realpathSync, statSync, type Stats } from "node:fs";
 import type { FileHandle } from "node:fs/promises";
 import {
   cp,
@@ -177,13 +177,21 @@ export async function ensureDir(dirPath: string): Promise<void> {
  * Ignore rules come from the `.gitignore` files at and below `rootDir`; a parent
  * repository's rules are not consulted, so running against a subdirectory of a
  * repository only sees that subdirectory's own rules.
+ *
+ * `ownedDirPath` names a tool-owned directory (such as `.trae/rules`) whose
+ * per-subdirectory copies are what the scan discovers. `rulesync gitignore`
+ * ignores those directories themselves (`**\/.trae/rules/`), so the last
+ * segment of the last such match and everything below it are not tested; its
+ * parents (`<dir>/.trae`) still are, so a user's own ignore rule there holds.
  */
 export function filterOutPathsInGitIgnoredDirectories({
   rootDir,
   filePaths,
+  ownedDirPath,
 }: {
   rootDir: string;
   filePaths: string[];
+  ownedDirPath?: string;
 }): string[] {
   if (filePaths.length === 0) {
     // Building the matcher scans the tree for `.gitignore` files, which is not
@@ -212,7 +220,20 @@ export function filterOutPathsInGitIgnoredDirectories({
     return ignored;
   };
 
-  return filePaths.filter((filePath) => !isInIgnoredDirectory(dirname(resolve(filePath))));
+  const ownedPosix = ownedDirPath === undefined ? undefined : toPosixPath(ownedDirPath);
+  const testedDirectory = (filePath: string): string => {
+    const directory = dirname(resolve(filePath));
+    if (ownedPosix === undefined) {
+      return directory;
+    }
+    // Separators are one character on every platform, so an index into the
+    // POSIX form is also an index into the native one.
+    const index = `${toPosixPath(directory)}/`.lastIndexOf(`/${ownedPosix}/`);
+    // Cut before the owned directory's last segment (`.../pkg/.trae`).
+    return index === -1 ? directory : directory.slice(0, index + 1 + ownedPosix.lastIndexOf("/"));
+  };
+
+  return filePaths.filter((filePath) => !isInIgnoredDirectory(testedDirectory(filePath)));
 }
 
 /**
@@ -758,7 +779,7 @@ function isNotADirectoryError(error: unknown): boolean {
  * is how a link chain could be spelled to pass the check and still land
  * outside the root.
  */
-async function writeLandingPath(targetPath: string): Promise<string | null> {
+export async function writeLandingPath(targetPath: string): Promise<string | null> {
   const start = splitAbsolutePath(isAbsolute(targetPath) ? targetPath : resolve(targetPath));
   let current = start.root;
   let pending = start.segments;
@@ -914,6 +935,48 @@ function chooseRepresentative(candidates: string[], identity: string): string {
   });
 }
 
+/**
+ * A `readdirSync` for one glob walk that reads a directory as empty when its real
+ * path equals the real path of a directory above it in the same walk -- the loop
+ * check `find -L` makes. Without it, globby follows a directory link cycle until the
+ * kernel's ELOOP limit, and two links back to one directory (`a -> .`, `b -> .`)
+ * double the walk at every level, so it never finishes in practice.
+ *
+ * Only ancestors are compared, not every directory seen: a link that aliases a
+ * sibling (`aaa -> zzz`) is still walked, so both names reach the deduplication in
+ * `findFilesByGlobs` and the real path can represent the file. A directory cut here
+ * only repeats one the walk is already inside, so its files are still found under the
+ * ancestor's path (a pattern that names the looping link itself, like `**\/loop/*.md`,
+ * no longer matches through it), and every endless descent must repeat such a real
+ * path, so the walk always ends without a depth cap.
+ */
+function createCycleSafeReaddirSync(): typeof readdirSync {
+  const realPathByDir = new Map<string, string>();
+  const guarded = (dirPath: string, options?: unknown): unknown => {
+    const dir = resolve(dirPath);
+    let real: string | undefined;
+    try {
+      real = realpathSync.native(dir);
+    } catch {
+      // Leave an unresolvable directory to `readdirSync` and its own error.
+    }
+    if (real !== undefined) {
+      let child = dir;
+      let ancestor = dirname(dir);
+      while (ancestor !== child) {
+        if (realPathByDir.get(ancestor) === real) {
+          return [];
+        }
+        child = ancestor;
+        ancestor = dirname(ancestor);
+      }
+      realPathByDir.set(dir, real);
+    }
+    return readdirSync(dir, options as Parameters<typeof readdirSync>[1]);
+  };
+  return guarded as typeof readdirSync;
+}
+
 export async function findFilesByGlobs(
   globs: string | string[],
   options: {
@@ -965,27 +1028,51 @@ export async function findFilesByGlobs(
         ? { onlyFiles: false, onlyDirectories: true }
         : { onlyFiles: false, onlyDirectories: false };
   // Normalize glob patterns to use forward slashes (required for globby on Windows)
-  const normalizedGlobs = Array.isArray(globs)
-    ? globs.map((g) => g.replaceAll("\\", "/"))
-    : globs.replaceAll("\\", "/");
+  const normalizedGlobs = (Array.isArray(globs) ? globs : [globs]).map((g) =>
+    g.replaceAll("\\", "/"),
+  );
   // Symlink following defaults to true so callers can share skills/rules without
   // duplication (see issue #1707). Destructive discovery passes false and validates
   // real-path containment before deletion. Untrusted remote content is a separate code
-  // path: git-client.ts (`walkDirectory`) skips symlinks entirely.
-  const results = globbySync(normalizedGlobs, {
-    absolute: true,
-    cwd,
-    followSymbolicLinks,
-    dot,
-    ...(ignore ? { ignore: ignore.map((pattern) => pattern.replaceAll("\\", "/")) } : {}),
-    ...globbyOptions,
-  });
-  // Deduplicate by real file so that directory symlink cycles (which globby follows up to
-  // the kernel ELOOP limit, ~40 levels) do not yield ~40x duplicated entries that would be
-  // read and re-emitted -- and so that a thousand links to one file cost one read of it,
-  // not a thousand. One path per file, chosen by `chooseRepresentative`.
+  // path: git-client.ts (`walkDirectory`) skips symlinks entirely. A followed directory
+  // link that leads back above itself is not descended (see `createCycleSafeReaddirSync`).
+  // That check needs one walk per pattern: fast-glob runs every pattern's walk through
+  // the same `fs`, and a directory one pattern read must not count as an ancestor in
+  // another's walk. Each walk keeps the negative patterns that follow its pattern, which
+  // are the ones globby applies to it (an absolute negative pattern is still resolved
+  // against the positive patterns of its own walk only; prefer `ignore`). fast-glob also
+  // splits a single brace pattern whose alternatives have different bases, such as
+  // `{*.txt,sub/*.md}`, into walks that share the check; pass such alternatives as
+  // separate patterns instead.
+  const walks = followSymbolicLinks
+    ? normalizedGlobs.flatMap((pattern, index) =>
+        pattern.startsWith("!")
+          ? []
+          : [[pattern, ...normalizedGlobs.slice(index + 1).filter((g) => g.startsWith("!"))]],
+      )
+    : [];
+  const results = new Set(
+    (walks.length > 0 ? walks : [normalizedGlobs]).flatMap((patterns) =>
+      globbySync(patterns, {
+        absolute: true,
+        cwd,
+        followSymbolicLinks,
+        ...(followSymbolicLinks
+          ? // `statSync` keeps globby's check that `cwd` is a directory, which it skips
+            // for a custom `fs` without one.
+            { fs: { readdirSync: createCycleSafeReaddirSync(), statSync } }
+          : {}),
+        dot,
+        ...(ignore ? { ignore: ignore.map((pattern) => pattern.replaceAll("\\", "/")) } : {}),
+        ...globbyOptions,
+      }),
+    ),
+  );
+  // Deduplicate by real file so that a file reached through several directory aliases is
+  // read and re-emitted once -- and so that a thousand links to one file cost one read of
+  // it, not a thousand. One path per file, chosen by `chooseRepresentative`.
   const candidatesByFile = new Map<string, string[]>();
-  for (const result of results.toSorted()) {
+  for (const result of [...results].toSorted()) {
     const identity = await realFileIdentity(result);
     const candidates = candidatesByFile.get(identity);
     if (candidates === undefined) {

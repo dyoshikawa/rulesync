@@ -232,10 +232,12 @@ rulesync.local.jsonc
 **/CODEBUDDY.local.md
 **/.codebuddy/CODEBUDDY.local.md
 **/CRUSH.local.md
+**/REASONIX.local.md
 **/.vibe/prompts/
 **/.claude/*.lock
 **/.claude/settings.local.json
 **/.claude/memories/
+**/.claude/agent-memory-local/
 **/.opencode/package-lock.json
 **/.devin/mcp_config.local.json
 **/.factory/settings.local.json
@@ -243,6 +245,10 @@ rulesync.local.jsonc
 **/.commandcode/settings.local.json
 **/.letta/settings.local.json
 **/.rovodev/.rulesync/
+**/.qwen/review-cache/
+**/.qwen/reviews/
+**/.qwen/tmp/
+**/.qwen/worktrees/
 **/.takt/runs/
 **/.takt/tasks/
 **/.takt/.cache/
@@ -347,6 +353,7 @@ rulesync.local.jsonc
 **/.claude/commands/
 **/.clinerules/workflows/
 **/.codebuddy/commands/
+**/.codewhale/commands/
 **/.commandcode/commands/
 **/.continue/prompts/
 **/.github/prompts/
@@ -411,6 +418,7 @@ rulesync.local.jsonc
 **/.dsh/skills/
 **/.agents/agents/
 **/.augment/agents/
+**/.bob/custom_modes.yaml
 **/.claude/agents/
 **/.cline/agents/
 **/.codebuddy/agents/
@@ -503,6 +511,7 @@ rulesync.local.jsonc
 **/.kilocodeignore
 **/.kiroignore
 **/.letta/.lettaignore
+**/.qoderignore
 **/.qwenignore
 **/.rooignore
 **/.devinignore

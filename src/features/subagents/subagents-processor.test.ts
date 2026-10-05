@@ -1821,6 +1821,7 @@ Second global content`;
           "antigravity-plugin",
           "augmentcode",
           "augmentcode-plugin",
+          "bob",
           "claudecode",
           "claudecode-plugin",
           "claudecode-legacy",
@@ -1835,6 +1836,7 @@ Second global content`;
           "cursor",
           "deepagents",
           "devin",
+          "devin-plugin",
           "factorydroid",
           "goose",
           "hermesagent",
@@ -1842,6 +1844,7 @@ Second global content`;
           "junie",
           "kilo",
           "kimi-code",
+          "kimi-code-plugin",
           "kiro",
           "kiro-cli",
           "kiro-ide",
@@ -1859,7 +1862,9 @@ Second global content`;
           "tabnine",
           "takt",
           "vibe",
+          "vibe-plugin",
           "zcode",
+          "zcode-plugin",
         ]),
       );
       expect(Array.isArray(subagentsProcessorToolTargets)).toBe(true);

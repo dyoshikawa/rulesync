@@ -257,6 +257,8 @@ export const HOOK_EVENTS = [
   "elicitation",
   "elicitationResult",
   "sessionDelete",
+  "preModelSwitch",
+  "postModelSwitch",
 ] as const;
 
 /** All canonical hook event names. */
@@ -330,6 +332,12 @@ export const CLAUDE_HOOK_EVENTS: readonly HookEvent[] = [
   "postCompact",
   "elicitation",
   "elicitationResult",
+  // Added in 2.1.251. `PreModelSwitch` runs before a requested model switch and
+  // can block it; `PostModelSwitch` runs after the session's model changes. Both
+  // match on the canonical name of the model being switched to.
+  // https://code.claude.com/docs/en/hooks
+  "preModelSwitch",
+  "postModelSwitch",
 ];
 
 /**
@@ -387,12 +395,16 @@ export const OPENCODE_HOOK_EVENTS: readonly HookEvent[] = [
   "notification",
   "permissionDenied",
   "beforeSubmitPrompt",
+  "sessionDelete",
+  "userPromptExpansion",
+  "preModelInvocation",
 ];
 
 /**
  * Hook events supported by Kilo. Kilo's plugin docs list the same event surface
  * as OpenCode's — including `session.compacted`, `session.error`,
- * `file.watcher.updated`, `permission.replied`, `chat.message` and the
+ * `file.watcher.updated`, `permission.replied`, `session.deleted`,
+ * `chat.message`, `chat.params`, `command.execute.before` and the
  * experimental compaction hook — with one exception: they document no TUI
  * events at all, so `tui.toast.show` (canonical `notification`) is left out
  * rather than emitted into a plugin where it may never fire.
@@ -402,6 +414,19 @@ export const OPENCODE_HOOK_EVENTS: readonly HookEvent[] = [
 export const KILO_HOOK_EVENTS: readonly HookEvent[] = OPENCODE_HOOK_EVENTS.filter(
   (event) => event !== "notification",
 );
+
+/**
+ * OpenCode-style (OpenCode, Kilo, MiMo Code) events whose generated handler
+ * can honor a `matcher`: the named hooks that expose a matchable subject —
+ * `tool.execute.before/after` (`input.tool`) and `command.execute.before`
+ * (`input.command`). See `NAMED_HOOK_MATCHER_SUBJECTS` in
+ * `opencode-style-generator.ts`.
+ */
+export const OPENCODE_MATCHER_HOOK_EVENTS: readonly HookEvent[] = [
+  "preToolUse",
+  "postToolUse",
+  "userPromptExpansion",
+];
 
 /**
  * Hook events supported by Pi Coding Agent, bridged through a generated
@@ -1239,6 +1264,185 @@ export const CORTEXCODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Objec
 );
 
 /**
+ * Hook events supported by CodeBuddy Code.
+ *
+ * CodeBuddy Code reads hooks from the `hooks` key of `.codebuddy/settings.json`
+ * (project) and `~/.codebuddy/settings.json` (user) in the Claude-Code shape:
+ * PascalCase event names, a regex `matcher`, and `command`, `http`, `prompt`
+ * or `agent` hooks with a `timeout` in seconds. The hooks reference documents ten events; the
+ * plugins reference lists the full set, stating that plugin hooks "respond to
+ * the same lifecycle events as user-defined hooks", so every event listed
+ * there is supported here.
+ *
+ * @see https://www.codebuddy.ai/docs/cli/hooks
+ * @see https://www.codebuddy.ai/docs/cli/plugins-reference
+ */
+export const CODEBUDDY_HOOK_EVENTS: readonly HookEvent[] = [
+  "sessionStart",
+  "beforeSubmitPrompt",
+  "preToolUse",
+  "permissionRequest",
+  "permissionDenied",
+  "postToolUse",
+  "postToolUseFailure",
+  "notification",
+  "subagentStart",
+  "subagentStop",
+  "taskCreated",
+  "taskCompleted",
+  "stop",
+  "stopFailure",
+  "teammateIdle",
+  "instructionsLoaded",
+  "configChange",
+  "cwdChanged",
+  "fileChanged",
+  "worktreeCreate",
+  "worktreeRemove",
+  "preCompact",
+  "postCompact",
+  "elicitation",
+  "elicitationResult",
+  "sessionEnd",
+];
+
+/**
+ * CodeBuddy Code events that fire on every occurrence and take no `matcher`.
+ * The hooks reference's event matrix marks UserPromptSubmit, Stop,
+ * SubagentStop and PostCompact as matcher-less; the plugin-only events that
+ * fire on every occurrence follow Claude Code's documented set.
+ * @see https://www.codebuddy.ai/docs/cli/hooks
+ */
+export const CODEBUDDY_NO_MATCHER_HOOK_EVENTS: readonly HookEvent[] = [
+  "beforeSubmitPrompt",
+  "stop",
+  "subagentStop",
+  "postCompact",
+  "taskCreated",
+  "taskCompleted",
+  "teammateIdle",
+  "cwdChanged",
+  "worktreeCreate",
+  "worktreeRemove",
+];
+
+/** CodeBuddy Code events whose hooks accept a `matcher`. */
+export const CODEBUDDY_MATCHER_HOOK_EVENTS: readonly HookEvent[] = CODEBUDDY_HOOK_EVENTS.filter(
+  (event) => !CODEBUDDY_NO_MATCHER_HOOK_EVENTS.includes(event),
+);
+
+export const CANONICAL_TO_CODEBUDDY_EVENT_NAMES: Record<string, string> = {
+  sessionStart: "SessionStart",
+  beforeSubmitPrompt: "UserPromptSubmit",
+  preToolUse: "PreToolUse",
+  permissionRequest: "PermissionRequest",
+  permissionDenied: "PermissionDenied",
+  postToolUse: "PostToolUse",
+  postToolUseFailure: "PostToolUseFailure",
+  notification: "Notification",
+  subagentStart: "SubagentStart",
+  subagentStop: "SubagentStop",
+  taskCreated: "TaskCreated",
+  taskCompleted: "TaskCompleted",
+  stop: "Stop",
+  stopFailure: "StopFailure",
+  teammateIdle: "TeammateIdle",
+  instructionsLoaded: "InstructionsLoaded",
+  configChange: "ConfigChange",
+  cwdChanged: "CwdChanged",
+  fileChanged: "FileChanged",
+  worktreeCreate: "WorktreeCreate",
+  worktreeRemove: "WorktreeRemove",
+  preCompact: "PreCompact",
+  postCompact: "PostCompact",
+  elicitation: "Elicitation",
+  elicitationResult: "ElicitationResult",
+  sessionEnd: "SessionEnd",
+};
+
+export const CODEBUDDY_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
+  Object.entries(CANONICAL_TO_CODEBUDDY_EVENT_NAMES).map(([k, v]) => [v, k]),
+);
+
+/**
+ * Hook events supported by Qoder (the Qoder CLI, IDE and JetBrains plugin).
+ *
+ * Qoder reads `hooks` from `~/.qoder/settings.json` (user),
+ * `<project>/.qoder/settings.json` and `<project>/.qoder/settings.local.json`
+ * in the Claude-Code-shaped layout: PascalCase event names, a `matcher` per
+ * group, and `command` / `http` / `prompt` / `agent` handlers with a `timeout`
+ * in seconds. These are the 27 documented events; Claude Code's
+ * `MessageDisplay`, `UserPromptExpansion`, `PostToolBatch` and `DirectoryAdded`
+ * have no Qoder counterpart.
+ *
+ * @see https://docs.qoder.com/en/cli/hooks-reference
+ * @see https://docs.qoder.com/en/cli/hooks
+ */
+export const QODER_HOOK_EVENTS: readonly HookEvent[] = [
+  "sessionStart",
+  "sessionEnd",
+  "preToolUse",
+  "postToolUse",
+  "postToolUseFailure",
+  "beforeSubmitPrompt",
+  "stop",
+  "stopFailure",
+  "subagentStart",
+  "subagentStop",
+  "preCompact",
+  "postCompact",
+  "notification",
+  "configChange",
+  "instructionsLoaded",
+  "cwdChanged",
+  "fileChanged",
+  "worktreeCreate",
+  "worktreeRemove",
+  "elicitation",
+  "elicitationResult",
+  "taskCreated",
+  "taskCompleted",
+  "permissionRequest",
+  "permissionDenied",
+  "teammateIdle",
+  "setup",
+];
+
+export const CANONICAL_TO_QODER_EVENT_NAMES: Record<string, string> = {
+  sessionStart: "SessionStart",
+  sessionEnd: "SessionEnd",
+  preToolUse: "PreToolUse",
+  postToolUse: "PostToolUse",
+  postToolUseFailure: "PostToolUseFailure",
+  beforeSubmitPrompt: "UserPromptSubmit",
+  stop: "Stop",
+  stopFailure: "StopFailure",
+  subagentStart: "SubagentStart",
+  subagentStop: "SubagentStop",
+  preCompact: "PreCompact",
+  postCompact: "PostCompact",
+  notification: "Notification",
+  configChange: "ConfigChange",
+  instructionsLoaded: "InstructionsLoaded",
+  cwdChanged: "CwdChanged",
+  fileChanged: "FileChanged",
+  worktreeCreate: "WorktreeCreate",
+  worktreeRemove: "WorktreeRemove",
+  elicitation: "Elicitation",
+  elicitationResult: "ElicitationResult",
+  taskCreated: "TaskCreated",
+  taskCompleted: "TaskCompleted",
+  permissionRequest: "PermissionRequest",
+  permissionDenied: "PermissionDenied",
+  teammateIdle: "TeammateIdle",
+  setup: "Setup",
+};
+
+export const QODER_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
+  Object.entries(CANONICAL_TO_QODER_EVENT_NAMES).map(([k, v]) => [v, k]),
+);
+
+/**
  * Hook events supported by Command Code.
  *
  * Command Code reads hooks from the `hooks` key of `.commandcode/settings.json`
@@ -1561,6 +1765,7 @@ export const HooksConfigSchema = z.looseObject({
   crush: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   pool: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   bob: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  codebuddy: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   cortexcode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   commandcode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   lettacode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
@@ -1612,6 +1817,8 @@ export const CANONICAL_TO_CLAUDE_EVENT_NAMES: Record<string, string> = {
   postCompact: "PostCompact",
   elicitation: "Elicitation",
   elicitationResult: "ElicitationResult",
+  preModelSwitch: "PreModelSwitch",
+  postModelSwitch: "PostModelSwitch",
 };
 
 /**
@@ -1769,9 +1976,15 @@ export const CANONICAL_TO_OPENCODE_EVENT_NAMES: Record<string, string> = {
   // `NAMED_HOOK_MATCHER_SUBJECTS` in `opencode-style-generator.ts`.
   preCompact: "experimental.session.compacting",
   beforeSubmitPrompt: "chat.message",
+  // Fires only for slash commands, on the expanded parts right before they
+  // are submitted (`chat.message` covers every prompt).
+  userPromptExpansion: "command.execute.before",
+  // Fires before every LLM request, for the main agent and subagents alike.
+  preModelInvocation: "chat.params",
   postCompact: "session.compacted",
   afterError: "session.error",
   fileChanged: "file.watcher.updated",
+  sessionDelete: "session.deleted",
 };
 
 /**

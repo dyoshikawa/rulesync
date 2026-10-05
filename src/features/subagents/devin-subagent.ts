@@ -120,7 +120,7 @@ export class DevinSubagent extends ToolSubagent {
     };
 
     return new RulesyncSubagent({
-      outputRoot: this.getOutputRoot(),
+      outputRoot: ".", // RulesyncSubagent outputRoot is always the project root directory
       frontmatter: rulesyncFrontmatter,
       body: this.body,
       relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
@@ -185,7 +185,7 @@ export class DevinSubagent extends ToolSubagent {
       extname(rulesyncSubagent.getRelativeFilePath()),
     );
 
-    return new DevinSubagent({
+    return new this({
       outputRoot,
       frontmatter: devinFrontmatter,
       body,
@@ -238,7 +238,7 @@ export class DevinSubagent extends ToolSubagent {
       throw new Error(`Invalid frontmatter in ${filePath}: ${formatError(result.error)}`);
     }
 
-    return new DevinSubagent({
+    return new this({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath,
@@ -255,7 +255,7 @@ export class DevinSubagent extends ToolSubagent {
     relativeDirPath,
     relativeFilePath,
   }: ToolSubagentForDeletionParams): DevinSubagent {
-    return new DevinSubagent({
+    return new this({
       outputRoot,
       relativeDirPath,
       relativeFilePath,

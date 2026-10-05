@@ -24,6 +24,10 @@ export const PACKAGING_TOOL_TARGETS = [
   "antigravity-plugin",
   "augmentcode-plugin",
   "claudecode-plugin",
+  "devin-plugin",
+  "kimi-code-plugin",
+  "vibe-plugin",
+  "zcode-plugin",
 ] as const satisfies readonly ToolTarget[];
 
 export const ToolTargetsSchema = z.array(ToolTargetSchema);

@@ -1,4 +1,4 @@
-import { basename, extname, join } from "node:path";
+import { basename, extname, join, relative } from "node:path";
 
 import { intersection } from "es-toolkit";
 
@@ -39,7 +39,9 @@ import {
   directoryExists,
   fileExists,
   isPresentButUnresolvable,
+  pathEscapesRoot,
   toPosixPath,
+  writeLandingPath,
 } from "../utils/file.js";
 import type { Logger } from "../utils/logger.js";
 import {
@@ -51,7 +53,8 @@ import type { FeatureGenerateResult } from "../utils/result.js";
 import { resolveToolOutputRoot } from "../utils/tool-output-root.js";
 import { resetRunWarningState } from "../utils/warned-once.js";
 import { createFoldRootOverwriteWatch } from "./fold-root-overwrite-watch.js";
-import { createOrphanSweepPlan, type OrphanSweepPlan } from "./orphan-sweep.js";
+import { createOrphanSweepPlan, type DeletedPath, type OrphanSweepPlan } from "./orphan-sweep.js";
+import { scheduleRetiredTargetSweeps } from "./retire-targets.js";
 import { deriveSharedWriteSteps } from "./shared-file-derive.js";
 
 export type GenerateResult = {
@@ -88,6 +91,13 @@ export type GenerateResult = {
    * when `sourceLoadFailed` is false.
    */
   sourceLoadFailedFeatures: GenerationStepId[];
+  /**
+   * The paths the `--delete` orphan sweep removed — or, under `--dry-run` and
+   * `--check`, would remove — per feature, relative to the output root like
+   * the `*Paths` lists above and sorted. A feature that deleted nothing is
+   * absent.
+   */
+  deletedPathsByFeature: Partial<Record<GenerationStepId, readonly DeletedPath[]>>;
 };
 
 /**
@@ -152,7 +162,7 @@ async function processFeatureGeneration<T extends AiFile>(params: {
         // equivalent today, because a path this run claims is a path that
         // processor also lists in `generatedFiles`.
         const orphanCount = await processor.removeOrphanAiFiles(
-          sweepPlan.rejectClaimed({
+          await sweepPlan.rejectClaimed({
             items: existingToolFiles,
             getPath: (f) => f.getFilePath(),
           }),
@@ -160,6 +170,7 @@ async function processFeatureGeneration<T extends AiFile>(params: {
         );
         return orphanCount > 0;
       },
+      reportDeleted: () => processor.getRemovedPaths(),
     });
   }
 
@@ -169,6 +180,26 @@ async function processFeatureGeneration<T extends AiFile>(params: {
     hasDiff,
     sourceLoadFailed: processor.hasRulesyncSourceLoadFailure(),
   };
+}
+
+/**
+ * Whether a write to `targetPath` lands strictly below `rootPath` once every
+ * link on the way to either is followed. A cycle on either side answers false.
+ */
+async function landsStrictlyBelowRoot({
+  rootPath,
+  targetPath,
+}: {
+  rootPath: string;
+  targetPath: string;
+}): Promise<boolean> {
+  const [rootLanding, targetLanding] = await Promise.all([
+    writeLandingPath(rootPath),
+    writeLandingPath(targetPath),
+  ]);
+  if (rootLanding === null || targetLanding === null) return false;
+  const relativePath = relative(rootLanding, targetLanding);
+  return relativePath !== "" && !pathEscapesRoot(relativePath);
 }
 
 async function processDirFeatureGeneration(params: {
@@ -198,8 +229,21 @@ async function processDirFeatureGeneration(params: {
   // `TaktSkill` overrides `getDirPath()` to drop `dirName` and return the shared
   // root every takt skill flattens into; claiming *that* as a tree would exempt
   // every sibling under the root from the sweep.
+  //
+  // Nor does a directory that does not land strictly below the output root. One
+  // that leads out of it was refused by `writeAiDirs`, and one that lands on the
+  // root itself is the root: either way a `.claude/skills/foo -> $HOME` link
+  // would otherwise claim the whole home directory and silence every sweep in
+  // the run.
   const ownedTrees = toolDirs.filter((d) => d.ownsDirTree());
-  sweepPlan.registerGeneratedTree({ paths: ownedTrees.map((d) => d.getDirPath()) });
+  const treesBelowRoot = await Promise.all(
+    ownedTrees.map((d) =>
+      landsStrictlyBelowRoot({ rootPath: d.getOutputRoot(), targetPath: d.getDirPath() }),
+    ),
+  );
+  sweepPlan.registerGeneratedTree({
+    paths: ownedTrees.filter((_, index) => treesBelowRoot[index]).map((d) => d.getDirPath()),
+  });
 
   // Claim the directory and the files inside it by name as well, so a feature
   // that flattens into a shared root — and therefore gets no tree claim — still
@@ -224,7 +268,7 @@ async function processDirFeatureGeneration(params: {
       sweep: async () => {
         const existingToolDirs = await processor.loadToolDirsToDelete();
         const orphanDirCount = await processor.removeOrphanAiDirs(
-          sweepPlan.rejectClaimed({
+          await sweepPlan.rejectClaimed({
             items: existingToolDirs,
             getPath: (d) => d.getDirPath(),
           }),
@@ -237,7 +281,7 @@ async function processDirFeatureGeneration(params: {
         // keyed on that same file path, registered by name just above.
         const existingFlatFiles = await processor.loadToolFlatFilesToDelete();
         const orphanFileCount = await processor.removeOrphanFlatFiles({
-          existingFlatFiles: sweepPlan.rejectClaimed({
+          existingFlatFiles: await sweepPlan.rejectClaimed({
             items: existingFlatFiles,
             // The directory stands in for a candidate that names no file, so
             // the key is always a real path. Nothing is lost by it: such a
@@ -276,6 +320,7 @@ async function processDirFeatureGeneration(params: {
 
         return orphanDirCount + orphanFileCount + orphanInDirCount > 0;
       },
+      reportDeleted: () => processor.getRemovedPaths(),
     });
   }
 
@@ -306,13 +351,17 @@ async function processEmptyFeatureGeneration(params: {
       sweep: async () => {
         const existingToolFiles = await processor.loadToolFiles({ forDeletion: true });
 
-        const filesToDelete = sweepPlan
-          .rejectClaimed({ items: existingToolFiles, getPath: (f) => f.getFilePath() })
-          .filter((f) => !skipFilePaths?.has(f.getRelativePathFromCwd()));
+        const filesToDelete = (
+          await sweepPlan.rejectClaimed({
+            items: existingToolFiles,
+            getPath: (f) => f.getFilePath(),
+          })
+        ).filter((f) => !skipFilePaths?.has(f.getRelativePathFromCwd()));
 
         const orphanCount = await processor.removeOrphanAiFiles(filesToDelete, []);
         return orphanCount > 0;
       },
+      reportDeleted: () => processor.getRemovedPaths(),
     });
   }
 
@@ -850,21 +899,34 @@ export async function generate(params: {
   // One plan for the whole run: every step registers what it writes into it, and
   // every `--delete` sweep is held back until the last step has written, so no
   // target sweeps a directory it shares with a target that has not run yet.
-  const sweepPlan = createOrphanSweepPlan();
+  const sweepPlan = createOrphanSweepPlan({ logger });
 
   const runners: Record<GenerationStepId, () => Promise<FeatureGenerateResult>> = {
-    ignore: () => generateIgnoreCore({ config, logger, sweepPlan }),
-    mcp: () => generateMcpCore({ config, logger, sweepPlan }),
-    commands: () => generateCommandsCore({ config, logger, sweepPlan }),
-    subagents: () => generateSubagentsCore({ config, logger, sweepPlan }),
+    ignore: () => generateIgnoreCore({ config, logger, sweepPlan: sweepPlan.forFeature("ignore") }),
+    mcp: () => generateMcpCore({ config, logger, sweepPlan: sweepPlan.forFeature("mcp") }),
+    commands: () =>
+      generateCommandsCore({ config, logger, sweepPlan: sweepPlan.forFeature("commands") }),
+    subagents: () =>
+      generateSubagentsCore({ config, logger, sweepPlan: sweepPlan.forFeature("subagents") }),
     skills: async () => {
-      skillsResult = await generateSkillsCore({ config, logger, sweepPlan });
+      skillsResult = await generateSkillsCore({
+        config,
+        logger,
+        sweepPlan: sweepPlan.forFeature("skills"),
+      });
       return skillsResult;
     },
-    hooks: () => generateHooksCore({ config, logger, sweepPlan }),
-    permissions: () => generatePermissionsCore({ config, logger, sweepPlan }),
-    checks: () => generateChecksCore({ config, logger, sweepPlan }),
-    rules: () => generateRulesCore({ config, logger, sweepPlan, skills: skillsResult?.skills }),
+    hooks: () => generateHooksCore({ config, logger, sweepPlan: sweepPlan.forFeature("hooks") }),
+    permissions: () =>
+      generatePermissionsCore({ config, logger, sweepPlan: sweepPlan.forFeature("permissions") }),
+    checks: () => generateChecksCore({ config, logger, sweepPlan: sweepPlan.forFeature("checks") }),
+    rules: () =>
+      generateRulesCore({
+        config,
+        logger,
+        sweepPlan: sweepPlan.forFeature("rules"),
+        skills: skillsResult?.skills,
+      }),
   };
 
   const steps: GenerationStep[] = GENERATION_STEP_GRAPH.map((meta) => ({
@@ -878,6 +940,15 @@ export async function generate(params: {
   for (const step of orderedSteps) {
     resultsById.set(step.id, await step.run());
   }
+
+  // Queued last so every claim of this run is registered before a retired
+  // target's outputs are compared against them.
+  scheduleRetiredTargetSweeps({
+    config,
+    logger,
+    sweepPlan,
+    sourceLoadFailed: [...resultsById.values()].some((result) => result.sourceLoadFailed),
+  });
 
   // Deletion runs only now, once every step has written: a sweep that ran inline
   // would remove files a later step is about to write, which is both destructive
@@ -940,6 +1011,7 @@ export async function generate(params: {
     hasDiff,
     sourceLoadFailed: sourceLoadFailedFeatures.length > 0,
     sourceLoadFailedFeatures,
+    deletedPathsByFeature: Object.fromEntries(sweepPlan.getDeletedPathsByFeature()),
   };
 }
 

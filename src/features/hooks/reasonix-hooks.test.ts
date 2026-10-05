@@ -239,6 +239,45 @@ describe("ReasonixHooks", () => {
       expect(parsed.hooks.Stop[0].timeout).toBe(3000);
     });
 
+    it("should emit cwd and env on each hook entry", async () => {
+      const config = {
+        version: 1,
+        hooks: {
+          preToolUse: [
+            {
+              matcher: "bash",
+              command: "./guard.sh",
+              cwd: "scripts",
+              env: { MODE: "strict", "PATH=/tmp/evil": "x", "": "y" },
+            },
+          ],
+          stop: [{ command: "echo done", cwd: "", env: { "A=B": "c" } }],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const reasonixHooks = await ReasonixHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const parsed = JSON.parse(reasonixHooks.getFileContent());
+      expect(parsed.hooks.PreToolUse[0]).toEqual({
+        match: "bash",
+        command: "./guard.sh",
+        cwd: "scripts",
+        env: { MODE: "strict" },
+      });
+      expect(parsed.hooks.Stop[0]).toEqual({ command: "echo done" });
+    });
+
     it("should drop the matcher on non-tool events with a warning", async () => {
       const config = {
         version: 1,
@@ -432,6 +471,38 @@ describe("ReasonixHooks", () => {
       expect(json.hooks.preToolUse?.[0]?.timeout).toBe(5);
       expect(json.hooks.stop).toHaveLength(1);
       expect(json.hooks.stop?.[0]?.command).toBe("audit.sh");
+    });
+
+    it("should lift cwd and env back into the canonical definition", () => {
+      const reasonixHooks = new ReasonixHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".reasonix",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          hooks: {
+            Stop: [
+              { command: "audit.sh", cwd: "tools", env: { LEVEL: "1" } },
+              { command: "bad.sh", cwd: 42, env: { LEVEL: 1 } },
+              { command: "nl.sh", env: { LEVEL: "a\nb", "PATH=/tmp/evil": "x", KEEP: "ok" } },
+            ],
+          },
+        }),
+        validate: false,
+      });
+
+      const json = reasonixHooks.toRulesyncHooks().getJson();
+      expect(json.hooks.stop?.[0]).toEqual({
+        type: "command",
+        command: "audit.sh",
+        cwd: "tools",
+        env: { LEVEL: "1" },
+      });
+      expect(json.hooks.stop?.[1]).toEqual({ type: "command", command: "bad.sh" });
+      expect(json.hooks.stop?.[2]).toEqual({
+        type: "command",
+        command: "nl.sh",
+        env: { KEEP: "ok" },
+      });
     });
 
     it("should carry an event named toString through as a plain string key (#2757)", () => {

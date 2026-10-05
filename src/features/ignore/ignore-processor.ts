@@ -24,11 +24,13 @@ import { ContinueIgnore } from "./continue-ignore.js";
 import { CrushIgnore } from "./crush-ignore.js";
 import { CursorIgnore } from "./cursor-ignore.js";
 import { DevinIgnore } from "./devin-ignore.js";
+import { GrokcliIgnore } from "./grokcli-ignore.js";
 import { HermesagentIgnore } from "./hermesagent-ignore.js";
 import { JunieIgnore } from "./junie-ignore.js";
 import { KiloIgnore } from "./kilo-ignore.js";
 import { KiroIgnore } from "./kiro-ignore.js";
 import { LettacodeIgnore } from "./lettacode-ignore.js";
+import { QoderIgnore } from "./qoder-ignore.js";
 import { QwencodeIgnore } from "./qwencode-ignore.js";
 import { ReasonixIgnore } from "./reasonix-ignore.js";
 import { RooIgnore } from "./roo-ignore.js";
@@ -79,6 +81,8 @@ export const toolIgnoreFactories = new Map<IgnoreProcessorToolTarget, ToolIgnore
   ["continue", { class: ContinueIgnore }],
   ["crush", { class: CrushIgnore }],
   ["cursor", { class: CursorIgnore }],
+  // Grok CLI has no ignore file; the deny list goes into a sandbox profile.
+  ["grokcli", { class: GrokcliIgnore }],
   ["hermesagent", { class: HermesagentIgnore }],
   ["junie", { class: JunieIgnore }],
   ["kilo", { class: KiloIgnore }],
@@ -87,6 +91,7 @@ export const toolIgnoreFactories = new Map<IgnoreProcessorToolTarget, ToolIgnore
   ["kiro-ide", { class: KiroIgnore }],
   // Letta Code reads `.letta/.lettaignore` from the project only.
   ["lettacode", { class: LettacodeIgnore }],
+  ["qoder", { class: QoderIgnore }],
   ["qwencode", { class: QwencodeIgnore }],
   ["reasonix", { class: ReasonixIgnore }],
   ["roo", { class: RooIgnore }],
@@ -103,6 +108,9 @@ const ignoreProcessorToolTargets: ToolTarget[] = [...toolIgnoreFactories.keys()]
 const ignoreProcessorGlobalToolTargets: ToolTarget[] = [
   "continue",
   "devin",
+  "grokcli",
+  // Kilo's global ignore file is the legacy `~/.kilocode/.kilocodeignore`.
+  "kilo",
   "kiro",
   "kiro-cli",
   "kiro-ide",

@@ -11,6 +11,8 @@ import {
   AUGMENTCODE_HOOK_EVENTS,
   BOB_HOOK_EVENTS,
   CLAUDE_HOOK_EVENTS,
+  CODEBUDDY_HOOK_EVENTS,
+  CODEBUDDY_MATCHER_HOOK_EVENTS,
   CODEXCLI_HOOK_EVENTS,
   CODEWHALE_HOOK_EVENTS,
   CODEWHALE_MATCHER_HOOK_EVENTS,
@@ -36,8 +38,10 @@ import {
   KIRO_IDE_HOOK_EVENTS,
   LETTACODE_HOOK_EVENTS,
   OPENCODE_HOOK_EVENTS,
+  OPENCODE_MATCHER_HOOK_EVENTS,
   PI_HOOK_EVENTS,
   POOL_HOOK_EVENTS,
+  QODER_HOOK_EVENTS,
   QWENCODE_HOOK_EVENTS,
   REASONIX_HOOK_EVENTS,
   TABNINE_HOOK_EVENTS,
@@ -60,10 +64,12 @@ import { AmpHooks } from "./amp-hooks.js";
 import { AntigravityCliHooks, AntigravityIdeHooks } from "./antigravity-hooks.js";
 import { AntigravityPluginHooks } from "./antigravity-plugin-hooks.js";
 import { AugmentcodeHooks } from "./augmentcode-hooks.js";
+import { AugmentcodePluginHooks } from "./augmentcode-plugin-hooks.js";
 import { BobHooks } from "./bob-hooks.js";
 import { ClaudecodeHooks } from "./claudecode-hooks.js";
 import { ClaudecodePluginHooks } from "./claudecode-plugin-hooks.js";
 import { ClineHooks } from "./cline-hooks.js";
+import { CodebuddyHooks } from "./codebuddy-hooks.js";
 import { CodewhaleHooks } from "./codewhale-hooks.js";
 import { CodexcliHooks } from "./codexcli-hooks.js";
 import { CommandcodeHooks } from "./commandcode-hooks.js";
@@ -75,6 +81,7 @@ import { CrushHooks } from "./crush-hooks.js";
 import { CursorHooks } from "./cursor-hooks.js";
 import { DeepagentsHooks } from "./deepagents-hooks.js";
 import { DevinHooks } from "./devin-hooks.js";
+import { DevinPluginHooks } from "./devin-plugin-hooks.js";
 import { FactorydroidHooks } from "./factorydroid-hooks.js";
 import { GitlabduoHooks } from "./gitlabduo-hooks.js";
 import { GooseHooks } from "./goose-hooks.js";
@@ -91,6 +98,7 @@ import { MimocodeHooks } from "./mimocode-hooks.js";
 import { OpencodeHooks } from "./opencode-hooks.js";
 import { PiHooks } from "./pi-hooks.js";
 import { PoolHooks } from "./pool-hooks.js";
+import { QoderHooks } from "./qoder-hooks.js";
 import { QwencodeHooks } from "./qwencode-hooks.js";
 import { ReasonixHooks } from "./reasonix-hooks.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
@@ -102,7 +110,9 @@ import type {
 } from "./tool-hooks.js";
 import { ToolHooks } from "./tool-hooks.js";
 import { VibeHooks } from "./vibe-hooks.js";
+import { VibePluginHooks } from "./vibe-plugin-hooks.js";
 import { ZcodeHooks } from "./zcode-hooks.js";
+import { ZcodePluginHooks } from "./zcode-plugin-hooks.js";
 
 export type HooksProcessorToolTarget = (typeof hooksProcessorToolTargetTuple)[number];
 
@@ -252,8 +262,17 @@ function unsupportedMatcherEventNames({
  * (`PERMISSION_OVERRIDE_KEY_ALIASES`) features for the files they share.
  */
 export const HOOKS_OVERRIDE_KEY_ALIASES: Partial<Record<ToolTarget, string>> = {
+  // Auggie plugin components are written in the `augmentcode` format, so the
+  // packaging target reads the `augmentcode` block like its other features do.
+  "augmentcode-plugin": "augmentcode",
   "kiro-cli": KIRO_HOOKS_OVERRIDE_KEY,
   "kiro-ide": KIRO_HOOKS_OVERRIDE_KEY,
+  // A ZCode plugin's hooks are ZCode hooks, so it reads the `zcode` block.
+  "zcode-plugin": "zcode",
+  // A Vibe plugin's hooks are Vibe hooks, so it reads the `vibe` block.
+  "vibe-plugin": "vibe",
+  // A Devin plugin's hooks are Devin hooks, so it reads the `devin` block.
+  "devin-plugin": "devin",
 };
 
 /** The targets whose hooks format carries a per-hook on-disk enable flag. */
@@ -261,6 +280,7 @@ const PER_HOOK_ENABLED_TARGETS: ReadonlySet<ToolTarget> = new Set([
   "kiro-cli",
   "kiro-ide",
   "zcode",
+  "zcode-plugin",
 ]);
 
 /** The targets whose hooks format carries the Kiro `confirm` prompt. */
@@ -399,6 +419,30 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
     },
   ],
   [
+    "codebuddy",
+    {
+      class: CodebuddyHooks,
+      meta: {
+        // CodeBuddy Code hooks live under the top-level `hooks` key of
+        // `.codebuddy/settings.json` (project) and `~/.codebuddy/settings.json`
+        // (user), in the Claude-Code shape with command, http, prompt and
+        // agent hooks.
+        // `matcher` is a regex over the tool name (or the event's source);
+        // UserPromptSubmit, Stop, SubagentStop and PostCompact fire
+        // unconditionally.
+        // https://www.codebuddy.ai/docs/cli/hooks
+        // https://www.codebuddy.ai/docs/cli/plugins-reference
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+      supportedEvents: CODEBUDDY_HOOK_EVENTS,
+      supportedHookTypes: ["command", "http", "prompt", "agent"],
+      supportsMatcher: true,
+      matcherEvents: CODEBUDDY_MATCHER_HOOK_EVENTS,
+    },
+  ],
+  [
     "codewhale",
     {
       class: CodewhaleHooks,
@@ -504,7 +548,7 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       supportedEvents: KILO_HOOK_EVENTS,
       supportedHookTypes: ["command"],
       supportsMatcher: true,
-      matcherEvents: ["preToolUse", "postToolUse"],
+      matcherEvents: OPENCODE_MATCHER_HOOK_EVENTS,
       // The adapter only emits its own native events; unknown override-block
       // keys are dropped, so report them.
       dropsUnknownOverrideEvents: true,
@@ -522,7 +566,7 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       supportedEvents: OPENCODE_HOOK_EVENTS,
       supportedHookTypes: ["command"],
       supportsMatcher: true,
-      matcherEvents: ["preToolUse", "postToolUse"],
+      matcherEvents: OPENCODE_MATCHER_HOOK_EVENTS,
       // The adapter only emits its own native events; unknown override-block
       // keys are dropped, so report them.
       dropsUnknownOverrideEvents: true,
@@ -540,7 +584,7 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       supportedEvents: OPENCODE_HOOK_EVENTS,
       supportedHookTypes: ["command"],
       supportsMatcher: true,
-      matcherEvents: ["preToolUse", "postToolUse"],
+      matcherEvents: OPENCODE_MATCHER_HOOK_EVENTS,
       // The adapter only emits its own native events; unknown override-block
       // keys are dropped, so report them.
       dropsUnknownOverrideEvents: true,
@@ -774,6 +818,18 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
     },
   ],
   [
+    "devin-plugin",
+    {
+      // `<plugin>/hooks.json`, the same bare event map as `.devin/hooks.v1.json`.
+      // https://docs.devin.ai/cli/extensibility/plugins/overview
+      class: DevinPluginHooks,
+      meta: { supportsProject: true, supportsGlobal: false, supportsImport: true },
+      supportedEvents: DEVIN_HOOK_EVENTS,
+      supportedHookTypes: ["command", "prompt"],
+      supportsMatcher: true,
+    },
+  ],
+  [
     "augmentcode",
     {
       class: AugmentcodeHooks,
@@ -783,6 +839,22 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
         // mirroring Claude Code's per-event matcher arrays.
         supportsProject: true,
         supportsGlobal: true,
+        supportsImport: true,
+      },
+      supportedEvents: AUGMENTCODE_HOOK_EVENTS,
+      supportedHookTypes: ["command"],
+      supportsMatcher: true,
+    },
+  ],
+  [
+    "augmentcode-plugin",
+    {
+      class: AugmentcodePluginHooks,
+      meta: {
+        // Auggie plugin bundles ship hooks in `<plugin>/hooks/hooks.json`.
+        // https://docs.augmentcode.com/cli/plugins
+        supportsProject: true,
+        supportsGlobal: false,
         supportsImport: true,
       },
       supportedEvents: AUGMENTCODE_HOOK_EVENTS,
@@ -954,6 +1026,20 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
     },
   ],
   [
+    "vibe-plugin",
+    {
+      // `<plugin>/ai.mistral.vibe/hooks.toml`, the same `[[hooks]]` array as
+      // `.vibe/hooks.toml`.
+      // https://github.com/mistralai/mistral-vibe/blob/v2.25.8/vibe/core/plugins/_native.py
+      class: VibePluginHooks,
+      meta: { supportsProject: true, supportsGlobal: false, supportsImport: true },
+      supportedEvents: VIBE_HOOK_EVENTS,
+      supportedHookTypes: ["command"],
+      supportsMatcher: true,
+      dropsUnknownOverrideEvents: true,
+    },
+  ],
+  [
     "pool",
     {
       // Pool hooks live under the `hooks` key of its settings file,
@@ -970,6 +1056,46 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       supportsMatcher: true,
       // Event names under the `pool.hooks` override (e.g. ones an import
       // filed there) are emitted verbatim by the adapter.
+    },
+  ],
+  [
+    "qoder",
+    {
+      // Qoder hooks live under the `hooks` key of `.qoder/settings.json`
+      // (project) / `~/.qoder/settings.json` (global) in the Claude-Code shape.
+      // UserPromptSubmit, Stop, CwdChanged, WorktreeCreate/Remove and the
+      // task/teammate events carry no matcher.
+      // https://docs.qoder.com/en/cli/hooks
+      class: QoderHooks,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+      supportedEvents: QODER_HOOK_EVENTS,
+      supportedHookTypes: ["command", "http", "prompt", "agent"],
+      supportsMatcher: true,
+      matcherEvents: [
+        "sessionStart",
+        "sessionEnd",
+        "preToolUse",
+        "postToolUse",
+        "postToolUseFailure",
+        "stopFailure",
+        "subagentStart",
+        "subagentStop",
+        "preCompact",
+        "postCompact",
+        "notification",
+        "configChange",
+        "instructionsLoaded",
+        "fileChanged",
+        "elicitation",
+        "elicitationResult",
+        "permissionRequest",
+        "permissionDenied",
+        "setup",
+      ],
     },
   ],
   [
@@ -1066,6 +1192,18 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       // hooks run once the user trusts them in ZCode.
       class: ZcodeHooks,
       meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
+      supportedEvents: ZCODE_HOOK_EVENTS,
+      supportedHookTypes: ["command"],
+      supportsMatcher: true,
+    },
+  ],
+  [
+    "zcode-plugin",
+    {
+      // `<plugin>/hooks/hooks.json`, the event map directly under `hooks`.
+      // https://zcode.z.ai/en/docs/plugin
+      class: ZcodePluginHooks,
+      meta: { supportsProject: true, supportsGlobal: false, supportsImport: true },
       supportedEvents: ZCODE_HOOK_EVENTS,
       supportedHookTypes: ["command"],
       supportsMatcher: true,

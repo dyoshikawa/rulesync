@@ -48,6 +48,7 @@ describe("tool targets", () => {
         "junie",
         "kilo",
         "kimi-code",
+        "kimi-code-plugin",
         "kiro",
         "kiro-cli",
         "kiro-ide",
@@ -70,6 +71,7 @@ describe("tool targets", () => {
         "vibe",
         "warp",
         "devin",
+        "devin-plugin",
         "zcode",
         "zed",
         "zoocode",
@@ -77,6 +79,9 @@ describe("tool targets", () => {
         "codebuff",
         "lettacode",
         "claudecode-plugin",
+        "vibe-plugin",
+        "warpcli",
+        "zcode-plugin",
         "agentsskills",
       ];
 

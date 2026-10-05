@@ -14,7 +14,7 @@ import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { lookupOwn } from "../../utils/own-lookup.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
-import { buildImportedHooksConfig } from "./tool-hooks-converter.js";
+import { buildImportedHooksConfig, isSafeEnvEntry } from "./tool-hooks-converter.js";
 import {
   ToolHooks,
   type ToolHooksForDeletionParams,
@@ -34,6 +34,8 @@ type ReasonixHookEntry = {
   command: string;
   description?: string;
   timeout?: number;
+  cwd?: string;
+  env?: Record<string, string>;
 };
 
 /**
@@ -108,7 +110,7 @@ function canonicalToReasonixHooks({
         // while Reasonix's `timeout` field is milliseconds, so convert.
         entry.timeout = Math.round(def.timeout * 1000);
       }
-      entries.push(entry);
+      entries.push({ ...entry, ...toReasonixInvocationContext({ def, logger }) });
     }
     if (entries.length > 0) {
       result[reasonixEvent] = [
@@ -118,6 +120,68 @@ function canonicalToReasonixHooks({
     }
   }
   return result;
+}
+
+/**
+ * The per-hook `cwd` / `env` pair (upstream `HookConfig.Cwd` / `HookConfig.Env`).
+ * `env` is a canonical field; `cwd` is not a canonical schema key, so — as with
+ * Copilot's hooks — it rides on the loose canonical definition as a
+ * passthrough field.
+ */
+function toReasonixInvocationContext({
+  def,
+  logger,
+}: {
+  def: HookDefinition;
+  logger?: Logger;
+}): Pick<ReasonixHookEntry, "cwd" | "env"> {
+  const cwd: unknown = def["cwd"];
+  const env = sanitizeEnv({ env: def.env, warn: (message) => logger?.warn(message) });
+  return {
+    ...(typeof cwd === "string" && cwd !== "" && { cwd }),
+    ...(env !== undefined && { env }),
+  };
+}
+
+function fromReasonixInvocationContext(
+  entry: Record<string, unknown>,
+): Pick<HookDefinition, "env"> & { cwd?: string } {
+  const env = sanitizeEnv({ env: entry.env });
+  return {
+    ...(typeof entry.cwd === "string" && entry.cwd !== "" && { cwd: entry.cwd }),
+    ...(env !== undefined && { env }),
+  };
+}
+
+/**
+ * Environment block safe to hand Reasonix for a hook. As with Tabnine, the
+ * per-entry rule of the shared converter (`isSafeEnvEntry`: a key holding `=`,
+ * a control character or nothing at all names a different variable than it
+ * appears to; a value may not hold a control character) is applied entry by
+ * entry and the bad ones are dropped in both directions, with a warning on
+ * export, where the value came from an authored `.rulesync/hooks.*`.
+ */
+function sanitizeEnv({
+  env,
+  warn,
+}: {
+  env: unknown;
+  warn?: (message: string) => void;
+}): Record<string, string> | undefined {
+  if (env === null || typeof env !== "object" || Array.isArray(env)) {
+    return undefined;
+  }
+  const result: Record<string, string> = {};
+  for (const [key, value] of Object.entries(env)) {
+    if (!isSafeEnvEntry({ key, value })) {
+      warn?.(
+        `Reasonix hook env entry ${JSON.stringify(key)} is not a safe KEY=VALUE pair; skipping it.`,
+      );
+      continue;
+    }
+    result[key] = value;
+  }
+  return Object.keys(result).length > 0 ? result : undefined;
 }
 
 /**
@@ -154,7 +218,7 @@ function reasonixHooksToCanonical(hooks: unknown): HooksConfig["hooks"] {
       if (typeof entry.timeout === "number") {
         def.timeout = entry.timeout / 1000;
       }
-      defs.push(def);
+      defs.push({ ...def, ...fromReasonixInvocationContext(entry) });
     }
     if (defs.length > 0) {
       canonical[canonicalEvent] = [

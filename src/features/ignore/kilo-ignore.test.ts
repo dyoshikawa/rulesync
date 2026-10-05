@@ -118,6 +118,42 @@ describe("KiloIgnore", () => {
     });
   });
 
+  describe("global scope", () => {
+    it("should resolve the legacy ~/.kilocode directory in global mode", () => {
+      expect(KiloIgnore.getSettablePaths({ global: true })).toEqual({
+        relativeDirPath: ".kilocode",
+        relativeFilePath: ".kilocodeignore",
+      });
+    });
+
+    it("should write the global file under .kilocode", () => {
+      const rulesyncIgnore = new RulesyncIgnore({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_AIIGNORE_FILE_NAME,
+        fileContent: "*.secret",
+      });
+
+      const kiloIgnore = KiloIgnore.fromRulesyncIgnore({
+        outputRoot: testDir,
+        rulesyncIgnore,
+        global: true,
+      });
+
+      expect(kiloIgnore.getFilePath()).toBe(join(testDir, ".kilocode", ".kilocodeignore"));
+      expect(kiloIgnore.getFileContent()).toBe("*.secret");
+    });
+
+    it("should read the global file from .kilocode", async () => {
+      await ensureDir(join(testDir, ".kilocode"));
+      await writeFileContent(join(testDir, ".kilocode", ".kilocodeignore"), "*.pem");
+
+      const kiloIgnore = await KiloIgnore.fromFile({ outputRoot: testDir, global: true });
+
+      expect(kiloIgnore.getRelativeDirPath()).toBe(".kilocode");
+      expect(kiloIgnore.getPatterns()).toEqual(["*.pem"]);
+    });
+  });
+
   describe("fromRulesyncIgnore", () => {
     it("should create KiloIgnore from RulesyncIgnore with default outputRoot", () => {
       const fileContent = "*.log\nnode_modules/\n.env";

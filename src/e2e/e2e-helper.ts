@@ -47,6 +47,7 @@ export async function runGenerate({
   global = false,
   deleteFiles = false,
   check = false,
+  dryRun = false,
   simulateCommands = false,
   simulateSubagents = false,
   simulateSkills = false,
@@ -60,6 +61,7 @@ export async function runGenerate({
   global?: boolean;
   deleteFiles?: boolean;
   check?: boolean;
+  dryRun?: boolean;
   simulateCommands?: boolean;
   simulateSubagents?: boolean;
   simulateSkills?: boolean;
@@ -80,6 +82,7 @@ export async function runGenerate({
     ...(global ? ["--global"] : []),
     ...(deleteFiles ? ["--delete"] : []),
     ...(check ? ["--check"] : []),
+    ...(dryRun ? ["--dry-run"] : []),
     ...(simulateCommands ? ["--simulate-commands"] : []),
     ...(simulateSubagents ? ["--simulate-subagents"] : []),
     ...(simulateSkills ? ["--simulate-skills"] : []),

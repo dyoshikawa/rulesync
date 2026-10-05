@@ -222,7 +222,7 @@ export class DevinSkill extends ToolSkill {
     validate = true,
     global = false,
   }: ToolSkillFromRulesyncSkillParams): DevinSkill {
-    const settablePaths = DevinSkill.getSettablePaths({ global });
+    const settablePaths = this.getSettablePaths({ global });
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
     const devinSection = (rulesyncFrontmatter as { devin?: DevinRulesyncSection }).devin;
     const triggers = resolveDevinTriggers({
@@ -247,7 +247,7 @@ export class DevinSkill extends ToolSkill {
       ...(triggers !== undefined && { triggers }),
     };
 
-    return new DevinSkill({
+    return new this({
       outputRoot,
       relativeDirPath: settablePaths.relativeDirPath,
       dirName: rulesyncSkill.getDirName(),
@@ -285,7 +285,7 @@ export class DevinSkill extends ToolSkill {
   static async fromDir(params: ToolSkillFromDirParams): Promise<DevinSkill> {
     const loaded = await this.loadSkillDirContent({
       ...params,
-      getSettablePaths: DevinSkill.getSettablePaths,
+      getSettablePaths: (options) => this.getSettablePaths(options),
     });
 
     const result = DevinSkillFrontmatterSchema.safeParse(loaded.frontmatter);
@@ -296,7 +296,7 @@ export class DevinSkill extends ToolSkill {
       );
     }
 
-    return new DevinSkill({
+    return new this({
       outputRoot: loaded.outputRoot,
       relativeDirPath: loaded.relativeDirPath,
       dirName: loaded.dirName,
@@ -314,8 +314,8 @@ export class DevinSkill extends ToolSkill {
     dirName,
     global = false,
   }: ToolSkillForDeletionParams): DevinSkill {
-    const settablePaths = DevinSkill.getSettablePaths({ global });
-    return new DevinSkill({
+    const settablePaths = this.getSettablePaths({ global });
+    return new this({
       outputRoot,
       relativeDirPath: relativeDirPath ?? settablePaths.relativeDirPath,
       dirName,

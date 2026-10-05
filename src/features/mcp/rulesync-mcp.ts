@@ -77,6 +77,20 @@ const kimiCodeScopedMcpSchema = z.extend(toolScopedMcpSchema, {
   toolTimeoutMs: z.optional(z.number()),
 });
 
+/**
+ * Qwen Code's tool-scoped block also carries the server-level allow/deny lists
+ * from `settings.json` (`mcp.allowed` / `mcp.excluded`): MCP server names or
+ * `*` / `?` globs over the `mcpServers` keys, with `excluded` winning when a
+ * server matches both. They gate every server, including ones rulesync did not
+ * write, so they live here rather than on a canonical server entry.
+ *
+ * @see https://qwenlm.github.io/qwen-code-docs/en/users/features/mcp/
+ */
+const qwencodeScopedMcpSchema = z.extend(toolScopedMcpSchema, {
+  allowed: z.optional(z.array(z.string())),
+  excluded: z.optional(z.array(z.string())),
+});
+
 export const RulesyncMcpFileSchema = z.looseObject({
   $schema: z.optional(z.string()),
   ...RulesyncMcpConfigSchema.shape,
@@ -85,8 +99,8 @@ export const RulesyncMcpFileSchema = z.looseObject({
   // the Kiro IDE/CLI targets read the `kiro` block (all three write the same
   // `.kiro/settings/mcp.json`, so per-variant blocks would make that shared
   // file depend on generation order). In project mode `claudecode`,
-  // `commandcode` and `qoder` share the root `.mcp.json`, so all of them apply
-  // all three blocks there.
+  // `codebuddy`, `commandcode` and `qoder` share the root `.mcp.json`, so all
+  // of them apply all four blocks there.
   amp: z.optional(toolScopedMcpSchema),
   "antigravity-cli": z.optional(toolScopedMcpSchema),
   "antigravity-ide": z.optional(toolScopedMcpSchema),
@@ -95,6 +109,7 @@ export const RulesyncMcpFileSchema = z.looseObject({
   bob: z.optional(toolScopedMcpSchema),
   claudecode: z.optional(toolScopedMcpSchema),
   cline: z.optional(toolScopedMcpSchema),
+  codebuddy: z.optional(toolScopedMcpSchema),
   codewhale: z.optional(toolScopedMcpSchema),
   codexcli: z.optional(toolScopedMcpSchema),
   commandcode: z.optional(toolScopedMcpSchema),
@@ -120,7 +135,7 @@ export const RulesyncMcpFileSchema = z.looseObject({
   omp: z.optional(toolScopedMcpSchema),
   opencode: z.optional(toolScopedMcpSchema),
   qoder: z.optional(toolScopedMcpSchema),
-  qwencode: z.optional(toolScopedMcpSchema),
+  qwencode: z.optional(qwencodeScopedMcpSchema),
   reasonix: z.optional(toolScopedMcpSchema),
   roo: z.optional(toolScopedMcpSchema),
   rovodev: z.optional(toolScopedMcpSchema),
@@ -129,6 +144,7 @@ export const RulesyncMcpFileSchema = z.looseObject({
   trae: z.optional(toolScopedMcpSchema),
   vibe: z.optional(toolScopedMcpSchema),
   warp: z.optional(toolScopedMcpSchema),
+  warpcli: z.optional(toolScopedMcpSchema),
   zed: z.optional(toolScopedMcpSchema),
 });
 
@@ -146,7 +162,8 @@ export type RulesyncMcpSettablePaths = RulesyncSourceSettablePaths;
  * Derived from `RulesyncMcpFileSchema`'s own shape so this set can never drift
  * from the schema — every tool-scoped block declared above is treated as a
  * "merge servers by name" site by `mergeMcpJsonOverlays`, and everything else
- * (including `$schema` and top-level Kimi Code timeout fields) is replaced
+ * (including `$schema`, top-level Kimi Code timeout fields and Qwen Code's
+ * `allowed` / `excluded` lists) is replaced
  * atomically.
  */
 const TOOL_SCOPED_MCP_KEYS = new Set<string>(
@@ -787,12 +804,33 @@ export class RulesyncMcp extends RulesyncFile {
     const rest = Object.fromEntries(
       Object.entries(json).filter(([key]) => !MCP_TOOL_BLOCK_KEYS.has(key)),
     );
+    // Tool-wide fields the target's translator reads from its own block (e.g.
+    // Qwen Code's server allow/deny lists) are carried through under that
+    // block's key; every other field of the block has been resolved above.
+    const retainedBlocks: Record<string, Record<string, unknown>> = {};
+    for (const blockKey of blockKeys) {
+      const toolBlock = json[blockKey];
+      const retainedFields = MCP_TOOL_BLOCK_RETAINED_FIELDS[blockKey];
+      if (!isRecord(toolBlock) || retainedFields === undefined) continue;
+      const retained = Object.fromEntries(
+        retainedFields
+          .filter((field) => field in toolBlock)
+          .map((field) => [field, toolBlock[field]]),
+      );
+      if (Object.keys(retained).length > 0) {
+        retainedBlocks[blockKey] = retained;
+      }
+    }
 
     return new RulesyncMcp({
       outputRoot: this.outputRoot,
       relativeDirPath: this.relativeDirPath,
       relativeFilePath: this.relativeFilePath,
-      fileContent: JSON.stringify({ ...rest, mcpServers: effectiveServers }, null, 2),
+      fileContent: JSON.stringify(
+        { ...rest, ...retainedBlocks, mcpServers: effectiveServers },
+        null,
+        2,
+      ),
     });
   }
 
@@ -831,6 +869,16 @@ export class RulesyncMcp extends RulesyncFile {
 const MCP_TOOL_BLOCK_KEYS: ReadonlySet<string> = new Set(mcpProcessorToolTargetTuple);
 
 /**
+ * Tool-wide (not per-server) fields of a tool-scoped block that `forTarget`
+ * keeps for that tool's own translator instead of stripping with the rest of
+ * the block. Only fields a translator maps into the generated config belong
+ * here, so translators that spread the whole rulesync JSON never see them.
+ */
+const MCP_TOOL_BLOCK_RETAINED_FIELDS: Readonly<Record<string, readonly string[]>> = {
+  qwencode: ["allowed", "excluded"],
+};
+
+/**
  * Targets whose `{toolname}.mcpServers` block key is ALWAYS another target's
  * key (at every scope): `claudecode-legacy` is a deprecated alias of
  * `claudecode`, and the Kiro IDE/CLI targets share the `kiro` block because
@@ -866,10 +914,11 @@ type McpTargetResolution = {
  *   `config`) — so both targets always apply both blocks in a fixed order
  *   (`antigravity-ide` first, `antigravity-cli` second — the CLI block wins
  *   per server on conflict).
- * - `claudecode` (and its legacy alias), `commandcode` and `qoder` share the
- *   root `.mcp.json` in PROJECT mode only (their global files differ:
- *   `~/.claude.json`, `~/.commandcode/mcp.json` and `~/.qoder/settings.json`),
- *   so in project mode the four apply the `claudecode`, `commandcode` and
+ * - `claudecode` (and its legacy alias), `codebuddy`, `commandcode` and `qoder`
+ *   share the root `.mcp.json` in PROJECT mode only (their global files
+ *   differ: `~/.claude.json`, `~/.codebuddy/.mcp.json`,
+ *   `~/.commandcode/mcp.json` and `~/.qoder/settings.json`), so in project
+ *   mode the five apply the `claudecode`, `codebuddy`, `commandcode` and
  *   `qoder` blocks in that fixed order (a later block wins per server on
  *   conflict); in global mode each reads its own block.
  */
@@ -881,10 +930,22 @@ function resolveMcpTarget({
   global: boolean;
 }): McpTargetResolution {
   const isClaudecode = toolTarget === "claudecode" || toolTarget === "claudecode-legacy";
-  if (!global && (isClaudecode || toolTarget === "commandcode" || toolTarget === "qoder")) {
+  if (
+    !global &&
+    (isClaudecode ||
+      toolTarget === "codebuddy" ||
+      toolTarget === "commandcode" ||
+      toolTarget === "qoder")
+  ) {
     return {
-      blockKeys: ["claudecode", "commandcode", "qoder"],
-      acceptedTargetNames: new Set(["claudecode", "claudecode-legacy", "commandcode", "qoder"]),
+      blockKeys: ["claudecode", "codebuddy", "commandcode", "qoder"],
+      acceptedTargetNames: new Set([
+        "claudecode",
+        "claudecode-legacy",
+        "codebuddy",
+        "commandcode",
+        "qoder",
+      ]),
     };
   }
   if (isClaudecode) {

@@ -12,3 +12,13 @@ export const QWENCODE_RULE_FILE_NAME = "QWEN.md";
 export const QWENCODE_LOCAL_RULE_FILE_NAME = "QWEN.local.md";
 export const QWENCODE_IGNORE_FILE_NAME = ".qwenignore";
 export const QWENCODE_SETTINGS_FILE_NAME = "settings.json";
+// Claude-parity project MCP file at the project root (v0.18.1). Qwen Code
+// layers it above user settings but beneath workspace `.qwen/settings.json`,
+// so rulesync only reads it on import and never writes to it.
+// https://github.com/QwenLM/qwen-code/blob/main/packages/cli/src/config/mcpServers.ts
+export const QWENCODE_PROJECT_MCP_FILE_NAME = ".mcp.json";
+// Project review rules read by `/review` ahead of its fallbacks
+// (`.github/copilot-instructions.md`, then a `## Code Review` section in
+// AGENTS.md / QWEN.md). PR reviews read it from the base branch.
+// https://qwenlm.github.io/qwen-code-docs/en/users/features/code-review/
+export const QWENCODE_REVIEW_RULES_FILE_NAME = "review-rules.md";

@@ -1304,6 +1304,7 @@ describe("CommandsProcessor", () => {
           "claudecode-legacy",
           "cline",
           "codebuddy",
+          "codewhale",
           "commandcode",
           "continue",
           "copilot",
@@ -1314,6 +1315,7 @@ describe("CommandsProcessor", () => {
           "grokcli",
           "junie",
           "kilo",
+          "kimi-code-plugin",
           "kiro",
           "kiro-cli",
           "kiro-ide",
@@ -1332,6 +1334,7 @@ describe("CommandsProcessor", () => {
           "devin",
           "warp",
           "zcode",
+          "zcode-plugin",
         ]),
       );
     });
@@ -1351,6 +1354,7 @@ describe("CommandsProcessor", () => {
           "claudecode-legacy",
           "cline",
           "codebuddy",
+          "codewhale",
           "commandcode",
           "continue",
           "copilot",
@@ -1361,6 +1365,7 @@ describe("CommandsProcessor", () => {
           "grokcli",
           "junie",
           "kilo",
+          "kimi-code-plugin",
           "kiro",
           "kiro-cli",
           "kiro-ide",
@@ -1379,6 +1384,7 @@ describe("CommandsProcessor", () => {
           "devin",
           "warp",
           "zcode",
+          "zcode-plugin",
         ]),
       );
     });
@@ -1397,6 +1403,7 @@ describe("CommandsProcessor", () => {
           "claudecode-legacy",
           "cline",
           "codebuddy",
+          "codewhale",
           "codexcli",
           "commandcode",
           "continue",
@@ -1517,6 +1524,7 @@ describe("CommandsProcessor", () => {
         "claudecode-legacy",
         "cline",
         "codebuddy",
+        "codewhale",
         "junie",
         "kilo",
         "roo",

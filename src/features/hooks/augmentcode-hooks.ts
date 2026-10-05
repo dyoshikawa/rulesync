@@ -51,7 +51,7 @@ const AUGMENTCODE_NO_MATCHER_EVENTS: ReadonlySet<string> = new Set([
 // `projectDirVar` is intentionally empty: Auggie exposes `AUGMENT_PROJECT_DIR`
 // only as a runtime environment variable, not as an inline command substitution,
 // so commands are emitted verbatim without a directory prefix.
-const AUGMENTCODE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
+export const AUGMENTCODE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   supportedEvents: AUGMENTCODE_HOOK_EVENTS,
   canonicalToToolEventNames: CANONICAL_TO_AUGMENTCODE_EVENT_NAMES,
   toolToCanonicalEventNames: AUGMENTCODE_TO_CANONICAL_EVENT_NAMES,

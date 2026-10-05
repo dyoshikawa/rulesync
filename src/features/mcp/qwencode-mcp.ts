@@ -1,9 +1,16 @@
 import { join } from "node:path";
 
-import { QWENCODE_DIR, QWENCODE_SETTINGS_FILE_NAME } from "../../constants/qwencode-paths.js";
+import {
+  QWENCODE_DIR,
+  QWENCODE_PROJECT_MCP_FILE_NAME,
+  QWENCODE_SETTINGS_FILE_NAME,
+} from "../../constants/qwencode-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { McpServers } from "../../types/mcp.js";
+import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import type { Logger } from "../../utils/logger.js";
+import { isPlainObject, isStringArray } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
@@ -60,6 +67,84 @@ function convertFromQwencodeFormat(mcpServers: Record<string, unknown>): Record<
   );
 }
 
+/**
+ * Server-level allow/deny lists Qwen Code reads from the `mcp` object in
+ * `settings.json`, carried in rulesync as `qwencode.allowed` /
+ * `qwencode.excluded` in `.rulesync/mcp.json`.
+ * https://qwenlm.github.io/qwen-code-docs/en/users/features/mcp/
+ */
+const QWENCODE_MCP_SERVER_LIST_KEYS = ["allowed", "excluded"] as const;
+
+function pickServerLists(source: unknown): Record<string, string[]> {
+  if (!isPlainObject(source)) {
+    return {};
+  }
+  return Object.fromEntries(
+    QWENCODE_MCP_SERVER_LIST_KEYS.flatMap((key) => {
+      const value = source[key];
+      return isStringArray(value) ? [[key, value]] : [];
+    }),
+  );
+}
+
+/**
+ * Build the `mcp` patch for `settings.json`, or `undefined` when the rulesync
+ * source authors neither list. The gateway replaces `mcp` wholesale, so the
+ * object is recomputed from the existing file: keys rulesync does not manage
+ * (`mcp.serverCommand`, timeouts, …) and a list the source leaves out survive.
+ */
+function buildMcpSettingsPatch({
+  rulesyncMcp,
+  existingContent,
+}: {
+  rulesyncMcp: RulesyncMcp;
+  existingContent: string;
+}): Record<string, unknown> | undefined {
+  const lists = pickServerLists((rulesyncMcp.getJson() as Record<string, unknown>).qwencode);
+  if (Object.keys(lists).length === 0) {
+    return undefined;
+  }
+  let existingMcp: Record<string, unknown> = {};
+  try {
+    const parsed: unknown = JSON.parse(existingContent);
+    if (isPlainObject(parsed) && isPlainObject(parsed.mcp)) {
+      existingMcp = parsed.mcp;
+    }
+  } catch {
+    // An unparseable file is reported by the gateway when the patch is applied.
+  }
+  return { ...existingMcp, ...lists };
+}
+
+/**
+ * Read the `mcpServers` of the project-root `.mcp.json`, or `{}` when the file
+ * is absent or declares no server map. Entries keep Claude's `type`-based
+ * transport shape, which is already rulesync's canonical shape. Like Qwen Code,
+ * a malformed file is reported and skipped so it cannot hide the servers of
+ * `.qwen/settings.json`.
+ */
+async function readProjectMcpJsonServers({
+  outputRoot,
+  logger,
+}: {
+  outputRoot: string;
+  logger?: Logger;
+}): Promise<Record<string, unknown>> {
+  const filePath = join(outputRoot, QWENCODE_PROJECT_MCP_FILE_NAME);
+  const content = await readFileContentOrNull(filePath);
+  if (content === null) {
+    return {};
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(content);
+  } catch (error) {
+    logger?.warn(`Skipping malformed ${filePath} for Qwen Code MCP import: ${formatError(error)}`);
+    return {};
+  }
+  return isPlainObject(parsed) && isPlainObject(parsed.mcpServers) ? parsed.mcpServers : {};
+}
+
 export class QwencodeMcp extends ToolMcp {
   private readonly json: Record<string, unknown>;
 
@@ -89,6 +174,7 @@ export class QwencodeMcp extends ToolMcp {
     outputRoot = process.cwd(),
     validate = true,
     global = false,
+    logger,
   }: ToolMcpFromFileParams): Promise<QwencodeMcp> {
     const paths = this.getSettablePaths({ global });
     const fileContent =
@@ -96,7 +182,17 @@ export class QwencodeMcp extends ToolMcp {
         join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
       )) ?? '{"mcpServers":{}}';
     const json = JSON.parse(fileContent);
-    const newJson = { ...json, mcpServers: json.mcpServers ?? {} };
+    // In project scope Qwen Code also loads the Claude-parity `.mcp.json`
+    // beneath `.qwen/settings.json`, so its servers are merged in underneath
+    // and a same-named settings server wins. It has no global counterpart.
+    const projectMcpJsonServers = global
+      ? {}
+      : await readProjectMcpJsonServers({ outputRoot, logger });
+    const settingsServers = isPlainObject(json.mcpServers) ? json.mcpServers : {};
+    const newJson = {
+      ...json,
+      mcpServers: { ...projectMcpJsonServers, ...settingsServers },
+    };
 
     return new QwencodeMcp({
       outputRoot,
@@ -118,6 +214,7 @@ export class QwencodeMcp extends ToolMcp {
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const existingContent =
       (await readFileContentOrNull(filePath)) ?? JSON.stringify({ mcpServers: {} }, null, 2);
+    const mcpPatch = buildMcpSettingsPatch({ rulesyncMcp, existingContent });
 
     return new QwencodeMcp({
       outputRoot,
@@ -131,7 +228,10 @@ export class QwencodeMcp extends ToolMcp {
         fileKey: sharedConfigFileKey(paths),
         feature: "mcp",
         existingContent,
-        patch: { mcpServers: convertToQwencodeFormat(rulesyncMcp.getMcpServers()) },
+        patch: {
+          mcpServers: convertToQwencodeFormat(rulesyncMcp.getMcpServers()),
+          ...(mcpPatch !== undefined && { mcp: mcpPatch }),
+        },
         filePath,
       }),
       validate,
@@ -142,8 +242,16 @@ export class QwencodeMcp extends ToolMcp {
     const mcpServers = convertFromQwencodeFormat(
       (this.json.mcpServers as Record<string, unknown>) ?? {},
     );
+    const serverLists = pickServerLists(this.json.mcp);
     return this.toRulesyncMcpDefault({
-      fileContent: JSON.stringify({ mcpServers }, null, 2),
+      fileContent: JSON.stringify(
+        {
+          mcpServers,
+          ...(Object.keys(serverLists).length > 0 && { qwencode: serverLists }),
+        },
+        null,
+        2,
+      ),
     });
   }
 

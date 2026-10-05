@@ -10,7 +10,7 @@ import {
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
 import { HooksProcessor } from "../features/hooks/hooks-processor.js";
-import { fileExists, readFileContent, writeFileContent } from "../utils/file.js";
+import { fileExists, readFileContent, removeFile, writeFileContent } from "../utils/file.js";
 import { getHermesagentGlobalDir } from "../utils/hermesagent.js";
 import {
   assertGenerateMatrixCoversTargets,
@@ -66,6 +66,10 @@ const hooksKeyedEventNames: Record<string, { sessionStart: string; stop: string 
   // ~/.snowflake/cortex/hooks.json (global); commands are anchored with
   // $CORTEX_PROJECT_DIR only when they start with `./`.
   cortexcode: { sessionStart: "SessionStart", stop: "Stop" },
+  // CodeBuddy Code stores Claude-style PascalCase events under the `hooks`
+  // key of .codebuddy/settings.json in both scopes; dot-relative commands are
+  // anchored with $CODEBUDDY_PROJECT_DIR.
+  codebuddy: { sessionStart: "SessionStart", stop: "Stop" },
   // Command Code stores Claude-style PascalCase events under the `hooks` key
   // of .commandcode/settings.json in both scopes; commands are anchored with
   // $COMMANDCODE_PROJECT_DIR only when they start with `./`.
@@ -78,6 +82,10 @@ const hooksKeyedEventNames: Record<string, { sessionStart: string; stop: string 
   // .letta/settings.json in both scopes; hooks run with the project directory
   // as their working directory, so commands are written verbatim.
   lettacode: { sessionStart: "SessionStart", stop: "Stop" },
+  // Qoder stores Claude-style PascalCase events under the `hooks` key of
+  // .qoder/settings.json in both scopes; commands are anchored with
+  // $QODER_PROJECT_DIR only when they start with `./`.
+  qoder: { sessionStart: "SessionStart", stop: "Stop" },
 };
 
 function assertHooksKeyedEvents({
@@ -108,6 +116,7 @@ const hooksGenerateTargets = [
   { target: "amp", outputPath: join(".amp", "plugins", "rulesync-hooks.ts") },
   { target: "claudecode", outputPath: join(".claude", "settings.json") },
   { target: "claudecode-plugin", outputPath: join("hooks", "hooks.json") },
+  { target: "zcode-plugin", outputPath: join("hooks", "hooks.json") },
   { target: "cursor", outputPath: join(".cursor", "hooks.json") },
   { target: "mimocode", outputPath: join(".mimocode", "plugins", "rulesync-hooks.js") },
   { target: "opencode", outputPath: join(".opencode", "plugins", "rulesync-hooks.js") },
@@ -130,12 +139,15 @@ const hooksGenerateTargets = [
   { target: "antigravity-plugin", outputPath: "hooks.json" },
   { target: "antigravity-cli", outputPath: join(".agents", "hooks.json") },
   { target: "augmentcode", outputPath: join(".augment", "settings.json") },
+  { target: "augmentcode-plugin", outputPath: join("hooks", "hooks.json") },
   { target: "bob", outputPath: join(".bob", "settings.json") },
   { target: "tabnine", outputPath: join(".tabnine", "agent", "settings.json") },
   { target: "cortexcode", outputPath: join(".cortex", "settings.json") },
+  { target: "codebuddy", outputPath: join(".codebuddy", "settings.json") },
   { target: "commandcode", outputPath: join(".commandcode", "settings.json") },
   { target: "continue", outputPath: join(".continue", "settings.json") },
   { target: "lettacode", outputPath: join(".letta", "settings.json") },
+  { target: "qoder", outputPath: join(".qoder", "settings.json") },
   { target: "gitlabduo", outputPath: join(".gitlab", "duo", "hooks.json") },
   { target: "grokcli", outputPath: join(".grok", "hooks", "rulesync.json") },
   { target: "cline", outputPath: join(".clinerules", "hooks", "rulesync-hooks.json") },
@@ -145,6 +157,8 @@ const hooksGenerateTargets = [
 // Targets exercised by dedicated `it`s (bespoke per-tool serialization).
 const hooksProjectStandaloneTargets = [
   "vibe",
+  "vibe-plugin",
+  "devin-plugin",
   "codewhale",
   "devin",
   "reasonix",
@@ -229,6 +243,15 @@ describe("E2E: hooks", () => {
         expect(parsed.hooks.SessionStart).toBeDefined();
         expect(parsed.hooks.Stop).toBeDefined();
         expect(parsed.hooks.SessionStart[0].hooks[0].command).toContain('"$CLAUDE_PROJECT_DIR"/');
+      } else if (target === "augmentcode-plugin") {
+        // Auggie plugin hooks use PascalCase events, and dot-relative scripts
+        // are anchored to the plugin root rather than the consumer's workspace.
+        expect(parsed.hooks.SessionStart[0].hooks[0].command).toBe(
+          '"$AUGMENT_PLUGIN_ROOT"/.rulesync/hooks/session-start.sh',
+        );
+        expect(parsed.hooks.Stop[0].hooks[0].command).toBe(
+          '"$AUGMENT_PLUGIN_ROOT"/.rulesync/hooks/audit.sh',
+        );
       } else if (target === "kiro") {
         // The deprecated `kiro` alias keeps the embedded
         // .kiro/agents/default.json agent-hook format and event mapping:
@@ -285,6 +308,14 @@ describe("E2E: hooks", () => {
         expect(parsed.hooks.events.Stop).toBeDefined();
         expect(JSON.stringify(parsed.hooks.events)).toContain(".rulesync/hooks/session-start.sh");
         expect(JSON.stringify(parsed.hooks.events)).toContain(".rulesync/hooks/audit.sh");
+      } else if (target === "zcode-plugin") {
+        // A ZCode plugin's hooks/hooks.json holds the PascalCase event map
+        // directly under `hooks`, without the config file's `events` wrapper.
+        expect(parsed.hooks.events).toBeUndefined();
+        expect(JSON.stringify(parsed.hooks.SessionStart)).toContain(
+          ".rulesync/hooks/session-start.sh",
+        );
+        expect(JSON.stringify(parsed.hooks.Stop)).toContain(".rulesync/hooks/audit.sh");
       } else if (target === "deepagents") {
         // deepagents-cli gets the Hooks v2 document: PascalCase HookEvent keys
         // over matcher groups holding string commands (no bash -c argv
@@ -481,6 +512,57 @@ describe("E2E: hooks", () => {
     const importedContent = await readFileContent(join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH));
     expect(importedContent).toContain("preToolUse");
     expect(importedContent).toContain("echo audit");
+  });
+
+  it("should generate vibe-plugin hooks into ai.mistral.vibe/hooks.toml", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH),
+      JSON.stringify({
+        version: 1,
+        hooks: { preToolUse: [{ command: "./scripts/audit.sh", matcher: "bash" }] },
+      }),
+    );
+
+    await runGenerate({ target: "vibe-plugin", features: "hooks" });
+
+    // Same `[[hooks]]` array as `.vibe/hooks.toml`; Vibe runs plugin hooks in
+    // the plugin root, so the relative command is kept as written.
+    const generatedContent = await readFileContent(join(testDir, "ai.mistral.vibe", "hooks.toml"));
+    expect(generatedContent).toContain('type = "pre_tool"');
+    expect(generatedContent).toContain('command = "./scripts/audit.sh"');
+    expect(await fileExists(join(testDir, ".vibe", "hooks.toml"))).toBe(false);
+  });
+
+  it("should generate devin-plugin hooks into the plugin-root hooks.json", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH),
+      JSON.stringify({
+        version: 1,
+        hooks: { preToolUse: [{ command: "./scripts/audit.sh", matcher: "exec" }] },
+      }),
+    );
+
+    await runGenerate({ target: "devin-plugin", features: "hooks" });
+
+    // Same bare event map as `.devin/hooks.v1.json`, at the plugin root.
+    const parsed = JSON.parse(await readFileContent(join(testDir, "hooks.json")));
+    expect(parsed).toEqual({
+      PreToolUse: [
+        { matcher: "exec", hooks: [{ type: "command", command: "./scripts/audit.sh" }] },
+      ],
+    });
+    expect(await fileExists(join(testDir, ".devin", "hooks.v1.json"))).toBe(false);
+
+    await removeFile(join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH));
+    await runImport({ target: "devin-plugin", features: "hooks" });
+
+    const importedContent = await readFileContent(join(testDir, RULESYNC_HOOKS_RELATIVE_FILE_PATH));
+    expect(importedContent).toContain("preToolUse");
+    expect(importedContent).toContain("./scripts/audit.sh");
   });
 
   it("should generate codewhale hooks into .codewhale/hooks.toml", async () => {
@@ -977,6 +1059,20 @@ describe("E2E: hooks (import)", () => {
       },
     },
     {
+      // CodeBuddy Code stores hooks under the `hooks` key of
+      // .codebuddy/settings.json using Claude-style PascalCase event names;
+      // SessionStart round-trips to the canonical `sessionStart` event.
+      target: "codebuddy",
+      sourcePath: join(".codebuddy", "settings.json"),
+      sourceContent: {
+        hooks: {
+          SessionStart: [
+            { hooks: [{ type: "command", command: "echo session started", timeout: 30 }] },
+          ],
+        },
+      },
+    },
+    {
       // Command Code stores hooks under the `hooks` key of
       // .commandcode/settings.json using Claude-style PascalCase event names;
       // SessionStart round-trips to the canonical `sessionStart` event.
@@ -1019,6 +1115,20 @@ describe("E2E: hooks (import)", () => {
       },
     },
     {
+      // Qoder stores hooks under the `hooks` key of .qoder/settings.json using
+      // Claude-style PascalCase event names and second timeouts; SessionStart
+      // round-trips to the canonical `sessionStart` event.
+      target: "qoder",
+      sourcePath: join(".qoder", "settings.json"),
+      sourceContent: {
+        hooks: {
+          SessionStart: [
+            { hooks: [{ type: "command", command: "echo session started", timeout: 30 }] },
+          ],
+        },
+      },
+    },
+    {
       // deepagents-cli uses the Hooks v2 document (PascalCase HookEvent keys
       // over matcher groups); SessionStart round-trips to canonical `sessionStart`.
       target: "deepagents",
@@ -1040,6 +1150,21 @@ describe("E2E: hooks (import)", () => {
         hooks: {
           SessionStart: [
             { matcher: "", hooks: [{ type: "command", command: "echo session started" }] },
+          ],
+        },
+      },
+    },
+    {
+      // Auggie plugin bundles ship hooks in `hooks/hooks.json` with PascalCase
+      // events; the documented `${AUGMENT_PLUGIN_ROOT}` prefix is stripped.
+      target: "augmentcode-plugin",
+      sourcePath: join("hooks", "hooks.json"),
+      sourceContent: {
+        hooks: {
+          SessionStart: [
+            {
+              hooks: [{ type: "command", command: "${AUGMENT_PLUGIN_ROOT}/hooks/start.sh" }],
+            },
           ],
         },
       },
@@ -1101,9 +1226,11 @@ const hooksGlobalTargets = [
   { target: "bob", outputPath: join(".bob", "settings", "settings.json") },
   { target: "tabnine", outputPath: join(".tabnine", "agent", "settings.json") },
   { target: "cortexcode", outputPath: join(".snowflake", "cortex", "hooks.json") },
+  { target: "codebuddy", outputPath: join(".codebuddy", "settings.json") },
   { target: "commandcode", outputPath: join(".commandcode", "settings.json") },
   { target: "continue", outputPath: join(".continue", "settings.json") },
   { target: "lettacode", outputPath: join(".letta", "settings.json") },
+  { target: "qoder", outputPath: join(".qoder", "settings.json") },
   { target: "kiro-ide", outputPath: join(".kiro", "hooks", "rulesync.json") },
   { target: "kiro-cli", outputPath: join(".kiro", "hooks", "rulesync.json") },
   { target: "gitlabduo", outputPath: join(".gitlab", "duo", "hooks.json") },

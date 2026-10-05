@@ -1,10 +1,17 @@
+import { symlink } from "node:fs/promises";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
 import { RULESYNC_COMMANDS_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import { CommandsProcessor } from "../features/commands/commands-processor.js";
-import { fileExists, readFileContent, removeFile, writeFileContent } from "../utils/file.js";
+import {
+  ensureDir,
+  fileExists,
+  readFileContent,
+  removeFile,
+  writeFileContent,
+} from "../utils/file.js";
 import { getHermesagentGlobalDir } from "../utils/hermesagent.js";
 import {
   assertGenerateMatrixCoversTargets,
@@ -18,6 +25,8 @@ const commandsGenerateTargets = [
   { target: "claudecode", outputPath: join(".claude", "commands", "review-pr.md") },
   { target: "claudecode-plugin", outputPath: join("commands", "review-pr.md") },
   { target: "augmentcode-plugin", outputPath: join("commands", "review-pr.md") },
+  { target: "zcode-plugin", outputPath: join("commands", "review-pr.md") },
+  { target: "kimi-code-plugin", outputPath: join("commands", "review-pr.md") },
   { target: "cursor", outputPath: join(".cursor", "commands", "review-pr.md") },
   { target: "augmentcode", outputPath: join(".augment", "commands", "review-pr.md") },
   { target: "bob", outputPath: join(".bob", "commands", "review-pr.md") },
@@ -27,6 +36,7 @@ const commandsGenerateTargets = [
   { target: "opencode", outputPath: join(".opencode", "commands", "review-pr.md") },
   { target: "cline", outputPath: join(".clinerules", "workflows", "review-pr.md") },
   { target: "codebuddy", outputPath: join(".codebuddy", "commands", "review-pr.md") },
+  { target: "codewhale", outputPath: join(".codewhale", "commands", "review-pr.md") },
   { target: "kilo", outputPath: join(".kilo", "commands", "review-pr.md") },
   { target: "tabnine", outputPath: join(".tabnine", "agent", "commands", "review-pr.toml") },
   { target: "continue", outputPath: join(".continue", "prompts", "review-pr.md") },
@@ -71,6 +81,7 @@ const commandsGlobalTargets = [
   { target: "codexcli", outputPath: join(".codex", "prompts", "review-pr.md") },
   { target: "cline", outputPath: join("Documents", "Cline", "Workflows", "review-pr.md") },
   { target: "codebuddy", outputPath: join(".codebuddy", "commands", "review-pr.md") },
+  { target: "codewhale", outputPath: join(".codewhale", "commands", "review-pr.md") },
   { target: "kilo", outputPath: join(".config", "kilo", "commands", "review-pr.md") },
   { target: "junie", outputPath: join(".junie", "commands", "review-pr.md") },
   { target: "kiro-cli", outputPath: join(".kiro", "prompts", "review-pr.md") },
@@ -207,6 +218,7 @@ Check the PR diff and provide feedback.
     { target: "opencode", orphanPath: join(".opencode", "commands", "orphan.md") },
     { target: "cline", orphanPath: join(".clinerules", "workflows", "orphan.md") },
     { target: "codebuddy", orphanPath: join(".codebuddy", "commands", "orphan.md") },
+    { target: "codewhale", orphanPath: join(".codewhale", "commands", "orphan.md") },
     { target: "kilo", orphanPath: join(".kilo", "commands", "orphan.md") },
     { target: "roo", orphanPath: join(".roo", "commands", "orphan.md") },
     { target: "kiro", orphanPath: join(".kiro", "prompts", "orphan.md") },
@@ -243,6 +255,46 @@ Check the PR diff and provide feedback.
       });
 
       expect(await readFileContent(join(testDir, orphanPath))).toBe("# orphan\n");
+    },
+  );
+
+  it.skipIf(process.platform === "win32")(
+    "should keep both targets' commands when one commands directory is a link to the other",
+    async () => {
+      // `.cursor/commands -> .claude/commands` is one directory under two
+      // spellings, so the cursor sweep must not read the claudecode-only
+      // command as its orphan.
+      const testDir = getTestDir();
+      const stalePath = join(testDir, ".claude", "commands", "left-over.md");
+      await writeFileContent(
+        join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "claude-only.md"),
+        [
+          "---",
+          'targets: ["claudecode"]',
+          'description: "Claude only"',
+          "---",
+          "Claude body.",
+        ].join("\n"),
+      );
+      await writeFileContent(stalePath, "# left over\n");
+      await ensureDir(join(testDir, ".cursor"));
+      await symlink(join(testDir, ".claude", "commands"), join(testDir, ".cursor", "commands"));
+
+      await runGenerate({ target: "claudecode,cursor", features: "commands", deleteFiles: true });
+
+      expect(
+        await readFileContent(join(testDir, ".claude", "commands", "claude-only.md")),
+      ).toContain("Claude body.");
+      expect(await fileExists(stalePath)).toBe(false);
+      await expect(
+        runGenerate({
+          target: "claudecode,cursor",
+          features: "commands",
+          deleteFiles: true,
+          check: true,
+          env: { NODE_ENV: "e2e" },
+        }),
+      ).resolves.toMatchObject({ stdout: expect.stringContaining("All files are up to date") });
     },
   );
 });
@@ -317,6 +369,7 @@ describe("E2E: commands (import)", () => {
     { target: "opencode", sourcePath: join(".opencode", "commands", "review-pr.md") },
     { target: "cline", sourcePath: join(".clinerules", "workflows", "review-pr.md") },
     { target: "codebuddy", sourcePath: join(".codebuddy", "commands", "review-pr.md") },
+    { target: "codewhale", sourcePath: join(".codewhale", "commands", "review-pr.md") },
     { target: "kilo", sourcePath: join(".kilo", "commands", "review-pr.md") },
     { target: "roo", sourcePath: join(".roo", "commands", "review-pr.md") },
     { target: "kiro", sourcePath: join(".kiro", "prompts", "review-pr.md") },

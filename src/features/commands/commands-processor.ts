@@ -45,6 +45,7 @@ import { ClaudecodeCommand } from "./claudecode-command.js";
 import { ClaudecodePluginCommand } from "./claudecode-plugin-command.js";
 import { ClineCommand } from "./cline-command.js";
 import { CodebuddyCommand } from "./codebuddy-command.js";
+import { CodewhaleCommand } from "./codewhale-command.js";
 import { CodexcliCommand } from "./codexcli-command.js";
 import { CommandcodeCommand } from "./commandcode-command.js";
 import { ContinueCommand } from "./continue-command.js";
@@ -65,6 +66,7 @@ import {
 } from "./hermesagent-command.js";
 import { JunieCommand } from "./junie-command.js";
 import { KiloCommand } from "./kilo-command.js";
+import { KimiCodePluginCommand } from "./kimi-code-plugin-command.js";
 import { KiroCliCommand } from "./kiro-cli-command.js";
 import { KiroCommand } from "./kiro-command.js";
 import { KiroIdeCommand } from "./kiro-ide-command.js";
@@ -89,6 +91,7 @@ import {
 } from "./tool-command.js";
 import { WarpCommand } from "./warp-command.js";
 import { ZcodeCommand } from "./zcode-command.js";
+import { ZcodePluginCommand } from "./zcode-plugin-command.js";
 import { ZoocodeCommand } from "./zoocode-command.js";
 
 /**
@@ -358,6 +361,23 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
     },
   ],
   [
+    "codewhale",
+    {
+      class: CodewhaleCommand,
+      meta: {
+        // Codewhale reads Markdown user commands from `.codewhale/commands/`
+        // (trusted workspaces only) and `~/.codewhale/commands/`, scanning
+        // each directory flat.
+        // https://github.com/Hmbown/Codewhale/blob/main/docs/architecture/command-dispatch.md
+        extension: "md",
+        supportsProject: true,
+        supportsGlobal: true,
+        isSimulated: false,
+        supportsSubdirectory: false,
+      },
+    },
+  ],
+  [
     "codexcli",
     {
       class: CodexcliCommand,
@@ -525,6 +545,23 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
         supportsGlobal: true,
         isSimulated: false,
         supportsSubdirectory: false,
+      },
+    },
+  ],
+  [
+    "kimi-code-plugin",
+    {
+      // `<plugin>/commands/**/*.md`, registered as `/<plugin>:<name>` once the
+      // manifest declares `"commands": "./commands/"`. Kimi collects the
+      // directory recursively and names nested files by their relative path.
+      // https://github.com/MoonshotAI/kimi-code/blob/%40moonshot-ai/kimi-code%402.1.1/docs/en/customization/plugins.md
+      class: KimiCodePluginCommand,
+      meta: {
+        extension: "md",
+        supportsProject: true,
+        supportsGlobal: false,
+        isSimulated: false,
+        supportsSubdirectory: true,
       },
     },
   ],
@@ -802,6 +839,21 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
         extension: "md",
         supportsProject: true,
         supportsGlobal: true,
+        isSimulated: false,
+        supportsSubdirectory: false,
+      },
+    },
+  ],
+  [
+    "zcode-plugin",
+    {
+      // `<plugin>/commands/*.md`, parsed like `.zcode/commands/`.
+      // https://zcode.z.ai/en/docs/plugin
+      class: ZcodePluginCommand,
+      meta: {
+        extension: "md",
+        supportsProject: true,
+        supportsGlobal: false,
         isSimulated: false,
         supportsSubdirectory: false,
       },

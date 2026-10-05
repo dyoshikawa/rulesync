@@ -28,10 +28,12 @@ import {
  * `name` and `description` are required upstream; the rest are optional and
  * documented with defaults (`tools: []`, `mainAgent: true`, `subagent: true`,
  * `model: inherit`, `commandExecutionPolicy: sandbox`, `mcpServers: []`,
- * `skills`/`plugins`: `[]`). `hidden` and `inheritMcp` appear in the v1.1.6
- * release notes but not in the documented frontmatter table, so they are
- * accepted as verbatim passthrough without any behavior modeled around them.
- * `looseObject` keeps unknown future fields round-tripping.
+ * `skills`/`plugins`: `[]`). Keys that appear only in release notes — `hidden`,
+ * the per-kind `inheritMcp` (v1.1.6, replaced by the single
+ * `inheritCustomizations` switch in CLI v1.1.14), `rules`, `agents`, `hooks`,
+ * `excludeDefaultComponents` — are accepted as verbatim passthrough without any
+ * behavior modeled around them. `looseObject` keeps unknown future fields
+ * round-tripping.
  *
  * @see https://antigravity.google/docs/subagents
  */

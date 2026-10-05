@@ -2994,3 +2994,167 @@ describe("KiloMcp toggle entries", () => {
     expect(kiloMcp.validate().success).toBe(true);
   });
 });
+
+describe("KiloMcp env var references", () => {
+  let testDir: string;
+  let cleanup: () => Promise<void>;
+
+  beforeEach(async () => {
+    ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
+  });
+
+  afterEach(async () => {
+    await cleanup();
+    vi.restoreAllMocks();
+  });
+
+  const rulesyncMcpWithRefs = () =>
+    new RulesyncMcp({
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: ".mcp.json",
+      fileContent: JSON.stringify({
+        mcpServers: {
+          local: {
+            command: "node",
+            args: ["server.js"],
+            env: { API_KEY: "${MY_API_KEY}", PAIR: "${A}-${B}", DEBUG: "true" },
+          },
+          remote: {
+            type: "http",
+            url: "https://example.com/mcp",
+            headers: { Authorization: "Bearer ${API_TOKEN}" },
+          },
+          plain: { command: "plain-server" },
+        },
+      }),
+    });
+
+  it("converts ${VAR} to Kilo's {env:VAR} in global mode", async () => {
+    const mockLogger = { warn: vi.fn() } as unknown as Logger;
+    const kiloMcp = await KiloMcp.fromRulesyncMcp({
+      outputRoot: testDir,
+      rulesyncMcp: rulesyncMcpWithRefs(),
+      global: true,
+      logger: mockLogger,
+    });
+    const mcp = JSON.parse(kiloMcp.getFileContent()).mcp;
+
+    expect(mcp.local.environment).toEqual({
+      API_KEY: "{env:MY_API_KEY}",
+      PAIR: "{env:A}-{env:B}",
+      DEBUG: "true",
+    });
+    expect(mcp.remote.headers).toEqual({ Authorization: "Bearer {env:API_TOKEN}" });
+    expect(mockLogger.warn).not.toHaveBeenCalled();
+  });
+
+  it("does not convert ${VAR} in project mode, keeping it literal with a warning", async () => {
+    // Kilo treats a project config as untrusted: any `{env:` makes it drop the
+    // whole file, or the server when it is in MCP headers.
+    const mockLogger = { warn: vi.fn() } as unknown as Logger;
+    const kiloMcp = await KiloMcp.fromRulesyncMcp({
+      outputRoot: testDir,
+      rulesyncMcp: rulesyncMcpWithRefs(),
+      logger: mockLogger,
+    });
+    const content = kiloMcp.getFileContent();
+    const mcp = JSON.parse(content).mcp;
+
+    expect(content).not.toContain("{env:");
+    expect(mcp.local.environment.API_KEY).toBe("${MY_API_KEY}");
+    expect(mcp.remote.headers.Authorization).toBe("Bearer ${API_TOKEN}");
+    expect(mockLogger.warn).toHaveBeenCalledTimes(1);
+    expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('"local", "remote"'));
+    expect(mockLogger.warn).not.toHaveBeenCalledWith(expect.stringContaining('"plain"'));
+  });
+
+  it("skips a server already carrying {env: in project mode instead of breaking the config", async () => {
+    // Kilo rejects any `{env:` in a project JSON config, Cursor's `${env:VAR}`
+    // included, and would drop the whole shared `kilo.jsonc` with it.
+    const mockLogger = { warn: vi.fn() } as unknown as Logger;
+    const rulesyncMcp = new RulesyncMcp({
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: ".mcp.json",
+      fileContent: JSON.stringify({
+        mcpServers: {
+          cursorStyle: { command: "node", env: { KEY: "${env:MY_KEY}" } },
+          urlRef: { type: "http", url: "https://example.com/{env:TENANT}/mcp" },
+          plain: { command: "plain-server" },
+        },
+      }),
+    });
+
+    const kiloMcp = await KiloMcp.fromRulesyncMcp({
+      outputRoot: testDir,
+      rulesyncMcp,
+      logger: mockLogger,
+    });
+    const content = kiloMcp.getFileContent();
+
+    expect(content).not.toContain("{env:");
+    expect(Object.keys(JSON.parse(content).mcp)).toEqual(["plain"]);
+    expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('skipping "cursorStyle"'));
+    expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('skipping "urlRef"'));
+  });
+
+  it("keeps a toggle in project mode even when its dropped fields carry {env:", async () => {
+    // A toggle keeps only `enabled`, so the dropped `env` cannot reach the file;
+    // skipping it would switch back on a server another layer disabled.
+    const rulesyncMcp = new RulesyncMcp({
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: ".mcp.json",
+      fileContent: JSON.stringify({
+        mcpServers: { toggled: { disabled: true, env: { KEY: "${env:MY_KEY}" } } },
+      }),
+    });
+
+    const kiloMcp = await KiloMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+
+    expect(JSON.parse(kiloMcp.getFileContent()).mcp).toEqual({ toggled: { enabled: false } });
+  });
+
+  it("does not warn in project mode when no server uses env var references", async () => {
+    const mockLogger = { warn: vi.fn() } as unknown as Logger;
+    const rulesyncMcp = new RulesyncMcp({
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: ".mcp.json",
+      fileContent: JSON.stringify({
+        mcpServers: { plain: { command: "plain-server", env: { DEBUG: "true" } } },
+      }),
+    });
+
+    await KiloMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp, logger: mockLogger });
+
+    expect(mockLogger.warn).not.toHaveBeenCalled();
+  });
+
+  it("maps Kilo's {env:VAR} back to ${VAR} on import, leaving ${env:VAR} untouched", () => {
+    const kiloMcp = new KiloMcp({
+      relativeDirPath: join(".config", "kilo"),
+      relativeFilePath: "kilo.jsonc",
+      fileContent: JSON.stringify({
+        mcp: {
+          local: {
+            type: "local",
+            command: ["node", "server.js"],
+            environment: { API_KEY: "{env:MY_API_KEY}", CURSOR_STYLE: "${env:MY_KEY}" },
+          },
+          remote: {
+            type: "remote",
+            url: "https://example.com/mcp",
+            headers: { Authorization: "Bearer {env:API_TOKEN}" },
+          },
+        },
+      }),
+    });
+
+    const imported = JSON.parse(kiloMcp.toRulesyncMcp().getFileContent());
+
+    expect(imported.mcpServers.local.env).toEqual({
+      API_KEY: "${MY_API_KEY}",
+      CURSOR_STYLE: "${env:MY_KEY}",
+    });
+    expect(imported.mcpServers.remote.headers).toEqual({ Authorization: "Bearer ${API_TOKEN}" });
+  });
+});

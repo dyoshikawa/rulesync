@@ -11,6 +11,7 @@ import {
   RULESYNC_MCP_RELATIVE_FILE_PATH,
   RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH,
 } from "../constants/rulesync-paths.js";
+import { warpcliConfigDir } from "../constants/warp-paths.js";
 import { getZedGlobalDir } from "../constants/zed-paths.js";
 import { McpProcessor } from "../features/mcp/mcp-processor.js";
 import { fileExists, readFileContent, writeFileContent } from "../utils/file.js";
@@ -36,12 +37,16 @@ const mcpGenerateTargets = [
   { target: "claudecode", outputPath: ".mcp.json" },
   { target: "claudecode-plugin", outputPath: ".mcp.json" },
   { target: "augmentcode-plugin", outputPath: ".mcp.json" },
+  { target: "zcode-plugin", outputPath: ".mcp.json" },
+  { target: "vibe-plugin", outputPath: "mcp.json" },
+  { target: "devin-plugin", outputPath: ".mcp.json" },
   { target: "codebuff", outputPath: join(".agents", "mcp.json") },
   { target: "cursor", outputPath: join(".cursor", "mcp.json") },
   { target: "trae", outputPath: join(".trae", "mcp.json") },
   { target: "qwencode", outputPath: join(".qwen", "settings.json") },
   { target: "codexcli", outputPath: join(".codex", "config.toml") },
   { target: "codewhale", outputPath: join(".codewhale", "mcp.json") },
+  { target: "codebuddy", outputPath: ".mcp.json" },
   { target: "commandcode", outputPath: ".mcp.json" },
   { target: "qoder", outputPath: ".mcp.json" },
   { target: "gitlabduo", outputPath: join(".gitlab", "duo", "mcp.json") },
@@ -208,6 +213,40 @@ describe("E2E: mcp", () => {
         url: "https://example.com/events",
       },
     });
+  });
+
+  it("should generate and import the Qwen Code server allow/deny lists", async () => {
+    const testDir = getTestDir();
+
+    // Hand-written keys in `mcp` that rulesync does not manage must survive.
+    await writeFileContent(
+      join(testDir, ".qwen", "settings.json"),
+      JSON.stringify({ mcp: { serverCommand: "keep-me" } }),
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH),
+      JSON.stringify({
+        mcpServers: { local: { type: "stdio", command: "node", args: ["server.js"] } },
+        qwencode: { allowed: ["local"], excluded: ["legacy-*"] },
+      }),
+    );
+
+    await runGenerate({ target: "qwencode", features: "mcp" });
+
+    const generated = JSON.parse(await readFileContent(join(testDir, ".qwen", "settings.json")));
+    expect(generated.mcp).toEqual({
+      serverCommand: "keep-me",
+      allowed: ["local"],
+      excluded: ["legacy-*"],
+    });
+    expect(generated.mcpServers.local.command).toBe("node");
+
+    await runImport({ target: "qwencode", features: "mcp" });
+
+    const imported = JSON.parse(
+      await readFileContent(join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH)),
+    );
+    expect(imported.qwencode).toEqual({ allowed: ["local"], excluded: ["legacy-*"] });
   });
 
   it("should translate copilotcli enabledTools into the tools allowlist in both directions", async () => {
@@ -413,6 +452,7 @@ describe("E2E: mcp", () => {
     // (isDeletable=false) — excluded
     { target: "claudecode", orphanPath: ".mcp.json" },
     { target: "codebuff", orphanPath: join(".agents", "mcp.json") },
+    { target: "codebuddy", orphanPath: ".mcp.json" },
     { target: "commandcode", orphanPath: ".mcp.json" },
     { target: "qoder", orphanPath: ".mcp.json" },
     { target: "continue", orphanPath: join(".continue", "mcpServers", "mcp.json") },
@@ -755,6 +795,7 @@ describe("E2E: mcp (import)", () => {
     { target: "tabnine", sourcePath: join(".tabnine", "agent", "settings.json") },
     { target: "claudecode", sourcePath: ".mcp.json" },
     { target: "codebuff", sourcePath: join(".agents", "mcp.json") },
+    { target: "codebuddy", sourcePath: ".mcp.json" },
     { target: "commandcode", sourcePath: ".mcp.json" },
     { target: "qoder", sourcePath: ".mcp.json" },
     { target: "cursor", sourcePath: join(".cursor", "mcp.json") },
@@ -963,6 +1004,7 @@ const mcpGlobalTargets = [
   { target: "cortexcode", outputPath: join(".snowflake", "cortex", "mcp.json") },
   { target: "codebuff", outputPath: join(".agents", "mcp.json") },
   { target: "codewhale", outputPath: join(".codewhale", "mcp.json") },
+  { target: "codebuddy", outputPath: join(".codebuddy", ".mcp.json") },
   { target: "commandcode", outputPath: join(".commandcode", "mcp.json") },
   { target: "qoder", outputPath: join(".qoder", "settings.json") },
   { target: "musecode", outputPath: join(".config", "muse", "settings.json") },
@@ -980,6 +1022,7 @@ const mcpGlobalTargets = [
     outputPath: join(".gemini", "config", "mcp_config.json"),
   },
   { target: "warp", outputPath: join(".warp", ".mcp.json") },
+  { target: "warpcli", outputPath: join(warpcliConfigDir(), ".mcp.json") },
   { target: "zed", outputPath: join(getZedGlobalDir(), "settings.json") },
   {
     target: "devin",

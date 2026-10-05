@@ -9,12 +9,14 @@ import { RulesyncMcp } from "../features/mcp/rulesync-mcp.js";
 import { PermissionsProcessor } from "../features/permissions/permissions-processor.js";
 import { RulesyncPermissions } from "../features/permissions/rulesync-permissions.js";
 import { RulesProcessor } from "../features/rules/rules-processor.js";
+import { serializeSharedConfig } from "../features/shared/shared-config-gateway.js";
 import { RulesyncSkill } from "../features/skills/rulesync-skill.js";
 import { SkillsProcessor } from "../features/skills/skills-processor.js";
 import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
 import type { RulesyncFile, RulesyncFileParams } from "../types/rulesync-file.js";
 import type { ToolTarget } from "../types/tool-targets.js";
 import { formatError } from "../utils/error.js";
+import { fileExists, readFileContent } from "../utils/file.js";
 import type { Logger } from "../utils/logger.js";
 import {
   assertPluginRootSafe,
@@ -519,13 +521,77 @@ async function importPermissionsCore(params: {
     paths: RulesyncPermissions.getSettablePaths(),
     sourceClass: RulesyncPermissions,
   });
-  const { count: writtenCount } = await permissionsProcessor.writeAiFiles(rulesyncFiles);
+  const mergedFiles = await mergeIntoExistingPermissions({ files: rulesyncFiles, tool, logger });
+  const { count: writtenCount } = await permissionsProcessor.writeAiFiles(mergedFiles);
 
   if (config.getVerbose() && writtenCount > 0) {
     logger.success(`Created ${writtenCount} permissions file(s)`);
   }
 
   return writtenCount;
+}
+
+/**
+ * Fold each imported permissions document into the canonical file already on
+ * disk (see `RulesyncPermissions.mergeImportedJson`), so importing from one
+ * tool keeps the categories an earlier import from another tool produced. The
+ * existing file is validated first: one that cannot be read is an error rather
+ * than something to overwrite. Comments in a JSONC source are kept wherever
+ * the edit allows.
+ */
+async function mergeIntoExistingPermissions({
+  files,
+  tool,
+  logger,
+}: {
+  files: RulesyncFile[];
+  tool: ToolTarget;
+  logger: Logger;
+}): Promise<RulesyncFile[]> {
+  const first = files[0];
+  if (!first || !(await fileExists(first.getFilePath()))) {
+    return files;
+  }
+
+  const withContent = (fileContent: string): RulesyncPermissions =>
+    new RulesyncPermissions({
+      outputRoot: first.getOutputRoot(),
+      relativeDirPath: first.getRelativeDirPath(),
+      relativeFilePath: first.getRelativeFilePath(),
+      fileContent,
+      validate: true,
+    });
+
+  const existingContent = await readFileContent(first.getFilePath());
+  let existing: Record<string, unknown>;
+  try {
+    existing = withContent(existingContent).getJson();
+  } catch (error) {
+    throw new Error(
+      `Cannot merge imported permissions into ${first.getRelativePathFromCwd()}: the existing file is invalid (${formatError(error)}). Fix or remove it, then import again.`,
+      { cause: error },
+    );
+  }
+
+  const merged = files.reduce(
+    (document, file) =>
+      file instanceof RulesyncPermissions
+        ? RulesyncPermissions.mergeImportedJson({
+            existing: document,
+            imported: file.getJson(),
+            toolTarget: tool,
+          })
+        : document,
+    existing,
+  );
+  const fileContent = serializeSharedConfig({
+    format: "jsonc",
+    document: merged,
+    existingContent,
+    filePath: first.getRelativePathFromCwd(),
+    logger,
+  });
+  return [withContent(fileContent)];
 }
 
 async function importChecksCore(params: {
