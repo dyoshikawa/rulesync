@@ -76,10 +76,28 @@ describe("buildAntigravityPermissionEntry", () => {
       ["*", "read_url"],
       ["domain:*", "read_url"],
     ])("writes %s as %s", (pattern, expected) => {
-      const { entry, logger } = build({ action: "read_url", pattern });
+      const { entry } = build({ action: "read_url", pattern });
       expect(entry).toBe(expected);
-      expect(logger.warn).not.toHaveBeenCalled();
     });
+
+    it.each(["*.example.com", "https://*.example.com/*", "*"])(
+      "does not warn when the allow %s already covers what the domain does",
+      (pattern) => {
+        const { logger } = build({ action: "read_url", pattern });
+        expect(logger.warn).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each(["example.com", "https://example.com/*", "domain:example.com"])(
+      "warns that the allow %s also covers subdomains",
+      (pattern) => {
+        const { entry, logger } = build({ action: "read_url", pattern });
+        expect(entry).toBe("read_url(example.com)");
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining("all of example.com and its subdomains"),
+        );
+      },
+    );
 
     it("warns when an allow covers more of the site than its path", () => {
       const { entry, logger } = build({
@@ -128,12 +146,14 @@ describe("buildAntigravityPermissionEntry", () => {
       ["npm run *", "command(npm run)"],
       ["npm   run *", "command(npm run)"],
       ["npm run test:*", "command(regex:^npm$ ^run$ ^test:.*$)"],
-      ["docker * *", "command(regex:^docker$ ^.*$)"],
+      // Each `*` word needs a word; only `<words> *` is a plain prefix.
+      ["docker * *", "command(regex:^docker$ ^.*$ ^.*$)"],
       ["git log*", "command(regex:^git$ ^log.*$)"],
       ["regex:^ls$ ^-la$", "command(regex:^ls$ ^-la$)"],
+      ["regex:^ls$ ^-(la|l)$", "command(regex:^ls$ ^-(la|l)$)"],
       // Range endpoints are escaped, so `\\` through `z` stays a range.
-      ["x[\\-z] *", "command(regex:^x[\\\\-z]$)"],
-      ["x[]-a] *", "command(regex:^x[\\]-a]$)"],
+      ["x[\\-z]*", "command(regex:^x[\\\\-z].*$)"],
+      ["x[]-a]*", "command(regex:^x[\\]-a].*$)"],
     ])("writes %s as %s", (pattern, expected) => {
       const { entry, logger } = build({ action: "command", pattern });
       expect(entry).toBe(expected);
@@ -157,6 +177,19 @@ describe("buildAntigravityPermissionEntry", () => {
       });
       expect(entry).toBe("command(git status)");
       expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("skips a regex that a space splits into invalid words", () => {
+      const { entry, logger } = build({
+        action: "command",
+        pattern: "regex:^ls( -la)?$",
+        decision: "deny",
+      });
+      expect(entry).toBeUndefined();
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("`^ls(` is not a valid regex"),
+      );
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("NOT enforced"));
     });
 
     it("skips a bracket range that runs backwards", () => {

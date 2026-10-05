@@ -22,11 +22,13 @@ import { parseGlobPattern } from "../../utils/glob.js";
  *   with more words after it.
  * - A word with a glob in it becomes a per-word regex, and so do the literal
  *   words around it (`npm run test:*` → `regex:^npm$ ^run$ ^test:.*$`).
- * - A trailing ` *` is dropped, since extra words already match. A `*` that
- *   has a literal word after it can stand for any number of words, which a
- *   word-by-word match cannot say, so such a pattern is not translated.
+ * - A `*` that has a literal word after it can stand for any number of
+ *   words, which a word-by-word match cannot say, so such a pattern is not
+ *   translated. Trailing `*` words each need one word (`docker * *` →
+ *   `regex:^docker$ ^.*$ ^.*$`), except that `<words> *` is a plain prefix.
  * - A canonical pattern that already starts with `regex:` is passed through,
- *   so a rule imported from Antigravity round-trips.
+ *   so a rule imported from Antigravity round-trips, unless one of its words
+ *   is not a valid regex on its own (`regex:^ls( -la)?$` splits at the space).
  *
  * @see https://antigravity.google/docs/permissions?tab=cli
  */
@@ -57,6 +59,17 @@ function escapeClassCharacter(character: string): string {
 // compile blocks nothing.
 function hasBackwardRange(step: GlobStep): boolean {
   return step.kind === "class" && step.ranges.some(([low, high]) => low > high);
+}
+
+// Antigravity (Go) uses RE2, not JavaScript regex. The two agree on what a
+// word like `^ls(` is: unbalanced, so the rule would never compile.
+function isInvalidRegex(source: string): boolean {
+  try {
+    new RegExp(source);
+    return false;
+  } catch {
+    return true;
+  }
 }
 
 // A bracket class that holds a space can match across two words.
@@ -135,7 +148,12 @@ function wordToRegexSource(word: readonly GlobStep[]): string {
  */
 export function toAntigravityCommandTarget(pattern: string): CommandTargetResult {
   if (pattern.startsWith(REGEX_PREFIX)) {
-    return { target: pattern };
+    const invalid = pattern.slice(REGEX_PREFIX.length).trim().split(/\s+/).find(isInvalidRegex);
+    return invalid === undefined
+      ? { target: pattern }
+      : {
+          skipReason: `Antigravity compiles each word of a regex on its own, and \`${invalid}\` is not a valid regex`,
+        };
   }
   const steps = parseGlobPattern(pattern).steps;
   if (steps.some(classMatchesWhitespace)) {
@@ -148,13 +166,9 @@ export function toAntigravityCommandTarget(pattern: string): CommandTargetResult
     return { skipReason: "A bracket range runs backwards, so it has no regex spelling" };
   }
   const words = splitIntoWords(steps);
-  // Extra words after the target already match, so a trailing ` *` adds nothing.
-  if (words.length > 1 && isStarWord(words.at(-1) ?? [])) {
-    words.pop();
-  }
   // A `*` stands for any number of words, but each regex word matches one. Only
-  // `*` words may follow it, since they each take one word and the rest of the
-  // command is free anyway.
+  // `*` words may follow it: each takes one word, and the last one's extra
+  // words are free, since Antigravity lets them follow anyway.
   const multiWordStar = words.some(
     (word, index) =>
       word.some((step) => step.kind === "star") &&
@@ -173,6 +187,13 @@ export function toAntigravityCommandTarget(pattern: string): CommandTargetResult
       : "Antigravity also matches the command with more words after it";
   if (words.every(isLiteralWord)) {
     return { target: words.map(wordToLiteral).join(" "), note };
+  }
+  // `<words> *` is a plain prefix. It also matches the bare command, as a
+  // prefix rule does in the other adapters. More `*` words stay regex words,
+  // so `docker * *` still needs two more words.
+  const head = words.slice(0, -1);
+  if (head.length > 0 && isStarWord(words.at(-1) ?? []) && head.every(isLiteralWord)) {
+    return { target: head.map(wordToLiteral).join(" ") };
   }
   return { target: `${REGEX_PREFIX}${words.map(wordToRegexSource).join(" ")}`, note };
 }
@@ -233,11 +254,10 @@ function regexToGlob(source: string): string | undefined {
   if (multiWordStar) {
     return undefined;
   }
-  // Extra words after the last one still match. A last word like `install*`
-  // already says so; a `*` word still needs a word of its own.
-  const last = globs.at(-1) ?? "";
+  // Extra words after the last one still match. A last word that ends in `*`
+  // already says so.
   const glob = globs.join(" ");
-  return last.endsWith("*") && last !== "*" ? glob : `${glob} *`;
+  return glob.endsWith("*") ? glob : `${glob} *`;
 }
 
 /**

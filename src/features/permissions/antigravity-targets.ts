@@ -91,20 +91,26 @@ function toUrlTarget(pattern: string): TargetResult {
   const authorityEnd = withoutScheme.search(/[/?#]/);
   const authority = authorityEnd === -1 ? withoutScheme : withoutScheme.slice(0, authorityEnd);
   const path = authorityEnd === -1 ? "" : withoutScheme.slice(authorityEnd);
-  const host = authority
+  const hostWithWildcard = authority
     .replace(/^[^@]*@/, "")
     .replace(/:\d+$/, "")
-    .replace(/^\*\./, "")
     .toLowerCase();
+  const coversSubdomains = hostWithWildcard.startsWith("*.");
+  const host = hostWithWildcard.replace(/^\*\./, "");
   if (!HOSTNAME.test(host)) {
     return {
       skipReason: "Antigravity URL targets are domains. No hostname could be read from it",
     };
   }
   const coversWholeSite = ["", "/", "/*", "/**"].includes(path);
-  return coversWholeSite
-    ? { target: host }
-    : { target: host, note: `Antigravity ignores the URL path, so it covers all of ${host}` };
+  if (coversWholeSite && coversSubdomains) {
+    return { target: host };
+  }
+  const subdomains = coversSubdomains ? "" : " and its subdomains";
+  return {
+    target: host,
+    note: `Antigravity matches by domain, so it covers all of ${host}${subdomains}`,
+  };
 }
 
 function toTarget(action: string, pattern: string): TargetResult {
