@@ -83,6 +83,11 @@ type ReasonixPlugin = Record<string, unknown> & {
 // settling which wins when a canonical `disabled` and a hand-written
 // `auto_start` disagree — in both the write and the import direction — is its
 // own decision, left on #2599.
+// These two are also value-checked on the way out
+// (`invalidSchedulingFieldReason`): Reasonix decodes `reasonix.toml` with
+// BurntSushi/toml into a `string` / `*bool`, and a type mismatch fails the load
+// of the whole file, not just this entry. The other passthrough fields are not
+// checked yet.
 // @see https://github.com/esengine/DeepSeek-Reasonix/blob/main-v2/docs/SPEC.md
 // (§3.16 for `concurrency`) and `internal/config/plugin_entry.go` for the
 // `[[plugins]]` field names.
@@ -286,6 +291,40 @@ function warnAboutRetiredFields({
   }
 }
 
+/**
+ * The `concurrency` values Reasonix honors. It trims and lowercases before
+ * comparing (`mcpServerIsSerial` in `internal/agent/mcp_concurrency.go`), so
+ * `" Serial "` counts too and is written as authored.
+ */
+const REASONIX_CONCURRENCY_VALUES: ReadonlySet<string> = new Set(["serial", "parallel"]);
+
+/**
+ * Why a `concurrency` / `auto_start` value cannot be written, or `undefined`
+ * when it can (and for every other field). A wrong type is the case that
+ * matters: Reasonix declares the fields as `string` / `*bool`, and a TOML type
+ * mismatch makes it refuse the whole config file. An unknown `concurrency`
+ * string decodes fine but is ignored in favor of the server-name default, so it
+ * is dropped too rather than written as a setting that does nothing.
+ * @see https://github.com/esengine/DeepSeek-Reasonix/blob/main-v2/internal/config/plugin_entry.go
+ */
+function invalidSchedulingFieldReason(field: string, value: unknown): string | undefined {
+  if (field === "auto_start" && typeof value !== "boolean") {
+    return "Reasonix expects a boolean and fails to load a config file holding any other type.";
+  }
+  if (field === "concurrency") {
+    if (typeof value !== "string") {
+      return "Reasonix expects a string and fails to load a config file holding any other type.";
+    }
+    if (!REASONIX_CONCURRENCY_VALUES.has(value.trim().toLowerCase())) {
+      return (
+        `Reasonix accepts only "serial" or "parallel" and ignores ${JSON.stringify(value)}, ` +
+        `falling back to the server-name default.`
+      );
+    }
+  }
+  return undefined;
+}
+
 function rulesyncMcpServerToReasonix(
   name: string,
   server: McpServer,
@@ -327,9 +366,16 @@ function rulesyncMcpServerToReasonix(
     if (field === "type" || field === "command" || field === "args") {
       continue;
     }
-    if (serverRecord[field] !== undefined) {
-      plugin[field] = serverRecord[field];
+    const value = serverRecord[field];
+    if (value === undefined) {
+      continue;
     }
+    const invalidReason = invalidSchedulingFieldReason(field, value);
+    if (invalidReason !== undefined) {
+      logger?.warn(`Reasonix MCP: dropping "${field}" from "${name}"; ${invalidReason}`);
+      continue;
+    }
+    plugin[field] = value;
   }
   warnAboutRetiredFields({ name, serverRecord, logger });
   if (plugin.url === undefined && server.httpUrl !== undefined) {

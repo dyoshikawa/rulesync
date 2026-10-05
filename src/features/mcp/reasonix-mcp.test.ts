@@ -562,4 +562,84 @@ describe("ReasonixMcp", () => {
       expect(roundTripped.mcpServers.lazy.concurrency).toBe("serial");
     });
   });
+
+  // Reasonix decodes these into a `string` / `*bool`, and a TOML type mismatch
+  // fails the load of the whole `reasonix.toml`, so a bad value is dropped with a
+  // warning instead of being passed through.
+  describe("plugin scheduling field validation", () => {
+    const exportServer = async (server: Record<string, unknown>) => {
+      const logger = createMockLogger();
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { srv: { command: "reasonix-plugin-srv", ...server } },
+        }),
+      });
+      const reasonixMcp = await ReasonixMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        logger,
+      });
+      const parsed = smolToml.parse(reasonixMcp.getFileContent()) as any;
+      return { plugin: parsed.plugins[0], logger };
+    };
+
+    it.each([["serial"], ["parallel"], [" Serial "], ["PARALLEL"]])(
+      "should write a concurrency of %j as authored",
+      async (concurrency) => {
+        const { plugin, logger } = await exportServer({ concurrency });
+
+        expect(plugin.concurrency).toBe(concurrency);
+        expect(logger.warn).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each([[true], [false]])("should write an auto_start of %j", async (autoStart) => {
+      const { plugin, logger } = await exportServer({ auto_start: autoStart });
+
+      expect(plugin.auto_start).toBe(autoStart);
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it.each([["false"], [0], ["yes"], [null]])(
+      "should drop a non-boolean auto_start of %j with a warning",
+      async (autoStart) => {
+        const { plugin, logger } = await exportServer({ auto_start: autoStart });
+
+        expect(plugin).not.toHaveProperty("auto_start");
+        expect(plugin.command).toBe("reasonix-plugin-srv");
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining('dropping "auto_start" from "srv"'),
+        );
+      },
+    );
+
+    it.each([[1], [true], [["serial"]], [null]])(
+      "should drop a non-string concurrency of %j with a warning",
+      async (concurrency) => {
+        const { plugin, logger } = await exportServer({ concurrency });
+
+        expect(plugin).not.toHaveProperty("concurrency");
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining('dropping "concurrency" from "srv"'),
+        );
+      },
+    );
+
+    it("should drop an unknown concurrency string with a warning", async () => {
+      const { plugin, logger } = await exportServer({ concurrency: "sequential" });
+
+      expect(plugin).not.toHaveProperty("concurrency");
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('ignores "sequential"'));
+    });
+
+    it("should keep a valid field when its sibling is dropped", async () => {
+      const { plugin } = await exportServer({ concurrency: "serial", auto_start: "no" });
+
+      expect(plugin.concurrency).toBe("serial");
+      expect(plugin).not.toHaveProperty("auto_start");
+    });
+  });
 });
