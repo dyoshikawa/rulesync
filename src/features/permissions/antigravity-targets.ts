@@ -84,8 +84,8 @@ function toPathTarget(pattern: string): TargetResult {
 
 /**
  * A URL or domain pattern becomes its hostname. A leading `*.` is dropped,
- * since a domain already covers its subdomains. Claude Code's `domain:` form is
- * read as well.
+ * since a domain already covers its subdomains, and the URL path is ignored.
+ * Claude Code's `domain:` form is read as well.
  */
 function toUrlTarget(pattern: string): TargetResult {
   const withoutPrefix = pattern.startsWith("domain:") ? pattern.slice("domain:".length) : pattern;
@@ -96,26 +96,28 @@ function toUrlTarget(pattern: string): TargetResult {
   // The authority ends at the path, the query or the fragment.
   const authorityEnd = withoutScheme.search(/[/?#]/);
   const authority = authorityEnd === -1 ? withoutScheme : withoutScheme.slice(0, authorityEnd);
-  const path = authorityEnd === -1 ? "" : withoutScheme.slice(authorityEnd);
-  const hostWithWildcard = authority
+  const host = authority
     .replace(/^[^@]*@/, "")
     .replace(/:\d+$/, "")
+    .replace(/^\*\./, "")
     .toLowerCase();
-  const coversSubdomains = hostWithWildcard.startsWith("*.");
-  const host = hostWithWildcard.replace(/^\*\./, "");
+  // `https://*` names every host. The bare action also covers other schemes.
+  // With a path (`https://*/x`) it would turn into every URL, so it is skipped.
+  const path = authorityEnd === -1 ? "" : withoutScheme.slice(authorityEnd);
+  if (host === "*" && ["", "/", "/*", "/**"].includes(path)) {
+    return { target: "*", note: "Antigravity matches by domain, so it covers every URL" };
+  }
   if (!HOSTNAME.test(host)) {
     return {
       skipReason: "Antigravity URL targets are domains. No hostname could be read from it",
     };
   }
-  const coversWholeSite = ["", "/", "/*", "/**"].includes(path);
-  if (coversWholeSite && coversSubdomains) {
-    return { target: host };
-  }
-  const subdomains = coversSubdomains ? "" : " and its subdomains";
+  // A domain target always covers the domain itself, every path on it and its
+  // subdomains, which is more than any URL pattern but `*`. `*.example.com`
+  // leaves out `example.com` itself, so it widens too.
   return {
     target: host,
-    note: `Antigravity matches by domain, so it covers all of ${host}${subdomains}`,
+    note: `Antigravity matches by domain, so it covers all of ${host} and its subdomains`,
   };
 }
 

@@ -84,24 +84,37 @@ describe("buildAntigravityPermissionEntry", () => {
       expect(entry).toBe(expected);
     });
 
-    it.each(["*.example.com", "https://*.example.com/*", "*"])(
-      "does not warn when the allow %s already covers what the domain does",
+    it.each(["https://*", "https://*/*", "http://*/"])(
+      "writes %s as the bare action, warning an allow that it covers every URL",
       (pattern) => {
-        const { logger } = build({ action: "read_url", pattern });
-        expect(logger.warn).not.toHaveBeenCalled();
+        const allow = build({ action: "read_url", pattern });
+        expect(allow.entry).toBe("read_url");
+        expect(allow.logger.warn).toHaveBeenCalledWith(expect.stringContaining("every URL"));
+        const deny = build({ action: "read_url", pattern, decision: "deny" });
+        expect(deny.entry).toBe("read_url");
+        expect(deny.logger.warn).not.toHaveBeenCalled();
       },
     );
 
-    it.each(["example.com", "https://example.com/*", "domain:example.com"])(
-      "warns that the allow %s also covers subdomains",
-      (pattern) => {
-        const { entry, logger } = build({ action: "read_url", pattern });
-        expect(entry).toBe("read_url(example.com)");
-        expect(logger.warn).toHaveBeenCalledWith(
-          expect.stringContaining("all of example.com and its subdomains"),
-        );
-      },
-    );
+    it("does not warn when the allow * already covers every domain", () => {
+      const { logger } = build({ action: "read_url", pattern: "*" });
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    // `*.example.com` leaves out `example.com` itself, which the target covers.
+    it.each([
+      "example.com",
+      "https://example.com/*",
+      "domain:example.com",
+      "*.example.com",
+      "https://*.example.com/*",
+    ])("warns that the allow %s also covers the domain and its subdomains", (pattern) => {
+      const { entry, logger } = build({ action: "read_url", pattern });
+      expect(entry).toBe("read_url(example.com)");
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("all of example.com and its subdomains"),
+      );
+    });
 
     it("warns when an allow covers more of the site than its path", () => {
       const { entry, logger } = build({
@@ -159,6 +172,17 @@ describe("buildAntigravityPermissionEntry", () => {
       ["regex:(?P<cmd>ls) (?i)^-LA$", "command(regex:(?P<cmd>ls) (?i)^-LA$)"],
       ["regex:(?-i)^npm$ (?i-s:run)", "command(regex:(?-i)^npm$ (?i-s:run))"],
       ["regex:(?<cmd>ls)", "command(regex:(?<cmd>ls))"],
+      ["regex:^ls$ ^\\pl+$", "command(regex:^ls$ ^\\pl+$)"],
+      ["regex:^echo$ ^\\\\Q$", "command(regex:^echo$ ^\\\\Q$)"],
+      // Braced escapes are not repeat counts.
+      ["regex:^a\\x{2003}b$ \\p{Greek}{2}", "command(regex:^a\\x{2003}b$ \\p{Greek}{2})"],
+      [
+        "regex:^foo\\xbar$ \\x{41} \\pL\\PL \\p{Greek}\\p{^Greek}\\p{greek} \\p{L}\\p{Lu}\\p{Any}",
+        "command(regex:^foo\\xbar$ \\x{41} \\pL\\PL \\p{Greek}\\p{^Greek}\\p{greek} \\p{L}\\p{Lu}\\p{Any})",
+      ],
+      // Only inside a bracket is `[:name:]` a POSIX class.
+      ["regex:[:foobar:] []:foo:] [\\[:foo:]]", "command(regex:[:foobar:] []:foo:] [\\[:foo:]])"],
+      ["regex:[a[:alpha:]] [^[:digit:]]", "command(regex:[a[:alpha:]] [^[:digit:]])"],
       // Quoted text is literal, even what would be an escape or a group.
       ["regex:\\Q(a.\\k\\E ^-\\Qx", "command(regex:\\Q(a.\\k\\E ^-\\Qx)"],
       ["regex:a{2,1000} \\d\\x41 [[:^space:]]", "command(regex:a{2,1000} \\d\\x41 [[:^space:]])"],
@@ -214,10 +238,18 @@ describe("buildAntigravityPermissionEntry", () => {
       "regex:a{1001}",
       "regex:a{1,1001}",
       "regex:[[:foobar:]]",
+      "regex:[a[:foo:]]",
       "regex:\\u0061",
       "regex:\\U0001f600",
       "regex:\\C",
       "regex:a\\Eb",
+      "regex:\\xg1",
+      "regex:\\x4",
+      "regex:\\x{41",
+      "regex:\\p",
+      "regex:\\pX",
+      "regex:\\p{Foo}",
+      "regex:\\p{Emoji}",
     ])("skips %s, which RE2 cannot compile", (pattern) => {
       const { entry, logger } = build({ action: "command", pattern, decision: "deny" });
       expect(entry).toBeUndefined();
@@ -228,6 +260,15 @@ describe("buildAntigravityPermissionEntry", () => {
       const { entry, logger } = build({ action: "command", pattern: "x[z-a] *", decision: "deny" });
       expect(entry).toBeUndefined();
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("runs backwards"));
+    });
+
+    it("writes whitespace in a class as an escape, so it does not split the word", () => {
+      expect(build({ action: "command", pattern: "git status[! ]", decision: "deny" }).entry).toBe(
+        "command(regex:^git$ ^status[^\\x{20}]$)",
+      );
+      expect(
+        build({ action: "command", pattern: "git status[!\u2003]", decision: "deny" }).entry,
+      ).toBe("command(regex:^git$ ^status[^\\x{2003}]$)");
     });
 
     it.each(["deny", "allow"] as const)(
@@ -250,10 +291,18 @@ describe("buildAntigravityPermissionEntry", () => {
       "git * status",
       "* --force",
       "git commit-* --amend",
+      "rm *.env",
+      "git push *--force",
+      "cat a*b",
       "a[ ]b",
       "a?b",
       "a[!x]b",
       "a[!\t]b",
+      "git[! ]status",
+      "git[! \t\n\r\f\v]status",
+      "rm a[\t-\r]b",
+      "rm a[\u2003]b",
+      "rm a[\u0085]b",
       "git status[ ]",
       "git status[\t]",
     ])("skips %s, which spans words, and says the deny is not enforced", (pattern) => {

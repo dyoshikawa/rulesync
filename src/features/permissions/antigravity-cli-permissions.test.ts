@@ -453,6 +453,11 @@ describe("AntigravityCliPermissions", () => {
             "command(regex:^ls$ ^-(la|l)$)",
             "command(regex:^rm$ ^/tmp/.$)",
             "command(regex:^echo$ ^\\{yes,no\\}$)",
+            "command(regex:^rm$ ^.*\\.env$)",
+            "command(regex:^git$ ^.*status.*$)",
+            "command(regex:^echo$ ^a\\\\b$)",
+            "command(npm run [build])",
+            "command(git status *)",
           ],
         },
       }),
@@ -477,6 +482,13 @@ describe("AntigravityCliPermissions", () => {
     // `?` and `{a,b}` mean more in a glob than `.` and `\{a,b\}` do here.
     expect(json.permission.bash?.["regex:^rm$ ^/tmp/.$"]).toBe("deny");
     expect(json.permission.bash?.["regex:^echo$ ^\\{yes,no\\}$"]).toBe("deny");
+    // As a glob, `rm *.env *` would also match `rm a b.env`.
+    expect(json.permission.bash?.["regex:^rm$ ^.*\\.env$"]).toBe("deny");
+    expect(json.permission.bash?.["regex:^git$ ^.*status.*$"]).toBe("deny");
+    expect(json.permission.bash?.["regex:^echo$ ^a\\\\b$"]).toBe("deny");
+    // A plain target is literal, so glob characters in it import as a regex.
+    expect(json.permission.bash?.["regex:^npm$ ^run$ ^\\[build\\]$"]).toBe("deny");
+    expect(json.permission.bash?.["regex:^git$ ^status$ ^\\*$"]).toBe("deny");
   });
 
   it("should treat a parenthesis-less entry as a match-all pattern when parsing", () => {

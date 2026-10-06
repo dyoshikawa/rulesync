@@ -1,4 +1,4 @@
-// cspell:ignore alnum cntrl punct xdigit -- POSIX class names
+// cspell:ignore alnum cntrl punct xdigit CLMNPSZ -- POSIX classes and Unicode categories
 import { parseGlobPattern } from "../../utils/glob.js";
 
 /**
@@ -40,7 +40,9 @@ const REGEX_PREFIX = "regex:";
 // when they stand for themselves.
 const REGEX_METACHARACTERS = /[\\^$.|?*+()[\]{}]/;
 
-const WHITESPACE = /\s/;
+// JavaScript's `\s` plus U+0085, which Go's `unicode.IsSpace` (and so
+// Antigravity's word split) also counts.
+const WHITESPACE = /[\s\u0085]/;
 
 type GlobStep = ReturnType<typeof parseGlobPattern>["steps"][number];
 
@@ -52,7 +54,13 @@ function escapeRegexCharacter(character: string): string {
 
 // Inside `[...]`, only these characters carry meaning. Range endpoints are
 // escaped too, so `[\-z]` stays a range rather than becoming `-` or `z`.
+// Whitespace is written as `\x{20}` and the like: a bare space or tab would
+// split the regex word in two. The braces keep `\x{2003}` from being read as
+// `\x20` followed by `03`.
 function escapeClassCharacter(character: string): string {
+  if (WHITESPACE.test(character)) {
+    return `\\x{${(character.codePointAt(0) ?? 0).toString(16)}}`;
+  }
   return /[\\\]^-]/.test(character) ? `\\${character}` : character;
 }
 
@@ -71,8 +79,9 @@ const LOOKAROUND = /\(\?<?[=!]/;
 // cspell:disable-next-line
 const RE2_LETTER_ESCAPES = new Set("aftnrvdDsSwWbBAzxpP0");
 
-// RE2's quoted literal text: `\Q` up to `\E` or the end.
-const RE2_QUOTED = /\\Q[\s\S]*?(?:\\E|$)/g;
+// RE2's quoted literal text: `\Q` up to `\E` or the end. An escaped backslash
+// is matched first, so the `Q` in `\\Q` is a plain letter.
+const RE2_QUOTED = /\\\\|\\Q[\s\S]*?(?:\\E|$)/g;
 
 // RE2 refuses a repeat count above 1000.
 const RE2_MAX_REPEAT = 1000;
@@ -95,6 +104,83 @@ const POSIX_CLASSES = new Set([
 ]);
 
 /**
+ * Whether the text after `\p` names a Unicode class RE2 knows: a one-letter
+ * category (`\pL`) or a category or script in braces (`\p{Lu}`, `\p{Greek}`,
+ * `\p{^Greek}`). JavaScript checks the name; RE2 also takes it in lower case.
+ */
+function isUnicodeClass(rest: string): boolean {
+  const name = /^\{\^?([A-Za-z_]+)\}/.exec(rest)?.[1] ?? /^[CLMNPSZ]/i.exec(rest)?.[0];
+  if (name === undefined) {
+    return false;
+  }
+  const spellings = [name, `${name.charAt(0).toUpperCase()}${name.slice(1)}`];
+  return spellings.some(
+    (spelling) =>
+      spelling === "Any" ||
+      ["General_Category=", "Script="].some((property) => {
+        try {
+          new RegExp(`\\p{${property}${spelling}}`, "u");
+          return true;
+        } catch {
+          return false;
+        }
+      }),
+  );
+}
+
+/**
+ * Replace each POSIX class (`[:alpha:]`) inside a bracket class with a plain
+ * character, so JavaScript can compile the rest, or return `undefined` for an
+ * unknown one. Only inside a bracket is `[:name:]` a POSIX class; a bare
+ * `[:foobar:]` is an ordinary class of those characters, as in RE2.
+ */
+function replacePosixClasses(source: string): string | undefined {
+  let result = "";
+  let inClass = false;
+  let index = 0;
+  while (index < source.length) {
+    const character = source[index] ?? "";
+    if (character === "\\") {
+      result += source.slice(index, index + 2);
+      index += 2;
+      continue;
+    }
+    if (!inClass) {
+      result += character;
+      index += 1;
+      if (character === "[") {
+        inClass = true;
+        if (source[index] === "^") {
+          result += "^";
+          index += 1;
+        }
+        // A `]` first in the class is a member in RE2; JavaScript needs it escaped.
+        if (source[index] === "]") {
+          result += "\\]";
+          index += 1;
+        }
+      }
+      continue;
+    }
+    const posix = /^\[:\^?([a-z]+):\]/.exec(source.slice(index));
+    if (posix !== null) {
+      if (!POSIX_CLASSES.has(posix[1] ?? "")) {
+        return undefined;
+      }
+      result += "a";
+      index += posix[0].length;
+      continue;
+    }
+    if (character === "]") {
+      inClass = false;
+    }
+    result += character;
+    index += 1;
+  }
+  return result;
+}
+
+/**
  * Whether Antigravity (Go, RE2) would refuse a regex word, so that a word like
  * `^ls(` is caught. There is no RE2 here, so the check is conservative: it
  * refuses what RE2 lacks (lookaround, unknown escapes, repeats over 1000,
@@ -104,32 +190,43 @@ const POSIX_CLASSES = new Set([
  */
 function isInvalidRegex(source: string): boolean {
   // Quoted text is literal, so it stands in as one plain character.
-  const unquoted = source.replace(RE2_QUOTED, "q");
+  const unquoted = source.replace(RE2_QUOTED, (match) => (match === "\\\\" ? match : "q"));
   if (LOOKAROUND.test(unquoted)) {
     return true;
   }
-  for (const [, escaped = ""] of unquoted.matchAll(/\\([\s\S])/g)) {
+  for (const match of unquoted.matchAll(/\\([\s\S])/g)) {
+    const escaped = match[1] ?? "";
     if (/[a-zA-Z0-9]/.test(escaped) && !RE2_LETTER_ESCAPES.has(escaped)) {
       return true;
     }
+    // JavaScript reads a malformed `\x` or `\p` as a plain letter; RE2 refuses it.
+    const rest = unquoted.slice((match.index ?? 0) + 2);
+    if (escaped === "x" && !/^(?:[0-9a-fA-F]{2}|\{[0-9a-fA-F]+\})/.test(rest)) {
+      return true;
+    }
+    if ((escaped === "p" || escaped === "P") && !isUnicodeClass(rest)) {
+      return true;
+    }
   }
-  for (const [, low = "", high = ""] of unquoted.matchAll(/(?<!\\)\{(\d+)(?:,(\d*))?\}/g)) {
+  // `\x{2003}` and `\p{Greek}` hold braces too, but are not repeats.
+  const withoutBracedEscapes = unquoted.replace(/\\[xpP]\{[^}]*\}/g, "e");
+  for (const [, low = "", high = ""] of withoutBracedEscapes.matchAll(
+    /(?<!\\)\{(\d+)(?:,(\d*))?\}/g,
+  )) {
     if (Number(low) > RE2_MAX_REPEAT || Number(high) > RE2_MAX_REPEAT) {
       return true;
     }
   }
-  for (const [, name = ""] of unquoted.matchAll(/\[:\^?([a-z]+):\]/g)) {
-    if (!POSIX_CLASSES.has(name)) {
-      return true;
-    }
+  const withoutPosixClasses = replacePosixClasses(unquoted);
+  if (withoutPosixClasses === undefined) {
+    return true;
   }
-  const asJavaScript = unquoted
+  const asJavaScript = withoutPosixClasses
     .replace(/\(\?P</g, "(?<")
     .replace(/\(\?[imsU]*-?[imsU]*\)/g, "")
     .replace(/\(\?[imsU]*-?[imsU]*:/g, "(?:")
     .replace(/\\A/g, "^")
-    .replace(/\\z/g, "$")
-    .replace(/\[:\^?[a-z]+:\]/g, "a");
+    .replace(/\\z/g, "$");
   try {
     new RegExp(asJavaScript);
     return false;
@@ -144,23 +241,37 @@ function listsWhitespace(step: GlobStep): boolean {
   return (
     step.kind === "class" &&
     !step.negated &&
-    ([...step.members].some((member) => WHITESPACE.test(member)) ||
-      step.ranges.some(([low, high]) => low <= 0x20 && high >= 0x20))
+    WHITESPACE_CODES.some((code) => classHolds(step, code))
   );
 }
 
-// Whether a step can stand for a space: `?`, or a negated class that does not
-// exclude the space itself (`[!\t]` still admits one).
+// Every whitespace character, as JavaScript's `\s` and Go's `unicode.IsSpace`
+// read it, so a command split on any of them is covered.
+const WHITESPACE_CODES = [
+  0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x20, 0x85, 0xa0, 0x1680, 0x2000, 0x2001, 0x2002, 0x2003, 0x2004,
+  0x2005, 0x2006, 0x2007, 0x2008, 0x2009, 0x200a, 0x2028, 0x2029, 0x202f, 0x205f, 0x3000, 0xfeff,
+];
+
+function classHolds(step: GlobStep & { kind: "class" }, code: number): boolean {
+  return (
+    step.members.has(String.fromCodePoint(code)) ||
+    step.ranges.some(([low, high]) => low <= code && high >= code)
+  );
+}
+
+// Whether a step can stand for whitespace: `?`, or a negated class that does
+// not exclude every whitespace character (`[!\t]` and `[! ]` still admit one).
 function canMatchSpace(step: GlobStep): boolean {
   if (step.kind === "any") {
     return true;
   }
-  if (step.kind !== "class" || !step.negated) {
+  if (step.kind !== "class") {
+    return false;
+  }
+  if (!step.negated) {
     return listsWhitespace(step);
   }
-  const excludesSpace =
-    step.members.has(" ") || step.ranges.some(([low, high]) => low <= 0x20 && high >= 0x20);
-  return !excludesSpace;
+  return !WHITESPACE_CODES.every((code) => classHolds(step, code));
 }
 
 // `{a,b}` alternatives, which canonical patterns treat as a glob.
@@ -256,13 +367,16 @@ export function toAntigravityCommandTarget(pattern: string): CommandTargetResult
     return { skipReason: "A bracket range runs backwards, so it has no regex spelling" };
   }
   const words = splitIntoWords(steps);
-  // A `*` stands for any number of words, but each regex word matches one. Only
-  // `*` words may follow it: each takes one word, and the last one's extra
-  // words are free, since Antigravity lets them follow anyway.
+  // A `*` can stand for several words, but a regex word matches one. So a `*`
+  // is safe only at the end of its word, with nothing after that word but `*`
+  // words: each takes one word, and the rest are free, since Antigravity lets
+  // extra words follow. `rm *.env` also matches `rm -f foo.env`, which
+  // `^rm$ ^.*\.env$` misses.
   const multiWordStar = words.some(
     (word, index) =>
-      word.some((step) => step.kind === "star") &&
-      !words.slice(index + 1).every((later) => isStarWord(later)),
+      word.some((step, stepIndex) => step.kind === "star" && stepIndex < word.length - 1) ||
+      (word.some((step) => step.kind === "star") &&
+        !words.slice(index + 1).every((later) => isStarWord(later))),
   );
   if (multiWordStar) {
     return {
@@ -305,9 +419,13 @@ function regexWordToGlob(word: string): string | undefined {
     const character = characters[index] ?? "";
     if (character === "\\") {
       const escaped = characters[index + 1];
-      // `*`, `?`, `[`, `{` and `}` mean something in a glob, so they keep the
-      // rule a regex.
-      if (escaped === undefined || !REGEX_METACHARACTERS.test(escaped) || /[*?[{}]/.test(escaped)) {
+      // `*`, `?`, `[`, `{`, `}` and `\` mean something in a glob, so they keep
+      // the rule a regex.
+      if (
+        escaped === undefined ||
+        !REGEX_METACHARACTERS.test(escaped) ||
+        /[*?[{}\\]/.test(escaped)
+      ) {
         return undefined;
       }
       glob += escaped;
@@ -339,10 +457,13 @@ function regexToGlob(source: string): string | undefined {
     }
     globs.push(glob);
   }
-  // In Antigravity a `*` stays inside its word; as a glob followed by a literal
-  // word it would stand for any number of words.
+  // In Antigravity a `*` stays inside its word; in a glob it can stand for any
+  // number of words unless it ends the pattern, so `^.*\.env$` and
+  // `^.*status.*$` stay regexes.
   const multiWordStar = globs.some(
-    (glob, index) => glob.includes("*") && !globs.slice(index + 1).every((later) => later === "*"),
+    (glob, index) =>
+      glob.slice(0, -1).includes("*") ||
+      (glob.endsWith("*") && !globs.slice(index + 1).every((later) => later === "*")),
   );
   if (multiWordStar) {
     return undefined;
@@ -365,6 +486,13 @@ export function fromAntigravityCommandTarget(target: string): string {
   }
   if (target === "*") {
     return target;
+  }
+  // A plain target is literal, but `*`, `?`, `[` and `{` mean more in a glob,
+  // so such a target imports as the regex that says what Antigravity does:
+  // `command(rm -rf *)` matches a literal `*` word.
+  if (/[*?[{]/.test(target)) {
+    const words = target.trim().split(/\s+/);
+    return `${REGEX_PREFIX}${words.map((word) => `^${[...word].map(escapeRegexCharacter).join("")}$`).join(" ")}`;
   }
   return `${target} *`;
 }
