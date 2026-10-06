@@ -1,3 +1,4 @@
+// cspell:ignore alnum cntrl punct xdigit -- POSIX class names
 import { parseGlobPattern } from "../../utils/glob.js";
 
 /**
@@ -61,21 +62,68 @@ function hasBackwardRange(step: GlobStep): boolean {
   return step.kind === "class" && step.ranges.some(([low, high]) => low > high);
 }
 
-// Syntax JavaScript accepts and RE2 refuses: lookahead, lookbehind and backreferences.
-const JAVASCRIPT_ONLY_REGEX = /\(\?<?[=!]|\\[1-9]|\\k</;
+// Lookahead and lookbehind, which JavaScript has and RE2 does not.
+const LOOKAROUND = /\(\?<?[=!]/;
+
+// The letter escapes Go's RE2 knows. Any other letter or digit after a
+// backslash (`\k<name>`, `\cA`, `\u0061`, `\C`, `\1`) is refused, as Go
+// refuses it; `\0` is octal. `\Q...\E` is read as a whole before this check.
+// cspell:disable-next-line
+const RE2_LETTER_ESCAPES = new Set("aftnrvdDsSwWbBAzxpP0");
+
+// RE2's quoted literal text: `\Q` up to `\E` or the end.
+const RE2_QUOTED = /\\Q[\s\S]*?(?:\\E|$)/g;
+
+// RE2 refuses a repeat count above 1000.
+const RE2_MAX_REPEAT = 1000;
+
+const POSIX_CLASSES = new Set([
+  "alnum",
+  "alpha",
+  "ascii",
+  "blank",
+  "cntrl",
+  "digit",
+  "graph",
+  "lower",
+  "print",
+  "punct",
+  "space",
+  "upper",
+  "word",
+  "xdigit",
+]);
 
 /**
  * Whether Antigravity (Go, RE2) would refuse a regex word, so that a word like
- * `^ls(` is caught. There is no RE2 here, so the check runs in JavaScript:
- * syntax only JavaScript has fails, and RE2's own spellings (`(?P<name>`,
- * `(?i)`, `(?-i)`, `\A`, `\z`, `[[:alpha:]]`) are rewritten into JavaScript
- * before it compiles. `(?<name>` is valid in both (RE2 since Go 1.22).
+ * `^ls(` is caught. There is no RE2 here, so the check is conservative: it
+ * refuses what RE2 lacks (lookaround, unknown escapes, repeats over 1000,
+ * unknown POSIX classes), rewrites RE2's own spellings (`(?P<name>`, `(?i)`,
+ * `(?-i)`, `\A`, `\z`, `[[:alpha:]]`) into JavaScript, and then compiles the
+ * result. `(?<name>` is valid in both (RE2 since Go 1.22).
  */
 function isInvalidRegex(source: string): boolean {
-  if (JAVASCRIPT_ONLY_REGEX.test(source)) {
+  // Quoted text is literal, so it stands in as one plain character.
+  const unquoted = source.replace(RE2_QUOTED, "q");
+  if (LOOKAROUND.test(unquoted)) {
     return true;
   }
-  const asJavaScript = source
+  for (const [, escaped = ""] of unquoted.matchAll(/\\([\s\S])/g)) {
+    if (/[a-zA-Z0-9]/.test(escaped) && !RE2_LETTER_ESCAPES.has(escaped)) {
+      return true;
+    }
+  }
+  for (const [, low = "", high = ""] of unquoted.matchAll(/(?<!\\)\{(\d+)(?:,(\d*))?\}/g)) {
+    if (Number(low) > RE2_MAX_REPEAT || Number(high) > RE2_MAX_REPEAT) {
+      return true;
+    }
+  }
+  for (const [, name = ""] of unquoted.matchAll(/\[:\^?([a-z]+):\]/g)) {
+    if (!POSIX_CLASSES.has(name)) {
+      return true;
+    }
+  }
+  const asJavaScript = unquoted
     .replace(/\(\?P</g, "(?<")
     .replace(/\(\?[imsU]*-?[imsU]*\)/g, "")
     .replace(/\(\?[imsU]*-?[imsU]*:/g, "(?:")
@@ -90,14 +138,33 @@ function isInvalidRegex(source: string): boolean {
   }
 }
 
-// A bracket class that holds a space can match across two words.
-function classMatchesWhitespace(step: GlobStep): boolean {
+// A class that lists whitespace. Written into a regex word, the whitespace
+// would split that word in two.
+function listsWhitespace(step: GlobStep): boolean {
   return (
     step.kind === "class" &&
+    !step.negated &&
     ([...step.members].some((member) => WHITESPACE.test(member)) ||
       step.ranges.some(([low, high]) => low <= 0x20 && high >= 0x20))
   );
 }
+
+// Whether a step can stand for a space: `?`, or a negated class that does not
+// exclude the space itself (`[!\t]` still admits one).
+function canMatchSpace(step: GlobStep): boolean {
+  if (step.kind === "any") {
+    return true;
+  }
+  if (step.kind !== "class" || !step.negated) {
+    return listsWhitespace(step);
+  }
+  const excludesSpace =
+    step.members.has(" ") || step.ranges.some(([low, high]) => low <= 0x20 && high >= 0x20);
+  return !excludesSpace;
+}
+
+// `{a,b}` alternatives, which canonical patterns treat as a glob.
+const BRACE_ALTERNATIVES = /\{[^{}]*,[^{}]*\}/;
 
 /** Split parsed glob steps into words at literal whitespace. */
 function splitIntoWords(steps: readonly GlobStep[]): GlobStep[][] {
@@ -173,11 +240,16 @@ export function toAntigravityCommandTarget(pattern: string): CommandTargetResult
           skipReason: `Antigravity compiles each word of a regex on its own, and \`${invalid}\` is not a valid regex`,
         };
   }
+  if (BRACE_ALTERNATIVES.test(pattern)) {
+    return { skipReason: "Antigravity has no `{a,b}` alternatives in a command target" };
+  }
   const steps = parseGlobPattern(pattern).steps;
-  if (steps.some(classMatchesWhitespace)) {
+  // At the very end, `?` or `[!x]` only adds a trailing space, which shells
+  // and Antigravity strip. Anywhere else it can join two words.
+  if (steps.some(listsWhitespace) || steps.slice(0, -1).some(canMatchSpace)) {
     return {
       skipReason:
-        "A bracket that matches a space spans two words, and Antigravity matches a command word by word",
+        "A `?` or bracket that can match a space spans two words, and Antigravity matches a command word by word",
     };
   }
   if (steps.some(hasBackwardRange)) {
@@ -219,8 +291,8 @@ export function toAntigravityCommandTarget(pattern: string): CommandTargetResult
 /**
  * Read one regex word back as a glob, or `undefined` when it uses anything a
  * glob cannot say. Antigravity anchors each word anyway, so `^` and `$` are
- * optional. Only escaped characters, `.` and `.*` translate; a literal `*`,
- * `?` or `[` has no glob spelling and keeps the rule a regex.
+ * optional. Only escaped characters and `.*` translate; anything else keeps
+ * the rule a regex.
  */
 function regexWordToGlob(word: string): string | undefined {
   const body = word.replace(/^\^/, "").replace(/(?<!\\)\$$/, "");
@@ -233,18 +305,21 @@ function regexWordToGlob(word: string): string | undefined {
     const character = characters[index] ?? "";
     if (character === "\\") {
       const escaped = characters[index + 1];
-      if (escaped === undefined || !REGEX_METACHARACTERS.test(escaped) || /[*?[]/.test(escaped)) {
+      // `*`, `?`, `[`, `{` and `}` mean something in a glob, so they keep the
+      // rule a regex.
+      if (escaped === undefined || !REGEX_METACHARACTERS.test(escaped) || /[*?[{}]/.test(escaped)) {
         return undefined;
       }
       glob += escaped;
       index += 1;
     } else if (character === ".") {
-      if (characters[index + 1] === "*") {
-        glob += "*";
-        index += 1;
-      } else {
-        glob += "?";
+      // A lone `.` would read back as `?`, which can match a space and so
+      // joins two words in a glob; such a rule stays a regex.
+      if (characters[index + 1] !== "*") {
+        return undefined;
       }
+      glob += "*";
+      index += 1;
     } else if (REGEX_METACHARACTERS.test(character)) {
       return undefined;
     } else {

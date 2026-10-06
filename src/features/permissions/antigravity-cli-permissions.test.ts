@@ -165,9 +165,11 @@ describe("AntigravityCliPermissions", () => {
       fileContent: JSON.stringify({
         permission: {
           bash: {
-            "cat ./a?.txt": "allow",
-            "git status[!x] *": "deny",
+            "cat ./a[bc].txt": "allow",
+            "git status[!x]": "deny",
             "git[ ]status": "deny",
+            "git[!x]status": "deny",
+            "git?status": "deny",
             "regex:^ls$ ^-(la|l)$": "allow",
           },
         },
@@ -182,13 +184,16 @@ describe("AntigravityCliPermissions", () => {
 
     const settings = JSON.parse(permissions.getFileContent()) as SettingsJson;
     expect(settings.permissions?.allow).toEqual([
-      "command(regex:^cat$ ^\\./a.\\.txt$)",
+      "command(regex:^cat$ ^\\./a[bc]\\.txt$)",
       // A rule that is already an Antigravity regex passes through.
       "command(regex:^ls$ ^-(la|l)$)",
     ]);
-    // A class that matches a space would join two words, so it is skipped.
-    expect(settings.permissions?.deny).toEqual(["command(regex:^git$ ^status[^x]$ ^.*$)"]);
-    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"git[ ]status": "deny"'));
+    // At the very end, a step that can match a space only adds a trailing one.
+    expect(settings.permissions?.deny).toEqual(["command(regex:^git$ ^status[^x]$)"]);
+    // Anywhere else it would join two words, so the rule is skipped.
+    for (const pattern of ["git[ ]status", "git[!x]status", "git?status"]) {
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining(`"${pattern}": "deny"`));
+    }
   });
 
   it("should map an ask action and emit a bare tool name for a match-all pattern", async () => {
@@ -442,7 +447,13 @@ describe("AntigravityCliPermissions", () => {
         permissions: {
           allow: ["command(git status)", "command(regex:^git$ ^log$ ^.*$ ^--oneline$)"],
           ask: ["command(regex:^cat$ ^\\./a\\.txt$)", "command(regex:^npm$ ^install.*$)"],
-          deny: ["command(rm -rf)", "command(regex:echo rx .*)", "command(regex:^ls$ ^-(la|l)$)"],
+          deny: [
+            "command(rm -rf)",
+            "command(regex:echo rx .*)",
+            "command(regex:^ls$ ^-(la|l)$)",
+            "command(regex:^rm$ ^/tmp/.$)",
+            "command(regex:^echo$ ^\\{yes,no\\}$)",
+          ],
         },
       }),
       global: true,
@@ -463,6 +474,9 @@ describe("AntigravityCliPermissions", () => {
     // glob can say, so it is kept as written. So is any other regex.
     expect(json.permission.bash?.["regex:^git$ ^log$ ^.*$ ^--oneline$"]).toBe("allow");
     expect(json.permission.bash?.["regex:^ls$ ^-(la|l)$"]).toBe("deny");
+    // `?` and `{a,b}` mean more in a glob than `.` and `\{a,b\}` do here.
+    expect(json.permission.bash?.["regex:^rm$ ^/tmp/.$"]).toBe("deny");
+    expect(json.permission.bash?.["regex:^echo$ ^\\{yes,no\\}$"]).toBe("deny");
   });
 
   it("should treat a parenthesis-less entry as a match-all pattern when parsing", () => {

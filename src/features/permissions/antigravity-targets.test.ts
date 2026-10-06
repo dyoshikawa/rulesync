@@ -159,6 +159,9 @@ describe("buildAntigravityPermissionEntry", () => {
       ["regex:(?P<cmd>ls) (?i)^-LA$", "command(regex:(?P<cmd>ls) (?i)^-LA$)"],
       ["regex:(?-i)^npm$ (?i-s:run)", "command(regex:(?-i)^npm$ (?i-s:run))"],
       ["regex:(?<cmd>ls)", "command(regex:(?<cmd>ls))"],
+      // Quoted text is literal, even what would be an escape or a group.
+      ["regex:\\Q(a.\\k\\E ^-\\Qx", "command(regex:\\Q(a.\\k\\E ^-\\Qx)"],
+      ["regex:a{2,1000} \\d\\x41 [[:^space:]]", "command(regex:a{2,1000} \\d\\x41 [[:^space:]])"],
       ["regex:\\Als\\z [[:alpha:]]+", "command(regex:\\Als\\z [[:alpha:]]+)"],
       // Range endpoints are escaped, so `\\` through `z` stays a range.
       ["x[\\-z]*", "command(regex:^x[\\\\-z].*$)"],
@@ -201,14 +204,25 @@ describe("buildAntigravityPermissionEntry", () => {
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("NOT enforced"));
     });
 
-    it.each(["regex:(?=ls)ls", "regex:(ls) \\1", "regex:ls (?<!x)-la", "regex:(?<c>l)\\k<c>"])(
-      "skips %s, which RE2 cannot compile",
-      (pattern) => {
-        const { entry, logger } = build({ action: "command", pattern, decision: "deny" });
-        expect(entry).toBeUndefined();
-        expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("not a valid regex"));
-      },
-    );
+    it.each([
+      "regex:(?=ls)ls",
+      "regex:(ls) \\1",
+      "regex:ls (?<!x)-la",
+      "regex:(?<c>l)\\k<c>",
+      "regex:\\cA",
+      "regex:\\y",
+      "regex:a{1001}",
+      "regex:a{1,1001}",
+      "regex:[[:foobar:]]",
+      "regex:\\u0061",
+      "regex:\\U0001f600",
+      "regex:\\C",
+      "regex:a\\Eb",
+    ])("skips %s, which RE2 cannot compile", (pattern) => {
+      const { entry, logger } = build({ action: "command", pattern, decision: "deny" });
+      expect(entry).toBeUndefined();
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("not a valid regex"));
+    });
 
     it("skips a bracket range that runs backwards", () => {
       const { entry, logger } = build({ action: "command", pattern: "x[z-a] *", decision: "deny" });
@@ -216,14 +230,37 @@ describe("buildAntigravityPermissionEntry", () => {
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("runs backwards"));
     });
 
-    it.each(["git push * --force", "git * status", "* --force", "git commit-* --amend", "a[ ]b"])(
-      "skips %s, which spans words, and says the deny is not enforced",
-      (pattern) => {
-        const { entry, logger } = build({ action: "command", pattern, decision: "deny" });
+    it.each(["deny", "allow"] as const)(
+      "skips {a,b} alternatives in a %s, which a command target cannot say",
+      (decision) => {
+        const { entry, logger } = build({ action: "command", pattern: "echo {yes,no}", decision });
         expect(entry).toBeUndefined();
-        expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("NOT enforced"));
-        expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("word by word"));
+        expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("{a,b}"));
       },
     );
+
+    it("keeps a literal {} that is not an alternative", () => {
+      expect(build({ action: "command", pattern: "find . -exec {} *" }).entry).toBe(
+        "command(find . -exec {})",
+      );
+    });
+
+    it.each([
+      "git push * --force",
+      "git * status",
+      "* --force",
+      "git commit-* --amend",
+      "a[ ]b",
+      "a?b",
+      "a[!x]b",
+      "a[!\t]b",
+      "git status[ ]",
+      "git status[\t]",
+    ])("skips %s, which spans words, and says the deny is not enforced", (pattern) => {
+      const { entry, logger } = build({ action: "command", pattern, decision: "deny" });
+      expect(entry).toBeUndefined();
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("NOT enforced"));
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("word by word"));
+    });
   });
 });
