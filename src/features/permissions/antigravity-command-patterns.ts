@@ -40,9 +40,22 @@ const REGEX_PREFIX = "regex:";
 // when they stand for themselves.
 const REGEX_METACHARACTERS = /[\\^$.|?*+()[\]{}]/;
 
-// JavaScript's `\s` plus U+0085, which Go's `unicode.IsSpace` (and so
-// Antigravity's word split) also counts.
-const WHITESPACE = /[\s\u0085]/;
+// The whitespace Go's `unicode.IsSpace` counts, which is where Antigravity
+// splits a command into words. JavaScript's `\s` is not the same set: it adds
+// U+FEFF and leaves out U+0085.
+const WHITESPACE_CODES = [
+  0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x20, 0x85, 0xa0, 0x1680, 0x2000, 0x2001, 0x2002, 0x2003, 0x2004,
+  0x2005, 0x2006, 0x2007, 0x2008, 0x2009, 0x200a, 0x2028, 0x2029, 0x202f, 0x205f, 0x3000,
+];
+
+const WHITESPACE_CLASS = `[${WHITESPACE_CODES.map((code) => `\\u{${code.toString(16)}}`).join("")}]`;
+const WHITESPACE = new RegExp(WHITESPACE_CLASS, "u");
+const WHITESPACE_RUN = new RegExp(`${WHITESPACE_CLASS}+`, "u");
+
+/** Split a target into words as Antigravity does. */
+function splitWords(text: string): string[] {
+  return text.split(WHITESPACE_RUN).filter((word) => word.length > 0);
+}
 
 type GlobStep = ReturnType<typeof parseGlobPattern>["steps"][number];
 
@@ -141,6 +154,10 @@ function replacePosixClasses(source: string): string | undefined {
   while (index < source.length) {
     const character = source[index] ?? "";
     if (character === "\\") {
+      // Assertions are not characters, so Go refuses them inside a class.
+      if (inClass && /[AzbB]/.test(source[index + 1] ?? "")) {
+        return undefined;
+      }
       result += source.slice(index, index + 2);
       index += 2;
       continue;
@@ -162,7 +179,9 @@ function replacePosixClasses(source: string): string | undefined {
       }
       continue;
     }
-    const posix = /^\[:\^?([a-z]+):\]/.exec(source.slice(index));
+    // Go reads anything from `[:` to the next `:]` as a class name, so
+    // `[:FOO:]` or `[:alpha1:]` is an unknown class, not three members.
+    const posix = /^\[:\^?([\s\S]*?):\]/.exec(source.slice(index));
     if (posix !== null) {
       if (!POSIX_CLASSES.has(posix[1] ?? "")) {
         return undefined;
@@ -191,34 +210,11 @@ function replacePosixClasses(source: string): string | undefined {
 function isInvalidRegex(source: string): boolean {
   // Quoted text is literal, so it stands in as one plain character.
   const unquoted = source.replace(RE2_QUOTED, (match) => (match === "\\\\" ? match : "q"));
-  if (LOOKAROUND.test(unquoted)) {
+  if (LOOKAROUND.test(unquoted) || hasRefusedEscape(unquoted)) {
     return true;
   }
-  for (const match of unquoted.matchAll(/\\([\s\S])/g)) {
-    const escaped = match[1] ?? "";
-    if (/[a-zA-Z0-9]/.test(escaped) && !RE2_LETTER_ESCAPES.has(escaped)) {
-      return true;
-    }
-    // JavaScript reads a malformed `\x` or `\p` as a plain letter; RE2 refuses it.
-    const rest = unquoted.slice((match.index ?? 0) + 2);
-    if (escaped === "x" && !/^(?:[0-9a-fA-F]{2}|\{[0-9a-fA-F]+\})/.test(rest)) {
-      return true;
-    }
-    if ((escaped === "p" || escaped === "P") && !isUnicodeClass(rest)) {
-      return true;
-    }
-  }
-  // `\x{2003}` and `\p{Greek}` hold braces too, but are not repeats.
-  const withoutBracedEscapes = unquoted.replace(/\\[xpP]\{[^}]*\}/g, "e");
-  for (const [, low = "", high = ""] of withoutBracedEscapes.matchAll(
-    /(?<!\\)\{(\d+)(?:,(\d*))?\}/g,
-  )) {
-    if (Number(low) > RE2_MAX_REPEAT || Number(high) > RE2_MAX_REPEAT) {
-      return true;
-    }
-  }
   const withoutPosixClasses = replacePosixClasses(unquoted);
-  if (withoutPosixClasses === undefined) {
+  if (withoutPosixClasses === undefined || hasRefusedRepeat(withoutPosixClasses)) {
     return true;
   }
   const asJavaScript = withoutPosixClasses
@@ -235,6 +231,74 @@ function isInvalidRegex(source: string): boolean {
   }
 }
 
+/** Whether a backslash escape is one Go refuses but JavaScript reads as a letter. */
+function hasRefusedEscape(source: string): boolean {
+  for (const match of source.matchAll(/\\([\s\S])/g)) {
+    const escaped = match[1] ?? "";
+    if (/[a-zA-Z0-9]/.test(escaped) && !RE2_LETTER_ESCAPES.has(escaped)) {
+      return true;
+    }
+    const rest = source.slice((match.index ?? 0) + 2);
+    if (escaped === "x") {
+      const hex = /^(?:[0-9a-fA-F]{2}|\{([0-9a-fA-F]+)\})/.exec(rest);
+      // Go refuses a malformed `\x`, and a code point past the last one
+      // Unicode has.
+      if (hex === null || Number.parseInt(hex[1] ?? "0", 16) > 0x10ffff) {
+        return true;
+      }
+    }
+    if ((escaped === "p" || escaped === "P") && !isUnicodeClass(rest)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Whether a repeat count is over Go's limit. Braces inside a bracket class
+ * (`[a{1001}]`) and in `\x{2003}` or `\p{Greek}` are not repeats, so those
+ * are blanked out first. POSIX classes must already be replaced.
+ */
+function hasRefusedRepeat(source: string): boolean {
+  const plain = blankClasses(source.replace(/\\[xpP]\{[^}]*\}/g, "e"));
+  for (const [, low = "", high = ""] of plain.matchAll(/(?<!\\)\{(\d+)(?:,(\d*))?\}/g)) {
+    if (Number(low) > RE2_MAX_REPEAT || Number(high) > RE2_MAX_REPEAT) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** Replace each bracket class with one plain character. */
+function blankClasses(source: string): string {
+  let result = "";
+  let index = 0;
+  while (index < source.length) {
+    const character = source[index] ?? "";
+    if (character === "\\") {
+      result += source.slice(index, index + 2);
+      index += 2;
+      continue;
+    }
+    if (character !== "[") {
+      result += character;
+      index += 1;
+      continue;
+    }
+    // Skip to the closing `]`; a `]` first in the class is a member.
+    index += source[index + 1] === "^" ? 2 : 1;
+    if (source[index] === "]") {
+      index += 1;
+    }
+    while (index < source.length && source[index] !== "]") {
+      index += source[index] === "\\" ? 2 : 1;
+    }
+    index += 1;
+    result += "c";
+  }
+  return result;
+}
+
 // A class that lists whitespace. Written into a regex word, the whitespace
 // would split that word in two.
 function listsWhitespace(step: GlobStep): boolean {
@@ -244,13 +308,6 @@ function listsWhitespace(step: GlobStep): boolean {
     WHITESPACE_CODES.some((code) => classHolds(step, code))
   );
 }
-
-// Every whitespace character, as JavaScript's `\s` and Go's `unicode.IsSpace`
-// read it, so a command split on any of them is covered.
-const WHITESPACE_CODES = [
-  0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x20, 0x85, 0xa0, 0x1680, 0x2000, 0x2001, 0x2002, 0x2003, 0x2004,
-  0x2005, 0x2006, 0x2007, 0x2008, 0x2009, 0x200a, 0x2028, 0x2029, 0x202f, 0x205f, 0x3000, 0xfeff,
-];
 
 function classHolds(step: GlobStep & { kind: "class" }, code: number): boolean {
   return (
@@ -274,8 +331,9 @@ function canMatchSpace(step: GlobStep): boolean {
   return !WHITESPACE_CODES.every((code) => classHolds(step, code));
 }
 
-// `{a,b}` alternatives, which canonical patterns treat as a glob.
-const BRACE_ALTERNATIVES = /\{[^{}]*,[^{}]*\}/;
+// `{a,b}` alternatives and `{1..3}` ranges, which canonical patterns treat as
+// a glob. Any other brace, such as `{}` or `{name}`, is a literal.
+export const BRACE_ALTERNATIVES = /\{[^{}]*(?:,|\.\.)[^{}]*\}/;
 
 /** Split parsed glob steps into words at literal whitespace. */
 function splitIntoWords(steps: readonly GlobStep[]): GlobStep[][] {
@@ -344,7 +402,11 @@ function wordToRegexSource(word: readonly GlobStep[]): string {
  */
 export function toAntigravityCommandTarget(pattern: string): CommandTargetResult {
   if (pattern.startsWith(REGEX_PREFIX)) {
-    const invalid = pattern.slice(REGEX_PREFIX.length).trim().split(/\s+/).find(isInvalidRegex);
+    const regexWords = splitWords(pattern.slice(REGEX_PREFIX.length));
+    if (regexWords.length === 0) {
+      return { skipReason: "The regex is empty" };
+    }
+    const invalid = regexWords.find(isInvalidRegex);
     return invalid === undefined
       ? { target: pattern }
       : {
@@ -450,7 +512,7 @@ function regexWordToGlob(word: string): string | undefined {
 /** Read a per-word regex back as a glob, or `undefined` when it has no glob spelling. */
 function regexToGlob(source: string): string | undefined {
   const globs: string[] = [];
-  for (const word of source.trim().split(/\s+/)) {
+  for (const word of splitWords(source)) {
     const glob = regexWordToGlob(word);
     if (glob === undefined) {
       return undefined;
@@ -487,11 +549,11 @@ export function fromAntigravityCommandTarget(target: string): string {
   if (target === "*") {
     return target;
   }
-  // A plain target is literal, but `*`, `?`, `[` and `{` mean more in a glob,
+  // A plain target is literal, but `*`, `?`, `[`, `{` and `\` mean more in a glob,
   // so such a target imports as the regex that says what Antigravity does:
   // `command(rm -rf *)` matches a literal `*` word.
-  if (/[*?[{]/.test(target)) {
-    const words = target.trim().split(/\s+/);
+  if (/[*?[{\\]/.test(target)) {
+    const words = splitWords(target);
     return `${REGEX_PREFIX}${words.map((word) => `^${[...word].map(escapeRegexCharacter).join("")}$`).join(" ")}`;
   }
   return `${target} *`;

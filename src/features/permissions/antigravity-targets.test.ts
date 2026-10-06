@@ -40,6 +40,8 @@ describe("buildAntigravityPermissionEntry", () => {
       ["/**/*", "read_file(/)"],
       [".env", "read_file(.env)"],
       ["./secrets/key.pem", "read_file(secrets/key.pem)"],
+      ["state/{current}/data", "read_file(state/{current}/data)"],
+      ["state/{}/**", "read_file(state/{})"],
       ["*", "read_file"],
       ["**", "read_file"],
       ["**/*", "read_file"],
@@ -49,7 +51,7 @@ describe("buildAntigravityPermissionEntry", () => {
       expect(logger.warn).not.toHaveBeenCalled();
     });
 
-    it.each(["**/*.env", "src/*", "*.pem", "src/{a,b}/**", "a?/**", "./*"])(
+    it.each(["**/*.env", "src/*", "*.pem", "src/{a,b}/**", "log{1..3}/**", "a?/**", "./*"])(
       "skips the glob %s with a warning",
       (pattern) => {
         const { entry, logger } = build({ action: "write_file", pattern, decision: "ask" });
@@ -173,6 +175,12 @@ describe("buildAntigravityPermissionEntry", () => {
       ["regex:(?-i)^npm$ (?i-s:run)", "command(regex:(?-i)^npm$ (?i-s:run))"],
       ["regex:(?<cmd>ls)", "command(regex:(?<cmd>ls))"],
       ["regex:^ls$ ^\\pl+$", "command(regex:^ls$ ^\\pl+$)"],
+      // Braces inside a class are literal, not a repeat count.
+      [
+        "regex:^[a{1001}b]$ []{1001}] [\\]{1001}]",
+        "command(regex:^[a{1001}b]$ []{1001}] [\\]{1001}])",
+      ],
+      ["regex:^[\\-a\\d]$ \\x{10ffff}", "command(regex:^[\\-a\\d]$ \\x{10ffff})"],
       ["regex:^echo$ ^\\\\Q$", "command(regex:^echo$ ^\\\\Q$)"],
       // Braced escapes are not repeat counts.
       ["regex:^a\\x{2003}b$ \\p{Greek}{2}", "command(regex:^a\\x{2003}b$ \\p{Greek}{2})"],
@@ -239,6 +247,14 @@ describe("buildAntigravityPermissionEntry", () => {
       "regex:a{1,1001}",
       "regex:[[:foobar:]]",
       "regex:[a[:foo:]]",
+      "regex:[[:FOO:]]",
+      "regex:^[\\A]$",
+      "regex:^[\\z]$",
+      "regex:^[\\b]$",
+      "regex:^\\x{110000}$",
+      "regex:a{1001}[x]",
+      "regex:[[:Alpha:]]",
+      "regex:[[:alpha1:]]",
       "regex:\\u0061",
       "regex:\\U0001f600",
       "regex:\\C",
@@ -254,6 +270,12 @@ describe("buildAntigravityPermissionEntry", () => {
       const { entry, logger } = build({ action: "command", pattern, decision: "deny" });
       expect(entry).toBeUndefined();
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("not a valid regex"));
+    });
+
+    it.each(["regex:", "regex:   "])("skips the empty regex %j", (pattern) => {
+      const { entry, logger } = build({ action: "command", pattern, decision: "deny" });
+      expect(entry).toBeUndefined();
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("NOT enforced"));
     });
 
     it("skips a bracket range that runs backwards", () => {
@@ -284,6 +306,23 @@ describe("buildAntigravityPermissionEntry", () => {
       expect(build({ action: "command", pattern: "find . -exec {} *" }).entry).toBe(
         "command(find . -exec {})",
       );
+    });
+
+    it("skips a {1..3} range, which canonical patterns expand", () => {
+      const { entry, logger } = build({
+        action: "command",
+        pattern: "rm a{1..3}",
+        decision: "deny",
+      });
+      expect(entry).toBeUndefined();
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("NOT enforced"));
+    });
+
+    // Go's `unicode.IsSpace` leaves U+FEFF out, so Antigravity keeps it inside
+    // the word, while JavaScript's `\s` would split there.
+    it("does not split a word at U+FEFF", () => {
+      const word = `foo${String.fromCodePoint(0xfeff)}bar`;
+      expect(build({ action: "command", pattern: `${word} *` }).entry).toBe(`command(${word})`);
     });
 
     it.each([

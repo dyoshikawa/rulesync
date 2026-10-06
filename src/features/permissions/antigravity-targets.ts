@@ -1,7 +1,7 @@
 import type { PermissionAction } from "../../types/permissions.js";
 import { parseGlobPattern } from "../../utils/glob.js";
 import type { Logger } from "../../utils/logger.js";
-import { toAntigravityCommandTarget } from "./antigravity-command-patterns.js";
+import { BRACE_ALTERNATIVES, toAntigravityCommandTarget } from "./antigravity-command-patterns.js";
 
 /**
  * Build Antigravity `action(target)` permission entries from canonical rules,
@@ -48,7 +48,8 @@ type TargetResult = { target: string; note?: string } | { skipReason: string };
 // that reads canonical patterns, so it counts as a glob here.
 function hasGlob(pattern: string): boolean {
   return (
-    /[{}]/.test(pattern) || parseGlobPattern(pattern).steps.some((step) => step.kind !== "literal")
+    BRACE_ALTERNATIVES.test(pattern) ||
+    parseGlobPattern(pattern).steps.some((step) => step.kind !== "literal")
   );
 }
 

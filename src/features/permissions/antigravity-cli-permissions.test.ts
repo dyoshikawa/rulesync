@@ -458,6 +458,7 @@ describe("AntigravityCliPermissions", () => {
             "command(regex:^echo$ ^a\\\\b$)",
             "command(npm run [build])",
             "command(git status *)",
+            "command(cat a\\b)",
           ],
         },
       }),
@@ -489,6 +490,9 @@ describe("AntigravityCliPermissions", () => {
     // A plain target is literal, so glob characters in it import as a regex.
     expect(json.permission.bash?.["regex:^npm$ ^run$ ^\\[build\\]$"]).toBe("deny");
     expect(json.permission.bash?.["regex:^git$ ^status$ ^\\*$"]).toBe("deny");
+    // In a glob `\b` is an escaped `b`, so a plain `a\b` imports as a regex too.
+    expect(json.permission.bash?.["regex:^cat$ ^a\\\\b$"]).toBe("deny");
+    expect(json.permission.bash?.["cat a\\b *"]).toBeUndefined();
   });
 
   it("should treat a parenthesis-less entry as a match-all pattern when parsing", () => {
