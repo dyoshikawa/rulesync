@@ -1306,10 +1306,18 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
       meta: {
         // Warp reads project rules from the root AGENTS.md and a global rules
         // file from ~/.agents/AGENTS.md (also used from remote hosts in SSH
-        // sessions). https://docs.warp.dev/terminal/settings/file-locations/
+        // sessions). It has no modular non-root instruction directory, so topic
+        // rules fold into the root file — except directory-scoped rules
+        // (`agentsmd.subprojectPath`), which Warp applies while working in that
+        // subdirectory and which are emitted as nested `<dir>/AGENTS.md` files
+        // (imported back via `getNestedFilePatterns`; mirrors pool/vibe).
+        // https://docs.warp.dev/agents/capabilities/rules/
+        // https://docs.warp.dev/terminal/settings/file-locations/
+        // `auto`: the nested files are loaded by Warp itself, so the root file
+        // carries no reference list pointing at them.
         extension: "md",
         supportsGlobal: true,
-        ruleDiscoveryMode: "toon",
+        ruleDiscoveryMode: "auto",
         collisionPolicy: "fold",
       },
     },
@@ -2330,30 +2338,34 @@ export class RulesProcessor extends FeatureProcessor {
 
   /**
    * Warp still reads a legacy `WARP.md`, and when both `WARP.md` and
-   * `AGENTS.md` sit in the same directory, `WARP.md` takes priority — so the
-   * `AGENTS.md` this run writes would never be read. Rulesync neither writes
-   * nor deletes `WARP.md` (it is hand-authored), so the only thing it can do is
-   * say so. Project scope only: the documented precedence is about project
-   * rules, and Warp's global rule source is `~/.agents/AGENTS.md`.
+   * `AGENTS.md` sit in the same directory, `WARP.md` takes priority — so an
+   * `AGENTS.md` this run writes next to one would never be read. That holds for
+   * the root file and for every nested `<subprojectPath>/AGENTS.md` alike.
+   * Rulesync neither writes nor deletes `WARP.md` (it is hand-authored), so the
+   * only thing it can do is say so. Project scope only: the documented
+   * precedence is about project rules, and Warp's global rule source is
+   * `~/.agents/AGENTS.md`.
    * @see https://docs.warp.dev/agents/capabilities/rules/
    */
   private async warnForWarpLegacyRootFile(toolRules: ToolRule[]): Promise<void> {
     if (this.toolTarget !== "warp" || this.global) {
       return;
     }
-    // Every Warp rule, root or not, is written to the single root `AGENTS.md`.
-    if (toolRules.length === 0) {
-      return;
-    }
-    const { root } = WarpRule.getSettablePaths();
-    const legacyRelativePath = join(root.relativeDirPath, WARP_LEGACY_RULE_FILE_NAME);
-    if (!(await fileExists(join(this.outputRoot, legacyRelativePath)))) {
-      return;
-    }
-    const rootRelativePath = join(root.relativeDirPath, root.relativeFilePath);
-    this.logger.warn(
-      `${legacyRelativePath} exists next to ${rootRelativePath}, and Warp reads WARP.md instead of AGENTS.md when both are present, so the generated ${rootRelativePath} is ignored by Warp. Move any content you still need into ${RULESYNC_RULES_RELATIVE_DIR_PATH}, then delete or rename ${legacyRelativePath}.`,
+    const rulePathsByDir = new Map(
+      toolRules.map((rule) => [
+        rule.getRelativeDirPath(),
+        join(rule.getRelativeDirPath(), rule.getRelativeFilePath()),
+      ]),
     );
+    for (const [ruleDirPath, rulesRelativePath] of rulePathsByDir) {
+      const legacyRelativePath = join(ruleDirPath, WARP_LEGACY_RULE_FILE_NAME);
+      if (!(await fileExists(join(this.outputRoot, legacyRelativePath)))) {
+        continue;
+      }
+      this.logger.warn(
+        `${stripControlCharacters(legacyRelativePath)} exists next to ${stripControlCharacters(rulesRelativePath)}, and Warp reads WARP.md instead of AGENTS.md when both are present, so the generated ${stripControlCharacters(rulesRelativePath)} is ignored by Warp. Move any content you still need into ${RULESYNC_RULES_RELATIVE_DIR_PATH}, then delete or rename ${stripControlCharacters(legacyRelativePath)}.`,
+      );
+    }
   }
 
   /**
@@ -3069,7 +3081,7 @@ As this project's AI coding tool, you must follow the additional conventions bel
 
     // Only rules that land in the root file are folded. Any other non-root
     // rule is written to a file of its own (a nested per-directory
-    // `AGENTS.md` for codexcli, pool, vibe, dsh and reasonix, or Pi's
+    // `AGENTS.md` for codexcli, pool, vibe, dsh, warp and reasonix, or Pi's
     // `APPEND_SYSTEM.md`) that import reads back as a separate rulesync rule
     // named after that file; it duplicates the source rule only when the
     // source has another name.

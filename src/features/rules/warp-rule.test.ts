@@ -399,6 +399,99 @@ describe("WarpRule", () => {
     });
   });
 
+  // Warp applies the root `AGENTS.md` plus the current subdirectory's one, and
+  // the subdirectory's rules take precedence.
+  // https://docs.warp.dev/agents/capabilities/rules/
+  describe("nested subdirectory rules", () => {
+    const createSubprojectRule = () =>
+      new RulesyncRule({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync/rules",
+        relativeFilePath: "packages-api.md",
+        frontmatter: {
+          root: false,
+          targets: ["warp"],
+          agentsmd: { subprojectPath: "packages/api" },
+        },
+        body: "API package conventions.",
+      });
+
+    it("should write a directory-scoped rule to a nested AGENTS.md", () => {
+      const warpRule = WarpRule.fromRulesyncRule({
+        outputRoot: testDir,
+        rulesyncRule: createSubprojectRule(),
+      });
+
+      expect(warpRule.isRoot()).toBe(false);
+      expect(warpRule.getRelativeDirPath()).toBe(join("packages", "api"));
+      expect(warpRule.getRelativeFilePath()).toBe("AGENTS.md");
+      expect(warpRule.getFileContent()).toBe("API package conventions.");
+    });
+
+    it("should fold a directory-scoped rule into the global root, which has no workspace to nest under", () => {
+      const warpRule = WarpRule.fromRulesyncRule({
+        outputRoot: testDir,
+        rulesyncRule: createSubprojectRule(),
+        global: true,
+      });
+
+      expect(warpRule.getRelativeDirPath()).toBe(".agents");
+      expect(warpRule.getRelativeFilePath()).toBe("AGENTS.md");
+    });
+
+    it("should import a nested AGENTS.md and round-trip its subproject scope", async () => {
+      await writeFileContent(
+        join(testDir, "packages", "api", "AGENTS.md"),
+        "API package conventions.",
+      );
+
+      const warpRule = await WarpRule.fromFile({
+        outputRoot: testDir,
+        relativeDirPath: join("packages", "api"),
+        relativeFilePath: "AGENTS.md",
+      });
+
+      expect(warpRule.isRoot()).toBe(false);
+
+      const rulesyncRule = warpRule.toRulesyncRule();
+      expect(rulesyncRule.getRelativeFilePath()).toBe("packages-api.md");
+      expect(rulesyncRule.getFrontmatter().agentsmd).toEqual({ subprojectPath: "packages/api" });
+      expect(rulesyncRule.getBody()).toBe("API package conventions.");
+    });
+
+    it("should scan nested AGENTS.md files excluding the root file and vendored trees", () => {
+      const patterns = WarpRule.getNestedFilePatterns();
+
+      expect(patterns.include).toEqual(["**/AGENTS.md"]);
+      expect(patterns.ignore).toContain("AGENTS.md");
+      expect(patterns.ignore).toContain("**/node_modules/**");
+    });
+
+    it("should treat only the project and global root paths as root on deletion", () => {
+      expect(
+        WarpRule.forDeletion({
+          outputRoot: testDir,
+          relativeDirPath: ".",
+          relativeFilePath: "AGENTS.md",
+        }).isRoot(),
+      ).toBe(true);
+      expect(
+        WarpRule.forDeletion({
+          outputRoot: testDir,
+          relativeDirPath: ".agents",
+          relativeFilePath: "AGENTS.md",
+        }).isRoot(),
+      ).toBe(true);
+      expect(
+        WarpRule.forDeletion({
+          outputRoot: testDir,
+          relativeDirPath: join("packages", "api"),
+          relativeFilePath: "AGENTS.md",
+        }).isRoot(),
+      ).toBe(false);
+    });
+  });
+
   describe("getSettablePaths", () => {
     it("should return only the root path (no non-root location)", () => {
       const paths = WarpRule.getSettablePaths();

@@ -38,7 +38,6 @@ export function warpcliConfigDir(): string {
   }
 }
 
-export const WARP_RULE_FILE_NAME = "AGENTS.md";
 // Legacy project rule file name Warp still reads; it takes priority over
 // `AGENTS.md` in the same directory.
 // @see https://docs.warp.dev/agents/capabilities/rules/
