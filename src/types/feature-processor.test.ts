@@ -563,6 +563,28 @@ describe("FeatureProcessor", () => {
       expect(writeFileContent).toHaveBeenCalledTimes(1);
     });
 
+    it("should report the owned keys a shared config write changes, in dry-run mode too", async () => {
+      vi.mocked(readFileContentOrNull).mockResolvedValue(
+        'model = "gpt-5"\n\n[mcp_servers.foo]\ncommand = "foo"\n',
+      );
+      const processor = new TestProcessor({
+        logger: createMockLogger(),
+        outputRoot: testDir,
+        dryRun: true,
+      });
+
+      const files = [createMockFile(".codex/config.toml", { fileContent: 'model = "gpt-5"\n' })];
+
+      const result = await processor.writeAiFiles(files);
+
+      expect(result).toEqual({
+        count: 1,
+        paths: [".codex/config.toml"],
+        keyOperations: [{ action: "delete", path: ".codex/config.toml", key: "mcp_servers" }],
+      });
+      expect(writeFileContent).not.toHaveBeenCalled();
+    });
+
     it("should create a missing rulesync-owned file even when the payload is empty", async () => {
       vi.mocked(readFileContentOrNull).mockResolvedValue(null);
       const processor = new TestProcessor({ logger: createMockLogger(), outputRoot: testDir });

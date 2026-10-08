@@ -55,7 +55,12 @@ import type { FeatureGenerateResult } from "../utils/result.js";
 import { resolveToolOutputRoot } from "../utils/tool-output-root.js";
 import { resetRunWarningState } from "../utils/warned-once.js";
 import { createFoldRootOverwriteWatch } from "./fold-root-overwrite-watch.js";
-import { createOrphanSweepPlan, type DeletedPath, type OrphanSweepPlan } from "./orphan-sweep.js";
+import {
+  createOrphanSweepPlan,
+  type DeletedPath,
+  type KeyOperation,
+  type OrphanSweepPlan,
+} from "./orphan-sweep.js";
 import { scheduleRetiredTargetSweeps } from "./retire-targets.js";
 import { deriveSharedWriteSteps } from "./shared-file-derive.js";
 
@@ -102,6 +107,13 @@ export type GenerateResult = {
    * absent.
    */
   deletedPathsByFeature: Partial<Record<GenerationStepId, readonly DeletedPath[]>>;
+  /**
+   * The top-level keys Rulesync owns outright in a shared config file (see
+   * `diffSharedConfigOwnedKeys`) that this run's writes added, changed or
+   * removed — or, under `--dry-run` and `--check`, would — per feature, sorted
+   * by path and then key. A feature that touched no such key is absent.
+   */
+  keyOperationsByFeature: Partial<Record<GenerationStepId, readonly KeyOperation[]>>;
 };
 
 /**
@@ -145,6 +157,7 @@ async function processFeatureGeneration<T extends AiFile>(params: {
   totalCount += writeResult.count;
   allPaths.push(...writeResult.paths);
   if (writeResult.count > 0) hasDiff = true;
+  sweepPlan.recordKeyOperations(writeResult.keyOperations ?? []);
 
   // Registered even when the write was a no-op (unchanged content), a dry run, or
   // skipped for root-file ownership: what protects a path from a sibling target's
@@ -1047,6 +1060,7 @@ export async function generate(params: {
     sourceLoadFailed: sourceLoadFailedFeatures.length > 0,
     sourceLoadFailedFeatures,
     deletedPathsByFeature: Object.fromEntries(sweepPlan.getDeletedPathsByFeature()),
+    keyOperationsByFeature: Object.fromEntries(sweepPlan.getKeyOperationsByFeature()),
   };
 }
 

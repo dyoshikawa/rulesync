@@ -138,6 +138,28 @@ describe("createOrphanSweepPlan", () => {
       });
     });
 
+    it("should report key operations per feature, sorted by path then key, once each", () => {
+      const plan = createOrphanSweepPlan();
+
+      plan.forFeature("mcp").recordKeyOperations([
+        { action: "write", path: ".codex/config.toml", key: "mcp_servers" },
+        { action: "delete", path: ".claude/settings.json", key: "hooks" },
+      ]);
+      // A second output root reporting the same operation.
+      plan
+        .forFeature("mcp")
+        .recordKeyOperations([{ action: "write", path: ".codex/config.toml", key: "mcp_servers" }]);
+      // Recorded on the plan itself: attributed to no feature.
+      plan.recordKeyOperations([{ action: "write", path: "x.toml", key: "y" }]);
+
+      expect(Object.fromEntries(plan.getKeyOperationsByFeature())).toEqual({
+        mcp: [
+          { action: "delete", path: ".claude/settings.json", key: "hooks" },
+          { action: "write", path: ".codex/config.toml", key: "mcp_servers" },
+        ],
+      });
+    });
+
     it("should share claims between a feature view and the plan", () => {
       const plan = createOrphanSweepPlan();
 

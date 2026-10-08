@@ -66,6 +66,7 @@ const mockGenerateResult: GenerateResult = {
   sourceLoadFailed: false,
   sourceLoadFailedFeatures: [],
   deletedPathsByFeature: {},
+  keyOperationsByFeature: {},
 };
 
 const mockImportResult: ImportResult = {

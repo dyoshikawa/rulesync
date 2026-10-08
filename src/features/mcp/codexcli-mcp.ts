@@ -934,7 +934,12 @@ export class CodexcliMcp extends ToolMcp {
         fileKey: sharedConfigFileKey(paths),
         feature: "mcp",
         existingContent: configTomlFileContent,
-        patch: { mcp_servers: mergedMcpServers },
+        // With no server left the key is retracted rather than left as an
+        // empty `[mcp_servers]` table, so the file states nothing Rulesync
+        // no longer generates.
+        patch: {
+          mcp_servers: Object.keys(mergedMcpServers).length > 0 ? mergedMcpServers : undefined,
+        },
         filePath: configTomlFilePath,
       }),
       validate,

@@ -12,6 +12,8 @@ import {
   buildReadDenyEntry,
   CLAUDE_SETTINGS_LOCAL_SHARED_FILE_KEY,
   CLAUDE_SETTINGS_SHARED_FILE_KEY,
+  CODEXCLI_CONFIG_SHARED_FILE_KEY,
+  diffSharedConfigOwnedKeys,
   HERMES_CONFIG_SHARED_FILE_KEY,
   isReadDenyEntry,
   MAX_SHARED_CONFIG_DEPTH,
@@ -1793,6 +1795,73 @@ const toolNameOf = (entry: string): string => {
   const parenIndex = entry.indexOf("(");
   return parenIndex === -1 ? entry : entry.slice(0, parenIndex);
 };
+
+describe("diffSharedConfigOwnedKeys", () => {
+  it("should report a TOML table removed from the file as a key deletion", () => {
+    expect(
+      diffSharedConfigOwnedKeys({
+        fileKey: CODEXCLI_CONFIG_SHARED_FILE_KEY,
+        existingContent: 'model = "gpt-5"\n\n[mcp_servers.foo]\ncommand = "foo"\n',
+        newContent: 'model = "gpt-5"\n',
+      }),
+    ).toEqual([{ action: "delete", key: "mcp_servers" }]);
+  });
+
+  it("should report owned JSON keys added, changed and removed, sorted by key", () => {
+    expect(
+      diffSharedConfigOwnedKeys({
+        fileKey: CLAUDE_SETTINGS_SHARED_FILE_KEY,
+        existingContent: JSON.stringify({ hooks: { Stop: [] }, theme: "dark" }),
+        newContent: JSON.stringify({
+          $schema: CLAUDECODE_SETTINGS_SCHEMA_URL,
+          language: "Japanese",
+          theme: "light",
+        }),
+      }),
+    ).toEqual([
+      { action: "delete", key: "hooks" },
+      { action: "write", key: "language" },
+    ]);
+  });
+
+  it("should not report an owned key whose value is unchanged", () => {
+    expect(
+      diffSharedConfigOwnedKeys({
+        fileKey: HERMES_CONFIG_SHARED_FILE_KEY,
+        existingContent: "mcp_servers:\n  foo:\n    command: foo\nmodel: a\n",
+        // Restated in flow style after another key: the same value.
+        newContent: ["model: b", "mcp_servers: {foo: {command: foo}}", ""].join("\n"),
+      }),
+    ).toEqual([]);
+  });
+
+  it("should treat a file that did not exist as an empty document", () => {
+    expect(
+      diffSharedConfigOwnedKeys({
+        fileKey: CODEXCLI_CONFIG_SHARED_FILE_KEY,
+        existingContent: "",
+        newContent: '[mcp_servers.foo]\ncommand = "foo"\n',
+      }),
+    ).toEqual([{ action: "write", key: "mcp_servers" }]);
+  });
+
+  it("should report nothing for an undeclared file or unreadable content", () => {
+    expect(
+      diffSharedConfigOwnedKeys({
+        fileKey: ".mcp.json",
+        existingContent: "{}",
+        newContent: JSON.stringify({ mcpServers: {} }),
+      }),
+    ).toEqual([]);
+    expect(
+      diffSharedConfigOwnedKeys({
+        fileKey: CODEXCLI_CONFIG_SHARED_FILE_KEY,
+        existingContent: "not = [toml",
+        newContent: '[mcp_servers.foo]\ncommand = "foo"\n',
+      }),
+    ).toEqual([]);
+  });
+});
 
 describe("isReadDenyEntry", () => {
   it("recognizes Read(...) entries", () => {
