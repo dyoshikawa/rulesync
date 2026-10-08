@@ -543,9 +543,11 @@ export function resolveShellCommandLists({
  * it overlaps is withheld, a `*` deny is copied in, and a `*` ask is copied in
  * wherever `bash` says nothing about that exact pattern yet — otherwise it
  * would vanish from the resolved category entirely rather than falling back to
- * a tier that still prompts. An existing `bash` entry for the same pattern is
- * never downgraded by a `*` ask (a bash `allow` was already dropped above, and
- * a bash `deny`/`ask` there is at least as strict already).
+ * a tier that still prompts. Conflicts on the same pattern resolve
+ * most-restrictive-first (`deny` > `ask` > `allow`): a `*` deny overrides any
+ * bash entry there, while a `*` ask never downgrades one (a bash `allow` was
+ * already dropped above, and a bash `deny`/`ask` is at least as strict as an
+ * ask).
  */
 export function bashRulesHonoringAllTools(
   permission: PermissionsConfig["permission"],
@@ -564,9 +566,7 @@ export function bashRulesHonoringAllTools(
       continue;
     }
     if (action === "deny") {
-      if (bash[pattern] !== "ask") {
-        bash[pattern] = "deny";
-      }
+      bash[pattern] = "deny";
       continue;
     }
     if (bash[pattern] === undefined) {

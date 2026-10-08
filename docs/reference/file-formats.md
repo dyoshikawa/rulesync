@@ -1753,7 +1753,7 @@ Permissions define which tool actions are allowed, require confirmation, or are 
 - `ask` -- Requires user confirmation before execution
 - `deny` -- Blocked from execution
 
-**Supported tool categories:** `bash`, `read`, `edit`, `write`, `webfetch`, `websearch`, `grep`, `glob`, `notebookedit`, `agent`, the all-tools key `*` (a rule written under it is meant for every tool, shell commands included; how faithfully each adapter carries it is described per tool below), and MCP-specific tool names (e.g., `mcp__puppeteer__puppeteer_navigate`)
+**Supported tool categories:** `bash`, `read`, `edit`, `write`, `webfetch`, `websearch`, `grep`, `glob`, `notebookedit`, `agent`, the all-tools key `*` (a rule written under it is meant for every tool, shell commands included, so a `*` `deny` overrides a `bash` `ask` or `allow` on the same pattern, following `deny` > `ask` > `allow`; how faithfully each adapter carries it is described per tool below), and MCP-specific tool names (e.g., `mcp__puppeteer__puppeteer_navigate`)
 
 Example:
 
