@@ -12,7 +12,11 @@ import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-path
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
 import { resolvedPathEscapesRoot } from "../../utils/file.js";
-import { asOpencodeEntries, getOpencodeConfigDir, readOpencodeConfig } from "../opencode-config.js";
+import {
+  getOpencodeConfigDir,
+  getOpencodeSkillPaths,
+  readOpencodeConfig,
+} from "../opencode-config.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import { resolveCompatibility, resolveLicense, resolveMetadata } from "./skills-utils.js";
 import {
@@ -138,11 +142,7 @@ export class OpenCodeSkill extends ToolSkill {
       return [];
     }
     const config = await readOpencodeConfig({ outputRoot, global, layout: this.layout });
-    const skills = asOpencodeEntries(config.skills);
-    if (skills === null || !Array.isArray(skills.paths)) {
-      return [];
-    }
-    const lexicallyContained = skills.paths.filter(
+    const lexicallyContained = getOpencodeSkillPaths({ config, layout: this.layout }).filter(
       (candidate): candidate is string =>
         typeof candidate === "string" &&
         candidate !== "" &&

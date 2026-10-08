@@ -20,4 +20,6 @@ export const MIMOCODE_LAYOUT: OpencodeLayout = {
   configDir: MIMOCODE_DIR,
   jsonFileName: "mimocode.json",
   jsoncFileName: "mimocode.jsonc",
+  // MiMo Code's config loader has no V2-compat lowering pass.
+  readsV2ConfigSpellings: false,
 };

@@ -7,7 +7,11 @@ import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
-import { asOpencodeEntries, readOpencodeConfig } from "../opencode-config.js";
+import {
+  asOpencodeEntries,
+  getOpencodeCommandEntries,
+  readOpencodeConfig,
+} from "../opencode-config.js";
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
 import {
   ToolCommand,
@@ -202,10 +206,12 @@ export class OpenCodeCommand extends ToolCommand {
 
   /**
    * Imports commands defined inline in `opencode.json` / `opencode.jsonc` under
-   * the top-level `command` key (in addition to the Markdown files under
+   * the top-level `command` key — or its V2 spelling `commands`, see
+   * `getOpencodeCommandEntries` — (in addition to the Markdown files under
    * `.opencode/commands/`). Each entry's `template` becomes the command body,
-   * while `description` / `agent` / `model` / `subtask` map to the frontmatter
-   * (a V2 `subagent` is read as `subtask`, taking precedence like V2 does).
+   * while `description` / `agent` / `model` / `variant` / `subtask` map to the
+   * frontmatter (a V2 `subagent` is read as `subtask`, taking precedence like
+   * V2 does).
    *
    * Import-only: this is invoked by the commands processor when loading tool
    * files for conversion to rulesync, never for orphan deletion.
@@ -220,7 +226,7 @@ export class OpenCodeCommand extends ToolCommand {
     global?: boolean;
   } = {}): Promise<OpenCodeCommand[]> {
     const config = await readOpencodeConfig({ outputRoot, global, layout: this.layout });
-    const commandEntries = asOpencodeEntries(config.command);
+    const commandEntries = getOpencodeCommandEntries({ config, layout: this.layout });
     if (!commandEntries) {
       return [];
     }
@@ -240,6 +246,7 @@ export class OpenCodeCommand extends ToolCommand {
         ...(typeof entry.description === "string" && { description: entry.description }),
         ...(typeof entry.agent === "string" && { agent: entry.agent }),
         ...(typeof entry.model === "string" && { model: entry.model }),
+        ...(typeof entry.variant === "string" && { variant: entry.variant }),
         ...(typeof subtask === "boolean" && { subtask }),
       };
 

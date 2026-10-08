@@ -10,6 +10,7 @@ import { readFileContent } from "../../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
 import {
   asOpencodeEntries,
+  getOpencodeAgentEntries,
   getOpencodeConfigDir,
   readOpencodeConfig,
   resolveOpencodeFileTemplate,
@@ -200,7 +201,8 @@ export class OpenCodeSubagent extends OpenCodeStyleSubagent {
 
   /**
    * Imports agents defined inline in `opencode.json` / `opencode.jsonc` under
-   * the top-level `agent` key (in addition to the Markdown files under
+   * the top-level `agent` key — or its V2 spelling `agents`, see
+   * `getOpencodeAgentEntries` — (in addition to the Markdown files under
    * `.opencode/agents/`). Each entry's `prompt` becomes the subagent body
    * (a `"{file:./path}"` reference is resolved relative to the config file's
    * location); the remaining fields (`description` / `mode` / `model` /
@@ -219,7 +221,7 @@ export class OpenCodeSubagent extends OpenCodeStyleSubagent {
     global?: boolean;
   } = {}): Promise<OpenCodeSubagent[]> {
     const config = await readOpencodeConfig({ outputRoot, global, layout: this.layout });
-    const agentEntries = asOpencodeEntries(config.agent);
+    const agentEntries = getOpencodeAgentEntries({ config, layout: this.layout });
     if (!agentEntries) {
       return [];
     }
