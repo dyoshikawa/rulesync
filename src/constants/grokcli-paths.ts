@@ -11,7 +11,11 @@ import { join } from "node:path";
  * Verified against `grok` 0.2.54 (`grok mcp add --help`, `grok mcp add`):
  * `-s project` writes `./.grok/config.toml`, `-s user` writes
  * `~/.grok/config.toml`, both as a TOML `[mcp_servers.<name>]` table.
+ * Re-checked against the `xai-org/grok-build` source at 1.0.45 (`2bdd1d6`,
+ * 2026-09-29): `project_config_path` still joins `.grok/config.toml` onto the
+ * project directory and the user config is `config.toml` under the Grok home.
  * @see https://docs.x.ai/build/overview
+ * @see https://github.com/xai-org/grok-build/blob/main/crates/codegen/xai-grok-shell/src/util/config/mcp.rs
  */
 
 /** Root directory for Grok Build configuration, relative to the scope root. */

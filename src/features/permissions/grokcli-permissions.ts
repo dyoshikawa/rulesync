@@ -168,6 +168,10 @@ function parseGrokEntry(entry: string): { category: string; pattern: string } | 
     inner = trimmed.slice(parenIndex + 1, -1).trim();
   }
 
+  if (parenIndex === -1 && tool.startsWith(MCP_CANONICAL_PREFIX)) {
+    return parseClaudeStyleMcpEntry(tool);
+  }
+
   if (tool === GROK_MCP_TOOL) {
     return inner.length > 0
       ? { category: `${MCP_CANONICAL_PREFIX}${inner}`, pattern: CATCH_ALL_PATTERN }
@@ -179,6 +183,29 @@ function parseGrokEntry(entry: string): { category: string; pattern: string } | 
     return null;
   }
   return { category, pattern: inner.length > 0 ? inner : CATCH_ALL_PATTERN };
+}
+
+/**
+ * Parse the `.claude/settings.json` spelling `mcp__<server>[__<tool>]` that
+ * Grok also accepts in the compact arrays (paren-less only). Grok strips the
+ * `mcp__` prefix and matches the rest against its `<server>__<tool>` names:
+ * `mcp__*` covers every MCP tool, a server-only `mcp__github` becomes
+ * `github__*`, and `mcp__github__get_issue` stays exact — the same
+ * canonical categories `MCPTool`, `MCPTool(github__*)` and
+ * `MCPTool(github__get_issue)` import to. A bare `mcp__` matches nothing
+ * upstream, so it has no canonical equivalent.
+ * https://github.com/xai-org/grok-build/blob/main/crates/codegen/xai-grok-permission-rules/src/rules.rs
+ */
+function parseClaudeStyleMcpEntry(entry: string): { category: string; pattern: string } | null {
+  const rest = entry.slice(MCP_CANONICAL_PREFIX.length);
+  if (rest.length === 0) {
+    return null;
+  }
+  if (rest === CATCH_ALL_PATTERN) {
+    return { category: "mcp", pattern: CATCH_ALL_PATTERN };
+  }
+  const address = rest.includes("__") ? rest : `${rest}__*`;
+  return { category: `${MCP_CANONICAL_PREFIX}${address}`, pattern: CATCH_ALL_PATTERN };
 }
 
 /**
