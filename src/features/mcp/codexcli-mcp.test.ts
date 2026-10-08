@@ -560,6 +560,98 @@ approval_mode = "approve"
       expect(servers.srv?.tools).toEqual({ some_tool: { approval_mode: "approve" } });
     });
 
+    it("writes codexcliTools authored in the codexcli block as Codex's tools table (#3318)", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "mcp.jsonc",
+        fileContent: JSON.stringify({
+          mcpServers: {},
+          codexcli: {
+            mcpServers: {
+              example: {
+                type: "http",
+                url: "https://example.com/mcp",
+                default_tools_approval_mode: "writes",
+                codexcliTools: { example_tool: { approval_mode: "approve" } },
+              },
+            },
+          },
+        }),
+        validate: true,
+      });
+
+      const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp: rulesyncMcp.forTarget({ toolTarget: "codexcli" }),
+      });
+
+      const content = codexcliMcp.getFileContent();
+      expect(content).toContain("[mcp_servers.example.tools.example_tool]");
+      expect(content).not.toContain("codexcliTools");
+      const servers = codexcliMcp.getToml().mcp_servers as Record<string, Record<string, unknown>>;
+      expect(servers.example).toEqual({
+        url: "https://example.com/mcp",
+        default_tools_approval_mode: "writes",
+        tools: { example_tool: { approval_mode: "approve" } },
+      });
+    });
+
+    it("merges authored codexcliTools over saved approvals per tool (#3318)", async () => {
+      // Saved approvals for tools the source does not name survive (#1709); a
+      // tool named in the source takes the authored entry.
+      const existingToml = `[mcp_servers.srv]
+command = "node"
+
+[mcp_servers.srv.tools.saved_only]
+approval_mode = "approve"
+
+[mcp_servers.srv.tools.both]
+approval_mode = "approve"
+`;
+      await ensureDir(join(testDir, ".codex"));
+      await writeFileContent(join(testDir, ".codex/config.toml"), existingToml);
+
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            srv: {
+              command: "node",
+              codexcliTools: {
+                both: { approval_mode: "prompt" },
+                authored_only: { approval_mode: "writes" },
+              },
+            },
+          },
+        }),
+      });
+
+      const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+
+      const servers = codexcliMcp.getToml().mcp_servers as Record<string, Record<string, unknown>>;
+      expect(servers.srv?.tools).toEqual({
+        saved_only: { approval_mode: "approve" },
+        both: { approval_mode: "prompt" },
+        authored_only: { approval_mode: "writes" },
+      });
+    });
+
+    it("round-trips codexcliTools through import and generate (#3318)", async () => {
+      const original = new CodexcliMcp({
+        relativeDirPath: ".codex",
+        relativeFilePath: "config.toml",
+        fileContent: `[mcp_servers.srv]\nurl = "https://example.com/mcp"\n\n[mcp_servers.srv.tools.t]\napproval_mode = "approve"\n`,
+      });
+
+      const regenerated = await CodexcliMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp: original.toRulesyncMcp(),
+      });
+
+      expect(regenerated.getToml().mcp_servers).toEqual(original.getToml().mcp_servers);
+    });
+
     it("should create instance from RulesyncMcp with custom outputRoot", async () => {
       const jsonData = {
         mcpServers: {
@@ -1747,12 +1839,13 @@ Authorization = "Bearer token"
       );
     });
 
-    it("should not import Codex's per-tool approval table (#2496)", () => {
+    it("should import Codex's per-tool approval table into codexcliTools (#3318)", () => {
       const tomlContent = `[mcp_servers.srv]
 command = "node"
 
 [mcp_servers.srv.tools.some_tool]
 approval_mode = "approve"
+output_token_limit = 2000
 `;
       const codexcliMcp = new CodexcliMcp({
         relativeDirPath: ".codex",
@@ -1761,10 +1854,39 @@ approval_mode = "approve"
       });
 
       const rulesyncMcp = codexcliMcp.toRulesyncMcp();
-      // The canonical `tools` is a string array, so lifting Codex's table would
-      // produce a .rulesync/mcp.jsonc the schema rejects.
-      expect(JSON.parse(rulesyncMcp.getFileContent()).mcpServers.srv.tools).toBeUndefined();
+      const server = JSON.parse(rulesyncMcp.getFileContent()).mcpServers.srv;
+      // The canonical `tools` is a string array, so lifting Codex's table into
+      // it would produce a .rulesync/mcp.jsonc the schema rejects.
+      expect(server.tools).toBeUndefined();
+      expect(server.codexcliTools).toEqual({
+        some_tool: { approval_mode: "approve", output_token_limit: 2000 },
+      });
       expect(rulesyncMcp.validate().success).toBe(true);
+    });
+
+    it("should drop malformed per-tool entries on import (#3318)", () => {
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+      const tomlContent = `[mcp_servers.srv]
+command = "node"
+
+[mcp_servers.srv.tools.good]
+approval_mode = "prompt"
+
+[mcp_servers.srv.tools.bad]
+approval_mode = "always"
+`;
+      const codexcliMcp = new CodexcliMcp({
+        relativeDirPath: ".codex",
+        relativeFilePath: "config.toml",
+        fileContent: tomlContent,
+      });
+
+      const rulesyncMcp = codexcliMcp.toRulesyncMcp();
+      expect(JSON.parse(rulesyncMcp.getFileContent()).mcpServers.srv.codexcliTools).toEqual({
+        good: { approval_mode: "prompt" },
+      });
+      expect(rulesyncMcp.validate().success).toBe(true);
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("'tools.bad'"));
     });
 
     it("should restate the http transport for a url server on import (#2496)", () => {

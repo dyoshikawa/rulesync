@@ -641,7 +641,7 @@ export class RulesyncMcp extends RulesyncFile {
         // `forTarget()` merges into the shared map before this runs.
         .filter(([, serverConfig]) => serverConfig.enabled !== false)
         .map(([serverName, serverConfig]) => {
-          // `envVars` and `experimentalEnvironment` are codex-specific: the
+          // `envVars`, `experimentalEnvironment` and `codexcliTools` are codex-specific: the
           // codex generator reads them directly from the unfiltered source
           // JSON. Strip here so they do not leak into other tools' outputs —
           // including the raw `experimental_environment` spelling, which is
@@ -672,6 +672,7 @@ export class RulesyncMcp extends RulesyncFile {
               "envVars",
               "experimentalEnvironment",
               "experimental_environment",
+              "codexcliTools",
               "musecodeMode",
               "rovodevEnableInstructions",
               "enable_instructions",
