@@ -214,6 +214,7 @@ describe("inspectInputRoots", () => {
 const createMockAiFile = (filePath: string, content: string) => ({
   getFilePath: () => filePath,
   getFileContent: () => content,
+  getClaimedDirPaths: () => [],
 });
 
 // Real rulesync instances (not mocks) for the skill/subagent collision-warning
@@ -434,7 +435,13 @@ describe("generate", () => {
       mockConfig.getDelete.mockReturnValue(true);
 
       const existingFiles = [{ file: "existing", getFilePath: () => "/path/to/existing" }];
-      const generatedFiles = [{ tool: "converted", getFilePath: () => "/path/to/converted" }];
+      const generatedFiles = [
+        {
+          tool: "converted",
+          getFilePath: () => "/path/to/converted",
+          getClaimedDirPaths: () => [],
+        },
+      ];
       const mockProcessor = {
         loadToolFiles: vi.fn().mockResolvedValue(existingFiles),
         removeOrphanAiFiles: vi.fn().mockResolvedValue(0),
@@ -460,7 +467,9 @@ describe("generate", () => {
       // Same file path for both existing and generated - should not be deleted
       const samePath = "/path/to/file";
       const existingFiles = [{ file: "existing", getFilePath: () => samePath }];
-      const generatedFiles = [{ tool: "converted", getFilePath: () => samePath }];
+      const generatedFiles = [
+        { tool: "converted", getFilePath: () => samePath, getClaimedDirPaths: () => [] },
+      ];
       const mockProcessor = {
         loadToolFiles: vi.fn().mockResolvedValue(existingFiles),
         removeOrphanAiFiles: vi.fn().mockResolvedValue(0),
@@ -501,6 +510,7 @@ describe("generate", () => {
         getFilePath: () => "/repo/AGENTS.md",
         getFileContent: () => `root for ${toolTarget}`,
         getRelativePathFromCwd: () => "AGENTS.md",
+        getClaimedDirPaths: () => [],
       });
 
       // Every target emits `./AGENTS.md`; the last target in config order owns it.
@@ -785,7 +795,9 @@ describe("generate", () => {
         ...mockProcessorBase(),
         emitsToolFilesForEmptySource: vi.fn().mockReturnValue(true),
         loadRulesyncFiles: vi.fn().mockResolvedValue([]),
-        convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ getFilePath: () => "out" }]),
+        convertRulesyncFilesToToolFiles: vi
+          .fn()
+          .mockResolvedValue([{ getFilePath: () => "out", getClaimedDirPaths: () => [] }]),
         writeAiFiles: vi.fn().mockResolvedValue({ count: 1, paths: ["out"] }),
       };
       vi.mocked(IgnoreProcessor).mockImplementation(function () {
@@ -809,7 +821,9 @@ describe("generate", () => {
         emitsToolFilesForEmptySource: vi.fn().mockReturnValue(true),
         hasRulesyncSourceLoadFailure: vi.fn().mockReturnValue(true),
         loadRulesyncFiles: vi.fn().mockResolvedValue([]),
-        convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue([{ getFilePath: () => "out" }]),
+        convertRulesyncFilesToToolFiles: vi
+          .fn()
+          .mockResolvedValue([{ getFilePath: () => "out", getClaimedDirPaths: () => [] }]),
         writeAiFiles: vi.fn().mockResolvedValue({ count: 1, paths: ["out"] }),
       };
       vi.mocked(IgnoreProcessor).mockImplementation(function () {

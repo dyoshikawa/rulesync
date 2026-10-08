@@ -47,8 +47,14 @@ const commandsGenerateTargets = [
   { target: "kiro", outputPath: join(".kiro", "prompts", "review-pr.md") },
   { target: "kiro-cli", outputPath: join(".kiro", "prompts", "review-pr.md") },
   { target: "kiro-ide", outputPath: join(".kiro", "prompts", "review-pr.md") },
-  { target: "antigravity-ide", outputPath: join(".agents", "workflows", "review-pr.md") },
-  { target: "antigravity-cli", outputPath: join(".agents", "workflows", "review-pr.md") },
+  {
+    target: "antigravity-ide",
+    outputPath: join(".agents", "skills", "review-pr", "SKILL.md"),
+  },
+  {
+    target: "antigravity-cli",
+    outputPath: join(".agents", "skills", "review-pr", "SKILL.md"),
+  },
   { target: "junie", outputPath: join(".junie", "commands", "review-pr.md") },
   { target: "takt", outputPath: join(".takt", "facets", "instructions", "review-pr.md") },
   { target: "pi", outputPath: join(".pi", "prompts", "review-pr.md") },
@@ -87,11 +93,11 @@ const commandsGlobalTargets = [
   { target: "kiro-cli", outputPath: join(".kiro", "prompts", "review-pr.md") },
   {
     target: "antigravity-ide",
-    outputPath: join(".gemini", "antigravity", "global_workflows", "review-pr.md"),
+    outputPath: join(".gemini", "config", "skills", "review-pr", "SKILL.md"),
   },
   {
     target: "antigravity-cli",
-    outputPath: join(".gemini", "antigravity-cli", "global_workflows", "review-pr.md"),
+    outputPath: join(".gemini", "antigravity-cli", "skills", "review-pr", "SKILL.md"),
   },
   {
     target: "takt",
@@ -349,6 +355,103 @@ Skill body.
     await expect(
       readFileContent(join(testDir, ".devin", "skills", "orphan-skill", "SKILL.md")),
     ).rejects.toThrow();
+  });
+});
+
+describe("E2E: antigravity commands on the skills surface", () => {
+  const { getTestDir } = useTestDirectory();
+
+  const writeSources = async (testDir: string) => {
+    await writeFileContent(
+      join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "my-command.md"),
+      `---
+description: "My command"
+targets: ["*"]
+---
+Do the thing.
+`,
+    );
+    // A command and a skill with the same name: the skill wins.
+    await writeFileContent(
+      join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "shared-name.md"),
+      `---
+description: "Shadowed command"
+targets: ["*"]
+---
+Command body.
+`,
+    );
+    await writeFileContent(
+      join(testDir, ".rulesync", "skills", "shared-name", "SKILL.md"),
+      `---
+name: shared-name
+description: "Real skill"
+targets: ["*"]
+---
+Skill body.
+`,
+    );
+  };
+
+  it("should migrate generated workflows to skills and keep them through every shared-root sweep", async () => {
+    const testDir = getTestDir();
+    await writeSources(testDir);
+    // A workflow an earlier rulesync version generated, and an orphan skill.
+    await writeFileContent(
+      join(testDir, ".agents", "workflows", "my-command.md"),
+      "---\ndescription: My command\n---\nold\n",
+    );
+    await writeFileContent(
+      join(testDir, ".agents", "skills", "orphan-skill", "SKILL.md"),
+      "---\nname: orphan-skill\ndescription: stale\n---\nold\n",
+    );
+
+    // `codexcli` sweeps the same `.agents/skills/` root.
+    const target = "antigravity-ide,antigravity-cli,codexcli";
+    await runGenerate({
+      target,
+      features: "commands,skills",
+      deleteFiles: true,
+      env: { NODE_ENV: "e2e" },
+    });
+
+    const commandSkill = await readFileContent(
+      join(testDir, ".agents", "skills", "my-command", "SKILL.md"),
+    );
+    expect(commandSkill).toContain("name: my-command");
+    expect(commandSkill).toContain("Do the thing.");
+    expect(
+      await readFileContent(join(testDir, ".agents", "skills", "shared-name", "SKILL.md")),
+    ).toContain("Skill body.");
+    expect(await fileExists(join(testDir, ".agents", "workflows", "my-command.md"))).toBe(false);
+    expect(await fileExists(join(testDir, ".agents", "skills", "orphan-skill"))).toBe(false);
+
+    await expect(
+      runGenerate({
+        target,
+        features: "commands,skills",
+        deleteFiles: true,
+        check: true,
+        env: { NODE_ENV: "e2e" },
+      }),
+    ).resolves.toMatchObject({ stdout: expect.stringContaining("All files are up to date") });
+  });
+
+  it("should keep command skills when a skills-only run deletes orphan skills", async () => {
+    const testDir = getTestDir();
+    await writeSources(testDir);
+
+    await runGenerate({ target: "antigravity-ide", features: "commands,skills" });
+    await runGenerate({
+      target: "antigravity-ide",
+      features: "skills",
+      deleteFiles: true,
+      env: { NODE_ENV: "e2e" },
+    });
+
+    expect(
+      await readFileContent(join(testDir, ".agents", "skills", "my-command", "SKILL.md")),
+    ).toContain("Do the thing.");
   });
 });
 

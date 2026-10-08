@@ -1,7 +1,11 @@
 import { basename, join } from "node:path";
 
-import { COMMANDS_FEATURE_SUBDIR } from "../../constants/rulesync-paths.js";
-import { findFilesByGlobs } from "../../utils/file.js";
+import {
+  COMMANDS_FEATURE_SUBDIR,
+  CURATED_SKILLS_FEATURE_SUBDIR,
+  SKILLS_FEATURE_SUBDIR,
+} from "../../constants/rulesync-paths.js";
+import { directoryExists, findFilesByGlobs } from "../../utils/file.js";
 
 /**
  * Slug used for the per-command `<slug>/SKILL.md` directory when a tool's
@@ -41,4 +45,27 @@ export async function rulesyncCommandSlugExists({
   );
 
   return perRootPaths.flat().some((filePath) => commandSlug(basename(filePath)) === dirName);
+}
+
+/**
+ * Whether a rulesync skill named `dirName` exists (local or curated) in any of
+ * the configured input roots.
+ *
+ * Used by tools whose commands are emitted as `<name>/SKILL.md` into a skills
+ * tree that the skills feature also writes (Antigravity's `.agents/skills/`):
+ * a real skill of the same name wins, so the command is not emitted there.
+ */
+export async function rulesyncSkillNameExists({
+  inputRoots,
+  dirName,
+}: {
+  inputRoots: readonly string[];
+  dirName: string;
+}): Promise<boolean> {
+  const candidates = inputRoots.flatMap((root) => [
+    join(root, SKILLS_FEATURE_SUBDIR, dirName),
+    join(root, CURATED_SKILLS_FEATURE_SUBDIR, dirName),
+  ]);
+  const exists = await Promise.all(candidates.map((dirPath) => directoryExists(dirPath)));
+  return exists.some(Boolean);
 }

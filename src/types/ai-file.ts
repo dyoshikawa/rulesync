@@ -163,5 +163,16 @@ export abstract class AiFile {
     return isSharedUserManagedConfigPath(this.getRelativePathFromCwd());
   }
 
+  /**
+   * Directories this file stands for in the `--delete` orphan sweep, on top of
+   * its own path. Override in a file feature that emits into a directory
+   * another feature sweeps as a whole (Antigravity commands emitted as
+   * `.agents/skills/<name>/SKILL.md`, a root every `.agents/skills/` writer
+   * sweeps), so that directory is not read as an orphan skill.
+   */
+  getClaimedDirPaths(): string[] {
+    return [];
+  }
+
   abstract validate(): ValidationResult;
 }

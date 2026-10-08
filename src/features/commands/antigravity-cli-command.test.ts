@@ -92,7 +92,7 @@ describe("AntigravityCliCommand", () => {
   });
 
   describe("fromRulesyncCommand", () => {
-    it("should resolve trigger from the antigravity section", () => {
+    it("should emit the command as a skill named after the antigravity section trigger", () => {
       const rulesyncFrontmatter = {
         targets: ["antigravity-cli" as const],
         description: "Test Workflow",
@@ -116,22 +116,18 @@ describe("AntigravityCliCommand", () => {
         rulesyncCommand,
       });
 
-      // Filename derives from the sanitized trigger.
-      expect(antigravityCommand.getRelativeFilePath()).toBe("test-workflow.md");
-
-      const content = antigravityCommand.getBody();
-      expect(content).toContain("# Workflow: /test-workflow");
-      expect(content).toContain("Step 1: Do something");
-      expect(content).toContain("// turbo");
-
+      expect(antigravityCommand.getRelativeDirPath()).toBe(
+        join(".agents", "skills", "test-workflow"),
+      );
+      expect(antigravityCommand.getRelativeFilePath()).toBe("SKILL.md");
+      expect(antigravityCommand.getBody()).toBe("Step 1: Do something");
       expect(antigravityCommand.getFrontmatter()).toEqual({
+        name: "test-workflow",
         description: "Test Workflow",
-        trigger: "/test-workflow",
-        turbo: true,
       });
     });
 
-    it("should write the global workflow to the CLI global workflows path", () => {
+    it("should write the global command to the CLI global skills path", () => {
       const rulesyncFrontmatter = {
         targets: ["antigravity-cli" as const],
         description: "Global Workflow",
@@ -153,11 +149,12 @@ describe("AntigravityCliCommand", () => {
       });
 
       expect(antigravityCommand.getRelativeDirPath()).toBe(
-        join(".gemini", "antigravity-cli", "global_workflows"),
+        join(".gemini", "antigravity-cli", "skills", "global-workflow"),
       );
+      expect(antigravityCommand.getRelativeFilePath()).toBe("SKILL.md");
     });
 
-    it("should produce a sanitized markdown filename from the trigger", () => {
+    it("should produce a sanitized skill directory name from the trigger", () => {
       const rulesyncFrontmatter = {
         targets: ["antigravity-cli" as const],
         description: "Security Test",
@@ -179,9 +176,9 @@ describe("AntigravityCliCommand", () => {
         rulesyncCommand,
       });
 
-      expect(antigravityCommand.getRelativeFilePath()).not.toContain("..");
-      expect(antigravityCommand.getRelativeFilePath()).not.toContain("/");
-      expect(antigravityCommand.getRelativeFilePath()).toMatch(/^[a-zA-Z0-9-_]+\.md$/);
+      expect(antigravityCommand.getRelativeDirPath()).toBe(
+        join(".agents", "skills", "evil-workflow"),
+      );
     });
   });
 
