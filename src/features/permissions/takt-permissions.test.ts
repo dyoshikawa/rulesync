@@ -118,6 +118,40 @@ describe("TaktPermissions", () => {
       expect(Object.keys(profiles)).toEqual(["claude-sdk"]);
     });
 
+    it("writes to claude-sdk instead of promoting a lone legacy claude profile", async () => {
+      // Earlier rulesync versions wrote their fallback under `claude`; Takt
+      // 0.68.0+ ignores it when no provider is configured.
+      await writeFileContent(
+        join(testDir, ".takt", "config.yaml"),
+        ["provider_profiles:", "  claude:", "    default_permission_mode: full"].join("\n"),
+      );
+
+      const permissions = await TaktPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({ bash: { "*": "allow", "rm *": "deny" } }),
+      });
+
+      expect(readMode(permissions.getFileContent(), "claude-sdk")).toBe("readonly");
+      // The old profile is left in place by the in-place merge.
+      expect(readMode(permissions.getFileContent(), "claude")).toBe("full");
+    });
+
+    it("still promotes a lone non-claude profile when no provider key exists", async () => {
+      await writeFileContent(
+        join(testDir, ".takt", "config.yaml"),
+        ["provider_profiles:", "  codex:", "    default_permission_mode: readonly"].join("\n"),
+      );
+
+      const permissions = await TaktPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({ bash: { "*": "allow" } }),
+      });
+
+      const profiles = toRecord(toRecord(load(permissions.getFileContent())).provider_profiles);
+      expect(Object.keys(profiles)).toEqual(["codex"]);
+      expect(readMode(permissions.getFileContent(), "codex")).toBe("full");
+    });
+
     it("writes under the active provider and preserves other top-level keys + step overrides", async () => {
       await writeFileContent(
         join(testDir, ".takt", "config.yaml"),
@@ -1024,6 +1058,15 @@ describe("TaktPermissions", () => {
         ].join("\n"),
       );
       expect(json.permission.bash["*"]).toBe("allow");
+    });
+
+    it("ignores a lone legacy claude profile when no provider key exists", async () => {
+      // Takt 0.68.0+ reads `claude-sdk` here, so the stale `claude` profile an
+      // earlier rulesync generate left behind is not the active mode.
+      const json = await importMode(
+        ["provider_profiles:", "  claude:", "    default_permission_mode: full"].join("\n"),
+      );
+      expect(json.permission.bash["*"]).toBe("deny");
     });
   });
 

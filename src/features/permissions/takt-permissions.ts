@@ -99,6 +99,11 @@ type TaktPermissionMode = "readonly" | "edit" | "full";
 // `claude` alias, so an omitted provider reads `provider_profiles.claude-sdk`.
 const TAKT_DEFAULT_PROVIDER = "claude-sdk";
 
+// The fallback rulesync wrote before Takt 0.68.0. A lone profile under this key
+// with no `provider:` is what an earlier generate left behind, not a provider
+// choice, so it is not promoted to the active provider.
+const TAKT_LEGACY_DEFAULT_PROVIDER = "claude";
+
 // rulesync canonical catch-all pattern (Takt's mode is coarse, so only a
 // catch-all maps cleanly back on import).
 const CATCH_ALL_PATTERN = "*";
@@ -447,7 +452,8 @@ export class TaktPermissions extends ToolPermissions {
  * runtime document is consulted first: the provider of the profile named by
  * `provider.defaults.profile`. Everything else falls through to the legacy
  * chain — the top-level `provider:` value, else the sole key in
- * `provider_profiles`, else the `claude-sdk` default (Takt 0.68.0+).
+ * `provider_profiles` (unless that key is the pre-0.68.0 `claude` fallback),
+ * else the `claude-sdk` default (Takt 0.68.0+).
  */
 function resolveActiveProvider({
   config,
@@ -466,7 +472,7 @@ function resolveActiveProvider({
   const profiles = config[TAKT_PROVIDER_PROFILES_KEY];
   if (isPlainObject(profiles)) {
     const keys = Object.keys(profiles);
-    if (keys.length === 1) {
+    if (keys.length === 1 && keys[0] !== TAKT_LEGACY_DEFAULT_PROVIDER) {
       return keys[0]!;
     }
   }
@@ -769,7 +775,7 @@ function resolveRuntimeProvider(runtime: Record<string, unknown>): string | unde
     // Upstream names no provider without `defaults.profile` — a lone profile is
     // not promoted to the default, and `defaults.pool`/ladder forms resolve at
     // run time. Falling through keeps the legacy chain (and ultimately Takt's
-    // own `claude` default) rather than inventing a resolution Takt lacks.
+    // own `claude-sdk` default) rather than inventing a resolution Takt lacks.
     return undefined;
   }
   return providerOf(defaults[TAKT_RUNTIME_PROFILE_KEY]);
