@@ -3081,7 +3081,7 @@ As this project's AI coding tool, you must follow the additional conventions bel
 
     // Only rules that land in the root file are folded. Any other non-root
     // rule is written to a file of its own (a nested per-directory
-    // `AGENTS.md` for codexcli, pool, vibe, dsh and reasonix, or Pi's
+    // `AGENTS.md` for codexcli, pool, vibe, dsh, warp and reasonix, or Pi's
     // `APPEND_SYSTEM.md`) that import reads back as a separate rulesync rule
     // named after that file; it duplicates the source rule only when the
     // source has another name.
