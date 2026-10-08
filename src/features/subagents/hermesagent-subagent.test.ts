@@ -92,6 +92,11 @@ describe("HermesagentSubagent", () => {
     expect(plugin?.getFileContent()).toContain("ctx.dispatch_tool(");
     expect(plugin?.getFileContent()).toContain('"delegate_task"');
     expect(plugin?.getFileContent()).not.toContain('"toolsets":');
+    // Dispatch through the advertised `tasks=[...]` batch shape, not the
+    // legacy top-level `goal` (issue #2414).
+    expect(plugin?.getFileContent()).toContain(
+      '"tasks": [\n                    {\n                        "goal": description,',
+    );
     expect(plugin?.getFileContent()).toContain("ctx.register_command");
     expect(plugin?.getFileContent()).toContain(
       'Path(__file__).resolve().parents[2] / "rulesync" / "subagents"',

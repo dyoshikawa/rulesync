@@ -112,12 +112,17 @@ def _register_command(ctx, command):
             context_parts.append(f"User arguments:\\n{raw_args}")
 
         # delegate_task takes no model-facing "toolsets" argument: the child
-        # inherits the parent's enabled toolsets.
+        # inherits the parent's enabled toolsets. "tasks" is the only shape its
+        # schema advertises; a top-level "goal" is an unadvertised legacy path.
         return ctx.dispatch_tool(
             "delegate_task",
             {
-                "goal": description,
-                "context": "\\n\\n".join(context_parts),
+                "tasks": [
+                    {
+                        "goal": description,
+                        "context": "\\n\\n".join(context_parts),
+                    },
+                ],
             },
         )
 
