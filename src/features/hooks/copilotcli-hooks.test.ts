@@ -6,7 +6,7 @@ import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
-import { CopilotcliHooks } from "./copilotcli-hooks.js";
+import { CopilotcliHooks, CopilotcliHooksSettings } from "./copilotcli-hooks.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
 
 describe("CopilotcliHooks", () => {
@@ -787,6 +787,149 @@ describe("CopilotcliHooks", () => {
     it("should return default content when file does not exist", async () => {
       const hooks = await CopilotcliHooks.fromFile({ outputRoot: testDir, validate: false });
       expect(hooks.getFileContent()).toBe('{"hooks":{}}');
+    });
+  });
+
+  describe("disableAllHooks", () => {
+    const buildRulesyncHooks = (config: Record<string, unknown>) =>
+      new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+    it("patches only disableAllHooks into the project settings file", async () => {
+      const settingsDir = join(testDir, ".github", "copilot");
+      await ensureDir(settingsDir);
+      await writeFileContent(
+        join(settingsDir, "settings.json"),
+        JSON.stringify({ model: "gpt-6", deniedUrls: ["evil.example"] }),
+      );
+
+      const hooks = await CopilotcliHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks: buildRulesyncHooks({
+          version: 1,
+          hooks: {},
+          copilotcli: { disableAllHooks: true },
+        }),
+        validate: false,
+      });
+      const auxiliary = await CopilotcliHooks.getAuxiliaryFiles({ toolHooks: hooks });
+
+      expect(auxiliary).toHaveLength(1);
+      const [settings] = auxiliary;
+      expect(settings).toBeInstanceOf(CopilotcliHooksSettings);
+      expect(settings?.getRelativeDirPath()).toBe(join(".github", "copilot"));
+      expect(settings?.getRelativeFilePath()).toBe("settings.json");
+      expect(settings?.isDeletable()).toBe(false);
+      expect(JSON.parse(settings?.getFileContent() ?? "")).toEqual({
+        model: "gpt-6",
+        deniedUrls: ["evil.example"],
+        disableAllHooks: true,
+      });
+      // The switch does not leak into the hooks file.
+      expect(JSON.parse(hooks.getFileContent())).not.toHaveProperty("disableAllHooks");
+    });
+
+    it("writes an explicit false to the global settings file", async () => {
+      const hooks = await CopilotcliHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks: buildRulesyncHooks({
+          version: 1,
+          hooks: {},
+          copilotcli: { disableAllHooks: false },
+        }),
+        validate: false,
+        global: true,
+      });
+      const [settings] = await CopilotcliHooks.getAuxiliaryFiles({ toolHooks: hooks });
+
+      expect(settings?.getRelativeDirPath()).toBe(".copilot");
+      expect(settings?.getRelativeFilePath()).toBe("settings.json");
+      expect(JSON.parse(settings?.getFileContent() ?? "")).toEqual({ disableAllHooks: false });
+    });
+
+    it("does not touch the settings file when disableAllHooks is not authored", async () => {
+      const hooks = await CopilotcliHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks: buildRulesyncHooks({
+          version: 1,
+          hooks: { sessionStart: [{ command: "echo hi" }] },
+        }),
+        validate: false,
+      });
+
+      expect(await CopilotcliHooks.getAuxiliaryFiles({ toolHooks: hooks })).toEqual([]);
+    });
+
+    it("declares both settings files as extra shared write paths", () => {
+      expect(CopilotcliHooks.getExtraSharedWritePaths()).toEqual([
+        { relativeDirPath: join(".github", "copilot"), relativeFilePath: "settings.json" },
+      ]);
+      expect(CopilotcliHooks.getExtraSharedWritePaths({ global: true })).toEqual([
+        { relativeDirPath: ".copilot", relativeFilePath: "settings.json" },
+      ]);
+    });
+
+    it.each([true, false])(
+      "imports disableAllHooks=%s under the copilotcli override",
+      async (value) => {
+        const settingsDir = join(testDir, ".github", "copilot");
+        await ensureDir(settingsDir);
+        await writeFileContent(
+          join(settingsDir, "settings.json"),
+          JSON.stringify({ disableAllHooks: value, deniedUrls: [] }),
+        );
+        const hooksDir = join(testDir, ".github", "hooks");
+        await ensureDir(hooksDir);
+        await writeFileContent(
+          join(hooksDir, "copilotcli-hooks.json"),
+          JSON.stringify({ version: 1, hooks: { sessionStart: [{ command: "echo hi" }] } }),
+        );
+
+        const hooks = await CopilotcliHooks.fromFile({ outputRoot: testDir, validate: false });
+        const canonical = hooks.toRulesyncHooks().getJson();
+
+        expect(canonical.copilotcli).toEqual({ disableAllHooks: value });
+        expect(canonical.hooks.sessionStart).toEqual([{ type: "command", command: "echo hi" }]);
+      },
+    );
+
+    it("imports from the global settings file in global mode", async () => {
+      const settingsDir = join(testDir, ".copilot");
+      await ensureDir(settingsDir);
+      await writeFileContent(
+        join(settingsDir, "settings.json"),
+        JSON.stringify({ disableAllHooks: true }),
+      );
+
+      const hooks = await CopilotcliHooks.fromFile({
+        outputRoot: testDir,
+        validate: false,
+        global: true,
+      });
+
+      expect(hooks.toRulesyncHooks().getJson().copilotcli).toEqual({ disableAllHooks: true });
+    });
+
+    it("ignores a missing, unparsable or non-boolean setting on import", async () => {
+      const settingsPath = join(testDir, ".github", "copilot", "settings.json");
+      const importOverride = async () =>
+        (await CopilotcliHooks.fromFile({ outputRoot: testDir, validate: false }))
+          .toRulesyncHooks()
+          .getJson().copilotcli;
+
+      expect(await importOverride()).toBeUndefined();
+
+      await ensureDir(join(testDir, ".github", "copilot"));
+      await writeFileContent(settingsPath, "{ not json");
+      expect(await importOverride()).toBeUndefined();
+
+      await writeFileContent(settingsPath, JSON.stringify({ disableAllHooks: "yes" }));
+      expect(await importOverride()).toBeUndefined();
     });
   });
 

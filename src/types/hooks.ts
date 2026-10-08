@@ -1768,7 +1768,14 @@ export const HooksConfigSchema = z.looseObject({
   cursor: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   claudecode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   copilot: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
-  copilotcli: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  copilotcli: z.optional(
+    z.looseObject({
+      hooks: z.optional(hooksRecordSchema),
+      // Copilot CLI settings switch that disables every hook when true. It
+      // lives in `settings.json`, not in the hooks file.
+      disableAllHooks: z.optional(z.boolean()),
+    }),
+  ),
   opencode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   kilo: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   mimocode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),

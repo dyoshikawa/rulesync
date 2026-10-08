@@ -10,6 +10,7 @@ import { RulesyncPermissions } from "./rulesync-permissions.js";
 const AUTO_APPROVE_KEY = "chat.tools.terminal.autoApprove";
 const EDITS_KEY = "chat.tools.edits.autoApprove";
 const URLS_KEY = "chat.tools.urls.autoApprove";
+const DEFAULT_PERMISSION_MODE_KEY = "chat.permissions.default";
 
 function createRulesyncPermissions(permission: Record<string, Record<string, string>>) {
   return new RulesyncPermissions({
@@ -215,6 +216,62 @@ describe("CopilotPermissions", () => {
       // The tool-scoped `bash` category replaces the shared one wholesale.
       expect(json[AUTO_APPROVE_KEY]).toEqual({ "rm *": false });
     });
+
+    it("writes copilot.defaultPermissionMode to chat.permissions.default", async () => {
+      await writeFileContent(
+        join(testDir, ".vscode", "settings.json"),
+        JSON.stringify({ "editor.tabSize": 2, [DEFAULT_PERMISSION_MODE_KEY]: "default" }),
+      );
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: { bash: { "git *": "allow" } },
+          copilot: { defaultPermissionMode: "autopilot" },
+        }),
+        validate: true,
+      });
+
+      const permissions = await CopilotPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions.forTarget({ toolTarget: "copilot" }),
+      });
+
+      const json = JSON.parse(permissions.getFileContent());
+      expect(json[DEFAULT_PERMISSION_MODE_KEY]).toBe("autopilot");
+      expect(json[AUTO_APPROVE_KEY]).toEqual({ "git *": true });
+      expect(json["editor.tabSize"]).toBe(2);
+    });
+
+    it("leaves a hand-written chat.permissions.default alone without the override", async () => {
+      await writeFileContent(
+        join(testDir, ".vscode", "settings.json"),
+        JSON.stringify({ [DEFAULT_PERMISSION_MODE_KEY]: "autoApprove" }),
+      );
+
+      const permissions = await CopilotPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({ bash: { "git *": "allow" } }),
+      });
+
+      const json = JSON.parse(permissions.getFileContent());
+      expect(json[DEFAULT_PERMISSION_MODE_KEY]).toBe("autoApprove");
+    });
+
+    it("rejects a defaultPermissionMode value VS Code does not accept", () => {
+      expect(
+        () =>
+          new RulesyncPermissions({
+            relativeDirPath: ".rulesync",
+            relativeFilePath: "permissions.json",
+            fileContent: JSON.stringify({
+              permission: {},
+              copilot: { defaultPermissionMode: "yolo" },
+            }),
+            validate: true,
+          }),
+      ).toThrow();
+    });
   });
 
   describe("toRulesyncPermissions", () => {
@@ -259,6 +316,30 @@ describe("CopilotPermissions", () => {
       const json = permissions.toRulesyncPermissions().getJson();
       expect(json.permission).toEqual({});
     });
+
+    it("imports chat.permissions.default as copilot.defaultPermissionMode", () => {
+      const permissions = new CopilotPermissions({
+        relativeDirPath: ".vscode",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({ [DEFAULT_PERMISSION_MODE_KEY]: "autoApprove" }),
+        validate: false,
+      });
+
+      const json = permissions.toRulesyncPermissions().getJson();
+      expect(json.copilot).toEqual({ defaultPermissionMode: "autoApprove" });
+    });
+
+    it("skips a chat.permissions.default value it does not recognize", () => {
+      const permissions = new CopilotPermissions({
+        relativeDirPath: ".vscode",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({ [DEFAULT_PERMISSION_MODE_KEY]: "assisted" }),
+        validate: false,
+      });
+
+      const json = permissions.toRulesyncPermissions().getJson();
+      expect(json).not.toHaveProperty("copilot");
+    });
   });
 
   describe("round-trip", () => {
@@ -281,6 +362,32 @@ describe("CopilotPermissions", () => {
 
       const json = reimported.toRulesyncPermissions().getJson();
       expect(json.permission.bash).toEqual({ "git *": "allow", "rm *": "deny" });
+    });
+
+    it("preserves copilot.defaultPermissionMode through generate then import", async () => {
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: {},
+          copilot: { defaultPermissionMode: "autopilot" },
+        }),
+        validate: true,
+      });
+
+      const generated = await CopilotPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions.forTarget({ toolTarget: "copilot" }),
+      });
+      const reimported = new CopilotPermissions({
+        relativeDirPath: ".vscode",
+        relativeFilePath: "settings.json",
+        fileContent: generated.getFileContent(),
+        validate: false,
+      });
+
+      const json = reimported.toRulesyncPermissions().getJson();
+      expect(json.copilot).toEqual({ defaultPermissionMode: "autopilot" });
     });
   });
 });

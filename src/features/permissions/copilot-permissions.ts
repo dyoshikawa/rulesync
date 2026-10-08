@@ -5,7 +5,11 @@ import {
   COPILOT_VSCODE_SETTINGS_FILE_NAME,
 } from "../../constants/copilot-paths.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
-import type { PermissionAction } from "../../types/permissions.js";
+import {
+  COPILOT_DEFAULT_PERMISSION_MODES,
+  type CopilotDefaultPermissionMode,
+  type PermissionAction,
+} from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { isPlainObject } from "../../utils/type-guards.js";
@@ -49,6 +53,18 @@ const AUTO_APPROVE_KEYS: Readonly<Record<string, string>> = {
   // whenever the canonical config states a `webfetch` category at all.
   webfetch: "chat.tools.urls.autoApprove",
 };
+
+/**
+ * The workspace setting holding the starting permission level of new chat
+ * sessions, authored through the `copilot.defaultPermissionMode` override.
+ *
+ * @see https://code.visualstudio.com/docs/agents/reference/ai-settings
+ */
+const DEFAULT_PERMISSION_MODE_KEY = "chat.permissions.default";
+
+function isCopilotDefaultPermissionMode(value: unknown): value is CopilotDefaultPermissionMode {
+  return COPILOT_DEFAULT_PERMISSION_MODES.some((mode) => mode === value);
+}
 
 function asAutoApproveMap(value: unknown): Record<string, boolean> {
   if (!isPlainObject(value)) {
@@ -96,7 +112,7 @@ function buildAutoApproveValue(
  * through the workspace `chat.tools.terminal.autoApprove` map inside
  * `.vscode/settings.json`. That file is a general workspace settings file with
  * many unrelated keys, so reads and writes merge into the existing JSON
- * (touching only the one managed key) and the file is never deleted.
+ * (touching only the managed keys) and the file is never deleted.
  *
  * Three canonical categories have a clean, non-lossy representation and are
  * mapped (see {@link AUTO_APPROVE_KEYS}): `bash`, `edit` and `webfetch`. In
@@ -106,6 +122,9 @@ function buildAutoApproveValue(
  * the same default prompt). A key whose canonical category is absent entirely
  * is left untouched, so authoring only `bash` rules never disturbs a
  * hand-written edits or urls map.
+ * The `copilot.defaultPermissionMode` override writes `chat.permissions.default`
+ * (the starting permission level of new chat sessions); without it the key is
+ * left untouched.
  * Only project scope is modeled: VS Code's user-scope settings.json lives at a
  * platform-dependent path outside rulesync's home-relative global model.
  */
@@ -176,6 +195,10 @@ export class CopilotPermissions extends ToolPermissions {
       }
       patch[settingKey] = buildAutoApproveValue(rules);
     }
+    const defaultPermissionMode = config.copilot?.defaultPermissionMode;
+    if (defaultPermissionMode !== undefined) {
+      patch[DEFAULT_PERMISSION_MODE_KEY] = defaultPermissionMode;
+    }
 
     return new CopilotPermissions({
       outputRoot,
@@ -229,8 +252,18 @@ export class CopilotPermissions extends ToolPermissions {
       }
     }
 
+    const defaultPermissionMode = settings[DEFAULT_PERMISSION_MODE_KEY];
     return this.toRulesyncPermissionsDefault({
-      fileContent: JSON.stringify({ permission }, null, 2),
+      fileContent: JSON.stringify(
+        {
+          permission,
+          ...(isCopilotDefaultPermissionMode(defaultPermissionMode) && {
+            copilot: { defaultPermissionMode },
+          }),
+        },
+        null,
+        2,
+      ),
     });
   }
 

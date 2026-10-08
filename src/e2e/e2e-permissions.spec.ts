@@ -905,6 +905,7 @@ web_search_request = true
             // Non-terminal categories have no autoApprove representation.
             read: { "src/**": "allow" },
           },
+          copilot: { defaultPermissionMode: "autoApprove" },
         },
         null,
         2,
@@ -918,6 +919,7 @@ web_search_request = true
       "git *": true,
       "rm -rf *": false,
     });
+    expect(generated["chat.permissions.default"]).toBe("autoApprove");
     expect(generated["editor.tabSize"]).toBe(2);
   });
 
