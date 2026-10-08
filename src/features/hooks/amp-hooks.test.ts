@@ -205,6 +205,88 @@ describe("AmpHooks", () => {
     });
   });
 
+  it("should emit changes.prompt only from the Amp override block", () => {
+    const shared = AmpHooks.fromRulesyncHooks({
+      outputRoot: testDir,
+      rulesyncHooks: buildRulesyncHooks({
+        testDir,
+        config: { hooks: { "changes.prompt": [{ command: "shared-ship.sh" }] } },
+      }),
+      validate: false,
+    });
+    expect(shared.getFileContent()).not.toContain("changes.prompt");
+
+    const override = AmpHooks.fromRulesyncHooks({
+      outputRoot: testDir,
+      rulesyncHooks: buildRulesyncHooks({
+        testDir,
+        config: {
+          hooks: {},
+          amp: {
+            hooks: {
+              "changes.prompt": [
+                { command: "ship-notes.sh" },
+                { command: "filtered.sh", matcher: "ship" },
+              ],
+            },
+          },
+        },
+      }),
+      validate: false,
+    });
+    const content = override.getFileContent();
+    expect(content).toContain('amp.on("changes.prompt", async (_event, ctx) => {');
+    expect(content).toContain("ship-notes.sh");
+    expect(content).not.toContain("filtered.sh");
+  });
+
+  it("should append successful changes.prompt command output and ignore failures", async () => {
+    const ampHooks = AmpHooks.fromRulesyncHooks({
+      outputRoot: testDir,
+      rulesyncHooks: buildRulesyncHooks({
+        testDir,
+        config: {
+          hooks: {},
+          amp: {
+            hooks: {
+              "changes.prompt": [
+                { command: "first.sh" },
+                { command: "failing.sh" },
+                { command: "throwing.sh" },
+                { command: "second.sh" },
+              ],
+            },
+          },
+        },
+      }),
+      validate: false,
+    });
+    const pluginsDir = join(testDir, ".amp", "plugins");
+    await ensureDir(pluginsDir);
+    const filePath = join(pluginsDir, "rulesync-hooks.ts");
+    await writeFileContent(filePath, ampHooks.getFileContent());
+
+    const module = await tsImport(pathToFileURL(filePath).href, import.meta.url);
+    const on = vi.fn();
+    module.default({ on });
+    const handlers = Object.fromEntries(on.mock.calls.map(([event, handler]) => [event, handler]));
+    const event = { thread: { id: "T-test" }, workflow: "ship" };
+    const shell = vi
+      .fn()
+      .mockResolvedValueOnce({ exitCode: 0, stdout: "Close the linked issue.\n", stderr: "" })
+      .mockResolvedValueOnce({ exitCode: 1, stdout: "ignored", stderr: "boom" })
+      .mockRejectedValueOnce(new Error("hook execution failed"))
+      .mockResolvedValueOnce({ exitCode: 0, stdout: "Update the changelog.", stderr: "" });
+
+    await expect(handlers["changes.prompt"](event, { $: shell })).resolves.toEqual({
+      append: "Close the linked issue.\n\nUpdate the changelog.",
+    });
+    expect(shell).toHaveBeenCalledTimes(4);
+
+    shell.mockResolvedValue({ exitCode: 0, stdout: "  \n", stderr: "" });
+    await expect(handlers["changes.prompt"](event, { $: shell })).resolves.toBeUndefined();
+  });
+
   it("should preserve shell quoting and expansion when executed by Bun Shell", async () => {
     const outputPath = join(testDir, "amp-hook-output.txt");
     const command = `echo SAFE\\; echo $AMP_HOOK_VALUE \${AMP_HOOK_VALUE} > ${JSON.stringify(outputPath)}`;

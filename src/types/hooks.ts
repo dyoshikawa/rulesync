@@ -498,6 +498,17 @@ export const AMP_HOOK_EVENTS: readonly HookEvent[] = [
 ];
 
 /**
+ * Amp Plugin API events with no canonical equivalent. They are accepted only
+ * under the `amp.hooks` override block, keyed by their native Amp name, and are
+ * emitted under that same name. `changes.prompt` fires while a client prepares
+ * the prompt behind its Ship or Push to Branch button; its handler may return
+ * `{ append }` to add instructions after that prompt.
+ *
+ * @see https://ampcode.com/docs/plugin-api
+ */
+export const AMP_OVERRIDE_ONLY_HOOK_EVENTS: readonly string[] = ["changes.prompt"];
+
+/**
  * Hook events supported by Cline's file-based hooks. Cline resolves one
  * executable per lifecycle event from its hooks directory, and the accepted
  * event names come from two runtimes that read the same directory:
