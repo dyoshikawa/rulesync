@@ -475,7 +475,7 @@ describe("KiloPermissions", () => {
       }),
     ).rejects.toThrow(/Failed to parse Kilo Code config/);
   });
-  it("should write wildcard keys before exact keys so a broad allow cannot shadow a deny", async () => {
+  it("should write the catch-all first and wildcard keys before exact keys", async () => {
     // Kilo evaluates `permission` last-match-wins in key order. The MCP feature
     // writes `{server}_{tool}` keys first; the catch-all added afterwards must
     // land in front of them, on a fresh file and on a regenerate alike.
@@ -498,8 +498,8 @@ describe("KiloPermissions", () => {
     });
 
     expect(Object.keys(instance.getJson().permission ?? {})).toEqual([
-      "github_*",
       "*",
+      "github_*",
       "github_delete_repo",
       "bash",
     ]);

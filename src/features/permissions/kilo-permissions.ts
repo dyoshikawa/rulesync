@@ -203,25 +203,23 @@ function narrowMarkdownSourceToProjectScope({
 }
 
 /**
- * Order a Kilo `permission` block so every wildcard key (`*`, `github_*`, ...)
- * comes before every exact key, keeping the relative order within each group.
- * Kilo evaluates the block last-match-wins in key order, and a key is matched
- * as a wildcard against the permission name, so a broad key written after a
- * narrow one overrides it. The permissions writer appends new keys after the
- * existing ones — after the `{server}_{tool}` entries the MCP feature wrote
- * moments before — so without this a catch-all `"*": "allow"` would silently
- * lift an MCP `disabledTools` deny. Exact keys never shadow each other (each
- * names a different permission), so this only decides broad-versus-narrow, and
- * always in favor of the narrower rule.
+ * Order a Kilo `permission` block as catch-all `*` first, then the other
+ * wildcard keys (`github_*`, ...), then the exact keys, keeping the relative
+ * order within each group. Kilo evaluates the block last-match-wins in key
+ * order, and a key is matched as a wildcard against the permission name, so a
+ * broad key written after a narrow one overrides it. The permissions writer
+ * appends new keys after the existing ones — after the `{server}_{tool}`
+ * entries the MCP feature wrote moments before — so without this a catch-all
+ * `"*": "allow"` would silently lift an MCP `disabledTools` deny. Exact keys
+ * never shadow each other (each names a different permission); two partial
+ * wildcards keep the order they were authored in.
  * @see https://github.com/Kilo-Org/kilocode/blob/main/packages/opencode/src/permission/index.ts
  */
 function orderKiloPermissionKeys(permission: Record<string, unknown>): Record<string, unknown> {
-  const entries = Object.entries(permission);
-  const isPattern = ([key]: [string, unknown]) => key.includes("*") || key.includes("?");
-  return Object.fromEntries([
-    ...entries.filter((entry) => isPattern(entry)),
-    ...entries.filter((entry) => !isPattern(entry)),
-  ]);
+  const rank = (key: string): number =>
+    key === "*" ? 0 : key.includes("*") || key.includes("?") ? 1 : 2;
+  // `toSorted` is stable, so each group keeps its relative order.
+  return Object.fromEntries(Object.entries(permission).toSorted(([a], [b]) => rank(a) - rank(b)));
 }
 
 export class KiloPermissions extends ToolPermissions {

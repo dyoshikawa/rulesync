@@ -142,9 +142,10 @@ const KiloConfigSchema = z.looseObject({
   // and only reads this map on import.
   tools: z.optional(z.record(z.string(), z.boolean())),
   // Shared with the permissions feature (see kilo-permissions.ts), which
-  // validates it. Left unconstrained here so a permission value this adapter
-  // does not model cannot abort the whole Kilo generate.
-  permission: z.optional(z.record(z.string(), z.unknown())),
+  // validates it. Left unconstrained here — Kilo also accepts a bare action
+  // string — so a value this adapter does not model cannot abort the whole
+  // Kilo generate; read sites narrow it.
+  permission: z.optional(z.unknown()),
   // Project rule files/globs that Kilo auto-loads. Shared with the rules
   // feature (see kilo-rule.ts); preserved here so writing MCP never drops it.
   instructions: z.optional(z.array(z.string())),
@@ -997,7 +998,11 @@ export class KiloMcp extends ToolMcp {
     // Kilo's `{env:VAR}` maps back to the canonical `${VAR}` so the Kilo-only
     // syntax does not leak into every other target's config.
     const convertedMcpServers = convertEnvVarRefsFromToolFormat({
-      mcpServers: convertFromKiloFormat(this.json.mcp ?? {}, this.json.tools, this.json.permission),
+      mcpServers: convertFromKiloFormat(
+        this.json.mcp ?? {},
+        this.json.tools,
+        isRecord(this.json.permission) ? this.json.permission : undefined,
+      ),
       pattern: BRACE_ENV_VAR_PATTERN,
     });
     // A transport-less server is a Kilo idea — a toggle for a server another

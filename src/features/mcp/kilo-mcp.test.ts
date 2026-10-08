@@ -1124,6 +1124,25 @@ describe("KiloMcp", () => {
       });
     });
 
+    it("should leave a bare permission action untouched when there are no tool filters", async () => {
+      await writeFileContent(
+        join(testDir, "kilo.json"),
+        JSON.stringify({ permission: "allow" }, null, 2),
+      );
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({ mcpServers: { srv: { command: "node" } } }),
+      });
+
+      const kiloMcp = await KiloMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+
+      expect(kiloMcp.getJson().permission).toBe("allow");
+      const imported = await KiloMcp.fromFile({ outputRoot: testDir });
+      expect(imported.validate()).toEqual({ success: true, error: null });
+      expect(imported.toRulesyncMcp().getJson().mcpServers.srv).toBeUndefined();
+    });
+
     it("should keep a bare permission action as the catch-all it stands for", async () => {
       await writeFileContent(
         join(testDir, "kilo.json"),
