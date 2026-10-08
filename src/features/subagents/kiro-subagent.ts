@@ -15,6 +15,19 @@ import {
   ToolSubagentSettablePaths,
 } from "./tool-subagent.js";
 
+// Agent configs written before CLI V3 key hooks by event (`{ "agentSpawn": [...] }`);
+// `/upgrade-agent` converts them to "the array format the v3 schema requires",
+// and the V3 field reference describes inline hooks as "same schema as
+// `.kiro/hooks/`" (`{ "version": "v1", "hooks": [...] }`). Accept all three so
+// an upgraded agent still imports.
+// https://kiro.dev/docs/cli/v3/upgrade-agent/
+// https://kiro.dev/docs/cli/v3/agent-config/
+const KiroCliSubagentHooksSchema = z.union([
+  z.record(z.string(), z.array(z.unknown())),
+  z.array(z.unknown()),
+  z.looseObject({ version: z.optional(z.string()), hooks: z.array(z.unknown()) }),
+]);
+
 const KiroCliSubagentJsonSchema = z.looseObject({
   name: z.optional(z.string()),
   description: z.optional(z.nullable(z.string())),
@@ -23,7 +36,7 @@ const KiroCliSubagentJsonSchema = z.looseObject({
   toolAliases: z.optional(z.nullable(z.record(z.string(), z.string()))),
   toolSettings: z.optional(z.nullable(z.unknown())),
   toolSchema: z.optional(z.nullable(z.unknown())),
-  hooks: z.optional(z.nullable(z.record(z.string(), z.array(z.unknown())))),
+  hooks: z.optional(z.nullable(KiroCliSubagentHooksSchema)),
   model: z.optional(z.nullable(z.string())),
   mcpServers: z.optional(z.nullable(z.record(z.string(), z.unknown()))),
   useLegacyMcpJson: z.optional(z.nullable(z.boolean())),
