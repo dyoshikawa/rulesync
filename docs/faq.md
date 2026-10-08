@@ -140,3 +140,12 @@ Keep `rulesync doctor --strict && rulesync install --frozen && rulesync generate
 To see whether a repository is behind without changing anything, run `rulesync install --outdated` there. It re-resolves each declared source the same way `--update` does, compares the result with the lockfile, lists the sources that are outdated or not yet locked, and exits with code `1` when any is (`2` when a source cannot be resolved), without writing the lockfile or any other file. It is what a scheduled job can run first to decide whether an update is needed, and running it across clones shows which consumers are behind. See [Checking for Outdated Sources](./guide/declarative-sources.md#checking-for-outdated-sources) for the details.
 
 Updating many repositories at once is a loop over clones that does, per repository, exactly what a single one does: skip a dirty working tree, run `rulesync install --update && rulesync generate`, run the CI guard, and commit. Rulesync does not orchestrate that loop, and the shared repository does not have to know who consumes it.
+
+## Is there a GUI or web dashboard for managing Rulesync?
+
+No. Rulesync is a CLI and a library, and it does not ship a `rulesync ui` command or a dashboard. The `.rulesync/` directory and `rulesync.jsonc` are plain files meant to be reviewed in pull requests like any other source, and the rules, commands, subagents and skills in them are ordinary Markdown with frontmatter that any editor can open. Bundling a web UI would add a server, a frontend and their runtime dependencies to every install.
+
+A graphical front end can be built on top of Rulesync instead, from either of two existing entry points:
+
+- The [Programmatic API](./api/programmatic-api.md) exports `generate`, `importFromTool` and `convertFromTool`, so a desktop or web app can drive the same operations as the CLI from Node.js.
+- The [Rulesync MCP Server](./reference/mcp-server.md) lets an AI agent read, create, update and delete Rulesync files and run `generate`, `import` and `convert`, which covers the "browse, edit and regenerate" part of a dashboard from inside your coding assistant.
