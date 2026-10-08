@@ -275,6 +275,12 @@ function hasValidClassRanges(pattern: string): boolean {
  */
 function isReadVerbatim(pattern: string): boolean {
   if (!PLAIN_ASCII.test(pattern) || EMPTY_ALTERNATIVE.test(pattern)) return false;
+  // Inside a group, `globset` reads a `*` next to `{`, `,` or `}` differently
+  // from the expanded path (`{a,**}/b` does not match `b`), and a class may
+  // hold a `,`; such a pattern is never taken as already held.
+  if (pattern.includes("{") && (pattern.includes("[") || /[{},]\*|\*[{},]/.test(pattern))) {
+    return false;
+  }
   if (!hasValidClassRanges(pattern)) return false;
   const expanded = expandBraces(pattern);
   return (
@@ -298,6 +304,23 @@ function heldKeys(entry: unknown): string[] {
   return paths
     .filter((path): path is string => typeof path === "string" && PLAIN_ASCII.test(path))
     .map((path) => JSON.stringify([path, enforced.action]));
+}
+
+/**
+ * Whether Codewhale parses an invariant: a string, or an object with a string
+ * `text`, an optional string-array `paths` and an optional `ask` / `block`
+ * `action`. One entry it cannot parse fails the whole file.
+ */
+function isReadableInvariant(entry: unknown): boolean {
+  if (typeof entry === "string") return true;
+  if (!isPlainObject(entry) || typeof entry.text !== "string") return false;
+  if (
+    Object.hasOwn(entry, "paths") &&
+    !(Array.isArray(entry.paths) && entry.paths.every((path) => typeof path === "string"))
+  ) {
+    return false;
+  }
+  return !Object.hasOwn(entry, "action") || entry.action === "ask" || entry.action === "block";
 }
 
 function isManagedInvariant(entry: unknown): boolean {
@@ -384,6 +407,12 @@ export function mergeCodewhaleConstitution({
     ? existing.protected_invariants
     : [];
   const keptInvariants = existingInvariants.filter((entry) => !isManagedInvariant(entry));
+  const unreadableCount = keptInvariants.filter((entry) => !isReadableInvariant(entry)).length;
+  if (unreadableCount > 0) {
+    logger?.warn(
+      `Codewhale permissions: ${unreadableCount} hand-written "protected_invariants" invariant(s) in .codewhale/constitution.json cannot be parsed by Codewhale, which then holds every write for approval until the file is fixed.`,
+    );
+  }
   // Codewhale only trims a hand-written pattern, so `./a` never matches the
   // normalized target `a` and must not count as holding it.
   const heldByHand = new Set(keptInvariants.flatMap(heldKeys));
@@ -398,7 +427,13 @@ export function mergeCodewhaleConstitution({
     if (paths.every((path) => isHeld(path, action))) continue;
     // A pattern imported from a hand-written invariant, such as `docs/{a,b}.md`.
     const patterns = [...(sources.get(glob) ?? [])];
-    if (patterns.some((pattern) => isReadVerbatim(pattern) && isHeld(pattern, action))) continue;
+    // Every source must be held: `[ab]` and `[cd]` both widen to the same `?`.
+    if (
+      patterns.length > 0 &&
+      patterns.every((pattern) => isReadVerbatim(pattern) && isHeld(pattern, action))
+    ) {
+      continue;
+    }
     managed.push({
       text: invariantText({ glob, action }),
       paths,

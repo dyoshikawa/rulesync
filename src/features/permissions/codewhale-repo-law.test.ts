@@ -191,6 +191,51 @@ describe("CodewhalePermissions (project scope: .codewhale/constitution.json)", (
     expect(await generate(imported)).toEqual({ protected_invariants: handWritten });
   });
 
+  it("still writes a hold when a verbatim hand-written pattern is narrower or holds only one source", async () => {
+    await writeFileContent(
+      constitutionPath(),
+      JSON.stringify({
+        protected_invariants: [
+          { text: "A", paths: ["{a,**}/b"], action: "block" },
+          { text: "B", paths: ["docs/[ab].md"], action: "block" },
+        ],
+      }),
+    );
+
+    const document = await generate({
+      permission: {
+        write: { "{a,**}/b": "deny", "docs/[ab].md": "deny", "docs/[cd].md": "deny" },
+      },
+    });
+
+    expect(document.protected_invariants).toEqual([
+      expect.objectContaining({ text: "A" }),
+      expect.objectContaining({ text: "B" }),
+      expect.objectContaining({ paths: ["a/b", "**/b"], managed_by: "rulesync" }),
+      expect.objectContaining({ paths: ["docs/?.md"], managed_by: "rulesync" }),
+    ]);
+  });
+
+  it("warns about a hand-written entry Codewhale cannot parse", async () => {
+    await writeFileContent(
+      constitutionPath(),
+      JSON.stringify({
+        protected_invariants: [
+          "Prose.",
+          { text: "Advisory.", paths: [] },
+          { paths: ["a/**"] },
+          { text: "x", paths: null },
+          { text: "y", action: "deny" },
+        ],
+      }),
+    );
+    const logger = createMockLogger();
+
+    await generate({ permission: {} }, logger);
+
+    expect(vi.mocked(logger.warn)).toHaveBeenCalledWith(expect.stringContaining("3 hand-written"));
+  });
+
   it("warns when a new constitution would hide an ancestor's", async () => {
     const parentConstitution = join(testDir, ".codewhale", "constitution.json");
     await writeFileContent(parentConstitution, JSON.stringify({ authority: ["AGENTS.md"] }));
