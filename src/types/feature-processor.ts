@@ -1,7 +1,8 @@
 import { dirname, join } from "node:path";
 
 import { RULESYNC_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
-import type { DeletedPath } from "../lib/orphan-sweep.js";
+import { diffSharedConfigOwnedKeys } from "../features/shared/shared-config-gateway.js";
+import type { DeletedPath, KeyOperation } from "../lib/orphan-sweep.js";
 import { fileContentIsEmptyPayload, fileContentsEquivalent } from "../utils/content-equivalence.js";
 import { quoteForLog, stripControlCharacters } from "../utils/control-characters.js";
 import {
@@ -106,6 +107,7 @@ export abstract class FeatureProcessor extends RulesyncSourceConsumer {
   async writeAiFiles(aiFiles: AiFile[]): Promise<WriteResult> {
     let changedCount = 0;
     const changedPaths: string[] = [];
+    const keyOperations: KeyOperation[] = [];
     for (const aiFile of aiFiles) {
       const filePath = aiFile.getFilePath();
 
@@ -171,10 +173,24 @@ export abstract class FeatureProcessor extends RulesyncSourceConsumer {
         }
       }
       changedCount++;
-      changedPaths.push(aiFile.getRelativePathFromCwd());
+      const relativePath = aiFile.getRelativePathFromCwd();
+      changedPaths.push(relativePath);
+      // Computed from the same two contents in a dry run and a real one, so a
+      // preview reports exactly the key operations the run it previews makes.
+      for (const { action, key } of diffSharedConfigOwnedKeys({
+        fileKey: relativePath,
+        existingContent: existingContent ?? "",
+        newContent: contentWithNewline,
+      })) {
+        keyOperations.push({ action, path: relativePath, key });
+      }
     }
 
-    return { count: changedCount, paths: changedPaths };
+    return {
+      count: changedCount,
+      paths: changedPaths,
+      ...(keyOperations.length > 0 && { keyOperations }),
+    };
   }
 
   async removeAiFiles(aiFiles: AiFile[]): Promise<void> {

@@ -68,8 +68,12 @@ With `delete: true`, the result's `deletedPathsByFeature` lists what the orphan
 sweep deleted — or, with `dryRun` or `check`, would delete — per feature, as
 `{ path, kind }` entries (`kind` is `"file"` or `"directory"`, `path` is
 relative to the output root and sorted). A feature that deleted nothing is
-absent. The CLI's `--json` output turns this and the written paths into a
-versioned `plan`; see [CLI Commands](../reference/cli-commands.md).
+absent. `keyOperationsByFeature` lists, the same way, the top-level keys
+Rulesync owns outright in a shared configuration file (`.codex/config.toml`,
+`.claude/settings.json`, …) that a write added or changed (`action: "write"`)
+or removed (`action: "delete"`), as `{ action, path, key }` entries sorted by
+path and then key. The CLI's `--json` output turns these and the written paths
+into a versioned `plan`; see [CLI Commands](../reference/cli-commands.md).
 
 ## `importFromTool(options)`
 

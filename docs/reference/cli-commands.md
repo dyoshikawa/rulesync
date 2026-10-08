@@ -340,7 +340,7 @@ rulesync generate --watch
 
 ### Mutation plan in JSON output
 
-With the global `--json` flag, `generate` reports the files it wrote and the orphans it deleted — or, under `--dry-run` and `--check`, would write and delete — as a versioned `plan`, next to the existing per-feature `features` summary:
+With the global `--json` flag, `generate` reports the files it wrote, the managed keys of shared configuration files it changed, and the orphans it deleted — or, under `--dry-run` and `--check`, would write, change and delete — as a versioned `plan`, next to the existing per-feature `features` summary:
 
 ```json
 {
@@ -349,8 +349,16 @@ With the global `--json` flag, `generate` reports the files it wrote and the orp
   "data": {
     "features": { "…": "…" },
     "plan": {
-      "version": 1,
+      "version": 2,
       "operations": [
+        { "action": "write", "kind": "file", "feature": "mcp", "path": ".codex/config.toml" },
+        {
+          "action": "delete",
+          "kind": "key",
+          "feature": "mcp",
+          "path": ".codex/config.toml",
+          "key": "mcp_servers"
+        },
         { "action": "write", "kind": "file", "feature": "rules", "path": "CLAUDE.md" },
         {
           "action": "delete",
@@ -370,11 +378,11 @@ With the global `--json` flag, `generate` reports the files it wrote and the orp
 }
 ```
 
-- `action` is `write` or `delete`; `kind` is `file` or `directory`. A deleted directory is listed once, by its own path, together with everything under it. Deletions come from the `--delete` orphan sweep, so without `--delete` the plan holds writes only.
+- `action` is `write` or `delete`; `kind` is `file`, `directory` or `key`. A deleted directory is listed once, by its own path, together with everything under it. Deletions come from the `--delete` orphan sweep, so without `--delete` the plan holds writes only.
 - `path` is relative to the output root, with `/` separators, and the operation does not name the root. A path several targets write is listed once, and so is a relative path that stands for a file in each of several output roots (`--output-roots a b`, or a tool home override such as `HERMES_HOME`): run one output root at a time when a consumer has to tell them apart.
-- The order is deterministic — features in summary order, writes before deletes within a feature, paths sorted — so a `--dry-run` plan can be compared operation by operation with the plan the following real run reports.
+- The order is deterministic — features in summary order; within a feature, file writes, then key operations, then deletions; paths sorted, and keys within a path — so a `--dry-run` plan can be compared operation by operation with the plan the following real run reports.
 - A failing command's document carries no `data`, so when `--check` finds the tree out of date, or a `.rulesync/` source could not be read, the plan is reported as `error.details.plan` instead.
-- A shared configuration file Rulesync merges into (`.claude/settings.json`, `.codex/config.toml`, …) appears as a `write` of the whole file, even when only Rulesync-managed keys change. Two rewrites the `--delete` sweep itself makes are not listed at all: disabling the Hermes Agent commands plugin in its `config.yaml` and retracting Goose slash commands — so `--check` can fail with an empty `operations` list when one of them is the only difference. `version` is bumped whenever an operation gains a new `action` or `kind` value or an existing field changes meaning, so a consumer that authorizes operations should refuse a version it does not know.
+- A shared configuration file Rulesync merges into (`.claude/settings.json`, `.codex/config.toml`, …) appears as a `write` of the whole file, followed by one `key` operation for each top-level key Rulesync owns outright there that the write adds or changes (`write`) or removes (`delete`), with the key's name in `key`. Removing the last MCP server from `.mcp.json`, for example, is a `delete` of `mcp_servers` in `.codex/config.toml`: the other keys of the file are kept as they are, and the file itself is never deleted. A key Rulesync shares with the user at a deeper level — the merged `permissions` block of `.claude/settings.json`, for example — is not listed, so its change shows only as the file `write`. A key two features write in the same run (the Hermes Agent `plugins` list) is listed under each feature that changes it, which a `--dry-run`, where neither sees the other's write, can report differently from the real run. Two rewrites the `--delete` sweep itself makes are not listed at all: disabling the Hermes Agent commands plugin in its `config.yaml` and retracting Goose slash commands — so `--check` can fail with an empty `operations` list when one of them is the only difference. `version` is bumped whenever an operation gains a new `action` or `kind` value or an existing field changes meaning, so a consumer that authorizes operations should refuse a version it does not know. Version 2 added the `key` kind.
 
 ### Watch mode
 

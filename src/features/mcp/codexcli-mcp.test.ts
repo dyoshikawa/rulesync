@@ -758,17 +758,18 @@ approval_mode = "approve"
         global: true,
       });
 
-      expect(codexcliMcp.getToml().mcp_servers).toEqual({});
+      expect(codexcliMcp.getToml().mcp_servers).toBeUndefined();
     });
 
-    it("should handle empty mcpServers object", async () => {
-      const jsonData = {
-        mcpServers: {},
-      };
+    it("should retract mcp_servers when no server is left, keeping unrelated keys", async () => {
+      await writeFileContent(
+        join(testDir, ".codex", "config.toml"),
+        'model = "gpt-5"\n\n[mcp_servers.old]\ncommand = "old"\n',
+      );
       const rulesyncMcp = new RulesyncMcp({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
-        fileContent: JSON.stringify(jsonData),
+        fileContent: JSON.stringify({ mcpServers: {} }),
       });
 
       const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
@@ -777,7 +778,9 @@ approval_mode = "approve"
         global: true,
       });
 
-      expect(codexcliMcp.getToml().mcp_servers).toEqual({});
+      // An empty `[mcp_servers]` table would leave a managed key behind that
+      // states nothing; the key is removed and the user's `model` survives.
+      expect(codexcliMcp.getToml()).toEqual({ model: "gpt-5" });
     });
 
     // codex CLI rejects empty `[mcp_servers.X.env]` for remote transports

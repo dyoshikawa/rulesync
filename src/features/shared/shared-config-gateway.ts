@@ -2195,6 +2195,80 @@ export function applySharedConfigPatch({
   });
 }
 
+export type SharedConfigKeyOperation = {
+  action: "write" | "delete";
+  key: string;
+};
+
+/**
+ * The top-level keys a feature owns outright in a declared shared file: every
+ * `replace-owned-keys` key and every `deep-merge` `replaceKeys` entry. A
+ * `deep-merge` or `custom` policy otherwise shares its keys with the user at
+ * entry depth, so those keys are not listed.
+ */
+function whollyOwnedKeys(declaration: SharedConfigFileDeclaration): string[] {
+  return uniq(
+    Object.values(declaration.features).flatMap((policy) => {
+      if (policy.kind === "replace-owned-keys") return policy.ownedKeys;
+      if (policy.kind === "deep-merge") return policy.replaceKeys ?? [];
+      return [];
+    }),
+  );
+}
+
+/**
+ * What a write of a gateway-managed shared file does to the top-level keys
+ * Rulesync owns outright there (see {@link whollyOwnedKeys}), sorted by key:
+ * `write` for a key the new content adds or changes, `delete` for one it
+ * removes. Returns an empty list for an undeclared file, and for content
+ * either side of which cannot be read as a document — the file-level write
+ * still describes that case.
+ */
+export function diffSharedConfigOwnedKeys({
+  fileKey,
+  existingContent,
+  newContent,
+}: {
+  fileKey: string;
+  existingContent: string;
+  newContent: string;
+}): SharedConfigKeyOperation[] {
+  const declaration = SHARED_CONFIG_OWNERSHIP[fileKey];
+  if (!declaration) return [];
+
+  const parse = (fileContent: string): SharedConfigDocument =>
+    parseSharedConfig({
+      format: declaration.format,
+      fileContent,
+      ...(declaration.invalidRootPolicy !== undefined && {
+        invalidRootPolicy: declaration.invalidRootPolicy,
+      }),
+      ...(declaration.jsoncParseErrors !== undefined && {
+        jsoncParseErrors: declaration.jsoncParseErrors,
+      }),
+    });
+  let before: SharedConfigDocument;
+  let after: SharedConfigDocument;
+  try {
+    before = parse(existingContent);
+    after = parse(newContent);
+  } catch {
+    return [];
+  }
+
+  const operations: SharedConfigKeyOperation[] = [];
+  for (const key of whollyOwnedKeys(declaration).toSorted()) {
+    const inBefore = Object.hasOwn(before, key);
+    const inAfter = Object.hasOwn(after, key);
+    if (inAfter && (!inBefore || !isDeepStrictEqual(before[key], after[key]))) {
+      operations.push({ action: "write", key });
+    } else if (inBefore && !inAfter) {
+      operations.push({ action: "delete", key });
+    }
+  }
+  return operations;
+}
+
 // ---------------------------------------------------------------------------
 // `.claude/settings.json` custom policy
 // ---------------------------------------------------------------------------

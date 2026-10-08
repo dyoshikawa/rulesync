@@ -1491,7 +1491,7 @@ describe("generateCommand", () => {
       });
 
       const expectedPlan = {
-        version: 1,
+        version: 2,
         operations: [
           { action: "delete", kind: "file", feature: "rules", path: ".claude/rules/orphan.md" },
         ],
@@ -1528,7 +1528,7 @@ describe("generateCommand", () => {
         // Naming the feature is what makes the exit code actionable without
         // re-reading the whole log.
         message: expect.stringContaining("mcp"),
-        details: { sourceLoadFailedFeatures: ["mcp"], plan: { version: 1, operations: [] } },
+        details: { sourceLoadFailedFeatures: ["mcp"], plan: { version: 2, operations: [] } },
       });
       expect(mockLogger.success).not.toHaveBeenCalled();
     });
@@ -1723,10 +1723,11 @@ describe("buildGeneratePlan", () => {
         rules: [{ path: ".claude/rules/old.md", kind: "file" }],
         skills: [{ path: ".claude/skills/retired", kind: "directory" }],
       },
+      keyOperationsByFeature: {},
     });
 
     expect(plan).toEqual({
-      version: 1,
+      version: 2,
       operations: [
         { action: "write", kind: "file", feature: "mcp", path: ".mcp.json" },
         { action: "write", kind: "file", feature: "rules", path: ".claude/rules/a.md" },
@@ -1743,10 +1744,36 @@ describe("buildGeneratePlan", () => {
     });
   });
 
+  it("should list a feature's key operations between its file writes and its deletes", () => {
+    const plan = buildGeneratePlan({
+      featureResults: { mcp: { paths: [".codex/config.toml"] } },
+      deletedPathsByFeature: { mcp: [{ path: ".cursor/mcp.json", kind: "file" }] },
+      keyOperationsByFeature: {
+        mcp: [{ action: "delete", path: ".codex/config.toml", key: "mcp_servers" }],
+      },
+    });
+
+    expect(plan).toEqual({
+      version: 2,
+      operations: [
+        { action: "write", kind: "file", feature: "mcp", path: ".codex/config.toml" },
+        {
+          action: "delete",
+          kind: "key",
+          feature: "mcp",
+          path: ".codex/config.toml",
+          key: "mcp_servers",
+        },
+        { action: "delete", kind: "file", feature: "mcp", path: ".cursor/mcp.json" },
+      ],
+    });
+  });
+
   it("should list a path written by several targets once", () => {
     const plan = buildGeneratePlan({
       featureResults: { rules: { paths: ["AGENTS.md", "AGENTS.md"] } },
       deletedPathsByFeature: {},
+      keyOperationsByFeature: {},
     });
 
     expect(plan.operations).toEqual([

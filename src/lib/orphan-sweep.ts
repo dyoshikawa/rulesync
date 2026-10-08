@@ -8,6 +8,13 @@ import type { Logger } from "../utils/logger.js";
 export type DeletedPath = { path: string; kind: "file" | "directory" };
 
 /**
+ * A top-level key a write of a shared config file adds, changes or removes,
+ * among the keys Rulesync owns outright there; `path` is relative to the
+ * output root like {@link DeletedPath.path}.
+ */
+export type KeyOperation = { action: "write" | "delete"; path: string; key: string };
+
+/**
  * Run-scoped bookkeeping that keeps the `--delete` orphan sweep from turning
  * one target's output into another target's orphan.
  *
@@ -108,6 +115,19 @@ export type OrphanSweepPlan = {
    * previews of the same tree list them identically.
    */
   getDeletedPathsByFeature(): ReadonlyMap<string, readonly DeletedPath[]>;
+  /**
+   * Record the shared-config key operations a write made (or, under
+   * `--dry-run`/`--check`, would make), attributed to the feature of the
+   * {@link forFeature} view they were recorded through. Kept here, beside the
+   * deletions, because both are parts of the run's mutation plan rather than
+   * of any one step's summary.
+   */
+  recordKeyOperations(operations: readonly KeyOperation[]): void;
+  /**
+   * The recorded key operations, keyed by feature and sorted within each by
+   * path and then key, so two previews of the same tree list them identically.
+   */
+  getKeyOperationsByFeature(): ReadonlyMap<string, readonly KeyOperation[]>;
 };
 
 type DeferredSweep = {
@@ -121,6 +141,13 @@ export function createOrphanSweepPlan({ logger }: { logger?: Logger } = {}): Orp
   const generatedTrees = new Set<string>();
   const deferredSweeps: DeferredSweep[] = [];
   const deletedPathsByFeature = new Map<string, DeletedPath[]>();
+  const keyOperationsByFeature = new Map<string, KeyOperation[]>();
+  const addKeyOperations = (feature: string, operations: readonly KeyOperation[]): void => {
+    if (operations.length === 0) return;
+    const existing = keyOperationsByFeature.get(feature) ?? [];
+    existing.push(...operations);
+    keyOperationsByFeature.set(feature, existing);
+  };
   // Several sweeps can ask about one path; it is reported once.
   const warnedUnresolvable = new Set<string>();
 
@@ -252,7 +279,22 @@ export function createOrphanSweepPlan({ logger }: { logger?: Logger } = {}): Orp
         defer({ sweep, reportDeleted }) {
           deferredSweeps.push({ sweep, reportDeleted, feature });
         },
+        recordKeyOperations(operations) {
+          addKeyOperations(feature, operations);
+        },
       };
+    },
+    // Like a deferred sweep's deletions, operations recorded outside a
+    // feature view have no feature to be reported under.
+    recordKeyOperations() {},
+    getKeyOperationsByFeature() {
+      return new Map(
+        [...keyOperationsByFeature].map(([feature, operations]) => {
+          // Keyed path-first so the sort below orders by path, then key.
+          const unique = new Map(operations.map((op) => [`${op.path}\0${op.key}`, op] as const));
+          return [feature, [...unique.keys()].toSorted().map((key) => unique.get(key)!)];
+        }),
+      );
     },
     getDeletedPathsByFeature() {
       return new Map(
