@@ -253,6 +253,32 @@ describe("OpenCodeCommand", () => {
       expect(commands.map((command) => command.getFrontmatter())).toEqual([{ subtask: true }]);
     });
 
+    it("imports V2 commands entries, keeping the V1 command on a name clash", async () => {
+      await writeFileContent(
+        join(testDir, "opencode.json"),
+        JSON.stringify({
+          command: { ship: { template: "V1 ship" } },
+          commands: {
+            ship: { template: "V2 ship" },
+            review: { template: "Review", model: "openai/gpt-5#high", subagent: true },
+          },
+        }),
+      );
+
+      const commands = await OpenCodeCommand.loadAdditionalImportFiles({ outputRoot: testDir });
+
+      expect(
+        commands.map((command) => [
+          command.getRelativeFilePath(),
+          command.getBody(),
+          command.getFrontmatter(),
+        ]),
+      ).toEqual([
+        ["ship.md", "V1 ship", {}],
+        ["review.md", "Review", { model: "openai/gpt-5", variant: "high", subtask: true }],
+      ]);
+    });
+
     it("prefers opencode.jsonc over opencode.json", async () => {
       await writeFileContent(
         join(testDir, "opencode.jsonc"),

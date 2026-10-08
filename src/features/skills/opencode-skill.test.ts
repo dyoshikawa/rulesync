@@ -526,6 +526,17 @@ Body content.`;
       ]);
     });
 
+    it("returns the path entries of a flat V2 skills array", async () => {
+      await writeFileContent(
+        join(testDir, "opencode.json"),
+        JSON.stringify({ skills: ["docs/skills", "https://example.com/.well-known/skills/"] }),
+      );
+
+      await expect(
+        OpenCodeSkill.getConfiguredImportRoots({ outputRoot: testDir }),
+      ).resolves.toEqual([{ outputRoot: testDir, relativeDirPath: "docs/skills" }]);
+    });
+
     it("drops absolute paths and paths escaping the output root", async () => {
       await writeFileContent(
         join(testDir, "opencode.json"),
