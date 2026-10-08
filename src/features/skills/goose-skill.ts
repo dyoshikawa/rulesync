@@ -3,7 +3,10 @@ import { join } from "node:path";
 import { z } from "zod/mini";
 
 import { SKILL_FILE_NAME } from "../../constants/general.js";
-import { GOOSE_SKILLS_DIR_PATH } from "../../constants/goose-paths.js";
+import {
+  GOOSE_GLOBAL_SKILLS_DIR_PATH,
+  GOOSE_SKILLS_DIR_PATH,
+} from "../../constants/goose-paths.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
@@ -39,7 +42,8 @@ export type GooseSkillParams = {
 
 /**
  * Represents a Goose skill directory.
- * Skills are stored under the .goose/skills directory with SKILL.md files.
+ * Skills are stored under the .goose/skills directory (project) or
+ * ~/.config/goose/skills (global) with SKILL.md files.
  */
 export class GooseSkill extends ToolSkill {
   constructor({
@@ -73,14 +77,11 @@ export class GooseSkill extends ToolSkill {
     }
   }
 
-  static getSettablePaths(options?: { global?: boolean }): ToolSkillSettablePaths {
-    // rulesync emits only the Goose-specific project path; the portable global
-    // skills location is already served by the agentsskills target.
-    if (options?.global) {
-      throw new Error("GooseSkill does not support global mode.");
-    }
+  static getSettablePaths({ global = false }: { global?: boolean } = {}): ToolSkillSettablePaths {
+    // Goose-specific roots only; the portable `.agents/skills/` locations are
+    // served by the agentsskills target.
     return {
-      relativeDirPath: GOOSE_SKILLS_DIR_PATH,
+      relativeDirPath: global ? GOOSE_GLOBAL_SKILLS_DIR_PATH : GOOSE_SKILLS_DIR_PATH,
     };
   }
 

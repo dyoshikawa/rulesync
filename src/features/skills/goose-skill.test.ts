@@ -31,10 +31,9 @@ describe("GooseSkill", () => {
       expect(paths.relativeDirPath).toBe(join(".goose", "skills"));
     });
 
-    it("should throw in global mode (Goose skills are project-only)", () => {
-      expect(() => GooseSkill.getSettablePaths({ global: true })).toThrow(
-        /does not support global mode/,
-      );
+    it("should return ~/.config/goose/skills as relativeDirPath in global mode", () => {
+      const paths = GooseSkill.getSettablePaths({ global: true });
+      expect(paths.relativeDirPath).toBe(join(".config", "goose", "skills"));
     });
   });
 
@@ -223,6 +222,34 @@ This is the body of the goose skill.`;
       const fm = roundTripped.getFrontmatter();
       expect(fm.name).toBe("Round Trip");
       expect(fm.description).toBe("Round trip skill");
+    });
+
+    it("should emit to ~/.config/goose/skills in global mode", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "global-skill",
+        frontmatter: {
+          name: "Global Skill",
+          description: "Global description",
+          targets: ["goose"],
+        },
+        body: "Global body",
+        validate: true,
+      });
+
+      const skill = GooseSkill.fromRulesyncSkill({
+        outputRoot: testDir,
+        rulesyncSkill,
+        global: true,
+      });
+
+      expect(skill.getRelativeDirPath()).toBe(join(".config", "goose", "skills"));
+      expect(skill.getGlobal()).toBe(true);
+      expect(skill.getFrontmatter()).toEqual({
+        name: "Global Skill",
+        description: "Global description",
+      });
     });
   });
 

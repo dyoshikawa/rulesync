@@ -119,7 +119,7 @@ function resolveGooseTimeout(config: Record<string, unknown>): number | undefine
 }
 
 /**
- * Populates the stdio-specific fields (`cmd`, `args`, `envs`) on a Goose ext.
+ * Populates the stdio-specific fields (`cmd`, `args`, `envs`, `cwd`) on a Goose ext.
  */
 function applyGooseStdioFields(
   ext: Record<string, unknown>,
@@ -138,6 +138,7 @@ function applyGooseStdioFields(
     if (isStringArray(config.args)) ext.args = config.args;
   }
   if (isPlainObject(config.env)) ext.envs = omitPrototypePollutionKeys(config.env);
+  if (typeof config.cwd === "string") ext.cwd = config.cwd;
 }
 
 /**
@@ -298,6 +299,7 @@ function convertFromGooseFormat(extensions: Record<string, unknown>): McpServers
     if (typeof ext.cmd === "string") server.command = ext.cmd;
     if (isStringArray(ext.args)) server.args = ext.args;
     if (isPlainObject(ext.envs)) server.env = omitPrototypePollutionKeys(ext.envs);
+    if (typeof ext.cwd === "string") server.cwd = ext.cwd;
     if (typeof ext.uri === "string") server.url = ext.uri;
     if (isPlainObject(ext.headers)) server.headers = omitPrototypePollutionKeys(ext.headers);
     if (ext.enabled === false) server.disabled = true;
