@@ -144,6 +144,57 @@ Follow PDF extraction steps.`;
       expect(clineSkill.getRelativeDirPath()).toBe(join(".cline", "skills"));
       expect(clineSkill.getFrontmatter().name).toBe("pdf-processing");
     });
+
+    it("should emit cline section keys such as disabled into the frontmatter", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "pdf-processing",
+        frontmatter: {
+          name: "pdf-processing",
+          description: "Extract text and tables from PDFs",
+          cline: { disabled: true },
+        },
+        body: "Follow PDF extraction steps.",
+        validate: false,
+      });
+
+      const clineSkill = ClineSkill.fromRulesyncSkill({ rulesyncSkill });
+
+      expect(clineSkill.getFrontmatter()).toEqual({
+        disabled: true,
+        name: "pdf-processing",
+        description: "Extract text and tables from PDFs",
+      });
+      expect(clineSkill.getMainFile()?.frontmatter).toEqual({
+        disabled: true,
+        name: "pdf-processing",
+        description: "Extract text and tables from PDFs",
+      });
+    });
+
+    it("should let canonical name and description win over the cline section", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "pdf-processing",
+        frontmatter: {
+          name: "pdf-processing",
+          description: "Extract text and tables from PDFs",
+          cline: { name: "other", description: "Other", enabled: false },
+        },
+        body: "Follow PDF extraction steps.",
+        validate: false,
+      });
+
+      const clineSkill = ClineSkill.fromRulesyncSkill({ rulesyncSkill });
+
+      expect(clineSkill.getFrontmatter()).toEqual({
+        enabled: false,
+        name: "pdf-processing",
+        description: "Extract text and tables from PDFs",
+      });
+    });
   });
 
   describe("toRulesyncSkill", () => {
@@ -164,6 +215,39 @@ Follow PDF extraction steps.`;
         name: "pdf-processing",
         description: "Handle PDFs",
         targets: ["*"],
+      });
+    });
+
+    it("should lift the disabled toggle Cline writes into the cline section", async () => {
+      const skillDir = join(testDir, ".cline", "skills", "pdf-processing");
+      await ensureDir(skillDir);
+      const skillContent = `---
+name: pdf-processing
+description: Extract text and tables from PDFs
+disabled: true
+---
+
+Follow PDF extraction steps.`;
+      await writeFileContent(join(skillDir, SKILL_FILE_NAME), skillContent);
+
+      const clineSkill = await ClineSkill.fromDir({
+        outputRoot: testDir,
+        dirName: "pdf-processing",
+      });
+      const rulesyncSkill = clineSkill.toRulesyncSkill();
+
+      expect(rulesyncSkill.getFrontmatter()).toEqual({
+        name: "pdf-processing",
+        description: "Extract text and tables from PDFs",
+        targets: ["*"],
+        cline: { disabled: true },
+      });
+
+      const regenerated = ClineSkill.fromRulesyncSkill({ rulesyncSkill });
+      expect(regenerated.getFrontmatter()).toEqual({
+        disabled: true,
+        name: "pdf-processing",
+        description: "Extract text and tables from PDFs",
       });
     });
   });

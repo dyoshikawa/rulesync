@@ -225,6 +225,27 @@ describe("GooseMcp", () => {
       });
     });
 
+    it("writes a stdio server's cwd onto the Goose extension", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            local: { command: "node", args: ["server.js"], cwd: "/srv/mcp" },
+          },
+        }),
+      });
+
+      const mcp = await GooseMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+      const ext = getExtensions(mcp.getFileContent()).local;
+
+      expect(ext).toMatchObject({ type: "stdio", cmd: "node", cwd: "/srv/mcp" });
+    });
+
     it("strips prototype-pollution keys from a server's env table", async () => {
       const rulesyncMcp = new RulesyncMcp({
         relativeDirPath: ".rulesync",
@@ -554,6 +575,7 @@ describe("GooseMcp", () => {
           "    type: stdio",
           "    cmd: uvx",
           "    args: [mcp-server-fetch]",
+          "    cwd: /srv/fetch",
           "    enabled: true",
           "  remote:",
           "    name: remote",
@@ -572,6 +594,7 @@ describe("GooseMcp", () => {
         type: "stdio",
         command: "uvx",
         args: ["mcp-server-fetch"],
+        cwd: "/srv/fetch",
       });
       expect(servers.remote).toMatchObject({
         type: "http",
