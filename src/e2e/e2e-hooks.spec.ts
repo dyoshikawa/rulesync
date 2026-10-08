@@ -113,8 +113,9 @@ function isPiExtensionTarget(target: string): target is "pi" | "omp" {
 /**
  * Pi and its fork oh-my-pi emit a TypeScript extension subscribing to
  * snake_case extension events (sessionStart → session_start). Pi maps stop to
- * agent_before_settle; oh-my-pi has no Pi-compatible stop event, so its stop
- * hook (audit.sh) is dropped.
+ * agent_before_settle; oh-my-pi has no agent_before_settle and its
+ * session_stop mapping is not implemented yet, so its stop hook (audit.sh) is
+ * dropped.
  */
 function assertPiExtensionHooks({
   target,

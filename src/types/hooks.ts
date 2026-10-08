@@ -461,10 +461,11 @@ export const PI_HOOK_EVENTS: readonly HookEvent[] = [
 /**
  * Hook events supported by oh-my-pi (`omp`), Pi's fork, through the same
  * generated TypeScript extension. oh-my-pi keeps Pi's names for every event
- * listed here, but it has neither `agent_before_settle` nor `ui_prompt_start`:
- * its stop surface is `session_stop`, whose `{ decision: "block", reason }`
- * contract differs from Pi's settle gate, so `stop` and `notification` are not
- * mapped. See CANONICAL_TO_OMP_EVENT_NAMES.
+ * listed here, but it has neither `agent_before_settle` nor `ui_prompt_start`,
+ * so `stop` and `notification` are not mapped yet. oh-my-pi's stop surface is
+ * `session_stop`, which takes a Claude-compatible `{ decision: "block", reason }`
+ * result; it needs its own handler in the generator and is left for a
+ * follow-up. See CANONICAL_TO_OMP_EVENT_NAMES.
  *
  * @see https://github.com/can1357/oh-my-pi/blob/40e9368ef0458fd9073329cdff4174895f91bc6b/docs/extensions.md
  */

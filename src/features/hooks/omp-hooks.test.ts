@@ -154,7 +154,7 @@ describe("OmpHooks", () => {
       }
     });
 
-    it("should not map stop or notification, which oh-my-pi has no Pi-compatible event for", () => {
+    it("should not map stop or notification, which have no oh-my-pi mapping yet", () => {
       const content = generate({
         testDir,
         config: {
@@ -227,6 +227,8 @@ describe("OmpHooks", () => {
     });
 
     it("should not cancel prompts injected by another extension", async () => {
+      // oh-my-pi itself only emits `input` for interactive and RPC prompts;
+      // this guards the source check shared with Pi's generated extension.
       const gate = await loadPromptGate({ testDir, command: "exit 3" });
 
       const notify = vi.fn();

@@ -205,8 +205,8 @@ const BLOCK_REASON_HELPER_LINES = [
 ];
 
 /**
- * Helper emitted alongside prompt-gate handlers. `{ action: "handled" }` has
- * no reason field, so the reason reaches the user through `ctx.ui.notify` —
+ * Helper emitted alongside prompt-gate handlers. The cancel result (Pi's
+ * `{ action: "handled" }`, oh-my-pi's `{ handled: true }`) has no reason field, so the reason reaches the user through `ctx.ui.notify` —
  * which is a no-op in print (`-p`) and JSON modes, and can itself throw when
  * the RPC channel is gone. Both cases fall back to stderr so a cancelled
  * prompt is never silent, and neither can stop the caller from cancelling it.
@@ -440,7 +440,8 @@ function buildSubscriptionLines(
  * platform shell. Handlers observe events, except on `tool_call` — Pi's tool
  * gate — where a hook command that exits non-zero denies the call with
  * `{ block: true, reason }`, and on `input` — Pi's prompt-submission gate —
- * where a non-zero exit cancels the prompt with `{ action: "handled" }`, and
+ * where a non-zero exit cancels the prompt with the dialect's cancel result
+ * (`{ action: "handled" }` for Pi, `{ handled: true }` for oh-my-pi), and
  * on `agent_before_settle`, where a stop command exiting with code 2 asks the
  * agent to continue once with the command's output as feedback.
  * `postToolUse` and `postToolUseFailure` share Pi's `tool_result` event; the
