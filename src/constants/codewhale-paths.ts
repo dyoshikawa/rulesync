@@ -53,3 +53,10 @@ export const CODEWHALE_MCP_FILE_NAME = "mcp.json";
 // @see https://github.com/Hmbown/Codewhale/blob/main/docs/AUTHORIZATION_ORDER.md
 // @see https://github.com/Hmbown/Codewhale/blob/main/docs/CONFIGURATION.md
 export const CODEWHALE_PERMISSIONS_FILE_NAME = "permissions.toml";
+
+// Repo constitution: `.codewhale/constitution.json` carries repo authority
+// policy, and its enforced `protected_invariants` (objects with `paths`) hold
+// writes to protected paths. Only the workspace file is enforced; the user
+// `~/.codewhale/constitution.json` stays advisory prose.
+// @see https://github.com/Hmbown/Codewhale/blob/main/docs/CONFIGURATION.md#enforced-repo-law-invariants
+export const CODEWHALE_CONSTITUTION_FILE_NAME = "constitution.json";

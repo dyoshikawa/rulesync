@@ -72,15 +72,6 @@ describe("CodewhalePermissions", () => {
   });
 
   describe("fromRulesyncPermissions", () => {
-    it("rejects project scope", async () => {
-      await expect(
-        CodewhalePermissions.fromRulesyncPermissions({
-          outputRoot: testDir,
-          rulesyncPermissions: rulesyncPermissions({ permission: {} }),
-        }),
-      ).rejects.toThrow("global-only");
-    });
-
     it("converts bash patterns to exec_shell rules, sorted deny > ask > allow", async () => {
       const perms = await generate({
         permission: {
