@@ -919,20 +919,26 @@ const CLAUDECODE_ENV_OTLP_IGNORED_SUFFIXES = [
   "_INSECURE",
 ] as const;
 
+const CLAUDECODE_ENV_EXPORTER_OFF_VALUES: ReadonlySet<string> = new Set(["none"]);
+const CLAUDECODE_ENV_CONTENT_OFF_VALUES: ReadonlySet<string> = new Set(["0", "false", "no", "off"]);
+
 /**
- * Telemetry variables a project file may still set to the one value that turns
+ * Telemetry variables a project file may still set to a value that turns
  * something off, since a repository may opt its own checkout out of telemetry:
- * `none` for the exporter selectors and `0` for the content variables. Only the
- * documented off values are listed; `OTEL_LOG_ASSISTANT_RESPONSES` has none and
- * sits in the plain name table above.
+ * `none` for the exporter selectors and "an off value such as `0`" for the
+ * content variables. Because the reference does not enumerate the off values,
+ * the common spellings of false are all kept, compared without regard to case —
+ * writing a value Claude Code ignores is the old behavior, while dropping an
+ * opt-out it honors would remove a privacy setting. `OTEL_LOG_ASSISTANT_RESPONSES`
+ * has no such exception and sits in the plain name table above.
  */
-const CLAUDECODE_ENV_PROJECT_HONORED_OFF_VALUES: Readonly<Record<string, string>> = {
-  OTEL_LOGS_EXPORTER: "none",
-  OTEL_METRICS_EXPORTER: "none",
-  OTEL_TRACES_EXPORTER: "none",
-  OTEL_LOG_USER_PROMPTS: "0",
-  OTEL_LOG_TOOL_CONTENT: "0",
-  OTEL_LOG_TOOL_DETAILS: "0",
+const CLAUDECODE_ENV_PROJECT_HONORED_OFF_VALUES: Readonly<Record<string, ReadonlySet<string>>> = {
+  OTEL_LOGS_EXPORTER: CLAUDECODE_ENV_EXPORTER_OFF_VALUES,
+  OTEL_METRICS_EXPORTER: CLAUDECODE_ENV_EXPORTER_OFF_VALUES,
+  OTEL_TRACES_EXPORTER: CLAUDECODE_ENV_EXPORTER_OFF_VALUES,
+  OTEL_LOG_USER_PROMPTS: CLAUDECODE_ENV_CONTENT_OFF_VALUES,
+  OTEL_LOG_TOOL_CONTENT: CLAUDECODE_ENV_CONTENT_OFF_VALUES,
+  OTEL_LOG_TOOL_DETAILS: CLAUDECODE_ENV_CONTENT_OFF_VALUES,
 };
 
 function isProjectIgnoredEnvVariable(name: string, value: unknown): boolean {
@@ -948,11 +954,11 @@ function isProjectIgnoredEnvVariable(name: string, value: unknown): boolean {
     return true;
   }
   if (Object.hasOwn(CLAUDECODE_ENV_PROJECT_HONORED_OFF_VALUES, name)) {
-    const offValue = CLAUDECODE_ENV_PROJECT_HONORED_OFF_VALUES[name];
-    return !(
-      (typeof value === "string" || typeof value === "number") &&
-      String(value) === offValue
-    );
+    const offValues = CLAUDECODE_ENV_PROJECT_HONORED_OFF_VALUES[name] as ReadonlySet<string>;
+    const isOff =
+      (typeof value === "string" || typeof value === "number" || typeof value === "boolean") &&
+      offValues.has(String(value).trim().toLowerCase());
+    return !isOff;
   }
   return false;
 }
@@ -997,7 +1003,7 @@ function stripIgnoredEnvVariables({
   }
   if (ignoredAtProjectScope.length > 0) {
     logger?.warn(
-      `Claude Code permissions: ${ignoredAtProjectScope.map((name) => `'env.${name}'`).join(", ")} ${ignoredAtProjectScope.length === 1 ? "is" : "are"} not honored in the project-scoped ${relativeFilePath}, so ${ignoredAtProjectScope.length === 1 ? "it is" : "they are"} not written there — Claude Code ignores variables there that choose where it writes its files, export session content or telemetry, or change how it starts or syncs (a telemetry selector set to "none" or a content variable set to "0" is still written). Author ${ignoredAtProjectScope.length === 1 ? "it" : "them"} in the global scope instead, and check that file for a stale value an earlier generate may have left there.`,
+      `Claude Code permissions: ${ignoredAtProjectScope.map((name) => `'env.${name}'`).join(", ")} ${ignoredAtProjectScope.length === 1 ? "is" : "are"} not honored in the project-scoped ${relativeFilePath}, so ${ignoredAtProjectScope.length === 1 ? "it is" : "they are"} not written there — Claude Code ignores variables there that choose where it writes its files, export session content or telemetry, or change how it starts or syncs (a value that turns telemetry off, such as "none" or "0", is still written). Author ${ignoredAtProjectScope.length === 1 ? "it" : "them"} in the global scope instead, and check that file for a stale value an earlier generate may have left there.`,
     );
   }
   return kept;

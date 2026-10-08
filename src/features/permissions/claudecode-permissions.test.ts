@@ -1961,7 +1961,12 @@ describe("ClaudecodePermissions", () => {
             OTEL_LOGS_EXPORTER: "none",
             OTEL_METRICS_EXPORTER: "otlp",
             OTEL_LOG_USER_PROMPTS: "0",
+            OTEL_LOG_TOOL_CONTENT: 0,
+            OTEL_TRACES_EXPORTER: "NONE",
             OTEL_LOG_TOOL_DETAILS: "1",
+            OTEL_EXPORTER_OTLP_TRACES_CLIENT_KEY: "/tmp/key.pem",
+            systemroot: "C:\\Windows",
+            PROGRAMW6432: "C:\\Programs",
             OTEL_LOG_ASSISTANT_RESPONSES: "0",
             XDG_CONFIG_HOME: "/tmp/xdg",
             HOME: "/tmp/home",
@@ -1978,15 +1983,32 @@ describe("ClaudecodePermissions", () => {
           OTEL_EXPORTER_OTLP_TIMEOUT: "5000",
           OTEL_LOGS_EXPORTER: "none",
           OTEL_LOG_USER_PROMPTS: "0",
+          OTEL_LOG_TOOL_CONTENT: 0,
+          OTEL_TRACES_EXPORTER: "NONE",
         });
         const messages = warnSpy.mock.calls.map(([message]) => message as string);
         const dropped = messages.find((message) => message.includes("project-scoped"));
         expect(dropped).toContain("'env.CLAUDE_CODE_ENABLE_TELEMETRY'");
         expect(dropped).toContain("'env.OTEL_LOG_ASSISTANT_RESPONSES'");
         expect(dropped).toContain("'env.ProgramFiles(x86)'");
+        expect(dropped).toContain("'env.systemroot'");
+        expect(dropped).toContain("'env.OTEL_EXPORTER_OTLP_TRACES_CLIENT_KEY'");
         // Names only: an env value is often a credential.
         expect(messages.join("\n")).not.toContain("secret-token");
       });
+
+      it.each(["false", "Off", "no"])(
+        "keeps the content-variable off value %s at project scope",
+        async (offValue) => {
+          const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+            outputRoot: testDir,
+            rulesyncPermissions: envCase({ OTEL_LOG_USER_PROMPTS: offValue }),
+          });
+
+          const content = JSON.parse(instance.getFileContent());
+          expect(content.env).toEqual({ OTEL_LOG_USER_PROMPTS: offValue });
+        },
+      );
 
       it("writes project-ignored variables under --global", async () => {
         const instance = await ClaudecodePermissions.fromRulesyncPermissions({
