@@ -459,6 +459,29 @@ export const PI_HOOK_EVENTS: readonly HookEvent[] = [
 ];
 
 /**
+ * Hook events supported by oh-my-pi (`omp`), Pi's fork, through the same
+ * generated TypeScript extension. oh-my-pi keeps Pi's names for every event
+ * listed here, but it has neither `agent_before_settle` nor `ui_prompt_start`:
+ * its stop surface is `session_stop`, whose `{ decision: "block", reason }`
+ * contract differs from Pi's settle gate, so `stop` and `notification` are not
+ * mapped. See CANONICAL_TO_OMP_EVENT_NAMES.
+ *
+ * @see https://github.com/can1357/oh-my-pi/blob/40e9368ef0458fd9073329cdff4174895f91bc6b/docs/extensions.md
+ */
+export const OMP_HOOK_EVENTS: readonly HookEvent[] = [
+  "sessionStart",
+  "sessionEnd",
+  "preToolUse",
+  "postToolUse",
+  "postToolUseFailure",
+  "preModelInvocation",
+  "postModelInvocation",
+  "beforeSubmitPrompt",
+  "preCompact",
+  "postCompact",
+];
+
+/**
  * Hook events supported by Amp through its generated TypeScript Plugin API
  * adapter. Amp's `agent.start` / `agent.end` events describe the main agent
  * turn, not a subagent lifecycle, so they map to `beforeSubmitPrompt` / `stop`.
@@ -1734,6 +1757,7 @@ export const HooksConfigSchema = z.looseObject({
   kilo: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   mimocode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   pi: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  omp: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   amp: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   factorydroid: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   codexcli: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
@@ -2051,6 +2075,30 @@ export const CANONICAL_TO_PI_EVENT_NAMES: Record<string, string> = {
   preCompact: "session_before_compact",
   // Pi documents `session_compact` alongside `session_before_compact`, and
   // v0.79.10 gave both the same `reason` / `willRetry` metadata.
+  postCompact: "session_compact",
+};
+
+/**
+ * Map canonical camelCase event names to oh-my-pi extension event names. They
+ * are Pi's names (see CANONICAL_TO_PI_EVENT_NAMES) for the events oh-my-pi
+ * kept. Note that oh-my-pi runs `session_shutdown` handlers with a 2-second
+ * budget, and fails a `tool_call` closed when its handler exceeds
+ * `extensionHandlers.toolCallTimeoutMs` (30 seconds by default).
+ *
+ * @see https://github.com/can1357/oh-my-pi/blob/40e9368ef0458fd9073329cdff4174895f91bc6b/docs/extensions.md
+ */
+export const CANONICAL_TO_OMP_EVENT_NAMES: Record<string, string> = {
+  sessionStart: "session_start",
+  sessionEnd: "session_shutdown",
+  preToolUse: "tool_call",
+  // `tool_result` carries `isError`; `postToolUseFailure` handlers gate on it.
+  postToolUse: "tool_result",
+  postToolUseFailure: "tool_result",
+  preModelInvocation: "context",
+  // Filtered to assistant messages by the generated handler, as for Pi.
+  postModelInvocation: "message_end",
+  beforeSubmitPrompt: "input",
+  preCompact: "session_before_compact",
   postCompact: "session_compact",
 };
 

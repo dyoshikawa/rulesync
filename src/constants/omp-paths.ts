@@ -17,6 +17,12 @@ export const OMP_RULES_DIR_NAME = "rules";
 export const OMP_AGENTS_DIR_NAME = "agents";
 export const OMP_MCP_FILE_NAME = "mcp.json";
 export const OMP_CONFIG_FILE_NAME = "config.yml";
+// oh-my-pi auto-discovers extension modules from `.omp/extensions/*.{ts,js}`
+// (project, cwd only) and the agent directory's `extensions/` (global).
+// https://github.com/can1357/oh-my-pi/blob/40e9368ef0458fd9073329cdff4174895f91bc6b/docs/extension-loading.md
+export const OMP_EXTENSIONS_DIR_PATH = join(OMP_DIR, "extensions");
+export const OMP_GLOBAL_EXTENSIONS_DIR_PATH = join(OMP_GLOBAL_DIR, "extensions");
+export const OMP_HOOKS_FILE_NAME = "rulesync-hooks.ts";
 
 export const OMP_LAYOUT: PiLayout = {
   toolTarget: "omp",
