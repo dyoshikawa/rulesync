@@ -387,9 +387,11 @@ function assertRetireTargetsExplicit({
  * The CLI `--features` of a retiring run names the features to retire. It also
  * scopes the run as usual — except with object-form `targets`, where per-target
  * features live in the configuration file and a CLI `features` list may not
- * replace them, so the run keeps the configured features. Only the file's
- * `targets` decides the form: `--targets` cannot be combined with
- * `--retire-targets` (see `assertRetireTargetsExplicit`).
+ * replace them, and when a retired tool is still configured (only some of its
+ * features are retired), where scoping the run to those features would
+ * generate exactly what is being retired. In both cases the run keeps the
+ * configured features. Only the file's `targets` decides: `--targets` cannot
+ * be combined with `--retire-targets` (see `assertRetireTargetsExplicit`).
  */
 function splitRetireFeatures({
   features,
@@ -408,7 +410,12 @@ function splitRetireFeatures({
   }
   const targetsIsObject =
     configByFile.targets !== undefined && !Array.isArray(configByFile.targets);
-  return { runFeatures: targetsIsObject ? undefined : features, retireFeatures: features };
+  const configuredTargets = new Set(extractConfigFileTargets(configByFile.targets));
+  const retiresConfiguredTarget = retireTargets.some((target) => configuredTargets.has(target));
+  return {
+    runFeatures: targetsIsObject || retiresConfiguredTarget ? undefined : features,
+    retireFeatures: features,
+  };
 }
 
 // oxlint-disable-next-line no-extraneous-class
@@ -660,7 +667,7 @@ export class ConfigResolver {
               // CLI --features still applies: this is the selection a run
               // without --targets would use.
               features: resolveFeaturesAndTargets({
-                features,
+                features: runFeatures,
                 targets: undefined,
                 configByFile,
               }).resolvedFeatures,

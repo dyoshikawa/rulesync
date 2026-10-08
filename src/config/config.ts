@@ -198,8 +198,9 @@ export type ConfigParams = Omit<InferredConfigParams, "targets" | "features"> & 
   targets?: RulesyncConfigTargets;
   features?: RulesyncFeatures;
   configFileTargets?: ToolTarget[];
-  // Targets the project has dropped: `generate` removes the outputs they would
-  // otherwise own, using the same managed-output listing as `--delete`.
+  // Targets the project has dropped, or kept targets it no longer generates
+  // `retireFeatures` for: `generate` removes those features' outputs they
+  // would otherwise own, using the same managed-output listing as `--delete`.
   // Explicit on purpose — a target merely left out of `targets` is never
   // swept. A one-shot action, so it is a CLI flag (`--retire-targets`) and
   // stays out of `ConfigParamsSchema`: kept in `rulesync.jsonc` it would delete
@@ -617,10 +618,11 @@ export class Config {
   }
 
   /**
-   * A retired target must not also be generated: the run would write its
-   * outputs and sweep them in the same breath. The configuration file's
-   * targets count too, so a `--targets` run cannot retire a target the project
-   * still declares.
+   * A retired feature must not also be generated for the retired target: the
+   * run would write its outputs and sweep them in the same breath. A target
+   * that is still configured may only retire features it no longer has. The
+   * configuration file's targets count too, so a `--targets` run cannot retire
+   * a feature the project still declares for that target.
    */
   private validateRetireTargets({
     configFileTargets,
@@ -648,10 +650,19 @@ export class Config {
       }
     }
     const activeTargets = new Set([...this.getTargets(), ...(configFileTargets ?? [])]);
-    const conflicting = this.retireTargets.filter((target) => activeTargets.has(target));
-    if (conflicting.length > 0) {
+    const retireFeatures = this.getRetireFeatures();
+    const conflicts = this.retireTargets.flatMap((target) => {
+      if (!activeTargets.has(target)) return [];
+      const generated = new Set([
+        ...this.getFeatures(target),
+        ...this.getConfigFileFeatures(target),
+      ]);
+      const features = retireFeatures.filter((feature) => generated.has(feature));
+      return features.length > 0 ? [`${target} (${features.join(", ")})`] : [];
+    });
+    if (conflicts.length > 0) {
       throw new Error(
-        `Cannot retire target(s) that are still configured: ${conflicting.join(", ")}. Remove them from 'targets' first.`,
+        `Cannot retire target(s) that are still configured: ${conflicts.join("; ")}. Remove them from 'targets', or the retired features from their configuration, first.`,
       );
     }
   }
@@ -954,8 +965,9 @@ export class Config {
   }
 
   /**
-   * Targets whose managed outputs `generate` removes. Never overlaps
-   * {@link getTargets}.
+   * Targets whose managed outputs `generate` removes for
+   * {@link getRetireFeatures}. A target may also be in {@link getTargets} when
+   * none of those features is generated for it.
    */
   public getRetireTargets(): ToolTarget[] {
     return this.retireTargets;

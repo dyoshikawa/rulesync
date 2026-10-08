@@ -328,6 +328,77 @@ describe("generate with retireTargets", () => {
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("Skipping retirement"));
   });
 
+  describe("a feature of a target that stays configured", () => {
+    const writeStaleClaudeMcp = async (): Promise<string> => {
+      const path = join(testDir, ".mcp.json");
+      await writeFileContent(path, JSON.stringify({ mcpServers: { old: { command: "old" } } }));
+      return path;
+    };
+
+    it("retires the feature with object-form targets and keeps generating the rest", async () => {
+      const staleMcp = await writeStaleClaudeMcp();
+
+      const result = await generate({
+        config: createConfig({
+          targets: { claudecode: ["rules"] },
+          features: undefined,
+          retireTargets: ["claudecode"],
+          retireFeatures: ["mcp"],
+        }),
+        logger: createMockLogger(),
+      });
+
+      expect(await fileExists(staleMcp)).toBe(false);
+      expect(await fileExists(join(testDir, "CLAUDE.md"))).toBe(true);
+      expect(result.deletedPathsByFeature.mcp).toEqual([{ path: ".mcp.json", kind: "file" }]);
+    });
+
+    it("retires the feature with array-form targets", async () => {
+      const staleMcp = await writeStaleClaudeMcp();
+
+      await generate({
+        config: createConfig({
+          targets: ["claudecode"],
+          features: ["rules"],
+          retireTargets: ["claudecode"],
+          retireFeatures: ["mcp"],
+        }),
+        logger: createMockLogger(),
+      });
+
+      expect(await fileExists(staleMcp)).toBe(false);
+      expect(await fileExists(join(testDir, "CLAUDE.md"))).toBe(true);
+    });
+
+    it("never removes a shared settings file a kept feature writes", async () => {
+      const settings = join(testDir, ".claude", "settings.json");
+      await writeFileContent(settings, JSON.stringify({ hooks: {} }));
+
+      await generate({
+        config: createConfig({
+          targets: { claudecode: ["rules", "permissions"] },
+          features: undefined,
+          retireTargets: ["claudecode"],
+          retireFeatures: ["hooks"],
+        }),
+        logger: createMockLogger(),
+      });
+
+      expect(await fileExists(settings)).toBe(true);
+    });
+
+    it("leaves the feature alone without --retire-targets", async () => {
+      const staleMcp = await writeStaleClaudeMcp();
+
+      await generate({
+        config: createConfig({ targets: { claudecode: ["rules"] }, features: undefined }),
+        logger: createMockLogger(),
+      });
+
+      expect(await fileExists(staleMcp)).toBe(true);
+    });
+  });
+
   it("never retires a target that is only left out of the targets list", async () => {
     const stale = await writeStaleCursorRule();
 
@@ -361,6 +432,44 @@ describe("Config retireTargets validation", () => {
           retireTargets: ["cursor"],
         }),
     ).toThrow(/still configured: cursor/);
+  });
+
+  it("rejects a feature the configured target still generates", () => {
+    expect(
+      () =>
+        new Config({
+          ...base,
+          targets: { claudecode: ["rules", "mcp"] },
+          features: undefined,
+          retireTargets: ["claudecode"],
+          retireFeatures: ["mcp"],
+        }),
+    ).toThrow(/still configured: claudecode \(mcp\)/);
+  });
+
+  it("rejects a feature the configuration file still declares for the target", () => {
+    expect(
+      () =>
+        new Config({
+          ...base,
+          targets: { claudecode: ["rules"] },
+          features: undefined,
+          configFileSelection: { targets: { claudecode: ["rules", "mcp"] } },
+          retireTargets: ["claudecode"],
+          retireFeatures: ["mcp"],
+        }),
+    ).toThrow(/still configured: claudecode \(mcp\)/);
+  });
+
+  it("accepts a feature the configured target no longer has", () => {
+    const config = new Config({
+      ...base,
+      targets: { claudecode: ["rules"] },
+      features: undefined,
+      retireTargets: ["claudecode"],
+      retireFeatures: ["mcp"],
+    });
+    expect(config.getRetireTargets()).toEqual(["claudecode"]);
   });
 
   it("rejects an unknown retired feature", () => {
