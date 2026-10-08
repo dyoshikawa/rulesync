@@ -44,7 +44,7 @@ export type NestedAgentsmdRuleFamily = {
  * home directory. Such a target has no modular non-root instruction directory,
  * so every other non-root rule folds into the root file.
  *
- * Concrete targets (Codex CLI, Pool, Vibe, DeepSeek Harness) only supply the global
+ * Concrete targets (Codex CLI, Pool, Vibe, DeepSeek Harness, Warp) only supply the global
  * directory and their tool target through {@link getFamily}; the vendor docs
  * describing each one's discovery walk live on the subclass.
  *
