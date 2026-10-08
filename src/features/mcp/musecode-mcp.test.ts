@@ -442,6 +442,163 @@ describe("MusecodeMcp", () => {
     });
   });
 
+  describe("cwd and timeouts", () => {
+    const importSettings = (settings: Record<string, unknown>): MusecodeMcp =>
+      new MusecodeMcp({
+        outputRoot: testDir,
+        relativeDirPath: join(".config", "muse"),
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({ schema_version: 1, ...settings }),
+        global: true,
+      });
+
+    it("should write cwd for stdio servers and map ms timeouts to whole seconds", async () => {
+      const mcp = await MusecodeMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp: buildRulesyncMcp({
+          fs: { command: "fs", cwd: "/srv/fs", timeout: 30000, networkTimeout: 1500 },
+          remote: { type: "http", url: "https://example.com/mcp", timeout: 900000, cwd: "/x" },
+        }),
+        global: true,
+      });
+
+      expect(mcp.getJson().mcp_servers).toEqual({
+        fs: {
+          transport: "stdio",
+          command: "fs",
+          args: [],
+          cwd: "/srv/fs",
+          tool_timeout_sec: 30,
+          // Rounded up rather than down: never a shorter budget than authored.
+          startup_timeout_sec: 2,
+        },
+        // `cwd` is a stdio setting, so a remote server does not carry it.
+        remote: {
+          transport: "streamable_http",
+          url: "https://example.com/mcp",
+          tool_timeout_sec: 900,
+        },
+      });
+    });
+
+    it("should not write a zero, negative or empty value", async () => {
+      const mcp = await MusecodeMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp: buildRulesyncMcp({
+          fs: { command: "fs", cwd: "", timeout: 0, networkTimeout: -1 },
+        }),
+        global: true,
+      });
+
+      expect(mcp.getJson().mcp_servers).toEqual({
+        fs: { transport: "stdio", command: "fs", args: [] },
+      });
+    });
+
+    it("should map *_timeout_sec back to canonical milliseconds on import and keep cwd", () => {
+      const rulesyncMcp = importSettings({
+        mcp_servers: {
+          fs: {
+            transport: "stdio",
+            command: "fs",
+            cwd: "/srv/fs",
+            tool_timeout_sec: 30,
+            startup_timeout_sec: 2.5,
+          },
+        },
+      }).toRulesyncMcp();
+
+      expect(JSON.parse(rulesyncMcp.getFileContent()).mcpServers).toEqual({
+        fs: { command: "fs", cwd: "/srv/fs", timeout: 30000, networkTimeout: 2500 },
+      });
+    });
+
+    it("should drop an unusable *_timeout_sec with a warning instead of passing it through", () => {
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
+      const rulesyncMcp = importSettings({
+        mcp_servers: {
+          fs: { transport: "stdio", command: "fs", tool_timeout_sec: "30", startup_timeout_sec: 0 },
+        },
+      }).toRulesyncMcp();
+
+      expect(JSON.parse(rulesyncMcp.getFileContent()).mcpServers).toEqual({
+        fs: { command: "fs" },
+      });
+      expect(warnSpy).toHaveBeenCalledTimes(2);
+      expect(warnSpy.mock.calls[0]?.[0]).toContain("tool_timeout_sec");
+      expect(warnSpy.mock.calls[1]?.[0]).toContain("startup_timeout_sec");
+    });
+  });
+
+  describe("mcpServers alias", () => {
+    const importSettings = (settings: Record<string, unknown>): MusecodeMcp =>
+      new MusecodeMcp({
+        outputRoot: testDir,
+        relativeDirPath: join(".config", "muse"),
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({ schema_version: 1, ...settings }),
+        global: true,
+      });
+
+    it("should import servers from a file that uses only mcpServers", () => {
+      const rulesyncMcp = importSettings({
+        mcpServers: { fs: { transport: "stdio", command: "fs" } },
+      }).toRulesyncMcp();
+
+      expect(JSON.parse(rulesyncMcp.getFileContent()).mcpServers).toEqual({
+        fs: { command: "fs" },
+      });
+    });
+
+    it("should keep writing mcpServers into a file that already uses it, never adding mcp_servers", async () => {
+      await writeFileContent(
+        settingsPath(),
+        JSON.stringify({ schema_version: 1, mcpServers: { old: { command: "old" } } }),
+      );
+
+      const mcp = await MusecodeMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp: buildRulesyncMcp({ fs: { command: "fs" } }),
+        global: true,
+      });
+
+      const json = mcp.getJson();
+      expect(json.mcpServers).toEqual({ fs: { transport: "stdio", command: "fs", args: [] } });
+      expect(Object.hasOwn(json, "mcp_servers")).toBe(false);
+    });
+
+    it("should use mcp_servers and warn when a file carries both keys", async () => {
+      const both = {
+        schema_version: 1,
+        mcp_servers: { a: { transport: "stdio", command: "a" } },
+        mcpServers: { b: { transport: "stdio", command: "b" } },
+      };
+      await writeFileContent(settingsPath(), JSON.stringify(both));
+      const logger = createMockLogger();
+
+      const mcp = await MusecodeMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp: buildRulesyncMcp({ fs: { command: "fs" } }),
+        global: true,
+        logger,
+      });
+
+      expect(mcp.getJson().mcp_servers).toEqual({
+        fs: { transport: "stdio", command: "fs", args: [] },
+      });
+      expect(mcp.getJson().mcpServers).toEqual(both.mcpServers);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("both `mcp_servers`"));
+
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+      const rulesyncMcp = importSettings(both).toRulesyncMcp();
+      expect(JSON.parse(rulesyncMcp.getFileContent()).mcpServers).toEqual({
+        a: { command: "a" },
+      });
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("both `mcp_servers`"));
+    });
+  });
+
   describe("generation writes a merged file", () => {
     it("should not clobber other keys when written to disk", async () => {
       await writeFileContent(
