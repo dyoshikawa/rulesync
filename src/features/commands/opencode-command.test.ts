@@ -253,6 +253,17 @@ describe("OpenCodeCommand", () => {
       expect(commands.map((command) => command.getFrontmatter())).toEqual([{ subtask: true }]);
     });
 
+    it("imports the variant of an inline command", async () => {
+      await writeFileContent(
+        join(testDir, "opencode.json"),
+        JSON.stringify({ command: { deep: { template: "Think", variant: "high" } } }),
+      );
+
+      const commands = await OpenCodeCommand.loadAdditionalImportFiles({ outputRoot: testDir });
+
+      expect(commands.map((command) => command.getFrontmatter())).toEqual([{ variant: "high" }]);
+    });
+
     it("imports V2 commands entries, keeping the V1 command on a name clash", async () => {
       await writeFileContent(
         join(testDir, "opencode.json"),

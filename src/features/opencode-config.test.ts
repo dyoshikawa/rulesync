@@ -149,6 +149,27 @@ describe("opencode-config", () => {
       });
     });
 
+    it("lowers an object model selection and ignores V2 commands when command is not an object", () => {
+      expect(
+        getOpencodeCommandEntries({
+          config: {
+            commands: { a: { template: "x", model: { providerID: "openai", model: "gpt-5" } } },
+          },
+        }),
+      ).toEqual({ a: { template: "x", model: "openai/gpt-5" } });
+      expect(
+        getOpencodeCommandEntries({ config: { command: [], commands: { a: { template: "x" } } } }),
+      ).toBeNull();
+    });
+
+    it("keeps a V2 entry named __proto__ as an own entry", () => {
+      const entries = getOpencodeCommandEntries({
+        config: JSON.parse('{"commands":{"__proto__":{"template":"x"}}}'),
+      });
+      expect(Object.getPrototypeOf(entries)).toBe(Object.prototype);
+      expect(Object.keys(entries ?? {})).toEqual(["__proto__"]);
+    });
+
     it("ignores V2 commands for a layout that does not read V2 spellings", () => {
       expect(
         getOpencodeCommandEntries({

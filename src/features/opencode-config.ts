@@ -95,6 +95,8 @@ function lowerOpencodeV2ModelSelection(value: unknown): { model?: string; varian
  * way OpenCode V1 itself does: `system` becomes `prompt`, `disabled` becomes
  * `disable`, `request.body` becomes `options`, and the model selection is split
  * into `model` / `variant`. Fields V1 cannot represent are dropped, as V1 does.
+ * Unlike V1, fields are checked one by one rather than the whole entry being
+ * validated, so a malformed field is skipped instead of dropping the entry.
  */
 function lowerOpencodeV2Agent(entry: Record<string, unknown>): Record<string, unknown> {
   const request = asOpencodeEntries(entry.request);
@@ -141,7 +143,13 @@ function mergeOpencodeV2Entries({
     if (Object.hasOwn(merged, name) || lowered === null) {
       continue;
     }
-    merged[name] = lowered;
+    // A plain assignment to a key named `__proto__` would set the prototype.
+    Object.defineProperty(merged, name, {
+      value: lowered,
+      enumerable: true,
+      configurable: true,
+      writable: true,
+    });
   }
   return Object.keys(merged).length > 0 ? merged : legacy;
 }
@@ -177,6 +185,8 @@ export function getOpencodeAgentEntries({
  * shape, including V2 `commands` entries for a layout that reads them (see
  * `getOpencodeAgentEntries`). A V2 entry without a `template` is skipped, as
  * OpenCode V1 skips it; its model selection is split into `model` / `variant`.
+ * Other fields are kept: V1 drops a V2 `subagent`, but rulesync reads it as
+ * `subtask` everywhere (as V2 does), so it is left for the command importer.
  *
  * @see https://github.com/anomalyco/opencode/blob/v1.18.34/packages/opencode/src/config/v2-compat.ts
  */
