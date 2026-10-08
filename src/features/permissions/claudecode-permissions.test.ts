@@ -1973,6 +1973,7 @@ describe("ClaudecodePermissions", () => {
             "ProgramFiles(x86)": "C:\\Programs",
             Comspec: "C:\\cmd.exe",
             CLAUDE_CODE_SYNC_SKILLS: "1",
+            CLAUDE_CODE_PROCESS_WRAPPER: "/usr/bin/wrap",
           }),
           logger: mockLogger,
         });
@@ -1992,6 +1993,7 @@ describe("ClaudecodePermissions", () => {
         expect(dropped).toContain("'env.OTEL_LOG_ASSISTANT_RESPONSES'");
         expect(dropped).toContain("'env.ProgramFiles(x86)'");
         expect(dropped).toContain("'env.systemroot'");
+        expect(dropped).toContain("'env.CLAUDE_CODE_PROCESS_WRAPPER'");
         expect(dropped).toContain("'env.OTEL_EXPORTER_OTLP_TRACES_CLIENT_KEY'");
         // Names only: an env value is often a credential.
         expect(messages.join("\n")).not.toContain("secret-token");

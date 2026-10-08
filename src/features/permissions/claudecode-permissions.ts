@@ -867,8 +867,7 @@ const CLAUDECODE_ENV_IGNORED_IN_EVERY_FILE: ReadonlySet<string> = new Set([
  * `env` variables a project or local settings file cannot set, because a
  * checked-out repository should not control them: where Claude Code stores its
  * own files, what session content it exports, where telemetry goes, and how it
- * starts or syncs. Claude Code drops them there with a debug-log warning only,
- * so they are skipped at project scope and emitted only under `--global`.
+ * starts or syncs. Claude Code drops them there, so they are skipped at project scope and emitted only under `--global`.
  *
  * Only the names the settings reference lists are covered; its directory and
  * Windows groups are introduced with "such as", so an unlisted member of those
