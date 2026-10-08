@@ -138,6 +138,7 @@ export const mcpProcessorToolTargetTuple = [
   "mimocode",
   "omp",
   "opencode",
+  "pi",
   "pool",
   "qoder",
   "qwencode",
