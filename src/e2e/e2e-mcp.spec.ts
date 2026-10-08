@@ -672,6 +672,40 @@ describe("E2E: mcp", () => {
     expect(imported.mcpServers.srv.disabledTools).toEqual(["rm"]);
   });
 
+  it("should carry disabledTools and disabled through the Reasonix processor in both directions", async () => {
+    const testDir = getTestDir();
+
+    // Through the processor, not the adapter: the factory's
+    // `supportsDisabledTools` flag strips the field before the adapter sees it.
+    await writeFileContent(
+      join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH),
+      JSON.stringify({
+        mcpServers: {
+          srv: { command: "node", args: ["server.js"], disabledTools: ["rm"], disabled: true },
+        },
+      }),
+    );
+
+    await runGenerate({ target: "reasonix", features: "mcp" });
+
+    const generated = toTable(
+      smolToml.parse(await readFileContent(join(testDir, "reasonix.toml"))),
+    );
+    expect(toTableArray(generated.plugins)[0]).toMatchObject({
+      name: "srv",
+      disabled_tools: ["rm"],
+      auto_start: false,
+    });
+
+    await runImport({ target: "reasonix", features: "mcp" });
+
+    const imported = JSON.parse(
+      await readFileContent(join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH)),
+    );
+    expect(imported.mcpServers.srv.disabledTools).toEqual(["rm"]);
+    expect(imported.mcpServers.srv.disabled).toBe(true);
+  });
+
   it("should generate Vibe MCP and permissions into shared config.toml", async () => {
     const testDir = getTestDir();
 

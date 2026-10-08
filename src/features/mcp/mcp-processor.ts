@@ -770,14 +770,16 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
     {
       // Reasonix reads MCP servers as `[[plugins]]` array-of-tables entries from
       // `./reasonix.toml` (project) / `~/.reasonix/config.toml` (global). Each
-      // entry carries a `name` plus the standard transport fields; it has no
-      // per-server tool allow/deny lists.
+      // entry carries a `name` plus the standard transport fields. The CLI v2
+      // line adds a per-server `disabled_tools` denylist of raw tool names, but
+      // no allowlist.
+      // https://github.com/esengine/DeepSeek-Reasonix/blob/v2.31.0/internal/contract/config/plugin_entry.go
       class: ReasonixMcp,
       meta: {
         supportsProject: true,
         supportsGlobal: true,
         supportsEnabledTools: false,
-        supportsDisabledTools: false,
+        supportsDisabledTools: true,
       },
     },
   ],

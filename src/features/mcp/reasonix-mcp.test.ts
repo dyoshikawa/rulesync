@@ -535,7 +535,8 @@ describe("ReasonixMcp", () => {
       const parsed = JSON.parse(reasonixMcp.toRulesyncMcp().getFileContent());
 
       expect(parsed.mcpServers.browser.concurrency).toBe("parallel");
-      expect(parsed.mcpServers.browser.auto_start).toBe(false);
+      expect(parsed.mcpServers.browser.disabled).toBe(true);
+      expect(parsed.mcpServers.browser).not.toHaveProperty("auto_start");
     });
 
     // `false` is the value that carries the instruction here, so a truthiness
@@ -555,7 +556,7 @@ describe("ReasonixMcp", () => {
       const reasonixMcp = await ReasonixMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
       const roundTripped = JSON.parse(reasonixMcp.toRulesyncMcp().getFileContent());
 
-      expect(roundTripped.mcpServers.lazy.auto_start).toBe(false);
+      expect(roundTripped.mcpServers.lazy.disabled).toBe(true);
       // `lazy` is not a name Reasonix's stateful list catches, so this `serial` is
       // the only thing standing between the server and the parallel path: losing
       // it on the trip would silently undo the author's containment choice.
@@ -640,6 +641,317 @@ describe("ReasonixMcp", () => {
 
       expect(plugin.concurrency).toBe("serial");
       expect(plugin).not.toHaveProperty("auto_start");
+    });
+  });
+  describe("canonical disabled and auto_start", () => {
+    const exportServers = async (mcpServers: Record<string, unknown>) => {
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({ mcpServers }),
+      });
+      const reasonixMcp = await ReasonixMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+      return {
+        reasonixMcp,
+        plugins: (smolToml.parse(reasonixMcp.getFileContent()) as any).plugins,
+      };
+    };
+
+    // Without the mapping a canonical `disabled: true` server was written as an
+    // enabled plugin, since Reasonix reads a missing `auto_start` as "on".
+    it("should write a canonical disabled: true as auto_start = false", async () => {
+      const { plugins } = await exportServers({ off: { command: "off-mcp", disabled: true } });
+
+      expect(plugins[0].auto_start).toBe(false);
+      expect(plugins[0]).not.toHaveProperty("disabled");
+    });
+
+    it("should leave auto_start out for a server that is not disabled", async () => {
+      const { plugins } = await exportServers({
+        on: { command: "on-mcp" },
+        explicit: { command: "explicit-mcp", disabled: false },
+      });
+
+      expect(plugins[0]).not.toHaveProperty("auto_start");
+      expect(plugins[1]).not.toHaveProperty("auto_start");
+    });
+
+    // Fail-safe: a server stopped for every tool must not keep starting in
+    // Reasonix because of a stale tool-specific `true`.
+    it("should let canonical disabled win over an authored auto_start with a warning", async () => {
+      const logger = createMockLogger();
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            on: { command: "on-mcp", disabled: true, auto_start: true },
+            typo: { command: "typo-mcp", disabled: true, auto_start: "yes" },
+          },
+        }),
+      });
+      const reasonixMcp = await ReasonixMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        logger,
+      });
+      const plugins = (smolToml.parse(reasonixMcp.getFileContent()) as any).plugins;
+
+      expect(plugins[0].auto_start).toBe(false);
+      expect(plugins[1].auto_start).toBe(false);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('"on" is disabled, so "auto_start" is written as false'),
+      );
+    });
+
+    it("should write an authored auto_start = false for a server that is not disabled", async () => {
+      const { plugins } = await exportServers({
+        srv: { command: "srv-mcp", auto_start: false },
+      });
+
+      expect(plugins[0].auto_start).toBe(false);
+    });
+
+    // Import keeps no `auto_start` passthrough: a leftover `false` would shadow a
+    // later `disabled: false` edit on the next generate.
+    it("should import auto_start = false as disabled: true without a passthrough", () => {
+      const reasonixMcp = new ReasonixMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".",
+        relativeFilePath: "reasonix.toml",
+        fileContent: [
+          "[[plugins]]",
+          'name = "off"',
+          'command = "off-mcp"',
+          "auto_start = false",
+          "",
+          "[[plugins]]",
+          'name = "on"',
+          'command = "on-mcp"',
+          "auto_start = true",
+        ].join("\n"),
+      });
+
+      const parsed = JSON.parse(reasonixMcp.toRulesyncMcp().getFileContent());
+
+      expect(parsed.mcpServers.off.disabled).toBe(true);
+      expect(parsed.mcpServers.off).not.toHaveProperty("auto_start");
+      expect(parsed.mcpServers.on).not.toHaveProperty("disabled");
+      expect(parsed.mcpServers.on).not.toHaveProperty("auto_start");
+    });
+
+    it("should round-trip a disabled server through export then import", async () => {
+      const { reasonixMcp } = await exportServers({ off: { command: "off-mcp", disabled: true } });
+
+      const roundTripped = JSON.parse(reasonixMcp.toRulesyncMcp().getFileContent());
+
+      expect(roundTripped.mcpServers.off.disabled).toBe(true);
+    });
+
+    it("should re-enable an imported server once canonical disabled is turned off", async () => {
+      const imported = new ReasonixMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".",
+        relativeFilePath: "reasonix.toml",
+        fileContent: [
+          "[[plugins]]",
+          'name = "srv"',
+          'command = "srv-mcp"',
+          "auto_start = false",
+        ].join("\n"),
+      });
+      const canonical = JSON.parse(imported.toRulesyncMcp().getFileContent());
+      canonical.mcpServers.srv.disabled = false;
+
+      const { plugins } = await exportServers(canonical.mcpServers);
+
+      expect(plugins[0]).not.toHaveProperty("auto_start");
+    });
+  });
+
+  describe("disabled_tools", () => {
+    it("should write canonical disabledTools as disabled_tools", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            fs: { command: "fs-mcp", disabledTools: ["write_file", "delete_file"] },
+            empty: { command: "empty-mcp", disabledTools: [] },
+          },
+        }),
+      });
+
+      const reasonixMcp = await ReasonixMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+      const parsed = smolToml.parse(reasonixMcp.getFileContent()) as any;
+
+      expect(parsed.plugins[0].disabled_tools).toEqual(["write_file", "delete_file"]);
+      expect(parsed.plugins[0]).not.toHaveProperty("disabledTools");
+      expect(parsed.plugins[1]).not.toHaveProperty("disabled_tools");
+    });
+
+    it("should import disabled_tools as canonical disabledTools", () => {
+      const reasonixMcp = new ReasonixMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".",
+        relativeFilePath: "reasonix.toml",
+        fileContent: [
+          "[[plugins]]",
+          'name = "fs"',
+          'command = "fs-mcp"',
+          'disabled_tools = ["write_file"]',
+        ].join("\n"),
+      });
+
+      const parsed = JSON.parse(reasonixMcp.toRulesyncMcp().getFileContent());
+
+      expect(parsed.mcpServers.fs.disabledTools).toEqual(["write_file"]);
+      expect(parsed.mcpServers.fs).not.toHaveProperty("disabled_tools");
+    });
+
+    // Dropping the whole list over one bad entry would lift every restriction
+    // on the other targets.
+    it("should keep the string entries of a disabled_tools list holding other types", () => {
+      const reasonixMcp = new ReasonixMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".",
+        relativeFilePath: "reasonix.toml",
+        fileContent: [
+          "[[plugins]]",
+          'name = "fs"',
+          'command = "fs-mcp"',
+          'disabled_tools = ["write_file", 1]',
+        ].join("\n"),
+      });
+
+      const parsed = JSON.parse(reasonixMcp.toRulesyncMcp().getFileContent());
+
+      expect(parsed.mcpServers.fs.disabledTools).toEqual(["write_file"]);
+    });
+
+    it("should drop blank disabledTools entries with a warning", async () => {
+      const logger = createMockLogger();
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { fs: { command: "fs-mcp", disabledTools: ["write_file", " "] } },
+        }),
+      });
+
+      const reasonixMcp = await ReasonixMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        logger,
+      });
+      const parsed = smolToml.parse(reasonixMcp.getFileContent()) as any;
+
+      expect(parsed.plugins[0].disabled_tools).toEqual(["write_file"]);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('dropping blank "disabledTools" entries from "fs"'),
+      );
+    });
+  });
+
+  // Fields the CLI v2 line added to `[[plugins]]`. Rulesync rewrites the whole
+  // `plugins` key, so a field missing from the allowlist is deleted on generate.
+  describe("load and oauth_allow_missing_pkce_metadata", () => {
+    it("should round-trip both fields through export then import", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            remote: {
+              type: "http",
+              url: "https://example.com/mcp",
+              load: "always",
+              oauth_allow_missing_pkce_metadata: true,
+            },
+          },
+        }),
+      });
+
+      const logger = createMockLogger();
+      const reasonixMcp = await ReasonixMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        logger,
+      });
+      const parsed = smolToml.parse(reasonixMcp.getFileContent()) as any;
+      const roundTripped = JSON.parse(reasonixMcp.toRulesyncMcp().getFileContent());
+
+      // It loosens OAuth and only works from the user config, so it is named.
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('"remote" sets "oauth_allow_missing_pkce_metadata"'),
+      );
+      expect(parsed.plugins[0]).toMatchObject({
+        load: "always",
+        oauth_allow_missing_pkce_metadata: true,
+      });
+      expect(roundTripped.mcpServers.remote).toMatchObject({
+        load: "always",
+        oauth_allow_missing_pkce_metadata: true,
+      });
+    });
+
+    it("should not call the OAuth key project-only when writing the global config", async () => {
+      const logger = createMockLogger();
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            remote: {
+              type: "http",
+              url: "https://example.com/mcp",
+              oauth_allow_missing_pkce_metadata: true,
+            },
+          },
+        }),
+      });
+
+      await ReasonixMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp, global: true, logger });
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('"remote" sets "oauth_allow_missing_pkce_metadata"'),
+      );
+      expect(logger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining("project reasonix.toml"),
+      );
+    });
+
+    it.each([
+      ["load", 1],
+      ["oauth_allow_missing_pkce_metadata", "true"],
+    ])("should drop a %s of the wrong type with a warning", async (field, value) => {
+      const logger = createMockLogger();
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { srv: { command: "srv-mcp", [field]: value } },
+        }),
+      });
+
+      const reasonixMcp = await ReasonixMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        logger,
+      });
+      const parsed = smolToml.parse(reasonixMcp.getFileContent()) as any;
+
+      expect(parsed.plugins[0]).not.toHaveProperty(field);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(`dropping "${field}" from "srv"`),
+      );
     });
   });
 });
