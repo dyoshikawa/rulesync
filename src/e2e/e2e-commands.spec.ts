@@ -437,21 +437,39 @@ Skill body.
     ).resolves.toMatchObject({ stdout: expect.stringContaining("All files are up to date") });
   });
 
-  it("should keep command skills when a skills-only run deletes orphan skills", async () => {
+  // `codexcli` shares the `.agents/skills/` tree without being an Antigravity
+  // target, so only the shared ownership check protects the command there.
+  it.each(["antigravity-ide", "codexcli"])(
+    "should keep command skills when a skills-only %s run deletes orphan skills",
+    async (skillsTarget) => {
+      const testDir = getTestDir();
+      await writeSources(testDir);
+
+      await runGenerate({ target: "antigravity-ide", features: "commands,skills" });
+      await runGenerate({
+        target: skillsTarget,
+        features: "skills",
+        deleteFiles: true,
+        env: { NODE_ENV: "e2e" },
+      });
+
+      expect(
+        await readFileContent(join(testDir, ".agents", "skills", "my-command", "SKILL.md")),
+      ).toContain("Do the thing.");
+    },
+  );
+
+  it("should not import command skills as rulesync skills", async () => {
     const testDir = getTestDir();
     await writeSources(testDir);
 
     await runGenerate({ target: "antigravity-ide", features: "commands,skills" });
-    await runGenerate({
-      target: "antigravity-ide",
-      features: "skills",
-      deleteFiles: true,
-      env: { NODE_ENV: "e2e" },
-    });
+    await runImport({ target: "codexcli", features: "skills" });
 
+    expect(await fileExists(join(testDir, ".rulesync", "skills", "my-command"))).toBe(false);
     expect(
-      await readFileContent(join(testDir, ".agents", "skills", "my-command", "SKILL.md")),
-    ).toContain("Do the thing.");
+      await readFileContent(join(testDir, ".rulesync", "skills", "shared-name", "SKILL.md")),
+    ).toContain("Skill body.");
   });
 });
 

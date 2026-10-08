@@ -6,12 +6,14 @@ import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
-import { resolveAntigravityCommandSkillName } from "./antigravity-command-skill-name.js";
+import {
+  resolveAntigravityCommandSkillName,
+  rulesyncSkillTakesPrecedence,
+} from "./antigravity-command-skill-name.js";
 import {
   AntigravityCommandFrontmatter,
   AntigravityCommandFrontmatterSchema,
 } from "./antigravity-command.js";
-import { rulesyncSkillNameExists } from "./command-skill-ownership.js";
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
 import {
   ToolCommand,
@@ -139,18 +141,27 @@ export class AntigravitySharedCommand extends ToolCommand {
   }
 
   /**
-   * A rulesync skill with the same name is written to the same
-   * `<skills dir>/<name>/` directory, so it takes precedence over the command.
+   * A rulesync skill with the same name that is written to the same
+   * `<skills dir>/<name>/` directory takes precedence over the command.
    */
   static async getWriteBlockReason({
     rulesyncCommand,
+    global = false,
     inputRoots,
   }: {
     rulesyncCommand: RulesyncCommand;
+    global?: boolean;
     inputRoots: readonly string[];
   }): Promise<string | null> {
     const dirName = resolveAntigravityCommandSkillName(rulesyncCommand);
-    if (await rulesyncSkillNameExists({ inputRoots, dirName })) {
+    if (
+      await rulesyncSkillTakesPrecedence({
+        inputRoots,
+        dirName,
+        skillsRelativeDirPath: this.getSkillsRelativeDirPath({ global }),
+        global,
+      })
+    ) {
       return "a rulesync skill with the same name is emitted to the same skill directory and takes precedence";
     }
     return null;

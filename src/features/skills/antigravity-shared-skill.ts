@@ -255,7 +255,13 @@ export class AntigravitySharedSkill extends ToolSkill {
     const toolTargets: ToolTarget[] = global
       ? [this.getToolTarget()]
       : ["antigravity-ide", "antigravity-cli"];
-    return !(await antigravityCommandSkillNameExists({ inputRoots, dirName, toolTargets }));
+    return !(await antigravityCommandSkillNameExists({
+      inputRoots,
+      dirName,
+      toolTargets,
+      skillsRelativeDirPath: relativeDirPath,
+      global,
+    }));
   }
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<AntigravitySharedSkill> {

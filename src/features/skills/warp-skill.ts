@@ -186,7 +186,8 @@ export class WarpSkill extends ToolSkill {
    * (see `WarpCommand`), so a directory there matching a current rulesync
    * command slug is owned by the commands feature: it must not be imported as
    * a skill nor deleted as an orphan skill. The import-only `.agents/skills/`
-   * root never receives commands, so a same-named skill in it stays a skill.
+   * root never receives Warp commands, so a same-named skill in it stays a
+   * skill (Antigravity commands emitted there are handled by the processor).
    */
   static async isDirOwned({
     relativeDirPath,

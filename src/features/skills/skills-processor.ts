@@ -3,6 +3,7 @@ import { basename, dirname, join } from "node:path";
 import { encode } from "@toon-format/toon";
 import { z } from "zod/mini";
 
+import { ANTIGRAVITY_SKILLS_DIR_PATH } from "../../constants/antigravity-paths.js";
 import {
   CURATED_SKILLS_FEATURE_SUBDIR,
   SKILLS_FEATURE_SUBDIR,
@@ -29,6 +30,7 @@ import {
 } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { warnOnceWithFallback } from "../../utils/logger.js";
+import { antigravityCommandSkillNameExists } from "../commands/antigravity-command-skill-name.js";
 import { AgentsmdSkill } from "./agentsmd-skill.js";
 import { AgentsSkillsSkill } from "./agentsskills-skill.js";
 import { AiassistantSkill } from "./aiassistant-skill.js";
@@ -1353,6 +1355,23 @@ export class SkillsProcessor extends DirFeatureProcessor {
     relativeDirPath: string;
     dirName: string;
   }): Promise<boolean> {
+    // Antigravity commands are emitted into the project `.agents/skills/` tree
+    // that several other tools share, so a directory one of them emits is not
+    // a skill for any of those tools, even in a run without the commands
+    // feature or the Antigravity targets.
+    if (
+      !this.global &&
+      relativeDirPath === ANTIGRAVITY_SKILLS_DIR_PATH &&
+      (await antigravityCommandSkillNameExists({
+        inputRoots: this.inputRoots,
+        dirName,
+        toolTargets: ["antigravity-ide", "antigravity-cli"],
+        skillsRelativeDirPath: relativeDirPath,
+        global: false,
+      }))
+    ) {
+      return false;
+    }
     if (factory.class.isDirOwned === undefined) {
       return true;
     }

@@ -9,6 +9,7 @@ import { AntigravityIdeSkill } from "../skills/antigravity-ide-skill.js";
 import {
   antigravityCommandSkillNameExists,
   resolveAntigravityCommandSkillName,
+  rulesyncSkillTakesPrecedence,
 } from "./antigravity-command-skill-name.js";
 import { RulesyncCommand } from "./rulesync-command.js";
 
@@ -64,7 +65,13 @@ describe("antigravityCommandSkillNameExists / AntigravitySharedSkill.isDirOwned"
     await writeCommand(join("git", "commit.md"), 'targets: ["antigravity-cli"]');
 
     const exists = (dirName: string, toolTargets: ("antigravity-ide" | "antigravity-cli")[]) =>
-      antigravityCommandSkillNameExists({ inputRoots: [inputRoot], dirName, toolTargets });
+      antigravityCommandSkillNameExists({
+        inputRoots: [inputRoot],
+        dirName,
+        toolTargets,
+        skillsRelativeDirPath: join(".agents", "skills"),
+        global: false,
+      });
 
     expect(await exists("deploy", ["antigravity-ide"])).toBe(true);
     expect(await exists("triggered", ["antigravity-ide"])).toBe(false);
@@ -74,18 +81,66 @@ describe("antigravityCommandSkillNameExists / AntigravitySharedSkill.isDirOwned"
     expect(await exists("commit", ["antigravity-ide"])).toBe(false);
   });
 
-  it("should leave the directory to a rulesync skill of the same name", async () => {
-    await writeCommand("deploy.md", 'targets: ["*"]');
+  const writeSkill = async (dirName: string, targets: string, subdir = "skills") => {
     await writeFileContent(
-      join(inputRoot, "skills", "deploy", "SKILL.md"),
-      "---\nname: deploy\ndescription: d\n---\nbody\n",
+      join(inputRoot, subdir, dirName, "SKILL.md"),
+      `---\nname: ${dirName}\ndescription: d\ntargets: ${targets}\n---\nbody\n`,
+    );
+  };
+
+  const projectOwned = (dirName: string) =>
+    antigravityCommandSkillNameExists({
+      inputRoots: [inputRoot],
+      dirName,
+      toolTargets: ["antigravity-ide"],
+      skillsRelativeDirPath: join(".agents", "skills"),
+      global: false,
+    });
+
+  it("should leave the directory to a rulesync skill written to the same tree", async () => {
+    await writeCommand("deploy.md", 'targets: ["*"]');
+    await writeCommand("review.md", 'targets: ["*"]');
+    await writeCommand("curated.md", 'targets: ["*"]');
+    await writeSkill("deploy", '["*"]');
+    // Codex CLI also writes project skills to `.agents/skills/`.
+    await writeSkill("review", '["codexcli"]');
+    await writeSkill("curated", '["antigravity-cli"]', join("skills", ".curated"));
+
+    expect(await projectOwned("deploy")).toBe(false);
+    expect(await projectOwned("review")).toBe(false);
+    expect(await projectOwned("curated")).toBe(false);
+  });
+
+  it("should keep the directory when the same-named skill is written elsewhere", async () => {
+    await writeCommand("deploy.md", 'targets: ["*"]');
+    await writeSkill("deploy", '["claudecode"]');
+
+    expect(await projectOwned("deploy")).toBe(true);
+    expect(
+      await rulesyncSkillTakesPrecedence({
+        inputRoots: [inputRoot],
+        dirName: "deploy",
+        skillsRelativeDirPath: join(".agents", "skills"),
+        global: false,
+      }),
+    ).toBe(false);
+  });
+
+  it("should let the last input root decide which command owns a name", async () => {
+    const localRoot = join(testDir, ".rulesync.local");
+    await writeCommand("deploy.md", 'targets: ["antigravity-ide"]');
+    await writeFileContent(
+      join(localRoot, "commands", "deploy.md"),
+      '---\ntargets: ["claudecode"]\n---\nBody\n',
     );
 
     expect(
       await antigravityCommandSkillNameExists({
-        inputRoots: [inputRoot],
+        inputRoots: [inputRoot, localRoot],
         dirName: "deploy",
         toolTargets: ["antigravity-ide"],
+        skillsRelativeDirPath: join(".agents", "skills"),
+        global: false,
       }),
     ).toBe(false);
   });
