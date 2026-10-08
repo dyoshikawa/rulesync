@@ -1629,7 +1629,12 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
     // we could not parse rather than replacing it with generated output.
     invalidRootPolicy: "error",
     features: {
-      mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp_servers", "schema_version"] },
+      // `mcpServers` is the alias Muse Code accepts since 0.2.1; the writer
+      // patches whichever one spelling the file already uses, never both.
+      mcp: {
+        kind: "replace-owned-keys",
+        ownedKeys: ["mcp_servers", "mcpServers", "schema_version"],
+      },
     },
   },
   ".zcode/config.json": ZCODE_CONFIG_DECLARATION,

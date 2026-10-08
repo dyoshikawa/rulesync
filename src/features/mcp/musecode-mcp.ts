@@ -53,6 +53,34 @@ function parseMusecodeSettings(fileContent: string, filePath?: string): Record<s
 }
 
 /**
+ * The settings key holding the MCP server map. `mcp_servers` is the documented
+ * spelling; since 0.2.1 Muse Code also accepts the ecosystem-standard
+ * `mcpServers` (changelog: "Settings accept the standard `mcpServers` key"),
+ * which its own `muse mcp` commands may write. A file that already uses only
+ * `mcpServers` keeps that spelling, so rulesync never adds a second MCP block
+ * beside it; otherwise — including a file carrying both — `mcp_servers` wins.
+ * Which block Muse Code reads when both are present is not documented.
+ *
+ * @see https://dev.meta.ai/docs/muse-code/changelog
+ */
+type MusecodeServersKey = "mcp_servers" | "mcpServers";
+
+function resolveMusecodeServersKey(settings: Record<string, unknown>): MusecodeServersKey {
+  return !Object.hasOwn(settings, "mcp_servers") && Object.hasOwn(settings, "mcpServers")
+    ? "mcpServers"
+    : "mcp_servers";
+}
+
+function hasBothMusecodeServersKeys(settings: Record<string, unknown>): boolean {
+  return Object.hasOwn(settings, "mcp_servers") && Object.hasOwn(settings, "mcpServers");
+}
+
+const BOTH_SERVERS_KEYS_WARNING =
+  "Muse Code MCP: settings.json carries both `mcp_servers` and `mcpServers`; Rulesync " +
+  "uses `mcp_servers` and leaves `mcpServers` untouched. Merge them into one block, since " +
+  "Muse Code does not document which one it reads.";
+
+/**
  * The whole documented `mode` vocabulary: `required` (Muse Code's default)
  * aborts the run when the server fails to start, `optional` skips it with a
  * warning. Anything else is not a mode Muse Code implements, so every direction
@@ -66,11 +94,65 @@ function asMusecodeMode(value: unknown): "required" | "optional" | undefined {
 }
 
 /**
+ * Canonical millisecond timeouts and the Muse Code per-server fields they
+ * translate to (the Codex CLI mapping, `codexcli-mcp.ts`):
+ * - `timeout` → `tool_timeout_sec`: applies to tool calls, resource reads and
+ *   prompt fetches on both transports (changelog 1.1.1; 1.4.0 lets values above
+ *   600 seconds take effect, which pins the unit).
+ * - `networkTimeout` → `startup_timeout_sec`: the server startup budget, honored
+ *   since 1.2.1.
+ *
+ * Muse Code does not document whether fractional seconds are accepted, so the
+ * value is rounded up to whole seconds — never shorter than authored — and only
+ * a positive timeout is written, since what `0` means to Muse Code is not
+ * documented either.
+ *
+ * @see https://dev.meta.ai/docs/muse-code/changelog
+ */
+const RULESYNC_TO_MUSECODE_TIMEOUT_FIELD_MAP = {
+  timeout: "tool_timeout_sec",
+  networkTimeout: "startup_timeout_sec",
+} as const;
+
+const MUSECODE_TO_RULESYNC_TIMEOUT_FIELD_MAP: Record<string, string> = Object.fromEntries(
+  Object.entries(RULESYNC_TO_MUSECODE_TIMEOUT_FIELD_MAP).map(([canonical, musecode]) => [
+    musecode,
+    canonical,
+  ]),
+);
+
+const MILLISECONDS_PER_SECOND = 1000;
+
+function isPositiveTimeout(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0;
+}
+
+function toMusecodeTimeouts(config: Record<string, unknown>): Record<string, number> {
+  const timeouts: Record<string, number> = {};
+  for (const [canonicalKey, musecodeKey] of Object.entries(
+    RULESYNC_TO_MUSECODE_TIMEOUT_FIELD_MAP,
+  )) {
+    const value = config[canonicalKey];
+    if (isPositiveTimeout(value)) {
+      timeouts[musecodeKey] = Math.ceil(value / MILLISECONDS_PER_SECOND);
+    }
+  }
+  return timeouts;
+}
+
+/** A stdio server's working directory; an empty string is not a directory. */
+function toMusecodeCwd(cwd: unknown): { cwd?: string } {
+  return typeof cwd === "string" && cwd !== "" ? { cwd } : {};
+}
+
+/**
  * Convert canonical rulesync servers to Muse Code's native `mcp_servers` shape.
  * Each entry carries a `transport` discriminator: `stdio` servers spawn a
  * `command` (single string) with `args`/`env`, and `streamable_http` servers
- * are reached at a `url` with optional `headers`. Only documented fields are
- * emitted; a canonical `disabled: true` maps to Muse's `enabled: false`, and
+ * are reached at a `url` with optional `headers`; a stdio server's `cwd` is its
+ * working directory (honored since 1.2.1). Only documented fields are
+ * emitted; a canonical `disabled: true` maps to Muse's `enabled: false`, the
+ * canonical millisecond timeouts become whole-second `*_timeout_sec` fields, and
  * the authoring key `musecodeMode` is written out under Muse Code's own name,
  * `mode`.
  */
@@ -145,10 +227,12 @@ function convertToMusecodeFormat(mcpServers: McpServers, logger?: Logger): Recor
       if (config.env && Object.keys(config.env).length > 0) {
         converted.env = config.env;
       }
+      Object.assign(converted, toMusecodeCwd(config.cwd));
     }
     if (config.disabled === true) {
       converted.enabled = false;
     }
+    Object.assign(converted, toMusecodeTimeouts(config));
     // Authored as `musecodeMode` and re-merged from the raw source JSON by
     // `fromRulesyncMcp`, because `getMcpServers()` strips it. Muse Code defaults
     // an absent `mode` to `required`, so an explicit `"required"` is still
@@ -171,7 +255,9 @@ function convertToMusecodeFormat(mcpServers: McpServers, logger?: Logger): Recor
  * canonical enum value; the transport is re-derived from `command`/`url` on the
  * next generate), `enabled: false` maps back to `disabled: true`, a documented
  * `mode` is lifted into the authoring key `musecodeMode` so the next generate
- * reproduces it, and unknown keys (e.g. `framing`) pass through untouched.
+ * reproduces it, `tool_timeout_sec` / `startup_timeout_sec` (seconds) become
+ * the canonical millisecond `timeout` / `networkTimeout`, and unknown keys
+ * (e.g. `framing`, `cwd`) pass through untouched.
  *
  * A `mode` whose value is neither `required` nor `optional` is dropped with a
  * warning rather than either renamed or passed through. Renaming is out because
@@ -225,6 +311,25 @@ function convertFromMusecodeFormat(musecodeMcp: Record<string, unknown>): McpSer
         converted.musecodeMode = mode;
         continue;
       }
+      const canonicalTimeoutKey = Object.hasOwn(MUSECODE_TO_RULESYNC_TIMEOUT_FIELD_MAP, key)
+        ? MUSECODE_TO_RULESYNC_TIMEOUT_FIELD_MAP[key]
+        : undefined;
+      if (canonicalTimeoutKey !== undefined) {
+        // Dropped rather than passed through when unusable: a surviving
+        // `*_timeout_sec` would be copied verbatim into every other target's
+        // config by the loose server schema (the `mode` reasoning above).
+        if (isPositiveTimeout(value)) {
+          // Rounded to whole milliseconds so `1.1` does not import as `1100.0000000000002`.
+          converted[canonicalTimeoutKey] = Math.round(value * MILLISECONDS_PER_SECOND);
+        } else {
+          warnWithFallback(
+            undefined,
+            `Muse Code MCP: dropping ${key} ${quoteValueForWarning(value)} on server ` +
+              `${quoteValueForWarning(name)} because it is not a positive number of seconds.`,
+          );
+        }
+        continue;
+      }
       converted[key] = value;
     }
 
@@ -237,9 +342,9 @@ function convertFromMusecodeFormat(musecodeMcp: Record<string, unknown>): McpSer
 /**
  * Meta Muse Code MCP servers.
  *
- * Muse Code reads MCP servers only from the `mcp_servers` block of the GLOBAL
- * user settings file `~/.config/muse/settings.json`; no project-scoped MCP
- * location is documented. The settings file must carry
+ * Muse Code reads MCP servers only from the `mcp_servers` (or `mcpServers`)
+ * block of the GLOBAL user settings file `~/.config/muse/settings.json`; no
+ * project-scoped MCP location is documented. The settings file must carry
  * `"schema_version": 1` — a file that omits that key fails every command at
  * startup with `malformed settings file` — so the key is bootstrapped when the
  * file is created and preserved when it already exists. Other settings keys are
@@ -326,6 +431,9 @@ export class MusecodeMcp extends ToolMcp {
       }),
     );
     const converted = convertToMusecodeFormat(mcpServers, logger);
+    if (hasBothMusecodeServersKeys(existing)) {
+      warnWithFallback(logger, BOTH_SERVERS_KEYS_WARNING);
+    }
 
     return new MusecodeMcp({
       outputRoot,
@@ -336,7 +444,7 @@ export class MusecodeMcp extends ToolMcp {
         feature: "mcp",
         existingContent,
         patch: {
-          mcp_servers: converted,
+          [resolveMusecodeServersKey(existing)]: converted,
           // Bootstrap `schema_version` on file creation (Muse Code rejects a
           // settings.json without it); an existing value is left untouched.
           ...(existing.schema_version === undefined && {
@@ -351,7 +459,11 @@ export class MusecodeMcp extends ToolMcp {
   }
 
   toRulesyncMcp(): RulesyncMcp {
-    const mcpServers = isRecord(this.json.mcp_servers) ? this.json.mcp_servers : {};
+    if (hasBothMusecodeServersKeys(this.json)) {
+      warnWithFallback(undefined, BOTH_SERVERS_KEYS_WARNING);
+    }
+    const servers = this.json[resolveMusecodeServersKey(this.json)];
+    const mcpServers = isRecord(servers) ? servers : {};
     const converted = convertFromMusecodeFormat(mcpServers);
 
     // Do not spread the full settings JSON: tool-specific keys (schema_version,
