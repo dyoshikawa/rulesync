@@ -77,17 +77,25 @@ type ReasonixPlugin = Record<string, unknown> & {
 // brings it back — only a durable override in `mcp-activation.json`, written
 // when the user enables the server, outranks the file value. Dropping the key
 // therefore switches a server back on. `concurrency` has no canonical
-// counterpart. `auto_start` overlaps canonical `disabled`, but it stays a
-// passthrough here rather than a deep mapping: the activation store can flip a
-// server independently of the file, so the two are not interchangeable, and
-// settling which wins when a canonical `disabled` and a hand-written
-// `auto_start` disagree — in both the write and the import direction — is its
-// own decision, left on #2599.
-// These two are also value-checked on the way out
-// (`invalidSchedulingFieldReason`): Reasonix decodes `reasonix.toml` with
-// BurntSushi/toml into a `string` / `*bool`, and a type mismatch fails the load
-// of the whole file, not just this entry. The other passthrough fields are not
-// checked yet.
+// counterpart. `auto_start` also stays a passthrough, but canonical `disabled`
+// now feeds it (`resolveAutoStart`): `disabled: true` is written as
+// `auto_start = false`, the switch Reasonix reads as "disabled", unless the
+// server object carries its own `auto_start`, which as the tool-specific value
+// wins. On import an `auto_start = false` also lifts to `disabled: true`, so the
+// other targets see the server as off too. The activation store can still flip
+// a server independently of the file; that is runtime state, not config.
+// The CLI v2 line (v2.31.0, `internal/contract/config/plugin_entry.go`) adds
+// `load` (`always` puts the server's tools in the provider schema from session
+// start; empty or `deferred` reaches them through `use_capability`) and
+// `oauth_allow_missing_pkce_metadata`, both passthrough, and `disabled_tools`,
+// a per-server denylist of raw tool names that deep-maps to canonical
+// `disabledTools`. The v1 line ignores unknown keys, so writing them is harmless
+// there.
+// The scalar passthrough fields with a fixed type are also value-checked on the
+// way out (`invalidPassthroughFieldReason`): Reasonix decodes `reasonix.toml`
+// with BurntSushi/toml into a `string` / `*bool` / `bool`, and a type mismatch
+// fails the load of the whole file, not just this entry. The other passthrough
+// fields are not checked yet.
 // @see https://github.com/esengine/DeepSeek-Reasonix/blob/main-v2/docs/SPEC.md
 // (§3.16 for `concurrency`) and `internal/config/plugin_entry.go` for the
 // `[[plugins]]` field names.
@@ -103,7 +111,12 @@ const REASONIX_PLUGIN_FIELDS = [
   "tool_timeout_seconds",
   "concurrency",
   "auto_start",
+  "load",
+  "oauth_allow_missing_pkce_metadata",
 ] as const;
+
+/** The `[[plugins]]` key that canonical `disabledTools` is written to and read from. */
+const REASONIX_DISABLED_TOOLS_KEY = "disabled_tools";
 
 export class ReasonixMcp extends ToolMcp {
   private readonly toml: ReasonixConfig;
@@ -299,30 +312,87 @@ function warnAboutRetiredFields({
 const REASONIX_CONCURRENCY_VALUES: ReadonlySet<string> = new Set(["serial", "parallel"]);
 
 /**
- * Why a `concurrency` / `auto_start` value cannot be written, or `undefined`
- * when it can (and for every other field). A wrong type is the case that
- * matters: Reasonix declares the fields as `string` / `*bool`, and a TOML type
- * mismatch makes it refuse the whole config file. An unknown `concurrency`
- * string decodes fine but is ignored in favor of the server-name default, so it
- * is dropped too rather than written as a setting that does nothing.
+ * The type Reasonix decodes each fixed-type scalar passthrough field into
+ * (`PluginEntry` in `internal/config/plugin_entry.go`, and
+ * `internal/contract/config/plugin_entry.go` on the CLI v2 line).
+ */
+const REASONIX_TYPED_PLUGIN_FIELDS: Readonly<Record<string, "string" | "boolean">> = {
+  concurrency: "string",
+  auto_start: "boolean",
+  load: "string",
+  oauth_allow_missing_pkce_metadata: "boolean",
+};
+
+/**
+ * Why a passthrough value cannot be written, or `undefined` when it can (and
+ * for every field without a fixed type). A wrong type is the case that matters:
+ * a TOML type mismatch makes Reasonix refuse the whole config file. An unknown
+ * `concurrency` string decodes fine but is ignored in favor of the server-name
+ * default, so it is dropped too rather than written as a setting that does
+ * nothing. An unknown `load` string is read as `deferred`, the default, so it
+ * passes through as authored.
  * @see https://github.com/esengine/DeepSeek-Reasonix/blob/main-v2/internal/config/plugin_entry.go
  */
-function invalidSchedulingFieldReason(field: string, value: unknown): string | undefined {
-  if (field === "auto_start" && typeof value !== "boolean") {
-    return "Reasonix expects a boolean and fails to load a config file holding any other type.";
+function invalidPassthroughFieldReason(field: string, value: unknown): string | undefined {
+  const expected = REASONIX_TYPED_PLUGIN_FIELDS[field];
+  if (expected !== undefined && typeof value !== expected) {
+    return `Reasonix expects a ${expected} and fails to load a config file holding any other type.`;
   }
-  if (field === "concurrency") {
-    if (typeof value !== "string") {
-      return "Reasonix expects a string and fails to load a config file holding any other type.";
-    }
-    if (!REASONIX_CONCURRENCY_VALUES.has(value.trim().toLowerCase())) {
-      return (
-        `Reasonix accepts only "serial" or "parallel" and ignores ${JSON.stringify(value)}, ` +
-        `falling back to the server-name default.`
-      );
-    }
+  if (
+    field === "concurrency" &&
+    typeof value === "string" &&
+    !REASONIX_CONCURRENCY_VALUES.has(value.trim().toLowerCase())
+  ) {
+    return (
+      `Reasonix accepts only "serial" or "parallel" and ignores ${JSON.stringify(value)}, ` +
+      `falling back to the server-name default.`
+    );
   }
   return undefined;
+}
+
+/**
+ * The `auto_start` to write: the server's own `auto_start` when it carries one
+ * (the tool-specific value wins), otherwise `false` for a canonical
+ * `disabled: true`, which is how Reasonix spells a server that is off
+ * (`Config.EnabledPlugins` leaves it out of the enabled set). `undefined` means
+ * the key is left out, which Reasonix reads as enabled.
+ */
+function resolveAutoStart(server: McpServer): unknown {
+  const authored = (server as Record<string, unknown>).auto_start;
+  if (authored !== undefined) {
+    return authored;
+  }
+  return server.disabled === true ? false : undefined;
+}
+
+function writePassthroughFields({
+  name,
+  server,
+  plugin,
+  logger,
+}: {
+  name: string;
+  server: McpServer;
+  plugin: ReasonixPlugin;
+  logger?: Logger;
+}): void {
+  const serverRecord = server as Record<string, unknown>;
+  for (const field of REASONIX_PLUGIN_FIELDS) {
+    if (field === "type" || field === "command" || field === "args") {
+      continue;
+    }
+    const value = field === "auto_start" ? resolveAutoStart(server) : serverRecord[field];
+    if (value === undefined) {
+      continue;
+    }
+    const invalidReason = invalidPassthroughFieldReason(field, value);
+    if (invalidReason !== undefined) {
+      logger?.warn(`Reasonix MCP: dropping "${field}" from "${name}"; ${invalidReason}`);
+      continue;
+    }
+    plugin[field] = value;
+  }
 }
 
 function rulesyncMcpServerToReasonix(
@@ -362,20 +432,12 @@ function rulesyncMcpServerToReasonix(
     }
   }
 
-  for (const field of REASONIX_PLUGIN_FIELDS) {
-    if (field === "type" || field === "command" || field === "args") {
-      continue;
-    }
-    const value = serverRecord[field];
-    if (value === undefined) {
-      continue;
-    }
-    const invalidReason = invalidSchedulingFieldReason(field, value);
-    if (invalidReason !== undefined) {
-      logger?.warn(`Reasonix MCP: dropping "${field}" from "${name}"; ${invalidReason}`);
-      continue;
-    }
-    plugin[field] = value;
+  writePassthroughFields({ name, server, plugin, logger });
+  // The canonical schema already types `disabledTools` as a string list, so
+  // only an empty list is skipped: Reasonix reads it as "every tool enabled",
+  // the same as no key.
+  if (server.disabledTools !== undefined && server.disabledTools.length > 0) {
+    plugin[REASONIX_DISABLED_TOOLS_KEY] = server.disabledTools;
   }
   warnAboutRetiredFields({ name, serverRecord, logger });
   if (plugin.url === undefined && server.httpUrl !== undefined) {
@@ -399,6 +461,17 @@ function reasonixPluginToRulesync(plugin: ReasonixPlugin): McpServer {
     if (plugin[field] !== undefined) {
       result[field] = plugin[field];
     }
+  }
+  if (plugin.auto_start === false) {
+    result.disabled = true;
+  }
+  const disabledTools = plugin[REASONIX_DISABLED_TOOLS_KEY];
+  if (
+    Array.isArray(disabledTools) &&
+    disabledTools.length > 0 &&
+    disabledTools.every((tool) => typeof tool === "string")
+  ) {
+    result.disabledTools = disabledTools;
   }
 
   return result as McpServer;

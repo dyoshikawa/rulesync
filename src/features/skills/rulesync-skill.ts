@@ -61,14 +61,15 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
   description: z.string(),
   targets: z._default(RulesyncTargetsSchema, ["*"]),
   // Default for tools that support the flag (claudecode, codebuddy, copilot, copilotcli, crush,
-  // cursor, zed, pi, omp, qwencode, vibe, grokcli, factorydroid, dsh, commandcode, lettacode).
+  // cursor, zed, pi, omp, qwencode, vibe, grokcli, factorydroid, dsh, reasonix, commandcode,
+  // lettacode).
   // A target-section value of the same key overrides this default.
   // `devin` also consumes this root value (mapping `true` onto a user-only
   // `triggers` list); it has no section key of the same name, but a
   // `devin.triggers` section value overrides it.
   "disable-model-invocation": z.optional(z.boolean()),
   // Default for tools that support the flag (claudecode, codebuddy, copilot, copilotcli,
-  // cursor, qwencode, vibe, grokcli, factorydroid, dsh, commandcode, lettacode).
+  // cursor, qwencode, vibe, grokcli, factorydroid, dsh, reasonix, commandcode, lettacode).
   // A target-section value of the same key overrides this default.
   // `devin` also consumes this root value (mapping `false` onto a model-only
   // `triggers` list); it has no section key of the same name, but a
@@ -353,6 +354,15 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
       "user-invocable": z.optional(z.boolean()),
     }),
   ),
+  // Reasonix reads both invocation flags natively on the CLI v2 line; the
+  // adapter also writes the v1 line's `invocation: manual` for a
+  // `disable-model-invocation: true`.
+  reasonix: z.optional(
+    z.looseObject({
+      "disable-model-invocation": z.optional(z.boolean()),
+      "user-invocable": z.optional(z.boolean()),
+    }),
+  ),
   "kimi-code": z.optional(
     z.looseObject({
       type: z.optional(z.enum(["prompt", "inline", "flow"])),
@@ -499,6 +509,10 @@ export type RulesyncSkillFrontmatterInput = {
   dsh?: {
     whenToUse?: string;
     metadata?: Record<string, unknown>;
+    "disable-model-invocation"?: boolean;
+    "user-invocable"?: boolean;
+  };
+  reasonix?: {
     "disable-model-invocation"?: boolean;
     "user-invocable"?: boolean;
   };

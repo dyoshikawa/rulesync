@@ -58,6 +58,134 @@ describe("ReasonixSkill", () => {
     });
   });
 
+  describe("invocation flags", () => {
+    const toReasonix = (frontmatter: Partial<RulesyncSkillFrontmatterInput>) =>
+      ReasonixSkill.fromRulesyncSkill({
+        outputRoot: testDir,
+        rulesyncSkill: new RulesyncSkill({
+          outputRoot: testDir,
+          dirName: "flagged",
+          frontmatter: { name: "flagged", description: "Flagged", targets: ["*"], ...frontmatter },
+          body: "Body",
+          validate: false,
+        }),
+      });
+
+    // v2 reads `disable-model-invocation` natively; v1 reads only
+    // `invocation: manual`, so both are written for the same intent.
+    it("should write the root disable-model-invocation with invocation: manual beside it", () => {
+      const skill = toReasonix({ "disable-model-invocation": true });
+
+      expect(skill.getFrontmatter()).toEqual({
+        name: "flagged",
+        description: "Flagged",
+        invocation: "manual",
+        "disable-model-invocation": true,
+      });
+    });
+
+    it("should write a false disable-model-invocation without invocation: manual", () => {
+      const skill = toReasonix({ "disable-model-invocation": false });
+
+      expect(skill.getFrontmatter()).toEqual({
+        name: "flagged",
+        description: "Flagged",
+        "disable-model-invocation": false,
+      });
+    });
+
+    it("should write user-invocable", () => {
+      const skill = toReasonix({ "user-invocable": false });
+
+      expect(skill.getFrontmatter()["user-invocable"]).toBe(false);
+      expect(skill.getFrontmatter()).not.toHaveProperty("invocation");
+    });
+
+    it("should let the reasonix section override the root flags", () => {
+      const skill = toReasonix({
+        "disable-model-invocation": true,
+        "user-invocable": true,
+        reasonix: { "disable-model-invocation": false, "user-invocable": false },
+      });
+
+      expect(skill.getFrontmatter()).toEqual({
+        name: "flagged",
+        description: "Flagged",
+        "disable-model-invocation": false,
+        "user-invocable": false,
+      });
+    });
+
+    it("should import the native flags into the reasonix section, not the root", () => {
+      const skill = new ReasonixSkill({
+        outputRoot: testDir,
+        dirName: "flagged",
+        frontmatter: {
+          name: "flagged",
+          description: "Flagged",
+          invocation: "manual",
+          "disable-model-invocation": true,
+          "user-invocable": false,
+        },
+        body: "Body",
+      });
+
+      const frontmatter = skill.toRulesyncSkill().getFrontmatter();
+
+      expect(frontmatter.reasonix).toEqual({
+        "disable-model-invocation": true,
+        "user-invocable": false,
+      });
+      expect(frontmatter).not.toHaveProperty("disable-model-invocation");
+      expect(frontmatter).not.toHaveProperty("invocation");
+    });
+
+    it.each([["manual"], [" Manual "]])(
+      "should lift a v1-only invocation of %j to disable-model-invocation: true",
+      (invocation) => {
+        const skill = new ReasonixSkill({
+          outputRoot: testDir,
+          dirName: "flagged",
+          frontmatter: { name: "flagged", description: "Flagged", invocation },
+          body: "Body",
+        });
+
+        expect(skill.toRulesyncSkill().getFrontmatter().reasonix).toEqual({
+          "disable-model-invocation": true,
+        });
+      },
+    );
+
+    it("should keep an explicit native flag over invocation: manual on import", () => {
+      const skill = new ReasonixSkill({
+        outputRoot: testDir,
+        dirName: "flagged",
+        frontmatter: {
+          name: "flagged",
+          description: "Flagged",
+          invocation: "manual",
+          "disable-model-invocation": false,
+        },
+        body: "Body",
+      });
+
+      expect(skill.toRulesyncSkill().getFrontmatter().reasonix).toEqual({
+        "disable-model-invocation": false,
+      });
+    });
+
+    it("should import a skill without flags with no reasonix section", () => {
+      const skill = new ReasonixSkill({
+        outputRoot: testDir,
+        dirName: "plain",
+        frontmatter: { name: "plain", description: "Plain", invocation: "auto" },
+        body: "Body",
+      });
+
+      expect(skill.toRulesyncSkill().getFrontmatter()).not.toHaveProperty("reasonix");
+    });
+  });
+
   describe("fromDir", () => {
     it("should load a directory-layout SKILL.md", async () => {
       const skillDir = join(testDir, ".reasonix", "skills", "my-skill");
