@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 
 import * as smolToml from "smol-toml";
 
@@ -15,7 +15,7 @@ import {
   type PermissionsConfig,
 } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
-import { readFileContentOrNull } from "../../utils/file.js";
+import { fileExists, readFileContentOrNull } from "../../utils/file.js";
 import { createIntersectionBudget } from "../../utils/glob.js";
 import type { Logger } from "../../utils/logger.js";
 import {
@@ -730,6 +730,36 @@ function codewhaleRulesToCanonical(rules: ResolvedCodewhaleRule[]): {
 }
 
 /**
+ * Codewhale reads only the nearest `.codewhale/constitution.json` between the
+ * workspace and its git root, so a new file below an existing one hides the
+ * other's law from a session started here (and its own from one started
+ * there).
+ *
+ * @see https://github.com/Hmbown/Codewhale/blob/main/crates/tui/src/project_context/constitution.rs (`discover_repo_constitution`)
+ */
+async function warnOnShadowedConstitution({
+  outputRoot,
+  logger,
+}: {
+  outputRoot: string;
+  logger?: Logger;
+}): Promise<void> {
+  let current = resolve(outputRoot);
+  while (!(await fileExists(join(current, ".git")))) {
+    const parent = dirname(current);
+    if (parent === current) return;
+    current = parent;
+    const ancestor = join(current, CODEWHALE_DIR, CODEWHALE_CONSTITUTION_FILE_NAME);
+    if (await fileExists(ancestor)) {
+      logger?.warn(
+        `Codewhale permissions: ${ancestor} already exists; Codewhale reads only the nearest constitution, so the new one under ${outputRoot} hides it from sessions started there.`,
+      );
+      return;
+    }
+  }
+}
+
+/**
  * Codewhale permissions.
  *
  * Global scope manages the typed `[[rules]]` records of
@@ -830,6 +860,9 @@ export class CodewhalePermissions extends ToolPermissions {
         config: rulesyncPermissions.getJson(),
         logger,
       });
+      if (existingContent === "" && Object.keys(merged).length > 0) {
+        await warnOnShadowedConstitution({ outputRoot, logger });
+      }
       return new CodewhalePermissions({
         outputRoot,
         relativeDirPath: paths.relativeDirPath,

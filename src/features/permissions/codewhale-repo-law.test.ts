@@ -157,6 +157,56 @@ describe("CodewhalePermissions (project scope: .codewhale/constitution.json)", (
     });
   });
 
+  it("does not let a value Codewhale trims differently stand in for a hold", async () => {
+    await writeFileContent(
+      constitutionPath(),
+      JSON.stringify({
+        protected_invariants: [
+          { text: "x", paths: ["\uFEFF.env"], action: "block" },
+          { text: "\u0085", paths: [".env"], action: "block" },
+        ],
+      }),
+    );
+
+    const document = await generate({ permission: { write: { ".env": "deny" } } });
+
+    expect(document.protected_invariants).toContainEqual(
+      expect.objectContaining({ paths: [".env"], action: "block", managed_by: "rulesync" }),
+    );
+  });
+
+  it("round-trips hand-written braces and classes without adding a hold", async () => {
+    const handWritten = [
+      { text: "A", paths: ["docs/{a,b}.md"], action: "block" },
+      { text: "B", paths: ["src/[ab].ts"], action: "block" },
+    ];
+    await writeFileContent(
+      constitutionPath(),
+      JSON.stringify({ protected_invariants: handWritten }),
+    );
+    const imported = (await CodewhalePermissions.fromFile({ outputRoot: testDir }))
+      .toRulesyncPermissions()
+      .getJson();
+
+    expect(await generate(imported)).toEqual({ protected_invariants: handWritten });
+  });
+
+  it("warns when a new constitution would hide an ancestor's", async () => {
+    const parentConstitution = join(testDir, ".codewhale", "constitution.json");
+    await writeFileContent(parentConstitution, JSON.stringify({ authority: ["AGENTS.md"] }));
+    const logger = createMockLogger();
+
+    await CodewhalePermissions.fromRulesyncPermissions({
+      outputRoot: join(testDir, "packages", "foo"),
+      rulesyncPermissions: rulesyncPermissions({ permission: { write: { "dist/**": "deny" } } }),
+      logger,
+    });
+
+    expect(vi.mocked(logger.warn)).toHaveBeenCalledWith(
+      expect.stringContaining(`${parentConstitution} already exists`),
+    );
+  });
+
   it("treats a null protected_invariants as absent, as Codewhale does", async () => {
     await writeFileContent(constitutionPath(), JSON.stringify({ protected_invariants: null }));
 
@@ -187,6 +237,9 @@ describe("CodewhalePermissions (project scope: .codewhale/constitution.json)", (
             "src/{a.ts": "deny",
             "src/a}.ts": "deny",
             "src\\*.ts": "deny",
+            "{/etc/**,a}": "deny",
+            "{~/n,a}": "deny",
+            "a\ud800b": "deny",
           },
           read: { ".env": "deny" },
           bash: { "rm *": "deny" },
@@ -205,6 +258,9 @@ describe("CodewhalePermissions (project scope: .codewhale/constitution.json)", (
       "src/{a.ts",
       "src/a}.ts",
       "src\\*.ts",
+      "{/etc/**,a}",
+      "{~/n,a}",
+      "a\ud800b",
     ]) {
       expect(warnings.some((message) => message.includes(`"${pattern}"`))).toBe(true);
     }

@@ -60,6 +60,19 @@ const MAX_BRACE_EXPANSIONS = 64;
 /** Every `[...]` class of a pattern, which widens to the single-character `?`. */
 const CHARACTER_CLASS = /\[[!^]?\]?[^\]]*\]/g;
 
+/** An absolute, home-relative or drive-letter path, outside the workspace. */
+const ROOTED_PATH = /^(?:\/|~|[A-Za-z]:)/;
+
+/**
+ * Printable ASCII without surrounding spaces. Codewhale trims with Rust's
+ * Unicode `White_Space`, which differs from JavaScript's `trim()` (U+FEFF,
+ * U+0085), so a hand-written value is compared only when both trims agree.
+ */
+const PLAIN_ASCII = /^[\x21-\x7e](?:[\x20-\x7e]*[\x21-\x7e])?$/;
+
+/** An empty `{a,b}` alternative, which `globset` drops. */
+const EMPTY_ALTERNATIVE = /\{[,}]|,[,}]/;
+
 /**
  * Codewhale strips the workspace prefix and the empty and `.` segments from
  * each write target, so a pattern is compared in the same shape. `null` when a
@@ -129,8 +142,13 @@ function expandBraces(pattern: string): string[] | null {
  */
 function toRepoLawGlob(pattern: string): string | null {
   const trimmed = pattern.trim();
-  // oxlint-disable-next-line no-control-regex -- control characters are rejected on purpose
-  if (/[\\\u0000-\u001f\u007f]/.test(trimmed) || /^(?:\/|~|[A-Za-z]:)/.test(trimmed)) {
+  if (
+    // oxlint-disable-next-line no-control-regex -- control characters are rejected on purpose
+    /[\\\u0000-\u001f\u007f]/.test(trimmed) ||
+    // A lone surrogate is written as an escape `serde_json` refuses to read.
+    /[\uD800-\uDFFF]/u.test(trimmed) ||
+    ROOTED_PATH.test(trimmed)
+  ) {
     return null;
   }
   const widened = trimmed.replace(CHARACTER_CLASS, "?");
@@ -152,6 +170,7 @@ function toRepoLawPaths(glob: string): string[] | null {
   }
   const paths = new Set<string>();
   for (const path of expanded) {
+    if (ROOTED_PATH.test(path)) return null;
     // A trailing `/` inside a brace group names a directory too.
     const normalized = normalizeSegments(path.endsWith("/") ? `${path}**` : path);
     if (normalized === null) return null;
@@ -181,15 +200,16 @@ function invariantText({ glob, action }: { glob: string; action: RepoLawAction }
     : `rulesync permissions: writes to ${glob} need approval`;
 }
 
-/** The strongest deny / ask action per glob across the write-hold categories. */
-function collectRestrictions({
-  config,
-  logger,
-}: {
-  config: PermissionsConfig;
-  logger?: Logger;
-}): Map<string, PermissionAction> {
+/**
+ * The strongest deny / ask action per glob across the write-hold categories,
+ * and the canonical patterns each glob was built from.
+ */
+function collectRestrictions({ config, logger }: { config: PermissionsConfig; logger?: Logger }): {
+  restrictions: Map<string, PermissionAction>;
+  sources: Map<string, Set<string>>;
+} {
   const restrictions = new Map<string, PermissionAction>();
+  const sources = new Map<string, Set<string>>();
   const skippedCategories: string[] = [];
   let skippedAllowCount = 0;
   for (const [category, rules] of Object.entries(config.permission)) {
@@ -210,6 +230,7 @@ function collectRestrictions({
         continue;
       }
       setStrongest(restrictions, glob, action);
+      sources.set(glob, (sources.get(glob) ?? new Set()).add(pattern.trim()));
     }
   }
   if (skippedCategories.length > 0) {
@@ -227,7 +248,56 @@ function collectRestrictions({
       'Codewhale permissions: "codewhale.rules" is written only in global scope (~/.codewhale/permissions.toml).',
     );
   }
-  return restrictions;
+  return { restrictions, sources };
+}
+
+/** Whether no range of a `[...]` class runs backwards, which `globset` rejects. */
+function hasValidClassRanges(pattern: string): boolean {
+  for (const [match] of pattern.matchAll(CHARACTER_CLASS)) {
+    const body = [...match.slice(1, -1).replace(/^[!^]/, "")];
+    for (let index = 0; index < body.length; index += 1) {
+      const start = body[index] ?? "";
+      const end = body[index + 2];
+      if (body[index + 1] === "-" && end !== undefined) {
+        if (start > end) return false;
+        index += 2;
+      }
+    }
+  }
+  return true;
+}
+
+/**
+ * Whether Codewhale, compiling `pattern` verbatim, holds the same paths as the
+ * glob rulesync would write for it: no empty alternative, no trailing `/`,
+ * only normalized segments and only valid classes. A hand-written invariant
+ * with such a pattern then already holds the restriction.
+ */
+function isReadVerbatim(pattern: string): boolean {
+  if (!PLAIN_ASCII.test(pattern) || EMPTY_ALTERNATIVE.test(pattern)) return false;
+  if (!hasValidClassRanges(pattern)) return false;
+  const expanded = expandBraces(pattern);
+  return (
+    expanded !== null &&
+    expanded.every((path) => !path.endsWith("/") && normalizeSegments(path) === path)
+  );
+}
+
+/**
+ * The `[path, action]` keys a hand-written invariant holds in Codewhale. Only
+ * plain-ASCII text and paths count, so a value Codewhale trims differently
+ * (or reads as empty text, skipping the invariant) never stands in for a hold
+ * rulesync would otherwise write.
+ */
+function heldKeys(entry: unknown): string[] {
+  const enforced = toEnforcedInvariant(entry);
+  if (enforced === null || !isPlainObject(entry) || !/[\x21-\x7e]/.test(String(entry.text))) {
+    return [];
+  }
+  const paths = Array.isArray(entry.paths) ? entry.paths : [];
+  return paths
+    .filter((path): path is string => typeof path === "string" && PLAIN_ASCII.test(path))
+    .map((path) => JSON.stringify([path, enforced.action]));
 }
 
 function isManagedInvariant(entry: unknown): boolean {
@@ -308,7 +378,7 @@ export function mergeCodewhaleConstitution({
   config: PermissionsConfig;
   logger?: Logger;
 }): Record<string, unknown> {
-  const restrictions = collectRestrictions({ config, logger });
+  const { restrictions, sources } = collectRestrictions({ config, logger });
   // `parseCodewhaleConstitution` rejects a value that is not an array.
   const existingInvariants = Array.isArray(existing.protected_invariants)
     ? existing.protected_invariants
@@ -316,21 +386,19 @@ export function mergeCodewhaleConstitution({
   const keptInvariants = existingInvariants.filter((entry) => !isManagedInvariant(entry));
   // Codewhale only trims a hand-written pattern, so `./a` never matches the
   // normalized target `a` and must not count as holding it.
-  const heldByHand = new Set(
-    keptInvariants.flatMap((entry) => {
-      const enforced = toEnforcedInvariant(entry);
-      return enforced
-        ? enforced.paths.map((path) => JSON.stringify([path.trim(), enforced.action]))
-        : [];
-    }),
-  );
+  const heldByHand = new Set(keptInvariants.flatMap(heldKeys));
+  const isHeld = (path: string, action: RepoLawAction): boolean =>
+    heldByHand.has(JSON.stringify([path, action]));
 
   const managed: ManagedInvariant[] = [];
   for (const [glob, permissionAction] of restrictions) {
     const action = toRepoLawAction(permissionAction);
     // `toRepoLawGlob` already checked that the glob expands.
     const paths = toRepoLawPaths(glob) ?? [];
-    if (paths.every((path) => heldByHand.has(JSON.stringify([path, action])))) continue;
+    if (paths.every((path) => isHeld(path, action))) continue;
+    // A pattern imported from a hand-written invariant, such as `docs/{a,b}.md`.
+    const patterns = [...(sources.get(glob) ?? [])];
+    if (patterns.some((pattern) => isReadVerbatim(pattern) && isHeld(pattern, action))) continue;
     managed.push({
       text: invariantText({ glob, action }),
       paths,
