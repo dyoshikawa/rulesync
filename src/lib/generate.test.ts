@@ -1250,6 +1250,7 @@ describe("generate", () => {
       async () => {
         // The orphan sweep keeps a path it cannot follow; the tree claim has to
         // be just as forgiving instead of rejecting the whole run with EACCES.
+        // `writeAiDirs` is mocked here: the real one walks the same paths first.
         const { testDir, cleanup } = await setupTestDirectory();
         const lockedDir = join(testDir, "locked");
         await mkdir(join(lockedDir, "skills"), { recursive: true });

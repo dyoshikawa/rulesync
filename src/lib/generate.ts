@@ -38,6 +38,7 @@ import { formatError } from "../utils/error.js";
 import {
   directoryExists,
   fileExists,
+  isFileSystemError,
   isPresentButUnresolvable,
   pathEscapesRoot,
   relativeWriteLanding,
@@ -194,7 +195,10 @@ async function processFeatureGeneration<T extends AiFile>(params: {
  * A cycle answers false, and so does a path whose links cannot be read (an
  * `EACCES` on the way): the run goes on without the tree claim, the same way the
  * sweep keeps a path it cannot follow, and the files this run wrote there stay
- * claimed by name.
+ * claimed by name. Today `writeAiDirs` walks the same paths first and stops the
+ * run on such an error before this is reached, so the catch is defensive: it
+ * keeps a claim from being the one place a link walk aborts the run. Any other
+ * error is a bug and propagates.
  */
 async function claimsOwnDirTree(aiDir: AiDir): Promise<boolean> {
   const outputRoot = aiDir.getOutputRoot();
@@ -211,7 +215,8 @@ async function claimsOwnDirTree(aiDir: AiDir): Promise<boolean> {
       !pathEscapesRoot(dirFromFeatureDir) &&
       dirname(dirFromFeatureDir) === "."
     );
-  } catch {
+  } catch (error) {
+    if (!isFileSystemError(error)) throw error;
     return false;
   }
 }
