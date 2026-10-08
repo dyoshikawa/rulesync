@@ -6,6 +6,7 @@ import {
   RULESYNC_MCP_SCHEMA_URL,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
@@ -774,7 +775,7 @@ describe("KiloMcp", () => {
       expect((json as any).customProperty).toBe("value");
     });
 
-    it("should convert enabledTools to top-level tools map with server prefix", async () => {
+    it("should convert enabledTools to permission keys with server prefix", async () => {
       const jsonData = {
         mcpServers: {
           "my-server": {
@@ -803,14 +804,14 @@ describe("KiloMcp", () => {
             enabled: true,
           },
         },
-        tools: {
-          "my-server_search": true,
-          "my-server_list": true,
+        permission: {
+          "my-server_search": "allow",
+          "my-server_list": "allow",
         },
       });
     });
 
-    it("should convert disabledTools to top-level tools map with server prefix", async () => {
+    it("should convert disabledTools to permission keys with server prefix", async () => {
       const jsonData = {
         mcpServers: {
           "my-server": {
@@ -839,14 +840,14 @@ describe("KiloMcp", () => {
             enabled: true,
           },
         },
-        tools: {
-          "my-server_search": false,
-          "my-server_list": false,
+        permission: {
+          "my-server_search": "deny",
+          "my-server_list": "deny",
         },
       });
     });
 
-    it("should convert both enabledTools and disabledTools to top-level tools map", async () => {
+    it("should convert both enabledTools and disabledTools to permission keys", async () => {
       const jsonData = {
         mcpServers: {
           "my-server": {
@@ -876,9 +877,9 @@ describe("KiloMcp", () => {
             enabled: true,
           },
         },
-        tools: {
-          "my-server_search": true,
-          "my-server_list": false,
+        permission: {
+          "my-server_search": "allow",
+          "my-server_list": "deny",
         },
       });
     });
@@ -922,9 +923,9 @@ describe("KiloMcp", () => {
             enabled: true,
           },
         },
-        tools: {
-          "server-a_search": false,
-          "server-b_list": true,
+        permission: {
+          "server-a_search": "deny",
+          "server-b_list": "allow",
         },
       });
     });
@@ -959,9 +960,9 @@ describe("KiloMcp", () => {
             enabled: true,
           },
         },
-        tools: {
-          "remote-server_fetch": true,
-          "remote-server_search": false,
+        permission: {
+          "remote-server_fetch": "allow",
+          "remote-server_search": "deny",
         },
       });
     });
@@ -998,7 +999,7 @@ describe("KiloMcp", () => {
       expect(kiloMcp.getJson().tools).toBeUndefined();
     });
 
-    it("should fully override tools and not preserve existing tools from file", async () => {
+    it("should replace the filters of managed servers and keep everything else", async () => {
       const existingConfig = {
         mcp: {
           "old-server": {
@@ -1010,6 +1011,15 @@ describe("KiloMcp", () => {
         tools: {
           "old-server_search": false,
           unrelated_tool: true,
+        },
+        permission: {
+          "*": "ask",
+          "old-server_list": "allow",
+          "new-server_stale": "allow",
+          "new-server_saved": { "*": "allow" },
+          "new-server_*": "ask",
+          other_tool: "deny",
+          bash: { "git *": "allow" },
         },
       };
       await writeFileContent(join(testDir, "kilo.json"), JSON.stringify(existingConfig, null, 2));
@@ -1034,13 +1044,22 @@ describe("KiloMcp", () => {
         rulesyncMcp,
       });
 
-      // Should fully override: only new server tools, no preserved unrelated tools
-      expect(kiloMcp.getJson().tools).toEqual({
-        "new-server_list": false,
+      // The legacy map keeps only what names no managed server.
+      expect(kiloMcp.getJson().tools).toEqual({ unrelated_tool: true });
+      // Scalar allow/deny keys of managed servers (the canonical ones plus the
+      // ones the file's `mcp` block listed) are rebuilt; wildcard keys, "Approve
+      // Always" maps, other servers and built-in keys stay.
+      expect(kiloMcp.getJson().permission).toEqual({
+        "*": "ask",
+        "new-server_saved": { "*": "allow" },
+        "new-server_*": "ask",
+        other_tool: "deny",
+        bash: { "git *": "allow" },
+        "new-server_list": "deny",
       });
     });
 
-    it("should remove stale tools key when new config has no enabledTools/disabledTools", async () => {
+    it("should remove stale filters when new config has no enabledTools/disabledTools", async () => {
       const existingConfig = {
         mcp: {
           "old-server": {
@@ -1051,7 +1070,9 @@ describe("KiloMcp", () => {
         },
         tools: {
           "old-server_search": false,
-          unrelated_tool: true,
+        },
+        permission: {
+          "old-server_list": "deny",
         },
       };
       await writeFileContent(join(testDir, "kilo.json"), JSON.stringify(existingConfig, null, 2));
@@ -1070,13 +1091,171 @@ describe("KiloMcp", () => {
         fileContent: JSON.stringify(jsonData),
       });
 
+      const logger = createMockLogger();
       const kiloMcp = await KiloMcp.fromRulesyncMcp({
         outputRoot: testDir,
         rulesyncMcp,
+        logger,
       });
 
-      // tools key should be removed entirely when no enabledTools/disabledTools
+      // Emptied maps are retracted rather than written as `{}`.
       expect(kiloMcp.getJson().tools).toBeUndefined();
+      expect(kiloMcp.getJson().permission).toBeUndefined();
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("old-server_list"));
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("old-server_search"));
+    });
+
+    it("should leave Kilo built-in permissions alone for a server whose name prefixes them", async () => {
+      await writeFileContent(
+        join(testDir, "kilo.json"),
+        JSON.stringify({
+          permission: {
+            external_directory: "deny",
+            doom_loop: "deny",
+            repo_clone: "deny",
+            external_fetch: "deny",
+          },
+        }),
+      );
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            external: { command: "node", args: ["x.js"] },
+            doom: { command: "doom" },
+            repo: { command: "repo" },
+          },
+        }),
+      });
+
+      const kiloMcp = await KiloMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+
+      expect(kiloMcp.getJson().permission).toEqual({
+        external_directory: "deny",
+        doom_loop: "deny",
+        repo_clone: "deny",
+      });
+    });
+
+    it("should let a deny win when two servers sanitize to the same key", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            "a.b": { command: "node", disabledTools: ["x"] },
+            a_b: { command: "node", enabledTools: ["x"] },
+          },
+        }),
+      });
+
+      const kiloMcp = await KiloMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+
+      expect(kiloMcp.getJson().permission).toEqual({ a_b_x: "deny" });
+    });
+
+    it("should assign an imported key to the server with the longest matching name", () => {
+      const kiloMcp = new KiloMcp({
+        relativeDirPath: ".",
+        relativeFilePath: "kilo.json",
+        fileContent: JSON.stringify({
+          mcp: {
+            github: { type: "local", command: ["gh"] },
+            github_enterprise: { type: "local", command: ["ghe"] },
+          },
+          permission: { github_list: "allow", github_enterprise_delete: "deny" },
+        }),
+      });
+
+      const servers = kiloMcp.toRulesyncMcp().getJson().mcpServers;
+
+      expect(servers.github?.enabledTools).toEqual(["list"]);
+      expect(servers.github?.disabledTools).toBeUndefined();
+      expect(servers.github_enterprise?.disabledTools).toEqual(["delete"]);
+    });
+
+    it("should keep a wildcard tool name as a wildcard permission key and read it back", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { github: { command: "gh", disabledTools: ["*", "delete_?"] } },
+        }),
+      });
+
+      const kiloMcp = await KiloMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+
+      expect(kiloMcp.getJson().permission).toEqual({
+        "github_*": "deny",
+        "github_delete_?": "deny",
+      });
+      const imported = new KiloMcp({
+        relativeDirPath: ".",
+        relativeFilePath: "kilo.json",
+        fileContent: kiloMcp.getFileContent(),
+      });
+      expect(imported.toRulesyncMcp().getJson().mcpServers.github?.disabledTools).toEqual([
+        "*",
+        "delete_?",
+      ]);
+    });
+
+    it("should sanitize server and tool names the way Kilo names MCP tools", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            "my.server": { command: "node", disabledTools: ["do.thing"] },
+          },
+        }),
+      });
+
+      const kiloMcp = await KiloMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+
+      expect(kiloMcp.getJson().permission).toEqual({ my_server_do_thing: "deny" });
+      // The sanitized key reads back under the server it was written for.
+      expect(kiloMcp.toRulesyncMcp().getJson().mcpServers["my.server"]).toMatchObject({
+        disabledTools: ["do_thing"],
+      });
+    });
+
+    it("should leave a bare permission action untouched when there are no tool filters", async () => {
+      await writeFileContent(
+        join(testDir, "kilo.json"),
+        JSON.stringify({ permission: "allow" }, null, 2),
+      );
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({ mcpServers: { srv: { command: "node" } } }),
+      });
+
+      const kiloMcp = await KiloMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+
+      expect(kiloMcp.getJson().permission).toBe("allow");
+      const imported = await KiloMcp.fromFile({ outputRoot: testDir });
+      expect(imported.validate()).toEqual({ success: true, error: null });
+      expect(imported.toRulesyncMcp().getJson().mcpServers.srv).toBeUndefined();
+    });
+
+    it("should keep a bare permission action as the catch-all it stands for", async () => {
+      await writeFileContent(
+        join(testDir, "kilo.json"),
+        JSON.stringify({ permission: "allow" }, null, 2),
+      );
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { srv: { command: "node", disabledTools: ["wipe"] } },
+        }),
+      });
+
+      const kiloMcp = await KiloMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+
+      expect(kiloMcp.getJson().permission).toEqual({ "*": "allow", srv_wipe: "deny" });
     });
 
     it("should read existing kilo.jsonc file and preserve it", async () => {
@@ -1446,6 +1625,36 @@ describe("KiloMcp", () => {
       // Transport-less, so it lands in the block only Kilo reads.
       expect(imported.mcpServers).toEqual({});
       expect(imported.kilo.mcpServers["empty-command-server"]).toEqual({ disabled: true });
+    });
+
+    it("should read permission keys as tool filters, preferring them over the tools map", () => {
+      const kiloMcp = new KiloMcp({
+        relativeDirPath: ".",
+        relativeFilePath: "kilo.json",
+        fileContent: JSON.stringify({
+          mcp: { gh: { type: "local", command: ["gh-mcp"], enabled: true } },
+          tools: { gh_search: false, gh_list: true },
+          permission: {
+            "*": "allow",
+            gh_search: "allow",
+            gh_delete: { "*": "deny" },
+            gh_edit: "ask",
+            "gh_*": "deny",
+            gh_read: { "src/*": "allow" },
+            bash: "deny",
+          },
+        }),
+      });
+
+      expect(kiloMcp.toRulesyncMcp().getJson().mcpServers.gh).toEqual({
+        type: "stdio",
+        command: "gh-mcp",
+        // `permission` wins `gh_search`, as in Kilo's own `tools` shim; `ask`,
+        // the catch-all and narrower pattern maps are not filters, while the
+        // server's own wildcard key is.
+        enabledTools: ["search", "list"],
+        disabledTools: ["delete", "*"],
+      });
     });
 
     it("should convert tools map to enabledTools per server (strip prefix)", () => {
@@ -1983,7 +2192,7 @@ describe("KiloMcp", () => {
     });
 
     it("should round-trip enabledTools/disabledTools through Kilo format", async () => {
-      // Start with Kilo format: mcp + tools map
+      // Start with Kilo format: mcp + legacy tools map
       const originalJsonData = {
         mcp: {
           "my-server": {
@@ -2023,7 +2232,7 @@ describe("KiloMcp", () => {
         rulesyncMcp,
       });
 
-      // After round-trip, should be back to Kilo format with tools map
+      // After round-trip, the legacy tools map is migrated to permission keys
       expect(newKiloMcp.getJson()).toEqual({
         mcp: {
           "my-server": {
@@ -2032,9 +2241,9 @@ describe("KiloMcp", () => {
             enabled: true,
           },
         },
-        tools: {
-          "my-server_search": true,
-          "my-server_list": false,
+        permission: {
+          "my-server_search": "allow",
+          "my-server_list": "deny",
         },
       });
     });
@@ -2068,12 +2277,12 @@ describe("KiloMcp", () => {
         rulesyncMcp,
       });
 
-      // Verify Kilo format has tools map
-      expect(kiloMcp.getJson().tools).toEqual({
-        "server-a_search": true,
-        "server-a_read": true,
-        "server-a_write": false,
-        "server-b_delete": false,
+      // Verify Kilo format has permission keys
+      expect(kiloMcp.getJson().permission).toEqual({
+        "server-a_search": "allow",
+        "server-a_read": "allow",
+        "server-a_write": "deny",
+        "server-b_delete": "deny",
       });
 
       // Step 2: Convert back to rulesync
@@ -2897,9 +3106,9 @@ describe("KiloMcp toggle entries", () => {
   });
 
   it("keeps the tool filters of a transport-less server it does not write", async () => {
-    // Kilo's `tools` map is keyed by server name and reaches servers `mcp` does
-    // not list, so a filter switching off a dangerous tool of a server another
-    // layer defines must outlive the entry.
+    // Kilo's MCP tool permission keys are keyed by server name and reach
+    // servers `mcp` does not list, so a filter switching off a dangerous tool
+    // of a server another layer defines must outlive the entry.
     const rulesyncMcp = new RulesyncMcp({
       relativeDirPath: ".rulesync",
       relativeFilePath: ".mcp.json",
@@ -2915,9 +3124,9 @@ describe("KiloMcp toggle entries", () => {
     const written = JSON.parse(kiloMcp.getFileContent());
 
     expect(written.mcp).toEqual({});
-    // Both survive: the map is independent of `mcp`, so dropping a filter with
-    // the entry would re-enable a tool on whichever layer defines the server.
-    expect(written.tools).toEqual({ gh_delete_repo: false, broken_wipe: false });
+    // Both survive: the keys are independent of `mcp`, so dropping a filter
+    // with the entry would re-enable a tool on whichever layer defines the server.
+    expect(written.permission).toEqual({ gh_delete_repo: "deny", broken_wipe: "deny" });
   });
 
   it("drops an enabled server that older Rulesync versions wrote with no command", async () => {
@@ -2966,9 +3175,9 @@ describe("KiloMcp toggle entries", () => {
     const written = JSON.parse(kiloMcp.getFileContent());
 
     expect(Object.keys(written.mcp)).toEqual(["fine"]);
-    // The filters of a skipped server stay: the map reaches servers `mcp` does
+    // The filters of a skipped server stay: the keys reach servers `mcp` does
     // not list, so they are not this entry's to take away.
-    expect(written.tools).toEqual({ headless_a: true });
+    expect(written.permission).toEqual({ headless_a: "allow" });
     expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('skipping "headless"'));
     expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('skipping "noUrl"'));
     expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('skipping "argsOnly"'));
