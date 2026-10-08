@@ -475,6 +475,36 @@ describe("KiloPermissions", () => {
       }),
     ).rejects.toThrow(/Failed to parse Kilo Code config/);
   });
+  it("should write wildcard keys before exact keys so a broad allow cannot shadow a deny", async () => {
+    // Kilo evaluates `permission` last-match-wins in key order. The MCP feature
+    // writes `{server}_{tool}` keys first; the catch-all added afterwards must
+    // land in front of them, on a fresh file and on a regenerate alike.
+    await writeFileContent(
+      join(testDir, "kilo.jsonc"),
+      JSON.stringify({ permission: { github_delete_repo: "deny", "github_*": "ask" } }),
+    );
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: JSON.stringify({
+        permission: { bash: { "rm *": "deny" }, "*": { "*": "allow" } },
+      }),
+    });
+
+    const instance = await KiloPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    expect(Object.keys(instance.getJson().permission ?? {})).toEqual([
+      "github_*",
+      "*",
+      "github_delete_repo",
+      "bash",
+    ]);
+  });
+
   describe("markdown_source", () => {
     it("should drop allow patterns at project scope with a warning", async () => {
       const logger = createMockLogger();

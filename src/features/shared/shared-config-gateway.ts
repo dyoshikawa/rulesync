@@ -1280,6 +1280,15 @@ const POOL_SETTINGS_DECLARATION: SharedConfigFileDeclaration = {
 };
 
 /**
+ * The Kilo MCP writer's policy at both scopes; see the `kilo.json` entry in
+ * {@link SHARED_CONFIG_OWNERSHIP}.
+ */
+const KILO_MCP_POLICY: SharedConfigConflictPolicy = {
+  kind: "deep-merge",
+  replaceKeys: ["mcp", "tools"],
+};
+
+/**
  * ZCode's settings file, which also carries model/theme/permission keys
  * rulesync does not own. Both copies (`<project>/.zcode/config.json` and
  * `~/.zcode/cli/config.json`) are the user's primary ZCode config, so every
@@ -1868,23 +1877,25 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
       rules: { kind: "replace-owned-keys", ownedKeys: ["instructions"] },
     },
   },
-  // Kilo config (`kilo.json` / preferred `kilo.jsonc` twin) — same shape as
-  // OpenCode: `tools` is retracted when empty, `instructions` is recomputed
-  // from the existing list before being applied.
+  // Kilo config (`kilo.json` / preferred `kilo.jsonc` twin): `instructions` is
+  // recomputed from the existing list before being applied. MCP replaces `mcp`
+  // and the legacy `tools` map wholesale, but deep-merges its `{server}_{tool}`
+  // tool filters into `permission`, the block the permissions feature writes
+  // too — each key it retracts is spelled out as `undefined`.
   "kilo.json": {
     format: "jsonc",
     features: {
-      mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp", "tools"] },
+      mcp: KILO_MCP_POLICY,
       rules: { kind: "replace-owned-keys", ownedKeys: ["instructions"] },
     },
   },
-  // Global Kilo config: mcp is its only writer (rules registers instructions in
-  // project scope only), so this is not cross-feature shared — it is declared
-  // anyway so the write goes through the same codec and ownership enforcement.
+  // Global Kilo config: mcp is its only gateway writer (rules registers
+  // instructions in project scope only) — it is declared anyway so the write
+  // goes through the same codec and ownership enforcement.
   ".config/kilo/kilo.json": {
     format: "jsonc",
     features: {
-      mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp", "tools"] },
+      mcp: KILO_MCP_POLICY,
     },
   },
   // Goose user config (`~/.config/goose/config.yaml`): the file holds the
