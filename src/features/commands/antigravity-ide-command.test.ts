@@ -3,10 +3,21 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { RULESYNC_COMMANDS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import { setupTestDirectory } from "../../test-utils/test-directories.js";
+import { writeFileContent } from "../../utils/file.js";
 import { stringifyFrontmatter } from "../../utils/frontmatter.js";
 import { AntigravityCommandFrontmatter } from "./antigravity-command.js";
 import { AntigravityIdeCommand } from "./antigravity-ide-command.js";
 import { RulesyncCommand } from "./rulesync-command.js";
+
+const buildNamed = (relativeFilePath: string) =>
+  new RulesyncCommand({
+    relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+    relativeFilePath,
+    frontmatter: { targets: ["*"], description: "Test" },
+    body: "Body",
+    fileContent: "",
+  });
 
 const buildCommand = (targets: string[]) =>
   new RulesyncCommand({
@@ -116,183 +127,169 @@ describe("AntigravityIdeCommand", () => {
   });
 
   describe("fromRulesyncCommand", () => {
-    it("should resolve trigger from the antigravity section", () => {
-      const rulesyncFrontmatter = {
-        targets: ["antigravity-ide" as const],
-        description: "Test Workflow",
-        antigravity: {
-          trigger: "/test-workflow",
-          turbo: true,
-        },
-      };
-      const body = "Step 1: Do something";
-
-      const rulesyncCommand = new RulesyncCommand({
+    const build = ({
+      relativeFilePath,
+      frontmatter,
+      body,
+    }: {
+      relativeFilePath: string;
+      frontmatter: Record<string, unknown>;
+      body: string;
+    }) =>
+      new RulesyncCommand({
         outputRoot: "/test/base",
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
-        relativeFilePath: "original-file.md",
-        frontmatter: rulesyncFrontmatter,
+        relativeFilePath,
+        frontmatter: { targets: ["antigravity-ide"], ...frontmatter } as never,
         body,
-        fileContent: stringifyFrontmatter(body, rulesyncFrontmatter),
+        fileContent: stringifyFrontmatter(body, frontmatter),
+      });
+
+    it("should emit the command as a skill named after the antigravity section trigger", () => {
+      const rulesyncCommand = build({
+        relativeFilePath: "original-file.md",
+        frontmatter: {
+          description: "Test Workflow",
+          antigravity: { trigger: "/test-workflow", turbo: true },
+        },
+        body: "Step 1: Do something",
       });
 
       const antigravityCommand = AntigravityIdeCommand.fromRulesyncCommand({
+        outputRoot: "/test/base",
         rulesyncCommand,
       });
 
-      // Filename derives from the sanitized trigger.
-      expect(antigravityCommand.getRelativeFilePath()).toBe("test-workflow.md");
-
-      const content = antigravityCommand.getBody();
-      expect(content).toContain("# Workflow: /test-workflow");
-      expect(content).toContain("Step 1: Do something");
-      expect(content).toContain("// turbo");
-
+      expect(antigravityCommand.getRelativeDirPath()).toBe(
+        join(".agents", "skills", "test-workflow"),
+      );
+      expect(antigravityCommand.getRelativeFilePath()).toBe("SKILL.md");
+      expect(antigravityCommand.getBody()).toBe("Step 1: Do something");
+      // Workflow-only markers are not carried over to the skill.
+      expect(antigravityCommand.getFileContent()).not.toContain("# Workflow:");
+      expect(antigravityCommand.getFileContent()).not.toContain("// turbo");
       expect(antigravityCommand.getFrontmatter()).toEqual({
+        name: "test-workflow",
         description: "Test Workflow",
-        trigger: "/test-workflow",
-        turbo: true,
       });
+      expect(antigravityCommand.getClaimedDirPaths()).toEqual([
+        join("/test/base", ".agents", "skills", "test-workflow"),
+      ]);
     });
 
     it("should fall back to the root-level trigger", () => {
-      const rulesyncFrontmatter = {
-        targets: ["antigravity-ide" as const],
-        description: "Root Trigger Workflow",
-        trigger: "/root-trigger",
-      };
-      const body = "Simple body";
-
-      const rulesyncCommand = new RulesyncCommand({
-        outputRoot: "/test/base",
-        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
-        relativeFilePath: "root.md",
-        frontmatter: rulesyncFrontmatter,
-        body,
-        fileContent: stringifyFrontmatter(body, rulesyncFrontmatter),
-      });
-
       const antigravityCommand = AntigravityIdeCommand.fromRulesyncCommand({
-        rulesyncCommand,
+        rulesyncCommand: build({
+          relativeFilePath: "root.md",
+          frontmatter: { description: "Root", trigger: "/root-trigger" },
+          body: "Simple body",
+        }),
       });
 
-      expect(antigravityCommand.getRelativeFilePath()).toBe("root-trigger.md");
-      expect(antigravityCommand.getBody()).toContain("# Workflow: /root-trigger");
+      expect(antigravityCommand.getRelativeDirPath()).toBe(
+        join(".agents", "skills", "root-trigger"),
+      );
     });
 
     it("should match a trigger declared in the body", () => {
-      const rulesyncFrontmatter = {
-        targets: ["antigravity-ide" as const],
-        description: "Body Trigger Workflow",
-      };
-      const body = "trigger: /body-trigger\n\nDo the work";
-
-      const rulesyncCommand = new RulesyncCommand({
-        outputRoot: "/test/base",
-        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
-        relativeFilePath: "body.md",
-        frontmatter: rulesyncFrontmatter,
-        body,
-        fileContent: stringifyFrontmatter(body, rulesyncFrontmatter),
-      });
-
       const antigravityCommand = AntigravityIdeCommand.fromRulesyncCommand({
-        rulesyncCommand,
+        rulesyncCommand: build({
+          relativeFilePath: "body.md",
+          frontmatter: { description: "Body" },
+          body: "trigger: /body-trigger\n\nDo the work",
+        }),
       });
 
-      expect(antigravityCommand.getRelativeFilePath()).toBe("body-trigger.md");
-      expect(antigravityCommand.getBody()).toContain("# Workflow: /body-trigger");
+      expect(antigravityCommand.getRelativeDirPath()).toBe(
+        join(".agents", "skills", "body-trigger"),
+      );
     });
 
-    it("should use the filename as the default trigger and enable turbo by default", () => {
-      const rulesyncFrontmatter = {
-        targets: ["antigravity-ide" as const],
-        description: "Standard Command",
-      };
-      const body = "Just a command";
-
-      const rulesyncCommand = new RulesyncCommand({
-        outputRoot: "/test/base",
-        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
-        relativeFilePath: "standard.md",
-        frontmatter: rulesyncFrontmatter,
-        body,
-        fileContent: stringifyFrontmatter(body, rulesyncFrontmatter),
-      });
-
+    it("should use the filename as the default name", () => {
       const antigravityCommand = AntigravityIdeCommand.fromRulesyncCommand({
-        rulesyncCommand,
+        rulesyncCommand: build({
+          relativeFilePath: "standard.md",
+          frontmatter: { description: "Standard Command" },
+          body: "Just a command",
+        }),
       });
 
-      expect(antigravityCommand.getRelativeFilePath()).toBe("standard.md");
-      expect(antigravityCommand.getBody()).toContain("# Workflow: /standard");
-      expect(antigravityCommand.getBody()).toContain("// turbo");
+      expect(antigravityCommand.getRelativeDirPath()).toBe(join(".agents", "skills", "standard"));
+      expect(antigravityCommand.getFrontmatter()).toEqual({
+        name: "standard",
+        description: "Standard Command",
+      });
+    });
+
+    it("should fall back to a generated description when the command has none", () => {
+      const antigravityCommand = AntigravityIdeCommand.fromRulesyncCommand({
+        rulesyncCommand: build({
+          relativeFilePath: "plain.md",
+          frontmatter: {},
+          body: "Body",
+        }),
+      });
 
       expect(antigravityCommand.getFrontmatter()).toEqual({
-        description: "Standard Command",
-        trigger: "/standard",
-        turbo: true,
+        name: "plain",
+        description: "plain command",
       });
     });
 
-    it("should produce a sanitized markdown filename from the trigger", () => {
-      const rulesyncFrontmatter = {
-        targets: ["antigravity-ide" as const],
-        description: "Security Test",
-        antigravity: {
-          trigger: "/../evil-workflow",
-        },
-      };
-
-      const rulesyncCommand = new RulesyncCommand({
-        outputRoot: "/test/base",
-        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
-        relativeFilePath: "evil.md",
-        frontmatter: rulesyncFrontmatter,
-        body: "Malicious payload",
-        fileContent: stringifyFrontmatter("Malicious payload", rulesyncFrontmatter),
-      });
-
+    it("should write the global command to the IDE global skills path", () => {
       const antigravityCommand = AntigravityIdeCommand.fromRulesyncCommand({
-        rulesyncCommand,
+        rulesyncCommand: build({
+          relativeFilePath: "global.md",
+          frontmatter: { description: "Global" },
+          body: "Body",
+        }),
+        global: true,
       });
 
-      expect(antigravityCommand.getRelativeFilePath()).not.toContain("..");
-      expect(antigravityCommand.getRelativeFilePath()).not.toContain("/");
-      expect(antigravityCommand.getRelativeFilePath()).toMatch(/^[a-zA-Z0-9-_]+\.md$/);
+      expect(antigravityCommand.getRelativeDirPath()).toBe(
+        join(".gemini", "config", "skills", "global"),
+      );
+      expect(antigravityCommand.getRelativeFilePath()).toBe("SKILL.md");
     });
 
-    it("should omit the turbo directive when turbo is explicitly false", () => {
-      const rulesyncFrontmatter = {
-        targets: ["antigravity-ide" as const],
-        description: "No Turbo Workflow",
-        antigravity: {
-          trigger: "/no-turbo",
-          turbo: false,
-        },
-      };
-      const body = "Workflow without auto-execution";
-
-      const rulesyncCommand = new RulesyncCommand({
-        outputRoot: "/test/base",
-        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
-        relativeFilePath: "no-turbo.md",
-        frontmatter: rulesyncFrontmatter,
-        body,
-        fileContent: stringifyFrontmatter(body, rulesyncFrontmatter),
-      });
-
+    it("should produce a sanitized skill directory name from the trigger", () => {
       const antigravityCommand = AntigravityIdeCommand.fromRulesyncCommand({
-        rulesyncCommand,
+        rulesyncCommand: build({
+          relativeFilePath: "evil.md",
+          frontmatter: { description: "Security Test", antigravity: { trigger: "/../evil" } },
+          body: "Malicious payload",
+        }),
       });
 
-      expect(antigravityCommand.getBody()).toContain("# Workflow: /no-turbo");
-      expect(antigravityCommand.getBody()).not.toContain("// turbo");
-      expect(antigravityCommand.getFrontmatter()).toEqual({
-        description: "No Turbo Workflow",
-        trigger: "/no-turbo",
-        turbo: false,
-      });
+      expect(antigravityCommand.getRelativeDirPath()).toBe(join(".agents", "skills", "evil"));
+    });
+  });
+
+  describe("getWriteBlockReason", () => {
+    it("should yield to a rulesync skill with the same name", async () => {
+      const { testDir, cleanup } = await setupTestDirectory();
+      try {
+        const inputRoot = join(testDir, ".rulesync");
+        await writeFileContent(
+          join(inputRoot, "skills", "deploy", "SKILL.md"),
+          "---\nname: deploy\ndescription: d\n---\nbody\n",
+        );
+
+        const reason = await AntigravityIdeCommand.getWriteBlockReason({
+          rulesyncCommand: buildNamed("deploy.md"),
+          inputRoots: [inputRoot],
+        });
+        expect(reason).toContain("rulesync skill with the same name");
+
+        expect(
+          await AntigravityIdeCommand.getWriteBlockReason({
+            rulesyncCommand: buildNamed("other.md"),
+            inputRoots: [inputRoot],
+          }),
+        ).toBeNull();
+      } finally {
+        await cleanup();
+      }
     });
   });
 

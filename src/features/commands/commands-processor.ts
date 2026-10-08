@@ -143,12 +143,14 @@ type ToolCommandFactory = {
      * so the check sees the name the tool would actually load. A blocked
      * command is skipped with a warning; the rest of the run is unaffected.
      * The reason is logged verbatim, so it must not embed anything read off
-     * disk.
+     * disk. `inputRoots` lets a tool cross-reference other `.rulesync/`
+     * sources (e.g. a skill of the same name that owns the output path).
      */
     getWriteBlockReason?(params: {
       rulesyncCommand: RulesyncCommand;
       global: boolean;
-    }): string | null;
+      inputRoots: readonly string[];
+    }): Promise<string | null> | string | null;
   };
   meta: {
     /** File extension for the command file */
@@ -215,9 +217,10 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
     {
       class: AntigravityCliCommand,
       meta: {
-        // The Antigravity CLI (`agy`) reads workflow slash commands from the
-        // shared `.agents/workflows/` directory (project) and its own
-        // `~/.gemini/antigravity-cli/global_workflows/` tree (global).
+        // Antigravity retires workflows on 2026-10-19, so commands are emitted
+        // as skills (`.agents/skills/<name>/SKILL.md`, invoked as `/<name>`).
+        // The settable path stays the legacy workflows directory, so import
+        // and the `--delete` sweep still read previously generated workflows.
         extension: "md",
         supportsProject: true,
         supportsGlobal: true,
@@ -231,6 +234,7 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
     {
       class: AntigravityIdeCommand,
       meta: {
+        // Same skills-surface layout as `antigravity-cli` above.
         extension: "md",
         supportsProject: true,
         supportsGlobal: true,
@@ -944,53 +948,55 @@ export class CommandsProcessor extends FeatureProcessor {
     });
     const flattenedPathOrigins = new Map<string, string>();
 
-    const toolCommands = rulesyncCommands
-      .map((rulesyncCommand) => {
-        if (!factory.class.isTargetedByRulesyncCommand(rulesyncCommand)) {
-          return null;
-        }
-        const originalRelativePath = rulesyncCommand.getRelativeFilePath();
-        const commandToConvert = factory.meta.supportsSubdirectory
-          ? rulesyncCommand
-          : this.flattenRelativeFilePath(rulesyncCommand);
-        const writeBlockReason = factory.class.getWriteBlockReason?.({
-          rulesyncCommand: commandToConvert,
-          global: this.global,
-        });
-        if (writeBlockReason !== undefined && writeBlockReason !== null) {
-          // Checked before the collision bookkeeping so a name the tool refuses
-          // is not also reported as colliding with itself. The path is quoted
-          // and stripped because whoever wrote the repository chose it.
-          this.logger.warn(
-            `Skipping command ${quoteForLog(originalRelativePath)} for ` +
-              `'${this.toolTarget}': ${writeBlockReason}`,
-          );
-          return null;
-        }
-        if (!factory.meta.supportsSubdirectory) {
-          const flattenedPath = commandToConvert.getRelativeFilePath();
-          const firstOrigin = flattenedPathOrigins.get(flattenedPath);
-          if (firstOrigin && firstOrigin !== originalRelativePath) {
-            if (factory.meta.failOnFlattenCollision) {
-              throw new Error(
-                `Command path collision detected while flattening for ${this.toolTarget}: "${firstOrigin}" and "${originalRelativePath}" both map to "${flattenedPath}".`,
-              );
-            }
-            this.logger.warn(
-              `Command path collision detected while flattening for ${this.toolTarget}: "${firstOrigin}" and "${originalRelativePath}" both map to "${flattenedPath}". Only the last processed command will be used.`,
+    const toolCommands: ToolCommand[] = [];
+    for (const rulesyncCommand of rulesyncCommands) {
+      if (!factory.class.isTargetedByRulesyncCommand(rulesyncCommand)) {
+        continue;
+      }
+      const originalRelativePath = rulesyncCommand.getRelativeFilePath();
+      const commandToConvert = factory.meta.supportsSubdirectory
+        ? rulesyncCommand
+        : this.flattenRelativeFilePath(rulesyncCommand);
+      const writeBlockReason = await factory.class.getWriteBlockReason?.({
+        rulesyncCommand: commandToConvert,
+        global: this.global,
+        inputRoots: this.inputRoots,
+      });
+      if (writeBlockReason !== undefined && writeBlockReason !== null) {
+        // Checked before the collision bookkeeping so a name the tool refuses
+        // is not also reported as colliding with itself. The path is quoted
+        // and stripped because whoever wrote the repository chose it.
+        this.logger.warn(
+          `Skipping command ${quoteForLog(originalRelativePath)} for ` +
+            `'${this.toolTarget}': ${writeBlockReason}`,
+        );
+        continue;
+      }
+      if (!factory.meta.supportsSubdirectory) {
+        const flattenedPath = commandToConvert.getRelativeFilePath();
+        const firstOrigin = flattenedPathOrigins.get(flattenedPath);
+        if (firstOrigin && firstOrigin !== originalRelativePath) {
+          if (factory.meta.failOnFlattenCollision) {
+            throw new Error(
+              `Command path collision detected while flattening for ${this.toolTarget}: "${firstOrigin}" and "${originalRelativePath}" both map to "${flattenedPath}".`,
             );
-          } else if (!firstOrigin) {
-            flattenedPathOrigins.set(flattenedPath, originalRelativePath);
           }
+          this.logger.warn(
+            `Command path collision detected while flattening for ${this.toolTarget}: "${firstOrigin}" and "${originalRelativePath}" both map to "${flattenedPath}". Only the last processed command will be used.`,
+          );
+        } else if (!firstOrigin) {
+          flattenedPathOrigins.set(flattenedPath, originalRelativePath);
         }
-        return factory.class.fromRulesyncCommand({
+      }
+      toolCommands.push(
+        factory.class.fromRulesyncCommand({
           outputRoot: this.outputRoot,
           rulesyncCommand: commandToConvert,
           global: this.global,
           logger: this.logger,
-        });
-      })
-      .filter((command): command is ToolCommand => command !== null);
+        }),
+      );
+    }
 
     const auxiliaryFiles = await factory.class.getAuxiliaryFiles?.({
       toolCommands,

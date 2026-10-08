@@ -3,15 +3,18 @@ import {
   ANTIGRAVITY_IDE_GLOBAL_WORKFLOWS_DIR_PATH,
 } from "../../constants/antigravity-ide-paths.js";
 import { ToolTarget } from "../../types/tool-targets.js";
+import { AntigravityIdeSkill } from "../skills/antigravity-ide-skill.js";
 import { AntigravitySharedCommand } from "./antigravity-shared-command.js";
 import { RulesyncCommand } from "./rulesync-command.js";
 
 /**
- * Command (workflow) generator for the Google Antigravity IDE (Antigravity 2.0).
+ * Command generator for the Google Antigravity IDE (Antigravity 2.0).
  *
- * Generates workflow files in `.agents/workflows/` (project scope) and
- * `~/.gemini/antigravity/global_workflows/` (global scope). All body and
- * frontmatter handling is shared with {@link AntigravitySharedCommand}.
+ * Emits each command as a skill in `.agents/skills/<name>/SKILL.md` (project
+ * scope) and `~/.gemini/config/skills/<name>/SKILL.md` (global scope), the
+ * IDE's skills directories. Legacy workflows are still imported from
+ * `.agents/workflows/` and `~/.gemini/antigravity/global_workflows/`. All
+ * body and frontmatter handling is shared with {@link AntigravitySharedCommand}.
  */
 export class AntigravityIdeCommand extends AntigravitySharedCommand {
   protected static override getProjectRelativeDirPath(): string {
@@ -20,6 +23,10 @@ export class AntigravityIdeCommand extends AntigravitySharedCommand {
 
   protected static override getGlobalRelativeDirPath(): string {
     return ANTIGRAVITY_IDE_GLOBAL_WORKFLOWS_DIR_PATH;
+  }
+
+  protected static override getSkillsRelativeDirPath({ global }: { global: boolean }): string {
+    return AntigravityIdeSkill.getSettablePaths({ global }).relativeDirPath;
   }
 
   protected override getToolTargetName(): ToolTarget {

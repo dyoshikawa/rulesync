@@ -235,6 +235,10 @@ describe("registry derivation", () => {
       // Legacy/aggregate/ghost outputs not produced via getSettablePaths.
       "augmentcode::rules::**/.augment-guidelines",
       "devin::commands::**/.devin/workflows/",
+      // Antigravity commands are emitted as skills while their settable paths
+      // still name the retired workflows directory (issue #2666).
+      "antigravity-ide::commands::**/.agents/skills/",
+      "antigravity-cli::commands::**/.agents/skills/",
       // Devin's personal MCP override, documented as gitignored and never
       // emitted by rulesync (issue #2510).
       "devin::mcp::**/.devin/mcp_config.local.json",

@@ -1,11 +1,15 @@
-import { basename, join } from "node:path";
+import { join } from "node:path";
 
+import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
-import { isRecord } from "../../utils/type-guards.js";
+import {
+  resolveAntigravityCommandSkillName,
+  rulesyncSkillTakesPrecedence,
+} from "./antigravity-command-skill-name.js";
 import {
   AntigravityCommandFrontmatter,
   AntigravityCommandFrontmatterSchema,
@@ -25,20 +29,25 @@ export type AntigravitySharedCommandParams = {
 } & AiFileParams;
 
 /**
- * Shared command (workflow) generator for Google Antigravity 2.0.
+ * Shared command generator for Google Antigravity 2.0 (IDE and CLI).
  *
- * Antigravity workflows share a single frontmatter shape
- * ({@link AntigravityCommandFrontmatter}) and an identical body transform: strip
- * any leading frontmatter, prepend a `# Workflow: <trigger>` header, and append
- * a `// turbo` directive unless turbo is disabled. The resolved trigger is
- * sanitized into the output filename to prevent path traversal.
+ * Antigravity retires workflows on 2026-10-19 and documents skills as their
+ * replacement: a skill is invoked as `/<skill-name>` exactly like a workflow
+ * was, and takes precedence over a workflow of the same name. Each rulesync
+ * command is therefore emitted as a skill, `<skills dir>/<name>/SKILL.md` with
+ * `name`/`description` frontmatter, where `<name>` is the command's resolved
+ * trigger (see {@link resolveAntigravityCommandSkillName}). A rulesync skill
+ * with the same name wins: the command is skipped with a warning.
  *
- * Concrete subclasses differ only in their workflows directory (project and
- * global scope) and the rulesync target name they answer to, supplied via
- * {@link AntigravitySharedCommand.getProjectRelativeDirPath},
- * {@link AntigravitySharedCommand.getGlobalRelativeDirPath},
- * {@link AntigravitySharedCommand.getToolTargetName} and a static
- * `isTargetedByRulesyncCommand` override.
+ * {@link AntigravitySharedCommand.getSettablePaths} still returns the legacy
+ * workflows directory, so `rulesync import` keeps reading existing workflow
+ * files and `generate --delete` removes previously generated ones.
+ *
+ * Concrete subclasses supply the legacy workflows directories, the skills
+ * directory and the rulesync target name they answer to.
+ *
+ * @see https://antigravity.google/docs/migration/workflows-to-skills
+ * @see https://antigravity.google/docs/skills
  */
 export class AntigravitySharedCommand extends ToolCommand {
   protected readonly frontmatter: AntigravityCommandFrontmatter;
@@ -73,6 +82,11 @@ export class AntigravitySharedCommand extends ToolCommand {
     throw new Error("Please implement this method in the subclass.");
   }
 
+  /** Skills directory the commands are emitted into (the skills feature's own tree). */
+  protected static getSkillsRelativeDirPath(_params: { global: boolean }): string {
+    throw new Error("Please implement this method in the subclass.");
+  }
+
   /** The rulesync target name this command serializes back to. */
   protected getToolTargetName(): ToolTarget {
     throw new Error("Please implement this method in the subclass.");
@@ -83,6 +97,17 @@ export class AntigravitySharedCommand extends ToolCommand {
       return { relativeDirPath: this.getGlobalRelativeDirPath() };
     }
     return { relativeDirPath: this.getProjectRelativeDirPath() };
+  }
+
+  /**
+   * The emitted `<skills dir>/<name>/` directory, so a skills target sharing
+   * that tree does not sweep it as an orphan skill.
+   */
+  override getClaimedDirPaths(): string[] {
+    if (this.relativeFilePath !== SKILL_FILE_NAME) {
+      return [];
+    }
+    return [join(this.outputRoot, this.relativeDirPath)];
   }
 
   getBody(): string {
@@ -115,37 +140,31 @@ export class AntigravitySharedCommand extends ToolCommand {
     });
   }
 
-  private static extractAntigravityConfig(
-    rulesyncCommand: RulesyncCommand,
-  ): Record<string, unknown> | undefined {
-    const antigravity = rulesyncCommand.getFrontmatter().antigravity;
-    return isRecord(antigravity) ? antigravity : undefined;
-  }
-
-  private static resolveTrigger(
-    rulesyncCommand: RulesyncCommand,
-    antigravityConfig: Record<string, unknown> | undefined,
-  ): string {
-    const rulesyncFrontmatter = rulesyncCommand.getFrontmatter();
-
-    const antigravityTrigger =
-      antigravityConfig && typeof antigravityConfig.trigger === "string"
-        ? antigravityConfig.trigger
-        : undefined;
-
-    const rootTrigger =
-      typeof rulesyncFrontmatter.trigger === "string" ? rulesyncFrontmatter.trigger : undefined;
-
-    const bodyTriggerMatch = rulesyncCommand.getBody().match(/trigger:\s*(\/[\w-]+)/);
-
-    const filenameTrigger = `/${basename(rulesyncCommand.getRelativeFilePath(), ".md")}`;
-
-    return (
-      antigravityTrigger ||
-      rootTrigger ||
-      (bodyTriggerMatch ? bodyTriggerMatch[1] : undefined) ||
-      filenameTrigger
-    );
+  /**
+   * A rulesync skill with the same name that is written to the same
+   * `<skills dir>/<name>/` directory takes precedence over the command.
+   */
+  static async getWriteBlockReason({
+    rulesyncCommand,
+    global = false,
+    inputRoots,
+  }: {
+    rulesyncCommand: RulesyncCommand;
+    global?: boolean;
+    inputRoots: readonly string[];
+  }): Promise<string | null> {
+    const dirName = resolveAntigravityCommandSkillName(rulesyncCommand);
+    if (
+      await rulesyncSkillTakesPrecedence({
+        inputRoots,
+        dirName,
+        skillsRelativeDirPath: this.getSkillsRelativeDirPath({ global }),
+        global,
+      })
+    ) {
+      return "a rulesync skill with the same name targets the same skill directory and takes precedence; rename one of them to keep both";
+    }
+    return null;
   }
 
   static fromRulesyncCommand({
@@ -154,46 +173,27 @@ export class AntigravitySharedCommand extends ToolCommand {
     validate = true,
     global = false,
   }: ToolCommandFromRulesyncCommandParams): AntigravitySharedCommand {
-    const rulesyncFrontmatter = rulesyncCommand.getFrontmatter();
-    const antigravityConfig = this.extractAntigravityConfig(rulesyncCommand);
+    const name = resolveAntigravityCommandSkillName(rulesyncCommand);
 
-    const trigger = this.resolveTrigger(rulesyncCommand, antigravityConfig);
-
-    const turbo = typeof antigravityConfig?.turbo === "boolean" ? antigravityConfig.turbo : true;
-
-    let body = rulesyncCommand
+    const body = rulesyncCommand
       .getBody()
       .replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, "")
       .trim();
 
-    // Sanitize trigger to prevent path traversal (e.g. /../evil).
-    const sanitizedTrigger = trigger.replace(/[^a-zA-Z0-9-_]/g, "-").replace(/^-+|-+$/g, "");
-    if (!sanitizedTrigger) {
-      throw new Error(`Invalid trigger: sanitization resulted in empty string from "${trigger}"`);
-    }
-    const relativeFilePath = `${sanitizedTrigger}.md`;
-
-    const turboDirective = turbo ? "\n\n// turbo" : "";
-    body = `# Workflow: ${trigger}\n\n${body}${turboDirective}`;
-
-    const description = rulesyncFrontmatter.description;
-
+    // Antigravity skills require a description; it is what the agent sees
+    // when deciding whether to apply the skill.
     const antigravityFrontmatter: AntigravityCommandFrontmatter = {
-      description,
-      trigger,
-      turbo,
+      name,
+      description: rulesyncCommand.getFrontmatter().description ?? `${name} command`,
     };
-
-    const fileContent = stringifyFrontmatter(body, antigravityFrontmatter);
-    const paths = this.getSettablePaths({ global });
 
     return new this({
       outputRoot,
       frontmatter: antigravityFrontmatter,
       body,
-      relativeDirPath: paths.relativeDirPath,
-      relativeFilePath,
-      fileContent,
+      relativeDirPath: join(this.getSkillsRelativeDirPath({ global }), name),
+      relativeFilePath: SKILL_FILE_NAME,
+      fileContent: stringifyFrontmatter(body, antigravityFrontmatter),
       validate,
     });
   }
