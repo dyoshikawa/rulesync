@@ -562,8 +562,7 @@ copilot: # copilot specific parameters (optional)
   description: "Review a pull request"
   agent: "agent" # (optional) VS Code prompt-file agent: "ask", "agent", "plan", or a custom agent name (replaces the deprecated "mode")
 antigravity: # antigravity specific parameters
-  trigger: "/review" # Specific trigger for workflow (renames file to review.md)
-  turbo: true # (Optional, default: true) Append // turbo for auto-execution
+  trigger: "/review" # Slash command name; the command is emitted as .agents/skills/review/SKILL.md
 takt: # takt specific parameters (optional; emitted under .takt/facets/instructions/)
   name: "renamed-stem" # (optional) override the emitted filename stem (no path separators or "..")
   extends: "base" # (optional) emit a leading `{extends:<parent>}` facet-inheritance directive (Takt 0.39.0+)
@@ -585,6 +584,8 @@ Execute the following in parallel:
 ```
 
 The command body itself uses a Claude Code-compatible **universal syntax** (e.g. `$ARGUMENTS`, `` !`cmd` ``). When a target tool expects a different placeholder syntax, rulesync translates it automatically on generation and reverses the translation on import. See [Command Syntax](./command-syntax.md) for the full mapping.
+
+> **Antigravity migration note:** Antigravity [retires workflows on October 19, 2026](https://antigravity.google/docs/migration/workflows-to-skills) in favor of skills, so `antigravity-ide` and `antigravity-cli` commands are emitted as skills (`.agents/skills/<name>/SKILL.md`, invoked as `/<name>`) instead of `.agents/workflows/<name>.md`. The workflow-only `turbo` option and the `# Workflow:` header are no longer written. Legacy workflows are still imported by `rulesync import`. Running `rulesync generate --delete` removes every `*.md` file left in the workflow directories, including hand-written workflows, so import those first if you want to keep them. If a rulesync skill with the same name as a command is written to the same skills directory, the skill wins and the command is skipped with a warning, even in a run that does not generate that skill. The skill of a deleted command is removed by `rulesync generate --delete` with the skills feature enabled, because the commands feature does not sweep the shared skills tree.
 
 > **Codex CLI deprecation note:** Codex CLI's own docs now state "Custom prompts are deprecated. Use skills for reusable instructions" (see [Custom Prompts](https://developers.openai.com/codex/custom-prompts)). Rulesync's `codexcli` commands still generate the global-only `~/.codex/prompts/*.md` custom-prompt files described above — they remain functional and no removal date has been announced, so this behavior is unchanged for now. For new reusable instructions, prefer rulesync's `codexcli` skills support (see `.rulesync/skills/*/SKILL.md` below) instead.
 

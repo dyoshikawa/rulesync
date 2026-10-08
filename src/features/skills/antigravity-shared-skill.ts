@@ -10,6 +10,7 @@ import { ValidationResult } from "../../types/ai-dir.js";
 import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { isRecord } from "../../utils/type-guards.js";
+import { antigravityCommandSkillNameExists } from "../commands/antigravity-command-skill-name.js";
 import {
   AntigravitySkillFrontmatter,
   AntigravitySkillFrontmatterSchema,
@@ -227,6 +228,40 @@ export class AntigravitySharedSkill extends ToolSkill {
   static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
     const targets = rulesyncSkill.getFrontmatter().targets;
     return targets.includes("*") || targets.includes(this.getToolTarget());
+  }
+
+  /**
+   * Commands are emitted into this same skills tree as `<name>/SKILL.md` (see
+   * `AntigravitySharedCommand`), so a directory matching a command the
+   * commands feature emits is owned by that feature: it must not be imported
+   * as a skill nor deleted as an orphan skill. The project tree is shared by
+   * the IDE and the CLI, so a command for either target owns it there.
+   */
+  static async isDirOwned({
+    relativeDirPath,
+    dirName,
+    inputRoots,
+    global,
+  }: {
+    outputRoot: string;
+    relativeDirPath: string;
+    dirName: string;
+    inputRoots: readonly string[];
+    global: boolean;
+  }): Promise<boolean> {
+    if (relativeDirPath !== this.getSettablePaths({ global }).relativeDirPath) {
+      return true;
+    }
+    const toolTargets: ToolTarget[] = global
+      ? [this.getToolTarget()]
+      : ["antigravity-ide", "antigravity-cli"];
+    return !(await antigravityCommandSkillNameExists({
+      inputRoots,
+      dirName,
+      toolTargets,
+      skillsRelativeDirPath: relativeDirPath,
+      global,
+    }));
   }
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<AntigravitySharedSkill> {

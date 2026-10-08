@@ -12,4 +12,12 @@ export class AntigravityPluginSkill extends AntigravityIdeSkill {
   static override getSettablePaths(): ToolSkillSettablePaths {
     return { relativeDirPath: ANTIGRAVITY_PLUGIN_SKILLS_DIR };
   }
+
+  /**
+   * The plugin `skills/` tree is not shared with the commands feature, so
+   * every directory in it is a skill.
+   */
+  static override async isDirOwned(): Promise<boolean> {
+    return true;
+  }
 }

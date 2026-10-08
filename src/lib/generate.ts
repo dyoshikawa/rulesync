@@ -150,7 +150,9 @@ async function processFeatureGeneration<T extends AiFile>(params: {
   // skipped for root-file ownership: what protects a path from a sibling target's
   // sweep is that this run owns it, not that these particular bytes were flushed.
   // `toolFiles` rather than `filesToCheck` for exactly that reason.
-  sweepPlan.registerGenerated({ paths: toolFiles.map((f) => f.getFilePath()) });
+  sweepPlan.registerGenerated({
+    paths: toolFiles.flatMap((f) => [f.getFilePath(), ...f.getClaimedDirPaths()]),
+  });
 
   // A processor whose source failed to load has an incomplete picture of what
   // the run should produce, so the sweep cannot tell an orphan from a file
