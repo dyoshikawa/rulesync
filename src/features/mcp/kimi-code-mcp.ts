@@ -94,11 +94,16 @@ function toKimiCodeServer({
   };
   // Kimi's documented per-server keys beyond the transport itself. `deferred`
   // (0.43.0) keeps the server's tools out of the top-level tool list until the
-  // model loads them on demand.
+  // model loads them on demand. `executor` (`local` | `kaos`) and `runtime_id`
+  // pick where a stdio server runs; they are accepted by the server schema but
+  // not documented yet.
   // https://moonshotai.github.io/kimi-code/en/customization/mcp.html
+  // https://github.com/MoonshotAI/kimi-code/blob/%40moonshot-ai/kimi-code%402.1.1/packages/agent-core-v2/src/mcpCore/config-schema.ts
   for (const field of [
     "env",
     "cwd",
+    "executor",
+    "runtime_id",
     "headers",
     "bearerTokenEnvVar",
     "enabled",

@@ -65,6 +65,67 @@ describe("KimiCodePermissions [permission] section", () => {
   });
 });
 
+describe("KimiCodePermissions rule import", () => {
+  function importRules(fileContent: string): unknown {
+    const permissions = new KimiCodePermissions({ outputRoot: ".", fileContent, global: true });
+    return JSON.parse(permissions.toRulesyncPermissions().getFileContent())["kimi-code"]?.rules;
+  }
+
+  it("should fold rules that name the tool separately into Tool(arg) patterns", () => {
+    const rules = importRules(
+      [
+        "[[permission.rules]]",
+        'decision = "deny"',
+        'tool = "Bash"',
+        'match = "rm -rf*"',
+        "",
+        "[[permission.rules]]",
+        'decision = "ask"',
+        'tool = "Read"',
+        'pattern = "/etc/**"',
+        'reason = "system files"',
+        "",
+        "[[permission.rules]]",
+        'decision = "allow"',
+        'tool = "Grep"',
+        "",
+        "[[permission.rules]]",
+        'decision = "allow"',
+        'pattern = "Glob"',
+        "",
+      ].join("\n"),
+    );
+
+    expect(rules).toEqual([
+      { decision: "deny", pattern: "Bash(rm -rf*)" },
+      { decision: "ask", pattern: "Read(/etc/**)", reason: "system files" },
+      { decision: "allow", pattern: "Grep" },
+      { decision: "allow", pattern: "Glob" },
+    ]);
+  });
+
+  it("should prefer match over pattern when a rule carries both, as Kimi does", () => {
+    const rules = importRules(
+      '[[permission.rules]]\ndecision = "deny"\ntool = "Bash"\nmatch = "rm *"\npattern = "ls *"\n',
+    );
+
+    expect(rules).toEqual([{ decision: "deny", pattern: "Bash(rm *)" }]);
+  });
+
+  it("should regenerate folded rules in the pattern form Kimi reads identically", () => {
+    const permissions = new KimiCodePermissions({
+      outputRoot: ".",
+      fileContent: '[[permission.rules]]\ndecision = "deny"\ntool = "Bash"\nmatch = "rm -rf*"\n',
+      global: true,
+    });
+    const json = JSON.parse(permissions.toRulesyncPermissions().getFileContent());
+
+    expect(generate({ json }).permission).toEqual({
+      rules: [{ decision: "deny", pattern: "Bash(rm -rf*)" }],
+    });
+  });
+});
+
 describe("KimiCodePermissions [tools] section", () => {
   it("should write the authored enable and disable lists", () => {
     const config = generate({
