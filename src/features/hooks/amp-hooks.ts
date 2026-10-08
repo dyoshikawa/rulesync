@@ -6,7 +6,11 @@ import {
   AMP_PLUGINS_PROJECT_DIR,
 } from "../../constants/amp-paths.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
-import { AMP_HOOK_EVENTS, CANONICAL_TO_AMP_EVENT_NAMES } from "../../types/hooks.js";
+import {
+  AMP_HOOK_EVENTS,
+  AMP_OVERRIDE_ONLY_HOOK_EVENTS,
+  CANONICAL_TO_AMP_EVENT_NAMES,
+} from "../../types/hooks.js";
 import { readFileContent } from "../../utils/file.js";
 import { generateAmpPluginCode } from "./amp-plugin-generator.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
@@ -53,6 +57,7 @@ export class AmpHooks extends ToolHooks {
       config: rulesyncHooks.getJson(),
       supportedEvents: AMP_HOOK_EVENTS,
       eventMap: CANONICAL_TO_AMP_EVENT_NAMES,
+      overrideOnlyEvents: AMP_OVERRIDE_ONLY_HOOK_EVENTS,
     });
     return new AmpHooks({
       outputRoot,
