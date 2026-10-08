@@ -193,6 +193,7 @@ export class ReasonixSkill extends ToolSkill {
     rulesyncSkill,
     validate = true,
     global = false,
+    logger,
   }: ToolSkillFromRulesyncSkillParams): ReasonixSkill {
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
     const disableModelInvocation = resolveDisableModelInvocation({
@@ -206,10 +207,19 @@ export class ReasonixSkill extends ToolSkill {
 
     // A disabled model invocation always writes `manual`: v1 reads nothing
     // else, so an authored `auto` would put the skill back in its catalog.
+    const authoredInvocation = rulesyncFrontmatter.reasonix?.invocation;
+    if (
+      disableModelInvocation === true &&
+      authoredInvocation !== undefined &&
+      !isManualInvocation(authoredInvocation)
+    ) {
+      logger?.warn(
+        `Reasonix skill: "${rulesyncFrontmatter.name}" disables model invocation, so ` +
+          `"invocation" is written as manual instead of ${JSON.stringify(authoredInvocation)}.`,
+      );
+    }
     const invocation =
-      disableModelInvocation === true
-        ? REASONIX_MANUAL_INVOCATION
-        : rulesyncFrontmatter.reasonix?.invocation;
+      disableModelInvocation === true ? REASONIX_MANUAL_INVOCATION : authoredInvocation;
 
     const reasonixFrontmatter: ReasonixSkillFrontmatter = {
       name: rulesyncFrontmatter.name,

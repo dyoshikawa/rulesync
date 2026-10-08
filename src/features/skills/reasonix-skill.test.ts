@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SKILL_FILE_NAME } from "../../constants/general.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { ReasonixSkill } from "./reasonix-skill.js";
@@ -252,13 +253,48 @@ describe("ReasonixSkill", () => {
       },
     );
 
+    it.each([["  "], [null]])(
+      "should treat a disable-model-invocation of %j as absent",
+      (value) => {
+        const skill = new ReasonixSkill({
+          outputRoot: testDir,
+          dirName: "flagged",
+          frontmatter: {
+            name: "flagged",
+            description: "Flagged",
+            "disable-model-invocation": value,
+          },
+          body: "Body",
+        });
+
+        expect(skill.toRulesyncSkill().getFrontmatter()).not.toHaveProperty("reasonix");
+      },
+    );
+
     it("should write invocation: manual over an authored one when model invocation is disabled", () => {
-      const skill = toReasonix({
-        "disable-model-invocation": true,
-        reasonix: { invocation: "auto" },
+      const logger = createMockLogger();
+      const skill = ReasonixSkill.fromRulesyncSkill({
+        outputRoot: testDir,
+        logger,
+        rulesyncSkill: new RulesyncSkill({
+          outputRoot: testDir,
+          dirName: "flagged",
+          frontmatter: {
+            name: "flagged",
+            description: "Flagged",
+            targets: ["*"],
+            "disable-model-invocation": true,
+            reasonix: { invocation: "auto" },
+          },
+          body: "Body",
+          validate: false,
+        }),
       });
 
       expect(skill.getFrontmatter().invocation).toBe("manual");
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('"invocation" is written as manual instead of "auto"'),
+      );
     });
 
     it("should import a skill without flags with no reasonix section", () => {

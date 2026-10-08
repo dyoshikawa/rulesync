@@ -69,7 +69,7 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
   // `devin.triggers` section value overrides it.
   "disable-model-invocation": z.optional(z.boolean()),
   // Default for tools that support the flag (claudecode, codebuddy, copilot, copilotcli,
-  // cursor, qwencode, vibe, grokcli, factorydroid, dsh, reasonix, commandcode, lettacode).
+  // crush, cursor, qwencode, vibe, grokcli, factorydroid, dsh, reasonix, commandcode, lettacode).
   // A target-section value of the same key overrides this default.
   // `devin` also consumes this root value (mapping `false` onto a model-only
   // `triggers` list); it has no section key of the same name, but a
