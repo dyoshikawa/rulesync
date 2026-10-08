@@ -4,8 +4,8 @@ import { z } from "zod/mini";
 
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import {
+  REASONIX_MANUAL_INVOCATION,
   REASONIX_SKILLS_DIR_PATH,
-  REASONIX_SUBAGENT_INVOCATION,
   REASONIX_SUBAGENT_RUN_AS,
 } from "../../constants/reasonix-paths.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
@@ -32,7 +32,12 @@ import {
 // v1 line reads neither, only `invocation: manual`, which keeps the skill out
 // of the model's catalog while it stays callable by name. So a
 // `disable-model-invocation: true` is written with `invocation: manual` beside
-// it, and v2 reads the two independently. `model`/`effort`/`allowed-tools`/
+// it, and v2 reads the two independently. Because the two are not the same
+// switch (`manual` only hides; the flag also refuses model calls), an
+// `invocation` authored in the `reasonix` section is written verbatim and an
+// imported one is kept there rather than folded into the flag. v2 parses the
+// flags leniently (`yes`/`no`, `on`/`off`, `1`/`0`, case-insensitive), so the
+// schema accepts any value and the adapter reads those spellings. `model`/`effort`/`allowed-tools`/
 // `read-only` take effect only on a `runAs: subagent` profile, which the
 // subagents feature owns, so they are not modeled here. The schema is loose,
 // so an imported file carrying extra keys still parses.
@@ -41,9 +46,9 @@ import {
 export const ReasonixSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
-  invocation: z.optional(z.string()),
-  "disable-model-invocation": z.optional(z.boolean()),
-  "user-invocable": z.optional(z.boolean()),
+  invocation: z.optional(z.unknown()),
+  "disable-model-invocation": z.optional(z.unknown()),
+  "user-invocable": z.optional(z.unknown()),
 });
 
 export type ReasonixSkillFrontmatter = z.infer<typeof ReasonixSkillFrontmatterSchema>;
@@ -140,20 +145,23 @@ export class ReasonixSkill extends ToolSkill {
   toRulesyncSkill(): RulesyncSkill {
     const frontmatter = this.getFrontmatter();
     // Into the `reasonix` section, not the root: the root-level flags are
-    // shared defaults for every tool that honours them. A v1-only file that
-    // says `invocation: manual` with no native flag lifts to
-    // `disable-model-invocation: true`, the canonical spelling of the same
-    // intent; the next generate writes both keys.
-    const disableModelInvocation =
-      frontmatter["disable-model-invocation"] ??
-      (isManualInvocation(frontmatter.invocation) ? true : undefined);
+    // shared defaults for every tool that honours them. `invocation` is kept
+    // as authored, except the `manual` that generate writes beside
+    // `disable-model-invocation: true`: it follows from the flag, and keeping
+    // it would pin the skill hidden after the flag is turned off.
+    const disableModelInvocation = parseReasonixBool(frontmatter["disable-model-invocation"]);
+    const userInvocable = parseReasonixBool(frontmatter["user-invocable"]);
+    const invocation =
+      typeof frontmatter.invocation === "string" &&
+      !(disableModelInvocation === true && isManualInvocation(frontmatter.invocation))
+        ? frontmatter.invocation
+        : undefined;
     const reasonixSection = {
+      ...(invocation !== undefined && { invocation }),
       ...(disableModelInvocation !== undefined && {
         "disable-model-invocation": disableModelInvocation,
       }),
-      ...(frontmatter["user-invocable"] !== undefined && {
-        "user-invocable": frontmatter["user-invocable"],
-      }),
+      ...(userInvocable !== undefined && { "user-invocable": userInvocable }),
     };
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
       name: frontmatter.name,
@@ -190,10 +198,14 @@ export class ReasonixSkill extends ToolSkill {
       section: rulesyncFrontmatter.reasonix,
     });
 
+    const invocation =
+      rulesyncFrontmatter.reasonix?.invocation ??
+      (disableModelInvocation === true ? REASONIX_MANUAL_INVOCATION : undefined);
+
     const reasonixFrontmatter: ReasonixSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
-      ...(disableModelInvocation === true && { invocation: REASONIX_SUBAGENT_INVOCATION }),
+      ...(invocation !== undefined && { invocation }),
       ...(disableModelInvocation !== undefined && {
         "disable-model-invocation": disableModelInvocation,
       }),
@@ -303,6 +315,28 @@ export class ReasonixSkill extends ToolSkill {
  * Whether an `invocation` value is Reasonix's `manual`, which it compares after
  * trimming and case-folding (`parseInvocation`).
  */
-function isManualInvocation(invocation: string | undefined): boolean {
-  return invocation?.trim().toLowerCase() === REASONIX_SUBAGENT_INVOCATION;
+function isManualInvocation(invocation: string): boolean {
+  return invocation.trim().toLowerCase() === REASONIX_MANUAL_INVOCATION;
+}
+
+/**
+ * Reads an invocation flag the way Reasonix v2 does (`parseStrictBool`): a
+ * boolean, or a `true`/`yes`/`1`/`on` / `false`/`no`/`0`/`off` spelling
+ * compared after trimming and case-folding. Anything else is `undefined`.
+ */
+function parseReasonixBool(value: unknown): boolean | undefined {
+  if (typeof value === "boolean") {
+    return value;
+  }
+  if (typeof value !== "string" && typeof value !== "number") {
+    return undefined;
+  }
+  const normalized = String(value).trim().toLowerCase();
+  if (["true", "yes", "1", "on"].includes(normalized)) {
+    return true;
+  }
+  if (["false", "no", "0", "off"].includes(normalized)) {
+    return false;
+  }
+  return undefined;
 }

@@ -77,12 +77,15 @@ type ReasonixPlugin = Record<string, unknown> & {
 // brings it back — only a durable override in `mcp-activation.json`, written
 // when the user enables the server, outranks the file value. Dropping the key
 // therefore switches a server back on. `concurrency` has no canonical
-// counterpart. `auto_start` also stays a passthrough, but canonical `disabled`
-// now feeds it (`resolveAutoStart`): `disabled: true` is written as
-// `auto_start = false`, the switch Reasonix reads as "disabled", unless the
-// server object carries its own `auto_start`, which as the tool-specific value
-// wins. On import an `auto_start = false` also lifts to `disabled: true`, so the
-// other targets see the server as off too. The activation store can still flip
+// counterpart. `auto_start` is authorable as a passthrough on generate, but
+// canonical `disabled` feeds it too (`resolveAutoStart`): `disabled: true` is
+// always written as `auto_start = false`, the switch Reasonix reads as
+// "disabled" — a stop the user asked for across every tool is not overridden
+// by a stale tool-specific `true` — and an authored `auto_start` applies only
+// when the server is not disabled. On import `auto_start` is not kept as a
+// passthrough: `false` lifts to `disabled: true` and `true` is the default, so
+// the canonical `disabled` stays the one switch and a later edit to it is not
+// shadowed by a value import left behind. The activation store can still flip
 // a server independently of the file; that is runtime state, not config.
 // The CLI v2 line (v2.31.0, `internal/contract/config/plugin_entry.go`) adds
 // `load` (`always` puts the server's tools in the provider schema from session
@@ -352,18 +355,33 @@ function invalidPassthroughFieldReason(field: string, value: unknown): string | 
 }
 
 /**
- * The `auto_start` to write: the server's own `auto_start` when it carries one
- * (the tool-specific value wins), otherwise `false` for a canonical
- * `disabled: true`, which is how Reasonix spells a server that is off
- * (`Config.EnabledPlugins` leaves it out of the enabled set). `undefined` means
- * the key is left out, which Reasonix reads as enabled.
+ * The `auto_start` to write: `false` for a canonical `disabled: true`, which is
+ * how Reasonix spells a server that is off (`Config.EnabledPlugins` leaves it
+ * out of the enabled set), whatever the server's own `auto_start` says — the
+ * fail-safe direction, since the user stopped the server for every tool.
+ * Otherwise the server's own `auto_start`. `undefined` means the key is left
+ * out, which Reasonix reads as enabled.
  */
-function resolveAutoStart(server: McpServer): unknown {
+function resolveAutoStart({
+  name,
+  server,
+  logger,
+}: {
+  name: string;
+  server: McpServer;
+  logger?: Logger;
+}): unknown {
   const authored = (server as Record<string, unknown>).auto_start;
-  if (authored !== undefined) {
-    return authored;
+  if (server.disabled === true) {
+    if (authored !== undefined && authored !== false) {
+      logger?.warn(
+        `Reasonix MCP: "${name}" is disabled, so "auto_start" is written as false ` +
+          `instead of ${JSON.stringify(authored)}.`,
+      );
+    }
+    return false;
   }
-  return server.disabled === true ? false : undefined;
+  return authored;
 }
 
 function writePassthroughFields({
@@ -382,7 +400,8 @@ function writePassthroughFields({
     if (field === "type" || field === "command" || field === "args") {
       continue;
     }
-    const value = field === "auto_start" ? resolveAutoStart(server) : serverRecord[field];
+    const value =
+      field === "auto_start" ? resolveAutoStart({ name, server, logger }) : serverRecord[field];
     if (value === undefined) {
       continue;
     }
@@ -390,6 +409,13 @@ function writePassthroughFields({
     if (invalidReason !== undefined) {
       logger?.warn(`Reasonix MCP: dropping "${field}" from "${name}"; ${invalidReason}`);
       continue;
+    }
+    if (field === "oauth_allow_missing_pkce_metadata" && value === true) {
+      logger?.warn(
+        `Reasonix MCP: "${name}" sets "oauth_allow_missing_pkce_metadata", which lets OAuth ` +
+          `proceed with an authorization server that does not advertise PKCE support. ` +
+          `Reasonix honours it only from the user config, not a project reasonix.toml.`,
+      );
     }
     plugin[field] = value;
   }
@@ -433,11 +459,16 @@ function rulesyncMcpServerToReasonix(
   }
 
   writePassthroughFields({ name, server, plugin, logger });
-  // The canonical schema already types `disabledTools` as a string list, so
-  // only an empty list is skipped: Reasonix reads it as "every tool enabled",
-  // the same as no key.
-  if (server.disabledTools !== undefined && server.disabledTools.length > 0) {
-    plugin[REASONIX_DISABLED_TOOLS_KEY] = server.disabledTools;
+  // The canonical schema already types `disabledTools` as a string list. A
+  // blank name is dropped (Reasonix's own editor rejects it), and an empty
+  // list is skipped: Reasonix reads it as "every tool enabled", the same as no
+  // key.
+  const disabledTools = (server.disabledTools ?? []).filter((tool) => tool.trim() !== "");
+  if (disabledTools.length !== (server.disabledTools ?? []).length) {
+    logger?.warn(`Reasonix MCP: dropping blank "disabledTools" entries from "${name}".`);
+  }
+  if (disabledTools.length > 0) {
+    plugin[REASONIX_DISABLED_TOOLS_KEY] = disabledTools;
   }
   warnAboutRetiredFields({ name, serverRecord, logger });
   if (plugin.url === undefined && server.httpUrl !== undefined) {
@@ -455,7 +486,7 @@ function reasonixPluginToRulesync(plugin: ReasonixPlugin): McpServer {
   }
 
   for (const field of REASONIX_PLUGIN_FIELDS) {
-    if (field === "type") {
+    if (field === "type" || field === "auto_start") {
       continue;
     }
     if (plugin[field] !== undefined) {
@@ -465,13 +496,15 @@ function reasonixPluginToRulesync(plugin: ReasonixPlugin): McpServer {
   if (plugin.auto_start === false) {
     result.disabled = true;
   }
+  // Only the string entries are kept: a non-string one is a file Reasonix
+  // cannot load anyway, and dropping the whole list would lift every
+  // restriction on the other targets.
   const disabledTools = plugin[REASONIX_DISABLED_TOOLS_KEY];
-  if (
-    Array.isArray(disabledTools) &&
-    disabledTools.length > 0 &&
-    disabledTools.every((tool) => typeof tool === "string")
-  ) {
-    result.disabledTools = disabledTools;
+  const disabledToolNames = Array.isArray(disabledTools)
+    ? disabledTools.filter((tool): tool is string => typeof tool === "string")
+    : [];
+  if (disabledToolNames.length > 0) {
+    result.disabledTools = disabledToolNames;
   }
 
   return result as McpServer;

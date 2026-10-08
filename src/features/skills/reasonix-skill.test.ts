@@ -116,6 +116,19 @@ describe("ReasonixSkill", () => {
       });
     });
 
+    it("should write an authored reasonix.invocation verbatim", () => {
+      const skill = toReasonix({
+        reasonix: { invocation: "manual", "disable-model-invocation": false },
+      });
+
+      expect(skill.getFrontmatter()).toEqual({
+        name: "flagged",
+        description: "Flagged",
+        invocation: "manual",
+        "disable-model-invocation": false,
+      });
+    });
+
     it("should import the native flags into the reasonix section, not the root", () => {
       const skill = new ReasonixSkill({
         outputRoot: testDir,
@@ -132,6 +145,8 @@ describe("ReasonixSkill", () => {
 
       const frontmatter = skill.toRulesyncSkill().getFrontmatter();
 
+      // The `manual` that generate writes beside the flag is not kept: it would
+      // pin the skill hidden after the flag is turned off.
       expect(frontmatter.reasonix).toEqual({
         "disable-model-invocation": true,
         "user-invocable": false,
@@ -140,8 +155,10 @@ describe("ReasonixSkill", () => {
       expect(frontmatter).not.toHaveProperty("invocation");
     });
 
+    // `manual` only hides the skill from the catalog; it stays callable, so it
+    // is not the same switch as `disable-model-invocation: true`.
     it.each([["manual"], [" Manual "]])(
-      "should lift a v1-only invocation of %j to disable-model-invocation: true",
+      "should keep a v1-only invocation of %j as reasonix.invocation",
       (invocation) => {
         const skill = new ReasonixSkill({
           outputRoot: testDir,
@@ -150,13 +167,11 @@ describe("ReasonixSkill", () => {
           body: "Body",
         });
 
-        expect(skill.toRulesyncSkill().getFrontmatter().reasonix).toEqual({
-          "disable-model-invocation": true,
-        });
+        expect(skill.toRulesyncSkill().getFrontmatter().reasonix).toEqual({ invocation });
       },
     );
 
-    it("should keep an explicit native flag over invocation: manual on import", () => {
+    it("should keep invocation: manual beside an explicit false flag through a round-trip", () => {
       const skill = new ReasonixSkill({
         outputRoot: testDir,
         dirName: "flagged",
@@ -169,16 +184,57 @@ describe("ReasonixSkill", () => {
         body: "Body",
       });
 
-      expect(skill.toRulesyncSkill().getFrontmatter().reasonix).toEqual({
+      const rulesyncSkill = skill.toRulesyncSkill();
+      const regenerated = ReasonixSkill.fromRulesyncSkill({ outputRoot: testDir, rulesyncSkill });
+
+      expect(regenerated.getFrontmatter()).toEqual({
+        name: "flagged",
+        description: "Flagged",
+        invocation: "manual",
         "disable-model-invocation": false,
       });
+    });
+
+    it.each([
+      ["yes", true],
+      [" OFF ", false],
+      [1, true],
+      ["false", false],
+    ])("should read the Reasonix flag spelling %j as %j", (value, expected) => {
+      const skill = new ReasonixSkill({
+        outputRoot: testDir,
+        dirName: "flagged",
+        frontmatter: {
+          name: "flagged",
+          description: "Flagged",
+          "disable-model-invocation": value,
+          "user-invocable": value,
+        },
+        body: "Body",
+      });
+
+      expect(skill.toRulesyncSkill().getFrontmatter().reasonix).toEqual({
+        "disable-model-invocation": expected,
+        "user-invocable": expected,
+      });
+    });
+
+    it("should ignore a flag value Reasonix cannot read", () => {
+      const skill = new ReasonixSkill({
+        outputRoot: testDir,
+        dirName: "flagged",
+        frontmatter: { name: "flagged", description: "Flagged", "user-invocable": "maybe" },
+        body: "Body",
+      });
+
+      expect(skill.toRulesyncSkill().getFrontmatter()).not.toHaveProperty("reasonix");
     });
 
     it("should import a skill without flags with no reasonix section", () => {
       const skill = new ReasonixSkill({
         outputRoot: testDir,
         dirName: "plain",
-        frontmatter: { name: "plain", description: "Plain", invocation: "auto" },
+        frontmatter: { name: "plain", description: "Plain" },
         body: "Body",
       });
 

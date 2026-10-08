@@ -56,4 +56,8 @@ export const REASONIX_SUBAGENTS_DIR_PATH = REASONIX_SKILLS_DIR_PATH;
 // `.reasonix/skills/` directory: `runAs` is the discriminator both features
 // check when deciding whether a discovered SKILL.md belongs to them.
 export const REASONIX_SUBAGENT_INVOCATION = "manual";
+// The `invocation` value that keeps any Reasonix skill out of the model's
+// catalog while it stays callable by name. Regular skills use it as the v1
+// spelling of `disable-model-invocation`.
+export const REASONIX_MANUAL_INVOCATION = REASONIX_SUBAGENT_INVOCATION;
 export const REASONIX_SUBAGENT_RUN_AS = "subagent";

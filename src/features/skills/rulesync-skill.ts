@@ -356,9 +356,11 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
   ),
   // Reasonix reads both invocation flags natively on the CLI v2 line; the
   // adapter also writes the v1 line's `invocation: manual` for a
-  // `disable-model-invocation: true`.
+  // `disable-model-invocation: true`. `invocation` (`auto` | `manual`) is
+  // Reasonix's own catalog switch and is written verbatim when set.
   reasonix: z.optional(
     z.looseObject({
+      invocation: z.optional(z.string()),
       "disable-model-invocation": z.optional(z.boolean()),
       "user-invocable": z.optional(z.boolean()),
     }),
@@ -513,6 +515,7 @@ export type RulesyncSkillFrontmatterInput = {
     "user-invocable"?: boolean;
   };
   reasonix?: {
+    invocation?: string;
     "disable-model-invocation"?: boolean;
     "user-invocable"?: boolean;
   };
