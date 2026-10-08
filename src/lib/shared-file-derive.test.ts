@@ -190,6 +190,14 @@ describe("shared-file write derivation", () => {
           "mcp",
           "permissions",
         ],
+        ".copilot/settings.json": [
+          "hooks",
+          "permissions",
+        ],
+        ".github/copilot/settings.json": [
+          "hooks",
+          "permissions",
+        ],
         ".grok/config.toml": [
           "mcp",
           "permissions",

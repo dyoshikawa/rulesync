@@ -3,11 +3,15 @@ import { join } from "node:path";
 import { z } from "zod/mini";
 
 import {
+  COPILOT_DIR,
   COPILOT_HOOKS_DIR_PATH,
   COPILOT_HOOKS_FILE_NAME,
   COPILOTCLI_HOOKS_DIR_PATH,
   COPILOTCLI_HOOKS_FILE_NAME,
+  COPILOTCLI_PROJECT_SETTINGS_DIR_PATH,
+  COPILOTCLI_SETTINGS_FILE_NAME,
 } from "../../constants/copilot-paths.js";
+import type { SharedWritePath } from "../../lib/shared-file-derive.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { HooksConfig } from "../../types/hooks.js";
 import {
@@ -16,11 +20,17 @@ import {
   COPILOTCLI_TO_CANONICAL_EVENT_NAMES,
   HookDefinitionSchema,
 } from "../../types/hooks.js";
+import { ToolFile } from "../../types/tool-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { compact } from "../../utils/object.js";
 import { lookupOwn } from "../../utils/own-lookup.js";
+import {
+  applySharedConfigPatch,
+  parseSharedConfig,
+  sharedConfigFileKey,
+} from "../shared/shared-config-gateway.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import { buildImportedHooksConfig } from "./tool-hooks-converter.js";
 import {
@@ -438,12 +448,133 @@ function copilotCliHooksToCanonical(rawHooks: unknown, logger?: Logger): HooksCo
   return canonical;
 }
 
+/**
+ * The Copilot CLI settings file carrying the `disableAllHooks` switch:
+ * `.github/copilot/settings.json` (project) / `~/.copilot/settings.json`
+ * (global). Both scopes document the key ("Disable all hooks (both
+ * repository-level and user-level)"; the repository value takes precedence),
+ * see the CLI config dir reference:
+ * https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-config-dir-reference
+ */
+function copilotCliSettingsPaths({ global }: { global: boolean }): SharedWritePath {
+  return global
+    ? { relativeDirPath: COPILOT_DIR, relativeFilePath: COPILOTCLI_SETTINGS_FILE_NAME }
+    : {
+        relativeDirPath: COPILOTCLI_PROJECT_SETTINGS_DIR_PATH,
+        relativeFilePath: COPILOTCLI_SETTINGS_FILE_NAME,
+      };
+}
+
+/**
+ * Read `disableAllHooks` from the scope's settings file for import. A missing
+ * or unparsable file yields `undefined`: the hooks file is the import's
+ * subject, and the permissions feature reports a broken settings file itself.
+ */
+async function readDisableAllHooks({
+  outputRoot,
+  global,
+}: {
+  outputRoot: string;
+  global: boolean;
+}): Promise<boolean | undefined> {
+  const paths = copilotCliSettingsPaths({ global });
+  const fileContent = await readFileContentOrNull(
+    join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
+  );
+  if (fileContent === null) {
+    return undefined;
+  }
+  try {
+    const value = parseSharedConfig({ format: "json", fileContent }).disableAllHooks;
+    return typeof value === "boolean" ? value : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * The settings file patched with the `copilotcli.disableAllHooks` override.
+ * Only that key is owned (through the shared-config gateway), so `model`,
+ * `deniedUrls` and every other user setting are preserved. It is a shared,
+ * user-owned file and is never deleted.
+ */
+export class CopilotcliHooksSettings extends ToolFile {
+  validate(): ValidationResult {
+    return { success: true, error: null };
+  }
+
+  override isDeletable(): boolean {
+    return false;
+  }
+
+  static async fromDisableAllHooks({
+    outputRoot = process.cwd(),
+    global = false,
+    disableAllHooks,
+  }: {
+    outputRoot?: string;
+    global?: boolean;
+    disableAllHooks: boolean;
+  }): Promise<CopilotcliHooksSettings> {
+    const paths = copilotCliSettingsPaths({ global });
+    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
+    const existingContent = (await readFileContentOrNull(filePath)) ?? "{}";
+    return new CopilotcliHooksSettings({
+      outputRoot,
+      relativeDirPath: paths.relativeDirPath,
+      relativeFilePath: paths.relativeFilePath,
+      fileContent: applySharedConfigPatch({
+        fileKey: sharedConfigFileKey(paths),
+        feature: "hooks",
+        existingContent,
+        patch: { disableAllHooks },
+        filePath,
+      }),
+      global,
+    });
+  }
+}
+
+type CopilotcliHooksParams = AiFileParams & {
+  /** The settings file to patch alongside the hooks file, when authored. */
+  settingsFile?: CopilotcliHooksSettings;
+  /** `disableAllHooks` read from the settings file, for import. */
+  disableAllHooks?: boolean;
+};
+
 export class CopilotcliHooks extends ToolHooks {
-  constructor(params: AiFileParams) {
+  private readonly settingsFile: CopilotcliHooksSettings | undefined;
+  private readonly disableAllHooks: boolean | undefined;
+
+  constructor({ settingsFile, disableAllHooks, ...params }: CopilotcliHooksParams) {
     super({
       ...params,
       fileContent: params.fileContent ?? "{}",
     });
+    this.settingsFile = settingsFile;
+    this.disableAllHooks = disableAllHooks;
+  }
+
+  // `disableAllHooks` is patched into the Copilot CLI settings file, which the
+  // permissions feature also writes. Declared here because it is not a
+  // settable path.
+  static getExtraSharedWritePaths({
+    global = false,
+  }: { global?: boolean } = {}): SharedWritePath[] {
+    return [copilotCliSettingsPaths({ global })];
+  }
+
+  static override async getAuxiliaryFiles({
+    toolHooks,
+  }: {
+    outputRoot?: string;
+    global?: boolean;
+    toolHooks?: ToolHooks;
+    logger?: Logger;
+  } = {}): Promise<ToolFile[]> {
+    return toolHooks instanceof CopilotcliHooks && toolHooks.settingsFile
+      ? [toolHooks.settingsFile]
+      : [];
   }
 
   static getSettablePaths({ global = false }: { global?: boolean } = {}): ToolHooksSettablePaths {
@@ -473,6 +604,7 @@ export class CopilotcliHooks extends ToolHooks {
       relativeFilePath: paths.relativeFilePath,
       fileContent,
       validate,
+      disableAllHooks: await readDisableAllHooks({ outputRoot, global }),
     });
   }
 
@@ -490,12 +622,20 @@ export class CopilotcliHooks extends ToolHooks {
     const config = rulesyncHooks.getJson();
     const copilotHooks = canonicalToCopilotCliHooks(config, logger);
     const fileContent = JSON.stringify({ version: 1, hooks: copilotHooks }, null, 2);
+    // The settings file is only touched when the switch is authored, so a value
+    // the user set by hand survives an unrelated regeneration.
+    const disableAllHooks = config.copilotcli?.disableAllHooks;
+    const settingsFile =
+      typeof disableAllHooks === "boolean"
+        ? await CopilotcliHooksSettings.fromDisableAllHooks({ outputRoot, global, disableAllHooks })
+        : undefined;
     return new CopilotcliHooks({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
       fileContent,
       validate,
+      settingsFile,
     });
   }
 
@@ -512,7 +652,13 @@ export class CopilotcliHooks extends ToolHooks {
     const hooks = copilotCliHooksToCanonical(parsed.hooks, options?.logger);
     return this.toRulesyncHooksDefault({
       fileContent: JSON.stringify(
-        buildImportedHooksConfig({ hooks, overrideKey: "copilotcli" }),
+        buildImportedHooksConfig({
+          hooks,
+          overrideKey: "copilotcli",
+          ...(this.disableAllHooks !== undefined && {
+            extraOverride: { disableAllHooks: this.disableAllHooks },
+          }),
+        }),
         null,
         2,
       ),
