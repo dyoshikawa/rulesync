@@ -153,6 +153,9 @@ describe("shared-file cross-feature write contract", () => {
           "contract-server": {
             command: "node",
             args: ["server.js"],
+            // Kilo writes this as a `permission` key, so the permissions step
+            // that follows must not lose it.
+            disabledTools: ["wipe"],
           },
         },
         // Exercises the MCP feature as a writer of a config file the hooks and

@@ -16,6 +16,11 @@ import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { isPlainObject } from "../../utils/type-guards.js";
+import {
+  findKiloMcpToolKeyOwner,
+  isKiloPermissionPattern,
+  kiloPermissionToToolFilter,
+} from "../shared/kilo-mcp-tool-keys.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { honorAllToolsOnBash } from "./shell-command-categories.js";
 import {
@@ -202,6 +207,28 @@ function narrowMarkdownSourceToProjectScope({
   return emitted;
 }
 
+/**
+ * Move every exact (non-wildcard) key whose action is a plain `"deny"` to the
+ * end of a Kilo `permission` block, keeping every other key where it is. Kilo
+ * evaluates the block last-match-wins in key order and matches each key as a
+ * wildcard against the permission name, so the permissions writer appending a
+ * new catch-all `"*": "allow"` after the `{server}_{tool}` deny the MCP feature
+ * wrote moments before would silently lift it. An exact key matches only its
+ * own permission name, so placing its deny last can only make that one name
+ * stricter; the authored order of everything else (a `*` deny written after a
+ * category allow, ...) is left alone.
+ * @see https://github.com/Kilo-Org/kilocode/blob/main/packages/opencode/src/permission/index.ts
+ */
+function moveKiloExactDeniesLast(permission: Record<string, unknown>): Record<string, unknown> {
+  const isExactDeny = ([key, value]: [string, unknown]): boolean =>
+    value === "deny" && !isKiloPermissionPattern(key);
+  const entries = Object.entries(permission);
+  return Object.fromEntries([
+    ...entries.filter((entry) => !isExactDeny(entry)),
+    ...entries.filter(isExactDeny),
+  ]);
+}
+
 export class KiloPermissions extends ToolPermissions {
   private readonly json: KiloPermissionsConfig;
 
@@ -381,7 +408,7 @@ export class KiloPermissions extends ToolPermissions {
 
     const nextJson: Record<string, unknown> = {
       ...parsed,
-      permission: mergedPermission,
+      permission: moveKiloExactDeniesLast(mergedPermission),
     };
 
     // Overlay the Kilo-scoped override's `sandbox` block. Shallow merged at the
@@ -418,7 +445,21 @@ export class KiloPermissions extends ToolPermissions {
     // into other tools' configs.
     const shared: PermissionsConfig["permission"] = {};
     const overrideOnly: NonNullable<KiloPermissionsOverride["permission"]> = {};
+    // An `allow`/`deny` (plain, or the `{"*": ...}` map Kilo saves) naming a
+    // tool of a server the file's `mcp` block lists is that server's
+    // `enabledTools`/`disabledTools` entry, which the MCP feature imports and
+    // rewrites. Copying it into the override too
+    // would let a stale copy here overwrite the MCP feature's next write.
+    const parsedFile: unknown = parseJsonc(this.fileContent || "{}");
+    const mcpServerNames =
+      isPlainObject(parsedFile) && isPlainObject(parsedFile.mcp) ? Object.keys(parsedFile.mcp) : [];
     for (const [key, value] of Object.entries(rawPermission)) {
+      if (
+        kiloPermissionToToolFilter(value) !== undefined &&
+        findKiloMcpToolKeyOwner(key, mcpServerNames) !== undefined
+      ) {
+        continue;
+      }
       if (isSharedKiloCategory(key)) {
         shared[key] = typeof value === "string" ? { "*": value } : value;
       } else {
