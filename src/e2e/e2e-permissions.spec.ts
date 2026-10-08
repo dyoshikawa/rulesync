@@ -1076,9 +1076,9 @@ web_search_request = true
       await readFileContent(join(testDir, ".antigravity", "settings.json")),
     );
     expect(content.permissions.allow).toEqual(
-      expect.arrayContaining(["command(git *)", "read_file(src/**)", "write_file(src/**)"]),
+      expect.arrayContaining(["command(git)", "read_file(src)", "write_file(src)"]),
     );
-    expect(content.permissions.deny).toContain("command(rm *)");
+    expect(content.permissions.deny).toContain("command(rm)");
   });
 
   it("should import antigravity-ide permissions into .rulesync/permissions.jsonc", async () => {
@@ -1089,8 +1089,8 @@ web_search_request = true
       JSON.stringify(
         {
           permissions: {
-            allow: ["command(git *)", "read_file(src/**)"],
-            deny: ["command(rm *)"],
+            allow: ["command(git)", "read_file(src)"],
+            deny: ["command(rm)"],
           },
         },
         null,
@@ -1105,7 +1105,7 @@ web_search_request = true
     );
     expect(config.permission.bash["git *"]).toBe("allow");
     expect(config.permission.bash["rm *"]).toBe("deny");
-    expect(config.permission.read["src/**"]).toBe("allow");
+    expect(config.permission.read["src"]).toBe("allow");
   });
 
   it("should generate augmentcode permissions into .augment/settings.json", async () => {
@@ -3546,7 +3546,12 @@ describe("E2E: permissions (global mode)", () => {
       JSON.stringify(
         {
           permission: {
-            bash: { "git status *": "allow", "rm -rf *": "deny" },
+            bash: {
+              "git status *": "allow",
+              "npm run test:*": "allow",
+              "rm -rf *": "deny",
+              "git push * --force": "deny",
+            },
             read: { "src/**": "allow" },
             webfetch: { "https://example.com/*": "allow" },
           },
@@ -3570,10 +3575,13 @@ describe("E2E: permissions (global mode)", () => {
     const generated = JSON.parse(
       await readFileContent(join(homeDir, ".gemini", "antigravity-cli", "settings.json")),
     );
-    expect(generated.permissions.allow).toContain("command(git status *)");
-    expect(generated.permissions.deny).toContain("command(rm -rf *)");
-    expect(generated.permissions.allow).toContain("read_file(src/**)");
-    expect(generated.permissions.allow).toContain("read_url(https://example.com/*)");
+    expect(generated.permissions.allow).toContain("command(git status)");
+    // agy matches word by word, so a glob inside a word is a per-word regex
+    // and a `*` that spans words has no spelling and is skipped.
+    expect(generated.permissions.allow).toContain("command(regex:^npm$ ^run$ ^test:.*$)");
+    expect(generated.permissions.deny).toEqual(["command(rm -rf)"]);
+    expect(generated.permissions.allow).toContain("read_file(src)");
+    expect(generated.permissions.allow).toContain("read_url(example.com)");
   });
 
   it("should generate warp permissions in home directory with --global", async () => {

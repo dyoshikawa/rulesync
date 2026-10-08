@@ -67,15 +67,36 @@ describe("AntigravityIdePermissions", () => {
       const json = JSON.parse(perms.getFileContent());
       expect(json.permissions.allow).toEqual(
         expect.arrayContaining([
-          "read_file(src/**)",
-          "write_file(src/**)",
-          "command(git *)",
+          "read_file(src)",
+          "write_file(src)",
+          "command(git)",
           "read_url(example.com)",
           "mcp(linter/*)",
         ]),
       );
-      expect(json.permissions.deny).toContain("command(rm *)");
+      expect(json.permissions.deny).toContain("command(rm)");
       expect(json.permissions.ask).toContain("command");
+    });
+
+    it("writes globs Antigravity can match: literal words or a per-word regex", async () => {
+      const perms = await AntigravityIdePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          bash: {
+            "npm run *": "allow",
+            "npm test:*": "allow",
+            "git push * --force": "deny",
+            "git push -f*": "deny",
+          },
+        }),
+      });
+      const json = JSON.parse(perms.getFileContent());
+      expect(json.permissions.allow).toEqual([
+        "command(npm run)",
+        "command(regex:^npm$ ^test:.*$)",
+      ]);
+      // `git push * --force` has no word-by-word spelling, so it is skipped.
+      expect(json.permissions.deny).toEqual(["command(regex:^git$ ^push$ ^-f.*$)"]);
     });
 
     it("uses a bare action name for the catch-all '*' pattern", async () => {
@@ -106,7 +127,7 @@ describe("AntigravityIdePermissions", () => {
 
       expect(json["antigravity.someSetting"]).toBe(true);
       expect(json.permissions.allow).toContain("execute_url(localhost)");
-      expect(json.permissions.allow).toContain("command(git *)");
+      expect(json.permissions.allow).toContain("command(git)");
       expect(json.permissions.deny).toContain("unsandboxed");
     });
   });
@@ -119,8 +140,8 @@ describe("AntigravityIdePermissions", () => {
         relativeFilePath: "settings.json",
         fileContent: JSON.stringify({
           permissions: {
-            allow: ["read_file(src/**)", "write_file(src/**)", "command(git *)", "read_url(x.com)"],
-            deny: ["command(rm *)"],
+            allow: ["read_file(src/**)", "write_file(src/**)", "command(git)", "read_url(x.com)"],
+            deny: ["command(rm)"],
             ask: ["mcp(server/*)"],
           },
         }),
@@ -135,6 +156,25 @@ describe("AntigravityIdePermissions", () => {
       expect(config.permission.mcp["server/*"]).toBe("ask");
     });
 
+    it("reads a per-word regex it could have written back as a glob", () => {
+      const perms = new AntigravityIdePermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".antigravity",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          permissions: {
+            deny: ["command(regex:^git$ ^push$ ^-f.*$)", "command(regex:^git push .* --force$)"],
+          },
+        }),
+      });
+      const config = JSON.parse(perms.toRulesyncPermissions().getFileContent());
+      expect(config.permission.bash).toEqual({
+        "git push -f*": "deny",
+        // `.*` matches one word here, which a glob cannot say.
+        "regex:^git push .* --force$": "deny",
+      });
+    });
+
     it("round-trips patterns containing parentheses", () => {
       const perms = new AntigravityIdePermissions({
         outputRoot: testDir,
@@ -145,7 +185,7 @@ describe("AntigravityIdePermissions", () => {
         }),
       });
       const config = JSON.parse(perms.toRulesyncPermissions().getFileContent());
-      expect(config.permission.bash["npm run (build|test)"]).toBe("allow");
+      expect(config.permission.bash["npm run (build|test) *"]).toBe("allow");
     });
   });
 });

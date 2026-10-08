@@ -10,6 +10,9 @@ import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import { fallbackLogger, type Logger } from "../../utils/logger.js";
+import { fromAntigravityCommandTarget } from "./antigravity-command-patterns.js";
+import { buildAntigravityPermissionEntry } from "./antigravity-targets.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { honorAllToolsOnBash } from "./shell-command-categories.js";
 import {
@@ -75,7 +78,7 @@ function toCanonicalCategory(ideAction: string): string {
 }
 
 /**
- * Parse an Antigravity entry like "command(npm run *)" into action and pattern.
+ * Parse an Antigravity entry like "command(npm run)" into action and pattern.
  * The action is everything before the first "(" and the pattern is everything
  * up to the final ")", so patterns containing parentheses (e.g.
  * "command(npm run (build|test))") round-trip. Entries without parentheses use
@@ -93,14 +96,6 @@ function parsePermissionEntry(entry: string): { action: string; pattern: string 
   }
   const pattern = entry.slice(parenIndex + 1, -1);
   return { action, pattern: pattern || "*" };
-}
-
-/** Build an Antigravity entry like "command(npm run *)"; a "*" pattern is bare. */
-function buildPermissionEntry(action: string, pattern: string): string {
-  if (pattern === "*") {
-    return action;
-  }
-  return `${action}(${pattern})`;
 }
 
 /**
@@ -150,6 +145,7 @@ export class AntigravityIdePermissions extends ToolPermissions {
   static async fromRulesyncPermissions({
     outputRoot = process.cwd(),
     rulesyncPermissions,
+    logger = fallbackLogger,
   }: ToolPermissionsFromRulesyncPermissionsParams): Promise<AntigravityIdePermissions> {
     const paths = AntigravityIdePermissions.getSettablePaths();
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
@@ -165,7 +161,7 @@ export class AntigravityIdePermissions extends ToolPermissions {
     }
 
     const config = rulesyncPermissions.getJson();
-    const { allow, ask, deny } = convertRulesyncToAntigravityIdePermissions(config);
+    const { allow, ask, deny } = convertRulesyncToAntigravityIdePermissions({ config, logger });
 
     // Tool actions managed by this permissions config (so existing entries for
     // other actions are preserved on regeneration).
@@ -245,7 +241,13 @@ export class AntigravityIdePermissions extends ToolPermissions {
 /**
  * Convert rulesync permissions config to Antigravity IDE allow/ask/deny arrays.
  */
-function convertRulesyncToAntigravityIdePermissions(config: PermissionsConfig): {
+function convertRulesyncToAntigravityIdePermissions({
+  config,
+  logger,
+}: {
+  config: PermissionsConfig;
+  logger: Logger;
+}): {
   allow: string[];
   ask: string[];
   deny: string[];
@@ -257,7 +259,17 @@ function convertRulesyncToAntigravityIdePermissions(config: PermissionsConfig): 
   for (const [category, rules] of Object.entries(honorAllToolsOnBash(config.permission))) {
     const action = toIdeAction(category);
     for (const [pattern, permissionAction] of Object.entries(rules)) {
-      const entry = buildPermissionEntry(action, pattern);
+      const entry = buildAntigravityPermissionEntry({
+        action,
+        category,
+        pattern,
+        decision: permissionAction,
+        logger,
+        toolLabel: "Antigravity IDE",
+      });
+      if (entry === undefined) {
+        continue;
+      }
       switch (permissionAction) {
         case "allow":
           allow.push(entry);
@@ -287,8 +299,10 @@ function convertAntigravityIdeToRulesyncPermissions(params: {
 
   const processEntries = (entries: string[], action: PermissionAction) => {
     for (const entry of entries) {
-      const { action: ideAction, pattern } = parsePermissionEntry(entry);
+      const { action: ideAction, pattern: target } = parsePermissionEntry(entry);
       const canonical = toCanonicalCategory(ideAction);
+      const pattern =
+        ideAction === "command" && target !== "*" ? fromAntigravityCommandTarget(target) : target;
       if (!permission[canonical]) {
         permission[canonical] = {};
       }
