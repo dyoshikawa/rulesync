@@ -332,6 +332,35 @@ describe("QwencodeHooks", () => {
       expect(canonical.hooks).toEqual(config.hooks);
     });
 
+    it("should write command hook timeouts in seconds, or in milliseconds from 1000 seconds up", async () => {
+      const rulesyncHooks = new RulesyncHooks(
+        createMockAiFileParams({
+          fileContent: JSON.stringify({
+            hooks: {
+              preToolUse: [
+                { command: "echo short", timeout: 30 },
+                { command: "echo edge", timeout: 999 },
+                { command: "echo long", timeout: 1800 },
+                { type: "http", url: "https://example.com/hook", timeout: 1800 },
+                { type: "prompt", prompt: "Check $ARGUMENTS", timeout: 1800 },
+              ],
+            },
+          }),
+        }),
+      );
+
+      const qwencodeHooks = await QwencodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: true,
+      });
+
+      const hooks = JSON.parse(qwencodeHooks.getFileContent()).hooks.PreToolUse[0].hooks;
+      expect(hooks.map((hook: { timeout?: number }) => hook.timeout)).toEqual([
+        30, 999, 1800000, 1800, 1800,
+      ]);
+    });
+
     it("should preserve the http hook type and its url", async () => {
       const rulesyncHooks = new RulesyncHooks(
         createMockAiFileParams({
@@ -598,7 +627,8 @@ describe("QwencodeHooks", () => {
       expect(parsed.hooks.preToolUse?.[0]).toEqual({
         type: "command",
         command: "echo pre",
-        timeout: 1000,
+        // Qwen Code reads a command hook timeout of 1000 or more as milliseconds.
+        timeout: 1,
         matcher: "Edit",
         name: "Pre Hook",
         description: "Runs before tool",
@@ -645,6 +675,48 @@ describe("QwencodeHooks", () => {
       expect(parsed.hooks.todoCreated?.[0]?.command).toBe("echo created");
       expect(parsed.hooks.todoCompleted?.[0]?.command).toBe("echo completed");
       expect(parsed.hooks.stopFailure?.[0]?.command).toBe("echo stop-failure");
+    });
+
+    it("should read command hook timeouts of 1000 or more as legacy milliseconds on import", () => {
+      const qwencodeHooks = new QwencodeHooks(
+        createMockAiFileParams({
+          fileContent: JSON.stringify({
+            hooks: {
+              PreToolUse: [
+                {
+                  hooks: [
+                    { type: "command", command: "echo short", timeout: 30 },
+                    { type: "command", command: "echo legacy", timeout: 10000 },
+                    { type: "http", url: "https://example.com/hook", timeout: 10000 },
+                  ],
+                },
+              ],
+            },
+          }),
+        }),
+      );
+
+      const parsed = qwencodeHooks.toRulesyncHooks().getJson();
+      expect(parsed.hooks.preToolUse?.map((hook) => hook.timeout)).toEqual([30, 10, 10000]);
+    });
+
+    it("should round-trip a command hook timeout of 1000 seconds or more", async () => {
+      const rulesyncHooks = new RulesyncHooks(
+        createMockAiFileParams({
+          fileContent: JSON.stringify({
+            hooks: { preToolUse: [{ command: "echo long", timeout: 1800 }] },
+          }),
+        }),
+      );
+
+      const qwencodeHooks = await QwencodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: true,
+      });
+
+      const parsed = qwencodeHooks.toRulesyncHooks().getJson();
+      expect(parsed.hooks.preToolUse?.[0]?.timeout).toBe(1800);
     });
 
     it("should preserve the http hook type and its url on import", () => {
