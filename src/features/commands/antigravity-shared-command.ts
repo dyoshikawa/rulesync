@@ -162,7 +162,7 @@ export class AntigravitySharedCommand extends ToolCommand {
         global,
       })
     ) {
-      return "a rulesync skill with the same name is emitted to the same skill directory and takes precedence";
+      return "a rulesync skill with the same name targets the same skill directory and takes precedence; rename one of them to keep both";
     }
     return null;
   }
