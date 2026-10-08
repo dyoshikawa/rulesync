@@ -89,6 +89,41 @@ describe("KiroSubagent", () => {
       ).not.toThrow();
     });
 
+    it.each([
+      ["legacy event-keyed object", { agentSpawn: [{ command: "git status" }] }],
+      ["V3 array", [{ name: "ctx", trigger: "SessionStart", action: { type: "command" } }]],
+      [
+        "V3 standalone-file wrapper",
+        { version: "v1", hooks: [{ name: "ctx", trigger: "SessionStart" }] },
+      ],
+    ])("should accept %s hooks", (_label, hooks) => {
+      expect(
+        () =>
+          new KiroSubagent({
+            outputRoot: testDir,
+            relativeDirPath: ".kiro/agents",
+            relativeFilePath: "hooks.json",
+            body: JSON.stringify({ name: "hooks", hooks }),
+            fileContent: "",
+            validate: true,
+          }),
+      ).not.toThrow();
+    });
+
+    it("should reject hooks that are neither an object nor an array", () => {
+      expect(
+        () =>
+          new KiroSubagent({
+            outputRoot: testDir,
+            relativeDirPath: ".kiro/agents",
+            relativeFilePath: "hooks.json",
+            body: JSON.stringify({ name: "hooks", hooks: "git status" }),
+            fileContent: "",
+            validate: true,
+          }),
+      ).toThrow(/Invalid JSON in/);
+    });
+
     it("should create instance with invalid JSON body when validate is false", () => {
       const subagent = new KiroSubagent({
         outputRoot: testDir,

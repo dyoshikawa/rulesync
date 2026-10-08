@@ -112,7 +112,9 @@ const ignoreProcessorGlobalToolTargets: ToolTarget[] = [
   // Kilo's global ignore file is the legacy `~/.kilocode/.kilocodeignore`.
   "kilo",
   "kiro",
-  "kiro-cli",
+  // Not `kiro-cli`: Kiro's docs mark the global `~/.kiro/settings/kiroignore`
+  // as IDE-only, so the CLI never reads it.
+  // https://kiro.dev/docs/kiroignore/
   "kiro-ide",
   "reasonix",
   "zed",
