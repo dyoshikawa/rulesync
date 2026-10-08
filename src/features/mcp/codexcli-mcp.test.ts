@@ -596,9 +596,9 @@ approval_mode = "approve"
       });
     });
 
-    it("merges authored codexcliTools over saved approvals per tool (#3318)", async () => {
-      // Saved approvals for tools the source does not name survive (#1709); a
-      // tool named in the source takes the authored entry.
+    it("merges authored codexcliTools over saved approvals field by field (#3318)", async () => {
+      // Saved approvals for tools and fields the source does not name survive
+      // (#1709); an authored field wins.
       const existingToml = `[mcp_servers.srv]
 command = "node"
 
@@ -606,6 +606,9 @@ command = "node"
 approval_mode = "approve"
 
 [mcp_servers.srv.tools.both]
+approval_mode = "approve"
+
+[mcp_servers.srv.tools.limit_only]
 approval_mode = "approve"
 `;
       await ensureDir(join(testDir, ".codex"));
@@ -621,6 +624,7 @@ approval_mode = "approve"
               codexcliTools: {
                 both: { approval_mode: "prompt" },
                 authored_only: { approval_mode: "writes" },
+                limit_only: { output_token_limit: 2000 },
               },
             },
           },
@@ -634,7 +638,38 @@ approval_mode = "approve"
         saved_only: { approval_mode: "approve" },
         both: { approval_mode: "prompt" },
         authored_only: { approval_mode: "writes" },
+        limit_only: { approval_mode: "approve", output_token_limit: 2000 },
       });
+      expect(codexcliMcp.getFileContent()).toContain("output_token_limit = 2000");
+    });
+
+    it("drops malformed codexcliTools entries and a canonical tools array on generate (#3318)", async () => {
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            srv: {
+              command: "node",
+              tools: ["allowlisted"],
+              codexcliTools: {
+                good: { approval_mode: "approve" },
+                bad: { approval_mode: "always" },
+              },
+            },
+          },
+        }),
+      });
+
+      const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+
+      const servers = codexcliMcp.getToml().mcp_servers as Record<string, Record<string, unknown>>;
+      expect(servers.srv?.tools).toEqual({ good: { approval_mode: "approve" } });
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("'codexcliTools.bad'"));
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("'codexcliTools' for per-tool approval modes"),
+      );
     });
 
     it("round-trips codexcliTools through import and generate (#3318)", async () => {

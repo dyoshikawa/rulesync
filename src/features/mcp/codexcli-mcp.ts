@@ -59,7 +59,7 @@ const MAX_REMOVE_EMPTY_ENTRIES_DEPTH = 32;
  * drop because Codex infers the transport from `command` versus `url`.
  * `tools` is handled separately: it is fatal rather than inert.
  * `codexcliTools` is handled separately too: it becomes Codex's `tools` table.
- * @see https://github.com/openai/codex/blob/rust-v0.146.1/codex-rs/config/src/mcp_types.rs
+ * @see https://github.com/openai/codex/blob/rust-v0.161.0/codex-rs/config/src/mcp_types.rs
  */
 const CODEX_UNSUPPORTED_CANONICAL_KEYS = new Set([
   "type",
@@ -731,7 +731,7 @@ export class CodexcliMcp extends ToolMcp {
             ...(isRecord(rawServer) && typeof rawServer.experimentalEnvironment === "string"
               ? { experimentalEnvironment: rawServer.experimentalEnvironment }
               : {}),
-            ...(isRecord(rawServer) && isPlainObject(rawServer.codexcliTools)
+            ...(isRecord(rawServer) && rawServer.codexcliTools !== undefined
               ? { codexcliTools: rawServer.codexcliTools }
               : {}),
           },
@@ -755,10 +755,12 @@ export class CodexcliMcp extends ToolMcp {
     // an MCP tool. Without re-merging it here a regenerate would wipe the
     // user's saved approvals and re-introduce approval prompts (#1709). It is
     // the only user/CLI-written nested state Codex persists under a server.
-    // The table authored through `codexcliTools` is merged over it per tool:
-    // an authored tool's entry replaces the saved one, and every other saved
-    // tool is kept. Additive like the Kiro lists, because the CLI-written and
-    // the authored entries are the same concept and both are meant to apply.
+    // The table authored through `codexcliTools` is merged over it field by
+    // field: an authored field wins, and every saved tool and saved field the
+    // source does not name is kept — so authoring only `output_token_limit`
+    // for a tool does not wipe the `approval_mode` Codex saved for it.
+    // Additive like the Kiro lists, because the CLI-written and the authored
+    // entries are the same concept and both are meant to apply.
     const existingMcpServers = isRecord(configToml["mcp_servers"]) ? configToml["mcp_servers"] : {};
     const mergedMcpServers = Object.fromEntries(
       Object.entries(filteredMcpServers).map(([name, serverConfig]) => {
@@ -767,14 +769,16 @@ export class CodexcliMcp extends ToolMcp {
           : undefined;
         const serverRecord = serverConfig as Record<string, unknown>;
         if (existingServer && isPlainObject(existingServer["tools"])) {
+          const tools = omitPrototypePollutionKeys(existingServer["tools"]);
           const authoredTools = isPlainObject(serverRecord["tools"]) ? serverRecord["tools"] : {};
-          return [
-            name,
-            {
-              ...serverRecord,
-              tools: { ...omitPrototypePollutionKeys(existingServer["tools"]), ...authoredTools },
-            },
-          ];
+          for (const [toolName, authored] of Object.entries(authoredTools)) {
+            const saved = tools[toolName];
+            tools[toolName] =
+              isPlainObject(saved) && isPlainObject(authored)
+                ? { ...omitPrototypePollutionKeys(saved), ...authored }
+                : authored;
+          }
+          return [name, { ...serverRecord, tools }];
         }
         return [name, serverConfig];
       }),
