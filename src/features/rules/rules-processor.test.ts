@@ -208,6 +208,35 @@ describe("RulesProcessor", () => {
         expect(await readFileContent(join(testDir, "WARP.md"))).toBe("# Legacy");
       });
 
+      it("should warn that a WARP.md shadows a generated nested AGENTS.md", async () => {
+        // The precedence is per directory, so it applies to each nested
+        // `<subprojectPath>/AGENTS.md` as much as to the root file.
+        await writeFileContent(join(testDir, "packages", "api", "WARP.md"), "# Legacy");
+        const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "warp" });
+
+        await processor.convertRulesyncFilesToToolFiles([
+          ...warpRules(),
+          new RulesyncRule({
+            outputRoot: testDir,
+            relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+            relativeFilePath: "api.md",
+            frontmatter: { targets: ["*"], agentsmd: { subprojectPath: "packages/api" } },
+            body: "API rules",
+          }),
+        ]);
+
+        const warning = findWarning();
+        expect(warning).toBeDefined();
+        expect(warning).toContain(
+          `${join("packages", "api", "WARP.md")} exists next to ${join("packages", "api", "AGENTS.md")}`,
+        );
+        expect(
+          logger.warn.mock.calls.filter(([message]) =>
+            String(message).includes("Warp reads WARP.md"),
+          ),
+        ).toHaveLength(1);
+      });
+
       it("should not warn when no WARP.md exists", async () => {
         const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "warp" });
 
@@ -260,6 +289,44 @@ describe("RulesProcessor", () => {
 
         expect(findWarning()).toBeUndefined();
       });
+    });
+
+    it("should emit a Warp directory-scoped rule as a nested AGENTS.md without a reference list in the root", async () => {
+      // Warp loads the subdirectory's AGENTS.md itself, and folds topic rules
+      // into the root file. https://docs.warp.dev/agents/capabilities/rules/
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "warp" });
+
+      const result = await processor.convertRulesyncFilesToToolFiles([
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "overview.md",
+          frontmatter: { targets: ["*"], root: true },
+          body: "Project rules",
+        }),
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "style.md",
+          frontmatter: { targets: ["*"] },
+          body: "Style guide",
+        }),
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "api.md",
+          frontmatter: { targets: ["*"], agentsmd: { subprojectPath: "packages/api" } },
+          body: "API rules",
+        }),
+      ]);
+
+      const paths = result.map((file) =>
+        join(file.getRelativeDirPath(), file.getRelativeFilePath()),
+      );
+      expect(paths).toEqual(["AGENTS.md", join("packages", "api", "AGENTS.md")]);
+      expect(result[0]?.getFileContent()).toContain("Style guide");
+      expect(result[0]?.getFileContent()).not.toContain("TOON format");
+      expect(result[1]?.getFileContent()).toBe("API rules");
     });
 
     it("should emit a localRoot rule to .qwen/QWEN.local.md for qwencode", async () => {

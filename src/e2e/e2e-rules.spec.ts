@@ -1914,6 +1914,35 @@ This is a test project for E2E testing.
     );
   });
 
+  // Warp applies the root `AGENTS.md` plus the current subdirectory's one.
+  // https://docs.warp.dev/agents/capabilities/rules/
+  it("should import nested warp rules and round-trip their subproject scope", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(join(testDir, "AGENTS.md"), "# Project Overview\n");
+    await writeFileContent(join(testDir, "packages", "api", "AGENTS.md"), "# API Instructions\n");
+    await writeFileContent(join(testDir, "node_modules", "dep", "AGENTS.md"), "# Vendored\n");
+
+    await runImport({ target: "warp", features: "rules" });
+
+    const importedNested = await readFileContent(
+      join(testDir, ".rulesync", "rules", "packages-api.md"),
+    );
+    expect(importedNested).toContain("API Instructions");
+    expect(importedNested).toContain("subprojectPath: packages/api");
+    expect(await fileExists(join(testDir, ".rulesync", "rules", "node_modules-dep.md"))).toBe(
+      false,
+    );
+
+    await removeFile(join(testDir, "packages", "api", "AGENTS.md"));
+    await runGenerate({ target: "warp", features: "rules" });
+
+    expect(await readFileContent(join(testDir, "packages", "api", "AGENTS.md"))).toContain(
+      "API Instructions",
+    );
+    expect(await readFileContent(join(testDir, "AGENTS.md"))).not.toContain("API Instructions");
+  });
+
   // Trae reads a `.trae/rules/` folder in any project subdirectory.
   // https://docs.trae.ai/ide/rules?_lang=en
   it("should import nested trae rules and round-trip their subproject scope", async () => {
