@@ -1229,9 +1229,10 @@ const CodexcliPermissionsOverrideSchema = z.looseObject({
 export type CodexcliPermissionsOverride = z.infer<typeof CodexcliPermissionsOverrideSchema>;
 
 /**
- * Tool-scoped override block for Zed. Two Zed surfaces sit outside the canonical
- * allow/ask/deny model that `agent.tool_permissions` implements, and both are
- * authored here verbatim:
+ * Tool-scoped override block for Zed. These Zed `agent` keys sit outside the
+ * canonical allow/ask/deny model that `agent.tool_permissions` implements, and
+ * are authored here verbatim (global scope only — Zed reads no `agent` key from
+ * a project `.zed/settings.json`):
  *
  * - `sandbox_permissions` — the OS-level agent sandbox, on by default since Zed
  *   1.14.2 for the `terminal` and `fetch` tools. Its defaults forbid network
@@ -1249,17 +1250,23 @@ export type CodexcliPermissionsOverride = z.infer<typeof CodexcliPermissionsOver
  *   (per-tool booleans), `enable_all_context_servers`, `context_servers` and
  *   `default_model`. Like Kimi Code's `tools.enabled`/`disabled` block this is a
  *   verbatim passthrough — no canonicalization is attempted.
+ * - `default_profile` — the profile id the agent starts in (Zed's default is
+ *   `write`), so an authored profile can be selected rather than picked by hand
+ *   in the IDE. Zed rewrites this key itself when the profile is switched in
+ *   the agent panel.
  *
- * Neither surface can weaken a canonical deny, because `agent.tool_permissions`
- * is off-limits to this override: the translator consumes only the two keys
- * above by name and rejects a `tool_permissions` key with a warning.
+ * None of these surfaces can weaken a canonical deny, because
+ * `agent.tool_permissions` is off-limits to this override: the translator
+ * consumes only the keys above by name and rejects a `tool_permissions` key
+ * with a warning.
  *
  * @see https://zed.dev/docs/ai/sandboxing
  * @see https://zed.dev/docs/ai/agent-profiles
  *
  * @example
  * { "sandbox_permissions": { "network_hosts": ["*.github.com"], "write_paths": ["/tmp"] },
- *   "profiles": { "review": { "name": "Review", "tools": { "terminal": false } } } }
+ *   "profiles": { "review": { "name": "Review", "tools": { "terminal": false } } },
+ *   "default_profile": "review" }
  */
 const ZedPermissionsOverrideSchema = z.looseObject({
   permission: z.optional(ToolScopedPermissionSchema),
@@ -1278,6 +1285,8 @@ const ZedPermissionsOverrideSchema = z.looseObject({
       }),
     ),
   ),
+  // `AgentSettingsContent.default_profile` in Zed's `crates/settings_content/src/agent.rs`
+  default_profile: z.optional(z.string()),
 });
 export type ZedPermissionsOverride = z.infer<typeof ZedPermissionsOverrideSchema>;
 
