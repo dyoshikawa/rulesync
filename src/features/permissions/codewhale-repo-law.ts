@@ -152,7 +152,8 @@ function toRepoLawPaths(glob: string): string[] | null {
   }
   const paths = new Set<string>();
   for (const path of expanded) {
-    const normalized = normalizeSegments(path);
+    // A trailing `/` inside a brace group names a directory too.
+    const normalized = normalizeSegments(path.endsWith("/") ? `${path}**` : path);
     if (normalized === null) return null;
     if (normalized !== "") paths.add(normalized);
   }
@@ -279,7 +280,12 @@ export function parseCodewhaleConstitution({
     throw new Error(`Existing Codewhale constitution at ${filePath} is not a JSON object.`);
   }
   // Codewhale cannot read such a file, and merging would overwrite the value.
-  if (parsed.protected_invariants !== undefined && !Array.isArray(parsed.protected_invariants)) {
+  // `null` reads as an absent list (`Option<Vec<_>>`).
+  if (
+    parsed.protected_invariants !== undefined &&
+    parsed.protected_invariants !== null &&
+    !Array.isArray(parsed.protected_invariants)
+  ) {
     throw new Error(
       `Existing Codewhale constitution at ${filePath} has a "protected_invariants" that is not an array.`,
     );
@@ -291,7 +297,7 @@ export function parseCodewhaleConstitution({
  * Merge the canonical write restrictions into an existing constitution. Every
  * other key and every invariant rulesync did not write is kept; the invariants
  * rulesync wrote earlier are replaced. A restriction a hand-written invariant
- * already holds with the same action is not repeated.
+ * already holds with the same path spelling and action is not repeated.
  */
 export function mergeCodewhaleConstitution({
   existing,
@@ -308,13 +314,13 @@ export function mergeCodewhaleConstitution({
     ? existing.protected_invariants
     : [];
   const keptInvariants = existingInvariants.filter((entry) => !isManagedInvariant(entry));
+  // Codewhale only trims a hand-written pattern, so `./a` never matches the
+  // normalized target `a` and must not count as holding it.
   const heldByHand = new Set(
     keptInvariants.flatMap((entry) => {
       const enforced = toEnforcedInvariant(entry);
       return enforced
-        ? enforced.paths.map((path) =>
-            JSON.stringify([normalizeSegments(path.trim()) ?? path, enforced.action]),
-          )
+        ? enforced.paths.map((path) => JSON.stringify([path.trim(), enforced.action]))
         : [];
     }),
   );

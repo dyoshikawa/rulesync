@@ -100,6 +100,16 @@ describe("CodewhalePermissions (project scope: .codewhale/constitution.json)", (
     ]);
   });
 
+  it("treats a trailing / inside a brace group as a directory", async () => {
+    const document = await generate({
+      permission: { write: { "{secrets/,config.json}": "deny" } },
+    });
+
+    expect(document.protected_invariants).toEqual([
+      expect.objectContaining({ paths: ["secrets/**", "config.json"], action: "block" }),
+    ]);
+  });
+
   it("widens classes to ? and normalizes segments the way Codewhale normalizes targets", async () => {
     const document = await generate({
       permission: {
@@ -114,16 +124,44 @@ describe("CodewhalePermissions (project scope: .codewhale/constitution.json)", (
     ]);
   });
 
-  it("does not repeat a restriction a hand-written ./ path already holds", async () => {
+  it("does not repeat a restriction a hand-written path already holds with the same spelling", async () => {
     await writeFileContent(
       constitutionPath(),
       JSON.stringify({
-        protected_invariants: [{ text: "Review.", paths: ["./CHANGELOG.md"], action: "ask" }],
+        protected_invariants: [{ text: "Review.", paths: ["CHANGELOG.md"], action: "ask" }],
       }),
     );
 
-    expect(await generate({ permission: { write: { "CHANGELOG.md": "ask" } } })).toEqual({
-      protected_invariants: [{ text: "Review.", paths: ["./CHANGELOG.md"], action: "ask" }],
+    expect(await generate({ permission: { write: { "./CHANGELOG.md": "ask" } } })).toEqual({
+      protected_invariants: [{ text: "Review.", paths: ["CHANGELOG.md"], action: "ask" }],
+    });
+  });
+
+  it("still writes a hold a hand-written ./ path cannot enforce, since Codewhale does not normalize it", async () => {
+    const handWritten = { text: "Review.", paths: ["./.env"], action: "block" };
+    await writeFileContent(
+      constitutionPath(),
+      JSON.stringify({ protected_invariants: [handWritten] }),
+    );
+
+    expect(await generate({ permission: { write: { ".env": "deny" } } })).toEqual({
+      protected_invariants: [
+        handWritten,
+        {
+          text: "rulesync permissions: writes to .env are denied",
+          paths: [".env"],
+          action: "block",
+          managed_by: "rulesync",
+        },
+      ],
+    });
+  });
+
+  it("treats a null protected_invariants as absent, as Codewhale does", async () => {
+    await writeFileContent(constitutionPath(), JSON.stringify({ protected_invariants: null }));
+
+    expect(await generate({ permission: { write: { "dist/**": "deny" } } })).toEqual({
+      protected_invariants: [expect.objectContaining({ paths: ["dist/**"], action: "block" })],
     });
   });
 
