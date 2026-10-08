@@ -422,7 +422,8 @@ export type QwencodePermissionsOverride = z.infer<typeof QwencodePermissionsOver
  * - `autoApprove`: the top-level `autoApprove` settings, e.g.
  *   `{ "skills": true }`, merged over the existing object.
  *
- * Each authored key replaces the one in the settings file; keys left out are
+ * An authored `approval` key replaces the one in the settings file, and the
+ * `autoApprove` toggles are merged over the existing object; keys left out are
  * preserved as the user left them. Import lifts them back into this block.
  * Group IDs and `autoApprove` toggle names are not restricted to the
  * documented ones so a later Bob addition still round-trips; an undocumented

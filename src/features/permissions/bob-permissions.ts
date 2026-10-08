@@ -288,7 +288,7 @@ function warnAboutNewAutoApprovals({
     ? settings[AUTO_APPROVE_KEY]
     : {};
 
-  const added = [
+  const added = new Set([
     ...(override?.approval?.allowed_permissions ?? [])
       .filter((group) => !existingGroups.has(group))
       .map((group) => `the ${quoteValueForWarning(group)} group`),
@@ -300,13 +300,13 @@ function warnAboutNewAutoApprovals({
     ...Object.entries(override?.autoApprove ?? {})
       .filter(([key, value]) => value === true && existingAutoApprove[key] !== true)
       .map(([key]) => quoteValueForWarning(`${AUTO_APPROVE_KEY}.${key}`)),
-  ];
-  if (added.length === 0) {
+  ]);
+  if (added.size === 0) {
     return;
   }
   warnWithFallback(
     logger,
-    `${TOOL_LABEL} permissions: the bob override now auto-approves ${added.join(", ")} in ` +
+    `${TOOL_LABEL} permissions: the bob override now auto-approves ${[...added].join(", ")} in ` +
       `${filePath}, Bob's user settings, so this applies to every project on this machine. ` +
       `Check it if .rulesync/permissions.jsonc arrived with a repository you cloned.`,
   );
