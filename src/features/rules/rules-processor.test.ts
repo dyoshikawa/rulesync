@@ -2134,6 +2134,42 @@ describe("RulesProcessor", () => {
   });
 
   describe("loadToolFiles with forDeletion: true", () => {
+    it.skipIf(process.platform === "win32").each([false, true])(
+      "should not follow linked non-root rule directories for deletion (global: %s)",
+      async (global) => {
+        const { testDir: outputRoot, cleanup: cleanupOutputRoot } = await setupTestDirectory({
+          home: global,
+        });
+        try {
+          const rulesDir = join(outputRoot, ".claude", "rules");
+          const sharedDir = join(outputRoot, "shared", "rules");
+          await writeFileContent(join(sharedDir, "shared.md"), "# Shared Rule");
+          await writeFileContent(join(rulesDir, "nested", "local.md"), "# Local Rule");
+          await symlink(sharedDir, join(rulesDir, "linked"), "dir");
+
+          const processor = new RulesProcessor({
+            logger,
+            outputRoot,
+            toolTarget: "claudecode",
+            global,
+          });
+
+          const imported = await processor.loadToolFiles();
+          expect(imported.map((file) => file.getRelativeFilePath()).toSorted()).toEqual([
+            join("linked", "shared.md"),
+            join("nested", "local.md"),
+          ]);
+
+          const filesToDelete = await processor.loadToolFiles({ forDeletion: true });
+          expect(filesToDelete.map((file) => file.getRelativeFilePath())).toEqual([
+            join("nested", "local.md"),
+          ]);
+        } finally {
+          await cleanupOutputRoot();
+        }
+      },
+    );
+
     it("should return nested non-root files for deletion", async () => {
       await ensureDir(join(testDir, ".cursor", "rules", "frontend"));
       await writeFileContent(
