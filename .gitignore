@@ -468,6 +468,7 @@ rulesync.local.jsonc
 **/.kiro/settings/mcp.json
 **/.junie/mcp/mcp.json
 **/.omp/mcp.json
+**/.pi/mcp.json
 **/.qwen/settings.json
 **/.roo/mcp.json
 **/.trae/mcp.json

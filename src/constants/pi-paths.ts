@@ -23,6 +23,10 @@ export const PI_HOOKS_FILE_NAME = "rulesync-hooks.ts";
 // https://pi.dev/docs/latest/settings
 export const PI_SETTINGS_FILE_NAME = "settings.json";
 export const PI_AGENT_DIR_PATH = PI_AGENT_DIR;
+// Pi's built-in MCP config: `.pi/mcp.json` (project, read only once the
+// project is trusted) and `~/.pi/agent/mcp.json` (global).
+// https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/mcp.md
+export const PI_MCP_FILE_NAME = "mcp.json";
 
 /**
  * Directory layout shared by Pi and its forks (oh-my-pi reads the same

@@ -46,6 +46,7 @@ import { MimocodeMcp } from "./mimocode-mcp.js";
 import { MusecodeMcp } from "./musecode-mcp.js";
 import { OmpMcp } from "./omp-mcp.js";
 import { OpencodeMcp } from "./opencode-mcp.js";
+import { PiMcp } from "./pi-mcp.js";
 import { PoolMcp } from "./pool-mcp.js";
 import { QoderMcp } from "./qoder-mcp.js";
 import { QwencodeMcp } from "./qwencode-mcp.js";
@@ -698,6 +699,22 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
         supportsGlobal: true,
         supportsEnabledTools: true,
         supportsDisabledTools: true,
+      },
+    },
+  ],
+  [
+    "pi",
+    {
+      // Pi 1.0+ reads `mcpServers` from `.pi/mcp.json` (project, once trusted)
+      // and `~/.pi/agent/mcp.json` (global); there are no per-server tool
+      // allow/deny lists (`toolExposure` is a different model).
+      // https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/mcp.md
+      class: PiMcp,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
       },
     },
   ],
