@@ -115,6 +115,27 @@ const CodewhalePermissionsOverrideSchema = z.looseObject({
 });
 export type CodewhalePermissionsOverride = z.infer<typeof CodewhalePermissionsOverrideSchema>;
 
+/**
+ * The starting permission level VS Code Copilot Chat gives new chat sessions
+ * (`chat.permissions.default`). Values are VS Code's own: `default` (Default
+ * Permissions), `autoApprove` (Bypass Approvals) and `autopilot` (Autopilot).
+ *
+ * @see https://code.visualstudio.com/docs/agents/reference/ai-settings
+ */
+export const COPILOT_DEFAULT_PERMISSION_MODES = ["default", "autoApprove", "autopilot"] as const;
+export type CopilotDefaultPermissionMode = (typeof COPILOT_DEFAULT_PERMISSION_MODES)[number];
+
+/**
+ * Tool-scoped override block for GitHub Copilot in VS Code.
+ * `defaultPermissionMode` writes the workspace `chat.permissions.default`
+ * setting, which has no canonical category.
+ */
+const CopilotPermissionsOverrideSchema = z.looseObject({
+  permission: z.optional(ToolScopedPermissionSchema),
+  defaultPermissionMode: z.optional(z.enum(COPILOT_DEFAULT_PERMISSION_MODES)),
+});
+export type CopilotPermissionsOverride = z.infer<typeof CopilotPermissionsOverrideSchema>;
+
 const KimiCodePermissionsOverrideSchema = z.looseObject({
   permission: z.optional(ToolScopedPermissionSchema),
   defaultPermissionMode: z.optional(z.enum(["manual", "yolo", "auto"])),
@@ -1379,7 +1400,7 @@ export const PermissionsConfigSchema = z.looseObject({
   // tool-scoped `permission` block (see ToolScopedPermissionSchema).
   "antigravity-ide": z.optional(CanonicalPermissionsOverrideSchema),
   continue: z.optional(CanonicalPermissionsOverrideSchema),
-  copilot: z.optional(CanonicalPermissionsOverrideSchema),
+  copilot: z.optional(CopilotPermissionsOverrideSchema),
   codebuddy: z.optional(CanonicalPermissionsOverrideSchema),
   commandcode: z.optional(CanonicalPermissionsOverrideSchema),
   lettacode: z.optional(CanonicalPermissionsOverrideSchema),
