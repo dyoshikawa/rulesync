@@ -82,8 +82,8 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 
 ## Hermes Agent compatibility
 
-The `hermesagent` target is validated against Hermes Agent v0.21.3 (release
-`v2026.9.14`). The supported contract covers project rules, ignore patterns,
+The `hermesagent` target is validated against Hermes Agent v0.21.6 (release
+`v0.21.6`). The supported contract covers project rules, ignore patterns,
 subagents, and checks, plus global MCP servers, commands, subagents, skills,
 hooks, and permissions. Generation, `--check`, and import round-trips are
 covered for both advertised scopes.
