@@ -54,42 +54,124 @@ function toRepoLawAction(action: PermissionAction): RepoLawAction {
   return action === "deny" ? "block" : "ask";
 }
 
+/** More alternatives than this from one `{a,b}` pattern are not expanded. */
+const MAX_BRACE_EXPANSIONS = 64;
+
+/** Every `[...]` class of a pattern, which widens to the single-character `?`. */
+const CHARACTER_CLASS = /\[[!^]?\]?[^\]]*\]/g;
+
 /**
- * Codewhale compiles `paths` with `globset`, and a glob it cannot compile makes
- * it hold every write. Only the syntax that always compiles is passed through:
- * `*`, `?`, `**` and balanced `{a,b}` alternates. A `[...]` class or a `\`
- * escape is rejected rather than risk an invalid one.
- *
- * @see https://github.com/BurntSushi/ripgrep/blob/globset-0.4.20/crates/globset/src/glob.rs
+ * Codewhale strips the workspace prefix and the empty and `.` segments from
+ * each write target, so a pattern is compared in the same shape. `null` when a
+ * `..` segment points outside the workspace.
  */
-function isCompilableGlob(pattern: string): boolean {
-  if (/[[\]\\]/.test(pattern)) {
-    return false;
+function normalizeSegments(path: string): string | null {
+  const segments = path.split("/").filter((segment) => segment !== "" && segment !== ".");
+  return segments.includes("..") ? null : segments.join("/");
+}
+
+/**
+ * Expand `{a,b}` groups (nested ones included) into separate paths, so an
+ * empty alternative keeps its meaning: `globset`, which Codewhale compiles
+ * `paths` with, drops empty alternatives (`.env{,.local}` would not match
+ * `.env`). `null` when the braces do not balance or expand to too many paths.
+ */
+function expandBraces(pattern: string): string[] | null {
+  const open = pattern.indexOf("{");
+  if (open < 0) {
+    return pattern.includes("}") ? null : [pattern];
+  }
+  if (pattern.slice(0, open).includes("}")) {
+    return null;
   }
   let depth = 0;
-  for (const character of pattern) {
-    if (character === "{") depth += 1;
-    if (character === "}") depth -= 1;
-    if (depth < 0) return false;
+  let segmentStart = open + 1;
+  const alternatives: string[] = [];
+  for (let index = open; index < pattern.length; index += 1) {
+    const character = pattern[index];
+    if (character === "{") {
+      depth += 1;
+    } else if (character === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        alternatives.push(pattern.slice(segmentStart, index));
+        const prefix = pattern.slice(0, open);
+        const suffix = pattern.slice(index + 1);
+        const expanded: string[] = [];
+        for (const alternative of alternatives) {
+          const paths = expandBraces(`${prefix}${alternative}${suffix}`);
+          if (paths === null) return null;
+          expanded.push(...paths);
+          if (expanded.length > MAX_BRACE_EXPANSIONS) return null;
+        }
+        return expanded;
+      }
+    } else if (character === "," && depth === 1) {
+      alternatives.push(pattern.slice(segmentStart, index));
+      segmentStart = index + 1;
+    }
   }
-  return depth === 0;
+  return null;
 }
 
 /**
  * The workspace-relative glob Codewhale matches a write target against, or
- * `null` when the pattern cannot be written. Codewhale strips the workspace
- * prefix and `.` segments from each target, so a leading `./` is dropped; an
- * absolute, home-relative or `..` pattern names nothing inside the workspace.
+ * `null` when the pattern cannot be written. A glob Codewhale cannot compile
+ * makes it hold every write, so only `*`, `?` and `**` reach the file: a
+ * `[...]` class widens to `?` (a restriction may only grow), `{a,b}` groups
+ * are expanded by {@link toRepoLawPaths}, and a `\` escape or a control
+ * character is rejected. A trailing `/` names a directory and becomes `/**`.
+ * An absolute, home-relative or `..` pattern names nothing inside the
+ * workspace.
+ *
+ * @see https://github.com/BurntSushi/ripgrep/blob/globset-0.4.20/crates/globset/src/glob.rs
+ * @see https://github.com/Hmbown/Codewhale/blob/main/crates/tui/src/repo_law.rs (`push_normalized`)
  */
 function toRepoLawGlob(pattern: string): string | null {
-  const trimmed = pattern.trim().replace(/^(\.\/)+/, "");
-  if (trimmed === "" || trimmed.startsWith("/") || trimmed.startsWith("~")) {
+  const trimmed = pattern.trim();
+  // oxlint-disable-next-line no-control-regex -- control characters are rejected on purpose
+  if (/[\\\u0000-\u001f\u007f]/.test(trimmed) || /^(?:\/|~|[A-Za-z]:)/.test(trimmed)) {
     return null;
   }
-  if (trimmed.split("/").includes("..") || !isCompilableGlob(trimmed)) {
+  const widened = trimmed.replace(CHARACTER_CLASS, "?");
+  if (/[[\]]/.test(widened)) {
     return null;
   }
-  return trimmed;
+  const normalized = normalizeSegments(widened.endsWith("/") ? `${widened}**` : widened);
+  if (normalized === null || normalized === "" || toRepoLawPaths(normalized) === null) {
+    return null;
+  }
+  return normalized;
+}
+
+/** The brace-free paths of a glob from {@link toRepoLawGlob}. */
+function toRepoLawPaths(glob: string): string[] | null {
+  const expanded = expandBraces(glob);
+  if (expanded === null) {
+    return null;
+  }
+  const paths = new Set<string>();
+  for (const path of expanded) {
+    const normalized = normalizeSegments(path);
+    if (normalized === null) return null;
+    if (normalized !== "") paths.add(normalized);
+  }
+  return paths.size > 0 ? [...paths] : null;
+}
+
+/** Keep the stronger of an existing and a new action for one key. */
+function setStrongest(
+  restrictions: Map<string, PermissionAction>,
+  key: string,
+  action: PermissionAction,
+): void {
+  const current = restrictions.get(key);
+  if (
+    current === undefined ||
+    PERMISSION_ACTION_PRIORITY[action] > PERMISSION_ACTION_PRIORITY[current]
+  ) {
+    restrictions.set(key, action);
+  }
 }
 
 function invariantText({ glob, action }: { glob: string; action: RepoLawAction }): string {
@@ -122,17 +204,11 @@ function collectRestrictions({
       const glob = toRepoLawGlob(pattern);
       if (glob === null) {
         logger?.warn(
-          `Codewhale permissions: skipping "${category}" pattern "${pattern}"; .codewhale/constitution.json holds only workspace-relative globs built from "*", "?", "**" and "{a,b}".`,
+          `Codewhale permissions: skipping "${category}" pattern "${pattern}"; .codewhale/constitution.json holds only workspace-relative globs without "\\" escapes, built from "*", "?", "**", "[...]" and "{a,b}".`,
         );
         continue;
       }
-      const current = restrictions.get(glob);
-      if (
-        current === undefined ||
-        PERMISSION_ACTION_PRIORITY[action] > PERMISSION_ACTION_PRIORITY[current]
-      ) {
-        restrictions.set(glob, action);
-      }
+      setStrongest(restrictions, glob, action);
     }
   }
   if (skippedCategories.length > 0) {
@@ -166,7 +242,9 @@ function toEnforcedInvariant(entry: unknown): EnforcedInvariant | null {
   if (!isPlainObject(entry) || typeof entry.text !== "string" || entry.text.trim() === "") {
     return null;
   }
-  const action = entry.action ?? "ask";
+  // A key Codewhale reads with `#[serde(default)]` defaults only when it is
+  // absent; an explicit `null` fails to parse the whole file.
+  const action = Object.hasOwn(entry, "action") ? entry.action : "ask";
   if ((action !== "ask" && action !== "block") || !Array.isArray(entry.paths)) {
     return null;
   }
@@ -200,6 +278,12 @@ export function parseCodewhaleConstitution({
   if (!isPlainObject(parsed)) {
     throw new Error(`Existing Codewhale constitution at ${filePath} is not a JSON object.`);
   }
+  // Codewhale cannot read such a file, and merging would overwrite the value.
+  if (parsed.protected_invariants !== undefined && !Array.isArray(parsed.protected_invariants)) {
+    throw new Error(
+      `Existing Codewhale constitution at ${filePath} has a "protected_invariants" that is not an array.`,
+    );
+  }
   return parsed;
 }
 
@@ -219,6 +303,7 @@ export function mergeCodewhaleConstitution({
   logger?: Logger;
 }): Record<string, unknown> {
   const restrictions = collectRestrictions({ config, logger });
+  // `parseCodewhaleConstitution` rejects a value that is not an array.
   const existingInvariants = Array.isArray(existing.protected_invariants)
     ? existing.protected_invariants
     : [];
@@ -226,17 +311,23 @@ export function mergeCodewhaleConstitution({
   const heldByHand = new Set(
     keptInvariants.flatMap((entry) => {
       const enforced = toEnforcedInvariant(entry);
-      return enforced ? enforced.paths.map((path) => JSON.stringify([path, enforced.action])) : [];
+      return enforced
+        ? enforced.paths.map((path) =>
+            JSON.stringify([normalizeSegments(path.trim()) ?? path, enforced.action]),
+          )
+        : [];
     }),
   );
 
   const managed: ManagedInvariant[] = [];
   for (const [glob, permissionAction] of restrictions) {
     const action = toRepoLawAction(permissionAction);
-    if (heldByHand.has(JSON.stringify([glob, action]))) continue;
+    // `toRepoLawGlob` already checked that the glob expands.
+    const paths = toRepoLawPaths(glob) ?? [];
+    if (paths.every((path) => heldByHand.has(JSON.stringify([path, action])))) continue;
     managed.push({
       text: invariantText({ glob, action }),
-      paths: [glob],
+      paths,
       action,
       [MANAGED_BY_KEY]: MANAGED_BY_VALUE,
     });
@@ -273,13 +364,7 @@ export function codewhaleConstitutionToCanonical(
     if (!enforced) continue;
     const action: PermissionAction = enforced.action === "block" ? "deny" : "ask";
     for (const path of enforced.paths) {
-      const current = restrictions.get(path);
-      if (
-        current === undefined ||
-        PERMISSION_ACTION_PRIORITY[action] > PERMISSION_ACTION_PRIORITY[current]
-      ) {
-        restrictions.set(path, action);
-      }
+      setStrongest(restrictions, path, action);
     }
   }
   if (restrictions.size === 0) {

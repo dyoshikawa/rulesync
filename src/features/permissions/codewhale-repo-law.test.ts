@@ -73,7 +73,7 @@ describe("CodewhalePermissions (project scope: .codewhale/constitution.json)", (
         },
         {
           text: "rulesync permissions: writes to docs/{a,b}/*.md need approval",
-          paths: ["docs/{a,b}/*.md"],
+          paths: ["docs/a/*.md", "docs/b/*.md"],
           action: "ask",
           managed_by: "rulesync",
         },
@@ -89,6 +89,52 @@ describe("CodewhalePermissions (project scope: .codewhale/constitution.json)", (
     ]);
   });
 
+  it("expands braces so an empty alternative keeps its meaning", async () => {
+    const document = await generate({
+      permission: { write: { ".env{,.local}": "deny", "a/{b,{c,d}}/x": "ask" } },
+    });
+
+    expect(document.protected_invariants).toEqual([
+      expect.objectContaining({ paths: [".env", ".env.local"], action: "block" }),
+      expect.objectContaining({ paths: ["a/b/x", "a/c/x", "a/d/x"], action: "ask" }),
+    ]);
+  });
+
+  it("widens classes to ? and normalizes segments the way Codewhale normalizes targets", async () => {
+    const document = await generate({
+      permission: {
+        write: { "src/app/[id]/page.tsx": "deny", "secrets/": "deny", "./src/./a//b.ts": "ask" },
+      },
+    });
+
+    expect(document.protected_invariants).toEqual([
+      expect.objectContaining({ paths: ["src/app/?/page.tsx"], action: "block" }),
+      expect.objectContaining({ paths: ["secrets/**"], action: "block" }),
+      expect.objectContaining({ paths: ["src/a/b.ts"], action: "ask" }),
+    ]);
+  });
+
+  it("does not repeat a restriction a hand-written ./ path already holds", async () => {
+    await writeFileContent(
+      constitutionPath(),
+      JSON.stringify({
+        protected_invariants: [{ text: "Review.", paths: ["./CHANGELOG.md"], action: "ask" }],
+      }),
+    );
+
+    expect(await generate({ permission: { write: { "CHANGELOG.md": "ask" } } })).toEqual({
+      protected_invariants: [{ text: "Review.", paths: ["./CHANGELOG.md"], action: "ask" }],
+    });
+  });
+
+  it("fails on an existing protected_invariants that is not an array or a root that is not an object", async () => {
+    await writeFileContent(constitutionPath(), JSON.stringify({ protected_invariants: "x" }));
+    await expect(generate({ permission: {} })).rejects.toThrow("is not an array");
+
+    await writeFileContent(constitutionPath(), "[]");
+    await expect(generate({ permission: {} })).rejects.toThrow("is not a JSON object");
+  });
+
   it("skips allow rules, other categories and patterns Codewhale cannot hold, with warnings", async () => {
     const logger = createMockLogger();
     const document = await generate(
@@ -99,8 +145,10 @@ describe("CodewhalePermissions (project scope: .codewhale/constitution.json)", (
             "/etc/**": "deny",
             "~/notes/**": "deny",
             "../outside/**": "deny",
-            "src/[ab].ts": "deny",
+            "C:/Windows/**": "deny",
             "src/{a.ts": "deny",
+            "src/a}.ts": "deny",
+            "src\\*.ts": "deny",
           },
           read: { ".env": "deny" },
           bash: { "rm *": "deny" },
@@ -111,7 +159,15 @@ describe("CodewhalePermissions (project scope: .codewhale/constitution.json)", (
 
     expect(document).toEqual({});
     const warnings = vi.mocked(logger.warn).mock.calls.map(([message]) => String(message));
-    for (const pattern of ["/etc/**", "~/notes/**", "../outside/**", "src/[ab].ts", "src/{a.ts"]) {
+    for (const pattern of [
+      "/etc/**",
+      "~/notes/**",
+      "../outside/**",
+      "C:/Windows/**",
+      "src/{a.ts",
+      "src/a}.ts",
+      "src\\*.ts",
+    ]) {
       expect(warnings.some((message) => message.includes(`"${pattern}"`))).toBe(true);
     }
     expect(warnings.some((message) => message.includes('"read", "bash"'))).toBe(true);
@@ -195,6 +251,7 @@ describe("CodewhalePermissions (project scope: .codewhale/constitution.json)", (
           { text: "Frozen.", paths: ["crates/protocol/**", " "], action: "block" },
           { text: "Review.", paths: ["CHANGELOG.md", "crates/protocol/**"] },
           { text: "Unknown action.", paths: ["x/**"], action: "allow" },
+          { text: "Null action fails Codewhale's parse.", paths: ["y/**"], action: null },
         ],
       }),
     );
