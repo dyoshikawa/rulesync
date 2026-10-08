@@ -7,6 +7,7 @@ import { pickLastRootWithFile } from "../../types/feature-processor.js";
 import { FeatureProcessor } from "../../types/feature-processor.js";
 import {
   AMP_HOOK_EVENTS,
+  AMP_OVERRIDE_ONLY_HOOK_EVENTS,
   ANTIGRAVITY_HOOK_EVENTS,
   AUGMENTCODE_HOOK_EVENTS,
   BOB_HOOK_EVENTS,
@@ -168,6 +169,13 @@ type ToolHooksFactory = {
    * filter the block themselves already report what they drop.
    */
   dropsUnknownOverrideEvents?: boolean;
+  /**
+   * Native event names with no canonical equivalent that the adapter emits
+   * when they appear in the tool-specific override block, so they are not
+   * reported as skipped there. The shared `hooks` record rejects them at
+   * schema level.
+   */
+  overrideOnlyEvents?: readonly string[];
 };
 
 /**
@@ -184,7 +192,10 @@ function unsupportedEventNames(params: {
   effectiveHooks: Record<string, unknown>;
 }): string[] {
   const { factory, sharedHooks, effectiveHooks } = params;
-  const supportedEvents: Set<string> = new Set(factory.supportedEvents);
+  const supportedEvents: Set<string> = new Set([
+    ...factory.supportedEvents,
+    ...(factory.overrideOnlyEvents ?? []),
+  ]);
   const eventNames = factory.dropsUnknownOverrideEvents
     ? Object.keys(effectiveHooks)
     : Object.keys(sharedHooks);
@@ -326,6 +337,7 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       // The adapter only emits its own native events; unknown override-block
       // keys are dropped, so report them.
       dropsUnknownOverrideEvents: true,
+      overrideOnlyEvents: AMP_OVERRIDE_ONLY_HOOK_EVENTS,
     },
   ],
   [

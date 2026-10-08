@@ -767,6 +767,34 @@ describe("HooksProcessor", () => {
       expect(toolFile?.getFileContent()).not.toContain("filtered.sh");
       expect(toolFile?.getFileContent()).toContain("guard.sh");
     });
+
+    it("should accept the Amp-only changes.prompt event in the amp override block", async () => {
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          hooks: {},
+          amp: {
+            hooks: {
+              "changes.prompt": [{ command: "ship-notes.sh" }],
+              "changes.unknown": [{ command: "unknown.sh" }],
+            },
+          },
+        }),
+        validate: false,
+      });
+
+      const processor = new HooksProcessor({ logger, outputRoot: testDir, toolTarget: "amp" });
+      const [toolFile] = await processor.convertRulesyncFilesToToolFiles([rulesyncHooks]);
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        "Skipped hook event(s) for amp (not supported): changes.unknown",
+      );
+      expect(toolFile?.getFileContent()).toContain('amp.on("changes.prompt"');
+      expect(toolFile?.getFileContent()).toContain("ship-notes.sh");
+      expect(toolFile?.getFileContent()).not.toContain("unknown.sh");
+    });
   });
 
   describe("convertToolFilesToRulesyncFiles", () => {
