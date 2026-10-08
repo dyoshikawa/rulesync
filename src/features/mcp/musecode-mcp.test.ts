@@ -503,13 +503,13 @@ describe("MusecodeMcp", () => {
             command: "fs",
             cwd: "/srv/fs",
             tool_timeout_sec: 30,
-            startup_timeout_sec: 2.5,
+            startup_timeout_sec: 1.1,
           },
         },
       }).toRulesyncMcp();
 
       expect(JSON.parse(rulesyncMcp.getFileContent()).mcpServers).toEqual({
-        fs: { command: "fs", cwd: "/srv/fs", timeout: 30000, networkTimeout: 2500 },
+        fs: { command: "fs", cwd: "/srv/fs", timeout: 30000, networkTimeout: 1100 },
       });
     });
 

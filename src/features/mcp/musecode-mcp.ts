@@ -319,7 +319,8 @@ function convertFromMusecodeFormat(musecodeMcp: Record<string, unknown>): McpSer
         // `*_timeout_sec` would be copied verbatim into every other target's
         // config by the loose server schema (the `mode` reasoning above).
         if (isPositiveTimeout(value)) {
-          converted[canonicalTimeoutKey] = value * MILLISECONDS_PER_SECOND;
+          // Rounded to whole milliseconds so `1.1` does not import as `1100.0000000000002`.
+          converted[canonicalTimeoutKey] = Math.round(value * MILLISECONDS_PER_SECOND);
         } else {
           warnWithFallback(
             undefined,
