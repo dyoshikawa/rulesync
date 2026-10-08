@@ -293,14 +293,21 @@ describe("buildAntigravityPermissionEntry", () => {
       ).toBe("command(regex:^git$ ^status[^\\x{2003}]$)");
     });
 
-    it.each(["deny", "allow"] as const)(
-      "skips {a,b} alternatives in a %s, which a command target cannot say",
-      (decision) => {
-        const { entry, logger } = build({ action: "command", pattern: "echo {yes,no}", decision });
-        expect(entry).toBeUndefined();
-        expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("{a,b}"));
-      },
-    );
+    it("skips {a,b} alternatives in an allow, which a command target cannot say", () => {
+      const { entry, logger } = build({ action: "command", pattern: "echo {yes,no}" });
+      expect(entry).toBeUndefined();
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("{a,b}"));
+    });
+
+    it("widens {a,b} alternatives in a deny to the words before them", () => {
+      const { entry, logger } = build({
+        action: "command",
+        pattern: "echo {yes,no}",
+        decision: "deny",
+      });
+      expect(entry).toBe("command(echo)");
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("{a,b}"));
+    });
 
     it("keeps a literal {} that is not an alternative", () => {
       expect(build({ action: "command", pattern: "find . -exec {} *" }).entry).toBe(
@@ -312,10 +319,13 @@ describe("buildAntigravityPermissionEntry", () => {
       const { entry, logger } = build({
         action: "command",
         pattern: "rm a{1..3}",
-        decision: "deny",
+        decision: "ask",
       });
       expect(entry).toBeUndefined();
-      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("NOT enforced"));
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("falls back"));
+      expect(build({ action: "command", pattern: "rm a{1..3}", decision: "deny" }).entry).toBe(
+        "command(rm)",
+      );
     });
 
     // Go's `unicode.IsSpace` leaves U+FEFF out, so Antigravity keeps it inside
@@ -326,29 +336,80 @@ describe("buildAntigravityPermissionEntry", () => {
     });
 
     it.each([
-      "git push * --force",
-      "git * status",
+      ["git push * --force", "command(git push)"],
+      ["git * status", "command(git)"],
+      ["git commit-* --amend", "command(git)"],
+      ["rm *.env", "command(rm)"],
+      ["git push *--force", "command(git push)"],
+      ["cat a*b", "command(cat)"],
+      ["rm a[\t-\r]b", "command(rm)"],
+      ["rm a[\u2003]b", "command(rm)"],
+      ["rm a[\u0085]b", "command(rm)"],
+      ["git status[ ]", "command(git)"],
+      ["git status[\t]", "command(git)"],
+      ["git push?--force", "command(git)"],
+      ["git {push,pull} --force", "command(git)"],
+      ["git {push, pull} --force", "command(git)"],
+      ["git push {a..c} *", "command(git push)"],
+    ])("widens the deny %s, which spans words, to its literal words %s", (pattern, expected) => {
+      const { entry, logger } = build({ action: "command", pattern, decision: "deny" });
+      expect(entry).toBe(expected);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining(`widening`));
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining(`to ${expected}`));
+      expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("NOT enforced"));
+    });
+
+    it.each([
       "* --force",
-      "git commit-* --amend",
-      "rm *.env",
-      "git push *--force",
-      "cat a*b",
       "a[ ]b",
       "a?b",
       "a[!x]b",
       "a[!\t]b",
       "git[! ]status",
       "git[! \t\n\r\f\v]status",
-      "rm a[\t-\r]b",
-      "rm a[\u2003]b",
-      "rm a[\u0085]b",
-      "git status[ ]",
-      "git status[\t]",
-    ])("skips %s, which spans words, and says the deny is not enforced", (pattern) => {
+      "git?status",
+      "{git,rm} *",
+      "regex:^ls( -la)?$",
+    ])("skips the deny %s, which has no literal word to widen to", (pattern) => {
       const { entry, logger } = build({ action: "command", pattern, decision: "deny" });
       expect(entry).toBeUndefined();
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("NOT enforced"));
+    });
+
+    it.each(["git push * --force", "rm *.env", "git {push,pull} --force"])(
+      "does not widen the allow or ask %s",
+      (pattern) => {
+        for (const decision of ["allow", "ask"] as const) {
+          const { entry, logger } = build({ action: "command", pattern, decision });
+          expect(entry).toBeUndefined();
+          expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("falls back"));
+        }
+      },
+    );
+
+    it("says a skipped ask runs without a prompt when set to always proceed", () => {
+      const { logger } = build({
+        action: "command",
+        pattern: "git push * --force",
+        decision: "ask",
+      });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          "runs without a prompt when Antigravity CLI is set to always proceed",
+        ),
+      );
+    });
+
+    it("says the deny was widened and why", () => {
+      const { logger } = build({
+        action: "command",
+        pattern: "git push * --force",
+        decision: "deny",
+      });
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("word by word"));
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("blocks every command that starts with `git push`"),
+      );
     });
   });
 });

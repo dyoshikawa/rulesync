@@ -465,6 +465,29 @@ export function toAntigravityCommandTarget(pattern: string): CommandTargetResult
 }
 
 /**
+ * The leading literal words of a canonical bash pattern (`git push` for
+ * `git push * --force`), or `undefined` when it has none. Every command the
+ * pattern matches starts with these words, so a plain target of them matches
+ * at least as much. A `regex:` pattern has no literal words to read, and a
+ * word with a brace may be part of `{a,b}` alternatives, so it ends the prefix.
+ */
+export function toAntigravityCommandLiteralPrefix(pattern: string): string | undefined {
+  if (pattern.startsWith(REGEX_PREFIX)) {
+    return undefined;
+  }
+  const words = splitIntoWords(parseGlobPattern(pattern).steps);
+  const prefix: string[] = [];
+  for (const word of words) {
+    const literal = isLiteralWord(word) ? wordToLiteral(word) : undefined;
+    if (literal === undefined || literal.includes("{") || literal.includes("}")) {
+      break;
+    }
+    prefix.push(literal);
+  }
+  return prefix.length > 0 ? prefix.join(" ") : undefined;
+}
+
+/**
  * Read one regex word back as a glob, or `undefined` when it uses anything a
  * glob cannot say. Antigravity anchors each word anyway, so `^` and `$` are
  * optional. Only escaped characters and `.*` translate; anything else keeps

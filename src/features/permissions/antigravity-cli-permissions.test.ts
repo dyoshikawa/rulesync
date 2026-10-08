@@ -121,7 +121,7 @@ describe("AntigravityCliPermissions", () => {
     ]);
   });
 
-  it("should skip a `*` with a word after it and warn that the deny is not enforced", async () => {
+  it("should widen a deny with a `*` before another word to its literal words", async () => {
     const logger = createMockLogger();
     const rulesyncPermissions = new RulesyncPermissions({
       outputRoot: testDir,
@@ -146,13 +146,61 @@ describe("AntigravityCliPermissions", () => {
 
     const settings = JSON.parse(permissions.getFileContent()) as SettingsJson;
     // `*` there can stand for several words; a regex word matches only one.
+    // So the deny is widened to the literal words before it instead.
+    expect(settings.permissions?.deny).toEqual(["command(git push)", "command(git)"]);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining(
+        'widening bash: { "git push * --force": "deny" } to command(git push)',
+      ),
+    );
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('widening bash: { "git commit-* --amend": "deny" } to command(git)'),
+    );
+    expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("NOT enforced"));
+  });
+
+  it("should keep a deny that overlaps a translated allow in force (#3324)", async () => {
+    const logger = createMockLogger();
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: { bash: { "git push *": "allow", "git push * --force": "deny" } },
+      }),
+    });
+
+    const permissions = await AntigravityCliPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+      logger,
+    });
+
+    const settings = JSON.parse(permissions.getFileContent()) as SettingsJson;
+    // Antigravity applies deny over allow, so `git push origin main --force`
+    // is blocked rather than run unprompted by the allow.
+    expect(settings.permissions?.allow).toEqual(["command(git push)"]);
     expect(settings.permissions?.deny).toEqual(["command(git push)"]);
-    expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining('"git push * --force": "deny"'),
-    );
-    expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining('"git commit-* --amend": "deny"'),
-    );
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("widening"));
+  });
+
+  it("should still skip a deny with no literal word to widen to", async () => {
+    const logger = createMockLogger();
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({ permission: { bash: { "* --force": "deny" } } }),
+    });
+
+    const permissions = await AntigravityCliPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+      logger,
+    });
+
+    const settings = JSON.parse(permissions.getFileContent()) as SettingsJson;
+    expect(settings.permissions?.deny ?? []).toEqual([]);
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("NOT enforced"));
   });
 
