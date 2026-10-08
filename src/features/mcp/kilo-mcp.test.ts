@@ -1102,6 +1102,67 @@ describe("KiloMcp", () => {
       expect(kiloMcp.getJson().tools).toBeUndefined();
       expect(kiloMcp.getJson().permission).toBeUndefined();
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("old-server_list"));
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("old-server_search"));
+    });
+
+    it("should leave Kilo built-in permissions alone for a server whose name prefixes them", async () => {
+      await writeFileContent(
+        join(testDir, "kilo.json"),
+        JSON.stringify({
+          permission: { external_directory: "deny", doom_loop: "deny", external_fetch: "deny" },
+        }),
+      );
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { external: { command: "node", args: ["x.js"] }, doom: { command: "doom" } },
+        }),
+      });
+
+      const kiloMcp = await KiloMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+
+      expect(kiloMcp.getJson().permission).toEqual({
+        external_directory: "deny",
+        doom_loop: "deny",
+      });
+    });
+
+    it("should let a deny win when two servers sanitize to the same key", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            "a.b": { command: "node", disabledTools: ["x"] },
+            a_b: { command: "node", enabledTools: ["x"] },
+          },
+        }),
+      });
+
+      const kiloMcp = await KiloMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+
+      expect(kiloMcp.getJson().permission).toEqual({ a_b_x: "deny" });
+    });
+
+    it("should assign an imported key to the server with the longest matching name", () => {
+      const kiloMcp = new KiloMcp({
+        relativeDirPath: ".",
+        relativeFilePath: "kilo.json",
+        fileContent: JSON.stringify({
+          mcp: {
+            github: { type: "local", command: ["gh"] },
+            github_enterprise: { type: "local", command: ["ghe"] },
+          },
+          permission: { github_list: "allow", github_enterprise_delete: "deny" },
+        }),
+      });
+
+      const servers = kiloMcp.toRulesyncMcp().getJson().mcpServers;
+
+      expect(servers.github?.enabledTools).toEqual(["list"]);
+      expect(servers.github?.disabledTools).toBeUndefined();
+      expect(servers.github_enterprise?.disabledTools).toEqual(["delete"]);
     });
 
     it("should sanitize server and tool names the way Kilo names MCP tools", async () => {

@@ -226,7 +226,7 @@ describe("shared output file data-loss regressions", () => {
 
     it("keeps an MCP disabledTools deny after the permissions catch-all", async () => {
       // Kilo evaluates `permission` last-match-wins in key order, so the
-      // catch-all the permissions feature adds must not land after the deny.
+      // catch-all the permissions feature appends must not end up after the deny.
       await writeMcp();
       await writePermissions();
       // A regenerate must keep the order too.
@@ -239,7 +239,7 @@ describe("shared output file data-loss regressions", () => {
         github_delete_repo: "deny",
         bash: { "rm *": "deny" },
       });
-      expect(Object.keys(kilo.permission)[0]).toBe("*");
+      expect(Object.keys(kilo.permission).at(-1)).toBe("github_delete_repo");
     });
   });
 });

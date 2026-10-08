@@ -17,6 +17,11 @@ import { readFileContentOrNull, toPosixPath } from "../../utils/file.js";
 import { parseJsonc as parseJsoncStrict } from "../../utils/jsonc.js";
 import type { Logger } from "../../utils/logger.js";
 import { isRecord } from "../../utils/type-guards.js";
+import {
+  findKiloMcpToolKeyOwner,
+  isKiloPermissionPattern,
+  kiloMcpToolPermissionKey,
+} from "../shared/kilo-mcp-tool-keys.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import {
   convertEnvVarRefsFromToolFormat,
@@ -176,33 +181,6 @@ function isKiloTransportServer(server: KiloMcpServer): server is KiloMcpTranspor
 }
 
 /**
- * Kilo's own MCP tool naming: `McpCatalog.toolName` sanitizes both the server
- * and the tool name, so a permission key written with the raw names of a
- * server such as `my.server` would never match.
- * @see https://github.com/Kilo-Org/kilocode/blob/main/packages/opencode/src/mcp/catalog.ts
- */
-function sanitizeKiloToolNamePart(value: string): string {
-  return value.replace(/[^a-zA-Z0-9_-]/g, "_");
-}
-
-function kiloMcpToolPermissionKey(serverName: string, toolName: string): string {
-  return `${sanitizeKiloToolNamePart(serverName)}_${sanitizeKiloToolNamePart(toolName)}`;
-}
-
-/**
- * The key prefixes naming a server's tools: the sanitized one Kilo matches,
- * plus the raw one earlier rulesync versions wrote into the `tools` map.
- */
-function kiloMcpToolKeyPrefixes(serverName: string): string[] {
-  return uniq([`${sanitizeKiloToolNamePart(serverName)}_`, `${serverName}_`]);
-}
-
-/** Whether a Kilo permission key is a wildcard pattern rather than one tool. */
-function isKiloPermissionPattern(key: string): boolean {
-  return key.includes("*") || key.includes("?");
-}
-
-/**
  * Read a `permission` entry as an MCP tool filter. A scalar `allow`/`deny`, or
  * a pattern map stating only `"*"` (the shape Kilo itself saves), is a filter;
  * `ask` and narrower pattern maps have no `enabledTools`/`disabledTools`
@@ -242,19 +220,18 @@ function collectKiloToolFilters(
 /** Split the collected tool filters into this server's own two lists. */
 function splitKiloServerTools(
   serverName: string,
+  serverNames: readonly string[],
   tools: Record<string, boolean>,
 ): { enabledTools: string[]; disabledTools: string[] } {
   const enabledTools: string[] = [];
   const disabledTools: string[] = [];
-  const prefixes = kiloMcpToolKeyPrefixes(serverName);
 
-  for (const [toolName, enabled] of Object.entries(tools)) {
-    const prefix = prefixes.find((candidate) => toolName.startsWith(candidate));
-    if (prefix === undefined) {
+  for (const [key, enabled] of Object.entries(tools)) {
+    const owner = findKiloMcpToolKeyOwner(key, serverNames);
+    if (owner?.serverName !== serverName) {
       continue;
     }
-    const toolSuffix = toolName.slice(prefix.length);
-    (enabled ? enabledTools : disabledTools).push(toolSuffix);
+    (enabled ? enabledTools : disabledTools).push(owner.toolName);
   }
   return { enabledTools, disabledTools };
 }
@@ -332,11 +309,16 @@ function convertFromKiloFormat(
   permission?: Record<string, unknown>,
 ): McpServers {
   const filters = collectKiloToolFilters(tools, permission);
+  const serverNames = Object.keys(kiloMcp);
   return {
     ...Object.fromEntries(
       Object.entries(kiloMcp).map(([serverName, serverConfig]) => [
         serverName,
-        kiloServerToRulesync(serverName, serverConfig, splitKiloServerTools(serverName, filters)),
+        kiloServerToRulesync(
+          serverName,
+          serverConfig,
+          splitKiloServerTools(serverName, serverNames, filters),
+        ),
       ]),
     ),
     // Only the legacy map: it holds nothing but tool toggles, whereas a
@@ -366,7 +348,12 @@ function collectKiloServerToolPermissions(
   serverConfig: McpServerConfig,
 ): void {
   for (const tool of serverConfig.enabledTools ?? []) {
-    permission[kiloMcpToolPermissionKey(serverName, tool)] = "allow";
+    const key = kiloMcpToolPermissionKey(serverName, tool);
+    // Two servers can sanitize to the same key (`a.b` and `a_b`); a deny
+    // another server already wrote must not be lifted by this allow.
+    if (permission[key] !== "deny") {
+      permission[key] = "allow";
+    }
   }
   for (const tool of serverConfig.disabledTools ?? []) {
     permission[kiloMcpToolPermissionKey(serverName, tool)] = "deny";
@@ -507,6 +494,25 @@ function readExistingKiloMcpEntries(fileContent: string | null): Record<string, 
 }
 
 /**
+ * A dropped deny loosens the config, so say so. The key is matched by name
+ * prefix only, so it may also be a tool of a server defined in another Kilo
+ * config layer, or no MCP tool at all.
+ */
+function warnAboutDroppedKiloToolDenies(
+  keys: string[],
+  block: "permission" | "tools",
+  logger: Logger | undefined,
+): void {
+  if (keys.length === 0) return;
+  logger?.warn(
+    `Kilo MCP: removing '${block}' entries that denied tools of the MCP servers this config ` +
+      `lists, because no disabledTools lists them anymore: ${keys.join(", ")}. To keep one ` +
+      `denied, add it to its server's disabledTools, or to the 'kilo' permissions override ` +
+      `when it is not one of these servers' tools.`,
+  );
+}
+
+/**
  * Rebuild the managed tool keys of an existing `permission` value. Returns the
  * deep-merge patch for the block (`undefined` retracts it, `null` leaves it
  * untouched).
@@ -541,12 +547,7 @@ function buildKiloToolPermissionPatch({
   const droppedDenies = existingEntries
     .filter(([key, value]) => value === "deny" && retractedKeys.includes(key))
     .map(([key]) => key);
-  if (droppedDenies.length > 0) {
-    logger?.warn(
-      `Kilo MCP: removing 'deny' permission entries no MCP server's disabledTools lists ` +
-        `anymore: ${droppedDenies.join(", ")}. Add them to disabledTools to keep them denied.`,
-    );
-  }
+  warnAboutDroppedKiloToolDenies(droppedDenies, "permission", logger);
 
   if (
     !hasToolPermissions &&
@@ -586,9 +587,8 @@ function buildKiloMcpPermissionPatch({
   toolPermissions: Record<string, "allow" | "deny">;
   logger?: Logger;
 }): { permission?: unknown; tools?: Record<string, boolean> | undefined } {
-  const prefixes = uniq(managedServerNames.flatMap((name) => kiloMcpToolKeyPrefixes(name)));
   const isManagedToolKey = (key: string): boolean =>
-    !isKiloPermissionPattern(key) && prefixes.some((prefix) => key.startsWith(prefix));
+    findKiloMcpToolKeyOwner(key, managedServerNames) !== undefined;
 
   const patch: { permission?: unknown; tools?: Record<string, boolean> | undefined } = {};
 
@@ -609,6 +609,21 @@ function buildKiloMcpPermissionPatch({
       keptTools[key] = enabled;
     }
   }
+  // A `false` moved to a `permission` deny is migrated, not dropped.
+  warnAboutDroppedKiloToolDenies(
+    existingTools
+      .filter(([key, enabled]) => {
+        const owner = findKiloMcpToolKeyOwner(key, managedServerNames);
+        return (
+          enabled === false &&
+          owner !== undefined &&
+          toolPermissions[kiloMcpToolPermissionKey(owner.serverName, owner.toolName)] !== "deny"
+        );
+      })
+      .map(([key]) => key),
+    "tools",
+    logger,
+  );
   if (Object.keys(keptTools).length !== existingTools.length) {
     patch.tools = Object.keys(keptTools).length > 0 ? keptTools : undefined;
   }
