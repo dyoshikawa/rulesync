@@ -37,6 +37,29 @@ export function isEnvVarEntryArray(value: unknown): value is (string | { name: s
   return Array.isArray(value) && value.every((entry) => EnvVarEntrySchema.safeParse(entry).success);
 }
 
+/**
+ * One `codexcliTools` entry, mirroring Codex's `McpServerToolConfig`. Loose,
+ * because upstream's deserializer ignores keys it does not know, so a field
+ * Codex adds later passes through. The two known fields are checked strictly:
+ * an unknown `approval_mode` variant or a zero `output_token_limit` (a
+ * `NonZeroUsize`) is a deserialization error that makes Codex reject the whole
+ * `config.toml`, so it fails on the rulesync side instead.
+ * @see https://github.com/openai/codex/blob/rust-v0.161.0/codex-rs/config/src/mcp_types.rs
+ * @see https://learn.chatgpt.com/docs/config-file/config-reference
+ */
+export const CodexcliMcpToolConfigSchema = z.looseObject({
+  approval_mode: z.optional(z.enum(["auto", "prompt", "writes", "approve"])),
+  output_token_limit: z.optional(z.int().check(z.positive())),
+});
+
+/**
+ * Whether a value is usable as one `codexcliTools` entry. Applied in both
+ * directions by the codex adapter, like {@link isEnvVarEntryArray}.
+ */
+export function isCodexcliToolConfig(value: unknown): value is Record<string, unknown> {
+  return CodexcliMcpToolConfigSchema.safeParse(value).success;
+}
+
 export const McpServerSchema = z.looseObject({
   // `streamable-http` is the MCP spec's transport name and an accepted alias for
   // `http` (Claude Code), so configs copied from server docs work unchanged.
@@ -64,6 +87,14 @@ export const McpServerSchema = z.looseObject({
   // stripped by `RulesyncMcp.getMcpServers()`, like `envVars`.
   // https://learn.chatgpt.com/docs/extend/mcp
   experimentalEnvironment: z.optional(z.string()),
+  // Codex CLI-specific: per-tool settings keyed by tool name, written as
+  // Codex's `[mcp_servers.<name>.tools.<tool>]` tables. Namespaced because the
+  // canonical `tools` is a string array, while Codex reads `tools` as this
+  // table (see the collision rule on `enabledTools` below). Stripped by
+  // `RulesyncMcp.getMcpServers()` so it does not leak into other tools'
+  // configs, like `envVars`.
+  // https://learn.chatgpt.com/docs/config-file/config-reference
+  codexcliTools: z.optional(z.record(z.string(), CodexcliMcpToolConfigSchema)),
   disabled: z.optional(z.boolean()),
   networkTimeout: z.optional(z.number()),
   timeout: z.optional(z.number()),
@@ -142,7 +173,8 @@ export const McpServerSchema = z.looseObject({
    *   native one is dropped with a warning (`tools` in `copilotcli-mcp.ts`).
    * - Native key of the same name means something else entirely → **refuse the
    *   canonical value** rather than write a shape the tool misreads (`tools` in
-   *   `codexcli-mcp.ts`, where Codex reads it as a per-tool approval table).
+   *   `codexcli-mcp.ts`, where Codex reads it as a per-tool approval table;
+   *   that table is authored through the namespaced `codexcliTools` instead).
    */
   enabledTools: z.optional(z.array(z.string())),
   disabledTools: z.optional(z.array(z.string())),

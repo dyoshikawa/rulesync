@@ -5,7 +5,7 @@ import * as smolToml from "smol-toml";
 
 import { CODEXCLI_DIR, CODEXCLI_MCP_FILE_NAME } from "../../constants/codexcli-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
-import { isEnvVarEntryArray, McpServers } from "../../types/mcp.js";
+import { isCodexcliToolConfig, isEnvVarEntryArray, McpServers } from "../../types/mcp.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { warnWithFallback } from "../../utils/logger.js";
@@ -58,7 +58,8 @@ const MAX_REMOVE_EMPTY_ENTRIES_DEPTH = 32;
  * only add noise to a hand-edited `config.toml`. `type`/`transport` are safe to
  * drop because Codex infers the transport from `command` versus `url`.
  * `tools` is handled separately: it is fatal rather than inert.
- * @see https://github.com/openai/codex/blob/rust-v0.146.1/codex-rs/config/src/mcp_types.rs
+ * `codexcliTools` is handled separately too: it becomes Codex's `tools` table.
+ * @see https://github.com/openai/codex/blob/rust-v0.161.0/codex-rs/config/src/mcp_types.rs
  */
 const CODEX_UNSUPPORTED_CANONICAL_KEYS = new Set([
   "type",
@@ -194,6 +195,46 @@ function normalizeCodexMcpServerName(name: string): { codexName: string; usedFal
   return { codexName: `mcp_${hash}`, usedFallback: true };
 }
 
+/**
+ * Keep the well-formed entries of a per-tool settings table (the canonical
+ * `codexcliTools`, or Codex's own `tools`), warning about each entry dropped.
+ * Checked in both directions so a hand-written approval table can never be
+ * imported into a `.rulesync/mcp.jsonc` that the next generate would refuse
+ * to parse, and so a value that would make Codex reject the whole
+ * `config.toml` is never written. Returns `undefined` when nothing usable is
+ * left.
+ */
+function filterCodexToolConfigs({
+  value,
+  key,
+  serverName,
+}: {
+  value: unknown;
+  key: string;
+  serverName: string;
+}): Record<string, unknown> | undefined {
+  if (!isPlainObject(value)) {
+    warnWithFallback(
+      undefined,
+      `[CodexCliMcp] Ignored malformed value for '${key}' in MCP server "${serverName}": expected a table keyed by tool name`,
+    );
+    return undefined;
+  }
+  const result: Record<string, unknown> = {};
+  for (const [toolName, toolConfig] of Object.entries(value)) {
+    if (PROTOTYPE_POLLUTION_KEYS.has(toolName)) continue;
+    if (!isCodexcliToolConfig(toolConfig)) {
+      warnWithFallback(
+        undefined,
+        `[CodexCliMcp] Ignored malformed '${key}.${toolName}' in MCP server "${serverName}": approval_mode must be one of auto, prompt, writes, approve, and output_token_limit a positive integer`,
+      );
+      continue;
+    }
+    result[toolName] = omitPrototypePollutionKeys(toolConfig);
+  }
+  return Object.keys(result).length > 0 ? result : undefined;
+}
+
 /** Outcome of a key translation: no entry means the key is dropped. */
 type TranslatedKey = { entry?: [string, unknown] };
 
@@ -214,12 +255,11 @@ function translateCodexOnlyKey({
   serverName: string;
 }): TranslatedKey | undefined {
   if (key === "tools") {
-    // Codex's per-tool approval table is CLI-written state that rulesync does
-    // not model — and it is shaped nothing like the canonical `tools` string
-    // array, so lifting it would produce a `.rulesync/mcp.jsonc` the schema
-    // rejects. It stays in `config.toml`, where the generate path carries it
-    // across regenerates untouched.
-    return {};
+    // Codex's per-tool settings table is shaped nothing like the canonical
+    // `tools` string array, so it is lifted into the namespaced
+    // `codexcliTools` instead.
+    const tools = filterCodexToolConfigs({ value, key, serverName });
+    return tools ? { entry: ["codexcliTools", tools] } : {};
   }
   if (key === "http_headers") {
     // Codex's spelling of the canonical `headers`. A config rulesync wrote
@@ -281,17 +321,21 @@ function translateCanonicalKeyToCodex({
     // (`tools.<tool>.approval_mode`), while the canonical `tools` is a string
     // array. A TOML array where Codex expects a table is a serde type error
     // that takes the whole server entry down, so it is dropped rather than
-    // written. Codex's own per-tool approvals live in the same key and are
-    // preserved from the existing file instead. That is the "refuse the
+    // written. Codex's own table is authored through `codexcliTools` and
+    // preserved from the existing file. That is the "refuse the
     // canonical value" branch of the collision rule documented on
     // `enabledTools` in `src/types/mcp.ts` — it applies here because Codex's
     // same-named key means a different thing; `kiro-mcp.ts` merges instead and
     // `copilotcli-mcp.ts` lets the canonical value win instead.
     warnWithFallback(
       undefined,
-      `[CodexCliMcp] Dropping 'tools' from MCP server "${serverName}": Codex reads it as a per-tool approval table, not a tool allowlist. Use 'enabledTools' / 'disabledTools' instead.`,
+      `[CodexCliMcp] Dropping 'tools' from MCP server "${serverName}": Codex reads it as a per-tool approval table, not a tool allowlist. Use 'enabledTools' / 'disabledTools' for an allowlist, or 'codexcliTools' for per-tool approval modes.`,
     );
     return {};
+  }
+  if (key === "codexcliTools") {
+    const tools = filterCodexToolConfigs({ value, key, serverName });
+    return tools ? { entry: ["tools", tools] } : {};
   }
   if (CODEX_UNSUPPORTED_CANONICAL_KEYS.has(key)) {
     // Inert in Codex, and `type`/`transport` appear on nearly every remote
@@ -501,7 +545,7 @@ function convertFromCodexFormat(codexMcp: Record<string, unknown>): McpServers {
   return result;
 }
 
-function convertToCodexFormat(mcpServers: McpServers): Record<string, unknown> {
+function convertToCodexFormat(mcpServers: Record<string, unknown>): Record<string, unknown> {
   const result: Record<string, Record<string, unknown>> = {};
   const originalNames = new Map<string, string>();
 
@@ -687,6 +731,9 @@ export class CodexcliMcp extends ToolMcp {
             ...(isRecord(rawServer) && typeof rawServer.experimentalEnvironment === "string"
               ? { experimentalEnvironment: rawServer.experimentalEnvironment }
               : {}),
+            ...(isRecord(rawServer) && rawServer.codexcliTools !== undefined
+              ? { codexcliTools: rawServer.codexcliTools }
+              : {}),
           },
         ];
       }),
@@ -705,15 +752,15 @@ export class CodexcliMcp extends ToolMcp {
 
     // Preserve per-tool approval state (`[mcp_servers.<server>.tools.<tool>]`
     // `approval_mode` decisions) that Codex's CLI writes when the user approves
-    // an MCP tool. rulesync does not model this nested `tools` table, so without
-    // re-merging it here a regenerate would wipe the user's saved approvals and
-    // re-introduce approval prompts (#1709). It is the only user/CLI-written
-    // nested state Codex persists under a server that rulesync does not own.
-    // rulesync never emits `tools` itself — the canonical `tools` array cannot
-    // be represented in Codex's approval table and is dropped on generate — so
-    // in practice the existing table is always carried over. The guard on
-    // `"tools" in serverRecord` is kept so that a future rulesync-owned `tools`
-    // value would win over the preserved table rather than be clobbered by it.
+    // an MCP tool. Without re-merging it here a regenerate would wipe the
+    // user's saved approvals and re-introduce approval prompts (#1709). It is
+    // the only user/CLI-written nested state Codex persists under a server.
+    // The table authored through `codexcliTools` is merged over it field by
+    // field: an authored field wins, and every saved tool and saved field the
+    // source does not name is kept — so authoring only `output_token_limit`
+    // for a tool does not wipe the `approval_mode` Codex saved for it.
+    // Additive like the Kiro lists, because the CLI-written and the authored
+    // entries are the same concept and both are meant to apply.
     const existingMcpServers = isRecord(configToml["mcp_servers"]) ? configToml["mcp_servers"] : {};
     const mergedMcpServers = Object.fromEntries(
       Object.entries(filteredMcpServers).map(([name, serverConfig]) => {
@@ -721,8 +768,17 @@ export class CodexcliMcp extends ToolMcp {
           ? existingMcpServers[name]
           : undefined;
         const serverRecord = serverConfig as Record<string, unknown>;
-        if (existingServer && isRecord(existingServer["tools"]) && !("tools" in serverRecord)) {
-          return [name, { ...serverRecord, tools: existingServer["tools"] }];
+        if (existingServer && isPlainObject(existingServer["tools"])) {
+          const tools = omitPrototypePollutionKeys(existingServer["tools"]);
+          const authoredTools = isPlainObject(serverRecord["tools"]) ? serverRecord["tools"] : {};
+          for (const [toolName, authored] of Object.entries(authoredTools)) {
+            const saved = tools[toolName];
+            tools[toolName] =
+              isPlainObject(saved) && isPlainObject(authored)
+                ? { ...omitPrototypePollutionKeys(saved), ...authored }
+                : authored;
+          }
+          return [name, { ...serverRecord, tools }];
         }
         return [name, serverConfig];
       }),
