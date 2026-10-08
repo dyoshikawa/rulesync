@@ -138,6 +138,14 @@ function convertTransportToPi({
         logger,
       });
     }
+    if (!/^https?:\/\//i.test(url)) {
+      return warnAndSkipMcpServer({
+        toolName: "Pi",
+        serverName,
+        reason: "a url that is not http or https, which Pi does not support",
+        logger,
+      });
+    }
     return { type: "http", url };
   }
 

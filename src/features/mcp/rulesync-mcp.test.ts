@@ -2021,6 +2021,15 @@ describe("mergeMcpJsonOverlays", () => {
     });
   });
 
+  it("merges the pi tool-scoped mcpServers map by server name", () => {
+    const base = { pi: { mcpServers: { a: { command: "a" } } } };
+    const overlay = { pi: { mcpServers: { b: { command: "b" } } } };
+
+    expect(mergeMcpJsonOverlays({ base, overlay })).toEqual({
+      pi: { mcpServers: { a: { command: "a" }, b: { command: "b" } } },
+    });
+  });
+
   it("replaces non-server keys atomically", () => {
     const base = { $schema: "https://example.com/base.json", other: { keep: true } };
     const overlay = { $schema: "https://example.com/overlay.json", other: { keep: false } };

@@ -94,13 +94,14 @@ describe("PiMcp", () => {
           legacy: { transport: "sse", url: "https://example.com/sse" },
           socket: { type: "ws", url: "wss://example.com" },
           noUrl: { type: "http" },
+          wsUrl: { url: "ws://example.com/mcp" },
           noCommand: { type: "stdio" },
           noTransport: { disabled: true },
         }),
       });
 
       expect(mcp.getJson()).toEqual({ mcpServers: {} });
-      expect(logger.warn).toHaveBeenCalledTimes(5);
+      expect(logger.warn).toHaveBeenCalledTimes(6);
     });
 
     it("should skip server names Pi rejects or treats as the same server", async () => {
