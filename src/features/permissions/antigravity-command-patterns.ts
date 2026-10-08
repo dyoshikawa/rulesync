@@ -484,7 +484,11 @@ export function toAntigravityCommandLiteralPrefix(pattern: string): string | und
     }
     prefix.push(literal);
   }
-  return prefix.length > 0 ? prefix.join(" ") : undefined;
+  // A first word that starts with `regex:` would turn the target into a regex.
+  if (prefix.length === 0 || prefix[0]?.startsWith(REGEX_PREFIX)) {
+    return undefined;
+  }
+  return prefix.join(" ");
 }
 
 /**

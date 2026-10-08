@@ -370,6 +370,7 @@ describe("buildAntigravityPermissionEntry", () => {
       "git?status",
       "{git,rm} *",
       "regex:^ls( -la)?$",
+      " regex:foo * --force",
     ])("skips the deny %s, which has no literal word to widen to", (pattern) => {
       const { entry, logger } = build({ action: "command", pattern, decision: "deny" });
       expect(entry).toBeUndefined();

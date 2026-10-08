@@ -3613,9 +3613,10 @@ describe("E2E: permissions (global mode)", () => {
     );
     expect(generated.permissions.allow).toContain("command(git status)");
     // agy matches word by word, so a glob inside a word is a per-word regex
-    // and a `*` that spans words has no spelling and is skipped.
+    // and a `*` that spans words has no spelling. Such a deny is widened to
+    // its leading literal words, so it still blocks what it was meant to.
     expect(generated.permissions.allow).toContain("command(regex:^npm$ ^run$ ^test:.*$)");
-    expect(generated.permissions.deny).toEqual(["command(rm -rf)"]);
+    expect(generated.permissions.deny).toEqual(["command(git push)", "command(rm -rf)"]);
     expect(generated.permissions.allow).toContain("read_file(src)");
     expect(generated.permissions.allow).toContain("read_url(example.com)");
   });
