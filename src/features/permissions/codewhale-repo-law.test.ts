@@ -198,21 +198,29 @@ describe("CodewhalePermissions (project scope: .codewhale/constitution.json)", (
         protected_invariants: [
           { text: "A", paths: ["{a,**}/b"], action: "block" },
           { text: "B", paths: ["docs/[ab].md"], action: "block" },
+          { text: "C", paths: ["notes/[a-c-e].md"], action: "block" },
         ],
       }),
     );
 
     const document = await generate({
       permission: {
-        write: { "{a,**}/b": "deny", "docs/[ab].md": "deny", "docs/[cd].md": "deny" },
+        write: {
+          "{a,**}/b": "deny",
+          "docs/[ab].md": "deny",
+          "docs/[cd].md": "deny",
+          "notes/[a-c-e].md": "deny",
+        },
       },
     });
 
     expect(document.protected_invariants).toEqual([
       expect.objectContaining({ text: "A" }),
       expect.objectContaining({ text: "B" }),
+      expect.objectContaining({ text: "C" }),
       expect.objectContaining({ paths: ["a/b", "**/b"], managed_by: "rulesync" }),
       expect.objectContaining({ paths: ["docs/?.md"], managed_by: "rulesync" }),
+      expect.objectContaining({ paths: ["notes/?.md"], managed_by: "rulesync" }),
     ]);
   });
 

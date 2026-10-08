@@ -225,7 +225,7 @@ function collectRestrictions({ config, logger }: { config: PermissionsConfig; lo
       const glob = toRepoLawGlob(pattern);
       if (glob === null) {
         logger?.warn(
-          `Codewhale permissions: skipping "${category}" pattern "${pattern}"; .codewhale/constitution.json holds only workspace-relative globs without "\\" escapes, built from "*", "?", "**", "[...]" and "{a,b}".`,
+          `Codewhale permissions: skipping "${category}" pattern "${pattern}"; .codewhale/constitution.json holds only workspace-relative globs without "\\" escapes, built from "*", "?", "**", "[...]" and "{a,b}" (expanding to at most ${MAX_BRACE_EXPANSIONS} paths).`,
         );
         continue;
       }
@@ -251,10 +251,18 @@ function collectRestrictions({ config, logger }: { config: PermissionsConfig; lo
   return { restrictions, sources };
 }
 
-/** Whether no range of a `[...]` class runs backwards, which `globset` rejects. */
+/**
+ * Whether `globset` reads every `[...]` class the way this module does: not
+ * empty (`[!]` is unclosed there), at most one `-` (`globset` extends a range
+ * with a following `-x`, so `[a-c-e]` is `a-e`) and no range that runs
+ * backwards.
+ */
 function hasValidClassRanges(pattern: string): boolean {
   for (const [match] of pattern.matchAll(CHARACTER_CLASS)) {
     const body = [...match.slice(1, -1).replace(/^[!^]/, "")];
+    if (body.length === 0 || body.filter((character) => character === "-").length > 1) {
+      return false;
+    }
     for (let index = 0; index < body.length; index += 1) {
       const start = body[index] ?? "";
       const end = body[index + 2];
