@@ -261,7 +261,12 @@ The `generate` command reads source files from one or more rulesync source trees
 > Rulesync's output, so each one is kept and named in a `Refusing to delete`
 > warning, the same way a write through such a link is refused. A link that stays
 > inside the output root is followed as usual, and an orphan that is itself a
-> symbolic link is removed as a link, leaving its target untouched.
+> symbolic link is removed as a link, leaving its target untouched. A generated
+> skill directory linked onto the output root itself is not written either, so
+> its `SKILL.md` never overwrites a file in the root; and only a skill directory
+> that lands directly below its own skills directory counts as the run's output
+> as a whole, so one linked to an ancestor such as `.claude` does not keep the
+> orphans under that ancestor from being swept.
 
 > **Note on unreadable sources:** This applies to the single-file features —
 > `mcp`, `hooks`, `permissions`, and `ignore` — each of which is generated from

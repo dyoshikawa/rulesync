@@ -1,4 +1,4 @@
-import { basename, extname, join, relative } from "node:path";
+import { basename, dirname, extname, join } from "node:path";
 
 import { intersection } from "es-toolkit";
 
@@ -40,8 +40,8 @@ import {
   fileExists,
   isPresentButUnresolvable,
   pathEscapesRoot,
+  relativeWriteLanding,
   toPosixPath,
-  writeLandingPath,
 } from "../utils/file.js";
 import type { Logger } from "../utils/logger.js";
 import {
@@ -183,23 +183,37 @@ async function processFeatureGeneration<T extends AiFile>(params: {
 }
 
 /**
- * Whether a write to `targetPath` lands strictly below `rootPath` once every
- * link on the way to either is followed. A cycle on either side answers false.
+ * Whether `aiDir` may claim everything below its directory as its own tree:
+ * true only when, once every link on the way is followed, the directory lands
+ * directly below its feature's output directory (`.claude/skills` for
+ * `.claude/skills/foo`), and that output directory lands inside the output
+ * root. A link to anything broader — the root itself, or an ancestor such as
+ * `.claude` that is still inside it — would otherwise exempt every sibling
+ * under that ancestor from the sweep.
+ *
+ * A cycle answers false, and so does a path whose links cannot be read (an
+ * `EACCES` on the way): the run goes on without the tree claim, the same way the
+ * sweep keeps a path it cannot follow, and the files this run wrote there stay
+ * claimed by name.
  */
-async function landsStrictlyBelowRoot({
-  rootPath,
-  targetPath,
-}: {
-  rootPath: string;
-  targetPath: string;
-}): Promise<boolean> {
-  const [rootLanding, targetLanding] = await Promise.all([
-    writeLandingPath(rootPath),
-    writeLandingPath(targetPath),
-  ]);
-  if (rootLanding === null || targetLanding === null) return false;
-  const relativePath = relative(rootLanding, targetLanding);
-  return relativePath !== "" && !pathEscapesRoot(relativePath);
+async function claimsOwnDirTree(aiDir: AiDir): Promise<boolean> {
+  const outputRoot = aiDir.getOutputRoot();
+  const featureDirPath = join(outputRoot, aiDir.getRelativeDirPath());
+  try {
+    const [featureDirFromRoot, dirFromFeatureDir] = await Promise.all([
+      relativeWriteLanding({ rootPath: outputRoot, targetPath: featureDirPath }),
+      relativeWriteLanding({ rootPath: featureDirPath, targetPath: aiDir.getDirPath() }),
+    ]);
+    if (featureDirFromRoot === null || dirFromFeatureDir === null) return false;
+    return (
+      !pathEscapesRoot(featureDirFromRoot) &&
+      dirFromFeatureDir !== "" &&
+      !pathEscapesRoot(dirFromFeatureDir) &&
+      dirname(dirFromFeatureDir) === "."
+    );
+  } catch {
+    return false;
+  }
 }
 
 async function processDirFeatureGeneration(params: {
@@ -230,19 +244,14 @@ async function processDirFeatureGeneration(params: {
   // root every takt skill flattens into; claiming *that* as a tree would exempt
   // every sibling under the root from the sweep.
   //
-  // Nor does a directory that does not land strictly below the output root. One
-  // that leads out of it was refused by `writeAiDirs`, and one that lands on the
-  // root itself is the root: either way a `.claude/skills/foo -> $HOME` link
-  // would otherwise claim the whole home directory and silence every sweep in
-  // the run.
+  // Nor does a directory linked anywhere but directly below its feature's own
+  // output directory (see `claimsOwnDirTree`): a `.claude/skills/foo -> $HOME`
+  // link would otherwise claim the whole home directory, and `-> ..` all of
+  // `.claude`, silencing the sweeps of everything underneath.
   const ownedTrees = toolDirs.filter((d) => d.ownsDirTree());
-  const treesBelowRoot = await Promise.all(
-    ownedTrees.map((d) =>
-      landsStrictlyBelowRoot({ rootPath: d.getOutputRoot(), targetPath: d.getDirPath() }),
-    ),
-  );
+  const claimedTrees = await Promise.all(ownedTrees.map((d) => claimsOwnDirTree(d)));
   sweepPlan.registerGeneratedTree({
-    paths: ownedTrees.filter((_, index) => treesBelowRoot[index]).map((d) => d.getDirPath()),
+    paths: ownedTrees.filter((_, index) => claimedTrees[index]).map((d) => d.getDirPath()),
   });
 
   // Claim the directory and the files inside it by name as well, so a feature

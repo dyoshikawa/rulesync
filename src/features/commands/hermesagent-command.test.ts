@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -277,5 +277,63 @@ describe("HermesagentCommand", () => {
         rulesyncCommand(".rulesync/commands/review.md"),
       ]),
     ).rejects.toThrow('both normalize to "review"');
+  });
+
+  describe("removeOrphanAiFiles", () => {
+    const enabledConfig = "plugins:\n  enabled:\n    - existing-plugin\n    - rulesync-commands\n";
+
+    async function sweepCommandsPlugin({ outputRoot }: { outputRoot: string }) {
+      const processor = new CommandsProcessor({
+        outputRoot,
+        inputRoots: [join(outputRoot, RULESYNC_RELATIVE_DIR_PATH)],
+        toolTarget: "hermesagent",
+        logger: createMockLogger(),
+      });
+      const existingFiles = await processor.loadToolFiles({ forDeletion: true });
+      await processor.removeOrphanAiFiles(existingFiles, []);
+    }
+
+    it("disables the commands plugin once its ownership marker is swept", async () => {
+      const markerPath = join(
+        testDir,
+        ".hermes",
+        "plugins",
+        "rulesync-commands",
+        ".rulesync-owned",
+      );
+      const configPath = join(testDir, ".hermes", "config.yaml");
+      await mkdir(join(testDir, ".hermes", "plugins", "rulesync-commands"), { recursive: true });
+      await writeFile(markerPath, "Generated and owned by RuleSync.\n", "utf8");
+      await writeFile(configPath, enabledConfig, "utf8");
+
+      await sweepCommandsPlugin({ outputRoot: testDir });
+
+      const config = await readFile(configPath, "utf8");
+      expect(config).toContain("- existing-plugin");
+      expect(config).not.toContain("- rulesync-commands");
+    });
+
+    it.skipIf(process.platform === "win32")(
+      "keeps the commands plugin enabled when the sweep refuses to delete its marker",
+      async () => {
+        // The plugin directory is a link out of the output root, so the base
+        // sweep keeps the marker; disabling the plugin anyway would leave a
+        // marker behind for a plugin rulesync no longer enables.
+        const outputRoot = join(testDir, "project");
+        const outsideDir = join(testDir, "outside");
+        const markerPath = join(outsideDir, ".rulesync-owned");
+        const configPath = join(outputRoot, ".hermes", "config.yaml");
+        await mkdir(outsideDir, { recursive: true });
+        await mkdir(join(outputRoot, ".hermes", "plugins"), { recursive: true });
+        await writeFile(markerPath, "Generated and owned by RuleSync.\n", "utf8");
+        await symlink(outsideDir, join(outputRoot, ".hermes", "plugins", "rulesync-commands"));
+        await writeFile(configPath, enabledConfig, "utf8");
+
+        await sweepCommandsPlugin({ outputRoot });
+
+        expect(await readFile(markerPath, "utf8")).toContain("owned by RuleSync");
+        expect(await readFile(configPath, "utf8")).toBe(enabledConfig);
+      },
+    );
   });
 });

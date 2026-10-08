@@ -29,7 +29,11 @@ import { type Logger, warnOnceWithFallback } from "../utils/logger.js";
 import type { WriteResult } from "../utils/result.js";
 import { hasIncompleteCarriedFiles } from "../utils/warned-once.js";
 import { AiDir, AiDirFile } from "./ai-dir.js";
-import { caseFoldIdentity, refusesAnyWriteOutsideRoot } from "./feature-processor.js";
+import {
+  caseFoldIdentity,
+  refusesAnyWriteOutsideRoot,
+  refusesDirWriteOntoRoot,
+} from "./feature-processor.js";
 import { RulesyncSourceConsumer } from "./rulesync-source-consumer.js";
 import { ToolTarget } from "./tool-targets.js";
 
@@ -160,6 +164,33 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
   }
 
   /**
+   * Whether {@link writeAiDirs} has to hold `aiDir` back: a link on the way to
+   * any path it writes leads out of the output root, or its directory lands on
+   * the root itself. Each refusal is warned about.
+   */
+  private async refusesDirWrite({
+    aiDir,
+    writtenPaths,
+  }: {
+    aiDir: AiDir;
+    writtenPaths: readonly string[];
+  }): Promise<boolean> {
+    const rootPath = aiDir.getOutputRoot();
+    return (
+      (await refusesAnyWriteOutsideRoot({
+        logger: this.logger,
+        rootPath,
+        targetPaths: writtenPaths,
+      })) ||
+      (await refusesDirWriteOntoRoot({
+        logger: this.logger,
+        rootPath,
+        dirPath: aiDir.getDirPath(),
+      }))
+    );
+  }
+
+  /**
    * Once converted to rulesync/tool dirs, write them to the filesystem.
    * Returns the number of directories written.
    *
@@ -178,19 +209,14 @@ export abstract class DirFeatureProcessor extends RulesyncSourceConsumer {
       // written below it out of the root, and so would any one file that is
       // a link of its own — the main file and the companions alike. The
       // directory is written as a unit, so one such file holds back the whole
-      // directory; the check happens before anything is read or written.
+      // directory; the check happens before anything is read or written. A
+      // directory linked onto the root itself is held back the same way.
       const writtenPaths = [
         dirPath,
         ...(mainFile ? [join(dirPath, mainFile.name)] : []),
         ...otherFiles.map((file) => join(dirPath, file.relativeFilePathToDirPath)),
       ];
-      if (
-        await refusesAnyWriteOutsideRoot({
-          logger: this.logger,
-          rootPath: aiDir.getOutputRoot(),
-          targetPaths: writtenPaths,
-        })
-      ) {
+      if (await this.refusesDirWrite({ aiDir, writtenPaths })) {
         continue;
       }
       let dirHasChanges = false;
