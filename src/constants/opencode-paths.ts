@@ -33,6 +33,12 @@ export type OpencodeLayout = {
   configDir: string;
   jsonFileName: string;
   jsoncFileName: string;
+  /**
+   * Whether the tool lowers OpenCode V2 config spellings (plural `agents` /
+   * `commands`, a flat `skills` array) found in its V1 config, as OpenCode V1
+   * does since v1.18.24. Import reads them only when this is set.
+   */
+  readsV2ConfigSpellings: boolean;
 };
 
 export const OPENCODE_LAYOUT: OpencodeLayout = {
@@ -42,4 +48,5 @@ export const OPENCODE_LAYOUT: OpencodeLayout = {
   configDir: ".",
   jsonFileName: OPENCODE_JSON_FILE_NAME,
   jsoncFileName: OPENCODE_JSONC_FILE_NAME,
+  readsV2ConfigSpellings: true,
 };

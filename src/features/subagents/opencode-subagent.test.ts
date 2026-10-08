@@ -386,6 +386,27 @@ Body content`,
       expect(rulesyncSubagent?.getRelativeFilePath()).toBe("plain.md");
     });
 
+    it("imports V2 agents entries from opencode.json", async () => {
+      await writeFileContent(
+        join(testDir, "opencode.json"),
+        JSON.stringify({
+          agents: {
+            reviewer: { description: "Reviews", system: "You review.", model: "openai/gpt-5#high" },
+          },
+        }),
+      );
+
+      const [subagent] = await OpenCodeSubagent.loadAdditionalImportFiles({ outputRoot: testDir });
+
+      expect(subagent?.getRelativeFilePath()).toBe("reviewer.md");
+      expect(subagent?.getBody()).toBe("You review.");
+      const frontmatter = subagent?.getFrontmatter() as Record<string, unknown>;
+      expect(frontmatter.description).toBe("Reviews");
+      expect(frontmatter.model).toBe("openai/gpt-5");
+      expect(frontmatter.variant).toBe("high");
+      expect(frontmatter.system).toBeUndefined();
+    });
+
     it("returns an empty array when there is no agent block or config", async () => {
       expect(await OpenCodeSubagent.loadAdditionalImportFiles({ outputRoot: testDir })).toEqual([]);
 
