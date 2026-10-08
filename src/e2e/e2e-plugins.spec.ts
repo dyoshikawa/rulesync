@@ -167,6 +167,19 @@ Review changes before submission.
     });
     expect(await fileExists(join(pluginRoot, "plugin.json"))).toBe(false);
 
+    // The rules are current after this run, so only the missing manifest is a diff.
+    await runGenerate({ target: "antigravity-plugin", features: "rules", outputRoots: pluginRoot });
+    await removeFile(join(pluginRoot, "plugin.json"));
+    await expect(
+      runGenerate({
+        target: "antigravity-plugin",
+        features: "rules",
+        outputRoots: pluginRoot,
+        check: true,
+      }),
+    ).rejects.toThrow();
+    expect(await fileExists(join(pluginRoot, "plugin.json"))).toBe(false);
+
     await runGenerate({
       target: "antigravity-plugin",
       features: "rules",

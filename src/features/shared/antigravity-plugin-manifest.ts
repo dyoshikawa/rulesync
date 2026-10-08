@@ -2,6 +2,7 @@ import { basename, join, resolve } from "node:path";
 
 import { ANTIGRAVITY_PLUGIN_MANIFEST_FILE_NAME } from "../../constants/plugin-paths.js";
 import { refusesWriteOutsideRoot } from "../../types/feature-processor.js";
+import { quoteForLog, stripControlCharacters } from "../../utils/control-characters.js";
 import { addTrailingNewline, fileExists, writeFileContent } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { warnOnceWithFallback } from "../../utils/logger.js";
@@ -44,15 +45,16 @@ export async function ensureAntigravityPluginManifests({
     if (!ANTIGRAVITY_PLUGIN_NAME_PATTERN.test(name)) {
       warnOnceWithFallback(
         logger,
-        `Cannot derive an Antigravity plugin name from the directory '${name}': it must match ` +
-          `${ANTIGRAVITY_PLUGIN_NAME_PATTERN.source}. Create ${filePath} by hand with a valid "name".`,
+        `Cannot derive an Antigravity plugin name from the directory ${quoteForLog(name)}: it must ` +
+          `match ${ANTIGRAVITY_PLUGIN_NAME_PATTERN.source}. Create ${quoteForLog(filePath)} by hand ` +
+          `with a valid "name".`,
       );
       continue;
     }
 
     const content = addTrailingNewline(JSON.stringify({ name }, null, 2));
     if (dryRun) {
-      logger.info(`[DRY RUN] Would write: ${filePath}`);
+      logger.info(`[DRY RUN] Would write: ${stripControlCharacters(filePath)}`);
     } else {
       await writeFileContent(filePath, content);
     }

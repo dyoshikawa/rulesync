@@ -17,6 +17,7 @@ const emptyResult: CountableResult = {
 describe("calculateTotalCount", () => {
   it("includes Hermes project-plugin activation files", () => {
     expect(calculateTotalCount({ ...emptyResult, activationCount: 2 })).toBe(2);
+    expect(calculateTotalCount({ ...emptyResult, pluginManifestCount: 1 })).toBe(1);
   });
 
   it("keeps activation optional for import and convert results", () => {

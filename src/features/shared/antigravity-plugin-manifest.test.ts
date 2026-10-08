@@ -74,6 +74,37 @@ describe("ensureAntigravityPluginManifests", () => {
     }
   });
 
+  it("reports only the manifests it creates across several output roots", async () => {
+    const { testDir, cleanup } = await setupTestDirectory();
+    try {
+      const existingRoot = join(testDir, "existing");
+      const missingRoot = join(testDir, "missing");
+      const invalidRoot = join(testDir, "bad name");
+      await writeFileContent(join(existingRoot, "plugin.json"), '{ "name": "existing" }');
+      await ensureDir(missingRoot);
+      await ensureDir(invalidRoot);
+      const logger = createMockLogger();
+
+      const result = await ensureAntigravityPluginManifests({
+        outputRoots: [existingRoot, missingRoot, invalidRoot],
+        dryRun: false,
+        logger,
+      });
+
+      expect(result).toEqual({
+        count: 1,
+        paths: ["plugin.json"],
+        hasDiff: true,
+        sourceLoadFailed: false,
+      });
+      expect(await fileExists(join(missingRoot, "plugin.json"))).toBe(true);
+      expect(await fileExists(join(invalidRoot, "plugin.json"))).toBe(false);
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+    } finally {
+      await cleanup();
+    }
+  });
+
   it("warns and writes nothing when the directory name is not a valid plugin name", async () => {
     const { testDir, cleanup } = await setupTestDirectory();
     try {
