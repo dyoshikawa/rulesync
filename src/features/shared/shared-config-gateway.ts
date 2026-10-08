@@ -1507,7 +1507,7 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
   // (`.vscode/mcp.json`, declared just below).
   //
   // Three targets reach this file through the same `permissions` feature —
-  // `copilot` (the `chat.tools.*` keys), `zoocode` (the `zoo-code.*` command
+  // `copilot` (the `chat.tools.*` keys and `chat.permissions.default`), `zoocode` (the `zoo-code.*` command
   // lists) and `roo` (the same lists under the archived lineage's `roo-cline.*`
   // spelling) — so `ownedKeys` is their union. They stay independent because a
   // patch only ever names the keys its own adapter builds: generating for one
@@ -1516,7 +1516,7 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
   ".vscode/settings.json": {
     format: "jsonc",
     // A general-purpose user file we promise to preserve untouched apart from
-    // the one managed key. Refuse to read-modify-write a file we could not
+    // the managed keys. Refuse to read-modify-write a file we could not
     // fully parse (fail-closed), so a partial JSONC parse can never silently
     // drop unrelated user settings on the write-back — mirroring `.amp/`.
     invalidRootPolicy: "error",
@@ -1528,6 +1528,7 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
           "chat.tools.terminal.autoApprove",
           "chat.tools.edits.autoApprove",
           "chat.tools.urls.autoApprove",
+          "chat.permissions.default",
           "zoo-code.allowedCommands",
           "zoo-code.deniedCommands",
           "roo-cline.allowedCommands",
