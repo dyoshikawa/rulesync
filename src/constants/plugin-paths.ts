@@ -11,6 +11,9 @@ export const ANTIGRAVITY_PLUGIN_SKILLS_DIR = "skills";
 export const ANTIGRAVITY_PLUGIN_AGENTS_DIR = "agents";
 export const ANTIGRAVITY_PLUGIN_MCP_FILE_NAME = "mcp_config.json";
 export const ANTIGRAVITY_PLUGIN_HOOKS_FILE_NAME = "hooks.json";
+// The manifest that marks a directory as an Antigravity plugin.
+// @see https://antigravity.google/docs/plugins
+export const ANTIGRAVITY_PLUGIN_MANIFEST_FILE_NAME = "plugin.json";
 
 // Auggie plugin components live directly under the plugin root, in the same
 // layout as a Claude Code plugin plus a `rules/` directory.

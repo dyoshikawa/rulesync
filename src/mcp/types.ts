@@ -19,6 +19,7 @@ export type McpResultCounts = {
   permissionsCount: number;
   checksCount: number;
   activationCount?: number;
+  pluginManifestCount?: number;
   totalCount: number;
 };
 

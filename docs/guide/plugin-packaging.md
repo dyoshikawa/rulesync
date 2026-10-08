@@ -78,15 +78,17 @@ The same configuration can be persisted in `rulesync.jsonc`:
 }
 ```
 
-Rulesync manages the selected component files but does not create or modify plugin metadata, marketplace catalogs, scripts, or other package assets. Keep the required upstream manifest in the plugin directory:
+Rulesync manages the selected component files but does not create or modify plugin metadata, marketplace catalogs, scripts, or other package assets. The one exception is Antigravity, covered below. Keep the required upstream manifest in the plugin directory:
 
 - Claude Code: `.claude-plugin/plugin.json` when the plugin uses a manifest
-- Antigravity: `plugin.json`
+- Antigravity: `plugin.json`, which `generate` creates when it is missing (see below)
 - AugmentCode: `.augment-plugin/plugin.json` (Auggie also accepts `.claude-plugin/plugin.json`), plus `.augment-plugin/marketplace.json` at the marketplace root
 - ZCode: `.zcode-plugin/plugin.json` (ZCode also accepts `.claude-plugin/plugin.json`)
 - Vibe Code: `plugin.json` with the Agent Plugins `$schema`, plus the `ai.mistral.vibe` extension block for subagents and hooks (see [Vibe Code plugins](#vibe-code-plugins))
 - Devin: `.devin-plugin/plugin.json`
 - Kimi Code: `kimi.plugin.json` (or `.kimi-plugin/plugin.json`) declaring the generated components (see [Kimi Code plugins](#kimi-code-plugins))
+
+Antigravity treats a directory as a plugin only when it has a [`plugin.json`](https://antigravity.google/docs/plugins) at its root, and the manifest schema allows only `name` (required by the Antigravity CLI, matching `^[a-zA-Z0-9-_]+$`) and `description`. So when `antigravity-plugin` is a target and its output root has no `plugin.json`, `generate` writes `{"name": "<plugin directory name>"}` there, whatever features are selected. If the directory name does not match the pattern, Rulesync warns and writes nothing, so create the manifest by hand. An existing `plugin.json` is never read, rewritten or deleted, so a hand-authored `name` or `description` is kept, including under `--delete`. Import does not read the manifest. Vibe Code reads a root `plugin.json` too, with fields Antigravity's schema rejects, so give `antigravity-plugin` and `vibe-plugin` separate output roots.
 
 The plugin root must already exist. Rulesync rejects symbolic links anywhere in the plugin tree before importing, generating, or deleting files so package components cannot escape the selected root.
 

@@ -17,6 +17,7 @@ import { IgnoreProcessor } from "../features/ignore/ignore-processor.js";
 import { McpProcessor } from "../features/mcp/mcp-processor.js";
 import { PermissionsProcessor } from "../features/permissions/permissions-processor.js";
 import { RulesProcessor } from "../features/rules/rules-processor.js";
+import { ensureAntigravityPluginManifests } from "../features/shared/antigravity-plugin-manifest.js";
 import {
   activateHermesProjectPlugins,
   type HermesProjectPluginName,
@@ -79,6 +80,8 @@ export type GenerateResult = {
   checksPaths: string[];
   activationCount: number;
   activationPaths: string[];
+  pluginManifestCount: number;
+  pluginManifestPaths: string[];
   skills: RulesyncSkill[];
   hasDiff: boolean;
   /**
@@ -977,6 +980,17 @@ export async function generate(params: {
     logger,
   });
 
+  // Written after the sweep, which never claims the manifest, so `--delete`
+  // cannot remove one this run just created.
+  const pluginManifestResult = await ensureAntigravityPluginManifests({
+    outputRoots:
+      !config.getGlobal() && config.getTargets().includes("antigravity-plugin")
+        ? config.getOutputRoots("antigravity-plugin")
+        : [],
+    dryRun: config.isPreviewMode(),
+    logger,
+  });
+
   if (!skillsResult) {
     throw new Error("Skills generation step did not run.");
   }
@@ -990,7 +1004,10 @@ export async function generate(params: {
   };
 
   const hasDiff =
-    sweepHasDiff || activationResult.hasDiff || orderedSteps.some((step) => get(step.id).hasDiff);
+    sweepHasDiff ||
+    activationResult.hasDiff ||
+    pluginManifestResult.hasDiff ||
+    orderedSteps.some((step) => get(step.id).hasDiff);
 
   // A step that could not read its source wrote nothing, which is counted the
   // same as "there was nothing to write". Carry the distinction out so the
@@ -1021,6 +1038,8 @@ export async function generate(params: {
     checksPaths: get("checks").paths,
     activationCount: activationResult.count,
     activationPaths: activationResult.paths,
+    pluginManifestCount: pluginManifestResult.count,
+    pluginManifestPaths: pluginManifestResult.paths,
     skills: skillsResult.skills,
     hasDiff,
     sourceLoadFailed: sourceLoadFailedFeatures.length > 0,

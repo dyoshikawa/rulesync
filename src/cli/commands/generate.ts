@@ -175,6 +175,7 @@ function buildSummaryParts(result: GenerateResult): string[] {
     { count: result.permissionsCount, label: "permissions" },
     { count: result.checksCount, label: "checks" },
     { count: result.activationCount, label: "Hermes activation files" },
+    { count: result.pluginManifestCount, label: "plugin manifests" },
   ];
 
   const parts: string[] = [];
@@ -242,6 +243,7 @@ async function generateOnce(
     checks: { count: result.checksCount, paths: result.checksPaths },
     rules: { count: result.rulesCount, paths: result.rulesPaths },
     activation: { count: result.activationCount, paths: result.activationPaths },
+    pluginManifest: { count: result.pluginManifestCount, paths: result.pluginManifestPaths },
   };
 
   // Map feature keys to human-readable labels with pluralization
@@ -256,6 +258,7 @@ async function generateOnce(
     permissions: (count) => `${count === 1 ? "permissions file" : "permissions files"}`,
     checks: (count) => `${count === 1 ? "check" : "checks"}`,
     activation: (count) => `${count === 1 ? "Hermes activation file" : "Hermes activation files"}`,
+    pluginManifest: (count) => `${count === 1 ? "plugin manifest" : "plugin manifests"}`,
   };
 
   for (const [feature, data] of Object.entries(featureResults)) {

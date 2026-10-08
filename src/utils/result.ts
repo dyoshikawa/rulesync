@@ -34,6 +34,7 @@ export type CountableResult = {
   permissionsCount: number;
   checksCount: number;
   activationCount?: number;
+  pluginManifestCount?: number;
 };
 
 /**
@@ -50,6 +51,7 @@ export function calculateTotalCount(result: CountableResult): number {
     result.hooksCount +
     result.permissionsCount +
     result.checksCount +
-    (result.activationCount ?? 0)
+    (result.activationCount ?? 0) +
+    (result.pluginManifestCount ?? 0)
   );
 }
