@@ -735,7 +735,7 @@ describe("ZedPermissions", () => {
     });
   });
 
-  describe("zed override (sandbox_permissions / profiles)", () => {
+  describe("zed override (sandbox_permissions / profiles / default_profile)", () => {
     const sandboxPermissions = {
       network_hosts: ["*.github.com", "registry.npmjs.org"],
       write_paths: ["/tmp/build"],
@@ -847,6 +847,41 @@ describe("ZedPermissions", () => {
       expect(agent.sandbox_permissions).toEqual({ network_hosts: ["new.example.com"] });
       // Not authored: left exactly as the user wrote it.
       expect(agent.profiles).toEqual({ legacy: { name: "Legacy" } });
+    });
+
+    it("should write default_profile and lift it back on import", async () => {
+      const rulesyncPermissions = createRulesyncPermissionsWithConfig({
+        permission: { bash: { "*": "ask" } },
+        zed: { profiles, default_profile: "review" },
+      });
+
+      const generated = await ZedPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        global: true,
+      });
+      expect(JSON.parse(generated.getFileContent()).agent.default_profile).toBe("review");
+
+      await writeFileContent(
+        join(testDir, expectedZedGlobalDir, "settings.json"),
+        generated.getFileContent(),
+      );
+      const imported = await ZedPermissions.fromFile({ outputRoot: testDir, global: true });
+      const json = JSON.parse(imported.toRulesyncPermissions().getFileContent());
+
+      expect(json.zed).toEqual({ profiles, default_profile: "review" });
+    });
+
+    it("should not lift a non-string default_profile on import", async () => {
+      await writeFileContent(
+        join(testDir, expectedZedGlobalDir, "settings.json"),
+        JSON.stringify({ agent: { default_profile: { id: "review" } } }),
+      );
+
+      const imported = await ZedPermissions.fromFile({ outputRoot: testDir, global: true });
+      const json = JSON.parse(imported.toRulesyncPermissions().getFileContent());
+
+      expect(json.zed).toBeUndefined();
     });
 
     it("should ignore a tool_permissions key in the override with a warning", async () => {
