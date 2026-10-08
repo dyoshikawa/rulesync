@@ -1494,7 +1494,7 @@ You can control which individual tools from an MCP server are enabled or disable
 
 > **Codex CLI server-name note:** Codex requires MCP server names matching `[a-zA-Z0-9_-]+`, so Rulesync auto-normalizes non-conforming names on generate (lowercase, runs of other characters become `_`, leading/trailing `_` trimmed) — e.g. `Postgres MCP - Production - Read Only` becomes `postgres_mcp_production_read_only`. If two names normalize to the same Codex name, the last processed server overwrites the earlier one (with a warning). A name with no representable characters at all (e.g. a fully Japanese name) falls back to a stable hash-derived name like `mcp_1a2b3c4d` instead of being dropped; rename the server in `.rulesync/mcp.jsonc` to pick a readable Codex name. This normalization is one-way: importing back from the generated `config.toml` yields the normalized name, not the original.
 
-> **Codex CLI key-translation note:** Codex's `[mcp_servers.<name>]` table reads its own field names, so the canonical fields are translated rather than forwarded. `headers` is written as `http_headers` (and imports back as `headers`), which Codex accepts only on a url-based server — on a stdio server it is a load error upstream, so the headers are dropped with a warning instead. The canonical millisecond timeouts become Codex's second-based ones: `timeout` ⇄ `tool_timeout_sec` (the default timeout for tool calls) and `networkTimeout` ⇄ `startup_timeout_sec` (initialize + list-tools), dividing by 1000 on generate and multiplying on import, so a sub-second remainder is emitted as a fraction. Codex also accepts `startup_timeout_ms`, which imports verbatim into `networkTimeout` unless the config sets `startup_timeout_sec` too — Codex prefers the seconds spelling when both are present, and so does Rulesync. The canonical `tools` array is **not** written: Codex declares `tools` as a table of per-tool approval settings (`tools.<tool>.approval_mode`), and an array where it expects a table is a hard deserialization error that takes the whole server entry down, so it is dropped with a warning — use `enabledTools` / `disabledTools`, which map onto Codex's `enabled_tools` / `disabled_tools`. For the same reason the approval table is never imported into the canonical model; it stays in `config.toml`, where the approval-preserving merge carries it across regenerates. Both timeouts must be non-negative: Codex builds a duration out of them and errors on a negative value, which fails the whole file, so such a value is dropped with a warning. Canonical fields Codex has no counterpart for (`type`/`transport` — Codex infers the transport from `command` versus `url` — plus `alwaysAllow`, `trust`, and the Kiro lists) are dropped silently; on import a server carrying a `url` and no `command` gets `type: "http"` restated, so a config read out of Codex still reaches the tools that branch on the transport. That restatement is one-way, like the server-name normalization: Codex's only remote transport is `streamable_http`, so a canonical `sse` (or `ws`, or `streamable-http`) server comes back from a round-trip as `http`. Fields Rulesync does not model, such as `env_http_headers` and `bearer_token_env_var`, pass through under their own names.
+> **Codex CLI key-translation note:** Codex's `[mcp_servers.<name>]` table reads its own field names, so the canonical fields are translated rather than forwarded. `headers` is written as `http_headers` (and imports back as `headers`), which Codex accepts only on a url-based server — on a stdio server it is a load error upstream, so the headers are dropped with a warning instead. The canonical millisecond timeouts become Codex's second-based ones: `timeout` ⇄ `tool_timeout_sec` (the default timeout for tool calls) and `networkTimeout` ⇄ `startup_timeout_sec` (initialize + list-tools), dividing by 1000 on generate and multiplying on import, so a sub-second remainder is emitted as a fraction. Codex also accepts `startup_timeout_ms`, which imports verbatim into `networkTimeout` unless the config sets `startup_timeout_sec` too — Codex prefers the seconds spelling when both are present, and so does Rulesync. The canonical `tools` array is **not** written: Codex declares `tools` as a table of per-tool approval settings (`tools.<tool>.approval_mode`), and an array where it expects a table is a hard deserialization error that takes the whole server entry down, so it is dropped with a warning — use `enabledTools` / `disabledTools`, which map onto Codex's `enabled_tools` / `disabled_tools`. Codex's table itself is authored through the namespaced `codexcliTools` key and imports back into it (see [below](#codex-specific-per-tool-approval-modes-codexclitools)). Both timeouts must be non-negative: Codex builds a duration out of them and errors on a negative value, which fails the whole file, so such a value is dropped with a warning. Canonical fields Codex has no counterpart for (`type`/`transport` — Codex infers the transport from `command` versus `url` — plus `alwaysAllow`, `trust`, and the Kiro lists) are dropped silently; on import a server carrying a `url` and no `command` gets `type: "http"` restated, so a config read out of Codex still reaches the tools that branch on the transport. That restatement is one-way, like the server-name normalization: Codex's only remote transport is `streamable_http`, so a canonical `sse` (or `ws`, or `streamable-http`) server comes back from a round-trip as `http`. Fields Rulesync does not model, such as `env_http_headers` and `bearer_token_env_var`, pass through under their own names.
 
 > **Codex CLI environment-variable note:** Codex does not expand `${VAR}` references in `url` or `http_headers` — the values are sent literally. On generate, Rulesync therefore rewrites the two header shapes Codex can source from the environment: `Authorization: Bearer ${VAR}` becomes `bearer_token_env_var = "VAR"`, and a header whose whole value is `${VAR}` becomes an `env_http_headers` entry (`"X-Api-Key" = "VAR"`). The header name and the `Bearer` scheme are matched case-insensitively. A `bearer_token_env_var` or `env_http_headers` entry you set explicitly on the server wins: the header that would have been converted into it is dropped instead of being written a second time. Anything else still containing `${…}` — a reference inside a longer value, a `${VAR:-default}` fallback, or any reference in `url` (for which Codex has no environment-sourced counterpart) — is written verbatim with a warning naming the server and field, so replace it with a literal value for Codex. The rewrite is one-way: importing from Codex keeps `bearer_token_env_var` and `env_http_headers` as pass-through keys rather than restoring the canonical `headers` entries.
 
@@ -1555,6 +1555,46 @@ callbackPort = 3118
 ```
 
 Only a string `clientId` is duplicated (a non-string value would not be a usable OAuth client id), and an explicit `client_id` already present in the source is left untouched. On import, `client_id` collapses back to the canonical `clientId` (and is dropped when both are present) so the round-trip stays stable.
+
+### Codex-specific: per-tool approval modes (`codexcliTools`)
+
+Codex reads per-tool settings from `[mcp_servers.<name>.tools.<tool>]` tables: `approval_mode` (`auto`, `prompt`, `writes` or `approve`) overrides the server's `default_tools_approval_mode` for one tool, and `output_token_limit` (a positive integer) sets that tool's output token budget. Author them as `codexcliTools`, a map keyed by tool name — usually inside the `codexcli` block, since no other tool reads it. The canonical `tools` key cannot be used for this: it is a string array, and Codex reads its own `tools` key as this table.
+
+```jsonc
+{
+  "mcpServers": {},
+  "codexcli": {
+    "mcpServers": {
+      "example": {
+        "type": "http",
+        "url": "https://example.com/mcp",
+        "default_tools_approval_mode": "writes",
+        "codexcliTools": {
+          "example_tool": { "approval_mode": "approve" },
+        },
+      },
+    },
+  },
+}
+```
+
+Generated `.codex/config.toml`:
+
+```toml
+[mcp_servers.example]
+url = "https://example.com/mcp"
+default_tools_approval_mode = "writes"
+
+[mcp_servers.example.tools.example_tool]
+approval_mode = "approve"
+```
+
+- `codexcliTools` may also sit on a shared server; it is stripped before every other tool's MCP config is written, like `envVars`.
+- The two known fields are validated strictly, because Codex rejects the whole `config.toml` on an unknown `approval_mode` or a zero `output_token_limit`; any other key in an entry is passed through.
+- Approvals Codex itself saved into `config.toml` (for example after "always allow") are kept on regenerate. The authored table is merged over them field by field: a field set in `codexcliTools` wins, and every saved tool or field it does not name is kept (authoring only `output_token_limit` for a tool keeps its saved `approval_mode`). Removing a tool from `codexcliTools` therefore does not remove its entry from `config.toml`; delete it there by hand.
+- On import, the `tools` table is lifted into `codexcliTools` on the imported server. An entry Rulesync would refuse on the next generate is dropped with a warning. The table includes approvals Codex saved for you locally, so review them before committing the imported `.rulesync/mcp.jsonc`: once committed, they apply to everyone who generates from it.
+
+See the [Codex configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference) (`mcp_servers.<id>.tools.<tool>.approval_mode` / `output_token_limit`).
 
 > **Grok CLI note:** MCP servers are written to a `[mcp_servers.<name>]` table in `.grok/config.toml` (project) / `~/.grok/config.toml` (global, via `--global`). The file is treated as shared Grok config: Rulesync only replaces the `mcp_servers` key and preserves every other table on round-trip, and it is never deleted. Unlike Codex CLI, Grok uses a literal `env` table (it does not support the `env_vars` runtime-passthrough list) and has no per-server tool allow/deny lists, so the only field rename is `disabled` (rulesync) ⇄ `enabled = false` (grok); an active server simply omits `enabled`. Servers with no environment variables are emitted without a dangling `[mcp_servers.<name>.env]` table (empty nested tables are stripped), and a server whose entire configuration would be empty is dropped with a warning.
 
