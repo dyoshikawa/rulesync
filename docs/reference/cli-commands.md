@@ -378,7 +378,7 @@ With the global `--json` flag, `generate` reports the files it wrote, the manage
 }
 ```
 
-- `action` is `write` or `delete`; `kind` is `file`, `directory` or `key`. A deleted directory is listed once, by its own path, together with everything under it. Deletions come from the `--delete` orphan sweep, so without `--delete` the plan holds writes only.
+- `action` is `write` or `delete`; `kind` is `file`, `directory` or `key`. A deleted directory is listed once, by its own path, together with everything under it. File and directory deletions come from the `--delete` orphan sweep, so without `--delete` the plan holds no `file` or `directory` deletion. A `key` deletion is part of a shared file's write and is reported with or without `--delete`.
 - `path` is relative to the output root, with `/` separators, and the operation does not name the root. A path several targets write is listed once, and so is a relative path that stands for a file in each of several output roots (`--output-roots a b`, or a tool home override such as `HERMES_HOME`): run one output root at a time when a consumer has to tell them apart.
 - The order is deterministic — features in summary order; within a feature, file writes, then key operations, then deletions; paths sorted, and keys within a path — so a `--dry-run` plan can be compared operation by operation with the plan the following real run reports.
 - A failing command's document carries no `data`, so when `--check` finds the tree out of date, or a `.rulesync/` source could not be read, the plan is reported as `error.details.plan` instead.
