@@ -39,6 +39,7 @@ import {
   LETTACODE_HOOK_EVENTS,
   OPENCODE_HOOK_EVENTS,
   OPENCODE_MATCHER_HOOK_EVENTS,
+  OMP_HOOK_EVENTS,
   PI_HOOK_EVENTS,
   POOL_HOOK_EVENTS,
   QODER_HOOK_EVENTS,
@@ -95,6 +96,7 @@ import { KiroHooks } from "./kiro-hooks.js";
 import { KIRO_HOOKS_OVERRIDE_KEY, KiroIdeHooks } from "./kiro-ide-hooks.js";
 import { LettacodeHooks } from "./lettacode-hooks.js";
 import { MimocodeHooks } from "./mimocode-hooks.js";
+import { OmpHooks } from "./omp-hooks.js";
 import { OpencodeHooks } from "./opencode-hooks.js";
 import { PiHooks } from "./pi-hooks.js";
 import { PoolHooks } from "./pool-hooks.js";
@@ -608,6 +610,28 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       supportedHookTypes: ["command"],
       // Matchers are evaluated as regexes against `event.toolName` on Pi's
       // tool_call / tool_result events.
+      supportsMatcher: true,
+      // The adapter only emits its own native events; unknown override-block
+      // keys are dropped, so report them.
+      dropsUnknownOverrideEvents: true,
+    },
+  ],
+  [
+    "omp",
+    {
+      class: OmpHooks,
+      meta: {
+        // oh-my-pi discovers extensions from `.omp/extensions/` (project) and
+        // `~/.omp/agent/extensions/` (global); rulesync generates the same
+        // kind of TypeScript extension as for Pi, so import is unsupported.
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: false,
+      },
+      supportedEvents: OMP_HOOK_EVENTS,
+      supportedHookTypes: ["command"],
+      // Matchers are evaluated as regexes against `event.toolName` on
+      // oh-my-pi's tool_call / tool_result events.
       supportsMatcher: true,
       // The adapter only emits its own native events; unknown override-block
       // keys are dropped, so report them.

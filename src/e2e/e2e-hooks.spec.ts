@@ -106,6 +106,37 @@ function assertHooksKeyedEvents({
   expect(serialized).not.toContain("$CLAUDE_PROJECT_DIR");
 }
 
+function isPiExtensionTarget(target: string): target is "pi" | "omp" {
+  return target === "pi" || target === "omp";
+}
+
+/**
+ * Pi and its fork oh-my-pi emit a TypeScript extension subscribing to
+ * snake_case extension events (sessionStart → session_start). Pi maps stop to
+ * agent_before_settle; oh-my-pi has no agent_before_settle and its
+ * session_stop mapping is not implemented yet, so its stop hook (audit.sh) is
+ * dropped.
+ */
+function assertPiExtensionHooks({
+  target,
+  generatedContent,
+}: {
+  target: "pi" | "omp";
+  generatedContent: string;
+}): void {
+  expect(generatedContent).toContain('pi.on("session_start"');
+  expect(generatedContent).toContain(".rulesync/hooks/session-start.sh");
+  if (target === "pi") {
+    expect(generatedContent).toContain('from "@earendil-works/pi-coding-agent"');
+    expect(generatedContent).toContain('pi.on("agent_before_settle"');
+    expect(generatedContent).toContain(".rulesync/hooks/audit.sh");
+  } else {
+    expect(generatedContent).toContain('from "@oh-my-pi/pi-coding-agent"');
+    expect(generatedContent).not.toContain("agent_before_settle");
+    expect(generatedContent).not.toContain(".rulesync/hooks/audit.sh");
+  }
+}
+
 // Tools whose event mapping/serialization needs a
 // bespoke assertion (vibe, devin, reasonix) live in their own standalone `it`s
 // below; `hooksProjectStandaloneTargets` lists them so the completeness check
@@ -122,6 +153,7 @@ const hooksGenerateTargets = [
   { target: "opencode", outputPath: join(".opencode", "plugins", "rulesync-hooks.js") },
   { target: "kilo", outputPath: join(".kilo", "plugins", "rulesync-hooks.js") },
   { target: "pi", outputPath: join(".pi", "extensions", "rulesync-hooks.ts") },
+  { target: "omp", outputPath: join(".omp", "extensions", "rulesync-hooks.ts") },
   { target: "codexcli", outputPath: join(".codex", "hooks.json") },
   { target: "qwencode", outputPath: join(".qwen", "settings.json") },
   {
@@ -226,14 +258,8 @@ describe("E2E: hooks", () => {
       expect(
         await readFileContent(join(testDir, ".clinerules", "hooks", "TaskStart.ps1")),
       ).toContain(".rulesync/hooks/session-start.sh");
-    } else if (target === "pi") {
-      // Pi emits a TypeScript extension (.pi/extensions/rulesync-hooks.ts)
-      // that subscribes to snake_case extension events: sessionStart →
-      // session_start, stop → agent_before_settle.
-      expect(generatedContent).toContain('pi.on("session_start"');
-      expect(generatedContent).toContain('pi.on("agent_before_settle"');
-      expect(generatedContent).toContain(".rulesync/hooks/session-start.sh");
-      expect(generatedContent).toContain(".rulesync/hooks/audit.sh");
+    } else if (isPiExtensionTarget(target)) {
+      assertPiExtensionHooks({ target, generatedContent });
     } else {
       const parsed = JSON.parse(generatedContent);
 
@@ -843,6 +869,7 @@ describe("E2E: hooks", () => {
     { target: "mimocode", orphanPath: join(".mimocode", "plugins", "rulesync-hooks.js") },
     { target: "opencode", orphanPath: join(".opencode", "plugins", "rulesync-hooks.js") },
     { target: "pi", orphanPath: join(".pi", "extensions", "rulesync-hooks.ts") },
+    { target: "omp", orphanPath: join(".omp", "extensions", "rulesync-hooks.ts") },
     { target: "codexcli", orphanPath: join(".codex", "hooks.json") },
     { target: "copilot", orphanPath: join(".github", "hooks", "copilot-hooks.json") },
     { target: "factorydroid", orphanPath: join(".factory", "hooks.json") },
@@ -1214,6 +1241,7 @@ const hooksGlobalTargets = [
   { target: "opencode", outputPath: join(".config", "opencode", "plugins", "rulesync-hooks.js") },
   { target: "kilo", outputPath: join(".config", "kilo", "plugins", "rulesync-hooks.js") },
   { target: "pi", outputPath: join(".pi", "agent", "extensions", "rulesync-hooks.ts") },
+  { target: "omp", outputPath: join(".omp", "agent", "extensions", "rulesync-hooks.ts") },
   { target: "factorydroid", outputPath: join(".factory", "hooks.json") },
   { target: "deepagents", outputPath: join(".deepagents", "hooks.json") },
   { target: "junie", outputPath: join(".junie", "config.json") },
@@ -1311,12 +1339,8 @@ describe("E2E: hooks (global mode)", () => {
         // Kilo's JS plugin differs from OpenCode's shape; assert command paths.
         expect(generatedContent).toContain(".rulesync/hooks/session-start.sh");
         expect(generatedContent).toContain(".rulesync/hooks/audit.sh");
-      } else if (target === "pi") {
-        // Pi emits a TypeScript extension subscribing to snake_case events.
-        expect(generatedContent).toContain('pi.on("session_start"');
-        expect(generatedContent).toContain('pi.on("agent_before_settle"');
-        expect(generatedContent).toContain(".rulesync/hooks/session-start.sh");
-        expect(generatedContent).toContain(".rulesync/hooks/audit.sh");
+      } else if (isPiExtensionTarget(target)) {
+        assertPiExtensionHooks({ target, generatedContent });
       } else if (target === "copilot" || target === "copilotcli") {
         // Neither Copilot target supports the `stop` hook event, so audit.sh is
         // intentionally dropped during generation.

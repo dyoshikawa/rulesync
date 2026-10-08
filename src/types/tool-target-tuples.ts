@@ -350,6 +350,7 @@ export const hooksProcessorToolTargetTuple = [
   "cortexcode",
   "crush",
   "mimocode",
+  "omp",
   "opencode",
   "pi",
   "pool",
