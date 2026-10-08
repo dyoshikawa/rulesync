@@ -424,8 +424,9 @@ export type QwencodePermissionsOverride = z.infer<typeof QwencodePermissionsOver
  *
  * Each authored key replaces the one in the settings file; keys left out are
  * preserved as the user left them. Import lifts them back into this block.
- * Group IDs are not restricted to the documented list so a group Bob adds
- * later still round-trips; an unknown one is reported with a warning.
+ * Group IDs and `autoApprove` toggle names are not restricted to the
+ * documented ones so a later Bob addition still round-trips; an undocumented
+ * one is reported with a warning.
  *
  * @example
  * { "approval": { "allowed_permissions": ["read", "todo"] },
@@ -438,7 +439,7 @@ const BobPermissionsOverrideSchema = z.looseObject({
       allowed_permissions: z.optional(z.array(z.string())),
       permissionOptions: z.optional(
         z.array(
-          z.looseObject({
+          z.strictObject({
             groupId: z.string(),
             enableOutsideWorkspace: z.optional(z.boolean()),
           }),
@@ -446,7 +447,7 @@ const BobPermissionsOverrideSchema = z.looseObject({
       ),
     }),
   ),
-  autoApprove: z.optional(z.looseObject({ skills: z.optional(z.boolean()) })),
+  autoApprove: z.optional(z.record(z.string(), z.boolean())),
 });
 export type BobPermissionsOverride = z.infer<typeof BobPermissionsOverrideSchema>;
 

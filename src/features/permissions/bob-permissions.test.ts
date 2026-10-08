@@ -390,10 +390,10 @@ describe("BobPermissions", () => {
       });
 
       const message = warnings(logger).find((entry) => entry.includes("now auto-approves"));
-      expect(message).toContain("the 'execute' group");
-      expect(message).toContain("the 'edit' group outside the workspace");
+      expect(message).toContain('the "execute" group');
+      expect(message).toContain('the "edit" group outside the workspace');
       expect(message).toContain("every project on this machine");
-      expect(message).not.toContain("'read'");
+      expect(message).not.toContain('"read"');
       expect(message).not.toContain("autoApprove.skills");
     });
 
@@ -412,9 +412,88 @@ describe("BobPermissions", () => {
       expect(JSON.parse(permissions.getFileContent())).toEqual({
         approval: { allowed_permissions: ["readonly"] },
       });
+      expect(warnings(logger).some((message) => message.includes('group ID(s) "readonly"'))).toBe(
+        true,
+      );
+    });
+
+    it("warns about undocumented toggles and enableOutsideWorkspace outside the read group", async () => {
+      const logger = createMockLogger();
+
+      await BobPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissionsWithBob(
+          {},
+          {
+            approval: { permissionOptions: [{ groupId: "edit", enableOutsideWorkspace: true }] },
+            autoApprove: { browser: false },
+          },
+        ),
+        logger,
+      });
+
+      const message = warnings(logger).find((entry) => entry.includes("does not document"));
+      expect(message).toContain(`'autoApprove' toggle(s) "browser"`);
+      expect(message).toContain(`'enableOutsideWorkspace' for group(s) "edit"`);
+    });
+
+    it("strips control characters from the values it quotes in warnings", async () => {
+      const logger = createMockLogger();
+
+      await BobPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissionsWithBob(
+          {},
+          { approval: { allowed_permissions: ["execute", "\u001b[2K\r"] } },
+        ),
+        logger,
+      });
+
+      for (const message of warnings(logger)) {
+        expect(message).not.toContain("\u001b");
+        expect(message).not.toContain("\r");
+      }
+    });
+
+    it("does not create the settings file for an empty autoApprove override", async () => {
+      const permissions = await BobPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissionsWithBob({}, { autoApprove: {} }),
+      });
+
+      expect(JSON.parse(permissions.getFileContent())).toEqual({});
+    });
+
+    it("omits the group-switch hint once the override authors allowed_permissions", async () => {
+      const logger = createMockLogger();
+
+      await BobPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissionsWithBob(
+          { read: { "*": "allow" } },
+          { approval: { allowed_permissions: ["read"] } },
+        ),
+        logger,
+      });
+
+      const message = warnings(logger).find((entry) => entry.includes("'read'"));
+      expect(message).toBeDefined();
+      expect(message).not.toContain("bob.approval.allowed_permissions");
+    });
+
+    it("rejects override fields the Bob schema does not model", () => {
       expect(
-        warnings(logger).some((message) => message.includes("does not document ('readonly')")),
-      ).toBe(true);
+        () =>
+          new RulesyncPermissions({
+            relativeDirPath: ".rulesync",
+            relativeFilePath: "permissions.json",
+            fileContent: JSON.stringify({
+              permission: {},
+              bob: { approval: { allowedExecutors: [] } },
+            }),
+            validate: true,
+          }),
+      ).toThrow();
     });
 
     it("refuses to overwrite an unparseable settings file", async () => {
@@ -460,12 +539,8 @@ describe("BobPermissions", () => {
         JSON.stringify({
           autoApprove: { skills: true },
           approval: {
-            allowed_permissions: ["read", 1, "mcp"],
-            permissionOptions: [
-              { groupId: "read", enableOutsideWorkspace: true },
-              { groupId: 2 },
-              "bogus",
-            ],
+            allowed_permissions: ["read", "mcp"],
+            permissionOptions: [{ groupId: "read", enableOutsideWorkspace: true }],
           },
         }),
       );
@@ -481,6 +556,29 @@ describe("BobPermissions", () => {
           autoApprove: { skills: true },
         },
       });
+    });
+
+    it("does not lift a key holding an entry the override cannot carry", async () => {
+      const settings = {
+        autoApprove: { skills: true, other: "yes" },
+        approval: {
+          allowed_permissions: ["read", 1],
+          permissionOptions: [{ groupId: "read", extra: true }],
+        },
+      };
+      await writeSettings(testDir, JSON.stringify(settings));
+
+      const imported = (
+        await BobPermissions.fromFile({ outputRoot: testDir, global: true })
+      ).toRulesyncPermissions();
+      expect(imported.getJson()).toEqual({ permission: {} });
+
+      // A generate from that import therefore leaves every malformed key as is.
+      const regenerated = await BobPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: imported,
+      });
+      expect(JSON.parse(regenerated.getFileContent())).toEqual(settings);
     });
 
     it("imports an empty permission block when there is no approval block", async () => {

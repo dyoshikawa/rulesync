@@ -10,6 +10,7 @@ import type {
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { type Logger, warnWithFallback } from "../../utils/logger.js";
+import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { isPlainObject } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
@@ -53,6 +54,12 @@ const BOB_PERMISSION_GROUP_IDS: ReadonlySet<string> = new Set([
   "subagent",
   "mode",
 ]);
+
+/** The `autoApprove` toggles Bob documents. */
+const BOB_AUTO_APPROVE_KEYS: ReadonlySet<string> = new Set(["skills"]);
+
+/** The only group Bob documents `permissionOptions[].enableOutsideWorkspace` for. */
+const OUTSIDE_WORKSPACE_GROUP_ID = "read";
 
 type BobOverrideApproval = NonNullable<BobPermissionsOverride["approval"]>;
 
@@ -166,10 +173,12 @@ const GROUP_SWITCH_HINT =
 function warnAboutSkippedCategories({
   permission,
   bashStated,
+  authorsGroupSwitches,
   logger,
 }: {
   permission: PermissionsConfig["permission"];
   bashStated: boolean;
+  authorsGroupSwitches: boolean;
   logger?: Logger | undefined;
 }): void {
   const skipped = Object.entries(permission)
@@ -186,43 +195,67 @@ function warnAboutSkippedCategories({
     return;
   }
   const names = skipped.map((category) => `'${category}'`).join(", ");
+  // Pointless once the override already authors the group switches.
+  const hint = authorsGroupSwitches ? "" : ` ${GROUP_SWITCH_HINT}`;
   warnWithFallback(
     logger,
     bashStated
       ? `${TOOL_LABEL} only models shell-command permissions (${SURFACE_LABEL}); ` +
-          `${names} allow rules cannot be represented and were skipped. ${GROUP_SWITCH_HINT}`
+          `${names} allow rules cannot be represented and were skipped.${hint}`
       : `${TOOL_LABEL} only models shell-command permissions (${SURFACE_LABEL}), and ` +
           `.rulesync/permissions.jsonc states no 'bash' category, so ${names} ` +
-          `${skipped.length === 1 ? "was" : "were"} skipped and the command lists were left untouched. ` +
-          GROUP_SWITCH_HINT,
+          `${skipped.length === 1 ? "was" : "were"} skipped and the command lists were left untouched.${hint}`,
   );
 }
 
 /**
- * Warn about group IDs the `bob` override names that Bob does not document.
- * They are written anyway, so a group Bob adds later works without a rulesync
- * release, but a typo would otherwise silently auto-approve nothing.
+ * Warn about what the `bob` override writes that Bob does not document: an
+ * unknown group ID, an unknown `autoApprove` toggle, or `enableOutsideWorkspace`
+ * on a group other than `read`. They are written anyway, so a later Bob
+ * addition works without a rulesync release, but rulesync cannot say what Bob
+ * does with them, and a typo would otherwise go unnoticed.
  */
-function warnAboutUnknownGroupIds({
-  overrideApproval,
+function warnAboutUndocumentedSettings({
+  override,
   logger,
 }: {
-  overrideApproval: BobOverrideApproval | undefined;
+  override: BobPermissionsOverride | undefined;
   logger?: Logger | undefined;
 }): void {
+  const quoteAll = (values: Iterable<string>): string =>
+    [...new Set(values)].map((value) => quoteValueForWarning(value)).join(", ");
   const groupIds = [
-    ...(overrideApproval?.allowed_permissions ?? []),
-    ...(overrideApproval?.permissionOptions ?? []).map((option) => option.groupId),
+    ...(override?.approval?.allowed_permissions ?? []),
+    ...(override?.approval?.permissionOptions ?? []).map((option) => option.groupId),
+  ].filter((id) => !BOB_PERMISSION_GROUP_IDS.has(id));
+  const toggles = Object.keys(override?.autoApprove ?? {}).filter(
+    (key) => !BOB_AUTO_APPROVE_KEYS.has(key),
+  );
+  const outsideWorkspace = (override?.approval?.permissionOptions ?? [])
+    .filter(
+      (option) =>
+        option.enableOutsideWorkspace !== undefined &&
+        option.groupId !== OUTSIDE_WORKSPACE_GROUP_ID,
+    )
+    .map((option) => option.groupId);
+
+  const parts = [
+    ...(groupIds.length > 0 ? [`group ID(s) ${quoteAll(groupIds)}`] : []),
+    ...(toggles.length > 0 ? [`'${AUTO_APPROVE_KEY}' toggle(s) ${quoteAll(toggles)}`] : []),
+    ...(outsideWorkspace.length > 0
+      ? [`'enableOutsideWorkspace' for group(s) ${quoteAll(outsideWorkspace)}`]
+      : []),
   ];
-  const unknown = [...new Set(groupIds.filter((id) => !BOB_PERMISSION_GROUP_IDS.has(id)))];
-  if (unknown.length === 0) {
+  if (parts.length === 0) {
     return;
   }
   warnWithFallback(
     logger,
-    `${TOOL_LABEL} permissions: the bob override names group ID(s) Bob does not document ` +
-      `(${unknown.map((id) => `'${id}'`).join(", ")}); they were written as authored. ` +
-      `Bob documents ${[...BOB_PERMISSION_GROUP_IDS].map((id) => `'${id}'`).join(", ")}.`,
+    `${TOOL_LABEL} permissions: the bob override sets ${parts.join("; ")}, which Bob does not ` +
+      `document; they were written as authored. Bob documents the groups ` +
+      `${quoteAll(BOB_PERMISSION_GROUP_IDS)}, the '${AUTO_APPROVE_KEY}' toggle(s) ` +
+      `${quoteAll(BOB_AUTO_APPROVE_KEYS)}, and 'enableOutsideWorkspace' for the ` +
+      `'${OUTSIDE_WORKSPACE_GROUP_ID}' group only.`,
   );
 }
 
@@ -258,15 +291,15 @@ function warnAboutNewAutoApprovals({
   const added = [
     ...(override?.approval?.allowed_permissions ?? [])
       .filter((group) => !existingGroups.has(group))
-      .map((group) => `the '${group}' group`),
+      .map((group) => `the ${quoteValueForWarning(group)} group`),
     ...(override?.approval?.permissionOptions ?? [])
       .filter(
         (option) => option.enableOutsideWorkspace === true && !existingOutside.has(option.groupId),
       )
-      .map((option) => `the '${option.groupId}' group outside the workspace`),
+      .map((option) => `the ${quoteValueForWarning(option.groupId)} group outside the workspace`),
     ...Object.entries(override?.autoApprove ?? {})
       .filter(([key, value]) => value === true && existingAutoApprove[key] !== true)
-      .map(([key]) => `'${AUTO_APPROVE_KEY}.${key}'`),
+      .map(([key]) => quoteValueForWarning(`${AUTO_APPROVE_KEY}.${key}`)),
   ];
   if (added.length === 0) {
     return;
@@ -350,28 +383,23 @@ function buildBobCommandLists({
 /**
  * Lift Bob's whole-group switches out of the settings file into the shape of
  * the `bob` override, so an import followed by a generate writes them back
- * unchanged. Entries the override schema cannot hold (a non-string group ID, a
- * non-boolean toggle) are left out; they stay in the settings file as long as
- * the key that holds them is not authored.
+ * unchanged. A key holding anything the override schema cannot carry (a
+ * non-string group ID, an option with an unknown field, a non-boolean toggle)
+ * is not lifted at all: lifting what is left would make the next generate
+ * replace the key and drop the rest, while a key left out is never written.
  */
 function readBobOverride(settings: Record<string, unknown>): BobPermissionsOverride {
   const override: BobPermissionsOverride = {};
   const approval = settings[APPROVAL_KEY];
   if (isPlainObject(approval)) {
     const overrideApproval: BobOverrideApproval = {};
-    if (Array.isArray(approval.allowed_permissions)) {
-      overrideApproval.allowed_permissions = asStringArray(approval.allowed_permissions);
+    const groups = approval.allowed_permissions;
+    if (Array.isArray(groups) && groups.every((group) => typeof group === "string")) {
+      overrideApproval.allowed_permissions = [...groups];
     }
-    if (Array.isArray(approval.permissionOptions)) {
-      overrideApproval.permissionOptions = approval.permissionOptions
-        .filter(isPlainObject)
-        .filter(
-          (option) =>
-            typeof option.groupId === "string" &&
-            (option.enableOutsideWorkspace === undefined ||
-              typeof option.enableOutsideWorkspace === "boolean"),
-        )
-        .map((option) => ({ ...option, groupId: String(option.groupId) }));
+    const options = approval.permissionOptions;
+    if (Array.isArray(options) && options.every(isPermissionOption)) {
+      overrideApproval.permissionOptions = options.map((option) => ({ ...option }));
     }
     if (Object.keys(overrideApproval).length > 0) {
       override.approval = overrideApproval;
@@ -379,15 +407,27 @@ function readBobOverride(settings: Record<string, unknown>): BobPermissionsOverr
   }
   const autoApprove = settings[AUTO_APPROVE_KEY];
   if (isPlainObject(autoApprove)) {
-    const toggles: Record<string, unknown> = { ...autoApprove };
-    if (toggles.skills !== undefined && typeof toggles.skills !== "boolean") {
-      delete toggles.skills;
-    }
-    if (Object.keys(toggles).length > 0) {
-      override.autoApprove = toggles;
+    const entries = Object.entries(autoApprove);
+    const toggles = entries.filter(
+      (entry): entry is [string, boolean] => typeof entry[1] === "boolean",
+    );
+    if (toggles.length > 0 && toggles.length === entries.length) {
+      override.autoApprove = Object.fromEntries(toggles);
     }
   }
   return override;
+}
+
+function isPermissionOption(
+  value: unknown,
+): value is { groupId: string; enableOutsideWorkspace?: boolean } {
+  return (
+    isPlainObject(value) &&
+    typeof value.groupId === "string" &&
+    Object.keys(value).every((key) => key === "groupId" || key === "enableOutsideWorkspace") &&
+    (value.enableOutsideWorkspace === undefined ||
+      typeof value.enableOutsideWorkspace === "boolean")
+  );
 }
 
 /**
@@ -480,18 +520,22 @@ export class BobPermissions extends ToolPermissions {
     const permission = config.permission;
     const override = config.bob;
     const bashStated = permission[SHELL_PERMISSION_CATEGORY] !== undefined;
-    warnAboutSkippedCategories({ permission, bashStated, logger });
-
     const overrideApproval = override?.approval;
     const authorsApproval =
       overrideApproval?.allowed_permissions !== undefined ||
       overrideApproval?.permissionOptions !== undefined;
-    const authorsAutoApprove = override?.autoApprove !== undefined;
+    const authorsAutoApprove = Object.keys(override?.autoApprove ?? {}).length > 0;
+    warnAboutSkippedCategories({
+      permission,
+      bashStated,
+      authorsGroupSwitches: overrideApproval?.allowed_permissions !== undefined,
+      logger,
+    });
 
     const patch: Record<string, unknown> = {};
     if (bashStated || authorsApproval || authorsAutoApprove) {
       const settings = parseBobSettings({ fileContent: existingContent, filePath });
-      warnAboutUnknownGroupIds({ overrideApproval, logger });
+      warnAboutUndocumentedSettings({ override, logger });
       warnAboutNewAutoApprovals({ settings, override, filePath, logger });
       if (bashStated || authorsApproval) {
         // `approvedCommands` is written even when empty: once `bash` is stated
@@ -514,7 +558,7 @@ export class BobPermissions extends ToolPermissions {
         // override leaves out keeps the value Bob's settings UI wrote.
         patch[AUTO_APPROVE_KEY] = {
           ...(isPlainObject(settings[AUTO_APPROVE_KEY]) ? settings[AUTO_APPROVE_KEY] : {}),
-          ...override.autoApprove,
+          ...override?.autoApprove,
         };
       }
     }
