@@ -110,10 +110,12 @@ description: IDE-only conventions
 Do not package this rule.
 `,
     );
-    await writeFileContent(
-      join(pluginRoot, "plugin.json"),
-      JSON.stringify({ name: "review-plugin" }, null, 2),
+    const manifestContent = JSON.stringify(
+      { name: "review-plugin", description: "Hand-authored description" },
+      null,
+      2,
     );
+    await writeFileContent(join(pluginRoot, "plugin.json"), manifestContent);
     await writeFileContent(join(pluginRoot, "assets", "icon.txt"), "plugin icon\n");
 
     await runGenerate({
@@ -126,6 +128,7 @@ Do not package this rule.
     expect(await readFileContent(generatedRule)).toContain("Review changes before submission.");
     expect(await fileExists(join(pluginRoot, "rules", "ide-only.md"))).toBe(false);
     expect(await fileExists(join(pluginRoot, "assets", "icon.txt"))).toBe(true);
+    expect(await readFileContent(join(pluginRoot, "plugin.json"))).toBe(manifestContent);
 
     await removeDirectory(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
     await ensureDir(join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH));
@@ -139,6 +142,54 @@ Do not package this rule.
     expect(await readFileContent(rulesyncRulePath)).toContain("Review changes before submission.");
     expect(await fileExists(join(pluginRoot, "plugin.json"))).toBe(true);
     expect(await fileExists(join(pluginRoot, "assets", "icon.txt"))).toBe(true);
+  });
+
+  it("creates the Antigravity plugin manifest when the plugin root has none", async () => {
+    const testDir = getTestDir();
+    const pluginRoot = join(testDir, "packages", "review_plugin-2");
+
+    await writeFileContent(
+      join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH, "review.md"),
+      `---
+targets: ["antigravity-plugin"]
+description: Review conventions
+---
+Review changes before submission.
+`,
+    );
+    await ensureDir(pluginRoot);
+
+    await runGenerate({
+      target: "antigravity-plugin",
+      features: "rules",
+      outputRoots: pluginRoot,
+      dryRun: true,
+    });
+    expect(await fileExists(join(pluginRoot, "plugin.json"))).toBe(false);
+
+    await runGenerate({
+      target: "antigravity-plugin",
+      features: "rules",
+      outputRoots: pluginRoot,
+      deleteFiles: true,
+    });
+
+    expect(JSON.parse(await readFileContent(join(pluginRoot, "plugin.json")))).toEqual({
+      name: "review_plugin-2",
+    });
+    expect(await readFileContent(join(pluginRoot, "rules", "review.md"))).toContain(
+      "Review changes before submission.",
+    );
+
+    // A second run finds the manifest it wrote and keeps it, so it is up to date.
+    await runGenerate({
+      target: "antigravity-plugin",
+      features: "rules",
+      outputRoots: pluginRoot,
+      deleteFiles: true,
+      check: true,
+    });
+    expect(await fileExists(join(pluginRoot, "plugin.json"))).toBe(true);
   });
 
   it("generates and imports an AugmentCode plugin from an explicit plugin root", async () => {

@@ -10,6 +10,7 @@ import { IgnoreProcessor } from "../features/ignore/ignore-processor.js";
 import { McpProcessor } from "../features/mcp/mcp-processor.js";
 import { PermissionsProcessor } from "../features/permissions/permissions-processor.js";
 import { RulesProcessor } from "../features/rules/rules-processor.js";
+import { ensureAntigravityPluginManifests } from "../features/shared/antigravity-plugin-manifest.js";
 import { RulesyncSkill } from "../features/skills/rulesync-skill.js";
 import { SkillsProcessor } from "../features/skills/skills-processor.js";
 import { RulesyncSubagent } from "../features/subagents/rulesync-subagent.js";
@@ -64,6 +65,11 @@ vi.mock("../utils/file.js", async (importOriginal) => {
     addTrailingNewline: actual.addTrailingNewline,
   };
 });
+vi.mock("../features/shared/antigravity-plugin-manifest.js", () => ({
+  ensureAntigravityPluginManifests: vi
+    .fn()
+    .mockResolvedValue({ count: 0, paths: [], hasDiff: false, sourceLoadFailed: false }),
+}));
 vi.mock("../utils/plugin-root.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../utils/plugin-root.js")>();
   return {
@@ -1466,6 +1472,55 @@ describe("generate", () => {
         });
       },
     );
+  });
+
+  describe("Antigravity plugin manifest", () => {
+    it("ensures a manifest in every antigravity-plugin output root in project mode", async () => {
+      mockConfig.getTargets.mockReturnValue(["antigravity-plugin"]);
+      mockConfig.getOutputRoots.mockReturnValue(["/plugins/a", "/plugins/b"]);
+      mockConfig.getFeatures.mockReturnValue(["rules"]);
+      vi.mocked(ensureAntigravityPluginManifests).mockResolvedValueOnce({
+        count: 2,
+        paths: ["plugin.json", "plugin.json"],
+        hasDiff: true,
+        sourceLoadFailed: false,
+      });
+
+      const result = await generate({ logger, config: mockConfig as never });
+
+      expect(ensureAntigravityPluginManifests).toHaveBeenCalledWith(
+        expect.objectContaining({ outputRoots: ["/plugins/a", "/plugins/b"] }),
+      );
+      expect(result.pluginManifestCount).toBe(2);
+      expect(result.pluginManifestPaths).toEqual(["plugin.json", "plugin.json"]);
+      expect(result.hasDiff).toBe(true);
+    });
+
+    it("ensures no manifest when antigravity-plugin is not a target", async () => {
+      mockConfig.getTargets.mockReturnValue(["claudecode-plugin"]);
+      mockConfig.getOutputRoots.mockReturnValue(["/plugins/a"]);
+      mockConfig.getFeatures.mockReturnValue(["rules"]);
+
+      const result = await generate({ logger, config: mockConfig as never });
+
+      expect(ensureAntigravityPluginManifests).toHaveBeenCalledWith(
+        expect.objectContaining({ outputRoots: [] }),
+      );
+      expect(result.pluginManifestCount).toBe(0);
+    });
+
+    it("ensures no manifest in global mode", async () => {
+      mockConfig.getGlobal.mockReturnValue(true);
+      mockConfig.getTargets.mockReturnValue(["antigravity-plugin"]);
+      mockConfig.getOutputRoots.mockReturnValue(["/home/user"]);
+      mockConfig.getFeatures.mockReturnValue(["rules"]);
+
+      await generate({ logger, config: mockConfig as never });
+
+      expect(ensureAntigravityPluginManifests).toHaveBeenCalledWith(
+        expect.objectContaining({ outputRoots: [] }),
+      );
+    });
   });
 
   describe("global mode", () => {

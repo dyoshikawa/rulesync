@@ -249,6 +249,7 @@ function buildSuccessResponse(params: {
       permissionsCount: generateResult.permissionsCount,
       checksCount: generateResult.checksCount,
       activationCount: generateResult.activationCount,
+      pluginManifestCount: generateResult.pluginManifestCount,
       totalCount,
     },
     config: {
