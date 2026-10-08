@@ -2531,8 +2531,8 @@ command = "node"
     });
 
     const content = rulesFile.getFileContent();
-    expect(content).toContain('pattern = ["rm"]');
-    expect(content).toContain('decision = "forbidden"');
+    expect(content).toMatch(/pattern = \["rm"\],\s*decision = "forbidden"/);
+    expect(content.match(/pattern = \["rm"\]/g)).toHaveLength(1);
     expect(content).not.toContain('decision = "prompt"');
   });
 

@@ -468,9 +468,10 @@ export type ResolvedShellCommandLists = {
   allow: string[];
   deny: string[];
   /**
-   * The `bash` category an adapter should write: bash `ask` rules kept, shadowed
-   * allows dropped, and — when `writesAllToolsDeny` — all-tools `*` denies copied
-   * in so a command list can enforce them.
+   * The `bash` category an adapter should write (see
+   * {@link bashRulesHonoringAllTools}): shadowed allows dropped, all-tools `*`
+   * denies copied in (overriding a bash `ask` on the same pattern), and `*` asks
+   * added where `bash` says nothing yet.
    */
   bash: Record<string, PermissionAction>;
 };
