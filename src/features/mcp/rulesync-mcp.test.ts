@@ -1486,6 +1486,47 @@ describe("RulesyncMcp", () => {
       expect((servers.raw as any).command).toBe("uvx");
     });
 
+    it("should strip the codex-only codexcliTools from getMcpServers output", () => {
+      // Codex's per-tool approval table is re-merged by the codex generator from
+      // the raw server; no other tool reads it.
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            pal: { command: "uvx", codexcliTools: { search: { approval_mode: "approve" } } },
+          },
+        }),
+      });
+
+      const servers = rulesyncMcp.getMcpServers();
+
+      expect((servers.pal as any).codexcliTools).toBeUndefined();
+      expect((servers.pal as any).command).toBe("uvx");
+    });
+
+    it("should validate codexcliTools entries against Codex's per-tool settings", () => {
+      const build = (codexcliTools: unknown) =>
+        new RulesyncMcp({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: "mcp.json",
+          fileContent: JSON.stringify({
+            mcpServers: {},
+            codexcli: { mcpServers: { srv: { url: "https://example.com/mcp", codexcliTools } } },
+          }),
+        });
+
+      expect(
+        build({ a: { approval_mode: "approve" }, b: { output_token_limit: 2000 } }).validate()
+          .success,
+      ).toBe(true);
+      // An unknown approval mode or a zero token limit makes Codex reject the
+      // whole config.toml, so it is refused at load time instead.
+      expect(build({ a: { approval_mode: "always" } }).validate().success).toBe(false);
+      expect(build({ a: { output_token_limit: 0 } }).validate().success).toBe(false);
+      expect(build(["a"]).validate().success).toBe(false);
+    });
+
     it("should strip the musecode-only musecodeMode from getMcpServers output", () => {
       // Same arrangement as envVars: `musecodeMode` is written out only by the
       // musecode generator, which reads it back off getJson(). Leaving it in the
