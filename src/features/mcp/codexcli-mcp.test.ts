@@ -2562,7 +2562,7 @@ enabled_tools = ["search"]
   });
 
   describe("oauth client id mapping (#2158)", () => {
-    it("duplicates oauth.clientId to snake_case client_id on outbound conversion", async () => {
+    it("renames oauth.clientId and callbackPort to Codex's snake_case keys on outbound conversion", async () => {
       const jsonData = {
         mcpServers: {
           slack: {
@@ -2588,11 +2588,12 @@ enabled_tools = ["search"]
       });
 
       const oauth = (codexcliMcp.getToml().mcp_servers as any).slack.oauth;
-      // Both keys are emitted: camelCase for tools that read it, and snake_case
-      // for Codex CLI's login flow.
-      expect(oauth.client_id).toBe("1601185624273.8899143856786");
-      expect(oauth.clientId).toBe("1601185624273.8899143856786");
-      expect(oauth.callbackPort).toBe(3118);
+      // Renamed rather than duplicated: Codex reads only the snake_case keys
+      // and warns about the camelCase ones at startup.
+      expect(oauth).toEqual({
+        client_id: "1601185624273.8899143856786",
+        callback_port: 3118,
+      });
     });
 
     it("does not overwrite an existing client_id", async () => {
@@ -2621,7 +2622,7 @@ enabled_tools = ["search"]
       });
 
       const oauth = (codexcliMcp.getToml().mcp_servers as any).slack.oauth;
-      expect(oauth.client_id).toBe("snake-value");
+      expect(oauth).toEqual({ client_id: "snake-value" });
     });
 
     it("collapses client_id back to canonical clientId on inbound conversion", () => {
@@ -2646,15 +2647,16 @@ callbackPort = 3118
       });
     });
 
-    it("does not duplicate a non-string clientId", async () => {
+    it("drops a non-string clientId with a warning", async () => {
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
       const jsonData = {
         mcpServers: {
           slack: {
             type: "http",
             url: "https://mcp.slack.com/mcp",
             oauth: {
-              // A non-string client id is not a usable OAuth client id, so it is
-              // left as-is rather than duplicated into `client_id`.
+              // Codex reads `client_id` as a string, and a value of another
+              // type would fail the whole config.toml.
               clientId: 12345,
             },
           },
@@ -2672,9 +2674,119 @@ callbackPort = 3118
         global: false,
       });
 
-      const oauth = (codexcliMcp.getToml().mcp_servers as any).slack.oauth;
-      expect(oauth.clientId).toBe(12345);
-      expect("client_id" in oauth).toBe(false);
+      expect((codexcliMcp.getToml().mcp_servers as any).slack.oauth).toBeUndefined();
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Dropping malformed 'oauth.clientId' from MCP server \"slack\""),
+      );
+    });
+
+    it("passes Codex-native oauth keys through and drops keys Codex does not read", async () => {
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+      const jsonData = {
+        mcpServers: {
+          slack: {
+            type: "http",
+            url: "https://mcp.slack.com/mcp",
+            oauth: {
+              clientId: "client",
+              client_secret: "secret",
+              callback_url: "https://example.com/callback",
+              authorization_server_issuer: "https://issuer.example.com",
+              authServerMetadataUrl: "https://example.com/.well-known/oauth-authorization-server",
+            },
+          },
+        },
+      };
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: false,
+      });
+
+      expect((codexcliMcp.getToml().mcp_servers as any).slack.oauth).toEqual({
+        client_id: "client",
+        client_secret: "secret",
+        callback_url: "https://example.com/callback",
+        authorization_server_issuer: "https://issuer.example.com",
+      });
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Dropping 'oauth.authServerMetadataUrl' from MCP server \"slack\""),
+      );
+    });
+
+    it.each([
+      ["a non-integer", 3118.5],
+      ["a negative", -1],
+      ["an out-of-range", 70000],
+      ["a string", "3118"],
+    ])("drops %s callbackPort with a warning", async (_label, callbackPort) => {
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+      const jsonData = {
+        mcpServers: {
+          slack: {
+            type: "http",
+            url: "https://mcp.slack.com/mcp",
+            oauth: { clientId: "client", callbackPort },
+          },
+        },
+      };
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+
+      const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: false,
+      });
+
+      expect((codexcliMcp.getToml().mcp_servers as any).slack.oauth).toEqual({
+        client_id: "client",
+      });
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Dropping malformed 'oauth.callbackPort'"),
+      );
+    });
+
+    it("renames callback_port back to canonical callbackPort on import, preferring an existing callbackPort", () => {
+      const tomlContent = `[mcp_servers.slack]
+url = "https://mcp.slack.com/mcp"
+
+[mcp_servers.slack.oauth]
+client_id = "client"
+callback_port = 4000
+callback_url = "https://example.com/callback"
+
+[mcp_servers.legacy]
+url = "https://mcp.legacy.example.com/mcp"
+
+[mcp_servers.legacy.oauth]
+clientId = "client"
+client_id = "client"
+callbackPort = 3118
+callback_port = 4000
+`;
+      const codexcliMcp = new CodexcliMcp({
+        relativeDirPath: ".codex",
+        relativeFilePath: "config.toml",
+        fileContent: tomlContent,
+      });
+
+      const json = JSON.parse(codexcliMcp.toRulesyncMcp().getFileContent());
+      expect(json.mcpServers.slack.oauth).toEqual({
+        clientId: "client",
+        callbackPort: 4000,
+        callback_url: "https://example.com/callback",
+      });
+      expect(json.mcpServers.legacy.oauth).toEqual({ clientId: "client", callbackPort: 3118 });
     });
 
     it("keeps a full generate → import round-trip stable", async () => {
@@ -2730,6 +2842,72 @@ client_id = "camel-value"
 
       const json = JSON.parse(codexcliMcp.toRulesyncMcp().getFileContent());
       expect(json.mcpServers.slack.oauth).toEqual({ clientId: "camel-value" });
+    });
+  });
+  describe("transport normalization", () => {
+    const generate = async (mcpServers: Record<string, unknown>) => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({ mcpServers }),
+      });
+      const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: false,
+      });
+      return codexcliMcp.getToml().mcp_servers as Record<string, Record<string, unknown>>;
+    };
+
+    it("splits an array command into a string command and leading args", async () => {
+      const servers = await generate({
+        local: { command: ["npx", "-y", "foo"], args: ["--verbose"] },
+        bare: { command: ["serve"] },
+      });
+
+      expect(servers.local).toEqual({ command: "npx", args: ["-y", "foo", "--verbose"] });
+      expect(servers.bare).toEqual({ command: "serve" });
+    });
+
+    it("maps httpUrl to url, letting an explicit url win", async () => {
+      const servers = await generate({
+        aliased: { type: "http", httpUrl: "https://alias.example.com/mcp" },
+        both: {
+          type: "http",
+          url: "https://url.example.com/mcp",
+          httpUrl: "https://alias.example.com/mcp",
+        },
+      });
+
+      expect(servers.aliased).toEqual({ url: "https://alias.example.com/mcp" });
+      expect(servers.both).toEqual({ url: "https://url.example.com/mcp" });
+    });
+
+    it("treats a server whose url came from httpUrl as remote when mapping headers", async () => {
+      const servers = await generate({
+        aliased: {
+          httpUrl: "https://alias.example.com/mcp",
+          headers: { "X-Team": "core" },
+        },
+      });
+
+      expect(servers.aliased).toEqual({
+        url: "https://alias.example.com/mcp",
+        http_headers: { "X-Team": "core" },
+      });
+    });
+
+    it("skips a server whose command array is empty and that has no url", async () => {
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+      const servers = await generate({
+        empty: { command: [], args: ["x"] },
+        kept: { command: "serve" },
+      });
+
+      expect(servers).toEqual({ kept: { command: "serve" } });
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Skipping MCP server \"empty\": its 'command' array is empty"),
+      );
     });
   });
 });
