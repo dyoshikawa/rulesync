@@ -217,7 +217,33 @@ function mapOauthToCodex(
     }
     result[codexKey] = value;
   }
+  dropUnusableClientSecret(result, serverName);
   return result;
+}
+
+function isBlankString(value: unknown): boolean {
+  return typeof value !== "string" || value.trim() === "";
+}
+
+/**
+ * Codex rejects a blank `client_secret`, and a `client_secret` without a
+ * non-blank `client_id`, and either error fails the whole `config.toml`. Checked
+ * after every key is translated, since the client id may arrive under either
+ * spelling and in any order.
+ */
+function dropUnusableClientSecret(oauth: Record<string, unknown>, serverName: string): void {
+  if (!Object.hasOwn(oauth, "client_secret")) return;
+  const reason = isBlankString(oauth["client_secret"])
+    ? "it is empty"
+    : isBlankString(oauth["client_id"])
+      ? "Codex requires a client id alongside it"
+      : undefined;
+  if (reason === undefined) return;
+  delete oauth["client_secret"];
+  warnWithFallback(
+    undefined,
+    `[CodexCliMcp] Dropping 'oauth.client_secret' from MCP server "${serverName}": ${reason}.`,
+  );
 }
 
 /**

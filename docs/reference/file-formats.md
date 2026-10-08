@@ -1562,7 +1562,7 @@ client_id = "1601185624273.8899143856786"
 callback_port = 3118
 ```
 
-A value of the wrong type (a non-string client id, a `callbackPort` that is not an integer port) is dropped with a warning too, because Codex would fail to load the whole `config.toml` over it. On import, `client_id` and `callback_port` are renamed back to `clientId` and `callbackPort`; when a file carries both spellings (earlier Rulesync versions wrote `clientId` next to `client_id`), the canonical key wins so the round-trip stays stable.
+A value of the wrong type (a non-string client id, a `callbackPort` that is not an integer port) is dropped with a warning too, because Codex would fail to load the whole `config.toml` over it — as is a `client_secret` that is blank or comes without a non-blank client id, which Codex rejects the same way. On import, `client_id` and `callback_port` are renamed back to `clientId` and `callbackPort`; when a file carries both spellings (earlier Rulesync versions wrote `clientId` next to `client_id`), the canonical key wins so the round-trip stays stable.
 
 #### Codex-specific: transport normalization
 

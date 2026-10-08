@@ -2721,6 +2721,39 @@ callbackPort = 3118
     });
 
     it.each([
+      ["is blank", { clientId: "client", client_secret: "  " }, "it is empty"],
+      ["has no client id", { client_secret: "secret" }, "Codex requires a client id"],
+      [
+        "has a blank client id",
+        { client_id: " ", client_secret: "secret" },
+        "Codex requires a client id",
+      ],
+    ])("drops a client_secret that %s", async (_label, oauth, reason) => {
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { slack: { type: "http", url: "https://mcp.slack.com/mcp", oauth } },
+        }),
+      });
+
+      const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: false,
+      });
+
+      const written = (codexcliMcp.getToml().mcp_servers as any).slack.oauth;
+      expect(written?.client_secret).toBeUndefined();
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining(
+          `Dropping 'oauth.client_secret' from MCP server "slack": ${reason}`,
+        ),
+      );
+    });
+
+    it.each([
       ["a non-integer", 3118.5],
       ["a negative", -1],
       ["an out-of-range", 70000],
