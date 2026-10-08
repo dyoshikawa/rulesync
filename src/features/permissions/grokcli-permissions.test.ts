@@ -261,6 +261,24 @@ describe("GrokcliPermissions", () => {
       expect(permission.allow).toEqual(["Bash(git *)", "any"]);
     });
 
+    it("treats Claude-style mcp__ entries as managed MCP rules", async () => {
+      await writeFileContent(
+        join(testDir, ".grok", "config.toml"),
+        ["[permission]", 'deny = ["mcp__github", "mcp__notion(x)"]', ""].join("\n"),
+      );
+
+      const permissions = await GrokcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({ "mcp__linear__*": { "*": "deny" } }),
+        global: true,
+      });
+
+      const permission = readPermission(permissions.getFileContent());
+      // `mcp__github` is an MCP rule rulesync models, so it is replaced; the paren
+      // form is not one Grok accepts and stays as user-authored.
+      expect(permission.deny).toEqual(["MCPTool(linear__*)", "mcp__notion(x)"]);
+    });
+
     it("preserves existing [permission] keys such as verbose rules", async () => {
       await writeFileContent(
         join(testDir, ".grok", "config.toml"),
@@ -319,6 +337,43 @@ describe("GrokcliPermissions", () => {
       expect(json.permission.bash["rm *"]).toBe("deny");
       expect(json.permission.webfetch["*"]).toBe("deny");
       expect(json.permission.mcp__github__list_issues["*"]).toBe("ask");
+    });
+
+    it("parses the Claude-style mcp__ spelling like the equivalent MCPTool entries", async () => {
+      // Grok rewrites `mcp__<server>[__<tool>]` onto its `<server>__<tool>`
+      // names: `mcp__*` is every MCP tool, a server-only entry covers the whole
+      // server, and a paren form or a bare `mcp__` is not an MCP rule.
+      await writeFileContent(
+        join(testDir, ".grok", "config.toml"),
+        [
+          "[permission]",
+          'allow = ["mcp__*", "mcp__github__get_issue"]',
+          'deny = ["mcp__linear", "mcp__slack__*", "mcp__", "mcp__notion(x)"]',
+          "",
+        ].join("\n"),
+      );
+      const tool = await GrokcliPermissions.fromFile({ outputRoot: testDir, global: true });
+      const json = JSON.parse(tool.toRulesyncPermissions().getFileContent());
+      expect(json.permission).toEqual({
+        mcp: { "*": "allow" },
+        mcp__github__get_issue: { "*": "allow" },
+        "mcp__linear__*": { "*": "deny" },
+        "mcp__slack__*": { "*": "deny" },
+      });
+    });
+
+    it("imports a server-only mcp__ entry exactly as MCPTool(<server>__*)", async () => {
+      const importPermission = async (entry: string) => {
+        await writeFileContent(
+          join(testDir, ".grok", "config.toml"),
+          ["[permission]", `deny = ["${entry}"]`, ""].join("\n"),
+        );
+        const tool = await GrokcliPermissions.fromFile({ outputRoot: testDir, global: true });
+        return JSON.parse(tool.toRulesyncPermissions().getFileContent()).permission;
+      };
+      expect(await importPermission("mcp__github")).toEqual(
+        await importPermission("MCPTool(github__*)"),
+      );
     });
 
     it("parses WebSearch entries back into the canonical websearch category", async () => {

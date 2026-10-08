@@ -8,7 +8,13 @@ import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-path
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
-import { resolveDisableModelInvocation, resolveUserInvocable } from "./skills-utils.js";
+import {
+  resolveCompatibility,
+  resolveDisableModelInvocation,
+  resolveLicense,
+  resolveMetadata,
+  resolveUserInvocable,
+} from "./skills-utils.js";
 import {
   ToolSkill,
   ToolSkillForDeletionParams,
@@ -32,6 +38,22 @@ const GrokcliSkillFrontmatterSchema = z.looseObject({
   // YAML list or a comma-separated string, so both shapes pass through as-is.
   // https://github.com/xai-org/grok-build/blob/main/crates/codegen/xai-grok-tools/src/implementations/skills/discovery.rs
   paths: z.optional(z.union([z.string(), z.array(z.string())])),
+  // The other optional fields Grok's skill parser reads (`when-to-use`, also
+  // spelled `when_to_use`; `allowed-tools` as a list or a comma- or
+  // space-separated string; `argument-hint`, `model`, `effort`) plus the Agent
+  // Skills packaging trio. Grok promotes `metadata.author` and
+  // `metadata.short-description` in its UI. Any newer key (e.g. the `origin`
+  // telemetry slug) passes through the loose schema untouched.
+  // https://github.com/xai-org/grok-build/blob/main/crates/codegen/xai-grok-pager/docs/user-guide/08-skills.md
+  "when-to-use": z.optional(z.string()),
+  when_to_use: z.optional(z.string()),
+  "allowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
+  "argument-hint": z.optional(z.string()),
+  model: z.optional(z.string()),
+  effort: z.optional(z.string()),
+  license: z.optional(z.string()),
+  compatibility: z.optional(z.union([z.string(), z.looseObject({})])),
+  metadata: z.optional(z.looseObject({})),
 });
 
 export type GrokcliSkillFrontmatter = z.infer<typeof GrokcliSkillFrontmatterSchema>;
@@ -53,8 +75,8 @@ export type GrokcliSkillParams = {
  * Grok Build discovers skills under `./.grok/skills/` (project) and
  * `~/.grok/skills/` (global), each a directory containing a `SKILL.md` with
  * `name`/`description` frontmatter (verified via `grok inspect`). The format is
- * Claude-compatible, so only `name` and `description` are required; any extra
- * frontmatter keys are preserved verbatim via the loose schema.
+ * Claude-compatible, so only `name` and `description` are required; every
+ * other key round-trips through the `grokcli` section of the rulesync skill.
  * @see https://docs.x.ai/build/features/skills-plugins-marketplaces
  */
 export class GrokcliSkill extends ToolSkill {
@@ -137,22 +159,15 @@ export class GrokcliSkill extends ToolSkill {
   }
 
   toRulesyncSkill(): RulesyncSkill {
-    const frontmatter = this.getFrontmatter();
-    // Into the `grokcli` section, not the root: the root value is the shared
-    // default for every tool that honours these flags, so importing one tool's
-    // setting there would apply it to Claude Code, Cursor, Zed and the rest.
-    const grokcliSection = {
-      ...(frontmatter["user-invocable"] !== undefined && {
-        "user-invocable": frontmatter["user-invocable"],
-      }),
-      ...(frontmatter["disable-model-invocation"] !== undefined && {
-        "disable-model-invocation": frontmatter["disable-model-invocation"],
-      }),
-      ...(frontmatter.paths !== undefined && { paths: frontmatter.paths }),
-    };
+    // Everything beyond `name` / `description` goes into the `grokcli` section,
+    // not the root: the root values are shared defaults for every tool that
+    // honours the field, so importing one tool's setting there would apply it
+    // to Claude Code, Cursor, Zed and the rest. Keys are kept as spelled
+    // (`when_to_use` stays `when_to_use`), since Grok reads both spellings.
+    const { name, description, ...grokcliSection } = this.getFrontmatter();
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
-      name: frontmatter.name,
-      description: frontmatter.description,
+      name,
+      description,
       ...(Object.keys(grokcliSection).length > 0 && { grokcli: grokcliSection }),
       targets: ["*"],
     };
@@ -178,7 +193,29 @@ export class GrokcliSkill extends ToolSkill {
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
     const settablePaths = GrokcliSkill.getSettablePaths({ global });
 
-    const grokcliSection = rulesyncFrontmatter.grokcli;
+    // The `grokcli` section carries Grok-specific frontmatter verbatim; the
+    // canonical name/description always win over a stray same-named key in it.
+    const {
+      name: _sectionName,
+      description: _sectionDescription,
+      ...grokcliSection
+    } = rulesyncFrontmatter.grokcli ?? {};
+    // The Agent Skills packaging fields and the two invocation gates fall back
+    // to the root-level rulesync value when the section omits them. Every
+    // resolver prefers a defined section value, so re-applying the resolved
+    // values over the spread never discards one.
+    const license = resolveLicense({
+      rootFrontmatter: rulesyncFrontmatter,
+      section: grokcliSection,
+    });
+    const compatibility = resolveCompatibility({
+      rootFrontmatter: rulesyncFrontmatter,
+      section: grokcliSection,
+    });
+    const metadata = resolveMetadata({
+      rootFrontmatter: rulesyncFrontmatter,
+      section: grokcliSection,
+    });
     const resolvedUserInvocable = resolveUserInvocable({
       rootFrontmatter: rulesyncFrontmatter,
       section: grokcliSection,
@@ -189,13 +226,16 @@ export class GrokcliSkill extends ToolSkill {
     });
 
     const grokcliFrontmatter: GrokcliSkillFrontmatter = {
+      ...grokcliSection,
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
+      ...(license !== undefined && { license }),
+      ...(compatibility !== undefined && { compatibility }),
+      ...(metadata !== undefined && { metadata }),
       ...(resolvedUserInvocable !== undefined && { "user-invocable": resolvedUserInvocable }),
       ...(resolvedDisableModelInvocation !== undefined && {
         "disable-model-invocation": resolvedDisableModelInvocation,
       }),
-      ...(grokcliSection?.paths !== undefined && { paths: grokcliSection.paths }),
     };
 
     return new GrokcliSkill({

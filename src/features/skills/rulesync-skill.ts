@@ -342,6 +342,17 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
       // Gitignore-style globs that keep the skill hidden until a tool touches
       // a matching file. Grok reads a YAML list or a comma-separated string.
       paths: z.optional(z.union([z.string(), z.array(z.string())])),
+      // The other optional fields Grok's skill parser reads, written verbatim.
+      // `when-to-use` is the documented spelling; `when_to_use` is an alias.
+      "when-to-use": z.optional(z.string()),
+      when_to_use: z.optional(z.string()),
+      "allowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
+      "argument-hint": z.optional(z.string()),
+      model: z.optional(z.string()),
+      effort: z.optional(z.string()),
+      license: z.optional(z.string()),
+      compatibility: z.optional(z.union([z.string(), z.looseObject({})])),
+      metadata: z.optional(z.looseObject({})),
     }),
   ),
   // DeepSeek Harness reads `whenToUse` (extra trigger-timing context),
@@ -507,6 +518,15 @@ export type RulesyncSkillFrontmatterInput = {
     "disable-model-invocation"?: boolean;
     "user-invocable"?: boolean;
     paths?: string | string[];
+    "when-to-use"?: string;
+    when_to_use?: string;
+    "allowed-tools"?: string | string[];
+    "argument-hint"?: string;
+    model?: string;
+    effort?: string;
+    license?: string;
+    compatibility?: string | Record<string, unknown>;
+    metadata?: Record<string, unknown>;
   };
   dsh?: {
     whenToUse?: string;
