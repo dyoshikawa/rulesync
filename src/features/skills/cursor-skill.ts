@@ -7,6 +7,7 @@ import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
+import { fileExists } from "../../utils/file.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import {
   resolveDisableModelInvocation,
@@ -222,6 +223,26 @@ export class CursorSkill extends ToolSkill {
   static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
     const targets = rulesyncSkill.getFrontmatter().targets;
     return targets.includes("*") || targets.includes("cursor");
+  }
+
+  /**
+   * Cursor walks the skills root recursively, and a category folder grouping
+   * skills (`.cursor/skills/shipping/land-it/SKILL.md`) "is purely
+   * organizational" with no `SKILL.md` of its own. Only a subdirectory holding
+   * a `SKILL.md` is treated as a skill, so import does not abort on a category
+   * folder and the `--delete` orphan sweep leaves it in place.
+   * https://cursor.com/docs/skills
+   */
+  static async isDirOwned({
+    outputRoot,
+    relativeDirPath,
+    dirName,
+  }: {
+    outputRoot: string;
+    relativeDirPath: string;
+    dirName: string;
+  }): Promise<boolean> {
+    return await fileExists(join(outputRoot, relativeDirPath, dirName, SKILL_FILE_NAME));
   }
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<CursorSkill> {

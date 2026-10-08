@@ -733,6 +733,7 @@ cursor: # for Cursor-specific parameters (generated to .cursor/agents/*.md)
   model: inherit # (optional, defaults to "inherit") model id, or "inherit" to use the parent's model
   readonly: false # (optional, defaults to false) restrict the subagent to read-only tools
   is_background: false # (optional, defaults to false) run the subagent as a background agent
+  # On import, a `.cursor/agents/*.md` without `name` (Cursor makes every field optional) takes its name from the file name.
 junie: # for JetBrains Junie CLI specific parameters (generated to .junie/agents/*.md; also imported from .agents/*.md)
   tools: ["Read", "Grep", "Edit"] # allowed tools
   disallowedTools: ["Bash", "WebSearch"] # disallowed tools
@@ -1197,6 +1198,7 @@ cursor: # for Cursor-specific parameters (optional)
   icon: rocket # (optional) Custom Modes badge icon (code, terminal, bug, git-branch, book-open, beaker, shield, rocket); unknown values fall back to Cursor's default badge
   color: purple # (optional) Custom Modes badge color (default, green, cyan, blue, purple, magenta, orange, yellow, red, brand)
   # On import, the legacy Cursor `globs` field is read as a fallback for `paths` (and dropped when `paths` is also set); generate always writes `paths`.
+  # A `.cursor/skills/` subfolder without its own SKILL.md (a category folder grouping skills) is skipped on import and left in place by `generate --delete`; skills nested inside it are not imported.
   metadata: # (optional) free-form metadata
     author: rulesync
 factorydroid: # for Factory Droid-specific parameters (optional)
