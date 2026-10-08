@@ -972,6 +972,28 @@ Body from inputRoots[0]`;
       );
     });
 
+    it("should skip a cursor category folder without SKILL.md instead of aborting the import", async () => {
+      // Cursor treats a folder grouping skills as "purely organizational"; it
+      // holds no SKILL.md of its own. https://cursor.com/docs/skills
+      const processor = new SkillsProcessor({
+        logger: createMockLogger(),
+        outputRoot: testDir,
+        toolTarget: "cursor",
+      });
+      await writeFileContent(
+        join(testDir, ".cursor", "skills", "shipping", "land-it", "SKILL.md"),
+        "---\nname: land-it\ndescription: Nested skill\n---\nNested body",
+      );
+      await writeFileContent(
+        join(testDir, ".cursor", "skills", "flat-skill", "SKILL.md"),
+        "---\nname: flat-skill\ndescription: Flat skill\n---\nFlat body",
+      );
+
+      const toolDirs = await processor.loadToolDirs();
+
+      expect(toolDirs.map((dir) => dir.getDirName())).toEqual(["flat-skill"]);
+    });
+
     it("should load rovodev skills from .agents/skills when .rovodev/skills is absent", async () => {
       const processor = new SkillsProcessor({
         logger: createMockLogger(),
@@ -2332,6 +2354,26 @@ Test skill content`;
       );
 
       expect(await processor.loadToolDirsToDelete()).toEqual([]);
+    });
+
+    it("should not sweep a cursor category folder without SKILL.md", async () => {
+      const processor = new SkillsProcessor({
+        logger: createMockLogger(),
+        outputRoot: testDir,
+        toolTarget: "cursor",
+      });
+      await writeFileContent(
+        join(testDir, ".cursor", "skills", "shipping", "land-it", "SKILL.md"),
+        "---\nname: land-it\ndescription: Test skill\n---\nContent",
+      );
+      await writeFileContent(
+        join(testDir, ".cursor", "skills", "orphan", "SKILL.md"),
+        "---\nname: orphan\ndescription: Test skill\n---\nContent",
+      );
+
+      const dirsToDelete = await processor.loadToolDirsToDelete();
+
+      expect(dirsToDelete.map((dir) => dir.getDirName())).toEqual(["orphan"]);
     });
 
     it("should still sweep the global gitlabduo skills root", async () => {

@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { basename, join } from "node:path";
 
 import { z } from "zod/mini";
 
@@ -17,8 +17,10 @@ import {
   ToolSubagentSettablePaths,
 } from "./tool-subagent.js";
 
+// Every field is optional upstream; a missing `name` is "Derived from
+// filename". https://cursor.com/docs/subagents
 const CursorSubagentFrontmatterSchema = z.looseObject({
-  name: z.string(),
+  name: z.optional(z.string()),
   description: z.optional(z.string()),
   model: z.optional(z.string()),
   readonly: z.optional(z.boolean()),
@@ -73,7 +75,7 @@ export class CursorSubagent extends ToolSubagent {
 
     const rulesyncFrontmatter: RulesyncSubagentFrontmatter = {
       targets: ["*"] as const,
-      name,
+      name: name ?? basename(this.getRelativeFilePath(), ".md"),
       description,
       cursor: {
         ...rest,

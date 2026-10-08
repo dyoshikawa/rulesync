@@ -26,8 +26,8 @@ This is the body of the cursor agent.
 It can be multiline.`;
 
   const invalidMarkdownContent = `---
-# Missing required fields
-invalid: true
+name: Invalid Agent
+readonly: "yes"
 ---
 
 Body content`;
@@ -133,8 +133,8 @@ Body content`;
 
     it("should throw error for invalid frontmatter when validation is enabled", () => {
       const frontmatter = {
-        // Missing required fields
-      } as SimulatedSubagentFrontmatter;
+        name: 123,
+      } as unknown as SimulatedSubagentFrontmatter;
       const body = "Body content";
       expect(
         () =>
@@ -457,19 +457,71 @@ Body content`;
       ).rejects.toThrow();
     });
 
-    it("should handle file without frontmatter", async () => {
+    it("should load a file without frontmatter and derive the name from the file name", async () => {
       const subagentsDir = join(testDir, ".cursor", "agents");
       const filePath = join(subagentsDir, "no-frontmatter.md");
 
       await writeFileContent(filePath, markdownWithoutFrontmatter);
 
-      await expect(
-        CursorSubagent.fromFile({
-          outputRoot: testDir,
-          relativeFilePath: "no-frontmatter.md",
-          validate: true,
-        }),
-      ).rejects.toThrow();
+      const subagent = await CursorSubagent.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "no-frontmatter.md",
+        validate: true,
+      });
+
+      expect(subagent.getFrontmatter()).toEqual({});
+      const rulesyncSubagent = subagent.toRulesyncSubagent();
+      expect(rulesyncSubagent.getFrontmatter().name).toBe("no-frontmatter");
+      expect(rulesyncSubagent.getFrontmatter().description).toBeUndefined();
+      expect(rulesyncSubagent.getBody()).toBe(markdownWithoutFrontmatter);
+    });
+
+    it("should derive the name from the file name when only description is set", async () => {
+      const filePath = join(testDir, ".cursor", "agents", "verifier.md");
+
+      await writeFileContent(filePath, "---\ndescription: Verifies changes\n---\n\nVerify.");
+
+      const subagent = await CursorSubagent.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "verifier.md",
+        validate: true,
+      });
+
+      const rulesyncSubagent = subagent.toRulesyncSubagent();
+      expect(rulesyncSubagent.getFrontmatter().name).toBe("verifier");
+      expect(rulesyncSubagent.getFrontmatter().description).toBe("Verifies changes");
+      expect(rulesyncSubagent.getRelativeFilePath()).toBe("verifier.md");
+    });
+
+    it("should derive the name from the file name in global scope", async () => {
+      const filePath = join(testDir, ".cursor", "agents", "global-helper.md");
+
+      await writeFileContent(filePath, "---\nreadonly: true\n---\n\nHelp.");
+
+      const subagent = await CursorSubagent.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "global-helper.md",
+        validate: true,
+        global: true,
+      });
+
+      const rulesyncSubagent = subagent.toRulesyncSubagent();
+      expect(rulesyncSubagent.getFrontmatter().name).toBe("global-helper");
+      expect(rulesyncSubagent.getFrontmatter().cursor).toEqual({ readonly: true });
+    });
+
+    it("should prefer an explicit name over the file name", async () => {
+      const filePath = join(testDir, ".cursor", "agents", "file-name.md");
+
+      await writeFileContent(filePath, "---\nname: explicit-name\n---\n\nBody.");
+
+      const subagent = await CursorSubagent.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "file-name.md",
+        validate: true,
+      });
+
+      expect(subagent.toRulesyncSubagent().getFrontmatter().name).toBe("explicit-name");
     });
   });
 
