@@ -62,6 +62,10 @@ export const DEVIN_PLUGIN_MCP_FILE_NAME = ".mcp.json";
 // `mcpServers` and `hooks` that rulesync does not write.
 // @see https://github.com/MoonshotAI/kimi-code/blob/%40moonshot-ai/kimi-code%402.1.1/docs/en/customization/plugins.md
 export const KIMI_CODE_PLUGIN_SYSTEM_PROMPT_FILE_NAME = "SYSTEM.md";
+// Kimi ignores a `systemPromptPath` file larger than this (in UTF-8 bytes) and
+// reports it only in the plugin diagnostics.
+// @see https://github.com/MoonshotAI/kimi-code/blob/%40moonshot-ai/kimi-code%402.1.1/packages/agent-core-v2/src/app/plugin/manifest.ts
+export const KIMI_CODE_PLUGIN_SYSTEM_PROMPT_MAX_BYTES = 32 * 1024;
 export const KIMI_CODE_PLUGIN_COMMANDS_DIR = "commands";
 export const KIMI_CODE_PLUGIN_AGENTS_DIR = "agents";
 export const KIMI_CODE_PLUGIN_SKILLS_DIR = "skills";

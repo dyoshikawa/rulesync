@@ -7,6 +7,7 @@ import { CODEBUDDY_LOCAL_RULE_FILE_NAME } from "../../constants/codebuddy-paths.
 import { CODEXCLI_PROJECT_DOC_MAX_BYTES } from "../../constants/codexcli-paths.js";
 import { CRUSH_LOCAL_RULE_FILE_NAME } from "../../constants/crush-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
+import { KIMI_CODE_PLUGIN_SYSTEM_PROMPT_MAX_BYTES } from "../../constants/plugin-paths.js";
 import { QODER_LOCAL_RULE_FILE_NAME } from "../../constants/qoder-paths.js";
 import { QWENCODE_DIR, QWENCODE_LOCAL_RULE_FILE_NAME } from "../../constants/qwencode-paths.js";
 import { REASONIX_LOCAL_RULE_FILE_NAME } from "../../constants/reasonix-paths.js";
@@ -419,7 +420,8 @@ type ToolRuleFactory = {
     /**
      * Default byte budget the tool reads across the project instruction files
      * on one root-to-cwd chain before silently dropping the rest (Codex CLI's
-     * `project_doc_max_bytes`). Project scope only; generation warns when a
+     * `project_doc_max_bytes`, or the size past which Kimi Code ignores a
+     * plugin's `SYSTEM.md`). Project scope only; generation warns when a
      * generated chain exceeds `bytes`, appending the tool-specific `remedy`.
      */
     projectInstructionBudget?: {
@@ -926,7 +928,8 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
     "kimi-code-plugin",
     {
       // A Kimi Code plugin contributes one instructions file, `<plugin>/SYSTEM.md`
-      // (referenced by `systemPromptPath`), so topic rules fold into it.
+      // (referenced by `systemPromptPath`), so topic rules fold into it. Kimi
+      // ignores the whole file once it exceeds 32 KiB, so generation warns.
       // https://github.com/MoonshotAI/kimi-code/blob/%40moonshot-ai/kimi-code%402.1.1/docs/en/customization/plugins.md
       class: KimiCodePluginRule,
       meta: {
@@ -934,6 +937,12 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         supportsGlobal: false,
         ruleDiscoveryMode: "auto",
         collisionPolicy: "fold",
+        projectInstructionBudget: {
+          bytes: KIMI_CODE_PLUGIN_SYSTEM_PROMPT_MAX_BYTES,
+          remedy:
+            "Kimi Code ignores a plugin's `systemPromptPath` file larger than 32 KiB entirely, reporting it only in the plugin diagnostics, so none of these rules would reach the model. " +
+            "Trim the rules or exclude some from the `kimi-code-plugin` target.",
+        },
       },
     },
   ],

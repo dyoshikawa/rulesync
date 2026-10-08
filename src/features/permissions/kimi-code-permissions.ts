@@ -295,6 +295,24 @@ function sortKimiCodeRulesFailClosed(rules: KimiCodePermissionRule[]): KimiCodeP
     .map(({ rule }) => rule);
 }
 
+/**
+ * Read a `[[permission.rules]]` entry's pattern the way Kimi does. Besides the
+ * `pattern = "Tool(arg)"` form Rulesync writes, Kimi accepts entries naming the
+ * tool separately (`tool = "Bash"` plus `match` or `pattern` for the argument)
+ * and folds them into `Tool(arg)`, or the bare tool name when no argument
+ * pattern is given; `match` wins over `pattern`.
+ *
+ * @see https://github.com/MoonshotAI/kimi-code/blob/%40moonshot-ai/kimi-code%402.1.1/packages/agent-core-v2/src/agent/permissionRules/configSection.ts
+ */
+function readKimiCodeRulePattern(raw: Record<string, unknown>): string | undefined {
+  const { tool, match, pattern } = raw;
+  if (typeof tool !== "string") {
+    return typeof pattern === "string" ? pattern : undefined;
+  }
+  const argument = typeof match === "string" ? match : pattern;
+  return typeof argument === "string" ? `${tool}(${argument})` : tool;
+}
+
 function preserveKimiCodeRules(rules: unknown): {
   permission: PermissionsConfig["permission"];
   nativeRules: KimiCodePermissionRule[];
@@ -310,7 +328,7 @@ function preserveKimiCodeRules(rules: unknown): {
       continue;
     }
     const decision = raw.decision;
-    const pattern = raw.pattern;
+    const pattern = readKimiCodeRulePattern(raw);
     if (
       (decision !== "allow" && decision !== "ask" && decision !== "deny") ||
       typeof pattern !== "string"
