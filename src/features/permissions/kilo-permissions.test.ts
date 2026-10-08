@@ -553,6 +553,7 @@ describe("KiloPermissions", () => {
         permission: {
           github_create_issue: "allow",
           github_delete_repo: "deny",
+          github_approved: { "*": "allow" },
           github_list: "ask",
           other_tool: "deny",
           external_directory: "deny",

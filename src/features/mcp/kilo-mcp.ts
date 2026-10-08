@@ -19,8 +19,8 @@ import type { Logger } from "../../utils/logger.js";
 import { isRecord } from "../../utils/type-guards.js";
 import {
   findKiloMcpToolKeyOwner,
-  isKiloPermissionPattern,
   kiloMcpToolPermissionKey,
+  kiloPermissionToToolFilter,
 } from "../shared/kilo-mcp-tool-keys.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import {
@@ -181,22 +181,6 @@ function isKiloTransportServer(server: KiloMcpServer): server is KiloMcpTranspor
 }
 
 /**
- * Read a `permission` entry as an MCP tool filter. A scalar `allow`/`deny`, or
- * a pattern map stating only `"*"` (the shape Kilo itself saves), is a filter;
- * `ask` and narrower pattern maps have no `enabledTools`/`disabledTools`
- * equivalent and are left to the permissions feature.
- */
-function kiloPermissionToToolFilter(value: unknown): boolean | undefined {
-  const action =
-    isRecord(value) && Object.keys(value).length === 1 && Object.hasOwn(value, "*")
-      ? value["*"]
-      : value;
-  if (action === "allow") return true;
-  if (action === "deny") return false;
-  return undefined;
-}
-
-/**
  * Fold the legacy `tools` map and the `permission` block into one tool-name to
  * enabled map. `permission` wins a key both state, which is the order Kilo's
  * own `tools` shim merges them in (`mergeDeep(tools, permission)`).
@@ -208,7 +192,6 @@ function collectKiloToolFilters(
 ): Record<string, boolean> {
   const filters: Record<string, boolean> = { ...tools };
   for (const [key, value] of Object.entries(permission ?? {})) {
-    if (isKiloPermissionPattern(key)) continue;
     const enabled = kiloPermissionToToolFilter(value);
     if (enabled !== undefined) {
       filters[key] = enabled;
@@ -569,10 +552,11 @@ function buildKiloToolPermissionPatch({
  *
  * MCP owns, per server it manages (the canonical servers plus every server the
  * file's `mcp` block lists, so the filters of a removed server go with it),
- * the scalar `allow`/`deny` permission keys naming one of that server's tools.
- * Those are rebuilt from the canonical filters; everything else in the block —
- * wildcard keys, `ask`, the `{"*": ...}` maps Kilo's "Approve Always" saves,
- * keys of other servers — is the user's or the permissions feature's and is
+ * the scalar `allow`/`deny` permission keys naming one of that server's tools
+ * (`{server}_*` included). Those are rebuilt from the canonical filters;
+ * everything else in the block — other wildcard keys, `ask`, the `{"*": ...}`
+ * maps Kilo's "Approve Always" saves, Kilo's built-in permissions, keys of
+ * other servers — is the user's or the permissions feature's and is
  * left in place. The same servers' entries are retracted from the legacy
  * `tools` map, which Kilo would otherwise fold in ahead of `permission`.
  */

@@ -1109,14 +1109,23 @@ describe("KiloMcp", () => {
       await writeFileContent(
         join(testDir, "kilo.json"),
         JSON.stringify({
-          permission: { external_directory: "deny", doom_loop: "deny", external_fetch: "deny" },
+          permission: {
+            external_directory: "deny",
+            doom_loop: "deny",
+            repo_clone: "deny",
+            external_fetch: "deny",
+          },
         }),
       );
       const rulesyncMcp = new RulesyncMcp({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify({
-          mcpServers: { external: { command: "node", args: ["x.js"] }, doom: { command: "doom" } },
+          mcpServers: {
+            external: { command: "node", args: ["x.js"] },
+            doom: { command: "doom" },
+            repo: { command: "repo" },
+          },
         }),
       });
 
@@ -1125,6 +1134,7 @@ describe("KiloMcp", () => {
       expect(kiloMcp.getJson().permission).toEqual({
         external_directory: "deny",
         doom_loop: "deny",
+        repo_clone: "deny",
       });
     });
 
@@ -1163,6 +1173,32 @@ describe("KiloMcp", () => {
       expect(servers.github?.enabledTools).toEqual(["list"]);
       expect(servers.github?.disabledTools).toBeUndefined();
       expect(servers.github_enterprise?.disabledTools).toEqual(["delete"]);
+    });
+
+    it("should keep a wildcard tool name as a wildcard permission key and read it back", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { github: { command: "gh", disabledTools: ["*", "delete_?"] } },
+        }),
+      });
+
+      const kiloMcp = await KiloMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+
+      expect(kiloMcp.getJson().permission).toEqual({
+        "github_*": "deny",
+        "github_delete_?": "deny",
+      });
+      const imported = new KiloMcp({
+        relativeDirPath: ".",
+        relativeFilePath: "kilo.json",
+        fileContent: kiloMcp.getFileContent(),
+      });
+      expect(imported.toRulesyncMcp().getJson().mcpServers.github?.disabledTools).toEqual([
+        "*",
+        "delete_?",
+      ]);
     });
 
     it("should sanitize server and tool names the way Kilo names MCP tools", async () => {
@@ -1614,9 +1650,10 @@ describe("KiloMcp", () => {
         type: "stdio",
         command: "gh-mcp",
         // `permission` wins `gh_search`, as in Kilo's own `tools` shim; `ask`,
-        // wildcard keys and narrower pattern maps are not filters.
+        // the catch-all and narrower pattern maps are not filters, while the
+        // server's own wildcard key is.
         enabledTools: ["search", "list"],
-        disabledTools: ["delete"],
+        disabledTools: ["delete", "*"],
       });
     });
 

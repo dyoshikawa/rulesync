@@ -16,7 +16,11 @@ import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { isPlainObject } from "../../utils/type-guards.js";
-import { findKiloMcpToolKeyOwner } from "../shared/kilo-mcp-tool-keys.js";
+import {
+  findKiloMcpToolKeyOwner,
+  isKiloPermissionPattern,
+  kiloPermissionToToolFilter,
+} from "../shared/kilo-mcp-tool-keys.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { honorAllToolsOnBash } from "./shell-command-categories.js";
 import {
@@ -217,7 +221,7 @@ function narrowMarkdownSourceToProjectScope({
  */
 function moveKiloExactDeniesLast(permission: Record<string, unknown>): Record<string, unknown> {
   const isExactDeny = ([key, value]: [string, unknown]): boolean =>
-    value === "deny" && !key.includes("*") && !key.includes("?");
+    value === "deny" && !isKiloPermissionPattern(key);
   const entries = Object.entries(permission);
   return Object.fromEntries([
     ...entries.filter((entry) => !isExactDeny(entry)),
@@ -441,16 +445,17 @@ export class KiloPermissions extends ToolPermissions {
     // into other tools' configs.
     const shared: PermissionsConfig["permission"] = {};
     const overrideOnly: NonNullable<KiloPermissionsOverride["permission"]> = {};
-    // A scalar `allow`/`deny` naming a tool of a server the file's `mcp`
-    // block lists is that server's `enabledTools`/`disabledTools` entry, which
-    // the MCP feature imports and rewrites. Copying it into the override too
+    // An `allow`/`deny` (plain, or the `{"*": ...}` map Kilo saves) naming a
+    // tool of a server the file's `mcp` block lists is that server's
+    // `enabledTools`/`disabledTools` entry, which the MCP feature imports and
+    // rewrites. Copying it into the override too
     // would let a stale copy here overwrite the MCP feature's next write.
     const parsedFile: unknown = parseJsonc(this.fileContent || "{}");
     const mcpServerNames =
       isPlainObject(parsedFile) && isPlainObject(parsedFile.mcp) ? Object.keys(parsedFile.mcp) : [];
     for (const [key, value] of Object.entries(rawPermission)) {
       if (
-        (value === "allow" || value === "deny") &&
+        kiloPermissionToToolFilter(value) !== undefined &&
         findKiloMcpToolKeyOwner(key, mcpServerNames) !== undefined
       ) {
         continue;
