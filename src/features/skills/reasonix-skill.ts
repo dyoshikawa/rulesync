@@ -35,9 +35,13 @@ import {
 // it, and v2 reads the two independently. Because the two are not the same
 // switch (`manual` only hides; the flag also refuses model calls), an
 // `invocation` authored in the `reasonix` section is written verbatim and an
-// imported one is kept there rather than folded into the flag. v2 parses the
-// flags leniently (`yes`/`no`, `on`/`off`, `1`/`0`, case-insensitive), so the
-// schema accepts any value and the adapter reads those spellings. `model`/`effort`/`allowed-tools`/
+// imported one is kept there rather than folded into the flag — except that a
+// `disable-model-invocation: true` always writes `manual`, since v1 has no
+// other way to honour it. v2 parses the flags leniently (`yes`/`no`,
+// `on`/`off`, `1`/`0`, case-insensitive), so the schema accepts any value and
+// the adapter reads those spellings. Like `parseInvocationFlags`, an
+// unreadable `disable-model-invocation` fails closed (read as `true`), while an
+// unreadable `user-invocable` is ignored. `model`/`effort`/`allowed-tools`/
 // `read-only` take effect only on a `runAs: subagent` profile, which the
 // subagents feature owns, so they are not modeled here. The schema is loose,
 // so an imported file carrying extra keys still parses.
@@ -149,7 +153,9 @@ export class ReasonixSkill extends ToolSkill {
     // as authored, except the `manual` that generate writes beside
     // `disable-model-invocation: true`: it follows from the flag, and keeping
     // it would pin the skill hidden after the flag is turned off.
-    const disableModelInvocation = parseReasonixBool(frontmatter["disable-model-invocation"]);
+    const disableModelInvocation = parseDisableModelInvocation(
+      frontmatter["disable-model-invocation"],
+    );
     const userInvocable = parseReasonixBool(frontmatter["user-invocable"]);
     const invocation =
       typeof frontmatter.invocation === "string" &&
@@ -198,9 +204,12 @@ export class ReasonixSkill extends ToolSkill {
       section: rulesyncFrontmatter.reasonix,
     });
 
+    // A disabled model invocation always writes `manual`: v1 reads nothing
+    // else, so an authored `auto` would put the skill back in its catalog.
     const invocation =
-      rulesyncFrontmatter.reasonix?.invocation ??
-      (disableModelInvocation === true ? REASONIX_MANUAL_INVOCATION : undefined);
+      disableModelInvocation === true
+        ? REASONIX_MANUAL_INVOCATION
+        : rulesyncFrontmatter.reasonix?.invocation;
 
     const reasonixFrontmatter: ReasonixSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
@@ -317,6 +326,20 @@ export class ReasonixSkill extends ToolSkill {
  */
 function isManualInvocation(invocation: string): boolean {
   return invocation.trim().toLowerCase() === REASONIX_MANUAL_INVOCATION;
+}
+
+/**
+ * Reads `disable-model-invocation` the way Reasonix v2 does: fail closed, so a
+ * present, non-blank value it cannot read as a boolean restricts the skill.
+ */
+function parseDisableModelInvocation(value: unknown): boolean | undefined {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  if (typeof value === "string" && value.trim() === "") {
+    return undefined;
+  }
+  return parseReasonixBool(value) ?? true;
 }
 
 /**

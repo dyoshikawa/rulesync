@@ -100,8 +100,9 @@ type ReasonixPlugin = Record<string, unknown> & {
 // fails the load of the whole file, not just this entry. The other passthrough
 // fields are not checked yet.
 // @see https://github.com/esengine/DeepSeek-Reasonix/blob/main-v2/docs/SPEC.md
-// (§3.16 for `concurrency`) and `internal/config/plugin_entry.go` for the
-// `[[plugins]]` field names.
+// (§3.16 for `concurrency`) and `PluginEntry` for the `[[plugins]]` field names:
+// https://github.com/esengine/DeepSeek-Reasonix/blob/v1.39.8/internal/config/plugin_entry.go
+// https://github.com/esengine/DeepSeek-Reasonix/blob/v2.31.0/internal/contract/config/plugin_entry.go
 const REASONIX_PLUGIN_FIELDS = [
   "type",
   "command",
@@ -190,7 +191,7 @@ export class ReasonixMcp extends ToolMcp {
     const existingContent = (await readFileContentOrNull(filePath)) ?? "";
 
     const plugins = Object.entries(rulesyncMcp.getMcpServers())
-      .map(([name, server]) => rulesyncMcpServerToReasonix(name, server, logger))
+      .map(([name, server]) => rulesyncMcpServerToReasonix({ name, server, global, logger }))
       .filter((plugin) => plugin !== null);
 
     return new ReasonixMcp({
@@ -334,7 +335,7 @@ const REASONIX_TYPED_PLUGIN_FIELDS: Readonly<Record<string, "string" | "boolean"
  * default, so it is dropped too rather than written as a setting that does
  * nothing. An unknown `load` string is read as `deferred`, the default, so it
  * passes through as authored.
- * @see https://github.com/esengine/DeepSeek-Reasonix/blob/main-v2/internal/config/plugin_entry.go
+ * @see https://github.com/esengine/DeepSeek-Reasonix/blob/v2.31.0/internal/contract/config/plugin_entry.go
  */
 function invalidPassthroughFieldReason(field: string, value: unknown): string | undefined {
   const expected = REASONIX_TYPED_PLUGIN_FIELDS[field];
@@ -388,11 +389,13 @@ function writePassthroughFields({
   name,
   server,
   plugin,
+  global,
   logger,
 }: {
   name: string;
   server: McpServer;
   plugin: ReasonixPlugin;
+  global: boolean;
   logger?: Logger;
 }): void {
   const serverRecord = server as Record<string, unknown>;
@@ -413,19 +416,27 @@ function writePassthroughFields({
     if (field === "oauth_allow_missing_pkce_metadata" && value === true) {
       logger?.warn(
         `Reasonix MCP: "${name}" sets "oauth_allow_missing_pkce_metadata", which lets OAuth ` +
-          `proceed with an authorization server that does not advertise PKCE support. ` +
-          `Reasonix honours it only from the user config, not a project reasonix.toml.`,
+          `proceed with an authorization server that does not advertise PKCE support.` +
+          (global
+            ? ""
+            : ` Reasonix honours it only from the user config, not a project reasonix.toml.`),
       );
     }
     plugin[field] = value;
   }
 }
 
-function rulesyncMcpServerToReasonix(
-  name: string,
-  server: McpServer,
-  logger?: Logger,
-): ReasonixPlugin | null {
+function rulesyncMcpServerToReasonix({
+  name,
+  server,
+  global,
+  logger,
+}: {
+  name: string;
+  server: McpServer;
+  global: boolean;
+  logger?: Logger;
+}): ReasonixPlugin | null {
   const serverRecord = server as Record<string, unknown>;
   const type = resolveReasonixType(server);
   if (type !== undefined && !REASONIX_TRANSPORTS.has(type)) {
@@ -458,7 +469,7 @@ function rulesyncMcpServerToReasonix(
     }
   }
 
-  writePassthroughFields({ name, server, plugin, logger });
+  writePassthroughFields({ name, server, plugin, global, logger });
   // The canonical schema already types `disabledTools` as a string list. A
   // blank name is dropped (Reasonix's own editor rejects it), and an empty
   // list is skipped: Reasonix reads it as "every tool enabled", the same as no

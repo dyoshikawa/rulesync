@@ -900,6 +900,33 @@ describe("ReasonixMcp", () => {
       });
     });
 
+    it("should not call the OAuth key project-only when writing the global config", async () => {
+      const logger = createMockLogger();
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            remote: {
+              type: "http",
+              url: "https://example.com/mcp",
+              oauth_allow_missing_pkce_metadata: true,
+            },
+          },
+        }),
+      });
+
+      await ReasonixMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp, global: true, logger });
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('"remote" sets "oauth_allow_missing_pkce_metadata"'),
+      );
+      expect(logger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining("project reasonix.toml"),
+      );
+    });
+
     it.each([
       ["load", 1],
       ["oauth_allow_missing_pkce_metadata", "true"],

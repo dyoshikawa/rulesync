@@ -219,7 +219,7 @@ describe("ReasonixSkill", () => {
       });
     });
 
-    it("should ignore a flag value Reasonix cannot read", () => {
+    it("should ignore a user-invocable value Reasonix cannot read", () => {
       const skill = new ReasonixSkill({
         outputRoot: testDir,
         dirName: "flagged",
@@ -228,6 +228,37 @@ describe("ReasonixSkill", () => {
       });
 
       expect(skill.toRulesyncSkill().getFrontmatter()).not.toHaveProperty("reasonix");
+    });
+
+    // Reasonix's `parseInvocationFlags` fails closed on this flag, so an
+    // import must not turn a restricted skill into an unrestricted one.
+    it.each([["maybe"], [["x"]], [2]])(
+      "should read an unreadable disable-model-invocation of %j as true",
+      (value) => {
+        const skill = new ReasonixSkill({
+          outputRoot: testDir,
+          dirName: "flagged",
+          frontmatter: {
+            name: "flagged",
+            description: "Flagged",
+            "disable-model-invocation": value,
+          },
+          body: "Body",
+        });
+
+        expect(skill.toRulesyncSkill().getFrontmatter().reasonix).toEqual({
+          "disable-model-invocation": true,
+        });
+      },
+    );
+
+    it("should write invocation: manual over an authored one when model invocation is disabled", () => {
+      const skill = toReasonix({
+        "disable-model-invocation": true,
+        reasonix: { invocation: "auto" },
+      });
+
+      expect(skill.getFrontmatter().invocation).toBe("manual");
     });
 
     it("should import a skill without flags with no reasonix section", () => {
