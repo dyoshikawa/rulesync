@@ -120,11 +120,16 @@ export class ClineSkill extends ToolSkill {
   }
 
   toRulesyncSkill(): RulesyncSkill {
-    const frontmatter = this.getFrontmatter();
+    // Keys beyond name/description — most usefully the `disabled: true` (or
+    // `enabled: false`) toggle Cline writes into SKILL.md when a skill is
+    // switched off in its UI — are lifted into the `cline` section so they
+    // survive the round-trip (mirrors roo-skill.ts).
+    const { name, description, ...clineSection } = this.getFrontmatter();
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
-      name: frontmatter.name,
-      description: frontmatter.description,
+      name,
+      description,
       targets: ["*"],
+      ...(Object.keys(clineSection).length > 0 && { cline: clineSection }),
     };
 
     return new RulesyncSkill({
@@ -148,7 +153,16 @@ export class ClineSkill extends ToolSkill {
     const settablePaths = ClineSkill.getSettablePaths({ global });
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
 
+    // The `cline` section carries Cline-specific frontmatter (`disabled`,
+    // etc.); canonical name/description always win over a stray same-named
+    // key in the section.
+    const {
+      name: _sectionName,
+      description: _sectionDescription,
+      ...clineSection
+    } = rulesyncFrontmatter.cline ?? {};
     const clineFrontmatter: ClineSkillFrontmatter = {
+      ...clineSection,
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
     };
