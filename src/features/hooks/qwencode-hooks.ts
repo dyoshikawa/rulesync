@@ -28,6 +28,46 @@ import {
 } from "./tool-hooks.js";
 
 /**
+ * Qwen Code reads a command hook `timeout` in seconds, but a value of 1000 or
+ * more keeps its legacy millisecond meaning (Qwen Code v0.23.4, PR #11615).
+ * http and prompt hooks are always seconds, and SDK-registered function hooks
+ * keep milliseconds, so only command hooks are converted.
+ * https://github.com/QwenLM/qwen-code/blob/main/packages/core/src/hooks/hook-timeout.ts
+ */
+const QWENCODE_LEGACY_MILLISECOND_TIMEOUT_THRESHOLD = 1000;
+
+function isQwencodeLegacyMillisecondTimeout(timeout: number | undefined): timeout is number {
+  return (
+    typeof timeout === "number" &&
+    Number.isFinite(timeout) &&
+    timeout >= QWENCODE_LEGACY_MILLISECOND_TIMEOUT_THRESHOLD
+  );
+}
+
+/**
+ * Canonical `timeout` is seconds. A command hook value below the threshold is
+ * already read as seconds; a larger one can only be expressed in milliseconds.
+ */
+function canonicalTimeoutToQwencodeCommandTimeout(timeout: number | undefined): number | undefined {
+  if (!isQwencodeLegacyMillisecondTimeout(timeout)) {
+    return timeout;
+  }
+  return Math.round(timeout * 1000);
+}
+
+/**
+ * Inverse of {@link canonicalTimeoutToQwencodeCommandTimeout}. A legacy
+ * millisecond value such as `10000` imports as `10` seconds and regenerates
+ * as `10`, which Qwen Code reads the same way.
+ */
+function qwencodeCommandTimeoutToCanonicalTimeout(timeout: number | undefined): number | undefined {
+  if (!isQwencodeLegacyMillisecondTimeout(timeout)) {
+    return timeout;
+  }
+  return timeout / 1000;
+}
+
+/**
  * Build a single Qwen Code hook object from a canonical hook definition.
  * Command-only fields (`async`/`env`/`shell`) are emitted only on command hooks
  * and http-only fields (`headers`/`allowedEnvVars`/`once`) only on http hooks,
@@ -46,7 +86,7 @@ function canonicalDefToQwencodeHook(
     ...compact({
       command: def.command,
       url: def.url,
-      timeout: def.timeout,
+      timeout: isCommand ? canonicalTimeoutToQwencodeCommandTimeout(def.timeout) : def.timeout,
       name: def.name,
       description: def.description,
       statusMessage: def.statusMessage,
@@ -203,7 +243,7 @@ function qwencodeHookEntryToCanonical({
     ...compact({
       command: h.command,
       url: h.url,
-      timeout: h.timeout,
+      timeout: isCommand ? qwencodeCommandTimeoutToCanonicalTimeout(h.timeout) : h.timeout,
       name: h.name,
       description: h.description,
       // `statusMessage` applies to both command and http hooks.
