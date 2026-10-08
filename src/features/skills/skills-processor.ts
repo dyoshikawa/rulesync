@@ -505,7 +505,7 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
     "goose",
     {
       class: GooseSkill,
-      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: false },
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],
   [

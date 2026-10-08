@@ -24,4 +24,5 @@ Common adapter paths: `rulesync-source-map.md`.
 | `rules`     | Root `.goosehints`, nested `.goose/memories`, and plain-Markdown conversion in `goose-rule.ts`    |
 | `subagents` | Custom-agent Markdown under `.goose/agents/` and `~/.config/goose/agents/` in `goose-subagent.ts` |
 | `commands`  | Top-level recipes under `.goose/recipes/` in `goose-command.ts`                                   |
+| `skills`    | Skill dirs under `.goose/skills/` and `~/.config/goose/skills/` in `goose-skill.ts`               |
 | `checks`    | No Rulesync-supported checks target in map — see #2404                                            |

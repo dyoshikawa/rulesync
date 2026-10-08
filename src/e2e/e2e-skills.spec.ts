@@ -1321,6 +1321,12 @@ const skillsGlobalTargets = [
     target: "pool",
     outputPath: join(".config", "poolside", "skills", "test-skill", "SKILL.md"),
   },
+  {
+    // Goose reads global skills from ~/.config/goose/skills/ (and ~/.agents/skills/,
+    // which the agentsskills target serves).
+    target: "goose",
+    outputPath: join(".config", "goose", "skills", "test-skill", "SKILL.md"),
+  },
 ] as const;
 
 describe("E2E: skills (global mode)", () => {
