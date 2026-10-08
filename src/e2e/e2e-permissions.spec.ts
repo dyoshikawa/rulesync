@@ -2450,13 +2450,49 @@ describe("E2E: permissions (global mode)", () => {
       env: { HOME_DIR: homeDir },
     });
 
+    // A global import writes the user-level canonical file. Bob has no ask
+    // tier, so the `ask` rule was never written and does not come back.
     const imported = JSON.parse(
-      await readFileContent(join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH)),
+      await readFileContent(join(homeDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH)),
     );
-    // Bob has no ask tier, so the `ask` rule is never written; the import keeps
-    // it from the existing canonical file rather than dropping it.
     expect(imported.permission).toEqual({
-      bash: { "git status": "allow", "git push": "ask", rm: "deny" },
+      bash: { "git status": "allow", rm: "deny" },
+    });
+    // The whole-group switches round-trip through the `bob` override block.
+    expect(imported.bob).toEqual({ approval: { allowed_permissions: ["read", "execute"] } });
+  });
+
+  it("should write bob group switches from the bob override block", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {},
+          bob: {
+            approval: { allowed_permissions: ["read", "todo"] },
+            autoApprove: { skills: true },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({
+      target: "bob",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    expect(
+      JSON.parse(await readFileContent(join(homeDir, ".bob", "settings", "settings.json"))),
+    ).toEqual({
+      approval: { allowed_permissions: ["read", "todo"] },
+      autoApprove: { skills: true },
     });
   });
 

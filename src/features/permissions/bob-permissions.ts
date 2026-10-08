@@ -2,10 +2,15 @@ import { join } from "node:path";
 
 import { BOB_GLOBAL_SETTINGS_DIR_PATH, BOB_SETTINGS_FILE_NAME } from "../../constants/bob-paths.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
-import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
+import type {
+  BobPermissionsOverride,
+  PermissionAction,
+  PermissionsConfig,
+} from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { type Logger, warnWithFallback } from "../../utils/logger.js";
+import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { isPlainObject } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
@@ -33,6 +38,30 @@ const TOOL_LABEL = "IBM Bob";
 
 /** The top-level settings key holding Bob's auto-approval configuration. */
 const APPROVAL_KEY = "approval";
+
+/** The top-level settings key holding Bob's per-feature auto-approve toggles. */
+const AUTO_APPROVE_KEY = "autoApprove";
+
+/** The tool permission groups Bob documents for `approval.allowed_permissions`. */
+const BOB_PERMISSION_GROUP_IDS: ReadonlySet<string> = new Set([
+  "read",
+  "edit",
+  "execute",
+  "mcp",
+  "skill",
+  "todo",
+  "subtask",
+  "subagent",
+  "mode",
+]);
+
+/** The `autoApprove` toggles Bob documents. */
+const BOB_AUTO_APPROVE_KEYS: ReadonlySet<string> = new Set(["skills"]);
+
+/** The only group Bob documents `permissionOptions[].enableOutsideWorkspace` for. */
+const OUTSIDE_WORKSPACE_GROUP_ID = "read";
+
+type BobOverrideApproval = NonNullable<BobPermissionsOverride["approval"]>;
 
 /** The only executor tool Bob's `allowedExecutors` list documents. */
 const EXECUTE_COMMAND_TOOL_ID = "execute_command";
@@ -74,24 +103,37 @@ function parseBobSettings({
 }
 
 /**
- * Rebuild the `approval` object with rulesync's command lists in the
- * `execute_command` executor entry. Everything else in `approval` —
- * `allowed_permissions`, `permissionOptions`, executor entries for other tools
- * and any other field of the `execute_command` entry — is carried over as the
- * user left it, since the gateway replaces the owned `approval` key wholesale.
+ * Rebuild the `approval` object with the group switches the `bob` override
+ * authors and, when `bash` is stated, rulesync's command lists in the
+ * `execute_command` executor entry. Everything else in `approval` — a group
+ * switch the override leaves out, executor entries for other tools and any
+ * other field of the `execute_command` entry — is carried over as the user
+ * left it, since the gateway replaces the owned `approval` key wholesale.
  */
 function buildApproval({
   existingApproval,
-  approvedCommands,
-  deniedCommands,
+  overrideApproval,
+  commandLists,
 }: {
   existingApproval: unknown;
-  approvedCommands: string[];
-  deniedCommands: string[] | undefined;
+  overrideApproval: BobOverrideApproval | undefined;
+  commandLists: { approvedCommands: string[]; deniedCommands: string[] | undefined } | undefined;
 }): Record<string, unknown> {
   const approval: Record<string, unknown> = isPlainObject(existingApproval)
     ? { ...existingApproval }
     : {};
+  if (overrideApproval?.allowed_permissions !== undefined) {
+    approval.allowed_permissions = [...overrideApproval.allowed_permissions];
+  }
+  if (overrideApproval?.permissionOptions !== undefined) {
+    approval.permissionOptions = overrideApproval.permissionOptions.map((option) => ({
+      ...option,
+    }));
+  }
+  if (commandLists === undefined) {
+    return approval;
+  }
+  const { approvedCommands, deniedCommands } = commandLists;
   const executors: unknown[] = Array.isArray(approval.allowedExecutors)
     ? [...approval.allowedExecutors]
     : [];
@@ -116,6 +158,10 @@ function buildApproval({
   return approval;
 }
 
+const GROUP_SWITCH_HINT =
+  "To auto-approve a whole Bob tool group, list it in the 'bob.approval.allowed_permissions' " +
+  "override of .rulesync/permissions.jsonc.";
+
 /**
  * Warn about canonical categories the `execute_command` lists cannot carry.
  * Restricting (`deny` / `ask`) rules in them are already reported by
@@ -127,10 +173,12 @@ function buildApproval({
 function warnAboutSkippedCategories({
   permission,
   bashStated,
+  authorsGroupSwitches,
   logger,
 }: {
   permission: PermissionsConfig["permission"];
   bashStated: boolean;
+  authorsGroupSwitches: boolean;
   logger?: Logger | undefined;
 }): void {
   const skipped = Object.entries(permission)
@@ -147,15 +195,120 @@ function warnAboutSkippedCategories({
     return;
   }
   const names = skipped.map((category) => `'${category}'`).join(", ");
+  // Pointless once the override already authors the group switches.
+  const hint = authorsGroupSwitches ? "" : ` ${GROUP_SWITCH_HINT}`;
   warnWithFallback(
     logger,
     bashStated
       ? `${TOOL_LABEL} only models shell-command permissions (${SURFACE_LABEL}); ` +
-          `${names} allow rules cannot be represented and were skipped. Bob's ` +
-          `'allowed_permissions' groups are left as authored in the settings file.`
+          `${names} allow rules cannot be represented and were skipped.${hint}`
       : `${TOOL_LABEL} only models shell-command permissions (${SURFACE_LABEL}), and ` +
           `.rulesync/permissions.jsonc states no 'bash' category, so ${names} ` +
-          `${skipped.length === 1 ? "was" : "were"} skipped and the 'approval' block was left untouched.`,
+          `${skipped.length === 1 ? "was" : "were"} skipped and the command lists were left untouched.${hint}`,
+  );
+}
+
+/**
+ * Warn about what the `bob` override writes that Bob does not document: an
+ * unknown group ID, an unknown `autoApprove` toggle, or `enableOutsideWorkspace`
+ * on a group other than `read`. They are written anyway, so a later Bob
+ * addition works without a rulesync release, but rulesync cannot say what Bob
+ * does with them, and a typo would otherwise go unnoticed.
+ */
+function warnAboutUndocumentedSettings({
+  override,
+  logger,
+}: {
+  override: BobPermissionsOverride | undefined;
+  logger?: Logger | undefined;
+}): void {
+  const quoteAll = (values: Iterable<string>): string =>
+    [...new Set(values)].map((value) => quoteValueForWarning(value)).join(", ");
+  const groupIds = [
+    ...(override?.approval?.allowed_permissions ?? []),
+    ...(override?.approval?.permissionOptions ?? []).map((option) => option.groupId),
+  ].filter((id) => !BOB_PERMISSION_GROUP_IDS.has(id));
+  const toggles = Object.keys(override?.autoApprove ?? {}).filter(
+    (key) => !BOB_AUTO_APPROVE_KEYS.has(key),
+  );
+  const outsideWorkspace = (override?.approval?.permissionOptions ?? [])
+    .filter(
+      (option) =>
+        option.enableOutsideWorkspace !== undefined &&
+        option.groupId !== OUTSIDE_WORKSPACE_GROUP_ID,
+    )
+    .map((option) => option.groupId);
+
+  const parts = [
+    ...(groupIds.length > 0 ? [`group ID(s) ${quoteAll(groupIds)}`] : []),
+    ...(toggles.length > 0 ? [`'${AUTO_APPROVE_KEY}' toggle(s) ${quoteAll(toggles)}`] : []),
+    ...(outsideWorkspace.length > 0
+      ? [`'enableOutsideWorkspace' for group(s) ${quoteAll(outsideWorkspace)}`]
+      : []),
+  ];
+  if (parts.length === 0) {
+    return;
+  }
+  warnWithFallback(
+    logger,
+    `${TOOL_LABEL} permissions: the bob override sets ${parts.join("; ")}, which Bob does not ` +
+      `document; they were written as authored. Bob documents the groups ` +
+      `${quoteAll(BOB_PERMISSION_GROUP_IDS)}, the '${AUTO_APPROVE_KEY}' toggle(s) ` +
+      `${quoteAll(BOB_AUTO_APPROVE_KEYS)}, and 'enableOutsideWorkspace' for the ` +
+      `'${OUTSIDE_WORKSPACE_GROUP_ID}' group only.`,
+  );
+}
+
+/**
+ * Name what the `bob` override newly auto-approves. The settings file is Bob's
+ * user file, so a switch turned on here applies to every project on the
+ * machine, and the override may have arrived with a cloned repository or a
+ * fetched permissions file. Switches that are already on are not repeated.
+ */
+function warnAboutNewAutoApprovals({
+  settings,
+  override,
+  filePath,
+  logger,
+}: {
+  settings: Record<string, unknown>;
+  override: BobPermissionsOverride | undefined;
+  filePath: string;
+  logger?: Logger | undefined;
+}): void {
+  const existingApproval = isPlainObject(settings[APPROVAL_KEY]) ? settings[APPROVAL_KEY] : {};
+  const existingGroups = new Set(asStringArray(existingApproval.allowed_permissions));
+  const existingOutside = new Set(
+    (Array.isArray(existingApproval.permissionOptions) ? existingApproval.permissionOptions : [])
+      .filter(isPlainObject)
+      .filter((option) => option.enableOutsideWorkspace === true)
+      .map((option) => option.groupId),
+  );
+  const existingAutoApprove = isPlainObject(settings[AUTO_APPROVE_KEY])
+    ? settings[AUTO_APPROVE_KEY]
+    : {};
+
+  const added = new Set([
+    ...(override?.approval?.allowed_permissions ?? [])
+      .filter((group) => !existingGroups.has(group))
+      .map((group) => `the ${quoteValueForWarning(group)} group`),
+    ...(override?.approval?.permissionOptions ?? [])
+      .filter(
+        (option) => option.enableOutsideWorkspace === true && !existingOutside.has(option.groupId),
+      )
+      .map((option) => `the ${quoteValueForWarning(option.groupId)} group outside the workspace`),
+    ...Object.entries(override?.autoApprove ?? {})
+      .filter(([key, value]) => value === true && existingAutoApprove[key] !== true)
+      .map(([key]) => quoteValueForWarning(`${AUTO_APPROVE_KEY}.${key}`)),
+  ]);
+  if (added.size === 0) {
+    return;
+  }
+  warnWithFallback(
+    logger,
+    `${TOOL_LABEL} permissions: the bob override now auto-approves ${[...added].join(", ")} in ` +
+      `${filePath}, Bob's user settings, so this applies to every project on this machine. ` +
+      `Check it if .rulesync/permissions.jsonc arrived with a repository you cloned.`,
   );
 }
 
@@ -228,6 +381,56 @@ function buildBobCommandLists({
 }
 
 /**
+ * Lift Bob's whole-group switches out of the settings file into the shape of
+ * the `bob` override, so an import followed by a generate writes them back
+ * unchanged. A key holding anything the override schema cannot carry (a
+ * non-string group ID, an option with an unknown field, a non-boolean toggle)
+ * is not lifted at all: lifting what is left would make the next generate
+ * replace the key and drop the rest, while a key left out is never written.
+ */
+function readBobOverride(settings: Record<string, unknown>): BobPermissionsOverride {
+  const override: BobPermissionsOverride = {};
+  const approval = settings[APPROVAL_KEY];
+  if (isPlainObject(approval)) {
+    const overrideApproval: BobOverrideApproval = {};
+    const groups = approval.allowed_permissions;
+    if (Array.isArray(groups) && groups.every((group) => typeof group === "string")) {
+      overrideApproval.allowed_permissions = [...groups];
+    }
+    const options = approval.permissionOptions;
+    if (Array.isArray(options) && options.every(isPermissionOption)) {
+      overrideApproval.permissionOptions = options.map((option) => ({ ...option }));
+    }
+    if (Object.keys(overrideApproval).length > 0) {
+      override.approval = overrideApproval;
+    }
+  }
+  const autoApprove = settings[AUTO_APPROVE_KEY];
+  if (isPlainObject(autoApprove)) {
+    const entries = Object.entries(autoApprove);
+    const toggles = entries.filter(
+      (entry): entry is [string, boolean] => typeof entry[1] === "boolean",
+    );
+    if (toggles.length > 0 && toggles.length === entries.length) {
+      override.autoApprove = Object.fromEntries(toggles);
+    }
+  }
+  return override;
+}
+
+function isPermissionOption(
+  value: unknown,
+): value is { groupId: string; enableOutsideWorkspace?: boolean } {
+  return (
+    isPlainObject(value) &&
+    typeof value.groupId === "string" &&
+    Object.keys(value).every((key) => key === "groupId" || key === "enableOutsideWorkspace") &&
+    (value.enableOutsideWorkspace === undefined ||
+      typeof value.enableOutsideWorkspace === "boolean")
+  );
+}
+
+/**
  * Permissions adapter for IBM Bob (Bob IDE and Bob Shell).
  *
  * Bob reads command approvals from the `approval` key of the user settings
@@ -246,16 +449,19 @@ function buildBobCommandLists({
  * which reasons about the same prefix lists for the Roo Code lineage Bob's
  * settings resemble. A deny that pins down no prefix can never match, so it
  * withholds every allow entry rather than leaving them auto-approving what it
- * meant to block. The rest of the `approval` block — the whole-group
- * `allowed_permissions` switches and `permissionOptions` — has no per-pattern
- * canonical counterpart and is preserved as authored, as is every other
- * settings key (the `hooks` key belongs to the hooks feature).
+ * meant to block. Bob's whole-group switches — `approval.allowed_permissions`,
+ * `approval.permissionOptions` and the top-level `autoApprove` toggles — have
+ * no per-pattern canonical counterpart, so they are authored through the `bob`
+ * override block and imported back into it. Every other settings key is
+ * preserved (the `hooks` key belongs to the hooks feature).
  *
  * rulesync owns the two command lists only when the canonical config states a
- * `bash` category; otherwise nothing is written, so adopting rulesync for other
- * tools never wipes hand-authored Bob approvals.
+ * `bash` category, and a group switch only when the `bob` override authors it;
+ * otherwise nothing is written, so adopting rulesync for other tools never
+ * wipes hand-authored Bob approvals.
  *
  * @see https://bob.ibm.com/docs/shell/configuration/approval-settings
+ * @see https://bob.ibm.com/docs/shell/features/skills
  */
 export class BobPermissions extends ToolPermissions {
   constructor(params: AiFileParams) {
@@ -310,23 +516,51 @@ export class BobPermissions extends ToolPermissions {
     // `--dry-run`/`--check`; the actual write happens later in `writeAiFiles`.
     const existingContent = (await readFileContentOrNull(filePath)) ?? "{}";
 
-    const permission = rulesyncPermissions.getJson().permission;
+    const config = rulesyncPermissions.getJson();
+    const permission = config.permission;
+    const override = config.bob;
     const bashStated = permission[SHELL_PERMISSION_CATEGORY] !== undefined;
-    warnAboutSkippedCategories({ permission, bashStated, logger });
+    const overrideApproval = override?.approval;
+    const authorsApproval =
+      overrideApproval?.allowed_permissions !== undefined ||
+      overrideApproval?.permissionOptions !== undefined;
+    const authorsAutoApprove = Object.keys(override?.autoApprove ?? {}).length > 0;
+    warnAboutSkippedCategories({
+      permission,
+      bashStated,
+      authorsGroupSwitches: overrideApproval?.allowed_permissions !== undefined,
+      logger,
+    });
 
     const patch: Record<string, unknown> = {};
-    if (bashStated) {
+    if (bashStated || authorsApproval || authorsAutoApprove) {
       const settings = parseBobSettings({ fileContent: existingContent, filePath });
-      const { allowed, denied } = buildBobCommandLists({ permission, logger });
-      // `approvedCommands` is written even when empty: once `bash` is stated
-      // rulesync owns the list, and an explicit `[]` replaces any entries left
-      // over from the settings UI or an earlier generate. An empty deny list
-      // drops the key instead.
-      patch[APPROVAL_KEY] = buildApproval({
-        existingApproval: settings[APPROVAL_KEY],
-        approvedCommands: allowed,
-        deniedCommands: denied,
-      });
+      warnAboutUndocumentedSettings({ override, logger });
+      warnAboutNewAutoApprovals({ settings, override, filePath, logger });
+      if (bashStated || authorsApproval) {
+        // `approvedCommands` is written even when empty: once `bash` is stated
+        // rulesync owns the list, and an explicit `[]` replaces any entries left
+        // over from the settings UI or an earlier generate. An empty deny list
+        // drops the key instead.
+        let commandLists: Parameters<typeof buildApproval>[0]["commandLists"];
+        if (bashStated) {
+          const { allowed, denied } = buildBobCommandLists({ permission, logger });
+          commandLists = { approvedCommands: allowed, deniedCommands: denied };
+        }
+        patch[APPROVAL_KEY] = buildApproval({
+          existingApproval: settings[APPROVAL_KEY],
+          overrideApproval,
+          commandLists,
+        });
+      }
+      if (authorsAutoApprove) {
+        // Merged over the existing object, so an `autoApprove` toggle the
+        // override leaves out keeps the value Bob's settings UI wrote.
+        patch[AUTO_APPROVE_KEY] = {
+          ...(isPlainObject(settings[AUTO_APPROVE_KEY]) ? settings[AUTO_APPROVE_KEY] : {}),
+          ...override?.autoApprove,
+        };
+      }
     }
 
     return new BobPermissions({
@@ -371,8 +605,13 @@ export class BobPermissions extends ToolPermissions {
       permission[SHELL_PERMISSION_CATEGORY] = rules;
     }
 
+    const bob = readBobOverride(settings);
     return this.toRulesyncPermissionsDefault({
-      fileContent: JSON.stringify({ permission }, null, 2),
+      fileContent: JSON.stringify(
+        { permission, ...(Object.keys(bob).length > 0 && { bob }) },
+        null,
+        2,
+      ),
     });
   }
 
