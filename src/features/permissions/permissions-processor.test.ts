@@ -112,7 +112,6 @@ describe("PermissionsProcessor", () => {
         "tabnine",
         "takt",
         "vibe",
-        "zed",
         "zoocode",
       ]);
     });
@@ -198,7 +197,6 @@ describe("PermissionsProcessor", () => {
         "tabnine",
         "takt",
         "vibe",
-        "zed",
         "zoocode",
       ]);
     });

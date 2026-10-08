@@ -685,9 +685,12 @@ export const toolPermissionsFactories = new Map<
       class: ZedPermissions,
       meta: {
         // Zed maps permissions onto `agent.tool_permissions` in the shared
-        // settings file: `.zed/settings.json` (project) and
-        // `~/.config/zed/settings.json` (global).
-        supportsProject: true,
+        // user settings file `~/.config/zed/settings.json`. Project scope is
+        // unsupported: Zed parses `.zed/settings.json` as
+        // `ProjectSettingsContent`, which has no `agent` field, so every
+        // `agent.*` key written there is ignored.
+        // https://github.com/zed-industries/zed/blob/main/crates/settings_content/src/project.rs
+        supportsProject: false,
         supportsGlobal: true,
         supportsImport: true,
       },

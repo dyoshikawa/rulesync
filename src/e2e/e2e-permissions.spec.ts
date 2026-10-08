@@ -37,7 +37,6 @@ const permissionsGenerateTargets = [
   "mimocode",
   "omp",
   "pi",
-  "zed",
   "amp",
   "devin",
   "codebuddy",
@@ -402,7 +401,7 @@ describe("E2E: permissions", () => {
     );
 
     await runGenerate({ target: "claudecode", features: "permissions" });
-    await runGenerate({ target: "zed", features: "permissions" });
+    await runGenerate({ target: "opencode", features: "permissions" });
 
     // Claude Code sees the tool-scoped bash category (replaced wholesale)
     // plus the untouched shared read category.
@@ -411,11 +410,9 @@ describe("E2E: permissions", () => {
     expect(claude.permissions.deny).toContain("Read(.env)");
     expect(claude.permissions.allow ?? []).not.toContain("Bash(git *)");
 
-    // Zed still sees the shared bash category.
-    const zed = JSON.parse(await readFileContent(join(testDir, ".zed", "settings.json")));
-    expect(zed.agent.tool_permissions.tools.terminal.always_allow).toEqual([
-      { pattern: "git *", case_sensitive: false },
-    ]);
+    // OpenCode still sees the shared bash category.
+    const opencode = JSON.parse(await readFileContent(join(testDir, "opencode.jsonc")));
+    expect(opencode.permission.bash["git *"]).toBe("allow");
   });
 
   it("should generate permissions from permissions.jsonc (preferred over permissions.json)", async () => {
@@ -443,65 +440,19 @@ describe("E2E: permissions", () => {
     expect(content.permissions.allow).not.toContain("Bash(npm *)");
   });
 
-  it("should generate zed permissions into .zed/settings.json", async () => {
+  it("should not write zed permissions into the project .zed/settings.json", async () => {
     const testDir = getTestDir();
 
     await writeFileContent(
       join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
-      JSON.stringify(
-        {
-          permission: {
-            bash: { "*": "ask", "git *": "allow", "rm *": "deny" },
-            read: { ".env": "deny" },
-          },
-        },
-        null,
-        2,
-      ),
+      JSON.stringify({ permission: { bash: { "rm *": "deny" } } }, null, 2),
     );
 
     await runGenerate({ target: "zed", features: "permissions" });
 
-    const content = JSON.parse(await readFileContent(join(testDir, ".zed", "settings.json")));
-    const tools = content.agent.tool_permissions.tools;
-    // `bash` → `terminal`, `*` → per-tool default, `ask` → `confirm`.
-    expect(tools.terminal.default).toBe("confirm");
-    expect(tools.terminal.always_allow).toEqual([{ pattern: "git *", case_sensitive: false }]);
-    expect(tools.terminal.always_deny).toEqual([{ pattern: "rm *", case_sensitive: false }]);
-    // `read` maps to a tool Zed does not gate, so no inert entry is written.
-    expect(tools.read_file).toBeUndefined();
-  });
-
-  it("should generate the zed sandbox_permissions and profiles override into .zed/settings.json", async () => {
-    const testDir = getTestDir();
-
-    await writeFileContent(
-      join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
-      JSON.stringify(
-        {
-          permission: { bash: { "rm *": "deny" } },
-          zed: {
-            sandbox_permissions: { network_hosts: ["*.github.com"], write_paths: ["/tmp/build"] },
-            profiles: { review: { name: "Review", tools: { terminal: false } } },
-          },
-        },
-        null,
-        2,
-      ),
-    );
-
-    await runGenerate({ target: "zed", features: "permissions" });
-
-    const agent = JSON.parse(await readFileContent(join(testDir, ".zed", "settings.json"))).agent;
-    expect(agent.sandbox_permissions).toEqual({
-      network_hosts: ["*.github.com"],
-      write_paths: ["/tmp/build"],
-    });
-    expect(agent.profiles).toEqual({ review: { name: "Review", tools: { terminal: false } } });
-    // The canonical block still owns tool_permissions.
-    expect(agent.tool_permissions.tools.terminal.always_deny).toEqual([
-      { pattern: "rm *", case_sensitive: false },
-    ]);
+    // Zed reads no `agent` key from project settings, so permissions are
+    // global-only and nothing is written to the project file.
+    expect(await fileExists(join(testDir, ".zed", "settings.json"))).toBe(false);
   });
 
   it("should generate amp permissions into .amp/settings.json", async () => {
@@ -1751,43 +1702,6 @@ describe("E2E: permissions (import)", () => {
     const content = JSON.parse(
       await readFileContent(join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH)),
     );
-    expect(content.permission.bash["npm *"]).toBe("allow");
-    expect(content.permission.read[".env"]).toBe("deny");
-  });
-
-  it("should import zed permissions into .rulesync/permissions.jsonc", async () => {
-    const testDir = getTestDir();
-
-    await writeFileContent(
-      join(testDir, ".zed", "settings.json"),
-      JSON.stringify(
-        {
-          agent: {
-            tool_permissions: {
-              tools: {
-                terminal: {
-                  default: "confirm",
-                  always_allow: [{ pattern: "npm *", case_sensitive: false }],
-                },
-                read_file: {
-                  always_deny: [{ pattern: ".env", case_sensitive: false }],
-                },
-              },
-            },
-          },
-        },
-        null,
-        2,
-      ),
-    );
-
-    await runImport({ target: "zed", features: "permissions" });
-
-    const content = JSON.parse(
-      await readFileContent(join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH)),
-    );
-    // `terminal` → `bash`, `confirm` → `ask`.
-    expect(content.permission.bash["*"]).toBe("ask");
     expect(content.permission.bash["npm *"]).toBe("allow");
     expect(content.permission.read[".env"]).toBe("deny");
   });
@@ -3858,6 +3772,65 @@ describe("E2E: permissions (global mode)", () => {
     // Unrelated user settings preserved by the non-destructive merge.
     expect(generated.theme).toBe("One Dark");
     expect(generated.context_servers.my_server.command).toBe("x");
+  });
+
+  it("should generate and import the zed override and tool_permissions with --global", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: { bash: { "*": "ask", "npm *": "allow", "rm *": "deny" } },
+          zed: {
+            sandbox_permissions: { network_hosts: ["*.github.com"], write_paths: ["/tmp/build"] },
+            profiles: { review: { name: "Review", tools: { terminal: false } } },
+            default_profile: "review",
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({
+      target: "zed",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const agent = JSON.parse(
+      await readFileContent(join(homeDir, getZedGlobalDir(), "settings.json")),
+    ).agent;
+    expect(agent.sandbox_permissions).toEqual({
+      network_hosts: ["*.github.com"],
+      write_paths: ["/tmp/build"],
+    });
+    expect(agent.profiles).toEqual({ review: { name: "Review", tools: { terminal: false } } });
+    expect(agent.default_profile).toBe("review");
+    // The canonical block still owns tool_permissions.
+    expect(agent.tool_permissions.tools.terminal.always_deny).toEqual([
+      { pattern: "rm *", case_sensitive: false },
+    ]);
+
+    await runImport({
+      target: "zed",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const imported = JSON.parse(
+      await readFileContent(join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH)),
+    );
+    // `terminal` → `bash`, `confirm` → `ask`.
+    expect(imported.permission.bash).toEqual({ "*": "ask", "npm *": "allow", "rm *": "deny" });
+    expect(imported.zed.default_profile).toBe("review");
+    expect(imported.zed.profiles).toEqual({
+      review: { name: "Review", tools: { terminal: false } },
+    });
   });
 
   it("should generate amp permissions in home directory with --global", async () => {
