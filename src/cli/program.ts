@@ -293,7 +293,7 @@ export function createProgram(): Command {
     .option("--delete", "Delete all existing files in output directories before generating")
     .option(
       "--retire-targets <tools>",
-      "Comma-separated list of tools the project no longer uses; deletes the outputs rulesync manages for them (requires --features; not with --targets or --watch)",
+      "Comma-separated list of tools the project no longer uses (or no longer uses --features for); deletes the outputs rulesync manages for them (requires --features; not with --targets or --watch)",
       parseCommaSeparatedList,
     )
     .option(

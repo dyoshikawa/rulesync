@@ -318,6 +318,31 @@ describe("config-resolver", () => {
       expect(config.getRetireFeatures()).toEqual(["mcp"]);
     });
 
+    it("keeps the configured features when a configured array-form target retires one", async () => {
+      const config = await ConfigResolver.resolve({
+        configPath: join(testDir, "rulesync.jsonc"),
+        retireTargets: ["claudecode"],
+        features: ["mcp"],
+      });
+      expect(config.getFeatures()).toEqual(["rules"]);
+      expect(config.getConfigFileFeatures("claudecode")).toEqual(["rules"]);
+      expect(config.getRetireFeatures()).toEqual(["mcp"]);
+    });
+
+    it("retires a feature an object-form target no longer has", async () => {
+      await writeFileContent(
+        join(testDir, "rulesync.jsonc"),
+        JSON.stringify({ outputRoots: ["./"], targets: { claudecode: ["rules"] } }),
+      );
+      const config = await ConfigResolver.resolve({
+        configPath: join(testDir, "rulesync.jsonc"),
+        retireTargets: ["claudecode"],
+        features: ["mcp"],
+      });
+      expect(config.getRetireTargets()).toEqual(["claudecode"]);
+      expect(config.getFeatures("claudecode")).toEqual(["rules"]);
+    });
+
     it("is not a config-file option", async () => {
       await writeFileContent(
         join(testDir, "rulesync.jsonc"),
