@@ -94,7 +94,10 @@ const TAKT_SECURITY_POLICY_KEYS = Object.keys(TAKT_SECURITY_POLICIES);
 type TaktPermissionMode = "readonly" | "edit" | "full";
 
 // Default provider when the config has no top-level `provider:` and no profiles.
-const TAKT_DEFAULT_PROVIDER = "claude";
+// Takt 0.68.0 made the Claude Agent SDK (`claude-sdk`) the default and looks
+// permission profiles up by the selected provider name without resolving the
+// `claude` alias, so an omitted provider reads `provider_profiles.claude-sdk`.
+const TAKT_DEFAULT_PROVIDER = "claude-sdk";
 
 // rulesync canonical catch-all pattern (Takt's mode is coarse, so only a
 // catch-all maps cleanly back on import).
@@ -444,7 +447,7 @@ export class TaktPermissions extends ToolPermissions {
  * runtime document is consulted first: the provider of the profile named by
  * `provider.defaults.profile`. Everything else falls through to the legacy
  * chain — the top-level `provider:` value, else the sole key in
- * `provider_profiles`, else the `claude` default.
+ * `provider_profiles`, else the `claude-sdk` default (Takt 0.68.0+).
  */
 function resolveActiveProvider({
   config,
