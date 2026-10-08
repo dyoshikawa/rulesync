@@ -532,6 +532,11 @@
     "zedignore",
     "minisearch",
     "jsons",
-    "qjebbs"
+    "qjebbs",
+    "PATHEXT",
+    "PROGRAMDATA",
+    "PROGRAMW",
+    "PSMODULEPATH",
+    "SYSTEMROOT"
   ]
 }

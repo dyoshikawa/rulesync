@@ -1934,6 +1934,152 @@ describe("ClaudecodePermissions", () => {
       expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("'enableAllProjectMcpServers'"));
     });
 
+    describe("env variables Claude Code ignores", () => {
+      const envCase = (env: Record<string, unknown>): RulesyncPermissions =>
+        new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: { bash: { "git *": "allow" } },
+            claudecode: { env },
+          }),
+        });
+
+      it("drops project-ignored variables at project scope and keeps the rest", async () => {
+        const mockLogger = createMockLogger();
+        const warnSpy = vi.spyOn(mockLogger, "warn");
+
+        const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+          outputRoot: testDir,
+          rulesyncPermissions: envCase({
+            DISABLE_AUTO_COMPACT: "1",
+            CLAUDE_CODE_ENABLE_TELEMETRY: "1",
+            OTEL_EXPORTER_OTLP_ENDPOINT: "https://otel.test",
+            OTEL_EXPORTER_OTLP_METRICS_HEADERS: "Authorization=secret-token",
+            OTEL_EXPORTER_OTLP_TIMEOUT: "5000",
+            OTEL_EXPORTER_PROMETHEUS_PORT: "9464",
+            OTEL_LOGS_EXPORTER: "none",
+            OTEL_METRICS_EXPORTER: "otlp",
+            OTEL_LOG_USER_PROMPTS: "0",
+            OTEL_LOG_TOOL_CONTENT: 0,
+            OTEL_TRACES_EXPORTER: "NONE",
+            OTEL_LOG_TOOL_DETAILS: "1",
+            OTEL_EXPORTER_OTLP_TRACES_CLIENT_KEY: "/tmp/key.pem",
+            systemroot: "C:\\Windows",
+            PROGRAMW6432: "C:\\Programs",
+            OTEL_LOG_ASSISTANT_RESPONSES: "0",
+            XDG_CONFIG_HOME: "/tmp/xdg",
+            HOME: "/tmp/home",
+            "ProgramFiles(x86)": "C:\\Programs",
+            Comspec: "C:\\cmd.exe",
+            CLAUDE_CODE_SYNC_SKILLS: "1",
+            CLAUDE_CODE_PROCESS_WRAPPER: "/usr/bin/wrap",
+          }),
+          logger: mockLogger,
+        });
+
+        const content = JSON.parse(instance.getFileContent());
+        expect(content.env).toEqual({
+          DISABLE_AUTO_COMPACT: "1",
+          OTEL_EXPORTER_OTLP_TIMEOUT: "5000",
+          OTEL_LOGS_EXPORTER: "none",
+          OTEL_LOG_USER_PROMPTS: "0",
+          OTEL_LOG_TOOL_CONTENT: 0,
+          OTEL_TRACES_EXPORTER: "NONE",
+        });
+        const messages = warnSpy.mock.calls.map(([message]) => message as string);
+        const dropped = messages.find((message) => message.includes("project-scoped"));
+        expect(dropped).toContain("'env.CLAUDE_CODE_ENABLE_TELEMETRY'");
+        expect(dropped).toContain("'env.OTEL_LOG_ASSISTANT_RESPONSES'");
+        expect(dropped).toContain("'env.ProgramFiles(x86)'");
+        expect(dropped).toContain("'env.systemroot'");
+        expect(dropped).toContain("'env.CLAUDE_CODE_PROCESS_WRAPPER'");
+        expect(dropped).toContain("'env.OTEL_EXPORTER_OTLP_TRACES_CLIENT_KEY'");
+        // Names only: an env value is often a credential.
+        expect(messages.join("\n")).not.toContain("secret-token");
+      });
+
+      it.each(["false", "Off", "no"])(
+        "keeps the content-variable off value %s at project scope",
+        async (offValue) => {
+          const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+            outputRoot: testDir,
+            rulesyncPermissions: envCase({ OTEL_LOG_USER_PROMPTS: offValue }),
+          });
+
+          const content = JSON.parse(instance.getFileContent());
+          expect(content.env).toEqual({ OTEL_LOG_USER_PROMPTS: offValue });
+        },
+      );
+
+      it("writes project-ignored variables under --global", async () => {
+        const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+          outputRoot: testDir,
+          rulesyncPermissions: envCase({
+            CLAUDE_CODE_ENABLE_TELEMETRY: "1",
+            OTEL_LOG_ASSISTANT_RESPONSES: "1",
+            XDG_CONFIG_HOME: "/tmp/xdg",
+          }),
+          global: true,
+        });
+
+        const content = JSON.parse(instance.getFileContent());
+        expect(content.env).toEqual({
+          CLAUDE_CODE_ENABLE_TELEMETRY: "1",
+          OTEL_LOG_ASSISTANT_RESPONSES: "1",
+          XDG_CONFIG_HOME: "/tmp/xdg",
+        });
+      });
+
+      it.each([false, true])(
+        "drops variables ignored in every file (global: %s)",
+        async (global) => {
+          const mockLogger = createMockLogger();
+          const warnSpy = vi.spyOn(mockLogger, "warn");
+
+          const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+            outputRoot: testDir,
+            rulesyncPermissions: envCase({
+              CLAUDE_CODE_REMOTE: "1",
+              CLAUDE_CODE_PROJECT_DIR_NAME: "repo",
+              MY_VAR: "1",
+            }),
+            global,
+            logger: mockLogger,
+          });
+
+          const content = JSON.parse(instance.getFileContent());
+          expect(content.env).toEqual({ MY_VAR: "1" });
+          expect(warnSpy).toHaveBeenCalledWith(
+            expect.stringContaining(
+              "'env.CLAUDE_CODE_REMOTE', 'env.CLAUDE_CODE_PROJECT_DIR_NAME' in every settings file",
+            ),
+          );
+        },
+      );
+
+      it("omits env and its trust warning when every variable is dropped, leaving the file's own values", async () => {
+        await ensureDir(join(testDir, ".claude"));
+        await writeFileContent(
+          join(testDir, ".claude", "settings.json"),
+          JSON.stringify({ env: { CLAUDE_CODE_ENABLE_TELEMETRY: "1" } }),
+        );
+        const mockLogger = createMockLogger();
+        const warnSpy = vi.spyOn(mockLogger, "warn");
+
+        const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+          outputRoot: testDir,
+          rulesyncPermissions: envCase({ OTEL_TRACES_EXPORTER: "otlp" }),
+          logger: mockLogger,
+        });
+
+        const content = JSON.parse(instance.getFileContent());
+        expect(content.env).toEqual({ CLAUDE_CODE_ENABLE_TELEMETRY: "1" });
+        expect(warnSpy).toHaveBeenCalledTimes(1);
+        expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining("trust-affecting"));
+      });
+    });
+
     it("reports every trust-affecting setting in a single warning per file", async () => {
       const mockLogger = createMockLogger();
       const warnSpy = vi.spyOn(mockLogger, "warn");

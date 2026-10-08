@@ -843,6 +843,203 @@ const CLAUDECODE_PROJECT_SCOPE_IGNORED_VALUES: Readonly<
 };
 
 /**
+ * `env` variables Claude Code ignores in every settings file: identity and
+ * messaging variables its hosting environments own or export themselves, and
+ * switches it reads from the launch environment only. Writing one to either
+ * scope commits a setting that never applies.
+ *
+ * @see https://code.claude.com/docs/en/settings-reference#variables-claude-code-ignores-in-env
+ */
+const CLAUDECODE_ENV_IGNORED_IN_EVERY_FILE: ReadonlySet<string> = new Set([
+  "CLAUDE_CODE_ACCOUNT_UUID",
+  "CLAUDE_CODE_DISABLE_DANGEROUS_RM_TIMEOUT",
+  "CLAUDE_CODE_DISABLE_INLINE_SHELL_RM_PROMPT",
+  "CLAUDE_CODE_DISABLE_POWERSHELL_CMD_RM_DENY",
+  "CLAUDE_CODE_DISABLE_SUBSTITUTION_RM_PROMPT",
+  "CLAUDE_CODE_MESSAGING_SOCKET",
+  "CLAUDE_CODE_MESSAGING_TOKEN",
+  "CLAUDE_CODE_PROJECT_DIR_NAME",
+  "CLAUDE_CODE_REMOTE",
+  "CLAUDE_CODE_RESTRICTED",
+]);
+
+/**
+ * `env` variables a project or local settings file cannot set, because a
+ * checked-out repository should not control them: where Claude Code stores its
+ * own files, what session content it exports, where telemetry goes, and how it
+ * starts or syncs. Claude Code drops them there, so they are skipped at project scope and emitted only under `--global`.
+ *
+ * Only the names the settings reference lists are covered; its directory and
+ * Windows groups are introduced with "such as", so an unlisted member of those
+ * families is still written. Windows variable names are case-insensitive, so
+ * that group is matched without regard to case.
+ *
+ * @see https://code.claude.com/docs/en/settings-reference#variables-claude-code-ignores-in-env
+ */
+const CLAUDECODE_ENV_PROJECT_IGNORED_NAMES: ReadonlySet<string> = new Set([
+  "BETA_TRACING_ENDPOINT",
+  "CLAUDE_CODE_ENABLE_TELEMETRY",
+  "CLAUDE_CODE_ENHANCED_TELEMETRY_BETA",
+  "CLAUDE_CODE_PLUGIN_CACHE_DIR",
+  "CLAUDE_CODE_PLUGIN_SEED_DIR",
+  "CLAUDE_CODE_PROCESS_WRAPPER",
+  "CLAUDE_CODE_SYNC_PLUGINS",
+  "CLAUDE_CODE_SYNC_SKILLS",
+  "CLAUDE_CODE_TMPDIR",
+  "CLAUDE_CONFIG_DIR",
+  "ENABLE_BETA_TRACING_DETAILED",
+  "ENABLE_ENHANCED_TELEMETRY_BETA",
+  "HOME",
+  "OTEL_EXPORTER_PROMETHEUS_HOST",
+  "OTEL_EXPORTER_PROMETHEUS_PORT",
+  "OTEL_LOG_ASSISTANT_RESPONSES",
+  "OTEL_LOG_RAW_API_BODIES",
+  "TEMP",
+  "TMP",
+  "TMPDIR",
+]);
+
+const CLAUDECODE_ENV_PROJECT_IGNORED_WINDOWS_NAMES: ReadonlySet<string> = new Set([
+  "COMSPEC",
+  "LOCALAPPDATA",
+  "PATHEXT",
+  "PROGRAMDATA",
+  "PROGRAMW6432",
+  "PSMODULEPATH",
+  "SYSTEMROOT",
+]);
+
+const CLAUDECODE_ENV_OTLP_IGNORED_SUFFIXES = [
+  "_ENDPOINT",
+  "_HEADERS",
+  "_PROTOCOL",
+  "_CERTIFICATE",
+  "_CLIENT_KEY",
+  "_INSECURE",
+] as const;
+
+const CLAUDECODE_ENV_EXPORTER_OFF_VALUES: ReadonlySet<string> = new Set(["none"]);
+const CLAUDECODE_ENV_CONTENT_OFF_VALUES: ReadonlySet<string> = new Set(["0", "false", "no", "off"]);
+
+/**
+ * Telemetry variables a project file may still set to a value that turns
+ * something off, since a repository may opt its own checkout out of telemetry:
+ * `none` for the exporter selectors and "an off value such as `0`" for the
+ * content variables. Because the reference does not enumerate the off values,
+ * the common spellings of false are all kept, compared without regard to case —
+ * writing a value Claude Code ignores is the old behavior, while dropping an
+ * opt-out it honors would remove a privacy setting. `OTEL_LOG_ASSISTANT_RESPONSES`
+ * has no such exception and sits in the plain name table above.
+ */
+const CLAUDECODE_ENV_PROJECT_HONORED_OFF_VALUES: Readonly<Record<string, ReadonlySet<string>>> = {
+  OTEL_LOGS_EXPORTER: CLAUDECODE_ENV_EXPORTER_OFF_VALUES,
+  OTEL_METRICS_EXPORTER: CLAUDECODE_ENV_EXPORTER_OFF_VALUES,
+  OTEL_TRACES_EXPORTER: CLAUDECODE_ENV_EXPORTER_OFF_VALUES,
+  OTEL_LOG_USER_PROMPTS: CLAUDECODE_ENV_CONTENT_OFF_VALUES,
+  OTEL_LOG_TOOL_CONTENT: CLAUDECODE_ENV_CONTENT_OFF_VALUES,
+  OTEL_LOG_TOOL_DETAILS: CLAUDECODE_ENV_CONTENT_OFF_VALUES,
+};
+
+function isProjectIgnoredEnvVariable(name: string, value: unknown): boolean {
+  if (CLAUDECODE_ENV_PROJECT_IGNORED_NAMES.has(name) || name.startsWith("XDG_")) return true;
+  const upper = name.toUpperCase();
+  if (CLAUDECODE_ENV_PROJECT_IGNORED_WINDOWS_NAMES.has(upper) || upper.startsWith("PROGRAMFILES")) {
+    return true;
+  }
+  if (
+    name.startsWith("OTEL_EXPORTER_OTLP_") &&
+    CLAUDECODE_ENV_OTLP_IGNORED_SUFFIXES.some((suffix) => name.endsWith(suffix))
+  ) {
+    return true;
+  }
+  if (Object.hasOwn(CLAUDECODE_ENV_PROJECT_HONORED_OFF_VALUES, name)) {
+    const offValues = CLAUDECODE_ENV_PROJECT_HONORED_OFF_VALUES[name] as ReadonlySet<string>;
+    const isOff =
+      (typeof value === "string" || typeof value === "number" || typeof value === "boolean") &&
+      offValues.has(String(value).trim().toLowerCase());
+    return !isOff;
+  }
+  return false;
+}
+
+/**
+ * Copy of the authored `env` map with the variables the target file cannot
+ * honor removed, warning once per list. Only names are logged, never values —
+ * an `env` value is often a credential. Like `stripSandboxPaths`, only the
+ * override copy is filtered, so a value already in the target file is left
+ * untouched.
+ */
+function stripIgnoredEnvVariables({
+  env,
+  global,
+  relativeFilePath,
+  logger,
+}: {
+  env: Record<string, unknown>;
+  global: boolean;
+  relativeFilePath: string;
+  logger?: Logger;
+}): Record<string, unknown> {
+  const kept: Record<string, unknown> = {};
+  const ignoredEverywhere: string[] = [];
+  const ignoredAtProjectScope: string[] = [];
+  for (const [name, value] of Object.entries(env)) {
+    if (PROTOTYPE_POLLUTION_KEYS.has(name)) continue;
+    if (CLAUDECODE_ENV_IGNORED_IN_EVERY_FILE.has(name)) {
+      ignoredEverywhere.push(displayKey(name));
+      continue;
+    }
+    if (!global && isProjectIgnoredEnvVariable(name, value)) {
+      ignoredAtProjectScope.push(displayKey(name));
+      continue;
+    }
+    kept[name] = value;
+  }
+  if (ignoredEverywhere.length > 0) {
+    logger?.warn(
+      `Claude Code permissions: Claude Code ignores ${ignoredEverywhere.map((name) => `'env.${name}'`).join(", ")} in every settings file, so ${ignoredEverywhere.length === 1 ? "it is" : "they are"} not written to ${relativeFilePath}. Set ${ignoredEverywhere.length === 1 ? "it" : "them"} in the environment Claude Code starts from instead, and check ${relativeFilePath} for a stale value an earlier generate may have left there.`,
+    );
+  }
+  if (ignoredAtProjectScope.length > 0) {
+    logger?.warn(
+      `Claude Code permissions: ${ignoredAtProjectScope.map((name) => `'env.${name}'`).join(", ")} ${ignoredAtProjectScope.length === 1 ? "is" : "are"} not honored in the project-scoped ${relativeFilePath}, so ${ignoredAtProjectScope.length === 1 ? "it is" : "they are"} not written there — Claude Code ignores variables there that choose where it writes its files, export session content or telemetry, or change how it starts or syncs (a value that turns telemetry off, such as "none" or "0", is still written). Author ${ignoredAtProjectScope.length === 1 ? "it" : "them"} in the global scope instead, and check that file for a stale value an earlier generate may have left there.`,
+    );
+  }
+  return kept;
+}
+
+/**
+ * Narrows the authored `env` map in the top-level passthrough to the variables
+ * the target file honors, in place. When every variable is dropped the key is
+ * removed: writing an empty map would change nothing, and reporting `env` as
+ * trust-affecting would name a setting that was not written.
+ */
+function scopeEnvOverride({
+  overrides,
+  global,
+  relativeFilePath,
+  logger,
+}: {
+  overrides: Record<string, unknown>;
+  global: boolean;
+  relativeFilePath: string;
+  logger?: Logger;
+}): void {
+  if (!isRecord(overrides.env)) return;
+  const honoredEnv = stripIgnoredEnvVariables({
+    env: overrides.env,
+    global,
+    relativeFilePath,
+    logger,
+  });
+  if (Object.keys(honoredEnv).length > 0) {
+    overrides.env = honoredEnv;
+  } else {
+    delete overrides.env;
+  }
+}
+
+/**
  * A key name is authored data that ends up in a log line, so strip the control
  * characters that would let it forge a line or hide the warnings beside it, and
  * cap the length.
@@ -1122,6 +1319,12 @@ export class ClaudecodePermissions extends ToolPermissions {
       if (value === undefined) continue;
       overrideTopLevel[key] = value;
     }
+    scopeEnvOverride({
+      overrides: overrideTopLevel,
+      global,
+      relativeFilePath: paths.relativeFilePath,
+      logger,
+    });
     const { filtered: scopedTopLevel, trustAffecting: trustAffectingTopLevel } =
       stripUnhonoredTopLevelKeys({
         overrides: overrideTopLevel,
