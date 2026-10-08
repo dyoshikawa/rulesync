@@ -454,13 +454,13 @@ describe("bashRulesHonoringAllTools", () => {
     ).toEqual({ "git *": "allow", "rm *": "deny" });
   });
 
-  it("keeps a bash ask beside an all-tools catch-all deny", () => {
+  it("lets an all-tools catch-all deny override a bash ask on the same pattern", () => {
     expect(
       bashRulesHonoringAllTools({
         "*": { "*": "deny" },
         bash: { "*": "ask" },
       }),
-    ).toEqual({ "*": "ask" });
+    ).toEqual({ "*": "deny" });
   });
 
   it("copies an all-tools ask into bash when the pattern has no bash entry", () => {
@@ -484,10 +484,19 @@ describe("bashRulesHonoringAllTools", () => {
     ).toEqual({ "rm *": "deny" });
   });
 
-  it("does not downgrade an existing bash ask when the all-tools rule denies the same pattern", () => {
+  it("lets an all-tools deny override a bash ask on the same pattern", () => {
     expect(
       bashRulesHonoringAllTools({
-        "*": { "rm *": "deny" },
+        "*": { "rm -rf *": "deny" },
+        bash: { "rm -rf *": "ask", "git *": "ask" },
+      }),
+    ).toEqual({ "rm -rf *": "deny", "git *": "ask" });
+  });
+
+  it("keeps an existing bash ask when the all-tools rule only asks for the same pattern", () => {
+    expect(
+      bashRulesHonoringAllTools({
+        "*": { "rm *": "ask" },
         bash: { "rm *": "ask" },
       }),
     ).toEqual({ "rm *": "ask" });

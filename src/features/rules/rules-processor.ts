@@ -3538,7 +3538,7 @@ As this project's AI coding tool, you must follow the additional conventions bel
           !forDeletion && factory.meta.nonRootImportGlob !== undefined
             ? factory.meta.nonRootImportGlob
             : `${isSharedGlobalNonRootDir ? "" : "**/"}*.${factory.meta.extension}`,
-          { cwd: nonRootOutputRoot },
+          { cwd: nonRootOutputRoot, followSymbolicLinks: !forDeletion },
         );
 
         if (forDeletion) {

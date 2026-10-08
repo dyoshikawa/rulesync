@@ -2519,6 +2519,23 @@ command = "node"
     expect(content).not.toMatch(/pattern = \["rm"\],\s*decision = "allow"/);
   });
 
+  it("should forbid a bash ask that an all-tools deny names on the same pattern", () => {
+    const rulesFile = createCodexcliBashRulesFile({
+      outputRoot: testDir,
+      config: {
+        permission: {
+          "*": { "rm *": "deny" },
+          bash: { "rm *": "ask" },
+        },
+      },
+    });
+
+    const content = rulesFile.getFileContent();
+    expect(content).toMatch(/pattern = \["rm"\],\s*decision = "forbidden"/);
+    expect(content.match(/pattern = \["rm"\]/g)).toHaveLength(1);
+    expect(content).not.toContain('decision = "prompt"');
+  });
+
   describe("bash wildcards in Codex prefix rules", () => {
     const generateRules = (bash: Record<string, "allow" | "ask" | "deny">) => {
       const logger = createMockLogger();
