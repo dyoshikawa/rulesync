@@ -46,6 +46,14 @@ const CONSUMED_CANONICAL_KEYS = new Set([
 const MILLISECONDS_PER_SECOND = 1000;
 
 /**
+ * Pi rejects a server whose name has any other character, and treats names
+ * that differ only in `-` and `_` as one server (its tools share the
+ * `mcp__<name>` namespace with `-` replaced by `_`), rejecting the second.
+ */
+const PI_SERVER_NAME_PATTERN = /^[A-Za-z0-9_-]+$/;
+const toPiNamespace = (serverName: string): string => serverName.replace(/-/g, "_");
+
+/**
  * An environment variable reference Pi leaves as written: any `$` reference in
  * `command`, `args` or `cwd` (Pi expands only a leading `~/` there), and the
  * `${VAR:-default}` form in `env` / `headers` (Pi expands `${VAR}` and `$VAR`
@@ -148,16 +156,44 @@ function convertTransportToPi({
 /**
  * Convert the canonical server map to Pi's `mcpServers` shape. Besides the
  * transport fields, Pi switches a server off with `enabled: false` and reads
- * `timeout` in seconds (canonical: milliseconds).
+ * `timeout` in seconds (canonical: milliseconds). A server name Pi rejects is
+ * skipped with a warning, and so is `auth` in the project file, which Pi
+ * accepts only in the global one (it drops the whole server otherwise).
  */
-function convertToPiFormat(
-  mcpServers: McpServers,
-  logger?: Logger,
-): Record<string, Record<string, unknown>> {
+function convertToPiFormat({
+  mcpServers,
+  global,
+  logger,
+}: {
+  mcpServers: McpServers;
+  global: boolean;
+  logger?: Logger;
+}): Record<string, Record<string, unknown>> {
   const result: Record<string, Record<string, unknown>> = {};
+  const namespaces = new Map<string, string>();
 
   for (const [serverName, serverConfig] of Object.entries(mcpServers)) {
     if (PROTOTYPE_POLLUTION_KEYS.has(serverName) || !isRecord(serverConfig)) continue;
+
+    if (!PI_SERVER_NAME_PATTERN.test(serverName)) {
+      warnAndSkipMcpServer({
+        toolName: "Pi",
+        serverName,
+        reason: 'a name Pi rejects (use letters, digits, "_" and "-")',
+        logger,
+      });
+      continue;
+    }
+    const clash = namespaces.get(toPiNamespace(serverName));
+    if (clash !== undefined) {
+      warnAndSkipMcpServer({
+        toolName: "Pi",
+        serverName,
+        reason: `a name Pi treats as the same server as ${quoteValueForWarning(clash)} ("-" and "_" are equivalent)`,
+        logger,
+      });
+      continue;
+    }
 
     const converted = convertTransportToPi({ serverName, serverConfig, logger });
     if (!converted) continue;
@@ -179,12 +215,19 @@ function convertToPiFormat(
     if (serverConfig.disabled === true) {
       converted.enabled = false;
     }
+    if (!global && "auth" in converted) {
+      delete converted.auth;
+      logger?.warn(
+        `Pi MCP: dropping the "auth" of ${quoteValueForWarning(serverName)}: Pi accepts it only in the global ~/.pi/agent/mcp.json.`,
+      );
+    }
     if (hasUnexpandedEnvVarRef(converted)) {
       logger?.warn(
         `Pi MCP: ${quoteValueForWarning(serverName)} carries an environment variable reference Pi does not expand. Pi expands only \${VAR} and $VAR in env and headers values, and only a leading ~/ in command, args and cwd.`,
       );
     }
 
+    namespaces.set(toPiNamespace(serverName), serverName);
     result[serverName] = converted;
   }
 
@@ -290,7 +333,7 @@ export class PiMcp extends ToolMcp {
 
     const piConfig = {
       ...existing,
-      mcpServers: convertToPiFormat(rulesyncMcp.getMcpServers(), logger),
+      mcpServers: convertToPiFormat({ mcpServers: rulesyncMcp.getMcpServers(), global, logger }),
     };
 
     return new PiMcp({

@@ -103,6 +103,51 @@ describe("PiMcp", () => {
       expect(logger.warn).toHaveBeenCalledTimes(5);
     });
 
+    it("should skip server names Pi rejects or treats as the same server", async () => {
+      const logger = createMockLogger();
+      const mcp = await PiMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        logger,
+        rulesyncMcp: buildRulesyncMcp({
+          "my-server": { command: "a" },
+          my_server: { command: "b" },
+          "github.com": { command: "c" },
+        }),
+      });
+
+      expect(mcp.getJson().mcpServers).toEqual({
+        "my-server": { type: "stdio", command: "a" },
+      });
+      expect(logger.warn).toHaveBeenCalledTimes(2);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"my_server"'));
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"github.com"'));
+    });
+
+    it("should drop auth from the project file but keep it in the global one", async () => {
+      const servers = {
+        remote: { url: "https://example.com/mcp", auth: { provider: "github" } },
+      };
+      const logger = createMockLogger();
+      const project = await PiMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        logger,
+        rulesyncMcp: buildRulesyncMcp(servers),
+      });
+      const global = await PiMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        global: true,
+        rulesyncMcp: buildRulesyncMcp(servers),
+      });
+
+      expect(project.getJson().mcpServers).toEqual({
+        remote: { type: "http", url: "https://example.com/mcp" },
+      });
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"auth"'));
+      expect(global.getJson().mcpServers).toEqual({
+        remote: { type: "http", url: "https://example.com/mcp", auth: { provider: "github" } },
+      });
+    });
+
     it("should drop a non-positive timeout with a warning", async () => {
       const logger = createMockLogger();
       const mcp = await PiMcp.fromRulesyncMcp({
