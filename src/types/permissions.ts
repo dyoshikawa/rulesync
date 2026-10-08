@@ -408,6 +408,49 @@ const QwencodePermissionsOverrideSchema = z.looseObject({
 export type QwencodePermissionsOverride = z.infer<typeof QwencodePermissionsOverrideSchema>;
 
 /**
+ * Tool-scoped override block for IBM Bob. The canonical `bash` category drives
+ * only the `execute_command` command lists of the `approval` block in
+ * `~/.bob/settings/settings.json`; Bob's whole-group switches have no
+ * per-pattern canonical counterpart, so they are authored here and written
+ * only for Bob:
+ *
+ * - `approval.allowed_permissions`: the tool permission groups Bob
+ *   auto-approves (`read`, `edit`, `execute`, `mcp`, `skill`, `todo`,
+ *   `subtask`, `subagent`, `mode`);
+ * - `approval.permissionOptions`: per-group options such as
+ *   `{ "groupId": "read", "enableOutsideWorkspace": true }`;
+ * - `autoApprove`: the top-level `autoApprove` settings, e.g.
+ *   `{ "skills": true }`, merged over the existing object.
+ *
+ * Each authored key replaces the one in the settings file; keys left out are
+ * preserved as the user left them. Import lifts them back into this block.
+ * Group IDs are not restricted to the documented list so a group Bob adds
+ * later still round-trips; an unknown one is reported with a warning.
+ *
+ * @example
+ * { "approval": { "allowed_permissions": ["read", "todo"] },
+ *   "autoApprove": { "skills": true } }
+ */
+const BobPermissionsOverrideSchema = z.looseObject({
+  permission: z.optional(ToolScopedPermissionSchema),
+  approval: z.optional(
+    z.strictObject({
+      allowed_permissions: z.optional(z.array(z.string())),
+      permissionOptions: z.optional(
+        z.array(
+          z.looseObject({
+            groupId: z.string(),
+            enableOutsideWorkspace: z.optional(z.boolean()),
+          }),
+        ),
+      ),
+    }),
+  ),
+  autoApprove: z.optional(z.looseObject({ skills: z.optional(z.boolean()) })),
+});
+export type BobPermissionsOverride = z.infer<typeof BobPermissionsOverrideSchema>;
+
+/**
  * Tool-scoped override block for Tabnine CLI. The canonical `permission` block
  * drives only the `tools.allowed` / `tools.exclude` lists of
  * `.tabnine/agent/settings.json`; the other `tools.*` keys (`core`,
@@ -1310,6 +1353,7 @@ export const PermissionsConfigSchema = z.looseObject({
   warpcli: z.optional(WarpcliPermissionsOverrideSchema),
   junie: z.optional(JuniePermissionsOverrideSchema),
   tabnine: z.optional(TabninePermissionsOverrideSchema),
+  bob: z.optional(BobPermissionsOverrideSchema),
   takt: z.optional(TaktPermissionsOverrideSchema),
   amp: z.optional(AmpPermissionsOverrideSchema),
   "antigravity-cli": z.optional(AntigravityCliPermissionsOverrideSchema),
@@ -1323,7 +1367,6 @@ export const PermissionsConfigSchema = z.looseObject({
   // Tools without tool-specific override keys still accept the canonical
   // tool-scoped `permission` block (see ToolScopedPermissionSchema).
   "antigravity-ide": z.optional(CanonicalPermissionsOverrideSchema),
-  bob: z.optional(CanonicalPermissionsOverrideSchema),
   continue: z.optional(CanonicalPermissionsOverrideSchema),
   copilot: z.optional(CanonicalPermissionsOverrideSchema),
   codebuddy: z.optional(CanonicalPermissionsOverrideSchema),

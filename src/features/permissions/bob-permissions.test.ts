@@ -17,6 +17,18 @@ function createRulesyncPermissions(permission: Record<string, Record<string, str
   });
 }
 
+function createRulesyncPermissionsWithBob(
+  permission: Record<string, Record<string, string>>,
+  bob: Record<string, unknown>,
+) {
+  return new RulesyncPermissions({
+    relativeDirPath: ".rulesync",
+    relativeFilePath: "permissions.json",
+    fileContent: JSON.stringify({ permission, bob }),
+    validate: true,
+  });
+}
+
 async function writeSettings(testDir: string, content: string): Promise<void> {
   await ensureDir(join(testDir, ".bob", "settings"));
   await writeFileContent(join(testDir, ".bob", "settings", "settings.json"), content);
@@ -275,6 +287,136 @@ describe("BobPermissions", () => {
       );
     });
 
+    it("writes the bob override's group switches without a bash category", async () => {
+      await writeSettings(
+        testDir,
+        JSON.stringify({
+          locale: "en",
+          autoApprove: { other: false },
+          approval: {
+            allowed_permissions: ["execute"],
+            allowedExecutors: [{ toolId: "execute_command", approvedCommands: ["ls"] }],
+          },
+        }),
+      );
+
+      const permissions = await BobPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissionsWithBob(
+          {},
+          {
+            approval: {
+              allowed_permissions: ["read", "todo"],
+              permissionOptions: [{ groupId: "read", enableOutsideWorkspace: true }],
+            },
+            autoApprove: { skills: true },
+          },
+        ),
+      });
+
+      // The command lists stay as authored because `bash` is not stated, and
+      // `autoApprove` is merged over the existing toggles.
+      expect(JSON.parse(permissions.getFileContent())).toEqual({
+        locale: "en",
+        autoApprove: { other: false, skills: true },
+        approval: {
+          allowed_permissions: ["read", "todo"],
+          permissionOptions: [{ groupId: "read", enableOutsideWorkspace: true }],
+          allowedExecutors: [{ toolId: "execute_command", approvedCommands: ["ls"] }],
+        },
+      });
+    });
+
+    it("writes the group switches next to the bash command lists", async () => {
+      await writeSettings(
+        testDir,
+        JSON.stringify({ approval: { permissionOptions: [{ groupId: "read" }] } }),
+      );
+
+      const permissions = await BobPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissionsWithBob(
+          { bash: { "git log": "allow" } },
+          { approval: { allowed_permissions: ["execute"] } },
+        ),
+      });
+
+      expect(JSON.parse(permissions.getFileContent())).toEqual({
+        approval: {
+          allowed_permissions: ["execute"],
+          permissionOptions: [{ groupId: "read" }],
+          allowedExecutors: [{ toolId: "execute_command", approvedCommands: ["git log"] }],
+        },
+      });
+    });
+
+    it("creates the settings file for an override-only config", async () => {
+      const permissions = await BobPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissionsWithBob(
+          {},
+          { autoApprove: { skills: false } },
+        ),
+      });
+
+      expect(JSON.parse(permissions.getFileContent())).toEqual({
+        autoApprove: { skills: false },
+      });
+    });
+
+    it("warns about what the override newly auto-approves, but not about switches already on", async () => {
+      await writeSettings(
+        testDir,
+        JSON.stringify({
+          approval: { allowed_permissions: ["read"] },
+          autoApprove: { skills: true },
+        }),
+      );
+      const logger = createMockLogger();
+
+      await BobPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissionsWithBob(
+          {},
+          {
+            approval: {
+              allowed_permissions: ["read", "execute"],
+              permissionOptions: [{ groupId: "edit", enableOutsideWorkspace: true }],
+            },
+            autoApprove: { skills: true },
+          },
+        ),
+        logger,
+      });
+
+      const message = warnings(logger).find((entry) => entry.includes("now auto-approves"));
+      expect(message).toContain("the 'execute' group");
+      expect(message).toContain("the 'edit' group outside the workspace");
+      expect(message).toContain("every project on this machine");
+      expect(message).not.toContain("'read'");
+      expect(message).not.toContain("autoApprove.skills");
+    });
+
+    it("writes and warns about group IDs Bob does not document", async () => {
+      const logger = createMockLogger();
+
+      const permissions = await BobPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissionsWithBob(
+          {},
+          { approval: { allowed_permissions: ["readonly"] } },
+        ),
+        logger,
+      });
+
+      expect(JSON.parse(permissions.getFileContent())).toEqual({
+        approval: { allowed_permissions: ["readonly"] },
+      });
+      expect(
+        warnings(logger).some((message) => message.includes("does not document ('readonly')")),
+      ).toBe(true);
+    });
+
     it("refuses to overwrite an unparseable settings file", async () => {
       await writeSettings(testDir, "{ not json");
 
@@ -308,6 +450,36 @@ describe("BobPermissions", () => {
       const permissions = await BobPermissions.fromFile({ outputRoot: testDir, global: true });
       expect(permissions.toRulesyncPermissions().getJson()).toEqual({
         permission: { bash: { "git status": "allow", rm: "deny" } },
+        bob: { approval: { allowed_permissions: ["execute"] } },
+      });
+    });
+
+    it("lifts the group switches into the bob override", async () => {
+      await writeSettings(
+        testDir,
+        JSON.stringify({
+          autoApprove: { skills: true },
+          approval: {
+            allowed_permissions: ["read", 1, "mcp"],
+            permissionOptions: [
+              { groupId: "read", enableOutsideWorkspace: true },
+              { groupId: 2 },
+              "bogus",
+            ],
+          },
+        }),
+      );
+
+      const permissions = await BobPermissions.fromFile({ outputRoot: testDir, global: true });
+      expect(permissions.toRulesyncPermissions().getJson()).toEqual({
+        permission: {},
+        bob: {
+          approval: {
+            allowed_permissions: ["read", "mcp"],
+            permissionOptions: [{ groupId: "read", enableOutsideWorkspace: true }],
+          },
+          autoApprove: { skills: true },
+        },
       });
     });
 
