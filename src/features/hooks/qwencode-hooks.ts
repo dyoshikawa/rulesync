@@ -36,16 +36,20 @@ import {
  */
 const QWENCODE_LEGACY_MILLISECOND_TIMEOUT_THRESHOLD = 1000;
 
+function isQwencodeLegacyMillisecondTimeout(timeout: number | undefined): timeout is number {
+  return (
+    typeof timeout === "number" &&
+    Number.isFinite(timeout) &&
+    timeout >= QWENCODE_LEGACY_MILLISECOND_TIMEOUT_THRESHOLD
+  );
+}
+
 /**
  * Canonical `timeout` is seconds. A command hook value below the threshold is
  * already read as seconds; a larger one can only be expressed in milliseconds.
  */
 function canonicalTimeoutToQwencodeCommandTimeout(timeout: number | undefined): number | undefined {
-  if (
-    typeof timeout !== "number" ||
-    !Number.isFinite(timeout) ||
-    timeout < QWENCODE_LEGACY_MILLISECOND_TIMEOUT_THRESHOLD
-  ) {
+  if (!isQwencodeLegacyMillisecondTimeout(timeout)) {
     return timeout;
   }
   return Math.round(timeout * 1000);
@@ -57,11 +61,7 @@ function canonicalTimeoutToQwencodeCommandTimeout(timeout: number | undefined): 
  * as `10`, which Qwen Code reads the same way.
  */
 function qwencodeCommandTimeoutToCanonicalTimeout(timeout: number | undefined): number | undefined {
-  if (
-    typeof timeout !== "number" ||
-    !Number.isFinite(timeout) ||
-    timeout < QWENCODE_LEGACY_MILLISECOND_TIMEOUT_THRESHOLD
-  ) {
+  if (!isQwencodeLegacyMillisecondTimeout(timeout)) {
     return timeout;
   }
   return timeout / 1000;

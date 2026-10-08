@@ -340,6 +340,7 @@ describe("QwencodeHooks", () => {
               preToolUse: [
                 { command: "echo short", timeout: 30 },
                 { command: "echo edge", timeout: 999 },
+                { command: "echo boundary", timeout: 1000 },
                 { command: "echo long", timeout: 1800 },
                 { type: "http", url: "https://example.com/hook", timeout: 1800 },
                 { type: "prompt", prompt: "Check $ARGUMENTS", timeout: 1800 },
@@ -357,7 +358,7 @@ describe("QwencodeHooks", () => {
 
       const hooks = JSON.parse(qwencodeHooks.getFileContent()).hooks.PreToolUse[0].hooks;
       expect(hooks.map((hook: { timeout?: number }) => hook.timeout)).toEqual([
-        30, 999, 1800000, 1800, 1800,
+        30, 999, 1000000, 1800000, 1800, 1800,
       ]);
     });
 
@@ -687,6 +688,7 @@ describe("QwencodeHooks", () => {
                   hooks: [
                     { type: "command", command: "echo short", timeout: 30 },
                     { type: "command", command: "echo legacy", timeout: 10000 },
+                    { type: "command", command: "echo fractional", timeout: 1500 },
                     { type: "http", url: "https://example.com/hook", timeout: 10000 },
                   ],
                 },
@@ -697,7 +699,7 @@ describe("QwencodeHooks", () => {
       );
 
       const parsed = qwencodeHooks.toRulesyncHooks().getJson();
-      expect(parsed.hooks.preToolUse?.map((hook) => hook.timeout)).toEqual([30, 10, 10000]);
+      expect(parsed.hooks.preToolUse?.map((hook) => hook.timeout)).toEqual([30, 10, 1.5, 10000]);
     });
 
     it("should round-trip a command hook timeout of 1000 seconds or more", async () => {
