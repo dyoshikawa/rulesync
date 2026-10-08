@@ -37,6 +37,7 @@ import {
   readFileBufferOrNull,
   readFileContent,
   readJsonFile,
+  relativeWriteLanding,
   removeDirectory,
   removeFile,
   removeTempDirectory,
@@ -1282,6 +1283,40 @@ describe("file utilities", () => {
           ).toBe(false);
         },
       );
+    });
+
+    describe("relativeWriteLanding", () => {
+      it("should give the path from the root's landing to the target's landing", async () => {
+        const root = join(testDir, "root");
+
+        expect(
+          await relativeWriteLanding({ rootPath: root, targetPath: join(root, "new", "file.md") }),
+        ).toBe(join("new", "file.md"));
+      });
+
+      it.skipIf(process.platform === "win32")(
+        "should give an empty path for a target linked onto the root itself",
+        async () => {
+          const root = join(testDir, "root");
+          await ensureDir(join(root, "skills"));
+          await symlink("..", join(root, "skills", "foo"));
+
+          expect(
+            await relativeWriteLanding({ rootPath: root, targetPath: join(root, "skills", "foo") }),
+          ).toBe("");
+        },
+      );
+
+      it.skipIf(process.platform === "win32")("should give null for a link cycle", async () => {
+        const root = join(testDir, "root");
+        await ensureDir(root);
+        await symlink(join(root, "b"), join(root, "a"));
+        await symlink(join(root, "a"), join(root, "b"));
+
+        expect(
+          await relativeWriteLanding({ rootPath: root, targetPath: join(root, "a", "file.md") }),
+        ).toBeNull();
+      });
     });
 
     describe("resolvedRelativePath", () => {

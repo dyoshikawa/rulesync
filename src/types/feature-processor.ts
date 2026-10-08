@@ -10,6 +10,7 @@ import {
   fileExistsStrict,
   restoreMissingExecutableBit,
   readFileContentOrNull,
+  relativeWriteLanding,
   removeFile,
   writablePathEscapesRoot,
   writeFileContent,
@@ -445,6 +446,39 @@ export async function refusesAnyWriteOutsideRoot({
     }
   }
   return false;
+}
+
+/**
+ * Whether a directory write to `dirPath` has to be refused because a link on
+ * the way there lands it on `rootPath` itself, warning about the refusal.
+ *
+ * A directory written as one unit owns what it writes: a `.claude/skills/foo ->
+ * ..` chain that lands on the project root (or on `$HOME` in global mode) would
+ * otherwise drop `SKILL.md` and its companions straight into the root,
+ * overwriting a hand-written file of the same name there. Refusing it is the
+ * same fail-safe answer {@link refusesWriteOutsideRoot} gives a link that leads
+ * out of the root.
+ *
+ * A link cycle answers false here: it is {@link refusesWriteOutsideRoot}'s to
+ * refuse, and callers ask that first.
+ */
+export async function refusesDirWriteOntoRoot({
+  logger,
+  rootPath,
+  dirPath,
+}: {
+  logger: Logger;
+  rootPath: string;
+  dirPath: string;
+}): Promise<boolean> {
+  if ((await relativeWriteLanding({ rootPath, targetPath: dirPath })) !== "") {
+    return false;
+  }
+  logger.warn(
+    `Refusing to write ${quoteForLog(dirPath)}: it resolves to ` +
+      `${quoteForLog(rootPath)} itself through a symbolic link`,
+  );
+  return true;
 }
 
 /**

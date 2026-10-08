@@ -1,3 +1,4 @@
+import { chmod, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 
 import { intersection } from "es-toolkit";
@@ -15,6 +16,7 @@ import { RulesyncSubagent } from "../features/subagents/rulesync-subagent.js";
 import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
 import { mockProcessorBase } from "../test-utils/mock-feature-processor.js";
 import { createMockLogger } from "../test-utils/mock-logger.js";
+import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { PACKAGING_TOOL_TARGETS } from "../types/tool-targets.js";
 import {
   directoryExists,
@@ -1041,6 +1043,7 @@ describe("generate", () => {
             dir: "skill",
             getDirPath: () => "/path/to/skill",
             getOutputRoot: () => "/path/to",
+            getRelativeDirPath: () => ".",
             ownsDirTree: () => true,
             getMainFile: () => undefined,
             getOtherFiles: () => [],
@@ -1113,6 +1116,7 @@ describe("generate", () => {
           dir: "existing-skill",
           getDirPath: () => "/path/to/existing",
           getOutputRoot: () => "/path/to",
+          getRelativeDirPath: () => ".",
           ownsDirTree: () => true,
           getMainFile: () => undefined,
           getOtherFiles: () => [],
@@ -1123,6 +1127,7 @@ describe("generate", () => {
           dir: "generated-skill",
           getDirPath: () => "/path/to/generated",
           getOutputRoot: () => "/path/to",
+          getRelativeDirPath: () => ".",
           ownsDirTree: () => true,
           getMainFile: () => undefined,
           getOtherFiles: () => [],
@@ -1209,6 +1214,7 @@ describe("generate", () => {
         {
           getDirPath: () => "/path/to/.claude/skills/kept",
           getOutputRoot: () => "/path/to",
+          getRelativeDirPath: () => ".claude/skills",
           ownsDirTree: () => true,
           getMainFile: () => ({ name: "SKILL.md", body: "" }),
           getOtherFiles: () => [],
@@ -1239,6 +1245,45 @@ describe("generate", () => {
       });
       expect(result.hasDiff).toBe(true);
     });
+    it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
+      "should go on without a tree claim when a skill directory's links cannot be read",
+      async () => {
+        // The orphan sweep keeps a path it cannot follow; the tree claim has to
+        // be just as forgiving instead of rejecting the whole run with EACCES.
+        // `writeAiDirs` is mocked here: the real one walks the same paths first.
+        const { testDir, cleanup } = await setupTestDirectory();
+        const lockedDir = join(testDir, "locked");
+        await mkdir(join(lockedDir, "skills"), { recursive: true });
+        await chmod(lockedDir, 0o000);
+        try {
+          mockConfig.getFeatures.mockReturnValue(["skills"]);
+          mockConfig.getDelete.mockReturnValue(true);
+          const mockSkillsProcessor = {
+            ...createMockSkillsProcessor(),
+            removeOrphanAiDirs: vi.fn().mockResolvedValue(0),
+          };
+          mockSkillsProcessor.convertRulesyncDirsToToolDirs.mockResolvedValue([
+            {
+              getDirPath: () => join(lockedDir, "skills", "foo"),
+              getOutputRoot: () => testDir,
+              getRelativeDirPath: () => join("locked", "skills"),
+              ownsDirTree: () => true,
+              getMainFile: () => undefined,
+              getOtherFiles: () => [],
+            },
+          ]);
+          vi.mocked(SkillsProcessor).mockImplementation(function () {
+            return mockSkillsProcessor as unknown as SkillsProcessor;
+          });
+
+          await expect(generate({ logger, config: mockConfig as never })).resolves.toBeDefined();
+          expect(mockSkillsProcessor.removeOrphanAiDirs).toHaveBeenCalled();
+        } finally {
+          await chmod(lockedDir, 0o755);
+          await cleanup();
+        }
+      },
+    );
   });
 
   describe("permissions feature", () => {

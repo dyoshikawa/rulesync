@@ -1338,6 +1338,37 @@ describe("DirFeatureProcessor", () => {
     );
 
     it.skipIf(process.platform === "win32")(
+      "should refuse to write a directory that links onto the output root itself",
+      async () => {
+        vi.mocked(readFileContentOrNull).mockResolvedValue(null);
+        const logger = createMockLogger();
+        const root = join(testDir, "root");
+        await mkdir(root, { recursive: true });
+        // `~/.claude/skills/foo -> ~` in global mode: `SKILL.md` would land in
+        // the root and overwrite a hand-written file there.
+        const linkedDir = join(root, "linked");
+        await symlink(".", linkedDir);
+        const keptDir = join(root, "kept");
+        const processor = new TestDirProcessor({ logger, outputRoot: root });
+
+        const result = await processor.writeAiDirs([
+          createMockDirWithFiles({ dirPath: linkedDir, mainFileBody: "body" }),
+          createMockDirWithFiles({ dirPath: keptDir, mainFileBody: "body" }),
+        ]);
+
+        expect(result).toEqual({ count: 1, paths: [join(keptDir, "SKILL.md")] });
+        expect(writeFileContent).not.toHaveBeenCalledWith(
+          join(linkedDir, "SKILL.md"),
+          expect.anything(),
+        );
+        expect(logger.warn).toHaveBeenCalledWith(
+          `Refusing to write ${JSON.stringify(linkedDir)}: it resolves to ` +
+            `${JSON.stringify(root)} itself through a symbolic link`,
+        );
+      },
+    );
+
+    it.skipIf(process.platform === "win32")(
       "should refuse a directory whose main file links out of the output root",
       async () => {
         vi.mocked(readFileContentOrNull).mockResolvedValue(null);

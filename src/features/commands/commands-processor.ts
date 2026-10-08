@@ -1257,11 +1257,24 @@ export class CommandsProcessor extends FeatureProcessor {
         relativeFilePath: HERMESAGENT_RULESYNC_COMMANDS_PLUGIN_OWNERSHIP_PATH,
       }),
     );
-    const shouldDisableHermesCommandsPlugin =
-      this.toolTarget === "hermesagent" &&
-      existingFiles.some((file) => file.getFilePath() === ownershipPath) &&
-      !generatedFiles.some((file) => file.getFilePath() === ownershipPath);
+    const ownershipMarker =
+      this.toolTarget === "hermesagent"
+        ? existingFiles.find((file) => file.getFilePath() === ownershipPath)
+        : undefined;
+    const removedBefore = this.getRemovedPaths().length;
     let changedCount = await super.removeOrphanAiFiles(existingFiles, generatedFiles);
+    // Decided after the base sweep, from what it actually removed (or would
+    // remove under `--check`): a marker it refused to delete — one reached
+    // through a link out of the root — stays in place, and disabling the
+    // plugin while its marker survives would leave the two out of step.
+    const shouldDisableHermesCommandsPlugin =
+      ownershipMarker !== undefined &&
+      this.getRemovedPaths()
+        .slice(removedBefore)
+        .some(
+          (removed) =>
+            removed.kind === "file" && removed.path === ownershipMarker.getRelativePathFromCwd(),
+        );
 
     changedCount += await this.retractGooseSlashCommands(generatedFiles);
 

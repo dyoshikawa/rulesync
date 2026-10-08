@@ -1017,16 +1017,40 @@ This is the fallback skill body content.`;
   });
 
   it.skipIf(process.platform === "win32").each([
-    { label: "out of the project", linkTarget: (testDir: string) => dirname(testDir) },
-    { label: "onto the project root", linkTarget: (testDir: string) => testDir },
+    {
+      label: "out of the project",
+      linkTarget: (testDir: string) => dirname(testDir),
+      // The write through the link is refused, not just its claim.
+      leadsOutside: true,
+    },
+    {
+      label: "onto the project root",
+      linkTarget: (testDir: string) => testDir,
+      // A write landing on the root itself is refused too, so the hand-written
+      // root `SKILL.md` below is not overwritten.
+      leadsOutside: false,
+    },
+    {
+      label: "onto its own skills directory",
+      linkTarget: () => ".",
+      leadsOutside: false,
+    },
+    {
+      label: "onto an ancestor inside the project",
+      linkTarget: () => "..",
+      leadsOutside: false,
+    },
   ])(
     "should not let a skill directory linked $label silence other sweeps",
-    async ({ label, linkTarget }) => {
-      // A skill directory that does not land strictly below the project must
-      // not claim the tree it lands on, or no file under the project would ever
-      // read as an orphan again.
+    async ({ linkTarget, leadsOutside }) => {
+      // A skill directory that does not land directly below its own skills
+      // directory must not claim the tree it lands on, or no file under that
+      // tree would ever read as an orphan again.
       const testDir = getTestDir();
       const stalePath = join(testDir, ".claude", "commands", "stale.md");
+      const staleSkillPath = join(testDir, ".claude", "skills", "stale", "SKILL.md");
+      const rootSkillPath = join(testDir, "SKILL.md");
+      const handWrittenSkill = "Hand-written skill notes.";
       await writeFileContent(
         join(testDir, RULESYNC_SKILLS_RELATIVE_DIR_PATH, "review", "SKILL.md"),
         ["---", "name: review", 'description: "Review"', "---", "Review body."].join("\n"),
@@ -1036,7 +1060,8 @@ This is the fallback skill body content.`;
         ["---", 'description: "Kept"', "---", "Kept body."].join("\n"),
       );
       await writeFileContent(stalePath, "Stale command.");
-      await ensureDir(join(testDir, ".claude", "skills"));
+      await writeFileContent(staleSkillPath, "Stale skill.");
+      await writeFileContent(rootSkillPath, handWrittenSkill);
       await symlink(linkTarget(testDir), join(testDir, ".claude", "skills", "review"));
 
       await runGenerate({
@@ -1046,11 +1071,12 @@ This is the fallback skill body content.`;
       });
 
       expect(await fileExists(stalePath)).toBe(false);
+      expect(await fileExists(staleSkillPath)).toBe(false);
       expect(await readFileContent(join(testDir, ".claude", "commands", "kept.md"))).toContain(
         "Kept body.",
       );
-      if (label === "out of the project") {
-        // The write through the link was refused, not just its claim.
+      expect(await readFileContent(rootSkillPath)).toBe(handWrittenSkill);
+      if (leadsOutside) {
         expect(await fileExists(join(dirname(testDir), "SKILL.md"))).toBe(false);
       }
     },

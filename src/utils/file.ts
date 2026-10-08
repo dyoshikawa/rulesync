@@ -868,14 +868,32 @@ export async function writablePathEscapesRoot({
   rootPath: string;
   targetPath: string;
 }): Promise<boolean> {
+  const relativeLanding = await relativeWriteLanding({ rootPath, targetPath });
+  return relativeLanding === null || pathEscapesRoot(relativeLanding);
+}
+
+/**
+ * Where a write to `targetPath` lands relative to where a write to `rootPath`
+ * lands, both taken through {@link writeLandingPath}: `""` when the two land on
+ * the same directory, and `null` when either side's links form a cycle. Errors
+ * other than a missing entry (an `EACCES` on the way, say) propagate, so each
+ * caller decides what an unreadable path means for it.
+ */
+export async function relativeWriteLanding({
+  rootPath,
+  targetPath,
+}: {
+  rootPath: string;
+  targetPath: string;
+}): Promise<string | null> {
   const [rootLanding, targetLanding] = await Promise.all([
     writeLandingPath(rootPath),
     writeLandingPath(targetPath),
   ]);
   if (rootLanding === null || targetLanding === null) {
-    return true;
+    return null;
   }
-  return pathEscapesRoot(relative(rootLanding, targetLanding));
+  return relative(rootLanding, targetLanding);
 }
 
 /**
