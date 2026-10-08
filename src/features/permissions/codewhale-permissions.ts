@@ -1,8 +1,12 @@
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 
 import * as smolToml from "smol-toml";
 
-import { CODEWHALE_DIR, CODEWHALE_PERMISSIONS_FILE_NAME } from "../../constants/codewhale-paths.js";
+import {
+  CODEWHALE_CONSTITUTION_FILE_NAME,
+  CODEWHALE_DIR,
+  CODEWHALE_PERMISSIONS_FILE_NAME,
+} from "../../constants/codewhale-paths.js";
 import type { AiFileParams } from "../../types/ai-file.js";
 import {
   type CodewhalePermissionRule,
@@ -11,9 +15,14 @@ import {
   type PermissionsConfig,
 } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
-import { readFileContentOrNull } from "../../utils/file.js";
+import { fileExists, readFileContentOrNull } from "../../utils/file.js";
 import { createIntersectionBudget } from "../../utils/glob.js";
 import type { Logger } from "../../utils/logger.js";
+import {
+  codewhaleConstitutionToCanonical,
+  mergeCodewhaleConstitution,
+  parseCodewhaleConstitution,
+} from "./codewhale-repo-law.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   ALL_TOOLS_PERMISSION_CATEGORY,
@@ -79,9 +88,6 @@ const CODEWHALE_TOOL_TO_PATH_CATEGORIES: Record<string, readonly string[]> = {
   file_search: ["glob"],
   list_dir: ["list"],
 };
-
-const CODEWHALE_GLOBAL_ONLY_MESSAGE =
-  "Codewhale permissions are global-only; use --global to sync ~/.codewhale/permissions.toml";
 
 const COMMAND_WILDCARD_CHARACTERS = /[*?[]/;
 const PATH_GLOB_CHARACTERS = /[*?[\]{}]/;
@@ -724,19 +730,53 @@ function codewhaleRulesToCanonical(rules: ResolvedCodewhaleRule[]): {
 }
 
 /**
- * Codewhale permission rules in `~/.codewhale/permissions.toml`.
+ * Codewhale reads only the nearest `.codewhale/constitution.json` between the
+ * workspace and its git root, so a new file below an existing one hides the
+ * other's law from a session started here (and its own from one started
+ * there).
  *
- * The file holds a `rules` array of typed records (`tool`, optional `command`
- * prefix or exact `path`, optional `command_exact`, optional absolute
- * `workspace`, and `action`). It is the only permission-rule source Codewhale
- * reads — the project `.codewhale/config.toml` overlay cannot carry rules — so
- * the feature is global-only.
+ * @see https://github.com/Hmbown/Codewhale/blob/main/crates/tui/src/project_context/constitution.rs (`discover_repo_constitution`)
+ */
+async function warnOnShadowedConstitution({
+  outputRoot,
+  logger,
+}: {
+  outputRoot: string;
+  logger?: Logger;
+}): Promise<void> {
+  let current = resolve(outputRoot);
+  while (!(await fileExists(join(current, ".git")))) {
+    const parent = dirname(current);
+    if (parent === current) return;
+    current = parent;
+    const ancestor = join(current, CODEWHALE_DIR, CODEWHALE_CONSTITUTION_FILE_NAME);
+    if (await fileExists(ancestor)) {
+      logger?.warn(
+        `Codewhale permissions: ${ancestor} already exists; Codewhale reads only the nearest constitution, so the new one under ${outputRoot} hides it from sessions started there.`,
+      );
+      return;
+    }
+  }
+}
+
+/**
+ * Codewhale permissions.
  *
- * rulesync owns the file's rules, except for workspace-scoped ones: those are
- * the grants Codewhale's approval card remembers per repository, and they are
- * kept across a regenerate. Codewhale also appends plain `exec_shell` ask rules
- * from the approval card (`S`), which cannot be told apart from rulesync's own
- * output and are replaced; run an import first to keep them.
+ * Global scope manages the typed `[[rules]]` records of
+ * `~/.codewhale/permissions.toml`, the only permission-rule source Codewhale
+ * reads. Each record has a `tool`, an optional `command` prefix or exact
+ * `path`, an optional `command_exact`, an optional absolute `workspace`, and
+ * an `action`. rulesync owns the file's rules, except for workspace-scoped
+ * ones: those are the grants Codewhale's approval card remembers per
+ * repository, and they are kept across a regenerate. Codewhale also appends
+ * plain `exec_shell` ask rules from the approval card (`S`), which cannot be
+ * told apart from rulesync's own output and are replaced; run an import first
+ * to keep them.
+ *
+ * Project scope manages the enforced `protected_invariants` of the repo
+ * constitution `.codewhale/constitution.json` (see `codewhale-repo-law.ts`):
+ * the project `.codewhale/config.toml` overlay cannot carry rules, but repo
+ * law can hold writes to protected paths.
  *
  * @see https://github.com/Hmbown/Codewhale/blob/main/docs/CONFIGURATION.md
  * @see https://github.com/Hmbown/Codewhale/blob/main/docs/AUTHORIZATION_ORDER.md
@@ -750,8 +790,9 @@ export class CodewhalePermissions extends ToolPermissions {
   }
 
   /**
-   * Codewhale's approval card writes to the same file, so this feature never
-   * deletes it.
+   * Codewhale's approval card writes to the global file, and the constitution
+   * carries repo policy rulesync does not own, so this feature never deletes
+   * either.
    */
   override isDeletable(): boolean {
     return false;
@@ -761,10 +802,12 @@ export class CodewhalePermissions extends ToolPermissions {
     return true;
   }
 
-  static getSettablePaths(_options?: { global?: boolean }): ToolPermissionsSettablePaths {
+  static getSettablePaths(options?: { global?: boolean }): ToolPermissionsSettablePaths {
     return {
       relativeDirPath: CODEWHALE_DIR,
-      relativeFilePath: CODEWHALE_PERMISSIONS_FILE_NAME,
+      relativeFilePath: options?.global
+        ? CODEWHALE_PERMISSIONS_FILE_NAME
+        : CODEWHALE_CONSTITUTION_FILE_NAME,
     };
   }
 
@@ -774,22 +817,21 @@ export class CodewhalePermissions extends ToolPermissions {
     global = false,
     logger,
   }: ToolPermissionsFromFileParams): Promise<CodewhalePermissions> {
-    if (!global) {
-      throw new Error(CODEWHALE_GLOBAL_ONLY_MESSAGE);
-    }
-    warnAboutRelocatedConfig(logger);
-    const paths = CodewhalePermissions.getSettablePaths();
+    const paths = CodewhalePermissions.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const fileContent = (await readFileContentOrNull(filePath)) ?? "";
-    // A record Codewhale itself would reject is not imported; say so, since
-    // the next generate drops it from the file too.
-    const { invalidCount } = partitionRuleRecords(
-      parsePermissionsDocument({ fileContent, filePath }),
-    );
-    if (invalidCount > 0) {
-      logger?.warn(
-        `Codewhale permissions: skipping ${invalidCount} rule record(s) in ${filePath} that Codewhale would reject (an unknown key or a wrong type).`,
+    if (global) {
+      warnAboutRelocatedConfig(logger);
+      // A record Codewhale itself would reject is not imported; say so, since
+      // the next generate drops it from the file too.
+      const { invalidCount } = partitionRuleRecords(
+        parsePermissionsDocument({ fileContent, filePath }),
       );
+      if (invalidCount > 0) {
+        logger?.warn(
+          `Codewhale permissions: skipping ${invalidCount} rule record(s) in ${filePath} that Codewhale would reject (an unknown key or a wrong type).`,
+        );
+      }
     }
     return new CodewhalePermissions({
       outputRoot,
@@ -797,7 +839,7 @@ export class CodewhalePermissions extends ToolPermissions {
       relativeFilePath: paths.relativeFilePath,
       fileContent,
       validate,
-      global: true,
+      global,
     });
   }
 
@@ -807,14 +849,31 @@ export class CodewhalePermissions extends ToolPermissions {
     logger,
     global = false,
   }: ToolPermissionsFromRulesyncPermissionsParams): Promise<CodewhalePermissions> {
-    if (!global) {
-      throw new Error(CODEWHALE_GLOBAL_ONLY_MESSAGE);
-    }
-    warnAboutRelocatedConfig(logger);
-    const paths = CodewhalePermissions.getSettablePaths();
+    const paths = CodewhalePermissions.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     // Read without initializing so a dry run or `--check` stays side-effect-free.
     const existingContent = (await readFileContentOrNull(filePath)) ?? "";
+
+    if (!global) {
+      const merged = mergeCodewhaleConstitution({
+        existing: parseCodewhaleConstitution({ fileContent: existingContent, filePath }),
+        config: rulesyncPermissions.getJson(),
+        logger,
+      });
+      if (existingContent === "" && Object.keys(merged).length > 0) {
+        await warnOnShadowedConstitution({ outputRoot, logger });
+      }
+      return new CodewhalePermissions({
+        outputRoot,
+        relativeDirPath: paths.relativeDirPath,
+        relativeFilePath: paths.relativeFilePath,
+        fileContent: JSON.stringify(merged, null, 2),
+        validate: true,
+        global: false,
+      });
+    }
+
+    warnAboutRelocatedConfig(logger);
     const existing = parsePermissionsDocument({ fileContent: existingContent, filePath });
 
     const generated = canonicalToCodewhaleRules({
@@ -842,10 +901,21 @@ export class CodewhalePermissions extends ToolPermissions {
   }
 
   toRulesyncPermissions(): RulesyncPermissions {
-    const document = parsePermissionsDocument({
-      fileContent: this.getFileContent(),
-      filePath: join(this.getRelativeDirPath(), this.getRelativeFilePath()),
-    });
+    const filePath = join(this.getRelativeDirPath(), this.getRelativeFilePath());
+    if (!this.global) {
+      const document = parseCodewhaleConstitution({
+        fileContent: this.getFileContent(),
+        filePath,
+      });
+      return this.toRulesyncPermissionsDefault({
+        fileContent: JSON.stringify(
+          { permission: codewhaleConstitutionToCanonical(document) },
+          null,
+          2,
+        ),
+      });
+    }
+    const document = parsePermissionsDocument({ fileContent: this.getFileContent(), filePath });
     // A record Codewhale itself would reject (an unknown key, a wrong type) is
     // not carried over: it cannot be expressed, and writing it back would make
     // Codewhale refuse the whole file.
@@ -867,6 +937,7 @@ export class CodewhalePermissions extends ToolPermissions {
     outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
+    global = false,
   }: ToolPermissionsForDeletionParams): CodewhalePermissions {
     return new CodewhalePermissions({
       outputRoot,
@@ -874,7 +945,7 @@ export class CodewhalePermissions extends ToolPermissions {
       relativeFilePath,
       fileContent: "",
       validate: false,
-      global: true,
+      global,
     });
   }
 }

@@ -41,6 +41,7 @@ const permissionsGenerateTargets = [
   "amp",
   "devin",
   "codebuddy",
+  "codewhale",
   "codexcli",
   "commandcode",
   "cursor",
@@ -134,6 +135,8 @@ describe("E2E: permissions", () => {
     // settings file, so an empty payload must not leave a bare `{}` behind.
     { target: "copilotcli", relativePaths: [[".github", "copilot", "settings.json"]] },
     { target: "codebuddy", relativePaths: [[".codebuddy", "settings.json"]] },
+    // The Codewhale repo constitution carries repo policy rulesync does not own.
+    { target: "codewhale", relativePaths: [[".codewhale", "constitution.json"]] },
     { target: "commandcode", relativePaths: [[".commandcode", "settings.json"]] },
     { target: "lettacode", relativePaths: [[".letta", "settings.json"]] },
     { target: "qoder", relativePaths: [[".qoder", "settings.json"]] },
@@ -205,6 +208,66 @@ describe("E2E: permissions", () => {
     const content = await readFileContent(join(testDir, ".rovodev", "config.yml"));
     expect(content).toContain("toolPermissions");
     expect(content).toContain("default: ask");
+  });
+
+  it("should generate and import codewhale permissions in .codewhale/constitution.json", async () => {
+    const testDir = getTestDir();
+    const constitutionPath = join(testDir, ".codewhale", "constitution.json");
+
+    // Repo policy and hand-written invariants survive the regenerate.
+    await writeFileContent(
+      constitutionPath,
+      JSON.stringify({
+        authority: ["current user request", "AGENTS.md"],
+        protected_invariants: [
+          "Keep the wire format stable.",
+          { text: "Release notes need human review.", paths: ["CHANGELOG.md"] },
+        ],
+      }),
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            write: { "crates/protocol/**": "deny", "src/**": "allow" },
+            edit: { "CHANGELOG.md": "ask" },
+            bash: { "rm *": "deny" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({ target: "codewhale", features: "permissions" });
+
+    expect(JSON.parse(await readFileContent(constitutionPath))).toEqual({
+      authority: ["current user request", "AGENTS.md"],
+      protected_invariants: [
+        "Keep the wire format stable.",
+        { text: "Release notes need human review.", paths: ["CHANGELOG.md"] },
+        {
+          text: "rulesync permissions: writes to crates/protocol/** are denied",
+          paths: ["crates/protocol/**"],
+          action: "block",
+          managed_by: "rulesync",
+        },
+      ],
+    });
+
+    await runImport({ target: "codewhale", features: "permissions" });
+
+    const imported = JSON.parse(
+      await readFileContent(join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH)),
+    );
+    // The import merges into the existing canonical file, so `bash` is kept.
+    const expected = { "CHANGELOG.md": "ask", "crates/protocol/**": "deny" };
+    expect(imported.permission).toEqual({
+      write: expected,
+      edit: expected,
+      bash: { "rm *": "deny" },
+    });
   });
 
   it("should generate claudecode permissions into .claude/settings.json", async () => {

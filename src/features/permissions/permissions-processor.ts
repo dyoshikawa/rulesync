@@ -198,10 +198,12 @@ export const toolPermissionsFactories = new Map<
       class: CodewhalePermissions,
       meta: {
         // Codewhale reads typed permission rules only from the global
-        // `~/.codewhale/permissions.toml`; the project `.codewhale/config.toml`
-        // overlay can only tighten approval and sandbox settings.
+        // `~/.codewhale/permissions.toml`. In the project, the enforced
+        // `protected_invariants` of `.codewhale/constitution.json` hold writes
+        // to protected paths (deny/ask only).
         // https://github.com/Hmbown/Codewhale/blob/main/docs/AUTHORIZATION_ORDER.md
-        supportsProject: false,
+        // https://github.com/Hmbown/Codewhale/blob/main/docs/CONFIGURATION.md#enforced-repo-law-invariants
+        supportsProject: true,
         supportsGlobal: true,
         supportsImport: true,
       },
