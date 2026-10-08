@@ -203,7 +203,7 @@ function mapOauthToCodex(
     if (codexKey === undefined) {
       warnWithFallback(
         undefined,
-        `[CodexCliMcp] Dropping 'oauth.${key}' from MCP server "${serverName}": Codex reads only ${[...CODEX_OAUTH_KEYS].join(", ")} there.`,
+        `[CodexCliMcp] Dropping 'oauth.${key}' from MCP server "${serverName}": Codex does not read that key in its oauth table.`,
       );
       continue;
     }
