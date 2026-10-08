@@ -458,6 +458,9 @@ export async function refusesAnyWriteOutsideRoot({
  * overwriting a hand-written file of the same name there. Refusing it is the
  * same fail-safe answer {@link refusesWriteOutsideRoot} gives a link that leads
  * out of the root.
+ *
+ * A link cycle answers false here: it is {@link refusesWriteOutsideRoot}'s to
+ * refuse, and callers ask that first.
  */
 export async function refusesDirWriteOntoRoot({
   logger,
