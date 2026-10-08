@@ -95,8 +95,35 @@ describe("AntigravityIdePermissions", () => {
         "command(npm run)",
         "command(regex:^npm$ ^test:.*$)",
       ]);
-      // `git push * --force` has no word-by-word spelling, so it is skipped.
-      expect(json.permissions.deny).toEqual(["command(regex:^git$ ^push$ ^-f.*$)"]);
+      // `git push * --force` has no word-by-word spelling, so the deny is
+      // widened to its literal words.
+      expect(json.permissions.deny).toEqual([
+        "command(git push)",
+        "command(regex:^git$ ^push$ ^-f.*$)",
+      ]);
+    });
+
+    it("keeps a deny that overlaps a translated allow in force (#3324)", async () => {
+      const perms = await AntigravityIdePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          bash: { "git push *": "allow", "git push * --force": "deny" },
+        }),
+      });
+      const json = JSON.parse(perms.getFileContent());
+      // Antigravity applies deny over allow, so `git push origin main --force`
+      // is blocked rather than run unprompted by the allow.
+      expect(json.permissions.allow).toEqual(["command(git push)"]);
+      expect(json.permissions.deny).toEqual(["command(git push)"]);
+    });
+
+    it("still skips a deny with no literal word to widen to", async () => {
+      const perms = await AntigravityIdePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({ bash: { "* --force": "deny" } }),
+      });
+      const json = JSON.parse(perms.getFileContent());
+      expect(json.permissions?.deny ?? []).toEqual([]);
     });
 
     it("uses a bare action name for the catch-all '*' pattern", async () => {

@@ -1,7 +1,11 @@
 import type { PermissionAction } from "../../types/permissions.js";
 import { parseGlobPattern } from "../../utils/glob.js";
 import type { Logger } from "../../utils/logger.js";
-import { BRACE_ALTERNATIVES, toAntigravityCommandTarget } from "./antigravity-command-patterns.js";
+import {
+  BRACE_ALTERNATIVES,
+  toAntigravityCommandLiteralPrefix,
+  toAntigravityCommandTarget,
+} from "./antigravity-command-patterns.js";
 
 /**
  * Build Antigravity `action(target)` permission entries from canonical rules,
@@ -19,7 +23,8 @@ import { BRACE_ALTERNATIVES, toAntigravityCommandTarget } from "./antigravity-co
  *
  * A glob copied verbatim (`read_file(**\/*.env)`) is a literal path that
  * matches nothing, so a deny written that way blocks nothing. A pattern with
- * no Antigravity spelling is skipped with a warning instead.
+ * no Antigravity spelling is skipped with a warning instead, except a command
+ * deny with leading literal words, which is widened to them.
  *
  * @see https://antigravity.google/docs/permissions?tab=cli
  */
@@ -137,8 +142,11 @@ function toTarget(action: string, pattern: string): TargetResult {
 
 /**
  * Build the entry for one canonical rule, or return `undefined` when
- * Antigravity cannot express it. A skipped deny is warned about loudly,
- * because nothing enforces it.
+ * Antigravity cannot express it. A command deny is widened to its leading
+ * literal words rather than skipped: Antigravity applies deny over ask and
+ * allow, so an overlapping allow that is translated (`git push *`) cannot let
+ * through what the deny (`git push * --force`) was meant to block. A skipped
+ * deny is warned about loudly, because nothing enforces it.
  */
 export function buildAntigravityPermissionEntry({
   action,
@@ -158,10 +166,22 @@ export function buildAntigravityPermissionEntry({
   const result = pattern === "*" ? { target: "*" } : toTarget(action, pattern);
   const rule = `${category}: { "${pattern}": "${decision}" }`;
   if ("skipReason" in result) {
+    const prefix =
+      action === "command" && decision === "deny"
+        ? toAntigravityCommandLiteralPrefix(pattern)
+        : undefined;
+    if (prefix !== undefined) {
+      logger.warn(
+        `${toolLabel} permissions: widening ${rule} to ${action}(${prefix}). ${result.skipReason}. The deny now blocks every command that starts with \`${prefix}\`, overriding any allow or ask for them.`,
+      );
+      return `${action}(${prefix})`;
+    }
     const consequence =
       decision === "deny"
         ? `This deny is NOT enforced in ${toolLabel}; ${DENY_HINTS[action] ?? "write it in a form Antigravity can match"}`
-        : `${toolLabel} falls back to its default for it`;
+        : decision === "ask"
+          ? `${toolLabel} falls back to its default for it, so it runs without a prompt when ${toolLabel} is set to always proceed`
+          : `${toolLabel} falls back to its default for it`;
     logger.warn(
       `${toolLabel} permissions: skipping ${rule}. ${result.skipReason}. ${consequence}.`,
     );
