@@ -63,6 +63,46 @@ const PI_PROMPT_BLOCKING_EVENT = "input";
 const PI_SETTLE_BLOCKING_EVENT = "agent_before_settle";
 
 /**
+ * What differs between the extension APIs of Pi and its fork oh-my-pi
+ * (`omp`). Both load a default-export factory and share the event names this
+ * generator emits, but they publish their types from different packages and
+ * oh-my-pi's `input` gate answers `{ handled?: boolean }` rather than Pi's
+ * `{ action: "continue" | "handled" }`.
+ *
+ * @see https://github.com/can1357/oh-my-pi/blob/40e9368ef0458fd9073329cdff4174895f91bc6b/packages/coding-agent/src/extensibility/extensions/types.ts
+ */
+export type PiExtensionDialect = {
+  /** Tool-scoped override block in `hooks.json` merged over the shared hooks. */
+  overrideKey: "pi" | "omp";
+  /** Package the generated module imports `ExtensionAPI` and friends from. */
+  typesPackage: string;
+  /** Statement that lets a prompt through the `input` gate. */
+  promptPassLine: string;
+  /** Statement that cancels a prompt at the `input` gate. */
+  promptCancelLine: string;
+};
+
+export const PI_EXTENSION_DIALECT: PiExtensionDialect = {
+  overrideKey: "pi",
+  typesPackage: "@earendil-works/pi-coding-agent",
+  promptPassLine: 'return { action: "continue" };',
+  promptCancelLine: 'return { action: "handled" };',
+};
+
+/**
+ * oh-my-pi's `emitInput` stops at the first result with `handled` set and
+ * treats any other result without `text` / `images` as a pass.
+ *
+ * @see https://github.com/can1357/oh-my-pi/blob/40e9368ef0458fd9073329cdff4174895f91bc6b/packages/coding-agent/src/extensibility/extensions/runner.ts
+ */
+export const OMP_EXTENSION_DIALECT: PiExtensionDialect = {
+  overrideKey: "omp",
+  typesPackage: "@oh-my-pi/pi-coding-agent",
+  promptPassLine: "return {};",
+  promptCancelLine: "return { handled: true };",
+};
+
+/**
  * How a generated handler reacts to a hook command that exits non-zero. The
  * `settle` gate reacts to exit code 2 only; see `PI_SETTLE_BLOCKING_EVENT`.
  */
@@ -80,17 +120,19 @@ const PI_BLOCKING_MODE_BY_EVENT: Record<string, BlockingMode> = {
  * so the reason is reported through the context before the prompt is
  * cancelled.
  */
-const FAILURE_LINES_BY_MODE: Record<BlockingMode, readonly string[]> = {
-  none: [],
-  // `terminate` is deliberately left unset: a denied tool call should hand
-  // control back to the model (as Claude Code's `PreToolUse` deny does)
-  // rather than end the agent turn.
-  tool: ["return { block: true, reason: toBlockReason(error) };"],
-  prompt: ["reportPromptGateFailure(ctx, toBlockReason(error));", 'return { action: "handled" };'],
-  // Feedback is only collected here; the handler decides after every stop
-  // command has run (see `buildSubscriptionLines`).
-  settle: ["stopHookFailures.push(error);"],
-};
+function failureLinesByMode(dialect: PiExtensionDialect): Record<BlockingMode, readonly string[]> {
+  return {
+    none: [],
+    // `terminate` is deliberately left unset: a denied tool call should hand
+    // control back to the model (as Claude Code's `PreToolUse` deny does)
+    // rather than end the agent turn.
+    tool: ["return { block: true, reason: toBlockReason(error) };"],
+    prompt: ["reportPromptGateFailure(ctx, toBlockReason(error));", dialect.promptCancelLine],
+    // Feedback is only collected here; the handler decides after every stop
+    // command has run (see `buildSubscriptionLines`).
+    settle: ["stopHookFailures.push(error);"],
+  };
+}
 
 /**
  * Helper emitted alongside blocking handlers. `promisify(exec)` rejects on a
@@ -163,8 +205,8 @@ const BLOCK_REASON_HELPER_LINES = [
 ];
 
 /**
- * Helper emitted alongside prompt-gate handlers. `{ action: "handled" }` has
- * no reason field, so the reason reaches the user through `ctx.ui.notify` —
+ * Helper emitted alongside prompt-gate handlers. The cancel result (Pi's
+ * `{ action: "handled" }`, oh-my-pi's `{ handled: true }`) has no reason field, so the reason reaches the user through `ctx.ui.notify` —
  * which is a no-op in print (`-p`) and JSON modes, and can itself throw when
  * the RPC channel is gone. Both cases fall back to stderr so a cancelled
  * prompt is never silent, and neither can stop the caller from cancelling it.
@@ -278,10 +320,12 @@ function buildCommandLines({
   handler,
   usesToolName,
   blocking,
+  dialect,
 }: {
   handler: Handler;
   usesToolName: boolean;
   blocking: BlockingMode;
+  dialect: PiExtensionDialect;
 }): string[] {
   const lines: string[] = [];
   const conditions: string[] = [];
@@ -300,7 +344,7 @@ function buildCommandLines({
     lines.push(`    if (${conditions.join(" && ")}) {`);
   }
 
-  const onFailure = FAILURE_LINES_BY_MODE[blocking];
+  const onFailure = failureLinesByMode(dialect)[blocking];
   if (onFailure.length > 0) {
     lines.push(`${indent}try {`);
     lines.push(`${indent}  await run(${embeddedCommand});`);
@@ -319,7 +363,10 @@ function buildCommandLines({
   return lines;
 }
 
-function buildSubscriptionLines(handlerGroups: HandlerGroup): string[] {
+function buildSubscriptionLines(
+  handlerGroups: HandlerGroup,
+  dialect: PiExtensionDialect,
+): string[] {
   const lines: string[] = [];
   for (const [piEvent, handlers] of Object.entries(handlerGroups)) {
     const blocking = PI_BLOCKING_MODE_BY_EVENT[piEvent] ?? "none";
@@ -340,7 +387,7 @@ function buildSubscriptionLines(handlerGroups: HandlerGroup): string[] {
       // The canonical event covers prompts the user submits; Pi also fires
       // `input` for messages another extension injects via `sendUserMessage`,
       // which a user's prompt gate should not cancel.
-      lines.push(`    if (event.source === "extension") return { action: "continue" };`);
+      lines.push(`    if (event.source === "extension") ${dialect.promptPassLine}`);
     }
     if (isSettleGate) {
       lines.push("    const stopHookFailures: unknown[] = [];");
@@ -351,11 +398,12 @@ function buildSubscriptionLines(handlerGroups: HandlerGroup): string[] {
           handler,
           usesToolName,
           blocking,
+          dialect,
         }),
       );
     }
     if (isPromptGate) {
-      lines.push(`    return { action: "continue" };`);
+      lines.push(`    ${dialect.promptPassLine}`);
     }
     if (isSettleGate) {
       // Only a completed run is continued: an aborted one is the user stopping
@@ -392,7 +440,8 @@ function buildSubscriptionLines(handlerGroups: HandlerGroup): string[] {
  * platform shell. Handlers observe events, except on `tool_call` — Pi's tool
  * gate — where a hook command that exits non-zero denies the call with
  * `{ block: true, reason }`, and on `input` — Pi's prompt-submission gate —
- * where a non-zero exit cancels the prompt with `{ action: "handled" }`, and
+ * where a non-zero exit cancels the prompt with the dialect's cancel result
+ * (`{ action: "handled" }` for Pi, `{ handled: true }` for oh-my-pi), and
  * on `agent_before_settle`, where a stop command exiting with code 2 asks the
  * agent to continue once with the command's output as feedback.
  * `postToolUse` and `postToolUseFailure` share Pi's `tool_result` event; the
@@ -404,13 +453,15 @@ export function generatePiExtensionCode({
   config,
   supportedEvents,
   eventMap,
+  dialect = PI_EXTENSION_DIALECT,
 }: {
   config: HooksConfig;
   supportedEvents: readonly string[];
   eventMap: Record<string, string>;
+  dialect?: PiExtensionDialect;
 }): string {
   const supported: Set<string> = new Set(supportedEvents);
-  const configHooks = { ...config.hooks, ...config.pi?.hooks };
+  const configHooks = { ...config.hooks, ...config[dialect.overrideKey]?.hooks };
   const effectiveHooks: HooksConfig["hooks"] = {};
 
   for (const [event, defs] of Object.entries(configHooks)) {
@@ -418,7 +469,7 @@ export function generatePiExtensionCode({
   }
 
   const handlerGroups = collectPiHandlers({ effectiveHooks, eventMap });
-  const subscriptionLines = buildSubscriptionLines(handlerGroups);
+  const subscriptionLines = buildSubscriptionLines(handlerGroups, dialect);
   const hasPromptGate = Boolean(handlerGroups[PI_PROMPT_BLOCKING_EVENT]);
   const hasSettleGate = Boolean(handlerGroups[PI_SETTLE_BLOCKING_EVENT]);
   const needsBlockReasonHelper =
@@ -439,7 +490,7 @@ export function generatePiExtensionCode({
   lines.push('import { exec } from "node:child_process";');
   lines.push('import { promisify } from "node:util";');
   lines.push("");
-  lines.push(`import type { ${importedTypes} } from "@earendil-works/pi-coding-agent";`);
+  lines.push(`import type { ${importedTypes} } from ${JSON.stringify(dialect.typesPackage)};`);
   lines.push("");
   lines.push("const run = promisify(exec);");
   lines.push("");
