@@ -3503,6 +3503,55 @@ globs: ["packages/api/**/*"]
     });
   });
 
+  describe("kimi-code-plugin SYSTEM.md size limit", () => {
+    const sizeWarnings = () =>
+      logger.warn.mock.calls
+        .map(([message]) => String(message))
+        .filter((message) => message.includes("systemPromptPath"));
+
+    const rule = ({ name, body, root = false }: { name: string; body: string; root?: boolean }) =>
+      new RulesyncRule({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+        relativeFilePath: name,
+        frontmatter: { root, targets: ["*"] },
+        body,
+      });
+
+    it("should warn when the folded SYSTEM.md exceeds 32 KiB", async () => {
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "kimi-code-plugin",
+      });
+
+      await processor.convertRulesyncFilesToToolFiles([
+        rule({ name: "overview.md", body: "a".repeat(20000), root: true }),
+        rule({ name: "style.md", body: "b".repeat(20000) }),
+      ]);
+
+      const warnings = sizeWarnings();
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]).toContain("root instruction file (SYSTEM.md)");
+      expect(warnings[0]).toContain("32768");
+    });
+
+    it("should not warn when the written SYSTEM.md is exactly 32 KiB", async () => {
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "kimi-code-plugin",
+      });
+
+      // The writer appends a trailing newline, so this writes 32,768 bytes.
+      await processor.convertRulesyncFilesToToolFiles([
+        rule({ name: "overview.md", body: "a".repeat(32767), root: true }),
+      ]);
+
+      expect(sizeWarnings()).toHaveLength(0);
+    });
+  });
+
   describe("reasonix nested instruction files", () => {
     it("should import nested REASONIX.md files alongside the root", async () => {
       await writeFileContent(join(testDir, "REASONIX.md"), "# Root");

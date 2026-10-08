@@ -197,6 +197,56 @@ describe("KimiCodeMcp global config defaults", () => {
     });
   });
 
+  describe("stdio executor fields", () => {
+    it("should pass executor and runtime_id through on generate and import", async () => {
+      const generated = await KimiCodeMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp: rulesyncMcp({
+          mcpServers: {
+            sandboxed: {
+              type: "stdio",
+              command: "npx",
+              args: ["-y", "server"],
+              executor: "kaos",
+              runtime_id: "runtime-1",
+            },
+          },
+        }),
+      });
+
+      expect(JSON.parse(generated.getFileContent()).mcpServers.sandboxed).toEqual({
+        transport: "stdio",
+        command: "npx",
+        args: ["-y", "server"],
+        executor: "kaos",
+        runtime_id: "runtime-1",
+      });
+
+      await writeFileContent(
+        join(testDir, ".kimi-code", "mcp.json"),
+        JSON.stringify({
+          mcpServers: {
+            sandboxed: {
+              transport: "stdio",
+              command: "npx",
+              executor: "kaos",
+              runtime_id: "runtime-1",
+            },
+          },
+        }),
+      );
+
+      const imported = (await KimiCodeMcp.fromFile({ outputRoot: testDir })).toRulesyncMcp();
+
+      expect(JSON.parse(imported.getFileContent()).mcpServers.sandboxed).toEqual({
+        type: "stdio",
+        command: "npx",
+        executor: "kaos",
+        runtime_id: "runtime-1",
+      });
+    });
+  });
+
   describe("fromFile", () => {
     it("should read the defaults back for the round trip", async () => {
       await writeFileContent(
