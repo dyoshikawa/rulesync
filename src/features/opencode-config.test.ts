@@ -158,6 +158,11 @@ describe("opencode-config", () => {
         }),
       ).toEqual({ a: { template: "x", model: "openai/gpt-5" } });
       expect(
+        getOpencodeCommandEntries({
+          config: { commands: { a: { template: "x", model: "o/m#" } } },
+        }),
+      ).toEqual({ a: { template: "x", model: "o/m" } });
+      expect(
         getOpencodeCommandEntries({ config: { command: [], commands: { a: { template: "x" } } } }),
       ).toBeNull();
     });

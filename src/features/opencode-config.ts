@@ -72,9 +72,11 @@ export function asOpencodeEntries(value: unknown): Record<string, unknown> | nul
 function lowerOpencodeV2ModelSelection(value: unknown): { model?: string; variant?: string } {
   if (typeof value === "string") {
     const index = value.indexOf("#");
-    return index === -1
-      ? { model: value }
-      : { model: value.slice(0, index), variant: value.slice(index + 1) };
+    if (index === -1) {
+      return { model: value };
+    }
+    const variant = value.slice(index + 1);
+    return { model: value.slice(0, index), ...(variant !== "" && { variant }) };
   }
   const selection = asOpencodeEntries(value);
   if (
