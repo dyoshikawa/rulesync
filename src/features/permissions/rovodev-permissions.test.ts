@@ -869,8 +869,9 @@ describe("RovodevPermissions", () => {
         toolPermissions: { default?: string; bash?: { default?: string } };
       };
       expect(parsed.toolPermissions.default).toBe("deny");
-      // The two defaults are derived the same way and stay independent.
-      expect(parsed.toolPermissions.bash?.default).toBe("ask");
+      // The all-tools deny covers shell commands too, so it overrides the
+      // bash ask (deny > ask > allow).
+      expect(parsed.toolPermissions.bash?.default).toBe("deny");
     });
 
     it("warns and skips a pattern rule in the all-tools category", async () => {
