@@ -1554,18 +1554,21 @@ For stdio servers, `experimentalEnvironment: "remote"` starts the server through
 
 See the [Codex MCP reference](https://learn.chatgpt.com/docs/extend/mcp) for both fields.
 
-#### Codex-specific: OAuth client id (`oauth.clientId` → `client_id`)
+#### Codex-specific: OAuth keys (`oauth.clientId` → `client_id`)
 
-A server's `oauth` block is preserved in the canonical Claude Code shape (camelCase `clientId`), but Codex CLI reads the OAuth client id from snake_case `oauth.client_id`. Without it, `codex mcp login <server>` falls back to dynamic client registration and fails for providers that do not support it (e.g. Slack). The codex generator therefore **duplicates** `clientId` into a sibling `client_id`, keeping the camelCase key so tools that expect it keep working:
+A server's `oauth` block is preserved in the canonical Claude Code shape (camelCase `clientId`, `callbackPort`), but Codex CLI reads only the snake_case keys of its own `oauth` table: `client_id`, `client_secret`, `callback_url`, `callback_port` and `authorization_server_issuer`. Without `client_id`, `codex mcp login <server>` falls back to dynamic client registration and fails for providers that do not support it (e.g. Slack). The codex generator therefore **renames** `clientId` to `client_id` and `callbackPort` to `callback_port`, passes the Codex-native keys through (an explicit native key wins over its canonical spelling), and drops every other key, such as Claude Code's `authServerMetadataUrl`, with a warning — since Codex 0.155.0 it reports such a key as an ignored setting at startup:
 
 ```toml
 [mcp_servers.slack.oauth]
-clientId = "1601185624273.8899143856786"
 client_id = "1601185624273.8899143856786"
-callbackPort = 3118
+callback_port = 3118
 ```
 
-Only a string `clientId` is duplicated (a non-string value would not be a usable OAuth client id), and an explicit `client_id` already present in the source is left untouched. On import, `client_id` collapses back to the canonical `clientId` (and is dropped when both are present) so the round-trip stays stable.
+A value of the wrong type (a non-string client id, a `callbackPort` that is not an integer port) is dropped with a warning too, because Codex would fail to load the whole `config.toml` over it — as is a `client_secret` that is blank or comes without a non-blank client id, which Codex rejects the same way. On import, `client_id` and `callback_port` are renamed back to `clientId` and `callbackPort`; when a file carries both spellings (earlier Rulesync versions wrote `clientId` next to `client_id`), the canonical key wins so the round-trip stays stable.
+
+#### Codex-specific: transport normalization
+
+Codex reads `command` as a single string and has no `httpUrl` key, and either mismatch stops the whole `config.toml` from loading — disabling the permissions profile and approval policy along with MCP. The codex generator therefore splits an array `command` into its program plus leading `args` (canonical `args` follow), and writes `httpUrl` as `url` (an explicit `url` wins). A server whose `command` array is empty and that has no url is skipped with a warning.
 
 ### Codex-specific: per-tool approval modes (`codexcliTools`)
 

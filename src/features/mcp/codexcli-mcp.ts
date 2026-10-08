@@ -15,6 +15,11 @@ import {
 } from "../../utils/prototype-pollution.js";
 import { isPlainObject, isRecord, isStringArray } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
+import {
+  type McpServerConfig,
+  resolveLocalMcpCommand,
+  resolveRemoteMcpUrl,
+} from "./mcp-transport.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -134,41 +139,176 @@ function isValidRenamedArray(key: string, value: unknown): boolean {
 }
 
 /**
- * Translate a server's `oauth` table from the canonical rulesync shape (Claude
- * Code style camelCase) into the shape Codex CLI understands. Codex expects the
- * OAuth client id under snake_case `client_id`; without it `codex mcp login`
- * falls back to dynamic client registration and fails for providers that do not
- * support it (e.g. Slack, see #2158). The canonical `clientId` is kept alongside
- * the added `client_id` so tools that read the camelCase shape keep working and
- * the round-trip stays stable.
+ * The keys of Codex's `McpServerOAuthConfig`. Anything else in a server's
+ * `oauth` table is reported as an ignored setting at startup since Codex
+ * 0.155.0, and is never read.
+ * @see https://github.com/openai/codex/blob/rust-v0.161.0/codex-rs/config/src/mcp_types.rs
  */
-function mapOauthToCodex(oauth: Record<string, unknown>): Record<string, unknown> {
-  const result = omitPrototypePollutionKeys(oauth);
-  // Only a string client id is duplicated: Codex's `client_id` must be a bare
-  // string, and a non-string value would not be a usable OAuth client id anyway.
-  if (typeof oauth["clientId"] === "string" && !("client_id" in result)) {
-    result["client_id"] = oauth["clientId"];
+const CODEX_OAUTH_KEYS = new Set([
+  "client_id",
+  "client_secret",
+  "callback_url",
+  "callback_port",
+  "authorization_server_issuer",
+]);
+
+/** Canonical (Claude Code style) `oauth` keys Codex spells differently. */
+const RULESYNC_TO_CODEX_OAUTH_KEY_MAP: Record<string, string> = {
+  clientId: "client_id",
+  callbackPort: "callback_port",
+};
+
+const CODEX_TO_RULESYNC_OAUTH_KEY_MAP: Record<string, string> = Object.fromEntries(
+  Object.entries(RULESYNC_TO_CODEX_OAUTH_KEY_MAP).map(([canonical, codex]) => [codex, canonical]),
+);
+
+const MAX_PORT = 65535;
+
+/**
+ * Whether a value fits the Codex `oauth` key it is written to. Codex reads
+ * `callback_port` as a `u16` and every other key as a string, and a value of
+ * the wrong type fails the whole `config.toml`, not just the one server.
+ */
+function isValidCodexOauthValue(codexKey: string, value: unknown): boolean {
+  if (codexKey === "callback_port") {
+    return Number.isInteger(value) && Number(value) >= 0 && Number(value) <= MAX_PORT;
   }
-  return result;
+  return typeof value === "string";
 }
 
 /**
- * Reverse of {@link mapOauthToCodex}: collapse Codex's `oauth.client_id` back to
- * the canonical `clientId` on import. When both keys are present (the shape
- * rulesync itself emits) the canonical `clientId` wins and `client_id` is
- * dropped so a subsequent generate does not accumulate duplicates.
+ * Translate a server's `oauth` table from the canonical rulesync shape (Claude
+ * Code style camelCase) into the keys Codex CLI reads. Codex expects the OAuth
+ * client id under snake_case `client_id`; without it `codex mcp login` falls
+ * back to dynamic client registration and fails for providers that do not
+ * support it (e.g. Slack, see #2158). `clientId` → `client_id` and
+ * `callbackPort` → `callback_port` are renamed rather than duplicated, the
+ * Codex-native keys pass through (an explicit one wins over its canonical
+ * spelling), and every other key — such as Claude Code's
+ * `authServerMetadataUrl` — is dropped with a warning, since Codex would only
+ * warn about it at startup.
+ */
+function mapOauthToCodex(
+  oauth: Record<string, unknown>,
+  serverName: string,
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(oauth)) {
+    if (PROTOTYPE_POLLUTION_KEYS.has(key)) continue;
+    const codexKey = CODEX_OAUTH_KEYS.has(key)
+      ? key
+      : Object.hasOwn(RULESYNC_TO_CODEX_OAUTH_KEY_MAP, key)
+        ? RULESYNC_TO_CODEX_OAUTH_KEY_MAP[key]
+        : undefined;
+    if (codexKey === undefined) {
+      warnWithFallback(
+        undefined,
+        `[CodexCliMcp] Dropping 'oauth.${key}' from MCP server "${serverName}": Codex does not read that key in its oauth table.`,
+      );
+      continue;
+    }
+    if (codexKey !== key && Object.hasOwn(oauth, codexKey)) continue;
+    if (!isValidCodexOauthValue(codexKey, value)) {
+      warnWithFallback(
+        undefined,
+        `[CodexCliMcp] Dropping malformed 'oauth.${key}' from MCP server "${serverName}": expected ${codexKey === "callback_port" ? "a port number" : "a string"}, got ${typeof value}`,
+      );
+      continue;
+    }
+    result[codexKey] = value;
+  }
+  dropUnusableClientSecret(result, serverName);
+  return result;
+}
+
+function isBlankString(value: unknown): boolean {
+  return typeof value !== "string" || value.trim() === "";
+}
+
+/**
+ * Codex rejects a blank `client_secret`, and a `client_secret` without a
+ * non-blank `client_id`, and either error fails the whole `config.toml`. Checked
+ * after every key is translated, since the client id may arrive under either
+ * spelling and in any order.
+ */
+function dropUnusableClientSecret(oauth: Record<string, unknown>, serverName: string): void {
+  if (!Object.hasOwn(oauth, "client_secret")) return;
+  const reason = isBlankString(oauth["client_secret"])
+    ? "it is empty"
+    : isBlankString(oauth["client_id"])
+      ? "Codex requires a client id alongside it"
+      : undefined;
+  if (reason === undefined) return;
+  delete oauth["client_secret"];
+  warnWithFallback(
+    undefined,
+    `[CodexCliMcp] Dropping 'oauth.client_secret' from MCP server "${serverName}": ${reason}.`,
+  );
+}
+
+/**
+ * Reverse of {@link mapOauthToCodex}: rename Codex's `oauth.client_id` and
+ * `oauth.callback_port` back to the canonical `clientId` and `callbackPort` on
+ * import. When both spellings are present (the shape earlier rulesync versions
+ * emitted for the client id) the canonical key wins and the Codex one is
+ * dropped, so a subsequent generate does not accumulate duplicates.
  */
 function mapOauthFromCodex(oauth: Record<string, unknown>): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(oauth)) {
     if (PROTOTYPE_POLLUTION_KEYS.has(key)) continue;
-    if (key === "client_id") {
-      if (!("clientId" in oauth)) result["clientId"] = value;
+    const canonicalKey = Object.hasOwn(CODEX_TO_RULESYNC_OAUTH_KEY_MAP, key)
+      ? CODEX_TO_RULESYNC_OAUTH_KEY_MAP[key]
+      : undefined;
+    if (canonicalKey !== undefined) {
+      if (!Object.hasOwn(oauth, canonicalKey)) result[canonicalKey] = value;
       continue;
     }
     result[key] = value;
   }
   return result;
+}
+
+/**
+ * Rewrite the canonical transport spellings Codex cannot read into the ones it
+ * does. Codex declares `command` as a single string and accepts no `httpUrl`,
+ * and either mismatch — an array `command`, or a server left with neither
+ * `command` nor `url` — is a deserialization error that stops the whole
+ * `config.toml` from loading, not just the one server. So an array `command`
+ * is split into its program and leading `args`, and `httpUrl` becomes `url`
+ * (an explicit `url` wins). An array `command` with no program, on a server
+ * with no url either, is skipped with a warning instead. Returns a copy; the
+ * canonical config is left untouched.
+ * @see https://github.com/openai/codex/blob/rust-v0.161.0/codex-rs/config/src/mcp_types.rs
+ */
+function normalizeCodexTransport(
+  config: Record<string, unknown>,
+  serverName: string,
+): Record<string, unknown> | null {
+  const normalized = { ...config };
+  // Canonical server configs reach here already validated by RulesyncMcp.
+  const serverConfig = config as McpServerConfig;
+  if (Array.isArray(config["command"])) {
+    const [command, ...args] = resolveLocalMcpCommand(serverConfig);
+    delete normalized["command"];
+    delete normalized["args"];
+    if (command !== undefined) {
+      normalized["command"] = command;
+      if (args.length > 0) normalized["args"] = args;
+    } else if (resolveRemoteMcpUrl(serverConfig) === undefined) {
+      warnWithFallback(
+        undefined,
+        `[CodexCliMcp] Skipping MCP server "${serverName}": its 'command' array is empty and it has no url, which Codex rejects for the whole config.toml.`,
+      );
+      return null;
+    }
+  }
+  if (Object.hasOwn(config, "httpUrl")) {
+    const url = resolveRemoteMcpUrl(serverConfig);
+    delete normalized["httpUrl"];
+    if (url !== undefined) normalized["url"] = url;
+  }
+  return normalized;
 }
 
 const CODEX_MCP_SERVER_NAME_PATTERN = /^[a-zA-Z0-9_-]+$/;
@@ -558,9 +698,11 @@ function convertToCodexFormat(mcpServers: Record<string, unknown>): Record<strin
         `MCP server "${name}" cannot be represented as a Codex MCP server name (ASCII [a-zA-Z0-9_-] only), so the stable fallback name "${codexName}" was used. Rename the server in .rulesync/mcp.jsonc to choose a readable Codex name.`,
       );
     }
+    const normalized = normalizeCodexTransport(config, name);
+    if (!normalized) continue;
     const converted: Record<string, unknown> = {};
-    const isStdio = isCodexStdioServer(config);
-    for (const [key, value] of Object.entries(config)) {
+    const isStdio = isCodexStdioServer(normalized);
+    for (const [key, value] of Object.entries(normalized)) {
       if (PROTOTYPE_POLLUTION_KEYS.has(key)) continue;
       const translated = translateCanonicalKeyToCodex({ key, value, isStdio, serverName: name });
       if (translated) {
@@ -570,7 +712,7 @@ function convertToCodexFormat(mcpServers: Record<string, unknown>): Record<strin
           converted["enabled"] = false;
         }
       } else if (key === "oauth" && isRecord(value)) {
-        converted[key] = mapOauthToCodex(value);
+        converted[key] = mapOauthToCodex(value, name);
       } else if (Object.hasOwn(RULESYNC_TO_CODEX_FIELD_MAP, key)) {
         const mappedKey = RULESYNC_TO_CODEX_FIELD_MAP[key];
         if (mappedKey) {
