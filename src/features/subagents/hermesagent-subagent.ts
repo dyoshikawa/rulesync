@@ -102,12 +102,17 @@ def _register_subagent(ctx, subagent):
 
         # delegate_task takes no model-facing "toolsets" argument: a subagent
         # inherits the parent's enabled toolsets (role="orchestrator" is the
-        # only knob that changes them).
+        # only knob that changes them). "tasks" is the only shape its schema
+        # advertises; a top-level "goal" is an unadvertised legacy path.
         return ctx.dispatch_tool(
             "delegate_task",
             {
-                "goal": description,
-                "context": "\\n\\n".join(context_parts),
+                "tasks": [
+                    {
+                        "goal": description,
+                        "context": "\\n\\n".join(context_parts),
+                    },
+                ],
             },
         )
 
