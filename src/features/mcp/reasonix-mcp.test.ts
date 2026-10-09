@@ -642,6 +642,42 @@ describe("ReasonixMcp", () => {
       expect(plugin.concurrency).toBe("serial");
       expect(plugin).not.toHaveProperty("auto_start");
     });
+
+    // Reasonix decodes the timeouts into `int` / `map[string]int`, and
+    // smol-toml writes a fractional or unsafe-integer number as a TOML float,
+    // which BurntSushi/toml refuses to decode into an `int`.
+    it("should write integer timeout fields as authored", async () => {
+      const { plugin, logger } = await exportServer({
+        startup_timeout_seconds: 0,
+        call_timeout_seconds: 120,
+        tool_timeout_seconds: { slow_tool: 600, fast_tool: 5 },
+      });
+
+      expect(plugin.startup_timeout_seconds).toBe(0);
+      expect(plugin.call_timeout_seconds).toBe(120);
+      expect(plugin.tool_timeout_seconds).toEqual({ slow_tool: 600, fast_tool: 5 });
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ["startup_timeout_seconds", "30"],
+      ["startup_timeout_seconds", 1.5],
+      ["call_timeout_seconds", 1e20],
+      ["call_timeout_seconds", true],
+      ["call_timeout_seconds", null],
+      ["tool_timeout_seconds", 30],
+      ["tool_timeout_seconds", [30]],
+      ["tool_timeout_seconds", { slow_tool: "600" }],
+      ["tool_timeout_seconds", { slow_tool: 2.5 }],
+    ])("should drop a %s of %j with a warning", async (field, value) => {
+      const { plugin, logger } = await exportServer({ [field]: value });
+
+      expect(plugin).not.toHaveProperty(field);
+      expect(plugin.command).toBe("reasonix-plugin-srv");
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(`dropping "${field}" from "srv"`),
+      );
+    });
   });
   describe("canonical disabled and auto_start", () => {
     const exportServers = async (mcpServers: Record<string, unknown>) => {

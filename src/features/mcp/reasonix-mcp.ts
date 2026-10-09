@@ -12,6 +12,7 @@ import type { McpServer, McpServers } from "../../types/mcp.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
+import { isRecord } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
@@ -94,11 +95,12 @@ type ReasonixPlugin = Record<string, unknown> & {
 // a per-server denylist of raw tool names that deep-maps to canonical
 // `disabledTools`. The v1 line ignores unknown keys, so writing them is harmless
 // there.
-// The scalar passthrough fields with a fixed type are also value-checked on the
-// way out (`invalidPassthroughFieldReason`): Reasonix decodes `reasonix.toml`
-// with BurntSushi/toml into a `string` / `*bool` / `bool`, and a type mismatch
-// fails the load of the whole file, not just this entry. The other passthrough
-// fields are not checked yet.
+// The passthrough fields with a fixed type are also value-checked on the way
+// out (`invalidPassthroughFieldReason`): Reasonix decodes `reasonix.toml` with
+// BurntSushi/toml into a `string` / `*bool` / `bool` / `int` / `map[string]int`,
+// and a type mismatch fails the load of the whole file, not just this entry.
+// The timeout fields need a safe integer: smol-toml writes any other number as
+// a TOML float, which BurntSushi refuses to decode into an `int`.
 // @see https://github.com/esengine/DeepSeek-Reasonix/blob/main-v2/docs/SPEC.md
 // (§3.16 for `concurrency`) and `PluginEntry` for the `[[plugins]]` field names:
 // https://github.com/esengine/DeepSeek-Reasonix/blob/v1.39.8/internal/config/plugin_entry.go
@@ -320,12 +322,38 @@ const REASONIX_CONCURRENCY_VALUES: ReadonlySet<string> = new Set(["serial", "par
  * (`PluginEntry` in `internal/config/plugin_entry.go`, and
  * `internal/contract/config/plugin_entry.go` on the CLI v2 line).
  */
-const REASONIX_TYPED_PLUGIN_FIELDS: Readonly<Record<string, "string" | "boolean">> = {
+const REASONIX_TYPED_PLUGIN_FIELDS: Readonly<
+  Record<string, "string" | "boolean" | "integer" | "integer table">
+> = {
+  startup_timeout_seconds: "integer",
+  call_timeout_seconds: "integer",
+  tool_timeout_seconds: "integer table",
   concurrency: "string",
   auto_start: "boolean",
   load: "string",
   oauth_allow_missing_pkce_metadata: "boolean",
 };
+
+/**
+ * Whether `value` is written as a TOML integer. smol-toml writes a JS number
+ * outside the safe-integer range, or with a fraction, as a TOML float.
+ */
+function isTomlInteger(value: unknown): boolean {
+  return typeof value === "number" && Number.isSafeInteger(value);
+}
+
+function hasExpectedType(
+  value: unknown,
+  expected: "string" | "boolean" | "integer" | "integer table",
+): boolean {
+  if (expected === "integer") {
+    return isTomlInteger(value);
+  }
+  if (expected === "integer table") {
+    return isRecord(value) && Object.values(value).every(isTomlInteger);
+  }
+  return typeof value === expected;
+}
 
 /**
  * Why a passthrough value cannot be written, or `undefined` when it can (and
@@ -339,8 +367,10 @@ const REASONIX_TYPED_PLUGIN_FIELDS: Readonly<Record<string, "string" | "boolean"
  */
 function invalidPassthroughFieldReason(field: string, value: unknown): string | undefined {
   const expected = REASONIX_TYPED_PLUGIN_FIELDS[field];
-  if (expected !== undefined && typeof value !== expected) {
-    return `Reasonix expects a ${expected} and fails to load a config file holding any other type.`;
+  if (expected !== undefined && !hasExpectedType(value, expected)) {
+    const description = expected === "integer table" ? "table of integers" : expected;
+    const article = expected === "integer" ? "an" : "a";
+    return `Reasonix expects ${article} ${description} and fails to load a config file holding any other type.`;
   }
   if (
     field === "concurrency" &&
