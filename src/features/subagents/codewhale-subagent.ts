@@ -21,9 +21,8 @@ import {
  * Keys of the rulesync `codewhale` section copied into the profile. Codewhale
  * parses agent profiles with `deny_unknown_fields`, so an unknown key would
  * make the whole profile fail to load; anything else in the section is dropped
- * with a warning. `[tools]` and `[permissions]` are left out on purpose:
- * Codewhale only accepts values there that narrow the defaults, and rejects a
- * profile that tries to widen them.
+ * with a warning. The `[tools]` and `[permissions]` tables are handled
+ * separately (see `CODEWHALE_NARROWING_TABLES`).
  */
 const CODEWHALE_SECTION_KEYS = [
   "role_hint",
@@ -52,6 +51,53 @@ const CODEWHALE_SECTION_ALIAS_TO_KEY: ReadonlyMap<string, string> = new Map(
     (aliases ?? []).map((alias) => [alias, key] as const),
   ),
 );
+
+/**
+ * The `[tools]` and `[permissions]` tables of an agent profile, with the only
+ * values Codewhale accepts in each key. Codewhale rejects a profile that tries
+ * to widen access through them (`reject_permission_expansion` in
+ * `fleet/profile.rs`), and both tables deny unknown fields, so any other key
+ * or value is dropped with a warning.
+ */
+const CODEWHALE_NARROWING_TABLES: Readonly<
+  Record<string, Readonly<Record<string, (value: unknown) => boolean>>>
+> = {
+  tools: {
+    posture: (value) =>
+      typeof value === "string" && ["read-only", "readonly", "read_only"].includes(value),
+  },
+  permissions: {
+    allow_shell: (value) => value === false,
+    trust: (value) => value === false,
+    approval_required: (value) => value === true,
+  },
+};
+
+/**
+ * Keeps the narrowing-only entries of a `[tools]` / `[permissions]` table and
+ * reports every other entry by its dotted path. A non-table value is dropped
+ * as a whole.
+ */
+function filterNarrowingTable(
+  tableName: string,
+  value: unknown,
+): { kept: Record<string, unknown> | undefined; dropped: string[] } {
+  const allowed = CODEWHALE_NARROWING_TABLES[tableName] ?? {};
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return { kept: undefined, dropped: [tableName] };
+  }
+  const kept: Record<string, unknown> = {};
+  const dropped: string[] = [];
+  for (const [key, entry] of Object.entries(value)) {
+    const normalized = typeof entry === "string" ? entry.trim() : entry;
+    if (allowed[key]?.(normalized)) {
+      kept[key] = normalized;
+    } else {
+      dropped.push(`${tableName}.${key}`);
+    }
+  }
+  return { kept: Object.keys(kept).length > 0 ? kept : undefined, dropped };
+}
 
 const CodewhaleSubagentTomlSchema = z.looseObject({
   id: z.optional(z.string()),
@@ -107,7 +153,8 @@ export type CodewhaleSubagentParams = {
  *
  * Generation writes `id` (the file stem), `display_name` (the rulesync name),
  * `description`, and the body as `[instructions] text`, plus the allowlisted
- * keys of the rulesync `codewhale` section.
+ * keys of the rulesync `codewhale` section and its narrowing-only `[tools]` /
+ * `[permissions]` entries.
  *
  * @see https://github.com/Hmbown/Codewhale/blob/main/docs/SUBAGENTS.md
  * @see https://github.com/Hmbown/Codewhale/blob/main/crates/tui/src/fleet/profile.rs
@@ -165,6 +212,15 @@ export class CodewhaleSubagent extends ToolSubagent {
       }
     }
 
+    for (const tableName of Object.keys(CODEWHALE_NARROWING_TABLES)) {
+      if (record[tableName] !== undefined) {
+        const { kept } = filterNarrowingTable(tableName, record[tableName]);
+        if (kept !== undefined) {
+          codewhaleSection[tableName] = kept;
+        }
+      }
+    }
+
     const name =
       parsed.display_name ??
       parsed.name ??
@@ -209,6 +265,14 @@ export class CodewhaleSubagent extends ToolSubagent {
     for (const [rawKey, value] of Object.entries(rawSection)) {
       // An alias spelling is written under its canonical key, which is never
       // overridden by an alias of the same key.
+      if (Object.hasOwn(CODEWHALE_NARROWING_TABLES, rawKey)) {
+        const { kept, dropped } = filterNarrowingTable(rawKey, value);
+        if (kept !== undefined) {
+          sectionFields[rawKey] = kept;
+        }
+        droppedKeys.push(...dropped);
+        continue;
+      }
       const key = CODEWHALE_SECTION_ALIAS_TO_KEY.get(rawKey) ?? rawKey;
       // Every allowlisted key is a string upstream; any other value type would
       // make Codewhale reject the whole profile.
@@ -231,7 +295,7 @@ export class CodewhaleSubagent extends ToolSubagent {
     }
     if (droppedKeys.length > 0) {
       logger?.warn(
-        `Dropping unsupported or duplicate codewhale subagent keys in ${rulesyncSubagent.getRelativeFilePath()}: ${droppedKeys.join(", ")}. Codewhale rejects agent profiles with unknown fields, non-string values there, or two spellings of one key; supported keys are ${CODEWHALE_SECTION_KEYS.join(", ")}, each a string (the canonical spelling wins over an alias).`,
+        `Dropping unsupported or duplicate codewhale subagent keys in ${rulesyncSubagent.getRelativeFilePath()}: ${droppedKeys.join(", ")}. Codewhale rejects agent profiles with unknown fields, non-string values there, [tools] / [permissions] values that would widen access, or two spellings of one key; supported keys are ${CODEWHALE_SECTION_KEYS.join(", ")}, each a string (the canonical spelling wins over an alias), plus the narrowing-only tools.posture = "read-only" and permissions.allow_shell = false, permissions.trust = false, permissions.approval_required = true.`,
       );
     }
 
