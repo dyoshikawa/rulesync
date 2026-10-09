@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { RULESYNC_COMMANDS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
@@ -42,7 +42,72 @@ describe("AntigravityIdeCommand", () => {
     it("should return the global workflows path when global is true", () => {
       const paths = AntigravityIdeCommand.getSettablePaths({ global: true });
 
-      expect(paths.relativeDirPath).toBe(join(".gemini", "antigravity", "global_workflows"));
+      expect(paths.relativeDirPath).toBe(join(".gemini", "config", "workflows"));
+    });
+  });
+
+  describe("loadAdditionalImportFiles", () => {
+    it("should load pre-2.0 global workflows in global scope", async () => {
+      const { testDir, cleanup } = await setupTestDirectory();
+      try {
+        await writeFileContent(
+          join(testDir, ".gemini", "antigravity", "global_workflows", "deploy.md"),
+          "---\ndescription: Deploy\n---\nDeploy body\n",
+        );
+
+        const commands = await AntigravityIdeCommand.loadAdditionalImportFiles({
+          outputRoot: testDir,
+          global: true,
+        });
+
+        expect(commands).toHaveLength(1);
+        expect(commands[0]?.getRelativeFilePath()).toBe("deploy.md");
+        expect(commands[0]?.getBody()).toBe("Deploy body");
+        expect(commands[0]?.toRulesyncCommand().getFrontmatter()).toMatchObject({
+          targets: ["antigravity-ide"],
+          description: "Deploy",
+        });
+      } finally {
+        await cleanup();
+      }
+    });
+
+    it("should skip a file with invalid frontmatter and warn", async () => {
+      const { testDir, cleanup } = await setupTestDirectory();
+      try {
+        await writeFileContent(
+          join(testDir, ".gemini", "antigravity", "global_workflows", "bad.md"),
+          "---\ndescription: 1\n---\nBody\n",
+        );
+        const warn = vi.fn();
+
+        const commands = await AntigravityIdeCommand.loadAdditionalImportFiles({
+          outputRoot: testDir,
+          global: true,
+          logger: { warn } as never,
+        });
+
+        expect(commands).toEqual([]);
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining("bad.md"));
+      } finally {
+        await cleanup();
+      }
+    });
+
+    it("should return nothing in project scope", async () => {
+      const { testDir, cleanup } = await setupTestDirectory();
+      try {
+        await writeFileContent(
+          join(testDir, ".gemini", "antigravity", "global_workflows", "deploy.md"),
+          "---\ndescription: Deploy\n---\nDeploy body\n",
+        );
+
+        expect(
+          await AntigravityIdeCommand.loadAdditionalImportFiles({ outputRoot: testDir }),
+        ).toEqual([]);
+      } finally {
+        await cleanup();
+      }
     });
   });
 

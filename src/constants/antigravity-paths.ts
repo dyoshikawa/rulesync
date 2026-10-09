@@ -28,7 +28,7 @@ export const ANTIGRAVITY_CLI_PERMISSIONS_FILE_NAME = "settings.json";
 
 // Global (user-scope) workflows for the CLI live under the CLI's own
 // `~/.gemini/antigravity-cli/` tree (mirroring the CLI's global skills tree),
-// distinct from the IDE's `~/.gemini/antigravity/global_workflows/`.
+// distinct from the IDE's `~/.gemini/config/workflows/`.
 export const ANTIGRAVITY_CLI_GLOBAL_WORKFLOWS_DIR_PATH = join(
   ANTIGRAVITY_GEMINI_DIR,
   ANTIGRAVITY_CLI_PERMISSIONS_SUBDIR,
