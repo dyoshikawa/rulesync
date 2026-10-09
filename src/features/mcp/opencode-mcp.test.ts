@@ -3063,5 +3063,21 @@ describe("OpencodeMcp", () => {
 
       expect(opencodeMcp.getJson().mcp).toEqual({ shared: { enabled: false } });
     });
+
+    it("should register instructions in a V2-shaped opencode.json, leaving its mcp as is", async () => {
+      const mcp = { servers: { fs: { type: "local", command: ["fs"], disabled: true } } };
+      await writeFileContent(join(testDir, "opencode.json"), JSON.stringify({ mcp }));
+
+      const opencodeMcp = await OpencodeMcp.fromInstructions({
+        outputRoot: testDir,
+        instructions: [".opencode/memories/style.md"],
+      });
+
+      expect(opencodeMcp?.validate().success).toBe(true);
+      expect(JSON.parse(opencodeMcp?.getFileContent() ?? "{}")).toEqual({
+        mcp,
+        instructions: [".opencode/memories/style.md"],
+      });
+    });
   });
 });

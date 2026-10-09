@@ -608,7 +608,24 @@ export class OpencodeMcp extends ToolMcp {
 
   constructor(params: ToolMcpParams) {
     super(params);
-    this.json = OpencodeConfigSchema.parse(parseJsonc(this.fileContent || "{}"));
+    this.json = OpencodeConfigSchema.parse(
+      (this.constructor as typeof OpencodeMcp).lowerConfig(parseJsonc(this.fileContent || "{}")),
+    );
+  }
+
+  /**
+   * Lowers the OpenCode V2 `mcp` spellings of a parsed config for a layout
+   * that reads them (see {@link lowerOpencodeV2Mcp}), so every reader — import,
+   * the toggle lookup on generate, and the rules feature's `instructions`
+   * write to the same file — accepts a V2-shaped `mcp`. Only the parsed view
+   * is lowered; content written back keeps whatever `mcp` a feature that does
+   * not own the key found there.
+   */
+  protected static lowerConfig(json: unknown): unknown {
+    if (!this.layout.readsV2ConfigSpellings || !isRecord(json) || json.mcp === undefined) {
+      return json;
+    }
+    return { ...json, mcp: lowerOpencodeV2Mcp(json.mcp) };
   }
 
   getJson(): OpencodeConfig {
@@ -654,11 +671,7 @@ export class OpencodeMcp extends ToolMcp {
 
     const fileContentToUse = fileContent ?? '{"mcp":{}}';
     const json = parseJsonc(fileContentToUse);
-    const mcp = json.mcp ?? {};
-    const newJson = {
-      ...json,
-      mcp: this.layout.readsV2ConfigSpellings ? lowerOpencodeV2Mcp(mcp) : mcp,
-    };
+    const newJson = { ...json, mcp: json.mcp ?? {} };
 
     return new this({
       outputRoot,
@@ -703,11 +716,8 @@ export class OpencodeMcp extends ToolMcp {
     // it so a server the user disabled in another config layer is not switched
     // back on by rewriting the whole `mcp` key without it.
     // A toggle under the V2 `mcp.servers` envelope counts too.
-    const existingJson = parseJsonc(fileContent || "{}");
     const existingMcp = OpencodeConfigSchema.safeParse(
-      this.layout.readsV2ConfigSpellings && isRecord(existingJson)
-        ? { ...existingJson, mcp: lowerOpencodeV2Mcp(existingJson.mcp) }
-        : existingJson,
+      this.lowerConfig(parseJsonc(fileContent || "{}")),
     );
     const { mcp: convertedMcp, tools: mcpTools } = convertToOpencodeFormat(
       transformedServers,
@@ -891,7 +901,9 @@ export class OpencodeMcp extends ToolMcp {
     // Strict JSONC rather than JSON: `opencode.json`/`opencode.jsonc` may
     // carry the user's comments, which the gateway preserves on write-back.
     const json = parseJsoncStrict(this.fileContent || "{}");
-    const result = OpencodeConfigSchema.safeParse(json);
+    const result = OpencodeConfigSchema.safeParse(
+      (this.constructor as typeof OpencodeMcp).lowerConfig(json),
+    );
     if (!result.success) {
       return { success: false, error: result.error };
     }

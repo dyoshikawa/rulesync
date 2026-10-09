@@ -109,6 +109,7 @@ describe("MimocodeMcp", () => {
       }),
     );
 
+    // MiMo Code reads `servers` as a server, which is neither a transport nor a toggle.
     await expect(MimocodeMcp.fromFile({ outputRoot: testDir })).rejects.toThrow();
   });
 });
