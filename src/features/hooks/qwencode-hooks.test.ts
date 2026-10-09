@@ -702,6 +702,45 @@ describe("QwencodeHooks", () => {
       expect(parsed.hooks.preToolUse?.map((hook) => hook.timeout)).toEqual([30, 10, 1.5, 10000]);
     });
 
+    it("should accept a numeric-string timeout on import without dropping its matcher group (issue #2668)", () => {
+      const qwencodeHooks = new QwencodeHooks(
+        createMockAiFileParams({
+          fileContent: JSON.stringify({
+            hooks: {
+              PreToolUse: [
+                {
+                  matcher: "Bash",
+                  hooks: [
+                    { type: "command", command: "echo legacy", timeout: "60000" },
+                    { type: "command", command: "echo seconds", timeout: " 30 " },
+                    { type: "command", command: "echo fractional", timeout: "1500" },
+                    { type: "http", url: "https://example.com/hook", timeout: "10" },
+                    { type: "command", command: "echo unusable", timeout: "abc" },
+                    { type: "command", command: "echo empty", timeout: "" },
+                    { type: "command", command: "echo sibling", timeout: 5 },
+                  ],
+                },
+              ],
+            },
+          }),
+        }),
+      );
+
+      const parsed = qwencodeHooks.toRulesyncHooks().getJson();
+      const hooks = parsed.hooks.preToolUse ?? [];
+      expect(hooks.map((hook) => hook.command ?? hook.url)).toEqual([
+        "echo legacy",
+        "echo seconds",
+        "echo fractional",
+        "https://example.com/hook",
+        "echo unusable",
+        "echo empty",
+        "echo sibling",
+      ]);
+      expect(hooks.map((hook) => hook.timeout)).toEqual([60, 30, 1.5, 10, undefined, undefined, 5]);
+      expect(hooks.every((hook) => hook.matcher === "Bash")).toBe(true);
+    });
+
     it("should round-trip a command hook timeout of 1000 seconds or more", async () => {
       const rulesyncHooks = new RulesyncHooks(
         createMockAiFileParams({

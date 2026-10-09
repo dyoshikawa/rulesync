@@ -44,22 +44,23 @@ Rulesync never writes but gitignores (with `.qwen/worktrees/`) through
 
 Common adapter paths: `rulesync-source-map.md`.
 
-| Surface       | Anchor                                                                                                                                                                                                                                  |
-| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| paths         | `qwencode-paths.ts` — the `.qwen/` subdirectories, `QWEN.md` / `QWEN.local.md`, `.qwenignore` and `settings.json`                                                                                                                       |
-| `rules`       | Qwen context-file conversion and target gating in `qwencode-rule.ts`                                                                                                                                                                    |
-| `ignore`      | `.qwenignore` passthrough in `qwencode-ignore.ts`                                                                                                                                                                                       |
-| `mcp`         | `qwencode-mcp.ts` merges the `mcpServers` block into `settings.json` at either scope, plus the server-level `mcp.allowed` / `mcp.excluded` lists from the `qwencode` block of `.rulesync/mcp.jsonc`                                     |
-| `commands`    | `.qwen/commands/*.md` (project) and `~/.qwen/commands/*.md` (global) in `qwencode-command.ts`                                                                                                                                           |
-| `subagents`   | `.qwen/agents/*.md` at both scopes in `qwencode-subagent.ts`                                                                                                                                                                            |
-| `skills`      | `.qwen/skills/<name>/SKILL.md` at both scopes in `qwencode-skill.ts`                                                                                                                                                                    |
-| `hooks`       | `qwencode-hooks.ts` merges the `hooks` block into `settings.json`; the canonical events map onto the PascalCase set in `QWENCODE_HOOK_EVENTS` (`src/types/hooks.ts`), which tracks the upstream list release by release                 |
-| `permissions` | `qwencode-permissions.ts` — `permissions.allow` / `ask` / `deny` mapping and tool aliases, plus the curated `QWEN_OVERRIDE_TOOLS_KEYS` / `QWEN_OVERRIDE_SECURITY_KEYS` allow-lists and the `QWEN_SCOPED_*_KEYS` scope rules beside them |
-| `checks`      | `qwencode-check.ts` aggregates every check into `.qwen/review-rules.md` (project scope only) via `AggregatedToolCheck`                                                                                                                  |
+| Surface       | Anchor                                                                                                                                                                                                                                                                |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| paths         | `qwencode-paths.ts` — the `.qwen/` subdirectories, `QWEN.md` / `QWEN.local.md`, `.qwenignore` and `settings.json`                                                                                                                                                     |
+| `rules`       | Qwen context-file conversion and target gating in `qwencode-rule.ts`                                                                                                                                                                                                  |
+| `ignore`      | `.qwenignore` passthrough in `qwencode-ignore.ts`                                                                                                                                                                                                                     |
+| `mcp`         | `qwencode-mcp.ts` merges the `mcpServers` block into `settings.json` at either scope, plus the server-level `mcp.allowed` / `mcp.excluded` lists from the `qwencode` block of `.rulesync/mcp.jsonc`                                                                   |
+| `commands`    | `.qwen/commands/*.md` (project) and `~/.qwen/commands/*.md` (global) in `qwencode-command.ts`                                                                                                                                                                         |
+| `subagents`   | `.qwen/agents/*.md` at both scopes in `qwencode-subagent.ts`                                                                                                                                                                                                          |
+| `skills`      | `.qwen/skills/<name>/SKILL.md` at both scopes in `qwencode-skill.ts`                                                                                                                                                                                                  |
+| `hooks`       | `qwencode-hooks.ts` merges the `hooks` block into `settings.json`; the canonical events map onto the PascalCase set in `QWENCODE_HOOK_EVENTS` (`src/types/hooks.ts`), which tracks the upstream list release by release                                               |
+| `permissions` | `qwencode-permissions.ts` — `permissions.allow` / `ask` / `deny` mapping and tool aliases, plus the curated `QWEN_OVERRIDE_TOOLS_KEYS` / `QWEN_OVERRIDE_SECURITY_KEYS` / `QWEN_OVERRIDE_SKILLS_KEYS` allow-lists and the `QWEN_SCOPED_*_KEYS` scope rules beside them |
+| `checks`      | `qwencode-check.ts` aggregates every check into `.qwen/review-rules.md` (project scope only) via `AggregatedToolCheck`                                                                                                                                                |
 
-### Adding a `tools` / `security` key
+### Adding a `tools` / `security` / `skills` key
 
-`QWEN_OVERRIDE_TOOLS_KEYS` and `QWEN_OVERRIDE_SECURITY_KEYS` are **curated
+`QWEN_OVERRIDE_TOOLS_KEYS`, `QWEN_OVERRIDE_SECURITY_KEYS` and
+`QWEN_OVERRIDE_SKILLS_KEYS` are **curated
 allow-lists on the import path**: a key missing from them is silently dropped
 from `.rulesync/permissions.jsonc` on `import`, even though `generate` spreads
 the user's existing block and so preserves a hand-written one. That asymmetry is

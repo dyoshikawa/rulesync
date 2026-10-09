@@ -403,7 +403,9 @@ export type CursorPermissionsOverride = z.infer<typeof CursorPermissionsOverride
  * `sandbox`, `sandboxImage`, `disabled`, `visible`, `eager`, `listDirectory`,
  * `todoWrite`, `workflowsEnabled`, `workflowNameOnly`, `executionSandbox`) and
  * `security` (`folderTrust`, `allowedHttpHookUrls`, `allowPrivateNetworkHooks`,
- * `allowedInsecureVoiceBaseUrls`). Qwen Code strips `tools.workflowsEnabled`,
+ * `allowedInsecureVoiceBaseUrls`) and `skills` (the skill kill-switches
+ * `disabled`, `defaultDisabled`, `enabled`, `disabledLevels`, each a list Qwen
+ * Code unions across scopes). Qwen Code strips `tools.workflowsEnabled`,
  * `tools.executionSandbox`, `security.allowPrivateNetworkHooks` and
  * `security.allowedInsecureVoiceBaseUrls` out of workspace settings, so generate
  * skips those four in project scope and announces a granting value in global
@@ -420,7 +422,8 @@ export type CursorPermissionsOverride = z.infer<typeof CursorPermissionsOverride
  * registry controls (`disabled`, `visible`, `listDirectory`, `todoWrite`, and `eager`, which
  * demotes an omitted tool to deferred rather than removing it, replacing rather
  * than merging with the list a higher scope set), the Auto Mode
- * classifier config, and, because these groups are loose objects, any key
+ * classifier config, the skill kill-switches, and, because these groups are
+ * loose objects, any key
  * rulesync does not model. Import flags a scope-dependent key only when it read
  * the project file, since that is the value a `--global` regenerate would
  * promote. It also
@@ -431,11 +434,12 @@ export type CursorPermissionsOverride = z.infer<typeof CursorPermissionsOverride
  * matching `settings.json` group and emitted only for Qwen, while the shared
  * `permission` block continues to drive the `permissions.allow`/`ask`/`deny`
  * arrays. Kept `looseObject` (verbatim passthrough) so any current or future
- * `tools`/`security`/`autoMode` key can be authored.
+ * `tools`/`security`/`skills`/`autoMode` key can be authored.
  *
  * @example
  * {
  *   "tools": { "approvalMode": "auto-edit" },
+ *   "skills": { "disabled": ["pdf"], "disabledLevels": ["bundled"] },
  *   "security": { "folderTrust": { "enabled": true } },
  *   "autoMode": { "hints": { "allow": ["Running tests"] }, "classifyAllShell": true }
  * }
@@ -444,6 +448,7 @@ const QwencodePermissionsOverrideSchema = z.looseObject({
   permission: z.optional(ToolScopedPermissionSchema),
   tools: z.optional(z.looseObject({})),
   security: z.optional(z.looseObject({})),
+  skills: z.optional(z.looseObject({})),
   autoMode: z.optional(z.looseObject({})),
 });
 export type QwencodePermissionsOverride = z.infer<typeof QwencodePermissionsOverrideSchema>;

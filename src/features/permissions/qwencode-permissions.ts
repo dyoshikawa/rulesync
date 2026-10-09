@@ -185,6 +185,23 @@ const QWEN_OVERRIDE_SECURITY_KEYS = [
   "allowedInsecureVoiceBaseUrls",
 ] as const;
 
+// The `skills` sub-keys the `qwencode` override authors: the skill kill-switches
+// (precedence `disabled` > `enabled` > `defaultDisabled`, with `disabledLevels`
+// skipping whole discovery levels). Each is a list of literal names matched
+// case-insensitively and union-merged across settings scopes. `skills.directories`
+// is a discovery path rather than a kill-switch, so it stays in `settings.json`
+// and is not lifted into the override on import.
+// https://qwenlm.github.io/qwen-code-docs/en/users/configuration/settings/
+const QWEN_OVERRIDE_SKILLS_KEYS = [
+  // Added in Qwen Code v0.18.0. https://github.com/QwenLM/qwen-code/pull/4533
+  "disabled",
+  // Added in Qwen Code v0.21.1. https://github.com/QwenLM/qwen-code/pull/7357
+  "defaultDisabled",
+  "enabled",
+  // Added in Qwen Code v0.21.3. https://github.com/QwenLM/qwen-code/pull/8057
+  "disabledLevels",
+] as const;
+
 /**
  * How upstream Qwen Code treats an override key that a Workspace (project)
  * settings file sets, for the keys where that differs from "the workspace value
@@ -215,7 +232,7 @@ const QWEN_OVERRIDE_SECURITY_KEYS = [
  *   settles how much the agent may do on its own for every project on the
  *   machine, which is worth naming even though no scope forbids it.
  * - `unmodeled` — the fallback for any other key the override carries. The
- *   `tools`/`security` schemas are `z.looseObject`s so a key Qwen Code adds
+ *   `tools`/`security`/`skills` schemas are `z.looseObject`s so a key Qwen Code adds
  *   works before rulesync knows about it, and some of those keys are as
  *   powerful as the modeled ones (`tools.discoveryCommand`, for instance, is
  *   spawned at startup). Rulesync cannot describe what it does not model, so it
@@ -421,6 +438,45 @@ const QWEN_SCOPED_TOOLS_KEYS = {
       "Qwen Code honors this key wherever it is written, so in the global scope this decides whether the built-in `todo_write` tool is registered for every project on this machine.",
   },
 } as const satisfies QwenScopedKeys<(typeof QWEN_OVERRIDE_TOOLS_KEYS)[number]>;
+/**
+ * The notes for a skills list that hides something. Qwen Code unions the list
+ * across scopes, but the override replaces the one in the file it writes, so
+ * the consequence worth naming is what dropping an entry hands back.
+ */
+function skillsHidingListNotes(
+  hides: string,
+): Pick<QwenScopedKeyRule, "projectNote" | "globalNote"> {
+  return {
+    projectNote: ({ qualifiedKey, quotedValue, filePath }) =>
+      `${qualifiedKey} = ${quotedValue} was written to the project-scoped ${filePath}, replacing the list in that file rather than adding to it, so it decides which ${hides} in this repository — an entry that is gone is one the model can load again unless another scope still names it.`,
+    globalNote: `Qwen Code honors this key wherever it is written and unions it across scopes, but the override replaces the list in this file rather than adding to it, so in the global scope this decides which ${hides} for every project on this machine — an entry that is gone is one the model can load again unless another scope still names it.`,
+  };
+}
+
+// None of the skill kill-switches is on any of Qwen Code's workspace lists, so
+// each is honored in every scope (verified against v0.25.0).
+const QWEN_SCOPED_SKILLS_KEYS = {
+  disabled: { rule: "global-machine-wide", ...skillsHidingListNotes("skills are hidden") },
+  defaultDisabled: {
+    rule: "global-machine-wide",
+    ...skillsHidingListNotes("skills start disabled until `skills.enabled` opts into them"),
+  },
+  disabledLevels: {
+    rule: "global-machine-wide",
+    ...skillsHidingListNotes(
+      "skill discovery levels (`project`, `user`, `extension`, `bundled`) are skipped",
+    ),
+  },
+  enabled: {
+    // The granting direction: it opts into a skill another scope starts
+    // disabled, though it can never beat `skills.disabled` or a skipped level.
+    rule: "global-machine-wide",
+    projectNote: ({ qualifiedKey, quotedValue, filePath }) =>
+      `${qualifiedKey} = ${quotedValue} was written to the project-scoped ${filePath}, so in this repository it opts the model into the skills it names that \`skills.defaultDisabled\` would otherwise keep off in any scope (it cannot override \`skills.disabled\` or a skipped \`skills.disabledLevels\` level). Check it if the override arrived with a repository you cloned.`,
+    globalNote:
+      "Qwen Code honors this key wherever it is written and unions it across scopes, so in the global scope it opts the model into the skills it names that `skills.defaultDisabled` would otherwise keep off, for every project on this machine (it cannot override `skills.disabled` or a skipped `skills.disabledLevels` level).",
+  },
+} as const satisfies QwenScopedKeys<(typeof QWEN_OVERRIDE_SKILLS_KEYS)[number]>;
 const QWEN_SCOPED_SECURITY_KEYS = {
   allowPrivateNetworkHooks: { rule: "workspace-stripped" },
   // The one key under `announceOnlyGrants` whose empty value grants nothing:
@@ -431,7 +487,7 @@ const QWEN_SCOPED_SECURITY_KEYS = {
   folderTrust: { rule: "user-scope-trust-check" },
 } as const satisfies QwenScopedKeys<(typeof QWEN_OVERRIDE_SECURITY_KEYS)[number]>;
 
-// The `tools` and `security` groups the override patches, paired with the keys
+// The `tools`, `security` and `skills` groups the override patches, paired with the keys
 // it owns there and the ones whose scope behavior needs a note (an empty list is
 // fine for a group that has none). Both directions read it — the generate-side
 // scope gate and the import-side extraction and promotion warning — so a key
@@ -448,6 +504,11 @@ const QWEN_OVERRIDE_GROUPS = [
     groupName: "security",
     overrideKeys: QWEN_OVERRIDE_SECURITY_KEYS,
     scopedKeys: QWEN_SCOPED_SECURITY_KEYS,
+  },
+  {
+    groupName: "skills",
+    overrideKeys: QWEN_OVERRIDE_SKILLS_KEYS,
+    scopedKeys: QWEN_SCOPED_SKILLS_KEYS,
   },
 ] as const;
 type QwenOverrideGroupName = (typeof QWEN_OVERRIDE_GROUPS)[number]["groupName"];
@@ -661,7 +722,7 @@ function scopeOverrideGroup(
 }
 
 /**
- * Build the `tools`/`security` patch groups contributed by the `qwencode`
+ * Build the `tools`/`security`/`skills` patch groups contributed by the `qwencode`
  * override. Each group is shallow-merged over what `settings.json` already has,
  * after the scope gate has handled the keys Qwen Code honors in one scope only.
  */
@@ -898,8 +959,8 @@ export class QwencodePermissions extends ToolPermissions {
 
     const patch: Record<string, unknown> = { permissions: mergedPermissions };
 
-    // Overlay the Qwen-scoped override's `tools`/`security` groups (autonomy and
-    // sandbox settings). Shallow-merged at the top level of each group, so an
+    // Overlay the Qwen-scoped override's `tools`/`security`/`skills` groups
+    // (autonomy, sandbox and skill kill-switch settings). Shallow-merged at the top level of each group, so an
     // unrelated sibling key (e.g. `tools.core`) is preserved while an override
     // key wins; a nested object the override supplies (e.g. `security.folderTrust`)
     // replaces the existing one wholesale rather than being deep-merged.
@@ -962,6 +1023,7 @@ export class QwencodePermissions extends ToolPermissions {
     const overrideGroups: Record<QwenOverrideGroupName, Record<string, unknown>> = {
       tools: pickQwenOverrideKeys(settings.tools, QWEN_OVERRIDE_TOOLS_KEYS),
       security: pickQwenOverrideKeys(settings.security, QWEN_OVERRIDE_SECURITY_KEYS),
+      skills: pickQwenOverrideKeys(settings.skills, QWEN_OVERRIDE_SKILLS_KEYS),
     };
     // Only a project file's values would be promoted by regenerating globally;
     // a global file's are already there.

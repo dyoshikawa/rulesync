@@ -45,6 +45,20 @@ function isQwencodeLegacyMillisecondTimeout(timeout: number | undefined): timeou
 }
 
 /**
+ * Read a `timeout` the way Qwen Code does. Settings files are not type-checked
+ * and Qwen Code coerces a numeric string such as `"60000"` with `Number()`, so
+ * import accepts one too; a value that is not a finite number is dropped, since
+ * Qwen Code falls back to the hook type's default for it.
+ * https://github.com/QwenLM/qwen-code/blob/main/packages/core/src/hooks/hook-timeout.ts
+ */
+function readQwencodeTimeout(timeout: number | string | undefined): number | undefined {
+  if (timeout === undefined) return undefined;
+  if (typeof timeout === "string" && timeout.trim() === "") return undefined;
+  const value = Number(timeout);
+  return Number.isFinite(value) ? value : undefined;
+}
+
+/**
  * Canonical `timeout` is seconds. A command hook value below the threshold is
  * already read as seconds; a larger one can only be expressed in milliseconds.
  */
@@ -181,7 +195,9 @@ const QwencodeHookEntrySchema = z.looseObject({
   command: z.optional(z.string()),
   // Target URL for `http` hooks (the hook POSTs JSON to this URL).
   url: z.optional(z.string()),
-  timeout: z.optional(z.number()),
+  // A numeric string is accepted because Qwen Code honors one; see
+  // `readQwencodeTimeout`.
+  timeout: z.optional(z.union([z.number(), z.string()])),
   name: z.optional(z.string()),
   description: z.optional(z.string()),
   // Progress text shown while the hook runs (command and http hooks).
@@ -238,12 +254,13 @@ function qwencodeHookEntryToCanonical({
   // The canonical schema restricts `shell` to the two values Qwen accepts;
   // drop anything else rather than failing the whole import.
   const shell = h.shell === "bash" || h.shell === "powershell" ? h.shell : undefined;
+  const timeout = readQwencodeTimeout(h.timeout);
   return {
     type: hookType,
     ...compact({
       command: h.command,
       url: h.url,
-      timeout: isCommand ? qwencodeCommandTimeoutToCanonicalTimeout(h.timeout) : h.timeout,
+      timeout: isCommand ? qwencodeCommandTimeoutToCanonicalTimeout(timeout) : timeout,
       name: h.name,
       description: h.description,
       // `statusMessage` applies to both command and http hooks.
