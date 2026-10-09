@@ -105,7 +105,91 @@ describe("CodewhaleSubagent", () => {
       expect(parsed.model).toBe("m");
       expect(parsed).not.toHaveProperty("tools");
       expect(parsed).not.toHaveProperty("unknown");
-      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("tools, unknown"));
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("tools.allow, unknown"));
+    });
+
+    it("should write the narrowing-only [tools] and [permissions] entries", () => {
+      const logger = createMockLogger();
+      const subagent = CodewhaleSubagent.fromRulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: join(".codewhale", "agents"),
+        rulesyncSubagent: buildRulesyncSubagent({
+          frontmatter: {
+            codewhale: {
+              base_role: "explore",
+              tools: { posture: " read_only " },
+              permissions: { allow_shell: false, trust: false, approval_required: true },
+            },
+          },
+        }),
+        logger,
+      });
+
+      expect(smolToml.parse(subagent.getFileContent())).toEqual({
+        id: "planner",
+        display_name: "Planner",
+        description: "Plans tasks",
+        base_role: "explore",
+        tools: { posture: "read_only" },
+        permissions: { allow_shell: false, trust: false, approval_required: true },
+        instructions: { text: "Plan the work." },
+      });
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("should drop [tools] and [permissions] values that would widen access", () => {
+      const logger = createMockLogger();
+      const subagent = CodewhaleSubagent.fromRulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: join(".codewhale", "agents"),
+        rulesyncSubagent: buildRulesyncSubagent({
+          frontmatter: {
+            codewhale: {
+              tools: { posture: "full" },
+              permissions: {
+                allow_shell: true,
+                trust: true,
+                approval_required: false,
+                network: false,
+              },
+            },
+          },
+        }),
+        logger,
+      });
+
+      const parsed = smolToml.parse(subagent.getFileContent());
+      expect(parsed).not.toHaveProperty("tools");
+      expect(parsed).not.toHaveProperty("permissions");
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          ": tools.posture, permissions.allow_shell, permissions.trust, permissions.approval_required, permissions.network.",
+        ),
+      );
+    });
+
+    it("should keep the narrowing entries of a table and drop a non-table value", () => {
+      const logger = createMockLogger();
+      const subagent = CodewhaleSubagent.fromRulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: join(".codewhale", "agents"),
+        rulesyncSubagent: buildRulesyncSubagent({
+          frontmatter: {
+            codewhale: {
+              tools: "read-only",
+              permissions: { allow_shell: false, trust: true, toString: "x" },
+            },
+          },
+        }),
+        logger,
+      });
+
+      const parsed = smolToml.parse(subagent.getFileContent());
+      expect(parsed).not.toHaveProperty("tools");
+      expect(parsed.permissions).toEqual({ allow_shell: false });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(": tools, permissions.trust, permissions.toString."),
+      );
     });
 
     it("should normalize Codewhale's alias spellings to the canonical keys", () => {
@@ -251,6 +335,34 @@ describe("CodewhaleSubagent", () => {
       expect(subagent.toRulesyncSubagent().getFrontmatter().codewhale).toEqual({
         model: "deepseek-v4",
         reasoning_effort: "high",
+      });
+    });
+
+    it("should import the narrowing-only [tools] and [permissions] entries", async () => {
+      await writeFileContent(
+        join(testDir, ".codewhale", "agents", "reasoner.toml"),
+        [
+          'base_role = "explore"',
+          "",
+          "[tools]",
+          'posture = "read-only"',
+          "",
+          "[permissions]",
+          "allow_shell = false",
+          "trust = false",
+          "approval_required = false",
+        ].join("\n"),
+      );
+
+      const subagent = await CodewhaleSubagent.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "reasoner.toml",
+      });
+
+      expect(subagent.toRulesyncSubagent().getFrontmatter().codewhale).toEqual({
+        base_role: "explore",
+        tools: { posture: "read-only" },
+        permissions: { allow_shell: false, trust: false },
       });
     });
 
