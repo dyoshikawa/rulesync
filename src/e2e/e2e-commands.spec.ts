@@ -664,6 +664,67 @@ Check the PR diff and provide feedback.
     },
   );
 
+  it("should import antigravity-ide global workflows from the 2.0 and pre-2.0 directories", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+    await writeFileContent(
+      join(homeDir, ".gemini", "config", "workflows", "review-pr.md"),
+      "---\ndescription: Review a pull request\n---\nCurrent global workflow body\n",
+    );
+    await writeFileContent(
+      join(homeDir, ".gemini", "antigravity", "global_workflows", "review-pr.md"),
+      "---\ndescription: Old duplicate\n---\nShadowed workflow body\n",
+    );
+    await writeFileContent(
+      join(homeDir, ".gemini", "antigravity", "global_workflows", "deploy.md"),
+      "---\ndescription: Deploy\n---\nPre-2.0 global workflow body\n",
+    );
+
+    await runImport({
+      target: "antigravity-ide",
+      features: "commands",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const reviewPr = await readFileContent(
+      join(projectDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "review-pr.md"),
+    );
+    expect(reviewPr).toContain("Current global workflow body");
+    expect(reviewPr).not.toContain("Shadowed workflow body");
+    const deploy = await readFileContent(
+      join(projectDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "deploy.md"),
+    );
+    expect(deploy).toContain("Pre-2.0 global workflow body");
+  });
+
+  it("should sweep only the 2.0 antigravity-ide global workflows directory with --delete", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+    await writeFileContent(
+      join(projectDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "review-pr.md"),
+      '---\nroot: true\ndescription: "Review a pull request"\ntargets: ["*"]\n---\nReview it.\n',
+    );
+    const currentWorkflow = join(homeDir, ".gemini", "config", "workflows", "orphan.md");
+    const preV2Workflow = join(homeDir, ".gemini", "antigravity", "global_workflows", "orphan.md");
+    await writeFileContent(currentWorkflow, "---\ndescription: Orphan\n---\nOrphan\n");
+    await writeFileContent(preV2Workflow, "---\ndescription: Orphan\n---\nOrphan\n");
+
+    await runGenerate({
+      target: "antigravity-ide",
+      features: "commands",
+      global: true,
+      deleteFiles: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    expect(await fileExists(currentWorkflow)).toBe(false);
+    expect(await fileExists(preV2Workflow)).toBe(true);
+    expect(
+      await fileExists(join(homeDir, ".gemini", "config", "skills", "review-pr", "SKILL.md")),
+    ).toBe(true);
+  });
+
   it("should ignore non-root commands in global mode", async () => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();

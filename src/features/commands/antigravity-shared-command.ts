@@ -77,7 +77,7 @@ export class AntigravitySharedCommand extends ToolCommand {
     throw new Error("Please implement this method in the subclass.");
   }
 
-  /** Global-scope workflows directory under `~/.gemini/` (e.g. `.gemini/antigravity/global_workflows`). */
+  /** Global-scope workflows directory under `~/.gemini/` (e.g. `.gemini/config/workflows`). */
   protected static getGlobalRelativeDirPath(): string {
     throw new Error("Please implement this method in the subclass.");
   }
