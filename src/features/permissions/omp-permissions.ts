@@ -2,7 +2,12 @@ import { join } from "node:path";
 
 import { OMP_CONFIG_FILE_NAME, OMP_DIR, OMP_GLOBAL_DIR } from "../../constants/omp-paths.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
-import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
+import {
+  OMP_APPROVAL_MODES,
+  type OmpApprovalMode,
+  type PermissionAction,
+  type PermissionsConfig,
+} from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
@@ -37,6 +42,10 @@ type OmpApproval = "allow" | "prompt" | "deny";
 type OmpBashPattern = { match: string; approval: OmpApproval };
 
 const CATCH_ALL_PATTERN = "*";
+
+// The `tools` key holding oh-my-pi's approval mode, authored through the
+// `omp.approvalMode` override.
+const APPROVAL_MODE_KEY = "approvalMode";
 
 const ACTION_TO_OMP_APPROVAL: Record<PermissionAction, OmpApproval> = {
   allow: "allow",
@@ -110,10 +119,14 @@ const MANAGED_OMP_TOOLS: ReadonlySet<string> = new Set([
  *   commands, and its deny / ask also restrict every other tool's policy (a
  *   catch-all one at its own strictness, a pattern-specific one as `prompt`).
  *
+ * The `omp.approvalMode` override writes `tools.approvalMode` (`always-ask`,
+ * `write` or `yolo`); without it the key is left as it is in the file, and on
+ * import a recognized value is read back into the override.
+ *
  * `config.yml` carries every other oh-my-pi setting, so only `tools.approval`
- * (the keys rulesync manages) and `bash.patterns` are rewritten; sibling keys
- * such as `tools.approvalMode` and `bash.enabled` are kept, and the file is
- * never deleted.
+ * (the keys rulesync manages), `bash.patterns` and an authored
+ * `tools.approvalMode` are rewritten; sibling keys such as `bash.enabled` are
+ * kept, and the file is never deleted.
  *
  * @see https://github.com/can1357/oh-my-pi/blob/main/docs/settings.md
  * @see https://github.com/can1357/oh-my-pi/blob/main/docs/approval-mode.md
@@ -171,10 +184,9 @@ export class OmpPermissions extends ToolPermissions {
     const existingContent = (await readFileContentOrNull(filePath)) ?? "";
     const existing = parseSharedConfig({ format: "yaml", fileContent: existingContent, filePath });
 
-    const { approval, patterns, floor } = convertRulesyncToOmp({
-      config: rulesyncPermissions.getJson(),
-      logger,
-    });
+    const config = rulesyncPermissions.getJson();
+    const { approval, patterns, floor } = convertRulesyncToOmp({ config, logger });
+    const approvalMode = config.omp?.approvalMode;
 
     const existingTools = isRecord(existing.tools) ? existing.tools : {};
     // A kept key is still raised to the all-tools floor, so a hand-written
@@ -188,6 +200,9 @@ export class OmpPermissions extends ToolPermissions {
       : {};
     const nextApproval = { ...keptApproval, ...approval };
     const toolsSiblings = withoutKey(existingTools, "approval");
+    if (approvalMode !== undefined) {
+      toolsSiblings[APPROVAL_MODE_KEY] = approvalMode;
+    }
     const nextTools =
       Object.keys(nextApproval).length > 0
         ? { ...toolsSiblings, approval: nextApproval }
@@ -581,5 +596,15 @@ function convertOmpToRulesync(config: Record<string, unknown>): PermissionsConfi
     permission.bash = bashRules;
   }
 
-  return { permission };
+  const approvalMode = tools[APPROVAL_MODE_KEY];
+  return {
+    permission,
+    // oh-my-pi matches the mode exactly and falls back to `yolo` otherwise, so
+    // only a value it honors is carried into the override.
+    ...(isOmpApprovalMode(approvalMode) && { omp: { approvalMode } }),
+  };
+}
+
+function isOmpApprovalMode(value: unknown): value is OmpApprovalMode {
+  return OMP_APPROVAL_MODES.some((mode) => mode === value);
 }

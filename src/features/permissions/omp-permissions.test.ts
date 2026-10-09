@@ -331,6 +331,75 @@ describe("OmpPermissions", () => {
     });
   });
 
+  it("should write the omp.approvalMode override to tools.approvalMode", async () => {
+    await writeFileContent(
+      join(testDir, ".omp", "config.yml"),
+      ["tools:", "  approvalMode: yolo", "  maxTimeout: 30", ""].join("\n"),
+    );
+    const rulesyncPermissions = rulesyncPermissionsFrom({
+      permission: { read: { "*": "allow" } },
+      omp: { permission: { edit: { "*": "ask" } }, approvalMode: "always-ask" },
+    }).forTarget({ toolTarget: "omp" });
+
+    const permissions = await OmpPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    expect(loadYaml(permissions.getFileContent())).toEqual({
+      tools: {
+        approvalMode: "always-ask",
+        maxTimeout: 30,
+        approval: { read: "allow", edit: "prompt" },
+      },
+    });
+  });
+
+  it("should keep an existing tools.approvalMode when the override is not authored", async () => {
+    await writeFileContent(
+      join(testDir, ".omp", "config.yml"),
+      ["tools:", "  approvalMode: write", ""].join("\n"),
+    );
+
+    const permissions = await OmpPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: rulesyncPermissionsFrom({ permission: { read: { "*": "allow" } } }),
+    });
+
+    expect(loadYaml(permissions.getFileContent())).toEqual({
+      tools: { approvalMode: "write", approval: { read: "allow" } },
+    });
+  });
+
+  it("should write the approval mode even when no permission rules are authored", async () => {
+    const permissions = await OmpPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: rulesyncPermissionsFrom({
+        permission: {},
+        omp: { approvalMode: "write" },
+      }).forTarget({ toolTarget: "omp" }),
+    });
+
+    expect(loadYaml(permissions.getFileContent())).toEqual({ tools: { approvalMode: "write" } });
+  });
+
+  it("should import only an approval mode oh-my-pi honors into the omp override", async () => {
+    const importMode = (mode: string) =>
+      new OmpPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".omp",
+        relativeFilePath: "config.yml",
+        fileContent: ["tools:", `  approvalMode: ${mode}`, ""].join("\n"),
+      })
+        .toRulesyncPermissions()
+        .getJson();
+
+    expect(importMode("always-ask").omp).toEqual({ approvalMode: "always-ask" });
+    // oh-my-pi matches the mode exactly, so these fall back to its default.
+    expect(importMode("Write").omp).toBeUndefined();
+    expect(importMode("exec").omp).toBeUndefined();
+  });
+
   it("should refuse to rewrite a config.yml whose root is not a mapping", async () => {
     await writeFileContent(join(testDir, ".omp", "config.yml"), "- not a mapping\n");
 

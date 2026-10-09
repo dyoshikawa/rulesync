@@ -136,6 +136,26 @@ const CopilotPermissionsOverrideSchema = z.looseObject({
 });
 export type CopilotPermissionsOverride = z.infer<typeof CopilotPermissionsOverrideSchema>;
 
+/**
+ * oh-my-pi's `tools.approvalMode` values: the tool tiers it auto-approves
+ * before prompting. `always-ask` auto-approves only read-only tools, `write`
+ * also workspace writes, and `yolo` (oh-my-pi's default) every tier.
+ *
+ * @see https://github.com/can1357/oh-my-pi/blob/main/docs/approval-mode.md
+ */
+export const OMP_APPROVAL_MODES = ["always-ask", "write", "yolo"] as const;
+export type OmpApprovalMode = (typeof OMP_APPROVAL_MODES)[number];
+
+/**
+ * Tool-scoped override block for oh-my-pi (`omp`). `approvalMode` writes the
+ * `tools.approvalMode` key of `config.yml`, which has no canonical category.
+ */
+const OmpPermissionsOverrideSchema = z.looseObject({
+  permission: z.optional(ToolScopedPermissionSchema),
+  approvalMode: z.optional(z.enum(OMP_APPROVAL_MODES)),
+});
+export type OmpPermissionsOverride = z.infer<typeof OmpPermissionsOverrideSchema>;
+
 const KimiCodePermissionsOverrideSchema = z.looseObject({
   permission: z.optional(ToolScopedPermissionSchema),
   defaultPermissionMode: z.optional(z.enum(["manual", "yolo", "auto"])),
@@ -1407,7 +1427,7 @@ export const PermissionsConfigSchema = z.looseObject({
   copilotcli: z.optional(CanonicalPermissionsOverrideSchema),
   crush: z.optional(CanonicalPermissionsOverrideSchema),
   goose: z.optional(CanonicalPermissionsOverrideSchema),
-  omp: z.optional(CanonicalPermissionsOverrideSchema),
+  omp: z.optional(OmpPermissionsOverrideSchema),
   pool: z.optional(CanonicalPermissionsOverrideSchema),
   qoder: z.optional(CanonicalPermissionsOverrideSchema),
   grokcli: z.optional(CanonicalPermissionsOverrideSchema),
