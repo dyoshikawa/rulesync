@@ -322,9 +322,9 @@ const REASONIX_CONCURRENCY_VALUES: ReadonlySet<string> = new Set(["serial", "par
  * (`PluginEntry` in `internal/config/plugin_entry.go`, and
  * `internal/contract/config/plugin_entry.go` on the CLI v2 line).
  */
-const REASONIX_TYPED_PLUGIN_FIELDS: Readonly<
-  Record<string, "string" | "boolean" | "integer" | "integer table">
-> = {
+type ReasonixPluginFieldType = "string" | "boolean" | "integer" | "integer table";
+
+const REASONIX_TYPED_PLUGIN_FIELDS: Readonly<Record<string, ReasonixPluginFieldType>> = {
   startup_timeout_seconds: "integer",
   call_timeout_seconds: "integer",
   tool_timeout_seconds: "integer table",
@@ -342,10 +342,7 @@ function isTomlInteger(value: unknown): boolean {
   return typeof value === "number" && Number.isSafeInteger(value);
 }
 
-function hasExpectedType(
-  value: unknown,
-  expected: "string" | "boolean" | "integer" | "integer table",
-): boolean {
+function hasExpectedType(value: unknown, expected: ReasonixPluginFieldType): boolean {
   if (expected === "integer") {
     return isTomlInteger(value);
   }
