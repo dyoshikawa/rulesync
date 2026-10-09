@@ -128,6 +128,7 @@ export class AugmentcodeMcp extends ToolMcp {
 
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const existingContent = (await readFileContentOrNull(filePath)) ?? JSON.stringify({}, null, 2);
+    const mcpServers = rulesyncMcp.getMcpServers();
 
     return new AugmentcodeMcp({
       outputRoot,
@@ -137,7 +138,9 @@ export class AugmentcodeMcp extends ToolMcp {
         fileKey: sharedConfigFileKey(paths),
         feature: "mcp",
         existingContent,
-        patch: { mcpServers: rulesyncMcp.getMcpServers() },
+        // With no server left the key is retracted rather than left as an
+        // empty `mcpServers` object in the shared settings file.
+        patch: { mcpServers: Object.keys(mcpServers).length > 0 ? mcpServers : undefined },
         filePath,
         logger,
       }),
