@@ -90,7 +90,7 @@ function filterNarrowingTable(
   const dropped: string[] = [];
   for (const [key, entry] of Object.entries(value)) {
     const normalized = typeof entry === "string" ? entry.trim() : entry;
-    if (allowed[key]?.(normalized)) {
+    if (Object.hasOwn(allowed, key) && allowed[key]?.(normalized)) {
       kept[key] = normalized;
     } else {
       dropped.push(`${tableName}.${key}`);

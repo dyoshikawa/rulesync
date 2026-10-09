@@ -175,7 +175,10 @@ describe("CodewhaleSubagent", () => {
         relativeDirPath: join(".codewhale", "agents"),
         rulesyncSubagent: buildRulesyncSubagent({
           frontmatter: {
-            codewhale: { tools: "read-only", permissions: { allow_shell: false, trust: true } },
+            codewhale: {
+              tools: "read-only",
+              permissions: { allow_shell: false, trust: true, toString: "x" },
+            },
           },
         }),
         logger,
@@ -185,7 +188,7 @@ describe("CodewhaleSubagent", () => {
       expect(parsed).not.toHaveProperty("tools");
       expect(parsed.permissions).toEqual({ allow_shell: false });
       expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining(": tools, permissions.trust."),
+        expect.stringContaining(": tools, permissions.trust, permissions.toString."),
       );
     });
 
