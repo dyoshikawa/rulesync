@@ -6,10 +6,14 @@ import { GROKCLI_DIR, GROKCLI_MCP_FILE_NAME } from "../../constants/grokcli-path
 import { ValidationResult } from "../../types/ai-file.js";
 import { McpServers } from "../../types/mcp.js";
 import { readFileContentOrNull } from "../../utils/file.js";
-import { warnWithFallback } from "../../utils/logger.js";
+import { type Logger, warnWithFallback } from "../../utils/logger.js";
 import { PROTOTYPE_POLLUTION_KEYS } from "../../utils/prototype-pollution.js";
 import { isPlainObject, isRecord } from "../../utils/type-guards.js";
-import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
+import {
+  applySharedConfigPatch,
+  parseSharedConfig,
+  sharedConfigFileKey,
+} from "../shared/shared-config-gateway.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -23,13 +27,24 @@ import {
 const MAX_REMOVE_EMPTY_ENTRIES_DEPTH = 32;
 
 /**
+ * Grok keeps per-server MCP tool deny lists in a top-level
+ * `[disabled_mcp_tools]` table (`map<server, string[]>` of unqualified tool
+ * names), not inside `[mcp_servers.<name>]`. Grok reads it from the user
+ * `~/.grok/config.toml` only: a project `.grok/config.toml` contributes just
+ * `[mcp_servers]`, `[plugins]`, `[permission]` and `[mcp] max_output_bytes`.
+ * https://github.com/xai-org/grok-build/blob/2bdd1d6a/crates/codegen/xai-grok-pager/docs/user-guide/26-config-reference.md
+ */
+const GROK_DISABLED_MCP_TOOLS_KEY = "disabled_mcp_tools";
+
+/**
  * Grok Build stores MCP servers in `config.toml` under a `[mcp_servers.<name>]`
  * table. Verified against `grok mcp add` (grok 0.2.54): a stdio server emits
  * `command`, `args`, `enabled = true`, and an `[mcp_servers.<name>.env]` table;
  * a remote server emits `url` and `enabled`. Unlike Codex CLI, Grok uses a
- * literal `env` table (not the `env_vars` passthrough list) and has no
- * per-server tool allow/deny lists, so the only field rename is
- * `disabled` (rulesync) ↔ `enabled = false` (grok).
+ * literal `env` table (not the `env_vars` passthrough list), so the only field
+ * rename is `disabled` (rulesync) ↔ `enabled = false` (grok). `disabledTools`
+ * never lands in the server table: it is lifted into the top-level
+ * `[disabled_mcp_tools]` table by `buildDisabledMcpTools`.
  */
 function convertToGrokFormat(mcpServers: McpServers): Record<string, unknown> {
   const result: Record<string, Record<string, unknown>> = {};
@@ -39,7 +54,7 @@ function convertToGrokFormat(mcpServers: McpServers): Record<string, unknown> {
     if (!isRecord(config)) continue;
     const converted: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(config)) {
-      if (PROTOTYPE_POLLUTION_KEYS.has(key)) continue;
+      if (PROTOTYPE_POLLUTION_KEYS.has(key) || key === "disabledTools") continue;
       if (key === "disabled") {
         if (value === true) {
           converted["enabled"] = false;
@@ -76,6 +91,57 @@ function convertFromGrokFormat(grokMcp: Record<string, unknown>): McpServers {
   }
 
   return result;
+}
+
+function toToolNameList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((tool): tool is string => typeof tool === "string");
+}
+
+/**
+ * Recompute the global `[disabled_mcp_tools]` table: every server Rulesync
+ * declares gets its `disabledTools` (or loses a stale entry when it has none —
+ * Grok itself removes an entry whose list empties), while entries for other
+ * servers — ones toggled in Grok's `/mcps` UI, plugin or compat servers, and
+ * the `__managed_gateway_connectors` sentinel — are carried over untouched.
+ * Returns `undefined` when nothing is left, so the key is retracted.
+ */
+function buildDisabledMcpTools({
+  mcpServers,
+  existingContent,
+  filePath,
+}: {
+  mcpServers: McpServers;
+  existingContent: string;
+  filePath: string;
+}): Record<string, string[]> | undefined {
+  const existing = parseSharedConfig({ format: "toml", fileContent: existingContent, filePath })[
+    GROK_DISABLED_MCP_TOOLS_KEY
+  ];
+  const result: Record<string, unknown> = isRecord(existing) ? { ...existing } : {};
+
+  for (const [name, config] of Object.entries(mcpServers)) {
+    if (PROTOTYPE_POLLUTION_KEYS.has(name) || !isRecord(config)) continue;
+    const tools = toToolNameList(config.disabledTools);
+    if (tools.length > 0) {
+      result[name] = tools;
+    } else {
+      delete result[name];
+    }
+  }
+
+  return Object.keys(result).length > 0 ? (result as Record<string, string[]>) : undefined;
+}
+
+function warnProjectDisabledTools(mcpServers: McpServers, logger: Logger | undefined): void {
+  const serverNames = Object.entries(mcpServers)
+    .filter(([, config]) => isRecord(config) && config.disabledTools !== undefined)
+    .map(([name]) => name);
+  if (serverNames.length === 0) return;
+  warnWithFallback(
+    logger,
+    `grokcli reads per-server \`disabledTools\` only from the user ~/.grok/config.toml ([disabled_mcp_tools]); dropping it from ${serverNames.join(", ")} in project mode. Generate with --global to apply it.`,
+  );
 }
 
 export class GrokcliMcp extends ToolMcp {
@@ -135,6 +201,7 @@ export class GrokcliMcp extends ToolMcp {
       relativeFilePath: paths.relativeFilePath,
       fileContent,
       validate,
+      global,
     });
   }
 
@@ -143,6 +210,7 @@ export class GrokcliMcp extends ToolMcp {
     rulesyncMcp,
     validate = true,
     global = false,
+    logger,
   }: ToolMcpFromRulesyncMcpParams): Promise<GrokcliMcp> {
     const paths = this.getSettablePaths({ global });
 
@@ -153,10 +221,14 @@ export class GrokcliMcp extends ToolMcp {
     const converted = convertToGrokFormat(strippedMcpServers);
     const filteredMcpServers = this.removeEmptyEntries(converted);
 
+    if (!global) {
+      warnProjectDisabledTools(strippedMcpServers, logger);
+    }
+
     for (const name of Object.keys(converted)) {
       if (!Object.hasOwn(filteredMcpServers, name)) {
         warnWithFallback(
-          undefined,
+          logger,
           `MCP server "${name}" had no non-empty configuration and was dropped from the grok CLI config`,
         );
       }
@@ -175,16 +247,40 @@ export class GrokcliMcp extends ToolMcp {
         // no longer generates.
         patch: {
           mcp_servers: Object.keys(filteredMcpServers).length > 0 ? filteredMcpServers : undefined,
+          // Only the user config is read for this key, so a project generate
+          // leaves whatever the project file states alone.
+          ...(global && {
+            [GROK_DISABLED_MCP_TOOLS_KEY]: buildDisabledMcpTools({
+              mcpServers: strippedMcpServers,
+              existingContent: configTomlFileContent,
+              filePath: configTomlFilePath,
+            }),
+          }),
         },
         filePath: configTomlFilePath,
       }),
       validate,
+      global,
     });
   }
 
   toRulesyncMcp(): RulesyncMcp {
     const mcpServers = (this.toml.mcp_servers ?? {}) as Record<string, unknown>;
     const converted = convertFromGrokFormat(mcpServers);
+
+    // Mirror of generate: the deny lists are read back in global mode only,
+    // and only for servers this file declares (the managed-gateway sentinel
+    // and entries for servers defined elsewhere have no server to attach to).
+    const disabledMcpTools = this.toml[GROK_DISABLED_MCP_TOOLS_KEY];
+    if (this.global && isRecord(disabledMcpTools)) {
+      for (const [name, config] of Object.entries(converted)) {
+        if (!Object.hasOwn(disabledMcpTools, name)) continue;
+        const tools = toToolNameList(disabledMcpTools[name]);
+        if (tools.length > 0) {
+          converted[name] = { ...config, disabledTools: tools };
+        }
+      }
+    }
 
     return this.toRulesyncMcpDefault({
       fileContent: JSON.stringify({ mcpServers: converted }, null, 2),
