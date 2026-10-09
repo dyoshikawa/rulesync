@@ -113,6 +113,13 @@ describe("update", () => {
     it("should strip pre-release suffix with leading v", () => {
       expect(normalizeVersion("v1.2.3-rc.1")).toBe("1.2.3");
     });
+
+    it.each(["1.2.3+001", "v1.2.3+exp.sha.5114f85", "1.2.3+build-with-hyphens"])(
+      "should strip build metadata from %s",
+      (version) => {
+        expect(normalizeVersion(version)).toBe("1.2.3");
+      },
+    );
   });
 
   describe("compareVersions", () => {
@@ -150,6 +157,15 @@ describe("update", () => {
 
     it("should strip pre-release suffixes before comparing", () => {
       expect(compareVersions("1.2.3-beta.1", "1.2.3")).toBe(0);
+    });
+
+    it.each([
+      ["1.2.3+001", "1.2.3+002", 0],
+      ["1.2.3+exp.sha.5114f85", "1.2.3", 0],
+      ["1.2.4", "1.2.3+001", 1],
+      ["1.2.3+001", "1.2.4", -1],
+    ])("should ignore build metadata when comparing %s and %s", (a, b, expected) => {
+      expect(compareVersions(a, b)).toBe(expected);
     });
 
     it("should throw on invalid version format", () => {
@@ -402,6 +418,16 @@ describe("update", () => {
   });
 
   describe("checkForUpdate", () => {
+    it("should check patch updates for a current version with build metadata", async () => {
+      await mockGetLatestRelease(createMockRelease({ tagName: "v1.2.4" }));
+
+      const result = await checkForUpdate("1.2.3+local.1");
+
+      expect(result.currentVersion).toBe("1.2.3");
+      expect(result.latestVersion).toBe("1.2.4");
+      expect(result.hasUpdate).toBe(true);
+    });
+
     it("should detect when an update is available", async () => {
       await mockGetLatestRelease(createMockRelease({ tagName: "v2.0.0", assets: [] }));
 
