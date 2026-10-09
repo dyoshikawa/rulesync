@@ -1183,6 +1183,48 @@ describe("ClaudecodePermissions", () => {
       expect(JSON.parse(instance.getFileContent()).spellcheck).toBe(true);
     });
 
+    it.each([false, true])(
+      "drops a key Claude Code removed and names the removing version (global: %s)",
+      async (global) => {
+        const mockLogger = createMockLogger();
+        const warnSpy = vi.spyOn(mockLogger, "warn");
+        const removed = {
+          permissionExplainerEnabled: "v2.1.257",
+          taskOutputMaxChars: "v2.1.277",
+          teammateDefaultModel: "v2.1.234",
+        };
+        const rulesyncPermissions = new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: { bash: { "git *": "allow" } },
+            claudecode: {
+              permissionExplainerEnabled: false,
+              taskOutputMaxChars: 50000,
+              teammateDefaultModel: "sonnet",
+            },
+          }),
+        });
+
+        const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+          outputRoot: testDir,
+          rulesyncPermissions,
+          global,
+          logger: mockLogger,
+        });
+
+        const content = JSON.parse(instance.getFileContent());
+        for (const [key, version] of Object.entries(removed)) {
+          expect(content[key]).toBeUndefined();
+          expect(warnSpy).toHaveBeenCalledWith(
+            expect.stringContaining(`'${key}' was removed in Claude Code ${version}`),
+          );
+        }
+        expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining("is only honored in"));
+        expect(content.permissions.allow).toEqual(["Bash(git *)"]);
+      },
+    );
+
     it("drops a managed-only or ~/.claude.json key in both scopes and warns", async () => {
       const mockLogger = createMockLogger();
       const warnSpy = vi.spyOn(mockLogger, "warn");

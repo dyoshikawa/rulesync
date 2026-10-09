@@ -694,7 +694,6 @@ const CLAUDECODE_UNHONORED_KEY_SOURCES: Readonly<Record<string, string>> = {
   managedSourcesBehavior: "managed settings",
   modelPricing: "managed settings",
   parentSettingsBehavior: "managed settings",
-  permissionExplainerEnabled: "~/.claude.json",
   pluginSuggestionMarketplaces: "managed settings",
   pluginTrustMessage: "managed settings",
   prStatusFooterEnabled: "~/.claude.json",
@@ -703,8 +702,23 @@ const CLAUDECODE_UNHONORED_KEY_SOURCES: Readonly<Record<string, string>> = {
   sshHostAllowlist: "managed settings",
   strictKnownMarketplaces: "managed settings",
   strictPluginOnlyCustomization: "managed settings",
-  teammateDefaultModel: "~/.claude.json",
   wslInheritsWindowsSettings: "managed settings",
+};
+
+/**
+ * Top-level settings keys Claude Code has removed, with the version that
+ * removed each. Current versions ignore them wherever they are set, so they
+ * are dropped in **both** scopes, and the warning names the version so the
+ * author knows to delete the key rather than move it to another file.
+ *
+ * Derived from the "Removed in" notes of the settings reference.
+ *
+ * @see https://code.claude.com/docs/en/settings-reference
+ */
+const CLAUDECODE_REMOVED_KEYS: Readonly<Record<string, string>> = {
+  permissionExplainerEnabled: "v2.1.257",
+  taskOutputMaxChars: "v2.1.277",
+  teammateDefaultModel: "v2.1.234",
 };
 
 /**
@@ -1066,6 +1080,29 @@ const CLAUDECODE_SETTINGS_KEY_ALIASES: Readonly<Record<string, string>> = {
 };
 
 /**
+ * The warning for a key that neither scope can honor — one Claude Code has
+ * removed, or one read only from a file rulesync does not generate — or
+ * `undefined` when the key may be written in at least one scope.
+ */
+function neverHonoredKeyWarning({
+  canonicalKey,
+  shown,
+  relativeFilePath,
+}: {
+  canonicalKey: string;
+  shown: string;
+  relativeFilePath: string;
+}): string | undefined {
+  if (Object.hasOwn(CLAUDECODE_REMOVED_KEYS, canonicalKey)) {
+    return `Claude Code permissions: '${shown}' was removed in Claude Code ${CLAUDECODE_REMOVED_KEYS[canonicalKey]} and has no effect on current versions, so it is not written to ${relativeFilePath}. Delete it from .rulesync/permissions.jsonc, and check ${relativeFilePath} for a stale value an earlier generate may have left there.`;
+  }
+  if (Object.hasOwn(CLAUDECODE_UNHONORED_KEY_SOURCES, canonicalKey)) {
+    return `Claude Code permissions: '${shown}' is only honored in ${CLAUDECODE_UNHONORED_KEY_SOURCES[canonicalKey]}, which rulesync does not generate, so it is not written to ${relativeFilePath}. Set it in that file by hand, and check ${relativeFilePath} for a stale value an earlier generate may have left there.`;
+  }
+  return undefined;
+}
+
+/**
  * Copy of the authored top-level passthrough with the keys the target file
  * cannot honor removed, warning once per dropped key. Like
  * `stripSandboxPaths`, only the override copy is filtered — a value
@@ -1098,10 +1135,9 @@ function stripUnhonoredTopLevelKeys({
       );
       continue;
     }
-    if (Object.hasOwn(CLAUDECODE_UNHONORED_KEY_SOURCES, canonicalKey)) {
-      logger?.warn(
-        `Claude Code permissions: '${shown}' is only honored in ${CLAUDECODE_UNHONORED_KEY_SOURCES[canonicalKey]}, which rulesync does not generate, so it is not written to ${relativeFilePath}. Set it in that file by hand, and check ${relativeFilePath} for a stale value an earlier generate may have left there.`,
-      );
+    const neverHonored = neverHonoredKeyWarning({ canonicalKey, shown, relativeFilePath });
+    if (neverHonored !== undefined) {
+      logger?.warn(neverHonored);
       continue;
     }
     if (!global && CLAUDECODE_USER_SCOPE_ONLY_KEYS.has(canonicalKey)) {
