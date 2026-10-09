@@ -152,6 +152,53 @@ describe("WarpcliPermissions", () => {
       });
     });
 
+    it("writes the auto-approve bypass key to [agents.warp_agent.other], keeping siblings", async () => {
+      await writeSettings("[agents.warp_agent.other]\nshow_conversation_history = false\n");
+      const logger = createMockLogger();
+
+      const perms = await WarpcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          permission: { bash: { "^rm .*$": "deny" } },
+          warpcli: { auto_approve_bypasses_command_denylist: false },
+        }),
+        logger,
+        global: true,
+      });
+
+      expect(smolToml.parse(perms.getFileContent())).toEqual({
+        agents: {
+          warp_agent: {
+            other: {
+              show_conversation_history: false,
+              auto_approve_bypasses_command_denylist: false,
+            },
+          },
+          execution_profiles: { default: { command_denylist: ["^rm .*$"] } },
+        },
+      });
+      const messages = logger.warn.mock.calls.map(([message]) => String(message));
+      expect(messages.some((m) => m.includes("replaces its built-in default"))).toBe(true);
+      expect(messages.some((m) => m.includes("auto_approve_bypasses_command_denylist"))).toBe(
+        false,
+      );
+    });
+
+    it("warns that auto-approve bypasses the written denylist while the bypass is on", async () => {
+      const logger = createMockLogger();
+
+      await WarpcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({ permission: { bash: { "^rm .*$": "deny" } } }),
+        logger,
+        global: true,
+      });
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("warpcli.auto_approve_bypasses_command_denylist is set to false"),
+      );
+    });
+
     it("drops stale command lists when no rule maps", async () => {
       await writeSettings("[agents.execution_profiles.default]\ncommand_denylist = ['^old$']\n");
 
@@ -192,6 +239,17 @@ describe("WarpcliPermissions", () => {
       expect(json.permission).toEqual({ bash: { "^git .*$": "allow", "^rm .*$": "deny" } });
       expect(json.warpcli).toEqual({ execution_profile: { read_files: "always_allow" } });
       expect(json.warp).toBeUndefined();
+    });
+
+    it("lifts the auto-approve bypass key into the warpcli override", async () => {
+      await writeSettings(
+        "[agents.warp_agent.other]\nauto_approve_bypasses_command_denylist = true\n",
+      );
+
+      const perms = await WarpcliPermissions.fromFile({ outputRoot: testDir, global: true });
+      const json = JSON.parse(perms.toRulesyncPermissions().getFileContent());
+
+      expect(json.warpcli).toEqual({ auto_approve_bypasses_command_denylist: true });
     });
 
     it("imports nothing from a missing settings file", async () => {
@@ -236,6 +294,20 @@ describe("WarpcliPermissions", () => {
 
       expect(smolToml.parse(await readFileContent(settingsPath()))).toEqual({
         agents: { execution_profiles: { default: { run_agents: "always_ask" } } },
+      });
+    });
+
+    it("writes settings.toml when only the auto-approve bypass key maps", async () => {
+      await generate({
+        permission: {},
+        warpcli: { auto_approve_bypasses_command_denylist: false },
+      });
+
+      expect(smolToml.parse(await readFileContent(settingsPath()))).toEqual({
+        agents: {
+          warp_agent: { other: { auto_approve_bypasses_command_denylist: false } },
+          execution_profiles: { default: {} },
+        },
       });
     });
 

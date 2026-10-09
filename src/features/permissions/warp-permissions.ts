@@ -68,6 +68,16 @@ const WARP_OVERRIDE_KEYS = [
 // model overrides, context window limit, plan sync, web search toggle) are
 // deliberately not lifted — they are not permissions.
 export const WARP_EXECUTION_PROFILE_OVERRIDE_KEY = "execution_profile";
+
+// Whether auto-approve may run commands that match the command denylist. Warp
+// defaults it to `true`, so a rulesync-written denylist is bypassed under
+// auto-approve unless this is `false`. It is not an execution-profile field
+// but lives in the sibling `[agents.warp_agent.other]` table, read by both the
+// app and the Agent CLI.
+// https://docs.warp.dev/agents/cli/permissions-and-profiles/
+export const WARP_AUTO_APPROVE_BYPASS_KEY = "auto_approve_bypasses_command_denylist";
+const WARP_AGENT_KEY = "warp_agent";
+const WARP_AGENT_OTHER_KEY = "other";
 const WARP_EXECUTION_PROFILE_KEYS = [
   "read_files",
   "apply_code_diffs",
@@ -256,8 +266,11 @@ export class WarpPermissions extends ToolPermissions {
         ? override[WARP_EXECUTION_PROFILE_OVERRIDE_KEY]
         : undefined;
     if (isRecord(override)) {
-      const { [WARP_EXECUTION_PROFILE_OVERRIDE_KEY]: _executionProfile, ...legacyOverride } =
-        override;
+      const {
+        [WARP_EXECUTION_PROFILE_OVERRIDE_KEY]: _executionProfile,
+        [WARP_AUTO_APPROVE_BYPASS_KEY]: _autoApproveBypass,
+        ...legacyOverride
+      } = override;
       Object.assign(profiles, legacyOverride);
     }
 
@@ -276,7 +289,17 @@ export class WarpPermissions extends ToolPermissions {
 
     agents.profiles = profiles;
 
-    warnAboutDenylistReplacement({ toolLabel: "Warp", denyCount: mergedDeny.length, logger });
+    // An ordinary setting, not part of Warp's execution-profile migration, so
+    // it is written regardless of the collection-exists guard below.
+    applyAutoApproveBypassOverride({ agents, override });
+
+    warnAboutDenylistReplacement({
+      toolLabel: "Warp",
+      overrideKey: "warp",
+      denyCount: mergedDeny.length,
+      autoApproveBypassesDenylist: readAutoApproveBypass(agents),
+      logger,
+    });
 
     mergeIntoDefaultExecutionProfile({
       agents,
@@ -359,6 +382,11 @@ export class WarpPermissions extends ToolPermissions {
       warpOverride[WARP_EXECUTION_PROFILE_OVERRIDE_KEY] = executionProfileOverride;
     }
 
+    const autoApproveBypass = readAutoApproveBypass(agents);
+    if (autoApproveBypass !== undefined) {
+      warpOverride[WARP_AUTO_APPROVE_BYPASS_KEY] = autoApproveBypass;
+    }
+
     const result: Record<string, unknown> = { ...config };
     if (Object.keys(warpOverride).length > 0) {
       result.warp = warpOverride;
@@ -391,27 +419,77 @@ export class WarpPermissions extends ToolPermissions {
 
 /**
  * Writing `command_denylist` at all replaces Warp's built-in default denylist,
- * so any non-empty list rulesync writes deserves a heads-up.
+ * so any non-empty list rulesync writes deserves a heads-up. Unless
+ * `auto_approve_bypasses_command_denylist` is `false`, auto-approve also runs
+ * commands that match the list, so the warning says so.
  * https://docs.warp.dev/agents/cli/permissions-and-profiles/
  */
 export function warnAboutDenylistReplacement({
   toolLabel,
+  overrideKey,
   denyCount,
+  autoApproveBypassesDenylist,
   logger,
 }: {
   toolLabel: string;
+  overrideKey: "warp" | "warpcli";
   denyCount: number;
+  autoApproveBypassesDenylist: boolean | undefined;
   logger?: Logger;
 }): void {
   if (denyCount === 0 || !logger) {
     return;
   }
+  const bypassNote =
+    autoApproveBypassesDenylist === false
+      ? ""
+      : ` Auto-approve also runs commands that match the denylist unless ` +
+        `${overrideKey}.${WARP_AUTO_APPROVE_BYPASS_KEY} is set to false.`;
   logger.warn(
     `${toolLabel}'s command_denylist replaces its built-in default denylist, which covers rm, curl, ` +
       `wget, eval, ssh, shells, and other risky command patterns. The ${denyCount} ` +
       `deny rule(s) from .rulesync/permissions.jsonc are now the whole denylist — add ` +
-      `equivalents for the built-in patterns you want to keep.`,
+      `equivalents for the built-in patterns you want to keep.${bypassNote}`,
   );
+}
+
+/**
+ * Write the override's `auto_approve_bypasses_command_denylist` into
+ * `[agents.warp_agent.other]`, keeping every sibling key of `agents.warp_agent`
+ * and of its `other` table. Nothing is written when the override omits it.
+ */
+export function applyAutoApproveBypassOverride({
+  agents,
+  override,
+}: {
+  agents: Record<string, unknown>;
+  override: unknown;
+}): void {
+  if (!isRecord(override)) {
+    return;
+  }
+  const value = override[WARP_AUTO_APPROVE_BYPASS_KEY];
+  if (typeof value !== "boolean") {
+    return;
+  }
+  const warpAgent = isRecord(agents[WARP_AGENT_KEY]) ? { ...agents[WARP_AGENT_KEY] } : {};
+  const other = isRecord(warpAgent[WARP_AGENT_OTHER_KEY])
+    ? { ...warpAgent[WARP_AGENT_OTHER_KEY] }
+    : {};
+  other[WARP_AUTO_APPROVE_BYPASS_KEY] = value;
+  warpAgent[WARP_AGENT_OTHER_KEY] = other;
+  agents[WARP_AGENT_KEY] = warpAgent;
+}
+
+/**
+ * Read `[agents.warp_agent.other] auto_approve_bypasses_command_denylist`, or
+ * `undefined` when it is unset (Warp then defaults to `true`).
+ */
+export function readAutoApproveBypass(agents: Record<string, unknown>): boolean | undefined {
+  const warpAgent = agents[WARP_AGENT_KEY];
+  const other = isRecord(warpAgent) ? warpAgent[WARP_AGENT_OTHER_KEY] : undefined;
+  const value = isRecord(other) ? other[WARP_AUTO_APPROVE_BYPASS_KEY] : undefined;
+  return typeof value === "boolean" ? value : undefined;
 }
 
 /**
