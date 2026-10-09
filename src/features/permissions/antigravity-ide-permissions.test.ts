@@ -117,6 +117,25 @@ describe("AntigravityIdePermissions", () => {
       expect(json.permissions.deny).toEqual(["command(git push)"]);
     });
 
+    it("drops entries that two patterns translate to", async () => {
+      const perms = await AntigravityIdePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          edit: { "src/**": "allow" },
+          write: { "src/**": "allow" },
+          bash: {
+            "npm run *": "allow",
+            "npm   run *": "allow",
+            "git push * --force": "deny",
+            "git push * -f": "deny",
+          },
+        }),
+      });
+      const json = JSON.parse(perms.getFileContent());
+      expect(json.permissions.allow).toEqual(["command(npm run)", "write_file(src)"]);
+      expect(json.permissions.deny).toEqual(["command(git push)"]);
+    });
+
     it("still skips a deny with no literal word to widen to", async () => {
       const perms = await AntigravityIdePermissions.fromRulesyncPermissions({
         outputRoot: testDir,

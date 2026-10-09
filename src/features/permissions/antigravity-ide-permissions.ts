@@ -284,7 +284,9 @@ function convertRulesyncToAntigravityIdePermissions({
     }
   }
 
-  return { allow, ask, deny };
+  // Two patterns can translate to the same entry (`npm run *` and
+  // `npm   run *`, or two denies widened to the same words), so drop repeats.
+  return { allow: [...new Set(allow)], ask: [...new Set(ask)], deny: [...new Set(deny)] };
 }
 
 /**
