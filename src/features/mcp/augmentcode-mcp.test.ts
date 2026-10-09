@@ -49,6 +49,32 @@ describe("AugmentcodeMcp", () => {
   });
 
   describe("fromRulesyncMcp", () => {
+    it("should retract mcpServers when no server is left, keeping unrelated keys", async () => {
+      await writeFileContent(
+        settingsPath(),
+        JSON.stringify({
+          toolPermissions: [{ "tool-name": "shell", permission: "allow" }],
+          mcpServers: { old: { command: "old" } },
+        }),
+      );
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({ mcpServers: {} }),
+      });
+
+      const mcp = await AugmentcodeMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: false,
+      });
+
+      expect(mcp.getJson()).toEqual({
+        toolPermissions: [{ "tool-name": "shell", permission: "allow" }],
+      });
+    });
+
     it("should merge mcpServers into the workspace settings.json at project scope", async () => {
       await writeFileContent(
         settingsPath(),

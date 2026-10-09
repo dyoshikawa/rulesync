@@ -38,6 +38,24 @@ describe("GrokcliMcp", () => {
   });
 
   describe("fromRulesyncMcp", () => {
+    it("retracts mcp_servers when no server is left, keeping unrelated keys", async () => {
+      await writeFileContent(
+        join(testDir, ".grok", "config.toml"),
+        'model = "grok-4"\n\n[mcp_servers.old]\ncommand = "old"\n',
+      );
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({ mcpServers: {} }),
+      });
+
+      const grokcliMcp = await GrokcliMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+
+      // An empty `[mcp_servers]` table would leave a managed key behind that
+      // states nothing; the key is removed and the user's `model` survives.
+      expect(grokcliMcp.getToml()).toEqual({ model: "grok-4" });
+    });
+
     it("emits a [mcp_servers.<name>] table for a stdio server with args and env", async () => {
       const rulesyncMcp = new RulesyncMcp({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
