@@ -100,4 +100,15 @@ describe("MimocodeMcp", () => {
       "~/.config/mimocode/memories/style.md",
     ]);
   });
+
+  it("should not read the OpenCode V2 mcp.servers envelope, which MiMo Code does not lower", async () => {
+    await writeFileContent(
+      join(testDir, ".mimocode", "mimocode.json"),
+      JSON.stringify({
+        mcp: { servers: { nested: { type: "local", command: ["a"] } } },
+      }),
+    );
+
+    await expect(MimocodeMcp.fromFile({ outputRoot: testDir })).rejects.toThrow();
+  });
 });

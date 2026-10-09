@@ -9,7 +9,7 @@ import {
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
-import { isOpencodeTransportServer, OpencodeMcp } from "./opencode-mcp.js";
+import { isOpencodeTransportServer, lowerOpencodeV2Mcp, OpencodeMcp } from "./opencode-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 
 describe("OpencodeMcp", () => {
@@ -2916,5 +2916,152 @@ describe("OpencodeMcp", () => {
     expect(opencodeMcp.getFileContent()).toContain("// Why this project pins its own server list.");
     expect(Object.keys(opencodeMcp.getJson().mcp ?? {})).toEqual(["fresh"]);
     expect(opencodeMcp.validate().success).toBe(true);
+  });
+
+  describe("OpenCode V2 mcp spellings", () => {
+    it("should merge the mcp.servers envelope into the flat map, a flat entry winning", () => {
+      expect(
+        lowerOpencodeV2Mcp({
+          flat: { type: "local", command: ["a"] },
+          servers: {
+            flat: { type: "local", command: ["shadowed"] },
+            nested: { type: "remote", url: "https://example.com/mcp" },
+          },
+        }),
+      ).toEqual({
+        flat: { type: "local", command: ["a"] },
+        nested: { type: "remote", url: "https://example.com/mcp", enabled: true },
+      });
+    });
+
+    it("should keep a server literally named servers or timeout", () => {
+      const mcp = {
+        servers: { type: "local", command: ["s"] },
+        timeout: { type: "remote", url: "https://example.com/mcp" },
+      };
+      expect(lowerOpencodeV2Mcp(mcp)).toEqual(mcp);
+    });
+
+    it("should skip the global mcp.timeout object", () => {
+      expect(
+        lowerOpencodeV2Mcp({
+          timeout: { catalog: 5000, execution: 5000 },
+          servers: { a: { type: "local", command: ["a"] } },
+        }),
+      ).toEqual({ a: { type: "local", command: ["a"], enabled: true } });
+    });
+
+    it("should lower disabled, timeout objects and snake_case oauth keys like OpenCode V1", () => {
+      expect(
+        lowerOpencodeV2Mcp({
+          servers: {
+            off: { type: "local", command: ["a"], disabled: true, timeout: {} },
+            same: {
+              type: "remote",
+              url: "https://example.com/mcp",
+              timeout: { catalog: 9000, execution: 9000 },
+              oauth: { client_id: "id", callback_port: 1234, scope: "read" },
+              codemode: true,
+            },
+            startup: {
+              type: "local",
+              command: ["b"],
+              timeout: { startup: 1000, catalog: 9000, execution: 9000 },
+            },
+            differs: { type: "local", command: ["c"], timeout: { catalog: 1, execution: 2 } },
+            toggle: { enabled: false },
+          },
+        }),
+      ).toEqual({
+        off: { type: "local", command: ["a"], enabled: false },
+        same: {
+          type: "remote",
+          url: "https://example.com/mcp",
+          enabled: true,
+          timeout: 9000,
+          oauth: { clientId: "id", callbackPort: 1234, scope: "read" },
+          codemode: true,
+        },
+        startup: { type: "local", command: ["b"], enabled: true },
+        differs: { type: "local", command: ["c"], enabled: true },
+        toggle: { enabled: false },
+      });
+    });
+
+    it("should lower a V2-spelled flat entry and let an explicit enabled win over disabled", () => {
+      expect(
+        lowerOpencodeV2Mcp({
+          a: { type: "local", command: ["a"], disabled: true },
+          b: { type: "local", command: ["b"], enabled: true, disabled: true },
+          c: { type: "local", command: ["c"], timeout: 3000 },
+        }),
+      ).toEqual({
+        a: { type: "local", command: ["a"], enabled: false },
+        b: { type: "local", command: ["b"], enabled: true },
+        c: { type: "local", command: ["c"], timeout: 3000 },
+      });
+    });
+
+    it("should not set the prototype from a server named __proto__", () => {
+      const lowered = lowerOpencodeV2Mcp(
+        JSON.parse('{"servers":{"__proto__":{"type":"local","command":["x"]}}}'),
+      ) as Record<string, unknown>;
+      expect(Object.getPrototypeOf(lowered)).toBe(Object.prototype);
+      expect(Object.hasOwn(lowered, "__proto__")).toBe(true);
+    });
+
+    it("should import a V2-shaped opencode.json", async () => {
+      await writeFileContent(
+        join(testDir, "opencode.json"),
+        JSON.stringify({
+          mcp: {
+            timeout: { catalog: 5000, execution: 5000 },
+            servers: {
+              fs: {
+                type: "local",
+                command: ["npx", "fs-server"],
+                environment: { TOKEN: "{env:TOKEN}" },
+                disabled: true,
+                timeout: { catalog: 8000, execution: 8000 },
+              },
+              docs: { type: "remote", url: "https://example.com/mcp" },
+            },
+          },
+          tools: { fs_write: false },
+        }),
+      );
+
+      const opencodeMcp = await OpencodeMcp.fromFile({ outputRoot: testDir });
+      const servers = JSON.parse(opencodeMcp.toRulesyncMcp().getFileContent()).mcpServers;
+
+      expect(servers).toEqual({
+        fs: {
+          type: "stdio",
+          command: "npx",
+          args: ["fs-server"],
+          env: { TOKEN: "${TOKEN}" },
+          disabled: true,
+          timeout: 8000,
+          disabledTools: ["write"],
+        },
+        docs: { type: "sse", url: "https://example.com/mcp" },
+      });
+    });
+
+    it("should keep a toggle under the mcp.servers envelope on generate", async () => {
+      await writeFileContent(
+        join(testDir, "opencode.json"),
+        JSON.stringify({ mcp: { servers: { shared: { enabled: false } } } }),
+      );
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({ mcpServers: { shared: {} } }),
+      });
+
+      const opencodeMcp = await OpencodeMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+
+      expect(opencodeMcp.getJson().mcp).toEqual({ shared: { enabled: false } });
+    });
   });
 });
