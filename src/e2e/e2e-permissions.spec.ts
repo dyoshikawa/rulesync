@@ -1464,6 +1464,7 @@ web_search_request = true
       read: { "*": "allow" },
       agent: { "*": "ask" },
     });
+    expect(imported.omp).toEqual({ approvalMode: "write" });
   });
 
   it("should generate pi permissions into .pi/settings.json and preserve unrelated keys", async () => {
