@@ -286,6 +286,137 @@ describe("QwencodePermissions", () => {
       expect(config.qwencode.tools).toEqual({ listDirectory: { enabled: true } });
     });
 
+    it("authors the skills kill-switches through the qwencode override (issue #2668)", async () => {
+      const settingsDir = join(testDir, ".qwen");
+      await ensureDir(settingsDir);
+      await writeFileContent(
+        join(settingsDir, "settings.json"),
+        JSON.stringify({
+          skills: { directories: ["~/shared-skills"], disabled: ["old"] },
+          general: { vimMode: true },
+        }),
+      );
+      const logger = createMockLogger();
+
+      const instance = await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        logger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: {
+              skills: {
+                disabled: ["pdf"],
+                defaultDisabled: ["review"],
+                enabled: ["rust:pdf"],
+                disabledLevels: ["bundled"],
+              },
+            },
+          }),
+        }),
+      });
+
+      const content = JSON.parse(instance.getFileContent());
+      // Shallow-merged into the existing group: the unowned `directories` sibling
+      // survives, an override key replaces the file's list.
+      expect(content.skills).toEqual({
+        directories: ["~/shared-skills"],
+        disabled: ["pdf"],
+        defaultDisabled: ["review"],
+        enabled: ["rust:pdf"],
+        disabledLevels: ["bundled"],
+      });
+      expect(content.general).toEqual({ vimMode: true });
+
+      const messages = logger.warn.mock.calls.map(([message]) => String(message));
+      const notes = ["disabled", "defaultDisabled", "enabled", "disabledLevels"].map((key) =>
+        messages.find((message) => message.includes(`"skills.${key}"`)),
+      );
+      for (const note of notes) {
+        expect(note).toContain("project-scoped");
+        expect(note).not.toContain("not a key rulesync models");
+        expect(note).not.toContain("approvals");
+      }
+      expect(notes[0]).toContain("skills are hidden");
+      expect(notes[2]).toContain("opts the model into the skills it names");
+      expect(notes[3]).toContain("skill discovery levels");
+    });
+
+    it("announces a global skills kill-switch write as itself (issue #2668)", async () => {
+      const logger = createMockLogger();
+      await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        global: true,
+        logger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { skills: { disabled: ["pdf"], enabled: ["rust:pdf"] } },
+          }),
+        }),
+      });
+
+      const messages = logger.warn.mock.calls.map(([message]) => String(message));
+      const disabled = messages.find((message) => message.includes('"skills.disabled"'));
+      const enabled = messages.find((message) => message.includes('"skills.enabled"'));
+      expect(disabled).toContain("your global Qwen Code settings");
+      expect(disabled).toContain("decides which skills are hidden for every project");
+      expect(enabled).toContain("for every project on this machine");
+      expect(enabled).not.toContain("not a key rulesync models");
+    });
+
+    it("leaves an existing skills block alone when the override has none (issue #2668)", async () => {
+      const settingsDir = join(testDir, ".qwen");
+      await ensureDir(settingsDir);
+      await writeFileContent(
+        join(settingsDir, "settings.json"),
+        JSON.stringify({ skills: { disabled: ["pdf"] } }),
+      );
+
+      const instance = await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({ permission: {} }),
+        }),
+      });
+
+      expect(JSON.parse(instance.getFileContent()).skills).toEqual({ disabled: ["pdf"] });
+    });
+
+    it("lifts the skills kill-switches back into the override on import (issue #2668)", () => {
+      const imported = new QwencodePermissions({
+        relativeDirPath: ".qwen",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          skills: {
+            disabled: ["pdf"],
+            defaultDisabled: ["review"],
+            enabled: ["rust:pdf"],
+            disabledLevels: ["bundled"],
+            directories: ["~/shared-skills"],
+          },
+        }),
+      });
+
+      const config = JSON.parse(imported.toRulesyncPermissions().getFileContent());
+      // `directories` is a discovery path, not a kill-switch, so it stays in
+      // `settings.json` rather than being lifted into the override.
+      expect(config.qwencode).toEqual({
+        skills: {
+          disabled: ["pdf"],
+          defaultDisabled: ["review"],
+          enabled: ["rust:pdf"],
+          disabledLevels: ["bundled"],
+        },
+      });
+    });
+
     it("authors and imports tools.todoWrite through the qwencode override (issue #2668)", async () => {
       const instance = await QwencodePermissions.fromRulesyncPermissions({
         outputRoot: testDir,
