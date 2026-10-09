@@ -63,6 +63,45 @@ describe("KimiCodePermissions [permission] section", () => {
 
     expect(config.permission).toEqual({ rules: [] });
   });
+
+  it("should write dangerous_command_guard from the kimi-code override", () => {
+    const config = generate({
+      json: { permission: {}, "kimi-code": { dangerousCommandGuard: false } },
+    });
+
+    expect(config.permission).toEqual({ dangerous_command_guard: false, rules: [] });
+  });
+
+  it("should let the authored dangerous_command_guard override the existing value", () => {
+    const config = generate({
+      json: { permission: {}, "kimi-code": { dangerousCommandGuard: true } },
+      existingContent: "[permission]\ndangerous_command_guard = false\n",
+    });
+
+    expect(config.permission).toEqual({ dangerous_command_guard: true, rules: [] });
+  });
+
+  it("should lift a boolean dangerous_command_guard into the kimi-code override on import", () => {
+    const permissions = new KimiCodePermissions({
+      outputRoot: ".",
+      fileContent: "[permission]\ndangerous_command_guard = false\nrules = []\n",
+      global: true,
+    });
+    const imported = JSON.parse(permissions.toRulesyncPermissions().getFileContent());
+
+    expect(imported["kimi-code"]).toEqual({ dangerousCommandGuard: false });
+  });
+
+  it("should not lift a non-boolean dangerous_command_guard on import", () => {
+    const permissions = new KimiCodePermissions({
+      outputRoot: ".",
+      fileContent: '[permission]\ndangerous_command_guard = "no"\nrules = []\n',
+      global: true,
+    });
+    const imported = JSON.parse(permissions.toRulesyncPermissions().getFileContent());
+
+    expect(imported["kimi-code"]).toBeUndefined();
+  });
 });
 
 describe("KimiCodePermissions rule import", () => {

@@ -159,6 +159,14 @@ export type OmpPermissionsOverride = z.infer<typeof OmpPermissionsOverrideSchema
 const KimiCodePermissionsOverrideSchema = z.looseObject({
   permission: z.optional(ToolScopedPermissionSchema),
   defaultPermissionMode: z.optional(z.enum(["manual", "yolo", "auto"])),
+  /**
+   * Kimi's `[permission] dangerous_command_guard` switch (Kimi Code 0.40.0,
+   * default `true`). `false` turns off the built-in dangerous-command policy
+   * (no confirmation for `rm -rf`, `shutdown` and the like).
+   *
+   * @see https://moonshotai.github.io/kimi-code/en/configuration/config-files.html#permission
+   */
+  dangerousCommandGuard: z.optional(z.boolean()),
   rules: z.optional(
     z.array(
       z.looseObject({
