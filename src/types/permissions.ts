@@ -616,7 +616,8 @@ export type FactorydroidPermissionsOverride = z.infer<typeof FactorydroidPermiss
  * {
  *   "agent_mode_coding_permissions": "always_allow_reading",
  *   "agent_mode_execute_readonly_commands": true,
- *   "execution_profile": { "read_files": "always_allow", "mcp_denylist": ["untrusted-server"] }
+ *   "execution_profile": { "read_files": "always_allow", "mcp_denylist": ["untrusted-server"] },
+ *   "auto_approve_bypasses_command_denylist": false
  * }
  */
 /**
@@ -650,6 +651,17 @@ const WarpExecutionProfileOverrideSchema = z.looseObject({
   mcp_denylist: z.optional(z.array(z.string())),
 });
 
+/**
+ * Whether auto-approve may run commands that match the command denylist
+ * (Warp defaults to `true`). It is not an execution-profile field: it lives in
+ * the sibling `[agents.warp_agent.other]` table of the same `settings.toml`,
+ * shared by the Warp app and the Warp Agent CLI.
+ *
+ * @see https://docs.warp.dev/agents/cli/permissions-and-profiles/
+ * @see https://github.com/warpdotdev/warp/blob/main/app/src/settings/ai.rs (`AutoApproveBypassesCommandDenylist`)
+ */
+const WarpAutoApproveBypassSchema = z.optional(z.boolean());
+
 const WarpPermissionsOverrideSchema = z.looseObject({
   permission: z.optional(ToolScopedPermissionSchema),
   // @see https://docs.warp.dev/terminal/settings/all-settings/
@@ -661,6 +673,7 @@ const WarpPermissionsOverrideSchema = z.looseObject({
   // Merged into the `default` execution profile, not `[agents.profiles]` —
   // see the adapter for the collection-exists guard.
   execution_profile: z.optional(WarpExecutionProfileOverrideSchema),
+  auto_approve_bypasses_command_denylist: WarpAutoApproveBypassSchema,
 });
 export type WarpPermissionsOverride = z.infer<typeof WarpPermissionsOverrideSchema>;
 
@@ -671,16 +684,21 @@ export type WarpPermissionsOverride = z.infer<typeof WarpPermissionsOverrideSche
  * the app's legacy `[agents.profiles]` keys), so only the nested
  * `execution_profile` block is offered; it is merged into that record, and the
  * shared `permission.bash` block still drives `command_allowlist` /
- * `command_denylist`.
+ * `command_denylist`. `auto_approve_bypasses_command_denylist` is written to
+ * the sibling `[agents.warp_agent.other]` table.
  *
  * @example
- * { "execution_profile": { "apply_code_diffs": "always_ask", "run_agents": "never_allow" } }
+ * {
+ *   "execution_profile": { "apply_code_diffs": "always_ask", "run_agents": "never_allow" },
+ *   "auto_approve_bypasses_command_denylist": false
+ * }
  *
  * @see https://docs.warp.dev/agents/cli/permissions-and-profiles/
  */
 const WarpcliPermissionsOverrideSchema = z.looseObject({
   permission: z.optional(ToolScopedPermissionSchema),
   execution_profile: z.optional(WarpExecutionProfileOverrideSchema),
+  auto_approve_bypasses_command_denylist: WarpAutoApproveBypassSchema,
 });
 
 /**
