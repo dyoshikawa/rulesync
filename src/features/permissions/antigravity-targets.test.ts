@@ -198,6 +198,15 @@ describe("buildAntigravityPermissionEntry", () => {
       // Range endpoints are escaped, so `\\` through `z` stays a range.
       ["x[\\-z]*", "command(regex:^x[\\\\-z].*$)"],
       ["x[]-a]*", "command(regex:^x[\\]-a].*$)"],
+      // A class escape may start a range in RE2, or follow a lone `-`.
+      [
+        "regex:[\\d-z] [\\d-\\w] [-\\d] [a\\-\\d]",
+        "command(regex:[\\d-z] [\\d-\\w] [-\\d] [a\\-\\d])",
+      ],
+      [
+        "regex:[\\pL-\\d] [\\p{L}-\\d] [[:alpha:]-\\d] [a-]",
+        "command(regex:[\\pL-\\d] [\\p{L}-\\d] [[:alpha:]-\\d] [a-])",
+      ],
     ])("writes %s as %s", (pattern, expected) => {
       const { entry, logger } = build({ action: "command", pattern });
       expect(entry).toBe(expected);
@@ -266,6 +275,16 @@ describe("buildAntigravityPermissionEntry", () => {
       "regex:\\pX",
       "regex:\\p{Foo}",
       "regex:\\p{Emoji}",
+      // RE2 reads the end of a range as one character, so a class escape
+      // there is refused; JavaScript without the `u` flag accepts it.
+      "regex:[a-\\d]",
+      "regex:[--\\s]",
+      "regex:[^a-\\W]",
+      "regex:[]-\\d]",
+      "regex:[a-\\pL]",
+      "regex:[\\x{41}-\\d]",
+      "regex:[\\x41-\\w]",
+      "regex:[\\--\\d]",
     ])("skips %s, which RE2 cannot compile", (pattern) => {
       const { entry, logger } = build({ action: "command", pattern, decision: "deny" });
       expect(entry).toBeUndefined();

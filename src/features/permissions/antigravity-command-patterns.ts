@@ -213,6 +213,9 @@ function isInvalidRegex(source: string): boolean {
   if (LOOKAROUND.test(unquoted) || hasRefusedEscape(unquoted)) {
     return true;
   }
+  if (hasClassEscapeRangeEnd(unquoted)) {
+    return true;
+  }
   const withoutPosixClasses = replacePosixClasses(unquoted);
   if (withoutPosixClasses === undefined || hasRefusedRepeat(withoutPosixClasses)) {
     return true;
@@ -250,6 +253,79 @@ function hasRefusedEscape(source: string): boolean {
     if ((escaped === "p" || escaped === "P") && !isUnicodeClass(rest)) {
       return true;
     }
+  }
+  return false;
+}
+
+// Escapes that stand for a set of characters rather than one.
+const CLASS_ESCAPE_LETTERS = /[dDsSwWpP]/;
+
+/** The length of the escape at `index`, braces (`\x{41}`, `\p{Greek}`) included. */
+function escapeLength(source: string, index: number): number {
+  const escaped = source[index + 1] ?? "";
+  if (/[xpP]/.test(escaped) && source[index + 2] === "{") {
+    const close = source.indexOf("}", index + 3);
+    return close === -1 ? source.length - index : close - index + 1;
+  }
+  if (escaped === "p" || escaped === "P") {
+    return 3;
+  }
+  return escaped === "x" ? 4 : 2;
+}
+
+/** Step past `^` and a leading `]` (a member) after the `[` that ends at `index`. */
+function openClass(source: string, start: number): { index: number; afterCharacter: boolean } {
+  const index = source[start] === "^" ? start + 1 : start;
+  return source[index] === "]"
+    ? { index: index + 1, afterCharacter: true }
+    : { index, afterCharacter: false };
+}
+
+/**
+ * Whether a bracket range ends in a class escape (`[a-\d]`, `[--\s]`). Go
+ * reads the end of a range as one character and refuses such a regex, while
+ * JavaScript without the `u` flag reads it as three members. A class escape
+ * that starts the range (`[\d-z]`) is a member followed by `-`, which both
+ * accept. The `u` flag cannot be used instead: it also refuses RE2 spellings
+ * such as `\x{41}` and `\-` outside a class.
+ */
+function hasClassEscapeRangeEnd(source: string): boolean {
+  let inClass = false;
+  // Whether the item before is one character, which a `-` makes a range start.
+  let afterCharacter = false;
+  let index = 0;
+  while (index < source.length) {
+    const character = source[index] ?? "";
+    if (character === "\\") {
+      afterCharacter = inClass && !CLASS_ESCAPE_LETTERS.test(source[index + 1] ?? "");
+      index += escapeLength(source, index);
+      continue;
+    }
+    if (!inClass) {
+      inClass = character === "[";
+      ({ index, afterCharacter } = inClass
+        ? openClass(source, index + 1)
+        : { index: index + 1, afterCharacter: false });
+      continue;
+    }
+    const posixEnd = source.startsWith("[:", index) ? source.indexOf(":]", index + 2) : -1;
+    if (character === "]" || posixEnd !== -1) {
+      inClass = character !== "]";
+      afterCharacter = false;
+      index = posixEnd === -1 ? index + 1 : posixEnd + 2;
+      continue;
+    }
+    if (character === "-" && afterCharacter && source[index + 1] !== "]") {
+      const end = index + 1;
+      if (source[end] === "\\" && CLASS_ESCAPE_LETTERS.test(source[end + 1] ?? "")) {
+        return true;
+      }
+      afterCharacter = false;
+      index = end + (source[end] === "\\" ? escapeLength(source, end) : 1);
+      continue;
+    }
+    afterCharacter = true;
+    index += 1;
   }
   return false;
 }
@@ -414,7 +490,9 @@ export function toAntigravityCommandTarget(pattern: string): CommandTargetResult
         };
   }
   if (BRACE_ALTERNATIVES.test(pattern)) {
-    return { skipReason: "Antigravity has no `{a,b}` alternatives in a command target" };
+    return {
+      skipReason: "Antigravity has no `{a,b}` alternatives in a command target",
+    };
   }
   const steps = parseGlobPattern(pattern).steps;
   // At the very end, `?` or `[!x]` only adds a trailing space, which shells
@@ -426,7 +504,9 @@ export function toAntigravityCommandTarget(pattern: string): CommandTargetResult
     };
   }
   if (steps.some(hasBackwardRange)) {
-    return { skipReason: "A bracket range runs backwards, so it has no regex spelling" };
+    return {
+      skipReason: "A bracket range runs backwards, so it has no regex spelling",
+    };
   }
   const words = splitIntoWords(steps);
   // A `*` can stand for several words, but a regex word matches one. So a `*`
@@ -461,7 +541,10 @@ export function toAntigravityCommandTarget(pattern: string): CommandTargetResult
   if (head.length > 0 && isStarWord(words.at(-1) ?? []) && head.every(isLiteralWord)) {
     return { target: head.map(wordToLiteral).join(" ") };
   }
-  return { target: `${REGEX_PREFIX}${words.map(wordToRegexSource).join(" ")}`, note };
+  return {
+    target: `${REGEX_PREFIX}${words.map(wordToRegexSource).join(" ")}`,
+    note,
+  };
 }
 
 /**
