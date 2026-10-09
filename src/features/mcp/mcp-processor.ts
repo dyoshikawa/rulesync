@@ -534,15 +534,18 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
     "grokcli",
     {
       // Grok Build stores MCP servers in `.grok/config.toml` (project) and
-      // `~/.grok/config.toml` (global) as `[mcp_servers.<name>]` tables. It has
-      // no per-server tool allow/deny lists.
+      // `~/.grok/config.toml` (global) as `[mcp_servers.<name>]` tables.
+      // `disabledTools` maps onto the user-config-only top-level
+      // `[disabled_mcp_tools]` table, so `GrokcliMcp` writes it in global
+      // mode and warns and drops it in project mode. There is no per-server
+      // tool allowlist, so `enabledTools` stays unsupported.
       // https://docs.x.ai/build/overview
       class: GrokcliMcp,
       meta: {
         supportsProject: true,
         supportsGlobal: true,
         supportsEnabledTools: false,
-        supportsDisabledTools: false,
+        supportsDisabledTools: true,
       },
     },
   ],

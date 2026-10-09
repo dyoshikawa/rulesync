@@ -1945,14 +1945,17 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
       },
     },
   },
-  // Grok Build CLI config: mcp owns `mcp_servers`; permissions owns the
+  // Grok Build CLI config: mcp owns `mcp_servers` and the global-only
+  // `disabled_mcp_tools`; permissions owns the
   // fine-grained `permission` allow/ask/deny arrays and the coarse `ui`
   // fallback. Both are recomputed from the existing file (unmanaged entries
   // preserved) before being applied.
   [GROKCLI_CONFIG_SHARED_FILE_KEY]: {
     format: "toml",
     features: {
-      mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp_servers"] },
+      // `disabled_mcp_tools` is recomputed per server: entries for servers
+      // Rulesync does not declare (e.g. written by Grok's `/mcps` UI) survive.
+      mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp_servers", "disabled_mcp_tools"] },
       permissions: { kind: "replace-owned-keys", ownedKeys: ["permission", "ui"] },
     },
   },
