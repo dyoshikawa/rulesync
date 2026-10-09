@@ -254,8 +254,43 @@ describe("FeatureProcessor", () => {
         expect(removeFile).toHaveBeenCalledExactlyOnceWith(orphanPath);
         expect(processor.getRemovedPaths()).toEqual([{ path: orphanPath, kind: "file" }]);
         expect(logger.warn).toHaveBeenCalledWith(
-          `Refusing to delete ${JSON.stringify(linkedPath)}: it resolves outside ` +
-            `${JSON.stringify(root)} through a symbolic link`,
+          `Refusing to delete files in ${JSON.stringify(join(root, ".tool"))}: it resolves ` +
+            `outside ${JSON.stringify(root)} through a symbolic link`,
+        );
+      },
+    );
+
+    it.skipIf(process.platform === "win32")(
+      "should warn once per linked directory that leads out of the output root",
+      async () => {
+        const logger = createMockLogger();
+        const root = join(testDir, "root");
+        const outside = join(testDir, "outside");
+        await mkdir(root, { recursive: true });
+        await mkdir(join(outside, "nested"), { recursive: true });
+        await symlink(outside, join(root, ".tool"));
+        const processor = new TestProcessor({ logger, outputRoot: root });
+
+        const count = await processor.removeOrphanAiFiles(
+          [
+            createMockFile(join(root, ".tool", "a.md"), { outputRoot: root }),
+            createMockFile(join(root, ".tool", "b.md"), { outputRoot: root }),
+            createMockFile(join(root, ".tool", "c.md"), { outputRoot: root }),
+            createMockFile(join(root, ".tool", "nested", "d.md"), { outputRoot: root }),
+          ],
+          [],
+        );
+
+        // One line per directory, not per file, so a large linked directory
+        // does not flood every `--check`.
+        expect(count).toBe(0);
+        expect(removeFile).not.toHaveBeenCalled();
+        expect(logger.warn).toHaveBeenCalledTimes(2);
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining(`files in ${JSON.stringify(join(root, ".tool"))}:`),
+        );
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining(`files in ${JSON.stringify(join(root, ".tool", "nested"))}:`),
         );
       },
     );

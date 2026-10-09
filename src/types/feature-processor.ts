@@ -214,17 +214,24 @@ export abstract class FeatureProcessor extends RulesyncSourceConsumer {
       (f) => !generatedPaths.has(caseFoldIdentity(f.getFilePath())),
     );
 
+    // Keyed on the output root and the directory holding each orphan: every
+    // file in one linked directory gets the same answer, so a large directory
+    // reached through a link out of the root costs one walk and one warning
+    // instead of one of each per file.
+    const refusedDirs = new Map<string, boolean>();
     let removedCount = 0;
     for (const aiFile of orphanFiles) {
       const filePath = aiFile.getFilePath();
-      // Asked before the dry-run branch so `--check` and a real run agree.
-      if (
-        await refusesDeleteOutsideRoot({
-          logger: this.logger,
-          rootPath: aiFile.getOutputRoot(),
-          filePath,
-        })
-      ) {
+      const rootPath = aiFile.getOutputRoot();
+      const dirPath = dirname(filePath);
+      const cacheKey = JSON.stringify([rootPath, dirPath]);
+      let refused = refusedDirs.get(cacheKey);
+      if (refused === undefined) {
+        // Asked before the dry-run branch so `--check` and a real run agree.
+        refused = await refusesDeleteOutsideRoot({ logger: this.logger, rootPath, dirPath });
+        refusedDirs.set(cacheKey, refused);
+      }
+      if (refused) {
         continue;
       }
       // The path is an on-disk name rulesync did not choose, so it is stripped
@@ -413,30 +420,32 @@ export async function refusesWriteOutsideRoot({
 }
 
 /**
- * Whether deleting `filePath` has to be refused because a link on the way to
- * the directory holding it leads out of `rootPath`, warning about the refusal.
+ * Whether deleting the files in `dirPath` has to be refused because a link on
+ * the way to that directory leads out of `rootPath`, warning about the refusal
+ * once for the whole directory.
  *
  * Deletion candidates are enumerated without following links *inside* the
  * scanned directory, but the scanned directory itself is reached through
  * whatever links its path contains: a checked-out repository can carry
  * `.cursor/commands -> ~/notes`, and every file in `~/notes` would then read as
- * an orphan. Only the parent is judged, because removing a file that is itself
- * a link unlinks the link where it is spelled and never touches its target.
+ * an orphan. Only the directory is judged, never the file in it, because
+ * removing a file that is itself a link unlinks the link where it is spelled
+ * and never touches its target.
  */
 async function refusesDeleteOutsideRoot({
   logger,
   rootPath,
-  filePath,
+  dirPath,
 }: {
   logger: Logger;
   rootPath: string;
-  filePath: string;
+  dirPath: string;
 }): Promise<boolean> {
-  if (!(await writablePathEscapesRoot({ rootPath, targetPath: dirname(filePath) }))) {
+  if (!(await writablePathEscapesRoot({ rootPath, targetPath: dirPath }))) {
     return false;
   }
   logger.warn(
-    `Refusing to delete ${quoteForLog(filePath)}: it resolves outside ` +
+    `Refusing to delete files in ${quoteForLog(dirPath)}: it resolves outside ` +
       `${quoteForLog(rootPath)} through a symbolic link`,
   );
   return true;

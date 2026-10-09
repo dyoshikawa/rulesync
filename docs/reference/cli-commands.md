@@ -273,8 +273,9 @@ The `generate` command reads source files from one or more rulesync source trees
 > An output directory reached through a symbolic link that leads outside the
 > output root — a checked-out `.cursor/commands -> ~/notes`, say — is not swept
 > either: what the sweep would list there are files in the link's target, not
-> Rulesync's output, so each one is kept and named in a `Refusing to delete`
-> warning, the same way a write through such a link is refused. A link that stays
+> Rulesync's output, so each one is kept, and every directory holding them is
+> named once in a `Refusing to delete files in` warning, the same way a write
+> through such a link is refused. A link that stays
 > inside the output root is followed as usual, and an orphan that is itself a
 > symbolic link is removed as a link, leaving its target untouched. A generated
 > skill directory linked onto the output root itself is not written either, so
