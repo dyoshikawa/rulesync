@@ -1559,7 +1559,7 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
   },
   // Qwen Code settings: `permissions` is recomputed from the existing file
   // (unmanaged-tool entries preserved, managed ones replaced) before being
-  // applied, and so are the `tools`/`security` override groups and the MCP
+  // applied, and so are the `tools`/`security`/`skills` override groups and the MCP
   // feature's `mcp` object (server allow/deny lists). Keys like
   // `disableAllHooks` are only present in the patch when authored, so an
   // existing user value survives an unrelated regeneration.
@@ -1570,7 +1570,7 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
       hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks", "disableAllHooks"] },
       permissions: {
         kind: "replace-owned-keys",
-        ownedKeys: ["permissions", "tools", "security"],
+        ownedKeys: ["permissions", "tools", "security", "skills"],
       },
     },
   },
