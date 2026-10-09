@@ -241,6 +241,7 @@ export class ZedMcp extends ToolMcp {
 
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const existingContent = (await readFileContentOrNull(filePath)) ?? "{}";
+    const contextServers = convertServersToZedFormat(rulesyncMcp.getMcpServers(), logger);
 
     return new ZedMcp({
       outputRoot,
@@ -253,7 +254,11 @@ export class ZedMcp extends ToolMcp {
         fileKey: sharedConfigFileKey(paths),
         feature: "mcp",
         existingContent,
-        patch: { context_servers: convertServersToZedFormat(rulesyncMcp.getMcpServers(), logger) },
+        // With no server left the key is retracted rather than left as an
+        // empty `context_servers` object in the shared settings file.
+        patch: {
+          context_servers: Object.keys(contextServers).length > 0 ? contextServers : undefined,
+        },
         filePath,
       }),
       validate,

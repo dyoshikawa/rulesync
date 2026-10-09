@@ -103,8 +103,10 @@ function mergeKimiCodeToolsSection({
  * table. The gateway replaces the owned `permission` key wholesale and rulesync
  * only ever authors `rules`, so a hand-written sibling such as
  * `dangerous_command_guard = false` (Kimi Code 0.40.0) would otherwise be
- * deleted on every generate. Rulesync does not model these keys; they pass
- * through verbatim and `rules` always comes from the patch.
+ * deleted on every generate. Unmodeled keys pass through verbatim; `rules`
+ * always comes from the patch, and so does `dangerous_command_guard` when the
+ * `kimi-code.dangerousCommandGuard` override sets it. Leaving the override out
+ * keeps whatever the file already has.
  *
  * @see https://moonshotai.github.io/kimi-code/en/configuration/config-files.html#permission
  */
@@ -436,6 +438,7 @@ export class KimiCodePermissions extends ToolPermissions {
   }: ToolPermissionsFromRulesyncPermissionsParams): KimiCodePermissions {
     const config = rulesyncPermissions.getJson();
     const defaultPermissionMode = config["kimi-code"]?.defaultPermissionMode;
+    const dangerousCommandGuard = config["kimi-code"]?.dangerousCommandGuard;
     const tools = buildKimiCodeToolsSection(config["kimi-code"]?.tools);
     const document = {
       ...(defaultPermissionMode && {
@@ -443,6 +446,9 @@ export class KimiCodePermissions extends ToolPermissions {
       }),
       ...(tools && { tools }),
       permission: {
+        ...(typeof dangerousCommandGuard === "boolean" && {
+          dangerous_command_guard: dangerousCommandGuard,
+        }),
         rules: canonicalToKimiCodeRules({ config, logger }),
       },
     };
@@ -475,6 +481,7 @@ export class KimiCodePermissions extends ToolPermissions {
     const permissionConfig = isRecord(config.permission) ? config.permission : {};
     const { permission, nativeRules } = preserveKimiCodeRules(permissionConfig.rules);
     const defaultPermissionMode = config.default_permission_mode;
+    const dangerousCommandGuard = permissionConfig.dangerous_command_guard;
     const tools = buildKimiCodeToolsSection(config.tools);
     const toolOverride = {
       ...(defaultPermissionMode === "manual" ||
@@ -482,6 +489,7 @@ export class KimiCodePermissions extends ToolPermissions {
       defaultPermissionMode === "auto"
         ? { defaultPermissionMode }
         : {}),
+      ...(typeof dangerousCommandGuard === "boolean" && { dangerousCommandGuard }),
       ...(nativeRules.length > 0 && { rules: nativeRules }),
       ...(tools && { tools }),
     };

@@ -1202,4 +1202,155 @@ describe("WarpPermissions", () => {
       expect(config.permission).toEqual({});
     });
   });
+
+  describe("auto_approve_bypasses_command_denylist override", () => {
+    const settingsPath = (): string => {
+      const paths = WarpPermissions.getSettablePaths();
+      return join(testDir, paths.relativeDirPath, paths.relativeFilePath);
+    };
+
+    const permissionsWith = (json: Record<string, unknown>): RulesyncPermissions =>
+      new RulesyncPermissions({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify(json),
+      });
+
+    it("writes the key to [agents.warp_agent.other], not [agents.profiles], keeping siblings", async () => {
+      await ensureDir(join(testDir, WarpPermissions.getSettablePaths().relativeDirPath));
+      await writeFileContent(
+        settingsPath(),
+        [
+          "[agents.warp_agent.input]",
+          "include_agent_commands_in_history = true",
+          "",
+          "[agents.warp_agent.other]",
+          "show_conversation_history = false",
+          "",
+        ].join("\n"),
+      );
+
+      const perms = await WarpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: permissionsWith({
+          permission: { bash: { "rm -rf .*": "deny" } },
+          warp: { auto_approve_bypasses_command_denylist: false },
+        }),
+        global: true,
+      });
+
+      const parsed = smolToml.parse(perms.getFileContent());
+      expect(isRecord(parsed.agents) && parsed.agents.warp_agent).toEqual({
+        input: { include_agent_commands_in_history: true },
+        other: { show_conversation_history: false, auto_approve_bypasses_command_denylist: false },
+      });
+      expect(profilesOf(perms.getFileContent())).not.toHaveProperty(
+        "auto_approve_bypasses_command_denylist",
+      );
+    });
+
+    it("writes the key on an un-migrated install without creating the execution-profile collection", async () => {
+      const perms = await WarpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: permissionsWith({
+          permission: {},
+          warp: { auto_approve_bypasses_command_denylist: true },
+        }),
+        global: true,
+      });
+
+      const parsed = smolToml.parse(perms.getFileContent());
+      expect(parsed.agents).toEqual({
+        profiles: {},
+        warp_agent: { other: { auto_approve_bypasses_command_denylist: true } },
+      });
+    });
+
+    it("leaves an existing value alone when the override omits the key", async () => {
+      await ensureDir(join(testDir, WarpPermissions.getSettablePaths().relativeDirPath));
+      await writeFileContent(
+        settingsPath(),
+        "[agents.warp_agent.other]\nauto_approve_bypasses_command_denylist = false\n",
+      );
+
+      const perms = await WarpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: permissionsWith({ permission: {} }),
+        global: true,
+      });
+
+      const parsed = smolToml.parse(perms.getFileContent());
+      expect(isRecord(parsed.agents) && parsed.agents.warp_agent).toEqual({
+        other: { auto_approve_bypasses_command_denylist: false },
+      });
+    });
+
+    it("tells the user that auto-approve bypasses the written denylist while the bypass is on", async () => {
+      const logger = createMockLogger();
+
+      await WarpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: permissionsWith({ permission: { bash: { "rm -rf .*": "deny" } } }),
+        logger,
+        global: true,
+      });
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("warp.auto_approve_bypasses_command_denylist is set to false"),
+      );
+    });
+
+    it("drops the auto-approve note once the bypass is turned off", async () => {
+      const logger = createMockLogger();
+
+      await WarpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: permissionsWith({
+          permission: { bash: { "rm -rf .*": "deny" } },
+          warp: { auto_approve_bypasses_command_denylist: false },
+        }),
+        logger,
+        global: true,
+      });
+
+      const messages = logger.warn.mock.calls.map(([message]) => String(message));
+      expect(messages.some((m) => m.includes("replaces its built-in default denylist"))).toBe(true);
+      expect(messages.some((m) => m.includes("auto_approve_bypasses_command_denylist"))).toBe(
+        false,
+      );
+    });
+
+    it("lifts the key back into the warp override on import", () => {
+      const perms = new WarpPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".config/warp-terminal",
+        relativeFilePath: "settings.toml",
+        fileContent: "[agents.warp_agent.other]\nauto_approve_bypasses_command_denylist = false\n",
+      });
+
+      const config = JSON.parse(perms.toRulesyncPermissions().getFileContent());
+      expect(config.warp).toEqual({ auto_approve_bypasses_command_denylist: false });
+    });
+
+    it("creates settings.toml through the processor when only the key maps", async () => {
+      const processor = new PermissionsProcessor({
+        logger: createMockLogger(),
+        outputRoot: testDir,
+        toolTarget: "warp",
+        global: true,
+      });
+      const toolFiles = await processor.convertRulesyncFilesToToolFiles([
+        permissionsWith({
+          permission: {},
+          warp: { auto_approve_bypasses_command_denylist: false },
+        }),
+      ]);
+      await processor.writeAiFiles(toolFiles);
+
+      const parsed = smolToml.parse(await readFileContent(settingsPath()));
+      expect(isRecord(parsed.agents) && parsed.agents.warp_agent).toEqual({
+        other: { auto_approve_bypasses_command_denylist: false },
+      });
+    });
+  });
 });

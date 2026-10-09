@@ -87,6 +87,23 @@ describe("RulesyncPermissionsFileSchema tool-scoped override enums", () => {
       );
       expect(result.success).toBe(false);
     });
+
+    it.each(["warp", "warpcli"])(
+      "should accept a boolean auto_approve_bypasses_command_denylist for %s",
+      (target) => {
+        const result = RulesyncPermissionsFileSchema.safeParse(
+          withOverride({ [target]: { auto_approve_bypasses_command_denylist: false } }),
+        );
+        expect(result.success).toBe(true);
+      },
+    );
+
+    it("should reject a non-boolean auto_approve_bypasses_command_denylist", () => {
+      const result = RulesyncPermissionsFileSchema.safeParse(
+        withOverride({ warpcli: { auto_approve_bypasses_command_denylist: "no" } }),
+      );
+      expect(result.success).toBe(false);
+    });
   });
 
   describe("antigravity-cli.toolPermission", () => {

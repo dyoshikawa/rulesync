@@ -25,6 +25,9 @@ import {
   mergeDefaultExecutionProfile,
   PROFILE_ALLOWLIST_KEY,
   PROFILE_DENYLIST_KEY,
+  applyAutoApproveBypassOverride,
+  readAutoApproveBypass,
+  WARP_AUTO_APPROVE_BYPASS_KEY,
   WARP_EXECUTION_PROFILE_OVERRIDE_KEY,
   warnAboutDenylistReplacement,
 } from "./warp-permissions.js";
@@ -46,6 +49,9 @@ const WARPCLI_GLOBAL_ONLY_MESSAGE =
  * - The `warpcli.execution_profile` override's autonomy keys
  *   (`read_files`, `apply_code_diffs`, `run_agents`, ...), merged first so the
  *   rulesync-owned command lists always win.
+ *
+ * The `warpcli.auto_approve_bypasses_command_denylist` override is written to
+ * the sibling `[agents.warp_agent.other]` table.
  *
  * Unlike the `warp` target, the CLI never read the app's legacy
  * `[agents.profiles]` keys, so none are written, and there is no settings
@@ -139,11 +145,6 @@ export class WarpcliPermissions extends ToolPermissions {
     });
     const mergedAllow = uniq(allow.toSorted());
     const mergedDeny = uniq(deny.toSorted());
-    warnAboutDenylistReplacement({
-      toolLabel: "Warp Agent CLI",
-      denyCount: mergedDeny.length,
-      logger,
-    });
 
     const override = config.warpcli;
     const executionProfileOverride =
@@ -162,7 +163,16 @@ export class WarpcliPermissions extends ToolPermissions {
       mergedDeny,
       executionProfileOverride,
     });
+    applyAutoApproveBypassOverride({ agents, override });
     settings.agents = agents;
+
+    warnAboutDenylistReplacement({
+      toolLabel: "Warp Agent CLI",
+      overrideKey: "warpcli",
+      denyCount: mergedDeny.length,
+      autoApproveBypassesDenylist: readAutoApproveBypass(agents),
+      logger,
+    });
 
     return new WarpcliPermissions({
       outputRoot,
@@ -205,9 +215,20 @@ export class WarpcliPermissions extends ToolPermissions {
     // they round-trip.
     const executionProfileOverride = liftExecutionProfileOverride(defaultProfile);
 
-    const result: Record<string, unknown> = { ...config };
+    // `auto_approve_bypasses_command_denylist` lives in the sibling
+    // `[agents.warp_agent.other]` table, so it is lifted separately.
+    const warpcliOverride: Record<string, unknown> = {};
     if (executionProfileOverride) {
-      result.warpcli = { [WARP_EXECUTION_PROFILE_OVERRIDE_KEY]: executionProfileOverride };
+      warpcliOverride[WARP_EXECUTION_PROFILE_OVERRIDE_KEY] = executionProfileOverride;
+    }
+    const autoApproveBypass = readAutoApproveBypass(agents);
+    if (autoApproveBypass !== undefined) {
+      warpcliOverride[WARP_AUTO_APPROVE_BYPASS_KEY] = autoApproveBypass;
+    }
+
+    const result: Record<string, unknown> = { ...config };
+    if (Object.keys(warpcliOverride).length > 0) {
+      result.warpcli = warpcliOverride;
     }
 
     return this.toRulesyncPermissionsDefault({
