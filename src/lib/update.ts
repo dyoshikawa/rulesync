@@ -118,11 +118,11 @@ export function getPlatformAssetName(): string | null {
 }
 
 /**
- * Normalize version string by removing leading 'v' and stripping pre-release suffix
+ * Normalize version string by removing leading 'v' and stripping pre-release and build suffixes
  */
 export function normalizeVersion(v: string): string {
-  // Remove leading 'v' and strip pre-release suffix (e.g., "1.2.3-beta.1" -> "1.2.3")
-  return v.replace(/^v/, "").replace(/-.*$/, "");
+  // Preserve the existing pre-release handling and ignore build metadata for comparisons.
+  return v.replace(/^v/, "").replace(/[-+].*$/, "");
 }
 
 /**
