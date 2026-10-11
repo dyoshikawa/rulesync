@@ -72,11 +72,16 @@ const PI_SETTLE_BLOCKING_EVENT = "agent_before_settle";
  * any other failure is rethrown for oh-my-pi to report. The generated handler
  * continues only when `event.stop_hook_active` is false, which oh-my-pi sets
  * after a continuation and clears once a stop pass lets the run settle, so the
- * agent is continued at most once per stop; oh-my-pi additionally caps these
+ * agent is continued at most once per stop (the flag is shared by every
+ * extension, so another extension's continuation also suppresses ours);
+ * oh-my-pi additionally caps these
  * advisory continuations at 8 in a row. A run that ended on a provider error
  * (`stopReason: "error"`) is not continued, matching Pi's `completed`-only
  * gate. The advisory form is used rather than `{ decision: "block", reason }`,
- * which oh-my-pi keeps enforcing without that cap.
+ * which oh-my-pi keeps enforcing without that cap. oh-my-pi gives
+ * `session_stop` handlers the 30-second extension handler budget: stop
+ * commands running longer time the handler out, the run settles without a
+ * continuation, and the command is not killed.
  *
  * @see https://github.com/can1357/oh-my-pi/blob/fa5ff4a3a977a28b93d025f4cf50f046e019f18c/docs/extensions.md
  * @see https://github.com/can1357/oh-my-pi/blob/fa5ff4a3a977a28b93d025f4cf50f046e019f18c/packages/coding-agent/src/session/agent-session.ts

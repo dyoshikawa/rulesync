@@ -294,6 +294,17 @@ describe("OmpHooks", () => {
       await expect(stop(stopEvent({ stopHookActive: true }))).rejects.toMatchObject({ code: 2 });
     });
 
+    it("should continue when the event carries no last assistant message", async () => {
+      const { handlerFor } = await loadOmpExtension({
+        testDir,
+        config: { version: 1, hooks: { stop: [{ command: "echo retry >&2; exit 2" }] } },
+      });
+
+      expect(
+        await handlerFor("session_stop")({ ...stopEvent(), last_assistant_message: undefined }),
+      ).toEqual({ continue: true, additionalContext: "Stop hook feedback:\nretry" });
+    });
+
     it("should not continue a run that ended on a provider error", async () => {
       const { handlerFor } = await loadOmpExtension({
         testDir,

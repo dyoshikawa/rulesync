@@ -465,7 +465,7 @@ export const PI_HOOK_EVENTS: readonly HookEvent[] = [
  * its own `session_stop` event instead. It has no `ui_prompt_start` either, so
  * `notification` is not mapped. See CANONICAL_TO_OMP_EVENT_NAMES.
  *
- * @see https://github.com/can1357/oh-my-pi/blob/40e9368ef0458fd9073329cdff4174895f91bc6b/docs/extensions.md
+ * @see https://github.com/can1357/oh-my-pi/blob/fa5ff4a3a977a28b93d025f4cf50f046e019f18c/docs/extensions.md
  */
 export const OMP_HOOK_EVENTS: readonly HookEvent[] = [
   "sessionStart",
@@ -2104,9 +2104,10 @@ export const CANONICAL_TO_PI_EVENT_NAMES: Record<string, string> = {
 /**
  * Map canonical camelCase event names to oh-my-pi extension event names. They
  * are Pi's names (see CANONICAL_TO_PI_EVENT_NAMES) for the events oh-my-pi
- * kept, plus `session_stop` for `stop`. Note that oh-my-pi runs `session_shutdown` handlers with a 2-second
- * budget, and fails a `tool_call` closed when its handler exceeds
- * `extensionHandlers.toolCallTimeoutMs` (30 seconds by default).
+ * kept, plus `session_stop` for `stop`. Note that oh-my-pi runs
+ * `session_shutdown` handlers with a 2-second budget, and fails a `tool_call`
+ * closed when its handler exceeds `extensionHandlers.toolCallTimeoutMs`
+ * (30 seconds by default).
  *
  * @see https://github.com/can1357/oh-my-pi/blob/40e9368ef0458fd9073329cdff4174895f91bc6b/docs/extensions.md
  */
