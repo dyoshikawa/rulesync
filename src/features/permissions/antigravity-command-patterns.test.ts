@@ -36,14 +36,16 @@ describe("describeAntigravityCommandImportLoss", () => {
   it.each(["regex:rm", "regex:^rm$ -rf", "regex:^git$ push$"])(
     "warns that the unanchored regex target %s may be imported narrower",
     (target) => {
-      expect(describeAntigravityCommandImportLoss(target)).toContain("without `^...$` anchors");
+      expect(describeAntigravityCommandImportLoss(target)?.reason).toContain(
+        "without `^...$` anchors",
+      );
     },
   );
 
   it.each(["rm -rf *", "git push --force?", "ls [ab]"])(
     "warns that the legacy glob-form target %s is matched literally",
     (target) => {
-      expect(describeAntigravityCommandImportLoss(target)).toContain("matches literally");
+      expect(describeAntigravityCommandImportLoss(target)?.reason).toContain("matches literally");
     },
   );
 });
@@ -73,17 +75,26 @@ describe("importAntigravityCommandTarget", () => {
     expect(logger.warn).not.toHaveBeenCalled();
   });
 
-  it("warns that an imported deny may block less", () => {
+  it("warns that an imported unanchored deny may block less", () => {
     const { pattern, logger } = importTarget({ target: "regex:rm", decision: "deny" });
     expect(pattern).toBe("rm *");
-    expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining("Antigravity IDE permissions"),
-    );
-    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("may block less"));
+    expect(logger.warn).toHaveBeenCalledTimes(1);
+    const message = logger.warn.mock.calls[0]?.[0];
+    expect(message).toContain("Antigravity IDE permissions");
+    expect(message).toContain("may block less");
+  });
+
+  it("warns that an imported legacy deny is not enforced by other tools", () => {
+    const { logger } = importTarget({ target: "rm -rf *", decision: "deny" });
+    expect(logger.warn).toHaveBeenCalledTimes(1);
+    const message = logger.warn.mock.calls[0]?.[0];
+    expect(message).toContain("NOT enforced by the other tools");
+    expect(message).not.toContain("may block less");
   });
 
   it("does not add the deny consequence to an allow", () => {
     const { logger } = importTarget({ target: "regex:rm", decision: "allow" });
-    expect(logger.warn).toHaveBeenCalledWith(expect.not.stringContaining("may block less"));
+    expect(logger.warn).toHaveBeenCalledTimes(1);
+    expect(logger.warn.mock.calls[0]?.[0]).not.toContain("may block less");
   });
 });

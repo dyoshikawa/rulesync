@@ -88,7 +88,7 @@ describe("buildAntigravityPermissionEntry", () => {
       );
     });
 
-    it.each(["app/routes/posts.$postId.tsx", "src/$lib/index.ts", "price$.txt"])(
+    it.each(["app/routes/posts.$postId.tsx", "src/$lib/index.ts", "price$.txt", "~$report.docx"])(
       "does not warn about the ordinary `$` in %s",
       (pattern) => {
         const { entry, logger } = build({ action: "write_file", pattern, decision: "deny" });

@@ -700,17 +700,27 @@ function isAnchoredWord(word: string): boolean {
  *   Antigravity matches it literally, so it imports as a regex that matches a
  *   literal `*` word and is inert in the other tools it is exported to.
  */
-export function describeAntigravityCommandImportLoss(target: string): string | undefined {
+export function describeAntigravityCommandImportLoss(
+  target: string,
+): { reason: string; denyConsequence: string } | undefined {
   if (target.startsWith(REGEX_PREFIX)) {
     const source = target.slice(REGEX_PREFIX.length);
     const unanchored = splitWords(source).some((word) => !isAnchoredWord(word));
     if (unanchored && regexToGlob(source) !== undefined) {
-      return "it has a regex word without `^...$` anchors and is imported as a glob that assumes Antigravity anchors every word, so the imported rule may be narrower than the original";
+      return {
+        reason:
+          "it has a regex word without `^...$` anchors and is imported as a glob that assumes Antigravity anchors every word, so the imported rule may be narrower than the original",
+        denyConsequence: "The imported deny may block less than it does in Antigravity.",
+      };
     }
     return undefined;
   }
   if (target !== "*" && PLAIN_TARGET_GLOB_CHARACTERS.test(target)) {
-    return "it holds characters that are special in a glob (`*`, `?`, `[`, `{` or `\\`), which Antigravity matches literally (likely output of an older rulesync), so it is imported as a literal-match regex that no other tool enforces";
+    return {
+      reason:
+        "it holds characters that are special in a glob (`*`, `?`, `[`, `{` or `\\`), which Antigravity matches literally (likely output of an older rulesync), so it is imported as a literal-match regex that no other tool enforces",
+      denyConsequence: "This deny is NOT enforced by the other tools it is generated for.",
+    };
   }
   return undefined;
 }
@@ -733,13 +743,12 @@ export function importAntigravityCommandTarget({
   logger: Logger;
   toolLabel: string;
 }): string {
-  const pattern = target === "*" ? target : fromAntigravityCommandTarget(target);
+  const pattern = fromAntigravityCommandTarget(target);
   const loss = describeAntigravityCommandImportLoss(target);
   if (loss !== undefined) {
-    const consequence =
-      decision === "deny" ? " The imported deny may block less than it does in Antigravity." : "";
+    const consequence = decision === "deny" ? ` ${loss.denyConsequence}` : "";
     logger.warn(
-      `${toolLabel} permissions: importing ${entry} as "${pattern}": ${loss}.${consequence}`,
+      `${toolLabel} permissions: importing ${entry} as "${pattern}": ${loss.reason}.${consequence}`,
     );
   }
   return pattern;

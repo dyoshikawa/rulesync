@@ -37,10 +37,10 @@ const MATCH_ALL_PATH_GLOBS = new Set(["*", "**", "**/*"]);
 // A trailing glob that means "everything under this directory".
 const DIRECTORY_CONTENTS_SUFFIX = /\/\*\*(?:\/\*)?$/;
 
-// A path that starts with `~` or a `$NAME` variable, or holds a `${NAME}`
-// reference. A `$` elsewhere is an ordinary file name character
-// (`routes/posts.$postId.tsx`).
-const HOME_OR_VARIABLE_PATH = /^~|^\$[A-Za-z_]|\$\{[A-Za-z_]/;
+// A path that is `~` or starts with `~/` or a `$NAME` variable, or holds a
+// `${NAME}` reference. A `$` or `~` elsewhere is an ordinary file name
+// character (`routes/posts.$postId.tsx`, `~$report.docx`).
+const HOME_OR_VARIABLE_PATH = /^~(?:\/|$)|^\$[A-Za-z_]|\$\{[A-Za-z_]/;
 
 // Hostnames as Antigravity matches them: letters, digits, dots and hyphens.
 const HOSTNAME = /^[a-z0-9-]+(?:\.[a-z0-9-]+)*$/;
