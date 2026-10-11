@@ -29,6 +29,7 @@ import { AugmentcodeCheck } from "./augmentcode-check.js";
 import { CursorCheck } from "./cursor-check.js";
 import { FactorydroidCheck } from "./factorydroid-check.js";
 import { GitlabduoCheck } from "./gitlabduo-check.js";
+import { GooseCheck } from "./goose-check.js";
 import { HermesagentCheck } from "./hermesagent-check.js";
 import { KiloCheck } from "./kilo-check.js";
 import { QwencodeCheck } from "./qwencode-check.js";
@@ -67,6 +68,12 @@ type ToolCheckFactory = {
   meta: {
     /** Whether the tool supports global (user-level) checks */
     supportsGlobal: boolean;
+    /**
+     * Whether the tool supports project checks. Defaults to `true`; a target
+     * whose project location another target already writes (Goose's
+     * `.agents/checks/`, written by `amp`) sets `false` and is global-only.
+     */
+    supportsProject?: boolean;
     /** File pattern for import (e.g., "*.md") */
     filePattern: string;
     /**
@@ -168,6 +175,16 @@ export const toolCheckFactories = new Map<ChecksProcessorToolTarget, ToolCheckFa
     },
   ],
   [
+    "goose",
+    {
+      // `goose review` reads `~/.config/goose/checks/*.md` globally. Its
+      // project directory is the cross-tool `.agents/checks/` that the `amp`
+      // target writes, so Goose is global-only here.
+      class: GooseCheck,
+      meta: { supportsGlobal: true, supportsProject: false, filePattern: "*.md" },
+    },
+  ],
+  [
     "hermesagent",
     {
       class: HermesagentCheck,
@@ -248,7 +265,10 @@ const defaultGetFactory: GetFactory = (target) => {
 // Derive tool target arrays from factory metadata
 const allToolTargetKeys = [...toolCheckFactories.keys()];
 
-export const checksProcessorToolTargets: ToolTarget[] = allToolTargetKeys;
+export const checksProcessorToolTargets: ToolTarget[] = allToolTargetKeys.filter((target) => {
+  const factory = toolCheckFactories.get(target);
+  return factory?.meta.supportsProject !== false;
+});
 
 const checksProcessorToolTargetsGlobal: ToolTarget[] = allToolTargetKeys.filter((target) => {
   const factory = toolCheckFactories.get(target);

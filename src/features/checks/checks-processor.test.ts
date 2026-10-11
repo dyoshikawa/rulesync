@@ -33,8 +33,12 @@ describe("ChecksProcessor.getToolTargets", () => {
     ]);
   });
 
-  it("should return amp for global scope", () => {
-    expect(ChecksProcessor.getToolTargets({ global: true })).toEqual(["amp", "takt"]);
+  it("should return the global-capable targets for global scope", () => {
+    expect(ChecksProcessor.getToolTargets({ global: true })).toEqual(["amp", "goose", "takt"]);
+  });
+
+  it("should leave the global-only goose target out of project scope", () => {
+    expect(ChecksProcessor.getToolTargets({ global: false })).not.toContain("goose");
   });
 
   it("should return no simulated targets", () => {
