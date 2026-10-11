@@ -37,8 +37,10 @@ const MATCH_ALL_PATH_GLOBS = new Set(["*", "**", "**/*"]);
 // A trailing glob that means "everything under this directory".
 const DIRECTORY_CONTENTS_SUFFIX = /\/\*\*(?:\/\*)?$/;
 
-// A path that starts with `~` or holds an environment variable reference.
-const HOME_OR_VARIABLE_PATH = /^~|\$/;
+// A path that starts with `~` or a `$NAME` variable, or holds a `${NAME}`
+// reference. A `$` elsewhere is an ordinary file name character
+// (`routes/posts.$postId.tsx`).
+const HOME_OR_VARIABLE_PATH = /^~|^\$[A-Za-z_]|\$\{[A-Za-z_]/;
 
 // Hostnames as Antigravity matches them: letters, digits, dots and hyphens.
 const HOSTNAME = /^[a-z0-9-]+(?:\.[a-z0-9-]+)*$/;
@@ -198,8 +200,12 @@ export function buildAntigravityPermissionEntry({
   // Antigravity documents absolute and workspace-relative paths only, so a
   // home or variable reference may be matched literally and never apply.
   if (PATH_ACTIONS.has(action) && HOME_OR_VARIABLE_PATH.test(result.target)) {
+    const consequence =
+      decision === "deny"
+        ? "this deny may block nothing"
+        : `${toolLabel} may fall back to its default`;
     logger.warn(
-      `${toolLabel} permissions: ${rule}: \`~\` and environment variables may not be expanded in Antigravity path targets, so ${action}(${result.target}) may match nothing; use an absolute path instead.`,
+      `${toolLabel} permissions: ${rule}: \`~\` and environment variables may not be expanded in Antigravity path targets, so ${action}(${result.target}) may match nothing and ${consequence}; use an absolute path instead.`,
     );
   }
   return result.target === "*" ? action : `${action}(${result.target})`;

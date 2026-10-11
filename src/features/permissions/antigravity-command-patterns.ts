@@ -1,5 +1,7 @@
 // cspell:ignore alnum cntrl punct xdigit CLMNPSZ -- POSIX classes and Unicode categories
+import type { PermissionAction } from "../../types/permissions.js";
 import { parseGlobPattern } from "../../utils/glob.js";
+import type { Logger } from "../../utils/logger.js";
 
 /**
  * Translation between rulesync's canonical `bash` patterns and the targets of
@@ -35,6 +37,13 @@ import { parseGlobPattern } from "../../utils/glob.js";
  */
 
 const REGEX_PREFIX = "regex:";
+
+// An unescaped `$` that ends a regex word.
+const TRAILING_ANCHOR = /(?<!\\)\$$/;
+
+// Characters of a plain target that mean more in a glob than in Antigravity,
+// which compares a plain target literally.
+const PLAIN_TARGET_GLOB_CHARACTERS = /[*?[{\\]/;
 
 // Characters that carry meaning in a JavaScript-style regex and so are escaped
 // when they stand for themselves.
@@ -581,7 +590,7 @@ export function toAntigravityCommandLiteralPrefix(pattern: string): string | und
  * the rule a regex.
  */
 function regexWordToGlob(word: string): string | undefined {
-  const body = word.replace(/^\^/, "").replace(/(?<!\\)\$$/, "");
+  const body = word.replace(/^\^/, "").replace(TRAILING_ANCHOR, "");
   const characters = Array.from(body);
   if (characters.length === 0) {
     return undefined;
@@ -662,7 +671,7 @@ export function fromAntigravityCommandTarget(target: string): string {
   // A plain target is literal, but `*`, `?`, `[`, `{` and `\` mean more in a glob,
   // so such a target imports as the regex that says what Antigravity does:
   // `command(rm -rf *)` matches a literal `*` word.
-  if (/[*?[{\\]/.test(target)) {
+  if (PLAIN_TARGET_GLOB_CHARACTERS.test(target)) {
     const words = splitWords(target);
     return `${REGEX_PREFIX}${words.map((word) => `^${[...word].map(escapeRegexCharacter).join("")}$`).join(" ")}`;
   }
@@ -670,30 +679,68 @@ export function fromAntigravityCommandTarget(target: string): string {
 }
 
 /**
+ * Whether a regex word means the same anchored or not: each end is either
+ * anchored (`^`, an unescaped `$`) or open-ended (`.*`).
+ */
+function isAnchoredWord(word: string): boolean {
+  const startAnchored = word.startsWith("^") || word.startsWith(".*");
+  const endAnchored = TRAILING_ANCHOR.test(word) || word.endsWith(".*");
+  return startAnchored && endAnchored;
+}
+
+/**
  * Explain what importing an Antigravity `command` target may lose, or return
  * `undefined` when the import is faithful.
  *
- * - A `regex:` target whose words are not all anchored is imported as a glob
+ * - A `regex:` target with a word that is not anchored is imported as a glob
  *   that assumes anchoring. If Antigravity matches such a word unanchored,
  *   the imported rule is narrower (`regex:rm` also matches `rmdir`).
- * - A plain target holding glob characters is most likely the verbatim output
- *   of an older rulesync (`command(rm -rf *)`). Antigravity matches it
- *   literally, so it imports as a regex that matches a literal `*` word and is
- *   inert in the other tools it is exported to.
+ * - A plain target holding characters that are special in a glob is most
+ *   likely the verbatim output of an older rulesync (`command(rm -rf *)`).
+ *   Antigravity matches it literally, so it imports as a regex that matches a
+ *   literal `*` word and is inert in the other tools it is exported to.
  */
 export function describeAntigravityCommandImportLoss(target: string): string | undefined {
   if (target.startsWith(REGEX_PREFIX)) {
     const source = target.slice(REGEX_PREFIX.length);
-    const unanchored = splitWords(source).some(
-      (word) => !word.startsWith("^") || !/(?<!\\)\$$/.test(word),
-    );
+    const unanchored = splitWords(source).some((word) => !isAnchoredWord(word));
     if (unanchored && regexToGlob(source) !== undefined) {
       return "it has a regex word without `^...$` anchors and is imported as a glob that assumes Antigravity anchors every word, so the imported rule may be narrower than the original";
     }
     return undefined;
   }
-  if (target !== "*" && /[*?[{\\]/.test(target)) {
-    return "it holds glob characters, which Antigravity matches literally (likely output of an older rulesync), so it is imported as a literal-match regex that no other tool enforces";
+  if (target !== "*" && PLAIN_TARGET_GLOB_CHARACTERS.test(target)) {
+    return "it holds characters that are special in a glob (`*`, `?`, `[`, `{` or `\\`), which Antigravity matches literally (likely output of an older rulesync), so it is imported as a literal-match regex that no other tool enforces";
   }
   return undefined;
+}
+
+/**
+ * Import one Antigravity `command` target as a canonical bash pattern, warning
+ * when the result may differ from what Antigravity enforces. Shared by the
+ * Antigravity CLI and IDE importers.
+ */
+export function importAntigravityCommandTarget({
+  target,
+  entry,
+  decision,
+  logger,
+  toolLabel,
+}: {
+  target: string;
+  entry: string;
+  decision: PermissionAction;
+  logger: Logger;
+  toolLabel: string;
+}): string {
+  const pattern = target === "*" ? target : fromAntigravityCommandTarget(target);
+  const loss = describeAntigravityCommandImportLoss(target);
+  if (loss !== undefined) {
+    const consequence =
+      decision === "deny" ? " The imported deny may block less than it does in Antigravity." : "";
+    logger.warn(
+      `${toolLabel} permissions: importing ${entry} as "${pattern}": ${loss}.${consequence}`,
+    );
+  }
+  return pattern;
 }
