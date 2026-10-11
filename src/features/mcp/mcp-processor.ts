@@ -17,6 +17,7 @@ import { AntigravityPluginMcp } from "./antigravity-plugin-mcp.js";
 import { AugmentcodeMcp } from "./augmentcode-mcp.js";
 import { BobMcp } from "./bob-mcp.js";
 import { ClaudecodeMcp } from "./claudecode-mcp.js";
+import { ClaudecodePluginMcp } from "./claudecode-plugin-mcp.js";
 import { ClineMcp } from "./cline-mcp.js";
 import { CodebuddyMcp } from "./codebuddy-mcp.js";
 import { CodebuffMcp } from "./codebuff-mcp.js";
@@ -252,7 +253,7 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
   [
     "claudecode-plugin",
     {
-      class: ClaudecodeMcp,
+      class: ClaudecodePluginMcp,
       meta: {
         supportsProject: true,
         supportsGlobal: false,
