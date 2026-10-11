@@ -5,7 +5,7 @@ import { z } from "zod/mini";
 import { AMP_CHECKS_GLOBAL_DIR, AMP_CHECKS_PROJECT_DIR } from "../../constants/amp-paths.js";
 import { RULESYNC_CHECKS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
-import { ALL_TOOL_TARGETS } from "../../types/tool-targets.js";
+import { ALL_TOOL_TARGETS, type ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
@@ -57,7 +57,7 @@ export class AmpCheck extends ToolCheck {
   constructor({ frontmatter, body, fileContent, ...rest }: AmpCheckParams) {
     // Set properties before calling super to ensure they're available for validation
     if (rest.validate !== false) {
-      const result = AmpCheckFrontmatterSchema.safeParse(frontmatter);
+      const result = (new.target as typeof AmpCheck).getFrontmatterSchema().safeParse(frontmatter);
       if (!result.success) {
         throw new Error(
           `Invalid frontmatter in ${join(rest.relativeDirPath, rest.relativeFilePath)}: ${formatError(result.error)}`,
@@ -72,6 +72,29 @@ export class AmpCheck extends ToolCheck {
 
     this.frontmatter = frontmatter;
     this.body = body;
+  }
+
+  /**
+   * The tool target this check format belongs to, which is also the name of
+   * its tool-specific frontmatter section. Goose reads the same per-file
+   * format with a few extra keys, so `GooseCheck` reuses this class through
+   * these hooks.
+   */
+  protected static getCheckToolTarget(): ToolTarget {
+    return "amp";
+  }
+
+  /** The frontmatter schema a check file of this tool is validated against. */
+  protected static getFrontmatterSchema(): z.ZodMiniType<AmpCheckFrontmatter> {
+    return AmpCheckFrontmatterSchema;
+  }
+
+  /**
+   * Frontmatter keys only this tool reads. Import moves them into the tool's
+   * own section so they are not passed on to every other checks target.
+   */
+  protected static getToolOnlyKeys(): readonly string[] {
+    return [];
   }
 
   static getSettablePaths({ global = false }: { global?: boolean } = {}): ToolCheckSettablePaths {
@@ -99,12 +122,25 @@ export class AmpCheck extends ToolCheck {
       ...restFields
     } = this.frontmatter;
 
+    // Keys only this tool reads go into its own section, so they stay with it.
+    const checkClass = this.constructor as typeof AmpCheck;
+    const toolOnlyKeys = new Set(checkClass.getToolOnlyKeys());
+    const sharedFields = Object.fromEntries(
+      Object.entries(restFields).filter(([key]) => !toolOnlyKeys.has(key)),
+    );
+    const toolSection = Object.fromEntries(
+      Object.entries(restFields).filter(([key]) => toolOnlyKeys.has(key)),
+    );
+
     const rulesyncFrontmatter: RulesyncCheckFrontmatter = {
       targets: ["*"] as const,
       ...(description !== undefined && { description }),
       ...(severityDefault !== undefined && { severity: severityDefault }),
       ...(tools !== undefined && { tools }),
-      ...restFields,
+      ...sharedFields,
+      ...(Object.keys(toolSection).length > 0 && {
+        [checkClass.getCheckToolTarget()]: toolSection,
+      }),
     };
 
     return new RulesyncCheck({
@@ -142,7 +178,14 @@ export class AmpCheck extends ToolCheck {
     const passthroughFields = Object.fromEntries(
       Object.entries(restFields).filter(([key]) => !toolTargetKeys.has(key) && key !== "name"),
     );
-    const ampSection = this.filterToolSpecificSection(rulesyncFrontmatter.amp ?? {}, ["name"]);
+    const toolTarget = this.getCheckToolTarget();
+    const rawSection = rulesyncFrontmatter[toolTarget];
+    const toolSection = this.filterToolSpecificSection(
+      rawSection !== null && typeof rawSection === "object" && !Array.isArray(rawSection)
+        ? (rawSection as Record<string, unknown>)
+        : {},
+      ["name"],
+    );
 
     const rawAmpFrontmatter = {
       name,
@@ -150,13 +193,13 @@ export class AmpCheck extends ToolCheck {
       ...(severity !== undefined && { "severity-default": severity }),
       ...(tools !== undefined && { tools }),
       ...passthroughFields,
-      ...ampSection,
+      ...toolSection,
     };
 
-    const result = AmpCheckFrontmatterSchema.safeParse(rawAmpFrontmatter);
+    const result = this.getFrontmatterSchema().safeParse(rawAmpFrontmatter);
     if (!result.success) {
       throw new Error(
-        `Invalid amp check frontmatter in ${relativeFilePath}: ${formatError(result.error)}`,
+        `Invalid ${toolTarget} check frontmatter in ${relativeFilePath}: ${formatError(result.error)}`,
       );
     }
 
@@ -165,7 +208,7 @@ export class AmpCheck extends ToolCheck {
     const fileContent = stringifyFrontmatter(body, ampFrontmatter);
     const paths = this.getSettablePaths({ global });
 
-    return new AmpCheck({
+    return new this({
       outputRoot,
       frontmatter: ampFrontmatter,
       body,
@@ -182,7 +225,9 @@ export class AmpCheck extends ToolCheck {
       return { success: true, error: null };
     }
 
-    const result = AmpCheckFrontmatterSchema.safeParse(this.frontmatter);
+    const result = (this.constructor as typeof AmpCheck)
+      .getFrontmatterSchema()
+      .safeParse(this.frontmatter);
     if (result.success) {
       return { success: true, error: null };
     } else {
@@ -198,7 +243,7 @@ export class AmpCheck extends ToolCheck {
   static isTargetedByRulesyncCheck(rulesyncCheck: RulesyncCheck): boolean {
     return this.isTargetedByRulesyncCheckDefault({
       rulesyncCheck,
-      toolTarget: "amp",
+      toolTarget: this.getCheckToolTarget(),
     });
   }
 
@@ -214,12 +259,12 @@ export class AmpCheck extends ToolCheck {
     const fileContent = await readFileContent(filePath);
     const { frontmatter, body: content } = parseFrontmatter(fileContent, filePath);
 
-    const result = AmpCheckFrontmatterSchema.safeParse(frontmatter);
+    const result = this.getFrontmatterSchema().safeParse(frontmatter);
     if (!result.success) {
       throw new Error(`Invalid frontmatter in ${filePath}: ${formatError(result.error)}`);
     }
 
-    return new AmpCheck({
+    return new this({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath,
@@ -235,7 +280,7 @@ export class AmpCheck extends ToolCheck {
     relativeDirPath,
     relativeFilePath,
   }: ToolCheckForDeletionParams): AmpCheck {
-    return new AmpCheck({
+    return new this({
       outputRoot,
       relativeDirPath,
       relativeFilePath,
