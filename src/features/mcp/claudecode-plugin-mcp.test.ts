@@ -120,6 +120,7 @@ describe("ClaudecodePluginMcp", () => {
 
   it.each([
     { command: "sh", args: ["-c", "./start.sh --flag"] },
+    { command: "bash", args: ["-lc", "./start.sh --flag"] },
     { command: "python3", args: ["-m", "pkg", "./data"] },
     { command: "node", args: ["-e", "1", "./x.js"] },
     { command: "npx", args: ["-y", "@modelcontextprotocol/server-filesystem", "./docs"] },

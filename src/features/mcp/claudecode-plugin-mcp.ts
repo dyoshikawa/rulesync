@@ -5,6 +5,7 @@ import {
   PACKAGE_RUNNERS,
   RUN_SUBCOMMANDS,
   SCRIPT_RUNNER_PATTERN,
+  SHELL_CODE_OPTION,
   SHELL_NAME_PATTERN,
   VALUE_OPTIONS,
   optionsFor,
@@ -96,7 +97,7 @@ function fileArgumentIndices({
     if (arg.startsWith("-") && arg !== "-") {
       const isCode =
         optionsFor({ table: CODE_OPTIONS, name: owner })?.has(arg) ||
-        (SHELL_NAME_PATTERN.test(owner) && arg === "-c");
+        (SHELL_NAME_PATTERN.test(owner) && SHELL_CODE_OPTION.test(arg));
       if (isCode) break;
       if (optionsFor({ table: VALUE_OPTIONS, name: owner })?.has(arg)) {
         const value = args[index + 1];

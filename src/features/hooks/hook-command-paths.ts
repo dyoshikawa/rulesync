@@ -33,7 +33,7 @@ const SHELL_NAME = "(?:a|ba|da|k|mk|z)?sh";
 export const SHELL_NAME_PATTERN = new RegExp(`^${SHELL_NAME}$`);
 
 /** Matches a shell option cluster that contains `c` (`-c`, `-lc`, `-euc`). */
-const SHELL_CODE_OPTION = /^-[A-Za-z]*c[A-Za-z]*$/;
+export const SHELL_CODE_OPTION = /^-[A-Za-z]*c[A-Za-z]*$/;
 
 /** Escape a string for literal use in a regular expression. */
 function escapeRegExp(value: string): string {
