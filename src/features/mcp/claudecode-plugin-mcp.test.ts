@@ -63,14 +63,45 @@ describe("ClaudecodePluginMcp", () => {
     expect(servers.s.command).toBe(command);
   });
 
-  it("anchors only the ./ arguments", async () => {
-    const { servers } = await generate({
-      s: { command: "node", args: ["./dist/server.js", "--port", "8080", "dist/other.js"] },
-    });
-    expect(servers.s).toEqual({
-      command: "node",
-      args: ["${CLAUDE_PLUGIN_ROOT}/dist/server.js", "--port", "8080", "dist/other.js"],
-    });
+  it.each([
+    [
+      { command: "node", args: ["./dist/server.js", "--port", "8080"] },
+      { command: "node", args: ["${CLAUDE_PLUGIN_ROOT}/dist/server.js", "--port", "8080"] },
+    ],
+    [
+      { command: "python3", args: ["-u", "./server.py", "./data"] },
+      { command: "python3", args: ["-u", "${CLAUDE_PLUGIN_ROOT}/server.py", "./data"] },
+    ],
+    [
+      { command: "uv", args: ["run", "--quiet", "./server.py"] },
+      { command: "uv", args: ["run", "--quiet", "${CLAUDE_PLUGIN_ROOT}/server.py"] },
+    ],
+    [
+      { command: ["node", "./dist/server.js"], args: ["./data"] },
+      { command: ["node", "${CLAUDE_PLUGIN_ROOT}/dist/server.js"], args: ["./data"] },
+    ],
+  ])("anchors the script a runner executes in %j", async (server, expected) => {
+    const { servers } = await generate({ s: server });
+    expect(servers.s).toEqual(expected);
+  });
+
+  it.each([
+    { command: "npx", args: ["-y", "@modelcontextprotocol/server-filesystem", "./docs"] },
+    { command: "node", args: ["dist/server.js"] },
+    { command: "node", args: ["${CLAUDE_PLUGIN_DATA}/server.js"] },
+    { command: "node", args: ["../shared/server.js"] },
+  ])("leaves the data arguments of %j as written", async (server) => {
+    const { servers } = await generate({ s: server });
+    expect(servers.s).toEqual(server);
+  });
+
+  it.each([
+    ["..\\shared\\server", "..\\shared\\server"],
+    ["%APPDATA%\\server.exe", "%APPDATA%\\server.exe"],
+    [".\\server.exe", "${CLAUDE_PLUGIN_ROOT}/server.exe"],
+  ])("handles the Windows command %s", async (command, expected) => {
+    const { servers } = await generate({ s: { command } });
+    expect(servers.s.command).toBe(expected);
   });
 
   it("leaves env, url and headers as written", async () => {
@@ -91,7 +122,7 @@ describe("ClaudecodePluginMcp", () => {
       join(testDir, ".mcp.json"),
       JSON.stringify({
         mcpServers: {
-          db: { command, args: ["${CLAUDE_PLUGIN_ROOT}/schema.sql", "--verbose"] },
+          db: { command, args: [command.replace("servers/db-server", "schema.sql"), "--verbose"] },
         },
       }),
     );
