@@ -11,7 +11,10 @@ import type { PermissionAction, PermissionsConfig } from "../../types/permission
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { fallbackLogger, type Logger } from "../../utils/logger.js";
-import { fromAntigravityCommandTarget } from "./antigravity-command-patterns.js";
+import {
+  describeAntigravityCommandImportLoss,
+  fromAntigravityCommandTarget,
+} from "./antigravity-command-patterns.js";
 import { buildAntigravityPermissionEntry } from "./antigravity-targets.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { honorAllToolsOnBash } from "./shell-command-categories.js";
@@ -305,6 +308,13 @@ function convertAntigravityIdeToRulesyncPermissions(params: {
       const canonical = toCanonicalCategory(ideAction);
       const pattern =
         ideAction === "command" && target !== "*" ? fromAntigravityCommandTarget(target) : target;
+      const loss =
+        ideAction === "command" ? describeAntigravityCommandImportLoss(target) : undefined;
+      if (loss !== undefined) {
+        fallbackLogger.warn(
+          `Antigravity IDE permissions: importing ${entry} as "${pattern}": ${loss}.`,
+        );
+      }
       if (!permission[canonical]) {
         permission[canonical] = {};
       }

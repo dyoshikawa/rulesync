@@ -668,3 +668,32 @@ export function fromAntigravityCommandTarget(target: string): string {
   }
   return `${target} *`;
 }
+
+/**
+ * Explain what importing an Antigravity `command` target may lose, or return
+ * `undefined` when the import is faithful.
+ *
+ * - A `regex:` target whose words are not all anchored is imported as a glob
+ *   that assumes anchoring. If Antigravity matches such a word unanchored,
+ *   the imported rule is narrower (`regex:rm` also matches `rmdir`).
+ * - A plain target holding glob characters is most likely the verbatim output
+ *   of an older rulesync (`command(rm -rf *)`). Antigravity matches it
+ *   literally, so it imports as a regex that matches a literal `*` word and is
+ *   inert in the other tools it is exported to.
+ */
+export function describeAntigravityCommandImportLoss(target: string): string | undefined {
+  if (target.startsWith(REGEX_PREFIX)) {
+    const source = target.slice(REGEX_PREFIX.length);
+    const unanchored = splitWords(source).some(
+      (word) => !word.startsWith("^") || !/(?<!\\)\$$/.test(word),
+    );
+    if (unanchored && regexToGlob(source) !== undefined) {
+      return "it has a regex word without `^...$` anchors and is imported as a glob that assumes Antigravity anchors every word, so the imported rule may be narrower than the original";
+    }
+    return undefined;
+  }
+  if (target !== "*" && /[*?[{\\]/.test(target)) {
+    return "it holds glob characters, which Antigravity matches literally (likely output of an older rulesync), so it is imported as a literal-match regex that no other tool enforces";
+  }
+  return undefined;
+}
