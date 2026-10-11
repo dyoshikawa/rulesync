@@ -185,7 +185,7 @@ Step 1`;
       });
     });
 
-    it("should round-trip a workflow switched off in Cline (issue #2405)", async () => {
+    it("should round-trip hand-written workflow frontmatter (issue #2405)", async () => {
       await writeFileContent(
         join(testDir, ".clinerules", "workflows", "deploy.md"),
         "---\ndisabled: true\n---\n\nDeploy steps",
@@ -203,8 +203,24 @@ Step 1`;
         outputRoot: testDir,
         rulesyncCommand,
       });
-      expect(regenerated.getFileContent()).toContain("disabled: true");
+      expect(regenerated.getFileContent()).toBe("---\ndisabled: true\n---\nDeploy steps\n");
       expect(regenerated.getBody()).toBe("Deploy steps");
+    });
+
+    it("should drop cline fields Cline would reject for their type", () => {
+      const command = ClineCommand.fromRulesyncCommand({
+        outputRoot: testDir,
+        rulesyncCommand: new RulesyncCommand({
+          outputRoot: testDir,
+          relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
+          relativeFilePath: "deploy.md",
+          frontmatter: { targets: ["*"], cline: { disabled: "yes", name: "ship", extra: 1 } },
+          body: "Deploy steps",
+          fileContent: "",
+        }),
+      });
+
+      expect(command.getFileContent()).toBe("---\nname: ship\nextra: 1\n---\nDeploy steps\n");
     });
 
     it("should write a workflow without a cline section as a bare body", async () => {

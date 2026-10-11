@@ -7,6 +7,7 @@ import {
 import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
+import { type Logger, warnWithFallback } from "../../utils/logger.js";
 import { isRecord } from "../../utils/type-guards.js";
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
 import {
@@ -17,15 +18,54 @@ import {
   ToolCommandSettablePaths,
 } from "./tool-command.js";
 
+// The workflow frontmatter fields Cline type-checks. A value of the wrong type
+// makes Cline reject the whole workflow ("Frontmatter field 'disabled' must be
+// a boolean"), so such a value is dropped with a warning instead of written.
+const CLINE_WORKFLOW_FIELD_TYPES: Record<string, "string" | "boolean"> = {
+  name: "string",
+  disabled: "boolean",
+  enabled: "boolean",
+};
+
+function sanitizeClineWorkflowFrontmatter({
+  cline,
+  relativeFilePath,
+  logger,
+}: {
+  cline: unknown;
+  relativeFilePath: string;
+  logger?: Logger;
+}): Record<string, unknown> {
+  if (!isRecord(cline)) {
+    return {};
+  }
+  return Object.fromEntries(
+    Object.entries(cline).filter(([key, value]) => {
+      const expected = Object.hasOwn(CLINE_WORKFLOW_FIELD_TYPES, key)
+        ? CLINE_WORKFLOW_FIELD_TYPES[key]
+        : undefined;
+      if (expected === undefined || typeof value === expected) {
+        return true;
+      }
+      warnWithFallback(
+        logger,
+        `Cline commands: dropping cline.${key} from ${relativeFilePath}: Cline rejects the whole workflow unless it is a ${expected}.`,
+      );
+      return false;
+    }),
+  );
+}
+
 /**
  * Cline workflows (commands). A workflow may carry YAML frontmatter that Cline
- * reads: `name` and the `disabled` / `enabled` toggle a workflow is switched
- * off with (`parseWorkflowConfigFromMarkdown` in Cline's
+ * reads: `name` (the slash-command name) and a `disabled` / `enabled` switch
+ * (`parseWorkflowConfigFromMarkdown` in Cline's
  * `user-instruction-config-loader.ts`). The `cline:` section of a
  * `.rulesync/commands/*.md` file is written as that frontmatter, and every key
- * of an imported workflow's frontmatter is lifted back into `cline:`, so a
- * workflow switched off in Cline survives an import → generate round trip. A
- * workflow without a `cline:` section is written as a bare body, as before.
+ * of an imported workflow's frontmatter is lifted back into `cline:`, so
+ * hand-written workflow frontmatter survives an import → generate round trip.
+ * Cline's own UI toggle is kept in Cline's state, not in the file. A workflow
+ * without a `cline:` section is written as a bare body, as before.
  *
  * @see https://github.com/cline/cline/blob/main/sdk/packages/core/src/extensions/config/user-instruction-config-loader.ts
  */
@@ -72,15 +112,19 @@ export class ClineCommand extends ToolCommand {
     rulesyncCommand,
     validate = true,
     global = false,
+    logger,
   }: ToolCommandFromRulesyncCommandParams): ClineCommand {
     const paths = this.getSettablePaths({ global });
-    const cline = rulesyncCommand.getFrontmatter().cline;
+    const cline = sanitizeClineWorkflowFrontmatter({
+      cline: rulesyncCommand.getFrontmatter().cline,
+      relativeFilePath: rulesyncCommand.getRelativeFilePath(),
+      logger,
+    });
     const body = rulesyncCommand.getBody();
 
     return new ClineCommand({
       outputRoot: outputRoot,
-      fileContent:
-        isRecord(cline) && Object.keys(cline).length > 0 ? stringifyFrontmatter(body, cline) : body,
+      fileContent: Object.keys(cline).length > 0 ? stringifyFrontmatter(body, cline) : body,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: rulesyncCommand.getRelativeFilePath(),
       validate,
