@@ -269,6 +269,36 @@ describe("E2E: permissions", () => {
     });
   });
 
+  it("should disable shell in the codewhale project config overlay when every shell command is denied", async () => {
+    const testDir = getTestDir();
+    const configPath = join(testDir, ".codewhale", "config.toml");
+
+    // The user's other overlay keys survive the regenerate.
+    await writeFileContent(configPath, 'model = "deepseek-v4-pro"\n');
+    await writeFileContent(
+      join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify({ permission: { bash: { "*": "deny" } } }, null, 2),
+    );
+
+    await runGenerate({ target: "codewhale", features: "permissions" });
+
+    expect(smolToml.parse(await readFileContent(configPath))).toEqual({
+      model: "deepseek-v4-pro",
+      allow_shell: false,
+    });
+
+    await writeFileContent(
+      join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify({ permission: {} }, null, 2),
+    );
+    await runImport({ target: "codewhale", features: "permissions" });
+
+    const imported = JSON.parse(
+      await readFileContent(join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH)),
+    );
+    expect(imported.permission).toEqual({ bash: { "*": "deny" } });
+  });
+
   it("should generate claudecode permissions into .claude/settings.json", async () => {
     const testDir = getTestDir();
 
