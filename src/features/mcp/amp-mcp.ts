@@ -11,7 +11,11 @@ import { readFileContentOrNull } from "../../utils/file.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { isRecord } from "../../utils/type-guards.js";
 import { parseAmpSettings } from "../shared/amp-settings.js";
-import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
+import {
+  applySharedConfigPatch,
+  sharedConfigFileKey,
+  undefinedWhenEmpty,
+} from "../shared/shared-config-gateway.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -141,7 +145,11 @@ export class AmpMcp extends ToolMcp {
         fileKey: sharedConfigFileKey(basePaths),
         feature: "mcp",
         existingContent: fileContent ?? "",
-        patch: { [AMP_MCP_SERVERS_KEY]: filterMcpServers(rulesyncMcp.getMcpServers()) },
+        // With no server left the key is retracted rather than left as an
+        // empty object, so the file states nothing Rulesync no longer generates.
+        patch: {
+          [AMP_MCP_SERVERS_KEY]: undefinedWhenEmpty(filterMcpServers(rulesyncMcp.getMcpServers())),
+        },
         filePath: join(jsonDir, relativeFilePath),
         logger,
       }),
