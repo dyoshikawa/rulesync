@@ -11,11 +11,17 @@ import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
 import {
+  ANTIGRAVITY_NESTED_RULE_TARGETS,
   AntigravityRuleFrontmatter,
   AntigravityRuleFrontmatterSchema,
   STRATEGIES,
+  extractAntigravitySubprojectPath,
+  getAntigravityNestedFilePatterns,
   normalizeStoredAntigravity,
   parseGlobsString,
+  resolveAntigravityNonRootFile,
+  resolveAntigravitySubprojectPath,
+  toAntigravityNestedRulesDirPath,
   toGlobalRuleFileName,
 } from "./antigravity-rule.js";
 import { RulesyncRule } from "./rulesync-rule.js";
@@ -24,6 +30,7 @@ import {
   ToolRuleForDeletionParams,
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
+  ToolRuleNestedFilePatterns,
   ToolRuleSettablePaths,
   ToolRuleSettablePathsGlobal,
   buildToolPath,
@@ -126,12 +133,17 @@ export class AntigravityCliRule extends ToolRule {
       throw new Error(`nonRoot path is not set for ${relativeFilePath}`);
     }
 
-    const relativePath = join(paths.nonRoot.relativeDirPath, relativeFilePath);
+    const nonRoot = resolveAntigravityNonRootFile({
+      relativeDirPath,
+      relativeFilePath,
+      defaultDirPath: paths.nonRoot.relativeDirPath,
+    });
+    const relativePath = join(nonRoot.relativeDirPath, nonRoot.relativeFilePath);
     const fileContent = await readFileContent(join(outputRoot, relativePath));
     const rule = new AntigravityCliRule({
       outputRoot,
-      relativeDirPath: paths.nonRoot.relativeDirPath,
-      relativeFilePath: relativeFilePath,
+      relativeDirPath: nonRoot.relativeDirPath,
+      relativeFilePath: nonRoot.relativeFilePath,
       fileContent,
       validate,
       root: false,
@@ -181,7 +193,17 @@ export class AntigravityCliRule extends ToolRule {
 
     const fileContent = stringifyFrontmatter(rulesyncRule.getBody(), frontmatter);
     if (!global) {
-      return new AntigravityCliRule({ ...params, fileContent, global });
+      // A subproject-scoped rule goes to that subproject's own `.agents/rules/`,
+      // the same file the IDE writes for it.
+      const subprojectPath = resolveAntigravitySubprojectPath({ rulesyncRule, global });
+      return new AntigravityCliRule({
+        ...params,
+        ...(subprojectPath !== undefined && {
+          relativeDirPath: toAntigravityNestedRulesDirPath(subprojectPath),
+        }),
+        fileContent,
+        global,
+      });
     }
 
     return new AntigravityCliRule({
@@ -203,21 +225,36 @@ export class AntigravityCliRule extends ToolRule {
       ? strategy.exportRulesyncData(frontmatter)
       : { globs: [], antigravity: frontmatter };
 
+    // A nested rule carries its directory back the same way the IDE's does.
+    const subprojectPath = this.global
+      ? undefined
+      : extractAntigravitySubprojectPath(this.getRelativeDirPath())?.subprojectPath;
+
     return new RulesyncRule({
       outputRoot: process.cwd(),
       relativeDirPath: RulesyncRule.getSettablePaths().recommended.relativeDirPath,
       relativeFilePath: this.getRelativeFilePath(),
       frontmatter: {
         root: false,
-        targets: ["*"],
+        targets: subprojectPath === undefined ? ["*"] : [...ANTIGRAVITY_NESTED_RULE_TARGETS],
         ...rulesyncData,
         antigravity: {
           ...rulesyncData.antigravity,
           globs: frontmatter.globs ? parseGlobsString(frontmatter.globs) : undefined,
         },
+        ...(subprojectPath !== undefined && { agentsmd: { subprojectPath } }),
       },
       body,
     });
+  }
+
+  /**
+   * The `.agents/rules/` folders of project subdirectories, imported back as
+   * directory-scoped rules.
+   * @see https://antigravity.google/docs/rules
+   */
+  static getNestedFilePatterns(): ToolRuleNestedFilePatterns {
+    return getAntigravityNestedFilePatterns();
   }
 
   validate() {

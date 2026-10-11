@@ -490,7 +490,9 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         // files under `.agents/rules/` (project) and `~/.gemini/config/rules/`
         // (global) — so the root context file (project `AGENTS.md`, global
         // `~/.gemini/GEMINI.md`) carries no reference block, matching
-        // `antigravity-ide`, which writes the same project files.
+        // `antigravity-ide`, which writes the same project files. A
+        // directory-scoped rule (`agentsmd.subprojectPath`) goes to
+        // `<dir>/.agents/rules/` (imported back via `getNestedFilePatterns`).
         extension: "md",
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",
@@ -506,6 +508,8 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         // The Antigravity IDE auto-discovers rule files under `.agents/rules/`
         // (project) and `~/.gemini/config/rules/` (global, shared with
         // `antigravity-cli`), so no reference section is needed in the root rule.
+        // A directory-scoped rule (`agentsmd.subprojectPath`) goes to
+        // `<dir>/.agents/rules/` (imported back via `getNestedFilePatterns`).
         extension: "md",
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",
