@@ -937,7 +937,7 @@ export class CodewhalePermissions extends ToolPermissions {
       });
       const permission = codewhaleConstitutionToCanonical(document);
       if (this.projectShellDisabled) {
-        permission.bash = { "*": "deny" };
+        permission.bash = { ...permission.bash, "*": "deny" };
       }
       return this.toRulesyncPermissionsDefault({
         fileContent: JSON.stringify({ permission }, null, 2),

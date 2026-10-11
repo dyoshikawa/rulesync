@@ -219,13 +219,14 @@ function collectRestrictions({ config, logger }: { config: PermissionsConfig; lo
   for (const [category, rules] of Object.entries(config.permission)) {
     if (!REPO_LAW_CATEGORIES.includes(category)) {
       // A `bash` deny on every command goes to `allow_shell = false` in the
-      // project `.codewhale/config.toml` instead (see `codewhale-project-config.ts`).
+      // project `.codewhale/config.toml` instead (see `codewhale-project-config.ts`),
+      // and that covers every other bash restriction too.
+      const entries = Object.entries(rules);
       const skipped =
-        category === SHELL_PERMISSION_CATEGORY
-          ? Object.entries(rules).filter(
-              ([pattern, action]) => !(action === "deny" && isShellCatchAll(pattern)),
-            )
-          : Object.entries(rules);
+        category === SHELL_PERMISSION_CATEGORY &&
+        entries.some(([pattern, action]) => action === "deny" && isShellCatchAll(pattern))
+          ? entries.filter(([, action]) => action === "allow")
+          : entries;
       if (skipped.length > 0) skippedCategories.push(category);
       continue;
     }

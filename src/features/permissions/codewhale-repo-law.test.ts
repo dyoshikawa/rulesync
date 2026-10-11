@@ -323,10 +323,21 @@ describe("CodewhalePermissions (project scope: .codewhale/constitution.json)", (
 
   it("does not report a bash deny on every command, which goes to the project config overlay", async () => {
     const logger = createMockLogger();
-    await generate({ permission: { bash: { "*": "deny" } } }, logger);
+    await generate(
+      { permission: { bash: { "*": "deny", "rm *": "deny", "git *": "ask" } } },
+      logger,
+    );
 
     const warnings = vi.mocked(logger.warn).mock.calls.map(([message]) => String(message));
     expect(warnings.some((message) => message.includes('"bash"'))).toBe(false);
+  });
+
+  it("still reports bash allow rules beside a deny on every command", async () => {
+    const logger = createMockLogger();
+    await generate({ permission: { bash: { "*": "deny", "git status": "allow" } } }, logger);
+
+    const warnings = vi.mocked(logger.warn).mock.calls.map(([message]) => String(message));
+    expect(warnings.some((message) => message.includes('"bash"'))).toBe(true);
   });
 
   it("keeps other keys and hand-written invariants, replacing only rulesync's own", async () => {

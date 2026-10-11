@@ -93,7 +93,15 @@ describe("codewhale project config overlay (.codewhale/config.toml)", () => {
       );
     });
 
-    it("refuses an existing file that is not valid TOML", async () => {
+    it("leaves an invalid file alone when nothing has to be written", async () => {
+      await writeFileContent(configPath(), "allow_shell = \n");
+      const logger = createMockLogger();
+
+      expect(await create({ bash: { "rm *": "deny" } }, logger)).toBeNull();
+      expect(vi.mocked(logger.warn)).toHaveBeenCalledWith(expect.stringContaining("not reading"));
+    });
+
+    it("refuses an existing file that is not valid TOML when it has to be written", async () => {
       await writeFileContent(configPath(), "allow_shell = \n");
 
       await expect(create({ bash: { "*": "deny" } })).rejects.toThrow(/Failed to parse/);

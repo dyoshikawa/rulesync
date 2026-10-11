@@ -1,7 +1,5 @@
 import { join } from "node:path";
 
-import * as smolToml from "smol-toml";
-
 import { CODEWHALE_CONFIG_FILE_NAME, CODEWHALE_DIR } from "../../constants/codewhale-paths.js";
 import type { ValidationResult } from "../../types/ai-file.js";
 import type { PermissionsConfig } from "../../types/permissions.js";
@@ -9,8 +7,11 @@ import { ToolFile } from "../../types/tool-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
-import { isPlainObject } from "../../utils/type-guards.js";
-import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
+import {
+  applySharedConfigPatch,
+  parseSharedConfig,
+  sharedConfigFileKey,
+} from "../shared/shared-config-gateway.js";
 import { collectShellCommandRules } from "./shell-command-categories.js";
 
 /**
@@ -53,6 +54,14 @@ export function isShellCatchAll(pattern: string): boolean {
   return trimmed === "*" || trimmed === "**";
 }
 
+function projectConfigFilePath(outputRoot: string): string {
+  return join(
+    outputRoot,
+    CODEWHALE_PROJECT_CONFIG_PATHS.relativeDirPath,
+    CODEWHALE_PROJECT_CONFIG_PATHS.relativeFilePath,
+  );
+}
+
 function parseProjectConfig({
   fileContent,
   filePath,
@@ -60,20 +69,35 @@ function parseProjectConfig({
   fileContent: string;
   filePath: string;
 }): Record<string, unknown> {
-  if (fileContent.trim() === "") return {};
-  let parsed: unknown;
+  return parseSharedConfig({ format: "toml", fileContent, filePath, invalidRootPolicy: "error" });
+}
+
+/**
+ * Whether an overlay disables shell (`allow_shell = false`). A file that
+ * cannot be read as TOML is reported and treated as not disabling shell.
+ */
+function disablesShell({
+  fileContent,
+  filePath,
+  logger,
+}: {
+  fileContent: string;
+  filePath: string;
+  logger?: Logger;
+}): boolean {
   try {
-    parsed = smolToml.parse(fileContent);
+    return parseProjectConfig({ fileContent, filePath })[CODEWHALE_ALLOW_SHELL_KEY] === false;
   } catch (error) {
-    throw new Error(`Failed to parse ${filePath}: ${formatError(error)}`, { cause: error });
+    logger?.warn(
+      `Codewhale permissions: not reading "allow_shell" from ${filePath}, so a shell deny set there is not taken into account: ${formatError(error)}`,
+    );
+    return false;
   }
-  return isPlainObject(parsed) ? parsed : {};
 }
 
 /**
  * Whether the project overlay at `outputRoot` disables shell
- * (`allow_shell = false`), for import. A file that cannot be read as TOML is
- * reported and treated as not disabling shell.
+ * (`allow_shell = false`), for import.
  */
 export async function readCodewhaleProjectShellDisabled({
   outputRoot,
@@ -82,21 +106,10 @@ export async function readCodewhaleProjectShellDisabled({
   outputRoot: string;
   logger?: Logger;
 }): Promise<boolean> {
-  const filePath = join(
-    outputRoot,
-    CODEWHALE_PROJECT_CONFIG_PATHS.relativeDirPath,
-    CODEWHALE_PROJECT_CONFIG_PATHS.relativeFilePath,
-  );
+  const filePath = projectConfigFilePath(outputRoot);
   const fileContent = await readFileContentOrNull(filePath);
   if (fileContent === null) return false;
-  try {
-    return parseProjectConfig({ fileContent, filePath })[CODEWHALE_ALLOW_SHELL_KEY] === false;
-  } catch (error) {
-    logger?.warn(
-      `Codewhale permissions: not reading "allow_shell" from ${filePath}: ${formatError(error)}`,
-    );
-    return false;
-  }
+  return disablesShell({ fileContent, filePath, logger });
 }
 
 /**
@@ -105,9 +118,11 @@ export async function readCodewhaleProjectShellDisabled({
  * file needs no change.
  *
  * Only `allow_shell` is written; every other overlay key (`model`,
- * `approval_policy`, ...) is kept. An existing `allow_shell = false` is never
- * removed: the overlay cannot widen access, and a hand-written value cannot be
- * told apart from one rulesync wrote, so it is reported instead.
+ * `approval_policy`, ...) is kept, and an existing file that is not valid TOML
+ * is an error only when it has to be written. An existing
+ * `allow_shell = false` is never removed: the overlay cannot widen access, and
+ * a hand-written value cannot be told apart from one rulesync wrote, so it is
+ * reported instead.
  */
 export async function createCodewhaleProjectConfigFile({
   outputRoot = process.cwd(),
@@ -118,31 +133,31 @@ export async function createCodewhaleProjectConfigFile({
   config: PermissionsConfig;
   logger?: Logger;
 }): Promise<CodewhaleProjectConfigFile | null> {
-  const { relativeDirPath, relativeFilePath } = CODEWHALE_PROJECT_CONFIG_PATHS;
-  const filePath = join(outputRoot, relativeDirPath, relativeFilePath);
+  const filePath = projectConfigFilePath(outputRoot);
   // Read without initializing so a dry run or `--check` stays side-effect-free.
-  const existingContent = (await readFileContentOrNull(filePath)) ?? "";
-  const existing = parseProjectConfig({ fileContent: existingContent, filePath });
-  const alreadyDisabled = existing[CODEWHALE_ALLOW_SHELL_KEY] === false;
+  const existingContent = await readFileContentOrNull(filePath);
 
   if (!deniesEveryShellCommand(config.permission)) {
-    if (alreadyDisabled) {
+    if (
+      existingContent !== null &&
+      disablesShell({ fileContent: existingContent, filePath, logger })
+    ) {
       logger?.warn(
-        `Codewhale permissions: keeping "allow_shell = false" in ${filePath}; rulesync does not remove it, so delete it by hand to re-enable shell tools in this project.`,
+        `Codewhale permissions: keeping "allow_shell = false" in ${filePath}; rulesync does not remove it. Delete it by hand to re-enable shell tools in this project, or add bash: { "*": "deny" } to the rulesync permissions to match it.`,
       );
     }
     return null;
   }
-  if (alreadyDisabled) return null;
+  const existing = parseProjectConfig({ fileContent: existingContent ?? "", filePath });
+  if (existing[CODEWHALE_ALLOW_SHELL_KEY] === false) return null;
 
   return new CodewhaleProjectConfigFile({
     outputRoot,
-    relativeDirPath,
-    relativeFilePath,
+    ...CODEWHALE_PROJECT_CONFIG_PATHS,
     fileContent: applySharedConfigPatch({
       fileKey: sharedConfigFileKey(CODEWHALE_PROJECT_CONFIG_PATHS),
       feature: "permissions",
-      existingContent,
+      existingContent: existingContent ?? "",
       patch: { [CODEWHALE_ALLOW_SHELL_KEY]: false },
       filePath,
       logger,

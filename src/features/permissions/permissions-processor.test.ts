@@ -533,6 +533,27 @@ default_permissions = "rulesync"
       }).convertRulesyncFilesToToolFiles([toRulesync({ bash: { "rm *": "deny" } })]);
       expect(otherFiles.map((file) => file.getRelativeFilePath())).toEqual(["constitution.json"]);
 
+      // A deny authored in the tool-scoped `codewhale.permission` block counts too.
+      const overrideFiles = await new PermissionsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "codewhale",
+      }).convertRulesyncFilesToToolFiles([
+        new RulesyncPermissions({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            codewhale: { permission: { bash: { "*": "deny" } } },
+          }),
+        }),
+      ]);
+      expect(overrideFiles.map((file) => file.getRelativeFilePath())).toEqual([
+        "constitution.json",
+        "config.toml",
+      ]);
+
       const globalFiles = await new PermissionsProcessor({
         logger,
         outputRoot: testDir,
