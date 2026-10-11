@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
+import { fallbackLogger } from "../../utils/logger.js";
 import { AntigravityIdePermissions } from "./antigravity-ide-permissions.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 
@@ -232,6 +233,26 @@ describe("AntigravityIdePermissions", () => {
       });
       const config = JSON.parse(perms.toRulesyncPermissions().getFileContent());
       expect(config.permission.bash["npm run (build|test) *"]).toBe("allow");
+    });
+
+    it("warns when an imported command target may lose its meaning", () => {
+      const perms = new AntigravityIdePermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".antigravity",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          permissions: { deny: ["command(regex:rm)", "command(git push)"] },
+        }),
+      });
+
+      const warnSpy = vi.spyOn(fallbackLogger, "warn");
+      const config = JSON.parse(perms.toRulesyncPermissions().getFileContent());
+      expect(config.permission.bash).toEqual({ "rm *": "deny", "git push *": "deny" });
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      const message = warnSpy.mock.calls[0]?.[0];
+      expect(message).toContain("Antigravity IDE permissions: importing command(regex:rm)");
+      expect(message).toContain("may block less");
+      warnSpy.mockRestore();
     });
   });
 });
