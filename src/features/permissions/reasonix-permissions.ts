@@ -13,6 +13,7 @@ import type { PermissionAction, PermissionsConfig } from "../../types/permission
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull, toPosixPath } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
+import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { isRecord } from "../../utils/type-guards.js";
 import {
   toReasonixStringArray as toStringArray,
@@ -311,6 +312,51 @@ function applyAllowDynamicBash({
   ];
 }
 
+/** The writer fallbacks `[permissions] mode` accepts. */
+const REASONIX_PERMISSION_MODES = new Set(["ask", "allow", "deny"]);
+
+/**
+ * Writes the override's `mode` into `[permissions]`. Reasonix honors the key
+ * only in the user config and ignores a project value as user-scope only, so a
+ * project-scope generate skips it with a warning and leaves whatever the file
+ * had. A global `allow` is reported when it is newly written: it lets every
+ * writer call that no rule matches run without a prompt.
+ *
+ * @see https://github.com/esengine/DeepSeek-Reasonix/blob/main-v2/docs/SPEC.md
+ */
+function applyPermissionsMode({
+  permissions,
+  authored,
+  global,
+  relativeFilePath,
+  logger,
+}: {
+  permissions: ReasonixPermissionsTable;
+  authored: string | undefined;
+  global: boolean;
+  relativeFilePath: string;
+  logger?: Logger;
+}): TrustAffectingEntry[] {
+  if (authored === undefined) return [];
+  if (!global) {
+    logger?.warn(
+      `Reasonix permissions: skipping reasonix.mode = ${quoteValueForWarning(authored)} for the ` +
+        `project-scoped ${relativeFilePath}; Reasonix honors [permissions] mode only in the user ` +
+        "config and ignores a project value, so author it with --global.",
+    );
+    return [];
+  }
+  const previous = permissions.mode;
+  permissions.mode = authored;
+  if (authored !== "allow" || previous === "allow") return [];
+  return [
+    {
+      label: "permissions.mode",
+      reason: "lets every writer call that no rule matches run without a prompt",
+    },
+  ];
+}
+
 function parseReasonixConfig(fileContent: string): ReasonixConfig {
   const parsed = smolToml.parse(fileContent || smolToml.stringify({}));
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
@@ -397,6 +443,7 @@ export class ReasonixPermissions extends ToolPermissions {
       relativeFilePath: paths.relativeFilePath,
       fileContent,
       validate,
+      global,
     });
   }
 
@@ -468,6 +515,15 @@ export class ReasonixPermissions extends ToolPermissions {
       permissions: mergedPermissions,
       authored: override?.allowDynamicBash,
     });
+    trustAffecting.push(
+      ...applyPermissionsMode({
+        permissions: mergedPermissions,
+        authored: override?.mode,
+        global,
+        relativeFilePath: relativeFilePathForLog,
+        logger,
+      }),
+    );
 
     const patch: Record<string, unknown> = { permissions: mergedPermissions };
 
@@ -584,6 +640,15 @@ export class ReasonixPermissions extends ToolPermissions {
     const allowDynamicBash = permissions[REASONIX_ALLOW_DYNAMIC_BASH_KEY];
     if (typeof allowDynamicBash === "boolean") {
       reasonixOverride.allowDynamicBash = allowDynamicBash;
+    }
+    // `mode` is lifted only from the user config, the one scope where Reasonix
+    // honors it; a project value is inert there and stays in the file.
+    if (
+      this.global &&
+      typeof permissions.mode === "string" &&
+      REASONIX_PERMISSION_MODES.has(permissions.mode)
+    ) {
+      reasonixOverride.mode = permissions.mode;
     }
     if (Object.keys(sandbox).length > 0) reasonixOverride.sandbox = sandbox;
     if (Object.keys(agentPlanMode).length > 0) reasonixOverride.agent = agentPlanMode;

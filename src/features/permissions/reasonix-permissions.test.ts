@@ -821,6 +821,71 @@ describe("ReasonixPermissions", () => {
       expect(logger.warn.mock.calls[0]?.[0]).toContain(".reasonix/config.toml");
     });
 
+    describe("reasonix.mode", () => {
+      const generateMode = async ({
+        mode,
+        global,
+        existing,
+      }: {
+        mode: string;
+        global: boolean;
+        existing?: Record<string, unknown>;
+      }) => {
+        if (existing !== undefined) {
+          await writeFileContent(
+            join(testDir, ...(global ? [".reasonix", "config.toml"] : ["reasonix.toml"])),
+            smolToml.stringify(existing),
+          );
+        }
+        const logger = createMockLogger();
+        const instance = await ReasonixPermissions.fromRulesyncPermissions({
+          outputRoot: testDir,
+          rulesyncPermissions: new RulesyncPermissions({
+            relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+            relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+            fileContent: JSON.stringify({ permission: {}, reasonix: { mode } }),
+          }),
+          global,
+          logger,
+        });
+        const parsed = smolToml.parse(instance.getFileContent()) as any;
+        const messages = logger.warn.mock.calls.map(([message]) => String(message));
+        return { parsed, messages };
+      };
+
+      it("writes mode into the global [permissions] table", async () => {
+        const { parsed, messages } = await generateMode({ mode: "deny", global: true });
+        expect(parsed.permissions.mode).toBe("deny");
+        expect(messages).toEqual([]);
+      });
+
+      it("announces a global mode newly set to allow", async () => {
+        const { parsed, messages } = await generateMode({ mode: "allow", global: true });
+        expect(parsed.permissions.mode).toBe("allow");
+        expect(messages.join("\n")).toContain("permissions.mode");
+      });
+
+      it("stays quiet when the global mode is already allow", async () => {
+        const { messages } = await generateMode({
+          mode: "allow",
+          global: true,
+          existing: { permissions: { mode: "allow" } },
+        });
+        expect(messages).toEqual([]);
+      });
+
+      it("skips mode in project scope and keeps the file's value", async () => {
+        const { parsed, messages } = await generateMode({
+          mode: "allow",
+          global: false,
+          existing: { permissions: { mode: "ask" } },
+        });
+        expect(parsed.permissions.mode).toBe("ask");
+        expect(messages).toHaveLength(1);
+        expect(messages[0]).toContain("only in the user config");
+      });
+    });
+
     it("preserves unrelated [sandbox] keys while the override sets its own", async () => {
       await writeFileContent(
         join(testDir, "reasonix.toml"),
@@ -1041,6 +1106,41 @@ describe("ReasonixPermissions", () => {
 
       expect(config.reasonix.allowDynamicBash).toBe(true);
       expect(config.permission.bash).toEqual({ "git *": "allow" });
+    });
+
+    it("should lift mode from the global config only", async () => {
+      await writeFileContent(
+        join(testDir, ".reasonix", "config.toml"),
+        ["[permissions]", 'mode = "deny"'].join("\n"),
+      );
+      await writeFileContent(
+        join(testDir, "reasonix.toml"),
+        ["[permissions]", 'mode = "allow"'].join("\n"),
+      );
+
+      const globalConfig = (
+        await ReasonixPermissions.fromFile({ outputRoot: testDir, global: true })
+      )
+        .toRulesyncPermissions()
+        .getJson() as Record<string, any>;
+      const projectConfig = (await ReasonixPermissions.fromFile({ outputRoot: testDir }))
+        .toRulesyncPermissions()
+        .getJson() as Record<string, any>;
+
+      expect(globalConfig.reasonix.mode).toBe("deny");
+      // Inert in a project file, so it stays there instead of entering the override.
+      expect(projectConfig.reasonix?.mode).toBeUndefined();
+    });
+
+    it("should not lift a mode Reasonix does not document", async () => {
+      await writeFileContent(
+        join(testDir, ".reasonix", "config.toml"),
+        ["[permissions]", 'mode = "yolo"'].join("\n"),
+      );
+      const config = (await ReasonixPermissions.fromFile({ outputRoot: testDir, global: true }))
+        .toRulesyncPermissions()
+        .getJson() as Record<string, any>;
+      expect(config.reasonix?.mode).toBeUndefined();
     });
 
     it("should not lift an allow_dynamic_bash that is not the boolean Reasonix documents", () => {
