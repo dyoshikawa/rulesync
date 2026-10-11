@@ -71,6 +71,11 @@ const checksGlobalTargets = [
     outputPath: join(".config", "amp", "checks", "security.md"),
   },
   {
+    // `goose review` reads user-wide checks from ~/.config/goose/checks/.
+    target: "goose",
+    outputPath: join(".config", "goose", "checks", "security.md"),
+  },
+  {
     target: "takt",
     outputPath: join(".takt", "config.yaml"),
   },

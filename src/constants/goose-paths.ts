@@ -55,3 +55,9 @@ export const GOOSE_GLOBAL_RECIPES_DIR_PATH = join(GOOSE_GLOBAL_DIR, "recipes");
 // @see https://goose-docs.ai/docs/guides/context-engineering/custom-agents/
 export const GOOSE_AGENTS_DIR_PATH = join(GOOSE_DIR, "agents");
 export const GOOSE_GLOBAL_AGENTS_DIR_PATH = join(GOOSE_GLOBAL_DIR, "agents");
+
+// Review checks (`goose review`). Rulesync writes only the global directory:
+// the project directory is the cross-tool `.agents/checks/` the `amp` checks
+// target already writes.
+export const GOOSE_CHECKS_PROJECT_DIR = join(".agents", "checks");
+export const GOOSE_CHECKS_GLOBAL_DIR = join(GOOSE_GLOBAL_DIR, "checks");

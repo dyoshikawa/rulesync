@@ -685,6 +685,45 @@ function convertFromCodexFormat(codexMcp: Record<string, unknown>): McpServers {
   return result;
 }
 
+/**
+ * Keys Codex refuses on each transport. Its `McpServerConfig` deserializer
+ * calls `throw_if_set` for these, and the error fails the whole `config.toml`,
+ * not just the one server, so they are dropped with a warning instead of
+ * written. Checked against `codex-rs/config/src/mcp_types.rs` at rust-v0.162.1.
+ */
+const CODEX_STDIO_REJECTED_KEYS = [
+  "url",
+  "bearer_token_env_var",
+  "bearer_token",
+  "http_headers_helper",
+  "http_headers",
+  "env_http_headers",
+  "oauth",
+  "oauth_resource",
+  "auth",
+] as const;
+const CODEX_HTTP_REJECTED_KEYS = ["args", "env", "env_vars", "cwd", "bearer_token"] as const;
+
+function dropTransportRejectedKeys({
+  converted,
+  isStdio,
+  serverName,
+}: {
+  converted: Record<string, unknown>;
+  isStdio: boolean;
+  serverName: string;
+}): void {
+  const rejected = isStdio ? CODEX_STDIO_REJECTED_KEYS : CODEX_HTTP_REJECTED_KEYS;
+  const dropped = rejected.filter((key) => converted[key] !== undefined);
+  for (const key of dropped) delete converted[key];
+  if (dropped.length > 0) {
+    warnWithFallback(
+      undefined,
+      `[CodexCliMcp] Dropping ${dropped.map((key) => `'${key}'`).join(", ")} from ${isStdio ? "stdio" : "url-based"} MCP server "${serverName}": Codex rejects ${dropped.length === 1 ? "this key" : "these keys"} on a ${isStdio ? "stdio" : "url-based"} server and would fail to load the whole config.toml.`,
+    );
+  }
+}
+
 function convertToCodexFormat(mcpServers: Record<string, unknown>): Record<string, unknown> {
   const result: Record<string, Record<string, unknown>> = {};
   const originalNames = new Map<string, string>();
@@ -743,6 +782,7 @@ function convertToCodexFormat(mcpServers: Record<string, unknown>): Record<strin
     }
 
     convertEnvVarRefsForCodex({ converted, serverName: name });
+    dropTransportRejectedKeys({ converted, isStdio, serverName: name });
 
     const previousName = originalNames.get(codexName);
     if (previousName !== undefined) {
