@@ -61,7 +61,8 @@ export function resolveAntigravitySubprojectPath({
 }): string | undefined {
   const { root, agentsmd } = rulesyncRule.getFrontmatter();
   const subprojectPath = !global && root !== true ? agentsmd?.subprojectPath : undefined;
-  return subprojectPath ? subprojectPath : undefined;
+  // `""` and `.` name the project root, which is not a subproject.
+  return subprojectPath && !["", ".", "./"].includes(subprojectPath) ? subprojectPath : undefined;
 }
 
 /**

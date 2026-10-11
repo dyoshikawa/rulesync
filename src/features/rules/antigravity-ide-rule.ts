@@ -271,8 +271,6 @@ export class AntigravityIdeRule extends ToolRule {
 
     const frontmatter = strategy.generateFrontmatter(normalized, rulesyncFrontmatter);
 
-    // The global rules directory is shared with the CLI, so use its file name
-    // there to keep both targets writing the same file.
     const subprojectPath = this.supportsSubprojectRules()
       ? resolveAntigravitySubprojectPath({ rulesyncRule, global })
       : undefined;
