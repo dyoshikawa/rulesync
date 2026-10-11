@@ -167,7 +167,7 @@ Step 1`;
   });
 
   describe("fromFile", () => {
-    it("should load and strip frontmatter content", async () => {
+    it("should load the body and keep the workflow frontmatter in the cline section", async () => {
       const workflowsDir = join(testDir, ".clinerules", "workflows");
       const filePath = join(workflowsDir, "workflow.md");
       await writeFileContent(filePath, markdownWithFrontmatter);
@@ -179,7 +179,45 @@ Step 1`;
 
       expect(command).toBeInstanceOf(ClineCommand);
       expect(command.getRelativeDirPath()).toBe(join(".clinerules", "workflows"));
-      expect(command.getFileContent()).toBe("# Workflow\nStep 1");
+      expect(command.getBody()).toBe("# Workflow\nStep 1");
+      expect(command.toRulesyncCommand().getFrontmatter().cline).toEqual({
+        title: "Test workflow",
+      });
+    });
+
+    it("should round-trip a workflow switched off in Cline (issue #2405)", async () => {
+      await writeFileContent(
+        join(testDir, ".clinerules", "workflows", "deploy.md"),
+        "---\ndisabled: true\n---\n\nDeploy steps",
+      );
+
+      const imported = await ClineCommand.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "deploy.md",
+      });
+      const rulesyncCommand = imported.toRulesyncCommand();
+      expect(rulesyncCommand.getFrontmatter().cline).toEqual({ disabled: true });
+      expect(rulesyncCommand.getBody()).toBe("Deploy steps");
+
+      const regenerated = ClineCommand.fromRulesyncCommand({
+        outputRoot: testDir,
+        rulesyncCommand,
+      });
+      expect(regenerated.getFileContent()).toContain("disabled: true");
+      expect(regenerated.getBody()).toBe("Deploy steps");
+    });
+
+    it("should write a workflow without a cline section as a bare body", async () => {
+      await writeFileContent(join(testDir, ".clinerules", "workflows", "plain.md"), "Plain steps");
+      const imported = await ClineCommand.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "plain.md",
+      });
+      const rulesyncCommand = imported.toRulesyncCommand();
+      expect(rulesyncCommand.getFrontmatter().cline).toBeUndefined();
+      expect(
+        ClineCommand.fromRulesyncCommand({ outputRoot: testDir, rulesyncCommand }).getFileContent(),
+      ).toBe("Plain steps");
     });
 
     it("should load global workflows when global is true", async () => {
