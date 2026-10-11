@@ -657,6 +657,8 @@ The command body itself uses a Claude Code-compatible **universal syntax** (e.g.
 
 > **JetBrains AI Assistant note:** the `aiassistant` target does not generate commands. The plugin can read custom chat commands from `.aiassistant/commands/`, but that support is switched off by default behind the registry key `llm.chat.input.language.user.commands.enabled` (default `false` in the plugin's `plugin.xml` as of build 263.5701.47), and the [AI Assistant documentation](https://www.jetbrains.com/help/ai-assistant/) does not describe it, so generated files would be ignored by a default installation. Rulesync will add commands support to the `aiassistant` target once JetBrains enables or documents the directory.
 
+> **Cline workflows note:** Cline reads a workflow's YAML frontmatter: `name` (the slash-command name) and a `disabled` / `enabled` switch ([`user-instruction-config-loader.ts`](https://github.com/cline/cline/blob/main/sdk/packages/core/src/extensions/config/user-instruction-config-loader.ts)). The `cline:` section of `.rulesync/commands/*.md` is written as that frontmatter, every frontmatter key of an imported workflow is lifted back into `cline:`, and a command without a `cline:` section is still written as a bare body. `name` must be a string and `disabled` / `enabled` booleans — Cline rejects the whole workflow otherwise — so a value of another type is dropped with a warning. The workflow toggle in Cline's UI is stored in Cline's own state, not in the file, so it is not round-tripped.
+
 ## `rulesync/subagents/*.md`
 
 Nested sources such as `.rulesync/subagents/review/security.md` retain their
