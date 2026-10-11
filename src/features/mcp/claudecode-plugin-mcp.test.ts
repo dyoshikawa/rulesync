@@ -94,8 +94,8 @@ describe("ClaudecodePluginMcp", () => {
       },
     ],
     [
-      { command: "uv", args: ["run", "--with", "httpx", "./server.py"] },
-      { command: "uv", args: ["run", "--with", "httpx", "${CLAUDE_PLUGIN_ROOT}/server.py"] },
+      { command: "uv", args: ["run", "--with", "requests", "./server.py"] },
+      { command: "uv", args: ["run", "--with", "requests", "${CLAUDE_PLUGIN_ROOT}/server.py"] },
     ],
     [
       { command: "bun", args: ["--smol", "run", "./x.ts"] },
