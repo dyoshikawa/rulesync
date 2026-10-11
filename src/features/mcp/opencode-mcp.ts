@@ -182,18 +182,25 @@ function lowerOpencodeV2Timeout(value: Record<string, unknown>): number | undefi
   return value.catalog === value.execution ? value.catalog : undefined;
 }
 
-const OPENCODE_V2_OAUTH_KEYS: Record<string, string> = {
-  client_id: "clientId",
-  client_secret: "clientSecret",
-  callback_port: "callbackPort",
-  redirect_uri: "redirectUri",
-};
+const OPENCODE_V2_OAUTH_KEYS: ReadonlyMap<string, string> = new Map([
+  ["client_id", "clientId"],
+  ["client_secret", "clientSecret"],
+  ["callback_port", "callbackPort"],
+  ["redirect_uri", "redirectUri"],
+]);
 
 function lowerOpencodeV2OAuth(oauth: Record<string, unknown>): Record<string, unknown> {
   return Object.fromEntries(
-    Object.entries(oauth).map(([key, value]) => [OPENCODE_V2_OAUTH_KEYS[key] ?? key, value]),
+    Object.entries(oauth).map(([key, value]) => [OPENCODE_V2_OAUTH_KEYS.get(key) ?? key, value]),
   );
 }
+
+/**
+ * Called with the dotted path (e.g. `mcp.servers.fs.timeout`) of a V2 value
+ * that the lowering drops, so the caller can say so instead of the value
+ * vanishing without a word.
+ */
+type OpencodeV2DropReporter = (path: string) => void;
 
 /**
  * Lowers one V2-spelled server entry to V1's shape, as OpenCode V1 does:
@@ -202,7 +209,11 @@ function lowerOpencodeV2OAuth(oauth: Record<string, unknown>): Record<string, un
  * camelCase. `codemode` is kept: Rulesync passes it through (see
  * {@link OPENCODE_PASSTHROUGH_SERVER_FIELDS}) where V1 drops it.
  */
-function lowerOpencodeV2Server(value: Record<string, unknown>): Record<string, unknown> {
+function lowerOpencodeV2Server(
+  value: Record<string, unknown>,
+  path: string,
+  onDropped?: OpencodeV2DropReporter,
+): Record<string, unknown> {
   const { disabled, timeout, ...rest } = value;
   const lowered: Record<string, unknown> = { ...rest };
   if (typeof value.enabled !== "boolean") {
@@ -211,6 +222,9 @@ function lowerOpencodeV2Server(value: Record<string, unknown>): Record<string, u
   const lowTimeout = isRecord(timeout) ? lowerOpencodeV2Timeout(timeout) : timeout;
   if (lowTimeout !== undefined) {
     lowered.timeout = lowTimeout;
+  } else if (isRecord(timeout) && Object.keys(timeout).length > 0) {
+    // OpenCode V1 reports such a timeout as unsupported too.
+    onDropped?.(`${path}.timeout`);
   }
   if (isRecord(value.oauth)) {
     lowered.oauth = lowerOpencodeV2OAuth(value.oauth);
@@ -255,18 +269,23 @@ function isOpencodeV2GlobalTimeout(value: unknown): boolean {
  *
  * Unlike V1, an envelope entry that is not a valid server is not dropped: it
  * is passed on, so the schema rejects it loudly rather than it vanishing
- * without a word.
+ * without a word. Each value that is dropped (a non-empty global timeout, or
+ * a per-server timeout object with no V1 equivalent) is reported through
+ * `onDropped`.
  *
  * @see https://github.com/anomalyco/opencode/blob/v1.18.35/packages/opencode/src/config/v2-compat.ts
  * @see https://opencode.ai/v2/docs/mcp-servers/
  */
-export function lowerOpencodeV2Mcp(mcp: unknown): unknown {
+export function lowerOpencodeV2Mcp(mcp: unknown, onDropped?: OpencodeV2DropReporter): unknown {
   if (!isRecord(mcp)) {
     return mcp;
   }
   const nested = mcp.servers;
   const envelope = isRecord(nested) && !isDirectOpencodeMcpServer(nested) ? nested : null;
   const globalTimeout = isOpencodeV2GlobalTimeout(mcp.timeout);
+  if (globalTimeout && isRecord(mcp.timeout) && Object.keys(mcp.timeout).length > 0) {
+    onDropped?.("mcp.timeout");
+  }
 
   const servers: Record<string, unknown> = {};
   for (const [name, value] of Object.entries(mcp)) {
@@ -274,13 +293,21 @@ export function lowerOpencodeV2Mcp(mcp: unknown): unknown {
       continue;
     }
     const native = isRecord(value) && isOpencodeV2NativeServer(value);
-    setOwnEntry(servers, name, native ? lowerOpencodeV2Server(value) : value);
+    setOwnEntry(
+      servers,
+      name,
+      native ? lowerOpencodeV2Server(value, `mcp.${name}`, onDropped) : value,
+    );
   }
   for (const [name, value] of Object.entries(envelope ?? {})) {
     if (Object.hasOwn(servers, name)) {
       continue;
     }
-    setOwnEntry(servers, name, isRecord(value) ? lowerOpencodeV2Server(value) : value);
+    setOwnEntry(
+      servers,
+      name,
+      isRecord(value) ? lowerOpencodeV2Server(value, `mcp.servers.${name}`, onDropped) : value,
+    );
   }
   return servers;
 }
@@ -619,13 +646,21 @@ export class OpencodeMcp extends ToolMcp {
    * the toggle lookup on generate, and the rules feature's `instructions`
    * write to the same file — accepts a V2-shaped `mcp`. Only the parsed view
    * is lowered; content written back keeps whatever `mcp` a feature that does
-   * not own the key found there.
+   * not own the key found there. With a `logger`, each V2 value the lowering
+   * drops is warned about.
    */
-  protected static lowerConfig(json: unknown): unknown {
+  protected static lowerConfig(json: unknown, logger?: Logger): unknown {
     if (!this.layout.readsV2ConfigSpellings || !isRecord(json) || json.mcp === undefined) {
       return json;
     }
-    return { ...json, mcp: lowerOpencodeV2Mcp(json.mcp) };
+    return {
+      ...json,
+      mcp: lowerOpencodeV2Mcp(json.mcp, (path) =>
+        logger?.warn(
+          `OpenCode MCP: "${path}" has no Rulesync equivalent, so it is dropped on import.`,
+        ),
+      ),
+    };
   }
 
   getJson(): OpencodeConfig {
@@ -650,6 +685,7 @@ export class OpencodeMcp extends ToolMcp {
     outputRoot = process.cwd(),
     validate = true,
     global = false,
+    logger,
   }: ToolMcpFromFileParams): Promise<OpencodeMcp> {
     const basePaths = this.getSettablePaths({ global });
     const jsonDir = join(outputRoot, basePaths.relativeDirPath);
@@ -672,6 +708,9 @@ export class OpencodeMcp extends ToolMcp {
     const fileContentToUse = fileContent ?? '{"mcp":{}}';
     const json = parseJsonc(fileContentToUse);
     const newJson = { ...json, mcp: json.mcp ?? {} };
+    // Lowered here only to warn about the V2 values import drops; the
+    // constructor lowers the same content again for its parsed view.
+    this.lowerConfig(newJson, logger);
 
     return new this({
       outputRoot,

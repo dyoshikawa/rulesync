@@ -3048,6 +3048,66 @@ describe("OpencodeMcp", () => {
       });
     });
 
+    it("should report each dropped V2 timeout", () => {
+      const onDropped = vi.fn();
+      lowerOpencodeV2Mcp(
+        {
+          timeout: { catalog: 5000, execution: 5000 },
+          flat: { type: "local", command: ["a"], timeout: { startup: 1000 } },
+          kept: { type: "local", command: ["k"], timeout: { catalog: 1, execution: 1 } },
+          servers: {
+            differs: { type: "local", command: ["c"], timeout: { catalog: 1, execution: 2 } },
+            empty: { type: "local", command: ["e"], timeout: {} },
+          },
+        },
+        onDropped,
+      );
+      expect(onDropped.mock.calls.map(([path]) => path)).toEqual([
+        "mcp.timeout",
+        "mcp.flat.timeout",
+        "mcp.servers.differs.timeout",
+      ]);
+      onDropped.mockClear();
+      lowerOpencodeV2Mcp({ timeout: {}, a: { type: "local", command: ["a"] } }, onDropped);
+      expect(onDropped).not.toHaveBeenCalled();
+    });
+
+    it("should not rename snake_case-looking oauth keys inherited from Object.prototype", () => {
+      const lowered = lowerOpencodeV2Mcp({
+        servers: {
+          r: {
+            type: "remote",
+            url: "https://example.com/mcp",
+            oauth: { client_id: "id", constructor: "x", toString: "y" },
+          },
+        },
+      }) as Record<string, Record<string, unknown>>;
+      expect(lowered.r?.oauth).toEqual({ clientId: "id", constructor: "x", toString: "y" });
+    });
+
+    it("should warn on import about the V2 timeouts it drops", async () => {
+      await writeFileContent(
+        join(testDir, "opencode.json"),
+        JSON.stringify({
+          mcp: {
+            timeout: { catalog: 5000, execution: 5000 },
+            servers: {
+              fs: { type: "local", command: ["fs"], timeout: { startup: 1000, catalog: 2000 } },
+            },
+          },
+        }),
+      );
+      const mockLogger = { warn: vi.fn() } as unknown as Logger;
+
+      await OpencodeMcp.fromFile({ outputRoot: testDir, logger: mockLogger });
+
+      expect(mockLogger.warn).toHaveBeenCalledTimes(2);
+      expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('"mcp.timeout"'));
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('"mcp.servers.fs.timeout"'),
+      );
+    });
+
     it("should keep a toggle under the mcp.servers envelope on generate", async () => {
       await writeFileContent(
         join(testDir, "opencode.json"),
