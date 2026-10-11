@@ -67,7 +67,7 @@ export class WarpRule extends NestedAgentsmdRule {
           outranksRoot: true,
         },
       ],
-    } as WarpRuleSettablePaths;
+    };
   }
 
   static override async fromFile(params: ToolRuleFromFileParams): Promise<NestedAgentsmdRule> {

@@ -127,7 +127,10 @@ export type ToolRuleImportOnlyRoot = {
    * `WARP.md` takes priority"). Generating the root file then does not stop the
    * tool reading this one, so the generate-side "will no longer be read"
    * warning skips it, and the import-side skip warning says that the imported
-   * root file is the one the tool ignores.
+   * root file is the one the tool ignores. Only meaningful together with
+   * `onlyWhenRootAbsent: true`, which decides whether the root is scanned at
+   * all. The tool's `fromFile` may read such a root as its root rule (Warp's
+   * `WARP.md`), not only as a non-root rule.
    */
   outranksRoot?: boolean;
 };
