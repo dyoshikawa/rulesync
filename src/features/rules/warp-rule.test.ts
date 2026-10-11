@@ -626,3 +626,51 @@ describe("WarpRule", () => {
     });
   });
 });
+
+describe("WarpRule legacy WARP.md (issue #2598)", () => {
+  let testDir: string;
+  let cleanup: () => Promise<void>;
+
+  beforeEach(async () => {
+    ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
+  });
+
+  afterEach(async () => {
+    await cleanup();
+    vi.restoreAllMocks();
+  });
+
+  it("declares the root WARP.md as an import-only root in project scope only", () => {
+    const project = WarpRule.getSettablePaths();
+    expect("importOnlyRoots" in project && project.importOnlyRoots).toEqual([
+      {
+        relativeDirPath: ".",
+        relativeFilePath: "WARP.md",
+        onlyWhenRootAbsent: true,
+        outranksRoot: true,
+      },
+    ]);
+    expect("importOnlyRoots" in WarpRule.getSettablePaths({ global: true })).toBe(false);
+  });
+
+  it("reads the root WARP.md as the root rule and the root AGENTS.md as before", async () => {
+    await writeFileContent(join(testDir, "WARP.md"), "# Legacy");
+    await writeFileContent(join(testDir, "AGENTS.md"), "# Current");
+
+    const legacy = await WarpRule.fromFile({
+      outputRoot: testDir,
+      relativeDirPath: ".",
+      relativeFilePath: "WARP.md",
+    });
+    expect(legacy.isRoot()).toBe(true);
+    expect(legacy.getFileContent()).toBe("# Legacy");
+
+    const current = await WarpRule.fromFile({
+      outputRoot: testDir,
+      relativeDirPath: ".",
+      relativeFilePath: "AGENTS.md",
+    });
+    expect(current.getFileContent()).toBe("# Current");
+  });
+});

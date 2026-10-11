@@ -17,6 +17,7 @@ import {
   applySharedConfigPatch,
   parseSharedConfig,
   sharedConfigFileKey,
+  undefinedWhenEmpty,
 } from "../shared/shared-config-gateway.js";
 import {
   declaresNoTransport,
@@ -284,7 +285,13 @@ export class TabnineMcp extends ToolMcp {
         fileKey: sharedConfigFileKey(paths),
         feature: "mcp",
         existingContent,
-        patch: { mcpServers: convertToTabnineFormat(rulesyncMcp.getMcpServers(), logger) },
+        // With no server left the key is retracted rather than left as an
+        // empty object, so the file states nothing Rulesync no longer generates.
+        patch: {
+          mcpServers: undefinedWhenEmpty(
+            convertToTabnineFormat(rulesyncMcp.getMcpServers(), logger),
+          ),
+        },
         filePath,
       }),
       validate,

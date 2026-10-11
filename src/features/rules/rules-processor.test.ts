@@ -1522,6 +1522,62 @@ describe("RulesProcessor", () => {
       expect(deletionPaths).not.toContain(join(".junie", "rules", "style.md"));
     });
 
+    it("should import a legacy root WARP.md for warp when AGENTS.md is absent", async () => {
+      // Warp still reads a root `WARP.md`, and a repository that has not moved
+      // to `AGENTS.md` yet carries only that file.
+      await writeFileContent(join(testDir, "WARP.md"), "# Legacy Warp rules");
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "warp" });
+      const imported = await processor.loadToolFiles();
+
+      expect(imported).toHaveLength(1);
+      const legacyRoot = imported[0] as WarpRule;
+      expect(legacyRoot.isRoot()).toBe(true);
+      expect(legacyRoot.getFileContent()).toBe("# Legacy Warp rules");
+      const rulesyncRule = legacyRoot.toRulesyncRule();
+      expect(rulesyncRule.getFrontmatter().root).toBe(true);
+
+      // Rulesync never writes or deletes `WARP.md`.
+      const forDeletion = await processor.loadToolFiles({ forDeletion: true });
+      expect(forDeletion.map((file) => file.getRelativeFilePath())).not.toContain("WARP.md");
+    });
+
+    it("should import AGENTS.md and warn that Warp reads WARP.md when both exist", async () => {
+      await writeFileContent(join(testDir, "AGENTS.md"), "# Generated");
+      await writeFileContent(join(testDir, "WARP.md"), "# Legacy");
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "warp" });
+      const importedPaths = (await processor.loadToolFiles()).map((file) =>
+        file.getRelativeFilePath(),
+      );
+
+      expect(importedPaths).toEqual(["AGENTS.md"]);
+      const warning = logger.warn.mock.calls
+        .map(([message]) => String(message))
+        .find((message) => message.includes("Not importing WARP.md"));
+      expect(warning).toContain("warp reads that file in place of AGENTS.md");
+      expect(warning).not.toContain("reads that file exclusively");
+    });
+
+    it("should not say generating AGENTS.md stops Warp reading WARP.md", async () => {
+      await writeFileContent(join(testDir, "WARP.md"), "# Legacy");
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "warp" });
+
+      await processor.convertRulesyncFilesToToolFiles([
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "root.md",
+          frontmatter: { targets: ["*"], root: true },
+          body: "Shared team instructions",
+        }),
+      ]);
+
+      expect(logger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining("will no longer be read"),
+      );
+    });
+
     it("should stop importing Junie's read-only roots once .junie/AGENTS.md exists", async () => {
       // The previous generate folded these into `.junie/AGENTS.md`, which Junie
       // then reads exclusively. Importing them again would hand the same content

@@ -511,3 +511,37 @@ describe("AmpMcp", () => {
     });
   });
 });
+
+describe("AmpMcp retraction (issue #2562)", () => {
+  let testDir: string;
+  let cleanup: () => Promise<void>;
+
+  beforeEach(async () => {
+    ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
+  });
+
+  afterEach(async () => {
+    await cleanup();
+    vi.restoreAllMocks();
+  });
+
+  it("retracts amp.mcpServers when no server is left, keeping unrelated keys", async () => {
+    const paths = AmpMcp.getSettablePaths({ global: false });
+    await writeFileContent(
+      join(testDir, paths.relativeDirPath, paths.relativeFilePath),
+      JSON.stringify({ other: 1, "amp.mcpServers": { old: { command: "old" } } }),
+    );
+    const mcp = await AmpMcp.fromRulesyncMcp({
+      outputRoot: testDir,
+      global: false,
+      rulesyncMcp: new RulesyncMcp({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({ mcpServers: {} }),
+      }),
+    });
+
+    expect(JSON.parse(mcp.getFileContent())).toEqual({ other: 1 });
+  });
+});

@@ -18,6 +18,7 @@ import {
   applySharedConfigPatch,
   parseSharedConfig,
   sharedConfigFileKey,
+  undefinedWhenEmpty,
 } from "../shared/shared-config-gateway.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
@@ -170,7 +171,9 @@ export class QoderMcp extends ToolMcp {
           fileKey: sharedConfigFileKey(paths),
           feature: "mcp",
           existingContent,
-          patch: { mcpServers },
+          // With no server left the key is retracted rather than left as an
+          // empty object, so the file states nothing Rulesync no longer generates.
+          patch: { mcpServers: undefinedWhenEmpty(mcpServers) },
           filePath,
         })
       : JSON.stringify(
