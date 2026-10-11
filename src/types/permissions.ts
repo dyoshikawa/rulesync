@@ -557,6 +557,8 @@ export type TabninePermissionsOverride = z.infer<typeof TabninePermissionsOverri
  * { "sandbox": { "bash": "enforce", "network": false }, "agent": { "plan_mode_read_only_commands": ["gh pr diff"] } }
  * @example
  * { "allowDynamicBash": true, "rawAllow": ["Bash=pnpm test"] }
+ * @example
+ * { "mode": "deny" }
  */
 const ReasonixPermissionsOverrideSchema = z.looseObject({
   permission: z.optional(ToolScopedPermissionSchema),
@@ -585,6 +587,13 @@ const ReasonixPermissionsOverrideSchema = z.looseObject({
   // shareable permissions file lets run without a human.
   // @see https://github.com/esengine/DeepSeek-Reasonix/blob/main-v2/docs/SPEC.md
   allowDynamicBash: z.optional(z.boolean()),
+  // `[permissions] mode`: the fallback for a writer call no rule matches
+  // (`ask`, the default, `allow` or `deny`). Reasonix honors it only in the user
+  // config: a project `reasonix.toml` value is ignored as user-scope only
+  // (`narrowPermissions` in `internal/contract/config/project_scope.go`), so it
+  // is written only by `--global` generate.
+  // @see https://github.com/esengine/DeepSeek-Reasonix/blob/main-v2/docs/SPEC.md
+  mode: z.optional(z.enum(["ask", "allow", "deny"])),
 });
 export type ReasonixPermissionsOverride = z.infer<typeof ReasonixPermissionsOverrideSchema>;
 
