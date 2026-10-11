@@ -121,6 +121,15 @@ export type ToolRuleImportOnlyRoot = {
    * rule's own output path.
    */
   onlyWhenRootAbsent?: boolean;
+  /**
+   * The tool reads this root instead of its own root file when both exist
+   * (Warp: "If both `WARP.md` and `AGENTS.md` exist in the same directory,
+   * `WARP.md` takes priority"). Generating the root file then does not stop the
+   * tool reading this one, so the generate-side "will no longer be read"
+   * warning skips it, and the import-side skip warning says that the imported
+   * root file is the one the tool ignores.
+   */
+  outranksRoot?: boolean;
 };
 
 export type ToolRuleSettablePaths = {
