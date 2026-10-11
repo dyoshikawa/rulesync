@@ -69,6 +69,33 @@ describe("buildAntigravityPermissionEntry", () => {
       expect(entry).toBeUndefined();
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("NOT enforced"));
     });
+
+    it.each([
+      ["~/.ssh/**", "deny", "read_file(~/.ssh)"],
+      ["$HOME/.aws/credentials", "deny", "read_file($HOME/.aws/credentials)"],
+      ["~/notes", "allow", "read_file(~/notes)"],
+      ["config/${XDG_NAME}/x", "deny", "read_file(config/${XDG_NAME}/x)"],
+    ] as const)("keeps %s but warns that it may not be expanded", (pattern, decision, expected) => {
+      const { entry, logger } = build({ action: "read_file", pattern, decision });
+      expect(entry).toBe(expected);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("may not be expanded"));
+    });
+
+    it("says a deny with a home path may block nothing", () => {
+      const { logger } = build({ action: "read_file", pattern: "~/.ssh/**", decision: "deny" });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("this deny may block nothing"),
+      );
+    });
+
+    it.each(["app/routes/posts.$postId.tsx", "src/$lib/index.ts", "price$.txt", "~$report.docx"])(
+      "does not warn about the ordinary `$` in %s",
+      (pattern) => {
+        const { entry, logger } = build({ action: "write_file", pattern, decision: "deny" });
+        expect(entry).toBe(`write_file(${pattern})`);
+        expect(logger.warn).not.toHaveBeenCalled();
+      },
+    );
   });
 
   describe("URL targets", () => {
