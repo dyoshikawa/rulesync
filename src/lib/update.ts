@@ -121,24 +121,32 @@ export function getPlatformAssetName(): string | null {
  * Normalize version string by removing leading 'v' and stripping pre-release and build suffixes
  */
 export function normalizeVersion(v: string): string {
-  // Preserve the existing pre-release handling and ignore build metadata for comparisons.
+  // Remove leading 'v' and strip pre-release/build suffixes (e.g., "1.2.3-rc.1+build.5" -> "1.2.3")
   return v.replace(/^v/, "").replace(/[-+].*$/, "");
 }
+
+/**
+ * Numeric core of a normalized version: one to three dot-separated numbers
+ */
+const VERSION_CORE_PATTERN = /^\d+(\.\d+){0,2}$/;
 
 /**
  * Compare semantic versions
  * Returns: 1 if a > b, -1 if a < b, 0 if equal
  */
 export function compareVersions(a: string, b: string): number {
-  const aParts = normalizeVersion(a).split(".").map(Number);
-  const bParts = normalizeVersion(b).split(".").map(Number);
+  const aCore = normalizeVersion(a);
+  const bCore = normalizeVersion(b);
+  if (!VERSION_CORE_PATTERN.test(aCore) || !VERSION_CORE_PATTERN.test(bCore)) {
+    throw new Error(`Invalid version format: cannot compare "${a}" and "${b}"`);
+  }
+
+  const aParts = aCore.split(".").map(Number);
+  const bParts = bCore.split(".").map(Number);
 
   for (let i = 0; i < Math.max(aParts.length, bParts.length); i++) {
     const aNum = aParts[i] ?? 0;
     const bNum = bParts[i] ?? 0;
-    if (!Number.isFinite(aNum) || !Number.isFinite(bNum)) {
-      throw new Error(`Invalid version format: cannot compare "${a}" and "${b}"`);
-    }
     if (aNum > bNum) return 1;
     if (aNum < bNum) return -1;
   }

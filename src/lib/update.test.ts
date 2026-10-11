@@ -114,12 +114,14 @@ describe("update", () => {
       expect(normalizeVersion("v1.2.3-rc.1")).toBe("1.2.3");
     });
 
-    it.each(["1.2.3+001", "v1.2.3+exp.sha.5114f85", "1.2.3+build-with-hyphens"])(
-      "should strip build metadata from %s",
-      (version) => {
-        expect(normalizeVersion(version)).toBe("1.2.3");
-      },
-    );
+    it.each([
+      "1.2.3+001",
+      "v1.2.3+exp.sha.5114f85",
+      "1.2.3+build-with-hyphens",
+      "v1.2.3-rc.1+build.5",
+    ])("should strip build metadata from %s", (version) => {
+      expect(normalizeVersion(version)).toBe("1.2.3");
+    });
   });
 
   describe("compareVersions", () => {
@@ -171,6 +173,14 @@ describe("update", () => {
     it("should throw on invalid version format", () => {
       expect(() => compareVersions("abc", "1.0.0")).toThrow("Invalid version format");
     });
+
+    it.each(["+1.2.3", "vv1.2.3", "1.2.3.4", "1..2"])(
+      "should throw on malformed version %s instead of comparing it silently",
+      (version) => {
+        expect(() => compareVersions(version, "1.0.0")).toThrow("Invalid version format");
+        expect(() => compareVersions("1.0.0", version)).toThrow("Invalid version format");
+      },
+    );
   });
 
   describe("detectExecutionEnvironment", () => {
