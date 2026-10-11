@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { ensureDir, writeFileContent } from "../../utils/file.js";
+import { ensureDir, fileExists, writeFileContent } from "../../utils/file.js";
 import { OmpHooks } from "./omp-hooks.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
 
@@ -79,6 +79,21 @@ async function loadPromptGate({
     config: { version: 1, hooks: { beforeSubmitPrompt: [{ type: "command", command }] } },
   });
   return handlerFor("input");
+}
+
+function stopEvent({
+  stopHookActive = false,
+  stopReason = "stop",
+}: { stopHookActive?: boolean; stopReason?: string } = {}) {
+  return {
+    type: "session_stop",
+    messages: [],
+    turn_id: 0,
+    last_assistant_message: { role: "assistant", content: [], stopReason },
+    session_id: "session",
+    stop_hook_active: stopHookActive,
+    signal: new AbortController().signal,
+  };
 }
 
 function uiContext(notify: ReturnType<typeof vi.fn>) {
@@ -154,20 +169,25 @@ describe("OmpHooks", () => {
       }
     });
 
-    it("should not map stop or notification, which have no oh-my-pi mapping yet", () => {
+    it("should map stop to session_stop rather than Pi's settle gate", () => {
       const content = generate({
         testDir,
-        config: {
-          version: 1,
-          hooks: {
-            stop: [{ command: "echo stop" }],
-            notification: [{ command: "echo notify" }],
-          },
-        },
+        config: { version: 1, hooks: { stop: [{ command: "echo stop" }] } },
       });
 
+      expect(content).toContain('pi.on("session_stop", async (event) => {');
+      expect(content).toContain('import type { ExtensionAPI } from "@oh-my-pi/pi-coding-agent";');
       expect(content).not.toContain("agent_before_settle");
       expect(content).not.toContain("agent_settled");
+      expect(content).not.toContain("continueAfterStopHook");
+    });
+
+    it("should not map notification, which has no oh-my-pi equivalent", () => {
+      const content = generate({
+        testDir,
+        config: { version: 1, hooks: { notification: [{ command: "echo notify" }] } },
+      });
+
       expect(content).not.toContain("ui_prompt_start");
       expect(content).toContain("export default function () {}");
     });
@@ -250,6 +270,83 @@ describe("OmpHooks", () => {
       await expect(handler({ toolName: "bash", isError: true })).rejects.toMatchObject({
         code: 3,
       });
+    });
+  });
+
+  describe("generated session_stop handler", () => {
+    it("should ask for one continuation when a stop command exits with 2", async () => {
+      const { registeredEvents, handlerFor } = await loadOmpExtension({
+        testDir,
+        config: {
+          version: 1,
+          hooks: { stop: [{ command: "echo tests are failing >&2; exit 2" }] },
+        },
+      });
+      const stop = handlerFor("session_stop");
+
+      expect(registeredEvents).toEqual(["session_stop"]);
+      expect(await stop(stopEvent())).toEqual({
+        continue: true,
+        additionalContext: "Stop hook feedback:\ntests are failing",
+      });
+      // oh-my-pi sets stop_hook_active on the continuation's stop pass; a
+      // second failure must not loop, and is left for oh-my-pi to report.
+      await expect(stop(stopEvent({ stopHookActive: true }))).rejects.toMatchObject({ code: 2 });
+    });
+
+    it("should not continue a run that ended on a provider error", async () => {
+      const { handlerFor } = await loadOmpExtension({
+        testDir,
+        config: { version: 1, hooks: { stop: [{ command: "exit 2" }] } },
+      });
+
+      await expect(
+        handlerFor("session_stop")(stopEvent({ stopReason: "error" })),
+      ).rejects.toMatchObject({ code: 2 });
+    });
+
+    it("should not continue for a stop command failing with an exit code other than 2", async () => {
+      const { handlerFor } = await loadOmpExtension({
+        testDir,
+        config: {
+          version: 1,
+          hooks: { stop: [{ command: "exit 1" }, { command: "rulesync-missing-command-3080" }] },
+        },
+      });
+
+      await expect(handlerFor("session_stop")(stopEvent())).rejects.toMatchObject({ code: 1 });
+    });
+
+    it("should run every stop command and combine their feedback", async () => {
+      const marker = join(testDir, "second-ran");
+      const { handlerFor } = await loadOmpExtension({
+        testDir,
+        config: {
+          version: 1,
+          hooks: {
+            stop: [
+              { command: "echo first >&2; exit 2" },
+              { command: `touch "${marker}"` },
+              { command: "echo third >&2; exit 2" },
+            ],
+          },
+        },
+      });
+
+      expect(await handlerFor("session_stop")(stopEvent())).toEqual({
+        continue: true,
+        additionalContext: "Stop hook feedback:\nfirst\n\nthird",
+      });
+      expect(await fileExists(marker)).toBe(true);
+    });
+
+    it("should let the run settle when every stop command succeeds", async () => {
+      const { handlerFor } = await loadOmpExtension({
+        testDir,
+        config: { version: 1, hooks: { stop: [{ command: "true" }] } },
+      });
+
+      expect(await handlerFor("session_stop")(stopEvent())).toBeUndefined();
     });
   });
 

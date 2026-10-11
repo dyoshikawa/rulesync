@@ -63,6 +63,27 @@ const PI_PROMPT_BLOCKING_EVENT = "input";
 const PI_SETTLE_BLOCKING_EVENT = "agent_before_settle";
 
 /**
+ * `session_stop` is oh-my-pi's stop surface (it has no `agent_before_settle`).
+ * It fires when a main-session run is about to settle (never for subagents,
+ * nor for a run the user aborted), and a handler returning
+ * `{ continue: true, additionalContext }` queues one more turn with that text
+ * as hidden model-visible context. As on Pi, only a stop command exiting with
+ * code 2 asks for that, the feedback of every such command is combined, and
+ * any other failure is rethrown for oh-my-pi to report. The generated handler
+ * continues only when `event.stop_hook_active` is false, which oh-my-pi sets
+ * after a continuation and clears once a stop pass lets the run settle, so the
+ * agent is continued at most once per stop; oh-my-pi additionally caps these
+ * advisory continuations at 8 in a row. A run that ended on a provider error
+ * (`stopReason: "error"`) is not continued, matching Pi's `completed`-only
+ * gate. The advisory form is used rather than `{ decision: "block", reason }`,
+ * which oh-my-pi keeps enforcing without that cap.
+ *
+ * @see https://github.com/can1357/oh-my-pi/blob/fa5ff4a3a977a28b93d025f4cf50f046e019f18c/docs/extensions.md
+ * @see https://github.com/can1357/oh-my-pi/blob/fa5ff4a3a977a28b93d025f4cf50f046e019f18c/packages/coding-agent/src/session/agent-session.ts
+ */
+const OMP_SESSION_STOP_BLOCKING_EVENT = "session_stop";
+
+/**
  * What differs between the extension APIs of Pi and its fork oh-my-pi
  * (`omp`). Both load a default-export factory and share the event names this
  * generator emits, but they publish their types from different packages and
@@ -106,12 +127,13 @@ export const OMP_EXTENSION_DIALECT: PiExtensionDialect = {
  * How a generated handler reacts to a hook command that exits non-zero. The
  * `settle` gate reacts to exit code 2 only; see `PI_SETTLE_BLOCKING_EVENT`.
  */
-type BlockingMode = "none" | "tool" | "prompt" | "settle";
+type BlockingMode = "none" | "tool" | "prompt" | "settle" | "sessionStop";
 
 const PI_BLOCKING_MODE_BY_EVENT: Record<string, BlockingMode> = {
   [PI_BLOCKING_EVENT]: "tool",
   [PI_PROMPT_BLOCKING_EVENT]: "prompt",
   [PI_SETTLE_BLOCKING_EVENT]: "settle",
+  [OMP_SESSION_STOP_BLOCKING_EVENT]: "sessionStop",
 };
 
 /**
@@ -131,6 +153,7 @@ function failureLinesByMode(dialect: PiExtensionDialect): Record<BlockingMode, r
     // Feedback is only collected here; the handler decides after every stop
     // command has run (see `buildSubscriptionLines`).
     settle: ["stopHookFailures.push(error);"],
+    sessionStop: ["stopHookFailures.push(error);"],
   };
 }
 
@@ -225,6 +248,13 @@ const PROMPT_GATE_HELPER_LINES = [
   "}",
 ];
 
+/** Helper emitted alongside every stop gate (Pi's settle gate and oh-my-pi's `session_stop`). */
+const STOP_HOOK_BLOCK_HELPER_LINES = [
+  "function isStopHookBlock(error: unknown): boolean {",
+  "  return (error as { code?: unknown } | null)?.code === 2;",
+  "}",
+];
+
 /**
  * Helper emitted alongside the stop hook's settle gate. `event.entries` holds
  * the drafts earlier extensions proposed at this boundary, so they are kept and
@@ -235,10 +265,6 @@ const PROMPT_GATE_HELPER_LINES = [
  * appended message is committed, and Pi re-validates the final context itself.
  */
 const STOP_HOOK_HELPER_LINES = [
-  "function isStopHookBlock(error: unknown): boolean {",
-  "  return (error as { code?: unknown } | null)?.code === 2;",
-  "}",
-  "",
   "function continueAfterStopHook(",
   "  event: AgentBeforeSettleEvent,",
   "  reason: string,",
@@ -372,11 +398,13 @@ function buildSubscriptionLines(
     const blocking = PI_BLOCKING_MODE_BY_EVENT[piEvent] ?? "none";
     const isPromptGate = blocking === "prompt";
     const isSettleGate = blocking === "settle";
+    const isSessionStopGate = blocking === "sessionStop";
+    const collectsStopFailures = isSettleGate || isSessionStopGate;
     const usesToolName = PI_TOOL_EVENTS.has(piEvent) && handlers.some((h) => h.matcher);
     const usesErrorFlag = handlers.some((h) => h.onlyOnError);
     const gatesOnAssistant = PI_ASSISTANT_MESSAGE_EVENTS.has(piEvent);
     const usesEvent =
-      usesToolName || usesErrorFlag || gatesOnAssistant || isPromptGate || isSettleGate;
+      usesToolName || usesErrorFlag || gatesOnAssistant || isPromptGate || collectsStopFailures;
     // `ctx` is the second handler argument, so the prompt gate names both.
     const params = isPromptGate ? "event, ctx" : usesEvent ? "event" : "";
     lines.push(`  pi.on(${JSON.stringify(piEvent)}, async (${params}) => {`);
@@ -389,7 +417,7 @@ function buildSubscriptionLines(
       // which a user's prompt gate should not cancel.
       lines.push(`    if (event.source === "extension") ${dialect.promptPassLine}`);
     }
-    if (isSettleGate) {
+    if (collectsStopFailures) {
       lines.push("    const stopHookFailures: unknown[] = [];");
     }
     for (const handler of handlers) {
@@ -423,6 +451,24 @@ function buildSubscriptionLines(
       lines.push("    }");
       lines.push("    if (stopHookFailures.length > 0) throw stopHookFailures[0];");
     }
+    if (isSessionStopGate) {
+      // See `OMP_SESSION_STOP_BLOCKING_EVENT` for the continue-once and
+      // provider-error gates. Returning nothing lets the run settle and keeps
+      // another extension's continuation request.
+      lines.push("    const blocks = stopHookFailures.filter(isStopHookBlock);");
+      lines.push(
+        '    const endedOnError = (event.last_assistant_message as { stopReason?: unknown } | undefined)?.stopReason === "error";',
+      );
+      lines.push("    if (blocks.length > 0 && !event.stop_hook_active && !endedOnError) {");
+      lines.push("      return {");
+      lines.push("        continue: true,");
+      lines.push(
+        '        additionalContext: `Stop hook feedback:\\n${blocks.map(toBlockReason).join("\\n\\n")}`,',
+      );
+      lines.push("      };");
+      lines.push("    }");
+      lines.push("    if (stopHookFailures.length > 0) throw stopHookFailures[0];");
+    }
     lines.push("  });");
     if (isSettleGate) {
       lines.push(`  pi.on("agent_settled", async () => {`);
@@ -442,8 +488,9 @@ function buildSubscriptionLines(
  * `{ block: true, reason }`, and on `input` — Pi's prompt-submission gate —
  * where a non-zero exit cancels the prompt with the dialect's cancel result
  * (`{ action: "handled" }` for Pi, `{ handled: true }` for oh-my-pi), and
- * on `agent_before_settle`, where a stop command exiting with code 2 asks the
- * agent to continue once with the command's output as feedback.
+ * on `agent_before_settle` (Pi) / `session_stop` (oh-my-pi), where a stop
+ * command exiting with code 2 asks the agent to continue once with the
+ * command's output as feedback.
  * `postToolUse` and `postToolUseFailure` share Pi's `tool_result` event; the
  * latter's commands run only when `event.isError` is set.
  *
@@ -472,8 +519,12 @@ export function generatePiExtensionCode({
   const subscriptionLines = buildSubscriptionLines(handlerGroups, dialect);
   const hasPromptGate = Boolean(handlerGroups[PI_PROMPT_BLOCKING_EVENT]);
   const hasSettleGate = Boolean(handlerGroups[PI_SETTLE_BLOCKING_EVENT]);
+  const hasSessionStopGate = Boolean(handlerGroups[OMP_SESSION_STOP_BLOCKING_EVENT]);
   const needsBlockReasonHelper =
-    Boolean(handlerGroups[PI_BLOCKING_EVENT]) || hasPromptGate || hasSettleGate;
+    Boolean(handlerGroups[PI_BLOCKING_EVENT]) ||
+    hasPromptGate ||
+    hasSettleGate ||
+    hasSessionStopGate;
 
   const lines: string[] = ["// Generated by rulesync. Do not edit manually."];
   if (subscriptionLines.length === 0) {
@@ -500,6 +551,10 @@ export function generatePiExtensionCode({
   }
   if (hasPromptGate) {
     lines.push(...PROMPT_GATE_HELPER_LINES);
+    lines.push("");
+  }
+  if (hasSettleGate || hasSessionStopGate) {
+    lines.push(...STOP_HOOK_BLOCK_HELPER_LINES);
     lines.push("");
   }
   if (hasSettleGate) {

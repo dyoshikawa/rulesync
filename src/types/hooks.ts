@@ -461,11 +461,9 @@ export const PI_HOOK_EVENTS: readonly HookEvent[] = [
 /**
  * Hook events supported by oh-my-pi (`omp`), Pi's fork, through the same
  * generated TypeScript extension. oh-my-pi keeps Pi's names for every event
- * listed here, but it has neither `agent_before_settle` nor `ui_prompt_start`,
- * so `stop` and `notification` are not mapped yet. oh-my-pi's stop surface is
- * `session_stop`, which takes a Claude-compatible `{ decision: "block", reason }`
- * result; it needs its own handler in the generator and is left for a
- * follow-up. See CANONICAL_TO_OMP_EVENT_NAMES.
+ * listed here except `stop`: it has no `agent_before_settle`, so `stop` maps to
+ * its own `session_stop` event instead. It has no `ui_prompt_start` either, so
+ * `notification` is not mapped. See CANONICAL_TO_OMP_EVENT_NAMES.
  *
  * @see https://github.com/can1357/oh-my-pi/blob/40e9368ef0458fd9073329cdff4174895f91bc6b/docs/extensions.md
  */
@@ -478,6 +476,8 @@ export const OMP_HOOK_EVENTS: readonly HookEvent[] = [
   "preModelInvocation",
   "postModelInvocation",
   "beforeSubmitPrompt",
+  // `session_stop`, oh-my-pi's own stop event. See CANONICAL_TO_OMP_EVENT_NAMES.
+  "stop",
   "preCompact",
   "postCompact",
 ];
@@ -2104,7 +2104,7 @@ export const CANONICAL_TO_PI_EVENT_NAMES: Record<string, string> = {
 /**
  * Map canonical camelCase event names to oh-my-pi extension event names. They
  * are Pi's names (see CANONICAL_TO_PI_EVENT_NAMES) for the events oh-my-pi
- * kept. Note that oh-my-pi runs `session_shutdown` handlers with a 2-second
+ * kept, plus `session_stop` for `stop`. Note that oh-my-pi runs `session_shutdown` handlers with a 2-second
  * budget, and fails a `tool_call` closed when its handler exceeds
  * `extensionHandlers.toolCallTimeoutMs` (30 seconds by default).
  *
@@ -2121,6 +2121,10 @@ export const CANONICAL_TO_OMP_EVENT_NAMES: Record<string, string> = {
   // Filtered to assistant messages by the generated handler, as for Pi.
   postModelInvocation: "message_end",
   beforeSubmitPrompt: "input",
+  // oh-my-pi has no `agent_before_settle`; `session_stop` fires before a
+  // main-session run settles and can ask for one more turn. See
+  // `OMP_SESSION_STOP_BLOCKING_EVENT` in pi-extension-generator.ts.
+  stop: "session_stop",
   preCompact: "session_before_compact",
   postCompact: "session_compact",
 };
