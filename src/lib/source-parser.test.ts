@@ -4,6 +4,32 @@ import { parseSource } from "./source-parser.js";
 
 describe("parseSource", () => {
   describe("GitHub URL parsing", () => {
+    it.each([
+      ["main/shared%20rules", "main", "shared rules"],
+      ["main/%E8%A7%84%E5%88%99", "main", "规则"],
+      // cspell:ignore Frules
+      ["feature%2Frules/shared%23rules", "feature/rules", "shared#rules"],
+      ["main/shared%2520rules", "main", "shared%20rules"],
+    ])("should decode URL components once in %s", (suffix, ref, path) => {
+      expect(parseSource(`https://github.com/owner/repo/tree/${suffix}`)).toEqual({
+        provider: "github",
+        owner: "owner",
+        repo: "repo",
+        ref,
+        path,
+      });
+    });
+
+    it("should decode blob URLs with literal percent signs", () => {
+      expect(parseSource("https://github.com/owner/repo/blob/main/100%25/rules.md")).toEqual({
+        provider: "github",
+        owner: "owner",
+        repo: "repo",
+        ref: "main",
+        path: "100%/rules.md",
+      });
+    });
+
     it("should parse basic GitHub URL", () => {
       const result = parseSource("https://github.com/owner/repo");
       expect(result).toEqual({
