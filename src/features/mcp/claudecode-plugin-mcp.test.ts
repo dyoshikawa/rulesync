@@ -86,6 +86,42 @@ describe("ClaudecodePluginMcp", () => {
   });
 
   it.each([
+    [
+      { command: "node", args: ["-r", "./register.js", "./dist/server.js"] },
+      {
+        command: "node",
+        args: ["-r", "${CLAUDE_PLUGIN_ROOT}/register.js", "${CLAUDE_PLUGIN_ROOT}/dist/server.js"],
+      },
+    ],
+    [
+      { command: "uv", args: ["run", "--with", "httpx", "./server.py"] },
+      { command: "uv", args: ["run", "--with", "httpx", "${CLAUDE_PLUGIN_ROOT}/server.py"] },
+    ],
+    [
+      { command: "bun", args: ["--smol", "run", "./x.ts"] },
+      { command: "bun", args: ["--smol", "run", "${CLAUDE_PLUGIN_ROOT}/x.ts"] },
+    ],
+    [
+      { command: "bun", args: ["./x.ts"] },
+      { command: "bun", args: ["${CLAUDE_PLUGIN_ROOT}/x.ts"] },
+    ],
+    [
+      { command: "npx", args: ["tsx", "./server.ts", "./data"] },
+      { command: "npx", args: ["tsx", "${CLAUDE_PLUGIN_ROOT}/server.ts", "./data"] },
+    ],
+    [
+      { command: ["node", "--inspect"], args: ["./x.js"] },
+      { command: ["node", "--inspect"], args: ["${CLAUDE_PLUGIN_ROOT}/x.js"] },
+    ],
+  ])("anchors the files a runner loads in %j", async (server, expected) => {
+    const { servers } = await generate({ s: server });
+    expect(servers.s).toEqual(expected);
+  });
+
+  it.each([
+    { command: "sh", args: ["-c", "./start.sh --flag"] },
+    { command: "python3", args: ["-m", "pkg", "./data"] },
+    { command: "node", args: ["-e", "1", "./x.js"] },
     { command: "npx", args: ["-y", "@modelcontextprotocol/server-filesystem", "./docs"] },
     { command: "node", args: ["dist/server.js"] },
     { command: "node", args: ["${CLAUDE_PLUGIN_DATA}/server.js"] },
@@ -122,14 +158,31 @@ describe("ClaudecodePluginMcp", () => {
       join(testDir, ".mcp.json"),
       JSON.stringify({
         mcpServers: {
-          db: { command, args: [command.replace("servers/db-server", "schema.sql"), "--verbose"] },
+          db: { command, args: ["--verbose"] },
+          script: { command: "node", args: [command.replace("servers/db-server", "server.js")] },
         },
       }),
     );
     const mcp = await ClaudecodePluginMcp.fromFile({ outputRoot: testDir });
     expect(mcp).toBeInstanceOf(ClaudecodePluginMcp);
     expect(mcp.toRulesyncMcp().getMcpServers()).toEqual({
-      db: { command: "./servers/db-server", args: ["./schema.sql", "--verbose"] },
+      db: { command: "./servers/db-server", args: ["--verbose"] },
+      script: { command: "node", args: ["./server.js"] },
+    });
+  });
+
+  it("keeps a hand-written plugin-root data argument on import", async () => {
+    await writeFileContent(
+      join(testDir, ".mcp.json"),
+      JSON.stringify({
+        mcpServers: {
+          s: { command: "npx", args: ["some-server", "${CLAUDE_PLUGIN_ROOT}/schema.json"] },
+        },
+      }),
+    );
+    const mcp = await ClaudecodePluginMcp.fromFile({ outputRoot: testDir });
+    expect(mcp.toRulesyncMcp().getMcpServers()).toEqual({
+      s: { command: "npx", args: ["some-server", "${CLAUDE_PLUGIN_ROOT}/schema.json"] },
     });
   });
 

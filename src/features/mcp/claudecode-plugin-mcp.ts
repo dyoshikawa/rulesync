@@ -1,5 +1,14 @@
 import { posix, win32 } from "node:path";
 
+import {
+  CODE_OPTIONS,
+  PACKAGE_RUNNERS,
+  RUN_SUBCOMMANDS,
+  SCRIPT_RUNNER_PATTERN,
+  SHELL_NAME_PATTERN,
+  VALUE_OPTIONS,
+  optionsFor,
+} from "../hooks/hook-command-paths.js";
 import { ClaudecodeMcp } from "./claudecode-mcp.js";
 import type { RulesyncMcp } from "./rulesync-mcp.js";
 import type {
@@ -44,48 +53,74 @@ function anchorToPluginRoot(path: string): string {
   return `${PLUGIN_ROOT_PLACEHOLDER}/${path.replace(/^\.[\\/]/, "")}`;
 }
 
-/**
- * Commands that run the script named by their first non-option argument, so
- * that argument is a file shipped with the plugin (`node ./dist/server.js`).
- * Matched against the basename, so `/usr/bin/python3` counts too.
- */
-const SCRIPT_RUNNER_PATTERN =
-  /^(?:node|nodejs|bun|tsx|ts-node|python(?:\d+(?:\.\d+)?)?|ruby|perl|php|sh|bash|zsh)$/;
+/** The runner name of a command word: its basename without a `.exe` suffix. */
+function runnerName(command: string): string {
+  return (command.split(/[\\/]/).pop() ?? command).replace(/\.exe$/i, "");
+}
 
-/** Tools whose subcommand runs the script that follows it (`uv run ./server.py`). */
-const RUN_SUBCOMMANDS: Record<string, string> = { uv: "run", deno: "run", bun: "run" };
+type Expecting = "subcommand" | "command" | "script" | "none";
+
+/** What follows a command word, as plugin hook commands read it. */
+function afterCommandWord(name: string): Expecting {
+  if (Object.hasOwn(RUN_SUBCOMMANDS, name)) return "subcommand";
+  if (PACKAGE_RUNNERS.has(name)) return "command";
+  return SCRIPT_RUNNER_PATTERN.test(name) ? "script" : "none";
+}
 
 /**
- * The index of the argument that names the script a runner executes, or
- * `undefined` when the command is not a script runner. Only that one argument
- * is anchored: any other `./` argument is data the server reads relative to
- * the consumer's project (`server-filesystem ./docs`), so it is left as
- * written, the same rule plugin hook commands follow.
+ * The positions in `args` that name a file the server runs, read with the
+ * rules plugin hook commands follow (`hook-command-paths.ts`): the script of a
+ * script runner (`node ./dist/server.js`), the command after a run subcommand
+ * or package runner (`uv run ./server.py`, `npx tsx ./x.ts`), and the value of
+ * an option that loads a file (`node -r ./register.js`). Only a position whose
+ * value `isPath` accepts is returned. Everything else is data the server reads
+ * relative to the consumer's project (`server-filesystem ./docs`), and the
+ * scan stops at an option that runs inline code or standard input
+ * (`node -e`, `python3 -m`, `sh -c`, `bash -s`).
  */
-function scriptArgumentIndex({
+function fileArgumentIndices({
   command,
   args,
+  isPath,
 }: {
   command: string;
   args: readonly unknown[];
-}): number | undefined {
-  const name = (command.split(/[\\/]/).pop() ?? command).replace(/\.exe$/i, "");
-  const subcommand = Object.hasOwn(RUN_SUBCOMMANDS, name) ? RUN_SUBCOMMANDS[name] : undefined;
-  if (!SCRIPT_RUNNER_PATTERN.test(name) && subcommand === undefined) return undefined;
-  let index = 0;
-  if (subcommand !== undefined && !SCRIPT_RUNNER_PATTERN.test(name)) {
-    const found = args.findIndex((arg) => arg === subcommand);
-    if (found === -1) return undefined;
-    index = found + 1;
-  } else if (subcommand !== undefined && args[0] === subcommand) {
-    index = 1;
-  }
-  for (; index < args.length; index++) {
+  isPath: (value: string) => boolean;
+}): Set<number> {
+  const indices = new Set<number>();
+  let owner = runnerName(command);
+  let expecting = afterCommandWord(owner);
+  for (let index = 0; index < args.length && expecting !== "none"; index++) {
     const arg = args[index];
-    if (typeof arg !== "string") return undefined;
-    if (!arg.startsWith("-")) return index;
+    if (typeof arg !== "string") break;
+    if (arg.startsWith("-") && arg !== "-") {
+      const isCode =
+        optionsFor({ table: CODE_OPTIONS, name: owner })?.has(arg) ||
+        (SHELL_NAME_PATTERN.test(owner) && arg === "-c");
+      if (isCode) break;
+      if (optionsFor({ table: VALUE_OPTIONS, name: owner })?.has(arg)) {
+        const value = args[index + 1];
+        if (typeof value === "string" && isPath(value)) indices.add(index + 1);
+        index++;
+      }
+      continue;
+    }
+    if (expecting === "subcommand") {
+      if (RUN_SUBCOMMANDS[owner]?.has(arg)) {
+        expecting = "command";
+        continue;
+      }
+      // `bun ./x.ts`: a runner that also takes a script directly.
+      if (!SCRIPT_RUNNER_PATTERN.test(owner)) break;
+      expecting = "script";
+    }
+    if (isPath(arg)) indices.add(index);
+    if (expecting === "script") break;
+    // A command word: the runner it names decides what follows.
+    owner = runnerName(arg);
+    expecting = afterCommandWord(owner);
   }
-  return undefined;
+  return indices;
 }
 
 function isDotRelative(value: string): boolean {
@@ -116,42 +151,62 @@ function splitCommand(server: Record<string, unknown>): {
   };
 }
 
-/** Anchor a server's plugin-relative command and the script its runner executes. */
-function anchorServer(server: Record<string, unknown>): Record<string, unknown> {
-  const { command } = splitCommand(server);
+/**
+ * Rewrite a server's command and the argument positions that name a file it
+ * runs (see `fileArgumentIndices`), leaving every other argument as written.
+ * Generate and import share this, so a position generate never anchors is
+ * never relativized on import either, and a hand-written
+ * `${CLAUDE_PLUGIN_ROOT}/…` data argument keeps its meaning.
+ */
+function rewriteServer({
+  server,
+  rewriteCommand,
+  isPath,
+  rewritePath,
+}: {
+  server: Record<string, unknown>;
+  rewriteCommand: (command: string) => string;
+  isPath: (value: string) => boolean;
+  rewritePath: (value: string) => string;
+}): Record<string, unknown> {
+  const { command, args } = splitCommand(server);
   if (command === undefined) return server;
-  const next: Record<string, unknown> = { ...server };
-  const anchoredCommand = isPluginRelativeCommand(command) ? anchorToPluginRoot(command) : command;
-  const anchorArgs = (args: unknown[], offset: number): unknown[] => {
-    const scriptIndex = scriptArgumentIndex({ command, args: splitCommand(server).args });
-    return args.map((arg, index) =>
-      index + offset === scriptIndex && typeof arg === "string" && isDotRelative(arg)
-        ? anchorToPluginRoot(arg)
-        : arg,
+  const indices = fileArgumentIndices({ command, args, isPath });
+  const rewriteArgs = (values: unknown[], offset: number): unknown[] =>
+    values.map((value, index) =>
+      indices.has(index + offset) && typeof value === "string" ? rewritePath(value) : value,
     );
-  };
+  const next: Record<string, unknown> = { ...server };
   if (Array.isArray(server.command)) {
     const inlineArgs = server.command.slice(1);
-    next.command = [anchoredCommand, ...anchorArgs(inlineArgs, 0)];
-    if (Array.isArray(server.args)) next.args = anchorArgs(server.args, inlineArgs.length);
+    next.command = [rewriteCommand(command), ...rewriteArgs(inlineArgs, 0)];
+    if (Array.isArray(server.args)) next.args = rewriteArgs(server.args, inlineArgs.length);
   } else {
-    next.command = anchoredCommand;
-    if (Array.isArray(server.args)) next.args = anchorArgs(server.args, 0);
+    next.command = rewriteCommand(command);
+    if (Array.isArray(server.args)) next.args = rewriteArgs(server.args, 0);
   }
   return next;
 }
 
-/** Turn every plugin-root `command` / `args` value of a server back into `./`. */
+/** Anchor a server's plugin-relative command and the files its runner executes. */
+function anchorServer(server: Record<string, unknown>): Record<string, unknown> {
+  return rewriteServer({
+    server,
+    rewriteCommand: (command) =>
+      isPluginRelativeCommand(command) ? anchorToPluginRoot(command) : command,
+    isPath: isDotRelative,
+    rewritePath: anchorToPluginRoot,
+  });
+}
+
+/** Turn the plugin-root forms generate writes back into `./`. */
 function relativizeServer(server: Record<string, unknown>): Record<string, unknown> {
-  const relativize = (value: unknown): unknown =>
-    typeof value === "string" ? relativizeFromPluginRoot(value) : value;
-  const next: Record<string, unknown> = { ...server };
-  next.command = Array.isArray(server.command)
-    ? server.command.map(relativize)
-    : relativize(server.command);
-  if (next.command === undefined) delete next.command;
-  if (Array.isArray(server.args)) next.args = server.args.map(relativize);
-  return next;
+  return rewriteServer({
+    server,
+    rewriteCommand: relativizeFromPluginRoot,
+    isPath: (value) => PLUGIN_ROOT_PREFIX.test(value),
+    rewritePath: relativizeFromPluginRoot,
+  });
 }
 
 /** Apply a per-server transform to every server entry that is an object. */
