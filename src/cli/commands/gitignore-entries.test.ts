@@ -145,9 +145,10 @@ describe("registry derivation", () => {
       // user-managed config so a global generate with no servers does not
       // create an empty `[]` patch file in the user's home directory.
       "**/.dsh/cordis.patch.yml",
-      // Codewhale user config: emitted in GLOBAL scope only (project scope
-      // writes hooks to `.codewhale/hooks.toml` instead), so project
-      // derivation never yields it.
+      // Codewhale config: the hooks writer emits it in GLOBAL scope only
+      // (project scope writes hooks to `.codewhale/hooks.toml`), and project
+      // permissions only set `allow_shell` in the user-managed overlay, so it
+      // stays committable.
       "**/.codewhale/config.toml",
       // Qoder user settings: the MCP writer emits it in GLOBAL scope only
       // (project scope writes `.mcp.json` instead), so project derivation never
@@ -169,6 +170,7 @@ describe("registry derivation", () => {
       "**/.grok/config.toml",
       "**/.vibe/config.toml",
       "**/reasonix.toml",
+      "**/.codewhale/config.toml",
     ]) {
       expect(ALL_GITIGNORE_ENTRIES).not.toContain(entry);
     }
