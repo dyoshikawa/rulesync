@@ -202,6 +202,16 @@ const QWEN_OVERRIDE_SKILLS_KEYS = [
   "disabledLevels",
 ] as const;
 
+// The `general` sub-key the `qwencode` override authors: the output style, a
+// built-in (`Concise`, `Proactive`, `Explanatory`, `Learning`), `default`, or
+// the name of a custom style in `.qwen/output-styles/`. The rest of `general`
+// (editor, vim mode, update checks, ...) is a personal preference rather than
+// agent behavior, so it stays in `settings.json` and is not lifted into the
+// override on import.
+// https://qwenlm.github.io/qwen-code-docs/en/users/configuration/settings/
+// https://qwenlm.github.io/qwen-code-docs/en/users/features/output-styles/
+const QWEN_OVERRIDE_GENERAL_KEYS = ["outputStyle"] as const;
+
 /**
  * How upstream Qwen Code treats an override key that a Workspace (project)
  * settings file sets, for the keys where that differs from "the workspace value
@@ -232,7 +242,7 @@ const QWEN_OVERRIDE_SKILLS_KEYS = [
  *   settles how much the agent may do on its own for every project on the
  *   machine, which is worth naming even though no scope forbids it.
  * - `unmodeled` — the fallback for any other key the override carries. The
- *   `tools`/`security`/`skills` schemas are `z.looseObject`s so a key Qwen Code adds
+ *   `tools`/`security`/`skills`/`general` schemas are `z.looseObject`s so a key Qwen Code adds
  *   works before rulesync knows about it, and some of those keys are as
  *   powerful as the modeled ones (`tools.discoveryCommand`, for instance, is
  *   spawned at startup). Rulesync cannot describe what it does not model, so it
@@ -477,6 +487,20 @@ const QWEN_SCOPED_SKILLS_KEYS = {
       "Qwen Code honors this key wherever it is written and unions it across scopes, so in the global scope it opts the model into the skills it names that `skills.defaultDisabled` would otherwise keep off, for every project on this machine (it cannot override `skills.disabled` or a skipped `skills.disabledLevels` level).",
   },
 } as const satisfies QwenScopedKeys<(typeof QWEN_OVERRIDE_SKILLS_KEYS)[number]>;
+
+// `general.outputStyle` is on none of Qwen Code's workspace lists, so it is
+// honored in every scope (verified against v0.25.0). A style layers the
+// instructions of its style file onto the system prompt, and can drop the
+// built-in coding guidance, so a write is worth naming in either scope.
+const QWEN_SCOPED_GENERAL_KEYS = {
+  outputStyle: {
+    rule: "global-machine-wide",
+    projectNote: ({ qualifiedKey, quotedValue, filePath }) =>
+      `${qualifiedKey} = ${quotedValue} was written to the project-scoped ${filePath}, so it picks the output style for this repository. A custom style adds the instructions in its style file to the system prompt (a project style file is read only when the workspace is trusted). Check it if the override arrived with a repository you cloned.`,
+    globalNote:
+      "Qwen Code honors this key wherever it is written, so in the global scope it picks the output style for every project on this machine that does not choose its own. A custom style adds the instructions in its style file to the system prompt.",
+  },
+} as const satisfies QwenScopedKeys<(typeof QWEN_OVERRIDE_GENERAL_KEYS)[number]>;
 const QWEN_SCOPED_SECURITY_KEYS = {
   allowPrivateNetworkHooks: { rule: "workspace-stripped" },
   // The one key under `announceOnlyGrants` whose empty value grants nothing:
@@ -487,7 +511,7 @@ const QWEN_SCOPED_SECURITY_KEYS = {
   folderTrust: { rule: "user-scope-trust-check" },
 } as const satisfies QwenScopedKeys<(typeof QWEN_OVERRIDE_SECURITY_KEYS)[number]>;
 
-// The `tools`, `security` and `skills` groups the override patches, paired with the keys
+// The `tools`, `security`, `skills` and `general` groups the override patches, paired with the keys
 // it owns there and the ones whose scope behavior needs a note (an empty list is
 // fine for a group that has none). Both directions read it — the generate-side
 // scope gate and the import-side extraction and promotion warning — so a key
@@ -509,6 +533,11 @@ const QWEN_OVERRIDE_GROUPS = [
     groupName: "skills",
     overrideKeys: QWEN_OVERRIDE_SKILLS_KEYS,
     scopedKeys: QWEN_SCOPED_SKILLS_KEYS,
+  },
+  {
+    groupName: "general",
+    overrideKeys: QWEN_OVERRIDE_GENERAL_KEYS,
+    scopedKeys: QWEN_SCOPED_GENERAL_KEYS,
   },
 ] as const;
 type QwenOverrideGroupName = (typeof QWEN_OVERRIDE_GROUPS)[number]["groupName"];
@@ -722,7 +751,7 @@ function scopeOverrideGroup(
 }
 
 /**
- * Build the `tools`/`security`/`skills` patch groups contributed by the `qwencode`
+ * Build the `tools`/`security`/`skills`/`general` patch groups contributed by the `qwencode`
  * override. Each group is shallow-merged over what `settings.json` already has,
  * after the scope gate has handled the keys Qwen Code honors in one scope only.
  */
@@ -959,7 +988,7 @@ export class QwencodePermissions extends ToolPermissions {
 
     const patch: Record<string, unknown> = { permissions: mergedPermissions };
 
-    // Overlay the Qwen-scoped override's `tools`/`security`/`skills` groups
+    // Overlay the Qwen-scoped override's `tools`/`security`/`skills`/`general` groups
     // (autonomy, sandbox and skill kill-switch settings). Shallow-merged at the top level of each group, so an
     // unrelated sibling key (e.g. `tools.core`) is preserved while an override
     // key wins; a nested object the override supplies (e.g. `security.folderTrust`)
@@ -1024,6 +1053,7 @@ export class QwencodePermissions extends ToolPermissions {
       tools: pickQwenOverrideKeys(settings.tools, QWEN_OVERRIDE_TOOLS_KEYS),
       security: pickQwenOverrideKeys(settings.security, QWEN_OVERRIDE_SECURITY_KEYS),
       skills: pickQwenOverrideKeys(settings.skills, QWEN_OVERRIDE_SKILLS_KEYS),
+      general: pickQwenOverrideKeys(settings.general, QWEN_OVERRIDE_GENERAL_KEYS),
     };
     // Only a project file's values would be promoted by regenerating globally;
     // a global file's are already there.

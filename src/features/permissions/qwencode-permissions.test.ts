@@ -417,6 +417,80 @@ describe("QwencodePermissions", () => {
       });
     });
 
+    it("authors general.outputStyle through the qwencode override (issue #2668)", async () => {
+      const settingsDir = join(testDir, ".qwen");
+      await ensureDir(settingsDir);
+      await writeFileContent(
+        join(settingsDir, "settings.json"),
+        JSON.stringify({ general: { vimMode: true, outputStyle: "Learning" } }),
+      );
+      const logger = createMockLogger();
+
+      const instance = await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        logger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { general: { outputStyle: "Concise" } },
+          }),
+        }),
+      });
+
+      // Shallow-merged into the existing group: the personal `vimMode` survives.
+      expect(JSON.parse(instance.getFileContent()).general).toEqual({
+        vimMode: true,
+        outputStyle: "Concise",
+      });
+      const note = logger.warn.mock.calls
+        .map(([message]) => String(message))
+        .find((message) => message.includes('"general.outputStyle"'));
+      expect(note).toContain("project-scoped");
+      expect(note).toContain("picks the output style for this repository");
+      expect(note).not.toContain("not a key rulesync models");
+    });
+
+    it("announces a global general.outputStyle write as itself (issue #2668)", async () => {
+      const logger = createMockLogger();
+      await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        global: true,
+        logger,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { general: { outputStyle: "my-style" } },
+          }),
+        }),
+      });
+
+      const note = logger.warn.mock.calls
+        .map(([message]) => String(message))
+        .find((message) => message.includes('"general.outputStyle"'));
+      expect(note).toContain("your global Qwen Code settings");
+      expect(note).toContain("for every project on this machine");
+      expect(note).not.toContain("not a key rulesync models");
+    });
+
+    it("lifts only general.outputStyle back into the override on import (issue #2668)", () => {
+      const imported = new QwencodePermissions({
+        relativeDirPath: ".qwen",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          general: { outputStyle: "Explanatory", vimMode: true, preferredEditor: "vim" },
+        }),
+      });
+
+      const config = JSON.parse(imported.toRulesyncPermissions().getFileContent());
+      // The other `general` keys are personal preferences, so they stay in
+      // `settings.json` rather than being lifted into the override.
+      expect(config.qwencode).toEqual({ general: { outputStyle: "Explanatory" } });
+    });
+
     it("authors and imports tools.todoWrite through the qwencode override (issue #2668)", async () => {
       const instance = await QwencodePermissions.fromRulesyncPermissions({
         outputRoot: testDir,
