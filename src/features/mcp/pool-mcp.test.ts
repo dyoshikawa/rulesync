@@ -484,3 +484,38 @@ describe("PoolMcp", () => {
     });
   });
 });
+
+describe("PoolMcp retraction (issue #2562)", () => {
+  let testDir: string;
+  let cleanup: () => Promise<void>;
+
+  beforeEach(async () => {
+    ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
+  });
+
+  afterEach(async () => {
+    await cleanup();
+    vi.restoreAllMocks();
+  });
+
+  it("retracts mcp_servers when no server is left, keeping unrelated keys", async () => {
+    const paths = PoolMcp.getSettablePaths({ global: false });
+    await writeFileContent(
+      join(testDir, paths.relativeDirPath, paths.relativeFilePath),
+      ["other: 1", "mcp_servers:", "  old:", "    command: old", ""].join("\n"),
+    );
+    const mcp = await PoolMcp.fromRulesyncMcp({
+      outputRoot: testDir,
+      global: false,
+      rulesyncMcp: new RulesyncMcp({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({ mcpServers: {} }),
+      }),
+    });
+
+    expect(mcp.getFileContent()).toContain("other: 1");
+    expect(mcp.getFileContent()).not.toContain("mcp_servers");
+  });
+});

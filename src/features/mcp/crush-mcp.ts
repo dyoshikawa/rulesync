@@ -13,7 +13,11 @@ import {
   resolveCrushConfigFile,
   warnCrushTwinLeftovers,
 } from "../crush-config.js";
-import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
+import {
+  applySharedConfigPatch,
+  sharedConfigFileKey,
+  undefinedWhenEmpty,
+} from "../shared/shared-config-gateway.js";
 import {
   declaresNoTransport,
   isRemoteMcpServer,
@@ -420,7 +424,9 @@ export class CrushMcp extends ToolMcp {
         fileKey: sharedConfigFileKey(this.getSettablePaths({ global })),
         feature: "mcp",
         existingContent,
-        patch: { [CRUSH_MCP_KEY]: converted },
+        // With no server left the key is retracted rather than left as an
+        // empty object, so the file states nothing Rulesync no longer generates.
+        patch: { [CRUSH_MCP_KEY]: undefinedWhenEmpty(converted) },
         filePath: location.filePath,
         logger,
       }),

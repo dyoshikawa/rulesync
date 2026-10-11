@@ -17,6 +17,7 @@ import {
   applySharedConfigPatch,
   parseSharedConfig,
   sharedConfigFileKey,
+  undefinedWhenEmpty,
 } from "../shared/shared-config-gateway.js";
 import {
   declaresNoTransport,
@@ -439,7 +440,9 @@ export class PoolMcp extends ToolMcp {
         fileKey: sharedConfigFileKey(paths),
         feature: "mcp",
         existingContent,
-        patch: { [POOL_MCP_SERVERS_KEY]: converted },
+        // With no server left the key is retracted rather than left as an
+        // empty object, so the file states nothing Rulesync no longer generates.
+        patch: { [POOL_MCP_SERVERS_KEY]: undefinedWhenEmpty(converted) },
         filePath,
       }),
       validate,

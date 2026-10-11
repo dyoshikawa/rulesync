@@ -490,7 +490,9 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         // files under `.agents/rules/` (project) and `~/.gemini/config/rules/`
         // (global) — so the root context file (project `AGENTS.md`, global
         // `~/.gemini/GEMINI.md`) carries no reference block, matching
-        // `antigravity-ide`, which writes the same project files.
+        // `antigravity-ide`, which writes the same project files. A
+        // directory-scoped rule (`agentsmd.subprojectPath`) goes to
+        // `<dir>/.agents/rules/` (imported back via `getNestedFilePatterns`).
         extension: "md",
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",
@@ -506,6 +508,8 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         // The Antigravity IDE auto-discovers rule files under `.agents/rules/`
         // (project) and `~/.gemini/config/rules/` (global, shared with
         // `antigravity-cli`), so no reference section is needed in the root rule.
+        // A directory-scoped rule (`agentsmd.subprojectPath`) goes to
+        // `<dir>/.agents/rules/` (imported back via `getNestedFilePatterns`).
         extension: "md",
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",
@@ -2314,7 +2318,8 @@ export class RulesProcessor extends FeatureProcessor {
 
     const existingPaths: string[] = [];
     for (const importOnlyRoot of importOnlyRoots) {
-      if (importOnlyRoot.onlyWhenRootAbsent !== true) {
+      // A root the tool prefers over its own root file keeps being read.
+      if (importOnlyRoot.onlyWhenRootAbsent !== true || importOnlyRoot.outranksRoot === true) {
         continue;
       }
       const matchedPaths = await findFilesByGlobs(
@@ -3512,6 +3517,7 @@ As this project's AI coding tool, you must follow the additional conventions bel
 
         const scannedPaths: string[] = [];
         const skippedPaths: string[] = [];
+        const skippedOutrankingPaths: string[] = [];
         for (const importOnlyRoot of importOnlyRoots) {
           const matchedPaths = await findFilesByGlobs(
             rootRelativeGlob(
@@ -3521,7 +3527,9 @@ As this project's AI coding tool, you must follow the additional conventions bel
             { cwd: this.outputRoot, type: "file" },
           );
           if (importOnlyRoot.onlyWhenRootAbsent === true && rootFilePath !== undefined) {
-            skippedPaths.push(...matchedPaths);
+            (importOnlyRoot.outranksRoot === true ? skippedOutrankingPaths : skippedPaths).push(
+              ...matchedPaths,
+            );
             continue;
           }
           scannedPaths.push(...matchedPaths);
@@ -3540,6 +3548,20 @@ As this project's AI coding tool, you must follow the additional conventions bel
           const remainingCount = skippedNames.length - listedNames.length;
           this.logger.warn(
             `Not importing ${listedNames.join(", ")}${remainingCount > 0 ? ` and ${remainingCount} more` : ""} for ${this.toolTarget}: ${stripControlCharacters(relative(this.outputRoot, rootFilePath))} exists, and the tool reads that file exclusively. Delete them once you have checked that content is in the root file, or move it into ${RULESYNC_RULES_RELATIVE_DIR_PATH} if it is not.`,
+          );
+        }
+
+        // The tool reads these instead of the root file, so the root file just
+        // imported is the one it ignores.
+        if (skippedOutrankingPaths.length > 0 && rootFilePath !== undefined) {
+          const rootName = stripControlCharacters(relative(this.outputRoot, rootFilePath));
+          const skippedNames = skippedOutrankingPaths.map((filePath) =>
+            stripControlCharacters(relative(this.outputRoot, filePath)),
+          );
+          const listedNames = skippedNames.slice(0, MAX_LISTED_SKIPPED_IMPORT_ONLY_PATHS);
+          const remainingCount = skippedNames.length - listedNames.length;
+          this.logger.warn(
+            `Not importing ${listedNames.join(", ")}${remainingCount > 0 ? ` and ${remainingCount} more` : ""} for ${this.toolTarget}: ${rootName} is imported instead, but ${this.toolTarget} reads ${listedNames.length === 1 ? "that file" : "those files"} in place of ${rootName} when both exist. Move any content only it has into ${RULESYNC_RULES_RELATIVE_DIR_PATH} and delete it, so the generated ${rootName} takes effect.`,
           );
         }
 

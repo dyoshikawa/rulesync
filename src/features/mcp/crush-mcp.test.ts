@@ -386,3 +386,37 @@ describe("CrushMcp", () => {
     });
   });
 });
+
+describe("CrushMcp retraction (issue #2562)", () => {
+  let testDir: string;
+  let cleanup: () => Promise<void>;
+
+  beforeEach(async () => {
+    ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
+  });
+
+  afterEach(async () => {
+    await cleanup();
+    vi.restoreAllMocks();
+  });
+
+  it("retracts mcp when no server is left, keeping unrelated keys", async () => {
+    const paths = CrushMcp.getSettablePaths({ global: false });
+    await writeFileContent(
+      join(testDir, paths.relativeDirPath, paths.relativeFilePath),
+      JSON.stringify({ other: 1, mcp: { old: { command: "old" } } }),
+    );
+    const mcp = await CrushMcp.fromRulesyncMcp({
+      outputRoot: testDir,
+      global: false,
+      rulesyncMcp: new RulesyncMcp({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({ mcpServers: {} }),
+      }),
+    });
+
+    expect(JSON.parse(mcp.getFileContent())).toEqual({ other: 1 });
+  });
+});

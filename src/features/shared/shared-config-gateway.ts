@@ -1559,7 +1559,7 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
   },
   // Qwen Code settings: `permissions` is recomputed from the existing file
   // (unmanaged-tool entries preserved, managed ones replaced) before being
-  // applied, and so are the `tools`/`security`/`skills` override groups and the MCP
+  // applied, and so are the `tools`/`security`/`skills`/`general` override groups and the MCP
   // feature's `mcp` object (server allow/deny lists). Keys like
   // `disableAllHooks` are only present in the patch when authored, so an
   // existing user value survives an unrelated regeneration.
@@ -1570,7 +1570,7 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
       hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks", "disableAllHooks"] },
       permissions: {
         kind: "replace-owned-keys",
-        ownedKeys: ["permissions", "tools", "security", "skills"],
+        ownedKeys: ["permissions", "tools", "security", "skills", "general"],
       },
     },
   },
@@ -2100,6 +2100,15 @@ export function serializeSharedConfigFile({
     filePath: filePath ?? fileKey,
     logger,
   });
+}
+
+/**
+ * A patch value for an owned key that holds a map of managed entries: the map
+ * itself, or `undefined` when it is empty, which retracts the key instead of
+ * leaving an empty object behind (`applySharedConfigPatch` deletes a key whose patch value is `undefined`).
+ */
+export function undefinedWhenEmpty<T extends Record<string, unknown>>(entries: T): T | undefined {
+  return Object.keys(entries).length > 0 ? entries : undefined;
 }
 
 /**

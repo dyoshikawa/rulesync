@@ -30,10 +30,10 @@ export type PathStartKind = "plain" | "double" | "single";
 const SHELL_NAME = "(?:a|ba|da|k|mk|z)?sh";
 
 /** Matches the basename of a POSIX-like shell. */
-const SHELL_NAME_PATTERN = new RegExp(`^${SHELL_NAME}$`);
+export const SHELL_NAME_PATTERN = new RegExp(`^${SHELL_NAME}$`);
 
 /** Matches a shell option cluster that contains `c` (`-c`, `-lc`, `-euc`). */
-const SHELL_CODE_OPTION = /^-[A-Za-z]*c[A-Za-z]*$/;
+export const SHELL_CODE_OPTION = /^-[A-Za-z]*c[A-Za-z]*$/;
 
 /** Escape a string for literal use in a regular expression. */
 function escapeRegExp(value: string): string {
@@ -345,7 +345,7 @@ function convertsLaterWords(command: string): boolean {
  * into the current shell. Matched against the basename, so `/usr/bin/python3`
  * and `python3.12` count too.
  */
-const SCRIPT_RUNNER_PATTERN = new RegExp(
+export const SCRIPT_RUNNER_PATTERN = new RegExp(
   String.raw`^(?:\.|source|${SHELL_NAME}|node|nodejs|bun|tsx|ts-node|python(?:\d+(?:\.\d+)?)?|ruby|perl|php)$`,
 );
 
@@ -354,7 +354,7 @@ const SCRIPT_RUNNER_PATTERN = new RegExp(
  * `uv run ./x.py`, `deno run -A ./x.ts`, `pnpm exec tsx ./x.ts`. The word
  * after the subcommand and its options is read as a command word.
  */
-const RUN_SUBCOMMANDS: Record<string, ReadonlySet<string>> = {
+export const RUN_SUBCOMMANDS: Record<string, ReadonlySet<string>> = {
   uv: new Set(["run"]),
   bun: new Set(["run", "x"]),
   deno: new Set(["run"]),
@@ -371,7 +371,7 @@ const RUN_SUBCOMMANDS: Record<string, ReadonlySet<string>> = {
  * `npx tsx ./x.ts` runs `tsx`, whose own script argument is then anchored,
  * while `npx prettier --write ./src` leaves the data argument alone.
  */
-const PACKAGE_RUNNERS = new Set(["npx", "bunx", "pnpx"]);
+export const PACKAGE_RUNNERS = new Set(["npx", "bunx", "pnpx"]);
 
 const NODE_VALUE_OPTIONS = ["-r", "--require", "--import", "--loader", "--experimental-loader"];
 const PACKAGE_VALUE_OPTIONS = ["-p", "--package"];
@@ -383,7 +383,7 @@ const PACKAGE_VALUE_OPTIONS = ["-p", "--package"];
  * anchored as well. An option written as `--name=value` is a single word and
  * needs no entry.
  */
-const VALUE_OPTIONS: Record<string, ReadonlySet<string>> = {
+export const VALUE_OPTIONS: Record<string, ReadonlySet<string>> = {
   node: new Set(NODE_VALUE_OPTIONS),
   nodejs: new Set(NODE_VALUE_OPTIONS),
   tsx: new Set(NODE_VALUE_OPTIONS),
@@ -412,7 +412,7 @@ const NODE_CODE_OPTIONS = ["-e", "--eval", "-p", "--print"];
  * (`bash -s`). The words after them are data. A shell's `-c` script is read as
  * a command of its own instead (see `scanInnerShellScript`).
  */
-const CODE_OPTIONS: Record<string, ReadonlySet<string>> = {
+export const CODE_OPTIONS: Record<string, ReadonlySet<string>> = {
   node: new Set(NODE_CODE_OPTIONS),
   nodejs: new Set(NODE_CODE_OPTIONS),
   tsx: new Set(NODE_CODE_OPTIONS),
@@ -433,7 +433,7 @@ const CODE_OPTIONS: Record<string, ReadonlySet<string>> = {
 };
 
 /** The per-command option table entry for a runner named `name`. */
-function optionsFor({
+export function optionsFor({
   table,
   name,
 }: {
