@@ -494,9 +494,14 @@ function resolveActiveProvider({
   return TAKT_DEFAULT_PROVIDER;
 }
 
-/** The top-level `provider:` of a Takt `config.yaml`, when it names one. */
+/**
+ * The top-level `provider:` of a Takt `config.yaml`, when it names one: either
+ * the plain name or the block form `provider: { type: <name>, ... }` Takt also
+ * accepts (`ConfigProviderReference`).
+ */
 function readProviderName(config: Record<string, unknown>): string | undefined {
-  const provider = config[TAKT_PROVIDER_KEY];
+  const raw = config[TAKT_PROVIDER_KEY];
+  const provider = isPlainObject(raw) ? raw.type : raw;
   return typeof provider === "string" && provider.trim() !== "" ? provider : undefined;
 }
 
@@ -520,10 +525,14 @@ async function readGlobalTaktProvider({
     // unless mocked), which just means "no global config.yaml here".
     return undefined;
   }
-  if (globalPath === projectFilePath) return undefined;
-  const content = await readFileContentOrNull(globalPath);
-  if (content === null) return undefined;
+  if (globalPath === projectFilePath) {
+    return undefined;
+  }
   try {
+    const content = await readFileContentOrNull(globalPath);
+    if (content === null) {
+      return undefined;
+    }
     return readProviderName(
       parseSharedConfig({
         format: "yaml",
