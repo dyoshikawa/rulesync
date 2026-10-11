@@ -73,7 +73,10 @@ describe("GooseCheck", () => {
     });
     const rulesyncCheck = check.toRulesyncCheck();
 
-    expect(rulesyncCheck.getFrontmatter()).toMatchObject({ severity: "low", model: "gpt-5" });
+    const frontmatter = rulesyncCheck.getFrontmatter();
+    expect(frontmatter).toMatchObject({ severity: "low", goose: { model: "gpt-5" } });
+    // Goose-only keys stay in the goose section, so they do not leak to amp.
+    expect(frontmatter).not.toHaveProperty("model");
     expect(rulesyncCheck.getBody()).toContain("Check for N+1 queries.");
   });
 });
