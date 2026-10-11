@@ -405,6 +405,45 @@ describe("TaktPermissions", () => {
       }
     });
 
+    it("inherits the global config.yaml provider for a project config that names none (issue #2421)", async () => {
+      const { testDir: homeDir, cleanup: cleanupHome } = await setupTestDirectory({ home: true });
+      try {
+        vi.stubEnv("HOME_DIR", homeDir);
+        await writeFileContent(join(homeDir, ".takt", "config.yaml"), "provider: codex\n");
+
+        const permissions = await TaktPermissions.fromRulesyncPermissions({
+          outputRoot: testDir,
+          rulesyncPermissions: makeRulesyncPermissions({ bash: { "*": "allow" } }),
+        });
+
+        expect(readMode(permissions.getFileContent(), "codex")).toBe("full");
+        expect(readMode(permissions.getFileContent(), "claude-sdk")).toBeUndefined();
+      } finally {
+        vi.unstubAllEnvs();
+        await cleanupHome();
+      }
+    });
+
+    it("keeps the project config.yaml provider over the global one (issue #2421)", async () => {
+      const { testDir: homeDir, cleanup: cleanupHome } = await setupTestDirectory({ home: true });
+      try {
+        vi.stubEnv("HOME_DIR", homeDir);
+        await writeFileContent(join(homeDir, ".takt", "config.yaml"), "provider: codex\n");
+        await writeFileContent(join(testDir, ".takt", "config.yaml"), "provider: opencode\n");
+
+        const permissions = await TaktPermissions.fromRulesyncPermissions({
+          outputRoot: testDir,
+          rulesyncPermissions: makeRulesyncPermissions({ bash: { "*": "allow" } }),
+        });
+
+        expect(readMode(permissions.getFileContent(), "opencode")).toBe("full");
+        expect(readMode(permissions.getFileContent(), "codex")).toBeUndefined();
+      } finally {
+        vi.unstubAllEnvs();
+        await cleanupHome();
+      }
+    });
+
     it("does not promote a lone runtime profile to the default, as upstream does not", async () => {
       await writeRuntimeYaml(
         testDir,

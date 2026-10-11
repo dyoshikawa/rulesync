@@ -237,11 +237,15 @@ export class TaktPermissions extends ToolPermissions {
     });
 
     const runtime = await readTaktRuntimeConfig({ outputRoot, logger });
+    const inheritedProvider = global
+      ? undefined
+      : await readGlobalTaktProvider({ projectFilePath: filePath, logger });
 
     const rulesyncJson = rulesyncPermissions.getJson();
     const provider = resolveActiveProvider({
       config,
       runtime: runtime.active ? runtime.config : undefined,
+      inheritedProvider,
     });
     const mode = deriveTaktPermissionMode(rulesyncJson);
     const override = isPlainObject(rulesyncJson.takt) ? rulesyncJson.takt : undefined;
@@ -458,16 +462,27 @@ export class TaktPermissions extends ToolPermissions {
 function resolveActiveProvider({
   config,
   runtime,
+  inheritedProvider,
 }: {
   config: Record<string, unknown>;
   runtime?: Record<string, unknown> | undefined;
+  /**
+   * The top-level `provider:` of the global `~/.takt/config.yaml`, for a
+   * project config that names none: Takt resolves `provider` local → global →
+   * default, so it is the provider the project actually runs.
+   */
+  inheritedProvider?: string | undefined;
 }): string {
   const fromRuntime = runtime === undefined ? undefined : resolveRuntimeProvider(runtime);
   if (fromRuntime !== undefined) {
     return fromRuntime;
   }
-  if (typeof config[TAKT_PROVIDER_KEY] === "string" && config[TAKT_PROVIDER_KEY].trim() !== "") {
-    return config[TAKT_PROVIDER_KEY];
+  const local = readProviderName(config);
+  if (local !== undefined) {
+    return local;
+  }
+  if (inheritedProvider !== undefined) {
+    return inheritedProvider;
   }
   const profiles = config[TAKT_PROVIDER_PROFILES_KEY];
   if (isPlainObject(profiles)) {
@@ -477,6 +492,52 @@ function resolveActiveProvider({
     }
   }
   return TAKT_DEFAULT_PROVIDER;
+}
+
+/** The top-level `provider:` of a Takt `config.yaml`, when it names one. */
+function readProviderName(config: Record<string, unknown>): string | undefined {
+  const provider = config[TAKT_PROVIDER_KEY];
+  return typeof provider === "string" && provider.trim() !== "" ? provider : undefined;
+}
+
+/**
+ * The top-level `provider:` of the global `~/.takt/config.yaml`, read for a
+ * project-scope generate. An unresolvable home directory, a missing or
+ * unparsable file, or one that names no provider all mean "nothing inherited".
+ */
+async function readGlobalTaktProvider({
+  projectFilePath,
+  logger,
+}: {
+  projectFilePath: string;
+  logger?: Logger | undefined;
+}): Promise<string | undefined> {
+  let globalPath: string;
+  try {
+    globalPath = join(getHomeDirectory(), TAKT_DIR, TAKT_CONFIG_FILE_NAME);
+  } catch {
+    // `getHomeDirectory()` throws when it cannot be resolved (and in tests
+    // unless mocked), which just means "no global config.yaml here".
+    return undefined;
+  }
+  if (globalPath === projectFilePath) return undefined;
+  const content = await readFileContentOrNull(globalPath);
+  if (content === null) return undefined;
+  try {
+    return readProviderName(
+      parseSharedConfig({
+        format: "yaml",
+        fileContent: content,
+        filePath: globalPath,
+        invalidRootPolicy: "error",
+      }),
+    );
+  } catch (error) {
+    logger?.warn(
+      `Takt permissions: could not read the provider from ${globalPath} (${formatError(error)}); falling back to the project config alone.`,
+    );
+    return undefined;
+  }
 }
 
 /** A plain object carrying at least one entry (Takt's "assignment" test). */
