@@ -615,6 +615,30 @@ describe("AntigravityCliPermissions", () => {
     expect(json.permission.bash?.["git status *"]).toBe("allow");
   });
 
+  it("warns when an imported command target may lose its meaning", async () => {
+    const dir = join(testDir, ".gemini", "antigravity-cli");
+    await ensureDir(dir);
+    await writeFileContent(
+      join(dir, "settings.json"),
+      JSON.stringify({
+        permissions: { deny: ["command(regex:rm)", "command(rm -rf *)", "command(git push)"] },
+      }),
+    );
+
+    const warnSpy = vi.spyOn(fallbackLogger, "warn");
+    const loaded = await AntigravityCliPermissions.fromFile({ outputRoot: testDir });
+    const json = loaded.toRulesyncPermissions().getJson();
+    expect(json.permission.bash).toEqual({
+      "rm *": "deny",
+      "regex:^rm$ ^-rf$ ^\\*$": "deny",
+      "git push *": "deny",
+    });
+    expect(warnSpy).toHaveBeenCalledTimes(2);
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("command(regex:rm)"));
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("command(rm -rf *)"));
+    warnSpy.mockRestore();
+  });
+
   it("should yield empty permissions when settings.json is missing", async () => {
     const loaded = await AntigravityCliPermissions.fromFile({ outputRoot: testDir });
     const json = loaded.toRulesyncPermissions().getJson();
