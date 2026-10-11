@@ -496,9 +496,9 @@ const QWEN_SCOPED_GENERAL_KEYS = {
   outputStyle: {
     rule: "global-machine-wide",
     projectNote: ({ qualifiedKey, quotedValue, filePath }) =>
-      `${qualifiedKey} = ${quotedValue} was written to the project-scoped ${filePath}, so it picks the output style for this repository. A custom style adds the instructions in its style file to the system prompt (a project style file is read only when the workspace is trusted). Check it if the override arrived with a repository you cloned.`,
+      `${qualifiedKey} = ${quotedValue} was written to the project-scoped ${filePath}, so it picks the output style for this repository. A custom style adds the instructions in its style file to the system prompt and can drop the built-in coding guidance (\`keep-coding-instructions\`) — a project style file is read only when the workspace is trusted. Check it if the override arrived with a repository you cloned.`,
     globalNote:
-      "Qwen Code honors this key wherever it is written, so in the global scope it picks the output style for every project on this machine that does not choose its own. A custom style adds the instructions in its style file to the system prompt.",
+      "Qwen Code honors this key wherever it is written, so in the global scope it picks the output style for every project on this machine that does not choose its own. A custom style adds the instructions in its style file to the system prompt and can drop the built-in coding guidance (`keep-coding-instructions`).",
   },
 } as const satisfies QwenScopedKeys<(typeof QWEN_OVERRIDE_GENERAL_KEYS)[number]>;
 const QWEN_SCOPED_SECURITY_KEYS = {

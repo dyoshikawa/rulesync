@@ -476,6 +476,48 @@ describe("QwencodePermissions", () => {
       expect(note).not.toContain("not a key rulesync models");
     });
 
+    it("keeps the global general block when the override has no general group (issue #2668)", async () => {
+      await ensureDir(join(testDir, ".qwen"));
+      await writeFileContent(
+        join(testDir, ".qwen", "settings.json"),
+        JSON.stringify({ general: { vimMode: true, outputStyle: "Learning" } }),
+      );
+
+      const instance = await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        global: true,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { skills: { disabled: ["x"] } },
+          }),
+        }),
+      });
+
+      expect(JSON.parse(instance.getFileContent()).general).toEqual({
+        vimMode: true,
+        outputStyle: "Learning",
+      });
+    });
+
+    it("creates the general block with only outputStyle when the file has none (issue #2668)", async () => {
+      const instance = await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { general: { outputStyle: "Concise" } },
+          }),
+        }),
+      });
+
+      expect(JSON.parse(instance.getFileContent()).general).toEqual({ outputStyle: "Concise" });
+    });
+
     it("lifts only general.outputStyle back into the override on import (issue #2668)", () => {
       const imported = new QwencodePermissions({
         relativeDirPath: ".qwen",
