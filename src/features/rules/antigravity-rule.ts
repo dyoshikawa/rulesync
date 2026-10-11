@@ -60,7 +60,19 @@ export function resolveAntigravitySubprojectPath({
   global: boolean;
 }): string | undefined {
   const { root, agentsmd } = rulesyncRule.getFrontmatter();
-  return !global && root !== true ? agentsmd?.subprojectPath : undefined;
+  const subprojectPath = !global && root !== true ? agentsmd?.subprojectPath : undefined;
+  return subprojectPath ? subprojectPath : undefined;
+}
+
+/**
+ * File name of a rule in a subproject's `.agents/rules/`. Antigravity reads
+ * only the direct children of a rules directory, so a nested rulesync rule
+ * (`frontend/style.md`) is flattened (`frontend-style.md`), and the name keeps
+ * its case so the IDE and the CLI write the same file and an imported
+ * `codeStyle.md` is written back to the same place.
+ */
+export function toNestedRuleFileName(relativeFilePath: string): string {
+  return toGlobalRuleFileName(relativeFilePath);
 }
 
 /** The `.agents/rules/` directory of a subproject. */
@@ -96,7 +108,9 @@ export function extractAntigravitySubprojectPath(
 }
 
 /**
- * The `.agents/rules/` folders of project subdirectories. The shared nested
+ * The `.agents/rules/` folders of project subdirectories. Only their direct
+ * `.md` children are read, because Antigravity ignores files nested in
+ * subfolders of a rules directory. The shared nested
  * scan ignores every hidden directory, which would skip `.agents` itself, so
  * only a `.agents/rules/` below another hidden directory is ignored here
  * (`extractAntigravitySubprojectPath` rejects one again on import). Import-only,
@@ -105,7 +119,7 @@ export function extractAntigravitySubprojectPath(
  */
 export function getAntigravityNestedFilePatterns(): ToolRuleNestedFilePatterns {
   return {
-    include: [`**/${PROJECT_RULES_DIR}/**/*.md`],
+    include: [`**/${PROJECT_RULES_DIR}/*.md`],
     ignore: [
       // The project-root rules directory is read as the `nonRoot` one.
       `${PROJECT_RULES_DIR}/**`,
@@ -133,7 +147,7 @@ export function resolveAntigravityNonRootFile({
   relativeDirPath: string | undefined;
   relativeFilePath: string;
   defaultDirPath: string;
-}): { relativeDirPath: string; relativeFilePath: string; subprojectPath?: string } {
+}): { relativeDirPath: string; relativeFilePath: string } {
   const nested =
     relativeDirPath === undefined ? undefined : extractAntigravitySubprojectPath(relativeDirPath);
   if (nested === undefined) {
@@ -142,7 +156,6 @@ export function resolveAntigravityNonRootFile({
   return {
     relativeDirPath: toAntigravityNestedRulesDirPath(nested.subprojectPath),
     relativeFilePath: join(nested.innerDirPath, relativeFilePath),
-    subprojectPath: nested.subprojectPath,
   };
 }
 

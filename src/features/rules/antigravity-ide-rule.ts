@@ -23,7 +23,7 @@ import {
   resolveAntigravityNonRootFile,
   resolveAntigravitySubprojectPath,
   toAntigravityNestedRulesDirPath,
-  toGlobalRuleFileName,
+  toNestedRuleFileName,
 } from "./antigravity-rule.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
@@ -273,12 +273,15 @@ export class AntigravityIdeRule extends ToolRule {
 
     // The global rules directory is shared with the CLI, so use its file name
     // there to keep both targets writing the same file.
-    const relativeFilePath = global
-      ? toGlobalRuleFileName(rulesyncRule.getRelativeFilePath())
-      : toKebabCaseFilename(rulesyncRule.getRelativeFilePath());
     const subprojectPath = this.supportsSubprojectRules()
       ? resolveAntigravitySubprojectPath({ rulesyncRule, global })
       : undefined;
+    // The global rules directory is shared with the CLI, and so is a nested
+    // one, so use the name the CLI writes there.
+    const relativeFilePath =
+      global || subprojectPath !== undefined
+        ? toNestedRuleFileName(rulesyncRule.getRelativeFilePath())
+        : toKebabCaseFilename(rulesyncRule.getRelativeFilePath());
 
     return new this({
       outputRoot,

@@ -107,7 +107,9 @@ describe.each([
         frontmatter: { agentsmd: { subprojectPath: "packages/api" } },
       }),
     });
-    expect(toPosixPath(global.getRelativeDirPath())).not.toContain("packages");
+    expect(global.getRelativeDirPath()).toBe(
+      RuleClass.getSettablePaths({ global: true }).nonRoot?.relativeDirPath,
+    );
   });
 
   it("imports a nested rule with its subproject and round-trips it", async () => {
@@ -132,6 +134,35 @@ describe.each([
     expect(regenerated.getFilePath()).toBe(rule.getFilePath());
   });
 
+  it("flattens a nested rule's file name and keeps its case so it round-trips", async () => {
+    const generated = RuleClass.fromRulesyncRule({
+      outputRoot: testDir,
+      rulesyncRule: buildRulesyncRule({
+        testDir,
+        relativeFilePath: join("frontend", "codeStyle.md"),
+        frontmatter: { agentsmd: { subprojectPath: "packages/web" } },
+      }),
+    });
+    expect(generated.getFilePath()).toBe(
+      join(testDir, "packages", "web", ".agents", "rules", "frontend-codeStyle.md"),
+    );
+
+    await writeFileContent(
+      join(testDir, "packages", "api", ".agents", "rules", "codeStyle.md"),
+      "---\ntrigger: always_on\n---\nBody\n",
+    );
+    const imported = await RuleClass.fromFile({
+      outputRoot: testDir,
+      relativeDirPath: join("packages", "api", ".agents", "rules"),
+      relativeFilePath: "codeStyle.md",
+    });
+    const regenerated = RuleClass.fromRulesyncRule({
+      outputRoot: testDir,
+      rulesyncRule: imported.toRulesyncRule(),
+    });
+    expect(regenerated.getFilePath()).toBe(imported.getFilePath());
+  });
+
   it("does not treat a project-root rule as nested", async () => {
     await writeFileContent(
       join(testDir, ".agents", "rules", "a.md"),
@@ -151,6 +182,7 @@ describe.each([
     for (const path of [
       join(".agents", "rules", "root.md"),
       join("packages", "api", ".agents", "rules", "api.md"),
+      join("packages", "api", ".agents", "rules", "sub", "deep.md"),
       join(".worktrees", "feature", ".agents", "rules", "copy.md"),
       join("packages", "api", "node_modules", "dep", ".agents", "rules", "dep.md"),
       join("packages", "api", ".agents", "skills", "s", "SKILL.md"),

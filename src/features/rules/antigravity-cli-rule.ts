@@ -23,6 +23,7 @@ import {
   resolveAntigravitySubprojectPath,
   toAntigravityNestedRulesDirPath,
   toGlobalRuleFileName,
+  toNestedRuleFileName,
 } from "./antigravity-rule.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
@@ -200,6 +201,7 @@ export class AntigravityCliRule extends ToolRule {
         ...params,
         ...(subprojectPath !== undefined && {
           relativeDirPath: toAntigravityNestedRulesDirPath(subprojectPath),
+          relativeFilePath: toNestedRuleFileName(params.relativeFilePath),
         }),
         fileContent,
         global,
