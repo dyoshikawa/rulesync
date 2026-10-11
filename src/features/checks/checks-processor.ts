@@ -81,8 +81,7 @@ type ToolCheckFactory = {
      * repository (Cursor Bugbot, Rovo Dev's code reviewer). The gitignore
      * derivation skips such outputs — ignoring them would disable the very
      * feature the adapter generates. Future checks adapters whose upstream
-     * reads from the committed tree (e.g. Goose `.agents/checks/`) should set
-     * this too.
+     * reads from the committed tree should set this too.
      */
     committedOutput?: boolean;
   };
