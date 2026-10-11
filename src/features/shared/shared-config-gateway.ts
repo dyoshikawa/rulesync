@@ -2114,6 +2114,15 @@ export function serializeSharedConfigFile({
  * feature's policy is `custom` (those calls go to the named policy function
  * instead).
  */
+/**
+ * A patch value for an owned key that holds a map of managed entries: the map
+ * itself, or `undefined` when it is empty, which retracts the key instead of
+ * leaving an empty object behind (see `mergeSharedConfigShallow`).
+ */
+export function undefinedWhenEmpty<T extends Record<string, unknown>>(entries: T): T | undefined {
+  return Object.keys(entries).length > 0 ? entries : undefined;
+}
+
 export function applySharedConfigPatch({
   fileKey,
   feature,
