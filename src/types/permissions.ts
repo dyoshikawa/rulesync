@@ -413,7 +413,8 @@ export type CursorPermissionsOverride = z.infer<typeof CursorPermissionsOverride
  * `security` (`folderTrust`, `allowedHttpHookUrls`, `allowPrivateNetworkHooks`,
  * `allowedInsecureVoiceBaseUrls`) and `skills` (the skill kill-switches
  * `disabled`, `defaultDisabled`, `enabled`, `disabledLevels`, each a list Qwen
- * Code unions across scopes). Qwen Code strips `tools.workflowsEnabled`,
+ * Code unions across scopes) and `general` (`outputStyle`, the output style
+ * that reshapes how responses are written). Qwen Code strips `tools.workflowsEnabled`,
  * `tools.executionSandbox`, `security.allowPrivateNetworkHooks` and
  * `security.allowedInsecureVoiceBaseUrls` out of workspace settings, so generate
  * skips those four in project scope and announces a granting value in global
@@ -442,12 +443,13 @@ export type CursorPermissionsOverride = z.infer<typeof CursorPermissionsOverride
  * matching `settings.json` group and emitted only for Qwen, while the shared
  * `permission` block continues to drive the `permissions.allow`/`ask`/`deny`
  * arrays. Kept `looseObject` (verbatim passthrough) so any current or future
- * `tools`/`security`/`skills`/`autoMode` key can be authored.
+ * `tools`/`security`/`skills`/`general`/`autoMode` key can be authored.
  *
  * @example
  * {
  *   "tools": { "approvalMode": "auto-edit" },
  *   "skills": { "disabled": ["pdf"], "disabledLevels": ["bundled"] },
+ *   "general": { "outputStyle": "Concise" },
  *   "security": { "folderTrust": { "enabled": true } },
  *   "autoMode": { "hints": { "allow": ["Running tests"] }, "classifyAllShell": true }
  * }
@@ -457,6 +459,7 @@ const QwencodePermissionsOverrideSchema = z.looseObject({
   tools: z.optional(z.looseObject({})),
   security: z.optional(z.looseObject({})),
   skills: z.optional(z.looseObject({})),
+  general: z.optional(z.looseObject({})),
   autoMode: z.optional(z.looseObject({})),
 });
 export type QwencodePermissionsOverride = z.infer<typeof QwencodePermissionsOverrideSchema>;
