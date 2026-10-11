@@ -103,3 +103,37 @@ describe("QoderMcp", () => {
     expect(mcp.toRulesyncMcp().getJson()).toMatchObject({ mcpServers: servers });
   });
 });
+
+describe("QoderMcp retraction (issue #2562)", () => {
+  let testDir: string;
+  let cleanup: () => Promise<void>;
+
+  beforeEach(async () => {
+    ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
+  });
+
+  afterEach(async () => {
+    await cleanup();
+    vi.restoreAllMocks();
+  });
+
+  it("retracts mcpServers when no server is left, keeping unrelated keys", async () => {
+    const paths = QoderMcp.getSettablePaths({ global: true });
+    await writeFileContent(
+      join(testDir, paths.relativeDirPath, paths.relativeFilePath),
+      JSON.stringify({ other: 1, mcpServers: { old: { command: "old" } } }),
+    );
+    const mcp = await QoderMcp.fromRulesyncMcp({
+      outputRoot: testDir,
+      global: true,
+      rulesyncMcp: new RulesyncMcp({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({ mcpServers: {} }),
+      }),
+    });
+
+    expect(JSON.parse(mcp.getFileContent())).toEqual({ other: 1 });
+  });
+});
