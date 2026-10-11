@@ -341,6 +341,47 @@ args = ["server.js"]
       expect(codexcliMcp.getRelativeFilePath()).toBe("config.toml");
     });
 
+    it("should drop keys Codex rejects for the server's transport (issue #2496)", async () => {
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            local: {
+              command: "node",
+              args: ["server.js"],
+              oauth: { clientId: "abc" },
+              bearer_token_env_var: "TOKEN",
+            },
+            remote: {
+              url: "https://example.com/mcp",
+              args: ["--flag"],
+              cwd: "/tmp",
+              env: { KEY: "value" },
+            },
+          },
+        }),
+      });
+
+      const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+
+      expect(codexcliMcp.getToml().mcp_servers).toEqual({
+        local: { command: "node", args: ["server.js"] },
+        remote: { url: "https://example.com/mcp" },
+      });
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining(
+          "Dropping 'bearer_token_env_var', 'oauth' from stdio MCP server \"local\"",
+        ),
+      );
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining(
+          "Dropping 'args', 'env', 'cwd' from url-based MCP server \"remote\"",
+        ),
+      );
+    });
+
     it("should normalize invalid Codex MCP server names and warn when the last collision wins", async () => {
       const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
       const rulesyncMcp = new RulesyncMcp({
