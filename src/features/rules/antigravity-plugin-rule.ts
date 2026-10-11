@@ -6,6 +6,12 @@ import {
 import type { RulesyncRule } from "./rulesync-rule.js";
 
 export class AntigravityPluginRule extends AntigravityIdeRule {
+  // A plugin bundles its rules in its own `rules/` directory, outside any
+  // project tree, so a subproject-scoped rule is not nested here.
+  protected static override supportsSubprojectRules(): boolean {
+    return false;
+  }
+
   static override isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
     const targets = rulesyncRule.getFrontmatter().targets;
     return targets.includes("*") || targets.includes("antigravity-plugin");
