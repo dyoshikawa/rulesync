@@ -1714,16 +1714,18 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
       permissions: { kind: "replace-owned-keys", ownedKeys: ["permissions"] },
     },
   },
-  // Codewhale user config: global hooks live in the `[hooks]` table beside
-  // every other Codewhale setting. The hooks writer owns that table, carrying
-  // its own settings (`enabled`, `default_timeout_secs`, `working_dir`) over
-  // from the existing file, and an unparseable root is refused rather than
-  // replaced.
+  // Codewhale config: global hooks live in the `[hooks]` table of the user
+  // config beside every other Codewhale setting. The hooks writer owns that
+  // table, carrying its own settings (`enabled`, `default_timeout_secs`,
+  // `working_dir`) over from the existing file. Project permissions own the
+  // top-level `allow_shell` key of the per-project overlay, which they only
+  // ever set to `false`. An unparseable root is refused rather than replaced.
   [CODEWHALE_CONFIG_SHARED_FILE_KEY]: {
     format: "toml",
     invalidRootPolicy: "error",
     features: {
       hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
+      permissions: { kind: "replace-owned-keys", ownedKeys: ["allow_shell"] },
     },
   },
   // Letta Code settings: the project file (`.letta/settings.json`) and the

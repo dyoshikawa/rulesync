@@ -7,6 +7,7 @@ import {
   CODEWHALE_DIR,
   CODEWHALE_PERMISSIONS_FILE_NAME,
 } from "../../constants/codewhale-paths.js";
+import type { SharedWritePath } from "../../lib/shared-file-derive.js";
 import type { AiFileParams } from "../../types/ai-file.js";
 import {
   type CodewhalePermissionRule,
@@ -18,6 +19,10 @@ import { formatError } from "../../utils/error.js";
 import { fileExists, readFileContentOrNull } from "../../utils/file.js";
 import { createIntersectionBudget } from "../../utils/glob.js";
 import type { Logger } from "../../utils/logger.js";
+import {
+  CODEWHALE_PROJECT_CONFIG_PATHS,
+  readCodewhaleProjectShellDisabled,
+} from "./codewhale-project-config.js";
 import {
   codewhaleConstitutionToCanonical,
   mergeCodewhaleConstitution,
@@ -776,17 +781,37 @@ async function warnOnShadowedConstitution({
  * Project scope manages the enforced `protected_invariants` of the repo
  * constitution `.codewhale/constitution.json` (see `codewhale-repo-law.ts`):
  * the project `.codewhale/config.toml` overlay cannot carry rules, but repo
- * law can hold writes to protected paths.
+ * law can hold writes to protected paths. A deny on every shell command also
+ * sets `allow_shell = false` in that overlay (see
+ * `codewhale-project-config.ts`), which import reads back here.
  *
  * @see https://github.com/Hmbown/Codewhale/blob/main/docs/CONFIGURATION.md
  * @see https://github.com/Hmbown/Codewhale/blob/main/docs/AUTHORIZATION_ORDER.md
  */
 export class CodewhalePermissions extends ToolPermissions {
-  constructor(params: AiFileParams) {
+  /**
+   * Whether the project `.codewhale/config.toml` overlay disables shell
+   * (`allow_shell = false`); read on import in project scope only.
+   */
+  private readonly projectShellDisabled: boolean;
+
+  constructor({
+    projectShellDisabled = false,
+    ...params
+  }: AiFileParams & { projectShellDisabled?: boolean }) {
     super({
       ...params,
       fileContent: params.fileContent ?? "",
     });
+    this.projectShellDisabled = projectShellDisabled;
+  }
+
+  /**
+   * The project `.codewhale/config.toml` overlay, where a deny on every shell
+   * command becomes `allow_shell = false` beside the user's other overlay keys.
+   */
+  static getExtraSharedWritePaths(options?: { global?: boolean }): SharedWritePath[] {
+    return options?.global ? [] : [{ ...CODEWHALE_PROJECT_CONFIG_PATHS }];
   }
 
   /**
@@ -840,6 +865,9 @@ export class CodewhalePermissions extends ToolPermissions {
       fileContent,
       validate,
       global,
+      projectShellDisabled: global
+        ? false
+        : await readCodewhaleProjectShellDisabled({ outputRoot, logger }),
     });
   }
 
@@ -907,12 +935,12 @@ export class CodewhalePermissions extends ToolPermissions {
         fileContent: this.getFileContent(),
         filePath,
       });
+      const permission = codewhaleConstitutionToCanonical(document);
+      if (this.projectShellDisabled) {
+        permission.bash = { "*": "deny" };
+      }
       return this.toRulesyncPermissionsDefault({
-        fileContent: JSON.stringify(
-          { permission: codewhaleConstitutionToCanonical(document) },
-          null,
-          2,
-        ),
+        fileContent: JSON.stringify({ permission }, null, 2),
       });
     }
     const document = parsePermissionsDocument({ fileContent: this.getFileContent(), filePath });

@@ -22,6 +22,7 @@ import { ClaudecodePermissions } from "./claudecode-permissions.js";
 import { ClinePermissions } from "./cline-permissions.js";
 import { CodebuddyPermissions } from "./codebuddy-permissions.js";
 import { CodewhalePermissions } from "./codewhale-permissions.js";
+import { createCodewhaleProjectConfigFile } from "./codewhale-project-config.js";
 import { CodexcliPermissions, createCodexcliBashRulesFile } from "./codexcli-permissions.js";
 import { CommandcodePermissions } from "./commandcode-permissions.js";
 import { ContinuePermissions } from "./continue-permissions.js";
@@ -200,7 +201,8 @@ export const toolPermissionsFactories = new Map<
         // Codewhale reads typed permission rules only from the global
         // `~/.codewhale/permissions.toml`. In the project, the enforced
         // `protected_invariants` of `.codewhale/constitution.json` hold writes
-        // to protected paths (deny/ask only).
+        // to protected paths (deny/ask only), and a deny on every shell
+        // command sets `allow_shell = false` in `.codewhale/config.toml`.
         // https://github.com/Hmbown/Codewhale/blob/main/docs/AUTHORIZATION_ORDER.md
         // https://github.com/Hmbown/Codewhale/blob/main/docs/CONFIGURATION.md#enforced-repo-law-invariants
         supportsProject: true,
@@ -848,6 +850,14 @@ export class PermissionsProcessor extends FeatureProcessor {
       logger: this.logger,
       global: this.global,
     });
+    if (this.toolTarget === "codewhale" && !this.global) {
+      const projectConfigFile = await createCodewhaleProjectConfigFile({
+        outputRoot: this.outputRoot,
+        config: effectivePermissions.getJson(),
+        logger: this.logger,
+      });
+      return projectConfigFile ? [toolPermissions, projectConfigFile] : [toolPermissions];
+    }
     if (this.toolTarget !== "codexcli") {
       return [toolPermissions];
     }
