@@ -874,6 +874,30 @@ describe("ReasonixPermissions", () => {
         expect(messages).toEqual([]);
       });
 
+      it("announces a global mode changed from deny to allow", async () => {
+        const { messages } = await generateMode({
+          mode: "allow",
+          global: true,
+          existing: { permissions: { mode: "deny" } },
+        });
+        expect(messages.join("\n")).toContain("permissions.mode");
+      });
+
+      it("stays quiet when a global allow is narrowed to deny", async () => {
+        const { parsed, messages } = await generateMode({
+          mode: "deny",
+          global: true,
+          existing: { permissions: { mode: "allow" } },
+        });
+        expect(parsed.permissions.mode).toBe("deny");
+        expect(messages).toEqual([]);
+      });
+
+      it("announces a spelling that Reasonix still reads as allow", async () => {
+        const { messages } = await generateMode({ mode: " Allow", global: true });
+        expect(messages.join("\n")).toContain("permissions.mode");
+      });
+
       it("skips mode in project scope and keeps the file's value", async () => {
         const { parsed, messages } = await generateMode({
           mode: "allow",

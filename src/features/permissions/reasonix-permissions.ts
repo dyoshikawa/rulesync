@@ -342,13 +342,20 @@ function applyPermissionsMode({
     logger?.warn(
       `Reasonix permissions: skipping reasonix.mode = ${quoteValueForWarning(authored)} for the ` +
         `project-scoped ${relativeFilePath}; Reasonix honors [permissions] mode only in the user ` +
-        "config and ignores a project value, so author it with --global.",
+        "config and ignores a project value, so generate it with --global instead.",
     );
     return [];
   }
   const previous = permissions.mode;
   permissions.mode = authored;
-  if (authored !== "allow" || previous === "allow") return [];
+  // Reasonix trims and lower-cases the value before reading it, and
+  // `getJson()` casts rather than parses, so a `--no-validate` run can carry a
+  // spelling the schema forbids: only a value that reads as `ask` or `deny` is
+  // quiet, the same fail-safe rule `applyAllowDynamicBash` follows.
+  const normalize = (value: unknown): string | undefined =>
+    typeof value === "string" ? value.trim().toLowerCase() : undefined;
+  const mode = normalize(authored);
+  if (mode === "ask" || mode === "deny" || normalize(previous) === mode) return [];
   return [
     {
       label: "permissions.mode",
@@ -502,7 +509,8 @@ export class ReasonixPermissions extends ToolPermissions {
 
     // `mode` (the writer fallback: ask|allow|deny) has no equivalent in
     // rulesync's canonical permissions model, so any existing value is
-    // preserved untouched via this spread rather than being managed here.
+    // preserved through this spread unless the `reasonix.mode` override sets it
+    // (see `applyPermissionsMode`).
     const mergedPermissions: ReasonixPermissionsTable = { ...existingPermissions };
 
     setOrDeleteEntries(mergedPermissions, "allow", [...preservedAllow, ...allow, ...rawAllow]);
@@ -596,6 +604,7 @@ export class ReasonixPermissions extends ToolPermissions {
         filePath,
       }),
       validate,
+      global,
     });
   }
 
