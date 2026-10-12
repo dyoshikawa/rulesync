@@ -233,6 +233,7 @@ What the `rules` feature generates from it depends on the tool:
 - **Claude Code** has a native `language` setting, so the key is written as `"language": "japanese"` into `.claude/settings.local.json` (project scope) or `~/.claude/settings.json` (global scope, since Claude Code reads no `~/.claude/settings.local.json`) and `CLAUDE.md` is left as it is. Only the `language` key is touched; everything else in the settings file is preserved, and the file is never created or modified while the key is unset. Removing `language` later does not retract the key already written: the settings file is shared with your own configuration, so Rulesync never deletes from it, and the value stays until you remove it by hand.
 - **Every other tool** gets the instruction appended to the generated root rule file — the file built from your `root: true` rule (`AGENTS.md`, `GEMINI.md`, `.github/copilot-instructions.md`, `.cursor/rules/overview.mdc`, and so on). Nested rules never carry it, and neither does a `localRoot: true` rule's separate personal file. For a tool that files every rule side by side (Cursor and the fixed-name targets) with more than one `root: true` rule, only the file built from the first root rule carries the block. The block is separated from your content by a thematic break:
 
+  <!-- prettier-ignore -->
   ```md
   ---
 
