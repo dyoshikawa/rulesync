@@ -132,6 +132,62 @@ const removeExistingRulesyncEntries = (content: string): string => {
   return result;
 };
 
+// Walk the marker-delimited rulesync blocks only (header through footer),
+// handing each block's inner lines to `onBlock` and every other line to
+// `onOther`. A header without a footer is not treated as a block.
+const walkFencedRulesyncBlocks = ({
+  content,
+  onBlock,
+  onOther,
+}: {
+  content: string;
+  onBlock: (blockLines: string[]) => void;
+  onOther: (line: string) => void;
+}): void => {
+  const lines = content.split("\n");
+  let index = 0;
+  while (index < lines.length) {
+    const line = lines[index] ?? "";
+    if (isRulesyncHeader(line)) {
+      const footerIndex = findRulesyncFooterIndex(lines, index + 1);
+      if (footerIndex !== -1) {
+        onBlock(lines.slice(index + 1, footerIndex));
+        index = footerIndex + 1;
+        continue;
+      }
+    }
+    onOther(line);
+    index++;
+  }
+};
+
+const removeFencedRulesyncBlocks = (content: string): string => {
+  const kept: string[] = [];
+  walkFencedRulesyncBlocks({ content, onBlock: () => {}, onOther: (line) => kept.push(line) });
+  let result = kept.join("\n");
+  while (result.endsWith("\n\n")) {
+    result = result.slice(0, -1);
+  }
+  return result;
+};
+
+const extractFencedRulesyncEntries = (content: string): string[] => {
+  const managed: string[] = [];
+  walkFencedRulesyncBlocks({
+    content,
+    onBlock: (blockLines) => {
+      for (const blockLine of blockLines) {
+        const trimmed = blockLine.trim();
+        if (trimmed !== "") {
+          managed.push(trimmed);
+        }
+      }
+    },
+    onOther: () => {},
+  });
+  return managed;
+};
+
 // Collect the entries currently sitting inside rulesync-managed blocks (plus
 // stray recognized entries outside them), so the command can report which
 // previously managed paths are about to stop being gitignored.
@@ -254,18 +310,29 @@ type ManagedFile = {
 const updateRulesyncFile = async ({
   filePath,
   entries,
+  fencedBlockOnly = false,
 }: {
   filePath: string;
   entries: string[];
+  // Replace only the marker-fenced rulesync block and leave every other line —
+  // stray entries and legacy, footer-less blocks included — as the user wrote
+  // it. Used for the exclude file, which rulesync never managed before the
+  // fenced block existed, so any line outside it is hand-written.
+  fencedBlockOnly?: boolean;
 }): Promise<UpdateResult> => {
   let content = "";
   if (await fileExists(filePath)) {
     content = await readFileContent(filePath);
   }
-  const cleanedContent = removeExistingRulesyncEntries(content);
+  const cleanedContent = fencedBlockOnly
+    ? removeFencedRulesyncBlocks(content)
+    : removeExistingRulesyncEntries(content);
   const entrySet = new Set(entries);
+  const managedEntries = fencedBlockOnly
+    ? extractFencedRulesyncEntries(content)
+    : extractRulesyncManagedEntries(content);
   const entriesRemoved = [
-    ...new Set(extractRulesyncManagedEntries(content).filter((entry) => !entrySet.has(entry))),
+    ...new Set(managedEntries.filter((entry) => !entrySet.has(entry))),
     // A retired spelling whose replacement is being written is not a path
     // that stops being ignored, so it is not reported as one. The
     // replacement widens the same directory, and the exceptions written
@@ -392,42 +459,31 @@ const captureJsonData = ({
   }
 };
 
-// Look up Git's `info/exclude` for the working directory. When `required`, a
-// failure stops the command with a clear error; otherwise it yields `undefined`
-// so projects outside a Git repository keep working, and the cleanup only runs
-// from the repository's top level.
-const resolveGitExclude = async ({
-  required,
-  logger,
-}: {
-  required: boolean;
-  logger: Logger;
-}): Promise<{ excludePath: string } | undefined> => {
+// Look up Git's `info/exclude` for the working directory. Only called when at
+// least one entry is routed there; any failure stops the command before a file
+// is touched.
+const resolveGitExclude = async (): Promise<string> => {
   const cwd = process.cwd();
   let resolved: { excludePath: string; prefix: string };
   try {
     resolved = await resolveGitExcludePath({ cwd });
   } catch (error) {
-    if (!required) {
-      return undefined;
-    }
     throw new Error(
       `gitignoreDestination "gitexclude" requires a Git repository: ${formatError(error)}`,
       { cause: error },
     );
   }
-  if (!required && resolved.prefix !== "") {
-    // The exclude file is shared by the whole repository. A project nested
-    // below the top level must not take out a block another run wrote there.
-    return undefined;
-  }
+  // The exclude file is shared by the whole repository and matched from its
+  // top level, and it holds a single rulesync block. Projects nested below the
+  // top level would anchor their entries wrongly and overwrite each other's
+  // block, so the destination is only honored at the repository root.
   if (resolved.prefix !== "") {
-    logger.warn(
-      `${resolved.excludePath} is matched from the repository root, but rulesync is running in the subdirectory "${resolved.prefix}". ` +
-        "Entries anchored to the project directory may not match as intended.",
+    throw new Error(
+      `gitignoreDestination "gitexclude" must be used from the repository root, but rulesync is running in the subdirectory "${resolved.prefix}". ` +
+        `${resolved.excludePath} is shared by the whole repository; run rulesync from the repository root or choose another gitignoreDestination.`,
     );
   }
-  return { excludePath: resolved.excludePath };
+  return resolved.excludePath;
 };
 
 export const gitignoreCommand = async (
@@ -463,12 +519,9 @@ export const gitignoreCommand = async (
 
   // Resolve the exclude file before touching anything, so a missing Git
   // repository fails the command without leaving `.gitignore` half-updated.
-  // When nothing is routed there, the lookup is best-effort: it only serves to
-  // take out a block an earlier `"gitexclude"` run left behind.
-  const gitExclude = await resolveGitExclude({
-    required: gitexcludeEntries.length > 0,
-    logger,
-  });
+  // The exclude file is never looked up, read or written unless an entry is
+  // routed there.
+  const gitexcludePath = gitexcludeEntries.length > 0 ? await resolveGitExclude() : undefined;
 
   const gitignoreResult = await updateRulesyncFile({
     filePath: gitignorePath,
@@ -478,11 +531,14 @@ export const gitignoreCommand = async (
     filePath: gitattributesPath,
     entries: gitattributesEntries,
   });
-  const gitexcludePath = gitExclude?.excludePath;
   const gitexcludeResult =
     gitexcludePath === undefined
       ? undefined
-      : await updateRulesyncFile({ filePath: gitexcludePath, entries: gitexcludeEntries });
+      : await updateRulesyncFile({
+          filePath: gitexcludePath,
+          entries: gitexcludeEntries,
+          fencedBlockOnly: true,
+        });
 
   // `.gitignore` is always reported; the other files only when entries are
   // routed there.
@@ -496,7 +552,7 @@ export const gitignoreCommand = async (
       result: gitattributesResult,
     });
   }
-  if (gitexcludePath !== undefined && gitexcludeResult && gitexcludeEntries.length > 0) {
+  if (gitexcludePath !== undefined && gitexcludeResult) {
     files.push({ label: gitexcludePath, entries: gitexcludeEntries, result: gitexcludeResult });
   }
   const anyUpdated =
@@ -524,7 +580,7 @@ export const gitignoreCommand = async (
 
   if (!anyUpdated) {
     const labels = [".gitignore", ".gitattributes"];
-    if (gitexcludePath !== undefined && gitexcludeEntries.length > 0) {
+    if (gitexcludePath !== undefined) {
       labels.push(gitexcludePath);
     }
     logger.success(`${labels.join(" / ")} are already up to date`);
