@@ -93,6 +93,41 @@ describe("parseSource", () => {
     it("should throw error for invalid GitHub URL", () => {
       expect(() => parseSource("https://github.com/owner")).toThrow(/Invalid github URL/);
     });
+
+    it("should reject malformed percent-encoding with a descriptive error", () => {
+      expect(() => parseSource("https://github.com/o/r/tree/main/100%/rules")).toThrow(
+        "Invalid github URL: https://github.com/o/r/tree/main/100%/rules. Malformed percent-encoding in ref or path.",
+      );
+    });
+
+    it("should reject malformed percent-encoding in the ref", () => {
+      expect(() => parseSource("https://github.com/o/r/tree/100%/rules")).toThrow(
+        /Malformed percent-encoding in ref or path/,
+      );
+    });
+
+    it.each([
+      "tree/main/..%2Fx",
+      "tree/main/rules/..%2F..%2Fx",
+      "tree/main/rules%2F..%2Fx",
+      "tree/main/%2E%2E%2Fx",
+      "tree/main/..%5Cx",
+      "blob/main/..%2Fx",
+    ])("should reject a decoded path with a '..' segment in %s", (suffix) => {
+      expect(() => parseSource(`https://github.com/o/r/${suffix}`)).toThrow(
+        /Path must not contain "\.\." segments/,
+      );
+    });
+
+    it("should accept path segments that only contain '..' as part of a name", () => {
+      expect(parseSource("https://github.com/o/r/tree/main/a..b/c..")).toEqual({
+        provider: "github",
+        owner: "o",
+        repo: "r",
+        ref: "main",
+        path: "a..b/c..",
+      });
+    });
   });
 
   describe("GitLab URL parsing", () => {

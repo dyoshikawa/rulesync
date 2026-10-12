@@ -73,8 +73,13 @@ function parseUrl(url: string): ParsedSource {
   // Check for /tree/ref/path or /blob/ref/path pattern
   if (segments.length > 2 && (segments[2] === "tree" || segments[2] === "blob")) {
     // URL.pathname retains percent escapes; the API client expects decoded values.
-    const ref = segments[3] === undefined ? undefined : decodeURIComponent(segments[3]);
-    const path = segments.length > 4 ? decodeURIComponent(segments.slice(4).join("/")) : undefined;
+    const decode = (segment: string): string => decodeUrlSegment({ segment, provider, url });
+    const ref = segments[3] === undefined ? undefined : decode(segments[3]);
+    const path = segments.length > 4 ? decode(segments.slice(4).join("/")) : undefined;
+    // An encoded slash (e.g. `..%2Fx`) survives URL normalization and decodes to `../x`.
+    if (path !== undefined && path.split(/[\\/]/).includes("..")) {
+      throw new Error(`Invalid ${provider} URL: ${url}. Path must not contain ".." segments.`);
+    }
     return {
       provider,
       owner: owner ?? "",
@@ -89,6 +94,32 @@ function parseUrl(url: string): ParsedSource {
     owner: owner ?? "",
     repo: repo ?? "",
   };
+}
+
+/**
+ * Percent-decode a URL path segment, turning a malformed escape (e.g. a lone
+ * `%`) into an error that names the offending source.
+ */
+function decodeUrlSegment({
+  segment,
+  provider,
+  url,
+}: {
+  segment: string;
+  provider: GitProvider;
+  url: string;
+}): string {
+  try {
+    return decodeURIComponent(segment);
+  } catch (error) {
+    if (error instanceof URIError) {
+      throw new Error(
+        `Invalid ${provider} URL: ${url}. Malformed percent-encoding in ref or path.`,
+        { cause: error },
+      );
+    }
+    throw error;
+  }
 }
 
 /**
