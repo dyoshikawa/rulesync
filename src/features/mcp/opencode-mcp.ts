@@ -10,6 +10,7 @@ import { readFileContentOrNull, toPosixPath } from "../../utils/file.js";
 import { parseJsonc as parseJsoncStrict } from "../../utils/jsonc.js";
 import type { Logger } from "../../utils/logger.js";
 import { isRecord } from "../../utils/type-guards.js";
+import { findOpencodeV2McpContainers, lowerOpencodeV2Mcp } from "../opencode-config.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import {
   convertEnvVarRefsFromToolFormat,
@@ -40,6 +41,11 @@ import {
 // OpenCode uses "local"/"remote" instead of "stdio"/"sse"/"http",
 // "environment" instead of "env", and "enabled" instead of "disabled"
 
+// V2's `disabled` is lowered to `enabled` before parsing (see
+// `lowerOpencodeV2Mcp`), which leaves a non-boolean one as it is so that it is
+// rejected here rather than passed through as an unknown field.
+const OpencodeMcpV2DisabledSchema = z.optional(z.boolean());
+
 // OpenCode native format for local servers.
 // looseObject preserves documented-but-unmodeled per-server fields (e.g. `timeout`)
 // and future additions on round-trip, matching the project's frequently-changing
@@ -49,6 +55,7 @@ const OpencodeMcpLocalServerSchema = z.looseObject({
   command: z.array(z.string()),
   environment: z.optional(z.record(z.string(), z.string())),
   enabled: z._default(z.boolean(), true),
+  disabled: OpencodeMcpV2DisabledSchema,
   cwd: z.optional(z.string()),
 });
 
@@ -60,6 +67,7 @@ const OpencodeMcpRemoteServerSchema = z.looseObject({
   url: z.string(),
   headers: z.optional(z.record(z.string(), z.string())),
   enabled: z._default(z.boolean(), true),
+  disabled: OpencodeMcpV2DisabledSchema,
 });
 
 // OpenCode-supported per-server fields that rulesync does not map explicitly.
@@ -80,7 +88,7 @@ const OpencodeMcpRemoteServerSchema = z.looseObject({
 const OPENCODE_PASSTHROUGH_SERVER_FIELDS = ["timeout", "oauth", "protocol", "codemode"] as const;
 
 // Every field of the two transport schemas except `enabled`, which is what a
-// toggle entry carries — plus the per-server keys the two transport arms accept
+// toggle entry carries, and `disabled`, which a toggle may carry too — plus the per-server keys the two transport arms accept
 // only through their `looseObject` passthrough, so they are not in `.def.shape`
 // but still mark an entry as a transport rather than a toggle. Without them
 // `{"enabled": true, "oauth": {...}}` would be read as a toggle and its OAuth
@@ -89,7 +97,7 @@ const OPENCODE_MCP_TRANSPORT_KEYS = [
   ...Object.keys(OpencodeMcpLocalServerSchema.def.shape),
   ...Object.keys(OpencodeMcpRemoteServerSchema.def.shape),
   ...OPENCODE_PASSTHROUGH_SERVER_FIELDS,
-].filter((key) => key !== "enabled");
+].filter((key) => key !== "enabled" && key !== "disabled");
 
 /**
  * A bare toggle entry: `{"enabled": <bool>}` with no transport of its own,
@@ -135,182 +143,6 @@ const OpencodeConfigSchema = z.looseObject({
   mcp: z.optional(z.record(z.string(), OpencodeMcpServerSchema)),
   tools: z.optional(z.record(z.string(), z.boolean())),
 });
-
-/**
- * Whether a record is itself a server entry rather than a V2 container
- * (`mcp.servers`, `mcp.timeout`): a server — or a server literally named
- * `type` / `enabled` — carries a scalar `type` or `enabled`. Mirrors OpenCode
- * V1's `isDirectServer`.
- */
-function isDirectOpencodeMcpServer(value: Record<string, unknown>): boolean {
-  return ["type", "enabled"].some(
-    (key) =>
-      Object.hasOwn(value, key) &&
-      (value[key] === null || typeof value[key] !== "object" || Array.isArray(value[key])),
-  );
-}
-
-const OPENCODE_V2_TIMEOUT_KEYS = ["startup", "catalog", "execution"] as const;
-
-/**
- * Whether a server entry uses a V2-only per-server spelling, so that OpenCode
- * V1 lowers it: `disabled`, `codemode`, an object `timeout`, or a snake_case
- * `oauth` key.
- */
-function isOpencodeV2NativeServer(value: Record<string, unknown>): boolean {
-  const oauth = value.oauth;
-  return (
-    Object.hasOwn(value, "disabled") ||
-    Object.hasOwn(value, "codemode") ||
-    isRecord(value.timeout) ||
-    (isRecord(oauth) &&
-      ["client_id", "client_secret", "callback_port", "redirect_uri"].some((key) =>
-        Object.hasOwn(oauth, key),
-      ))
-  );
-}
-
-/**
- * Lowers a V2 timeout object (`{ startup, catalog, execution }`) to V1's single
- * number, the way OpenCode V1 does: only a `catalog` equal to `execution`, with
- * no `startup`, has a V1 equivalent. Anything else is `undefined` (dropped).
- */
-function lowerOpencodeV2Timeout(value: Record<string, unknown>): number | undefined {
-  if (value.startup !== undefined || typeof value.catalog !== "number") {
-    return undefined;
-  }
-  return value.catalog === value.execution ? value.catalog : undefined;
-}
-
-const OPENCODE_V2_OAUTH_KEYS: ReadonlyMap<string, string> = new Map([
-  ["client_id", "clientId"],
-  ["client_secret", "clientSecret"],
-  ["callback_port", "callbackPort"],
-  ["redirect_uri", "redirectUri"],
-]);
-
-function lowerOpencodeV2OAuth(oauth: Record<string, unknown>): Record<string, unknown> {
-  return Object.fromEntries(
-    Object.entries(oauth).map(([key, value]) => [OPENCODE_V2_OAUTH_KEYS.get(key) ?? key, value]),
-  );
-}
-
-/**
- * Called with the dotted path (e.g. `mcp.servers.fs.timeout`) of a V2 value
- * that the lowering drops, so the caller can say so instead of the value
- * vanishing without a word.
- */
-type OpencodeV2DropReporter = (path: string) => void;
-
-/**
- * Lowers one V2-spelled server entry to V1's shape, as OpenCode V1 does:
- * `disabled` becomes `enabled` (an explicit `enabled` wins), an object
- * `timeout` becomes a number or is dropped, and snake_case `oauth` keys become
- * camelCase. `codemode` is kept: Rulesync passes it through (see
- * {@link OPENCODE_PASSTHROUGH_SERVER_FIELDS}) where V1 drops it.
- */
-function lowerOpencodeV2Server(
-  value: Record<string, unknown>,
-  path: string,
-  onDropped?: OpencodeV2DropReporter,
-): Record<string, unknown> {
-  const { disabled, timeout, ...rest } = value;
-  const lowered: Record<string, unknown> = { ...rest };
-  if (typeof value.enabled !== "boolean") {
-    lowered.enabled = disabled !== true;
-  }
-  const lowTimeout = isRecord(timeout) ? lowerOpencodeV2Timeout(timeout) : timeout;
-  if (lowTimeout !== undefined) {
-    lowered.timeout = lowTimeout;
-  } else if (isRecord(timeout) && Object.keys(timeout).length > 0) {
-    // OpenCode V1 reports such a timeout as unsupported too.
-    onDropped?.(`${path}.timeout`);
-  }
-  if (isRecord(value.oauth)) {
-    lowered.oauth = lowerOpencodeV2OAuth(value.oauth);
-  }
-  return lowered;
-}
-
-function setOwnEntry(target: Record<string, unknown>, key: string, value: unknown): void {
-  // A plain assignment to a key named `__proto__` would set the prototype.
-  Object.defineProperty(target, key, {
-    value,
-    enumerable: true,
-    configurable: true,
-    writable: true,
-  });
-}
-
-/**
- * Whether `mcp.timeout` is V2's global timeout object rather than a server
- * named `timeout`.
- */
-function isOpencodeV2GlobalTimeout(value: unknown): boolean {
-  return (
-    isRecord(value) &&
-    !isDirectOpencodeMcpServer(value) &&
-    (Object.keys(value).length === 0 ||
-      OPENCODE_V2_TIMEOUT_KEYS.some((key) => Object.hasOwn(value, key)))
-  );
-}
-
-/**
- * Lowers OpenCode V2 `mcp` spellings found in a V1 config to the flat V1 map,
- * the way OpenCode V1 itself does since v1.18.24 (`normalizeMcp`):
- *
- * - entries of the `mcp.servers` envelope are merged into the map, a flat entry
- *   of the same name winning;
- * - V2-spelled server entries (`disabled`, an object `timeout`, snake_case
- *   `oauth` keys) are lowered by {@link lowerOpencodeV2Server};
- * - the global `mcp.timeout` object is skipped. V1 moves it to
- *   `experimental.mcp_timeout`, a default request timeout that has no
- *   canonical counterpart, so it is not read as a server either.
- *
- * Unlike V1, an envelope entry that is not a valid server is not dropped: it
- * is passed on, so the schema rejects it loudly rather than it vanishing
- * without a word. Each value that is dropped (a non-empty global timeout, or
- * a per-server timeout object with no V1 equivalent) is reported through
- * `onDropped`.
- *
- * @see https://github.com/anomalyco/opencode/blob/v1.18.35/packages/opencode/src/config/v2-compat.ts
- * @see https://opencode.ai/v2/docs/mcp-servers/
- */
-export function lowerOpencodeV2Mcp(mcp: unknown, onDropped?: OpencodeV2DropReporter): unknown {
-  if (!isRecord(mcp)) {
-    return mcp;
-  }
-  const nested = mcp.servers;
-  const envelope = isRecord(nested) && !isDirectOpencodeMcpServer(nested) ? nested : null;
-  const globalTimeout = isOpencodeV2GlobalTimeout(mcp.timeout);
-  if (globalTimeout && isRecord(mcp.timeout) && Object.keys(mcp.timeout).length > 0) {
-    onDropped?.("mcp.timeout");
-  }
-
-  const servers: Record<string, unknown> = {};
-  for (const [name, value] of Object.entries(mcp)) {
-    if ((name === "servers" && envelope !== null) || (name === "timeout" && globalTimeout)) {
-      continue;
-    }
-    const native = isRecord(value) && isOpencodeV2NativeServer(value);
-    setOwnEntry(
-      servers,
-      name,
-      native ? lowerOpencodeV2Server(value, `mcp.${name}`, onDropped) : value,
-    );
-  }
-  for (const [name, value] of Object.entries(envelope ?? {})) {
-    if (Object.hasOwn(servers, name)) {
-      continue;
-    }
-    setOwnEntry(
-      servers,
-      name,
-      isRecord(value) ? lowerOpencodeV2Server(value, `mcp.servers.${name}`, onDropped) : value,
-    );
-  }
-  return servers;
-}
 
 type OpencodeConfig = z.infer<typeof OpencodeConfigSchema>;
 type OpencodeMcpServer = z.infer<typeof OpencodeMcpServerSchema>;
@@ -488,7 +320,7 @@ function warnAboutToggleDroppedKeys(
     return;
   }
   logger?.warn(
-    `OpenCode MCP: "${serverName}" declares no transport, so it is written as a toggle entry and ` +
+    `OpenCode MCP: ${JSON.stringify(serverName)} declares no transport, so it is written as a toggle entry and ` +
       `${dropped.toSorted().join(", ")} ${dropped.length === 1 ? "is" : "are"} dropped.`,
   );
 }
@@ -633,10 +465,18 @@ export class OpencodeMcp extends ToolMcp {
 
   private readonly json: OpencodeConfig;
 
-  constructor(params: ToolMcpParams) {
+  /**
+   * With a `logger`, the V2 values that lowering the content drops are warned
+   * about (see {@link OpencodeMcp.lowerConfig}); `fromFile` passes one so the
+   * content is lowered once, here, rather than once more just to warn.
+   */
+  constructor({ logger, ...params }: ToolMcpParams & { logger?: Logger }) {
     super(params);
     this.json = OpencodeConfigSchema.parse(
-      (this.constructor as typeof OpencodeMcp).lowerConfig(parseJsonc(this.fileContent || "{}")),
+      (this.constructor as typeof OpencodeMcp).lowerConfig(
+        parseJsonc(this.fileContent || "{}"),
+        logger,
+      ),
     );
   }
 
@@ -655,11 +495,16 @@ export class OpencodeMcp extends ToolMcp {
     }
     return {
       ...json,
-      mcp: lowerOpencodeV2Mcp(json.mcp, (path) =>
+      mcp: lowerOpencodeV2Mcp(json.mcp, (path, reason) => {
+        // JSON-quoted: a server name in a repository's config could carry
+        // terminal escape sequences.
+        const quoted = JSON.stringify(path);
         logger?.warn(
-          `OpenCode MCP: "${path}" has no Rulesync equivalent, so it is dropped on import.`,
-        ),
-      ),
+          reason === "conflict"
+            ? `OpenCode MCP: ${quoted} differs from the flat "mcp" entry of the same name, which wins, so it is dropped on import.`
+            : `OpenCode MCP: ${quoted} has no Rulesync equivalent, so it is dropped on import.`,
+        );
+      }),
     };
   }
 
@@ -708,9 +553,6 @@ export class OpencodeMcp extends ToolMcp {
     const fileContentToUse = fileContent ?? '{"mcp":{}}';
     const json = parseJsonc(fileContentToUse);
     const newJson = { ...json, mcp: json.mcp ?? {} };
-    // Lowered here only to warn about the V2 values import drops; the
-    // constructor lowers the same content again for its parsed view.
-    this.lowerConfig(newJson, logger);
 
     return new this({
       outputRoot,
@@ -718,6 +560,7 @@ export class OpencodeMcp extends ToolMcp {
       relativeFilePath,
       fileContent: JSON.stringify(newJson, null, 2),
       validate,
+      logger,
     });
   }
 
@@ -755,9 +598,18 @@ export class OpencodeMcp extends ToolMcp {
     // it so a server the user disabled in another config layer is not switched
     // back on by rewriting the whole `mcp` key without it.
     // A toggle under the V2 `mcp.servers` envelope counts too.
-    const existingMcp = OpencodeConfigSchema.safeParse(
-      this.lowerConfig(parseJsonc(fileContent || "{}")),
-    );
+    const existingJson: unknown = parseJsonc(fileContent || "{}");
+    const existingMcp = OpencodeConfigSchema.safeParse(this.lowerConfig(existingJson));
+    if (this.layout.readsV2ConfigSpellings && isRecord(existingJson)) {
+      const containers = findOpencodeV2McpContainers(existingJson.mcp);
+      if (containers.length > 0) {
+        logger?.warn(
+          `OpenCode MCP: the whole "mcp" key is rewritten in the flat V1 shape, so ` +
+            `${containers.map((path) => JSON.stringify(path)).join(" and ")} ` +
+            `${containers.length === 1 ? "is" : "are"} not kept.`,
+        );
+      }
+    }
     const { mcp: convertedMcp, tools: mcpTools } = convertToOpencodeFormat(
       transformedServers,
       (existingMcp.success ? existingMcp.data.mcp : undefined) ?? {},

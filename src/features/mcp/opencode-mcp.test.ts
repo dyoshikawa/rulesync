@@ -9,7 +9,8 @@ import {
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
-import { isOpencodeTransportServer, lowerOpencodeV2Mcp, OpencodeMcp } from "./opencode-mcp.js";
+import { lowerOpencodeV2Mcp } from "../opencode-config.js";
+import { isOpencodeTransportServer, OpencodeMcp } from "./opencode-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 
 describe("OpencodeMcp", () => {
@@ -3138,6 +3139,203 @@ describe("OpencodeMcp", () => {
         mcp,
         instructions: [".opencode/memories/style.md"],
       });
+    });
+
+    it("should round-trip a V2-shaped opencode.json to the flat V1 shape, warning about what is lost", async () => {
+      await writeFileContent(
+        join(testDir, "opencode.json"),
+        JSON.stringify({
+          mcp: {
+            timeout: { startup: 45000 },
+            servers: {
+              x: {
+                type: "remote",
+                url: "https://example.com/mcp",
+                oauth: { client_id: "a" },
+                timeout: { catalog: 9000, execution: 9000 },
+              },
+              fs: { type: "local", command: ["npx", "fs"], disabled: true },
+            },
+          },
+        }),
+      );
+      const mockLogger = { warn: vi.fn() } as unknown as Logger;
+
+      const imported = await OpencodeMcp.fromFile({ outputRoot: testDir });
+      const generated = await OpencodeMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp: imported.toRulesyncMcp(),
+        logger: mockLogger,
+      });
+
+      expect(JSON.parse(generated.getFileContent())).toEqual({
+        mcp: {
+          x: {
+            type: "remote",
+            url: "https://example.com/mcp",
+            oauth: { clientId: "a" },
+            timeout: 9000,
+            enabled: true,
+          },
+          fs: { type: "local", command: ["npx", "fs"], enabled: false },
+        },
+      });
+      expect(mockLogger.warn).toHaveBeenCalledTimes(1);
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('"mcp.servers" and "mcp.timeout" are not kept'),
+      );
+    });
+
+    it("should not warn on generate about an empty global mcp.timeout or a flat mcp", async () => {
+      await writeFileContent(
+        join(testDir, "opencode.json"),
+        JSON.stringify({ mcp: { timeout: {}, a: { type: "local", command: ["a"] } } }),
+      );
+      const mockLogger = { warn: vi.fn() } as unknown as Logger;
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({ mcpServers: { a: { type: "stdio", command: "a" } } }),
+      });
+
+      await OpencodeMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp, logger: mockLogger });
+
+      expect(mockLogger.warn).not.toHaveBeenCalled();
+    });
+
+    it("should not warn on import about an empty global mcp.timeout", async () => {
+      await writeFileContent(
+        join(testDir, "opencode.json"),
+        JSON.stringify({ mcp: { timeout: {}, servers: { a: { type: "local", command: ["a"] } } } }),
+      );
+      const mockLogger = { warn: vi.fn() } as unknown as Logger;
+
+      const opencodeMcp = await OpencodeMcp.fromFile({ outputRoot: testDir, logger: mockLogger });
+
+      expect(Object.keys(opencodeMcp.getJson().mcp ?? {})).toEqual(["a"]);
+      expect(mockLogger.warn).not.toHaveBeenCalled();
+    });
+
+    it("should reject a non-object mcp.servers envelope entry", async () => {
+      await writeFileContent(
+        join(testDir, "opencode.json"),
+        JSON.stringify({ mcp: { servers: { a: "not a server" } } }),
+      );
+
+      await expect(OpencodeMcp.fromFile({ outputRoot: testDir })).rejects.toThrow(
+        /"path": \[\s*"mcp",\s*"a"\s*\]/,
+      );
+    });
+
+    it("should pass oauth: false through", () => {
+      expect(
+        lowerOpencodeV2Mcp({
+          servers: { r: { type: "remote", url: "https://example.com/mcp", oauth: false } },
+        }),
+      ).toEqual({
+        r: { type: "remote", url: "https://example.com/mcp", oauth: false, enabled: true },
+      });
+    });
+
+    it("should drop and report auth_server_metadata_url, which OpenCode V1 has no spelling for", () => {
+      const onDropped = vi.fn();
+      expect(
+        lowerOpencodeV2Mcp(
+          {
+            servers: {
+              r: {
+                type: "remote",
+                url: "https://example.com/mcp",
+                oauth: {
+                  client_id: "id",
+                  auth_server_metadata_url: "https://example.com/.well-known/oauth",
+                },
+              },
+            },
+          },
+          onDropped,
+        ),
+      ).toEqual({
+        r: {
+          type: "remote",
+          url: "https://example.com/mcp",
+          oauth: { clientId: "id" },
+          enabled: true,
+        },
+      });
+      expect(onDropped.mock.calls).toEqual([
+        ["mcp.servers.r.oauth.auth_server_metadata_url", "unsupported"],
+      ]);
+    });
+
+    it("should report an envelope entry shadowed by a different flat entry", () => {
+      const onDropped = vi.fn();
+      expect(
+        lowerOpencodeV2Mcp(
+          {
+            same: { type: "local", command: ["s"] },
+            differs: { type: "local", command: ["a"] },
+            servers: {
+              same: { type: "local", command: ["s"] },
+              differs: { type: "local", command: ["b"] },
+            },
+          },
+          onDropped,
+        ),
+      ).toEqual({
+        same: { type: "local", command: ["s"] },
+        differs: { type: "local", command: ["a"] },
+      });
+      expect(onDropped.mock.calls).toEqual([["mcp.servers.differs", "conflict"]]);
+    });
+
+    it("should warn on import about a shadowed envelope entry, quoting its name", async () => {
+      const name = "evil\u001b[31m";
+      await writeFileContent(
+        join(testDir, "opencode.json"),
+        JSON.stringify({
+          mcp: {
+            [name]: { type: "local", command: ["a"] },
+            servers: { [name]: { type: "local", command: ["b"] } },
+          },
+        }),
+      );
+      const mockLogger = { warn: vi.fn() } as unknown as Logger;
+
+      await OpencodeMcp.fromFile({ outputRoot: testDir, logger: mockLogger });
+
+      expect(mockLogger.warn).toHaveBeenCalledTimes(1);
+      const message = vi.mocked(mockLogger.warn).mock.calls[0]?.[0] ?? "";
+      expect(message).toContain(JSON.stringify(`mcp.servers.${name}`));
+      expect(message).not.toContain("\u001b");
+    });
+
+    it("should lower only local and remote entries, leaving the rest for the schema", () => {
+      const mcp = {
+        servers: {
+          untyped: { disabled: true },
+          enabledString: { type: "local", command: ["a"], enabled: "false" },
+          disabledString: { type: "local", command: ["b"], disabled: "true" },
+        },
+      };
+      expect(lowerOpencodeV2Mcp(mcp)).toEqual(mcp.servers);
+    });
+
+    it.each([
+      ["a untyped disabled entry", { untyped: { disabled: true } }],
+      ["a non-boolean enabled", { a: { type: "local", command: ["a"], enabled: "false" } }],
+      ["a non-boolean disabled", { a: { type: "local", command: ["a"], disabled: "true" } }],
+    ])("should reject %s on import", async (_label, servers) => {
+      await writeFileContent(join(testDir, "opencode.json"), JSON.stringify({ mcp: { servers } }));
+
+      await expect(OpencodeMcp.fromFile({ outputRoot: testDir })).rejects.toThrow();
+    });
+
+    it("should read a global mcp.timeout with a non-positive-integer value as a server", () => {
+      for (const timeout of [{ startup: "30s" }, { catalog: 0 }, { execution: 1.5 }]) {
+        expect(lowerOpencodeV2Mcp({ timeout })).toEqual({ timeout });
+      }
+      expect(lowerOpencodeV2Mcp({ timeout: { startup: 30000 } })).toEqual({});
     });
   });
 });
