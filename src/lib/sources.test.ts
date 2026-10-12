@@ -1193,6 +1193,47 @@ describe("resolveAndFetchSources", () => {
     );
   });
 
+  it("should pass the decoded ref and path of an encoded GitHub URL source to the API", async () => {
+    mockClientInstance.listDirectory.mockImplementation(
+      async (_owner: string, _repo: string, path: string) => {
+        if (path === "shared skills") {
+          return [{ name: "my-skill", path: "shared skills/my-skill", type: "dir" }];
+        }
+        if (path === "shared skills/my-skill") {
+          return [
+            {
+              name: "SKILL.md",
+              path: "shared skills/my-skill/SKILL.md",
+              type: "file",
+              size: 100,
+            },
+          ];
+        }
+        return [];
+      },
+    );
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "https://github.com/org/repo/tree/feature%2Fskills/shared%20skills" }],
+      projectRoot: testDir,
+    });
+
+    expect(result.fetchedSkillCount).toBe(1);
+    expect(mockClientInstance.getDefaultBranch).not.toHaveBeenCalled();
+    expect(mockClientInstance.resolveRefToSha).toHaveBeenCalledWith(
+      "org",
+      "repo",
+      "feature/skills",
+    );
+    expect(mockClientInstance.listDirectory).toHaveBeenCalledWith(
+      "org",
+      "repo",
+      "shared skills",
+      "abc123def456",
+    );
+  });
+
   it("should skip skills that exist locally", async () => {
     // Local skill "my-skill" exists
     vi.mocked(directoryExists).mockImplementation(async (path: string) => {

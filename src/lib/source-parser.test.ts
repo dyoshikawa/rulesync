@@ -93,6 +93,27 @@ describe("parseSource", () => {
     it("should throw error for invalid GitHub URL", () => {
       expect(() => parseSource("https://github.com/owner")).toThrow(/Invalid github URL/);
     });
+
+    it("should reject malformed percent-encoding with a descriptive error", () => {
+      expect(() => parseSource("https://github.com/o/r/tree/main/100%/rules")).toThrow(
+        "Invalid github URL: https://github.com/o/r/tree/main/100%/rules. Malformed percent-encoding in ref or path.",
+      );
+    });
+
+    it("should reject malformed percent-encoding in the ref", () => {
+      expect(() => parseSource("https://github.com/o/r/tree/100%/rules")).toThrow(
+        /Malformed percent-encoding in ref or path/,
+      );
+    });
+
+    it.each(["..%2Fx", "rules/..%2F..%2Fx", "rules%2F..%2Fx"])(
+      "should reject a decoded path with a '..' segment in %s",
+      (suffix) => {
+        expect(() => parseSource(`https://github.com/o/r/tree/main/${suffix}`)).toThrow(
+          /Path must not contain "\.\." segments/,
+        );
+      },
+    );
   });
 
   describe("GitLab URL parsing", () => {
