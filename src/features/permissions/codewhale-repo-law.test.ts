@@ -321,6 +321,25 @@ describe("CodewhalePermissions (project scope: .codewhale/constitution.json)", (
     expect(warnings.some((message) => message.includes("1 allow rule(s)"))).toBe(true);
   });
 
+  it("does not report a bash deny on every command, which goes to the project config overlay", async () => {
+    const logger = createMockLogger();
+    await generate(
+      { permission: { bash: { "*": "deny", "rm *": "deny", "git *": "ask" } } },
+      logger,
+    );
+
+    const warnings = vi.mocked(logger.warn).mock.calls.map(([message]) => String(message));
+    expect(warnings.some((message) => message.includes('"bash"'))).toBe(false);
+  });
+
+  it("still reports bash allow rules beside a deny on every command", async () => {
+    const logger = createMockLogger();
+    await generate({ permission: { bash: { "*": "deny", "git status": "allow" } } }, logger);
+
+    const warnings = vi.mocked(logger.warn).mock.calls.map(([message]) => String(message));
+    expect(warnings.some((message) => message.includes('"bash"'))).toBe(true);
+  });
+
   it("keeps other keys and hand-written invariants, replacing only rulesync's own", async () => {
     await writeFileContent(
       constitutionPath(),
@@ -424,5 +443,28 @@ describe("CodewhalePermissions (project scope: .codewhale/constitution.json)", (
     expect(await generate(imported)).toEqual({
       protected_invariants: [{ text: "Review.", paths: ["CHANGELOG.md"], action: "ask" }],
     });
+  });
+
+  it("imports allow_shell = false from the project config overlay as a bash deny on every command", async () => {
+    await writeFileContent(
+      join(testDir, ".codewhale", "config.toml"),
+      'model = "deepseek-v4-pro"\nallow_shell = false\n',
+    );
+
+    const imported = (await CodewhalePermissions.fromFile({ outputRoot: testDir }))
+      .toRulesyncPermissions()
+      .getJson();
+
+    expect(imported.permission).toEqual({ bash: { "*": "deny" } });
+  });
+
+  it("does not read the project config overlay in global scope", async () => {
+    await writeFileContent(join(testDir, ".codewhale", "config.toml"), "allow_shell = false\n");
+
+    const imported = (await CodewhalePermissions.fromFile({ outputRoot: testDir, global: true }))
+      .toRulesyncPermissions()
+      .getJson();
+
+    expect(imported.permission).toEqual({});
   });
 });

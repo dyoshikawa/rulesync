@@ -72,8 +72,9 @@ function parseUrl(url: string): ParsedSource {
 
   // Check for /tree/ref/path or /blob/ref/path pattern
   if (segments.length > 2 && (segments[2] === "tree" || segments[2] === "blob")) {
-    const ref = segments[3];
-    const path = segments.length > 4 ? segments.slice(4).join("/") : undefined;
+    // URL.pathname retains percent escapes; the API client expects decoded values.
+    const ref = segments[3] === undefined ? undefined : decodeURIComponent(segments[3]);
+    const path = segments.length > 4 ? decodeURIComponent(segments.slice(4).join("/")) : undefined;
     return {
       provider,
       owner: owner ?? "",

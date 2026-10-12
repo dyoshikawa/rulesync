@@ -143,6 +143,10 @@ describe("shared-file write derivation", () => {
           "hooks",
           "permissions",
         ],
+        ".codewhale/config.toml": [
+          "hooks",
+          "permissions",
+        ],
         ".codex/config.toml": [
           "hooks",
           "mcp",

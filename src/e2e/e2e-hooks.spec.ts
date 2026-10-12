@@ -113,9 +113,8 @@ function isPiExtensionTarget(target: string): target is "pi" | "omp" {
 /**
  * Pi and its fork oh-my-pi emit a TypeScript extension subscribing to
  * snake_case extension events (sessionStart → session_start). Pi maps stop to
- * agent_before_settle; oh-my-pi has no agent_before_settle and its
- * session_stop mapping is not implemented yet, so its stop hook (audit.sh) is
- * dropped.
+ * agent_before_settle; oh-my-pi has no agent_before_settle and maps stop to
+ * its own session_stop event instead.
  */
 function assertPiExtensionHooks({
   target,
@@ -133,7 +132,8 @@ function assertPiExtensionHooks({
   } else {
     expect(generatedContent).toContain('from "@oh-my-pi/pi-coding-agent"');
     expect(generatedContent).not.toContain("agent_before_settle");
-    expect(generatedContent).not.toContain(".rulesync/hooks/audit.sh");
+    expect(generatedContent).toContain('pi.on("session_stop"');
+    expect(generatedContent).toContain(".rulesync/hooks/audit.sh");
   }
 }
 

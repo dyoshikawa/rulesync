@@ -2,7 +2,11 @@ import type { PermissionAction, PermissionsConfig } from "../../types/permission
 import { formatError } from "../../utils/error.js";
 import type { Logger } from "../../utils/logger.js";
 import { isPlainObject } from "../../utils/type-guards.js";
-import { ALL_TOOLS_PERMISSION_CATEGORY } from "./shell-command-categories.js";
+import { isShellCatchAll } from "./codewhale-project-config.js";
+import {
+  ALL_TOOLS_PERMISSION_CATEGORY,
+  SHELL_PERMISSION_CATEGORY,
+} from "./shell-command-categories.js";
 import { PERMISSION_ACTION_PRIORITY } from "./single-action-collapse.js";
 
 /**
@@ -214,7 +218,16 @@ function collectRestrictions({ config, logger }: { config: PermissionsConfig; lo
   let skippedAllowCount = 0;
   for (const [category, rules] of Object.entries(config.permission)) {
     if (!REPO_LAW_CATEGORIES.includes(category)) {
-      if (Object.keys(rules).length > 0) skippedCategories.push(category);
+      // A `bash` deny on every command goes to `allow_shell = false` in the
+      // project `.codewhale/config.toml` instead (see `codewhale-project-config.ts`),
+      // and that covers every other bash restriction too.
+      const entries = Object.entries(rules);
+      const skipped =
+        category === SHELL_PERMISSION_CATEGORY &&
+        entries.some(([pattern, action]) => action === "deny" && isShellCatchAll(pattern))
+          ? entries.filter(([, action]) => action === "allow")
+          : entries;
+      if (skipped.length > 0) skippedCategories.push(category);
       continue;
     }
     for (const [pattern, action] of Object.entries(rules)) {
