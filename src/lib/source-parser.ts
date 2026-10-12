@@ -77,7 +77,7 @@ function parseUrl(url: string): ParsedSource {
     const ref = segments[3] === undefined ? undefined : decode(segments[3]);
     const path = segments.length > 4 ? decode(segments.slice(4).join("/")) : undefined;
     // An encoded slash (e.g. `..%2Fx`) survives URL normalization and decodes to `../x`.
-    if (path !== undefined && path.split("/").includes("..")) {
+    if (path !== undefined && path.split(/[\\/]/).includes("..")) {
       throw new Error(`Invalid ${provider} URL: ${url}. Path must not contain ".." segments.`);
     }
     return {

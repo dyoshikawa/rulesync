@@ -106,14 +106,28 @@ describe("parseSource", () => {
       );
     });
 
-    it.each(["..%2Fx", "rules/..%2F..%2Fx", "rules%2F..%2Fx"])(
-      "should reject a decoded path with a '..' segment in %s",
-      (suffix) => {
-        expect(() => parseSource(`https://github.com/o/r/tree/main/${suffix}`)).toThrow(
-          /Path must not contain "\.\." segments/,
-        );
-      },
-    );
+    it.each([
+      "tree/main/..%2Fx",
+      "tree/main/rules/..%2F..%2Fx",
+      "tree/main/rules%2F..%2Fx",
+      "tree/main/%2E%2E%2Fx",
+      "tree/main/..%5Cx",
+      "blob/main/..%2Fx",
+    ])("should reject a decoded path with a '..' segment in %s", (suffix) => {
+      expect(() => parseSource(`https://github.com/o/r/${suffix}`)).toThrow(
+        /Path must not contain "\.\." segments/,
+      );
+    });
+
+    it("should accept path segments that only contain '..' as part of a name", () => {
+      expect(parseSource("https://github.com/o/r/tree/main/a..b/c..")).toEqual({
+        provider: "github",
+        owner: "o",
+        repo: "r",
+        ref: "main",
+        path: "a..b/c..",
+      });
+    });
   });
 
   describe("GitLab URL parsing", () => {
