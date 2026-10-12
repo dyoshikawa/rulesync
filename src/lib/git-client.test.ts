@@ -1,3 +1,5 @@
+import { join } from "node:path";
+
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const { mockExecFileAsync } = vi.hoisted(() => ({ mockExecFileAsync: vi.fn() }));
@@ -29,6 +31,7 @@ import {
   fetchSkillFiles,
   resetGitCheck,
   resolveDefaultRef,
+  resolveGitExcludePath,
   resolveRefToSha,
   validateGitUrl,
   validateRef,
@@ -167,6 +170,57 @@ describe("git-client", () => {
       await expect(resolveRefToSha("https://example.com/repo.git", "x")).rejects.toThrow(
         GitClientError,
       );
+    });
+  });
+
+  describe("resolveGitExcludePath", () => {
+    it("resolves a relative --git-path against cwd", async () => {
+      mockExecFileAsync.mockImplementation(async (_file: string, args: string[]) => ({
+        stdout: args[0] === "--version" ? "git version 2.40.0" : "\n.git/info/exclude\n",
+      }));
+
+      await expect(resolveGitExcludePath({ cwd: "/repo" })).resolves.toEqual({
+        excludePath: join("/repo", ".git/info/exclude"),
+        prefix: "",
+      });
+      expect(mockExecFileAsync).toHaveBeenCalledWith(
+        "git",
+        ["rev-parse", "--show-prefix", "--git-path", "info/exclude"],
+        expect.objectContaining({ cwd: "/repo" }),
+      );
+    });
+
+    it("keeps an absolute path from a linked worktree and reports the prefix", async () => {
+      mockExecFileAsync.mockImplementation(async (_file: string, args: string[]) => ({
+        stdout:
+          args[0] === "--version"
+            ? "git version 2.40.0"
+            : "packages/app/\n/main/.git/info/exclude\n",
+      }));
+
+      await expect(resolveGitExcludePath({ cwd: "/wt/packages/app" })).resolves.toEqual({
+        excludePath: "/main/.git/info/exclude",
+        prefix: "packages/app/",
+      });
+    });
+
+    it("throws a GitClientError outside a Git repository", async () => {
+      mockExecFileAsync.mockImplementation(async (_file: string, args: string[]) => {
+        if (args[0] === "--version") return { stdout: "git version 2.40.0" };
+        throw new Error("fatal: not a git repository");
+      });
+
+      await expect(resolveGitExcludePath({ cwd: "/not-a-repo" })).rejects.toThrow(
+        /Failed to resolve the Git exclude file/,
+      );
+    });
+
+    it("throws when git returns no path", async () => {
+      mockExecFileAsync.mockImplementation(async (_file: string, args: string[]) => ({
+        stdout: args[0] === "--version" ? "git version 2.40.0" : "\n",
+      }));
+
+      await expect(resolveGitExcludePath({ cwd: "/repo" })).rejects.toThrow(GitClientError);
     });
   });
 

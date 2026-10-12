@@ -24,7 +24,7 @@ Google Antigravity has a known limitation where it won't load rules, workflows, 
 
 > **Note:** Antigravity 2.0 uses the plural `.agents/` directory by default (the `antigravity-ide` and `antigravity-cli` targets).
 
-**Workaround:** Instead of adding these directories to `.gitignore`, add them to `.git/info/exclude`:
+**Workaround:** Instead of adding these directories to `.gitignore`, add them to `.git/info/exclude`. `rulesync gitignore` can do this for you when `gitignoreDestination` is set to `"gitexclude"` (for example in `rulesync.local.jsonc`, or only for the Antigravity targets — see [Configuration](./guide/configuration.md#per-feature-options)). To do it by hand:
 
 ```bash
 # Remove from .gitignore (if present)

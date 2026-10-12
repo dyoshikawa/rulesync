@@ -28,6 +28,8 @@
     "codebuff",
     "Codebuff",
     "codebuffignore",
+    "gitexclude",
+    "Gitexclude",
     "execdir",
     "freebuff",
     "Freebuff",

@@ -583,6 +583,24 @@ describe("config-resolver", () => {
       expect(config.getFlattenedCommandNaming()).toBe("path");
     });
 
+    it("should allow rulesync.local.jsonc to route entries to gitexclude", async () => {
+      await writeFileContent(
+        join(testDir, "rulesync.jsonc"),
+        JSON.stringify({ outputRoots: ["./"], targets: ["claudecode"] }),
+      );
+      await writeFileContent(
+        join(testDir, "rulesync.local.jsonc"),
+        JSON.stringify({ gitignoreDestination: "gitexclude" }),
+      );
+
+      const config = await ConfigResolver.resolve({
+        configPath: join(testDir, "rulesync.jsonc"),
+      });
+
+      expect(config.getRootGitignoreDestination()).toBe("gitexclude");
+      expect(config.getGitignoreDestination("claudecode", "rules")).toBe("gitexclude");
+    });
+
     it("should reject an invalid flattenedCommandNaming value", async () => {
       const configContent = JSON.stringify({
         outputRoots: ["./"],
