@@ -3289,25 +3289,51 @@ describe("OpencodeMcp", () => {
       expect(onDropped.mock.calls).toEqual([["mcp.servers.differs", "conflict"]]);
     });
 
-    it("should warn on import about a shadowed envelope entry, quoting its name", async () => {
-      const name = "evil\u001b[31m";
-      await writeFileContent(
-        join(testDir, "opencode.json"),
-        JSON.stringify({
-          mcp: {
-            [name]: { type: "local", command: ["a"] },
-            servers: { [name]: { type: "local", command: ["b"] } },
-          },
-        }),
-      );
-      const mockLogger = { warn: vi.fn() } as unknown as Logger;
+    it.each([
+      ["a C0 escape", "evil\u001b[31m", "\u001b"],
+      ["a C1 control", "evil\u009b31m", "\u009b"],
+      ["a bidi override", "evil\u202egnp.exe", "\u202e"],
+    ])(
+      "should warn on import about a shadowed envelope entry, stripping %s from its name",
+      async (_label, name, character) => {
+        await writeFileContent(
+          join(testDir, "opencode.json"),
+          JSON.stringify({
+            mcp: {
+              [name]: { type: "local", command: ["a"] },
+              servers: { [name]: { type: "local", command: ["b"] } },
+            },
+          }),
+        );
+        const mockLogger = { warn: vi.fn() } as unknown as Logger;
 
-      await OpencodeMcp.fromFile({ outputRoot: testDir, logger: mockLogger });
+        await OpencodeMcp.fromFile({ outputRoot: testDir, logger: mockLogger });
+
+        expect(mockLogger.warn).toHaveBeenCalledTimes(1);
+        const message = vi.mocked(mockLogger.warn).mock.calls[0]?.[0] ?? "";
+        expect(message).toContain('"mcp.servers.evil');
+        expect(message).toContain("conflicts with a V1 value");
+        expect(message).not.toContain(character);
+      },
+    );
+
+    it("should quote the server name and dropped keys of a toggle written for a transport-less server", async () => {
+      const mockLogger = { warn: vi.fn() } as unknown as Logger;
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { "off\u202e\u009b": { disabled: true, timeout: 5 } },
+        }),
+      });
+
+      await OpencodeMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp, logger: mockLogger });
 
       expect(mockLogger.warn).toHaveBeenCalledTimes(1);
       const message = vi.mocked(mockLogger.warn).mock.calls[0]?.[0] ?? "";
-      expect(message).toContain(JSON.stringify(`mcp.servers.${name}`));
-      expect(message).not.toContain("\u001b");
+      expect(message).toContain('"off"');
+      expect(message).toContain('"timeout" is dropped');
+      expect(message).not.toMatch(/[\u009b\u202e]/);
     });
 
     it("should lower only local and remote entries, leaving the rest for the schema", () => {
@@ -3322,13 +3348,86 @@ describe("OpencodeMcp", () => {
     });
 
     it.each([
-      ["a untyped disabled entry", { untyped: { disabled: true } }],
+      ["an untyped disabled entry", { a: { disabled: true } }],
       ["a non-boolean enabled", { a: { type: "local", command: ["a"], enabled: "false" } }],
       ["a non-boolean disabled", { a: { type: "local", command: ["a"], disabled: "true" } }],
     ])("should reject %s on import", async (_label, servers) => {
       await writeFileContent(join(testDir, "opencode.json"), JSON.stringify({ mcp: { servers } }));
 
-      await expect(OpencodeMcp.fromFile({ outputRoot: testDir })).rejects.toThrow();
+      await expect(OpencodeMcp.fromFile({ outputRoot: testDir })).rejects.toThrow(
+        /"path": \[\s*"mcp",\s*"a"\s*\]/,
+      );
+    });
+
+    it("should still accept a toggle carrying both enabled and disabled", async () => {
+      await writeFileContent(
+        join(testDir, "opencode.json"),
+        JSON.stringify({ mcp: { servers: { shared: { enabled: false, disabled: true } } } }),
+      );
+
+      const opencodeMcp = await OpencodeMcp.fromFile({ outputRoot: testDir });
+
+      expect(opencodeMcp.getJson().mcp).toEqual({ shared: { enabled: false, disabled: true } });
+    });
+
+    it("should report a disabled that contradicts the server's own enabled", () => {
+      const onDropped = vi.fn();
+      expect(
+        lowerOpencodeV2Mcp(
+          {
+            a: { type: "local", command: ["a"], enabled: true, disabled: true },
+            b: { type: "local", command: ["b"], enabled: true, disabled: false },
+          },
+          onDropped,
+        ),
+      ).toEqual({
+        a: { type: "local", command: ["a"], enabled: true },
+        b: { type: "local", command: ["b"], enabled: true },
+      });
+      expect(onDropped.mock.calls).toEqual([["mcp.a.disabled", "conflict"]]);
+    });
+
+    it("should drop and report a per-server timeout object whose values are not positive integers", () => {
+      const onDropped = vi.fn();
+      expect(
+        lowerOpencodeV2Mcp(
+          {
+            servers: {
+              zero: { type: "local", command: ["z"], timeout: { catalog: 0, execution: 0 } },
+              fraction: {
+                type: "local",
+                command: ["f"],
+                timeout: { catalog: 1.5, execution: 1.5 },
+              },
+            },
+          },
+          onDropped,
+        ),
+      ).toEqual({
+        zero: { type: "local", command: ["z"], enabled: true },
+        fraction: { type: "local", command: ["f"], enabled: true },
+      });
+      expect(onDropped.mock.calls).toEqual([
+        ["mcp.servers.zero.timeout", "unsupported"],
+        ["mcp.servers.fraction.timeout", "unsupported"],
+      ]);
+    });
+
+    it("should not warn on generate about an empty mcp.servers envelope", async () => {
+      await writeFileContent(
+        join(testDir, "opencode.json"),
+        JSON.stringify({ mcp: { servers: {} } }),
+      );
+      const mockLogger = { warn: vi.fn() } as unknown as Logger;
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({ mcpServers: { a: { type: "stdio", command: "a" } } }),
+      });
+
+      await OpencodeMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp, logger: mockLogger });
+
+      expect(mockLogger.warn).not.toHaveBeenCalled();
     });
 
     it("should read a global mcp.timeout with a non-positive-integer value as a server", () => {

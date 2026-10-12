@@ -9,6 +9,7 @@ import { McpServers } from "../../types/mcp.js";
 import { readFileContentOrNull, toPosixPath } from "../../utils/file.js";
 import { parseJsonc as parseJsoncStrict } from "../../utils/jsonc.js";
 import type { Logger } from "../../utils/logger.js";
+import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { isRecord } from "../../utils/type-guards.js";
 import { findOpencodeV2McpContainers, lowerOpencodeV2Mcp } from "../opencode-config.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
@@ -88,9 +89,10 @@ const OpencodeMcpRemoteServerSchema = z.looseObject({
 const OPENCODE_PASSTHROUGH_SERVER_FIELDS = ["timeout", "oauth", "protocol", "codemode"] as const;
 
 // Every field of the two transport schemas except `enabled`, which is what a
-// toggle entry carries, and `disabled`, which a toggle may carry too — plus the per-server keys the two transport arms accept
-// only through their `looseObject` passthrough, so they are not in `.def.shape`
-// but still mark an entry as a transport rather than a toggle. Without them
+// toggle entry carries, and `disabled`, which a toggle may carry too — plus
+// the per-server keys the two transport arms accept only through their
+// `looseObject` passthrough, so they are not in `.def.shape` but still mark
+// an entry as a transport rather than a toggle. Without them
 // `{"enabled": true, "oauth": {...}}` would be read as a toggle and its OAuth
 // credentials dropped without a word.
 const OPENCODE_MCP_TRANSPORT_KEYS = [
@@ -320,8 +322,9 @@ function warnAboutToggleDroppedKeys(
     return;
   }
   logger?.warn(
-    `OpenCode MCP: ${JSON.stringify(serverName)} declares no transport, so it is written as a toggle entry and ` +
-      `${dropped.toSorted().join(", ")} ${dropped.length === 1 ? "is" : "are"} dropped.`,
+    `OpenCode MCP: ${quoteValueForWarning(serverName)} declares no transport, so it is written ` +
+      `as a toggle entry and ${dropped.toSorted().map(quoteValueForWarning).join(", ")} ` +
+      `${dropped.length === 1 ? "is" : "are"} dropped.`,
   );
 }
 
@@ -468,7 +471,9 @@ export class OpencodeMcp extends ToolMcp {
   /**
    * With a `logger`, the V2 values that lowering the content drops are warned
    * about (see {@link OpencodeMcp.lowerConfig}); `fromFile` passes one so the
-   * content is lowered once, here, rather than once more just to warn.
+   * warnings come from the lowering that builds the parsed view rather than
+   * from an extra pass of their own. (`validate()`, which the parent
+   * constructor calls before this view exists, lowers separately and silently.)
    */
   constructor({ logger, ...params }: ToolMcpParams & { logger?: Logger }) {
     super(params);
@@ -496,12 +501,13 @@ export class OpencodeMcp extends ToolMcp {
     return {
       ...json,
       mcp: lowerOpencodeV2Mcp(json.mcp, (path, reason) => {
-        // JSON-quoted: a server name in a repository's config could carry
-        // terminal escape sequences.
-        const quoted = JSON.stringify(path);
+        // Quoted, not interpolated: a server name in a repository's config
+        // could carry control characters or bidirectional overrides.
+        const quoted = quoteValueForWarning(path);
         logger?.warn(
           reason === "conflict"
-            ? `OpenCode MCP: ${quoted} differs from the flat "mcp" entry of the same name, which wins, so it is dropped on import.`
+            ? `OpenCode MCP: ${quoted} conflicts with a V1 value that takes precedence ` +
+                '(the flat "mcp" entry of the same name, or "enabled"), so it is dropped on import.'
             : `OpenCode MCP: ${quoted} has no Rulesync equivalent, so it is dropped on import.`,
         );
       }),
@@ -605,7 +611,7 @@ export class OpencodeMcp extends ToolMcp {
       if (containers.length > 0) {
         logger?.warn(
           `OpenCode MCP: the whole "mcp" key is rewritten in the flat V1 shape, so ` +
-            `${containers.map((path) => JSON.stringify(path)).join(" and ")} ` +
+            `${containers.map(quoteValueForWarning).join(" and ")} ` +
             `${containers.length === 1 ? "is" : "are"} not kept.`,
         );
       }

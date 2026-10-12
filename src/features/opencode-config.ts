@@ -285,10 +285,15 @@ function isOpencodeV2NativeServer(value: Record<string, unknown>): boolean {
 /**
  * Lowers a V2 timeout object (`{ startup, catalog, execution }`) to V1's single
  * number, the way OpenCode V1 does: only a `catalog` equal to `execution`, with
- * no `startup`, has a V1 equivalent. Anything else is `undefined` (dropped).
+ * no `startup`, has a V1 equivalent. Anything else — including a value that is
+ * not a positive integer — is `undefined` (dropped).
  */
 function lowerOpencodeV2Timeout(value: Record<string, unknown>): number | undefined {
-  if (value.startup !== undefined || typeof value.catalog !== "number") {
+  if (
+    !hasPositiveIntegerTimeouts(value) ||
+    value.startup !== undefined ||
+    typeof value.catalog !== "number"
+  ) {
     return undefined;
   }
   return value.catalog === value.execution ? value.catalog : undefined;
@@ -312,8 +317,9 @@ const OPENCODE_V2_UNSUPPORTED_OAUTH_KEYS: ReadonlySet<string> = new Set([
 
 /**
  * Why a V2 value is not carried over: it has no V1 (and so no Rulesync)
- * equivalent, or it is an `mcp.servers` entry shadowed by a different flat
- * entry of the same name.
+ * equivalent, or it conflicts with a V1 value that wins — an `mcp.servers`
+ * entry shadowed by a different flat entry of the same name, or a `disabled`
+ * contradicting the server's own `enabled`.
  */
 export type OpencodeV2DropReason = "unsupported" | "conflict";
 
@@ -367,6 +373,10 @@ function lowerOpencodeV2Server(
   const lowered: Record<string, unknown> = { ...rest };
   if (!Object.hasOwn(value, "enabled")) {
     lowered.enabled = disabled !== true;
+  } else if (value.enabled === disabled) {
+    // `enabled: true, disabled: true` contradict each other; like OpenCode V1,
+    // keep the V1 `enabled` and report the V2 `disabled` it overrides.
+    onDropped?.(`${path}.disabled`, "conflict");
   }
   const lowTimeout = isRecord(timeout) ? lowerOpencodeV2Timeout(timeout) : timeout;
   if (lowTimeout !== undefined) {
@@ -385,6 +395,13 @@ function isPositiveInteger(value: unknown): boolean {
   return typeof value === "number" && Number.isInteger(value) && value > 0;
 }
 
+/** Whether each V2 timeout value a record carries is a positive integer. */
+function hasPositiveIntegerTimeouts(value: Record<string, unknown>): boolean {
+  return OPENCODE_V2_TIMEOUT_KEYS.every(
+    (key) => value[key] === undefined || isPositiveInteger(value[key]),
+  );
+}
+
 /**
  * Whether `mcp.timeout` is V2's global timeout object rather than a server
  * named `timeout`. As in OpenCode V1, each of its values must be a positive
@@ -396,9 +413,7 @@ function isOpencodeV2GlobalTimeout(value: unknown): value is Record<string, unkn
     !isDirectOpencodeMcpServer(value) &&
     (Object.keys(value).length === 0 ||
       OPENCODE_V2_TIMEOUT_KEYS.some((key) => Object.hasOwn(value, key))) &&
-    OPENCODE_V2_TIMEOUT_KEYS.every(
-      (key) => value[key] === undefined || isPositiveInteger(value[key]),
-    )
+    hasPositiveIntegerTimeouts(value)
   );
 }
 
@@ -409,15 +424,16 @@ function getOpencodeV2McpEnvelope(mcp: Record<string, unknown>): Record<string, 
 
 /**
  * Returns the paths of the V2-only containers in an OpenCode `mcp` value that
- * a write in V1's flat shape does not keep: the `mcp.servers` envelope, and a
- * non-empty global `mcp.timeout`.
+ * a write in V1's flat shape does not keep: a non-empty `mcp.servers`
+ * envelope, and a non-empty global `mcp.timeout`.
  */
 export function findOpencodeV2McpContainers(mcp: unknown): string[] {
   if (!isRecord(mcp)) {
     return [];
   }
+  const envelope = getOpencodeV2McpEnvelope(mcp);
   return [
-    ...(getOpencodeV2McpEnvelope(mcp) !== null ? ["mcp.servers"] : []),
+    ...(envelope !== null && Object.keys(envelope).length > 0 ? ["mcp.servers"] : []),
     ...(isOpencodeV2GlobalTimeout(mcp.timeout) && Object.keys(mcp.timeout).length > 0
       ? ["mcp.timeout"]
       : []),

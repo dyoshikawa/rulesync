@@ -114,4 +114,15 @@ describe("MimocodeMcp", () => {
       /"path": \[\s*"mcp",\s*"servers"\s*\]/,
     );
   });
+
+  it("should reject a non-boolean disabled, which MiMo Code does not lower either", async () => {
+    await writeFileContent(
+      join(testDir, ".mimocode", "mimocode.json"),
+      JSON.stringify({ mcp: { a: { type: "local", command: ["a"], disabled: "true" } } }),
+    );
+
+    await expect(MimocodeMcp.fromFile({ outputRoot: testDir })).rejects.toThrow(
+      /"path": \[\s*"mcp",\s*"a"\s*\]/,
+    );
+  });
 });
