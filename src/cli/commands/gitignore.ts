@@ -1,8 +1,10 @@
 import { join } from "node:path";
 
 import { ConfigResolver } from "../../config/config-resolver.js";
+import { resolveGitExcludePath } from "../../lib/git-client.js";
 import type { Feature, GitignoreDestination, RulesyncFeatures } from "../../types/features.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
+import { formatError } from "../../utils/error.js";
 import { fileExists, readFileContent, writeFileContent } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import {
@@ -130,6 +132,62 @@ const removeExistingRulesyncEntries = (content: string): string => {
   return result;
 };
 
+// Walk the marker-delimited rulesync blocks only (header through footer),
+// handing each block's inner lines to `onBlock` and every other line to
+// `onOther`. A header without a footer is not treated as a block.
+const walkFencedRulesyncBlocks = ({
+  content,
+  onBlock,
+  onOther,
+}: {
+  content: string;
+  onBlock: (blockLines: string[]) => void;
+  onOther: (line: string) => void;
+}): void => {
+  const lines = content.split("\n");
+  let index = 0;
+  while (index < lines.length) {
+    const line = lines[index] ?? "";
+    if (isRulesyncHeader(line)) {
+      const footerIndex = findRulesyncFooterIndex(lines, index + 1);
+      if (footerIndex !== -1) {
+        onBlock(lines.slice(index + 1, footerIndex));
+        index = footerIndex + 1;
+        continue;
+      }
+    }
+    onOther(line);
+    index++;
+  }
+};
+
+const removeFencedRulesyncBlocks = (content: string): string => {
+  const kept: string[] = [];
+  walkFencedRulesyncBlocks({ content, onBlock: () => {}, onOther: (line) => kept.push(line) });
+  let result = kept.join("\n");
+  while (result.endsWith("\n\n")) {
+    result = result.slice(0, -1);
+  }
+  return result;
+};
+
+const extractFencedRulesyncEntries = (content: string): string[] => {
+  const managed: string[] = [];
+  walkFencedRulesyncBlocks({
+    content,
+    onBlock: (blockLines) => {
+      for (const blockLine of blockLines) {
+        const trimmed = blockLine.trim();
+        if (trimmed !== "") {
+          managed.push(trimmed);
+        }
+      }
+    },
+    onOther: () => {},
+  });
+  return managed;
+};
+
 // Collect the entries currently sitting inside rulesync-managed blocks (plus
 // stray recognized entries outside them), so the command can report which
 // previously managed paths are about to stop being gitignored.
@@ -182,18 +240,27 @@ export type GitignoreCommandOptions = {
 const groupEntriesByDestination = ({
   entries,
   resolveDestination,
+  rootDestination,
 }: {
   entries: ReadonlyArray<ResolvedGitignoreEntry>;
   resolveDestination: (target: ToolTarget, feature?: Feature | "general") => GitignoreDestination;
-}): { gitignore: string[]; gitattributes: string[] } => {
+  rootDestination: GitignoreDestination;
+}): { gitignore: string[]; gitattributes: string[]; gitexclude: string[] } => {
   const gitignore = new Set<string>();
   const gitattributes = new Set<string>();
+  const gitexclude = new Set<string>();
 
   for (const entry of entries) {
     const selectedToolTargets = entry.target.filter(
       (target): target is ToolTarget => target !== "common",
     );
     const destinations = new Set<GitignoreDestination>();
+    // Entries that belong to no tool (rulesync's own local files) follow the
+    // root-level destination only when it is the exclude file: `.gitattributes`
+    // does not ignore anything, so they stay in `.gitignore` in that case.
+    if (selectedToolTargets.length === 0 && rootDestination === "gitexclude") {
+      destinations.add("gitexclude");
+    }
     for (const target of selectedToolTargets) {
       if (entry.feature === "general") {
         destinations.add(resolveDestination(target));
@@ -210,6 +277,11 @@ const groupEntriesByDestination = ({
     if (destinations.has("gitattributes") && !entry.entry.startsWith("!")) {
       gitattributes.add(entry.entry);
     }
+    // `info/exclude` follows the same syntax as `.gitignore`, negations
+    // included, so an entry routed there keeps its exceptions beside it.
+    if (destinations.has("gitexclude")) {
+      gitexclude.add(entry.entry);
+    }
     if (destinations.size === 0 || destinations.has("gitignore")) {
       gitignore.add(entry.entry);
     }
@@ -218,7 +290,200 @@ const groupEntriesByDestination = ({
   return {
     gitignore: [...gitignore],
     gitattributes: [...gitattributes],
+    gitexclude: [...gitexclude],
   };
+};
+
+type UpdateResult = {
+  updated: boolean;
+  alreadyExistedEntries: string[];
+  entriesToAdd: string[];
+  entriesRemoved: string[];
+};
+
+type ManagedFile = {
+  readonly label: string;
+  readonly entries: string[];
+  readonly result: UpdateResult;
+};
+
+const updateRulesyncFile = async ({
+  filePath,
+  entries,
+  fencedBlockOnly = false,
+}: {
+  filePath: string;
+  entries: string[];
+  // Replace only the marker-fenced rulesync block and leave every other line —
+  // stray entries and legacy, footer-less blocks included — as the user wrote
+  // it. Used for the exclude file, which rulesync never managed before the
+  // fenced block existed, so any line outside it is hand-written.
+  fencedBlockOnly?: boolean;
+}): Promise<UpdateResult> => {
+  let content = "";
+  if (await fileExists(filePath)) {
+    content = await readFileContent(filePath);
+  }
+  const cleanedContent = fencedBlockOnly
+    ? removeFencedRulesyncBlocks(content)
+    : removeExistingRulesyncEntries(content);
+  const entrySet = new Set(entries);
+  const managedEntries = fencedBlockOnly
+    ? extractFencedRulesyncEntries(content)
+    : extractRulesyncManagedEntries(content);
+  const entriesRemoved = [
+    ...new Set(managedEntries.filter((entry) => !entrySet.has(entry))),
+    // A retired spelling whose replacement is being written is not a path
+    // that stops being ignored, so it is not reported as one. The
+    // replacement widens the same directory, and the exceptions written
+    // beside it re-expose only paths rulesync generates and commits. A file
+    // somebody authored by hand at one of those paths — the checks feature
+    // leaves a `review-guidelines` skill it did not write alone — becomes
+    // visible along with it, and that is the intent rather than a lapse:
+    // it is a file the repository is meant to carry. When the replacement is
+    // not written — a `.gitattributes` destination, or a narrowed
+    // `--targets` — the entry is reported like any other.
+  ].filter(
+    (entry) =>
+      !RETIRED_GITIGNORE_ENTRIES.some(
+        (retired) => retired.entry === entry && entrySet.has(retired.replacedBy),
+      ),
+  );
+
+  const existingEntries = new Set(
+    content
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line !== "" && !isRulesyncHeader(line) && !isRulesyncFooter(line)),
+  );
+  const alreadyExistedEntries = entries.filter((entry) => existingEntries.has(entry));
+  const entriesToAdd = entries.filter((entry) => !existingEntries.has(entry));
+  const rulesyncBlock = [RULESYNC_HEADER, ...entries, RULESYNC_FOOTER].join("\n");
+  const newContent =
+    entries.length === 0
+      ? cleanedContent.trim()
+        ? `${cleanedContent.trimEnd()}\n`
+        : ""
+      : cleanedContent.trim()
+        ? `${cleanedContent.trimEnd()}\n\n${rulesyncBlock}\n`
+        : `${rulesyncBlock}\n`;
+
+  if (content === newContent) {
+    return { updated: false, alreadyExistedEntries, entriesToAdd: [], entriesRemoved: [] };
+  }
+  await writeFileContent(filePath, newContent);
+  return { updated: true, alreadyExistedEntries, entriesToAdd, entriesRemoved };
+};
+
+const warnRemovedEntries = ({
+  logger,
+  entriesRemoved,
+}: {
+  logger: Logger;
+  entriesRemoved: string[];
+}): void => {
+  if (entriesRemoved.length === 0) {
+    return;
+  }
+  // The list itself goes to the console only: `data.entriesRemoved` already
+  // holds it under `--json`, and the warnings array is bounded — spending it
+  // one entry at a time would push the diagnostics that have nowhere else to
+  // go out of the document. The sentence that introduces it changes with it,
+  // since one ending in a colon promises a list that would never arrive.
+  if (logger.jsonMode) {
+    const removedCount = entriesRemoved.length;
+    const single = removedCount === 1;
+    logger.warn(
+      `${removedCount} ${single ? "entry" : "entries"} listed under "entriesRemoved" ` +
+        `${single ? "was" : "were"} removed from the rulesync-managed block in .gitignore ` +
+        `and ${single ? "is" : "are"} no longer gitignored by rulesync.`,
+    );
+  } else {
+    logger.warn(
+      "The following entries were removed from the rulesync-managed block in .gitignore and are no longer gitignored by rulesync:",
+    );
+    for (const entry of entriesRemoved) {
+      logger.warn(`  ${entry}`);
+    }
+  }
+  logger.warn(
+    "Review these paths before committing — user-managed settings files may contain secrets.",
+  );
+};
+
+const logManagedFile = ({ logger, file }: { logger: Logger; file: ManagedFile }): void => {
+  if (file.result.updated) {
+    logger.success(`Updated ${file.label} with rulesync entries:`);
+  } else {
+    logger.success(`${file.label} is already up to date`);
+  }
+  for (const entry of file.entries) {
+    logger.info(`  ${entry}`);
+  }
+};
+
+// Capture JSON data if in JSON mode
+const captureJsonData = ({
+  logger,
+  paths,
+  results,
+  allEntries,
+  anyUpdated,
+  entriesRemoved,
+}: {
+  logger: Logger;
+  paths: { gitignorePath: string; gitattributesPath: string; gitexcludePath?: string };
+  results: UpdateResult[];
+  allEntries: string[];
+  anyUpdated: boolean;
+  entriesRemoved: string[];
+}): void => {
+  if (!logger.jsonMode) {
+    return;
+  }
+  logger.captureData(
+    "entriesAdded",
+    results.flatMap((result) => result.entriesToAdd),
+  );
+  logger.captureData("gitignorePath", paths.gitignorePath);
+  logger.captureData("gitattributesPath", paths.gitattributesPath);
+  if (paths.gitexcludePath !== undefined) {
+    logger.captureData("gitexcludePath", paths.gitexcludePath);
+  }
+  logger.captureData(
+    "alreadyExisted",
+    anyUpdated ? results.flatMap((result) => result.alreadyExistedEntries) : allEntries,
+  );
+  if (anyUpdated) {
+    logger.captureData("entriesRemoved", entriesRemoved);
+  }
+};
+
+// Look up Git's `info/exclude` for the working directory. Only called when at
+// least one entry is routed there; any failure stops the command before a file
+// is touched.
+const resolveGitExclude = async (): Promise<string> => {
+  const cwd = process.cwd();
+  let resolved: { excludePath: string; prefix: string };
+  try {
+    resolved = await resolveGitExcludePath({ cwd });
+  } catch (error) {
+    throw new Error(
+      `gitignoreDestination "gitexclude" requires a Git repository: ${formatError(error)}`,
+      { cause: error },
+    );
+  }
+  // The exclude file is shared by the whole repository and matched from its
+  // top level, and it holds a single rulesync block. Projects nested below the
+  // top level would anchor their entries wrongly and overwrite each other's
+  // block, so the destination is only honored at the repository root.
+  if (resolved.prefix !== "") {
+    throw new Error(
+      `gitignoreDestination "gitexclude" must be used from the repository root, but rulesync is running in the subdirectory "${resolved.prefix}". ` +
+        `${resolved.excludePath} is shared by the whole repository; run rulesync from the repository root or choose another gitignoreDestination.`,
+    );
+  }
+  return resolved.excludePath;
 };
 
 export const gitignoreCommand = async (
@@ -237,78 +502,26 @@ export const gitignoreCommand = async (
     features: options?.features,
     logger,
   });
-  const { gitignore: gitignoreEntries, gitattributes: gitattributesEntries } =
-    groupEntriesByDestination({
-      entries: resolvedEntries,
-      resolveDestination: (target, feature) => {
-        if (feature === undefined || feature === "general") {
-          return config.getGitignoreDestination(target);
-        }
-        return config.getGitignoreDestination(target, feature);
-      },
-    });
+  const {
+    gitignore: gitignoreEntries,
+    gitattributes: gitattributesEntries,
+    gitexclude: gitexcludeEntries,
+  } = groupEntriesByDestination({
+    entries: resolvedEntries,
+    resolveDestination: (target, feature) => {
+      if (feature === undefined || feature === "general") {
+        return config.getGitignoreDestination(target);
+      }
+      return config.getGitignoreDestination(target, feature);
+    },
+    rootDestination: config.getRootGitignoreDestination(),
+  });
 
-  const updateRulesyncFile = async ({
-    filePath,
-    entries,
-  }: {
-    filePath: string;
-    entries: string[];
-  }): Promise<{
-    updated: boolean;
-    alreadyExistedEntries: string[];
-    entriesToAdd: string[];
-    entriesRemoved: string[];
-  }> => {
-    let content = "";
-    if (await fileExists(filePath)) {
-      content = await readFileContent(filePath);
-    }
-    const cleanedContent = removeExistingRulesyncEntries(content);
-    const entrySet = new Set(entries);
-    const entriesRemoved = [
-      ...new Set(extractRulesyncManagedEntries(content).filter((entry) => !entrySet.has(entry))),
-      // A retired spelling whose replacement is being written is not a path
-      // that stops being ignored, so it is not reported as one. The
-      // replacement widens the same directory, and the exceptions written
-      // beside it re-expose only paths rulesync generates and commits. A file
-      // somebody authored by hand at one of those paths — the checks feature
-      // leaves a `review-guidelines` skill it did not write alone — becomes
-      // visible along with it, and that is the intent rather than a lapse:
-      // it is a file the repository is meant to carry. When the replacement is
-      // not written — a `.gitattributes` destination, or a narrowed
-      // `--targets` — the entry is reported like any other.
-    ].filter(
-      (entry) =>
-        !RETIRED_GITIGNORE_ENTRIES.some(
-          (retired) => retired.entry === entry && entrySet.has(retired.replacedBy),
-        ),
-    );
-
-    const existingEntries = new Set(
-      content
-        .split("\n")
-        .map((line) => line.trim())
-        .filter((line) => line !== "" && !isRulesyncHeader(line) && !isRulesyncFooter(line)),
-    );
-    const alreadyExistedEntries = entries.filter((entry) => existingEntries.has(entry));
-    const entriesToAdd = entries.filter((entry) => !existingEntries.has(entry));
-    const rulesyncBlock = [RULESYNC_HEADER, ...entries, RULESYNC_FOOTER].join("\n");
-    const newContent =
-      entries.length === 0
-        ? cleanedContent.trim()
-          ? `${cleanedContent.trimEnd()}\n`
-          : ""
-        : cleanedContent.trim()
-          ? `${cleanedContent.trimEnd()}\n\n${rulesyncBlock}\n`
-          : `${rulesyncBlock}\n`;
-
-    if (content === newContent) {
-      return { updated: false, alreadyExistedEntries, entriesToAdd: [], entriesRemoved: [] };
-    }
-    await writeFileContent(filePath, newContent);
-    return { updated: true, alreadyExistedEntries, entriesToAdd, entriesRemoved };
-  };
+  // Resolve the exclude file before touching anything, so a missing Git
+  // repository fails the command without leaving `.gitignore` half-updated.
+  // The exclude file is never looked up, read or written unless an entry is
+  // routed there.
+  const gitexcludePath = gitexcludeEntries.length > 0 ? await resolveGitExclude() : undefined;
 
   const gitignoreResult = await updateRulesyncFile({
     filePath: gitignorePath,
@@ -318,85 +531,74 @@ export const gitignoreCommand = async (
     filePath: gitattributesPath,
     entries: gitattributesEntries,
   });
+  const gitexcludeResult =
+    gitexcludePath === undefined
+      ? undefined
+      : await updateRulesyncFile({
+          filePath: gitexcludePath,
+          entries: gitexcludeEntries,
+          fencedBlockOnly: true,
+        });
 
-  if (!gitignoreResult.updated && !gitattributesResult.updated) {
-    // Capture JSON data if in JSON mode
-    if (logger.jsonMode) {
-      logger.captureData("entriesAdded", []);
-      logger.captureData("gitignorePath", gitignorePath);
-      logger.captureData("gitattributesPath", gitattributesPath);
-      logger.captureData("alreadyExisted", [...gitignoreEntries, ...gitattributesEntries]);
+  // `.gitignore` is always reported; the other files only when entries are
+  // routed there.
+  const files: ManagedFile[] = [
+    { label: ".gitignore", entries: gitignoreEntries, result: gitignoreResult },
+  ];
+  if (gitattributesEntries.length > 0) {
+    files.push({
+      label: ".gitattributes",
+      entries: gitattributesEntries,
+      result: gitattributesResult,
+    });
+  }
+  if (gitexcludePath !== undefined && gitexcludeResult) {
+    files.push({ label: gitexcludePath, entries: gitexcludeEntries, result: gitexcludeResult });
+  }
+  const anyUpdated =
+    gitignoreResult.updated || gitattributesResult.updated || Boolean(gitexcludeResult?.updated);
+
+  // An entry that moved from `.gitignore` into the exclude file is still
+  // ignored, so it is not reported as one that stopped being gitignored.
+  const gitexcludeEntrySet = new Set(gitexcludeEntries);
+  const entriesRemoved = gitignoreResult.entriesRemoved.filter(
+    (entry) => !gitexcludeEntrySet.has(entry),
+  );
+
+  captureJsonData({
+    logger,
+    paths: { gitignorePath, gitattributesPath, gitexcludePath },
+    results: [
+      gitignoreResult,
+      gitattributesResult,
+      ...(gitexcludeResult ? [gitexcludeResult] : []),
+    ],
+    allEntries: [...gitignoreEntries, ...gitattributesEntries, ...gitexcludeEntries],
+    anyUpdated,
+    entriesRemoved,
+  });
+
+  if (!anyUpdated) {
+    const labels = [".gitignore", ".gitattributes"];
+    if (gitexcludePath !== undefined) {
+      labels.push(gitexcludePath);
     }
-    logger.success(".gitignore / .gitattributes are already up to date");
+    logger.success(`${labels.join(" / ")} are already up to date`);
     return;
   }
 
-  // Capture JSON data if in JSON mode
-  if (logger.jsonMode) {
-    logger.captureData("entriesAdded", [
-      ...gitignoreResult.entriesToAdd,
-      ...gitattributesResult.entriesToAdd,
-    ]);
-    logger.captureData("gitignorePath", gitignorePath);
-    logger.captureData("gitattributesPath", gitattributesPath);
-    logger.captureData("alreadyExisted", [
-      ...gitignoreResult.alreadyExistedEntries,
-      ...gitattributesResult.alreadyExistedEntries,
-    ]);
-    logger.captureData("entriesRemoved", gitignoreResult.entriesRemoved);
-  }
-
-  if (gitignoreResult.entriesRemoved.length > 0) {
-    // The list itself goes to the console only: `data.entriesRemoved` already
-    // holds it under `--json`, and the warnings array is bounded — spending it
-    // one entry at a time would push the diagnostics that have nowhere else to
-    // go out of the document. The sentence that introduces it changes with it,
-    // since one ending in a colon promises a list that would never arrive.
-    if (logger.jsonMode) {
-      const removedCount = gitignoreResult.entriesRemoved.length;
-      const single = removedCount === 1;
-      logger.warn(
-        `${removedCount} ${single ? "entry" : "entries"} listed under "entriesRemoved" ` +
-          `${single ? "was" : "were"} removed from the rulesync-managed block in .gitignore ` +
-          `and ${single ? "is" : "are"} no longer gitignored by rulesync.`,
-      );
-    } else {
-      logger.warn(
-        "The following entries were removed from the rulesync-managed block in .gitignore and are no longer gitignored by rulesync:",
-      );
-      for (const entry of gitignoreResult.entriesRemoved) {
-        logger.warn(`  ${entry}`);
-      }
-    }
-    logger.warn(
-      "Review these paths before committing — user-managed settings files may contain secrets.",
-    );
-  }
-
-  if (gitignoreResult.updated) {
-    logger.success("Updated .gitignore with rulesync entries:");
-  } else {
-    logger.success(".gitignore is already up to date");
-  }
-  for (const entry of gitignoreEntries) {
-    logger.info(`  ${entry}`);
-  }
-  if (gitattributesEntries.length > 0) {
-    if (gitattributesResult.updated) {
-      logger.success("Updated .gitattributes with rulesync entries:");
-    } else {
-      logger.success(".gitattributes is already up to date");
-    }
-    for (const entry of gitattributesEntries) {
-      logger.info(`  ${entry}`);
-    }
+  warnRemovedEntries({ logger, entriesRemoved });
+  for (const file of files) {
+    logManagedFile({ logger, file });
   }
 
   logger.info("");
   logger.info(
     "💡 If you're using Google Antigravity, note that rules, workflows, and skills won't load if they're gitignored.",
   );
-  logger.info("   You can add the following to .git/info/exclude instead:");
+  logger.info(
+    '   You can set "gitignoreDestination": "gitexclude" in rulesync.local.jsonc, or add the following to .git/info/exclude instead:',
+  );
   logger.info("   **/.agents/rules/");
   logger.info("   **/.agents/workflows/");
   logger.info("   **/.agents/skills/");

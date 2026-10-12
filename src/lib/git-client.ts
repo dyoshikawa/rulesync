@@ -120,6 +120,51 @@ export async function resolveRefToSha(url: string, ref: string): Promise<string>
 }
 
 /**
+ * Resolve the repository-local exclude file (`info/exclude`) for the Git
+ * repository containing `cwd`. The path comes from `git rev-parse --git-path`
+ * rather than `<cwd>/.git/info/exclude`, so it honors linked worktrees (where
+ * `.git` is a file and the exclude file lives under `$GIT_COMMON_DIR`) and
+ * `GIT_DIR` / `GIT_COMMON_DIR` overrides.
+ *
+ * `prefix` is the path of `cwd` relative to the worktree's top-level directory
+ * (empty at the top level, otherwise ending with `/`). Patterns in the exclude
+ * file are matched relative to the top level, so callers can warn when `cwd`
+ * is a subdirectory.
+ */
+export async function resolveGitExcludePath({
+  cwd,
+}: {
+  cwd: string;
+}): Promise<{ excludePath: string; prefix: string }> {
+  await checkGitAvailable();
+  let stdout: string;
+  try {
+    ({ stdout } = await execFileAsync(
+      "git",
+      ["rev-parse", "--show-prefix", "--git-path", "info/exclude"],
+      { cwd, timeout: GIT_TIMEOUT_MS },
+    ));
+  } catch (error) {
+    throw new GitClientError(
+      `Failed to resolve the Git exclude file (info/exclude) from "${cwd}". ` +
+        "Is this directory inside a Git repository?",
+      error,
+    );
+  }
+  const [prefix = "", rawPath = ""] = stdout.split(/\r?\n/);
+  const trimmedPath = rawPath.trim();
+  if (trimmedPath === "") {
+    throw new GitClientError(
+      `Failed to resolve the Git exclude file (info/exclude) from "${cwd}": git returned no path.`,
+    );
+  }
+  return {
+    excludePath: isAbsolute(trimmedPath) ? trimmedPath : join(cwd, trimmedPath),
+    prefix: prefix.trim(),
+  };
+}
+
+/**
  * Clone a repo at the given branch or tag and return all files under skillsPath.
  * When `resolvedRef` is provided, fetch and check out that exact commit before
  * reading files so a mutable branch cannot drift from its lockfile SHA.

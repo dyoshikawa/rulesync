@@ -257,6 +257,37 @@ describe("Config", () => {
       expect(config.getGitignoreDestination("claudecode", "rules")).toBe("gitattributes");
     });
 
+    it("supports the gitexclude destination at every level", () => {
+      expect(
+        createConfig({ gitignoreDestination: "gitexclude" }).getGitignoreDestination(
+          "claudecode",
+          "rules",
+        ),
+      ).toBe("gitexclude");
+      expect(
+        createConfig({
+          targets: { claudecode: { gitignoreDestination: "gitexclude", rules: true } },
+        }).getGitignoreDestination("claudecode", "rules"),
+      ).toBe("gitexclude");
+      expect(
+        createConfig({
+          targets: { claudecode: { rules: { gitignoreDestination: "gitexclude" } } },
+        }).getGitignoreDestination("claudecode", "rules"),
+      ).toBe("gitexclude");
+    });
+
+    it("exposes the root-level destination", () => {
+      expect(
+        createConfig({ gitignoreDestination: "gitexclude" }).getRootGitignoreDestination(),
+      ).toBe("gitexclude");
+      expect(createConfig({}).getRootGitignoreDestination()).toBe("gitignore");
+    });
+
+    it("accepts gitexclude in the config file schema and rejects unknown values", () => {
+      expect(ConfigFileSchema.safeParse({ gitignoreDestination: "gitexclude" }).success).toBe(true);
+      expect(ConfigFileSchema.safeParse({ gitignoreDestination: "exclude" }).success).toBe(false);
+    });
+
     it("supports root-level destination", () => {
       const config = createConfig({
         gitignoreDestination: "gitattributes",

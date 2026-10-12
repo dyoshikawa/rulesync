@@ -916,6 +916,10 @@ export class Config {
     return undefined;
   }
 
+  public getRootGitignoreDestination(): GitignoreDestination {
+    return this.gitignoreDestination;
+  }
+
   public getGitignoreDestination(target: ToolTarget, feature?: Feature): GitignoreDestination {
     const rootLevel = this.gitignoreDestination;
     if (!isRulesyncConfigTargetsObject(this.targets)) {
@@ -943,10 +947,8 @@ export class Config {
   }
 
   private static parseGitignoreDestination(value: unknown): GitignoreDestination | undefined {
-    if (value === "gitignore" || value === "gitattributes") {
-      return value;
-    }
-    return undefined;
+    const result = GitignoreDestinationSchema.safeParse(value);
+    return result.success ? result.data : undefined;
   }
 
   /**

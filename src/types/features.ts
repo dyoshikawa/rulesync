@@ -56,7 +56,9 @@ const FeatureWithWildcardSchema = z.union([
   z.enum([...ACTIVE_FEATURES, "*"]),
   DeprecatedIgnoreFeatureSchema,
 ]);
-export const GitignoreDestinationSchema = z.enum(["gitignore", "gitattributes"]);
+// "gitexclude" writes to the repository-local, untracked `info/exclude` file
+// under Git's common directory (usually `.git/info/exclude`).
+export const GitignoreDestinationSchema = z.enum(["gitignore", "gitattributes", "gitexclude"]);
 export type GitignoreDestination = z.infer<typeof GitignoreDestinationSchema>;
 
 // Naming strategy for command files flattened for tools without subdirectory
