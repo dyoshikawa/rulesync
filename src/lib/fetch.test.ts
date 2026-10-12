@@ -569,6 +569,48 @@ describe("fetchFiles", () => {
     expect(summary.files[0]?.relativePath).toBe("rules/overview.md");
   });
 
+  it("should fetch rules using decoded URL ref and directory names", async () => {
+    const remotePath = "shared rules/rules/overview.md";
+    mockClientInstance.listDirectory.mockImplementation(
+      (owner: string, repo: string, path: string, ref: string) => {
+        if (path === "shared rules/rules" && ref === "feature/rules") {
+          return Promise.resolve([
+            {
+              name: "overview.md",
+              path: remotePath,
+              type: "file",
+              sha: "abc",
+              size: 200,
+              download_url: "https://example.com",
+            },
+          ]);
+        }
+        const error = new Error("Not found");
+        Object.assign(error, { statusCode: 404 });
+        return Promise.reject(error);
+      },
+    );
+    mockClientInstance.getFileContent.mockResolvedValue("# Shared rules");
+
+    const summary = await fetchFiles({
+      logger,
+      source: "https://github.com/owner/repo/tree/feature%2Frules/shared%20rules",
+      options: { features: ["rules"] },
+      outputRoot: testDir,
+    });
+
+    expect(summary.files).toEqual([{ relativePath: "rules/overview.md", status: "created" }]);
+    expect(mockClientInstance.getFileContent).toHaveBeenCalledWith(
+      "owner",
+      "repo",
+      remotePath,
+      "feature/rules",
+    );
+    expect(await readFileContent(join(testDir, ".rulesync", "rules", "overview.md"))).toBe(
+      "# Shared rules",
+    );
+  });
+
   it("should fetch only skills when features are omitted", async () => {
     const { skillPath } = mockMixedFeatureRepository();
     mockClientInstance.getFileContent.mockResolvedValue("# Skill\n\nTest skill");
