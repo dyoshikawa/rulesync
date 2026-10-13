@@ -4,7 +4,7 @@ You can use global mode via Rulesync by enabling `--global` option. It can also 
 
 In global mode, Rulesync reads the sources in the current directory (or the configured input roots) and writes the generated files under your home directory (for example `~/.claude/CLAUDE.md`, `~/.claude/skills/`, `~/.codex/AGENTS.md`, `~/.agents/skills/`) instead of the project.
 
-Every feature can be generated and imported in global mode — `rules`, `ignore`, `mcp`, `commands`, `subagents`, `skills`, `hooks`, `permissions`, and `checks` — for each tool that has a user-scope location for it. Which tool supports which feature globally is marked with 🌏 in the [Supported Tools](../reference/supported-tools.md) table. A target or feature without global support is skipped with a warning.
+Every feature can be generated and imported in global mode — `rules`, `ignore`, `mcp`, `commands`, `subagents`, `skills`, `hooks`, `permissions`, and `checks` — for each tool that has a user-scope location for it. Which tool supports which feature globally is marked with 🌏 in the [Supported Tools](../reference/supported-tools.md) table. On `generate`, a target or feature without global support is skipped with a warning; on `import`, it is skipped and nothing is imported.
 
 1. Create an any name directory. For example, if you prefer `~/.aiglobal`, run the following command.
 
@@ -72,13 +72,14 @@ Every feature can be generated and imported in global mode — `rules`, `ignore`
 ```bash
 cd ~/.aiglobal
 rulesync install && rulesync generate
-# -> ~/.claude/skills/skill-creator/ and ~/.agents/skills/skill-creator/
+# -> ~/.claude/skills/skill-creator/ and ~/.agents/skills/skill-creator/,
+#    plus the rules from .rulesync/rules/ (e.g. ~/.claude/CLAUDE.md, ~/.codex/AGENTS.md)
 ```
 
 ## `delete` and shared user-scope directories
 
 User-scope directories such as `~/.claude/skills/` and `~/.agents/skills/` are often shared with skills you installed by hand or with other tools (plugin managers, other skill installers). Keep that in mind before enabling `delete` in global mode:
 
-- With `"delete": true` (or `--delete`), the orphan sweep removes **every** skill directory directly under a selected target's skills directory that this run did not generate — Rulesync cannot tell a skill installed by another tool from a stale one it generated earlier. This is the case for `claudecode` (`~/.claude/skills/`), `codexcli` and `agentsskills` (`~/.agents/skills/`), and most other targets; only a few targets whose skills directory also holds another feature's output narrow the sweep to the entries they own. For example, a skill another installer placed in `~/.agents/skills/` is deleted when `codexcli` (or `agentsskills`) is a target and no `.rulesync/skills/` source produces it.
+- With `"delete": true` (or `--delete`), the orphan sweep removes **every** skill directory directly under a selected target's skills directory that this run did not generate — Rulesync cannot tell a skill installed by another tool from a stale one it generated earlier. This is the case for `claudecode` (`~/.claude/skills/`), `codexcli` and `agentsskills` (`~/.agents/skills/`), and most other targets; only a few targets whose skills directory also holds another feature's output narrow the sweep to the entries they own. For example, a skill another installer placed in `~/.agents/skills/` is deleted when `codexcli` (or `agentsskills`) is a target and no `.rulesync/skills/` source produces it. For `claudecode`, the sweep also covers `~/.claude/scheduled-tasks/`, which Claude Code reads as an additional skills root, so scheduled tasks created there by hand are removed too.
 - Symbolic links and hidden entries (names starting with `.`) directly under the skills directory are never swept, and a skills directory that is itself a symbolic link (for example, one linked from a dotfiles checkout) is skipped with a warning.
 - With `"delete": false` (the default), Rulesync only writes the skills it generates and leaves everything else in those directories alone, so it can coexist with other installers. Stale skills generated earlier then have to be removed by hand.
