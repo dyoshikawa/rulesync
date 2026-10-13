@@ -14,6 +14,7 @@ vi.mock("../utils/file.js", () => ({
   listDirectoryEntryNames: vi.fn(),
   getFileSize: vi.fn(),
   readFileContent: vi.fn(),
+  resolvedPathEscapesRoot: vi.fn().mockResolvedValue(false),
 }));
 import { createMockLogger } from "../test-utils/mock-logger.js";
 import {
@@ -24,6 +25,7 @@ import {
   listDirectoryEntryNames,
   readFileContent,
   removeTempDirectory,
+  resolvedPathEscapesRoot,
 } from "../utils/file.js";
 import {
   GitClientError,
@@ -416,6 +418,58 @@ describe("git-client", () => {
       expect(files).toHaveLength(1);
       expect(files[0]?.relativePath).toBe("file.md");
       expect(vi.mocked(logger.warn)).toHaveBeenCalledWith(expect.stringContaining("symlink"));
+    });
+
+    it("returns no files and warns when skillsPath resolves outside the clone through a symlink", async () => {
+      mockExecFileAsync.mockResolvedValue({ stdout: "", stderr: "" });
+      vi.mocked(createTempDirectory).mockResolvedValue("/tmp/test");
+      vi.mocked(removeTempDirectory).mockResolvedValue(undefined);
+      vi.mocked(directoryExists).mockImplementation(async (p: string) => p.endsWith("rules"));
+      vi.mocked(resolvedPathEscapesRoot).mockResolvedValueOnce(true);
+      vi.mocked(listDirectoryEntryNames).mockResolvedValue(["secret.md"]);
+      vi.mocked(getFileSize).mockResolvedValue(10);
+      vi.mocked(readFileContent).mockResolvedValue("content");
+
+      const files = await fetchSkillFiles({
+        url: "https://example.com/repo.git",
+        ref: "main",
+        skillsPath: "rules",
+        logger,
+      });
+
+      expect(files).toEqual([]);
+      expect(vi.mocked(resolvedPathEscapesRoot)).toHaveBeenCalledWith({
+        rootPath: "/tmp/test",
+        targetPath: join("/tmp/test", "rules"),
+      });
+      expect(vi.mocked(listDirectoryEntryNames)).not.toHaveBeenCalled();
+      expect(vi.mocked(readFileContent)).not.toHaveBeenCalled();
+      expect(vi.mocked(logger.warn)).toHaveBeenCalledWith(
+        expect.stringContaining("resolves outside the repository"),
+      );
+      expect(vi.mocked(removeTempDirectory)).toHaveBeenCalledWith("/tmp/test");
+    });
+
+    it("walks skillsPath when it resolves inside the clone", async () => {
+      mockExecFileAsync.mockResolvedValue({ stdout: "", stderr: "" });
+      vi.mocked(createTempDirectory).mockResolvedValue("/tmp/test");
+      vi.mocked(removeTempDirectory).mockResolvedValue(undefined);
+      vi.mocked(directoryExists).mockImplementation(async (p: string) => p.endsWith("rules"));
+      vi.mocked(listDirectoryEntryNames).mockResolvedValue(["a.md"]);
+      vi.mocked(getFileSize).mockResolvedValue(10);
+      vi.mocked(readFileContent).mockResolvedValue("content");
+
+      const files = await fetchSkillFiles({
+        url: "https://example.com/repo.git",
+        ref: "main",
+        skillsPath: "rules",
+      });
+
+      expect(vi.mocked(resolvedPathEscapesRoot)).toHaveBeenCalledWith({
+        rootPath: "/tmp/test",
+        targetPath: join("/tmp/test", "rules"),
+      });
+      expect(files).toEqual([{ relativePath: "a.md", content: "content", size: 10 }]);
     });
 
     it.each(["", ".", "./", "./.", ".//", ".\\"])(
