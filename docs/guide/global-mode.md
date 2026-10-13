@@ -4,7 +4,7 @@ You can use global mode via Rulesync by enabling `--global` option. It can also 
 
 In global mode, Rulesync reads the sources in the current directory (or the configured input roots) and writes the generated files under your home directory (for example `~/.claude/CLAUDE.md`, `~/.claude/skills/`, `~/.codex/AGENTS.md`, `~/.agents/skills/`) instead of the project.
 
-Every feature can be generated and imported in global mode — `rules`, `ignore`, `mcp`, `commands`, `subagents`, `skills`, `hooks`, `permissions`, and `checks` — for each tool that has a user-scope location for it. Which tool supports which feature globally is marked with 🌏 in the [Supported Tools](../reference/supported-tools.md) table. On `generate`, a target or feature without global support is skipped with a warning; on `import`, it is skipped and nothing is imported.
+Every feature can be generated and imported in global mode — `rules`, `ignore`, `mcp`, `commands`, `subagents`, `skills`, `hooks`, `permissions`, and `checks` — for each tool that has a user-scope location for it. Which tool supports which feature globally is marked with 🌏 in the [Supported Tools](../reference/supported-tools.md) table. On `generate`, a target or feature without global support is skipped with a warning; on `import`, it is skipped and nothing is imported, except for packaging targets such as `claudecode-plugin`, whose import fails in global mode.
 
 1. Create an any name directory. For example, if you prefer `~/.aiglobal`, run the following command.
 
