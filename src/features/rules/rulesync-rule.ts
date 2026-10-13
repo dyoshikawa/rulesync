@@ -143,6 +143,14 @@ export const RulesyncRuleFrontmatterSchema = z.object({
       // Glob patterns for `trigger: glob` (takes precedence over globs).
       glob: z.optional(z.union([z.string(), z.array(z.string())])),
       description: z.optional(z.string()),
+      // `output-style` writes this non-root rule as a custom output style,
+      // `.qoder/output-styles/<rule file name>.md`, at project and global
+      // scope, instead of a `.qoder/rules/` topic rule.
+      // @see https://docs.qoder.com/cli/output-styles
+      channel: z.optional(z.enum(["output-style"])),
+      // The output style's `name` frontmatter. Only read with
+      // `channel: output-style`; Qoder defaults it to the file name.
+      name: z.optional(z.string().check(z.trim(), z.minLength(1))),
     }),
   ),
   augmentcode: z.optional(

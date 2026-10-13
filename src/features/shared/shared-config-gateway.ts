@@ -1769,14 +1769,16 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
   // MCP owns `mcpServers` (user scope only; project servers go to `.mcp.json`),
   // hooks own `hooks`, and permissions own `permissions` (the adapter
   // re-spreads the sibling keys of that object: `additionalDirectories`,
-  // `trustDirectories`, ...).
+  // `trustDirectories`, ...) plus the top-level `outputStyle` of the `qoder`
+  // override, which is only in the patch when authored, so a value the user
+  // set by hand survives an unrelated regeneration.
   ".qoder/settings.json": {
     format: "json",
     invalidRootPolicy: "error",
     features: {
       mcp: { kind: "replace-owned-keys", ownedKeys: ["mcpServers"] },
       hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
-      permissions: { kind: "replace-owned-keys", ownedKeys: ["permissions"] },
+      permissions: { kind: "replace-owned-keys", ownedKeys: ["permissions", "outputStyle"] },
     },
   },
   // Tabnine CLI settings: the project file (`.tabnine/agent/settings.json`)
