@@ -458,14 +458,22 @@ export async function getInstalledSourceRuleNames({
  * matched nothing.
  */
 function assertNonEmptySelections(sourceEntry: SourceEntry): void {
-  if (sourceEntry.skills?.length === 0) {
+  const { source, skills, rules } = sourceEntry;
+  if (skills?.length === 0 && rules?.length === 0) {
     throw new Error(
-      `\`skills\` is an empty list for ${sourceEntry.source}. To take no skills from this source, omit \`skills\` and list only \`rules\`.`,
+      `\`skills\` and \`rules\` are both empty lists for ${source}. To take nothing from this source, remove it from \`sources\`.`,
     );
   }
-  if (sourceEntry.rules?.length === 0) {
+  if (skills?.length === 0) {
     throw new Error(
-      `\`rules\` is an empty list for ${sourceEntry.source}. To take no rules from this source, omit \`rules\`.`,
+      `\`skills\` is an empty list for ${source}. To take no skills from this source, omit \`skills\` and list only \`rules\`.`,
+    );
+  }
+  if (rules?.length === 0) {
+    // Omitting both fields falls back to every skill, so the hint must keep
+    // `skills` declared rather than suggest dropping `rules` alone.
+    throw new Error(
+      `\`rules\` is an empty list for ${source}. To take no rules from this source, omit \`rules\` and list the skills you want in \`skills\`.`,
     );
   }
 }

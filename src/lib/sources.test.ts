@@ -544,7 +544,54 @@ describe("resolveAndFetchSources", () => {
     expect(result.fetchedSkillCount).toBe(0);
     expect(mockClientInstance.listDirectory).not.toHaveBeenCalled();
     expect(logger.error).toHaveBeenCalledWith(
-      'Failed to fetch source "org/repo": Error: `rules` is an empty list for org/repo. To take no rules from this source, omit `rules`.',
+      'Failed to fetch source "org/repo": Error: `rules` is an empty list for org/repo. To take no rules from this source, omit `rules` and list the skills you want in `skills`.',
+    );
+  });
+
+  it("should keep `skills` in the hint when a source sets an empty rules list without skills", async () => {
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "org/repo", rules: [] }],
+      projectRoot: testDir,
+    });
+
+    expect(result.failedSourceCount).toBe(1);
+    expect(result.fetchedSkillCount).toBe(0);
+    expect(mockClientInstance.listDirectory).not.toHaveBeenCalled();
+    expect(logger.error).toHaveBeenCalledWith(
+      'Failed to fetch source "org/repo": Error: `rules` is an empty list for org/repo. To take no rules from this source, omit `rules` and list the skills you want in `skills`.',
+    );
+  });
+
+  it("should suggest removing the source when both skills and rules are empty lists", async () => {
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "org/repo", skills: [], rules: [] }],
+      projectRoot: testDir,
+    });
+
+    expect(result.failedSourceCount).toBe(1);
+    expect(mockClientInstance.listDirectory).not.toHaveBeenCalled();
+    expect(logger.error).toHaveBeenCalledWith(
+      'Failed to fetch source "org/repo": Error: `skills` and `rules` are both empty lists for org/repo. To take nothing from this source, remove it from `sources`.',
+    );
+  });
+
+  it("should reject an empty skills list for a git source before fetching", async () => {
+    const { fetchSkillFiles, resolveDefaultRef } = await import("./git-client.js");
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [
+        { source: "https://example.com/org/repo.git", transport: "git", rules: ["*"], skills: [] },
+      ],
+      projectRoot: testDir,
+    });
+
+    expect(result.failedSourceCount).toBe(1);
+    expect(resolveDefaultRef).not.toHaveBeenCalled();
+    expect(fetchSkillFiles).not.toHaveBeenCalled();
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.stringContaining("`skills` is an empty list for https://example.com/org/repo.git."),
     );
   });
 
