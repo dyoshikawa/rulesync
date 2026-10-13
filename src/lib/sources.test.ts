@@ -518,6 +518,51 @@ describe("resolveAndFetchSources", () => {
     ).toBe(firstSha);
   });
 
+  it("should point to omitting `skills` when a source sets an empty skills list", async () => {
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "org/repo", rules: ["shared"], skills: [] }],
+      projectRoot: testDir,
+    });
+
+    expect(result.failedSourceCount).toBe(1);
+    expect(result.fetchedRuleCount).toBe(0);
+    expect(mockClientInstance.listDirectory).not.toHaveBeenCalled();
+    expect(logger.error).toHaveBeenCalledWith(
+      'Failed to fetch source "org/repo": Error: `skills` is an empty list for org/repo. To take no skills from this source, omit `skills` and list only `rules`.',
+    );
+  });
+
+  it("should point to omitting `rules` when a source sets an empty rules list", async () => {
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "org/repo", skills: ["shared"], rules: [] }],
+      projectRoot: testDir,
+    });
+
+    expect(result.failedSourceCount).toBe(1);
+    expect(result.fetchedSkillCount).toBe(0);
+    expect(mockClientInstance.listDirectory).not.toHaveBeenCalled();
+    expect(logger.error).toHaveBeenCalledWith(
+      'Failed to fetch source "org/repo": Error: `rules` is an empty list for org/repo. To take no rules from this source, omit `rules`.',
+    );
+  });
+
+  it("should reject an empty skills list for an npm source before fetching", async () => {
+    const { fetchPackument } = await import("./npm-client.js");
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "example", transport: "npm", skills: [] }],
+      projectRoot: testDir,
+    });
+
+    expect(result.failedSourceCount).toBe(1);
+    expect(fetchPackument).not.toHaveBeenCalled();
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.stringContaining("`skills` is an empty list for example."),
+    );
+  });
+
   it("should reject prototype-polluting rule names", async () => {
     mockClientInstance.listDirectory.mockResolvedValue([
       { name: "__proto__.md", path: "rules/__proto__.md", type: "file", size: 100 },

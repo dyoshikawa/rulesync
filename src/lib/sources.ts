@@ -452,6 +452,25 @@ export async function getInstalledSourceRuleNames({
 }
 
 /**
+ * Reject an empty `skills` or `rules` list up front. An empty list is most
+ * likely meant as "take none of this feature", which is spelled by omitting
+ * the field, so point at that form instead of reporting a selection that
+ * matched nothing.
+ */
+function assertNonEmptySelections(sourceEntry: SourceEntry): void {
+  if (sourceEntry.skills?.length === 0) {
+    throw new Error(
+      `\`skills\` is an empty list for ${sourceEntry.source}. To take no skills from this source, omit \`skills\` and list only \`rules\`.`,
+    );
+  }
+  if (sourceEntry.rules?.length === 0) {
+    throw new Error(
+      `\`rules\` is an empty list for ${sourceEntry.source}. To take no rules from this source, omit \`rules\`.`,
+    );
+  }
+}
+
+/**
  * Dispatch a single source to the npm fetcher or the git/github fetcher,
  * returning the (possibly) updated lock objects for both lockfiles.
  */
@@ -477,6 +496,7 @@ async function fetchSingleSource(params: {
   npmLock: NpmSourcesLock;
 }> {
   const { sourceEntry, lock, npmLock } = params;
+  assertNonEmptySelections(sourceEntry);
   if ((sourceEntry.transport ?? "github") === "npm") {
     const result = await fetchSourceViaNpm({
       sourceEntry,
