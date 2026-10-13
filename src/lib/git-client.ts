@@ -7,6 +7,7 @@ import {
   createTempDirectory,
   directoryExists,
   getFileSize,
+  hasExecutableBit,
   isSymlink,
   listDirectoryEntryNames,
   readFileContent,
@@ -165,6 +166,17 @@ export async function resolveGitExcludePath({
 }
 
 /**
+ * A file read from a cloned repository. `executable` is the checked-out
+ * file's execute bit, which git sets from a `100755` tree entry.
+ */
+export type GitSkillFile = {
+  relativePath: string;
+  content: string;
+  size: number;
+  executable?: boolean;
+};
+
+/**
  * Clone a repo at the given branch or tag and return all files under skillsPath.
  * When `resolvedRef` is provided, fetch and check out that exact commit before
  * reading files so a mutable branch cannot drift from its lockfile SHA.
@@ -175,7 +187,7 @@ export async function fetchSkillFiles(params: {
   resolvedRef?: string;
   skillsPath: string;
   logger?: Logger;
-}): Promise<Array<{ relativePath: string; content: string; size: number }>> {
+}): Promise<GitSkillFile[]> {
   const { url, ref, resolvedRef, skillsPath, logger } = params;
   validateGitUrl(url, { logger });
   validateRef(ref);
@@ -278,13 +290,13 @@ async function walkDirectory(
   depth: number = 0,
   ctx: WalkContext = { totalFiles: 0, totalSize: 0 },
   logger?: Logger,
-): Promise<Array<{ relativePath: string; content: string; size: number }>> {
+): Promise<GitSkillFile[]> {
   if (depth > MAX_WALK_DEPTH) {
     throw new GitClientError(
       `Directory tree exceeds max depth of ${MAX_WALK_DEPTH}: "${dir}". Aborting to prevent resource exhaustion.`,
     );
   }
-  const results: Array<{ relativePath: string; content: string; size: number }> = [];
+  const results: GitSkillFile[] = [];
   for (const name of await listDirectoryEntryNames(dir)) {
     if (name === ".git") continue;
     const fullPath = join(dir, name);
@@ -315,7 +327,8 @@ async function walkDirectory(
         );
       }
       const content = await readFileContent(fullPath);
-      results.push({ relativePath: relative(outputRoot, fullPath), content, size });
+      const executable = await hasExecutableBit(fullPath);
+      results.push({ relativePath: relative(outputRoot, fullPath), content, size, executable });
     }
   }
   return results;
