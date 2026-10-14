@@ -5647,6 +5647,52 @@ targets: ["factorydroid"]
       expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("factorydroid"));
     });
 
+    it("should warn about qoder output-style options that leak to other tools or are ignored", async () => {
+      const rules = [
+        new RulesyncRule({
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "leaky-style.md",
+          frontmatter: { root: false, targets: ["*"], qoder: { channel: "output-style" } },
+          body: "Start with findings.",
+        }),
+        new RulesyncRule({
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "scoped-style.md",
+          frontmatter: {
+            root: false,
+            targets: ["qoder"],
+            qoder: { channel: "output-style", name: "Scoped" },
+          },
+          body: "Start with findings.",
+        }),
+        new RulesyncRule({
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "topic.md",
+          frontmatter: { root: false, targets: ["qoder"], qoder: { name: "Unused" } },
+          body: "Topic",
+        }),
+      ];
+
+      const toolFiles = await new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "qoder",
+      }).convertRulesyncFilesToToolFiles(rules);
+
+      const warnings = logger.warn.mock.calls.map(([message]) => String(message));
+      expect(warnings.filter((message) => message.includes("also targets other tools"))).toEqual([
+        expect.stringContaining("leaky-style.md"),
+      ]);
+      expect(warnings.filter((message) => message.includes("sets qoder.name"))).toEqual([
+        expect.stringContaining("topic.md"),
+      ]);
+      expect(
+        toolFiles
+          .filter((file) => file.getRelativeDirPath() === join(".qoder", "output-styles"))
+          .map((file) => file.getRelativeFilePath()),
+      ).toEqual(["leaky-style.md", "scoped-style.md"]);
+    });
+
     it("should expose every global-capable folded target to the regression matrix", () => {
       expect(globalFoldTargets).toEqual([
         "codebuff",
