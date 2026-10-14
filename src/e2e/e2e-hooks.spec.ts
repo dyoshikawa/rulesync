@@ -314,7 +314,7 @@ describe("E2E: hooks", () => {
         expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");
         expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/audit.sh");
       } else if (target === "gitlabduo") {
-        // GitLab Duo CLI documents only SessionStart, so `stop` (audit.sh) is
+        // GitLab Duo CLI reads SessionStart, PreToolUse and SessionEnd, so `stop` (audit.sh) is
         // dropped. Dot-relative commands are anchored to $DUO_PROJECT_DIR, which
         // the CLI sets for hook processes.
         expect(Object.keys(parsed.hooks)).toEqual(["SessionStart"]);
@@ -1358,7 +1358,7 @@ describe("E2E: hooks (global mode)", () => {
         expect(JSON.stringify(parsedHooks.events)).toContain(".rulesync/hooks/session-start.sh");
         expect(JSON.stringify(parsedHooks.events)).toContain(".rulesync/hooks/audit.sh");
       } else if (target === "gitlabduo") {
-        // GitLab Duo CLI documents only SessionStart, so audit.sh is dropped.
+        // GitLab Duo CLI has no `stop` event, so audit.sh is dropped.
         const parsed = JSON.parse(generatedContent);
         expect(Object.keys(parsed.hooks)).toEqual(["SessionStart"]);
         expect(JSON.stringify(parsed.hooks)).toContain(".rulesync/hooks/session-start.sh");

@@ -103,11 +103,19 @@ describe("CortexcodeHooks", () => {
       expect(parsed.hooks.Setup[0].hooks[0].command).toBe("setup.sh");
     });
 
-    it("should carry over timeout and enabled on command hooks", async () => {
+    it("should carry over timeout, enabled and statusMessage on command hooks", async () => {
       const rulesyncHooks = buildRulesyncHooks(testDir, {
         version: 1,
         hooks: {
-          stop: [{ type: "command", command: "audit.sh", timeout: 30, enabled: false }],
+          stop: [
+            {
+              type: "command",
+              command: "audit.sh",
+              timeout: 30,
+              enabled: false,
+              statusMessage: "Auditing",
+            },
+          ],
         },
       });
 
@@ -123,7 +131,26 @@ describe("CortexcodeHooks", () => {
         command: "audit.sh",
         timeout: 30,
         enabled: false,
+        statusMessage: "Auditing",
       });
+    });
+
+    it("should not emit statusMessage on prompt hooks", async () => {
+      const rulesyncHooks = buildRulesyncHooks(testDir, {
+        version: 1,
+        hooks: {
+          stop: [{ type: "prompt", prompt: "Done?", statusMessage: "Checking" }],
+        },
+      });
+
+      const hooks = await CortexcodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const parsed = JSON.parse(hooks.getFileContent());
+      expect(parsed.hooks.Stop[0].hooks[0]).toEqual({ type: "prompt", prompt: "Done?" });
     });
 
     it("should carry the remote-hook source object on command hooks", async () => {
@@ -409,7 +436,15 @@ describe("CortexcodeHooks", () => {
             PreToolUse: [
               {
                 matcher: "bash",
-                hooks: [{ type: "command", command: "pre.sh", timeout: 10, enabled: true }],
+                hooks: [
+                  {
+                    type: "command",
+                    command: "pre.sh",
+                    timeout: 10,
+                    enabled: true,
+                    statusMessage: "Checking",
+                  },
+                ],
               },
             ],
             PermissionRequest: [
@@ -430,6 +465,7 @@ describe("CortexcodeHooks", () => {
         matcher: "bash",
         timeout: 10,
         enabled: true,
+        statusMessage: "Checking",
       });
       expect(json.hooks.permissionRequest?.[0]).toMatchObject({
         type: "prompt",

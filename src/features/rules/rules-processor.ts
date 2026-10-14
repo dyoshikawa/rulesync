@@ -72,6 +72,7 @@ import { ClaudecodeLegacyRule } from "./claudecode-legacy-rule.js";
 import { ClaudecodeRule } from "./claudecode-rule.js";
 import { ClineRule } from "./cline-rule.js";
 import { CodebuddyRule } from "./codebuddy-rule.js";
+import { CodebuffRule } from "./codebuff-rule.js";
 import { CodewhaleRule } from "./codewhale-rule.js";
 import { CodexcliRule } from "./codexcli-rule.js";
 import { CommandcodeRule } from "./commandcode-rule.js";
@@ -367,6 +368,12 @@ type ToolRuleFactory = {
   meta: {
     /** File extension for the rule file */
     extension: "md" | "mdc";
+    /**
+     * Whether this tool supports project mode. Defaults to `true`; set it to
+     * `false` for a global-only target whose project files another target
+     * already writes (e.g. Codebuff reads the `agentsmd` target's `AGENTS.md`).
+     */
+    supportsProject?: boolean;
     /** Whether this tool supports global (user scope) mode */
     supportsGlobal: boolean;
     /** How non-root rules are discovered or referenced */
@@ -637,6 +644,25 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         ruleDiscoveryMode: "auto",
         localRootMode: "separate-local-file",
         localRootFileName: CODEBUDDY_LOCAL_RULE_FILE_NAME,
+      },
+    },
+  ],
+  [
+    "codebuff",
+    {
+      class: CodebuffRule,
+      meta: {
+        // Codebuff (Freebuff) reads the project-root AGENTS.md, which the
+        // `agentsmd` target already writes, so this target is global-only: it
+        // writes the home-directory `~/.AGENTS.md`, the highest-priority name
+        // the SDK's `loadUserKnowledgeFiles` looks for. There is no user-level
+        // rules directory, so non-root rules fold into that single file.
+        // https://github.com/CodebuffAI/freebuff/blob/main/sdk/src/run-state.ts
+        extension: "md",
+        supportsProject: false,
+        supportsGlobal: true,
+        ruleDiscoveryMode: "auto",
+        collisionPolicy: "fold",
       },
     },
   ],
@@ -1431,7 +1457,10 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
 
 const allToolTargetKeys = [...toolRuleFactories.keys()];
 
-const rulesProcessorToolTargets: ToolTarget[] = allToolTargetKeys;
+const rulesProcessorToolTargets: ToolTarget[] = allToolTargetKeys.filter((target) => {
+  const factory = toolRuleFactories.get(target);
+  return factory?.meta.supportsProject !== false;
+});
 
 const rulesProcessorToolTargetsGlobal: ToolTarget[] = allToolTargetKeys.filter((target) => {
   const factory = toolRuleFactories.get(target);
@@ -1590,7 +1619,7 @@ export class RulesProcessor extends FeatureProcessor {
     const factory = this.getFactory(this.toolTarget);
     const { meta } = factory;
     this.warnForIncludeRootOption(meta);
-    this.warnForFactorydroidRuleOptions({ rules: alignedRules, factory });
+    this.warnForOutputStyleRuleOptions({ rules: alignedRules, factory });
     const emittedRules = this.omitsRootFiles()
       ? await this.dropRootRules(alignedRules)
       : alignedRules;
@@ -1927,42 +1956,41 @@ export class RulesProcessor extends FeatureProcessor {
   }
 
   /**
-   * Warn about `factorydroid` frontmatter that does not do what it looks like
-   * it does: an `output-style` rule that also targets other tools reaches them
-   * as an ordinary rule (so presentation instructions end up in their project
-   * rules), and `factorydroid.name` is read only with `channel: output-style`.
-   * Checked while generating for factorydroid only, so each warning prints once.
+   * Warn about `factorydroid` / `qoder` frontmatter that does not do what it
+   * looks like it does: an `output-style` rule that also targets other tools
+   * reaches them as an ordinary rule (so presentation instructions end up in
+   * their project rules), and `<tool>.name` is read only with
+   * `channel: output-style`. Checked while generating for that tool only, so
+   * each warning prints once.
    */
-  private warnForFactorydroidRuleOptions({
+  private warnForOutputStyleRuleOptions({
     rules,
     factory,
   }: {
     rules: RulesyncRule[];
     factory: ToolRuleFactory;
   }): void {
-    if (this.toolTarget !== "factorydroid") {
+    const toolTarget = this.toolTarget;
+    if (toolTarget !== "factorydroid" && toolTarget !== "qoder") {
       return;
     }
     for (const rule of rules) {
       const frontmatter = rule.getFrontmatter();
-      if (
-        frontmatter.root ||
-        !frontmatter.factorydroid ||
-        !factory.class.isTargetedByRulesyncRule(rule)
-      ) {
+      const section = frontmatter[toolTarget];
+      if (frontmatter.root || !section || !factory.class.isTargetedByRulesyncRule(rule)) {
         continue;
       }
-      const { channel, name } = frontmatter.factorydroid;
+      const { channel, name } = section;
       const fileName = stripControlCharacters(rule.getRelativeFilePath());
       const targets = frontmatter.targets ?? ["*"];
-      if (channel === "output-style" && targets.some((target) => target !== "factorydroid")) {
+      if (channel === "output-style" && targets.some((target) => target !== toolTarget)) {
         this.logger.warn(
-          `${fileName} sets factorydroid.channel: output-style but also targets other tools, which receive it as an ordinary rule. Set \`targets: ["factorydroid"]\` to keep the output style to Factory Droid.`,
+          `${fileName} sets ${toolTarget}.channel: output-style but also targets other tools, which receive it as an ordinary rule. Set \`targets: ["${toolTarget}"]\` to keep the output style to ${toolTarget === "qoder" ? "Qoder" : "Factory Droid"}.`,
         );
       }
       if (channel !== "output-style" && name !== undefined) {
         this.logger.warn(
-          `${fileName} sets factorydroid.name, which is read only with factorydroid.channel: output-style; ignoring it.`,
+          `${fileName} sets ${toolTarget}.name, which is read only with ${toolTarget}.channel: output-style; ignoring it.`,
         );
       }
     }
