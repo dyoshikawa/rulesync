@@ -60,13 +60,16 @@ jobs:
         run: bun install
 
       - name: Build binaries
+        # --bytecode precompiles the bundle so the binaries start faster. It is
+        # left off the Windows target: that binary segfaults at startup when built
+        # with --bytecode (Bun 1.3.14).
         run: |
           mkdir -p dist-bun
           bun build --compile --minify --sourcemap --bytecode --target=bun-linux-x64 --outfile=dist-bun/rulesync-linux-x64 ./src/cli/index.ts
           bun build --compile --minify --sourcemap --bytecode --target=bun-linux-arm64 --outfile=dist-bun/rulesync-linux-arm64 ./src/cli/index.ts
           bun build --compile --minify --sourcemap --bytecode --target=bun-darwin-arm64 --outfile=dist-bun/rulesync-darwin-arm64 ./src/cli/index.ts
           bun build --compile --minify --sourcemap --bytecode --target=bun-darwin-x64 --outfile=dist-bun/rulesync-darwin-x64 ./src/cli/index.ts
-          bun build --compile --minify --sourcemap --bytecode --target=bun-windows-x64 --outfile=dist-bun/rulesync-windows-x64.exe ./src/cli/index.ts
+          bun build --compile --minify --sourcemap --target=bun-windows-x64 --outfile=dist-bun/rulesync-windows-x64.exe ./src/cli/index.ts
 
       - name: Generate checksums
         run: |
