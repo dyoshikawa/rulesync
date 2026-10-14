@@ -512,7 +512,9 @@ describe("git-client", () => {
         rootPath: "/tmp/test",
         targetPath: join("/tmp/test", "rules"),
       });
-      expect(files).toEqual([{ relativePath: "a.md", content: "content", size: 10 }]);
+      expect(files).toEqual([
+        { relativePath: "a.md", content: "content", size: 10, executable: false },
+      ]);
     });
 
     it.each(["", ".", "./", "./.", ".//", ".\\"])(
