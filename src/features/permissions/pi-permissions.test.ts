@@ -156,8 +156,8 @@ describe("PiPermissions", () => {
       global: true,
     });
 
-    // A project array replaces the global one upstream, so the two scopes are
-    // never combined; each is written from the same authored list.
+    // Pi layers the project array on the global one itself, so the two scopes
+    // are never combined; each is written from the same authored list.
     expect(permissions.getRelativeDirPath()).toBe(join(".pi", "agent"));
     expect(JSON.parse(permissions.getFileContent())).toEqual({ defaultTools: ["bash"] });
   });
