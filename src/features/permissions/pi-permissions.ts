@@ -29,9 +29,11 @@ const DEFAULT_TOOLS_KEY = "defaultTools";
  * the built-in tools enabled at startup (v0.84.2) — authored through the `pi`
  * permissions override.
  *
- * Scope semantics are the **opposite** of the union-merge most targets use:
- * a project `defaultTools` array *replaces* the global array rather than adding
- * to it, so the two scopes are written independently and never combined.
+ * Scope layering is Pi's own rather than the union-merge most targets use:
+ * a project `defaultTools` array with a plain name *replaces* the global
+ * array, while one made only of `+name` / `-name` entries (Pi v0.99.0+) changes
+ * the global selection instead. Entries are written verbatim, so the two
+ * scopes are written independently and never combined by rulesync.
  * Project scope writes `.pi/settings.json`; global scope writes
  * `~/.pi/agent/settings.json`.
  *
