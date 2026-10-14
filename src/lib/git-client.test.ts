@@ -17,6 +17,7 @@ vi.mock("../utils/file.js", async (importOriginal) => ({
   isSymlink: vi.fn(),
   listDirectoryEntryNames: vi.fn(),
   getFileSize: vi.fn(),
+  hasExecutableBit: vi.fn().mockResolvedValue(false),
   readFileContent: vi.fn(),
   resolvedPathEscapesRoot: vi.fn(),
 }));
@@ -26,6 +27,7 @@ import {
   createTempDirectory,
   directoryExists,
   getFileSize,
+  hasExecutableBit,
   isSymlink,
   listDirectoryEntryNames,
   readFileContent,
@@ -309,8 +311,39 @@ describe("git-client", () => {
         ref: "main",
         skillsPath: "skills",
       });
-      expect(files).toEqual([{ relativePath: "skill-a/file.md", content: "# Content", size: 100 }]);
+      expect(files).toEqual([
+        { relativePath: "skill-a/file.md", content: "# Content", size: 100, executable: false },
+      ]);
       expect(removeTempDirectory).toHaveBeenCalledWith("/tmp/test");
+    });
+
+    it("reports the execute bit of each checked-out file", async () => {
+      mockExecFileAsync.mockResolvedValue({ stdout: "", stderr: "" });
+      vi.mocked(createTempDirectory).mockResolvedValue("/tmp/test");
+      vi.mocked(removeTempDirectory).mockResolvedValue(undefined);
+      vi.mocked(directoryExists).mockImplementation(
+        async (p: string) => p.endsWith("skills") || p.endsWith("skill-a"),
+      );
+      vi.mocked(listDirectoryEntryNames).mockImplementation(async (d: string) => {
+        if (d.endsWith("skills")) return ["skill-a"];
+        if (d.endsWith("skill-a")) return ["SKILL.md", "run.sh"];
+        return [];
+      });
+      vi.mocked(getFileSize).mockResolvedValue(10);
+      vi.mocked(readFileContent).mockResolvedValue("content");
+      vi.mocked(hasExecutableBit).mockImplementation(async (p: string) => p.endsWith("run.sh"));
+
+      const files = await fetchSkillFiles({
+        url: "https://example.com/repo.git",
+        ref: "main",
+        skillsPath: "skills",
+      });
+
+      expect(files.map(({ relativePath, executable }) => ({ relativePath, executable }))).toEqual([
+        { relativePath: join("skill-a", "SKILL.md"), executable: false },
+        { relativePath: join("skill-a", "run.sh"), executable: true },
+      ]);
+      vi.mocked(hasExecutableBit).mockResolvedValue(false);
     });
 
     it("rejects skillsPath with path traversal", async () => {
@@ -479,7 +512,9 @@ describe("git-client", () => {
         rootPath: "/tmp/test",
         targetPath: join("/tmp/test", "rules"),
       });
-      expect(files).toEqual([{ relativePath: "a.md", content: "content", size: 10 }]);
+      expect(files).toEqual([
+        { relativePath: "a.md", content: "content", size: 10, executable: false },
+      ]);
     });
 
     it.each(["", ".", "./", "./.", ".//", ".\\"])(

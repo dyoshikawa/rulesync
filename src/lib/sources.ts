@@ -21,6 +21,7 @@ import {
   assertDirectoryIfExists,
   assertTreeContainsNoSymlinks,
   assertWritablePathInsideRoot,
+  applyFileMode,
   checkPathTraversal,
   directoryExists,
   fileExists,
@@ -40,7 +41,7 @@ import {
   validateRef,
 } from "./git-client.js";
 import { GitHubClient, GitHubClientError, logGitHubAuthHints } from "./github-client.js";
-import { listDirectoryRecursive, withSemaphore } from "./github-utils.js";
+import { listDirectoryRecursive, resolveExecutablePaths, withSemaphore } from "./github-utils.js";
 import {
   DEFAULT_NPM_REGISTRY_URL,
   fetchPackument,
@@ -133,6 +134,13 @@ function getEarlySourcesResult(params: {
 type RemoteSkillFile = {
   relativePath: string;
   content: string;
+  /**
+   * Whether the source records the file as executable (git mode `100755`, a
+   * checked-out file with an execute bit, or a tar entry with one). A skill's
+   * `scripts/run.sh` keeps its bit in `.curated/`, so the skill generated from
+   * it stays runnable.
+   */
+  executable?: boolean;
 };
 
 type RemoteRuleFile = {
@@ -1189,7 +1197,7 @@ async function writeRuleAndComputeIntegrity(params: {
  */
 async function writeSkillAndComputeIntegrity(params: {
   skillName: string;
-  files: Array<{ relativePath: string; content: string }>;
+  files: RemoteSkillFile[];
   curatedDir: string;
   locked: LockedSource | undefined;
   resolvedSha: string;
@@ -1204,7 +1212,11 @@ async function writeSkillAndComputeIntegrity(params: {
       relativePath: file.relativePath,
       intendedRootDir: join(curatedDir, skillName),
     });
-    await writeFileContent(join(curatedDir, skillName, file.relativePath), file.content);
+    const filePath = join(curatedDir, skillName, file.relativePath);
+    await writeFileContent(filePath, file.content);
+    if (file.executable === true) {
+      await applyFileMode(filePath, 0o755);
+    }
     written.push({ path: file.relativePath, content: file.content });
   }
 
@@ -1415,7 +1427,7 @@ function groupRemoteFilesBySkillRoot(params: {
 
     const innerPath = file.relativePath.substring(separatorIndex + 1);
     const groupedFiles = grouped.get(skillName) ?? [];
-    groupedFiles.push({ relativePath: innerPath, content: file.content });
+    groupedFiles.push({ ...file, relativePath: innerPath });
     grouped.set(skillName, groupedFiles);
   }
 
@@ -1883,6 +1895,50 @@ async function fetchRulesViaGit(params: {
   };
 }
 
+/** Lists the paths a GitHub source records as executable, at most once per source. */
+type ExecutablePathsLoader = () => Promise<Set<string>>;
+
+/**
+ * The tree listing behind the executable bits of a GitHub source's skill
+ * files. It is requested lazily and shared by every skill of the source, so a
+ * source whose skills are only `SKILL.md` files sends no extra request.
+ */
+function createExecutablePathsLoader(params: {
+  client: GitHubClient;
+  owner: string;
+  repo: string;
+  ref: string;
+  logger: Logger;
+}): ExecutablePathsLoader {
+  let pending: Promise<Set<string>> | undefined;
+  return () => {
+    pending ??= resolveExecutablePaths(params);
+    return pending;
+  };
+}
+
+/**
+ * Mark the fetched files git records as executable (mode `100755`). The
+ * contents API carries no mode, so the tree listing supplies it; `SKILL.md`
+ * itself is never run, so a skill made of nothing else needs no lookup.
+ */
+async function markExecutableRemoteFiles(params: {
+  files: Array<{ remotePath: string; file: RemoteSkillFile }>;
+  getExecutablePaths: ExecutablePathsLoader;
+}): Promise<RemoteSkillFile[]> {
+  const { files, getExecutablePaths } = params;
+  const hasSupportingFile = files.some(
+    ({ file }) => posix.basename(file.relativePath) !== SKILL_FILE_NAME,
+  );
+  if (!hasSupportingFile) {
+    return files.map(({ file }) => file);
+  }
+  const executablePaths = await getExecutablePaths();
+  return files.map(({ remotePath, file }) =>
+    executablePaths.has(remotePath) ? { ...file, executable: true } : file,
+  );
+}
+
 /**
  * Fallback path used when an explicit single-skill source points at a flat skill
  * with root-level files. Fetches and writes that skill into `fetchedSkills`.
@@ -1902,6 +1958,7 @@ async function fetchRootLevelFallbackSkill(params: {
   alreadyFetchedSkillNames: Set<string>;
   client: GitHubClient;
   semaphore: Semaphore;
+  getExecutablePaths: ExecutablePathsLoader;
   fetchedSkills: Record<string, LockedSkill>;
   logger: Logger;
 }): Promise<{ handled: boolean; remoteSkillNames: string[] }> {
@@ -1919,12 +1976,13 @@ async function fetchRootLevelFallbackSkill(params: {
     alreadyFetchedSkillNames,
     client,
     semaphore,
+    getExecutablePaths,
     fetchedSkills,
     logger,
   } = params;
 
   const rootFiles = entries.filter((entry) => entry.type === "file");
-  const rootSkillFiles: RemoteSkillFile[] = [];
+  const fetchedRootFiles: Array<{ remotePath: string; file: RemoteSkillFile }> = [];
 
   for (const file of rootFiles) {
     if (file.size > MAX_FILE_SIZE) {
@@ -1936,8 +1994,12 @@ async function fetchRootLevelFallbackSkill(params: {
     const content = await withSemaphore(semaphore, () =>
       client.getFileContent(parsed.owner, parsed.repo, file.path, ref),
     );
-    rootSkillFiles.push({ relativePath: file.name, content });
+    fetchedRootFiles.push({ remotePath: file.path, file: { relativePath: file.name, content } });
   }
+  const rootSkillFiles = await markExecutableRemoteFiles({
+    files: fetchedRootFiles,
+    getExecutablePaths,
+  });
 
   const groupedRootFiles = groupRemoteFilesBySkillRoot({
     remoteFiles: rootSkillFiles,
@@ -1987,6 +2049,7 @@ async function fetchGithubSkillDir(params: {
   sourceKey: string;
   client: GitHubClient;
   semaphore: Semaphore;
+  getExecutablePaths: ExecutablePathsLoader;
   logger: Logger;
 }): Promise<LockedSkill> {
   const {
@@ -1999,6 +2062,7 @@ async function fetchGithubSkillDir(params: {
     sourceKey,
     client,
     semaphore,
+    getExecutablePaths,
     logger,
   } = params;
 
@@ -2024,18 +2088,18 @@ async function fetchGithubSkillDir(params: {
   });
 
   // Fetch all file contents
-  const skillFiles: Array<{ relativePath: string; content: string }> = [];
+  const fetchedFiles: Array<{ remotePath: string; file: RemoteSkillFile }> = [];
   for (const file of files) {
     const relativeToSkill = file.path.substring(skillDir.path.length + 1);
     const content = await withSemaphore(semaphore, () =>
       client.getFileContent(parsed.owner, parsed.repo, file.path, ref),
     );
-    skillFiles.push({ relativePath: relativeToSkill, content });
+    fetchedFiles.push({ remotePath: file.path, file: { relativePath: relativeToSkill, content } });
   }
 
   return writeSkillAndComputeIntegrity({
     skillName: skillDir.name,
-    files: skillFiles,
+    files: await markExecutableRemoteFiles({ files: fetchedFiles, getExecutablePaths }),
     curatedDir,
     locked,
     resolvedSha,
@@ -2063,6 +2127,7 @@ async function discoverGithubSkillDirs(params: {
   alreadyFetchedSkillNames: Set<string>;
   client: GitHubClient;
   semaphore: Semaphore;
+  getExecutablePaths: ExecutablePathsLoader;
   fetchedSkills: Record<string, LockedSkill>;
   logger: Logger;
 }): Promise<
@@ -2087,6 +2152,7 @@ async function discoverGithubSkillDirs(params: {
     alreadyFetchedSkillNames,
     client,
     semaphore,
+    getExecutablePaths,
     fetchedSkills,
     logger,
   } = params;
@@ -2131,6 +2197,7 @@ async function discoverGithubSkillDirs(params: {
         alreadyFetchedSkillNames,
         client,
         semaphore,
+        getExecutablePaths,
         fetchedSkills,
         logger,
       });
@@ -2233,6 +2300,13 @@ async function fetchSource(params: {
   const skillFilter = sourceEntry.skills ?? ["*"];
   const isWildcard = skillFilter.length === 1 && skillFilter[0] === "*";
   const semaphore = new Semaphore(FETCH_CONCURRENCY_LIMIT);
+  const getExecutablePaths = createExecutablePathsLoader({
+    client,
+    owner: parsed.owner,
+    repo: parsed.repo,
+    ref,
+    logger,
+  });
   const fetchedSkills: Record<string, LockedSkill> = {};
 
   // List the skills/ directory in the remote repo.
@@ -2251,6 +2325,7 @@ async function fetchSource(params: {
     alreadyFetchedSkillNames,
     client,
     semaphore,
+    getExecutablePaths,
     fetchedSkills,
     logger,
   });
@@ -2293,6 +2368,7 @@ async function fetchSource(params: {
       sourceKey,
       client,
       semaphore,
+      getExecutablePaths,
       logger,
     });
     logger.debug(`Fetched skill "${skillDir.name}" from ${sourceKey}`);
@@ -2480,8 +2556,8 @@ function selectNpmSkillFiles(params: {
   const filesUnderBase = allFiles
     .filter((file) => file.relativePath.startsWith(prefix))
     .map((file) => ({
+      ...file,
       relativePath: file.relativePath.substring(prefix.length),
-      content: file.content,
     }));
   if (filesUnderBase.length > 0) {
     return { remoteFiles: filesUnderBase, skillFilter, isWildcard };
@@ -2600,7 +2676,11 @@ function extractNpmRemoteFiles(params: { tarball: Buffer; logger: Logger }): Rem
       );
       continue;
     }
-    allFiles.push({ relativePath: entry.relativePath, content: entry.content.toString("utf8") });
+    allFiles.push({
+      relativePath: entry.relativePath,
+      content: entry.content.toString("utf8"),
+      executable: entry.executable,
+    });
   }
   return allFiles;
 }

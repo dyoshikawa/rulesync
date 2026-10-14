@@ -120,6 +120,7 @@ const deriveRulesEntries = (): GitignoreEntryTag[] => {
   const factories = getProcessorRegistryEntry("rules").factory as unknown as FactoryMap;
   for (const [target, factory] of factories) {
     if (TARGETS_NOT_DERIVED.has(target)) continue;
+    if (!supportsProject(factory)) continue;
     const paths = getProjectPaths(factory) as {
       root?: { relativeDirPath: string; relativeFilePath: string };
       alternativeRoots?: ReadonlyArray<{ relativeDirPath: string; relativeFilePath: string }>;

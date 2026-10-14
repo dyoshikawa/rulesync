@@ -919,12 +919,20 @@ export const JUNIE_HOOK_EVENTS: readonly HookEvent[] = [
 ];
 
 /**
- * Hook events supported by the GitLab Duo CLI. Only `SessionStart` is
- * documented; its optional regex matcher filters on the session source
- * (`startup`, `resume`). Only `type: "command"` hooks are supported.
+ * Hook events supported by the GitLab Duo CLI. `SessionStart` is documented;
+ * `PreToolUse` and `SessionEnd` ship in gitlab-lsp (`HOOK_EVENT_NAMES`, v9.28.0+)
+ * but are not on docs.gitlab.com yet. The optional regex matcher filters on the
+ * session source (`startup`, `resume`) for `SessionStart`, on `tool_name` for
+ * `PreToolUse`, and on the end reason for `SessionEnd`. Only `type: "command"`
+ * hooks are supported.
  * @see https://docs.gitlab.com/user/gitlab_duo_cli/customize/
+ * @see https://gitlab.com/gitlab-org/editor-extensions/gitlab-lsp/-/blob/main/packages/core/hooks/src/schema.ts
  */
-export const GITLABDUO_HOOK_EVENTS: readonly HookEvent[] = ["sessionStart"];
+export const GITLABDUO_HOOK_EVENTS: readonly HookEvent[] = [
+  "sessionStart",
+  "preToolUse",
+  "sessionEnd",
+];
 
 /**
  * Hook events supported by Qwen Code.
@@ -2423,6 +2431,8 @@ export const KIRO_IDE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.
  */
 export const CANONICAL_TO_GITLABDUO_EVENT_NAMES: Record<string, string> = {
   sessionStart: "SessionStart",
+  preToolUse: "PreToolUse",
+  sessionEnd: "SessionEnd",
 };
 
 /**

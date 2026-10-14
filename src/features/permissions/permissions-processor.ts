@@ -516,7 +516,8 @@ export const toolPermissionsFactories = new Map<
       class: PiPermissions,
       meta: {
         // `.pi/settings.json` (project) and `~/.pi/agent/settings.json`
-        // (global); a project `defaultTools` array replaces the global one.
+        // (global); Pi layers a project `defaultTools` array on the global one
+        // itself (plain names replace it, `+name` / `-name` entries adjust it).
         supportsProject: true,
         supportsGlobal: true,
         supportsImport: true,

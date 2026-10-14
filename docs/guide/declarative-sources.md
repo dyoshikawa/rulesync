@@ -127,7 +127,7 @@ When `rulesync install` runs and `sources` is configured:
 4. **Precedence rules**:
    - **Local inputs win within one source tree** — Rules and skills outside `.curated/` take precedence over a same-named curated artifact in that input root. Across multiple `inputRoots`, root order remains primary: a later root replaces an earlier root's effective artifact even when the later artifact is curated.
    - **First-declared source wins** — If two sources provide an artifact with the same name, the one declared first in the `sources` array is used.
-5. **Output** — Fetched rules are written to `.rulesync/rules/.curated/<rule-name>.md`; fetched skills are written to `.rulesync/skills/.curated/<skill-name>/`. Both directories are automatically added to `.gitignore` by `rulesync gitignore`.
+5. **Output** — Fetched rules are written to `.rulesync/rules/.curated/<rule-name>.md`; fetched skills are written to `.rulesync/skills/.curated/<skill-name>/`. Both directories are automatically added to `.gitignore` by `rulesync gitignore`. A skill's supporting file that the source records as executable keeps that bit in `.curated/` (mode `0755`), so `rulesync generate` carries it into each generated skill directory and a `scripts/run.sh` the skill tells the agent to run stays runnable. The GitHub transport reads the mode from the repository tree (git mode `100755`) with one extra request per source, and only when a fetched skill has files beside `SKILL.md`; if the tree is cut short or cannot be read, the files are still installed without the bit and a warning says so. The git transport takes the bit from the checked-out file, and the npm transport from the tarball entry's mode.
 
 ## Install Modes
 

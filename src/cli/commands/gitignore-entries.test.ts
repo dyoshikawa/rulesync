@@ -654,6 +654,13 @@ describe("committedOutput check outputs", () => {
     expect(entries).toContain("**/.factory/threat-model.md");
   });
 
+  it("derives no rules entry for a global-only target such as Codebuff's ~/.AGENTS.md", () => {
+    const entries = deriveAllGitignoreEntries().filter(
+      (tag) => tag.feature === "rules" && tag.target === "codebuff",
+    );
+    expect(entries).toEqual([]);
+  });
+
   it("keeps the committedOutput flag meaningful (at least one checks factory sets it)", async () => {
     const { toolCheckFactories } = await import("../../features/checks/checks-processor.js");
     const flagged = [...toolCheckFactories.values()].filter(

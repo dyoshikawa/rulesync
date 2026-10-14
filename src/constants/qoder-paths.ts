@@ -22,6 +22,13 @@ export const QODER_RULE_FILE_NAME = "AGENTS.md";
 export const QODER_LOCAL_RULE_FILE_NAME = "AGENTS.local.md";
 export const QODER_RULES_DIR_PATH = join(QODER_DIR, "rules");
 
+// Custom output styles: Markdown files (optional `name` / `description`
+// frontmatter) under `.qoder/output-styles/` (project) and
+// `~/.qoder/output-styles/` (user), appended to the system prompt once picked
+// with the top-level `outputStyle` setting or `--output-style`.
+// @see https://docs.qoder.com/cli/output-styles
+export const QODER_OUTPUT_STYLES_DIR_PATH = join(QODER_DIR, "output-styles");
+
 // Settings. `~/.qoder/settings.json` (user) carries the user MCP servers in its
 // `mcpServers` key beside every other Qoder setting, so rulesync merges that
 // key in place.

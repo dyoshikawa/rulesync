@@ -1,9 +1,10 @@
-import { join } from "node:path";
+import { basename, extname, join } from "node:path";
 
 import { z } from "zod/mini";
 
 import {
   QODER_DIR,
+  QODER_OUTPUT_STYLES_DIR_PATH,
   QODER_RULE_FILE_NAME,
   QODER_RULES_DIR_PATH,
 } from "../../constants/qoder-paths.js";
@@ -17,6 +18,7 @@ import { warnWithFallback } from "../../utils/logger.js";
 import { RulesyncRule, RulesyncRuleFrontmatter } from "./rulesync-rule.js";
 import {
   ToolRule,
+  ToolRuleExtraFixedFile,
   ToolRuleForDeletionParams,
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
@@ -47,6 +49,11 @@ export type QoderRuleFrontmatter = z.infer<typeof QoderRuleFrontmatterSchema>;
 export type QoderRuleParams = Omit<ToolRuleParams, "fileContent"> & {
   frontmatter: QoderRuleFrontmatter;
   body: string;
+  /**
+   * Marks a custom output style (`.qoder/output-styles/<name>.md`, opted into
+   * with `qoder.channel: output-style`) instead of a topic rule.
+   */
+  outputStyle?: boolean;
 };
 
 export type QoderRuleSettablePaths = Omit<ToolRuleSettablePaths, "root" | "nonRoot"> & {
@@ -70,6 +77,13 @@ const UNIVERSAL_GLOBS = new Set(["**/*", "*", "**"]);
  * Any other mode is kept in the `qoder` section so it survives a round trip.
  */
 const INFERABLE_TRIGGERS = new Set(["always_on", "glob"]);
+
+/**
+ * The file-name glob `getExtraFixedFiles` returns for the output-styles
+ * directory, so import enumerates every style in it (never deletion: the
+ * directory also holds hand-written styles).
+ */
+const OUTPUT_STYLE_FILE_GLOB = "*.md";
 
 function normalizeGlobList(value: string | string[] | undefined): string[] {
   if (value === undefined) {
@@ -117,13 +131,20 @@ function resolveTrigger(frontmatter: QoderRuleFrontmatter): string {
  * A `qoder.trigger` (for example `model_decision` or `manual`) always takes
  * precedence and round-trips through import.
  *
+ * A non-root rule with `qoder.channel: output-style` becomes a custom output
+ * style instead, `.qoder/output-styles/<rule file name>.md` (both scopes),
+ * with the rule's `description` and optional `qoder.name` as the style's
+ * `description` / `name` frontmatter.
+ *
  * @see https://docs.qoder.com/en/cli/04-extending-qoder-cli/memory
+ * @see https://docs.qoder.com/cli/output-styles
  */
 export class QoderRule extends ToolRule {
   private readonly frontmatter: QoderRuleFrontmatter;
   private readonly body: string;
+  private readonly outputStyle: boolean;
 
-  constructor({ frontmatter, body, ...rest }: QoderRuleParams) {
+  constructor({ frontmatter, body, outputStyle = false, ...rest }: QoderRuleParams) {
     if (rest.validate) {
       const result = QoderRuleFrontmatterSchema.safeParse(frontmatter);
       if (!result.success) {
@@ -135,12 +156,62 @@ export class QoderRule extends ToolRule {
 
     super({
       ...rest,
-      // The root AGENTS.md is plain Markdown; topic rules carry frontmatter.
-      fileContent: rest.root ? body : stringifyFrontmatter(body, frontmatter),
+      // The root AGENTS.md is plain Markdown; topic rules carry frontmatter,
+      // and so does an output style unless it has none to carry.
+      fileContent:
+        rest.root || (outputStyle && Object.keys(frontmatter).length === 0)
+          ? body
+          : stringifyFrontmatter(body, frontmatter),
     });
 
     this.frontmatter = frontmatter;
     this.body = body;
+    this.outputStyle = outputStyle;
+  }
+
+  /**
+   * Whether the given path is a custom output style: a direct `.md` child of
+   * `.qoder/output-styles/`, at either scope.
+   */
+  private static isOutputStylePath({
+    relativeDirPath,
+    relativeFilePath,
+  }: {
+    relativeDirPath: string | undefined;
+    relativeFilePath: string;
+  }): boolean {
+    return (
+      relativeDirPath === QODER_OUTPUT_STYLES_DIR_PATH &&
+      extname(relativeFilePath) === ".md" &&
+      basename(relativeFilePath) === relativeFilePath
+    );
+  }
+
+  /** Whether a rule opts into the `output-style` channel (non-root only). */
+  private static isOutputStyleRule(rulesyncRule: RulesyncRule): boolean {
+    const frontmatter = rulesyncRule.getFrontmatter();
+    return !frontmatter.root && frontmatter.qoder?.channel === "output-style";
+  }
+
+  /**
+   * The output-styles directory, enumerated for import only: it also holds
+   * styles users write by hand (including personal ones in
+   * `~/.qoder/output-styles/`) that rulesync cannot tell from its own, so
+   * `--delete` leaves it alone.
+   */
+  static getExtraFixedFiles(_params: { global?: boolean } = {}): ToolRuleExtraFixedFile[] {
+    return [
+      {
+        relativeDirPath: QODER_OUTPUT_STYLES_DIR_PATH,
+        relativeFilePath: OUTPUT_STYLE_FILE_GLOB,
+        importOnly: true,
+      },
+    ];
+  }
+
+  /** Qoder loads output styles itself; they are not rules to reference. */
+  override isExcludedFromRootReferences(): boolean {
+    return this.outputStyle;
   }
 
   static getSettablePaths({
@@ -172,6 +243,20 @@ export class QoderRule extends ToolRule {
     global = false,
   }: ToolRuleFromFileParams): Promise<QoderRule> {
     const paths = this.getSettablePaths({ global });
+    if (this.isOutputStylePath({ relativeDirPath, relativeFilePath })) {
+      const filePath = join(outputRoot, QODER_OUTPUT_STYLES_DIR_PATH, relativeFilePath);
+      const { frontmatter, body } = parseFrontmatter(await readFileContent(filePath), filePath);
+      return new QoderRule({
+        outputRoot,
+        relativeDirPath: QODER_OUTPUT_STYLES_DIR_PATH,
+        relativeFilePath,
+        frontmatter,
+        body: body.trim(),
+        validate,
+        root: false,
+        outputStyle: true,
+      });
+    }
     // Dispatch on the directory the processor resolved, not on the file name:
     // a topic rule named `AGENTS.md` inside `.qoder/rules/` must not be misread
     // as the root file. Fall back to the file name when the caller omits it.
@@ -227,6 +312,10 @@ export class QoderRule extends ToolRule {
     const paths = this.getSettablePaths({ global });
     const body = rulesyncRule.getBody();
 
+    if (this.isOutputStyleRule(rulesyncRule)) {
+      return this.buildOutputStyle({ outputRoot, rulesyncRule, validate });
+    }
+
     if (root) {
       return new QoderRule({
         outputRoot,
@@ -253,6 +342,43 @@ export class QoderRule extends ToolRule {
     });
   }
 
+  /**
+   * Write an `output-style` rule as `.qoder/output-styles/<name>.md`. The file
+   * name is the rule's own, so a rule nested under `.rulesync/rules/` is
+   * refused: Qoder reads only the files directly in `output-styles/`.
+   */
+  private static buildOutputStyle({
+    outputRoot,
+    rulesyncRule,
+    validate,
+  }: {
+    outputRoot: string;
+    rulesyncRule: RulesyncRule;
+    validate: boolean;
+  }): QoderRule {
+    const { description, qoder } = rulesyncRule.getFrontmatter();
+    const sourcePath = rulesyncRule.getRelativeFilePath();
+    if (basename(sourcePath) !== sourcePath) {
+      throw new Error(
+        `Rule '${sourcePath}' sets qoder.channel: output-style but is nested in a subdirectory: Qoder reads only the files directly in .qoder/output-styles/, so move it to the top of ${RULESYNC_RULES_RELATIVE_DIR_PATH}.`,
+      );
+    }
+    const name = qoder?.name;
+    return new QoderRule({
+      outputRoot,
+      relativeDirPath: QODER_OUTPUT_STYLES_DIR_PATH,
+      relativeFilePath: `${basename(sourcePath, extname(sourcePath))}.md`,
+      frontmatter: {
+        ...(name !== undefined && { name }),
+        ...(description !== undefined && { description }),
+      },
+      body: rulesyncRule.getBody(),
+      validate,
+      root: false,
+      outputStyle: true,
+    });
+  }
+
   private static buildFrontmatter(
     rulesyncFrontmatter: RulesyncRuleFrontmatter,
     relativeFilePath: string,
@@ -260,6 +386,9 @@ export class QoderRule extends ToolRule {
     const {
       trigger: storedTrigger,
       glob: storedGlob,
+      // Output-style keys, never written to a topic rule.
+      channel: _channel,
+      name: _name,
       ...section
     } = rulesyncFrontmatter.qoder ?? {};
     const specificGlobs = normalizeGlobList(storedGlob ?? rulesyncFrontmatter.globs).filter(
@@ -295,6 +424,28 @@ export class QoderRule extends ToolRule {
   toRulesyncRule(): RulesyncRule {
     if (this.isRoot()) {
       return this.toRulesyncRuleDefault();
+    }
+    if (this.outputStyle) {
+      // The style's `name` / `description` map back onto `qoder.name` /
+      // `description`, and the file keeps its own name, so generate writes it
+      // back to the same path.
+      const { name, description } = this.frontmatter;
+      return new RulesyncRule({
+        outputRoot: this.getOutputRoot(),
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+        relativeFilePath: this.getRelativeFilePath(),
+        frontmatter: {
+          root: false,
+          targets: ["qoder"],
+          ...(typeof description === "string" && { description }),
+          qoder: {
+            channel: "output-style",
+            ...(typeof name === "string" && name.trim() !== "" && { name }),
+          },
+        },
+        body: this.body,
+        validate: true,
+      });
     }
 
     const trigger = resolveTrigger(this.frontmatter);
@@ -367,6 +518,7 @@ export class QoderRule extends ToolRule {
     relativeDirPath,
     relativeFilePath,
   }: ToolRuleForDeletionParams): QoderRule {
+    const outputStyle = this.isOutputStylePath({ relativeDirPath, relativeFilePath });
     return new QoderRule({
       outputRoot,
       relativeDirPath,
@@ -374,7 +526,11 @@ export class QoderRule extends ToolRule {
       frontmatter: {},
       body: "",
       validate: false,
-      root: relativeDirPath !== QODER_RULES_DIR_PATH && relativeFilePath === QODER_RULE_FILE_NAME,
+      root:
+        !outputStyle &&
+        relativeDirPath !== QODER_RULES_DIR_PATH &&
+        relativeFilePath === QODER_RULE_FILE_NAME,
+      outputStyle,
     });
   }
 

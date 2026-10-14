@@ -81,6 +81,53 @@ describe("GitlabduoMcp", () => {
     expect(warn).toHaveBeenCalledTimes(1);
   });
 
+  it("should write the canonical timeout as timeoutMs", () => {
+    const warn = vi.fn();
+    const mcp = GitlabduoMcp.fromRulesyncMcp({
+      outputRoot: testDir,
+      rulesyncMcp: makeRulesyncMcp({
+        mcpServers: {
+          local: { command: "node", timeout: 120000 },
+          remote: { url: "https://example.com/mcp", timeout: 5000 },
+          explicit: { command: "node", timeout: 1000, timeoutMs: 2000 },
+          invalid: { command: "node", timeout: 1.5 },
+        },
+      }),
+      logger: { warn } as never,
+    });
+
+    expect(mcp.getJson()).toEqual({
+      mcpServers: {
+        local: { type: "stdio", command: "node", timeoutMs: 120000 },
+        remote: { type: "http", url: "https://example.com/mcp", timeoutMs: 5000 },
+        explicit: { type: "stdio", command: "node", timeoutMs: 2000 },
+        invalid: { type: "stdio", command: "node" },
+      },
+    });
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0]?.[0]).toContain('"invalid"');
+  });
+
+  it("should import timeoutMs as the canonical timeout", async () => {
+    await writeFileContent(
+      join(testDir, ".gitlab", "duo", "mcp.json"),
+      JSON.stringify({
+        mcpServers: {
+          s: { type: "stdio", command: "node", timeoutMs: 60000 },
+          both: { type: "stdio", command: "node", timeout: 1000, timeoutMs: 60000 },
+        },
+      }),
+    );
+
+    const mcp = await GitlabduoMcp.fromFile({ outputRoot: testDir });
+    const json = JSON.parse(mcp.toRulesyncMcp().getFileContent());
+
+    expect(json.mcpServers).toEqual({
+      s: { type: "stdio", command: "node", timeout: 60000 },
+      both: { type: "stdio", command: "node", timeout: 1000, timeoutMs: 60000 },
+    });
+  });
+
   it("should apply the gitlabduo tool-scoped block", () => {
     const rulesyncMcp = makeRulesyncMcp({
       mcpServers: { shared: { command: "node" } },
