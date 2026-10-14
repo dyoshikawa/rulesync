@@ -44,7 +44,7 @@ export const TOOL_DISPLAY: ReadonlyArray<ToolDisplayEntry> = [
   { key: "kimi-code-plugin", label: "Kimi Code plugin", group: "ai" },
   { key: "roo", label: "Roo Code ⚠️", group: "ai" },
   { key: "zoocode", label: "Zoo Code", group: "ai" },
-  { key: "rovodev", label: "Rovodev (Atlassian)", group: "ai" },
+  { key: "rovodev", label: "Rovodev (Atlassian) ⚠️", group: "ai" },
   { key: "takt", label: "Takt", group: "ai" },
   { key: "trae", label: "Trae", group: "ai" },
   { key: "tabnine", label: "Tabnine CLI ⚠️", group: "ai" },

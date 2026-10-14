@@ -1112,6 +1112,11 @@ Body from inputRoots[0]`;
         join(testDir, ".devin", "agents", "nested", "AGENT.md"),
         "---\nname: nested\ndescription: Directory layout\n---\n\nNested body",
       );
+      // An unparseable directory-form file is still an orphan to sweep.
+      await writeFileContent(
+        join(testDir, ".devin", "agents", "unnamed", "AGENT.md"),
+        "---\ndescription: No name\n---\n\nBody",
+      );
       const processor = new SubagentsProcessor({
         logger: createMockLogger(),
         outputRoot: testDir,
@@ -1122,6 +1127,7 @@ Body from inputRoots[0]`;
 
       expect(toolFiles.map((file) => file.getRelativeFilePath())).toEqual([
         join("nested", "AGENT.md"),
+        join("unnamed", "AGENT.md"),
       ]);
     });
 

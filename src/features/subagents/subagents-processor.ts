@@ -170,6 +170,11 @@ type ToolSubagentFactory = {
     /** Markdown in this directory may not be an agent; leave invalid files out of imports and orphan sweeps. */
     skipInvalidFiles?: boolean;
     /**
+     * Like {@link skipInvalidFiles}, but for import only: orphan deletion still
+     * sweeps every file matching `filePattern`, parseable or not.
+     */
+    skipInvalidImportFiles?: boolean;
+    /**
      * The tool discovers agents in subdirectories, so a nested rulesync source
      * such as `review/security.md` keeps its path. Targets without this flag
      * only read a flat directory and skip nested sources with a warning.
@@ -184,6 +189,11 @@ type ToolSubagentFactory = {
  */
 function importFilePatternsOf(meta: ToolSubagentFactory["meta"]): string | string[] {
   return meta.importFilePatterns ?? meta.filePattern;
+}
+
+/** Whether unparseable files are left out of this import or orphan sweep. */
+function skipsInvalidFiles(meta: ToolSubagentFactory["meta"], forDeletion: boolean): boolean {
+  return meta.skipInvalidFiles === true || (!forDeletion && meta.skipInvalidImportFiles === true);
 }
 
 /**
@@ -503,7 +513,7 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
         filePattern: "*/AGENT.md",
         importFilePatterns: ["*.md", "*/AGENT.md"],
         // The flat scan can reach a README or notes file beside the agents.
-        skipInvalidFiles: true,
+        skipInvalidImportFiles: true,
       },
     },
   ],
@@ -521,7 +531,7 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
         filePattern: "*/AGENT.md",
         importFilePatterns: ["*.md", "*/AGENT.md"],
         // The flat scan can reach a README or notes file beside the agents.
-        skipInvalidFiles: true,
+        skipInvalidImportFiles: true,
       },
     },
   ],
@@ -1356,7 +1366,7 @@ export class SubagentsProcessor extends FeatureProcessor {
       // that actually parse as agents are eligible for import or deletion.
       // Keep filesystem errors fatal: a failed read must never turn a real
       // agent into an apparent orphan or silently truncate an import.
-      const parsedFiles = factory.meta.skipInvalidFiles
+      const parsedFiles = skipsInvalidFiles(factory.meta, forDeletion)
         ? (
             await Promise.all(
               ownedFilePaths.map(async (path) => {
