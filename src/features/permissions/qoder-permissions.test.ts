@@ -212,6 +212,76 @@ describe("QoderPermissions", () => {
     });
   });
 
+  describe("qoder.outputStyle override", () => {
+    async function generateWithOverride(
+      override: Record<string, unknown>,
+      logger = createMockLogger(),
+    ) {
+      const permissions = await QoderPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: ".rulesync",
+          relativeFilePath: "permissions.json",
+          fileContent: JSON.stringify({ permission: { bash: { ls: "allow" } }, qoder: override }),
+          validate: true,
+        }),
+        logger,
+      });
+      return JSON.parse(permissions.getFileContent());
+    }
+
+    it("writes the top-level outputStyle and announces it", async () => {
+      await writeSettings(testDir, { model: "auto", general: { outputStyle: "legacy" } });
+      const logger = createMockLogger();
+
+      const settings = await generateWithOverride({ outputStyle: "concise-review" }, logger);
+
+      expect(settings).toEqual({
+        model: "auto",
+        general: { outputStyle: "legacy" },
+        outputStyle: "concise-review",
+        permissions: { allow: ["Bash(ls)"] },
+      });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('qoder.outputStyle = "concise-review"'),
+      );
+    });
+
+    it("keeps a hand-set outputStyle when the override does not author one", async () => {
+      await writeSettings(testDir, { outputStyle: "mine" });
+
+      const settings = await generateWithOverride({});
+
+      expect(settings).toEqual({ outputStyle: "mine", permissions: { allow: ["Bash(ls)"] } });
+    });
+
+    it("imports the top-level outputStyle into the qoder override", () => {
+      const json = new QoderPermissions({
+        outputRoot: testDir,
+        relativeDirPath: SETTINGS_DIR,
+        relativeFilePath: SETTINGS_FILE,
+        fileContent: JSON.stringify({ outputStyle: "concise-review", permissions: {} }),
+      })
+        .toRulesyncPermissions()
+        .getJson();
+
+      expect(json.qoder).toEqual({ outputStyle: "concise-review" });
+    });
+
+    it("imports no qoder override without a top-level outputStyle", () => {
+      const json = new QoderPermissions({
+        outputRoot: testDir,
+        relativeDirPath: SETTINGS_DIR,
+        relativeFilePath: SETTINGS_FILE,
+        fileContent: JSON.stringify({ general: { outputStyle: "legacy" } }),
+      })
+        .toRulesyncPermissions()
+        .getJson();
+
+      expect(json.qoder).toBeUndefined();
+    });
+  });
+
   describe("fromFile", () => {
     it("loads the settings file in global mode", async () => {
       await writeSettings(testDir, { permissions: { allow: ["Read"] } });

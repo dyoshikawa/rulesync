@@ -1590,7 +1590,7 @@ export class RulesProcessor extends FeatureProcessor {
     const factory = this.getFactory(this.toolTarget);
     const { meta } = factory;
     this.warnForIncludeRootOption(meta);
-    this.warnForFactorydroidRuleOptions({ rules: alignedRules, factory });
+    this.warnForOutputStyleRuleOptions({ rules: alignedRules, factory });
     const emittedRules = this.omitsRootFiles()
       ? await this.dropRootRules(alignedRules)
       : alignedRules;
@@ -1927,42 +1927,41 @@ export class RulesProcessor extends FeatureProcessor {
   }
 
   /**
-   * Warn about `factorydroid` frontmatter that does not do what it looks like
-   * it does: an `output-style` rule that also targets other tools reaches them
-   * as an ordinary rule (so presentation instructions end up in their project
-   * rules), and `factorydroid.name` is read only with `channel: output-style`.
-   * Checked while generating for factorydroid only, so each warning prints once.
+   * Warn about `factorydroid` / `qoder` frontmatter that does not do what it
+   * looks like it does: an `output-style` rule that also targets other tools
+   * reaches them as an ordinary rule (so presentation instructions end up in
+   * their project rules), and `<tool>.name` is read only with
+   * `channel: output-style`. Checked while generating for that tool only, so
+   * each warning prints once.
    */
-  private warnForFactorydroidRuleOptions({
+  private warnForOutputStyleRuleOptions({
     rules,
     factory,
   }: {
     rules: RulesyncRule[];
     factory: ToolRuleFactory;
   }): void {
-    if (this.toolTarget !== "factorydroid") {
+    const toolTarget = this.toolTarget;
+    if (toolTarget !== "factorydroid" && toolTarget !== "qoder") {
       return;
     }
     for (const rule of rules) {
       const frontmatter = rule.getFrontmatter();
-      if (
-        frontmatter.root ||
-        !frontmatter.factorydroid ||
-        !factory.class.isTargetedByRulesyncRule(rule)
-      ) {
+      const section = frontmatter[toolTarget];
+      if (frontmatter.root || !section || !factory.class.isTargetedByRulesyncRule(rule)) {
         continue;
       }
-      const { channel, name } = frontmatter.factorydroid;
+      const { channel, name } = section;
       const fileName = stripControlCharacters(rule.getRelativeFilePath());
       const targets = frontmatter.targets ?? ["*"];
-      if (channel === "output-style" && targets.some((target) => target !== "factorydroid")) {
+      if (channel === "output-style" && targets.some((target) => target !== toolTarget)) {
         this.logger.warn(
-          `${fileName} sets factorydroid.channel: output-style but also targets other tools, which receive it as an ordinary rule. Set \`targets: ["factorydroid"]\` to keep the output style to Factory Droid.`,
+          `${fileName} sets ${toolTarget}.channel: output-style but also targets other tools, which receive it as an ordinary rule. Set \`targets: ["${toolTarget}"]\` to keep the output style to ${toolTarget === "qoder" ? "Qoder" : "Factory Droid"}.`,
         );
       }
       if (channel !== "output-style" && name !== undefined) {
         this.logger.warn(
-          `${fileName} sets factorydroid.name, which is read only with factorydroid.channel: output-style; ignoring it.`,
+          `${fileName} sets ${toolTarget}.name, which is read only with ${toolTarget}.channel: output-style; ignoring it.`,
         );
       }
     }

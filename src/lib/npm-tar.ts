@@ -38,6 +38,8 @@ export type TarFileEntry = {
    */
   relativePath: string;
   content: Buffer;
+  /** Whether the entry's mode carries an execute bit (`scripts/run.sh` packed as 0755). */
+  executable?: boolean;
 };
 
 /**
@@ -145,6 +147,7 @@ function parseTarBuffer(params: {
           files.push({
             relativePath,
             content: Buffer.from(tar.subarray(dataStart, dataEnd)),
+            executable: hasExecutableMode(header),
           });
         }
         break;
@@ -181,6 +184,19 @@ function isZeroBlock(block: Buffer): boolean {
 function trimAtFirstNul(value: string): string {
   const nulIndex = value.indexOf("\0");
   return nulIndex === -1 ? value : value.substring(0, nulIndex);
+}
+
+/**
+ * Whether a header's mode field carries an execute bit. The mode only decides
+ * a file's executable bit, so a field this reader cannot parse leaves the file
+ * plain rather than rejecting an archive that extracted fine before.
+ */
+function hasExecutableMode(header: Buffer): boolean {
+  try {
+    return (parseOctalField(header, 100, 8, "mode") & 0o111) !== 0;
+  } catch {
+    return false;
+  }
 }
 
 function parseOctalField(block: Buffer, offset: number, length: number, field: string): number {

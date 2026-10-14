@@ -19,6 +19,8 @@ export type TarFixtureEntry = {
   linkname?: string;
   /** Skip checksum computation to craft a corrupt header. */
   corruptChecksum?: boolean;
+  /** Octal mode field. Defaults to "0000644". */
+  mode?: string;
 };
 
 export function buildTarHeader(params: {
@@ -27,11 +29,12 @@ export function buildTarHeader(params: {
   typeflag: string;
   linkname?: string;
   corruptChecksum?: boolean;
+  mode?: string;
 }): Buffer {
-  const { name, size, typeflag, linkname, corruptChecksum } = params;
+  const { name, size, typeflag, linkname, corruptChecksum, mode = "0000644" } = params;
   const header = Buffer.alloc(BLOCK_SIZE);
   header.write(name, 0, 100, "utf8");
-  header.write("0000644\0", 100); // mode
+  header.write(`${mode}\0`, 100); // mode
   header.write("0000000\0", 108); // uid
   header.write("0000000\0", 116); // gid
   header.write(`${size.toString(8).padStart(11, "0")}\0`, 124); // size
@@ -81,6 +84,7 @@ export function buildTar(entries: TarFixtureEntry[]): Buffer {
         typeflag,
         linkname: entry.linkname,
         corruptChecksum: entry.corruptChecksum,
+        mode: entry.mode,
       }),
     );
     if (content.length > 0) {
