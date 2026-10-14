@@ -685,6 +685,57 @@ describe("FactorydroidPermissions", () => {
       );
       expect(imported.factorydroid).toEqual(factorydroid);
     });
+    it("round-trips native permissionRules alongside the legacy command lists (issue #3414)", async () => {
+      const factorydroid = {
+        permissionRules: {
+          version: 1,
+          rules: [
+            {
+              id: "ask-git-push",
+              decision: "ask",
+              match: { prefix: ["git", "push"] },
+              tests: { match: ["git push origin main"], noMatch: ["git status"] },
+              reason: "Pushing needs a human check",
+            },
+            {
+              id: "allow-git-read",
+              decision: "allow",
+              match: { prefix: ["git", ["status", "diff", "log"]] },
+              tests: { match: ["git diff HEAD"], noMatch: ["git push"] },
+            },
+          ],
+        },
+      };
+      const instance = await FactorydroidPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: { bash: { "git status": "allow" } },
+            factorydroid,
+          }),
+        }),
+      });
+
+      // The override is written verbatim; the shared block still drives the
+      // legacy list, so both coexist in settings.json.
+      const settings = JSON.parse(instance.getFileContent());
+      expect(settings.permissionRules).toEqual(factorydroid.permissionRules);
+      expect(settings.commandAllowlist).toEqual(["git status"]);
+
+      const imported = JSON.parse(
+        new FactorydroidPermissions({
+          relativeDirPath: ".factory",
+          relativeFilePath: "settings.json",
+          fileContent: instance.getFileContent(),
+        })
+          .toRulesyncPermissions()
+          .getFileContent(),
+      );
+      expect(imported.factorydroid).toEqual(factorydroid);
+      expect(imported.permission.bash).toEqual({ "git status": "allow" });
+    });
     it("round-trips the five strict/URL/built-in siblings of keys already carried (issue #2957)", async () => {
       const factorydroid = {
         builtInToolAutonomyOverrides: { web_search: "high" },

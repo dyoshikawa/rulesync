@@ -617,6 +617,38 @@ const QoderPermissionsOverrideSchema = z.looseObject({
 export type QoderPermissionsOverride = z.infer<typeof QoderPermissionsOverrideSchema>;
 
 /**
+ * One native Factory Droid permission rule. `match.prefix` positions are either
+ * a single token or a non-empty list of alternative tokens.
+ *
+ * @see https://docs.factory.com/autonomy-and-safety/permission-rules
+ */
+const FactorydroidPermissionRuleSchema = z.looseObject({
+  id: z.string(),
+  decision: z.enum(["allow", "ask", "block"]),
+  // e.g. `["git", ["status", "diff", "log"]]`
+  match: z.looseObject({
+    prefix: z.optional(
+      z
+        .array(z.union([z.string(), z.array(z.string()).check(z.minLength(1))]))
+        .check(z.minLength(1)),
+    ),
+  }),
+  tests: z.optional(
+    z.looseObject({
+      match: z.optional(z.array(z.string())),
+      noMatch: z.optional(z.array(z.string())),
+    }),
+  ),
+  reason: z.optional(z.string()),
+  enabled: z.optional(z.boolean()),
+});
+
+const FactorydroidPermissionRulesSchema = z.looseObject({
+  version: z.number(),
+  rules: z.array(FactorydroidPermissionRuleSchema),
+});
+
+/**
  * Tool-scoped override block for Factory Droid. Factory Droid's `settings.json`
  * exposes security controls with no canonical per-command allow/ask/deny slot —
  * `commandBlocklist` (a hard-block tier that can never be approved, distinct from
@@ -624,7 +656,8 @@ export type QoderPermissionsOverride = z.infer<typeof QoderPermissionsOverrideSc
  * (`enabled`/`mode`/`filesystem`/`network`), `mcpPolicy`,
  * `mcpAutonomyOverrides` (per-MCP-tool autonomy levels), `enableDroidShield`,
  * and autonomy settings (`sessionDefaultSettings`, `maxAutonomyLevel`,
- * `subagentAutonomyLevel`, `interactionMode`). Fields placed here are merged
+ * `subagentAutonomyLevel`, `interactionMode`), and the native versioned
+ * `permissionRules` (allow/ask/block). Fields placed here are merged
  * into `settings.json` and
  * emitted only for Factory Droid, while the shared `permission` block continues
  * to drive `commandAllowlist`/`commandDenylist`. Kept `looseObject` passthrough.
@@ -637,6 +670,11 @@ const FactorydroidPermissionsOverrideSchema = z.looseObject({
   commandBlocklist: z.optional(z.array(z.string())),
   // Skill names Droid must not load. https://docs.factory.ai/cli/configuration/settings
   disabledSkills: z.optional(z.array(z.string())),
+  // Native versioned allow/ask/block command rules, written verbatim. Loose so
+  // upstream rule fields pass through; Droid itself rejects unknown fields and
+  // validates each rule's `tests` (`droid rules check`).
+  // https://docs.factory.com/autonomy-and-safety/permission-rules
+  permissionRules: z.optional(FactorydroidPermissionRulesSchema),
 });
 export type FactorydroidPermissionsOverride = z.infer<typeof FactorydroidPermissionsOverrideSchema>;
 
