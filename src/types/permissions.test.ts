@@ -152,6 +152,32 @@ describe("RulesyncPermissionsFileSchema tool-scoped override enums", () => {
       expect(result.success).toBe(false);
     });
 
+    it("should accept a nested list of alternative tokens at one prefix position", () => {
+      const result = RulesyncPermissionsFileSchema.safeParse(
+        withOverride({
+          factorydroid: {
+            permissionRules: {
+              version: 1,
+              rules: [rule({ match: { prefix: ["git", ["status", "diff", "log"]] } })],
+            },
+          },
+        }),
+      );
+      expect(result.success).toBe(true);
+    });
+
+    it.each([
+      ["an empty alternatives list", ["git", []]],
+      ["an empty prefix", []],
+    ])("should reject %s", (_label, prefix) => {
+      const result = RulesyncPermissionsFileSchema.safeParse(
+        withOverride({
+          factorydroid: { permissionRules: { version: 1, rules: [rule({ match: { prefix } })] } },
+        }),
+      );
+      expect(result.success).toBe(false);
+    });
+
     it("should reject a container without a rules array", () => {
       const result = RulesyncPermissionsFileSchema.safeParse(
         withOverride({ factorydroid: { permissionRules: { version: 1 } } }),

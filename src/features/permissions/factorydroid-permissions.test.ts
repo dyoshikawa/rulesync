@@ -697,6 +697,12 @@ describe("FactorydroidPermissions", () => {
               tests: { match: ["git push origin main"], noMatch: ["git status"] },
               reason: "Pushing needs a human check",
             },
+            {
+              id: "allow-git-read",
+              decision: "allow",
+              match: { prefix: ["git", ["status", "diff", "log"]] },
+              tests: { match: ["git diff HEAD"], noMatch: ["git push"] },
+            },
           ],
         },
       };

@@ -598,6 +598,38 @@ const ReasonixPermissionsOverrideSchema = z.looseObject({
 export type ReasonixPermissionsOverride = z.infer<typeof ReasonixPermissionsOverrideSchema>;
 
 /**
+ * One native Factory Droid permission rule. `match.prefix` positions are either
+ * a single token or a non-empty list of alternative tokens.
+ *
+ * @see https://docs.factory.com/autonomy-and-safety/permission-rules
+ */
+const FactorydroidPermissionRuleSchema = z.looseObject({
+  id: z.string(),
+  decision: z.enum(["allow", "ask", "block"]),
+  // e.g. `["git", ["status", "diff", "log"]]`
+  match: z.looseObject({
+    prefix: z.optional(
+      z
+        .array(z.union([z.string(), z.array(z.string()).check(z.minLength(1))]))
+        .check(z.minLength(1)),
+    ),
+  }),
+  tests: z.optional(
+    z.looseObject({
+      match: z.optional(z.array(z.string())),
+      noMatch: z.optional(z.array(z.string())),
+    }),
+  ),
+  reason: z.optional(z.string()),
+  enabled: z.optional(z.boolean()),
+});
+
+const FactorydroidPermissionRulesSchema = z.looseObject({
+  version: z.number(),
+  rules: z.array(FactorydroidPermissionRuleSchema),
+});
+
+/**
  * Tool-scoped override block for Factory Droid. Factory Droid's `settings.json`
  * exposes security controls with no canonical per-command allow/ask/deny slot —
  * `commandBlocklist` (a hard-block tier that can never be approved, distinct from
@@ -614,25 +646,6 @@ export type ReasonixPermissionsOverride = z.infer<typeof ReasonixPermissionsOver
  * @example
  * { "commandBlocklist": ["rm -rf /*"], "sandbox": { "enabled": true } }
  */
-const FactorydroidPermissionRuleSchema = z.looseObject({
-  id: z.string(),
-  decision: z.enum(["allow", "ask", "block"]),
-  match: z.looseObject({ prefix: z.optional(z.array(z.string())) }),
-  tests: z.optional(
-    z.looseObject({
-      match: z.optional(z.array(z.string())),
-      noMatch: z.optional(z.array(z.string())),
-    }),
-  ),
-  reason: z.optional(z.string()),
-  enabled: z.optional(z.boolean()),
-});
-
-const FactorydroidPermissionRulesSchema = z.looseObject({
-  version: z.number(),
-  rules: z.array(FactorydroidPermissionRuleSchema),
-});
-
 const FactorydroidPermissionsOverrideSchema = z.looseObject({
   permission: z.optional(ToolScopedPermissionSchema),
   commandBlocklist: z.optional(z.array(z.string())),
