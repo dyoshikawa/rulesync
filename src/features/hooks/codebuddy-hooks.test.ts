@@ -49,7 +49,9 @@ describe("CodebuddyHooks", () => {
       expect(CODEBUDDY_MATCHER_HOOK_EVENTS).not.toContain("beforeSubmitPrompt");
       expect(CODEBUDDY_MATCHER_HOOK_EVENTS).not.toContain("stop");
       expect(CODEBUDDY_MATCHER_HOOK_EVENTS).not.toContain("postCompact");
-      expect(CODEBUDDY_HOOK_EVENTS).toHaveLength(26);
+      expect(CODEBUDDY_MATCHER_HOOK_EVENTS).toContain("setup");
+      expect(CODEBUDDY_MATCHER_HOOK_EVENTS).toContain("userPromptExpansion");
+      expect(CODEBUDDY_HOOK_EVENTS).toHaveLength(28);
     });
   });
 
@@ -68,8 +70,9 @@ describe("CodebuddyHooks", () => {
           preCompact: [{ type: "command", command: "compact.sh" }],
           sessionEnd: [{ type: "command", command: "end.sh" }],
           worktreeCreate: [{ type: "command", command: "worktree.sh" }],
-          // CodeBuddy documents neither a setup event nor model events.
-          setup: [{ type: "command", command: "setup.sh" }],
+          setup: [{ type: "command", command: "setup.sh", matcher: "init" }],
+          userPromptExpansion: [{ type: "command", command: "expand.sh", matcher: "deploy" }],
+          // CodeBuddy documents no model events.
           preModelInvocation: [{ type: "command", command: "model.sh" }],
         },
       });
@@ -90,12 +93,16 @@ describe("CodebuddyHooks", () => {
         "PreToolUse",
         "SessionEnd",
         "SessionStart",
+        "Setup",
         "Stop",
         "SubagentStop",
+        "UserPromptExpansion",
         "UserPromptSubmit",
         "WorktreeCreate",
       ]);
       expect(parsed.hooks.PreToolUse[0].matcher).toBe("Bash");
+      expect(parsed.hooks.Setup[0].matcher).toBe("init");
+      expect(parsed.hooks.UserPromptExpansion[0].matcher).toBe("deploy");
       expect(parsed.hooks.SessionStart[0].matcher).toBe("startup");
       expect(parsed.hooks.PreToolUse[0].hooks[0]).toEqual({ type: "command", command: "pre.sh" });
     });

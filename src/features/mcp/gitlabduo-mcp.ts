@@ -33,11 +33,57 @@ const CANONICAL_TO_GITLABDUO_TRANSPORT: Record<string, GitlabduoTransport | unde
 };
 
 /**
+ * Map the canonical `timeout` (milliseconds) onto GitLab Duo's `timeoutMs`, a
+ * per-server tool-call inactivity timeout (gitlab-lsp v9.25.0+) that must be a
+ * positive integer. An explicit `timeoutMs` on the same server wins; a
+ * `timeout` Duo would reject is dropped with a warning.
+ *
+ * @see https://gitlab.com/gitlab-org/editor-extensions/gitlab-lsp/-/commit/e8c4a76a66e8f37d4c97fc03ffe983bfadf43f76
+ */
+function toGitlabduoTimeout({
+  serverName,
+  server,
+  logger,
+}: {
+  serverName: string;
+  server: Record<string, unknown>;
+  logger?: Logger;
+}): Record<string, unknown> {
+  const { timeout, ...rest } = server;
+  if (timeout === undefined || rest.timeoutMs !== undefined) {
+    return rest;
+  }
+  if (typeof timeout !== "number" || !Number.isInteger(timeout) || timeout <= 0) {
+    logger?.warn(
+      `GitLab Duo CLI MCP server "${serverName}": dropping timeout ${JSON.stringify(timeout)}, as timeoutMs must be a positive integer of milliseconds.`,
+    );
+    return rest;
+  }
+  return { ...rest, timeoutMs: timeout };
+}
+
+/**
+ * Read GitLab Duo's `timeoutMs` back into the canonical `timeout`
+ * (milliseconds). A server that already carries a `timeout` is left as is, so
+ * both keys round-trip and `timeoutMs` keeps winning on the next generate.
+ */
+function fromGitlabduoTimeout(server: unknown): unknown {
+  if (typeof server !== "object" || server === null || Array.isArray(server)) {
+    return server;
+  }
+  const { timeoutMs, ...rest } = server as Record<string, unknown>;
+  if (timeoutMs === undefined || rest.timeout !== undefined) {
+    return server;
+  }
+  return { ...rest, timeout: timeoutMs };
+}
+
+/**
  * Convert one canonical server into GitLab Duo's shape. Every documented
  * example spells the transport out as `type` (`stdio`, `http` or `sse`), so it
  * is always written, inferred from `command` / `url` when the source leaves it
- * implicit. Every other field — `args`, `env`, `approvedTools`, ... — is carried
- * through as authored.
+ * implicit. The canonical `timeout` becomes `timeoutMs`; every other field —
+ * `args`, `env`, `approvedTools`, ... — is carried through as authored.
  */
 function toGitlabduoServer({
   serverName,
@@ -57,7 +103,7 @@ function toGitlabduoServer({
     });
   }
 
-  const { type, transport, httpUrl: _httpUrl, url: _url, ...rest } = serverConfig;
+  const { type, transport, httpUrl: _httpUrl, url: _url, ...others } = serverConfig;
   const declared = type ?? transport;
   const mapped = declared
     ? CANONICAL_TO_GITLABDUO_TRANSPORT[declared]
@@ -73,8 +119,9 @@ function toGitlabduoServer({
     });
   }
 
+  const rest = toGitlabduoTimeout({ serverName, server: others, logger });
   if (mapped === "stdio") {
-    const { command, args } = rest;
+    const { command, args } = serverConfig;
     // GitLab Duo takes `command` as a single executable, so an array-form
     // command is split into the executable and leading arguments.
     if (Array.isArray(command)) {
@@ -186,7 +233,16 @@ export class GitlabduoMcp extends ToolMcp {
   }
 
   toRulesyncMcp(): RulesyncMcp {
-    return this.toRulesyncMcpDefault();
+    const { mcpServers, ...others } = this.json;
+    if (typeof mcpServers !== "object" || mcpServers === null || Array.isArray(mcpServers)) {
+      return this.toRulesyncMcpDefault();
+    }
+    const servers = Object.fromEntries(
+      Object.entries(mcpServers).map(([name, server]) => [name, fromGitlabduoTimeout(server)]),
+    );
+    return this.toRulesyncMcpDefault({
+      fileContent: JSON.stringify({ ...others, mcpServers: servers }),
+    });
   }
 
   validate(): ValidationResult {

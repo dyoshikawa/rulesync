@@ -14,6 +14,7 @@ import {
   isRemoteMcpServer,
   resolveLocalMcpCommand,
   resolveRemoteMcpUrl,
+  splitMcpServersByTransport,
   warnAndSkipMcpServer,
 } from "./mcp-transport.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
@@ -44,6 +45,16 @@ const CONSUMED_CANONICAL_KEYS = new Set([
 ]);
 
 const MILLISECONDS_PER_SECOND = 1000;
+
+/**
+ * The only keys a project override entry for a user-level server carries:
+ * Pi reads a `.pi/mcp.json` entry without `command`, `url` or `type` as an
+ * override of `enabled`, `exposure` and `toolExposure` of the user-level server
+ * with the same name, and keeps the rest of that server.
+ *
+ * @see https://github.com/earendil-works/pi/blob/v1.1.0/packages/coding-agent/docs/mcp.md
+ */
+const PI_OVERRIDE_PASSTHROUGH_KEYS = ["exposure", "toolExposure"] as const;
 
 /**
  * Pi rejects a server whose name has any other character, and treats names
@@ -102,9 +113,10 @@ function hasUnexpandedEnvVarRef(serverConfig: Record<string, unknown>): boolean 
 /**
  * The transport fields Pi reads for one server: `type` `stdio` with a string
  * `command` plus `args`, or `type` `http` with a `url`. A server Pi cannot
- * start or reach — no transport, a remote transport without a URL, an SSE or
- * WebSocket server, or a stdio entry without a command — is rejected by Pi, so
- * it is skipped with a warning (`null`).
+ * start or reach — a remote transport without a URL, an SSE or WebSocket
+ * server, or a stdio entry without a command — is rejected by Pi, so it is
+ * skipped with a warning (`null`). A server with no transport at all is a
+ * project override instead (see `convertOverrideToPi`).
  */
 function convertTransportToPi({
   serverName,
@@ -115,10 +127,6 @@ function convertTransportToPi({
   serverConfig: McpServers[string];
   logger?: Logger;
 }): Record<string, unknown> | null {
-  if (declaresNoTransport(serverConfig)) {
-    return warnAndSkipMcpServer({ toolName: "Pi", serverName, reason: "no transport", logger });
-  }
-
   if (isRemoteMcpServer(serverConfig)) {
     const url = resolveRemoteMcpUrl(serverConfig);
     const stated = serverConfig.type ?? serverConfig.transport;
@@ -162,11 +170,152 @@ function convertTransportToPi({
 }
 
 /**
- * Convert the canonical server map to Pi's `mcpServers` shape. Besides the
- * transport fields, Pi switches a server off with `enabled: false` and reads
- * `timeout` in seconds (canonical: milliseconds). A server name Pi rejects is
- * skipped with a warning, and so is `auth` in the project file, which Pi
- * accepts only in the global one (it drops the whole server otherwise).
+ * A transport-less server in the project file becomes a Pi override entry for
+ * the user-level server of the same name. `disabled` maps to `enabled` both
+ * ways (an explicit `disabled: false` is "Enable in this project"), and any key
+ * Pi ignores on an override is dropped with a warning. The global file has no
+ * layer below it to override, so the entry is skipped there.
+ */
+function convertOverrideToPi({
+  serverName,
+  serverConfig,
+  global,
+  logger,
+}: {
+  serverName: string;
+  serverConfig: McpServers[string];
+  global: boolean;
+  logger?: Logger;
+}): Record<string, unknown> | null {
+  if (global) {
+    return warnAndSkipMcpServer({ toolName: "Pi", serverName, reason: "no transport", logger });
+  }
+  const record: Record<string, unknown> = serverConfig;
+  const override: Record<string, unknown> = {};
+  if (typeof serverConfig.disabled === "boolean") {
+    override.enabled = !serverConfig.disabled;
+  }
+  for (const key of PI_OVERRIDE_PASSTHROUGH_KEYS) {
+    if (record[key] !== undefined) override[key] = record[key];
+  }
+  if (Object.keys(override).length === 0) {
+    return warnAndSkipMcpServer({
+      toolName: "Pi",
+      serverName,
+      reason:
+        "no transport and nothing a Pi project override sets (disabled, exposure, toolExposure)",
+      logger,
+    });
+  }
+  const droppedKeys = Object.keys(record).filter(
+    (key) =>
+      key !== "disabled" &&
+      !(PI_OVERRIDE_PASSTHROUGH_KEYS as readonly string[]).includes(key) &&
+      !PROTOTYPE_POLLUTION_KEYS.has(key),
+  );
+  if (droppedKeys.length > 0) {
+    logger?.warn(
+      `Pi MCP: dropping ${droppedKeys.map((key) => quoteValueForWarning(key)).join(", ")} of the project override ${quoteValueForWarning(serverName)}: Pi reads only enabled, exposure and toolExposure from an entry without a transport.`,
+    );
+  }
+  return override;
+}
+
+/**
+ * Whether Pi rejects the server name, either outright or because an earlier
+ * server already took its `mcp__<name>` namespace; warns when it does.
+ */
+function isRejectedServerName({
+  serverName,
+  namespaces,
+  logger,
+}: {
+  serverName: string;
+  namespaces: Map<string, string>;
+  logger?: Logger;
+}): boolean {
+  if (!PI_SERVER_NAME_PATTERN.test(serverName)) {
+    warnAndSkipMcpServer({
+      toolName: "Pi",
+      serverName,
+      reason: 'a name Pi rejects (use letters, digits, "_" and "-")',
+      logger,
+    });
+    return true;
+  }
+  const clash = namespaces.get(toPiNamespace(serverName));
+  if (clash !== undefined) {
+    warnAndSkipMcpServer({
+      toolName: "Pi",
+      serverName,
+      reason: `a name Pi treats as the same server as ${quoteValueForWarning(clash)} ("-" and "_" are equivalent)`,
+      logger,
+    });
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Convert one canonical server to its Pi entry, or `null` when it is skipped.
+ * Besides the transport fields, Pi switches a server off with `enabled: false`
+ * and reads `timeout` in seconds (canonical: milliseconds). `auth` is dropped
+ * with a warning from the project file, since Pi accepts it only in the global
+ * one (it drops the whole server otherwise). A server without a transport is a
+ * project override entry instead.
+ */
+function convertServerToPi({
+  serverName,
+  serverConfig,
+  global,
+  logger,
+}: {
+  serverName: string;
+  serverConfig: McpServers[string];
+  global: boolean;
+  logger?: Logger;
+}): Record<string, unknown> | null {
+  if (declaresNoTransport(serverConfig)) {
+    return convertOverrideToPi({ serverName, serverConfig, global, logger });
+  }
+
+  const converted = convertTransportToPi({ serverName, serverConfig, logger });
+  if (!converted) return null;
+
+  for (const [key, value] of Object.entries(serverConfig)) {
+    if (CONSUMED_CANONICAL_KEYS.has(key) || PROTOTYPE_POLLUTION_KEYS.has(key)) continue;
+    converted[key] = value;
+  }
+  if (serverConfig.timeout !== undefined) {
+    // Pi rejects the whole server for a timeout that is not a positive number.
+    if (Number.isFinite(serverConfig.timeout) && serverConfig.timeout > 0) {
+      converted.timeout = serverConfig.timeout / MILLISECONDS_PER_SECOND;
+    } else {
+      logger?.warn(
+        `Pi MCP: dropping the "timeout" of ${quoteValueForWarning(serverName)}: expected a positive number of milliseconds.`,
+      );
+    }
+  }
+  if (serverConfig.disabled === true) {
+    converted.enabled = false;
+  }
+  if (!global && "auth" in converted) {
+    delete converted.auth;
+    logger?.warn(
+      `Pi MCP: dropping the "auth" of ${quoteValueForWarning(serverName)}: Pi accepts it only in the global ~/.pi/agent/mcp.json.`,
+    );
+  }
+  if (hasUnexpandedEnvVarRef(converted)) {
+    logger?.warn(
+      `Pi MCP: ${quoteValueForWarning(serverName)} carries an environment variable reference Pi does not expand. Pi expands only \${VAR} and $VAR in env and headers values, and only a leading ~/ in command, args and cwd.`,
+    );
+  }
+  return converted;
+}
+
+/**
+ * Convert the canonical server map to Pi's `mcpServers` shape. A server name
+ * Pi rejects is skipped with a warning.
  */
 function convertToPiFormat({
   mcpServers,
@@ -182,58 +331,10 @@ function convertToPiFormat({
 
   for (const [serverName, serverConfig] of Object.entries(mcpServers)) {
     if (PROTOTYPE_POLLUTION_KEYS.has(serverName) || !isRecord(serverConfig)) continue;
+    if (isRejectedServerName({ serverName, namespaces, logger })) continue;
 
-    if (!PI_SERVER_NAME_PATTERN.test(serverName)) {
-      warnAndSkipMcpServer({
-        toolName: "Pi",
-        serverName,
-        reason: 'a name Pi rejects (use letters, digits, "_" and "-")',
-        logger,
-      });
-      continue;
-    }
-    const clash = namespaces.get(toPiNamespace(serverName));
-    if (clash !== undefined) {
-      warnAndSkipMcpServer({
-        toolName: "Pi",
-        serverName,
-        reason: `a name Pi treats as the same server as ${quoteValueForWarning(clash)} ("-" and "_" are equivalent)`,
-        logger,
-      });
-      continue;
-    }
-
-    const converted = convertTransportToPi({ serverName, serverConfig, logger });
+    const converted = convertServerToPi({ serverName, serverConfig, global, logger });
     if (!converted) continue;
-
-    for (const [key, value] of Object.entries(serverConfig)) {
-      if (CONSUMED_CANONICAL_KEYS.has(key) || PROTOTYPE_POLLUTION_KEYS.has(key)) continue;
-      converted[key] = value;
-    }
-    if (serverConfig.timeout !== undefined) {
-      // Pi rejects the whole server for a timeout that is not a positive number.
-      if (Number.isFinite(serverConfig.timeout) && serverConfig.timeout > 0) {
-        converted.timeout = serverConfig.timeout / MILLISECONDS_PER_SECOND;
-      } else {
-        logger?.warn(
-          `Pi MCP: dropping the "timeout" of ${quoteValueForWarning(serverName)}: expected a positive number of milliseconds.`,
-        );
-      }
-    }
-    if (serverConfig.disabled === true) {
-      converted.enabled = false;
-    }
-    if (!global && "auth" in converted) {
-      delete converted.auth;
-      logger?.warn(
-        `Pi MCP: dropping the "auth" of ${quoteValueForWarning(serverName)}: Pi accepts it only in the global ~/.pi/agent/mcp.json.`,
-      );
-    }
-    if (hasUnexpandedEnvVarRef(converted)) {
-      logger?.warn(
-        `Pi MCP: ${quoteValueForWarning(serverName)} carries an environment variable reference Pi does not expand. Pi expands only \${VAR} and $VAR in env and headers values, and only a leading ~/ in command, args and cwd.`,
-      );
-    }
 
     namespaces.set(toPiNamespace(serverName), serverName);
     result[serverName] = converted;
@@ -245,15 +346,18 @@ function convertToPiFormat({
 /**
  * Convert Pi's `mcpServers` back to the canonical shape: `enabled: false`
  * becomes `disabled: true` and `timeout` (seconds) becomes milliseconds; every
- * other key is already canonical.
+ * other key is already canonical. On a transport-less override entry an
+ * explicit `enabled: true` is kept as `disabled: false`, since it switches on a
+ * user-level server the user turned off.
  */
 function convertFromPiFormat(mcpServers: McpServers): McpServers {
   const result: McpServers = {};
   for (const [serverName, serverConfig] of Object.entries(mcpServers)) {
     if (PROTOTYPE_POLLUTION_KEYS.has(serverName) || !isRecord(serverConfig)) continue;
     const { enabled, timeout, ...rest } = serverConfig as Record<string, unknown>;
+    const keepsEnabled = enabled === true && declaresNoTransport(rest as McpServers[string]);
     const converted: Record<string, unknown> =
-      enabled === false ? { ...rest, disabled: true } : rest;
+      enabled === false || keepsEnabled ? { ...rest, disabled: !enabled } : rest;
     if (typeof timeout === "number") {
       converted.timeout = timeout * MILLISECONDS_PER_SECOND;
     } else if (timeout !== undefined) {
@@ -356,8 +460,19 @@ export class PiMcp extends ToolMcp {
 
   toRulesyncMcp(): RulesyncMcp {
     const mcpServers = isMcpServers(this.json.mcpServers) ? this.json.mcpServers : {};
+    // A transport-less entry is a Pi project override of a user-level server,
+    // so it goes in the block only Pi reads rather than into the shared map
+    // every other tool writes out.
+    const { shared, toolOnly } = splitMcpServersByTransport(convertFromPiFormat(mcpServers));
     return this.toRulesyncMcpDefault({
-      fileContent: JSON.stringify({ mcpServers: convertFromPiFormat(mcpServers) }, null, 2),
+      fileContent: JSON.stringify(
+        {
+          mcpServers: shared,
+          ...(Object.keys(toolOnly).length > 0 && { pi: { mcpServers: toolOnly } }),
+        },
+        null,
+        2,
+      ),
     });
   }
 

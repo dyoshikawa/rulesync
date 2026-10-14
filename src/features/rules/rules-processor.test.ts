@@ -2639,6 +2639,7 @@ Content that would fail parsing`;
         "claudecode-legacy",
         "cline",
         "codebuddy",
+        "codebuff",
         "codewhale",
         "codexcli",
         "commandcode",
@@ -2680,13 +2681,18 @@ Content that would fail parsing`;
       ]);
     });
 
-    it("should return a subset of regular tool targets", () => {
+    it("should return a subset of regular tool targets, except global-only ones", () => {
       const globalTargets = RulesProcessor.getToolTargets({ global: true });
       const regularTargets = RulesProcessor.getToolTargets();
 
-      // All global targets should be in regular targets
+      // All global targets but the global-only ones should be in regular targets
+      const globalOnlyTargets = ["codebuff"];
       for (const target of globalTargets) {
-        expect(regularTargets).toContain(target);
+        if (globalOnlyTargets.includes(target)) {
+          expect(regularTargets).not.toContain(target);
+        } else {
+          expect(regularTargets).toContain(target);
+        }
       }
 
       // Global targets should be fewer than regular targets
@@ -2739,7 +2745,7 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("commandcode");
       expect(globalTargets).toContain("openclaw");
       expect(globalTargets).toContain("qoder");
-      expect(globalTargets.length).toBe(47);
+      expect(globalTargets.length).toBe(48);
 
       // These targets should NOT be in global mode
       expect(globalTargets).not.toContain("cursor");
@@ -5689,6 +5695,7 @@ targets: ["factorydroid"]
 
     it("should expose every global-capable folded target to the regression matrix", () => {
       expect(globalFoldTargets).toEqual([
+        "codebuff",
         "codewhale",
         "codexcli",
         "commandcode",
