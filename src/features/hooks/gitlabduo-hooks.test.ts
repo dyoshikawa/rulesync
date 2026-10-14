@@ -43,7 +43,7 @@ describe("GitlabduoHooks", () => {
           { type: "command", command: "./scripts/context.sh", matcher: "startup", timeout: 10 },
           { type: "prompt", prompt: "ignored" },
         ],
-        preToolUse: [{ type: "command", command: "echo pre" }],
+        stop: [{ type: "command", command: "echo stop" }],
       },
     });
 
@@ -59,6 +59,34 @@ describe("GitlabduoHooks", () => {
       },
     ]);
     expect(hooks.isDeletable()).toBe(true);
+  });
+
+  it("emits PreToolUse hooks with a tool-name matcher and SessionEnd hooks", async () => {
+    const rulesyncHooks = makeRulesyncHooks(testDir, {
+      version: 1,
+      hooks: {
+        preToolUse: [{ type: "command", command: "./scripts/guard.sh", matcher: "run_command" }],
+        sessionEnd: [{ type: "command", command: "echo bye", matcher: "prompt_input_exit" }],
+      },
+    });
+
+    const hooks = await GitlabduoHooks.fromRulesyncHooks({ outputRoot: testDir, rulesyncHooks });
+    const parsed = JSON.parse(hooks.getFileContent());
+
+    expect(parsed.hooks).toEqual({
+      PreToolUse: [
+        {
+          matcher: "run_command",
+          hooks: [{ type: "command", command: '"$DUO_PROJECT_DIR"/scripts/guard.sh' }],
+        },
+      ],
+      SessionEnd: [
+        {
+          matcher: "prompt_input_exit",
+          hooks: [{ type: "command", command: "echo bye" }],
+        },
+      ],
+    });
   });
 
   it("prefers the gitlabduo override block", async () => {
@@ -91,5 +119,27 @@ describe("GitlabduoHooks", () => {
     expect(json.hooks.sessionStart).toEqual([
       { type: "command", command: "echo hi", matcher: "resume", timeout: 5 },
     ]);
+  });
+
+  it("round-trips PreToolUse and SessionEnd hooks on import", () => {
+    const hooks = new GitlabduoHooks({
+      outputRoot: testDir,
+      relativeDirPath: ".gitlab/duo",
+      relativeFilePath: "hooks.json",
+      fileContent: JSON.stringify({
+        hooks: {
+          PreToolUse: [
+            { matcher: "run_command", hooks: [{ type: "command", command: "echo pre" }] },
+          ],
+          SessionEnd: [{ hooks: [{ type: "command", command: "echo end", timeout: 3 }] }],
+        },
+      }),
+    });
+
+    const json = hooks.toRulesyncHooks().getJson();
+    expect(json.hooks.preToolUse).toEqual([
+      { type: "command", command: "echo pre", matcher: "run_command" },
+    ]);
+    expect(json.hooks.sessionEnd).toEqual([{ type: "command", command: "echo end", timeout: 3 }]);
   });
 });
