@@ -11,6 +11,7 @@ import {
 import { createMockLogger } from "../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import {
+  applyFileMode,
   directoryExists,
   fileExists,
   listSubdirectoryNames,
@@ -44,6 +45,9 @@ vi.mock("./github-client.js", () => ({
     resolveRefToSha(...args: any[]) {
       return mockClientInstance.resolveRefToSha(...args);
     }
+    listExecutablePaths(...args: any[]) {
+      return mockClientInstance.listExecutablePaths(...args);
+    }
   },
   GitHubClientError: class GitHubClientError extends Error {
     statusCode?: number;
@@ -63,6 +67,7 @@ vi.mock("../utils/file.js", async (importOriginal) => {
   const directoryExistsMock = vi.fn();
   return {
     ...actual,
+    applyFileMode: vi.fn(),
     directoryExists: directoryExistsMock,
     directoryExistsStrict: directoryExistsMock,
     fileExists: vi.fn(),
@@ -160,6 +165,7 @@ describe("resolveAndFetchSources", () => {
       resolveRefToSha: vi.fn().mockResolvedValue("abc123def456"),
       listDirectory: vi.fn().mockResolvedValue([]),
       getFileContent: vi.fn().mockResolvedValue("file content"),
+      listExecutablePaths: vi.fn().mockResolvedValue({ paths: new Set(), truncated: false }),
     };
 
     // Default: no curated dir, no local skills
@@ -367,6 +373,7 @@ describe("resolveAndFetchSources", () => {
           resolvedRef: "locked-sha-123",
           skills: { "cached-skill": { integrity: "sha256-cached" } },
           skillSelection: ["*"],
+          skillsPath: "skills",
         },
       },
     });
@@ -423,6 +430,114 @@ describe("resolveAndFetchSources", () => {
       "SKILL.md",
     );
     expect(writeFileContent).toHaveBeenCalledWith(expectedFilePath, "# My Skill\nContent here.");
+  });
+
+  it("should keep the executable bit git records for a GitHub skill's scripts", async () => {
+    mockClientInstance.listDirectory.mockImplementation(
+      async (_owner: string, _repo: string, path: string) => {
+        if (path === "skills") {
+          return [{ name: "my-skill", path: "skills/my-skill", type: "dir" }];
+        }
+        if (path === "skills/my-skill") {
+          return [
+            { name: "SKILL.md", path: "skills/my-skill/SKILL.md", type: "file", size: 100 },
+            { name: "run.sh", path: "skills/my-skill/run.sh", type: "file", size: 10 },
+            { name: "notes.md", path: "skills/my-skill/notes.md", type: "file", size: 10 },
+          ];
+        }
+        return [];
+      },
+    );
+    mockClientInstance.listExecutablePaths.mockResolvedValue({
+      paths: new Set(["skills/my-skill/run.sh"]),
+      truncated: false,
+    });
+
+    await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "https://github.com/org/repo" }],
+      projectRoot: testDir,
+    });
+
+    const skillDir = join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH, "my-skill");
+    // The tree is read at the same ref the contents come from.
+    const contentRef = mockClientInstance.getFileContent.mock.calls[0]?.[3];
+    expect(mockClientInstance.listExecutablePaths).toHaveBeenCalledTimes(1);
+    expect(mockClientInstance.listExecutablePaths).toHaveBeenCalledWith("org", "repo", contentRef);
+    expect(applyFileMode).toHaveBeenCalledTimes(1);
+    expect(applyFileMode).toHaveBeenCalledWith(join(skillDir, "run.sh"), 0o755);
+  });
+
+  it("should not list file modes for a GitHub skill made only of SKILL.md", async () => {
+    mockClientInstance.listDirectory.mockImplementation(
+      async (_owner: string, _repo: string, path: string) => {
+        if (path === "skills") {
+          return [{ name: "my-skill", path: "skills/my-skill", type: "dir" }];
+        }
+        if (path === "skills/my-skill") {
+          return [{ name: "SKILL.md", path: "skills/my-skill/SKILL.md", type: "file", size: 100 }];
+        }
+        return [];
+      },
+    );
+
+    await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "https://github.com/org/repo" }],
+      projectRoot: testDir,
+    });
+
+    expect(mockClientInstance.listExecutablePaths).not.toHaveBeenCalled();
+    expect(applyFileMode).not.toHaveBeenCalled();
+  });
+
+  it("should still install a GitHub skill when its file modes cannot be read", async () => {
+    mockClientInstance.listDirectory.mockImplementation(
+      async (_owner: string, _repo: string, path: string) => {
+        if (path === "skills") {
+          return [{ name: "my-skill", path: "skills/my-skill", type: "dir" }];
+        }
+        if (path === "skills/my-skill") {
+          return [
+            { name: "SKILL.md", path: "skills/my-skill/SKILL.md", type: "file", size: 100 },
+            { name: "run.sh", path: "skills/my-skill/run.sh", type: "file", size: 10 },
+          ];
+        }
+        return [];
+      },
+    );
+    mockClientInstance.listExecutablePaths.mockRejectedValue(new Error("tree unavailable"));
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "https://github.com/org/repo" }],
+      projectRoot: testDir,
+    });
+
+    expect(result.fetchedSkillCount).toBe(1);
+    expect(applyFileMode).not.toHaveBeenCalled();
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("Could not read file modes from org/repo"),
+    );
+  });
+
+  it("should keep the executable bit of a git-transport skill's scripts", async () => {
+    const { resolveDefaultRef, fetchSkillFiles } = await import("./git-client.js");
+    vi.mocked(resolveDefaultRef).mockResolvedValue({ ref: "main", sha: "a".repeat(40) });
+    vi.mocked(fetchSkillFiles).mockResolvedValue([
+      { relativePath: "my-skill/SKILL.md", content: "# My Skill", size: 10, executable: false },
+      { relativePath: "my-skill/scripts/run.sh", content: "#!/bin/sh", size: 9, executable: true },
+    ]);
+
+    await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "https://example.com/team/skills.git", transport: "git" }],
+      projectRoot: testDir,
+    });
+
+    const skillDir = join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH, "my-skill");
+    expect(applyFileMode).toHaveBeenCalledTimes(1);
+    expect(applyFileMode).toHaveBeenCalledWith(join(skillDir, "scripts", "run.sh"), 0o755);
   });
 
   it("should fetch only selected rules from a GitHub source", async () => {
@@ -894,6 +1009,7 @@ describe("resolveAndFetchSources", () => {
           resolvedRef: "locked-sha",
           skills: { "cached-skill": { integrity: "sha256-cached" } },
           skillSelection: ["*"],
+          skillsPath: "skills",
           rules: { "testing-guidelines": { integrity: "sha256-old" } },
           ruleSelection: ["testing-guidelines"],
           rulesPath: "rules",
@@ -1184,6 +1300,47 @@ describe("resolveAndFetchSources", () => {
     expect(locked).toMatchObject({ skillSelection: ["*"] });
   });
 
+  it("should keep the executable bit of an npm skill's scripts", async () => {
+    const {
+      fetchPackument,
+      fetchTarball,
+      getPackumentVersionDist,
+      resolveNpmToken,
+      resolvePackumentVersion,
+    } = await import("./npm-client.js");
+    const { extractPackageTarball } = await import("./npm-tar.js");
+    vi.mocked(resolveNpmToken).mockReturnValue(undefined);
+    vi.mocked(fetchPackument).mockResolvedValue({});
+    vi.mocked(resolvePackumentVersion).mockReturnValue("1.0.0");
+    vi.mocked(getPackumentVersionDist).mockReturnValue({
+      tarball: "https://registry.npmjs.org/example/-/example-1.0.0.tgz",
+      integrity: "sha512-example",
+    });
+    vi.mocked(fetchTarball).mockResolvedValue(Buffer.from("tarball"));
+    vi.mocked(extractPackageTarball).mockReturnValue([
+      {
+        relativePath: "skills/example/SKILL.md",
+        content: Buffer.from("# Example"),
+        executable: false,
+      },
+      {
+        relativePath: "skills/example/scripts/run.sh",
+        content: Buffer.from("#!/bin/sh"),
+        executable: true,
+      },
+    ]);
+
+    await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "example", transport: "npm" }],
+      projectRoot: testDir,
+    });
+
+    const skillDir = join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH, "example");
+    expect(applyFileMode).toHaveBeenCalledTimes(1);
+    expect(applyFileMode).toHaveBeenCalledWith(join(skillDir, "scripts", "run.sh"), 0o755);
+  });
+
   it("should refetch an npm source when the skill selection is widened beyond the lockfile", async () => {
     const {
       fetchPackument,
@@ -1233,6 +1390,7 @@ describe("resolveAndFetchSources", () => {
     expect(fetchTarball).toHaveBeenCalled();
     expect(vi.mocked(writeNpmLockFile).mock.calls.at(-1)?.[0].lock.sources.example).toMatchObject({
       skillSelection: ["skill-a", "skill-b"],
+      skillsPath: "skills",
     });
   });
 
@@ -2115,6 +2273,156 @@ describe("resolveAndFetchSources", () => {
     expect(writeLockFile).not.toHaveBeenCalled();
   });
 
+  it("should refetch when the declared skills path differs from the lockfile", async () => {
+    const { readLockFile, writeLockFile } = await import("./sources-lock.js");
+    const curatedDir = join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
+    vi.mocked(readLockFile).mockResolvedValue({
+      lockfileVersion: 1,
+      sources: {
+        "https://github.com/org/repo": {
+          resolvedRef: "locked-sha-123",
+          skills: { demo: { integrity: "sha256-demo" } },
+          skillSelection: ["*"],
+          skillsPath: "skills",
+        },
+      },
+    });
+    // The locked skill is on disk, so only the path can force a re-fetch
+    vi.mocked(directoryExists).mockImplementation(async (path: string) => {
+      return path === join(curatedDir, "demo");
+    });
+    mockClientInstance.listDirectory.mockImplementation(
+      async (_owner: string, _repo: string, path: string) => {
+        if (path === "other") {
+          return [{ name: "demo", path: "other/demo", type: "dir" }];
+        }
+        if (path === "other/demo") {
+          return [{ name: "SKILL.md", path: "other/demo/SKILL.md", type: "file", size: 10 }];
+        }
+        return [];
+      },
+    );
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "https://github.com/org/repo", path: "other", skills: ["*"] }],
+      projectRoot: testDir,
+    });
+
+    expect(result.fetchedSkillCount).toBe(1);
+    expect(mockClientInstance.listDirectory).toHaveBeenCalledWith(
+      "org",
+      "repo",
+      "other",
+      "locked-sha-123",
+    );
+    expect(vi.mocked(writeLockFile).mock.calls.at(-1)?.[0].lock.sources["org/repo"]).toMatchObject({
+      skillSelection: ["*"],
+      skillsPath: "other",
+    });
+  });
+
+  it("should throw when frozen and the declared skills path differs from the lockfile", async () => {
+    const { readLockFile, writeLockFile } = await import("./sources-lock.js");
+    const curatedDir = join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
+    vi.mocked(readLockFile).mockResolvedValue({
+      lockfileVersion: 1,
+      sources: {
+        "https://github.com/org/repo": {
+          resolvedRef: "locked-sha-123",
+          skills: { demo: { integrity: "sha256-demo" } },
+          skillSelection: ["*"],
+          skillsPath: "skills",
+        },
+      },
+    });
+    vi.mocked(directoryExists).mockImplementation(async (path: string) => {
+      return path === join(curatedDir, "demo");
+    });
+
+    await expect(
+      resolveAndFetchSources({
+        logger,
+        sources: [{ source: "https://github.com/org/repo", path: "does-not-exist", skills: ["*"] }],
+        projectRoot: testDir,
+        options: { frozen: true },
+      }),
+    ).rejects.toThrow("Frozen install failed");
+    expect(mockClientInstance.listDirectory).not.toHaveBeenCalled();
+    expect(writeLockFile).not.toHaveBeenCalled();
+  });
+
+  it("should skip re-fetch in frozen mode when a lockfile entry has no recorded skills path", async () => {
+    const { readLockFile } = await import("./sources-lock.js");
+    const curatedDir = join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
+    vi.mocked(readLockFile).mockResolvedValue({
+      lockfileVersion: 1,
+      sources: {
+        "https://github.com/org/repo": {
+          resolvedRef: "locked-sha-123",
+          skills: { demo: { integrity: "sha256-demo" } },
+          skillSelection: ["*"],
+        },
+      },
+    });
+    vi.mocked(directoryExists).mockImplementation(async (path: string) => {
+      return path === join(curatedDir, "demo");
+    });
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "https://github.com/org/repo", skills: ["*"] }],
+      projectRoot: testDir,
+      options: { frozen: true },
+    });
+
+    expect(result.fetchedSkillCount).toBe(0);
+    expect(mockClientInstance.listDirectory).not.toHaveBeenCalled();
+  });
+
+  it("should refetch a lockfile entry without a recorded skills path once to record it", async () => {
+    const { readLockFile, writeLockFile } = await import("./sources-lock.js");
+    const curatedDir = join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
+    vi.mocked(readLockFile).mockResolvedValue({
+      lockfileVersion: 1,
+      sources: {
+        "https://github.com/org/repo": {
+          resolvedRef: "locked-sha-123",
+          skills: { demo: { integrity: "sha256-demo" } },
+          skillSelection: ["*"],
+        },
+      },
+    });
+    vi.mocked(directoryExists).mockImplementation(async (path: string) => {
+      return path === join(curatedDir, "demo");
+    });
+    mockClientInstance.listDirectory.mockImplementation(
+      async (_owner: string, _repo: string, path: string) => {
+        if (path === "skills") {
+          return [{ name: "demo", path: "skills/demo", type: "dir" }];
+        }
+        if (path === "skills/demo") {
+          return [{ name: "SKILL.md", path: "skills/demo/SKILL.md", type: "file", size: 10 }];
+        }
+        return [];
+      },
+    );
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "https://github.com/org/repo", skills: ["*"] }],
+      projectRoot: testDir,
+    });
+
+    expect(result.fetchedSkillCount).toBe(1);
+    // The ref is taken from the lock, not re-resolved over the network.
+    expect(mockClientInstance.resolveRefToSha).not.toHaveBeenCalled();
+    expect(vi.mocked(writeLockFile).mock.calls.at(-1)?.[0].lock.sources["org/repo"]).toMatchObject({
+      resolvedRef: "locked-sha-123",
+      skillsPath: "skills",
+    });
+  });
+
   it("should fetch skills when a rules-only lock entry gains a wildcard skill selection", async () => {
     const { readLockFile, writeLockFile } = await import("./sources-lock.js");
     vi.mocked(readLockFile).mockResolvedValue({
@@ -2198,6 +2506,7 @@ describe("resolveAndFetchSources", () => {
           resolvedRef: "locked-sha-123",
           skills: { "skill-a": { integrity: "sha256-a" } },
           skillSelection: ["skill-a"],
+          skillsPath: "skills",
         },
       },
     });
@@ -2484,6 +2793,7 @@ describe("resolveAndFetchSources", () => {
       ref: "develop",
       resolvedRef: "def456abc789",
       skillsPath: "exports/skills",
+      logger,
     });
   });
 
@@ -2527,6 +2837,7 @@ describe("resolveAndFetchSources", () => {
           requestedRef: "main",
           skills: { "cached-skill": { integrity: "sha256-cached" } },
           skillSelection: ["*"],
+          skillsPath: "skills",
         },
       },
     });
@@ -2964,6 +3275,7 @@ describe("resolveAndFetchSources", () => {
           resolvedRef: "locked-sha",
           skills: { humanizer: { integrity: "sha256-old" } },
           skillSelection: ["humanizer"],
+          skillsPath: ".",
         },
       },
     });
