@@ -135,6 +135,24 @@ describe("CortexcodeHooks", () => {
       });
     });
 
+    it("should not emit statusMessage on prompt hooks", async () => {
+      const rulesyncHooks = buildRulesyncHooks(testDir, {
+        version: 1,
+        hooks: {
+          stop: [{ type: "prompt", prompt: "Done?", statusMessage: "Checking" }],
+        },
+      });
+
+      const hooks = await CortexcodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const parsed = JSON.parse(hooks.getFileContent());
+      expect(parsed.hooks.Stop[0].hooks[0]).toEqual({ type: "prompt", prompt: "Done?" });
+    });
+
     it("should carry the remote-hook source object on command hooks", async () => {
       const rulesyncHooks = buildRulesyncHooks(testDir, {
         version: 1,

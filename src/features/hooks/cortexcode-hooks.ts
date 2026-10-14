@@ -26,8 +26,8 @@ const CORTEXCODE_NO_MATCHER_EVENTS: ReadonlySet<string> = new Set(["beforeSubmit
 // Remote Hooks `source` object (`{ source: "github:org/repo/path", ref }`)
 // is documented on command hooks only, where `command` names the interpreter
 // the fetched script runs under. `statusMessage` (the spinner text shown while
-// the hook runs) is documented on the Cortex Code Desktop hooks page, whose
-// `~/.snowflake/cortex/hooks.json` is shared with the CLI.
+// the hook runs) is documented for command hooks on the Cortex Code Desktop
+// hooks page, whose `~/.snowflake/cortex/hooks.json` is shared with the CLI.
 // https://docs.snowflake.com/en/user-guide/cortex-code/cortex-code-desktop/hooks
 const CORTEXCODE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   supportedEvents: CORTEXCODE_HOOK_EVENTS,
@@ -38,7 +38,9 @@ const CORTEXCODE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   noMatcherEvents: CORTEXCODE_NO_MATCHER_EVENTS,
   supportedHookTypes: new Set(["command", "prompt"]),
   booleanPassthroughFields: [{ canonical: "enabled", tool: "enabled" }],
-  stringPassthroughFields: [{ canonical: "statusMessage", tool: "statusMessage" }],
+  stringPassthroughFields: [
+    { canonical: "statusMessage", tool: "statusMessage", commandOnly: true },
+  ],
   objectPassthroughFields: [{ canonical: "source", tool: "source", commandOnly: true }],
 };
 
@@ -55,7 +57,7 @@ const CORTEXCODE_SPEC: SettingsJsonHooksSpec = {
  * (project scope) and of the dedicated `~/.snowflake/cortex/hooks.json` (user
  * scope), both in the Claude-Code shape: `{ "<Event>": [{ "matcher"?:
  * "<regex>", "hooks": [{ "type": "command" | "prompt", ..., "timeout"?:
- * <seconds>, "enabled"?: <boolean>, "statusMessage"?: <string>, "source"?: { "source", "ref"? } }] }] }`.
+ * <seconds>, "enabled"?: <boolean>, "statusMessage"?: <string> (command only), "source"?: { "source", "ref"? } }] }] }`.
  * The project file also holds settings rulesync does not own, so generation
  * merges the `hooks` key into
  * either file (see `SHARED_CONFIG_OWNERSHIP`) instead of overwriting it, and
