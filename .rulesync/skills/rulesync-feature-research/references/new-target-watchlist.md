@@ -14,17 +14,18 @@ latest re-check section.
 | Candidate                                         | Recorded   | Re-check condition                                                                                                                                                                                                                                                                                                                                                                                                               |
 | ------------------------------------------------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Zoo Code CLI (`@roo-code/cli`)                    | 2026-08-08 | Whether the package ships publicly; today it is `private: true`, unpublished and undocumented                                                                                                                                                                                                                                                                                                                                    |
-| ForgeCode (`tailcallhq/forgecode`)                | 2026-09-12 | Weekly npm downloads of `@antinomyhq/forge` reach ~2k or stars reach 10k, or an official docs page pins the `.forge/commands` YAML and `forge.yaml` schema (the docs site renders client-side today)                                                                                                                                                                                                                             |
+| ForgeCode (`tailcallhq/forgecode`)                | 2026-09-12 | Weekly npm downloads of `@antinomyhq/forge` reach ~2k or stars reach 10k, or an official docs page pins the `.forge/commands` YAML and `forge.yaml` schema (the agent-configuration docs page returns 404 today)                                                                                                                                                                                                                 |
 | Salesforce Agentforce Vibes (IDE + announced CLI) | 2026-09-12 | The official rules docs become reachable (403 to fetchers today) and the CLI ships a repo-level MCP / rules layout beyond `.a4drules/*.md`                                                                                                                                                                                                                                                                                       |
 | Verdent (VS Code extension + Verdent Deck)        | 2026-09-12 | A project-scope `.verdent/` tree or a CLI with documented config appears; today only `~/.verdent/{VERDENT.md,plan_rules.md,subagents/*.md}` plus `AGENTS.md` (covered)                                                                                                                                                                                                                                                           |
-| Baidu Comate / Zulu CLI (`@comate/zulu`)          | 2026-09-12 | English docs list the project-level file layout; today only `.baidu-comate/mcp.json` (IDE) is documented and the package is license-gated with ~550 downloads/week                                                                                                                                                                                                                                                               |
+| Baidu Comate / Zulu CLI (`@comate/zulu`)          | 2026-09-12 | English docs list the project-level file layout; today only `.baidu-comate/mcp.json` (IDE) is documented and the package is license-gated with ~660 downloads/week                                                                                                                                                                                                                                                               |
 | Warp Factories (definitions-as-code)              | 2026-09-12 | Not a `warp` gap (see #2598) — Factories leave Early Access (gated since 2026-08-18) or the `factory.yaml` / `agents/<name>/agent.md` / `skills/<name>/SKILL.md` tree becomes something a developer's own project repo carries rather than a separate factory repository                                                                                                                                                         |
 | fx (`vercel-labs/fx`)                             | 2026-09-16 | Project `.fx.json` or a `.fx/` tree gains rules / permissions / hooks, or stars reach ~10k; today the project file carries only five keys (`max_agent_steps` / `max_tool_result_bytes` / `context` / `provider_order` / `provider_strict`) and everything else is global-only under `~/.fx/` (`AGENTS.md`, `settings.json` permission map, `mcp.json`, `skills/`) while `AGENTS.md` / `.mcp.json` / `.agents/skills` are covered |
 | Zencoder (IDE extension + Zenflow)                | 2026-09-16 | An official rules-file reference page appears for `.zencoder/rules/*.md` (`description`, `alwaysApply` / `always_apply`, `globs`) together with a file-based MCP / agents layout, or a standalone CLI ships; today MCP lives in the VS Code setting `zencoder.mcpServers` and agents are dashboard-managed                                                                                                                       |
-| Nanocoder (`Nano-Collective/nanocoder`)           | 2026-09-16 | Stars reach ~10k or `@nanocollective/nanocoder` downloads reach ~5k/week (2,492 stars and ~1.3k/week today); surface is `agents.config.json` in the cwd plus `~/.config/nanocoder/agents.config.json` with documented skills / commands / subagents / hooks                                                                                                                                                                      |
-| Every Code (`just-every/code`, Codex fork)        | 2026-09-16 | A project-scope `.code/` layout distinct from Codex appears, or stars reach ~10k (4,030 today); surface is `~/.code/config.toml` (Codex-shaped, also reads legacy `~/.codex/`) plus `AGENTS.md`, both covered by `codexcli` / `agentsmd`                                                                                                                                                                                         |
-| Open Interpreter (Rust Codex distribution)        | 2026-09-26 | GitHub release assets exceed ~10k downloads per release or a package channel exceeds ~2k/week, or it gains a rules / commands surface beyond Codex; today `.openinterpreter/config.toml` + `hooks.json` mirror the Codex layout already covered by `codexcli`                                                                                                                                                                    |
-| jcode (`1jehuang/jcode`)                          | 2026-09-26 | A project-scope rules / skills / permissions file beyond `.jcode/mcp.json` is documented (20,136 stars, v0.88.0 today)                                                                                                                                                                                                                                                                                                           |
+| Nanocoder (`Nano-Collective/nanocoder`)           | 2026-09-16 | Stars reach ~10k or `@nanocollective/nanocoder` downloads reach ~5k/week (2,508 stars and ~2.5k/week today); surface is `agents.config.json` in the cwd plus `~/.config/nanocoder/agents.config.json` with documented skills / commands / subagents / hooks                                                                                                                                                                      |
+| Every Code (`just-every/code`, Codex fork)        | 2026-09-16 | A project-scope `.code/` layout distinct from Codex appears, or stars reach ~10k (4,038 today); surface is `~/.code/config.toml` (Codex-shaped, also reads legacy `~/.codex/`) plus `AGENTS.md`, both covered by `codexcli` / `agentsmd`                                                                                                                                                                                         |
+| Open Interpreter (Rust Codex distribution)        | 2026-09-26 | GitHub release assets exceed ~10k downloads per release or a package channel exceeds ~2k/week, or it gains a rules / commands surface beyond Codex; today `.openinterpreter/config.toml` + `hooks.json` match the Codex layout in shape, but `codexcli` output is not read (Open Interpreter uses its own `.openinterpreter/` home), and recent releases draw ~5k–8k asset downloads each                                        |
+| MiniMax Code (`MiniMax-AI/minimax-code`)          | 2026-10-13 | The official docs pin a project `.minimax/` layout for MCP / agents / commands / hooks; today they document only `AGENTS.md`, `.agents/skills` / `.claude/skills` (covered) and `~/.minimax/config.yaml` (`permissionMode`), with ~11.7k npm downloads/week and 2,021 stars                                                                                                                                                      |
+| Prime Agent (`PrimeIntellect-ai/prime-agent`)     | 2026-10-13 | A stable release ships with official docs for the `.prime/agent/` layout (MCP / skills / subagents); today it is v0.10.1-beta.6 (21,944 stars), reads `AGENTS.md` / `CLAUDE.md`, `.prime/agent/SYSTEM.md` and `.prime/agent/prompts/`, and its skills are Python packages rather than `SKILL.md` bundles                                                                                                                         |
 
 ## Zoo Code CLI — `apps/cli` in the Zoo-Code repo
 
@@ -150,10 +151,56 @@ candidate's bullet here when its table row is promoted or retired.
 - Open Interpreter: `https://github.com/openinterpreter/openinterpreter/blob/main/docs/portability.md`,
   `https://github.com/openinterpreter/openinterpreter/blob/main/docs/hooks.md`,
   `https://www.openinterpreter.com/docs/terminal/config`.
-- jcode: `https://github.com/1jehuang/jcode`.
+
+## Re-check on 2026-10-13
+
+Every row above was re-checked by the 2026-10-13 discovery pass and left as is
+unless noted:
+
+- Zoo Code CLI: unmet — `apps/cli/package.json` is still `@roo-code/cli`
+  0.1.17 with `private: true`, and npm still returns 404.
+- ForgeCode: unmet — `@antinomyhq/forge` ~180 downloads/week, npm still 2.13.21
+  (GitHub v2.14.0 from 2026-10-01 is not on npm), 7,638 stars; the
+  agent-configuration docs page now returns 404.
+- Agentforce Vibes: unmet — the official rules docs still return 403.
+- Verdent: unmet — unchanged.
+- Baidu Comate / Zulu: unmet — 1.7.21, ~660 downloads/week; still no English
+  layout docs.
+- Warp Factories: unmet — still Early Access; paid plans can keep definitions
+  "in your own repository", but the docs do not say that is the project repo.
+- fx: unmet — 3,374 stars; `.fx.json` still has the same five keys.
+- Zencoder: unmet — still no rules-file reference page or Zencoder CLI.
+- Nanocoder: unmet — 2,508 stars, ~2.5k downloads/week, 1.31.0.
+- Every Code: unmet — 4,038 stars, 0.6.196; no project `.code/` layout.
+- Open Interpreter: unmet — `rust-v0.0.56` (2026-10-07) has 5,433 asset
+  downloads and `rust-v0.0.55` 7,926 (only `rust-v0.0.45` passed 10k); no rules
+  or commands surface beyond Codex. A proposal (#3410) was filed by mistake from
+  a stale copy of this file and closed as not planned; the row's wording now
+  notes that `codexcli` output does not reach it.
+- jcode: promoted — `docs/SYSTEM_PROMPT_CONFIG.md` documents the project
+  `./.jcode/prompt-overlay.md` and `./.jcode/system-prompt.md`, and the README
+  documents `.jcode/skills/`. Proposed as #3412; row and source bullet removed.
+
+## Watchlist candidates recorded on 2026-10-13
+
+Sources for the rows added on 2026-10-13 by the discovery pass. Remove a
+candidate's bullet here when its table row is promoted or retired.
+
+- MiniMax Code: `https://github.com/MiniMax-AI/minimax-code`,
+  `https://agent.minimax.io/docs/cli/configuration.md`.
+- Prime Agent: `https://github.com/PrimeIntellect-ai/prime-agent`.
 
 ## Promoted entries
 
+- **jcode** — `.jcode/prompt-overlay.md` / `system-prompt.md` rules,
+  `.jcode/mcp.json`, `.jcode/skills/`, global `[hooks]` in
+  `~/.jcode/config.toml`. Recorded on 2026-09-26 and proposed as #3412 on
+  2026-10-13. Do not re-add it — track the proposal on that issue.
+- **OpenHands** — `.openhands/hooks.json` and `~/.openhands/mcp.json` on top of
+  the covered `AGENTS.md` / `.agents/skills`. The 2026-06-23 request #4 was
+  closed as covered; proposed again with that narrower scope as #3411 on
+  2026-10-13 directly from the discovery pass. Do not re-add it — track the
+  proposal on that issue.
 - **MiMo Code** — OpenCode fork reading `.mimocode/` (`mimocode.jsonc`,
   commands, agents, skills) and `~/.config/mimocode/`. Proposed as #3173 on
   2026-09-26 directly from the discovery pass. Do not re-add it — track the
