@@ -18,9 +18,33 @@ describe("extractPackageTarball", () => {
     const entries = extractPackageTarball({ tarball });
 
     expect(entries).toEqual([
-      { relativePath: "SKILL.md", content: Buffer.from("# My Skill\n") },
-      { relativePath: "skills/my-skill/SKILL.md", content: Buffer.from("# Nested\n") },
-      { relativePath: "skills/my-skill/references/notes.md", content: Buffer.from("notes") },
+      { relativePath: "SKILL.md", content: Buffer.from("# My Skill\n"), executable: false },
+      {
+        relativePath: "skills/my-skill/SKILL.md",
+        content: Buffer.from("# Nested\n"),
+        executable: false,
+      },
+      {
+        relativePath: "skills/my-skill/references/notes.md",
+        content: Buffer.from("notes"),
+        executable: false,
+      },
+    ]);
+  });
+
+  it("reports the execute bit recorded in each entry's mode", () => {
+    const tarball = buildTarball([
+      { name: "package/skills/my-skill/SKILL.md", content: "# Skill\n" },
+      { name: "package/skills/my-skill/scripts/run.sh", content: "#!/bin/sh\n", mode: "0000755" },
+      { name: "package/skills/my-skill/scripts/odd.sh", content: "#!/bin/sh\n", mode: "zzz" },
+    ]);
+
+    const entries = extractPackageTarball({ tarball });
+
+    expect(entries.map(({ relativePath, executable }) => ({ relativePath, executable }))).toEqual([
+      { relativePath: "skills/my-skill/SKILL.md", executable: false },
+      { relativePath: "skills/my-skill/scripts/run.sh", executable: true },
+      { relativePath: "skills/my-skill/scripts/odd.sh", executable: false },
     ]);
   });
 
@@ -29,7 +53,9 @@ describe("extractPackageTarball", () => {
 
     const entries = extractPackageTarball({ tarball });
 
-    expect(entries).toEqual([{ relativePath: "SKILL.md", content: Buffer.from("root") }]);
+    expect(entries).toEqual([
+      { relativePath: "SKILL.md", content: Buffer.from("root"), executable: false },
+    ]);
   });
 
   it("rejects entries with .. path traversal segments", () => {
@@ -61,7 +87,9 @@ describe("extractPackageTarball", () => {
 
     const entries = extractPackageTarball({ tarball, onSkippedEntry });
 
-    expect(entries).toEqual([{ relativePath: "SKILL.md", content: Buffer.from("safe") }]);
+    expect(entries).toEqual([
+      { relativePath: "SKILL.md", content: Buffer.from("safe"), executable: false },
+    ]);
     expect(onSkippedEntry).toHaveBeenCalledTimes(2);
     expect(onSkippedEntry.mock.calls[0]?.[0]).toContain('type "2"');
   });
@@ -75,7 +103,11 @@ describe("extractPackageTarball", () => {
     const entries = extractPackageTarball({ tarball });
 
     expect(entries).toEqual([
-      { relativePath: "renamed-via-pax.md", content: Buffer.from("pax content") },
+      {
+        relativePath: "renamed-via-pax.md",
+        content: Buffer.from("pax content"),
+        executable: false,
+      },
     ]);
   });
 
@@ -98,7 +130,11 @@ describe("extractPackageTarball", () => {
     const entries = extractPackageTarball({ tarball });
 
     expect(entries).toEqual([
-      { relativePath: `${"a".repeat(120)}/SKILL.md`, content: Buffer.from("long name content") },
+      {
+        relativePath: `${"a".repeat(120)}/SKILL.md`,
+        content: Buffer.from("long name content"),
+        executable: false,
+      },
     ]);
   });
 
@@ -179,7 +215,9 @@ describe("extractPackageTarball", () => {
 
     const entries = extractPackageTarball({ tarball });
 
-    expect(entries).toEqual([{ relativePath: "a.md", content: Buffer.from("abc") }]);
+    expect(entries).toEqual([
+      { relativePath: "a.md", content: Buffer.from("abc"), executable: false },
+    ]);
   });
 
   it("skips entries that resolve to the package root itself", () => {
@@ -190,6 +228,8 @@ describe("extractPackageTarball", () => {
 
     const entries = extractPackageTarball({ tarball });
 
-    expect(entries).toEqual([{ relativePath: "real.md", content: Buffer.from("real") }]);
+    expect(entries).toEqual([
+      { relativePath: "real.md", content: Buffer.from("real"), executable: false },
+    ]);
   });
 });

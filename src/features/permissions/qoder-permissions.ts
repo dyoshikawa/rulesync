@@ -26,6 +26,14 @@ import {
 /** Top-level key of `.qoder/settings.json` that rulesync owns. */
 const QODER_PERMISSIONS_KEY = "permissions";
 
+/**
+ * Top-level key the `qoder` override authors: the active output style. Qoder
+ * also reads `general.outputStyle`, but the top-level key wins, so that is the
+ * one written and imported.
+ * @see https://docs.qoder.com/cli/settings-reference
+ */
+const QODER_OUTPUT_STYLE_KEY = "outputStyle";
+
 const CATCH_ALL_PATTERN = "*";
 
 /** Prefix of the fully qualified MCP tool names (`mcp__<server>__<tool>`). */
@@ -244,9 +252,11 @@ function buildQoderRuleLists({
  * through the shared-config gateway, the sibling keys of `permissions`
  * (`additionalDirectories`, `trustDirectories`) are kept, and the file is
  * never deleted. `.qoder/settings.local.json` (where `/allow` and `/deny`
- * persist) is left to the user.
+ * persist) is left to the user. The `qoder` override's `outputStyle` is
+ * written to (and imported from) the top-level `outputStyle` key.
  *
  * @see https://docs.qoder.com/en/cli/permissions
+ * @see https://docs.qoder.com/cli/output-styles
  */
 export class QoderPermissions extends ToolPermissions {
   constructor(params: AiFileParams) {
@@ -303,11 +313,15 @@ export class QoderPermissions extends ToolPermissions {
       ? existing[QODER_PERMISSIONS_KEY]
       : {};
 
-    const lists = buildQoderRuleLists({
-      config: rulesyncPermissions.getJson(),
-      existingPermissions,
-      logger,
-    });
+    const config = rulesyncPermissions.getJson();
+    const lists = buildQoderRuleLists({ config, existingPermissions, logger });
+    // Only in the patch when authored, so a hand-set value survives.
+    const outputStyle = config.qoder?.outputStyle?.trim();
+    if (outputStyle !== undefined) {
+      logger?.warn(
+        `Qoder permissions: qoder.outputStyle = ${JSON.stringify(outputStyle)} was written to ${join(paths.relativeDirPath, paths.relativeFilePath)}${global ? " in the home directory" : ""}, so Qoder appends that style's instructions to the system prompt of every session it applies to.`,
+      );
+    }
     const permissions: Record<string, unknown> = { ...existingPermissions };
     for (const action of ACTIONS) {
       if (lists[action].length > 0) {
@@ -327,6 +341,7 @@ export class QoderPermissions extends ToolPermissions {
         existingContent,
         patch: {
           [QODER_PERMISSIONS_KEY]: Object.keys(permissions).length > 0 ? permissions : undefined,
+          ...(outputStyle !== undefined && { [QODER_OUTPUT_STYLE_KEY]: outputStyle }),
         },
         filePath,
       }),
@@ -364,8 +379,14 @@ export class QoderPermissions extends ToolPermissions {
         }
       }
     }
+    const outputStyle = settings[QODER_OUTPUT_STYLE_KEY];
+    const hasOutputStyle = typeof outputStyle === "string" && outputStyle.trim() !== "";
     return this.toRulesyncPermissionsDefault({
-      fileContent: JSON.stringify({ permission }, null, 2),
+      fileContent: JSON.stringify(
+        { permission, ...(hasOutputStyle && { qoder: { outputStyle } }) },
+        null,
+        2,
+      ),
     });
   }
 
