@@ -125,6 +125,41 @@ describe("RulesyncPermissionsFileSchema tool-scoped override enums", () => {
     });
   });
 
+  describe("factorydroid.permissionRules", () => {
+    const rule = (overrides: Record<string, unknown> = {}) => ({
+      id: "allow-git-status",
+      decision: "allow",
+      match: { prefix: ["git", "status"] },
+      tests: { match: ["git status"], noMatch: ["git push"] },
+      ...overrides,
+    });
+
+    it.each(["allow", "ask", "block"])("should accept decision %s", (decision) => {
+      const result = RulesyncPermissionsFileSchema.safeParse(
+        withOverride({
+          factorydroid: { permissionRules: { version: 1, rules: [rule({ decision })] } },
+        }),
+      );
+      expect(result.success).toBe(true);
+    });
+
+    it("should reject an unknown decision", () => {
+      const result = RulesyncPermissionsFileSchema.safeParse(
+        withOverride({
+          factorydroid: { permissionRules: { version: 1, rules: [rule({ decision: "deny" })] } },
+        }),
+      );
+      expect(result.success).toBe(false);
+    });
+
+    it("should reject a container without a rules array", () => {
+      const result = RulesyncPermissionsFileSchema.safeParse(
+        withOverride({ factorydroid: { permissionRules: { version: 1 } } }),
+      );
+      expect(result.success).toBe(false);
+    });
+  });
+
   describe("amp.permissions entries", () => {
     it.each(["allow", "ask", "reject", "delegate"])("should accept action %s", (action) => {
       const result = RulesyncPermissionsFileSchema.safeParse(
