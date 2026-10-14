@@ -44,8 +44,16 @@ export type ReleaseNote = {
  * when the input is not a valid date.
  */
 function parseDate(value: string): number | null {
-  const timestamp = Date.parse(value);
-  return Number.isNaN(timestamp) ? null : timestamp;
+  const timestamp = Date.parse(value.trim());
+  if (Number.isNaN(timestamp)) return null;
+  // Date.parse rolls impossible calendar dates into the following month.
+  if (
+    DATE_ONLY_PATTERN.test(value.trim()) &&
+    new Date(timestamp).toISOString().slice(0, 10) !== value.trim()
+  ) {
+    return null;
+  }
+  return timestamp;
 }
 
 /** A bare `YYYY-MM-DD` with no time part. */

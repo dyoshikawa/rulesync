@@ -119,6 +119,18 @@ describe("releaseNotesCommand", () => {
     expect(listReleases).not.toHaveBeenCalled();
   });
 
+  it.each(["since", "until"] as const)(
+    "rejects a nonexistent --%s date before calling the API",
+    async (flag) => {
+      await expect(
+        releaseNotesCommand(createMockLogger(), { source: "owner/repo", [flag]: "2026-02-30" }),
+      ).rejects.toThrow(`Invalid --${flag}`);
+      expect(listReleases).not.toHaveBeenCalled();
+      expect(getReleaseByTag).not.toHaveBeenCalled();
+      expect(stdout).toEqual([]);
+    },
+  );
+
   it("wraps GitHub API errors in a CLIError with an auth hint", async () => {
     listReleases.mockRejectedValueOnce(new GitHubClientError("Not found: repo", 404));
 
