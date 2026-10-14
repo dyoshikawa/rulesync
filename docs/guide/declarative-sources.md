@@ -251,6 +251,7 @@ The lockfile at `rulesync.lock` (at the project root) records the resolved commi
         "another-skill": { "integrity": "sha256-123456..." }
       },
       "skillSelection": ["*"],
+      "skillsPath": "skills",
       "rules": {
         "testing-guidelines": { "integrity": "sha256-789abc..." }
       },
@@ -278,7 +279,7 @@ The exit code makes the check usable in CI and scripts:
 
 With the global `--json` flag, the per-source report (`source`, `transport`, `status`, `requestedRef`, `lockedRef`, `latestRef`, `error`) is returned as `data.sources` on success and as `error.details.sources` when the command exits non-zero. Any other error — an invalid flag combination or an unreadable configuration file, for example — also exits with code `1`, as it does for every command; with `--json`, only an outdated result carries `error.details.sources`. `--outdated` works only in the default `rulesync` mode and cannot be combined with `--update` or `--frozen`. It checks refs only; whether the lockfile covers each source's `skills` and `rules` selection is what `--frozen` checks.
 
-Changing a source's `skills` or `rules` selection in `rulesync.jsonc` (for example, adding a skill name to an explicit list, or switching to `"*"`) is picked up by the next plain `rulesync install`: the entry is refetched at its locked ref and the lockfile records the new selection. Under `--frozen`, a selection the lockfile does not cover fails the install instead. A lockfile written before `skillSelection` was recorded is fetched again once, at its locked ref, by the next plain `rulesync install`, which then records the selection; commit the updated lockfile so `--frozen` installs keep reusing the cache.
+Changing a source's `skills` or `rules` selection in `rulesync.jsonc` (for example, adding a skill name to an explicit list, or switching to `"*"`), or its `path` or `rulesPath`, is picked up by the next plain `rulesync install`: the entry is refetched at its locked ref and the lockfile records the new selection and path. Under `--frozen`, a selection or path the lockfile does not cover fails the install instead. A lockfile written before `skillSelection` or `skillsPath` was recorded is fetched again once, at its locked ref, by the next plain `rulesync install`, which then records them; commit the updated lockfile so `--frozen` installs keep reusing the cache.
 
 npm-transport sources (experimental) are pinned in a separate `rulesync-npm.lock.json`, because they lock a resolved package version and tarball integrity instead of a commit SHA:
 
@@ -296,6 +297,7 @@ npm-transport sources (experimental) are pinned in a separate `rulesync-npm.lock
         "my-skill": { "integrity": "sha256-abcdef..." }
       },
       "skillSelection": ["my-skill"],
+      "skillsPath": "skills",
       "rules": {
         "testing-guidelines": { "integrity": "sha256-789abc..." }
       },
