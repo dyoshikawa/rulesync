@@ -26,9 +26,10 @@ import {
   type ToolHooksSettablePaths,
 } from "./tool-hooks.js";
 
-// GitLab Duo CLI documents only the `SessionStart` event, command hooks with an
+// GitLab Duo CLI documents the `SessionStart` event, command hooks with an
 // optional regex `matcher` on the session source (`startup`, `resume`), and a
-// per-hook `timeout` in seconds. Hook processes get `DUO_PROJECT_DIR`, so
+// per-hook `timeout` in seconds. gitlab-lsp also reads `PreToolUse` (matcher on
+// `tool_name`) and `SessionEnd` (matcher on the end reason) from the same file. Hook processes get `DUO_PROJECT_DIR`, so
 // `./`-relative script paths are anchored to it (bare executables such as
 // `npx ...` are left intact). https://docs.gitlab.com/user/gitlab_duo_cli/customize/
 const GITLABDUO_CONVERTER_CONFIG: ToolHooksConverterConfig = {
@@ -45,7 +46,7 @@ const GITLABDUO_CONVERTER_CONFIG: ToolHooksConverterConfig = {
  *
  * Hooks live in a dedicated file, `<project>/.gitlab/duo/hooks.json` (project,
  * opt-in via `--enable-project-hooks` / `GITLAB_ENABLE_PROJECT_HOOKS=true`) or
- * `~/.gitlab/duo/hooks.json` (user), shaped as `{ "hooks": { "SessionStart": [...] } }`.
+ * `~/.gitlab/duo/hooks.json` (user), shaped as `{ "hooks": { "SessionStart": [...], "PreToolUse": [...] } }`.
  * rulesync owns the whole file, so it is regenerated and deleted as a unit.
  */
 export class GitlabduoHooks extends ToolHooks {
