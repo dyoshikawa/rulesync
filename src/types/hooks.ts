@@ -1315,7 +1315,10 @@ export const CORTEXCODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Objec
  * or `agent` hooks with a `timeout` in seconds. The hooks reference documents ten events; the
  * plugins reference lists the full set, stating that plugin hooks "respond to
  * the same lifecycle events as user-defined hooks", so every event listed
- * there is supported here.
+ * there is supported here. The hooks reference also names `Setup`
+ * (bootstrap/maintenance), and the published package's settings schema
+ * (`@tencent-ai/codebuddy-code` 2.167.0) accepts `UserPromptExpansion`, whose
+ * matcher filters on `command_name` as in Claude Code.
  *
  * @see https://www.codebuddy.ai/docs/cli/hooks
  * @see https://www.codebuddy.ai/docs/cli/plugins-reference
@@ -1347,6 +1350,8 @@ export const CODEBUDDY_HOOK_EVENTS: readonly HookEvent[] = [
   "elicitation",
   "elicitationResult",
   "sessionEnd",
+  "setup",
+  "userPromptExpansion",
 ];
 
 /**
@@ -1401,6 +1406,8 @@ export const CANONICAL_TO_CODEBUDDY_EVENT_NAMES: Record<string, string> = {
   elicitation: "Elicitation",
   elicitationResult: "ElicitationResult",
   sessionEnd: "SessionEnd",
+  setup: "Setup",
+  userPromptExpansion: "UserPromptExpansion",
 };
 
 export const CODEBUDDY_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
