@@ -12,6 +12,7 @@ import {
   listDirectoryEntryNames,
   readFileContent,
   removeTempDirectory,
+  resolvedPathEscapesRoot,
 } from "../utils/file.js";
 import type { Logger } from "../utils/logger.js";
 import { findControlCharacter } from "../utils/validation.js";
@@ -268,6 +269,17 @@ export async function fetchSkillFiles(params: {
     }
     const skillsDir = isRootPath ? tmpDir : join(tmpDir, skillsPath);
     if (!(await directoryExists(skillsDir))) return [];
+    // `walkDirectory` skips symlinks it meets inside the tree, but never checks the
+    // directory it starts from. A source repository can commit `skillsPath` itself
+    // (or one of its parents) as a symlink pointing outside the clone, which would
+    // make us read and install local files from the consuming machine. Resolve every
+    // link and refuse a start directory that does not stay inside the clone.
+    if (await resolvedPathEscapesRoot({ rootPath: tmpDir, targetPath: skillsDir })) {
+      logger?.warn(
+        `Skipping "${skillsPath}" from ${url}: it resolves outside the repository through a symlink.`,
+      );
+      return [];
+    }
     return await walkDirectory(skillsDir, skillsDir, 0, { totalFiles: 0, totalSize: 0 }, logger);
   } catch (error) {
     if (error instanceof GitClientError) throw error;
