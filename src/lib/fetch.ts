@@ -56,7 +56,12 @@ import {
 } from "../utils/file.js";
 import type { Logger } from "../utils/logger.js";
 import { GitHubClient, GitHubClientError } from "./github-client.js";
-import { listDirectoryRecursive, MAX_RECURSION_DEPTH, withSemaphore } from "./github-utils.js";
+import {
+  listDirectoryRecursive,
+  MAX_RECURSION_DEPTH,
+  resolveExecutablePaths,
+  withSemaphore,
+} from "./github-utils.js";
 import { isInteractiveTerminal, promptSkillSelection } from "./skill-prompt.js";
 import { parseSource } from "./source-parser.js";
 
@@ -1531,41 +1536,6 @@ function isSkillSupportingPath(relativePath: string): boolean {
     classifySkillPath(relativePath).kind === "skill" &&
     posix.basename(relativePath) !== SKILL_FILE_NAME
   );
-}
-
-/**
- * The repository paths git records as executable, so a skill's script keeps
- * its bit through a fetch. The contents API carries no mode, and a fetch
- * that cannot read the tree still completes -- the file is written and the
- * bit is what it lacks.
- */
-async function resolveExecutablePaths({
-  client,
-  owner,
-  repo,
-  ref,
-  logger,
-}: {
-  client: GitHubClient;
-  owner: string;
-  repo: string;
-  ref: string;
-  logger: Logger;
-}): Promise<Set<string>> {
-  try {
-    const { paths, truncated } = await client.listExecutablePaths(owner, repo, ref);
-    if (truncated) {
-      logger.warn(
-        "The repository's tree listing was cut short by the API, so a script it left out is written without its executable bit. Run `chmod +x` on it by hand.",
-      );
-    }
-    return paths;
-  } catch (error) {
-    logger.warn(
-      `Could not read file modes from ${owner}/${repo}: ${stripControlCharacters(formatError(error))}. Scripts are written without their executable bit.`,
-    );
-    return new Set();
-  }
 }
 
 /**

@@ -598,6 +598,25 @@ const ReasonixPermissionsOverrideSchema = z.looseObject({
 export type ReasonixPermissionsOverride = z.infer<typeof ReasonixPermissionsOverrideSchema>;
 
 /**
+ * Tool-scoped override block for Qoder. `outputStyle` is written to the
+ * top-level `outputStyle` key of `.qoder/settings.json` (project) /
+ * `~/.qoder/settings.json` (global): the name of the active output style, a
+ * custom style from `.qoder/output-styles/` (see the `qoder.channel:
+ * output-style` rule option) or a `plugin-name:style-name` reference. The
+ * shared `permission` block continues to drive `permissions.allow`/`ask`/`deny`.
+ *
+ * @see https://docs.qoder.com/cli/output-styles
+ * @see https://docs.qoder.com/cli/settings-reference
+ * @example
+ * { "outputStyle": "concise-review" }
+ */
+const QoderPermissionsOverrideSchema = z.looseObject({
+  permission: z.optional(ToolScopedPermissionSchema),
+  outputStyle: z.optional(z.string().check(z.trim(), z.minLength(1))),
+});
+export type QoderPermissionsOverride = z.infer<typeof QoderPermissionsOverrideSchema>;
+
+/**
  * Tool-scoped override block for Factory Droid. Factory Droid's `settings.json`
  * exposes security controls with no canonical per-command allow/ask/deny slot —
  * `commandBlocklist` (a hard-block tier that can never be approved, distinct from
@@ -1459,6 +1478,7 @@ export const PermissionsConfigSchema = z.looseObject({
   codewhale: z.optional(CodewhalePermissionsOverrideSchema),
   zed: z.optional(ZedPermissionsOverrideSchema),
   devin: z.optional(DevinPermissionsOverrideSchema),
+  qoder: z.optional(QoderPermissionsOverrideSchema),
   // Tools without tool-specific override keys still accept the canonical
   // tool-scoped `permission` block (see ToolScopedPermissionSchema).
   "antigravity-ide": z.optional(CanonicalPermissionsOverrideSchema),
@@ -1472,7 +1492,6 @@ export const PermissionsConfigSchema = z.looseObject({
   goose: z.optional(CanonicalPermissionsOverrideSchema),
   omp: z.optional(OmpPermissionsOverrideSchema),
   pool: z.optional(CanonicalPermissionsOverrideSchema),
-  qoder: z.optional(CanonicalPermissionsOverrideSchema),
   grokcli: z.optional(CanonicalPermissionsOverrideSchema),
   "kimi-code": z.optional(KimiCodePermissionsOverrideSchema),
   roo: z.optional(CanonicalPermissionsOverrideSchema),
