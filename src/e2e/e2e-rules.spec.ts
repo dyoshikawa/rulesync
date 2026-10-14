@@ -1987,6 +1987,7 @@ This is a test project for E2E testing.
 const rulesGlobalTargets = [
   { target: "claudecode", outputPath: join(".claude", "CLAUDE.md") },
   { target: "codebuddy", outputPath: join(".codebuddy", "CODEBUDDY.md") },
+  { target: "codebuff", outputPath: ".AGENTS.md" },
   { target: "copilot", outputPath: join(".copilot", "copilot-instructions.md") },
   { target: "mimocode", outputPath: join(".config", "mimocode", "AGENTS.md") },
   { target: "omp", outputPath: join(".omp", "agent", "AGENTS.md") },

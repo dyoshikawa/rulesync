@@ -47,7 +47,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Qwen Code                 | qwencode           | ✅ 🌏 |   ✅   | ✅ 🌏 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |   ✅   |
 | Meta Muse Code            | musecode           |  ✅   |        |    🌏    |          |           | ✅ 🌏  |       |             |        |
 | Reasonix                  | reasonix           | ✅ 🌏 | ✅ 🌏  | ✅ 🌏 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
-| Codebuff (Freebuff)       | codebuff           |       |   ✅   |  ✅ 🌏   |          |           |        |       |             |        |
+| Codebuff (Freebuff)       | codebuff           |  🌏   |   ✅   |  ✅ 🌏   |          |           |        |       |             |        |
 | Kiro ⚠️                   | kiro               | ✅ 🌏 | ✅ 🌏  | ✅ 🌏 🔧 |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | Kiro CLI                  | kiro-cli           | ✅ 🌏 |   ✅   | ✅ 🌏 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |     ✅      |        |
 | Kiro IDE                  | kiro-ide           | ✅ 🌏 | ✅ 🌏  | ✅ 🌏 🔧 |    ✅    |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |     ✅      |        |
