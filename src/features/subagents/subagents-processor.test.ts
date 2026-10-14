@@ -1058,6 +1058,27 @@ Body from inputRoots[0]`;
       },
     );
 
+    it.each([
+      { toolTarget: "devin", agentsDir: [".devin", "agents"] },
+      { toolTarget: "devin-plugin", agentsDir: ["agents"] },
+    ] as const)(
+      "should skip an invalid flat $toolTarget file and import the valid ones",
+      async ({ toolTarget, agentsDir }) => {
+        await writeFileContent(join(testDir, ...agentsDir, "README.md"), "# Agents\n\nNotes");
+        await writeFileContent(
+          join(testDir, ...agentsDir, "flat.md"),
+          "---\nname: flat\ndescription: Flat layout\n---\n\nFlat body",
+        );
+        const logger = createMockLogger();
+        const processor = new SubagentsProcessor({ logger, outputRoot: testDir, toolTarget });
+
+        const toolFiles = await processor.loadToolFiles();
+
+        expect(toolFiles.map((file) => file.getRelativeFilePath())).toEqual(["flat.md"]);
+        expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("README.md"));
+      },
+    );
+
     it("should keep the flat devin subagent when a directory of the same name exists", async () => {
       await writeFileContent(
         join(testDir, ".devin", "agents", "rev.md"),

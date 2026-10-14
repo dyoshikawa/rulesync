@@ -502,6 +502,8 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
         supportsGlobal: true,
         filePattern: "*/AGENT.md",
         importFilePatterns: ["*.md", "*/AGENT.md"],
+        // The flat scan can reach a README or notes file beside the agents.
+        skipInvalidFiles: true,
       },
     },
   ],
@@ -518,6 +520,8 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
         supportsGlobal: false,
         filePattern: "*/AGENT.md",
         importFilePatterns: ["*.md", "*/AGENT.md"],
+        // The flat scan can reach a README or notes file beside the agents.
+        skipInvalidFiles: true,
       },
     },
   ],
