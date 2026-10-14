@@ -1,21 +1,27 @@
+import { mkdir, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { mockExecFileAsync } = vi.hoisted(() => ({ mockExecFileAsync: vi.fn() }));
 
 vi.mock("node:child_process", () => ({ execFile: vi.fn() }));
 vi.mock("node:util", () => ({ promisify: () => mockExecFileAsync }));
-vi.mock("../utils/file.js", () => ({
+// Keep the real helpers (ensureDir, removeDirectory, ...) available so the
+// real-repository tests below can restore actual behavior per test.
+vi.mock("../utils/file.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../utils/file.js")>()),
   createTempDirectory: vi.fn(),
   removeTempDirectory: vi.fn(),
   directoryExists: vi.fn(),
-  isSymlink: vi.fn().mockResolvedValue(false),
+  isSymlink: vi.fn(),
   listDirectoryEntryNames: vi.fn(),
   getFileSize: vi.fn(),
   readFileContent: vi.fn(),
+  resolvedPathEscapesRoot: vi.fn(),
 }));
 import { createMockLogger } from "../test-utils/mock-logger.js";
+import { setupTestDirectory } from "../test-utils/test-directories.js";
 import {
   createTempDirectory,
   directoryExists,
@@ -24,6 +30,7 @@ import {
   listDirectoryEntryNames,
   readFileContent,
   removeTempDirectory,
+  resolvedPathEscapesRoot,
 } from "../utils/file.js";
 import {
   GitClientError,
@@ -42,6 +49,11 @@ const logger = createMockLogger();
 const SHA = "a".repeat(40);
 
 describe("git-client", () => {
+  beforeEach(() => {
+    vi.mocked(isSymlink).mockResolvedValue(false);
+    vi.mocked(resolvedPathEscapesRoot).mockResolvedValue(false);
+  });
+
   afterEach(() => {
     vi.clearAllMocks();
     resetGitCheck();
@@ -418,6 +430,58 @@ describe("git-client", () => {
       expect(vi.mocked(logger.warn)).toHaveBeenCalledWith(expect.stringContaining("symlink"));
     });
 
+    it("returns no files and warns when skillsPath resolves outside the clone through a symlink", async () => {
+      mockExecFileAsync.mockResolvedValue({ stdout: "", stderr: "" });
+      vi.mocked(createTempDirectory).mockResolvedValue("/tmp/test");
+      vi.mocked(removeTempDirectory).mockResolvedValue(undefined);
+      vi.mocked(directoryExists).mockImplementation(async (p: string) => p.endsWith("rules"));
+      vi.mocked(resolvedPathEscapesRoot).mockResolvedValueOnce(true);
+      vi.mocked(listDirectoryEntryNames).mockResolvedValue(["secret.md"]);
+      vi.mocked(getFileSize).mockResolvedValue(10);
+      vi.mocked(readFileContent).mockResolvedValue("content");
+
+      const files = await fetchSkillFiles({
+        url: "https://example.com/repo.git",
+        ref: "main",
+        skillsPath: "rules",
+        logger,
+      });
+
+      expect(files).toEqual([]);
+      expect(vi.mocked(resolvedPathEscapesRoot)).toHaveBeenCalledWith({
+        rootPath: "/tmp/test",
+        targetPath: join("/tmp/test", "rules"),
+      });
+      expect(vi.mocked(listDirectoryEntryNames)).not.toHaveBeenCalled();
+      expect(vi.mocked(readFileContent)).not.toHaveBeenCalled();
+      expect(vi.mocked(logger.warn)).toHaveBeenCalledWith(
+        expect.stringContaining("resolves outside the repository"),
+      );
+      expect(vi.mocked(removeTempDirectory)).toHaveBeenCalledWith("/tmp/test");
+    });
+
+    it("walks skillsPath when it resolves inside the clone", async () => {
+      mockExecFileAsync.mockResolvedValue({ stdout: "", stderr: "" });
+      vi.mocked(createTempDirectory).mockResolvedValue("/tmp/test");
+      vi.mocked(removeTempDirectory).mockResolvedValue(undefined);
+      vi.mocked(directoryExists).mockImplementation(async (p: string) => p.endsWith("rules"));
+      vi.mocked(listDirectoryEntryNames).mockResolvedValue(["a.md"]);
+      vi.mocked(getFileSize).mockResolvedValue(10);
+      vi.mocked(readFileContent).mockResolvedValue("content");
+
+      const files = await fetchSkillFiles({
+        url: "https://example.com/repo.git",
+        ref: "main",
+        skillsPath: "rules",
+      });
+
+      expect(vi.mocked(resolvedPathEscapesRoot)).toHaveBeenCalledWith({
+        rootPath: "/tmp/test",
+        targetPath: join("/tmp/test", "rules"),
+      });
+      expect(files).toEqual([{ relativePath: "a.md", content: "content", size: 10 }]);
+    });
+
     it.each(["", ".", "./", "./.", ".//", ".\\"])(
       "disables sparse-checkout when skillsPath is %j (repo root)",
       async (skillsPath) => {
@@ -499,6 +563,93 @@ describe("git-client", () => {
           skillsPath: "skills",
         }),
       ).rejects.toThrow("max depth");
+    });
+  });
+  describe.skipIf(process.platform === "win32")("fetchSkillFiles against a real repository", () => {
+    let testDir: string;
+    let cleanup: () => Promise<void>;
+
+    beforeEach(async () => {
+      const actualFile =
+        await vi.importActual<typeof import("../utils/file.js")>("../utils/file.js");
+      const { execFile: realExecFile } =
+        await vi.importActual<typeof import("node:child_process")>("node:child_process");
+      const { promisify: realPromisify } =
+        await vi.importActual<typeof import("node:util")>("node:util");
+      mockExecFileAsync.mockImplementation(realPromisify(realExecFile));
+      vi.mocked(createTempDirectory).mockImplementation(actualFile.createTempDirectory);
+      vi.mocked(removeTempDirectory).mockImplementation(actualFile.removeTempDirectory);
+      vi.mocked(directoryExists).mockImplementation(actualFile.directoryExists);
+      vi.mocked(isSymlink).mockImplementation(actualFile.isSymlink);
+      vi.mocked(listDirectoryEntryNames).mockImplementation(actualFile.listDirectoryEntryNames);
+      vi.mocked(getFileSize).mockImplementation(actualFile.getFileSize);
+      vi.mocked(readFileContent).mockImplementation(actualFile.readFileContent);
+      vi.mocked(resolvedPathEscapesRoot).mockImplementation(actualFile.resolvedPathEscapesRoot);
+      ({ testDir, cleanup } = await setupTestDirectory());
+    });
+
+    afterEach(async () => {
+      await cleanup();
+    });
+
+    const git = (cwd: string, args: string[]) =>
+      mockExecFileAsync("git", [
+        "-C",
+        cwd,
+        "-c",
+        "user.name=test",
+        "-c",
+        "user.email=t@example.com",
+        ...args,
+      ]);
+
+    /** Creates a repository at `<testDir>/src` with `setup` applied, committed on `main`. */
+    const createRepo = async (setup: (repoDir: string) => Promise<void>): Promise<string> => {
+      const repoDir = join(testDir, "src");
+      await mkdir(repoDir, { recursive: true });
+      await git(repoDir, ["init", "-q", "-b", "main"]);
+      await setup(repoDir);
+      await git(repoDir, ["add", "-A"]);
+      await git(repoDir, ["commit", "-q", "-m", "init"]);
+      return `file://${repoDir}`;
+    };
+
+    const writeOutsideRule = async (dir: string) => {
+      await mkdir(dir, { recursive: true });
+      await writeFile(join(dir, "secret.md"), "outside content\n");
+    };
+
+    it("returns no files when the fetched directory is a symlink pointing outside the clone", async () => {
+      const outsideDir = join(testDir, "outside-rules");
+      await writeOutsideRule(outsideDir);
+      const url = await createRepo(async (repoDir) => {
+        await symlink(outsideDir, join(repoDir, "rules"));
+        await mkdir(join(repoDir, "skills", "my-skill"), { recursive: true });
+        await writeFile(join(repoDir, "skills", "my-skill", "SKILL.md"), "skill\n");
+      });
+
+      const rules = await fetchSkillFiles({ url, ref: "main", skillsPath: "rules", logger });
+      expect(rules).toEqual([]);
+      expect(vi.mocked(logger.warn)).toHaveBeenCalledWith(
+        expect.stringContaining("resolves outside the repository"),
+      );
+
+      const skills = await fetchSkillFiles({ url, ref: "main", skillsPath: "skills", logger });
+      expect(skills.map((f) => f.relativePath)).toEqual([join("my-skill", "SKILL.md")]);
+    });
+
+    it("returns no files when a parent of the fetched path is a symlink pointing outside the clone", async () => {
+      const outsideParent = join(testDir, "outside-parent");
+      await writeOutsideRule(join(outsideParent, "rules"));
+      const url = await createRepo(async (repoDir) => {
+        await symlink(outsideParent, join(repoDir, "a"));
+      });
+
+      const files = await fetchSkillFiles({ url, ref: "main", skillsPath: "a/rules", logger });
+      expect(files).toEqual([]);
+      expect(vi.mocked(logger.warn)).toHaveBeenCalledWith(
+        expect.stringContaining("resolves outside the repository"),
+      );
     });
   });
 });

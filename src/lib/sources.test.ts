@@ -2484,6 +2484,7 @@ describe("resolveAndFetchSources", () => {
       ref: "develop",
       resolvedRef: "def456abc789",
       skillsPath: "exports/skills",
+      logger,
     });
   });
 
