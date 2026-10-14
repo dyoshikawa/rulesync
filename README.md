@@ -127,7 +127,7 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 | Qwen Code                 |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |   ✅   |
 | Meta Muse Code            |  ✅   |        | ✅  |          |           |   ✅   |       |             |        |
 | Reasonix                  |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
-| Codebuff (Freebuff)       |       |   ✅   | ✅  |          |           |        |       |             |        |
+| Codebuff (Freebuff)       |  ✅   |   ✅   | ✅  |          |           |        |       |             |        |
 | Kiro ⚠️                   |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | Kiro CLI                  |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | Kiro IDE                  |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |

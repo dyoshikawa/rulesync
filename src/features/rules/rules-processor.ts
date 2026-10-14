@@ -72,6 +72,7 @@ import { ClaudecodeLegacyRule } from "./claudecode-legacy-rule.js";
 import { ClaudecodeRule } from "./claudecode-rule.js";
 import { ClineRule } from "./cline-rule.js";
 import { CodebuddyRule } from "./codebuddy-rule.js";
+import { CodebuffRule } from "./codebuff-rule.js";
 import { CodewhaleRule } from "./codewhale-rule.js";
 import { CodexcliRule } from "./codexcli-rule.js";
 import { CommandcodeRule } from "./commandcode-rule.js";
@@ -367,6 +368,12 @@ type ToolRuleFactory = {
   meta: {
     /** File extension for the rule file */
     extension: "md" | "mdc";
+    /**
+     * Whether this tool supports project mode. Defaults to `true`; set it to
+     * `false` for a global-only target whose project files another target
+     * already writes (e.g. Codebuff reads the `agentsmd` target's `AGENTS.md`).
+     */
+    supportsProject?: boolean;
     /** Whether this tool supports global (user scope) mode */
     supportsGlobal: boolean;
     /** How non-root rules are discovered or referenced */
@@ -637,6 +644,25 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         ruleDiscoveryMode: "auto",
         localRootMode: "separate-local-file",
         localRootFileName: CODEBUDDY_LOCAL_RULE_FILE_NAME,
+      },
+    },
+  ],
+  [
+    "codebuff",
+    {
+      class: CodebuffRule,
+      meta: {
+        // Codebuff (Freebuff) reads the project-root AGENTS.md, which the
+        // `agentsmd` target already writes, so this target is global-only: it
+        // writes the home-directory `~/.AGENTS.md`, the highest-priority name
+        // the SDK's `loadUserKnowledgeFiles` looks for. There is no user-level
+        // rules directory, so non-root rules fold into that single file.
+        // https://github.com/CodebuffAI/freebuff/blob/main/sdk/src/run-state.ts
+        extension: "md",
+        supportsProject: false,
+        supportsGlobal: true,
+        ruleDiscoveryMode: "auto",
+        collisionPolicy: "fold",
       },
     },
   ],
@@ -1431,7 +1457,10 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
 
 const allToolTargetKeys = [...toolRuleFactories.keys()];
 
-const rulesProcessorToolTargets: ToolTarget[] = allToolTargetKeys;
+const rulesProcessorToolTargets: ToolTarget[] = allToolTargetKeys.filter((target) => {
+  const factory = toolRuleFactories.get(target);
+  return factory?.meta.supportsProject !== false;
+});
 
 const rulesProcessorToolTargetsGlobal: ToolTarget[] = allToolTargetKeys.filter((target) => {
   const factory = toolRuleFactories.get(target);

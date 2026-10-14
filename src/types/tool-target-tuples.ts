@@ -17,6 +17,7 @@ export const rulesProcessorToolTargetTuple = [
   "claudecode-legacy",
   "cline",
   "codebuddy",
+  "codebuff",
   "codewhale",
   "codexcli",
   "commandcode",
