@@ -617,6 +617,15 @@ export async function getFileSize(filepath: string): Promise<number> {
   }
 }
 
+/**
+ * Whether a file carries any execute bit. Windows reports none, so a file
+ * there is never seen as executable.
+ */
+export async function hasExecutableBit(filepath: string): Promise<boolean> {
+  const stats = await stat(filepath);
+  return (stats.mode & 0o111) !== 0;
+}
+
 export async function isSymlink(filepath: string): Promise<boolean> {
   try {
     const stats = await lstat(filepath);

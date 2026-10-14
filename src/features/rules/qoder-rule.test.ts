@@ -221,6 +221,115 @@ describe("QoderRule", () => {
     expect(rule.isRoot()).toBe(false);
   });
 
+  describe("output-style channel", () => {
+    const makeStyleRule = (
+      frontmatter: Partial<RulesyncRuleFrontmatter>,
+      relativeFilePath = "concise-review.md",
+    ) =>
+      new RulesyncRule({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+        relativeFilePath,
+        frontmatter: { targets: ["qoder"], ...frontmatter },
+        body: "Answer in bullet points.",
+      });
+
+    it("should write the rule to .qoder/output-styles/ with name and description frontmatter", () => {
+      for (const global of [false, true]) {
+        const rule = QoderRule.fromRulesyncRule({
+          outputRoot: testDir,
+          global,
+          rulesyncRule: makeStyleRule({
+            description: "Short answers",
+            qoder: { channel: "output-style", name: "Concise Review" },
+          }),
+        });
+
+        expect(rule.getRelativeDirPath()).toBe(join(".qoder", "output-styles"));
+        expect(rule.getRelativeFilePath()).toBe("concise-review.md");
+        expect(rule.isRoot()).toBe(false);
+        expect(rule.isExcludedFromRootReferences()).toBe(true);
+        expect(rule.getFileContent()).toContain("name: Concise Review");
+        expect(rule.getFileContent()).toContain("description: Short answers");
+        expect(rule.getFileContent()).not.toContain("trigger");
+        expect(rule.getFileContent()).toContain("Answer in bullet points.");
+      }
+    });
+
+    it("should write a plain body when the style has no frontmatter to carry", () => {
+      const rule = QoderRule.fromRulesyncRule({
+        outputRoot: testDir,
+        rulesyncRule: makeStyleRule({ qoder: { channel: "output-style" } }),
+      });
+
+      expect(rule.getFileContent()).toBe("Answer in bullet points.");
+    });
+
+    it("should refuse an output-style rule nested in a subdirectory", () => {
+      expect(() =>
+        QoderRule.fromRulesyncRule({
+          outputRoot: testDir,
+          rulesyncRule: makeStyleRule(
+            { qoder: { channel: "output-style" } },
+            join("styles", "concise.md"),
+          ),
+        }),
+      ).toThrow(/nested in a subdirectory/);
+    });
+
+    it("should keep the output-style keys out of a topic rule", () => {
+      const rule = QoderRule.fromRulesyncRule({
+        outputRoot: testDir,
+        rulesyncRule: makeRulesyncRule({ root: true, qoder: { channel: "output-style" } }),
+      });
+      expect(rule.isRoot()).toBe(true);
+
+      const topic = QoderRule.fromRulesyncRule({
+        outputRoot: testDir,
+        rulesyncRule: makeRulesyncRule({ qoder: { name: "Ignored" } }),
+      });
+      expect(topic.getRelativeDirPath()).toBe(join(".qoder", "rules"));
+      expect(topic.getFrontmatter()).not.toHaveProperty("name");
+    });
+
+    it("should list the output-styles directory for import only", () => {
+      expect(QoderRule.getExtraFixedFiles()).toEqual([
+        {
+          relativeDirPath: join(".qoder", "output-styles"),
+          relativeFilePath: "*.md",
+          importOnly: true,
+        },
+      ]);
+    });
+
+    it("should import an output style back as a qoder-only output-style rule", async () => {
+      await writeFileContent(
+        join(testDir, ".qoder", "output-styles", "concise-review.md"),
+        "---\nname: Concise Review\ndescription: Short answers\n---\n\nAnswer in bullet points.\n",
+      );
+
+      const rule = await QoderRule.fromFile({
+        outputRoot: testDir,
+        relativeDirPath: join(".qoder", "output-styles"),
+        relativeFilePath: "concise-review.md",
+      });
+      const rulesyncRule = rule.toRulesyncRule();
+
+      expect(rulesyncRule.getRelativeFilePath()).toBe("concise-review.md");
+      expect(rulesyncRule.getFrontmatter()).toMatchObject({
+        root: false,
+        targets: ["qoder"],
+        description: "Short answers",
+        qoder: { channel: "output-style", name: "Concise Review" },
+      });
+      expect(rulesyncRule.getBody()).toBe("Answer in bullet points.");
+
+      const regenerated = QoderRule.fromRulesyncRule({ outputRoot: testDir, rulesyncRule });
+      expect(regenerated.getRelativeDirPath()).toBe(join(".qoder", "output-styles"));
+      expect(regenerated.getRelativeFilePath()).toBe("concise-review.md");
+    });
+  });
+
   it("should only target qoder or wildcard rules", () => {
     expect(QoderRule.isTargetedByRulesyncRule(makeRulesyncRule({ targets: ["qoder"] }))).toBe(true);
     expect(QoderRule.isTargetedByRulesyncRule(makeRulesyncRule({ targets: ["cursor"] }))).toBe(
