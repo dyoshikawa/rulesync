@@ -65,4 +65,11 @@ export const FACTORYDROID_OVERRIDE_KEYS = [
   // https://docs.factory.ai/droid-cli/settings
   "modelPolicy",
   "missionPolicy",
+  // Native versioned command policy (`{ version: 1, rules: [...] }` with
+  // `allow` / `ask` / `block` decisions) that Factory recommends over the
+  // deprecated command lists. It is org-gated and Droid-version dependent, so
+  // rulesync does not synthesize it from the shared `permission` block; it is
+  // authored and round-tripped verbatim through the override.
+  // https://docs.factory.com/autonomy-and-safety/permission-rules
+  "permissionRules",
 ] as const;

@@ -919,12 +919,20 @@ export const JUNIE_HOOK_EVENTS: readonly HookEvent[] = [
 ];
 
 /**
- * Hook events supported by the GitLab Duo CLI. Only `SessionStart` is
- * documented; its optional regex matcher filters on the session source
- * (`startup`, `resume`). Only `type: "command"` hooks are supported.
+ * Hook events supported by the GitLab Duo CLI. `SessionStart` is documented;
+ * `PreToolUse` and `SessionEnd` ship in gitlab-lsp (`HOOK_EVENT_NAMES`, v9.28.0+)
+ * but are not on docs.gitlab.com yet. The optional regex matcher filters on the
+ * session source (`startup`, `resume`) for `SessionStart`, on `tool_name` for
+ * `PreToolUse`, and on the end reason for `SessionEnd`. Only `type: "command"`
+ * hooks are supported.
  * @see https://docs.gitlab.com/user/gitlab_duo_cli/customize/
+ * @see https://gitlab.com/gitlab-org/editor-extensions/gitlab-lsp/-/blob/main/packages/core/hooks/src/schema.ts
  */
-export const GITLABDUO_HOOK_EVENTS: readonly HookEvent[] = ["sessionStart"];
+export const GITLABDUO_HOOK_EVENTS: readonly HookEvent[] = [
+  "sessionStart",
+  "preToolUse",
+  "sessionEnd",
+];
 
 /**
  * Hook events supported by Qwen Code.
@@ -1307,7 +1315,10 @@ export const CORTEXCODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Objec
  * or `agent` hooks with a `timeout` in seconds. The hooks reference documents ten events; the
  * plugins reference lists the full set, stating that plugin hooks "respond to
  * the same lifecycle events as user-defined hooks", so every event listed
- * there is supported here.
+ * there is supported here. The hooks reference also names `Setup`
+ * (bootstrap/maintenance), and the published package's settings schema
+ * (`@tencent-ai/codebuddy-code` 2.167.0) accepts `UserPromptExpansion`, whose
+ * matcher filters on `command_name` as in Claude Code.
  *
  * @see https://www.codebuddy.ai/docs/cli/hooks
  * @see https://www.codebuddy.ai/docs/cli/plugins-reference
@@ -1339,6 +1350,8 @@ export const CODEBUDDY_HOOK_EVENTS: readonly HookEvent[] = [
   "elicitation",
   "elicitationResult",
   "sessionEnd",
+  "setup",
+  "userPromptExpansion",
 ];
 
 /**
@@ -1393,6 +1406,8 @@ export const CANONICAL_TO_CODEBUDDY_EVENT_NAMES: Record<string, string> = {
   elicitation: "Elicitation",
   elicitationResult: "ElicitationResult",
   sessionEnd: "SessionEnd",
+  setup: "Setup",
+  userPromptExpansion: "UserPromptExpansion",
 };
 
 export const CODEBUDDY_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
@@ -2416,6 +2431,8 @@ export const KIRO_IDE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.
  */
 export const CANONICAL_TO_GITLABDUO_EVENT_NAMES: Record<string, string> = {
   sessionStart: "SessionStart",
+  preToolUse: "PreToolUse",
+  sessionEnd: "SessionEnd",
 };
 
 /**

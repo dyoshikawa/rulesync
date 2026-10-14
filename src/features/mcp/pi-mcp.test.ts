@@ -96,12 +96,54 @@ describe("PiMcp", () => {
           noUrl: { type: "http" },
           wsUrl: { url: "ws://example.com/mcp" },
           noCommand: { type: "stdio" },
-          noTransport: { disabled: true },
         }),
       });
 
       expect(mcp.getJson()).toEqual({ mcpServers: {} });
-      expect(logger.warn).toHaveBeenCalledTimes(6);
+      expect(logger.warn).toHaveBeenCalledTimes(5);
+    });
+
+    it("should write a server without a transport as a project override entry", async () => {
+      const logger = createMockLogger();
+      const mcp = await PiMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        logger,
+        rulesyncMcp: buildRulesyncMcp({
+          off: { disabled: true },
+          on: { disabled: false },
+          exposed: {
+            exposure: "hidden",
+            toolExposure: { search: "direct" },
+            env: { TOKEN: "x" },
+            disabledTools: ["drop"],
+          },
+          empty: { description: "nothing to override" },
+        }),
+      });
+
+      expect(mcp.getJson()).toEqual({
+        mcpServers: {
+          off: { enabled: false },
+          on: { enabled: true },
+          exposed: { exposure: "hidden", toolExposure: { search: "direct" } },
+        },
+      });
+      expect(logger.warn).toHaveBeenCalledTimes(2);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringMatching(/"env", "disabledTools"/));
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"empty"'));
+    });
+
+    it("should skip a server without a transport in the global file", async () => {
+      const logger = createMockLogger();
+      const mcp = await PiMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        logger,
+        global: true,
+        rulesyncMcp: buildRulesyncMcp({ off: { disabled: true } }),
+      });
+
+      expect(mcp.getJson()).toEqual({ mcpServers: {} });
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("no transport"));
     });
 
     it("should skip server names Pi rejects or treats as the same server", async () => {
@@ -230,6 +272,54 @@ describe("PiMcp", () => {
         local: { command: "server", disabled: true, timeout: 1500 },
         remote: { type: "streamable-http", url: "https://example.com/mcp" },
       });
+    });
+
+    it("should import project override entries into the pi block only", async () => {
+      await writeFileContent(
+        join(testDir, ".pi", "mcp.json"),
+        JSON.stringify({
+          mcpServers: {
+            local: { command: "server", enabled: true },
+            off: { enabled: false },
+            on: { enabled: true },
+            exposed: { exposure: "direct" },
+          },
+        }),
+      );
+
+      const mcp = await PiMcp.fromFile({ outputRoot: testDir });
+
+      expect(mcp.toRulesyncMcp().getJson()).toEqual({
+        $schema: expect.any(String),
+        mcpServers: { local: { command: "server" } },
+        pi: {
+          mcpServers: {
+            off: { disabled: true },
+            on: { disabled: false },
+            exposed: { exposure: "direct" },
+          },
+        },
+      });
+    });
+
+    it("should round-trip project override entries through generate", async () => {
+      const overrides = {
+        off: { enabled: false },
+        on: { enabled: true, exposure: "deferred", toolExposure: { "*": "hidden" } },
+      };
+      await writeFileContent(
+        join(testDir, ".pi", "mcp.json"),
+        JSON.stringify({ mcpServers: overrides }),
+      );
+
+      const imported = (await PiMcp.fromFile({ outputRoot: testDir })).toRulesyncMcp();
+      const regenerated = await PiMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp: imported.forTarget({ toolTarget: "pi" }),
+      });
+
+      expect(regenerated.getJson().mcpServers).toEqual(overrides);
+      expect(imported.forTarget({ toolTarget: "claudecode" }).getMcpServers()).toEqual({});
     });
 
     it("should keep the project file deletable", async () => {
