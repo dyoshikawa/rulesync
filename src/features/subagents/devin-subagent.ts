@@ -135,8 +135,8 @@ export class DevinSubagent extends ToolSubagent {
    * Derive the subagent name from this instance's relative file path.
    *
    * The tool-side layout is `<name>/AGENT.md`, so the name is the parent
-   * directory of the file. If the path is unexpectedly flat (e.g. a legacy
-   * `<name>.md`), fall back to the basename without extension.
+   * directory of the file. Devin also reads a flat `<name>.md`, which import
+   * picks up too; its name is the basename without extension.
    */
   private getSubagentName(): string {
     const relativeFilePath = this.getRelativeFilePath();

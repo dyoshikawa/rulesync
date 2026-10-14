@@ -6,8 +6,9 @@ import type { ToolSubagentSettablePaths } from "./tool-subagent.js";
 /**
  * Subagent inside a Devin plugin bundle (`<plugin>/agents/<name>/AGENT.md`).
  * Plugin subagents use the same profile format as project ones and are
- * exposed as `<plugin>:<name>`. Devin also reads a flat `agents/<name>.md`;
- * the directory form is written to match the `devin` target.
+ * exposed as `<plugin>:<name>`. Devin also reads a flat `agents/<name>.md`,
+ * which import picks up too; the directory form is written to match the
+ * `devin` target.
  *
  * @see https://docs.devin.ai/cli/extensibility/plugins/overview
  */
