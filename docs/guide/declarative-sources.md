@@ -95,6 +95,8 @@ Rules are flat source files: only direct `.md` children of `rulesPath` are disco
 
 > **Repository-root paths (`path: "."`):** When `path` is `""`, `"."`, or `"./"` (with the `git` transport), rulesync disables sparse-checkout and fetches the **entire** repository tree, then groups each top-level directory as a skill. This is useful for single-skill repositories whose `SKILL.md` lives at the repo root (`<repo>/SKILL.md`) rather than under a `skills/` container. Because the whole tree is fetched, prefer a narrower `path` for large repositories; the fetch is still bounded by rulesync's file-count, total-size, and depth limits.
 
+> **Symlinks (`git` transport):** Symlinks inside the fetched `path` or `rulesPath` are skipped. If the directory itself, or one of its parents, is a symlink that resolves outside the cloned repository, rulesync warns and fetches nothing from it, so a source repository cannot make `install` copy files from elsewhere on your machine.
+
 ## npm Transport (Experimental)
 
 > [!WARNING]

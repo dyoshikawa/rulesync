@@ -2392,6 +2392,7 @@ async function fetchSourceViaGit(params: {
     ref: requestedRef,
     resolvedRef: resolvedSha,
     skillsPath: sourceEntry.path ?? "skills",
+    logger,
   });
 
   const skillFileMap = groupRemoteFilesBySkillRoot({ remoteFiles, skillFilter, isWildcard });
