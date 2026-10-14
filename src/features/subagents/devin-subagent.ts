@@ -124,8 +124,9 @@ export class DevinSubagent extends ToolSubagent {
       frontmatter: rulesyncFrontmatter,
       body: this.body,
       relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
-      // The tool-side path is `<name>/AGENT.md`; the rulesync file is a flat
-      // `<name>.md`, so the subagent name comes from the parent directory.
+      // The tool-side path is `<name>/AGENT.md` or, on import, a flat
+      // `<name>.md`; getSubagentName() handles both, and the rulesync file is
+      // always a flat `<name>.md`.
       relativeFilePath: `${this.getSubagentName()}.md`,
       validate: true,
     });
@@ -135,8 +136,8 @@ export class DevinSubagent extends ToolSubagent {
    * Derive the subagent name from this instance's relative file path.
    *
    * The tool-side layout is `<name>/AGENT.md`, so the name is the parent
-   * directory of the file. If the path is unexpectedly flat (e.g. a legacy
-   * `<name>.md`), fall back to the basename without extension.
+   * directory of the file. Devin also reads a flat `<name>.md`, which import
+   * picks up too; its name is the basename without extension.
    */
   private getSubagentName(): string {
     const relativeFilePath = this.getRelativeFilePath();

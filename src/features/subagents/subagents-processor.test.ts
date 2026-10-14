@@ -1027,6 +1027,110 @@ Body from inputRoots[0]`;
       },
     );
 
+    it.each([
+      { toolTarget: "devin", agentsDir: [".devin", "agents"] },
+      { toolTarget: "devin-plugin", agentsDir: ["agents"] },
+    ] as const)(
+      "should import both flat and directory $toolTarget subagents",
+      async ({ toolTarget, agentsDir }) => {
+        await writeFileContent(
+          join(testDir, ...agentsDir, "flat.md"),
+          "---\nname: flat\ndescription: Flat layout\n---\n\nFlat body",
+        );
+        await writeFileContent(
+          join(testDir, ...agentsDir, "nested", "AGENT.md"),
+          "---\nname: nested\ndescription: Directory layout\n---\n\nNested body",
+        );
+
+        const processor = new SubagentsProcessor({
+          logger: createMockLogger(),
+          outputRoot: testDir,
+          toolTarget,
+        });
+
+        const toolFiles = await processor.loadToolFiles();
+        const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(toolFiles);
+
+        expect(rulesyncFiles.map((file) => file.getRelativeFilePath()).toSorted()).toEqual([
+          "flat.md",
+          "nested.md",
+        ]);
+      },
+    );
+
+    it.each([
+      { toolTarget: "devin", agentsDir: [".devin", "agents"] },
+      { toolTarget: "devin-plugin", agentsDir: ["agents"] },
+    ] as const)(
+      "should skip an invalid flat $toolTarget file and import the valid ones",
+      async ({ toolTarget, agentsDir }) => {
+        await writeFileContent(join(testDir, ...agentsDir, "README.md"), "# Agents\n\nNotes");
+        await writeFileContent(
+          join(testDir, ...agentsDir, "flat.md"),
+          "---\nname: flat\ndescription: Flat layout\n---\n\nFlat body",
+        );
+        const logger = createMockLogger();
+        const processor = new SubagentsProcessor({ logger, outputRoot: testDir, toolTarget });
+
+        const toolFiles = await processor.loadToolFiles();
+
+        expect(toolFiles.map((file) => file.getRelativeFilePath())).toEqual(["flat.md"]);
+        expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("README.md"));
+      },
+    );
+
+    it("should keep the flat devin subagent when a directory of the same name exists", async () => {
+      await writeFileContent(
+        join(testDir, ".devin", "agents", "rev.md"),
+        "---\nname: rev\ndescription: Flat\n---\n\nFlat body",
+      );
+      await writeFileContent(
+        join(testDir, ".devin", "agents", "rev", "AGENT.md"),
+        "---\nname: rev\ndescription: Directory\n---\n\nDirectory body",
+      );
+      const logger = createMockLogger();
+      const processor = new SubagentsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "devin",
+      });
+
+      const toolFiles = await processor.loadToolFiles();
+
+      expect(toolFiles.map((file) => file.getRelativeFilePath())).toEqual(["rev.md"]);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Duplicate devin subagent output path "rev.md"'),
+      );
+    });
+
+    it("should not sweep flat devin subagents as orphans", async () => {
+      await writeFileContent(
+        join(testDir, ".devin", "agents", "flat.md"),
+        "---\nname: flat\ndescription: Flat layout\n---\n\nFlat body",
+      );
+      await writeFileContent(
+        join(testDir, ".devin", "agents", "nested", "AGENT.md"),
+        "---\nname: nested\ndescription: Directory layout\n---\n\nNested body",
+      );
+      // An unparseable directory-form file is still an orphan to sweep.
+      await writeFileContent(
+        join(testDir, ".devin", "agents", "unnamed", "AGENT.md"),
+        "---\ndescription: No name\n---\n\nBody",
+      );
+      const processor = new SubagentsProcessor({
+        logger: createMockLogger(),
+        outputRoot: testDir,
+        toolTarget: "devin",
+      });
+
+      const toolFiles = await processor.loadToolFiles({ forDeletion: true });
+
+      expect(toolFiles.map((file) => file.getRelativeFilePath())).toEqual([
+        join("nested", "AGENT.md"),
+        join("unnamed", "AGENT.md"),
+      ]);
+    });
+
     it("should delegate to loadClaudecodeSubagents for claudecode target", async () => {
       const processor = new SubagentsProcessor({
         logger: createMockLogger(),

@@ -159,8 +159,21 @@ type ToolSubagentFactory = {
      * accident because `findFilesByGlobs` rewrites backslashes.
      */
     filePattern: string;
+    /**
+     * Patterns that replace {@link filePattern} for import only, for a tool
+     * that reads more layouts than Rulesync writes (e.g. Devin's flat
+     * `<name>.md` beside the `<name>/AGENT.md` Rulesync emits). Orphan deletion
+     * keeps using `filePattern`, so files in a layout Rulesync never writes are
+     * left alone.
+     */
+    importFilePatterns?: string[];
     /** Markdown in this directory may not be an agent; leave invalid files out of imports and orphan sweeps. */
     skipInvalidFiles?: boolean;
+    /**
+     * Like {@link skipInvalidFiles}, but for import only: orphan deletion still
+     * sweeps every file matching `filePattern`, parseable or not.
+     */
+    skipInvalidImportFiles?: boolean;
     /**
      * The tool discovers agents in subdirectories, so a nested rulesync source
      * such as `review/security.md` keeps its path. Targets without this flag
@@ -169,6 +182,19 @@ type ToolSubagentFactory = {
     supportsNestedPaths?: boolean;
   };
 };
+
+/**
+ * The globs import scans for a tool: its import-only patterns when it reads
+ * more layouts than Rulesync writes, otherwise the generation pattern.
+ */
+function importFilePatternsOf(meta: ToolSubagentFactory["meta"]): string | string[] {
+  return meta.importFilePatterns ?? meta.filePattern;
+}
+
+/** Whether unparseable files are left out of this import or orphan sweep. */
+function skipsInvalidFiles(meta: ToolSubagentFactory["meta"], forDeletion: boolean): boolean {
+  return meta.skipInvalidFiles === true || (!forDeletion && meta.skipInvalidImportFiles === true);
+}
 
 /**
  * Supported tool targets for SubagentsProcessor.
@@ -475,8 +501,9 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
     {
       // Devin Local custom subagent profiles are native AGENT.md files in a
       // directory-per-agent layout: `.devin/agents/<name>/AGENT.md` (project)
-      // and `~/.config/devin/agents/<name>/AGENT.md` (global). The flat agents
-      // root is not scanned, so the glob descends one level to the AGENT.md file.
+      // and `~/.config/devin/agents/<name>/AGENT.md` (global). Devin also reads
+      // a flat `<name>.md`, so import scans both layouts; generation and orphan
+      // deletion stay on the directory form.
       // https://docs.devin.ai/cli/subagents
       class: DevinSubagent,
       meta: {
@@ -484,6 +511,9 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
         supportsSimulated: false,
         supportsGlobal: true,
         filePattern: "*/AGENT.md",
+        importFilePatterns: ["*.md", "*/AGENT.md"],
+        // The flat scan can reach a README or notes file beside the agents.
+        skipInvalidImportFiles: true,
       },
     },
   ],
@@ -491,13 +521,17 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
     "devin-plugin",
     {
       // `<plugin>/agents/<name>/AGENT.md`, the same profile format as
-      // `.devin/agents/`. https://docs.devin.ai/cli/extensibility/plugins/overview
+      // `.devin/agents/`; a flat `agents/<name>.md` is imported as well.
+      // https://docs.devin.ai/cli/extensibility/plugins/overview
       class: DevinPluginSubagent,
       meta: {
         supportsProject: true,
         supportsSimulated: false,
         supportsGlobal: false,
         filePattern: "*/AGENT.md",
+        importFilePatterns: ["*.md", "*/AGENT.md"],
+        // The flat scan can reach a README or notes file beside the agents.
+        skipInvalidImportFiles: true,
       },
     },
   ],
@@ -1260,6 +1294,9 @@ export class SubagentsProcessor extends FeatureProcessor {
     const roots = forDeletion
       ? [paths.relativeDirPath]
       : [paths.relativeDirPath, ...(paths.importDirPaths ?? [])];
+    const filePatterns = forDeletion
+      ? factory.meta.filePattern
+      : importFilePatternsOf(factory.meta);
 
     const toolSubagents: ToolFile[] = [];
     // Track both destination paths and tool-specific logical identities. Claude
@@ -1291,7 +1328,7 @@ export class SubagentsProcessor extends FeatureProcessor {
         }
       }
       const subagentFilePaths = (
-        await findFilesByGlobs(factory.meta.filePattern, {
+        await findFilesByGlobs(filePatterns, {
           cwd: baseDir,
           followSymbolicLinks: !forDeletion,
         })
@@ -1329,7 +1366,7 @@ export class SubagentsProcessor extends FeatureProcessor {
       // that actually parse as agents are eligible for import or deletion.
       // Keep filesystem errors fatal: a failed read must never turn a real
       // agent into an apparent orphan or silently truncate an import.
-      const parsedFiles = factory.meta.skipInvalidFiles
+      const parsedFiles = skipsInvalidFiles(factory.meta, forDeletion)
         ? (
             await Promise.all(
               ownedFilePaths.map(async (path) => {

@@ -196,7 +196,7 @@ Rules have no plugin location: Vibe's `ai.mistral.vibe/knowledge/<name>/KNOWLEDG
 
 - **Rules**: the root rule becomes the always-on `AGENTS.md` at the plugin root, and other rules go to `rules/<name>.md` with the same `trigger` frontmatter as `.devin/rules/`. Rules with `localRoot: true` are personal and are not packaged.
 - **MCP servers** live in `.mcp.json` under `mcpServers`, in the same server shape as `.devin/mcp_config.json`. Rulesync owns the whole file, so it is overwritten on generate rather than merged.
-- **Subagents** are written as `agents/<name>/AGENT.md`, the same directory-per-agent form as `.devin/agents/`. Devin also reads a flat `agents/<name>.md`, but Rulesync only reads and writes the directory form.
+- **Subagents** are written as `agents/<name>/AGENT.md`, the same directory-per-agent form as `.devin/agents/`. Devin also reads a flat `agents/<name>.md`; `rulesync import` reads both forms (a flat file wins over a directory of the same name, with a warning), while generation only writes the directory form.
 - **Skills** keep the `.devin/skills/` format in `skills/<name>/SKILL.md`.
 - **Hooks** live in `hooks.json` at the plugin root as the same bare event map as `.devin/hooks.v1.json` (no `hooks` wrapper key). Devin documents no plugin-root variable for hook commands, so commands are written as authored.
 
