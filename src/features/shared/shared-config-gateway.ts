@@ -2302,10 +2302,15 @@ export function diffSharedConfigOwnedKeys({
 
 const READ_TOOL_NAME = "Read";
 
-export const isReadDenyEntry = (entry: string): boolean =>
-  entry.startsWith(`${READ_TOOL_NAME}(`) && entry.endsWith(")");
+// `readToolName` lets a target whose rule vocabulary names the read tool
+// differently (Reasonix: `read_file`) reuse the same entry format and merge.
+export const isReadDenyEntry = (entry: string, readToolName: string = READ_TOOL_NAME): boolean =>
+  entry.startsWith(`${readToolName}(`) && entry.endsWith(")");
 
-export const buildReadDenyEntry = (pattern: string): string => `${READ_TOOL_NAME}(${pattern})`;
+export const buildReadDenyEntry = (
+  pattern: string,
+  readToolName: string = READ_TOOL_NAME,
+): string => `${readToolName}(${pattern})`;
 
 const parsePermissionsBlock = (
   settings: ClaudeSettingsJson,
@@ -2343,11 +2348,12 @@ const withPermissions = (
 export const applyIgnoreReadDenies = (params: {
   settings: ClaudeSettingsJson;
   readDenies: string[];
+  readToolName?: string;
 }): ClaudeSettingsJson => {
-  const { settings, readDenies } = params;
+  const { settings, readDenies, readToolName = READ_TOOL_NAME } = params;
   const current = parsePermissionsBlock(settings);
   const preservedDeny = current.deny.filter(
-    (entry) => !isReadDenyEntry(entry) || readDenies.includes(entry),
+    (entry) => !isReadDenyEntry(entry, readToolName) || readDenies.includes(entry),
   );
   return withPermissions(settings, {
     allow: current.allow,

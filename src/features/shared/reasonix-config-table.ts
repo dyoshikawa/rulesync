@@ -26,3 +26,22 @@ export function toReasonixTable(value: unknown): Record<string, unknown> {
   }
   return { ...value };
 }
+
+/**
+ * The tool name a Reasonix `[permissions]` rule must use to reach file reads.
+ * Reasonix matches a rule's tool exactly against its registered tools
+ * (`read_file`, `write_file`, `grep`, ...); only `Bash`, `Edit`, `Browser` and
+ * `Computer` are Claude-Code-style aliases (`canonicalRuleTool` in
+ * `internal/safety/permission/permission.go`), so a `Read(...)` rule matches
+ * nothing. Shared by the `ignore` and `permissions` adapters, which both write
+ * read denies into the same table.
+ * @see https://github.com/esengine/DeepSeek-Reasonix/blob/v2.41.0/internal/safety/permission/permission.go
+ */
+export const REASONIX_READ_TOOL_NAME = "read_file";
+
+/**
+ * The spelling rulesync wrote for read rules before it followed the Reasonix
+ * tool vocabulary. Still accepted on import, and an entry spelled this way is
+ * treated as rulesync-owned on generate so the dormant copy is replaced.
+ */
+export const REASONIX_LEGACY_READ_TOOL_NAME = "Read";
