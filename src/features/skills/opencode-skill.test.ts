@@ -7,6 +7,7 @@ import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
+import { fallbackLogger } from "../../utils/logger.js";
 import {
   OpenCodeSkill,
   OpenCodeSkillFrontmatter,
@@ -491,6 +492,62 @@ Body content.`;
       const rulesyncFrontmatter = skill.toRulesyncSkill().getFrontmatter();
       expect(rulesyncFrontmatter.opencode).toEqual({ "disable-model-invocation": true });
       expect(rulesyncFrontmatter).not.toHaveProperty("disable-model-invocation");
+    });
+
+    it.each([
+      ["yes", true],
+      ["On", true],
+      ['"1"', true],
+      ["1", true],
+      ["no", false],
+      ["OFF", false],
+      ['"false"', false],
+      ["0", false],
+    ])(
+      "should coerce the OpenCode V2 spelling disable-model-invocation: %s to %s",
+      async (spelling, expected) => {
+        const skillDir = join(testDir, ".opencode", "skills", "test-skill");
+        await ensureDir(skillDir);
+        await writeFileContent(
+          join(skillDir, SKILL_FILE_NAME),
+          `---\nname: Test Skill\ndescription: Test skill description\ndisable-model-invocation: ${spelling}\n---\n\nBody content.`,
+        );
+
+        const skill = await OpenCodeSkill.fromDir({
+          outputRoot: testDir,
+          dirName: "test-skill",
+        });
+
+        expect(skill.getFrontmatter()["disable-model-invocation"]).toBe(expected);
+        expect(skill.toRulesyncSkill().getFrontmatter().opencode).toEqual({
+          "disable-model-invocation": expected,
+        });
+      },
+    );
+
+    it("should drop an unreadable disable-model-invocation with a warning instead of failing", async () => {
+      const skillDir = join(testDir, ".opencode", "skills", "test-skill");
+      await ensureDir(skillDir);
+      await writeFileContent(
+        join(skillDir, SKILL_FILE_NAME),
+        `---\nname: Test Skill\ndescription: Test skill description\ndisable-model-invocation: maybe\n---\n\nBody content.`,
+      );
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
+      try {
+        const skill = await OpenCodeSkill.fromDir({
+          outputRoot: testDir,
+          dirName: "test-skill",
+        });
+
+        expect(skill.getFrontmatter()).not.toHaveProperty("disable-model-invocation");
+        expect(skill.toRulesyncSkill().getFrontmatter()).not.toHaveProperty("opencode");
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining('ignoring unreadable "disable-model-invocation" value "maybe"'),
+        );
+      } finally {
+        warnSpy.mockRestore();
+      }
     });
 
     it("should import the documented `compatibility: opencode` string form (issue #2066)", async () => {

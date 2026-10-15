@@ -10,8 +10,10 @@ import {
 } from "../../constants/opencode-paths.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
+import { stripControlCharacters } from "../../utils/control-characters.js";
 import { formatError } from "../../utils/error.js";
-import { resolvedPathEscapesRoot } from "../../utils/file.js";
+import { resolvedPathEscapesRoot, toPosixPath } from "../../utils/file.js";
+import { warnOnceWithFallback } from "../../utils/logger.js";
 import {
   getOpencodeConfigDir,
   getOpencodeSkillPaths,
@@ -322,9 +324,13 @@ export class OpenCodeSkill extends ToolSkill {
       getSettablePaths: (options) => this.getSettablePaths(options),
     });
 
-    const result = OpenCodeSkillFrontmatterSchema.safeParse(loaded.frontmatter);
+    const skillDirPath = join(loaded.outputRoot, loaded.relativeDirPath, loaded.dirName);
+    const frontmatter = normalizeDisableModelInvocation({
+      frontmatter: loaded.frontmatter,
+      skillFilePath: join(skillDirPath, SKILL_FILE_NAME),
+    });
+    const result = OpenCodeSkillFrontmatterSchema.safeParse(frontmatter);
     if (!result.success) {
-      const skillDirPath = join(loaded.outputRoot, loaded.relativeDirPath, loaded.dirName);
       throw new Error(
         `Invalid frontmatter in ${join(skillDirPath, SKILL_FILE_NAME)}: ${formatError(result.error)}`,
       );
@@ -359,4 +365,64 @@ export class OpenCodeSkill extends ToolSkill {
       global,
     });
   }
+}
+
+const DISABLE_MODEL_INVOCATION_KEY = "disable-model-invocation";
+
+/**
+ * Reads a `disable-model-invocation` value the way OpenCode V2 does
+ * (`booleanValue` in `packages/core/src/config/plugin/skill-file.ts`): a
+ * boolean, the numbers `1` / `0`, or a `true`/`yes`/`on`/`1` /
+ * `false`/`no`/`off`/`0` string compared after trimming and case-folding.
+ * Anything else is `undefined`, which OpenCode ignores.
+ */
+function parseOpencodeBoolean(value: unknown): boolean | undefined {
+  if (typeof value === "boolean") {
+    return value;
+  }
+  if (typeof value === "number") {
+    return value === 1 ? true : value === 0 ? false : undefined;
+  }
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const normalized = value.trim().toLowerCase();
+  if (["true", "yes", "on", "1"].includes(normalized)) {
+    return true;
+  }
+  if (["false", "no", "off", "0"].includes(normalized)) {
+    return false;
+  }
+  return undefined;
+}
+
+/**
+ * Coerces an imported `disable-model-invocation` onto the boolean the schema
+ * types. A spelling OpenCode cannot read is dropped with a warning instead of
+ * failing the import, since OpenCode itself ignores it.
+ */
+function normalizeDisableModelInvocation({
+  frontmatter,
+  skillFilePath,
+}: {
+  frontmatter: Record<string, unknown>;
+  skillFilePath: string;
+}): Record<string, unknown> {
+  if (!Object.hasOwn(frontmatter, DISABLE_MODEL_INVOCATION_KEY)) {
+    return frontmatter;
+  }
+  const raw = frontmatter[DISABLE_MODEL_INVOCATION_KEY];
+  const parsed = parseOpencodeBoolean(raw);
+  if (parsed === raw) {
+    return frontmatter;
+  }
+  const { [DISABLE_MODEL_INVOCATION_KEY]: _dropped, ...rest } = frontmatter;
+  if (parsed === undefined) {
+    warnOnceWithFallback(
+      undefined,
+      `${stripControlCharacters(toPosixPath(skillFilePath))}: ignoring unreadable "${DISABLE_MODEL_INVOCATION_KEY}" value ${stripControlCharacters(JSON.stringify(raw) ?? String(raw))}; OpenCode ignores it too.`,
+    );
+    return rest;
+  }
+  return { ...rest, [DISABLE_MODEL_INVOCATION_KEY]: parsed };
 }
