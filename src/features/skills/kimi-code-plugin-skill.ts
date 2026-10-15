@@ -22,6 +22,15 @@ export class KimiCodePluginSkill extends KimiCodeSkill {
   }
 
   /**
+   * Unlike `.kimi-code/skills/`, the plugin `skills/` tree is not shared with
+   * the commands feature (`kimi-code-plugin` writes commands to `commands/`),
+   * so every directory in it is a skill.
+   */
+  static override async isDirOwned(): Promise<boolean> {
+    return true;
+  }
+
+  /**
    * The bundle is read from `--output-root <plugin>`, but the imported rulesync
    * file belongs to the project's `.rulesync/`, not to the plugin root.
    */

@@ -66,6 +66,7 @@ import {
 } from "./hermesagent-command.js";
 import { JunieCommand } from "./junie-command.js";
 import { KiloCommand } from "./kilo-command.js";
+import { KimiCodeCommand } from "./kimi-code-command.js";
 import { KimiCodePluginCommand } from "./kimi-code-plugin-command.js";
 import { KiroCliCommand } from "./kiro-cli-command.js";
 import { KiroCommand } from "./kiro-command.js";
@@ -551,6 +552,28 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
         supportsGlobal: true,
         isSimulated: false,
         supportsSubdirectory: false,
+      },
+    },
+  ],
+  [
+    "kimi-code",
+    {
+      class: KimiCodeCommand,
+      meta: {
+        // Kimi Code registers every external Skill as a slash command
+        // (`/skill:<name>`, `/<name>` shorthand) with `$ARGUMENTS` substitution
+        // and has no other custom-command surface outside plugins, so commands
+        // are emitted as `.kimi-code/skills/<slug>/SKILL.md` (project) and
+        // `~/.kimi-code/skills/<slug>/SKILL.md` (global). The skills feature
+        // owns that tree, so import and generate-delete never scan it —
+        // mirrors the Devin, Warp and Hermes Agent commands targets.
+        // https://moonshotai.github.io/kimi-code/en/reference/slash-commands.html
+        extension: "md",
+        supportsProject: true,
+        supportsGlobal: true,
+        isSimulated: false,
+        supportsSubdirectory: false,
+        skipToolFileScan: true,
       },
     },
   ],
