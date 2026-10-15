@@ -12,7 +12,11 @@ import type { Logger } from "../../utils/logger.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { isRecord } from "../../utils/type-guards.js";
 import { findOpencodeV2McpContainers, lowerOpencodeV2Mcp } from "../opencode-config.js";
-import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
+import {
+  applySharedConfigPatch,
+  sharedConfigFileKey,
+  undefinedWhenEmpty,
+} from "../shared/shared-config-gateway.js";
 import {
   convertEnvVarRefsFromToolFormat,
   convertEnvVarRefsToToolFormat,
@@ -627,14 +631,14 @@ export class OpencodeMcp extends ToolMcp {
       relativeDirPath: basePaths.relativeDirPath,
       relativeFilePath,
       // Keyed by the base settable paths: a resolved `.jsonc` twin shares the
-      // `.json` ownership declaration. `tools` is retracted when the generated
-      // servers carry no tool filters.
+      // `.json` ownership declaration. `mcp` is retracted when no server is
+      // left, and `tools` when the generated servers carry no tool filters.
       fileContent: applySharedConfigPatch({
         fileKey: sharedConfigFileKey(basePaths),
         feature: "mcp",
         existingContent: fileContent ?? "",
         patch: {
-          mcp: convertedMcp,
+          mcp: undefinedWhenEmpty(convertedMcp),
           tools: Object.keys(mcpTools).length > 0 ? mcpTools : undefined,
         },
         filePath: join(jsonDir, relativeFilePath),
