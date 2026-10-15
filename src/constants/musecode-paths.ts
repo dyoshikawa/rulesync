@@ -61,16 +61,29 @@ export const MUSECODE_GLOBAL_SKILLS_DIR_PATH = join(MUSECODE_GLOBAL_CONFIG_DIR_P
 //     workspace root", which does not establish that the file itself lives
 //     inside the repo. Ignore it once a real path is confirmed.
 //   - `hooks.json` — "committed to the repo at `<project-root>/.muse/hooks.json`",
-//     and the reason `.muse/` as a whole is not gitignored. A rulesync adapter
-//     for it is blocked on the unpublished per-hook entry schema.
+//     and the reason `.muse/` as a whole is not gitignored. It is one of three
+//     documented hook sources: the others are a `hooks` block in the user
+//     settings file (below) and a managed file named by the `managed_hooks_path`
+//     setting. A rulesync adapter for any of them is blocked on the unpublished
+//     per-hook entry schema (no matcher format, command shape, timeout key or
+//     exit-code/decision semantics, and no `muse hooks` command to introspect
+//     one). When it lands, target the user `hooks` block first: `MusecodeMcp`
+//     already merges that settings file.
 // https://dev.meta.ai/docs/cookbook/subagent-fanout
 // https://dev.meta.ai/docs/cookbook/staged-approvals
 // https://dev.meta.ai/docs/cookbook/immutable-guardrails
 // https://dev.meta.ai/docs/muse-code/extending.md
 
-// User settings file. Holds the `mcp_servers` block (Muse Code documents no
-// project-scoped MCP location) and MUST carry `"schema_version": 1` — a
-// settings.json without that key fails every command at startup with
-// `malformed settings file`. https://dev.meta.ai/docs/muse-code/configuration.md
+// User settings file. Holds the `mcp_servers` block and MUST carry
+// `"schema_version": 1` — a settings.json without that key fails every command
+// at startup with `malformed settings file`.
+// https://dev.meta.ai/docs/muse-code/configuration.md
+//
+// Since 1.4.0 Muse Code also loads MCP servers from a trusted project
+// `.mcp.json` (Claude Code's format, overriding user settings), but only the
+// changelog says so — extending.md still documents the settings block alone.
+// rulesync does not emit it for musecode: the `claudecode` target already owns
+// that file, and two targets writing one path needs its own design.
+// https://dev.meta.ai/docs/muse-code/changelog
 export const MUSECODE_SETTINGS_FILE_NAME = "settings.json";
 export const MUSECODE_SETTINGS_SCHEMA_VERSION = 1;
