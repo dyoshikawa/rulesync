@@ -586,6 +586,9 @@ function buildGrokPermissionArrays(
     }
   }
 
+  warnRemovedAllToolsRestrictions({ existingPermission, ranked, logger });
+  warnEntriesShadowedByAllTools({ ranked, logger });
+
   const allow = unmanagedEntries(existingPermission, "allow");
   const deny = unmanagedEntries(existingPermission, "deny");
   const ask = unmanagedEntries(existingPermission, "ask");
@@ -596,6 +599,72 @@ function buildGrokPermissionArrays(
   }
 
   return { allow: uniq(allow.toSorted()), deny: uniq(deny.toSorted()), ask: uniq(ask.toSorted()) };
+}
+
+/**
+ * Warn when generate drops an existing bare `*` `deny`/`ask` entry without
+ * writing an equally strict one back. Such an entry is Rulesync-owned (it maps
+ * to the all-tools `*` category), so a config without a matching canonical
+ * rule removes it — which silently lifts a lockdown over every tool.
+ */
+function warnRemovedAllToolsRestrictions({
+  existingPermission,
+  ranked,
+  logger,
+}: {
+  existingPermission: Record<string, unknown>;
+  ranked: ReadonlyMap<string, PermissionAction>;
+  logger?: Logger;
+}): void {
+  if (!logger) return;
+  const generated = ranked.get(GROK_ALL_TOOLS_ENTRY);
+  const restricting: PermissionAction[] = ["deny", "ask"];
+  for (const action of restricting) {
+    const entries = existingPermission[action];
+    if (!isStringArray(entries)) continue;
+    const hadAllTools = entries.some(
+      (entry) => parseGrokEntry(entry)?.category === ALL_TOOLS_PERMISSION_CATEGORY,
+    );
+    if (!hadAllTools) continue;
+    if (generated !== undefined && ACTION_RANK[generated] >= ACTION_RANK[action]) continue;
+    logger.warn(
+      `Grok CLI permissions: removing the existing bare '*' entry from the '${action}' array — ` +
+        `Rulesync now manages it through the all-tools '*' category, and the canonical config ` +
+        `has no '*' '${action}' rule. Add "*": { "*": "${action}" } to keep restricting every tool.`,
+    );
+  }
+}
+
+/**
+ * Warn about entries that a bare `*` `deny`/`ask` makes ineffective: Grok
+ * evaluates by severity (`deny > ask > allow`), so a specific `allow` (and,
+ * under a `*` deny, a specific `ask`) never takes effect next to it. Shell
+ * rules are already folded by `honorAllToolsOnBash`, so this covers the other
+ * tools.
+ */
+function warnEntriesShadowedByAllTools({
+  ranked,
+  logger,
+}: {
+  ranked: ReadonlyMap<string, PermissionAction>;
+  logger?: Logger;
+}): void {
+  if (!logger) return;
+  const allTools = ranked.get(GROK_ALL_TOOLS_ENTRY);
+  if (allTools === undefined || allTools === "allow") return;
+  const shadowed = [...ranked]
+    .filter(
+      ([entry, action]) =>
+        entry !== GROK_ALL_TOOLS_ENTRY && ACTION_RANK[action] < ACTION_RANK[allTools],
+    )
+    .map(([entry]) => entry)
+    .toSorted();
+  if (shadowed.length === 0) return;
+  logger.warn(
+    `Grok CLI permissions: the bare '*' '${allTools}' rule applies to every tool, and Grok ` +
+      `evaluates deny > ask > allow, so these less strict entries never take effect: ` +
+      `${shadowed.join(", ")}.`,
+  );
 }
 
 /**
