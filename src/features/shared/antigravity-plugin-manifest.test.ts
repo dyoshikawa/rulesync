@@ -54,6 +54,35 @@ describe("ensureAntigravityPluginManifests", () => {
     }
   });
 
+  it.each([
+    { folder: ".antigravity-plugin", dryRun: false },
+    { folder: ".antigravity-plugin", dryRun: true },
+    { folder: ".gemini-plugin", dryRun: false },
+    { folder: ".gemini-plugin", dryRun: true },
+  ])(
+    "treats a manifest kept in the $folder folder as present (dryRun: $dryRun)",
+    async ({ folder, dryRun }) => {
+      const { testDir, cleanup } = await setupTestDirectory();
+      try {
+        const pluginRoot = join(testDir, "review-tools");
+        const existing = '{ "name": "custom" }';
+        await writeFileContent(join(pluginRoot, folder, "plugin.json"), existing);
+
+        const result = await ensureAntigravityPluginManifests({
+          outputRoots: [pluginRoot],
+          dryRun,
+          logger: createMockLogger(),
+        });
+
+        expect(result).toEqual({ count: 0, paths: [], hasDiff: false, sourceLoadFailed: false });
+        expect(await fileExists(join(pluginRoot, "plugin.json"))).toBe(false);
+        expect(await readFileContent(join(pluginRoot, folder, "plugin.json"))).toBe(existing);
+      } finally {
+        await cleanup();
+      }
+    },
+  );
+
   it("reports the missing manifest without writing it in preview mode", async () => {
     const { testDir, cleanup } = await setupTestDirectory();
     try {
