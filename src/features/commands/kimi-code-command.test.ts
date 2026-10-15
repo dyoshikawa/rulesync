@@ -76,6 +76,78 @@ describe("KimiCodeCommand", () => {
       );
     });
 
+    it("should fall back to a generated description when the authored one is blank", () => {
+      const blankDescription = new RulesyncCommand({
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+        relativeFilePath: "deploy.md",
+        frontmatter: { description: "   " },
+        body: "Deploy the app.",
+        fileContent: "",
+      });
+
+      const command = KimiCodeCommand.fromRulesyncCommand({
+        outputRoot: ".",
+        rulesyncCommand: blankDescription,
+      });
+
+      expect(parseFrontmatter(command.getFileContent()).frontmatter.description).toBe(
+        "deploy command",
+      );
+    });
+
+    it("should normalize Kimi's alias spellings to the canonical keys", () => {
+      const withAliases = new RulesyncCommand({
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+        relativeFilePath: "commit.md",
+        frontmatter: {
+          description: "Commit",
+          "kimi-code": {
+            "when-to-use": "When asked to commit",
+            disable_model_invocation: false,
+          },
+        },
+        body: "Commit.",
+        fileContent: "",
+      });
+
+      const { frontmatter } = parseFrontmatter(
+        KimiCodeCommand.fromRulesyncCommand({
+          outputRoot: ".",
+          rulesyncCommand: withAliases,
+        }).getFileContent(),
+      );
+
+      expect(frontmatter).toEqual({
+        name: "commit",
+        description: "Commit",
+        disableModelInvocation: false,
+        whenToUse: "When asked to commit",
+      });
+    });
+
+    it("should prefer the canonical spelling over an alias", () => {
+      const withBoth = new RulesyncCommand({
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+        relativeFilePath: "commit.md",
+        frontmatter: {
+          description: "Commit",
+          "kimi-code": { whenToUse: "canonical", when_to_use: "alias" },
+        },
+        body: "Commit.",
+        fileContent: "",
+      });
+
+      const { frontmatter } = parseFrontmatter(
+        KimiCodeCommand.fromRulesyncCommand({
+          outputRoot: ".",
+          rulesyncCommand: withBoth,
+        }).getFileContent(),
+      );
+
+      expect(frontmatter.whenToUse).toBe("canonical");
+      expect(frontmatter).not.toHaveProperty("when_to_use");
+    });
+
     it("should carry whitelisted keys of the kimi-code section and drop the rest", () => {
       const withSection = new RulesyncCommand({
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,

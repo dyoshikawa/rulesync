@@ -123,6 +123,23 @@ describe("KimiCodeSkill", () => {
       ).resolves.toBe(true);
     });
 
+    it("should keep a same-named skill when the command does not target kimi-code", async () => {
+      await writeFileContent(
+        join(testDir, ".rulesync", "commands", "review-pr.md"),
+        '---\ntargets: ["claudecode"]\ndescription: Review\n---\nReview.',
+      );
+
+      await expect(
+        KimiCodeSkill.isDirOwned({
+          outputRoot: testDir,
+          inputRoots: [join(testDir, ".rulesync")],
+          relativeDirPath: join(".kimi-code", "skills"),
+          dirName: "review-pr",
+          global: false,
+        }),
+      ).resolves.toBe(true);
+    });
+
     it("should keep a same-named skill in the import-only .agents/skills root", async () => {
       await writeCommand();
 

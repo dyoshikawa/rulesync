@@ -236,10 +236,12 @@ export class KimiCodeSkill extends ToolSkill {
   /**
    * Commands are emitted into the Kimi-specific skills tree as
    * `<slug>/SKILL.md` (see `KimiCodeCommand`), so a directory there matching a
-   * current rulesync command slug is owned by the commands feature: it must
-   * not be imported as a skill nor deleted as an orphan skill. The
-   * import-only `.agents/skills/` root never receives Kimi Code commands, so a
-   * same-named skill in it stays a skill.
+   * current rulesync command slug (of a command that targets `kimi-code`) is
+   * owned by the commands feature: it must not be imported as a skill nor
+   * deleted as an orphan skill. A command aimed only at other tools never
+   * reaches this tree, so it leaves a same-named skill alone. The import-only
+   * `.agents/skills/` root never receives Kimi Code commands, so a same-named
+   * skill in it stays a skill.
    */
   static async isDirOwned({
     relativeDirPath,
@@ -256,7 +258,7 @@ export class KimiCodeSkill extends ToolSkill {
     if (relativeDirPath !== this.getSettablePaths({ global }).relativeDirPath) {
       return true;
     }
-    return !(await rulesyncCommandSlugExists({ inputRoots, dirName }));
+    return !(await rulesyncCommandSlugExists({ inputRoots, dirName, toolTarget: "kimi-code" }));
   }
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<KimiCodeSkill> {

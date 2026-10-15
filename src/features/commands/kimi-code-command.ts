@@ -20,28 +20,41 @@ type KimiCodeCommandParams = AiFileParams & {
 
 /**
  * Kimi Code SKILL.md frontmatter keys a command may author through its
- * `kimi-code:` section.
+ * `kimi-code:` section, each with the alias spellings Kimi also accepts. An
+ * alias is normalized to the canonical key; the canonical spelling wins when
+ * both are present.
  * @see https://moonshotai.github.io/kimi-code/en/customization/skills.html
  */
-const KIMI_CODE_COMMAND_SECTION_KEYS = [
-  "type",
-  "whenToUse",
-  "disableModelInvocation",
-  "arguments",
-] as const;
+const KIMI_CODE_COMMAND_SECTION_KEYS: ReadonlyArray<{
+  key: string;
+  aliases: readonly string[];
+}> = [
+  { key: "type", aliases: [] },
+  { key: "whenToUse", aliases: ["when-to-use", "when_to_use"] },
+  {
+    key: "disableModelInvocation",
+    aliases: ["disable-model-invocation", "disable_model_invocation"],
+  },
+  { key: "arguments", aliases: [] },
+];
+
+function pickKimiCodeSectionKeys(section: Record<string, unknown>): Record<string, unknown> {
+  const picked: Record<string, unknown> = {};
+  for (const { key, aliases } of KIMI_CODE_COMMAND_SECTION_KEYS) {
+    const spelling = [key, ...aliases].find((candidate) => section[candidate] !== undefined);
+    if (spelling !== undefined) {
+      picked[key] = section[spelling];
+    }
+  }
+  return picked;
+}
 
 function commandSkillContent(rulesyncCommand: RulesyncCommand): string {
   const slug = commandSlug(rulesyncCommand.getRelativeFilePath());
   const frontmatter = rulesyncCommand.getFrontmatter();
-  const description = frontmatter.description ?? `${slug} command`;
-
-  const kimiCodeSection = frontmatter["kimi-code"] ?? {};
-  const extras: Record<string, unknown> = {};
-  for (const key of KIMI_CODE_COMMAND_SECTION_KEYS) {
-    if (kimiCodeSection[key] !== undefined) {
-      extras[key] = kimiCodeSection[key];
-    }
-  }
+  // Kimi rejects a directory-form SKILL.md without a description, so a blank
+  // one falls back like a missing one.
+  const description = frontmatter.description?.trim() || `${slug} command`;
 
   return stringifyFrontmatter(rulesyncCommand.getBody().trim(), {
     name: slug,
@@ -50,7 +63,7 @@ function commandSkillContent(rulesyncCommand: RulesyncCommand): string {
     // command-derived skill on its own unless the `kimi-code:` section says
     // otherwise.
     disableModelInvocation: true,
-    ...extras,
+    ...pickKimiCodeSectionKeys(frontmatter["kimi-code"] ?? {}),
   });
 }
 
