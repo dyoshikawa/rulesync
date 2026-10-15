@@ -14,6 +14,13 @@ export const ANTIGRAVITY_PLUGIN_HOOKS_FILE_NAME = "hooks.json";
 // The manifest that marks a directory as an Antigravity plugin.
 // @see https://antigravity.google/docs/plugins
 export const ANTIGRAVITY_PLUGIN_MANIFEST_FILE_NAME = "plugin.json";
+// Folders the Antigravity CLI (1.3.2+) also accepts as the manifest's home,
+// as `<folder>/plugin.json` under the plugin root.
+// @see https://github.com/google-antigravity/antigravity-cli/releases/tag/1.3.2
+export const ANTIGRAVITY_PLUGIN_MANIFEST_FOLDERS = [
+  ".antigravity-plugin",
+  ".gemini-plugin",
+] as const;
 
 // Auggie plugin components live directly under the plugin root, in the same
 // layout as a Claude Code plugin plus a `rules/` directory.
