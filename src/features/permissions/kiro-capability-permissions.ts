@@ -62,12 +62,11 @@ function isPermissionAction(value: unknown): value is PermissionAction {
 }
 
 /**
- * Whether an existing `permissions.yaml` rule is one rulesync owns: a rule for a
- * capability rulesync maps, with no `exclude` list (the canonical model has no
- * exclusion, so such a rule can only have been written by hand or by Kiro).
- * Everything else is preserved verbatim on generate and skipped on import.
+ * Whether an existing `permissions.yaml` rule can be read back into the
+ * canonical model: a rule for a capability rulesync maps, with no `exclude`
+ * list (the canonical model has no exclusion). Used on import only.
  */
-function isManagedRule(rule: unknown): boolean {
+function isImportableRule(rule: unknown): boolean {
   return (
     isRecord(rule) &&
     typeof rule.capability === "string" &&
@@ -75,6 +74,74 @@ function isManagedRule(rule: unknown): boolean {
     rule.exclude === undefined
   );
 }
+
+/**
+ * Key identifying one (capability, pattern) pair. The catch-all `*` stands for
+ * a match-less rule.
+ */
+function rulePatternKey(capability: string, pattern: string): string {
+  return `${capability}\u0000${pattern}`;
+}
+
+/**
+ * Merge the existing rules with the generated ones, removing only what the
+ * generated rules replace. Rulesync never removes a rule it is not about to
+ * re-emit: an existing rule loses just the `match` entries whose (capability,
+ * pattern) pair rulesync now emits (a match-less rule counts as the `*`
+ * pattern), and is dropped only when no entry is left. Everything else — rules
+ * Kiro saved ("Always allow/deny"), hand-written rules, rules with `exclude`,
+ * rules for capabilities rulesync does not map, malformed entries — is kept
+ * verbatim. Rerunning generate is therefore idempotent.
+ */
+function mergeKiroCapabilityRules({
+  existingRules,
+  generatedRules,
+}: {
+  existingRules: unknown[];
+  generatedRules: KiroCapabilityRule[];
+}): unknown[] {
+  const emitted = new Set<string>();
+  for (const rule of generatedRules) {
+    for (const pattern of rule.match ?? [CATCH_ALL_PATTERN]) {
+      emitted.add(rulePatternKey(rule.capability, pattern));
+    }
+  }
+
+  const kept: unknown[] = [];
+  for (const rule of existingRules) {
+    if (
+      !isRecord(rule) ||
+      typeof rule.capability !== "string" ||
+      rule.exclude !== undefined ||
+      !MANAGED_CAPABILITIES.has(rule.capability)
+    ) {
+      kept.push(rule);
+      continue;
+    }
+    const capability = rule.capability;
+    if (rule.match === undefined) {
+      if (!emitted.has(rulePatternKey(capability, CATCH_ALL_PATTERN))) kept.push(rule);
+      continue;
+    }
+    if (!isStringArray(rule.match)) {
+      kept.push(rule);
+      continue;
+    }
+    const remaining = rule.match.filter(
+      (pattern) => !emitted.has(rulePatternKey(capability, pattern)),
+    );
+    if (remaining.length === rule.match.length) {
+      kept.push(rule);
+    } else if (remaining.length > 0) {
+      kept.push({ ...rule, match: remaining });
+    }
+  }
+  return [...kept, ...generatedRules];
+}
+
+// Filesystem patterns that name a location independent of the workspace:
+// absolute POSIX or Windows drive paths, home-relative paths, or a leading `**`.
+const LOCATION_INDEPENDENT_FS_PATTERN = /^(?:\/|~|\*\*|[A-Za-z]:[\\/])/;
 
 /**
  * Permissions adapter for Kiro's capability-based `permissions.yaml` (Kiro IDE
@@ -96,9 +163,11 @@ function isManagedRule(rule: unknown): boolean {
  *
  * Kiro also writes into this file (consent decisions persisted globally), so it
  * is merged, never replaced or deleted: every top-level key other than `rules`
- * is preserved, and so is every rule rulesync does not own (see
- * {@link isManagedRule}). Rules for the mapped capabilities are regenerated from
- * the canonical block.
+ * is preserved, and existing rules are kept except for the (capability,
+ * pattern) pairs rulesync re-emits (see {@link mergeKiroCapabilityRules}). A
+ * rule rulesync wrote earlier and whose canonical entry was since removed stays
+ * in the file; delete it by hand. The file is re-serialized, so YAML comments
+ * in it are not preserved.
  *
  * @see https://kiro.dev/docs/permissions/
  */
@@ -173,9 +242,11 @@ export class KiroCapabilityPermissions extends ToolPermissions {
       );
     }
 
-    const preservedRules = (parsed.rules ?? []).filter((rule: unknown) => !isManagedRule(rule));
     const generatedRules = buildKiroCapabilityRules({ config, logger });
-    const rules = [...preservedRules, ...generatedRules];
+    const rules = mergeKiroCapabilityRules({
+      existingRules: parsed.rules ?? [],
+      generatedRules,
+    });
 
     const next: Record<string, unknown> = { ...parsed };
     if (rules.length > 0 || parsed.rules !== undefined) {
@@ -206,7 +277,7 @@ export class KiroCapabilityPermissions extends ToolPermissions {
     const rules = isRecord(parsed) && Array.isArray(parsed.rules) ? parsed.rules : [];
     const permission: PermissionsConfig["permission"] = {};
     for (const rule of rules) {
-      if (!isManagedRule(rule) || !isRecord(rule) || !isPermissionAction(rule.effect)) continue;
+      if (!isImportableRule(rule) || !isRecord(rule) || !isPermissionAction(rule.effect)) continue;
       const category = KIRO_CAPABILITY_TO_CANONICAL[rule.capability as KiroCapability];
       const patterns =
         rule.match === undefined
@@ -272,6 +343,7 @@ function buildKiroCapabilityRules({
       continue;
     }
     for (const [pattern, effect] of Object.entries(rules)) {
+      warnOnWorkspaceRelativeFsPattern({ capability, category, pattern, logger });
       const key = `${capability}\u0000${effect}`;
       const bucket = buckets.get(key) ?? { capability, effect, patterns: new Set<string>() };
       bucket.patterns.add(pattern);
@@ -290,6 +362,29 @@ function buildKiroCapabilityRules({
     }
   }
   return result;
+}
+
+/**
+ * `~/.kiro/settings/permissions.yaml` applies to every workspace, so a relative
+ * filesystem pattern such as `src/**` is not tied to the project it was written
+ * for. Warn so the author can make it absolute, `~`-relative or `**`-prefixed.
+ */
+function warnOnWorkspaceRelativeFsPattern({
+  capability,
+  category,
+  pattern,
+  logger,
+}: {
+  capability: KiroCapability;
+  category: string;
+  pattern: string;
+  logger?: Logger;
+}): void {
+  if (capability !== "fs_read" && capability !== "fs_write") return;
+  if (pattern === CATCH_ALL_PATTERN || LOCATION_INDEPENDENT_FS_PATTERN.test(pattern)) return;
+  logger?.warn(
+    `Kiro permissions.yaml is user-level and applies to every workspace, but the ${category} pattern "${pattern}" is relative. Use an absolute, ~-relative or **-prefixed pattern to target a specific location.`,
+  );
 }
 
 /**

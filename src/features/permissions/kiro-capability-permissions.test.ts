@@ -97,14 +97,22 @@ describe("KiroCapabilityPermissions", () => {
     });
   });
 
-  it("preserves unmanaged rules and other top-level keys, and replaces managed rules", async () => {
+  it("keeps rules rulesync does not emit and replaces only re-emitted patterns", async () => {
     await writeFileContent(
       permissionsPath(),
       [
         "version: 1",
         "rules:",
         "  - capability: shell",
-        "    match: ['old *']",
+        "    match: ['rm -rf *']",
+        "    effect: deny",
+        "  - capability: shell",
+        "    match: ['ls *', 'git *']",
+        "    effect: ask",
+        "  - capability: fs_read",
+        "    effect: allow",
+        "  - capability: web_fetch",
+        "    match: ['https://example.com/*']",
         "    effect: allow",
         "  - capability: shell",
         "    match: ['npm *']",
@@ -117,19 +125,79 @@ describe("KiroCapabilityPermissions", () => {
       ].join("\n"),
     );
 
-    const perms = await KiroCapabilityPermissions.fromRulesyncPermissions({
-      outputRoot: testDir,
-      rulesyncPermissions: rulesyncPermissions({ permission: { bash: { "git *": "allow" } } }),
-    });
+    const generate = async (): Promise<KiroCapabilityPermissions> => {
+      const perms = await KiroCapabilityPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({ permission: { bash: { "git *": "allow" } } }),
+      });
+      await writeFileContent(permissionsPath(), perms.getFileContent());
+      return perms;
+    };
 
-    expect(load(perms.getFileContent())).toEqual({
+    const first = await generate();
+    expect(load(first.getFileContent())).toEqual({
       version: 1,
       rules: [
+        { capability: "shell", match: ["rm -rf *"], effect: "deny" },
+        { capability: "shell", match: ["ls *"], effect: "ask" },
+        { capability: "fs_read", effect: "allow" },
+        { capability: "web_fetch", match: ["https://example.com/*"], effect: "allow" },
         { capability: "shell", match: ["npm *"], exclude: ["npm publish*"], effect: "allow" },
         { capability: "mcp", match: ["github/*"], effect: "deny" },
         { capability: "shell", match: ["git *"], effect: "allow" },
       ],
     });
+
+    // Rerunning generate is idempotent.
+    const second = await generate();
+    expect(load(second.getFileContent())).toEqual(load(first.getFileContent()));
+  });
+
+  it("keeps every existing rule when rulesync has no Kiro-mapped rules", async () => {
+    const existing = [
+      "rules:",
+      "  - capability: shell",
+      "    match: ['rm -rf *']",
+      "    effect: deny",
+      "  - capability: shell",
+      "    effect: allow",
+      "",
+    ].join("\n");
+    await writeFileContent(permissionsPath(), existing);
+
+    const perms = await KiroCapabilityPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: rulesyncPermissions({ permission: { grep: { "*": "allow" } } }),
+    });
+    expect(load(perms.getFileContent())).toEqual(load(existing));
+  });
+
+  it("replaces a match-less rule only when rulesync emits the catch-all", async () => {
+    await writeFileContent(permissionsPath(), "rules:\n  - capability: fs_read\n    effect: ask\n");
+    const perms = await KiroCapabilityPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: rulesyncPermissions({ permission: { read: { "*": "allow" } } }),
+    });
+    expect(load(perms.getFileContent())).toEqual({
+      rules: [{ capability: "fs_read", effect: "allow" }],
+    });
+  });
+
+  it("warns on workspace-relative filesystem patterns", async () => {
+    const logger = createMockLogger();
+    await KiroCapabilityPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      logger,
+      rulesyncPermissions: rulesyncPermissions({
+        permission: {
+          read: { "*": "allow", "/etc/**": "deny", "~/.ssh/**": "deny", "**/*.pem": "deny" },
+          edit: { "src/**": "allow" },
+          bash: { "git *": "allow" },
+        },
+      }),
+    });
+    expect(logger.warn).toHaveBeenCalledTimes(1);
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('edit pattern "src/**"'));
   });
 
   it("writes nothing when there is no file and no rule maps", async () => {
