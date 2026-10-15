@@ -91,4 +91,13 @@ describe("KimiCodePluginSkill", () => {
       false,
     );
   });
+
+  it("should own every directory in the plugin skills tree, even one named like a command", async () => {
+    await writeFileContent(
+      join(testDir, ".rulesync", "commands", "review-pr.md"),
+      "---\ndescription: Review\n---\nReview.",
+    );
+
+    await expect(KimiCodePluginSkill.isDirOwned()).resolves.toBe(true);
+  });
 });
