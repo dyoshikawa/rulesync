@@ -459,6 +459,10 @@ export async function getInstalledSourceRuleNames({
   return [...ruleNames];
 }
 
+function hasEmptySelection(sourceEntry: SourceEntry): boolean {
+  return sourceEntry.skills?.length === 0 || sourceEntry.rules?.length === 0;
+}
+
 /**
  * Reject an empty `skills` or `rules` list up front. An empty list is most
  * likely meant as "take none of this feature", which is spelled by omitting
@@ -690,6 +694,12 @@ function assertFrozenLockCoversSources(params: {
   const missingKeys: string[] = [];
 
   for (const source of sources) {
+    // An empty `skills` / `rules` list is rejected per source by
+    // `assertNonEmptySelections` with a hint on how to fix it. Leave it to
+    // that check rather than reporting a less helpful lockfile mismatch.
+    if (hasEmptySelection(source)) {
+      continue;
+    }
     const locked =
       (source.transport ?? "github") === "npm"
         ? getNpmLockedSource(npmLock, source.source)
