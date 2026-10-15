@@ -338,6 +338,73 @@ describe("OpenCodeSkill", () => {
       expect(frontmatter.compatibility).toEqual({ opencode: ">=2.0.0" });
       expect(frontmatter.metadata).toEqual({ author: "section" });
     });
+    it("should emit the root-level disable-model-invocation", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "test-skill",
+        frontmatter: {
+          name: "Test Skill",
+          description: "Test skill description",
+          "disable-model-invocation": true,
+        },
+        body: "Test body",
+        validate: true,
+      });
+
+      const frontmatter = OpenCodeSkill.fromRulesyncSkill({
+        rulesyncSkill,
+        global: false,
+      }).getFrontmatter();
+
+      expect(frontmatter["disable-model-invocation"]).toBe(true);
+    });
+
+    it("should prefer the opencode section disable-model-invocation over the root value", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "test-skill",
+        frontmatter: {
+          name: "Test Skill",
+          description: "Test skill description",
+          "disable-model-invocation": true,
+          opencode: {
+            "disable-model-invocation": false,
+          },
+        },
+        body: "Test body",
+        validate: true,
+      });
+
+      const frontmatter = OpenCodeSkill.fromRulesyncSkill({
+        rulesyncSkill,
+        global: false,
+      }).getFrontmatter();
+
+      expect(frontmatter["disable-model-invocation"]).toBe(false);
+    });
+
+    it("should omit disable-model-invocation when neither value is set", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "test-skill",
+        frontmatter: {
+          name: "Test Skill",
+          description: "Test skill description",
+        },
+        body: "Test body",
+        validate: true,
+      });
+
+      const frontmatter = OpenCodeSkill.fromRulesyncSkill({
+        rulesyncSkill,
+        global: false,
+      }).getFrontmatter();
+
+      expect(frontmatter).not.toHaveProperty("disable-model-invocation");
+    });
   });
 
   describe("fromDir", () => {
@@ -401,6 +468,29 @@ Body content.`;
         compatibility: { opencode: ">=1.0.0" },
         metadata: { author: "rulesync" },
       });
+    });
+
+    it("should import disable-model-invocation into the opencode section", async () => {
+      const skillDir = join(testDir, ".opencode", "skills", "test-skill");
+      await ensureDir(skillDir);
+      const skillContent = `---
+name: Test Skill
+description: Test skill description
+disable-model-invocation: true
+---
+
+Body content.`;
+      await writeFileContent(join(skillDir, SKILL_FILE_NAME), skillContent);
+
+      const skill = await OpenCodeSkill.fromDir({
+        outputRoot: testDir,
+        dirName: "test-skill",
+      });
+
+      expect(skill.getFrontmatter()["disable-model-invocation"]).toBe(true);
+      const rulesyncFrontmatter = skill.toRulesyncSkill().getFrontmatter();
+      expect(rulesyncFrontmatter.opencode).toEqual({ "disable-model-invocation": true });
+      expect(rulesyncFrontmatter).not.toHaveProperty("disable-model-invocation");
     });
 
     it("should import the documented `compatibility: opencode` string form (issue #2066)", async () => {

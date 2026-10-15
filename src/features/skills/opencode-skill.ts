@@ -18,7 +18,12 @@ import {
   readOpencodeConfig,
 } from "../opencode-config.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
-import { resolveCompatibility, resolveLicense, resolveMetadata } from "./skills-utils.js";
+import {
+  resolveCompatibility,
+  resolveDisableModelInvocation,
+  resolveLicense,
+  resolveMetadata,
+} from "./skills-utils.js";
 import {
   ToolSkill,
   ToolSkillForDeletionParams,
@@ -43,6 +48,13 @@ export const OpenCodeSkillFrontmatterSchema = z.looseObject({
   // field that OpenCode silently ignores). It is kept as an optional
   // passthrough purely for lossless round-trip with the rulesync frontmatter.
   "allowed-tools": z.optional(z.array(z.string())),
+  // OpenCode V2 (v2.0.22+) reads `disable-model-invocation: true` as the
+  // same switch as its own metadata auto-invoke flag, hiding the skill from
+  // the model's available list (the metadata flag wins when both are set).
+  // See https://opencode.ai/v2/docs/skills/. MiMo Code's skill loader reads
+  // the same key, and V1 ignores it. Typed as a boolean, like MiMo Code's own
+  // schema.
+  "disable-model-invocation": z.optional(z.boolean()),
 });
 
 export type OpenCodeSkillFrontmatter = z.infer<typeof OpenCodeSkillFrontmatterSchema>;
@@ -219,6 +231,9 @@ export class OpenCodeSkill extends ToolSkill {
         compatibility: frontmatter.compatibility,
       }),
       ...(frontmatter.metadata !== undefined && { metadata: frontmatter.metadata }),
+      ...(frontmatter["disable-model-invocation"] !== undefined && {
+        "disable-model-invocation": frontmatter["disable-model-invocation"],
+      }),
     };
     const { toolTarget } = (this.constructor as typeof OpenCodeSkill).layout;
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
@@ -263,6 +278,10 @@ export class OpenCodeSkill extends ToolSkill {
       rootFrontmatter: rulesyncFrontmatter,
       section: opencodeSection,
     });
+    const disableModelInvocation = resolveDisableModelInvocation({
+      rootFrontmatter: rulesyncFrontmatter,
+      section: opencodeSection,
+    });
 
     const opencodeFrontmatter: OpenCodeSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
@@ -272,6 +291,9 @@ export class OpenCodeSkill extends ToolSkill {
       ...(metadata !== undefined && { metadata }),
       ...(opencodeSection?.["allowed-tools"] !== undefined && {
         "allowed-tools": opencodeSection["allowed-tools"],
+      }),
+      ...(disableModelInvocation !== undefined && {
+        "disable-model-invocation": disableModelInvocation,
       }),
     };
 
