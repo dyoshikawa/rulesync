@@ -4,9 +4,11 @@ import { z } from "zod/mini";
 
 import { TRAE_COMMANDS_DIR_PATH } from "../../constants/trae-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import { quoteForLog } from "../../utils/control-characters.js";
 import { formatError } from "../../utils/error.js";
-import { readFileContent } from "../../utils/file.js";
+import { readFileContent, toPosixPath } from "../../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
+import type { Logger } from "../../utils/logger.js";
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
 import {
   ToolCommand,
@@ -25,6 +27,12 @@ export const TraeCommandFrontmatterSchema = z.looseObject({
   // section sets its own `name`.
   name: z.optional(z.string()),
 });
+
+/**
+ * Trae reads project commands only up to three directory levels below
+ * `.trae/commands/`; a command file nested deeper is never picked up.
+ */
+const TRAE_MAX_PROJECT_COMMAND_DIR_DEPTH = 3;
 
 export type TraeCommandFrontmatter = z.infer<typeof TraeCommandFrontmatterSchema>;
 
@@ -149,6 +157,53 @@ export class TraeCommand extends ToolCommand {
         `Invalid frontmatter in ${join(this.relativeDirPath, this.relativeFilePath)}: ${formatError(result.error)}`,
       ),
     };
+  }
+
+  /**
+   * Warn about commands Trae will not load as written: Trae documents `name`
+   * as the command's unique identifier, so two commands deriving the same
+   * `name` (e.g. `a/review.md` and `b/review.md`) collide, and it reads
+   * project commands only up to three nested directory levels. Both files are
+   * still written, so this warns rather than failing the run.
+   */
+  static validateRulesyncCommands({
+    rulesyncCommands,
+    logger,
+    global = false,
+  }: {
+    rulesyncCommands: RulesyncCommand[];
+    logger: Logger;
+    global?: boolean;
+  }): void {
+    const pathsByName = new Map<string, string[]>();
+    for (const rulesyncCommand of rulesyncCommands) {
+      if (!this.isTargetedByRulesyncCommand(rulesyncCommand)) continue;
+      const relativeFilePath = toPosixPath(rulesyncCommand.getRelativeFilePath());
+      const name = this.deriveName(rulesyncCommand);
+      pathsByName.set(name, [...(pathsByName.get(name) ?? []), relativeFilePath]);
+
+      const dirDepth = relativeFilePath.split("/").length - 1;
+      if (!global && dirDepth > TRAE_MAX_PROJECT_COMMAND_DIR_DEPTH) {
+        logger.warn(
+          `Trae reads project commands only up to ${TRAE_MAX_PROJECT_COMMAND_DIR_DEPTH} nested directory levels, ` +
+            `so ${quoteForLog(relativeFilePath)} is written but never loaded. Move it to a shallower directory.`,
+        );
+      }
+    }
+    for (const [name, paths] of pathsByName) {
+      if (paths.length < 2) continue;
+      logger.warn(
+        `Trae command name ${quoteForLog(name)} is shared by ${paths.map(quoteForLog).join(", ")}, ` +
+          `but Trae treats \`name\` as a unique identifier. Rename a file or set \`trae.name\` to tell them apart.`,
+      );
+    }
+  }
+
+  private static deriveName(rulesyncCommand: RulesyncCommand): string {
+    const traeName = rulesyncCommand.getFrontmatter().trae?.name;
+    return typeof traeName === "string"
+      ? traeName
+      : basename(rulesyncCommand.getRelativeFilePath(), ".md");
   }
 
   static isTargetedByRulesyncCommand(rulesyncCommand: RulesyncCommand): boolean {

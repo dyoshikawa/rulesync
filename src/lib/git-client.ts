@@ -337,7 +337,7 @@ async function walkDirectory(
   }
   const results: GitSkillFile[] = [];
   for (const name of await listDirectoryEntryNames(dir)) {
-    if (name === ".git") continue;
+    if (name.toLowerCase() === ".git") continue;
     const fullPath = join(dir, name);
     if (await isSymlink(fullPath)) {
       logger?.warn(`Skipping symlink "${fullPath}".`);
