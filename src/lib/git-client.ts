@@ -6,13 +6,13 @@ import { MAX_FILE_SIZE } from "../constants/rulesync-paths.js";
 import {
   createTempDirectory,
   directoryExists,
-  getFileSize,
-  hasExecutableBit,
+  getFileSizeAndExecutableBit,
   isSymlink,
   listDirectoryEntryNames,
+  posixRelativePathEscapesRoot,
   readFileContent,
   removeTempDirectory,
-  resolvedPathEscapesRoot,
+  resolvedRelativePath,
 } from "../utils/file.js";
 import type { Logger } from "../utils/logger.js";
 import { findControlCharacter } from "../utils/validation.js";
@@ -274,10 +274,12 @@ export async function fetchSkillFiles(params: {
     // (or one of its parents) as a symlink pointing outside the clone, which would
     // make us read and install local files from the consuming machine. Resolve every
     // link and refuse a start directory that does not stay inside the clone.
-    if (await resolvedPathEscapesRoot({ rootPath: tmpDir, targetPath: skillsDir })) {
-      logger?.warn(
-        `Skipping "${skillsPath}" from ${url}: it resolves outside the repository through a symlink.`,
-      );
+    const unsafeReason = await findUnsafeStartDirectoryReason({
+      rootPath: tmpDir,
+      targetPath: skillsDir,
+    });
+    if (unsafeReason !== undefined) {
+      logger?.warn(`Skipping "${skillsPath}" from ${url}: ${unsafeReason}.`);
       return [];
     }
     return await walkDirectory(skillsDir, skillsDir, 0, { totalFiles: 0, totalSize: 0 }, logger);
@@ -287,6 +289,31 @@ export async function fetchSkillFiles(params: {
   } finally {
     await removeTempDirectory(tmpDir);
   }
+}
+
+/**
+ * Why the directory a walk would start from must not be read, or `undefined`
+ * when it is safe. It is unsafe when its links resolve outside the clone, or
+ * into the clone's own `.git`: that stays inside the clone but would hand its
+ * metadata (config, hooks) to the caller as rule or skill files. `.git` is
+ * compared case-insensitively, since a case-insensitive file system resolves
+ * `.GIT` to the same directory.
+ */
+async function findUnsafeStartDirectoryReason({
+  rootPath,
+  targetPath,
+}: {
+  rootPath: string;
+  targetPath: string;
+}): Promise<string | undefined> {
+  const relativePath = await resolvedRelativePath({ rootPath, targetPath });
+  if (posixRelativePathEscapesRoot(relativePath)) {
+    return "it resolves outside the repository through a symlink";
+  }
+  if (relativePath.split("/")[0]?.toLowerCase() === ".git") {
+    return 'it resolves into the ".git" directory';
+  }
+  return undefined;
 }
 
 const MAX_WALK_DEPTH = 20;
@@ -319,7 +346,7 @@ async function walkDirectory(
     if (await directoryExists(fullPath)) {
       results.push(...(await walkDirectory(fullPath, outputRoot, depth + 1, ctx, logger)));
     } else {
-      const size = await getFileSize(fullPath);
+      const { size, executable } = await getFileSizeAndExecutableBit(fullPath);
       if (size > MAX_FILE_SIZE) {
         logger?.warn(
           `Skipping file "${fullPath}" (${(size / 1024 / 1024).toFixed(2)}MB exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit).`,
@@ -339,7 +366,6 @@ async function walkDirectory(
         );
       }
       const content = await readFileContent(fullPath);
-      const executable = await hasExecutableBit(fullPath);
       results.push({ relativePath: relative(outputRoot, fullPath), content, size, executable });
     }
   }

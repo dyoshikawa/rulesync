@@ -606,24 +606,22 @@ export async function fileExists(filepath: string): Promise<boolean> {
   }
 }
 
-export async function getFileSize(filepath: string): Promise<number> {
+/**
+ * The size of a file and whether it carries any execute bit, read with a single
+ * `stat`. Windows reports no execute bits, so a file there is never seen as
+ * executable.
+ */
+export async function getFileSizeAndExecutableBit(
+  filepath: string,
+): Promise<{ size: number; executable: boolean }> {
   try {
     const stats = await stat(filepath);
-    return stats.size;
+    return { size: stats.size, executable: (stats.mode & 0o111) !== 0 };
   } catch (error) {
-    throw new Error(`Failed to get file size for "${filepath}": ${formatError(error)}`, {
+    throw new Error(`Failed to stat "${filepath}": ${formatError(error)}`, {
       cause: error,
     });
   }
-}
-
-/**
- * Whether a file carries any execute bit. Windows reports none, so a file
- * there is never seen as executable.
- */
-export async function hasExecutableBit(filepath: string): Promise<boolean> {
-  const stats = await stat(filepath);
-  return (stats.mode & 0o111) !== 0;
 }
 
 export async function isSymlink(filepath: string): Promise<boolean> {

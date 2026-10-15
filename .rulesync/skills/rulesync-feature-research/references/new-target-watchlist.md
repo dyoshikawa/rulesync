@@ -197,8 +197,8 @@ candidate's bullet here when its table row is promoted or retired.
   `~/.jcode/config.toml`. Recorded on 2026-09-26 and proposed as #3412 on
   2026-10-13. Do not re-add it — track the proposal on that issue.
 - **OpenHands** — `.openhands/hooks.json` and `~/.openhands/mcp.json` on top of
-  the covered `AGENTS.md` / `.agents/skills`. The 2026-06-23 request #4 was
-  closed as covered; proposed again with that narrower scope as #3411 on
+  the covered `AGENTS.md` / `.agents/skills`. Request #4 (opened 2025-06-25)
+  was closed as covered on 2026-06-23; proposed again with that narrower scope as #3411 on
   2026-10-13 directly from the discovery pass. Do not re-add it — track the
   proposal on that issue.
 - **MiMo Code** — OpenCode fork reading `.mimocode/` (`mimocode.jsonc`,

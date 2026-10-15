@@ -27,6 +27,7 @@ import {
 import type { FeatureOptions } from "../../types/features.js";
 import { Language, appendLanguageBlock, stripLanguageBlock } from "../../types/language.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
+import { TOOL_DISPLAY } from "../../types/tool-display.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { rulesProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import { ToolTarget } from "../../types/tool-targets.js";
@@ -1974,6 +1975,7 @@ export class RulesProcessor extends FeatureProcessor {
     if (toolTarget !== "factorydroid" && toolTarget !== "qoder") {
       return;
     }
+    const toolLabel = TOOL_DISPLAY.find((entry) => entry.key === toolTarget)?.label ?? toolTarget;
     for (const rule of rules) {
       const frontmatter = rule.getFrontmatter();
       const section = frontmatter[toolTarget];
@@ -1985,7 +1987,7 @@ export class RulesProcessor extends FeatureProcessor {
       const targets = frontmatter.targets ?? ["*"];
       if (channel === "output-style" && targets.some((target) => target !== toolTarget)) {
         this.logger.warn(
-          `${fileName} sets ${toolTarget}.channel: output-style but also targets other tools, which receive it as an ordinary rule. Set \`targets: ["${toolTarget}"]\` to keep the output style to ${toolTarget === "qoder" ? "Qoder" : "Factory Droid"}.`,
+          `${fileName} sets ${toolTarget}.channel: output-style but also targets other tools, which receive it as an ordinary rule. Set \`targets: ["${toolTarget}"]\` to keep the output style to ${toolLabel}.`,
         );
       }
       if (channel !== "output-style" && name !== undefined) {
