@@ -432,3 +432,35 @@ describe("QwencodeMcp", () => {
     });
   });
 });
+
+describe("QwencodeMcp retraction (issue #2562)", () => {
+  let testDir: string;
+  let cleanup: () => Promise<void>;
+
+  beforeEach(async () => {
+    ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
+  });
+
+  afterEach(async () => {
+    await cleanup();
+    vi.restoreAllMocks();
+  });
+
+  it("retracts mcpServers when no server is left, keeping unrelated keys", async () => {
+    await writeFileContent(
+      join(testDir, ".qwen", "settings.json"),
+      JSON.stringify({ other: 1, mcpServers: { old: { command: "old" } } }),
+    );
+    const mcp = await QwencodeMcp.fromRulesyncMcp({
+      outputRoot: testDir,
+      rulesyncMcp: new RulesyncMcp({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({ mcpServers: {} }),
+      }),
+    });
+
+    expect(JSON.parse(mcp.getFileContent())).toEqual({ other: 1 });
+  });
+});

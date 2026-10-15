@@ -22,7 +22,11 @@ import {
   kiloMcpToolPermissionKey,
   kiloPermissionToToolFilter,
 } from "../shared/kilo-mcp-tool-keys.js";
-import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
+import {
+  applySharedConfigPatch,
+  sharedConfigFileKey,
+  undefinedWhenEmpty,
+} from "../shared/shared-config-gateway.js";
 import {
   convertEnvVarRefsFromToolFormat,
   convertEnvVarRefsToToolFormat,
@@ -888,7 +892,9 @@ export class KiloMcp extends ToolMcp {
         feature: "mcp",
         existingContent: fileContent ?? "",
         patch: {
-          mcp: convertedMcp,
+          // With no server left the key is retracted rather than left as an
+          // empty object, so the file states nothing Rulesync no longer generates.
+          mcp: undefinedWhenEmpty(convertedMcp),
           ...buildKiloMcpPermissionPatch({
             existing: existingDocument,
             managedServerNames: uniq([

@@ -65,6 +65,30 @@ describe("MimocodeSkill", () => {
     });
   });
 
+  it("should emit disable-model-invocation from the mimocode section, not the opencode one", () => {
+    const rulesyncSkill = new RulesyncSkill({
+      outputRoot: testDir,
+      relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+      dirName: "test-skill",
+      frontmatter: {
+        name: "test-skill",
+        description: "Test skill description",
+        targets: ["mimocode"],
+        mimocode: { "disable-model-invocation": true },
+        opencode: { "disable-model-invocation": false },
+      },
+      body: "Test body",
+      validate: true,
+    });
+
+    const skill = MimocodeSkill.fromRulesyncSkill({ rulesyncSkill });
+
+    expect(skill.getFrontmatter()["disable-model-invocation"]).toBe(true);
+    expect(skill.toRulesyncSkill().getFrontmatter().mimocode).toEqual({
+      "disable-model-invocation": true,
+    });
+  });
+
   it("should resolve skills.paths against the project root, not .mimocode/", async () => {
     await writeFileContent(
       join(testDir, ".mimocode", "mimocode.json"),
