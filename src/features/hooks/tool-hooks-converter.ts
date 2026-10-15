@@ -87,8 +87,19 @@ export type ToolHooksConverterConfig = {
     readonly falseValue?: string;
     /** Emit only on `command` hooks, for a field the tool documents there only. */
     readonly commandOnly?: boolean;
+    /**
+     * Hook types the tool documents the field on, for a field wider than
+     * `command` alone (Claude Code's `onFailure` on `command` and `http`);
+     * unrestricted when absent.
+     */
+    readonly hookTypes?: ReadonlySet<HookType>;
     /** Canonical events the tool honours the field on; unrestricted when absent. */
     readonly events?: ReadonlySet<string>;
+    /**
+     * Canonical events the tool ignores the field on, for a field honoured
+     * almost everywhere (the complement of `events`).
+     */
+    readonly ignoredEvents?: ReadonlySet<string>;
   }>;
   /**
    * Per-hook number fields to carry through the round-trip, each mapping a
@@ -846,7 +857,7 @@ function isKeywordFieldApplicable({
   direction: "generated" | "imported";
   warn?: (message: string) => void;
 }): boolean {
-  const { canonical, tool, commandOnly, events } = spec;
+  const { canonical, tool, commandOnly, hookTypes, events, ignoredEvents } = spec;
   const field = direction === "generated" ? canonical : tool;
   if (!isFieldApplicable({ commandOnly, hookType })) {
     warn?.(
@@ -855,10 +866,24 @@ function isKeywordFieldApplicable({
     );
     return false;
   }
+  if (hookTypes !== undefined && !hookTypes.has(hookType)) {
+    warn?.(
+      `Dropping "${field}" from a "${hookType}" hook on "${eventName}": this tool documents ` +
+        `"${tool}" on ${[...hookTypes].map((type) => `"${type}"`).join(", ")} hooks only, so it is not ${direction}.`,
+    );
+    return false;
+  }
   if (events !== undefined && !events.has(eventName)) {
     warn?.(
       `Dropping "${field}" from a "${hookType}" hook on "${eventName}": this tool honours ` +
         `"${tool}" on ${[...events].map((event) => `"${event}"`).join(", ")} only, so it is not ${direction}.`,
+    );
+    return false;
+  }
+  if (ignoredEvents?.has(eventName)) {
+    warn?.(
+      `Dropping "${field}" from a "${hookType}" hook on "${eventName}": this tool ignores ` +
+        `"${tool}" on "${eventName}", so it is not ${direction}.`,
     );
     return false;
   }

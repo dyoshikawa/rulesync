@@ -24,6 +24,18 @@ const CLAUDE_NO_MATCHER_EVENTS: ReadonlySet<string> = new Set([
   "stop",
 ]);
 
+/**
+ * Events whose hooks ignore `onFailure`: exit code 2 there sends Claude back to
+ * keep working, and Claude cannot repair a hook that will not run.
+ * @see https://code.claude.com/docs/en/hooks#block-the-action-when-a-hook-fails
+ */
+const CLAUDE_ON_FAILURE_IGNORED_EVENTS: ReadonlySet<string> = new Set([
+  "stop",
+  "subagentStop",
+  "taskCompleted",
+  "teammateIdle",
+]);
+
 const CLAUDE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   supportedEvents: CLAUDE_HOOK_EVENTS,
   canonicalToToolEventNames: CANONICAL_TO_CLAUDE_EVENT_NAMES,
@@ -57,6 +69,23 @@ const CLAUDE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
     { canonical: "async", tool: "async", commandOnly: true },
     { canonical: "asyncRewake", tool: "asyncRewake", commandOnly: true },
     { canonical: "continueOnBlock", tool: "continueOnBlock" },
+  ],
+  // Claude Code v2.1.295+ spells the canonical `failClosed` as
+  // `onFailure: "block"` on `command` and `http` hooks, making a hook that
+  // cannot start, errors, times out or returns invalid output act like exit
+  // code 2. `"continue"` is the default, so `false` is omitted. The field has
+  // no effect on Stop, SubagentStop, TaskCompleted and TeammateIdle hooks, so
+  // a `true` there is dropped with a warning.
+  // https://code.claude.com/docs/en/hooks#block-the-action-when-a-hook-fails
+  keywordPassthroughFields: [
+    {
+      canonical: "failClosed",
+      tool: "onFailure",
+      trueValue: "block",
+      falseValue: "continue",
+      hookTypes: new Set(["command", "http"]),
+      ignoredEvents: CLAUDE_ON_FAILURE_IGNORED_EVENTS,
+    },
   ],
   // Command hooks: the exec form. With `args` present, `command` is resolved as
   // an executable and spawned directly, so no shell is involved and a path

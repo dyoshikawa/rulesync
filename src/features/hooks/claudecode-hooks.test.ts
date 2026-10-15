@@ -164,6 +164,84 @@ describe("ClaudecodeHooks", () => {
       });
     });
 
+    it("should write failClosed as onFailure: block on command and http hooks only", async () => {
+      await ensureDir(join(testDir, ".claude"));
+      await writeFileContent(join(testDir, ".claude", "settings.json"), JSON.stringify({}));
+
+      const config = {
+        version: 1,
+        hooks: {
+          preToolUse: [
+            { type: "command", command: "check.sh", failClosed: true },
+            { type: "http", url: "https://example.com/hook", failClosed: true },
+            { type: "prompt", prompt: "Review this", failClosed: true },
+            { type: "command", command: "fail-open.sh", failClosed: false },
+          ],
+          // Upstream: onFailure has no effect on Stop hooks.
+          stop: [{ type: "command", command: "on-stop.sh", failClosed: true }],
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const claudecodeHooks = await ClaudecodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+        logger,
+      });
+
+      const parsed = JSON.parse(claudecodeHooks.getFileContent());
+      const [command, http, prompt, failOpen] = parsed.hooks.PreToolUse[0].hooks;
+      expect(command.onFailure).toBe("block");
+      expect(http.onFailure).toBe("block");
+      expect(prompt).not.toHaveProperty("onFailure");
+      expect(failOpen).not.toHaveProperty("onFailure");
+      expect(parsed.hooks.Stop[0].hooks[0]).not.toHaveProperty("onFailure");
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Dropping "failClosed" from a "prompt" hook on "preToolUse"'),
+      );
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Dropping "failClosed" from a "command" hook on "stop"'),
+      );
+    });
+
+    it("should read onFailure back as failClosed on import", () => {
+      const claudecodeHooks = new ClaudecodeHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".claude",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          hooks: {
+            PreToolUse: [
+              {
+                hooks: [
+                  { type: "command", command: "block.sh", onFailure: "block" },
+                  { type: "http", url: "https://example.com/hook", onFailure: "continue" },
+                  { type: "command", command: "typo.sh", onFailure: "Block" },
+                ],
+              },
+            ],
+          },
+        }),
+        validate: false,
+      });
+
+      const parsed = claudecodeHooks.toRulesyncHooks({ logger }).getJson();
+      const [block, cont, typo] = parsed.hooks.preToolUse ?? [];
+      expect(block?.failClosed).toBe(true);
+      expect(cont?.failClosed).toBe(false);
+      expect(typo).not.toHaveProperty("failClosed");
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('"Block" is not a value this tool documents for it'),
+      );
+    });
+
     it("should use the braced placeholder for an exec-form command", async () => {
       await ensureDir(join(testDir, ".claude"));
       await writeFileContent(join(testDir, ".claude", "settings.json"), JSON.stringify({}));
