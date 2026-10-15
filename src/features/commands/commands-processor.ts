@@ -89,6 +89,7 @@ import {
   ToolCommandFromRulesyncCommandParams,
   ToolCommandSettablePaths,
 } from "./tool-command.js";
+import { TraeCommand } from "./trae-command.js";
 import { WarpCommand } from "./warp-command.js";
 import { ZcodeCommand } from "./zcode-command.js";
 import { ZcodePluginCommand } from "./zcode-plugin-command.js";
@@ -790,6 +791,23 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
         supportsGlobal: true,
         isSimulated: false,
         supportsSubdirectory: false,
+      },
+    },
+  ],
+  [
+    "trae",
+    {
+      // Trae custom commands are Markdown files under `.trae/commands/`
+      // (project, up to three nested directory levels) / `~/.trae/commands/`
+      // (global), with `name` / `description` frontmatter.
+      // https://docs.trae.ai/ide/slash-commands?_lang=en
+      class: TraeCommand,
+      meta: {
+        extension: "md",
+        supportsProject: true,
+        supportsGlobal: true,
+        isSimulated: false,
+        supportsSubdirectory: true,
       },
     },
   ],
