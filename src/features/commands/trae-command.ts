@@ -127,11 +127,13 @@ export class TraeCommand extends ToolCommand {
   }: ToolCommandFromRulesyncCommandParams): TraeCommand {
     const rulesyncFrontmatter = rulesyncCommand.getFrontmatter();
 
-    const traeFrontmatter: TraeCommandFrontmatter = {
-      name: basename(rulesyncCommand.getRelativeFilePath(), ".md"),
+    const { name: _name, ...traeFields } = rulesyncFrontmatter.trae ?? {};
+    // Typed loosely so an invalid `trae.name` reaches validation unchanged.
+    const traeFrontmatter = {
+      name: this.deriveName(rulesyncCommand),
       description: rulesyncFrontmatter.description,
-      ...rulesyncFrontmatter.trae,
-    };
+      ...traeFields,
+    } as TraeCommandFrontmatter;
 
     return new TraeCommand({
       outputRoot,
@@ -180,7 +182,9 @@ export class TraeCommand extends ToolCommand {
       if (!this.isTargetedByRulesyncCommand(rulesyncCommand)) continue;
       const relativeFilePath = toPosixPath(rulesyncCommand.getRelativeFilePath());
       const name = this.deriveName(rulesyncCommand);
-      pathsByName.set(name, [...(pathsByName.get(name) ?? []), relativeFilePath]);
+      if (typeof name === "string") {
+        pathsByName.set(name, [...(pathsByName.get(name) ?? []), relativeFilePath]);
+      }
 
       const dirDepth = relativeFilePath.split("/").length - 1;
       if (!global && dirDepth > TRAE_MAX_PROJECT_COMMAND_DIR_DEPTH) {
@@ -199,11 +203,16 @@ export class TraeCommand extends ToolCommand {
     }
   }
 
-  private static deriveName(rulesyncCommand: RulesyncCommand): string {
-    const traeName = rulesyncCommand.getFrontmatter().trae?.name;
-    return typeof traeName === "string"
-      ? traeName
-      : basename(rulesyncCommand.getRelativeFilePath(), ".md");
+  /**
+   * The `name` Trae sees for a command: the `trae` section's `name` when set,
+   * otherwise the file name stem. A non-string override is returned as is so
+   * frontmatter validation still rejects it.
+   */
+  private static deriveName(rulesyncCommand: RulesyncCommand): unknown {
+    return (
+      rulesyncCommand.getFrontmatter().trae?.name ??
+      basename(rulesyncCommand.getRelativeFilePath(), ".md")
+    );
   }
 
   static isTargetedByRulesyncCommand(rulesyncCommand: RulesyncCommand): boolean {

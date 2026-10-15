@@ -7,6 +7,7 @@ import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { writeFileContent } from "../../utils/file.js";
 import { stringifyFrontmatter } from "../../utils/frontmatter.js";
+import { CommandsProcessor } from "./commands-processor.js";
 import { RulesyncCommand } from "./rulesync-command.js";
 import { TraeCommand } from "./trae-command.js";
 
@@ -86,6 +87,17 @@ describe("TraeCommand", () => {
       description: "Generate a commit message",
       trae: { name: "git-commit" },
     });
+  });
+
+  it("should reject a non-string trae name", () => {
+    const rulesyncCommand = createRulesyncCommand({
+      relativeFilePath: "review.md",
+      frontmatter: { trae: { name: 42 } },
+    });
+
+    expect(() => TraeCommand.fromRulesyncCommand({ outputRoot: testDir, rulesyncCommand })).toThrow(
+      "Invalid frontmatter",
+    );
   });
 
   it("should import a command file", async () => {
@@ -200,6 +212,32 @@ describe("TraeCommand", () => {
         'Trae reads project commands only up to 3 nested directory levels, so "a/b/c/d/deep.md" is written but never loaded. Move it to a shallower directory.',
       );
     });
+
+    it.each([
+      { global: false, warnings: 1 },
+      { global: true, warnings: 0 },
+    ])(
+      "should pass the scope through CommandsProcessor (global: $global)",
+      async ({ global, warnings }) => {
+        const logger = createMockLogger();
+        const processor = new CommandsProcessor({
+          outputRoot: testDir,
+          toolTarget: "trae",
+          global,
+          logger,
+        });
+
+        const toolFiles = await processor.convertRulesyncFilesToToolFiles([
+          createRulesyncCommand({
+            relativeFilePath: join("a", "b", "c", "d", "deep.md"),
+            frontmatter: {},
+          }),
+        ]);
+
+        expect(toolFiles).toHaveLength(1);
+        expect(logger.warn).toHaveBeenCalledTimes(warnings);
+      },
+    );
 
     it("should not apply the nesting limit to global commands", () => {
       const logger = createMockLogger();

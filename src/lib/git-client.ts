@@ -337,6 +337,8 @@ async function walkDirectory(
   }
   const results: GitSkillFile[] = [];
   for (const name of await listDirectoryEntryNames(dir)) {
+    // Case-insensitive on purpose, like the start-directory check: a `.GIT`
+    // directory is skipped too, even on a case-sensitive file system.
     if (name.toLowerCase() === ".git") continue;
     const fullPath = join(dir, name);
     if (await isSymlink(fullPath)) {
