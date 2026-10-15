@@ -70,6 +70,48 @@ describe("buildAntigravityPermissionEntry", () => {
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("NOT enforced"));
     });
 
+    it.each(["**/*.env", "/*", "*.pem", "{src,lib}/*.ts", "../*.env", "src/../*.env", "../../a/*"])(
+      "skips the deny %s, which has no leading directory",
+      (pattern) => {
+        const { entry, logger } = build({ action: "read_file", pattern, decision: "deny" });
+        expect(entry).toBeUndefined();
+        expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("NOT enforced"));
+      },
+    );
+
+    it.each([
+      ["src/*", "read_file(src)", "src"],
+      ["./src/*.ts", "read_file(src)", "src"],
+      ["src/lib/**/*.env", "read_file(src/lib)", "src/lib"],
+      ["/etc/ssl/*.pem", "read_file(/etc/ssl)", "/etc/ssl"],
+      ["src/{a,b}/**", "read_file(src)", "src"],
+    ])("widens the deny %s to its leading directories, %s", (pattern, expected, prefix) => {
+      const { entry, logger } = build({ action: "read_file", pattern, decision: "deny" });
+      expect(entry).toBe(expected);
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(`The deny now blocks every path under \`${prefix}\``),
+      );
+    });
+
+    it.each([
+      ["~/.ssh/*.pem", "read_file(~/.ssh)"],
+      ["$HOME/.aws/*", "read_file($HOME/.aws)"],
+    ])("warns that the deny %s, widened to %s, may block nothing", (pattern, expected) => {
+      const { entry, logger } = build({ action: "read_file", pattern, decision: "deny" });
+      expect(entry).toBe(expected);
+      expect(logger.warn).toHaveBeenCalledTimes(2);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("The deny now blocks"));
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("this deny may block nothing"),
+      );
+    });
+
+    it("does not widen an allow or ask path glob", () => {
+      const { entry } = build({ action: "read_file", pattern: "src/*", decision: "allow" });
+      expect(entry).toBeUndefined();
+    });
+
     it.each([
       ["~/.ssh/**", "deny", "read_file(~/.ssh)"],
       ["$HOME/.aws/credentials", "deny", "read_file($HOME/.aws/credentials)"],
@@ -85,6 +127,15 @@ describe("buildAntigravityPermissionEntry", () => {
       const { logger } = build({ action: "read_file", pattern: "~/.ssh/**", decision: "deny" });
       expect(logger.warn).toHaveBeenCalledWith(
         expect.stringContaining("this deny may block nothing"),
+      );
+    });
+
+    it("says an ask with a home path may run without a prompt", () => {
+      const { logger } = build({ action: "read_file", pattern: "~/.ssh/**", decision: "ask" });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          "may run without a prompt when Antigravity CLI is set to always proceed",
+        ),
       );
     });
 
@@ -121,7 +172,9 @@ describe("buildAntigravityPermissionEntry", () => {
         expect(allow.logger.warn).toHaveBeenCalledWith(expect.stringContaining("every URL"));
         const deny = build({ action: "read_url", pattern, decision: "deny" });
         expect(deny.entry).toBe("read_url");
-        expect(deny.logger.warn).not.toHaveBeenCalled();
+        expect(deny.logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining("the deny also overrides any allow or ask there"),
+        );
       },
     );
 
@@ -163,14 +216,28 @@ describe("buildAntigravityPermissionEntry", () => {
       },
     );
 
-    it("widens a deny with a path to the whole domain without a warning", () => {
+    it("warns that a deny with a path widens to the whole domain", () => {
       const { entry, logger } = build({
         action: "read_url",
         pattern: "https://example.com/private/*",
         decision: "deny",
       });
       expect(entry).toBe("read_url(example.com)");
-      expect(logger.warn).not.toHaveBeenCalled();
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          "covers all of example.com and its subdomains, so the deny also overrides any allow or ask there",
+        ),
+      );
+    });
+
+    it.each([
+      ["example.com", "execute_url(example.com)"],
+      ["https://example.com/run/*", "execute_url(example.com)"],
+      ["*", "execute_url"],
+    ])("translates the execute_url pattern %s to %s like read_url", (pattern, expected) => {
+      const { entry } = build({ action: "execute_url", pattern });
+      expect(entry).toBe(expected);
     });
 
     it.each(["https://*/x", "a*b.example.com", "how to bake bread"])(
@@ -247,6 +314,48 @@ describe("buildAntigravityPermissionEntry", () => {
       const { entry, logger } = build({ action: "command", pattern });
       expect(entry).toBe(expected);
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("more words after it"));
+    });
+
+    it.each([
+      ["npm run *", "unsandboxed(npm run)"],
+      ["npm run test:*", "unsandboxed(regex:^npm$ ^run$ ^test:.*$)"],
+    ])("translates the unsandboxed pattern %s to %s like a command", (pattern, expected) => {
+      const { entry } = build({ action: "unsandboxed", pattern });
+      expect(entry).toBe(expected);
+    });
+
+    // Earlier releases wrote `unsandboxed` and `execute_url` patterns verbatim.
+    it("warns that an execute_url allow covers the whole domain", () => {
+      const { entry, logger } = build({
+        action: "execute_url",
+        pattern: "https://example.com/run/*",
+      });
+      expect(entry).toBe("execute_url(example.com)");
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("all of example.com and its subdomains"),
+      );
+    });
+
+    it("warns that an exact unsandboxed allow also matches more words", () => {
+      const { entry, logger } = build({ action: "unsandboxed", pattern: "git push" });
+      expect(entry).toBe("unsandboxed(git push)");
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("more words after it"));
+    });
+
+    it("no longer writes an unsandboxed glob verbatim", () => {
+      const { entry, logger } = build({ action: "unsandboxed", pattern: "rm -rf *" });
+      expect(entry).toBe("unsandboxed(rm -rf)");
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("widens an untranslatable unsandboxed deny to its leading words", () => {
+      const { entry, logger } = build({
+        action: "unsandboxed",
+        pattern: "git push * --force",
+        decision: "deny",
+      });
+      expect(entry).toBe("unsandboxed(git push)");
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("widening"));
     });
 
     it("does not warn when a deny matches more words", () => {

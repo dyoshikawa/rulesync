@@ -2,7 +2,9 @@ import type { PermissionAction } from "../../types/permissions.js";
 import { parseGlobPattern } from "../../utils/glob.js";
 import type { Logger } from "../../utils/logger.js";
 import {
+  ANTIGRAVITY_COMMAND_ACTIONS as COMMAND_ACTIONS,
   BRACE_ALTERNATIVES,
+  type CommandTargetResult as TargetResult,
   toAntigravityCommandLiteralPrefix,
   toAntigravityCommandTarget,
 } from "./antigravity-command-patterns.js";
@@ -18,18 +20,23 @@ import {
  *   every file.
  * - `read_url` takes a domain and covers its subdomains. The URL path is
  *   ignored, and `*` covers every domain.
- * - `command` takes literal words or a per-word `regex:`, matched word by
- *   word (see `antigravity-command-patterns.ts`).
+ * - `execute_url` takes a domain, like `read_url`.
+ * - `command` and `unsandboxed` take literal words or a per-word `regex:`,
+ *   matched word by word (see `antigravity-command-patterns.ts`).
  *
  * A glob copied verbatim (`read_file(**\/*.env)`) is a literal path that
  * matches nothing, so a deny written that way blocks nothing. A pattern with
- * no Antigravity spelling is skipped with a warning instead, except a command
- * deny with leading literal words, which is widened to them.
+ * no Antigravity spelling is skipped with a warning instead, except a deny
+ * with a literal lead (the first words of a command, the leading directories
+ * of a path), which is widened to it.
  *
  * @see https://antigravity.google/docs/permissions?tab=cli
  */
 
 const PATH_ACTIONS = new Set(["read_file", "write_file"]);
+
+// Actions whose target is a domain.
+const URL_ACTIONS = new Set(["read_url", "execute_url"]);
 
 // Every path the engine sees, written as a glob.
 const MATCH_ALL_PATH_GLOBS = new Set(["*", "**", "**/*"]);
@@ -50,9 +57,8 @@ const DENY_HINTS: Record<string, string> = {
   read_file: "deny a directory or file path instead",
   write_file: "deny a directory or file path instead",
   command: "deny the first words of the command instead",
+  unsandboxed: "deny the first words of the command instead",
 };
-
-type TargetResult = { target: string; note?: string } | { skipReason: string };
 
 // `{a,b}` is not a glob step in `parseGlobPattern`, but it is one in every tool
 // that reads canonical patterns, so it counts as a glob here.
@@ -133,25 +139,99 @@ function toUrlTarget(pattern: string): TargetResult {
 }
 
 function toTarget(action: string, pattern: string): TargetResult {
-  if (action === "command") {
+  if (COMMAND_ACTIONS.has(action)) {
     return toAntigravityCommandTarget(pattern);
   }
   if (PATH_ACTIONS.has(action)) {
     return toPathTarget(pattern);
   }
-  if (action === "read_url") {
+  if (URL_ACTIONS.has(action)) {
     return toUrlTarget(pattern);
   }
   return { target: pattern };
 }
 
 /**
+ * The leading directories of a path glob (`src` for `src/*.ts`), or
+ * `undefined` when it has none. A directory target covers everything inside
+ * it, so it matches at least as much as the glob. The filesystem root alone
+ * (`/*`) is not a lead: a deny of it would block every file. Neither is a lead
+ * with `..` in it.
+ */
+function toPathLiteralPrefix(pattern: string): string | undefined {
+  const path = pattern.startsWith("./") ? pattern.slice(2) : pattern;
+  const prefix: string[] = [];
+  for (const segment of path.split("/").slice(0, -1)) {
+    // A brace may be part of `{a,b/c}` alternatives, so it ends the lead.
+    if (hasGlob(segment) || segment.includes("{") || segment.includes("}")) {
+      break;
+    }
+    prefix.push(segment);
+  }
+  // A `..` anywhere in the lead leaves the workspace or steps back out of a
+  // directory (`src/../*.env` is the root's files, not `src`), so the lead
+  // would not cover the glob, or would cover the whole workspace and more.
+  if (prefix.includes("..") || prefix.every((segment) => segment === "" || segment === ".")) {
+    return undefined;
+  }
+  return prefix.join("/");
+}
+
+/** The widened target of a deny that has no exact Antigravity spelling. */
+function toWidenedDenyTarget(action: string, pattern: string): string | undefined {
+  if (COMMAND_ACTIONS.has(action)) {
+    return toAntigravityCommandLiteralPrefix(pattern);
+  }
+  if (PATH_ACTIONS.has(action)) {
+    return toPathLiteralPrefix(pattern);
+  }
+  return undefined;
+}
+
+/**
+ * Warn about a path target that is a home or variable reference. Antigravity
+ * documents absolute and workspace-relative paths only, so such a reference
+ * may be matched literally and never apply. The entry is still written, since
+ * dropping a deny would lose it where Antigravity does expand the reference.
+ */
+function warnHomeOrVariablePath({
+  action,
+  target,
+  rule,
+  decision,
+  logger,
+  toolLabel,
+}: {
+  action: string;
+  target: string;
+  rule: string;
+  decision: PermissionAction;
+  logger: Logger;
+  toolLabel: string;
+}): void {
+  if (!PATH_ACTIONS.has(action) || !HOME_OR_VARIABLE_PATH.test(target)) {
+    return;
+  }
+  const consequence =
+    decision === "deny"
+      ? "this deny may block nothing"
+      : decision === "ask"
+        ? `${toolLabel} may fall back to its default, so it may run without a prompt when ${toolLabel} is set to always proceed`
+        : `${toolLabel} may fall back to its default`;
+  logger.warn(
+    `${toolLabel} permissions: ${rule}: \`~\` and environment variables may not be expanded in Antigravity path targets, so ${action}(${target}) may match nothing and ${consequence}; use an absolute path instead.`,
+  );
+}
+
+/**
  * Build the entry for one canonical rule, or return `undefined` when
- * Antigravity cannot express it. A command deny is widened to its leading
- * literal words rather than skipped: Antigravity applies deny over ask and
- * allow, so an overlapping allow that is translated (`git push *`) cannot let
- * through what the deny (`git push * --force`) was meant to block. A skipped
- * deny is warned about loudly, because nothing enforces it.
+ * Antigravity cannot express it. A deny is widened to its literal lead rather
+ * than skipped (`git push * --force` → `command(git push)`, `src/*.ts` →
+ * `read_file(src)`): Antigravity applies deny over ask and allow, so an
+ * overlapping allow that is translated (`git push *`) cannot let through what
+ * the deny was meant to block. A skipped deny is warned about loudly, because
+ * nothing enforces it, and a widened one is warned about too, because it
+ * blocks more than it says.
  */
 export function buildAntigravityPermissionEntry({
   action,
@@ -171,14 +251,15 @@ export function buildAntigravityPermissionEntry({
   const result = pattern === "*" ? { target: "*" } : toTarget(action, pattern);
   const rule = `${category}: { "${pattern}": "${decision}" }`;
   if ("skipReason" in result) {
-    const prefix =
-      action === "command" && decision === "deny"
-        ? toAntigravityCommandLiteralPrefix(pattern)
-        : undefined;
+    const prefix = decision === "deny" ? toWidenedDenyTarget(action, pattern) : undefined;
     if (prefix !== undefined) {
+      const scope = PATH_ACTIONS.has(action)
+        ? `every path under \`${prefix}\``
+        : `every command that starts with \`${prefix}\``;
       logger.warn(
-        `${toolLabel} permissions: widening ${rule} to ${action}(${prefix}). ${result.skipReason}. The deny now blocks every command that starts with \`${prefix}\`, overriding any allow or ask for them.`,
+        `${toolLabel} permissions: widening ${rule} to ${action}(${prefix}). ${result.skipReason}. The deny now blocks ${scope}, overriding any allow or ask for them.`,
       );
+      warnHomeOrVariablePath({ action, target: prefix, rule, decision, logger, toolLabel });
       return `${action}(${prefix})`;
     }
     const consequence =
@@ -193,20 +274,15 @@ export function buildAntigravityPermissionEntry({
     return undefined;
   }
   // A wider allow or ask grants more than the rule asked for, so say so. A
-  // wider deny only blocks more.
-  if (result.note !== undefined && decision !== "deny") {
-    logger.warn(`${toolLabel} permissions: ${rule}: ${result.note}.`);
-  }
-  // Antigravity documents absolute and workspace-relative paths only, so a
-  // home or variable reference may be matched literally and never apply.
-  if (PATH_ACTIONS.has(action) && HOME_OR_VARIABLE_PATH.test(result.target)) {
+  // wider command deny only blocks the same command with more words, which is
+  // what such a deny means. A URL deny widens to the whole domain, which also
+  // overrides an allow or ask elsewhere on it (a deny of
+  // `https://github.com/evil/*` blocks an allow of `https://github.com/*`).
+  if (result.note !== undefined && (decision !== "deny" || URL_ACTIONS.has(action))) {
     const consequence =
-      decision === "deny"
-        ? "this deny may block nothing"
-        : `${toolLabel} may fall back to its default`;
-    logger.warn(
-      `${toolLabel} permissions: ${rule}: \`~\` and environment variables may not be expanded in Antigravity path targets, so ${action}(${result.target}) may match nothing and ${consequence}; use an absolute path instead.`,
-    );
+      decision === "deny" ? ", so the deny also overrides any allow or ask there" : "";
+    logger.warn(`${toolLabel} permissions: ${rule}: ${result.note}${consequence}.`);
   }
+  warnHomeOrVariablePath({ action, target: result.target, rule, decision, logger, toolLabel });
   return result.target === "*" ? action : `${action}(${result.target})`;
 }

@@ -17,7 +17,10 @@ import {
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { fallbackLogger, type Logger } from "../../utils/logger.js";
-import { importAntigravityCommandTarget } from "./antigravity-command-patterns.js";
+import {
+  ANTIGRAVITY_COMMAND_ACTIONS,
+  importAntigravityCommandTarget,
+} from "./antigravity-command-patterns.js";
 import { buildAntigravityPermissionEntry } from "./antigravity-targets.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { honorAllToolsOnBash } from "./shell-command-categories.js";
@@ -97,7 +100,8 @@ type AntigravityCliSettingsJson = {
  * Deliberate mapping from rulesync canonical permission categories to the
  * Antigravity CLI Fine-Grained Permissions Engine action vocabulary
  * (`read_file`, `write_file`, `read_url`, `command`, `mcp`, plus `execute_url` /
- * `unsandboxed` which have no canonical equivalent and pass through). `edit` and
+ * `unsandboxed` which have no canonical equivalent and keep their names; their
+ * targets are translated like `read_url` / `command` ones). `edit` and
  * `write` both map to `write_file`, and `webfetch` / `websearch` both map to
  * `read_url`; on import those collapse to the canonical `write` / `webfetch`
  * form (a documented, lossy normalization). This shares the action vocabulary of
@@ -441,16 +445,15 @@ function convertAntigravityCliToRulesyncPermissions(params: {
     for (const entry of entries) {
       const { toolName, pattern: target } = parsePermissionEntry(entry);
       const canonical = toCanonicalToolName(toolName);
-      const pattern =
-        toolName === "command"
-          ? importAntigravityCommandTarget({
-              target,
-              entry,
-              decision: action,
-              logger: moduleLogger,
-              toolLabel: "Antigravity CLI",
-            })
-          : target;
+      const pattern = ANTIGRAVITY_COMMAND_ACTIONS.has(toolName)
+        ? importAntigravityCommandTarget({
+            target,
+            entry,
+            decision: action,
+            logger: moduleLogger,
+            toolLabel: "Antigravity CLI",
+          })
+        : target;
       if (!permission[canonical]) {
         permission[canonical] = {};
       }

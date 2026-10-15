@@ -15,6 +15,8 @@ describe("fromAntigravityCommandTarget", () => {
     ["regex:^rm$ ^-rf$", "rm -rf *"],
     ["regex:rm", "rm *"],
     ["rm -rf *", "regex:^rm$ ^-rf$ ^\\*$"],
+    // An empty regex has no glob, so it stays as written.
+    ["regex:", "regex:"],
   ])("imports %s as %s", (target, expected) => {
     expect(fromAntigravityCommandTarget(target)).toBe(expected);
   });
@@ -29,18 +31,14 @@ describe("describeAntigravityCommandImportLoss", () => {
     "regex:(a|b)",
     "regex:^rm$ .*",
     "regex:^git$ ^push$ ^-f.*",
+    // Antigravity evaluates each token as `^(?:pattern)$`, so reading an
+    // unanchored word as anchored is faithful.
+    "regex:rm",
+    "regex:^rm$ -rf",
+    "regex:^git$ push$",
   ])("reports nothing for the faithfully imported target %s", (target) => {
     expect(describeAntigravityCommandImportLoss(target)).toBeUndefined();
   });
-
-  it.each(["regex:rm", "regex:^rm$ -rf", "regex:^git$ push$"])(
-    "warns that the unanchored regex target %s may be imported narrower",
-    (target) => {
-      expect(describeAntigravityCommandImportLoss(target)?.reason).toContain(
-        "without `^...$` anchors",
-      );
-    },
-  );
 
   it.each(["rm -rf *", "git push --force?", "ls [ab]"])(
     "warns that the legacy glob-form target %s is matched literally",
@@ -75,26 +73,23 @@ describe("importAntigravityCommandTarget", () => {
     expect(logger.warn).not.toHaveBeenCalled();
   });
 
-  it("warns that an imported unanchored deny may block less", () => {
+  it("imports an unanchored regex word as anchored without a warning", () => {
     const { pattern, logger } = importTarget({ target: "regex:rm", decision: "deny" });
     expect(pattern).toBe("rm *");
-    expect(logger.warn).toHaveBeenCalledTimes(1);
-    const message = logger.warn.mock.calls[0]?.[0];
-    expect(message).toContain("Antigravity IDE permissions");
-    expect(message).toContain("may block less");
+    expect(logger.warn).not.toHaveBeenCalled();
   });
 
   it("warns that an imported legacy deny is not enforced by other tools", () => {
     const { logger } = importTarget({ target: "rm -rf *", decision: "deny" });
     expect(logger.warn).toHaveBeenCalledTimes(1);
     const message = logger.warn.mock.calls[0]?.[0];
+    expect(message).toContain("Antigravity IDE permissions");
     expect(message).toContain("NOT enforced by the other tools");
-    expect(message).not.toContain("may block less");
   });
 
   it("does not add the deny consequence to an allow", () => {
-    const { logger } = importTarget({ target: "regex:rm", decision: "allow" });
+    const { logger } = importTarget({ target: "rm -rf *", decision: "allow" });
     expect(logger.warn).toHaveBeenCalledTimes(1);
-    expect(logger.warn.mock.calls[0]?.[0]).not.toContain("may block less");
+    expect(logger.warn.mock.calls[0]?.[0]).not.toContain("NOT enforced");
   });
 });

@@ -633,8 +633,8 @@ describe("AntigravityCliPermissions", () => {
       "regex:^rm$ ^-rf$ ^\\*$": "deny",
       "git push *": "deny",
     });
-    expect(warnSpy).toHaveBeenCalledTimes(2);
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("command(regex:rm)"));
+    // `regex:rm` is anchored by Antigravity, so only the legacy target warns.
+    expect(warnSpy).toHaveBeenCalledTimes(1);
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("command(rm -rf *)"));
     warnSpy.mockRestore();
   });
