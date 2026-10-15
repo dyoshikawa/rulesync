@@ -176,6 +176,9 @@ describe("ClaudecodeHooks", () => {
             { type: "http", url: "https://example.com/hook", failClosed: true },
             { type: "prompt", prompt: "Review this", failClosed: true },
             { type: "command", command: "fail-open.sh", failClosed: false },
+            // Upstream: onFailure has no effect on background command hooks.
+            { type: "command", command: "bg.sh", async: true, failClosed: true },
+            { type: "command", command: "rewake.sh", asyncRewake: true, failClosed: true },
           ],
           // Upstream: onFailure has no effect on Stop hooks.
           stop: [{ type: "command", command: "on-stop.sh", failClosed: true }],
@@ -197,11 +200,20 @@ describe("ClaudecodeHooks", () => {
       });
 
       const parsed = JSON.parse(claudecodeHooks.getFileContent());
-      const [command, http, prompt, failOpen] = parsed.hooks.PreToolUse[0].hooks;
+      const [command, http, prompt, failOpen, background, rewake] =
+        parsed.hooks.PreToolUse[0].hooks;
       expect(command.onFailure).toBe("block");
       expect(http.onFailure).toBe("block");
       expect(prompt).not.toHaveProperty("onFailure");
       expect(failOpen).not.toHaveProperty("onFailure");
+      expect(background).not.toHaveProperty("onFailure");
+      expect(background.async).toBe(true);
+      expect(rewake).not.toHaveProperty("onFailure");
+      for (const flag of ["async", "asyncRewake"]) {
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining(`ignores "onFailure" on a hook that sets "${flag}"`),
+        );
+      }
       expect(parsed.hooks.Stop[0].hooks[0]).not.toHaveProperty("onFailure");
       expect(logger.warn).toHaveBeenCalledWith(
         expect.stringContaining('Dropping "failClosed" from a "prompt" hook on "preToolUse"'),
@@ -224,6 +236,7 @@ describe("ClaudecodeHooks", () => {
                   { type: "command", command: "block.sh", onFailure: "block" },
                   { type: "http", url: "https://example.com/hook", onFailure: "continue" },
                   { type: "command", command: "typo.sh", onFailure: "Block" },
+                  { type: "command", command: "bg.sh", async: true, onFailure: "block" },
                 ],
               },
             ],
@@ -233,10 +246,11 @@ describe("ClaudecodeHooks", () => {
       });
 
       const parsed = claudecodeHooks.toRulesyncHooks({ logger }).getJson();
-      const [block, cont, typo] = parsed.hooks.preToolUse ?? [];
+      const [block, cont, typo, background] = parsed.hooks.preToolUse ?? [];
       expect(block?.failClosed).toBe(true);
       expect(cont?.failClosed).toBe(false);
       expect(typo).not.toHaveProperty("failClosed");
+      expect(background).not.toHaveProperty("failClosed");
       expect(logger.warn).toHaveBeenCalledWith(
         expect.stringContaining('"Block" is not a value this tool documents for it'),
       );

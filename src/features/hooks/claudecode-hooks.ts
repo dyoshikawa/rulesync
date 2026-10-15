@@ -75,7 +75,8 @@ const CLAUDE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   // cannot start, errors, times out or returns invalid output act like exit
   // code 2. `"continue"` is the default, so `false` is omitted. The field has
   // no effect on Stop, SubagentStop, TaskCompleted and TeammateIdle hooks, so
-  // a `true` there is dropped with a warning.
+  // a `true` there is dropped with a warning; the same goes for background
+  // command hooks that set `async` or `asyncRewake`.
   // https://code.claude.com/docs/en/hooks#block-the-action-when-a-hook-fails
   keywordPassthroughFields: [
     {
@@ -85,6 +86,7 @@ const CLAUDE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
       falseValue: "continue",
       hookTypes: new Set(["command", "http"]),
       ignoredEvents: CLAUDE_ON_FAILURE_IGNORED_EVENTS,
+      ignoredWhenFlags: ["async", "asyncRewake"],
     },
   ],
   // Command hooks: the exec form. With `args` present, `command` is resolved as
