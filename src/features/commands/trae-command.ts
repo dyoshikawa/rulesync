@@ -1,0 +1,201 @@
+import { basename, join } from "node:path";
+
+import { z } from "zod/mini";
+
+import { TRAE_COMMANDS_DIR_PATH } from "../../constants/trae-paths.js";
+import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import { formatError } from "../../utils/error.js";
+import { readFileContent } from "../../utils/file.js";
+import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
+import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
+import {
+  ToolCommand,
+  ToolCommandForDeletionParams,
+  ToolCommandFromFileParams,
+  ToolCommandFromRulesyncCommandParams,
+  ToolCommandSettablePaths,
+} from "./tool-command.js";
+
+// looseObject preserves unknown keys during parsing (like passthrough in Zod 3)
+export const TraeCommandFrontmatterSchema = z.looseObject({
+  // The command's purpose, shown next to it in the `/` menu.
+  description: z.optional(z.string()),
+  // The command's identifier. Trae's editor fills it with the file name stem
+  // when it creates a command, so rulesync writes the stem unless the `trae`
+  // section sets its own `name`.
+  name: z.optional(z.string()),
+});
+
+export type TraeCommandFrontmatter = z.infer<typeof TraeCommandFrontmatterSchema>;
+
+export type TraeCommandParams = {
+  frontmatter: TraeCommandFrontmatter;
+  body: string;
+} & Omit<AiFileParams, "fileContent">;
+
+/**
+ * Custom command for Trae.
+ *
+ * Trae reads Markdown command files under `.trae/commands/` (project, up to
+ * three levels of nested directories) and `~/.trae/commands/` (global). The
+ * YAML frontmatter carries `name` and `description`, and the body below the
+ * closing `---` holds the instructions. rulesync writes the rulesync
+ * `description`, a `name` equal to the file name stem (as Trae's editor does),
+ * plus any fields of the `trae` section (which win over the derived ones), and
+ * keeps nested command paths.
+ *
+ * @see https://docs.trae.ai/ide/slash-commands?_lang=en
+ */
+export class TraeCommand extends ToolCommand {
+  private readonly frontmatter: TraeCommandFrontmatter;
+  private readonly body: string;
+
+  constructor({ frontmatter, body, ...rest }: TraeCommandParams) {
+    if (rest.validate) {
+      const result = TraeCommandFrontmatterSchema.safeParse(frontmatter);
+      if (!result.success) {
+        throw new Error(
+          `Invalid frontmatter in ${join(rest.relativeDirPath, rest.relativeFilePath)}: ${formatError(result.error)}`,
+        );
+      }
+    }
+
+    super({
+      ...rest,
+      fileContent: stringifyFrontmatter(body, frontmatter),
+    });
+
+    this.frontmatter = frontmatter;
+    this.body = body;
+  }
+
+  // Both scopes share the same relative path; the home-directory root is
+  // applied by the generate pipeline in global mode.
+  static getSettablePaths(_options: { global?: boolean } = {}): ToolCommandSettablePaths {
+    return {
+      relativeDirPath: TRAE_COMMANDS_DIR_PATH,
+    };
+  }
+
+  getBody(): string {
+    return this.body;
+  }
+
+  getFrontmatter(): Record<string, unknown> {
+    return this.frontmatter;
+  }
+
+  toRulesyncCommand(): RulesyncCommand {
+    const { description, name, ...otherFields } = this.frontmatter;
+    // A `name` equal to the file name stem is what the next generate derives
+    // anyway, so only a custom one is kept in the `trae` section.
+    const restFields =
+      name === undefined || name === basename(this.relativeFilePath, ".md")
+        ? otherFields
+        : { name, ...otherFields };
+
+    const rulesyncFrontmatter: RulesyncCommandFrontmatter = {
+      targets: ["*"],
+      description,
+      ...(Object.keys(restFields).length > 0 && { trae: restFields }),
+    };
+
+    return new RulesyncCommand({
+      outputRoot: ".", // RulesyncCommand outputRoot is always the project root directory
+      frontmatter: rulesyncFrontmatter,
+      body: this.body,
+      relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
+      relativeFilePath: this.relativeFilePath,
+      fileContent: stringifyFrontmatter(this.body, rulesyncFrontmatter),
+      validate: true,
+    });
+  }
+
+  static fromRulesyncCommand({
+    outputRoot = process.cwd(),
+    rulesyncCommand,
+    validate = true,
+    global = false,
+  }: ToolCommandFromRulesyncCommandParams): TraeCommand {
+    const rulesyncFrontmatter = rulesyncCommand.getFrontmatter();
+
+    const traeFrontmatter: TraeCommandFrontmatter = {
+      name: basename(rulesyncCommand.getRelativeFilePath(), ".md"),
+      description: rulesyncFrontmatter.description,
+      ...rulesyncFrontmatter.trae,
+    };
+
+    return new TraeCommand({
+      outputRoot,
+      frontmatter: traeFrontmatter,
+      body: rulesyncCommand.getBody(),
+      relativeDirPath: this.getSettablePaths({ global }).relativeDirPath,
+      relativeFilePath: rulesyncCommand.getRelativeFilePath(),
+      validate,
+    });
+  }
+
+  validate(): ValidationResult {
+    if (!this.frontmatter) {
+      return { success: true, error: null };
+    }
+    const result = TraeCommandFrontmatterSchema.safeParse(this.frontmatter);
+    if (result.success) {
+      return { success: true, error: null };
+    }
+    return {
+      success: false,
+      error: new Error(
+        `Invalid frontmatter in ${join(this.relativeDirPath, this.relativeFilePath)}: ${formatError(result.error)}`,
+      ),
+    };
+  }
+
+  static isTargetedByRulesyncCommand(rulesyncCommand: RulesyncCommand): boolean {
+    return this.isTargetedByRulesyncCommandDefault({
+      rulesyncCommand,
+      toolTarget: "trae",
+    });
+  }
+
+  static async fromFile({
+    outputRoot = process.cwd(),
+    relativeFilePath,
+    validate = true,
+    global = false,
+  }: ToolCommandFromFileParams): Promise<TraeCommand> {
+    const paths = this.getSettablePaths({ global });
+    const filePath = join(outputRoot, paths.relativeDirPath, relativeFilePath);
+    const fileContent = await readFileContent(filePath);
+    const { frontmatter, body } = parseFrontmatter(fileContent, filePath);
+
+    const result = TraeCommandFrontmatterSchema.safeParse(frontmatter);
+    if (!result.success) {
+      throw new Error(`Invalid frontmatter in ${filePath}: ${formatError(result.error)}`);
+    }
+
+    return new TraeCommand({
+      outputRoot,
+      relativeDirPath: paths.relativeDirPath,
+      relativeFilePath,
+      frontmatter: result.data,
+      body: body.trim(),
+      validate,
+    });
+  }
+
+  static forDeletion({
+    outputRoot = process.cwd(),
+    relativeDirPath,
+    relativeFilePath,
+  }: ToolCommandForDeletionParams): TraeCommand {
+    return new TraeCommand({
+      outputRoot,
+      relativeDirPath,
+      relativeFilePath,
+      frontmatter: { description: "" },
+      body: "",
+      validate: false,
+    });
+  }
+}

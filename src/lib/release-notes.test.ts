@@ -90,6 +90,27 @@ describe("resolveReleaseNotesFilter", () => {
     },
   );
 
+  it.each([
+    "2026-02-30T00:00:00Z",
+    "2026-02-30t00:00:00z",
+    "2026-04-31T12:00:00+09:00",
+    "2026-02-29T23:00:00-05:00",
+  ])("rejects the timestamp %s whose calendar date does not exist", (timestamp) => {
+    expect(() => resolveReleaseNotesFilter({ since: timestamp })).toThrow(/Invalid --since/);
+    expect(() => resolveReleaseNotesFilter({ until: timestamp })).toThrow(/Invalid --until/);
+  });
+
+  it.each(["2024-02-29T00:00:00Z", "2026-03-01T01:00:00+09:00", "2026-02-28T23:00:00-05:00"])(
+    "accepts the timestamp %s on a valid calendar date regardless of its offset",
+    (timestamp) => {
+      expect(resolveReleaseNotesFilter({ since: timestamp, until: timestamp })).toEqual({
+        kind: "dateRange",
+        since: timestamp,
+        until: timestamp,
+      });
+    },
+  );
+
   it.each(["2024-02-29", "2000-02-29", "2026-04-30", "0099-01-31"])(
     "accepts the valid calendar date %s",
     (date) => {

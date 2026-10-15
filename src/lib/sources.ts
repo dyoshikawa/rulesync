@@ -1615,12 +1615,19 @@ function resolveSkillsPath(sourceEntry: SourceEntry): string {
     (sourceEntry.transport ?? "github") === "github"
       ? parseSource(sourceEntry.source).path
       : undefined;
-  const skillsPath = sourceEntry.path ?? embeddedPath ?? "skills";
-  return posix.normalize(skillsPath.replace(/\\/g, "/")).replace(/\/+$/, "");
+  return normalizeSourceDirPath(sourceEntry.path ?? embeddedPath ?? "skills");
 }
 
 function normalizeRulesPath(rulesPath: string | undefined): string {
-  return posix.normalize((rulesPath ?? "rules").replace(/\\/g, "/")).replace(/\/+$/, "");
+  return normalizeSourceDirPath(rulesPath ?? "rules");
+}
+
+/**
+ * The form a source directory path is recorded in the lockfile and compared
+ * in: posix separators, normalized, with no trailing slash.
+ */
+function normalizeSourceDirPath(dirPath: string): string {
+  return posix.normalize(dirPath.replace(/\\/g, "/")).replace(/\/+$/, "");
 }
 
 function lockedRuleConfigMatches(params: {
