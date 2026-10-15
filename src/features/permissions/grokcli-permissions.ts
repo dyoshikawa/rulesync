@@ -16,7 +16,7 @@ import type { Logger } from "../../utils/logger.js";
 import { isRecord, isStringArray } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
-import { honorAllToolsOnBash } from "./shell-command-categories.js";
+import { ALL_TOOLS_PERMISSION_CATEGORY, honorAllToolsOnBash } from "./shell-command-categories.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -100,6 +100,17 @@ const GROK_TOOL_TO_CATEGORY: Record<string, string> = {
 
 const GROK_MCP_TOOL = "MCPTool";
 
+// Grok's bare `*` rule matches every tool: upstream `parse_rule` finds no
+// tool name in it, so it lands on `ToolFilter::Any`, which `tool_filter_matches`
+// treats as matching every access kind. It is the counterpart of the canonical
+// all-tools `*` category, but only for the catch-all pattern — Grok has no
+// `*(...)` spelling, and globs are not supported in the tool-name position.
+// https://github.com/xai-org/grok-build/blob/main/crates/codegen/xai-grok-pager/docs/user-guide/22-permissions-and-safety.md
+const GROK_ALL_TOOLS_ENTRY = "*";
+
+// The verbose `[[permission.rules]]` spelling of the same `ToolFilter::Any`.
+const GROK_VERBOSE_ANY_TOOL = "any";
+
 // Lowercased view of the tool tables above, used to resolve the `tool` field of
 // a verbose `[[permission.rules]]` entry. The settings reference spells the two
 // forms differently — the verbose `tool` field takes
@@ -131,9 +142,14 @@ const GROKCLI_PERMISSION_RULES_KEY = "rules";
  * Scoped MCP categories (`mcp__<remainder>`) fold their address into the
  * parentheses (`MCPTool(<remainder>)`); the bare `mcp` category becomes
  * `MCPTool`. For every other tool, a `*` pattern emits the bare tool name and a
- * concrete pattern emits `Tool(pattern)`.
+ * concrete pattern emits `Tool(pattern)`. The all-tools `*` category becomes
+ * Grok's bare `*` rule for its catch-all pattern only; a narrower pattern
+ * under it has no Grok spelling and returns `null`.
  */
 function buildGrokEntry(category: string, pattern: string): string | null {
+  if (category === ALL_TOOLS_PERMISSION_CATEGORY) {
+    return pattern === CATCH_ALL_PATTERN ? GROK_ALL_TOOLS_ENTRY : null;
+  }
   if (category.startsWith(MCP_CANONICAL_PREFIX)) {
     const remainder = category.slice(MCP_CANONICAL_PREFIX.length);
     return remainder.length > 0 ? `${GROK_MCP_TOOL}(${remainder})` : GROK_MCP_TOOL;
@@ -152,8 +168,9 @@ function buildGrokEntry(category: string, pattern: string): string | null {
 
 /**
  * Parse a Grok Claude-style permission entry back into a canonical category +
- * pattern. Entries without parentheses are treated as catch-all (`*`). Returns
- * `null` for tool prefixes with no canonical equivalent (e.g. `any`).
+ * pattern. Entries without parentheses are treated as catch-all (`*`), and the
+ * bare `*` rule becomes the all-tools `*` category. Returns `null` for tool
+ * prefixes with no canonical equivalent.
  */
 function parseGrokEntry(entry: string): { category: string; pattern: string } | null {
   const trimmed = entry.trim();
@@ -166,6 +183,10 @@ function parseGrokEntry(entry: string): { category: string; pattern: string } | 
   } else {
     tool = trimmed.slice(0, parenIndex);
     inner = trimmed.slice(parenIndex + 1, -1).trim();
+  }
+
+  if (parenIndex === -1 && tool === GROK_ALL_TOOLS_ENTRY) {
+    return { category: ALL_TOOLS_PERMISSION_CATEGORY, pattern: CATCH_ALL_PATTERN };
   }
 
   if (parenIndex === -1 && tool.startsWith(MCP_CANONICAL_PREFIX)) {
@@ -239,6 +260,14 @@ function parseGrokRule(
   const resolvedPattern = trimmedPattern.length > 0 ? trimmedPattern : CATCH_ALL_PATTERN;
 
   const lowerTool = tool.trim().toLowerCase();
+  if (lowerTool === GROK_VERBOSE_ANY_TOOL) {
+    // Only the tool-wide form has a canonical counterpart (mirrors the compact
+    // bare `*`); a pattern-scoped `any` rule is skipped like other unmodeled
+    // rules and stays in the preserved `rules` array.
+    return resolvedPattern === CATCH_ALL_PATTERN
+      ? { category: ALL_TOOLS_PERMISSION_CATEGORY, pattern: CATCH_ALL_PATTERN, action }
+      : null;
+  }
   if (GROK_MCP_TOOL_ALIASES.has(lowerTool)) {
     // Mirrors `parseGrokEntry`: an MCP address folds into the category so the
     // canonical side keeps the scoped `mcp__<address>` shape.
@@ -282,7 +311,10 @@ function parseGrokRule(
  *     subagent rather than its launch, and whose pattern is a subagent id
  *     rather than a subagent type); `mcp__*` maps to `MCPTool(...)` (a scoped
  *     MCP category folds its address into the parentheses, so a non-`*`
- *     argument pattern on it is not represented). The one category with no Grok tool (`notebookedit`) is
+ *     argument pattern on it is not represented); the all-tools `*` category
+ *     maps to Grok's bare `*` rule (which matches every tool) for its
+ *     catch-all pattern, while a narrower `*` pattern is skipped with a
+ *     warning. The one category with no Grok tool (`notebookedit`) is
  *     skipped (with a warning when it carries a `deny` rule, to surface the
  *     gap). When two canonical rules collapse onto the same Grok
  *     entry with different actions (e.g. `edit` allow + `write` deny → `Edit`),
@@ -293,7 +325,9 @@ function parseGrokRule(
  *     verbose `[[permission.rules]]` tables
  *     (`{ action = "allow", tool = "bash", pattern = "git *" }`), whose `tool`
  *     field is matched case-insensitively against the same tool table, plus
- *     the documented `mcp` alias for the compact form's `MCPTool`. Rules
+ *     the documented `mcp` alias for the compact form's `MCPTool`. A bare `*`
+ *     entry and a tool-wide verbose `any` rule both import as the all-tools
+ *     `*` category. Rules
  *     from the two forms are merged with the same `deny > ask > allow`
  *     precedence. When neither form carries a rule (older configs), the coarse
  *     `[ui] permission_mode` is used as a fallback. Generate always emits the
@@ -318,7 +352,7 @@ function parseGrokRule(
  * tools it models and (in global scope) the `[ui] permission_mode` value, while
  * every other key
  * (e.g. `[mcp_servers]`, `[permission] rules`, `[sandbox]`) and any user-authored
- * entries for tool prefixes rulesync cannot model (e.g. `any`) are preserved.
+ * entries for tool prefixes rulesync cannot model (e.g. a pattern-only entry such as `src/**`) are preserved.
  * The file is never deleted.
  */
 export class GrokcliPermissions extends ToolPermissions {
@@ -388,7 +422,7 @@ export class GrokcliPermissions extends ToolPermissions {
     // Fine-grained `[permission]` arrays (the high-fidelity surface). rulesync
     // owns the entries for the tools it models; other `[permission]` keys (e.g.
     // verbose `rules`) and user-authored entries for tool prefixes rulesync
-    // cannot model (e.g. `any`) are preserved.
+    // cannot model (e.g. a pattern-only entry such as `src/**`) are preserved.
     const existingPermission = isRecord(parsed[GROKCLI_PERMISSION_KEY])
       ? parsed[GROKCLI_PERMISSION_KEY]
       : {};
@@ -495,7 +529,7 @@ const ACTION_RANK: Record<PermissionAction, number> = { allow: 0, ask: 1, deny: 
 
 /**
  * Collect user-authored entries from an existing `[permission]` array whose
- * tool prefix rulesync cannot model (e.g. `any`). Such entries are
+ * tool prefix rulesync cannot model (e.g. a pattern-only entry such as `src/**`). Such entries are
  * preserved verbatim so replacing the arrays does not silently drop them
  * (mirrors the Cursor adapter's preservation of unmanaged types).
  */
@@ -523,6 +557,14 @@ function buildGrokPermissionArrays(
     for (const [pattern, action] of Object.entries(rules)) {
       const entry = buildGrokEntry(category, pattern);
       if (entry === null) {
+        if (category === ALL_TOOLS_PERMISSION_CATEGORY) {
+          logger?.warn(
+            `Grok CLI permissions: skipping the all-tools '*' rule '${pattern}' — Grok's bare '*' ` +
+              `rule takes no pattern. Write it under the categories it is meant for ` +
+              `(for example 'bash' or 'read').`,
+          );
+          continue;
+        }
         if (action === "deny" && logger) {
           logger.warn(
             `Grok CLI has no permission tool for the '${category}' category; ` +
