@@ -44,6 +44,7 @@ import {
   ToolIgnoreSettablePaths,
   ToolIgnoreSettablePathsParams,
 } from "./tool-ignore.js";
+import { TraeIgnore } from "./trae-ignore.js";
 import { VibeIgnore } from "./vibe-ignore.js";
 import { WarpIgnore } from "./warp-ignore.js";
 import { ZedIgnore } from "./zed-ignore.js";
@@ -99,6 +100,8 @@ export const toolIgnoreFactories = new Map<IgnoreProcessorToolTarget, ToolIgnore
   ["zoocode", { class: RooIgnore }],
   ["devin", { class: DevinIgnore }],
   ["tabnine", { class: TabnineIgnore }],
+  // Trae reads `.trae/.ignore` from the project only.
+  ["trae", { class: TraeIgnore }],
   ["vibe", { class: VibeIgnore }],
   ["warp", { class: WarpIgnore }],
   ["zed", { class: ZedIgnore }],

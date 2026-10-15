@@ -926,7 +926,7 @@ export const JUNIE_HOOK_EVENTS: readonly HookEvent[] = [
  * `PreToolUse`, and on the end reason for `SessionEnd`. Only `type: "command"`
  * hooks are supported.
  * @see https://docs.gitlab.com/user/gitlab_duo_cli/customize/
- * @see https://gitlab.com/gitlab-org/editor-extensions/gitlab-lsp/-/blob/main/packages/core/hooks/src/schema.ts
+ * @see https://gitlab.com/gitlab-org/editor-extensions/gitlab-lsp/-/blob/v9.28.0/packages/core/hooks/src/schema.ts
  */
 export const GITLABDUO_HOOK_EVENTS: readonly HookEvent[] = [
   "sessionStart",
@@ -1322,6 +1322,7 @@ export const CORTEXCODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Objec
  *
  * @see https://www.codebuddy.ai/docs/cli/hooks
  * @see https://www.codebuddy.ai/docs/cli/plugins-reference
+ * @see https://www.npmjs.com/package/@tencent-ai/codebuddy-code/v/2.167.0
  */
 export const CODEBUDDY_HOOK_EVENTS: readonly HookEvent[] = [
   "sessionStart",

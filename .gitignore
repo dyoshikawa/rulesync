@@ -375,6 +375,7 @@ rulesync.local.jsonc
 **/.rovodev/prompts/
 **/.tabnine/agent/commands/
 **/.takt/facets/instructions/
+**/.trae/commands/
 **/.devin/skills/
 **/.warp/skills/
 **/.zcode/commands/
@@ -518,6 +519,7 @@ rulesync.local.jsonc
 **/.rooignore
 **/.devinignore
 **/.tabnineignore
+**/.trae/.ignore
 **/.vibeignore
 **/.warpindexingignore
 **/.agents/checks/

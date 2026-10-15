@@ -95,6 +95,45 @@ You are a test agent.`;
       expect(subagent.getFrontmatter().model).toBe("claude-haiku-4-5-20251001");
       expect(subagent.getBody()).toBe("You are a test agent.");
     });
+
+    it("should default the name to the flat file name when the frontmatter omits it", async () => {
+      await writeFileContent(
+        join(testDir, ".devin", "agents", "reviewer.md"),
+        "---\ndescription: Reviews code.\n---\n\nYou review code.",
+      );
+
+      const subagent = await DevinSubagent.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "reviewer.md",
+      });
+      const rulesyncSubagent = subagent.toRulesyncSubagent();
+
+      expect(subagent.getFrontmatter().name).toBeUndefined();
+      expect(rulesyncSubagent.getFrontmatter().name).toBe("reviewer");
+      expect(rulesyncSubagent.getRelativeFilePath()).toBe("reviewer.md");
+    });
+
+    it("should default the name to the directory name when the frontmatter omits it", async () => {
+      await writeFileContent(
+        join(testDir, ".devin", "agents", "researcher", "AGENT.md"),
+        "---\ndescription: Researches.\n---\n\nYou research.",
+      );
+
+      const subagent = await DevinSubagent.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: join("researcher", "AGENT.md"),
+      });
+
+      expect(subagent.toRulesyncSubagent().getFrontmatter().name).toBe("researcher");
+    });
+
+    it("should reject a Markdown file without frontmatter", async () => {
+      await writeFileContent(join(testDir, ".devin", "agents", "README.md"), "# Agents\n\nNotes");
+
+      await expect(
+        DevinSubagent.fromFile({ outputRoot: testDir, relativeFilePath: "README.md" }),
+      ).rejects.toThrow("Missing frontmatter");
+    });
   });
 
   describe("fromRulesyncSubagent", () => {
