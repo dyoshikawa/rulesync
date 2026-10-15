@@ -2068,6 +2068,43 @@ describe("resolveAndFetchSources", () => {
     expect(mockClientInstance.getDefaultBranch).not.toHaveBeenCalled();
   });
 
+  it("should report the empty-list hint instead of a lockfile mismatch in frozen mode", async () => {
+    const { readLockFile } = await import("./sources-lock.js");
+    vi.mocked(readLockFile).mockResolvedValue({ lockfileVersion: 1, sources: {} });
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "org/repo", rules: ["shared"], skills: [] }],
+      projectRoot: testDir,
+      options: { frozen: true },
+    });
+
+    expect(result.failedSourceCount).toBe(1);
+    expect(mockClientInstance.listDirectory).not.toHaveBeenCalled();
+    expect(logger.error).toHaveBeenCalledWith(
+      'Failed to fetch source "org/repo": Error: `skills` is an empty list for org/repo. To take no skills from this source, omit `skills` and list only `rules`.',
+    );
+  });
+
+  it("should still reject other uncovered sources in frozen mode when one source has an empty list", async () => {
+    const { readLockFile } = await import("./sources-lock.js");
+    vi.mocked(readLockFile).mockResolvedValue({ lockfileVersion: 1, sources: {} });
+
+    await expect(
+      resolveAndFetchSources({
+        logger,
+        sources: [
+          { source: "org/empty", skills: ["shared"], rules: [] },
+          { source: "org/repo", skills: ["shared"] },
+        ],
+        projectRoot: testDir,
+        options: { frozen: true },
+      }),
+    ).rejects.toThrow(
+      "Frozen install failed: lockfile is missing entries or does not cover the declared selection for: org/repo.",
+    );
+  });
+
   it("should throw when frozen and requested rules are missing from the lockfile", async () => {
     const { readLockFile } = await import("./sources-lock.js");
     vi.mocked(readLockFile).mockResolvedValue({

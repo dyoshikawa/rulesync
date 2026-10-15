@@ -1079,6 +1079,48 @@ Body from inputRoots[0]`;
       },
     );
 
+    it("should skip an invalid directory-form devin subagent with a warning on import", async () => {
+      await writeFileContent(
+        join(testDir, ".devin", "agents", "broken", "AGENT.md"),
+        "---\nname: broken\nmodel: 42\n---\n\nBody",
+      );
+      await writeFileContent(
+        join(testDir, ".devin", "agents", "ok", "AGENT.md"),
+        "---\nname: ok\ndescription: Valid\n---\n\nBody",
+      );
+      const logger = createMockLogger();
+      const processor = new SubagentsProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "devin",
+      });
+
+      const toolFiles = await processor.loadToolFiles();
+
+      expect(toolFiles.map((file) => file.getRelativeFilePath())).toEqual([join("ok", "AGENT.md")]);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining(join("broken", "AGENT.md")));
+    });
+
+    it("should import a flat devin subagent without a name under its file name", async () => {
+      await writeFileContent(
+        join(testDir, ".devin", "agents", "reviewer.md"),
+        "---\ndescription: Reviews code\n---\n\nBody",
+      );
+      const processor = new SubagentsProcessor({
+        logger: createMockLogger(),
+        outputRoot: testDir,
+        toolTarget: "devin",
+      });
+
+      const toolFiles = await processor.loadToolFiles();
+      const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(toolFiles);
+
+      expect(rulesyncFiles.map((file) => file.getRelativeFilePath())).toEqual(["reviewer.md"]);
+      expect(rulesyncFiles.map((file) => (file as RulesyncSubagent).getFrontmatter().name)).toEqual(
+        ["reviewer"],
+      );
+    });
+
     it("should keep the flat devin subagent when a directory of the same name exists", async () => {
       await writeFileContent(
         join(testDir, ".devin", "agents", "rev.md"),
@@ -1115,7 +1157,7 @@ Body from inputRoots[0]`;
       // An unparseable directory-form file is still an orphan to sweep.
       await writeFileContent(
         join(testDir, ".devin", "agents", "unnamed", "AGENT.md"),
-        "---\ndescription: No name\n---\n\nBody",
+        "No frontmatter",
       );
       const processor = new SubagentsProcessor({
         logger: createMockLogger(),

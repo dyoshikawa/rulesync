@@ -29,9 +29,10 @@ import {
 // GitLab Duo CLI documents the `SessionStart` event, command hooks with an
 // optional regex `matcher` on the session source (`startup`, `resume`), and a
 // per-hook `timeout` in seconds. gitlab-lsp also reads `PreToolUse` (matcher on
-// `tool_name`) and `SessionEnd` (matcher on the end reason) from the same file. Hook processes get `DUO_PROJECT_DIR`, so
-// `./`-relative script paths are anchored to it (bare executables such as
-// `npx ...` are left intact). https://docs.gitlab.com/user/gitlab_duo_cli/customize/
+// `tool_name`) and `SessionEnd` (matcher on the end reason) from the same file.
+// Hook processes get `DUO_PROJECT_DIR`, so `./`-relative script paths are
+// anchored to it (bare executables such as `npx ...` are left intact).
+// https://docs.gitlab.com/user/gitlab_duo_cli/customize/
 const GITLABDUO_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   supportedEvents: GITLABDUO_HOOK_EVENTS,
   canonicalToToolEventNames: CANONICAL_TO_GITLABDUO_EVENT_NAMES,
