@@ -342,9 +342,12 @@ function convertFromMusecodeFormat(musecodeMcp: Record<string, unknown>): McpSer
 /**
  * Meta Muse Code MCP servers.
  *
- * Muse Code reads MCP servers only from the `mcp_servers` (or `mcpServers`)
- * block of the GLOBAL user settings file `~/.config/muse/settings.json`; no
- * project-scoped MCP location is documented. The settings file must carry
+ * rulesync writes Muse Code MCP servers only to the `mcp_servers` (or
+ * `mcpServers`) block of the GLOBAL user settings file
+ * `~/.config/muse/settings.json`, the location extending.md documents. Muse
+ * Code 1.4.0+ also loads a trusted project `.mcp.json` (changelog only), which
+ * is not emitted here because the `claudecode` target already writes that
+ * file. The settings file must carry
  * `"schema_version": 1` — a file that omits that key fails every command at
  * startup with `malformed settings file` — so the key is bootstrapped when the
  * file is created and preserved when it already exists. Other settings keys are
@@ -352,6 +355,7 @@ function convertFromMusecodeFormat(musecodeMcp: Record<string, unknown>): McpSer
  *
  * @see https://dev.meta.ai/docs/muse-code/configuration.md
  * @see https://dev.meta.ai/docs/muse-code/extending.md
+ * @see https://dev.meta.ai/docs/muse-code/changelog
  */
 export class MusecodeMcp extends ToolMcp {
   private readonly json: Record<string, unknown>;
