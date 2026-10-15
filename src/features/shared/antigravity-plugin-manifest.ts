@@ -1,6 +1,9 @@
 import { basename, join, resolve } from "node:path";
 
-import { ANTIGRAVITY_PLUGIN_MANIFEST_FILE_NAME } from "../../constants/plugin-paths.js";
+import {
+  ANTIGRAVITY_PLUGIN_MANIFEST_FILE_NAME,
+  ANTIGRAVITY_PLUGIN_MANIFEST_FOLDERS,
+} from "../../constants/plugin-paths.js";
 import { refusesWriteOutsideRoot } from "../../types/feature-processor.js";
 import { quoteForLog, stripControlCharacters } from "../../utils/control-characters.js";
 import { addTrailingNewline, fileExists, writeFileContent } from "../../utils/file.js";
@@ -19,7 +22,9 @@ const ANTIGRAVITY_PLUGIN_NAME_PATTERN = /^[a-zA-Z0-9-_]+$/;
  * The manifest declares only `name` and `description`, and rejects anything
  * else, so the one required field is derived from the plugin directory's name.
  * An existing manifest is never read or rewritten: it may carry a
- * hand-authored `name` or `description` that rulesync has no source for.
+ * hand-authored `name` or `description` that rulesync has no source for. A
+ * manifest kept in one of the manifest folders counts as present too, so no
+ * root stub is written next to it.
  */
 export async function ensureAntigravityPluginManifests({
   outputRoots,
@@ -34,7 +39,7 @@ export async function ensureAntigravityPluginManifests({
 
   for (const outputRoot of outputRoots) {
     const filePath = join(outputRoot, ANTIGRAVITY_PLUGIN_MANIFEST_FILE_NAME);
-    if (await fileExists(filePath)) {
+    if (await hasAntigravityPluginManifest(outputRoot)) {
       continue;
     }
     if (await refusesWriteOutsideRoot({ logger, rootPath: outputRoot, targetPath: filePath })) {
@@ -64,4 +69,19 @@ export async function ensureAntigravityPluginManifests({
   // The manifest is derived from the output root, not from a `.rulesync/`
   // source, so it has no source that could fail to load.
   return { count: paths.length, paths, hasDiff: paths.length > 0, sourceLoadFailed: false };
+}
+
+async function hasAntigravityPluginManifest(outputRoot: string): Promise<boolean> {
+  const candidates = [
+    join(outputRoot, ANTIGRAVITY_PLUGIN_MANIFEST_FILE_NAME),
+    ...ANTIGRAVITY_PLUGIN_MANIFEST_FOLDERS.map((folder) =>
+      join(outputRoot, folder, ANTIGRAVITY_PLUGIN_MANIFEST_FILE_NAME),
+    ),
+  ];
+  for (const candidate of candidates) {
+    if (await fileExists(candidate)) {
+      return true;
+    }
+  }
+  return false;
 }

@@ -11,7 +11,11 @@ import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { isPlainObject, isStringArray } from "../../utils/type-guards.js";
-import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
+import {
+  applySharedConfigPatch,
+  sharedConfigFileKey,
+  undefinedWhenEmpty,
+} from "../shared/shared-config-gateway.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -229,7 +233,9 @@ export class QwencodeMcp extends ToolMcp {
         feature: "mcp",
         existingContent,
         patch: {
-          mcpServers: convertToQwencodeFormat(rulesyncMcp.getMcpServers()),
+          // With no server left the key is retracted rather than left as an
+          // empty object, so the file states nothing Rulesync no longer generates.
+          mcpServers: undefinedWhenEmpty(convertToQwencodeFormat(rulesyncMcp.getMcpServers())),
           ...(mcpPatch !== undefined && { mcp: mcpPatch }),
         },
         filePath,
