@@ -24,11 +24,12 @@ import {
 // Devin Local custom subagent profiles are native AGENT.md files with YAML
 // frontmatter, stored in a directory-per-agent layout where the directory name
 // is the profile id. See https://docs.devin.ai/cli/subagents
-//   - `name`, `description`: identity fields.
+//   - `name`, `description`: identity fields. `name` is optional; Devin
+//     defaults it to the file or directory name of the profile.
 //   - `model`, `allowed-tools`, `permissions`, `max-nesting`: optional
 //     configuration fields, passed through verbatim when present.
 const DevinSubagentFrontmatterSchema = z.looseObject({
-  name: z.string(),
+  name: z.optional(z.string()),
   description: z.optional(z.string()),
   model: z.optional(z.string()),
   "allowed-tools": z.optional(z.array(z.string())),
@@ -114,7 +115,8 @@ export class DevinSubagent extends ToolSubagent {
 
     const rulesyncFrontmatter: RulesyncSubagentFrontmatter = {
       targets: ["*"] as const,
-      name,
+      // Devin falls back to the file or directory name when `name` is absent.
+      name: name ?? this.getSubagentName(),
       description,
       ...(Object.keys(devinSection).length > 0 && { devin: devinSection }),
     };
@@ -232,7 +234,14 @@ export class DevinSubagent extends ToolSubagent {
     const paths = this.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, relativeFilePath);
     const fileContent = await readFileContent(filePath);
-    const { frontmatter, body: content } = parseFrontmatter(fileContent, filePath);
+    const { frontmatter, body: content, hasFrontmatter } = parseFrontmatter(fileContent, filePath);
+
+    // `name` is optional, so a frontmatter block is what marks a Markdown file
+    // as a profile; without it, a README or notes file beside the agents would
+    // import as one.
+    if (!hasFrontmatter) {
+      throw new Error(`Missing frontmatter in ${filePath}`);
+    }
 
     const result = DevinSubagentFrontmatterSchema.safeParse(frontmatter);
     if (!result.success) {

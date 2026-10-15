@@ -718,6 +718,31 @@ Break down tasks into steps.
     expect(importedContent).toContain("planner");
   });
 
+  it("should import a flat devin subagent and default its name to the file name", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, ".devin", "agents", "reviewer.md"),
+      `---
+description: Reviews code changes
+---
+Review the diff.
+`,
+    );
+    await writeFileContent(join(testDir, ".devin", "agents", "README.md"), "# Agents\n");
+
+    await runImport({ target: "devin", features: "subagents" });
+
+    const importedContent = await readFileContent(
+      join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "reviewer.md"),
+    );
+    expect(importedContent).toContain("name: reviewer");
+    expect(importedContent).toContain("Review the diff.");
+    expect(await fileExists(join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "README.md"))).toBe(
+      false,
+    );
+  });
+
   it("should round-trip nested Claude Code subagents through generate --delete", async () => {
     const testDir = getTestDir();
     const nestedPath = join("review", "security-reviewer.md");

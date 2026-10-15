@@ -375,8 +375,8 @@ function convertFromPiFormat(mcpServers: McpServers): McpServers {
  * existing file (`autoEnableCodemode`, ...) are preserved. Pi expands `${VAR}`
  * in `env` and `headers` values itself, so those are written unchanged.
  *
- * @see https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/mcp.md
- * @see https://github.com/earendil-works/pi/blob/main/packages/coding-agent/src/core/mcp-servers.ts
+ * @see https://github.com/earendil-works/pi/blob/v1.1.0/packages/coding-agent/docs/mcp.md
+ * @see https://github.com/earendil-works/pi/blob/v1.1.0/packages/coding-agent/src/core/mcp-servers.ts
  */
 export class PiMcp extends ToolMcp {
   private readonly json: Record<string, unknown>;
