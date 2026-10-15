@@ -152,10 +152,11 @@ const QWEN_OVERRIDE_TOOLS_KEYS = [
   // https://github.com/QwenLM/qwen-code/pull/10645
   "todoWrite",
   // Experimental Code Mode: ordinary tools are exposed only through the
-  // isolated `exec` JavaScript tool, with their schemas loaded on demand through
-  // `tool_search`. Boolean, off by default, needs a restart, and is ignored in
-  // safe and bare modes. Added in Qwen Code v0.24.7.
-  // https://github.com/QwenLM/qwen-code/pull/12898
+  // isolated `exec` JavaScript tool. Boolean, off by default, needs a restart,
+  // and is ignored in safe and bare modes. Added in Qwen Code v0.23.4.
+  // https://github.com/QwenLM/qwen-code/pull/10607
+  // Since v0.24.7 the deferred tools' schemas load on demand through
+  // `tool_search`. https://github.com/QwenLM/qwen-code/pull/12898
   "codeModeOnly",
   // Sends Code Mode's `exec` input as raw text on OpenAI Responses models.
   // Boolean, off by default, and effective only with `codeModeOnly: true` and a
