@@ -65,14 +65,16 @@ function toGitlabduoTimeout({
 /**
  * Read GitLab Duo's `timeoutMs` back into the canonical `timeout`
  * (milliseconds). A server that already carries a `timeout` is left as is, so
- * both keys round-trip and `timeoutMs` keeps winning on the next generate.
+ * both keys round-trip and `timeoutMs` keeps winning on the next generate. A
+ * non-number `timeoutMs` is not copied, since the canonical `timeout` must be a
+ * number; it is kept verbatim as a passthrough key instead.
  */
 function fromGitlabduoTimeout(server: unknown): unknown {
   if (typeof server !== "object" || server === null || Array.isArray(server)) {
     return server;
   }
   const { timeoutMs, ...rest } = server as Record<string, unknown>;
-  if (timeoutMs === undefined || rest.timeout !== undefined) {
+  if (typeof timeoutMs !== "number" || rest.timeout !== undefined) {
     return server;
   }
   return { ...rest, timeout: timeoutMs };

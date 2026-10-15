@@ -128,6 +128,26 @@ describe("GitlabduoMcp", () => {
     });
   });
 
+  it("should keep a non-number timeoutMs out of the canonical timeout on import", async () => {
+    await writeFileContent(
+      join(testDir, ".gitlab", "duo", "mcp.json"),
+      JSON.stringify({
+        mcpServers: {
+          s: { type: "stdio", command: "node", timeoutMs: "60000" },
+        },
+      }),
+    );
+
+    const mcp = await GitlabduoMcp.fromFile({ outputRoot: testDir });
+    const rulesyncMcp = mcp.toRulesyncMcp();
+    const json = JSON.parse(rulesyncMcp.getFileContent());
+
+    expect(json.mcpServers).toEqual({
+      s: { type: "stdio", command: "node", timeoutMs: "60000" },
+    });
+    expect(rulesyncMcp.validate().success).toBe(true);
+  });
+
   it("should apply the gitlabduo tool-scoped block", () => {
     const rulesyncMcp = makeRulesyncMcp({
       mcpServers: { shared: { command: "node" } },
