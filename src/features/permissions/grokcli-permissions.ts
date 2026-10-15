@@ -605,7 +605,7 @@ function buildGrokPermissionArrays(
  * Warn when generate drops an existing bare `*` `deny`/`ask` entry without
  * writing an equally strict one back. Such an entry is Rulesync-owned (it maps
  * to the all-tools `*` category), so a config without a matching canonical
- * rule removes it — which silently lifts a lockdown over every tool.
+ * rule removes it — which silently lifts a restriction on every tool.
  */
 function warnRemovedAllToolsRestrictions({
   existingPermission,
