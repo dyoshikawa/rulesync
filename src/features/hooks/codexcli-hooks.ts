@@ -89,33 +89,50 @@ function containsNull(value: unknown): boolean {
   return false;
 }
 
+const WHOLE_FILE_FAILURE = "Codex fails to load the whole hooks file on such a handler";
+
 /**
- * Why Codex would refuse this generated `mcp_tool` handler, or `undefined`
- * when it can load it. `server` and `tool` are required by Codex's
- * `HookHandlerConfig::McpTool`, and a handler Codex cannot deserialize stops
- * the whole hooks file from loading rather than just that one hook.
+ * Why this generated handler must not be written, or `undefined` when Codex
+ * can load and run it. Codex deserializes `timeout` as `Option<u64>` on every
+ * handler type, and `server` / `tool` as required strings plus `input` as a
+ * TOML-representable map on `mcp_tool`; a handler that fails that stops the
+ * whole hooks file from loading rather than just that one hook. An empty
+ * `server` / `tool` string still loads but can never resolve to a tool.
  * https://github.com/openai/codex/blob/main/codex-rs/config/src/hook_config.rs
  */
-function describeRejectedMcpToolHandler(handler: Record<string, unknown>): string | undefined {
-  if (typeof handler.server !== "string" || handler.server === "") {
-    return 'it has no "server"';
+function describeRejectedHandler(handler: Record<string, unknown>): string | undefined {
+  const { timeout } = handler;
+  if (
+    timeout !== undefined &&
+    (typeof timeout !== "number" || !Number.isSafeInteger(timeout) || timeout < 0)
+  ) {
+    return `its "timeout" ${JSON.stringify(timeout) ?? String(timeout)} is not a non-negative integer, and ${WHOLE_FILE_FAILURE}`;
   }
-  if (typeof handler.tool !== "string" || handler.tool === "") {
-    return 'it has no "tool"';
+  if (handler.type !== "mcp_tool") {
+    return undefined;
+  }
+  for (const field of ["server", "tool"] as const) {
+    const value = handler[field];
+    if (typeof value !== "string") {
+      return `it has no "${field}", and ${WHOLE_FILE_FAILURE}`;
+    }
+    if (value === "") {
+      return `its "${field}" is empty, so it can never resolve to an MCP tool`;
+    }
   }
   if (containsNull(handler.input)) {
-    return 'its "input" holds a null, which Codex cannot represent as TOML';
+    return `its "input" holds a null, which Codex cannot represent as TOML, and ${WHOLE_FILE_FAILURE}`;
   }
   return undefined;
 }
 
 /**
- * Drop the generated `mcp_tool` handlers Codex would refuse to load, and warn
- * about the ones Codex loads but never runs (`SessionEnd` MCP hooks are skipped
- * with a startup warning). Matcher groups left without handlers are removed.
- * https://learn.chatgpt.com/docs/hooks
+ * Drop the generated handlers Codex would refuse to load (or could never
+ * run), and warn about the `mcp_tool` ones Codex loads but skips (`SessionEnd`
+ * MCP hooks are skipped with a startup warning). Matcher groups left without
+ * handlers are removed. https://learn.chatgpt.com/docs/hooks
  */
-function filterCodexMcpToolHandlers({
+function filterCodexHandlers({
   hooks,
   logger,
 }: {
@@ -123,6 +140,7 @@ function filterCodexMcpToolHandlers({
   logger?: Logger;
 }): Record<string, unknown[]> {
   const result: Record<string, unknown[]> = {};
+  const skippedSessionEndTools: string[] = [];
   for (const [eventName, groups] of Object.entries(hooks)) {
     const kept: unknown[] = [];
     for (const group of groups) {
@@ -132,20 +150,15 @@ function filterCodexMcpToolHandlers({
         continue;
       }
       const handlers = entry.hooks.filter((handler: Record<string, unknown>) => {
-        if (handler.type !== "mcp_tool") {
-          return true;
-        }
-        const reason = describeRejectedMcpToolHandler(handler);
+        const reason = describeRejectedHandler(handler);
         if (reason !== undefined) {
           logger?.warn(
-            `Skipping an "mcp_tool" hook on Codex CLI "${eventName}": ${reason}, and Codex fails to load the whole hooks file on such a handler.`,
+            `Skipping a "${String(handler.type)}" hook on Codex CLI "${eventName}": ${reason}.`,
           );
           return false;
         }
-        if (eventName === "SessionEnd") {
-          logger?.warn(
-            `Codex CLI skips "mcp_tool" hooks on "SessionEnd" with a startup warning; the hook is written but will not run.`,
-          );
+        if (eventName === "SessionEnd" && handler.type === "mcp_tool") {
+          skippedSessionEndTools.push(`${String(handler.server)}/${String(handler.tool)}`);
         }
         return true;
       });
@@ -156,6 +169,11 @@ function filterCodexMcpToolHandlers({
     if (kept.length > 0) {
       result[eventName] = kept;
     }
+  }
+  if (skippedSessionEndTools.length > 0) {
+    logger?.warn(
+      `Codex CLI skips "mcp_tool" hooks on "SessionEnd" with a startup warning, so these are written but will not run: ${skippedSessionEndTools.join(", ")}.`,
+    );
   }
   return result;
 }
@@ -278,7 +296,7 @@ export class CodexcliHooks extends ToolHooks {
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const existingContent = (await readFileContentOrNull(filePath)) ?? "";
     const config = rulesyncHooks.getJson();
-    const codexHooks = filterCodexMcpToolHandlers({
+    const codexHooks = filterCodexHandlers({
       hooks: canonicalToToolHooks({
         config,
         toolOverrideHooks: config.codexcli?.hooks,

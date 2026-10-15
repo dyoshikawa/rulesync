@@ -636,18 +636,52 @@ describe("CodexcliHooks", () => {
       expect(parsed.hooks.Stop).toBeUndefined();
       expect(parsed.hooks.SessionStart[0].hooks[0].command).toBe("echo start");
       const warnings = logger.warn.mock.calls.map(([message]) => String(message));
-      expect(
-        warnings.filter((message) => message.includes('Skipping an "mcp_tool" hook')),
-      ).toHaveLength(4);
+      const skipped = warnings.filter((message) => message.includes('Skipping a "mcp_tool" hook'));
+      expect(skipped).toHaveLength(4);
+      expect(skipped.every((message) => message.includes("whole hooks file"))).toBe(true);
     });
 
-    it("should warn that Codex skips mcp_tool hooks on SessionEnd", async () => {
+    it("should skip an mcp_tool hook with an empty server or tool as unresolvable", async () => {
       const logger = createMockLogger();
       const rulesyncHooks = new RulesyncHooks(
         createMockAiFileParams({
           fileContent: JSON.stringify({
             hooks: {
-              sessionEnd: [{ type: "mcp_tool", server: "scanner", tool: "flush" }],
+              preToolUse: [
+                { type: "mcp_tool", server: "", tool: "scan" },
+                { type: "mcp_tool", server: "scanner", tool: "" },
+              ],
+            },
+          }),
+        }),
+      );
+
+      const codexHooks = await CodexcliHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: true,
+        logger,
+      });
+
+      expect(JSON.parse(codexHooks.getFileContent()).hooks.PreToolUse).toBeUndefined();
+      const warnings = logger.warn.mock.calls.map(([message]) => String(message));
+      const skipped = warnings.filter((message) => message.includes("can never resolve"));
+      expect(skipped).toHaveLength(2);
+      expect(skipped.some((message) => message.includes("whole hooks file"))).toBe(false);
+    });
+
+    it("should skip hooks whose timeout Codex cannot read as a non-negative integer", async () => {
+      const logger = createMockLogger();
+      const rulesyncHooks = new RulesyncHooks(
+        createMockAiFileParams({
+          fileContent: JSON.stringify({
+            hooks: {
+              preToolUse: [
+                { type: "mcp_tool", server: "scanner", tool: "scan", timeout: 1.5 },
+                { type: "mcp_tool", server: "scanner", tool: "scan", timeout: -1 },
+                { command: "echo pre", timeout: 2.5 },
+                { type: "mcp_tool", server: "scanner", tool: "kept", timeout: 0 },
+              ],
             },
           }),
         }),
@@ -661,8 +695,45 @@ describe("CodexcliHooks", () => {
       });
 
       const parsed = JSON.parse(codexHooks.getFileContent());
-      expect(parsed.hooks.SessionEnd[0].hooks[0].type).toBe("mcp_tool");
-      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"SessionEnd"'));
+      expect(parsed.hooks.PreToolUse[0].hooks).toEqual([
+        { type: "mcp_tool", server: "scanner", tool: "kept", timeout: 0 },
+      ]);
+      const warnings = logger.warn.mock.calls.map(([message]) => String(message));
+      expect(warnings.filter((message) => message.includes('"timeout"'))).toHaveLength(3);
+    });
+
+    it("should warn that Codex skips mcp_tool hooks on SessionEnd", async () => {
+      const logger = createMockLogger();
+      const rulesyncHooks = new RulesyncHooks(
+        createMockAiFileParams({
+          fileContent: JSON.stringify({
+            hooks: {
+              sessionEnd: [
+                { type: "mcp_tool", server: "scanner", tool: "flush" },
+                { type: "mcp_tool", server: "scanner", tool: "close" },
+              ],
+            },
+          }),
+        }),
+      );
+
+      const codexHooks = await CodexcliHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: true,
+        logger,
+      });
+
+      const parsed = JSON.parse(codexHooks.getFileContent());
+      expect(parsed.hooks.SessionEnd[0].hooks.map((h: { tool: string }) => h.tool)).toEqual([
+        "flush",
+        "close",
+      ]);
+      const sessionEndWarnings = logger.warn.mock.calls
+        .map(([message]) => String(message))
+        .filter((message) => message.includes('"SessionEnd"'));
+      expect(sessionEndWarnings).toHaveLength(1);
+      expect(sessionEndWarnings[0]).toContain("scanner/flush, scanner/close");
     });
 
     it("should keep an existing third-party command when preserveUnowned is set", async () => {
