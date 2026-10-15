@@ -70,7 +70,7 @@ describe("buildAntigravityPermissionEntry", () => {
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("NOT enforced"));
     });
 
-    it.each(["**/*.env", "/*", "*.pem", "{src,lib}/*.ts"])(
+    it.each(["**/*.env", "/*", "*.pem", "{src,lib}/*.ts", "../*.env", "src/../*.env", "../../a/*"])(
       "skips the deny %s, which has no leading directory",
       (pattern) => {
         const { entry, logger } = build({ action: "read_file", pattern, decision: "deny" });

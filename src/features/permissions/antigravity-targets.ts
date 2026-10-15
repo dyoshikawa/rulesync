@@ -155,7 +155,8 @@ function toTarget(action: string, pattern: string): TargetResult {
  * The leading directories of a path glob (`src` for `src/*.ts`), or
  * `undefined` when it has none. A directory target covers everything inside
  * it, so it matches at least as much as the glob. The filesystem root alone
- * (`/*`) is not a lead: a deny of it would block every file.
+ * (`/*`) is not a lead: a deny of it would block every file. Neither is a lead
+ * with `..` in it.
  */
 function toPathLiteralPrefix(pattern: string): string | undefined {
   const path = pattern.startsWith("./") ? pattern.slice(2) : pattern;
@@ -167,7 +168,10 @@ function toPathLiteralPrefix(pattern: string): string | undefined {
     }
     prefix.push(segment);
   }
-  if (prefix.every((segment) => segment === "" || segment === ".")) {
+  // A `..` anywhere in the lead leaves the workspace or steps back out of a
+  // directory (`src/../*.env` is the root's files, not `src`), so the lead
+  // would not cover the glob, or would cover the whole workspace and more.
+  if (prefix.includes("..") || prefix.every((segment) => segment === "" || segment === ".")) {
     return undefined;
   }
   return prefix.join("/");
