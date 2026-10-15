@@ -168,4 +168,41 @@ describe("E2E: generate --json mutation plan", () => {
     expect(settled.success).toBe(true);
     expect(settled.data?.plan).toEqual({ version: 2, operations: [] });
   });
+
+  it("should report retracting the Qwen Code mcpServers key as a key deletion", async () => {
+    const testDir = getTestDir();
+    const settingsPath = join(testDir, ".qwen", "settings.json");
+    const mcpSourcePath = join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH);
+    const run = (extraArgs: string[]) =>
+      runGenerateJson(extraArgs, { target: "qwencode", feature: "mcp" });
+
+    await writeFileContent(settingsPath, JSON.stringify({ theme: "dark" }, null, 2));
+    await writeFileContent(
+      mcpSourcePath,
+      JSON.stringify({ mcpServers: { foo: { type: "stdio", command: "foo" } } }),
+    );
+    expect((await run([])).success).toBe(true);
+
+    await writeFileContent(mcpSourcePath, JSON.stringify({ mcpServers: {} }));
+    const expectedPlan = {
+      version: 2,
+      operations: [
+        { action: "write", kind: "file", feature: "mcp", path: ".qwen/settings.json" },
+        {
+          action: "delete",
+          kind: "key",
+          feature: "mcp",
+          path: ".qwen/settings.json",
+          key: "mcpServers",
+        },
+      ],
+    };
+
+    expect((await run(["--dry-run"])).data?.plan).toEqual(expectedPlan);
+    const apply = await run([]);
+    expect(apply.success).toBe(true);
+    expect(apply.data?.plan).toEqual(expectedPlan);
+    // The key is retracted rather than left as an empty object.
+    expect(JSON.parse(await readFileContent(settingsPath))).toEqual({ theme: "dark" });
+  });
 });
