@@ -151,6 +151,17 @@ const QWEN_OVERRIDE_TOOLS_KEYS = [
   // it on. Added in Qwen Code v0.23.1.
   // https://github.com/QwenLM/qwen-code/pull/10645
   "todoWrite",
+  // Experimental Code Mode: ordinary tools are exposed only through the
+  // isolated `exec` JavaScript tool, with their schemas loaded on demand through
+  // `tool_search`. Boolean, off by default, needs a restart, and is ignored in
+  // safe and bare modes. Added in Qwen Code v0.24.7.
+  // https://github.com/QwenLM/qwen-code/pull/12898
+  "codeModeOnly",
+  // Sends Code Mode's `exec` input as raw text on OpenAI Responses models.
+  // Boolean, off by default, and effective only with `codeModeOnly: true` and a
+  // model using `wireApi: "responses"`. Added in Qwen Code v0.25.0.
+  // https://github.com/QwenLM/qwen-code/pull/13150
+  "freeform",
   // Enables the Workflow tool and the `/workflows` command. Added in Qwen Code
   // v0.23.0 and honored in user/system settings only — see
   // `QWEN_SCOPED_TOOLS_KEYS`. `QWEN_CODE_ENABLE_WORKFLOWS` and
@@ -362,7 +373,7 @@ const QWEN_SCOPE_RULES: Record<
 // Which keys each rule covers, transcribed from Qwen Code's own
 // `WORKSPACE_RESTRICTED_SETTINGS`, `WORKSPACE_NON_OVERRIDING_SETTINGS` and
 // `WORKSPACE_TIGHTEN_ONLY_SETTINGS` in
-// `packages/cli/src/config/settingsUtils.ts`, verified against v0.24.7. Upstream
+// `packages/cli/src/config/settingsUtils.ts`, verified against v0.25.1. Upstream
 // may add entries; an addition rulesync has not picked up means it writes a key
 // Qwen Code now ignores, so re-check these lists when supporting a new version.
 const QWEN_SCOPED_TOOLS_KEYS = {
@@ -446,6 +457,22 @@ const QWEN_SCOPED_TOOLS_KEYS = {
       `${qualifiedKey} = ${quotedValue} was written to the project-scoped ${filePath}, so it decides whether the built-in \`todo_write\` tool is registered in this repository.`,
     globalNote:
       "Qwen Code honors this key wherever it is written, so in the global scope this decides whether the built-in `todo_write` tool is registered for every project on this machine.",
+  },
+  // Neither Code Mode key is on any of Qwen Code's `WORKSPACE_*` lists at
+  // v0.25.1, so both are honored in either scope.
+  codeModeOnly: {
+    rule: "global-machine-wide",
+    projectNote: ({ qualifiedKey, quotedValue, filePath }) =>
+      `${qualifiedKey} = ${quotedValue} was written to the project-scoped ${filePath}, so it decides whether ordinary tools are reached only through Code Mode's \`exec\` tool in this repository.`,
+    globalNote:
+      "Qwen Code honors this key wherever it is written, so in the global scope this decides whether ordinary tools are reached only through Code Mode's `exec` tool for every project on this machine.",
+  },
+  freeform: {
+    rule: "global-machine-wide",
+    projectNote: ({ qualifiedKey, quotedValue, filePath }) =>
+      `${qualifiedKey} = ${quotedValue} was written to the project-scoped ${filePath}, so it decides whether Code Mode's \`exec\` tool takes raw text input on OpenAI Responses models in this repository.`,
+    globalNote:
+      "Qwen Code honors this key wherever it is written, so in the global scope this decides whether Code Mode's `exec` tool takes raw text input on OpenAI Responses models for every project on this machine.",
   },
 } as const satisfies QwenScopedKeys<(typeof QWEN_OVERRIDE_TOOLS_KEYS)[number]>;
 /**
