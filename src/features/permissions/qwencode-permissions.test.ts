@@ -565,6 +565,35 @@ describe("QwencodePermissions", () => {
       });
     });
 
+    it("authors and imports tools.codeModeOnly and tools.freeform through the qwencode override (issue #2668)", async () => {
+      const instance = await QwencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: {},
+            qwencode: { tools: { codeModeOnly: true, freeform: true } },
+          }),
+        }),
+      });
+
+      const content = JSON.parse(instance.getFileContent());
+      expect(content.tools).toEqual({ codeModeOnly: true, freeform: true });
+
+      // The import direction used to drop both keys, which lost them on an
+      // import -> generate round trip.
+      const imported = new QwencodePermissions({
+        relativeDirPath: ".qwen",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          tools: { codeModeOnly: true, freeform: false, useRipgrep: true },
+        }),
+      });
+      const config = JSON.parse(imported.toRulesyncPermissions().getFileContent());
+      expect(config.qwencode.tools).toEqual({ codeModeOnly: true, freeform: false });
+    });
+
     it("authors and imports tools.eager through the qwencode override (issue #2668)", async () => {
       const instance = await QwencodePermissions.fromRulesyncPermissions({
         outputRoot: testDir,
@@ -1412,6 +1441,8 @@ describe("QwencodePermissions", () => {
                 disabled: [],
                 listDirectory: { enabled: true },
                 todoWrite: { enabled: true },
+                codeModeOnly: true,
+                freeform: true,
                 eager: ["read_file"],
               },
             },
@@ -1429,6 +1460,14 @@ describe("QwencodePermissions", () => {
       const todoWrite = messages.find((message) => message.includes("tools.todoWrite"));
       expect(todoWrite).toContain("whether the built-in `todo_write` tool is registered");
       expect(todoWrite).not.toContain("how far approvals are skipped");
+      const codeModeOnly = messages.find((message) => message.includes("tools.codeModeOnly"));
+      expect(codeModeOnly).toContain("only through Code Mode's `exec` tool in this repository");
+      expect(codeModeOnly).not.toContain("not a key rulesync models");
+      const freeform = messages.find((message) => message.includes("tools.freeform"));
+      expect(freeform).toContain(
+        "takes raw text input on OpenAI Responses models in this repository",
+      );
+      expect(freeform).not.toContain("not a key rulesync models");
       // `eager` sits in the same rule but demotes rather than deregisters, so its
       // project note has to say that instead of borrowing the `disabled` wording.
       const eager = messages.find((message) => message.includes("tools.eager"));
