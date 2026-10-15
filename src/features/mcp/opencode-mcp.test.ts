@@ -511,7 +511,7 @@ describe("OpencodeMcp", () => {
         validate: false,
       });
 
-      expect(opencodeMcp.getJson()).toEqual({ mcp: {} });
+      expect(opencodeMcp.getJson()).toEqual({});
     });
 
     it("should handle empty mcpServers object", async () => {
@@ -529,7 +529,7 @@ describe("OpencodeMcp", () => {
         rulesyncMcp,
       });
 
-      expect(opencodeMcp.getJson()).toEqual({ mcp: {} });
+      expect(opencodeMcp.getJson()).toEqual({});
     });
 
     it("should create instance from RulesyncMcp in global mode", async () => {
@@ -3436,5 +3436,37 @@ describe("OpencodeMcp", () => {
       }
       expect(lowerOpencodeV2Mcp({ timeout: { startup: 30000 } })).toEqual({});
     });
+  });
+});
+
+describe("OpencodeMcp retraction (issue #2562)", () => {
+  let testDir: string;
+  let cleanup: () => Promise<void>;
+
+  beforeEach(async () => {
+    ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
+  });
+
+  afterEach(async () => {
+    await cleanup();
+    vi.restoreAllMocks();
+  });
+
+  it("retracts mcp when no server is left, keeping unrelated keys", async () => {
+    await writeFileContent(
+      join(testDir, "opencode.json"),
+      JSON.stringify({ other: 1, mcp: { old: { type: "local", command: ["old"] } } }),
+    );
+    const mcp = await OpencodeMcp.fromRulesyncMcp({
+      outputRoot: testDir,
+      rulesyncMcp: new RulesyncMcp({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({ mcpServers: {} }),
+      }),
+    });
+
+    expect(JSON.parse(mcp.getFileContent())).toEqual({ other: 1 });
   });
 });

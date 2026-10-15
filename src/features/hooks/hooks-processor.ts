@@ -490,7 +490,7 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
         supportsImport: true,
       },
       supportedEvents: CODEXCLI_HOOK_EVENTS,
-      supportedHookTypes: ["command"],
+      supportedHookTypes: ["command", "mcp_tool"],
       supportsMatcher: true,
     },
   ],

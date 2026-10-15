@@ -409,7 +409,8 @@ export type CursorPermissionsOverride = z.infer<typeof CursorPermissionsOverride
  * autonomy/sandbox controls with no canonical permission category — under
  * `tools` (`approvalMode` = plan/default/auto-edit/auto/yolo, `autoAccept`,
  * `sandbox`, `sandboxImage`, `disabled`, `visible`, `eager`, `listDirectory`,
- * `todoWrite`, `workflowsEnabled`, `workflowNameOnly`, `executionSandbox`) and
+ * `todoWrite`, `codeModeOnly`, `freeform`, `workflowsEnabled`, `workflowNameOnly`,
+ * `executionSandbox`) and
  * `security` (`folderTrust`, `allowedHttpHookUrls`, `allowPrivateNetworkHooks`,
  * `allowedInsecureVoiceBaseUrls`) and `skills` (the skill kill-switches
  * `disabled`, `defaultDisabled`, `enabled`, `disabledLevels`, each a list Qwen
@@ -428,7 +429,8 @@ export type CursorPermissionsOverride = z.infer<typeof CursorPermissionsOverride
  * changes what the file said is reported in either scope, naming what that key
  * decides there — the autonomy and containment
  * controls (`approvalMode`, `autoAccept`, `sandbox`, `sandboxImage`), the
- * registry controls (`disabled`, `visible`, `listDirectory`, `todoWrite`, and `eager`, which
+ * registry controls (`disabled`, `visible`, `listDirectory`, `todoWrite`,
+ * `codeModeOnly`, `freeform`, and `eager`, which
  * demotes an omitted tool to deferred rather than removing it, replacing rather
  * than merging with the list a higher scope set), the Auto Mode
  * classifier config, the skill kill-switches, and, because these groups are
