@@ -25,8 +25,8 @@ import {
   findFiles,
   findFilesByGlobs,
   findRuleFiles,
+  getFileSizeAndExecutableBit,
   getHomeDirectory,
-  hasExecutableBit,
   isFileNotFoundError,
   isFileSystemError,
   isPresentButUnresolvable,
@@ -92,10 +92,16 @@ describe("file utilities", () => {
       const scriptPath = join(testDir, "run.sh");
       await writeFileContent(scriptPath, "#!/bin/sh\n");
       await chmod(scriptPath, 0o644);
-      expect(await hasExecutableBit(scriptPath)).toBe(false);
+      expect(await getFileSizeAndExecutableBit(scriptPath)).toEqual({
+        size: 10,
+        executable: false,
+      });
 
       await chmod(scriptPath, 0o755);
-      expect(await hasExecutableBit(scriptPath)).toBe(true);
+      expect(await getFileSizeAndExecutableBit(scriptPath)).toEqual({
+        size: 10,
+        executable: true,
+      });
     });
 
     skipOnWindows("should leave a stricter executable mode alone", async () => {
