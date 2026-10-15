@@ -83,7 +83,7 @@ describe("ReasonixIgnore", () => {
   });
 
   describe("fromRulesyncIgnore", () => {
-    it("should write Read(...) deny entries into the project config", async () => {
+    it("should write read_file(...) deny entries into the project config", async () => {
       const ignore = await ReasonixIgnore.fromRulesyncIgnore({
         outputRoot: testDir,
         rulesyncIgnore: rulesyncIgnoreOf("*.log\n# comment\nnode_modules/**\n"),
@@ -92,11 +92,11 @@ describe("ReasonixIgnore", () => {
       expect(ignore.getRelativeDirPath()).toBe(".");
       expect(ignore.getRelativeFilePath()).toBe("reasonix.toml");
       expect(parseToml(ignore.getFileContent())).toEqual({
-        permissions: { deny: ["Read(*.log)", "Read(node_modules/**)"] },
+        permissions: { deny: ["read_file(*.log)", "read_file(node_modules/**)"] },
       });
     });
 
-    it("should preserve unrelated tables and non-Read deny entries", async () => {
+    it("should preserve unrelated tables and non-read deny entries", async () => {
       const filePath = join(testDir, "reasonix.toml");
       await writeFileContent(
         filePath,
@@ -107,7 +107,7 @@ describe("ReasonixIgnore", () => {
           "[permissions]",
           'mode = "ask"',
           'allow = ["Bash(npm run build)"]',
-          'deny = ["Bash(rm *)", "Read(stale.txt)"]',
+          'deny = ["Bash(rm *)", "read_file(stale.txt)"]',
           "",
         ].join("\n"),
       );
@@ -122,7 +122,7 @@ describe("ReasonixIgnore", () => {
         permissions: {
           mode: "ask",
           allow: ["Bash(npm run build)"],
-          deny: ["Bash(rm *)", "Read(secrets/**)"],
+          deny: ["Bash(rm *)", "read_file(secrets/**)"],
         },
       });
     });
@@ -149,7 +149,23 @@ describe("ReasonixIgnore", () => {
       expect(ignore.getRelativeDirPath()).toBe(".reasonix");
       expect(ignore.getRelativeFilePath()).toBe("config.toml");
       expect(parseToml(ignore.getFileContent())).toEqual({
-        permissions: { deny: ["Read(*.env)"] },
+        permissions: { deny: ["read_file(*.env)"] },
+      });
+    });
+
+    it("should replace legacy Read(...) denies, which match no Reasonix tool", async () => {
+      await writeFileContent(
+        join(testDir, "reasonix.toml"),
+        '[permissions]\ndeny = ["Read(.env)", "Bash(rm *)", "read_file(stale.txt)"]\n',
+      );
+
+      const ignore = await ReasonixIgnore.fromRulesyncIgnore({
+        outputRoot: testDir,
+        rulesyncIgnore: rulesyncIgnoreOf(".env\n"),
+      });
+
+      expect(parseToml(ignore.getFileContent())).toEqual({
+        permissions: { deny: ["Bash(rm *)", "read_file(.env)"] },
       });
     });
 
@@ -187,14 +203,16 @@ describe("ReasonixIgnore", () => {
   });
 
   describe("toRulesyncIgnore", () => {
-    it("should keep only Read(...) entries and strip the wrapper", () => {
+    it("should keep only read deny entries and strip the wrapper", () => {
       const ignore = new ReasonixIgnore({
         relativeDirPath: ".",
         relativeFilePath: "reasonix.toml",
-        fileContent: '[permissions]\ndeny = ["Read(*.log)", "Bash(rm *)", "Read()"]\n',
+        fileContent:
+          '[permissions]\ndeny = ["read_file(*.log)", "Bash(rm *)", "read_file()", "Read(*.env)", "Read(*.log)"]\n',
       });
 
-      expect(ignore.toRulesyncIgnore().getFileContent()).toBe("*.log");
+      // Legacy `Read(...)` entries from an older rulesync still import.
+      expect(ignore.toRulesyncIgnore().getFileContent()).toBe("*.log\n*.env");
     });
   });
 
@@ -208,7 +226,7 @@ describe("ReasonixIgnore", () => {
       await writeFileContent(filePath, ignore.getFileContent());
 
       expect(parseToml(await readFileContent(filePath))).toEqual({
-        permissions: { deny: ["Read(dist/**)"] },
+        permissions: { deny: ["read_file(dist/**)"] },
       });
     });
   });

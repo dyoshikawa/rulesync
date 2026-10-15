@@ -1874,11 +1874,20 @@ describe("isReadDenyEntry", () => {
     expect(isReadDenyEntry("Read(unterminated")).toBe(false);
     expect(isReadDenyEntry("Bash")).toBe(false);
   });
+
+  it("matches the read tool name a target passes", () => {
+    expect(isReadDenyEntry("read_file(.env)", "read_file")).toBe(true);
+    expect(isReadDenyEntry("Read(.env)", "read_file")).toBe(false);
+  });
 });
 
 describe("buildReadDenyEntry", () => {
   it("wraps a pattern into a Read deny entry", () => {
     expect(buildReadDenyEntry("*.log")).toBe("Read(*.log)");
+  });
+
+  it("uses the read tool name a target passes", () => {
+    expect(buildReadDenyEntry("*.log", "read_file")).toBe("read_file(*.log)");
   });
 });
 
@@ -1921,6 +1930,16 @@ describe("applyIgnoreReadDenies", () => {
     });
 
     expect(result.permissions?.deny).toEqual(["Read(a)", "Read(b)"]);
+  });
+
+  it("owns only the entries of the read tool name a target passes", () => {
+    const result = applyIgnoreReadDenies({
+      settings: { permissions: { deny: ["read_file(old)", "Read(kept)"] } },
+      readDenies: ["read_file(new)"],
+      readToolName: "read_file",
+    });
+
+    expect(result.permissions?.deny).toEqual(["Read(kept)", "read_file(new)"]);
   });
 });
 
