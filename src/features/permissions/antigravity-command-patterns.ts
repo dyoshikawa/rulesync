@@ -38,6 +38,12 @@ import type { Logger } from "../../utils/logger.js";
 
 const REGEX_PREFIX = "regex:";
 
+/**
+ * The Antigravity actions whose target is a command: `command`, and
+ * `unsandboxed`, which takes the same word-by-word prefix or `regex:` target.
+ */
+export const ANTIGRAVITY_COMMAND_ACTIONS: ReadonlySet<string> = new Set(["command", "unsandboxed"]);
+
 // An unescaped `$` that ends a regex word.
 const TRAILING_ANCHOR = /(?<!\\)\$$/;
 
@@ -585,8 +591,8 @@ export function toAntigravityCommandLiteralPrefix(pattern: string): string | und
 
 /**
  * Read one regex word back as a glob, or `undefined` when it uses anything a
- * glob cannot say. Antigravity anchors each word anyway, so `^` and `$` are
- * optional. Only escaped characters and `.*` translate; anything else keeps
+ * glob cannot say. Antigravity anchors each word anyway (`^(?:pattern)$`), so
+ * `^` and `$` are optional. Only escaped characters and `.*` translate; anything else keeps
  * the rule a regex.
  */
 function regexWordToGlob(word: string): string | undefined {
@@ -630,8 +636,14 @@ function regexWordToGlob(word: string): string | undefined {
 
 /** Read a per-word regex back as a glob, or `undefined` when it has no glob spelling. */
 function regexToGlob(source: string): string | undefined {
+  const words = splitWords(source);
+  // An empty regex (`regex:`) has no glob; it stays a regex, which generate
+  // skips as empty.
+  if (words.length === 0) {
+    return undefined;
+  }
   const globs: string[] = [];
-  for (const word of splitWords(source)) {
+  for (const word of words) {
     const glob = regexWordToGlob(word);
     if (glob === undefined) {
       return undefined;
@@ -679,43 +691,27 @@ export function fromAntigravityCommandTarget(target: string): string {
 }
 
 /**
- * Whether a regex word means the same anchored or not: each end is either
- * anchored (`^`, an unescaped `$`) or open-ended (`.*`).
- */
-function isAnchoredWord(word: string): boolean {
-  const startAnchored = word.startsWith("^") || word.startsWith(".*");
-  const endAnchored = TRAILING_ANCHOR.test(word) || word.endsWith(".*");
-  return startAnchored && endAnchored;
-}
-
-/**
  * Explain what importing an Antigravity `command` target may lose, or return
  * `undefined` when the import is faithful.
  *
- * - A `regex:` target with a word that is not anchored is imported as a glob
- *   that assumes anchoring. If Antigravity matches such a word unanchored,
- *   the imported rule is narrower (`regex:rm` also matches `rmdir`).
- * - A plain target holding characters that are special in a glob is most
- *   likely the verbatim output of an older rulesync (`command(rm -rf *)`).
- *   Antigravity matches it literally, so it imports as a regex that matches a
- *   literal `*` word and is inert in the other tools it is exported to.
+ * A plain target holding characters that are special in a glob is most
+ * likely the verbatim output of an older rulesync (`command(rm -rf *)`).
+ * Antigravity matches it literally, so it imports as a regex that matches a
+ * literal `*` word and is inert in the other tools it is exported to.
+ *
+ * A `regex:` word without `^...$` (`regex:rm`) is read as anchored, which is
+ * faithful: Antigravity documents that each token is evaluated as the
+ * anchored regex `^(?:pattern)$`.
+ *
+ * @see https://antigravity.google/docs/permissions
  */
 export function describeAntigravityCommandImportLoss(
   target: string,
 ): { reason: string; denyConsequence: string } | undefined {
-  if (target.startsWith(REGEX_PREFIX)) {
-    const source = target.slice(REGEX_PREFIX.length);
-    const unanchored = splitWords(source).some((word) => !isAnchoredWord(word));
-    if (unanchored && regexToGlob(source) !== undefined) {
-      return {
-        reason:
-          "it has a regex word without `^...$` anchors and is imported as a glob that assumes Antigravity anchors every word, so the imported rule may be narrower than the original",
-        denyConsequence: "The imported deny may block less than it does in Antigravity.",
-      };
-    }
+  if (target.startsWith(REGEX_PREFIX) || target === "*") {
     return undefined;
   }
-  if (target !== "*" && PLAIN_TARGET_GLOB_CHARACTERS.test(target)) {
+  if (PLAIN_TARGET_GLOB_CHARACTERS.test(target)) {
     return {
       reason:
         "it holds characters that are special in a glob (`*`, `?`, `[`, `{` or `\\`), which Antigravity matches literally (likely output of an older rulesync), so it is imported as a literal-match regex that no other tool enforces",

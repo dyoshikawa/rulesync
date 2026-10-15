@@ -11,7 +11,10 @@ import type { PermissionAction, PermissionsConfig } from "../../types/permission
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { fallbackLogger, type Logger } from "../../utils/logger.js";
-import { importAntigravityCommandTarget } from "./antigravity-command-patterns.js";
+import {
+  ANTIGRAVITY_COMMAND_ACTIONS,
+  importAntigravityCommandTarget,
+} from "./antigravity-command-patterns.js";
 import { buildAntigravityPermissionEntry } from "./antigravity-targets.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { honorAllToolsOnBash } from "./shell-command-categories.js";
@@ -47,7 +50,8 @@ type AntigravityIdeSettingsJson = {
  * Deliberate mapping from rulesync canonical permission categories to the
  * Antigravity IDE action vocabulary (`read_file`, `write_file`, `read_url`,
  * `command`, `mcp`, plus `execute_url` / `unsandboxed` which have no canonical
- * equivalent and pass through). `edit` and `write` both map to `write_file`, and
+ * equivalent and keep their names; their targets are translated like
+ * `read_url` / `command` ones). `edit` and `write` both map to `write_file`, and
  * `webfetch` / `websearch` both map to `read_url`; on import those collapse to
  * the canonical `write` / `webfetch` form (a documented, lossy normalization).
  */
@@ -303,16 +307,15 @@ function convertAntigravityIdeToRulesyncPermissions(params: {
     for (const entry of entries) {
       const { action: ideAction, pattern: target } = parsePermissionEntry(entry);
       const canonical = toCanonicalCategory(ideAction);
-      const pattern =
-        ideAction === "command"
-          ? importAntigravityCommandTarget({
-              target,
-              entry,
-              decision: action,
-              logger: fallbackLogger,
-              toolLabel: "Antigravity IDE",
-            })
-          : target;
+      const pattern = ANTIGRAVITY_COMMAND_ACTIONS.has(ideAction)
+        ? importAntigravityCommandTarget({
+            target,
+            entry,
+            decision: action,
+            logger: fallbackLogger,
+            toolLabel: "Antigravity IDE",
+          })
+        : target;
       if (!permission[canonical]) {
         permission[canonical] = {};
       }

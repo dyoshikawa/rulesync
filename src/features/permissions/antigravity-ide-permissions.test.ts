@@ -241,18 +241,38 @@ describe("AntigravityIdePermissions", () => {
         relativeDirPath: ".antigravity",
         relativeFilePath: "settings.json",
         fileContent: JSON.stringify({
-          permissions: { deny: ["command(regex:rm)", "command(git push)"] },
+          permissions: { deny: ["command(regex:rm)", "command(rm -rf *)", "command(git push)"] },
         }),
       });
 
       const warnSpy = vi.spyOn(fallbackLogger, "warn");
       const config = JSON.parse(perms.toRulesyncPermissions().getFileContent());
-      expect(config.permission.bash).toEqual({ "rm *": "deny", "git push *": "deny" });
+      expect(config.permission.bash).toEqual({
+        "rm *": "deny",
+        "regex:^rm$ ^-rf$ ^\\*$": "deny",
+        "git push *": "deny",
+      });
+      // `regex:rm` is anchored by Antigravity, so only the legacy target warns.
       expect(warnSpy).toHaveBeenCalledTimes(1);
       const message = warnSpy.mock.calls[0]?.[0];
-      expect(message).toContain("Antigravity IDE permissions: importing command(regex:rm)");
-      expect(message).toContain("may block less");
+      expect(message).toContain("Antigravity IDE permissions: importing command(rm -rf *)");
+      expect(message).toContain("NOT enforced by the other tools");
       warnSpy.mockRestore();
+    });
+
+    it("imports an unsandboxed target the way it imports a command target", () => {
+      const perms = new AntigravityIdePermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".antigravity",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          permissions: { allow: ["unsandboxed(npm run)", "execute_url(example.com)"] },
+        }),
+      });
+
+      const config = JSON.parse(perms.toRulesyncPermissions().getFileContent());
+      expect(config.permission.unsandboxed).toEqual({ "npm run *": "allow" });
+      expect(config.permission.execute_url).toEqual({ "example.com": "allow" });
     });
   });
 });
