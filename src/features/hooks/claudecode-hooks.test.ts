@@ -179,6 +179,9 @@ describe("ClaudecodeHooks", () => {
             // Upstream: onFailure has no effect on background command hooks.
             { type: "command", command: "bg.sh", async: true, failClosed: true },
             { type: "command", command: "rewake.sh", asyncRewake: true, failClosed: true },
+            // `async` is command-only and not emitted on http hooks, so it
+            // cannot switch onFailure off there.
+            { type: "http", url: "https://example.com/bg", async: true, failClosed: true },
           ],
           // Upstream: onFailure has no effect on Stop hooks.
           stop: [{ type: "command", command: "on-stop.sh", failClosed: true }],
@@ -200,7 +203,7 @@ describe("ClaudecodeHooks", () => {
       });
 
       const parsed = JSON.parse(claudecodeHooks.getFileContent());
-      const [command, http, prompt, failOpen, background, rewake] =
+      const [command, http, prompt, failOpen, background, rewake, httpWithAsync] =
         parsed.hooks.PreToolUse[0].hooks;
       expect(command.onFailure).toBe("block");
       expect(http.onFailure).toBe("block");
@@ -209,6 +212,11 @@ describe("ClaudecodeHooks", () => {
       expect(background).not.toHaveProperty("onFailure");
       expect(background.async).toBe(true);
       expect(rewake).not.toHaveProperty("onFailure");
+      expect(httpWithAsync.onFailure).toBe("block");
+      expect(httpWithAsync).not.toHaveProperty("async");
+      expect(logger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining('from a "http" hook on "preToolUse": this tool ignores'),
+      );
       for (const flag of ["async", "asyncRewake"]) {
         expect(logger.warn).toHaveBeenCalledWith(
           expect.stringContaining(`ignores "onFailure" on a hook that sets "${flag}"`),
@@ -237,6 +245,7 @@ describe("ClaudecodeHooks", () => {
                   { type: "http", url: "https://example.com/hook", onFailure: "continue" },
                   { type: "command", command: "typo.sh", onFailure: "Block" },
                   { type: "command", command: "bg.sh", async: true, onFailure: "block" },
+                  { type: "command", command: "rewake.sh", asyncRewake: true, onFailure: "block" },
                 ],
               },
             ],
@@ -246,11 +255,16 @@ describe("ClaudecodeHooks", () => {
       });
 
       const parsed = claudecodeHooks.toRulesyncHooks({ logger }).getJson();
-      const [block, cont, typo, background] = parsed.hooks.preToolUse ?? [];
+      const [block, cont, typo, background, rewake] = parsed.hooks.preToolUse ?? [];
       expect(block?.failClosed).toBe(true);
       expect(cont?.failClosed).toBe(false);
       expect(typo).not.toHaveProperty("failClosed");
       expect(background).not.toHaveProperty("failClosed");
+      expect(rewake).not.toHaveProperty("failClosed");
+      expect(rewake?.asyncRewake).toBe(true);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('ignores "onFailure" on a hook that sets "asyncRewake"'),
+      );
       expect(logger.warn).toHaveBeenCalledWith(
         expect.stringContaining('"Block" is not a value this tool documents for it'),
       );

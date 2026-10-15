@@ -101,11 +101,13 @@ export type ToolHooksConverterConfig = {
      */
     readonly ignoredEvents?: ReadonlySet<string>;
     /**
-     * Boolean hook flags that make the tool ignore the field when set to
-     * `true` (Claude Code's `onFailure` on background `async` / `asyncRewake`
-     * command hooks). Each name is read from the canonical definition on
-     * export and from the tool hook on import, so it is meant for flags the
-     * tool spells the same as the canonical field.
+     * Boolean command-hook flags that make the tool ignore the field when set
+     * to `true` (Claude Code's `onFailure` on background `async` /
+     * `asyncRewake` command hooks). Checked on `command` hooks only: the flags
+     * are command-only, so they are never emitted on another hook type and
+     * cannot switch the field off there. Each name is read from the canonical
+     * definition on export and from the tool hook on import, so it is meant
+     * for flags the tool spells the same as the canonical field.
      */
     readonly ignoredWhenFlags?: ReadonlyArray<"async" | "asyncRewake">;
   }>;
@@ -898,7 +900,8 @@ function isKeywordFieldApplicable({
     );
     return false;
   }
-  const setFlag = ignoredWhenFlags?.find((flag) => flags[flag] === true);
+  const setFlag =
+    hookType === "command" ? ignoredWhenFlags?.find((flag) => flags[flag] === true) : undefined;
   if (setFlag !== undefined) {
     warn?.(
       `Dropping "${field}" from a "${hookType}" hook on "${eventName}": this tool ignores ` +
