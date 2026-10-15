@@ -18,6 +18,7 @@ import {
   getKimiCodeRelativeDirPath,
   getKimiCodeRulesyncOutputRoot,
 } from "../../utils/kimi-code.js";
+import { rulesyncCommandSlugExists } from "../commands/command-skill-ownership.js";
 import {
   RulesyncSkill,
   type RulesyncSkillFrontmatterInput,
@@ -230,6 +231,32 @@ export class KimiCodeSkill extends ToolSkill {
   static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
     const targets = rulesyncSkill.getFrontmatter().targets;
     return targets.includes("*") || targets.includes("kimi-code");
+  }
+
+  /**
+   * Commands are emitted into the Kimi-specific skills tree as
+   * `<slug>/SKILL.md` (see `KimiCodeCommand`), so a directory there matching a
+   * current rulesync command slug is owned by the commands feature: it must
+   * not be imported as a skill nor deleted as an orphan skill. The
+   * import-only `.agents/skills/` root never receives Kimi Code commands, so a
+   * same-named skill in it stays a skill.
+   */
+  static async isDirOwned({
+    relativeDirPath,
+    dirName,
+    inputRoots,
+    global,
+  }: {
+    outputRoot: string;
+    relativeDirPath: string;
+    dirName: string;
+    inputRoots: readonly string[];
+    global: boolean;
+  }): Promise<boolean> {
+    if (relativeDirPath !== this.getSettablePaths({ global }).relativeDirPath) {
+      return true;
+    }
+    return !(await rulesyncCommandSlugExists({ inputRoots, dirName }));
   }
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<KimiCodeSkill> {

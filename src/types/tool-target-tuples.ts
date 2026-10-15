@@ -187,6 +187,7 @@ export const commandsProcessorToolTargetTuple = [
   "hermesagent",
   "junie",
   "kilo",
+  "kimi-code",
   "kimi-code-plugin",
   "kiro",
   "kiro-cli",

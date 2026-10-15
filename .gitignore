@@ -363,6 +363,7 @@ rulesync.local.jsonc
 **/.grok/commands/
 **/.junie/commands/
 **/.kilo/commands/
+**/.kimi-code/skills/
 **/.kiro/prompts/
 **/.mimocode/commands/
 **/.omp/commands/
@@ -399,7 +400,6 @@ rulesync.local.jsonc
 **/.grok/skills/
 **/.junie/skills/
 **/.kilo/skills/
-**/.kimi-code/skills/
 **/.kiro/skills/
 **/.mimocode/skills/
 **/.omp/skills/
