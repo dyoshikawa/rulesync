@@ -54,9 +54,14 @@ describe("ensureAntigravityPluginManifests", () => {
     }
   });
 
-  it.each([".antigravity-plugin", ".gemini-plugin"])(
-    "treats a manifest kept in the %s folder as present",
-    async (folder) => {
+  it.each([
+    { folder: ".antigravity-plugin", dryRun: false },
+    { folder: ".antigravity-plugin", dryRun: true },
+    { folder: ".gemini-plugin", dryRun: false },
+    { folder: ".gemini-plugin", dryRun: true },
+  ])(
+    "treats a manifest kept in the $folder folder as present (dryRun: $dryRun)",
+    async ({ folder, dryRun }) => {
       const { testDir, cleanup } = await setupTestDirectory();
       try {
         const pluginRoot = join(testDir, "review-tools");
@@ -65,7 +70,7 @@ describe("ensureAntigravityPluginManifests", () => {
 
         const result = await ensureAntigravityPluginManifests({
           outputRoots: [pluginRoot],
-          dryRun: false,
+          dryRun,
           logger: createMockLogger(),
         });
 
