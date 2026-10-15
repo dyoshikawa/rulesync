@@ -137,6 +137,7 @@ type ToolCommandFactory = {
       inputRoots: readonly string[];
       rulesyncCommands: RulesyncCommand[];
       logger: Logger;
+      global?: boolean;
     }): Promise<void> | void;
     /**
      * Optional per-command write gate: the reason this tool must not emit the
@@ -986,6 +987,7 @@ export class CommandsProcessor extends FeatureProcessor {
       inputRoots: this.inputRoots,
       rulesyncCommands,
       logger: this.logger,
+      global: this.global,
     });
     const flattenedPathOrigins = new Map<string, string>();
 

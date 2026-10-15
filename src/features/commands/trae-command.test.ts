@@ -3,9 +3,11 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RULESYNC_COMMANDS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { writeFileContent } from "../../utils/file.js";
 import { stringifyFrontmatter } from "../../utils/frontmatter.js";
+import { CommandsProcessor } from "./commands-processor.js";
 import { RulesyncCommand } from "./rulesync-command.js";
 import { TraeCommand } from "./trae-command.js";
 
@@ -87,6 +89,17 @@ describe("TraeCommand", () => {
     });
   });
 
+  it("should reject a non-string trae name", () => {
+    const rulesyncCommand = createRulesyncCommand({
+      relativeFilePath: "review.md",
+      frontmatter: { trae: { name: 42 } },
+    });
+
+    expect(() => TraeCommand.fromRulesyncCommand({ outputRoot: testDir, rulesyncCommand })).toThrow(
+      "Invalid frontmatter",
+    );
+  });
+
   it("should import a command file", async () => {
     await writeFileContent(
       join(testDir, ".trae", "commands", "summarize-pr.md"),
@@ -119,5 +132,127 @@ describe("TraeCommand", () => {
         }),
       ),
     ).toBe(false);
+  });
+
+  describe("validateRulesyncCommands", () => {
+    it("should warn when two commands derive the same name", () => {
+      const logger = createMockLogger();
+      TraeCommand.validateRulesyncCommands({
+        rulesyncCommands: [
+          createRulesyncCommand({ relativeFilePath: join("a", "review.md"), frontmatter: {} }),
+          createRulesyncCommand({ relativeFilePath: join("b", "review.md"), frontmatter: {} }),
+          createRulesyncCommand({ relativeFilePath: "commit.md", frontmatter: {} }),
+        ],
+        logger,
+      });
+
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledWith(
+        'Trae command name "review" is shared by "a/review.md", "b/review.md", but Trae treats `name` as a unique identifier. Rename a file or set `trae.name` to tell them apart.',
+      );
+    });
+
+    it("should use the trae section name when checking for duplicates", () => {
+      const logger = createMockLogger();
+      TraeCommand.validateRulesyncCommands({
+        rulesyncCommands: [
+          createRulesyncCommand({ relativeFilePath: join("a", "review.md"), frontmatter: {} }),
+          createRulesyncCommand({
+            relativeFilePath: join("b", "review.md"),
+            frontmatter: { trae: { name: "review-b" } },
+          }),
+          createRulesyncCommand({
+            relativeFilePath: "check.md",
+            frontmatter: { trae: { name: "review" } },
+          }),
+        ],
+        logger,
+      });
+
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('"review" is shared by "a/review.md", "check.md"'),
+      );
+    });
+
+    it("should ignore commands not targeted at trae", () => {
+      const logger = createMockLogger();
+      TraeCommand.validateRulesyncCommands({
+        rulesyncCommands: [
+          createRulesyncCommand({ relativeFilePath: join("a", "review.md"), frontmatter: {} }),
+          createRulesyncCommand({
+            relativeFilePath: join("b", "review.md"),
+            frontmatter: { targets: ["claudecode"] },
+          }),
+        ],
+        logger,
+      });
+
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("should warn about project commands nested deeper than three levels", () => {
+      const logger = createMockLogger();
+      TraeCommand.validateRulesyncCommands({
+        rulesyncCommands: [
+          createRulesyncCommand({
+            relativeFilePath: join("a", "b", "c", "ok.md"),
+            frontmatter: {},
+          }),
+          createRulesyncCommand({
+            relativeFilePath: join("a", "b", "c", "d", "deep.md"),
+            frontmatter: {},
+          }),
+        ],
+        logger,
+      });
+
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledWith(
+        'Trae reads project commands only up to 3 nested directory levels, so "a/b/c/d/deep.md" is written but never loaded. Move it to a shallower directory.',
+      );
+    });
+
+    it.each([
+      { global: false, warnings: 1 },
+      { global: true, warnings: 0 },
+    ])(
+      "should pass the scope through CommandsProcessor (global: $global)",
+      async ({ global, warnings }) => {
+        const logger = createMockLogger();
+        const processor = new CommandsProcessor({
+          outputRoot: testDir,
+          toolTarget: "trae",
+          global,
+          logger,
+        });
+
+        const toolFiles = await processor.convertRulesyncFilesToToolFiles([
+          createRulesyncCommand({
+            relativeFilePath: join("a", "b", "c", "d", "deep.md"),
+            frontmatter: {},
+          }),
+        ]);
+
+        expect(toolFiles).toHaveLength(1);
+        expect(logger.warn).toHaveBeenCalledTimes(warnings);
+      },
+    );
+
+    it("should not apply the nesting limit to global commands", () => {
+      const logger = createMockLogger();
+      TraeCommand.validateRulesyncCommands({
+        rulesyncCommands: [
+          createRulesyncCommand({
+            relativeFilePath: join("a", "b", "c", "d", "deep.md"),
+            frontmatter: {},
+          }),
+        ],
+        logger,
+        global: true,
+      });
+
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
   });
 });

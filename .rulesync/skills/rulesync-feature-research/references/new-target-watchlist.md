@@ -196,11 +196,11 @@ candidate's bullet here when its table row is promoted or retired.
   `.jcode/mcp.json`, `.jcode/skills/`, global `[hooks]` in
   `~/.jcode/config.toml`. Recorded on 2026-09-26 and proposed as #3412 on
   2026-10-13. Do not re-add it — track the proposal on that issue.
-- **OpenHands** — `.openhands/hooks.json` and `~/.openhands/mcp.json` on top of
-  the covered `AGENTS.md` / `.agents/skills`. Request #4 (opened 2025-06-25)
-  was closed as covered on 2026-06-23; proposed again with that narrower scope as #3411 on
-  2026-10-13 directly from the discovery pass. Do not re-add it — track the
-  proposal on that issue.
+- **OpenHands** — `.openhands/hooks.json` and `~/.openhands/mcp.json` on top
+  of the covered `AGENTS.md` / `.agents/skills`. Request #4 (opened
+  2025-06-25) was closed as covered on 2026-06-23; proposed again with that
+  narrower scope as #3411 on 2026-10-13 directly from the discovery pass. Do
+  not re-add it — track the proposal on that issue.
 - **MiMo Code** — OpenCode fork reading `.mimocode/` (`mimocode.jsonc`,
   commands, agents, skills) and `~/.config/mimocode/`. Proposed as #3173 on
   2026-09-26 directly from the discovery pass. Do not re-add it — track the
