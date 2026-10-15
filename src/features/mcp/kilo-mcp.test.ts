@@ -568,7 +568,7 @@ describe("KiloMcp", () => {
         validate: false,
       });
 
-      expect(kiloMcp.getJson()).toEqual({ mcp: {} });
+      expect(kiloMcp.getJson()).toEqual({});
     });
 
     it("should handle empty mcpServers object", async () => {
@@ -586,7 +586,7 @@ describe("KiloMcp", () => {
         rulesyncMcp,
       });
 
-      expect(kiloMcp.getJson()).toEqual({ mcp: {} });
+      expect(kiloMcp.getJson()).toEqual({});
     });
 
     it("should create instance from RulesyncMcp in global mode", async () => {
@@ -2887,7 +2887,7 @@ describe("KiloMcp toggle entries", () => {
       logger: mockLogger,
     });
 
-    expect(JSON.parse(kiloMcp.getFileContent()).mcp).toEqual({});
+    expect(JSON.parse(kiloMcp.getFileContent()).mcp).toBeUndefined();
     expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('skipping "ghost"'));
   });
 
@@ -3101,7 +3101,7 @@ describe("KiloMcp toggle entries", () => {
       logger: mockLogger,
     });
 
-    expect(JSON.parse(kiloMcp.getFileContent()).mcp).toEqual({});
+    expect(JSON.parse(kiloMcp.getFileContent()).mcp).toBeUndefined();
     expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining('skipping "toString"'));
   });
 
@@ -3123,7 +3123,7 @@ describe("KiloMcp toggle entries", () => {
     const kiloMcp = await KiloMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
     const written = JSON.parse(kiloMcp.getFileContent());
 
-    expect(written.mcp).toEqual({});
+    expect(written.mcp).toBeUndefined();
     // Both survive: the keys are independent of `mcp`, so dropping a filter
     // with the entry would re-enable a tool on whichever layer defines the server.
     expect(written.permission).toEqual({ gh_delete_repo: "deny", broken_wipe: "deny" });
@@ -3145,7 +3145,7 @@ describe("KiloMcp toggle entries", () => {
       rulesyncMcp: kiloMcp.toRulesyncMcp().forTarget({ toolTarget: "kilo" }),
     });
 
-    expect(JSON.parse(roundTripped.getFileContent()).mcp).toEqual({});
+    expect(JSON.parse(roundTripped.getFileContent()).mcp).toBeUndefined();
   });
 
   it("skips a server that names a transport it cannot reach", async () => {
@@ -3365,5 +3365,37 @@ describe("KiloMcp env var references", () => {
       CURSOR_STYLE: "${env:MY_KEY}",
     });
     expect(imported.mcpServers.remote.headers).toEqual({ Authorization: "Bearer ${API_TOKEN}" });
+  });
+});
+
+describe("KiloMcp retraction (issue #2562)", () => {
+  let testDir: string;
+  let cleanup: () => Promise<void>;
+
+  beforeEach(async () => {
+    ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
+  });
+
+  afterEach(async () => {
+    await cleanup();
+    vi.restoreAllMocks();
+  });
+
+  it("retracts mcp when no server is left, keeping unrelated keys", async () => {
+    await writeFileContent(
+      join(testDir, "kilo.json"),
+      JSON.stringify({ other: 1, mcp: { old: { type: "local", command: ["old"] } } }),
+    );
+    const mcp = await KiloMcp.fromRulesyncMcp({
+      outputRoot: testDir,
+      rulesyncMcp: new RulesyncMcp({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({ mcpServers: {} }),
+      }),
+    });
+
+    expect(JSON.parse(mcp.getFileContent())).toEqual({ other: 1 });
   });
 });
