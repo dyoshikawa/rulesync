@@ -94,6 +94,19 @@ describe("buildAntigravityPermissionEntry", () => {
       );
     });
 
+    it.each([
+      ["~/.ssh/*.pem", "read_file(~/.ssh)"],
+      ["$HOME/.aws/*", "read_file($HOME/.aws)"],
+    ])("warns that the deny %s, widened to %s, may block nothing", (pattern, expected) => {
+      const { entry, logger } = build({ action: "read_file", pattern, decision: "deny" });
+      expect(entry).toBe(expected);
+      expect(logger.warn).toHaveBeenCalledTimes(2);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("The deny now blocks"));
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("this deny may block nothing"),
+      );
+    });
+
     it("does not widen an allow or ask path glob", () => {
       const { entry } = build({ action: "read_file", pattern: "src/*", decision: "allow" });
       expect(entry).toBeUndefined();
@@ -309,6 +322,30 @@ describe("buildAntigravityPermissionEntry", () => {
     ])("translates the unsandboxed pattern %s to %s like a command", (pattern, expected) => {
       const { entry } = build({ action: "unsandboxed", pattern });
       expect(entry).toBe(expected);
+    });
+
+    // Earlier releases wrote `unsandboxed` and `execute_url` patterns verbatim.
+    it("warns that an execute_url allow covers the whole domain", () => {
+      const { entry, logger } = build({
+        action: "execute_url",
+        pattern: "https://example.com/run/*",
+      });
+      expect(entry).toBe("execute_url(example.com)");
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("all of example.com and its subdomains"),
+      );
+    });
+
+    it("warns that an exact unsandboxed allow also matches more words", () => {
+      const { entry, logger } = build({ action: "unsandboxed", pattern: "git push" });
+      expect(entry).toBe("unsandboxed(git push)");
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("more words after it"));
+    });
+
+    it("no longer writes an unsandboxed glob verbatim", () => {
+      const { entry, logger } = build({ action: "unsandboxed", pattern: "rm -rf *" });
+      expect(entry).toBe("unsandboxed(rm -rf)");
+      expect(logger.warn).not.toHaveBeenCalled();
     });
 
     it("widens an untranslatable unsandboxed deny to its leading words", () => {

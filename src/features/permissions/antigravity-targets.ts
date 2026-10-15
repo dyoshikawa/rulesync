@@ -185,6 +185,41 @@ function toWidenedDenyTarget(action: string, pattern: string): string | undefine
 }
 
 /**
+ * Warn about a path target that is a home or variable reference. Antigravity
+ * documents absolute and workspace-relative paths only, so such a reference
+ * may be matched literally and never apply. The entry is still written, since
+ * dropping a deny would lose it where Antigravity does expand the reference.
+ */
+function warnHomeOrVariablePath({
+  action,
+  target,
+  rule,
+  decision,
+  logger,
+  toolLabel,
+}: {
+  action: string;
+  target: string;
+  rule: string;
+  decision: PermissionAction;
+  logger: Logger;
+  toolLabel: string;
+}): void {
+  if (!PATH_ACTIONS.has(action) || !HOME_OR_VARIABLE_PATH.test(target)) {
+    return;
+  }
+  const consequence =
+    decision === "deny"
+      ? "this deny may block nothing"
+      : decision === "ask"
+        ? `${toolLabel} may fall back to its default, so it may run without a prompt when ${toolLabel} is set to always proceed`
+        : `${toolLabel} may fall back to its default`;
+  logger.warn(
+    `${toolLabel} permissions: ${rule}: \`~\` and environment variables may not be expanded in Antigravity path targets, so ${action}(${target}) may match nothing and ${consequence}; use an absolute path instead.`,
+  );
+}
+
+/**
  * Build the entry for one canonical rule, or return `undefined` when
  * Antigravity cannot express it. A deny is widened to its literal lead rather
  * than skipped (`git push * --force` → `command(git push)`, `src/*.ts` →
@@ -220,6 +255,7 @@ export function buildAntigravityPermissionEntry({
       logger.warn(
         `${toolLabel} permissions: widening ${rule} to ${action}(${prefix}). ${result.skipReason}. The deny now blocks ${scope}, overriding any allow or ask for them.`,
       );
+      warnHomeOrVariablePath({ action, target: prefix, rule, decision, logger, toolLabel });
       return `${action}(${prefix})`;
     }
     const consequence =
@@ -243,18 +279,6 @@ export function buildAntigravityPermissionEntry({
       decision === "deny" ? ", so the deny also overrides any allow or ask there" : "";
     logger.warn(`${toolLabel} permissions: ${rule}: ${result.note}${consequence}.`);
   }
-  // Antigravity documents absolute and workspace-relative paths only, so a
-  // home or variable reference may be matched literally and never apply.
-  if (PATH_ACTIONS.has(action) && HOME_OR_VARIABLE_PATH.test(result.target)) {
-    const consequence =
-      decision === "deny"
-        ? "this deny may block nothing"
-        : decision === "ask"
-          ? `${toolLabel} may fall back to its default, so it may run without a prompt when ${toolLabel} is set to always proceed`
-          : `${toolLabel} may fall back to its default`;
-    logger.warn(
-      `${toolLabel} permissions: ${rule}: \`~\` and environment variables may not be expanded in Antigravity path targets, so ${action}(${result.target}) may match nothing and ${consequence}; use an absolute path instead.`,
-    );
-  }
+  warnHomeOrVariablePath({ action, target: result.target, rule, decision, logger, toolLabel });
   return result.target === "*" ? action : `${action}(${result.target})`;
 }

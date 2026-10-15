@@ -146,6 +146,25 @@ describe("AntigravityIdePermissions", () => {
       expect(json.permissions?.deny ?? []).toEqual([]);
     });
 
+    // Earlier releases wrote these patterns verbatim.
+    it("translates unsandboxed and execute_url patterns instead of copying them", async () => {
+      const perms = await AntigravityIdePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          unsandboxed: { "npm run *": "allow", "git push": "allow", "rm -rf *": "deny" },
+          execute_url: { "https://example.com/*": "allow" },
+        }),
+      });
+
+      const json = JSON.parse(perms.getFileContent());
+      expect(json.permissions.allow.toSorted()).toEqual([
+        "execute_url(example.com)",
+        "unsandboxed(git push)",
+        "unsandboxed(npm run)",
+      ]);
+      expect(json.permissions.deny).toEqual(["unsandboxed(rm -rf)"]);
+    });
+
     it("uses a bare action name for the catch-all '*' pattern", async () => {
       const perms = await AntigravityIdePermissions.fromRulesyncPermissions({
         outputRoot: testDir,
