@@ -126,3 +126,36 @@ describe("MimocodeMcp", () => {
     );
   });
 });
+
+describe("MimocodeMcp retraction (issue #2562)", () => {
+  let testDir: string;
+  let cleanup: () => Promise<void>;
+
+  beforeEach(async () => {
+    ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
+  });
+
+  afterEach(async () => {
+    await cleanup();
+    vi.restoreAllMocks();
+  });
+
+  it("retracts mcp when no server is left, keeping unrelated keys", async () => {
+    await writeFileContent(
+      join(testDir, ".mimocode", "mimocode.json"),
+      JSON.stringify({ other: 1, mcp: { old: { type: "local", command: ["old"] } } }),
+    );
+    const mcp = await MimocodeMcp.fromRulesyncMcp({
+      outputRoot: testDir,
+      rulesyncMcp: new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({ mcpServers: {} }),
+      }),
+    });
+
+    expect(mcp.getRelativePathFromCwd()).toBe(join(".mimocode", "mimocode.json"));
+    expect(JSON.parse(mcp.getFileContent())).toEqual({ other: 1 });
+  });
+});

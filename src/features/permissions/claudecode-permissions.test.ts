@@ -1061,6 +1061,8 @@ describe("ClaudecodePermissions", () => {
         appendPlugins: ["audit@acme"],
         prependPlugins: ["sec-default@builtin"],
         syncClaudeAiPlugins: false,
+        // "User or managed" since v2.1.295, so `--global` writes it.
+        forceLoginGatewayUrl: "https://gateway.example.com",
       };
       const rulesyncPermissions = new RulesyncPermissions({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
@@ -1162,6 +1164,60 @@ describe("ClaudecodePermissions", () => {
           expect.stringContaining(`'${key}' is only honored in ${source}`),
         );
       }
+    });
+
+    it("drops the user-only worktree.location at project scope and keeps its siblings", async () => {
+      const mockLogger = createMockLogger();
+      const warnSpy = vi.spyOn(mockLogger, "warn");
+      const authored = {
+        permission: { bash: { "git *": "allow" } },
+        claudecode: {
+          worktree: { location: "~/worktrees", sparsePaths: ["src"] },
+        },
+      };
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify(authored),
+      });
+
+      const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        logger: mockLogger,
+      });
+
+      expect(JSON.parse(instance.getFileContent()).worktree).toEqual({ sparsePaths: ["src"] });
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("'worktree.location' is not honored in the project-scoped"),
+      );
+
+      const globalInstance = await ClaudecodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+        global: true,
+      });
+      expect(JSON.parse(globalInstance.getFileContent()).worktree).toEqual(
+        authored.claudecode.worktree,
+      );
+    });
+
+    it("drops a worktree block left empty by removing worktree.location at project scope", async () => {
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: { bash: { "git *": "allow" } },
+          claudecode: { worktree: { location: "~/worktrees" } },
+        }),
+      });
+
+      const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      expect(JSON.parse(instance.getFileContent())).not.toHaveProperty("worktree");
     });
 
     it("writes a user-scope key in global mode", async () => {
@@ -2040,6 +2096,66 @@ describe("ClaudecodePermissions", () => {
         // Names only: an env value is often a credential.
         expect(messages.join("\n")).not.toContain("secret-token");
       });
+
+      it("drops the v2.1.290 dialog-timer, attachment and file-mention variables at project scope", async () => {
+        const mockLogger = createMockLogger();
+        const warnSpy = vi.spyOn(mockLogger, "warn");
+        const ignored = {
+          CLAUDE_CODE_USER_DIALOG_TIMEOUT_MS: "60000",
+          CLAUDE_AFK_TIMEOUT_MS: "30000",
+          CLAUDE_AFK_COUNTDOWN_MS: "5000",
+          CLAUDE_CODE_DISABLE_ATTACHMENTS: "1",
+          CLAUDE_CODE_DISABLE_FILE_MENTIONS: "1",
+        };
+
+        const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+          outputRoot: testDir,
+          rulesyncPermissions: envCase({ ...ignored, MY_VAR: "1" }),
+          logger: mockLogger,
+        });
+
+        expect(JSON.parse(instance.getFileContent()).env).toEqual({ MY_VAR: "1" });
+        const dropped = warnSpy.mock.calls
+          .map(([message]) => message as string)
+          .find((message) => message.includes("project-scoped"));
+        for (const name of Object.keys(ignored)) {
+          expect(dropped).toContain(`'env.${name}'`);
+        }
+
+        const globalInstance = await ClaudecodePermissions.fromRulesyncPermissions({
+          outputRoot: testDir,
+          rulesyncPermissions: envCase(ignored),
+          global: true,
+        });
+        expect(JSON.parse(globalInstance.getFileContent()).env).toEqual(ignored);
+      });
+
+      it.each([
+        ["1", false],
+        ["true", false],
+        ["0", true],
+        ["false", true],
+      ])(
+        "keeps CLAUDE_CODE_ENABLE_CFC=%s at project scope only when it turns Chrome off (kept: %s)",
+        async (value, kept) => {
+          const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+            outputRoot: testDir,
+            rulesyncPermissions: envCase({ CLAUDE_CODE_ENABLE_CFC: value }),
+          });
+
+          const content = JSON.parse(instance.getFileContent());
+          expect(content.env?.CLAUDE_CODE_ENABLE_CFC).toBe(kept ? value : undefined);
+
+          const globalInstance = await ClaudecodePermissions.fromRulesyncPermissions({
+            outputRoot: testDir,
+            rulesyncPermissions: envCase({ CLAUDE_CODE_ENABLE_CFC: value }),
+            global: true,
+          });
+          expect(JSON.parse(globalInstance.getFileContent()).env).toEqual({
+            CLAUDE_CODE_ENABLE_CFC: value,
+          });
+        },
+      );
 
       it.each(["false", "Off", "no"])(
         "keeps the content-variable off value %s at project scope",
