@@ -3,6 +3,7 @@ import { join } from "node:path";
 import * as smolToml from "smol-toml";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { writeFileContent } from "../../utils/file.js";
 import { GrokcliPermissions } from "./grokcli-permissions.js";
@@ -155,6 +156,141 @@ describe("GrokcliPermissions", () => {
 
       const permission = readPermission(permissions.getFileContent());
       expect(permission.allow).toEqual(["Edit", "MCPTool(github__list_issues)"]);
+    });
+
+    it("maps the all-tools * category onto Grok's bare * rule", async () => {
+      const permissions = await GrokcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({
+          "*": { "*": "deny" },
+          read: { "src/**": "allow" },
+        }),
+        global: true,
+      });
+
+      const permission = readPermission(permissions.getFileContent());
+      expect(permission.deny).toEqual(["*"]);
+      expect(permission.allow).toEqual(["Read(src/**)"]);
+    });
+
+    it("skips a narrower all-tools * pattern with a warning", async () => {
+      const logger = createMockLogger();
+      const warnSpy = vi.spyOn(logger, "warn");
+      const permissions = await GrokcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({ "*": { "src/**": "ask" } }),
+        logger,
+        global: true,
+      });
+
+      const permission = readPermission(permissions.getFileContent());
+      expect(permission.allow).toEqual([]);
+      expect(permission.deny).toEqual([]);
+      expect(permission.ask).toEqual([]);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("skipping the all-tools '*' rule 'src/**'"),
+      );
+    });
+
+    it("treats an existing bare * entry as a managed all-tools rule", async () => {
+      await writeFileContent(
+        join(testDir, ".grok", "config.toml"),
+        ["[permission]", 'deny = ["*"]', ""].join("\n"),
+      );
+
+      const permissions = await GrokcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({ bash: { "git *": "allow" } }),
+        global: true,
+      });
+
+      const permission = readPermission(permissions.getFileContent());
+      expect(permission.deny).toEqual([]);
+      expect(permission.allow).toEqual(["Bash(git *)"]);
+    });
+
+    it("warns when generate removes an existing bare * deny entry", async () => {
+      await writeFileContent(
+        join(testDir, ".grok", "config.toml"),
+        ["[permission]", 'deny = ["*"]', 'ask = ["*"]', ""].join("\n"),
+      );
+      const logger = createMockLogger();
+      const warnSpy = vi.spyOn(logger, "warn");
+
+      await GrokcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({ read: { "src/**": "allow" } }),
+        logger,
+        global: true,
+      });
+
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("removing the existing bare '*' entry from the 'deny' array"),
+      );
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("removing the existing bare '*' entry from the 'ask' array"),
+      );
+    });
+
+    it("does not warn when an equally strict bare * entry is written back", async () => {
+      await writeFileContent(
+        join(testDir, ".grok", "config.toml"),
+        ["[permission]", 'ask = ["*"]', ""].join("\n"),
+      );
+      const logger = createMockLogger();
+      const warnSpy = vi.spyOn(logger, "warn");
+
+      await GrokcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({ "*": { "*": "deny" } }),
+        logger,
+        global: true,
+      });
+
+      expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining("removing the existing"));
+    });
+
+    it("warns that specific allows are shadowed by a bare * ask", async () => {
+      const logger = createMockLogger();
+      const warnSpy = vi.spyOn(logger, "warn");
+
+      const permissions = await GrokcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({
+          "*": { "*": "ask" },
+          read: { "src/**": "allow" },
+          edit: { "dist/**": "deny" },
+        }),
+        logger,
+        global: true,
+      });
+
+      const permission = readPermission(permissions.getFileContent());
+      expect(permission.ask).toEqual(["*"]);
+      expect(permission.allow).toEqual(["Read(src/**)"]);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringMatching(/bare '\*' 'ask' rule.*never take effect: Read\(src\/\*\*\)\.$/),
+      );
+    });
+
+    it("lists specific asks as shadowed under a bare * deny", async () => {
+      const logger = createMockLogger();
+      const warnSpy = vi.spyOn(logger, "warn");
+
+      await GrokcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({
+          "*": { "*": "deny" },
+          read: { "src/**": "allow" },
+          webfetch: { "domain:example.com": "ask" },
+        }),
+        logger,
+        global: true,
+      });
+
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("never take effect: Read(src/**), WebFetch(domain:example.com)."),
+      );
     });
 
     it("skips categories Grok cannot express", async () => {
@@ -376,6 +512,39 @@ describe("GrokcliPermissions", () => {
       );
     });
 
+    it("parses a bare * entry back into the all-tools * category", async () => {
+      await writeFileContent(
+        join(testDir, ".grok", "config.toml"),
+        ["[permission]", 'deny = ["*"]', 'allow = ["Read(src/**)"]', ""].join("\n"),
+      );
+      const tool = await GrokcliPermissions.fromFile({ outputRoot: testDir, global: true });
+      const json = JSON.parse(tool.toRulesyncPermissions().getFileContent());
+      expect(json.permission["*"]).toEqual({ "*": "deny" });
+      expect(json.permission.read).toEqual({ "src/**": "allow" });
+    });
+
+    it("parses a tool-wide verbose any rule into the all-tools * category", async () => {
+      await writeFileContent(
+        join(testDir, ".grok", "config.toml"),
+        ["[[permission.rules]]", 'action = "ask"', 'tool = "Any"', ""].join("\n"),
+      );
+      const tool = await GrokcliPermissions.fromFile({ outputRoot: testDir, global: true });
+      const json = JSON.parse(tool.toRulesyncPermissions().getFileContent());
+      expect(json.permission).toEqual({ "*": { "*": "ask" } });
+    });
+
+    it("round-trips the all-tools * category through export and re-import", async () => {
+      const exported = await GrokcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({ "*": { "*": "ask" } }),
+        global: false,
+      });
+      await writeFileContent(join(testDir, ".grok", "config.toml"), exported.getFileContent());
+      const tool = await GrokcliPermissions.fromFile({ outputRoot: testDir, global: false });
+      const json = JSON.parse(tool.toRulesyncPermissions().getFileContent());
+      expect(json.permission).toEqual({ "*": { "*": "ask" } });
+    });
+
     it("parses WebSearch entries back into the canonical websearch category", async () => {
       await writeFileContent(
         join(testDir, ".grok", "config.toml"),
@@ -557,6 +726,7 @@ describe("GrokcliPermissions", () => {
           "[[permission.rules]]",
           'action = "deny"',
           'tool = "any"',
+          'pattern = "git *"',
           "",
           "[[permission.rules]]",
           'action = "allow"',
@@ -570,6 +740,7 @@ describe("GrokcliPermissions", () => {
       expect(json.permission.edit["src/**"]).toBe("allow");
       expect(json.permission.bash).toBeUndefined();
       expect(json.permission.any).toBeUndefined();
+      expect(json.permission["*"]).toBeUndefined();
     });
 
     it("keeps the coarse fallback out of reach when rules are present but all unsupported", async () => {
@@ -582,6 +753,7 @@ describe("GrokcliPermissions", () => {
           "[[permission.rules]]",
           'action = "deny"',
           'tool = "any"',
+          'pattern = "git *"',
           "",
         ].join("\n"),
       );
