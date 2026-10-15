@@ -39,6 +39,7 @@ import { HermesagentPermissions } from "./hermesagent-permissions.js";
 import { JuniePermissions } from "./junie-permissions.js";
 import { KiloPermissions } from "./kilo-permissions.js";
 import { KimiCodePermissions } from "./kimi-code-permissions.js";
+import { KiroScopedPermissions } from "./kiro-capability-permissions.js";
 import { KiroPermissions } from "./kiro-permissions.js";
 import { LettacodePermissions } from "./lettacode-permissions.js";
 import { MimocodePermissions } from "./mimocode-permissions.js";
@@ -442,13 +443,15 @@ export const toolPermissionsFactories = new Map<
     },
   ],
   [
-    // Kiro IDE and CLI share the same permissions file.
+    // Kiro IDE and CLI share the same permissions files: the agent config
+    // `.kiro/agents/default.json` in project scope, and the capability-based
+    // `~/.kiro/settings/permissions.yaml` (IDE 1.0 / CLI V3) in global scope.
     "kiro-cli",
     {
-      class: KiroPermissions,
+      class: KiroScopedPermissions,
       meta: {
         supportsProject: true,
-        supportsGlobal: false,
+        supportsGlobal: true,
         supportsImport: true,
       },
     },
@@ -456,10 +459,10 @@ export const toolPermissionsFactories = new Map<
   [
     "kiro-ide",
     {
-      class: KiroPermissions,
+      class: KiroScopedPermissions,
       meta: {
         supportsProject: true,
-        supportsGlobal: false,
+        supportsGlobal: true,
         supportsImport: true,
       },
     },

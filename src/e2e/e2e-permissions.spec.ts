@@ -110,6 +110,8 @@ const permissionsGlobalTargets = [
   "junie",
   "lettacode",
   "qoder",
+  "kiro-cli",
+  "kiro-ide",
 ] as const;
 
 describe("E2E: permissions", () => {
@@ -2524,6 +2526,67 @@ describe("E2E: permissions (global mode)", () => {
 
     expect(await fileExists(join(homeDir, ".bob", "settings", "settings.json"))).toBe(false);
   });
+
+  it.each([{ target: "kiro-cli" }, { target: "kiro-ide" }])(
+    "should generate and import $target permissions in ~/.kiro/settings/permissions.yaml with --global",
+    async ({ target }) => {
+      const projectDir = getProjectDir();
+      const homeDir = getHomeDir();
+      const permissionsPath = join(homeDir, ".kiro", "settings", "permissions.yaml");
+
+      // A rule Kiro (or the user) wrote for a capability rulesync does not map
+      // must survive generation.
+      await writeFileContent(
+        permissionsPath,
+        'rules:\n  - capability: mcp\n    match: ["github/*"]\n    effect: allow\n',
+      );
+      await writeFileContent(
+        join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+        JSON.stringify(
+          {
+            permission: {
+              bash: { "git status *": "allow", "git push *": "ask", "rm *": "deny" },
+              read: { "*": "allow" },
+            },
+          },
+          null,
+          2,
+        ),
+      );
+
+      await runGenerate({
+        target,
+        features: "permissions",
+        global: true,
+        env: { HOME_DIR: homeDir },
+      });
+
+      expect(load(await readFileContent(permissionsPath))).toEqual({
+        rules: [
+          { capability: "mcp", match: ["github/*"], effect: "allow" },
+          { capability: "shell", match: ["git status *"], effect: "allow" },
+          { capability: "shell", match: ["git push *"], effect: "ask" },
+          { capability: "shell", match: ["rm *"], effect: "deny" },
+          { capability: "fs_read", effect: "allow" },
+        ],
+      });
+
+      await runImport({
+        target,
+        features: "permissions",
+        global: true,
+        env: { HOME_DIR: homeDir },
+      });
+
+      const imported = JSON.parse(
+        await readFileContent(join(homeDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH)),
+      );
+      expect(imported.permission).toEqual({
+        bash: { "git status *": "allow", "git push *": "ask", "rm *": "deny" },
+        read: { "*": "allow" },
+      });
+    },
+  );
 
   it("should generate and import codewhale permissions in ~/.codewhale/permissions.toml (global-only)", async () => {
     const projectDir = getProjectDir();

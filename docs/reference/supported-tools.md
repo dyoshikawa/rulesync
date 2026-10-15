@@ -49,8 +49,8 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Reasonix                  | reasonix           | ✅ 🌏 | ✅ 🌏  | ✅ 🌏 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
 | Codebuff (Freebuff)       | codebuff           |  🌏   |   ✅   |  ✅ 🌏   |          |           |        |       |             |        |
 | Kiro ⚠️                   | kiro               | ✅ 🌏 | ✅ 🌏  | ✅ 🌏 🔧 |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
-| Kiro CLI                  | kiro-cli           | ✅ 🌏 |   ✅   | ✅ 🌏 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |     ✅      |        |
-| Kiro IDE                  | kiro-ide           | ✅ 🌏 | ✅ 🌏  | ✅ 🌏 🔧 |    ✅    |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |     ✅      |        |
+| Kiro CLI                  | kiro-cli           | ✅ 🌏 |   ✅   | ✅ 🌏 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
+| Kiro IDE                  | kiro-ide           | ✅ 🌏 | ✅ 🌏  | ✅ 🌏 🔧 |    ✅    |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
 | Letta Code                | lettacode          |       |   ✅   |          |          |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
 | Google Antigravity IDE    | antigravity-ide    | ✅ 🌏 |        | ✅ 🌏 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |     ✅      |        |
 | Google Antigravity CLI    | antigravity-cli    | ✅ 🌏 |   ✅   | ✅ 🌏 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |     🌏      |        |
