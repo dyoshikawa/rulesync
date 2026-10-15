@@ -87,8 +87,29 @@ export type ToolHooksConverterConfig = {
     readonly falseValue?: string;
     /** Emit only on `command` hooks, for a field the tool documents there only. */
     readonly commandOnly?: boolean;
+    /**
+     * Hook types the tool documents the field on, for a field wider than
+     * `command` alone (Claude Code's `onFailure` on `command` and `http`);
+     * unrestricted when absent.
+     */
+    readonly hookTypes?: ReadonlySet<HookType>;
     /** Canonical events the tool honours the field on; unrestricted when absent. */
     readonly events?: ReadonlySet<string>;
+    /**
+     * Canonical events the tool ignores the field on, for a field honoured
+     * almost everywhere (the complement of `events`).
+     */
+    readonly ignoredEvents?: ReadonlySet<string>;
+    /**
+     * Boolean command-hook flags that make the tool ignore the field when set
+     * to `true` (Claude Code's `onFailure` on background `async` /
+     * `asyncRewake` command hooks). Checked on `command` hooks only: the flags
+     * are command-only, so they are never emitted on another hook type and
+     * cannot switch the field off there. Each name is read from the canonical
+     * definition on export and from the tool hook on import, so it is meant
+     * for flags the tool spells the same as the canonical field.
+     */
+    readonly ignoredWhenFlags?: ReadonlyArray<"async" | "asyncRewake">;
   }>;
   /**
    * Per-hook number fields to carry through the round-trip, each mapping a
@@ -837,16 +858,19 @@ function isKeywordFieldApplicable({
   spec,
   hookType,
   eventName,
+  flags,
   direction,
   warn,
 }: {
   spec: KeywordPassthroughFieldSpec;
   hookType: HookType;
   eventName: string;
+  /** The hook the field sits on, read for {@link KeywordPassthroughFieldSpec.ignoredWhenFlags}. */
+  flags: Readonly<Record<string, unknown>>;
   direction: "generated" | "imported";
   warn?: (message: string) => void;
 }): boolean {
-  const { canonical, tool, commandOnly, events } = spec;
+  const { canonical, tool, commandOnly, hookTypes, events, ignoredEvents, ignoredWhenFlags } = spec;
   const field = direction === "generated" ? canonical : tool;
   if (!isFieldApplicable({ commandOnly, hookType })) {
     warn?.(
@@ -855,10 +879,33 @@ function isKeywordFieldApplicable({
     );
     return false;
   }
+  if (hookTypes !== undefined && !hookTypes.has(hookType)) {
+    warn?.(
+      `Dropping "${field}" from a "${hookType}" hook on "${eventName}": this tool documents ` +
+        `"${tool}" on ${[...hookTypes].map((type) => `"${type}"`).join(", ")} hooks only, so it is not ${direction}.`,
+    );
+    return false;
+  }
   if (events !== undefined && !events.has(eventName)) {
     warn?.(
       `Dropping "${field}" from a "${hookType}" hook on "${eventName}": this tool honours ` +
         `"${tool}" on ${[...events].map((event) => `"${event}"`).join(", ")} only, so it is not ${direction}.`,
+    );
+    return false;
+  }
+  if (ignoredEvents?.has(eventName)) {
+    warn?.(
+      `Dropping "${field}" from a "${hookType}" hook on "${eventName}": this tool ignores ` +
+        `"${tool}" on "${eventName}", so it is not ${direction}.`,
+    );
+    return false;
+  }
+  const setFlag =
+    hookType === "command" ? ignoredWhenFlags?.find((flag) => flags[flag] === true) : undefined;
+  if (setFlag !== undefined) {
+    warn?.(
+      `Dropping "${field}" from a "${hookType}" hook on "${eventName}": this tool ignores ` +
+        `"${tool}" on a hook that sets "${setFlag}", so it is not ${direction}.`,
     );
     return false;
   }
@@ -890,7 +937,16 @@ function emitKeywordFields({
     if (value !== true) {
       continue;
     }
-    if (isKeywordFieldApplicable({ spec, hookType, eventName, direction: "generated", warn })) {
+    if (
+      isKeywordFieldApplicable({
+        spec,
+        hookType,
+        eventName,
+        flags: def,
+        direction: "generated",
+        warn,
+      })
+    ) {
       emitted[spec.tool] = spec.trueValue;
     }
   }
@@ -922,7 +978,16 @@ function importKeywordFields({
     if (value === undefined) {
       continue;
     }
-    if (!isKeywordFieldApplicable({ spec, hookType, eventName, direction: "imported", warn })) {
+    if (
+      !isKeywordFieldApplicable({
+        spec,
+        hookType,
+        eventName,
+        flags: h,
+        direction: "imported",
+        warn,
+      })
+    ) {
       continue;
     }
     if (value === spec.trueValue) {

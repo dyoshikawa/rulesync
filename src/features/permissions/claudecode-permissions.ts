@@ -635,6 +635,7 @@ const CLAUDECODE_USER_SCOPE_ONLY_KEYS: ReadonlySet<string> = new Set([
   "dialogExpiry",
   "feedbackDrafts",
   "footerLinksRegexes",
+  "forceLoginGatewayUrl",
   "modelPicker",
   "pluginConfigs",
   "prependPlugins",
@@ -647,6 +648,57 @@ const CLAUDECODE_USER_SCOPE_ONLY_KEYS: ReadonlySet<string> = new Set([
   "useAutoModeDuringPlan",
   "vimInsertModeRemaps",
 ]);
+
+/**
+ * Nested settings paths under an otherwise project-honored top-level key that
+ * Claude Code reads only from user settings — the nested counterpart of
+ * {@link CLAUDECODE_USER_SCOPE_ONLY_KEYS}. `worktree` is `Any file`, but
+ * `worktree.location` (where Desktop SSH sessions create worktrees on the
+ * remote machine) is documented with a `User` scope, so it is dropped from a
+ * project `.claude/settings.json` and written only under `--global`, while its
+ * siblings are kept.
+ *
+ * @see https://code.claude.com/docs/en/settings-reference#worktree-location
+ */
+const CLAUDECODE_USER_SCOPE_ONLY_NESTED_PATHS: readonly (readonly string[])[] = [
+  ["worktree", "location"],
+];
+
+/**
+ * Drops {@link CLAUDECODE_USER_SCOPE_ONLY_NESTED_PATHS} from the top-level
+ * passthrough at project scope, in place, warning once per dropped path. The
+ * authored subtree is copied before the deletion so the caller's config is not
+ * mutated, and a parent the removal emptied is dropped with it.
+ */
+function stripUserScopeOnlyNestedPaths({
+  overrides,
+  global,
+  relativeFilePath,
+  logger,
+}: {
+  overrides: Record<string, unknown>;
+  global: boolean;
+  relativeFilePath: string;
+  logger?: Logger;
+}): void {
+  if (global) return;
+  for (const path of CLAUDECODE_USER_SCOPE_ONLY_NESTED_PATHS) {
+    const [topLevelKey] = path;
+    if (topLevelKey === undefined || !isRecord(overrides[topLevelKey])) continue;
+    const copy: Record<string, unknown> = {
+      [topLevelKey]: structuredClone(overrides[topLevelKey]),
+    };
+    if (!deleteSandboxPath({ target: copy, path })) continue;
+    if (copy[topLevelKey] === undefined) {
+      delete overrides[topLevelKey];
+    } else {
+      overrides[topLevelKey] = copy[topLevelKey];
+    }
+    logger?.warn(
+      `Claude Code permissions: '${path.map((segment) => displayKey(segment)).join(".")}' is not honored in the project-scoped ${relativeFilePath}, so it is not written there — Claude Code reads it from user settings only. Author it in the global scope instead, and check that file for a stale value an earlier generate may have left there.`,
+    );
+  }
+}
 
 /**
  * Top-level settings keys neither file rulesync writes can honor, with the file
@@ -686,7 +738,6 @@ const CLAUDECODE_UNHONORED_KEY_SOURCES: Readonly<Record<string, string>> = {
   disableMobileSimulatorTools: "managed settings",
   disableSideloadFlags: "managed settings",
   externalEditorContext: "~/.claude.json",
-  forceLoginGatewayUrl: "managed settings",
   forceRemoteSettingsRefresh: "managed settings",
   gatewayInternalNetworks: "managed settings",
   leftArrowOpensAgents: "~/.claude.json",
@@ -880,8 +931,9 @@ const CLAUDECODE_ENV_IGNORED_IN_EVERY_FILE: ReadonlySet<string> = new Set([
 /**
  * `env` variables a project or local settings file cannot set, because a
  * checked-out repository should not control them: where Claude Code stores its
- * own files, what session content it exports, where telemetry goes, and how it
- * starts or syncs. Claude Code drops them there, so they are skipped at project scope and emitted only under `--global`.
+ * own files, what session content it exports, where telemetry goes, how it
+ * starts or syncs, the timers on an unanswered dialog, and whether it processes
+ * attachments or expands `@` file mentions. Claude Code drops them there, so they are skipped at project scope and emitted only under `--global`.
  *
  * Only the names the settings reference lists are covered; its directory and
  * Windows groups are introduced with "such as", so an unlisted member of those
@@ -892,6 +944,10 @@ const CLAUDECODE_ENV_IGNORED_IN_EVERY_FILE: ReadonlySet<string> = new Set([
  */
 const CLAUDECODE_ENV_PROJECT_IGNORED_NAMES: ReadonlySet<string> = new Set([
   "BETA_TRACING_ENDPOINT",
+  "CLAUDE_AFK_COUNTDOWN_MS",
+  "CLAUDE_AFK_TIMEOUT_MS",
+  "CLAUDE_CODE_DISABLE_ATTACHMENTS",
+  "CLAUDE_CODE_DISABLE_FILE_MENTIONS",
   "CLAUDE_CODE_ENABLE_TELEMETRY",
   "CLAUDE_CODE_ENHANCED_TELEMETRY_BETA",
   "CLAUDE_CODE_PLUGIN_CACHE_DIR",
@@ -900,6 +956,7 @@ const CLAUDECODE_ENV_PROJECT_IGNORED_NAMES: ReadonlySet<string> = new Set([
   "CLAUDE_CODE_SYNC_PLUGINS",
   "CLAUDE_CODE_SYNC_SKILLS",
   "CLAUDE_CODE_TMPDIR",
+  "CLAUDE_CODE_USER_DIALOG_TIMEOUT_MS",
   "CLAUDE_CONFIG_DIR",
   "ENABLE_BETA_TRACING_DETAILED",
   "ENABLE_ENHANCED_TELEMETRY_BETA",
@@ -944,6 +1001,13 @@ const CLAUDECODE_ENV_CONTENT_OFF_VALUES: ReadonlySet<string> = new Set(["0", "fa
  * writing a value Claude Code ignores is the old behavior, while dropping an
  * opt-out it honors would remove a privacy setting. `OTEL_LOG_ASSISTANT_RESPONSES`
  * has no such exception and sits in the plain name table above.
+ *
+ * `CLAUDE_CODE_ENABLE_CFC` follows the same shape for a different reason: a
+ * project cannot turn Claude in Chrome on, since a checked-out repository must
+ * not be able to connect Claude to the user's browser, so only an off value is
+ * kept at project scope.
+ *
+ * @see https://code.claude.com/docs/en/chrome#project-settings-cant-turn-on-chrome
  */
 const CLAUDECODE_ENV_PROJECT_HONORED_OFF_VALUES: Readonly<Record<string, ReadonlySet<string>>> = {
   OTEL_LOGS_EXPORTER: CLAUDECODE_ENV_EXPORTER_OFF_VALUES,
@@ -952,6 +1016,7 @@ const CLAUDECODE_ENV_PROJECT_HONORED_OFF_VALUES: Readonly<Record<string, Readonl
   OTEL_LOG_USER_PROMPTS: CLAUDECODE_ENV_CONTENT_OFF_VALUES,
   OTEL_LOG_TOOL_CONTENT: CLAUDECODE_ENV_CONTENT_OFF_VALUES,
   OTEL_LOG_TOOL_DETAILS: CLAUDECODE_ENV_CONTENT_OFF_VALUES,
+  CLAUDE_CODE_ENABLE_CFC: CLAUDECODE_ENV_CONTENT_OFF_VALUES,
 };
 
 function isProjectIgnoredEnvVariable(name: string, value: unknown): boolean {
@@ -1016,7 +1081,7 @@ function stripIgnoredEnvVariables({
   }
   if (ignoredAtProjectScope.length > 0) {
     logger?.warn(
-      `Claude Code permissions: ${ignoredAtProjectScope.map((name) => `'env.${name}'`).join(", ")} ${ignoredAtProjectScope.length === 1 ? "is" : "are"} not honored in the project-scoped ${relativeFilePath}, so ${ignoredAtProjectScope.length === 1 ? "it is" : "they are"} not written there — Claude Code ignores variables there that choose where it writes its files, export session content or telemetry, or change how it starts or syncs (a value that turns telemetry off, such as "none" or "0", is still written). Author ${ignoredAtProjectScope.length === 1 ? "it" : "them"} in the global scope instead, and check that file for a stale value an earlier generate may have left there.`,
+      `Claude Code permissions: ${ignoredAtProjectScope.map((name) => `'env.${name}'`).join(", ")} ${ignoredAtProjectScope.length === 1 ? "is" : "are"} not honored in the project-scoped ${relativeFilePath}, so ${ignoredAtProjectScope.length === 1 ? "it is" : "they are"} not written there — Claude Code ignores variables there that choose where it writes its files, export session content or telemetry, change how it starts or syncs, set dialog timers, turn attachments or file mentions off, or turn Claude in Chrome on (a value that turns telemetry or Chrome off, such as "none" or "0", is still written). Author ${ignoredAtProjectScope.length === 1 ? "it" : "them"} in the global scope instead, and check that file for a stale value an earlier generate may have left there.`,
     );
   }
   return kept;
@@ -1356,6 +1421,12 @@ export class ClaudecodePermissions extends ToolPermissions {
       overrideTopLevel[key] = value;
     }
     scopeEnvOverride({
+      overrides: overrideTopLevel,
+      global,
+      relativeFilePath: paths.relativeFilePath,
+      logger,
+    });
+    stripUserScopeOnlyNestedPaths({
       overrides: overrideTopLevel,
       global,
       relativeFilePath: paths.relativeFilePath,
