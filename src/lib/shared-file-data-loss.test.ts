@@ -116,27 +116,27 @@ describe("shared output file data-loss regressions", () => {
         permissions?: { deny?: string[] };
       };
 
-    it("preserves ignore-written Read deny entries when permissions writes afterward", async () => {
+    it("preserves ignore-written read deny entries when permissions writes afterward", async () => {
       await writeIgnore();
       // "read" is NOT managed by this permissions config, so the ignore-written
-      // Read deny entries must survive alongside the Bash entry.
+      // read_file deny entries must survive alongside the Bash entry.
       await writePermissions({ bash: { "rm *": "deny" } });
 
       const config = await readConfig();
-      expect(config.permissions?.deny).toContain("Read(.env)");
-      expect(config.permissions?.deny).toContain("Read(secrets/**)");
+      expect(config.permissions?.deny).toContain("read_file(.env)");
+      expect(config.permissions?.deny).toContain("read_file(secrets/**)");
       expect(config.permissions?.deny).toContain("Bash(rm *)");
     });
 
-    it("lets permissions' explicit Read rules win over ignore-derived denies", async () => {
+    it("lets permissions' explicit read rules win over ignore-derived denies", async () => {
       await writeIgnore();
       // Documented cross-feature rule (same as .claude/settings.json): once the
       // permissions config manages the `read` category, its rules are
-      // authoritative and the ignore-derived Read denies are replaced.
+      // authoritative and the ignore-derived read_file denies are replaced.
       await writePermissions({ read: { "**/*.pem": "deny" } });
 
       const config = await readConfig();
-      expect(config.permissions?.deny).toEqual(["Read(**/*.pem)"]);
+      expect(config.permissions?.deny).toEqual(["read_file(**/*.pem)"]);
     });
 
     it("preserves the mcp plugins block written before either feature", async () => {
@@ -151,7 +151,7 @@ describe("shared output file data-loss regressions", () => {
         plugins?: unknown[];
       };
       expect(config.plugins).toEqual([{ name: "example", command: "node" }]);
-      expect(config.permissions?.deny).toContain("Read(.env)");
+      expect(config.permissions?.deny).toContain("read_file(.env)");
     });
   });
 

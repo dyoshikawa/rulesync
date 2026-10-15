@@ -343,15 +343,22 @@ describe("ReasonixPermissions", () => {
       expect(config.reasonix?.rawAllow).toBeUndefined();
     });
 
-    it("should map canonical tool categories to Claude Code-style PascalCase families", async () => {
+    it("should map canonical tool categories to the tool names Reasonix rules match", async () => {
       const rulesyncPermissions = new RulesyncPermissions({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
         relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
         fileContent: JSON.stringify({
           permission: {
+            bash: { "npm *": "allow" },
             edit: { "docs/**": "allow" },
-            webfetch: { "domain:github.com": "allow" },
+            read: { ".env": "deny" },
+            write: { "secrets/**": "deny" },
+            grep: { "*": "allow" },
+            glob: { "*": "allow" },
+            webfetch: { "*": "ask" },
+            websearch: { "*": "ask" },
             notebookedit: { "*": "deny" },
+            agent: { "*": "ask" },
           },
         }),
       });
@@ -362,9 +369,47 @@ describe("ReasonixPermissions", () => {
       });
 
       const parsed = smolToml.parse(instance.getFileContent()) as any;
-      expect(parsed.permissions.allow).toContain("Edit(docs/**)");
-      expect(parsed.permissions.allow).toContain("WebFetch(domain:github.com)");
-      expect(parsed.permissions.deny).toContain("NotebookEdit");
+      expect(parsed.permissions).toEqual({
+        allow: ["Bash(npm *)", "Edit(docs/**)", "glob", "grep"],
+        ask: ["task", "web_fetch", "web_search"],
+        deny: ["notebook_edit", "read_file(.env)", "write_file(secrets/**)"],
+      });
+    });
+
+    it("should replace the legacy Claude-Code spellings an older rulesync wrote", async () => {
+      await writeFileContent(
+        join(testDir, "reasonix.toml"),
+        [
+          "[permissions]",
+          'allow = ["Grep", "WebFetch(domain:github.com)", "Agent"]',
+          'deny = ["Read(.env)", "Write(secrets/**)", "Edit(*.lock)"]',
+        ].join("\n"),
+      );
+
+      const rulesyncPermissions = new RulesyncPermissions({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+        fileContent: JSON.stringify({
+          permission: {
+            read: { ".env": "deny" },
+            write: { "secrets/**": "deny" },
+            grep: { "*": "allow" },
+          },
+        }),
+      });
+
+      const instance = await ReasonixPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      const parsed = smolToml.parse(instance.getFileContent()) as any;
+      // Legacy entries of managed categories are gone; unmanaged ones (here
+      // `webfetch`, `agent`, `edit`) are left for the user, as before.
+      expect(parsed.permissions).toEqual({
+        allow: ["Agent", "WebFetch(domain:github.com)", "grep"],
+        deny: ["Edit(*.lock)", "read_file(.env)", "write_file(secrets/**)"],
+      });
     });
 
     it("should preserve the [[plugins]] MCP table and other top-level keys on round-trip", async () => {
@@ -428,7 +473,7 @@ describe("ReasonixPermissions", () => {
     it("should preserve permission entries from tool categories not managed by rulesync", async () => {
       await writeFileContent(
         join(testDir, "reasonix.toml"),
-        ["[permissions]", 'deny = ["Read(.env)", "Bash(dangerous *)"]'].join("\n"),
+        ["[permissions]", 'deny = ["read_file(.env)", "Bash(dangerous *)"]'].join("\n"),
       );
 
       const rulesyncPermissions = new RulesyncPermissions({
@@ -445,15 +490,15 @@ describe("ReasonixPermissions", () => {
       });
 
       const parsed = smolToml.parse(instance.getFileContent()) as any;
-      expect(parsed.permissions.deny).toContain("Read(.env)");
+      expect(parsed.permissions.deny).toContain("read_file(.env)");
       expect(parsed.permissions.deny).toContain("Bash(rm *)");
       expect(parsed.permissions.deny).not.toContain("Bash(dangerous *)");
     });
 
-    it("should warn when permissions overwrites existing Read deny entries from ignore feature", async () => {
+    it("should warn when permissions overwrites existing read deny entries from ignore feature", async () => {
       await writeFileContent(
         join(testDir, "reasonix.toml"),
-        ["[permissions]", 'deny = ["Read(.env)", "Read(*.secret)"]'].join("\n"),
+        ["[permissions]", 'deny = ["read_file(.env)", "Read(*.secret)"]'].join("\n"),
       );
 
       const rulesyncPermissions = new RulesyncPermissions({
@@ -473,9 +518,11 @@ describe("ReasonixPermissions", () => {
 
       const parsed = smolToml.parse(instance.getFileContent()) as any;
       expect(parsed.permissions.deny).toBeUndefined();
-      expect(parsed.permissions.allow).toContain("Read(src/**)");
+      expect(parsed.permissions.allow).toContain("read_file(src/**)");
       expect(mockLogger.warn).toHaveBeenCalledWith(
-        expect.stringContaining("Permissions feature manages 'Read' tool"),
+        expect.stringContaining(
+          "Permissions feature manages 'read_file' tool and will overwrite 2 existing read deny entries",
+        ),
       );
     });
 
@@ -1095,6 +1142,34 @@ describe("ReasonixPermissions", () => {
 
       expect(config.permission.bash).toEqual({ "*": "allow" });
       expect(config.permission.webfetch).toEqual({ "*": "deny" });
+    });
+
+    it("should import both the Reasonix tool names and the legacy Claude-Code spellings", () => {
+      const instance = new ReasonixPermissions({
+        relativeDirPath: ".",
+        relativeFilePath: "reasonix.toml",
+        fileContent: [
+          "[permissions]",
+          'allow = ["grep", "Glob", "web_search", "task"]',
+          'ask = ["edit_file(src/**)"]',
+          'deny = ["read_file(.env)", "Read(*.pem)", "write_file(secrets/**)", "NotebookEdit"]',
+        ].join("\n"),
+      });
+
+      const config = instance.toRulesyncPermissions().getJson();
+
+      expect(config.permission).toEqual({
+        grep: { "*": "allow" },
+        glob: { "*": "allow" },
+        websearch: { "*": "allow" },
+        agent: { "*": "allow" },
+        // A Reasonix tool with no canonical category keeps its own name, so it
+        // is written back unchanged on the next generate.
+        edit_file: { "src/**": "ask" },
+        read: { ".env": "deny", "*.pem": "deny" },
+        write: { "secrets/**": "deny" },
+        notebookedit: { "*": "deny" },
+      });
     });
 
     it("should lift exact Bash=<literal> entries into the reasonix override instead of minting a category", () => {
