@@ -5633,6 +5633,9 @@ targets: ["factorydroid"]
         expect.stringContaining("leaky-style.md"),
         expect.stringContaining("default-targets-style.md"),
       ]);
+      expect(warnings.find((message) => message.includes("also targets other tools"))).toContain(
+        "keep the output style to Factory Droid.",
+      );
       expect(warnings.filter((message) => message.includes("sets factorydroid.name"))).toEqual([
         expect.stringContaining("design.md"),
       ]);
@@ -5683,6 +5686,9 @@ targets: ["factorydroid"]
       expect(warnings.filter((message) => message.includes("also targets other tools"))).toEqual([
         expect.stringContaining("leaky-style.md"),
       ]);
+      expect(warnings.find((message) => message.includes("also targets other tools"))).toContain(
+        "keep the output style to Qoder.",
+      );
       expect(warnings.filter((message) => message.includes("sets qoder.name"))).toEqual([
         expect.stringContaining("topic.md"),
       ]);
