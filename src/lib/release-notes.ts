@@ -39,25 +39,33 @@ export type ReleaseNote = {
   body: string | null;
 };
 
+/** The `YYYY-MM-DD` date part at the start of a date or timestamp. */
+const LEADING_DATE_PATTERN = /^(\d{4}-\d{2}-\d{2})(?:$|[T ])/i;
+
+/** A bare `YYYY-MM-DD` with no time part. */
+const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
 /**
  * Parse a `YYYY-MM-DD` or full ISO 8601 date into a timestamp, or return null
  * when the input is not a valid date.
  */
 function parseDate(value: string): number | null {
-  const timestamp = Date.parse(value.trim());
+  const trimmed = value.trim();
+  const timestamp = Date.parse(trimmed);
   if (Number.isNaN(timestamp)) return null;
-  // Date.parse rolls impossible calendar dates into the following month.
-  if (
-    DATE_ONLY_PATTERN.test(value.trim()) &&
-    new Date(timestamp).toISOString().slice(0, 10) !== value.trim()
-  ) {
-    return null;
+  // Date.parse rolls impossible calendar dates (e.g. 2026-02-30) into the
+  // following month, for bare dates and full timestamps alike. Check the
+  // leading date part on its own so a UTC offset in the timestamp cannot
+  // shift the comparison to a neighboring day.
+  const datePart = LEADING_DATE_PATTERN.exec(trimmed)?.[1];
+  if (datePart !== undefined) {
+    const dateOnly = new Date(`${datePart}T00:00:00Z`);
+    if (Number.isNaN(dateOnly.getTime()) || dateOnly.toISOString().slice(0, 10) !== datePart) {
+      return null;
+    }
   }
   return timestamp;
 }
-
-/** A bare `YYYY-MM-DD` with no time part. */
-const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
  * Parse the inclusive end of a date range. A bare `YYYY-MM-DD` parses as
@@ -65,8 +73,9 @@ const DATE_ONLY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
  * so a date-only `--until` is stretched to the end of that day.
  */
 function parseUntilDate(value: string): number | null {
-  if (DATE_ONLY_PATTERN.test(value.trim())) {
-    return parseDate(`${value.trim()}T23:59:59.999Z`);
+  const trimmed = value.trim();
+  if (DATE_ONLY_PATTERN.test(trimmed)) {
+    return parseDate(`${trimmed}T23:59:59.999Z`);
   }
   return parseDate(value);
 }
