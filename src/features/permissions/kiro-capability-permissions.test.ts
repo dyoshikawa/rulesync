@@ -161,7 +161,7 @@ describe("KiroCapabilityPermissions", () => {
 
     // Rerunning generate is idempotent.
     const second = await generate();
-    expect(load(second.getFileContent())).toEqual(load(first.getFileContent()));
+    expect(second.getFileContent()).toBe(first.getFileContent());
   });
 
   it("keeps every existing rule when rulesync has no Kiro-mapped rules", async () => {
@@ -183,6 +183,24 @@ describe("KiroCapabilityPermissions", () => {
     });
     // Nothing changed, so the content is returned verbatim, comments included.
     expect(perms.getFileContent()).toBe(existing);
+  });
+
+  it("keeps an existing rule with an empty match list", async () => {
+    await writeFileContent(
+      permissionsPath(),
+      ["rules:", "  - capability: shell", "    match: []", "    effect: allow", ""].join("\n"),
+    );
+
+    const perms = await KiroCapabilityPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: rulesyncPermissions({ permission: { bash: { "*": "allow" } } }),
+    });
+    expect(load(perms.getFileContent())).toEqual({
+      rules: [
+        { capability: "shell", match: [], effect: "allow" },
+        { capability: "shell", effect: "allow" },
+      ],
+    });
   });
 
   it("does not retract rules a previous run wrote, and warns about them", async () => {

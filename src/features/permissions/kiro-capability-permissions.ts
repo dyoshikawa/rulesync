@@ -135,6 +135,8 @@ function mergeExistingRule({
   const capability = rule.capability;
   const isCatchAll = rule.match === undefined;
   const patterns = isStringArray(rule.match) ? rule.match : [CATCH_ALL_PATTERN];
+  // An empty `match` is not a rule rulesync writes; keep it verbatim.
+  if (patterns.length === 0) return { rule, unrelatedEntries: 0 };
   const remaining: string[] = [];
   let unrelatedEntries = 0;
   for (const pattern of patterns) {
@@ -197,7 +199,7 @@ function mergeKiroCapabilityRules({
 
   if (unrelatedManagedEntries > 0) {
     logger?.warn(
-      `Kiro permissions.yaml keeps ${unrelatedManagedEntries} existing shell/fs_read/fs_write/web_fetch/web_search rule ${unrelatedManagedEntries === 1 ? "entry" : "entries"} that .rulesync/permissions.json does not generate. Rulesync never removes rules from this file, so delete any it wrote earlier by hand.`,
+      `Kiro permissions.yaml keeps ${unrelatedManagedEntries} existing shell/fs_read/fs_write/web_fetch/web_search rule ${unrelatedManagedEntries === 1 ? "entry" : "entries"} that .rulesync/permissions.json does not generate. Rulesync never removes rules from this file and cannot tell which of these it wrote earlier; delete any stale ones by hand.`,
     );
   }
   return [...kept, ...generatedRules];
