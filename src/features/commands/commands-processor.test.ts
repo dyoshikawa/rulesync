@@ -1334,6 +1334,7 @@ describe("CommandsProcessor", () => {
           "trae",
           "devin",
           "warp",
+          "kimi-code",
           "zcode",
           "zcode-plugin",
         ]),
@@ -1385,6 +1386,7 @@ describe("CommandsProcessor", () => {
           "trae",
           "devin",
           "warp",
+          "kimi-code",
           "zcode",
           "zcode-plugin",
         ]),
@@ -1433,6 +1435,7 @@ describe("CommandsProcessor", () => {
           "trae",
           "devin",
           "warp",
+          "kimi-code",
           "zcode",
         ]),
       );

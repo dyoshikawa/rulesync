@@ -92,4 +92,66 @@ describe("KimiCodeSkill", () => {
       );
     });
   });
+
+  describe("isDirOwned", () => {
+    const writeCommand = async () => {
+      await writeFileContent(
+        join(testDir, ".rulesync", "commands", "review-pr.md"),
+        "---\ndescription: Review\n---\nReview.",
+      );
+    };
+
+    it("should disown a Kimi skills directory matching a rulesync command slug (KimiCodeCommand owns it)", async () => {
+      await writeCommand();
+      const base = { outputRoot: testDir, inputRoots: [join(testDir, ".rulesync")] };
+
+      await expect(
+        KimiCodeSkill.isDirOwned({
+          ...base,
+          relativeDirPath: join(".kimi-code", "skills"),
+          dirName: "review-pr",
+          global: false,
+        }),
+      ).resolves.toBe(false);
+      await expect(
+        KimiCodeSkill.isDirOwned({
+          ...base,
+          relativeDirPath: join(".kimi-code", "skills"),
+          dirName: "a-real-skill",
+          global: false,
+        }),
+      ).resolves.toBe(true);
+    });
+
+    it("should keep a same-named skill when the command does not target kimi-code", async () => {
+      await writeFileContent(
+        join(testDir, ".rulesync", "commands", "review-pr.md"),
+        '---\ntargets: ["claudecode"]\ndescription: Review\n---\nReview.',
+      );
+
+      await expect(
+        KimiCodeSkill.isDirOwned({
+          outputRoot: testDir,
+          inputRoots: [join(testDir, ".rulesync")],
+          relativeDirPath: join(".kimi-code", "skills"),
+          dirName: "review-pr",
+          global: false,
+        }),
+      ).resolves.toBe(true);
+    });
+
+    it("should keep a same-named skill in the import-only .agents/skills root", async () => {
+      await writeCommand();
+
+      await expect(
+        KimiCodeSkill.isDirOwned({
+          outputRoot: testDir,
+          inputRoots: [join(testDir, ".rulesync")],
+          relativeDirPath: join(".agents", "skills"),
+          dirName: "review-pr",
+          global: false,
+        }),
+      ).resolves.toBe(true);
+    });
+  });
 });

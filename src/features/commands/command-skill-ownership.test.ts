@@ -83,4 +83,28 @@ describe("rulesyncCommandSlugExists", () => {
       }),
     ).toBe(false);
   });
+
+  it("should only count commands targeting the given tool when toolTarget is set", async () => {
+    const inputRoots = [join(testDir, RULESYNC_RELATIVE_DIR_PATH)];
+    await writeFileContent(
+      join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "claude-only.md"),
+      '---\ntargets: ["claudecode"]\n---\nClaude only.',
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "kimi-only.md"),
+      '---\ntargets: ["kimi-code"]\n---\nKimi only.',
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "everyone.md"),
+      "---\ndescription: All\n---\nAll.",
+    );
+
+    const exists = (dirName: string) =>
+      rulesyncCommandSlugExists({ inputRoots, dirName, toolTarget: "kimi-code" });
+    expect(await exists("claude-only")).toBe(false);
+    expect(await exists("kimi-only")).toBe(true);
+    expect(await exists("everyone")).toBe(true);
+    // Without toolTarget every command counts, as before.
+    expect(await rulesyncCommandSlugExists({ inputRoots, dirName: "claude-only" })).toBe(true);
+  });
 });

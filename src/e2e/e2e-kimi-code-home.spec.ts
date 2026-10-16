@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
+  RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
   RULESYNC_HOOKS_RELATIVE_FILE_PATH,
   RULESYNC_MCP_RELATIVE_FILE_PATH,
   RULESYNC_OVERVIEW_FILE_NAME,
@@ -55,6 +56,16 @@ describe("E2E: KIMI_CODE_HOME", () => {
       ].join("\n"),
     );
     await writeFileContent(
+      join(projectDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "generated-command.md"),
+      [
+        "---",
+        'targets: ["*"]',
+        'description: "Generated command"',
+        "---",
+        "Generated custom-home command.",
+      ].join("\n"),
+    );
+    await writeFileContent(
       join(projectDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "generated-agent.md"),
       [
         "---",
@@ -81,7 +92,7 @@ describe("E2E: KIMI_CODE_HOME", () => {
 
     await runGenerate({
       target: "kimi-code",
-      features: "rules,mcp,skills,subagents,hooks,permissions",
+      features: "rules,mcp,commands,skills,subagents,hooks,permissions",
       global: true,
       env,
     });
@@ -93,6 +104,10 @@ describe("E2E: KIMI_CODE_HOME", () => {
     expect(
       await readFileContent(join(kimiCodeHome, "skills", "generated-skill", "SKILL.md")),
     ).toContain("Generated custom-home skill");
+    // Commands ride the skills surface, so they follow KIMI_CODE_HOME too.
+    expect(
+      await readFileContent(join(kimiCodeHome, "skills", "generated-command", "SKILL.md")),
+    ).toContain("Generated custom-home command");
     expect(await readFileContent(join(kimiCodeHome, "agents", "generated-agent.md"))).toContain(
       "Generated custom-home agent",
     );

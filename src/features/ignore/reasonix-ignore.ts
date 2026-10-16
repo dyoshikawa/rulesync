@@ -1,5 +1,7 @@
 import { join } from "node:path";
 
+import { uniq } from "es-toolkit";
+
 import {
   REASONIX_GLOBAL_DIR,
   REASONIX_GLOBAL_PERMISSIONS_FILE_NAME,
@@ -8,7 +10,12 @@ import {
 import type { ClaudeSettingsJson } from "../../types/claude-settings.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { isPlainObject } from "../../utils/type-guards.js";
-import { toReasonixStringArray, toReasonixTable } from "../shared/reasonix-config-table.js";
+import {
+  REASONIX_LEGACY_READ_TOOL_NAME,
+  REASONIX_READ_TOOL_NAME,
+  toReasonixStringArray,
+  toReasonixTable,
+} from "../shared/reasonix-config-table.js";
 import {
   applyIgnoreReadDenies,
   buildReadDenyEntry,
@@ -48,9 +55,24 @@ const asClaudeStyleSettings = (document: SharedConfigDocument): ClaudeSettingsJs
       ...table,
       allow: toReasonixStringArray(table.allow),
       ask: toReasonixStringArray(table.ask),
-      deny: toReasonixStringArray(table.deny),
+      // Read denies rulesync wrote under the legacy `Read(...)` spelling never
+      // matched a Reasonix tool. They are dropped here so the `read_file(...)`
+      // replacements below are the only copies left.
+      deny: toReasonixStringArray(table.deny).filter(
+        (entry) => !isReadDenyEntry(entry, REASONIX_LEGACY_READ_TOOL_NAME),
+      ),
     },
   };
+};
+
+/** The pattern of a `read_file(...)` (or legacy `Read(...)`) deny, else null. */
+const readDenyPatternOf = (entry: string): string | null => {
+  for (const toolName of [REASONIX_READ_TOOL_NAME, REASONIX_LEGACY_READ_TOOL_NAME]) {
+    if (isReadDenyEntry(entry, toolName)) {
+      return entry.slice(toolName.length + 1, -1);
+    }
+  }
+  return null;
 };
 
 /**
@@ -68,13 +90,16 @@ const withoutEmptyPermissions = (settings: ClaudeSettingsJson): SharedConfigDocu
 };
 
 /**
- * Writes `.rulesyncignore` patterns as `Read(<pattern>)` entries in the
+ * Writes `.rulesyncignore` patterns as `read_file(<pattern>)` entries in the
  * `[permissions] deny` table of `reasonix.toml` (project) /
  * `~/.reasonix/config.toml` (global).
  *
  * `deny` is the right target rather than `[sandbox] forbid_read`: deny rules
  * take glob specifiers (`Edit(docs/**)`) and are "a hard block in every mode",
  * while `forbid_read` is documented as absolute paths with no glob support.
+ * The tool is spelled `read_file` because Reasonix matches rule tools against
+ * its registered tool names (see {@link REASONIX_READ_TOOL_NAME}); a legacy
+ * `Read(...)` deny is still read back on import.
  * @see https://github.com/esengine/DeepSeek-Reasonix/blob/main-v2/docs/SPEC.md
  */
 export class ReasonixIgnore extends ToolIgnore {
@@ -106,10 +131,11 @@ export class ReasonixIgnore extends ToolIgnore {
   }
 
   toRulesyncIgnore(): RulesyncIgnore {
-    const rulesyncPatterns = this.patterns
-      .filter((pattern) => isReadDenyEntry(pattern))
-      .map((pattern) => pattern.slice("Read(".length, -1))
-      .filter((pattern) => pattern.length > 0);
+    const rulesyncPatterns = uniq(
+      this.patterns
+        .map((entry) => readDenyPatternOf(entry))
+        .filter((pattern): pattern is string => pattern !== null && pattern.length > 0),
+    );
 
     return new RulesyncIgnore({
       outputRoot: this.outputRoot,
@@ -129,7 +155,9 @@ export class ReasonixIgnore extends ToolIgnore {
       .split(/\r?\n|\r/)
       .map((line: string) => line.trim())
       .filter((line) => line.length > 0 && !line.startsWith("#"));
-    const readDenies = patterns.map((pattern) => buildReadDenyEntry(pattern));
+    const readDenies = patterns.map((pattern) =>
+      buildReadDenyEntry(pattern, REASONIX_READ_TOOL_NAME),
+    );
 
     const paths = this.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
@@ -146,6 +174,7 @@ export class ReasonixIgnore extends ToolIgnore {
       applyIgnoreReadDenies({
         settings: asClaudeStyleSettings(existingDocument),
         readDenies,
+        readToolName: REASONIX_READ_TOOL_NAME,
       }),
     );
 

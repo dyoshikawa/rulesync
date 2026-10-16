@@ -424,12 +424,12 @@ describe("git-client", () => {
       expect(removeTempDirectory).toHaveBeenCalledWith("/tmp/test");
     });
 
-    it("skips .git directories", async () => {
+    it.each([".git", ".GIT", ".Git"])("skips %s directories", async (gitDirName) => {
       mockExecFileAsync.mockResolvedValue({ stdout: "", stderr: "" });
       vi.mocked(createTempDirectory).mockResolvedValue("/tmp/test");
       vi.mocked(removeTempDirectory).mockResolvedValue(undefined);
       vi.mocked(directoryExists).mockImplementation(async (p: string) => p.endsWith("skills"));
-      vi.mocked(listDirectoryEntryNames).mockResolvedValue([".git", "file.md"]);
+      vi.mocked(listDirectoryEntryNames).mockResolvedValue([gitDirName, "file.md"]);
       vi.mocked(getFileSizeAndExecutableBit).mockResolvedValue({ size: 10, executable: false });
       vi.mocked(readFileContent).mockResolvedValue("content");
 

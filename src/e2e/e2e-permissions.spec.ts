@@ -4393,7 +4393,7 @@ describe("E2E: permissions (global mode)", () => {
     );
     const permissions = toTable(parsed.permissions);
     expect(permissions.allow).toContain("Bash(git status *)");
-    expect(permissions.deny).toContain("Read(.env)");
+    expect(permissions.deny).toContain("read_file(.env)");
     expect(toTableArray(parsed.plugins)).toMatchObject([{ name: "existing", command: "node" }]);
   });
 });

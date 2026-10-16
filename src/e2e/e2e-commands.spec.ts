@@ -63,6 +63,8 @@ const commandsGenerateTargets = [
   { target: "devin", outputPath: join(".devin", "skills", "review-pr", "SKILL.md") },
   // Warp's custom slash-command surface is skills, too.
   { target: "warp", outputPath: join(".warp", "skills", "review-pr", "SKILL.md") },
+  // Kimi Code registers every Skill as a slash command, too.
+  { target: "kimi-code", outputPath: join(".kimi-code", "skills", "review-pr", "SKILL.md") },
   { target: "factorydroid", outputPath: join(".factory", "commands", "review-pr.md") },
   { target: "goose", outputPath: join(".goose", "recipes", "review-pr.yaml") },
   { target: "gitlabduo", outputPath: join(".agents", "commands", "review-pr.md") },
@@ -111,6 +113,7 @@ const commandsGlobalTargets = [
     outputPath: join(".config", "devin", "skills", "review-pr", "SKILL.md"),
   },
   { target: "warp", outputPath: join(".warp", "skills", "review-pr", "SKILL.md") },
+  { target: "kimi-code", outputPath: join(".kimi-code", "skills", "review-pr", "SKILL.md") },
   { target: "factorydroid", outputPath: join(".factory", "commands", "review-pr.md") },
   { target: "goose", outputPath: join(".config", "goose", "recipes", "review-pr.yaml") },
   { target: "gitlabduo", outputPath: join(".gitlab", "duo", "commands", "review-pr.md") },
@@ -308,57 +311,63 @@ Check the PR diff and provide feedback.
   );
 });
 
-describe("E2E: devin commands on the skills surface", () => {
+describe("E2E: commands on the skills surface", () => {
   const { getTestDir } = useTestDirectory();
 
-  it("should keep command outputs when skills --delete removes orphan skills", async () => {
-    const testDir = getTestDir();
+  it.each([
+    { target: "devin", skillsDir: join(".devin", "skills") },
+    { target: "kimi-code", skillsDir: join(".kimi-code", "skills") },
+  ])(
+    "should keep $target command outputs when skills --delete removes orphan skills",
+    async ({ target, skillsDir }) => {
+      const testDir = getTestDir();
 
-    await writeFileContent(
-      join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "my-command.md"),
-      `---
+      await writeFileContent(
+        join(testDir, RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "my-command.md"),
+        `---
 description: "My command"
 targets: ["*"]
 ---
 Do the thing.
 `,
-    );
-    await writeFileContent(
-      join(testDir, ".rulesync", "skills", "my-skill", "SKILL.md"),
-      `---
+      );
+      await writeFileContent(
+        join(testDir, ".rulesync", "skills", "my-skill", "SKILL.md"),
+        `---
 name: my-skill
 description: "My skill"
 targets: ["*"]
 ---
 Skill body.
 `,
-    );
-    // An orphan skill dir no rulesync source produces anymore.
-    await writeFileContent(
-      join(testDir, ".devin", "skills", "orphan-skill", "SKILL.md"),
-      "---\nname: orphan-skill\ndescription: stale\n---\nold\n",
-    );
+      );
+      // An orphan skill dir no rulesync source produces anymore.
+      await writeFileContent(
+        join(testDir, skillsDir, "orphan-skill", "SKILL.md"),
+        "---\nname: orphan-skill\ndescription: stale\n---\nold\n",
+      );
 
-    await runGenerate({
-      target: "devin",
-      features: "commands,skills",
-      deleteFiles: true,
-      env: { NODE_ENV: "e2e" },
-    });
+      await runGenerate({
+        target,
+        features: "commands,skills",
+        deleteFiles: true,
+        env: { NODE_ENV: "e2e" },
+      });
 
-    // The command-emitted SKILL.md survives the skills feature's orphan
-    // deletion (isDirOwned protection), the real skill is written, and the
-    // genuine orphan is cleaned up.
-    expect(
-      await readFileContent(join(testDir, ".devin", "skills", "my-command", "SKILL.md")),
-    ).toContain("Do the thing.");
-    expect(
-      await readFileContent(join(testDir, ".devin", "skills", "my-skill", "SKILL.md")),
-    ).toContain("Skill body.");
-    await expect(
-      readFileContent(join(testDir, ".devin", "skills", "orphan-skill", "SKILL.md")),
-    ).rejects.toThrow();
-  });
+      // The command-emitted SKILL.md survives the skills feature's orphan
+      // deletion (isDirOwned protection), the real skill is written, and the
+      // genuine orphan is cleaned up.
+      expect(await readFileContent(join(testDir, skillsDir, "my-command", "SKILL.md"))).toContain(
+        "Do the thing.",
+      );
+      expect(await readFileContent(join(testDir, skillsDir, "my-skill", "SKILL.md"))).toContain(
+        "Skill body.",
+      );
+      await expect(
+        readFileContent(join(testDir, skillsDir, "orphan-skill", "SKILL.md")),
+      ).rejects.toThrow();
+    },
+  );
 });
 
 describe("E2E: antigravity commands on the skills surface", () => {

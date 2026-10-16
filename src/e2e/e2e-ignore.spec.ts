@@ -136,12 +136,17 @@ credentials/
           expect.arrayContaining([expect.stringContaining("tmp/")]),
         );
       } else if (format === "toml" && target === "reasonix") {
-        // Reasonix writes Read(<pattern>) entries into the [permissions] table
+        // Reasonix writes read_file(<pattern>) entries into the [permissions]
+        // table: its rules name registered tools, and `Read` is not one.
         const parsed = parseToml(generatedContent) as {
           permissions?: { deny?: string[] };
         };
         expect(parsed.permissions?.deny).toEqual(
-          expect.arrayContaining(["Read(tmp/)", "Read(credentials/)", "Read(*.secret)"]),
+          expect.arrayContaining([
+            "read_file(tmp/)",
+            "read_file(credentials/)",
+            "read_file(*.secret)",
+          ]),
         );
       } else if (format === "toml" && target === "grokcli") {
         // Grok CLI writes a deny list into the rulesync sandbox profile,
@@ -332,7 +337,7 @@ credentials/
 
     await writeFileContent(
       join(testDir, REASONIX_PROJECT_PERMISSIONS_FILE_NAME),
-      '[permissions]\ndeny = ["Read(tmp/)", "Read(credentials/)", "Bash(rm *)"]\n',
+      '[permissions]\ndeny = ["read_file(tmp/)", "Read(credentials/)", "Bash(rm *)"]\n',
     );
 
     await runImport({ target: "reasonix", features: "ignore" });
