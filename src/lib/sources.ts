@@ -517,7 +517,6 @@ async function prefetchGithubSource(params: {
   const parsed: ParsedSource = {
     ...parsedFromSource,
     ref: sourceEntry.ref ?? parsedFromSource.ref,
-    path: sourceEntry.path ?? parsedFromSource.path,
   };
   const locked = getLockedSource(lock, sourceEntry.source);
   const ref = await resolvePrefetchRef({ parsed, locked, context });
@@ -590,7 +589,7 @@ async function prefetchGithubSkills(params: {
   const skillFilter = sourceEntry.skills ?? ["*"];
   const isWildcard = skillFilter.length === 1 && skillFilter[0] === "*";
   const entries = await withSemaphore(semaphore, () =>
-    client.listDirectory(parsed.owner, parsed.repo, parsed.path ?? "skills", ref),
+    client.listDirectory(parsed.owner, parsed.repo, resolveSkillsSourcePath(sourceEntry), ref),
   );
   const skillDirs = entries.filter(
     (entry) => entry.type === "dir" && (isWildcard || skillFilter.includes(entry.name)),
@@ -704,7 +703,12 @@ async function prefetchGithubRules(params: {
     return;
   }
   const entries = await withSemaphore(context.semaphore, () =>
-    context.client.listDirectory(parsed.owner, parsed.repo, sourceEntry.rulesPath ?? "rules", ref),
+    context.client.listDirectory(
+      parsed.owner,
+      parsed.repo,
+      resolveRulesSourcePath(sourceEntry),
+      ref,
+    ),
   );
   const ruleFilter = (sourceEntry.rules ?? []).map(normalizeRuleFilterName);
   const isWildcard = ruleFilter.length === 1 && ruleFilter[0] === "*";
@@ -2094,20 +2098,37 @@ async function canReuseLockedSkills(params: {
 }
 
 /**
- * The normalized path the skills of a source are read from: the source's
+ * The path the skills of a source are read from, as declared: the source's
  * `path`, else (for the github transport) the path embedded in the source
- * spec, else `skills`.
+ * spec, else `skills`. Every transport fetches from this path, and the
+ * lockfile records its normalized form ({@link resolveSkillsPath}), so the
+ * fetch and the lock comparison cannot pick different paths.
  */
-function resolveSkillsPath(sourceEntry: SourceEntry): string {
+function resolveSkillsSourcePath(sourceEntry: SourceEntry): string {
   const embeddedPath =
     (sourceEntry.transport ?? "github") === "github"
       ? parseSource(sourceEntry.source).path
       : undefined;
-  return normalizeSourceDirPath(sourceEntry.path ?? embeddedPath ?? "skills");
+  return sourceEntry.path ?? embeddedPath ?? "skills";
 }
 
-function normalizeRulesPath(rulesPath: string | undefined): string {
-  return normalizeSourceDirPath(rulesPath ?? "rules");
+/** The skills path of a source in the form the lockfile records and compares. */
+function resolveSkillsPath(sourceEntry: SourceEntry): string {
+  return normalizeSourceDirPath(resolveSkillsSourcePath(sourceEntry));
+}
+
+/**
+ * The path the rules of a source are read from, as declared: the source's
+ * `rulesPath`, else `rules`. The rules counterpart of
+ * {@link resolveSkillsSourcePath}.
+ */
+function resolveRulesSourcePath(sourceEntry: SourceEntry): string {
+  return sourceEntry.rulesPath ?? "rules";
+}
+
+/** The rules path of a source in the form the lockfile records and compares. */
+function resolveRulesPath(sourceEntry: SourceEntry): string {
+  return normalizeSourceDirPath(resolveRulesSourcePath(sourceEntry));
 }
 
 /**
@@ -2130,7 +2151,7 @@ function lockedRuleConfigMatches(params: {
   return (
     selection.length === params.locked.ruleSelection.length &&
     selection.every((ruleName, index) => ruleName === params.locked.ruleSelection?.[index]) &&
-    normalizeRulesPath(params.sourceEntry.rulesPath) === params.locked.rulesPath
+    resolveRulesPath(params.sourceEntry) === params.locked.rulesPath
   );
 }
 
@@ -2220,7 +2241,7 @@ async function fetchRulesViaGithub(params: {
 
   const ruleFilter = (sourceEntry.rules ?? []).map(normalizeRuleFilterName);
   const isWildcard = ruleFilter.length === 1 && ruleFilter[0] === "*";
-  const rulesPath = sourceEntry.rulesPath ?? "rules";
+  const rulesPath = resolveRulesSourcePath(sourceEntry);
   let entries: GitHubFileEntry[];
   try {
     entries = await client.listDirectory(parsed.owner, parsed.repo, rulesPath, ref);
@@ -2278,7 +2299,7 @@ async function fetchRulesViaGithub(params: {
     requestedRef,
     resolvedRef: resolvedSha,
     ruleSelection: normalizeRuleSelection(sourceEntry.rules ?? []),
-    rulesPath: normalizeRulesPath(sourceEntry.rulesPath),
+    rulesPath: resolveRulesPath(sourceEntry),
     resolvedRuleNames: remoteRuleNames,
     logger,
   });
@@ -2354,7 +2375,7 @@ async function fetchRulesViaGit(params: {
     url: sourceKey,
     ref: requestedRef,
     resolvedRef,
-    skillsPath: sourceEntry.rulesPath ?? "rules",
+    skillsPath: resolveRulesSourcePath(sourceEntry),
     logger,
   });
   const ruleFilter = (sourceEntry.rules ?? []).map(normalizeRuleFilterName);
@@ -2389,7 +2410,7 @@ async function fetchRulesViaGit(params: {
     requestedRef,
     resolvedRef,
     ruleSelection: normalizeRuleSelection(sourceEntry.rules ?? []),
-    rulesPath: normalizeRulesPath(sourceEntry.rulesPath),
+    rulesPath: resolveRulesPath(sourceEntry),
     resolvedRuleNames: remoteRuleNames,
     logger,
   });
@@ -2621,6 +2642,7 @@ async function fetchGithubSkillDir(params: {
  */
 async function discoverGithubSkillDirs(params: {
   parsed: ParsedSource;
+  skillsBasePath: string;
   ref: string;
   resolvedSha: string;
   skillFilter: string[];
@@ -2646,6 +2668,7 @@ async function discoverGithubSkillDirs(params: {
 > {
   const {
     parsed,
+    skillsBasePath,
     ref,
     resolvedSha,
     skillFilter,
@@ -2662,7 +2685,6 @@ async function discoverGithubSkillDirs(params: {
     logger,
   } = params;
 
-  const skillsBasePath = parsed.path ?? "skills";
   try {
     const entries = await client.listDirectory(parsed.owner, parsed.repo, skillsBasePath, ref);
     const remoteSkillDirs = entries
@@ -2759,7 +2781,6 @@ async function fetchSource(params: {
   const parsed: ParsedSource = {
     ...parsedFromSource,
     ref: sourceEntry.ref ?? parsedFromSource.ref,
-    path: sourceEntry.path ?? parsedFromSource.path,
   };
 
   if (parsed.provider === "gitlab") {
@@ -2819,6 +2840,7 @@ async function fetchSource(params: {
   // Otherwise, look for "skills/" at the repo root.
   const discovery = await discoverGithubSkillDirs({
     parsed,
+    skillsBasePath: resolveSkillsSourcePath(sourceEntry),
     ref,
     resolvedSha,
     skillFilter,
@@ -2972,7 +2994,7 @@ async function fetchSourceViaGit(params: {
     url,
     ref: requestedRef,
     resolvedRef: resolvedSha,
-    skillsPath: sourceEntry.path ?? "skills",
+    skillsPath: resolveSkillsSourcePath(sourceEntry),
     logger,
   });
 
@@ -3247,7 +3269,7 @@ function buildNpmLockEntry(params: {
     ...(sourceEntry.rules !== undefined && {
       rules: mergedRules,
       ruleSelection: normalizeRuleSelection(sourceEntry.rules),
-      rulesPath: normalizeRulesPath(sourceEntry.rulesPath),
+      rulesPath: resolveRulesPath(sourceEntry),
       resolvedRuleNames,
     }),
   };
@@ -3289,7 +3311,7 @@ async function fetchNpmSkills(params: {
   const declaredWildcard = skillFilter.length === 1 && skillFilter[0] === "*";
   const selectedFiles = selectNpmSkillFiles({
     allFiles,
-    skillsPath: sourceEntry.path ?? "skills",
+    skillsPath: resolveSkillsSourcePath(sourceEntry),
     skillFilter,
     isWildcard: declaredWildcard,
     packageName,
@@ -3359,7 +3381,7 @@ async function fetchNpmRules(params: {
     updateSources,
     logger,
   } = params;
-  const normalizedRulesPath = normalizeRulesPath(sourceEntry.rulesPath);
+  const normalizedRulesPath = resolveRulesPath(sourceEntry);
   const rulePrefix = normalizedRulesPath === "." ? "" : `${normalizedRulesPath}/`;
   const ruleFilter = (sourceEntry.rules ?? []).map(normalizeRuleFilterName);
   const isWildcard = ruleFilter.length === 1 && ruleFilter[0] === "*";
