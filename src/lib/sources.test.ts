@@ -3752,8 +3752,17 @@ describe("resolveAndFetchSources", () => {
       expect(lastRepoCDownload).toBeLessThan(
         vi.mocked(writeFileContent).mock.invocationCallOrder[0]!,
       );
-      // Each file is downloaded once: the serial pass reuses the prefetched answer.
-      expect(mockClientInstance.getFileContent).toHaveBeenCalledTimes(6);
+      // Each file is downloaded once: the serial pass reuses the prefetched
+      // answer, and the copies of `shared` that repo-b and repo-c offer are not
+      // downloaded at all, since repo-a, declared first, takes that name.
+      expect(mockClientInstance.getFileContent).toHaveBeenCalledTimes(4);
+      expect(mockClientInstance.listDirectory).not.toHaveBeenCalledWith(
+        "org",
+        "repo-b",
+        "skills/shared",
+        expect.anything(),
+        expect.anything(),
+      );
     });
 
     it("bounds how many sources and requests are in flight at once", async () => {
@@ -3783,14 +3792,14 @@ describe("resolveAndFetchSources", () => {
         },
       );
       mockClientInstance.listDirectory.mockImplementation(
-        async (_owner: string, _repo: string, path: string) =>
+        async (_owner: string, repo: string, path: string) =>
           track(async () => {
             if (path === "skills") {
-              return [{ name: "skill", path: "skills/skill", type: "dir" }];
+              return [{ name: `skill-${repo}`, path: `skills/skill-${repo}`, type: "dir" }];
             }
             return Array.from({ length: filesPerSkill }, (_, index) => ({
               name: `file-${index}.md`,
-              path: `skills/skill/file-${index}.md`,
+              path: `${path}/file-${index}.md`,
               type: "file",
               size: 10,
             }));
@@ -3821,6 +3830,90 @@ describe("resolveAndFetchSources", () => {
       expect(maxRequestsInFlight).toBeLessThanOrEqual(FETCH_CONCURRENCY_LIMIT);
       expect(maxRequestsInFlight).toBeGreaterThan(1);
       expect(mockClientInstance.getFileContent).toHaveBeenCalledTimes(sourceCount * filesPerSkill);
+    });
+
+    it("keeps the source bound when one of a source's requests fails while others are still running", async () => {
+      const sourceCount = SOURCE_PREFETCH_CONCURRENCY_LIMIT + 3;
+      const inFlightByRepo = new Map<string, number>();
+      let maxActiveSources = 0;
+      const track = async <T>(repo: string, work: () => Promise<T>): Promise<T> => {
+        inFlightByRepo.set(repo, (inFlightByRepo.get(repo) ?? 0) + 1);
+        const active = [...inFlightByRepo.values()].filter((count) => count > 0).length;
+        maxActiveSources = Math.max(maxActiveSources, active);
+        try {
+          return await work();
+        } finally {
+          inFlightByRepo.set(repo, (inFlightByRepo.get(repo) ?? 1) - 1);
+        }
+      };
+      const { GitHubClientError } = await import("./github-client.js");
+      mockClientInstance.listDirectory.mockImplementation(
+        async (_owner: string, repo: string, path: string) =>
+          track(repo, async () => {
+            if (path === "skills") {
+              return [
+                { name: `bad-${repo}`, path: `skills/bad-${repo}`, type: "dir" },
+                { name: `good-${repo}`, path: `skills/good-${repo}`, type: "dir" },
+              ];
+            }
+            if (path.startsWith("skills/bad-")) {
+              throw new GitHubClientError("Server Error", 500);
+            }
+            // The healthy skill is still being listed when its sibling fails.
+            await delay(15);
+            return [{ name: "SKILL.md", path: `${path}/SKILL.md`, type: "file", size: 10 }];
+          }),
+      );
+      mockClientInstance.getFileContent.mockImplementation(
+        async (_owner: string, repo: string, path: string) =>
+          track(repo, async () => {
+            await delay(5);
+            return path;
+          }),
+      );
+
+      const result = await resolveAndFetchSources({
+        logger,
+        sources: Array.from({ length: sourceCount }, (_, index) => ({
+          source: `org/repo-${index}`,
+        })),
+        projectRoot: testDir,
+      });
+
+      expect(result.failedSourceCount).toBe(sourceCount);
+      expect(maxActiveSources).toBeLessThanOrEqual(SOURCE_PREFETCH_CONCURRENCY_LIMIT);
+      expect(maxActiveSources).toBeGreaterThan(1);
+    });
+
+    it("reports a failed prefetch request once, through the serial pass, with its hint", async () => {
+      const { GitHubClientError, logGitHubAuthHints } = await import("./github-client.js");
+      const error = new GitHubClientError("Forbidden", 403);
+      mockClientInstance.listDirectory.mockImplementation(
+        async (_owner: string, _repo: string, path: string) => {
+          if (path === "skills") {
+            return [{ name: "my-skill", path: "skills/my-skill", type: "dir" }];
+          }
+          return [{ name: "SKILL.md", path: `${path}/SKILL.md`, type: "file", size: 10 }];
+        },
+      );
+      mockClientInstance.getFileContent.mockRejectedValue(error);
+
+      const result = await resolveAndFetchSources({
+        logger,
+        sources: [{ source: "org/repo" }],
+        projectRoot: testDir,
+      });
+
+      expect(result.failedSourceCount).toBe(1);
+      // The prefetch made the request; the serial pass got the held rejection
+      // instead of asking again.
+      expect(mockClientInstance.getFileContent).toHaveBeenCalledTimes(1);
+      const failures = vi
+        .mocked(logger.error)
+        .mock.calls.filter(([message]) => String(message).includes("Failed to fetch source"));
+      expect(failures).toEqual([['Failed to fetch source "org/repo": Error: Forbidden']]);
+      expect(logGitHubAuthHints).toHaveBeenCalledTimes(1);
+      expect(logGitHubAuthHints).toHaveBeenCalledWith({ error, logger });
     });
   });
 });
