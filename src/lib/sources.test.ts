@@ -3706,6 +3706,14 @@ describe("resolveAndFetchSources", () => {
         fetchPath: "custom",
         lockPath: "custom",
       },
+      {
+        // The fetch gets the empty path as declared (the repository root); only
+        // the lockfile records its normalized form.
+        name: "empty path",
+        entry: { source: "org/repo", path: "" },
+        fetchPath: "",
+        lockPath: ".",
+      },
     ];
 
     it.each(githubCases)(
@@ -3765,23 +3773,38 @@ describe("resolveAndFetchSources", () => {
       },
     );
 
+    const gitSource = "https://example.com/team/skills.git";
     const gitCases = [
-      { name: "plain", path: undefined, fetchPath: "skills", lockPath: "skills" },
+      {
+        name: "plain",
+        source: gitSource,
+        path: undefined,
+        fetchPath: "skills",
+        lockPath: "skills",
+      },
       {
         name: "custom path",
+        source: gitSource,
         path: "custom/skills/",
         fetchPath: "custom/skills/",
         lockPath: "custom/skills",
+      },
+      {
+        // Only the github transport reads a path embedded in the source spec.
+        name: "source shaped like an embedded path",
+        source: "org/repo:sub",
+        path: undefined,
+        fetchPath: "skills",
+        lockPath: "skills",
       },
     ];
 
     it.each(gitCases)(
       "uses one skills path for the git transport ($name)",
-      async ({ path, fetchPath, lockPath }) => {
+      async ({ source, path, fetchPath, lockPath }) => {
         const { readLockFile, writeLockFile } = await import("./sources-lock.js");
         const { fetchSkillFiles, resolveDefaultRef } = await import("./git-client.js");
         const curatedDir = join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
-        const source = "https://example.com/team/skills.git";
         const entry = { source, transport: "git" as const, path, skills: ["*"] };
         vi.mocked(readLockFile).mockResolvedValue({ lockfileVersion: 1, sources: {} });
         vi.mocked(resolveDefaultRef).mockResolvedValue({ ref: "main", sha: "a".repeat(40) });
@@ -3824,18 +3847,35 @@ describe("resolveAndFetchSources", () => {
     );
 
     const npmCases = [
-      { name: "plain", path: undefined, filePrefix: "skills", lockPath: "skills" },
+      {
+        name: "plain",
+        source: "example",
+        path: undefined,
+        filePrefix: "skills",
+        lockPath: "skills",
+      },
       {
         name: "custom path",
+        source: "example",
         path: "custom/skills/",
         filePrefix: "custom/skills",
         lockPath: "custom/skills",
+      },
+      {
+        // An npm package name cannot hold a ":", so the closest look-alike of
+        // an embedded `owner/repo` spec is a scoped name. It must not be read
+        // as one: the default `skills` directory is still the one selected.
+        name: "scoped name shaped like owner/repo",
+        source: "@org/repo",
+        path: undefined,
+        filePrefix: "skills",
+        lockPath: "skills",
       },
     ];
 
     it.each(npmCases)(
       "uses one skills path for the npm transport ($name)",
-      async ({ path, filePrefix, lockPath }) => {
+      async ({ source, path, filePrefix, lockPath }) => {
         const {
           fetchPackument,
           fetchTarball,
@@ -3846,7 +3886,7 @@ describe("resolveAndFetchSources", () => {
         const { extractPackageTarball } = await import("./npm-tar.js");
         const { readNpmLockFile, writeNpmLockFile } = await import("./npm-sources-lock.js");
         const curatedDir = join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
-        const entry = { source: "example", transport: "npm" as const, path, skills: ["*"] };
+        const entry = { source, transport: "npm" as const, path, skills: ["*"] };
         vi.mocked(readNpmLockFile).mockResolvedValue({ lockfileVersion: 1, sources: {} });
         vi.mocked(resolveNpmToken).mockReturnValue(undefined);
         vi.mocked(fetchPackument).mockResolvedValue({});
@@ -3873,7 +3913,9 @@ describe("resolveAndFetchSources", () => {
           "# Demo",
         );
         const writtenLock = vi.mocked(writeNpmLockFile).mock.calls.at(-1)?.[0].lock;
-        expect(writtenLock?.sources.example).toMatchObject({ skillsPath: lockPath });
+        expect(Object.values(writtenLock?.sources ?? {})).toEqual([
+          expect.objectContaining({ skillsPath: lockPath }),
+        ]);
 
         vi.mocked(readNpmLockFile).mockResolvedValue(writtenLock!);
         vi.mocked(directoryExists).mockImplementation(async (dirPath: string) => {
