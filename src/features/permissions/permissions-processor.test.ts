@@ -141,6 +141,8 @@ describe("PermissionsProcessor", () => {
         "kimi-code",
         "junie",
         "kilo",
+        "kiro-cli",
+        "kiro-ide",
         "lettacode",
         "mimocode",
         "omp",
