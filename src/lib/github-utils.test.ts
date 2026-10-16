@@ -162,6 +162,58 @@ describe("listDirectoryRecursive", () => {
     expect(onIncompleteDirectory).toHaveBeenCalledExactlyOnceWith("skills");
   });
 
+  it("should not reject until every sibling listing has settled", async () => {
+    const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+    let slowSettled = false;
+    const client = {
+      listDirectory: vi.fn(async (_owner: string, _repo: string, path: string) => {
+        if (path === "skills") {
+          return [dirEntry("skills/bad"), dirEntry("skills/slow")];
+        }
+        if (path === "skills/bad") {
+          throw new Error("bad listing");
+        }
+        await delay(20);
+        slowSettled = true;
+        return [fileEntry("skills/slow/SKILL.md")];
+      }),
+    } as unknown as GitHubClient;
+
+    await expect(
+      listDirectoryRecursive({
+        client,
+        owner: "owner",
+        repo: "repo",
+        path: "skills",
+        semaphore: new Semaphore(4),
+      }),
+    ).rejects.toThrow("bad listing");
+    expect(slowSettled).toBe(true);
+  });
+
+  it("should reject with the first failure to arrive, as Promise.all would", async () => {
+    const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+    const client = {
+      listDirectory: vi.fn(async (_owner: string, _repo: string, path: string) => {
+        if (path === "skills") {
+          return [dirEntry("skills/late"), dirEntry("skills/early")];
+        }
+        await delay(path === "skills/late" ? 20 : 0);
+        throw new Error(`failed ${path}`);
+      }),
+    } as unknown as GitHubClient;
+
+    await expect(
+      listDirectoryRecursive({
+        client,
+        owner: "owner",
+        repo: "repo",
+        path: "skills",
+        semaphore: new Semaphore(4),
+      }),
+    ).rejects.toThrow("failed skills/early");
+  });
+
   it("should throw once the tree is deeper than it walks", async () => {
     const tree: Record<string, GitHubFileEntry[]> = {};
     let path = "skills";

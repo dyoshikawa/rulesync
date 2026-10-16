@@ -3885,6 +3885,151 @@ describe("resolveAndFetchSources", () => {
       expect(maxActiveSources).toBeGreaterThan(1);
     });
 
+    it("does not prefetch names an earlier git source selects by name", async () => {
+      const { resolveDefaultRef, fetchSkillFiles } = await import("./git-client.js");
+      vi.mocked(resolveDefaultRef).mockResolvedValue({ ref: "main", sha: "a".repeat(40) });
+      vi.mocked(fetchSkillFiles).mockImplementation(async ({ skillsPath }) =>
+        skillsPath === "rules"
+          ? [{ relativePath: "team-rule.md", content: "# team rule from git", size: 20 }]
+          : [{ relativePath: "shared/SKILL.md", content: "shared from git", size: 20 }],
+      );
+      mockClientInstance.listDirectory.mockImplementation(
+        async (_owner: string, _repo: string, path: string) => {
+          if (path === "skills") {
+            return [
+              { name: "shared", path: "skills/shared", type: "dir" },
+              { name: "github-only", path: "skills/github-only", type: "dir" },
+            ];
+          }
+          if (path === "rules") {
+            return [
+              { name: "team-rule.md", path: "rules/team-rule.md", type: "file", size: 10 },
+              { name: "github-rule.md", path: "rules/github-rule.md", type: "file", size: 10 },
+            ];
+          }
+          return [{ name: "SKILL.md", path: `${path}/SKILL.md`, type: "file", size: 10 }];
+        },
+      );
+      mockClientInstance.getFileContent.mockImplementation(
+        async (_owner: string, _repo: string, path: string) => `${path} from github`,
+      );
+
+      const result = await resolveAndFetchSources({
+        logger,
+        sources: [
+          {
+            source: "https://example.com/team/assets.git",
+            transport: "git",
+            skills: ["shared"],
+            rules: ["team-rule"],
+          },
+          { source: "org/repo", skills: ["*"], rules: ["*"] },
+        ],
+        projectRoot: testDir,
+      });
+
+      expect(result.failedSourceCount).toBe(0);
+      expect(result.fetchedSkillCount).toBe(2);
+      expect(result.fetchedRuleCount).toBe(2);
+      // The git source, declared first, takes `shared` and `team-rule`, so the
+      // GitHub source's copies are neither listed nor downloaded.
+      expect(mockClientInstance.listDirectory).not.toHaveBeenCalledWith(
+        "org",
+        "repo",
+        "skills/shared",
+        expect.anything(),
+        expect.anything(),
+      );
+      const downloadedPaths = vi
+        .mocked(mockClientInstance.getFileContent)
+        .mock.calls.map((call: unknown[]) => call[2]);
+      expect(downloadedPaths.toSorted()).toEqual([
+        "rules/github-rule.md",
+        "skills/github-only/SKILL.md",
+      ]);
+      const curatedSkillsDir = join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
+      expect(vi.mocked(writeFileContent)).toHaveBeenCalledWith(
+        join(curatedSkillsDir, "shared", "SKILL.md"),
+        "shared from git",
+      );
+      expect(vi.mocked(writeFileContent)).toHaveBeenCalledWith(
+        join(curatedSkillsDir, "github-only", "SKILL.md"),
+        "skills/github-only/SKILL.md from github",
+      );
+    });
+
+    it("downloads nothing ahead of an earlier git source whose selection may take any name", async () => {
+      const { resolveDefaultRef, fetchSkillFiles } = await import("./git-client.js");
+      vi.mocked(resolveDefaultRef).mockResolvedValue({ ref: "main", sha: "a".repeat(40) });
+      vi.mocked(fetchSkillFiles).mockResolvedValue([
+        { relativePath: "shared/SKILL.md", content: "shared from git", size: 20 },
+      ]);
+      mockClientInstance.listDirectory.mockImplementation(
+        async (_owner: string, _repo: string, path: string) => {
+          if (path === "skills") {
+            return [
+              { name: "shared", path: "skills/shared", type: "dir" },
+              { name: "github-only", path: "skills/github-only", type: "dir" },
+            ];
+          }
+          return [{ name: "SKILL.md", path: `${path}/SKILL.md`, type: "file", size: 10 }];
+        },
+      );
+
+      const result = await resolveAndFetchSources({
+        logger,
+        sources: [
+          { source: "https://example.com/team/skills.git", transport: "git" },
+          { source: "org/repo" },
+        ],
+        projectRoot: testDir,
+      });
+
+      expect(result.failedSourceCount).toBe(0);
+      expect(result.fetchedSkillCount).toBe(2);
+      // Which names the wildcard git source takes is known only once the serial
+      // pass has run it, so the GitHub source's files are downloaded after that,
+      // and `shared`, which the git source took, never.
+      const gitFetchOrder = vi.mocked(fetchSkillFiles).mock.invocationCallOrder[0]!;
+      expect(mockClientInstance.getFileContent).toHaveBeenCalledTimes(1);
+      expect(mockClientInstance.getFileContent).toHaveBeenCalledWith(
+        "org",
+        "repo",
+        "skills/github-only/SKILL.md",
+        expect.anything(),
+      );
+      expect(mockClientInstance.getFileContent.mock.invocationCallOrder[0]).toBeGreaterThan(
+        gitFetchOrder,
+      );
+    });
+
+    it("prefetches ahead of an earlier GitLab source, which takes no name", async () => {
+      mockClientInstance.listDirectory.mockImplementation(
+        async (_owner: string, _repo: string, path: string) => {
+          if (path === "skills") {
+            return [{ name: "shared", path: "skills/shared", type: "dir" }];
+          }
+          return [{ name: "SKILL.md", path: `${path}/SKILL.md`, type: "file", size: 10 }];
+        },
+      );
+
+      const result = await resolveAndFetchSources({
+        logger,
+        sources: [{ source: "gitlab:org/repo" }, { source: "org/repo" }],
+        projectRoot: testDir,
+      });
+
+      expect(result.failedSourceCount).toBe(1);
+      expect(result.fetchedSkillCount).toBe(1);
+      // The GitLab source fails in the serial pass without taking a name, so the
+      // GitHub source's files are downloaded by the prefetch, before that failure
+      // is reported.
+      expect(mockClientInstance.getFileContent).toHaveBeenCalledTimes(1);
+      expect(mockClientInstance.getFileContent.mock.invocationCallOrder[0]).toBeLessThan(
+        vi.mocked(logger.error).mock.invocationCallOrder.at(-1)!,
+      );
+    });
+
     it("reports a failed prefetch request once, through the serial pass, with its hint", async () => {
       const { GitHubClientError, logGitHubAuthHints } = await import("./github-client.js");
       const error = new GitHubClientError("Forbidden", 403);
