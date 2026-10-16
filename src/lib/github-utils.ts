@@ -59,7 +59,7 @@ export async function listDirectoryRecursive(params: {
   // entries it dropped itself — a capped page, or an item that did not parse.
   let dropped = false;
 
-  // Semaphore is released here before recursive Promise.all below to avoid deadlock
+  // Semaphore is released here before the recursive listings below to avoid deadlock
   const entries = await withSemaphore(semaphore, () =>
     client.listDirectory(owner, repo, path, ref, {
       onIncompleteListing: () => {
@@ -85,7 +85,13 @@ export async function listDirectoryRecursive(params: {
     onIncompleteDirectory?.(path);
   }
 
-  const subResults = await Promise.all(
+  // Settled rather than all, so a failed subdirectory does not return while its
+  // siblings are still listing: a caller that bounds how many walks run at once
+  // must see this one finished. The error thrown is still the first to arrive,
+  // the one `Promise.all` would have rejected with.
+  // In the order they arrived.
+  const failures: unknown[] = [];
+  const settled = await Promise.allSettled(
     directories.map((dir) =>
       listDirectoryRecursive({
         client,
@@ -96,8 +102,17 @@ export async function listDirectoryRecursive(params: {
         depth: depth + 1,
         semaphore,
         onIncompleteDirectory,
+      }).catch((error: unknown) => {
+        failures.push(error);
+        throw error;
       }),
     ),
+  );
+  if (failures.length > 0) {
+    throw failures[0];
+  }
+  const subResults = settled.flatMap((result) =>
+    result.status === "fulfilled" ? [result.value] : [],
   );
 
   return [...files, ...subResults.flat()];

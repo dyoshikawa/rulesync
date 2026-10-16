@@ -323,19 +323,34 @@ type GithubPrefetchTarget = {
  * downloaded again for a later source whose copy the serial pass discards.
  */
 type NameClaim = {
-  names: Promise<string[]>;
-  settle: (names: string[]) => void;
+  names: Promise<ClaimedNames>;
+  settle: (names: ClaimedNames) => void;
+};
+
+/**
+ * The claim of a source the prefetch does not list -- a git or npm transport
+ * source, or a GitLab one -- whose selection is a wildcard: it may take any
+ * name, so later sources download nothing a name decides.
+ */
+const ANY_NAME = Symbol("any name");
+
+type ClaimedNames = string[] | typeof ANY_NAME;
+
+/** The names earlier sources are expected to take, `names` being those known by name. */
+type EarlierClaims = {
+  names: Set<string>;
+  has: (name: string) => boolean;
 };
 
 /** One feature's side of a source's claim: what earlier sources took, and its own. */
 type ClaimSlot = {
-  earlier: () => Promise<Set<string>>;
+  earlier: () => Promise<EarlierClaims>;
   settle: (names: string[]) => void;
 };
 
 function createNameClaim(): NameClaim {
-  let settle: (names: string[]) => void = () => {};
-  const names = new Promise<string[]>((resolveNames) => {
+  let settle: (names: ClaimedNames) => void = () => {};
+  const names = new Promise<ClaimedNames>((resolveNames) => {
     settle = resolveNames;
   });
   return { names, settle: (claimed) => settle(claimed) };
@@ -350,7 +365,12 @@ function createClaimSlot(params: {
   return {
     earlier: async () => {
       const claimed = await Promise.all(earlier.map((claim) => claim.names));
-      return new Set([...reserved, ...claimed.flat()]);
+      const mayTakeAny = claimed.includes(ANY_NAME);
+      const names = new Set([
+        ...reserved,
+        ...claimed.flatMap((claim) => (claim === ANY_NAME ? [] : claim)),
+      ]);
+      return { names, has: (name) => mayTakeAny || names.has(name) };
     },
     settle: own.settle,
   };
@@ -388,18 +408,26 @@ async function prefetchGithubSources(params: {
     ...rest,
     semaphore: new Semaphore(FETCH_CONCURRENCY_LIMIT),
   };
+  // Every source that takes names is in the claim order, but only the ones
+  // listed through the GitHub API are prefetched; the others claim up front
+  // whatever their selection may take.
   const items = sources
-    .filter(
-      (sourceEntry) =>
-        (sourceEntry.transport ?? "github") === "github" && !hasEmptySelection(sourceEntry),
-    )
+    .filter((sourceEntry) => !hasEmptySelection(sourceEntry))
     .map((sourceEntry) => ({
       sourceEntry,
+      listedThroughApi: isListedThroughGithubApi(sourceEntry),
       skills: createNameClaim(),
       rules: createNameClaim(),
     }));
+  for (const item of items.filter((candidate) => !candidate.listedThroughApi)) {
+    const filters = getSourceFilters(item.sourceEntry);
+    item.skills.settle(getSelectionClaim({ selection: filters.skills, normalize: (name) => name }));
+    item.rules.settle(
+      getSelectionClaim({ selection: filters.rules, normalize: normalizeRuleFilterName }),
+    );
+  }
   await mapWithConcurrency({
-    items,
+    items: items.filter((item) => item.listedThroughApi),
     limit: SOURCE_PREFETCH_CONCURRENCY_LIMIT,
     mapper: async (item) => {
       const earlier = items.slice(0, items.indexOf(item));
@@ -433,6 +461,32 @@ async function prefetchGithubSources(params: {
   });
 }
 
+/** Whether the prefetch lists and downloads this source through the GitHub API. */
+function isListedThroughGithubApi(sourceEntry: SourceEntry): boolean {
+  if ((sourceEntry.transport ?? "github") !== "github") {
+    return false;
+  }
+  try {
+    return parseSource(sourceEntry.source).provider !== "gitlab";
+  } catch {
+    // The serial pass reports the source and takes nothing from it; the
+    // prefetch fails the same way and claims nothing.
+    return true;
+  }
+}
+
+/** What a source the prefetch does not list may take, judged by its selection alone. */
+function getSelectionClaim(params: {
+  selection: string[] | undefined;
+  normalize: (name: string) => string;
+}): ClaimedNames {
+  const { selection, normalize } = params;
+  if (selection === undefined) {
+    return [];
+  }
+  return selection.includes("*") ? ANY_NAME : selection.map(normalize);
+}
+
 async function prefetchGithubSource(params: {
   sourceEntry: SourceEntry;
   lock: SourcesLock;
@@ -442,9 +496,6 @@ async function prefetchGithubSource(params: {
 }): Promise<void> {
   const { sourceEntry, lock, context, skillClaim, ruleClaim } = params;
   const parsedFromSource = parseSource(sourceEntry.source);
-  if (parsedFromSource.provider === "gitlab") {
-    return;
-  }
   const parsed: ParsedSource = {
     ...parsedFromSource,
     ref: sourceEntry.ref ?? parsedFromSource.ref,
@@ -574,7 +625,7 @@ async function prefetchSkillFileContents(params: {
 function shouldPrefetchSkill(params: {
   name: string;
   localSkillNames: Set<string>;
-  claimed: Set<string>;
+  claimed: EarlierClaims;
 }): boolean {
   const { name, localSkillNames, claimed } = params;
   return (
@@ -627,7 +678,7 @@ async function prefetchGithubRules(params: {
       sourceEntry,
       lockedRuleNames: getLockedRuleNames(locked),
       localRuleNames: context.localRuleNames,
-      alreadyFetchedRuleNames: claimed,
+      alreadyFetchedRuleNames: claimed.names,
       curatedDir: join(context.projectRoot, RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH),
     }))
   ) {
