@@ -4003,6 +4003,33 @@ describe("resolveAndFetchSources", () => {
       );
     });
 
+    it("prefetches ahead of an earlier GitLab source, which takes no name", async () => {
+      mockClientInstance.listDirectory.mockImplementation(
+        async (_owner: string, _repo: string, path: string) => {
+          if (path === "skills") {
+            return [{ name: "shared", path: "skills/shared", type: "dir" }];
+          }
+          return [{ name: "SKILL.md", path: `${path}/SKILL.md`, type: "file", size: 10 }];
+        },
+      );
+
+      const result = await resolveAndFetchSources({
+        logger,
+        sources: [{ source: "gitlab:org/repo" }, { source: "org/repo" }],
+        projectRoot: testDir,
+      });
+
+      expect(result.failedSourceCount).toBe(1);
+      expect(result.fetchedSkillCount).toBe(1);
+      // The GitLab source fails in the serial pass without taking a name, so the
+      // GitHub source's files are downloaded by the prefetch, before that failure
+      // is reported.
+      expect(mockClientInstance.getFileContent).toHaveBeenCalledTimes(1);
+      expect(mockClientInstance.getFileContent.mock.invocationCallOrder[0]).toBeLessThan(
+        vi.mocked(logger.error).mock.invocationCallOrder.at(-1)!,
+      );
+    });
+
     it("reports a failed prefetch request once, through the serial pass, with its hint", async () => {
       const { GitHubClientError, logGitHubAuthHints } = await import("./github-client.js");
       const error = new GitHubClientError("Forbidden", 403);

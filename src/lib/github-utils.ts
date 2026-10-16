@@ -87,8 +87,9 @@ export async function listDirectoryRecursive(params: {
 
   // Settled rather than all, so a failed subdirectory does not return while its
   // siblings are still listing: a caller that bounds how many walks run at once
-  // must see this one finished. The error thrown is still the first to arrive,
-  // the one `Promise.all` would have rejected with.
+  // must see this one finished. The error thrown is the first failure to settle
+  // at this level; in a nested tree that can differ from the one `Promise.all`
+  // would have rejected with, since each level waits for all its siblings.
   // In the order they arrived.
   const failures: unknown[] = [];
   const settled = await Promise.allSettled(

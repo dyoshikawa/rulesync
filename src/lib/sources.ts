@@ -329,7 +329,7 @@ type NameClaim = {
 
 /**
  * The claim of a source the prefetch does not list -- a git or npm transport
- * source, or a GitLab one -- whose selection is a wildcard: it may take any
+ * source -- whose selection is a wildcard: it may take any
  * name, so later sources download nothing a name decides.
  */
 const ANY_NAME = Symbol("any name");
@@ -420,6 +420,12 @@ async function prefetchGithubSources(params: {
       rules: createNameClaim(),
     }));
   for (const item of items.filter((candidate) => !candidate.listedThroughApi)) {
+    if (isGitlabSource(item.sourceEntry)) {
+      // The serial pass rejects GitLab sources, so they take no name.
+      item.skills.settle([]);
+      item.rules.settle([]);
+      continue;
+    }
     const filters = getSourceFilters(item.sourceEntry);
     item.skills.settle(getSelectionClaim({ selection: filters.skills, normalize: (name) => name }));
     item.rules.settle(
@@ -472,6 +478,18 @@ function isListedThroughGithubApi(sourceEntry: SourceEntry): boolean {
     // The serial pass reports the source and takes nothing from it; the
     // prefetch fails the same way and claims nothing.
     return true;
+  }
+}
+
+/** Whether this is a GitLab source, which the serial pass does not support yet. */
+function isGitlabSource(sourceEntry: SourceEntry): boolean {
+  if ((sourceEntry.transport ?? "github") !== "github") {
+    return false;
+  }
+  try {
+    return parseSource(sourceEntry.source).provider === "gitlab";
+  } catch {
+    return false;
   }
 }
 
