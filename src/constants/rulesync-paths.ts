@@ -118,3 +118,9 @@ export const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 // Concurrency limits
 export const FETCH_CONCURRENCY_LIMIT = 10;
+/**
+ * How many declared sources `rulesync install` downloads at once ahead of the
+ * serial pass that writes them. Requests across those sources still share one
+ * `FETCH_CONCURRENCY_LIMIT` budget.
+ */
+export const SOURCE_PREFETCH_CONCURRENCY_LIMIT = 4;

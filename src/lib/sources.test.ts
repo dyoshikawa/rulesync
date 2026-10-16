@@ -4,9 +4,11 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  FETCH_CONCURRENCY_LIMIT,
   RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH,
   RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH,
   RULESYNC_RULES_RELATIVE_DIR_PATH,
+  SOURCE_PREFETCH_CONCURRENCY_LIMIT,
 } from "../constants/rulesync-paths.js";
 import { createMockLogger } from "../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
@@ -3549,11 +3551,14 @@ describe("resolveAndFetchSources", () => {
         },
       },
     });
+    // The concurrent prefetch and the serial pass each ask once whether the
+    // locked skill is still on disk (it is not, so both fetch); the clean that
+    // follows is the third check and finds the directory to remove.
     let skillDirectoryCheckCount = 0;
     vi.mocked(directoryExists).mockImplementation(async (path: string) => {
       if (path.endsWith(join("humanizer"))) {
         skillDirectoryCheckCount += 1;
-        return skillDirectoryCheckCount > 1;
+        return skillDirectoryCheckCount > 2;
       }
       return false;
     });
@@ -3674,5 +3679,241 @@ describe("resolveAndFetchSources", () => {
       join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH, "humanizer", "SKILL.md"),
       "# Humanizer",
     );
+  });
+
+  describe("concurrent prefetch", () => {
+    const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+    it("writes, resolves collisions and locks in declared order even when later sources download first", async () => {
+      const { writeLockFile } = await import("./sources-lock.js");
+      // repo-a answers slowest and repo-c fastest, so the downloads finish in
+      // the reverse of the declared order.
+      const latency: Record<string, number> = { "repo-a": 30, "repo-b": 15, "repo-c": 0 };
+      mockClientInstance.listDirectory.mockImplementation(
+        async (_owner: string, repo: string, path: string) => {
+          await delay(latency[repo] ?? 0);
+          if (path === "skills") {
+            return [
+              { name: "shared", path: "skills/shared", type: "dir" },
+              { name: `${repo}-only`, path: `skills/${repo}-only`, type: "dir" },
+            ];
+          }
+          return [{ name: "SKILL.md", path: `${path}/SKILL.md`, type: "file", size: 10 }];
+        },
+      );
+      mockClientInstance.getFileContent.mockImplementation(
+        async (_owner: string, repo: string, path: string) => {
+          await delay(latency[repo] ?? 0);
+          return `${path} from ${repo}`;
+        },
+      );
+
+      const result = await resolveAndFetchSources({
+        logger,
+        sources: [{ source: "org/repo-a" }, { source: "org/repo-b" }, { source: "org/repo-c" }],
+        projectRoot: testDir,
+      });
+
+      expect(result.failedSourceCount).toBe(0);
+      expect(result.fetchedSkillCount).toBe(4);
+      const curatedDir = join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
+      expect(vi.mocked(writeFileContent).mock.calls).toEqual([
+        [join(curatedDir, "shared", "SKILL.md"), "skills/shared/SKILL.md from repo-a"],
+        [join(curatedDir, "repo-a-only", "SKILL.md"), "skills/repo-a-only/SKILL.md from repo-a"],
+        [join(curatedDir, "repo-b-only", "SKILL.md"), "skills/repo-b-only/SKILL.md from repo-b"],
+        [join(curatedDir, "repo-c-only", "SKILL.md"), "skills/repo-c-only/SKILL.md from repo-c"],
+      ]);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Skipping duplicate skill "shared" from org/repo-b'),
+      );
+      const writtenLock = vi.mocked(writeLockFile).mock.calls[0]?.[0].lock;
+      expect(Object.keys(writtenLock?.sources ?? {})).toEqual([
+        "org/repo-a",
+        "org/repo-b",
+        "org/repo-c",
+      ]);
+      expect(Object.keys(writtenLock?.sources["org/repo-a"]?.skills ?? {}).toSorted()).toEqual([
+        "repo-a-only",
+        "shared",
+      ]);
+
+      // The downloads ran ahead of the writes: the last declared source was
+      // fully downloaded before the first write of the first source.
+      const lastRepoCDownload = Math.max(
+        ...vi
+          .mocked(mockClientInstance.getFileContent)
+          .mock.calls.map((call: unknown[], index: number) => ({ repo: call[1], index }))
+          .filter(({ repo }: { repo: unknown }) => repo === "repo-c")
+          .map(
+            ({ index }: { index: number }) =>
+              mockClientInstance.getFileContent.mock.invocationCallOrder[index],
+          ),
+      );
+      expect(lastRepoCDownload).toBeLessThan(
+        vi.mocked(writeFileContent).mock.invocationCallOrder[0]!,
+      );
+      // Each file is downloaded once: the serial pass reuses the prefetched
+      // answer, and the copies of `shared` that repo-b and repo-c offer are not
+      // downloaded at all, since repo-a, declared first, takes that name.
+      expect(mockClientInstance.getFileContent).toHaveBeenCalledTimes(4);
+      expect(mockClientInstance.listDirectory).not.toHaveBeenCalledWith(
+        "org",
+        "repo-b",
+        "skills/shared",
+        expect.anything(),
+        expect.anything(),
+      );
+    });
+
+    it("bounds how many sources and requests are in flight at once", async () => {
+      const sourceCount = SOURCE_PREFETCH_CONCURRENCY_LIMIT + 3;
+      const filesPerSkill = FETCH_CONCURRENCY_LIMIT + 5;
+      const activeSources = new Set<string>();
+      let maxActiveSources = 0;
+      let requestsInFlight = 0;
+      let maxRequestsInFlight = 0;
+      const track = async <T>(work: () => Promise<T>): Promise<T> => {
+        requestsInFlight += 1;
+        maxRequestsInFlight = Math.max(maxRequestsInFlight, requestsInFlight);
+        try {
+          await delay(2);
+          return await work();
+        } finally {
+          requestsInFlight -= 1;
+        }
+      };
+      const remainingFiles = new Map<string, number>();
+      mockClientInstance.getDefaultBranch.mockImplementation(
+        async (_owner: string, repo: string) => {
+          activeSources.add(repo);
+          maxActiveSources = Math.max(maxActiveSources, activeSources.size);
+          remainingFiles.set(repo, filesPerSkill);
+          return track(async () => "main");
+        },
+      );
+      mockClientInstance.listDirectory.mockImplementation(
+        async (_owner: string, repo: string, path: string) =>
+          track(async () => {
+            if (path === "skills") {
+              return [{ name: `skill-${repo}`, path: `skills/skill-${repo}`, type: "dir" }];
+            }
+            return Array.from({ length: filesPerSkill }, (_, index) => ({
+              name: `file-${index}.md`,
+              path: `${path}/file-${index}.md`,
+              type: "file",
+              size: 10,
+            }));
+          }),
+      );
+      mockClientInstance.getFileContent.mockImplementation(
+        async (_owner: string, repo: string, path: string) =>
+          track(async () => {
+            const remaining = (remainingFiles.get(repo) ?? 0) - 1;
+            remainingFiles.set(repo, remaining);
+            if (remaining === 0) {
+              activeSources.delete(repo);
+            }
+            return path;
+          }),
+      );
+
+      const result = await resolveAndFetchSources({
+        logger,
+        sources: Array.from({ length: sourceCount }, (_, index) => ({
+          source: `org/repo-${index}`,
+        })),
+        projectRoot: testDir,
+      });
+
+      expect(result.failedSourceCount).toBe(0);
+      expect(maxActiveSources).toBe(SOURCE_PREFETCH_CONCURRENCY_LIMIT);
+      expect(maxRequestsInFlight).toBeLessThanOrEqual(FETCH_CONCURRENCY_LIMIT);
+      expect(maxRequestsInFlight).toBeGreaterThan(1);
+      expect(mockClientInstance.getFileContent).toHaveBeenCalledTimes(sourceCount * filesPerSkill);
+    });
+
+    it("keeps the source bound when one of a source's requests fails while others are still running", async () => {
+      const sourceCount = SOURCE_PREFETCH_CONCURRENCY_LIMIT + 3;
+      const inFlightByRepo = new Map<string, number>();
+      let maxActiveSources = 0;
+      const track = async <T>(repo: string, work: () => Promise<T>): Promise<T> => {
+        inFlightByRepo.set(repo, (inFlightByRepo.get(repo) ?? 0) + 1);
+        const active = [...inFlightByRepo.values()].filter((count) => count > 0).length;
+        maxActiveSources = Math.max(maxActiveSources, active);
+        try {
+          return await work();
+        } finally {
+          inFlightByRepo.set(repo, (inFlightByRepo.get(repo) ?? 1) - 1);
+        }
+      };
+      const { GitHubClientError } = await import("./github-client.js");
+      mockClientInstance.listDirectory.mockImplementation(
+        async (_owner: string, repo: string, path: string) =>
+          track(repo, async () => {
+            if (path === "skills") {
+              return [
+                { name: `bad-${repo}`, path: `skills/bad-${repo}`, type: "dir" },
+                { name: `good-${repo}`, path: `skills/good-${repo}`, type: "dir" },
+              ];
+            }
+            if (path.startsWith("skills/bad-")) {
+              throw new GitHubClientError("Server Error", 500);
+            }
+            // The healthy skill is still being listed when its sibling fails.
+            await delay(15);
+            return [{ name: "SKILL.md", path: `${path}/SKILL.md`, type: "file", size: 10 }];
+          }),
+      );
+      mockClientInstance.getFileContent.mockImplementation(
+        async (_owner: string, repo: string, path: string) =>
+          track(repo, async () => {
+            await delay(5);
+            return path;
+          }),
+      );
+
+      const result = await resolveAndFetchSources({
+        logger,
+        sources: Array.from({ length: sourceCount }, (_, index) => ({
+          source: `org/repo-${index}`,
+        })),
+        projectRoot: testDir,
+      });
+
+      expect(result.failedSourceCount).toBe(sourceCount);
+      expect(maxActiveSources).toBeLessThanOrEqual(SOURCE_PREFETCH_CONCURRENCY_LIMIT);
+      expect(maxActiveSources).toBeGreaterThan(1);
+    });
+
+    it("reports a failed prefetch request once, through the serial pass, with its hint", async () => {
+      const { GitHubClientError, logGitHubAuthHints } = await import("./github-client.js");
+      const error = new GitHubClientError("Forbidden", 403);
+      mockClientInstance.listDirectory.mockImplementation(
+        async (_owner: string, _repo: string, path: string) => {
+          if (path === "skills") {
+            return [{ name: "my-skill", path: "skills/my-skill", type: "dir" }];
+          }
+          return [{ name: "SKILL.md", path: `${path}/SKILL.md`, type: "file", size: 10 }];
+        },
+      );
+      mockClientInstance.getFileContent.mockRejectedValue(error);
+
+      const result = await resolveAndFetchSources({
+        logger,
+        sources: [{ source: "org/repo" }],
+        projectRoot: testDir,
+      });
+
+      expect(result.failedSourceCount).toBe(1);
+      // The prefetch made the request; the serial pass got the held rejection
+      // instead of asking again.
+      expect(mockClientInstance.getFileContent).toHaveBeenCalledTimes(1);
+      const failures = vi
+        .mocked(logger.error)
+        .mock.calls.filter(([message]) => String(message).includes("Failed to fetch source"));
+      expect(failures).toEqual([['Failed to fetch source "org/repo": Error: Forbidden']]);
+      expect(logGitHubAuthHints).toHaveBeenCalledTimes(1);
+      expect(logGitHubAuthHints).toHaveBeenCalledWith({ error, logger });
+    });
   });
 });

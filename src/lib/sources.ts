@@ -13,9 +13,11 @@ import {
   RULESYNC_NPM_SOURCES_LOCK_RELATIVE_FILE_PATH,
   RULESYNC_RULES_RELATIVE_DIR_PATH,
   RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH,
+  SOURCE_PREFETCH_CONCURRENCY_LIMIT,
 } from "../constants/rulesync-paths.js";
 import { getLocalSkillDirNames } from "../features/skills/skills-utils.js";
 import type { GitHubFileEntry, ParsedSource } from "../types/fetch.js";
+import { mapWithConcurrency } from "../utils/concurrency.js";
 import { formatError } from "../utils/error.js";
 import {
   assertDirectoryIfExists,
@@ -42,6 +44,7 @@ import {
 } from "./git-client.js";
 import { GitHubClient, GitHubClientError, logGitHubAuthHints } from "./github-client.js";
 import { listDirectoryRecursive, resolveExecutablePaths, withSemaphore } from "./github-utils.js";
+import { MemoizingGitHubClient } from "./memoizing-github-client.js";
 import {
   DEFAULT_NPM_REGISTRY_URL,
   fetchPackument,
@@ -192,9 +195,10 @@ export async function resolveAndFetchSources(params: {
   const originalLockJson = JSON.stringify(lock);
   const originalNpmLockJson = JSON.stringify(npmLock);
 
-  // Resolve GitHub token
+  // Resolve GitHub token. The client holds every answer for this run, so the
+  // serial pass below reads what the concurrent prefetch already downloaded.
   const token = GitHubClient.resolveToken(options.token);
-  const client = new GitHubClient({ token });
+  const client = new MemoizingGitHubClient({ token });
 
   // Determine local skills (in .rulesync/skills/ but not in .curated/)
   const localSkillNames = await getLocalSkillDirNames(projectRoot);
@@ -211,6 +215,23 @@ export async function resolveAndFetchSources(params: {
   let failedSourceCount = 0;
   const allFetchedSkillNames = new Set(reservedSkillNames);
   const allFetchedRuleNames = new Set(reservedRuleNames);
+
+  // Download the GitHub sources concurrently first. Writes, name-collision
+  // resolution and lockfile updates stay in the serial loop below, in declared
+  // order, so the result is the same as a fully serial run.
+  await prefetchGithubSources({
+    sources,
+    client,
+    projectRoot,
+    lock,
+    localSkillNames,
+    localRuleNames,
+    reservedSkillNames: allFetchedSkillNames,
+    reservedRuleNames: allFetchedRuleNames,
+    updateSources,
+    frozen,
+    logger,
+  });
 
   for (const sourceEntry of sources) {
     try {
@@ -270,6 +291,392 @@ export async function resolveAndFetchSources(params: {
     sourcesProcessed: sources.length,
     failedSourceCount,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Concurrent prefetch of GitHub sources
+// ---------------------------------------------------------------------------
+
+type GithubPrefetchContext = {
+  client: GitHubClient;
+  projectRoot: string;
+  localSkillNames: Set<string>;
+  localRuleNames: Set<string>;
+  reservedSkillNames: Set<string>;
+  reservedRuleNames: Set<string>;
+  updateSources: boolean;
+  frozen: boolean;
+  semaphore: Semaphore;
+};
+
+type GithubPrefetchTarget = {
+  sourceEntry: SourceEntry;
+  parsed: ParsedSource;
+  ref: string;
+  locked: LockedSource | undefined;
+};
+
+/**
+ * The names one source is expected to take, settled once that source has
+ * listed what it offers. Later sources wait on the claims of every earlier one
+ * before choosing what to download, so a name an earlier source takes is not
+ * downloaded again for a later source whose copy the serial pass discards.
+ */
+type NameClaim = {
+  names: Promise<string[]>;
+  settle: (names: string[]) => void;
+};
+
+/** One feature's side of a source's claim: what earlier sources took, and its own. */
+type ClaimSlot = {
+  earlier: () => Promise<Set<string>>;
+  settle: (names: string[]) => void;
+};
+
+function createNameClaim(): NameClaim {
+  let settle: (names: string[]) => void = () => {};
+  const names = new Promise<string[]>((resolveNames) => {
+    settle = resolveNames;
+  });
+  return { names, settle: (claimed) => settle(claimed) };
+}
+
+function createClaimSlot(params: {
+  reserved: Set<string>;
+  earlier: NameClaim[];
+  own: NameClaim;
+}): ClaimSlot {
+  const { reserved, earlier, own } = params;
+  return {
+    earlier: async () => {
+      const claimed = await Promise.all(earlier.map((claim) => claim.names));
+      return new Set([...reserved, ...claimed.flat()]);
+    },
+    settle: own.settle,
+  };
+}
+
+/**
+ * Download the GitHub-transport sources concurrently, at most
+ * `SOURCE_PREFETCH_CONCURRENCY_LIMIT` sources at a time with every request
+ * sharing one `FETCH_CONCURRENCY_LIMIT` budget, so the serial pass that follows
+ * finds its refs, listings and files already answered by the memoizing client.
+ *
+ * Nothing here writes to disk or touches the lock: the prefetch only warms the
+ * client. It mirrors the requests the serial pass makes, including skipping a
+ * name an earlier declared source takes, and a request it did not foresee is
+ * simply made by the serial pass itself, so a prefetch that guesses wrong costs
+ * time, never correctness. A source's prefetch returns only once all of its
+ * requests have settled, so the bounds hold even when one of them fails.
+ * Errors are left for the serial pass to report with its usual hints.
+ */
+async function prefetchGithubSources(params: {
+  sources: SourceEntry[];
+  client: GitHubClient;
+  projectRoot: string;
+  lock: SourcesLock;
+  localSkillNames: Set<string>;
+  localRuleNames: Set<string>;
+  reservedSkillNames: Set<string>;
+  reservedRuleNames: Set<string>;
+  updateSources: boolean;
+  frozen: boolean;
+  logger: Logger;
+}): Promise<void> {
+  const { sources, lock, logger, ...rest } = params;
+  const context: GithubPrefetchContext = {
+    ...rest,
+    semaphore: new Semaphore(FETCH_CONCURRENCY_LIMIT),
+  };
+  const items = sources
+    .filter(
+      (sourceEntry) =>
+        (sourceEntry.transport ?? "github") === "github" && !hasEmptySelection(sourceEntry),
+    )
+    .map((sourceEntry) => ({
+      sourceEntry,
+      skills: createNameClaim(),
+      rules: createNameClaim(),
+    }));
+  await mapWithConcurrency({
+    items,
+    limit: SOURCE_PREFETCH_CONCURRENCY_LIMIT,
+    mapper: async (item) => {
+      const earlier = items.slice(0, items.indexOf(item));
+      try {
+        await prefetchGithubSource({
+          sourceEntry: item.sourceEntry,
+          lock,
+          context,
+          skillClaim: createClaimSlot({
+            reserved: context.reservedSkillNames,
+            earlier: earlier.map((other) => other.skills),
+            own: item.skills,
+          }),
+          ruleClaim: createClaimSlot({
+            reserved: context.reservedRuleNames,
+            earlier: earlier.map((other) => other.rules),
+            own: item.rules,
+          }),
+        });
+      } catch (error) {
+        logger.debug(
+          `Prefetch of "${item.sourceEntry.source}" stopped early: ${formatError(error)}`,
+        );
+      } finally {
+        // A source that claimed nothing (or failed before it could) must not
+        // keep later sources waiting. Settling twice keeps the first claim.
+        item.skills.settle([]);
+        item.rules.settle([]);
+      }
+    },
+  });
+}
+
+async function prefetchGithubSource(params: {
+  sourceEntry: SourceEntry;
+  lock: SourcesLock;
+  context: GithubPrefetchContext;
+  skillClaim: ClaimSlot;
+  ruleClaim: ClaimSlot;
+}): Promise<void> {
+  const { sourceEntry, lock, context, skillClaim, ruleClaim } = params;
+  const parsedFromSource = parseSource(sourceEntry.source);
+  if (parsedFromSource.provider === "gitlab") {
+    return;
+  }
+  const parsed: ParsedSource = {
+    ...parsedFromSource,
+    ref: sourceEntry.ref ?? parsedFromSource.ref,
+    path: sourceEntry.path ?? parsedFromSource.path,
+  };
+  const locked = getLockedSource(lock, sourceEntry.source);
+  const ref = await resolvePrefetchRef({ parsed, locked, context });
+  const filters = getSourceFilters(sourceEntry);
+  // Settled rather than all: a failure on one side must not return while the
+  // other side's requests are still running outside the concurrency bound.
+  await Promise.allSettled([
+    filters.skills === undefined
+      ? undefined
+      : prefetchGithubSkills({
+          target: { sourceEntry: { ...sourceEntry, skills: filters.skills }, parsed, ref, locked },
+          claim: skillClaim,
+          context,
+        }),
+    filters.rules === undefined
+      ? undefined
+      : prefetchGithubRules({
+          target: { sourceEntry: { ...sourceEntry, rules: filters.rules }, parsed, ref, locked },
+          // Mirrors `fetchSingleSource`: a source that also takes skills
+          // re-fetches its rules on `--update` at the ref the skills resolved.
+          forceRefetch: filters.skills !== undefined && context.updateSources,
+          claim: ruleClaim,
+          context,
+        }),
+  ]);
+}
+
+/** The commit `resolveGithubFetchRef` settles on, asked through the same client. */
+async function resolvePrefetchRef(params: {
+  parsed: ParsedSource;
+  locked: LockedSource | undefined;
+  context: GithubPrefetchContext;
+}): Promise<string> {
+  const { parsed, locked, context } = params;
+  if (locked && !context.updateSources) {
+    return locked.resolvedRef;
+  }
+  const { client, semaphore } = context;
+  const requestedRef =
+    parsed.ref ??
+    (await withSemaphore(semaphore, () => client.getDefaultBranch(parsed.owner, parsed.repo)));
+  return withSemaphore(semaphore, () =>
+    client.resolveRefToSha(parsed.owner, parsed.repo, requestedRef),
+  );
+}
+
+async function prefetchGithubSkills(params: {
+  target: GithubPrefetchTarget;
+  claim: ClaimSlot;
+  context: GithubPrefetchContext;
+}): Promise<void> {
+  const { target, claim, context } = params;
+  const { sourceEntry, parsed, ref, locked } = target;
+  const { client, semaphore } = context;
+  const lockedSkillNames = locked ? getLockedSkillNames(locked) : [];
+  if (
+    await canReuseLockedSkills({
+      locked,
+      resolvedSha: ref,
+      updateSources: context.updateSources,
+      frozen: context.frozen,
+      sourceEntry,
+      curatedDir: join(context.projectRoot, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH),
+      lockedSkillNames,
+    })
+  ) {
+    claim.settle(lockedSkillNames);
+    return;
+  }
+  const skillFilter = sourceEntry.skills ?? ["*"];
+  const isWildcard = skillFilter.length === 1 && skillFilter[0] === "*";
+  const entries = await withSemaphore(semaphore, () =>
+    client.listDirectory(parsed.owner, parsed.repo, parsed.path ?? "skills", ref),
+  );
+  const skillDirs = entries.filter(
+    (entry) => entry.type === "dir" && (isWildcard || skillFilter.includes(entry.name)),
+  );
+  const useRootFallback = shouldUseRootFallback({
+    skillFilter,
+    isWildcard,
+    hasRootSkillFile: entries.some(
+      (entry) => entry.type === "file" && entry.name === SKILL_FILE_NAME,
+    ),
+    hasRequestedSkillDir: skillDirs.length > 0,
+  });
+  const claimed = await claim.earlier();
+  const isWanted = (name: string) =>
+    shouldPrefetchSkill({ name, localSkillNames: context.localSkillNames, claimed });
+  if (useRootFallback) {
+    // The serial pass downloads the root files before it checks the name.
+    claim.settle(skillFilter.filter(isWanted));
+    await prefetchSkillFileContents({
+      files: entries.filter((entry) => entry.type === "file"),
+      target,
+      context,
+    });
+    return;
+  }
+  const wantedDirs = skillDirs.filter((dir) => isWanted(dir.name));
+  claim.settle(wantedDirs.map((dir) => dir.name));
+  await prefetchSkillFileContents({
+    files: await listPrefetchSkillFiles({ skillDirs: wantedDirs, target, context }),
+    target,
+    context,
+  });
+}
+
+async function prefetchSkillFileContents(params: {
+  files: GitHubFileEntry[];
+  target: GithubPrefetchTarget;
+  context: GithubPrefetchContext;
+}): Promise<void> {
+  const { files, target, context } = params;
+  await prefetchFileContents({ files, target, context });
+  if (files.some((file) => posix.basename(file.path) !== SKILL_FILE_NAME)) {
+    await withSemaphore(context.semaphore, () =>
+      context.client.listExecutablePaths(target.parsed.owner, target.parsed.repo, target.ref),
+    );
+  }
+}
+
+/** Whether the serial pass is expected to download this skill at all. */
+function shouldPrefetchSkill(params: {
+  name: string;
+  localSkillNames: Set<string>;
+  claimed: Set<string>;
+}): boolean {
+  const { name, localSkillNames, claimed } = params;
+  return (
+    !name.includes("..") &&
+    !name.includes("/") &&
+    !name.includes("\\") &&
+    !localSkillNames.has(name) &&
+    !claimed.has(name)
+  );
+}
+
+async function listPrefetchSkillFiles(params: {
+  skillDirs: GitHubFileEntry[];
+  target: GithubPrefetchTarget;
+  context: GithubPrefetchContext;
+}): Promise<GitHubFileEntry[]> {
+  const { skillDirs, target, context } = params;
+  // Settled rather than all, so one failed listing does not return while the
+  // others are still in flight; the serial pass reports the failure.
+  const listings = await Promise.allSettled(
+    skillDirs.map((dir) =>
+      listDirectoryRecursive({
+        client: context.client,
+        owner: target.parsed.owner,
+        repo: target.parsed.repo,
+        path: dir.path,
+        ref: target.ref,
+        semaphore: context.semaphore,
+      }),
+    ),
+  );
+  return listings.flatMap((listing) => (listing.status === "fulfilled" ? listing.value : []));
+}
+
+async function prefetchGithubRules(params: {
+  target: GithubPrefetchTarget;
+  forceRefetch: boolean;
+  claim: ClaimSlot;
+  context: GithubPrefetchContext;
+}): Promise<void> {
+  const { target, forceRefetch, claim, context } = params;
+  const { sourceEntry, parsed, ref, locked } = target;
+  const claimed = await claim.earlier();
+  if (
+    locked &&
+    !context.updateSources &&
+    !forceRefetch &&
+    (await canReuseLockedRules({
+      locked,
+      sourceEntry,
+      lockedRuleNames: getLockedRuleNames(locked),
+      localRuleNames: context.localRuleNames,
+      alreadyFetchedRuleNames: claimed,
+      curatedDir: join(context.projectRoot, RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH),
+    }))
+  ) {
+    claim.settle(getLockedRuleNames(locked));
+    return;
+  }
+  const entries = await withSemaphore(context.semaphore, () =>
+    context.client.listDirectory(parsed.owner, parsed.repo, sourceEntry.rulesPath ?? "rules", ref),
+  );
+  const ruleFilter = (sourceEntry.rules ?? []).map(normalizeRuleFilterName);
+  const isWildcard = ruleFilter.length === 1 && ruleFilter[0] === "*";
+  const files = entries.filter((entry) => {
+    if (entry.type !== "file" || !entry.name.toLowerCase().endsWith(".md")) {
+      return false;
+    }
+    const name = normalizeRuleFilterName(entry.name);
+    return (
+      (isWildcard || ruleFilter.includes(name)) &&
+      isValidRuleName(name) &&
+      !context.localRuleNames.has(name) &&
+      !claimed.has(name)
+    );
+  });
+  claim.settle(files.map((file) => normalizeRuleFilterName(file.name)));
+  await prefetchFileContents({ files, target, context });
+}
+
+async function prefetchFileContents(params: {
+  files: GitHubFileEntry[];
+  target: GithubPrefetchTarget;
+  context: GithubPrefetchContext;
+}): Promise<void> {
+  const { files, target, context } = params;
+  // Settled rather than all, so one failed download does not return while the
+  // others are still queued; the serial pass reports the failure.
+  await Promise.allSettled(
+    files
+      .filter((file) => file.size <= MAX_FILE_SIZE)
+      .map((file) =>
+        withSemaphore(context.semaphore, () =>
+          context.client.getFileContent(
+            target.parsed.owner,
+            target.parsed.repo,
+            file.path,
+            target.ref,
+          ),
+        ),
+      ),
+  );
 }
 
 async function assertSourceOutputPathsAreSafe(projectRoot: string): Promise<void> {
