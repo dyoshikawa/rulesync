@@ -3681,6 +3681,281 @@ describe("resolveAndFetchSources", () => {
     );
   });
 
+  describe("source paths shared by the fetch and the lockfile", () => {
+    // Each case installs once, then installs again against the lockfile the
+    // first run wrote. The first run proves which path the transport fetched
+    // from and which path the lockfile recorded; the second proves the lock
+    // comparison accepts that recorded path, so the two cannot drift apart.
+    const githubCases = [
+      { name: "plain", entry: { source: "org/repo" }, fetchPath: "skills", lockPath: "skills" },
+      {
+        name: "embedded",
+        entry: { source: "org/repo:exports/skills" },
+        fetchPath: "exports/skills",
+        lockPath: "exports/skills",
+      },
+      {
+        name: "custom path",
+        entry: { source: "org/repo", path: "custom/skills/" },
+        fetchPath: "custom/skills/",
+        lockPath: "custom/skills",
+      },
+      {
+        name: "custom path over an embedded one",
+        entry: { source: "org/repo:exports/skills", path: "custom" },
+        fetchPath: "custom",
+        lockPath: "custom",
+      },
+    ];
+
+    it.each(githubCases)(
+      "uses one skills path for the github transport ($name)",
+      async ({ entry, fetchPath, lockPath }) => {
+        const { readLockFile, writeLockFile } = await import("./sources-lock.js");
+        const curatedDir = join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
+        vi.mocked(readLockFile).mockResolvedValue({ lockfileVersion: 1, sources: {} });
+        mockClientInstance.listDirectory.mockImplementation(
+          async (_owner: string, _repo: string, path: string) => {
+            if (path === fetchPath) {
+              return [{ name: "demo", path: `${lockPath}/demo`, type: "dir" }];
+            }
+            if (path === `${lockPath}/demo`) {
+              return [
+                { name: "SKILL.md", path: `${lockPath}/demo/SKILL.md`, type: "file", size: 10 },
+              ];
+            }
+            return [];
+          },
+        );
+
+        const first = await resolveAndFetchSources({
+          logger,
+          sources: [{ ...entry, skills: ["*"] }],
+          projectRoot: testDir,
+        });
+
+        expect(first.fetchedSkillCount).toBe(1);
+        expect(mockClientInstance.listDirectory).toHaveBeenCalledWith(
+          "org",
+          "repo",
+          fetchPath,
+          "abc123def456",
+        );
+        const writtenLock = vi.mocked(writeLockFile).mock.calls.at(-1)?.[0].lock;
+        expect(Object.values(writtenLock?.sources ?? {})).toEqual([
+          expect.objectContaining({ skillsPath: lockPath }),
+        ]);
+
+        vi.mocked(readLockFile).mockResolvedValue(writtenLock!);
+        vi.mocked(directoryExists).mockImplementation(async (path: string) => {
+          return path === join(curatedDir, "demo");
+        });
+        mockClientInstance.listDirectory.mockClear();
+
+        const second = await resolveAndFetchSources({
+          logger,
+          sources: [{ ...entry, skills: ["*"] }],
+          projectRoot: testDir,
+          options: { frozen: true },
+        });
+
+        expect(second.fetchedSkillCount).toBe(0);
+        expect(second.failedSourceCount).toBe(0);
+        expect(mockClientInstance.listDirectory).not.toHaveBeenCalled();
+      },
+    );
+
+    const gitCases = [
+      { name: "plain", path: undefined, fetchPath: "skills", lockPath: "skills" },
+      {
+        name: "custom path",
+        path: "custom/skills/",
+        fetchPath: "custom/skills/",
+        lockPath: "custom/skills",
+      },
+    ];
+
+    it.each(gitCases)(
+      "uses one skills path for the git transport ($name)",
+      async ({ path, fetchPath, lockPath }) => {
+        const { readLockFile, writeLockFile } = await import("./sources-lock.js");
+        const { fetchSkillFiles, resolveDefaultRef } = await import("./git-client.js");
+        const curatedDir = join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
+        const source = "https://example.com/team/skills.git";
+        const entry = { source, transport: "git" as const, path, skills: ["*"] };
+        vi.mocked(readLockFile).mockResolvedValue({ lockfileVersion: 1, sources: {} });
+        vi.mocked(resolveDefaultRef).mockResolvedValue({ ref: "main", sha: "a".repeat(40) });
+        vi.mocked(fetchSkillFiles).mockResolvedValue([
+          { relativePath: "demo/SKILL.md", content: "# Demo", size: 10 },
+        ]);
+
+        const first = await resolveAndFetchSources({
+          logger,
+          sources: [entry],
+          projectRoot: testDir,
+        });
+
+        expect(first.fetchedSkillCount).toBe(1);
+        expect(fetchSkillFiles).toHaveBeenCalledWith(
+          expect.objectContaining({ skillsPath: fetchPath }),
+        );
+        const writtenLock = vi.mocked(writeLockFile).mock.calls.at(-1)?.[0].lock;
+        expect(Object.values(writtenLock?.sources ?? {})).toEqual([
+          expect.objectContaining({ skillsPath: lockPath }),
+        ]);
+
+        vi.mocked(readLockFile).mockResolvedValue(writtenLock!);
+        vi.mocked(directoryExists).mockImplementation(async (dirPath: string) => {
+          return dirPath === join(curatedDir, "demo");
+        });
+        vi.mocked(fetchSkillFiles).mockClear();
+
+        const second = await resolveAndFetchSources({
+          logger,
+          sources: [entry],
+          projectRoot: testDir,
+          options: { frozen: true },
+        });
+
+        expect(second.fetchedSkillCount).toBe(0);
+        expect(second.failedSourceCount).toBe(0);
+        expect(fetchSkillFiles).not.toHaveBeenCalled();
+      },
+    );
+
+    const npmCases = [
+      { name: "plain", path: undefined, filePrefix: "skills", lockPath: "skills" },
+      {
+        name: "custom path",
+        path: "custom/skills/",
+        filePrefix: "custom/skills",
+        lockPath: "custom/skills",
+      },
+    ];
+
+    it.each(npmCases)(
+      "uses one skills path for the npm transport ($name)",
+      async ({ path, filePrefix, lockPath }) => {
+        const {
+          fetchPackument,
+          fetchTarball,
+          getPackumentVersionDist,
+          resolveNpmToken,
+          resolvePackumentVersion,
+        } = await import("./npm-client.js");
+        const { extractPackageTarball } = await import("./npm-tar.js");
+        const { readNpmLockFile, writeNpmLockFile } = await import("./npm-sources-lock.js");
+        const curatedDir = join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
+        const entry = { source: "example", transport: "npm" as const, path, skills: ["*"] };
+        vi.mocked(readNpmLockFile).mockResolvedValue({ lockfileVersion: 1, sources: {} });
+        vi.mocked(resolveNpmToken).mockReturnValue(undefined);
+        vi.mocked(fetchPackument).mockResolvedValue({});
+        vi.mocked(resolvePackumentVersion).mockReturnValue("1.0.0");
+        vi.mocked(getPackumentVersionDist).mockReturnValue({
+          tarball: "https://registry.npmjs.org/example/-/example-1.0.0.tgz",
+          integrity: "sha512-example",
+        });
+        vi.mocked(fetchTarball).mockResolvedValue(Buffer.from("tarball"));
+        vi.mocked(extractPackageTarball).mockReturnValue([
+          { relativePath: `${filePrefix}/demo/SKILL.md`, content: Buffer.from("# Demo") },
+          { relativePath: "elsewhere/other/SKILL.md", content: Buffer.from("# Other") },
+        ]);
+
+        const first = await resolveAndFetchSources({
+          logger,
+          sources: [entry],
+          projectRoot: testDir,
+        });
+
+        expect(first.fetchedSkillCount).toBe(1);
+        expect(writeFileContent).toHaveBeenCalledWith(
+          join(curatedDir, "demo", "SKILL.md"),
+          "# Demo",
+        );
+        const writtenLock = vi.mocked(writeNpmLockFile).mock.calls.at(-1)?.[0].lock;
+        expect(writtenLock?.sources.example).toMatchObject({ skillsPath: lockPath });
+
+        vi.mocked(readNpmLockFile).mockResolvedValue(writtenLock!);
+        vi.mocked(directoryExists).mockImplementation(async (dirPath: string) => {
+          return dirPath === join(curatedDir, "demo");
+        });
+        vi.mocked(fetchTarball).mockClear();
+
+        const second = await resolveAndFetchSources({
+          logger,
+          sources: [entry],
+          projectRoot: testDir,
+          options: { frozen: true },
+        });
+
+        expect(second.fetchedSkillCount).toBe(0);
+        expect(second.failedSourceCount).toBe(0);
+        expect(fetchTarball).not.toHaveBeenCalled();
+      },
+    );
+
+    const ruleContent = "---\ntargets: ['*']\n---\nUse Vitest.";
+    const rulesCases = [
+      { transport: "github" as const, source: "org/repo" },
+      { transport: "git" as const, source: "https://example.com/team/rules.git" },
+    ];
+
+    it.each(rulesCases)(
+      "uses one rules path for the $transport transport",
+      async ({ transport, source }) => {
+        const { readLockFile, writeLockFile } = await import("./sources-lock.js");
+        const { fetchSkillFiles, resolveDefaultRef } = await import("./git-client.js");
+        const curatedDir = join(testDir, RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH);
+        const entry = { source, transport, rules: ["*"], rulesPath: "custom/rules/" };
+        vi.mocked(readLockFile).mockResolvedValue({ lockfileVersion: 1, sources: {} });
+        mockClientInstance.listDirectory.mockResolvedValue([
+          { name: "testing.md", path: "custom/rules/testing.md", type: "file", size: 10 },
+        ]);
+        mockClientInstance.getFileContent.mockResolvedValue(ruleContent);
+        vi.mocked(resolveDefaultRef).mockResolvedValue({ ref: "main", sha: "a".repeat(40) });
+        vi.mocked(fetchSkillFiles).mockResolvedValue([
+          { relativePath: "testing.md", content: ruleContent, size: 10 },
+        ]);
+        const fetchCalls = () =>
+          transport === "git"
+            ? vi.mocked(fetchSkillFiles).mock.calls.map(([params]) => params.skillsPath)
+            : mockClientInstance.listDirectory.mock.calls.map((call: unknown[]) => call[2]);
+
+        const first = await resolveAndFetchSources({
+          logger,
+          sources: [entry],
+          projectRoot: testDir,
+        });
+
+        expect(first.fetchedRuleCount).toBe(1);
+        expect(fetchCalls()).toEqual(["custom/rules/"]);
+        const writtenLock = vi.mocked(writeLockFile).mock.calls.at(-1)?.[0].lock;
+        expect(Object.values(writtenLock?.sources ?? {})).toEqual([
+          expect.objectContaining({ rulesPath: "custom/rules" }),
+        ]);
+
+        vi.mocked(readLockFile).mockResolvedValue(writtenLock!);
+        vi.mocked(fileExists).mockImplementation(async (filePath: string) => {
+          return filePath === join(curatedDir, "testing.md");
+        });
+        vi.mocked(readFileContent).mockResolvedValue(ruleContent);
+        mockClientInstance.listDirectory.mockClear();
+        vi.mocked(fetchSkillFiles).mockClear();
+
+        const second = await resolveAndFetchSources({
+          logger,
+          sources: [entry],
+          projectRoot: testDir,
+          options: { frozen: true },
+        });
+
+        expect(second.fetchedRuleCount).toBe(0);
+        expect(second.failedSourceCount).toBe(0);
+        expect(fetchCalls()).toEqual([]);
+      },
+    );
+  });
+
   describe("concurrent prefetch", () => {
     const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
