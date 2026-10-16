@@ -97,7 +97,7 @@ describe("KiroCapabilityPermissions", () => {
     });
   });
 
-  it("keeps rules rulesync does not emit and replaces only re-emitted patterns", async () => {
+  it("removes only exact duplicates and never loosens an existing rule", async () => {
     await writeFileContent(
       permissionsPath(),
       [
@@ -109,10 +109,10 @@ describe("KiroCapabilityPermissions", () => {
         "  - capability: shell",
         "    match: ['ls *', 'git *']",
         "    effect: ask",
-        "  - capability: fs_read",
+        "  - capability: shell",
+        "    match: ['npm test', 'git status']",
         "    effect: allow",
-        "  - capability: web_fetch",
-        "    match: ['https://example.com/*']",
+        "  - capability: fs_read",
         "    effect: allow",
         "  - capability: shell",
         "    match: ['npm *']",
@@ -125,10 +125,14 @@ describe("KiroCapabilityPermissions", () => {
       ].join("\n"),
     );
 
+    const logger = createMockLogger();
     const generate = async (): Promise<KiroCapabilityPermissions> => {
       const perms = await KiroCapabilityPermissions.fromRulesyncPermissions({
         outputRoot: testDir,
-        rulesyncPermissions: rulesyncPermissions({ permission: { bash: { "git *": "allow" } } }),
+        logger,
+        rulesyncPermissions: rulesyncPermissions({
+          permission: { bash: { "git *": "allow", "git status": "allow" } },
+        }),
       });
       await writeFileContent(permissionsPath(), perms.getFileContent());
       return perms;
@@ -139,14 +143,21 @@ describe("KiroCapabilityPermissions", () => {
       version: 1,
       rules: [
         { capability: "shell", match: ["rm -rf *"], effect: "deny" },
-        { capability: "shell", match: ["ls *"], effect: "ask" },
+        // Same pattern, different effect: kept, so Kiro's deny > ask > allow
+        // still resolves `git *` to ask.
+        { capability: "shell", match: ["ls *", "git *"], effect: "ask" },
+        // `git status` is an exact duplicate of a generated entry and moves
+        // into the generated rule; `npm test` stays.
+        { capability: "shell", match: ["npm test"], effect: "allow" },
         { capability: "fs_read", effect: "allow" },
-        { capability: "web_fetch", match: ["https://example.com/*"], effect: "allow" },
         { capability: "shell", match: ["npm *"], exclude: ["npm publish*"], effect: "allow" },
         { capability: "mcp", match: ["github/*"], effect: "deny" },
-        { capability: "shell", match: ["git *"], effect: "allow" },
+        { capability: "shell", match: ["git *", "git status"], effect: "allow" },
       ],
     });
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('already has a shell rule for "git *" with effect "ask"'),
+    );
 
     // Rerunning generate is idempotent.
     const second = await generate();
@@ -155,6 +166,7 @@ describe("KiroCapabilityPermissions", () => {
 
   it("keeps every existing rule when rulesync has no Kiro-mapped rules", async () => {
     const existing = [
+      "# hand-written",
       "rules:",
       "  - capability: shell",
       "    match: ['rm -rf *']",
@@ -169,17 +181,54 @@ describe("KiroCapabilityPermissions", () => {
       outputRoot: testDir,
       rulesyncPermissions: rulesyncPermissions({ permission: { grep: { "*": "allow" } } }),
     });
-    expect(load(perms.getFileContent())).toEqual(load(existing));
+    // Nothing changed, so the content is returned verbatim, comments included.
+    expect(perms.getFileContent()).toBe(existing);
   });
 
-  it("replaces a match-less rule only when rulesync emits the catch-all", async () => {
-    await writeFileContent(permissionsPath(), "rules:\n  - capability: fs_read\n    effect: ask\n");
+  it("does not retract rules a previous run wrote, and warns about them", async () => {
+    const logger = createMockLogger();
+    const generate = async (permission: Record<string, unknown>): Promise<string> => {
+      const perms = await KiroCapabilityPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        logger,
+        rulesyncPermissions: rulesyncPermissions({ permission }),
+      });
+      await writeFileContent(permissionsPath(), perms.getFileContent());
+      return perms.getFileContent();
+    };
+
+    await generate({ bash: { "git *": "allow", "curl *": "allow" } });
+    expect(logger.warn).not.toHaveBeenCalled();
+
+    const content = await generate({ bash: { "git *": "allow" } });
+    expect(load(content)).toEqual({
+      rules: [
+        { capability: "shell", match: ["curl *"], effect: "allow" },
+        { capability: "shell", match: ["git *"], effect: "allow" },
+      ],
+    });
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("Rulesync never removes rules from this file"),
+    );
+  });
+
+  it("replaces a match-less duplicate and keeps a conflicting match-less rule", async () => {
+    await writeFileContent(
+      permissionsPath(),
+      "rules:\n  - capability: fs_read\n    effect: allow\n  - capability: fs_write\n    effect: deny\n",
+    );
     const perms = await KiroCapabilityPermissions.fromRulesyncPermissions({
       outputRoot: testDir,
-      rulesyncPermissions: rulesyncPermissions({ permission: { read: { "*": "allow" } } }),
+      rulesyncPermissions: rulesyncPermissions({
+        permission: { read: { "*": "allow" }, write: { "*": "allow" } },
+      }),
     });
     expect(load(perms.getFileContent())).toEqual({
-      rules: [{ capability: "fs_read", effect: "allow" }],
+      rules: [
+        { capability: "fs_write", effect: "deny" },
+        { capability: "fs_read", effect: "allow" },
+        { capability: "fs_write", effect: "allow" },
+      ],
     });
   });
 

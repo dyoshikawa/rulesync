@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { isDeepStrictEqual } from "node:util";
 
 import { dump } from "js-yaml";
 
@@ -83,58 +84,121 @@ function rulePatternKey(capability: string, pattern: string): string {
   return `${capability}\u0000${pattern}`;
 }
 
+type ExistingEntryOutcome = "duplicate" | "conflict" | "unrelated";
+
 /**
- * Merge the existing rules with the generated ones, removing only what the
- * generated rules replace. Rulesync never removes a rule it is not about to
- * re-emit: an existing rule loses just the `match` entries whose (capability,
- * pattern) pair rulesync now emits (a match-less rule counts as the `*`
- * pattern), and is dropped only when no entry is left. Everything else — rules
- * Kiro saved ("Always allow/deny"), hand-written rules, rules with `exclude`,
- * rules for capabilities rulesync does not map, malformed entries — is kept
- * verbatim. Rerunning generate is therefore idempotent.
+ * Classify one existing (capability, pattern, effect) entry against the
+ * generated rules: an exact duplicate (same effect) is replaced by the
+ * generated rule; a different effect is a conflict and is kept; anything
+ * rulesync does not emit is unrelated and kept.
+ */
+function classifyExistingEntry({
+  emitted,
+  capability,
+  pattern,
+  effect,
+}: {
+  emitted: Map<string, Set<PermissionAction>>;
+  capability: string;
+  pattern: string;
+  effect: unknown;
+}): ExistingEntryOutcome {
+  const effects = emitted.get(rulePatternKey(capability, pattern));
+  if (effects === undefined) return "unrelated";
+  return isPermissionAction(effect) && effects.has(effect) ? "duplicate" : "conflict";
+}
+
+/**
+ * Merge one existing rule against the generated entries (see
+ * {@link mergeKiroCapabilityRules}). Returns the rule to keep (possibly with a
+ * narrowed `match`), or `undefined` when every entry is an exact duplicate, and
+ * how many entries rulesync does not generate.
+ */
+function mergeExistingRule({
+  rule,
+  emitted,
+  logger,
+}: {
+  rule: unknown;
+  emitted: Map<string, Set<PermissionAction>>;
+  logger?: Logger;
+}): { rule: unknown; unrelatedEntries: number } {
+  if (
+    !isRecord(rule) ||
+    typeof rule.capability !== "string" ||
+    rule.exclude !== undefined ||
+    !MANAGED_CAPABILITIES.has(rule.capability) ||
+    (rule.match !== undefined && !isStringArray(rule.match))
+  ) {
+    return { rule, unrelatedEntries: 0 };
+  }
+  const capability = rule.capability;
+  const isCatchAll = rule.match === undefined;
+  const patterns = isStringArray(rule.match) ? rule.match : [CATCH_ALL_PATTERN];
+  const remaining: string[] = [];
+  let unrelatedEntries = 0;
+  for (const pattern of patterns) {
+    const outcome = classifyExistingEntry({ emitted, capability, pattern, effect: rule.effect });
+    if (outcome === "duplicate") continue;
+    remaining.push(pattern);
+    if (outcome === "unrelated") {
+      unrelatedEntries++;
+      continue;
+    }
+    logger?.warn(
+      `Kiro permissions.yaml already has a ${capability} rule for "${pattern}" with effect "${String(rule.effect)}"; keeping it alongside the generated rule. Kiro applies the stricter effect (deny > ask > allow).`,
+    );
+  }
+  if (remaining.length === 0) return { rule: undefined, unrelatedEntries };
+  if (remaining.length === patterns.length || isCatchAll) return { rule, unrelatedEntries };
+  return { rule: { ...rule, match: remaining }, unrelatedEntries };
+}
+
+/**
+ * Merge the existing rules with the generated ones. Rulesync keeps no
+ * ownership record in the file, so it only removes what it is about to write
+ * again: an existing rule loses the `match` entries that exactly duplicate a
+ * generated (capability, pattern, effect) — a match-less rule counts as the `*`
+ * pattern — and is dropped only when no entry is left.
+ *
+ * Everything else is kept verbatim: rules Kiro saved ("Always allow/deny"),
+ * hand-written rules, rules with `exclude`, rules for capabilities rulesync
+ * does not map, malformed entries. An existing rule with the same pattern but a
+ * different effect is kept too, with a warning: Kiro resolves deny > ask >
+ * allow, so the stricter rule still wins and a user's `deny` is never loosened.
+ * Rerunning generate is therefore idempotent.
  */
 function mergeKiroCapabilityRules({
   existingRules,
   generatedRules,
+  logger,
 }: {
   existingRules: unknown[];
   generatedRules: KiroCapabilityRule[];
+  logger?: Logger;
 }): unknown[] {
-  const emitted = new Set<string>();
+  const emitted = new Map<string, Set<PermissionAction>>();
   for (const rule of generatedRules) {
     for (const pattern of rule.match ?? [CATCH_ALL_PATTERN]) {
-      emitted.add(rulePatternKey(rule.capability, pattern));
+      const key = rulePatternKey(rule.capability, pattern);
+      const effects = emitted.get(key) ?? new Set<PermissionAction>();
+      effects.add(rule.effect);
+      emitted.set(key, effects);
     }
   }
 
   const kept: unknown[] = [];
+  let unrelatedManagedEntries = 0;
   for (const rule of existingRules) {
-    if (
-      !isRecord(rule) ||
-      typeof rule.capability !== "string" ||
-      rule.exclude !== undefined ||
-      !MANAGED_CAPABILITIES.has(rule.capability)
-    ) {
-      kept.push(rule);
-      continue;
-    }
-    const capability = rule.capability;
-    if (rule.match === undefined) {
-      if (!emitted.has(rulePatternKey(capability, CATCH_ALL_PATTERN))) kept.push(rule);
-      continue;
-    }
-    if (!isStringArray(rule.match)) {
-      kept.push(rule);
-      continue;
-    }
-    const remaining = rule.match.filter(
-      (pattern) => !emitted.has(rulePatternKey(capability, pattern)),
+    const result = mergeExistingRule({ rule, emitted, logger });
+    if (result.rule !== undefined) kept.push(result.rule);
+    unrelatedManagedEntries += result.unrelatedEntries;
+  }
+
+  if (unrelatedManagedEntries > 0) {
+    logger?.warn(
+      `Kiro permissions.yaml keeps ${unrelatedManagedEntries} existing shell/fs_read/fs_write/web_fetch/web_search rule ${unrelatedManagedEntries === 1 ? "entry" : "entries"} that .rulesync/permissions.json does not generate. Rulesync never removes rules from this file, so delete any it wrote earlier by hand.`,
     );
-    if (remaining.length === rule.match.length) {
-      kept.push(rule);
-    } else if (remaining.length > 0) {
-      kept.push({ ...rule, match: remaining });
-    }
   }
   return [...kept, ...generatedRules];
 }
@@ -163,11 +227,11 @@ const LOCATION_INDEPENDENT_FS_PATTERN = /^(?:\/|~|\*\*|[A-Za-z]:[\\/])/;
  *
  * Kiro also writes into this file (consent decisions persisted globally), so it
  * is merged, never replaced or deleted: every top-level key other than `rules`
- * is preserved, and existing rules are kept except for the (capability,
- * pattern) pairs rulesync re-emits (see {@link mergeKiroCapabilityRules}). A
- * rule rulesync wrote earlier and whose canonical entry was since removed stays
- * in the file; delete it by hand. The file is re-serialized, so YAML comments
- * in it are not preserved.
+ * is preserved, and existing rules are kept except for entries that exactly
+ * repeat a generated rule (see {@link mergeKiroCapabilityRules}). Rulesync
+ * never retracts a rule an earlier run wrote; it warns instead. A run that
+ * changes nothing returns the existing content verbatim; otherwise the file is
+ * re-serialized and its YAML comments are lost.
  *
  * @see https://kiro.dev/docs/permissions/
  */
@@ -246,6 +310,7 @@ export class KiroCapabilityPermissions extends ToolPermissions {
     const rules = mergeKiroCapabilityRules({
       existingRules: parsed.rules ?? [],
       generatedRules,
+      logger,
     });
 
     const next: Record<string, unknown> = { ...parsed };
@@ -257,7 +322,7 @@ export class KiroCapabilityPermissions extends ToolPermissions {
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
-      fileContent: Object.keys(next).length === 0 ? "" : dump(next),
+      fileContent: serializeKiroPermissions({ next, parsed, existingContent }),
       validate: true,
       global: true,
     });
@@ -362,6 +427,24 @@ function buildKiroCapabilityRules({
     }
   }
   return result;
+}
+
+/**
+ * Serialize the merged config. When the merge changes nothing, the existing
+ * content is returned verbatim so a run with nothing to change never rewrites
+ * the file (and never drops its YAML comments).
+ */
+function serializeKiroPermissions({
+  next,
+  parsed,
+  existingContent,
+}: {
+  next: Record<string, unknown>;
+  parsed: Record<string, unknown>;
+  existingContent: string;
+}): string {
+  if (isDeepStrictEqual(next, parsed)) return existingContent;
+  return Object.keys(next).length === 0 ? "" : dump(next);
 }
 
 /**
