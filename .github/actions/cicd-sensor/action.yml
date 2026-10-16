@@ -100,7 +100,7 @@ runs:
       id: start
       if: steps.verify.outputs.outcome == 'verified'
       continue-on-error: true
-      uses: cicd-sensor/cicd-sensor-action@cb0546d5707fcb68bf755006cb97817b3750996b # v0.0.39
+      uses: cicd-sensor/cicd-sensor-action@49560b716a9abba9190a48c0b6bca18ba98918e8 # v0.0.40
       with:
         cicd-sensor-version: ${{ steps.verify.outputs.version }}
         manager-url: https://manager.cicdsensor.cloud.shisho.dev
