@@ -557,6 +557,194 @@ describe("resolveAndFetchSources", () => {
     ).rejects.toThrow('Existing source "org/existing" is not fully installed.');
   });
 
+  /** Answer `directoryExists` from the in-memory files, as a real disk would. */
+  function existsInMemory(): void {
+    vi.mocked(directoryExists).mockImplementation(async (path: string) =>
+      [...writtenFiles.keys()].some((filePath) => filePath.startsWith(`${path}${sep}`)),
+    );
+    vi.mocked(removeDirectory).mockImplementation(async (path: string) => {
+      for (const filePath of writtenFiles.keys()) {
+        if (filePath.startsWith(`${path}${sep}`)) {
+          writtenFiles.delete(filePath);
+        }
+      }
+    });
+  }
+
+  /** List one skill named `name` with the given files under `skills/` of every repository. */
+  function mockRemoteSkill(params: {
+    name: string;
+    files: (owner: string) => Record<string, string>;
+  }) {
+    const { name, files } = params;
+    mockClientInstance.listDirectory.mockImplementation(
+      async (owner: string, _repo: string, path: string) => {
+        if (path === "skills") {
+          return [{ name, path: `skills/${name}`, type: "dir" }];
+        }
+        const prefix = `skills/${name}`;
+        if (path !== prefix && !path.startsWith(`${prefix}/`)) {
+          return [];
+        }
+        const inner = path === prefix ? "" : path.slice(prefix.length + 1);
+        const entries = new Map<
+          string,
+          { name: string; path: string; type: string; size?: number }
+        >();
+        for (const relativePath of Object.keys(files(owner))) {
+          if (inner !== "" && !relativePath.startsWith(`${inner}/`)) continue;
+          const rest = inner === "" ? relativePath : relativePath.slice(inner.length + 1);
+          const [head, ...tail] = rest.split("/");
+          const entryPath = `${path}/${head}`;
+          entries.set(
+            head!,
+            tail.length === 0
+              ? { name: head!, path: entryPath, type: "file", size: 10 }
+              : { name: head!, path: entryPath, type: "dir" },
+          );
+        }
+        return [...entries.values()];
+      },
+    );
+    mockClientInstance.getFileContent.mockImplementation(
+      async (owner: string, _repo: string, path: string) =>
+        files(owner)[path.slice(`skills/${name}/`.length)],
+    );
+  }
+
+  it("should reuse a skill it installed itself on the next frozen install", async () => {
+    const { readLockFile, writeLockFile } = await import("./sources-lock.js");
+    const skillDir = join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH, "demo");
+    existsInMemory();
+    mockRemoteSkill({
+      name: "demo",
+      files: () => ({ "SKILL.md": "# demo\n", "references/guide.md": "guide\n" }),
+    });
+
+    const first = await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "org/repo" }],
+      projectRoot: testDir,
+    });
+    expect(first.fetchedSkillCount).toBe(1);
+    expect(writtenFiles.get(join(skillDir, "references", "guide.md"))).toBe("guide\n");
+
+    const writtenLock = vi.mocked(writeLockFile).mock.calls.at(-1)?.[0].lock;
+    vi.mocked(readLockFile).mockResolvedValue(writtenLock!);
+    mockClientInstance.listDirectory.mockClear();
+    mockClientInstance.getFileContent.mockClear();
+    vi.mocked(writeFileContent).mockClear();
+
+    const second = await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "org/repo" }],
+      projectRoot: testDir,
+      options: { frozen: true },
+    });
+
+    expect(second.failedSourceCount).toBe(0);
+    expect(second.fetchedSkillCount).toBe(0);
+    expect(mockClientInstance.listDirectory).not.toHaveBeenCalled();
+    expect(mockClientInstance.getFileContent).not.toHaveBeenCalled();
+    expect(writeFileContent).not.toHaveBeenCalled();
+  });
+
+  it("should keep an earlier source's copy of a skill a later locked source also provides", async () => {
+    const { readLockFile, writeLockFile } = await import("./sources-lock.js");
+    const curatedDir = join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
+    const skillDir = join(curatedDir, "shared");
+    const contentOf = (owner: string) => ({ "SKILL.md": `# shared from ${owner}\n` });
+    // Source "org-b/repo" was installed alone and locked the skill...
+    vi.mocked(readLockFile).mockResolvedValue({
+      lockfileVersion: 1,
+      sources: {
+        "org-b/repo": {
+          resolvedRef: "abc123def456",
+          skills: {
+            shared: {
+              integrity: seedCuratedSkill({
+                curatedDir,
+                name: "shared",
+                files: contentOf("org-b"),
+              }),
+            },
+          },
+          skillSelection: ["*"],
+          skillsPath: "skills",
+        },
+      },
+    });
+    existsInMemory();
+    mockRemoteSkill({ name: "shared", files: contentOf });
+    // ...then "org-a/repo", declared first, starts providing the same name.
+    const sources = [{ source: "org-a/repo" }, { source: "org-b/repo" }];
+
+    const first = await resolveAndFetchSources({ logger, sources, projectRoot: testDir });
+    expect(first.failedSourceCount).toBe(0);
+    expect(writtenFiles.get(join(skillDir, "SKILL.md"))).toBe("# shared from org-a\n");
+    // The later source's entry is reused: its locked copy was replaced by the earlier source's.
+    expect(mockClientInstance.listDirectory).not.toHaveBeenCalledWith(
+      "org-b",
+      "repo",
+      expect.anything(),
+      expect.anything(),
+    );
+
+    // The next install, frozen, keeps that copy too and reuses both entries.
+    const writtenLock = vi.mocked(writeLockFile).mock.calls.at(-1)?.[0].lock;
+    vi.mocked(readLockFile).mockResolvedValue(writtenLock!);
+    mockClientInstance.listDirectory.mockClear();
+    const second = await resolveAndFetchSources({
+      logger,
+      sources,
+      projectRoot: testDir,
+      options: { frozen: true },
+    });
+    expect(second.failedSourceCount).toBe(0);
+    expect(second.fetchedSkillCount).toBe(0);
+    expect(mockClientInstance.listDirectory).not.toHaveBeenCalled();
+    expect(writtenFiles.get(join(skillDir, "SKILL.md"))).toBe("# shared from org-a\n");
+
+    expect(removeDirectory).not.toHaveBeenCalledWith(skillDir);
+    await expect(
+      getInstalledSourceSkillNames({ sources, projectRoot: testDir, logger }),
+    ).resolves.toEqual(["shared"]);
+  });
+
+  it("should only check the presence of a skill locked with an empty integrity", async () => {
+    const { readLockFile } = await import("./sources-lock.js");
+    const curatedDir = join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
+    seedCuratedSkill({ curatedDir, name: "legacy-skill" });
+    vi.mocked(readLockFile).mockResolvedValue({
+      lockfileVersion: 1,
+      sources: {
+        "org/repo": {
+          resolvedRef: "locked-sha-123",
+          skills: { "legacy-skill": { integrity: "" } },
+        },
+      },
+    });
+    existsInMemory();
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "org/repo", skills: ["legacy-skill"] }],
+      projectRoot: testDir,
+      options: { frozen: true },
+    });
+
+    expect(result.failedSourceCount).toBe(0);
+    expect(result.fetchedSkillCount).toBe(0);
+    expect(mockClientInstance.listDirectory).not.toHaveBeenCalled();
+    await expect(
+      getInstalledSourceSkillNames({
+        sources: [{ source: "org/repo", skills: ["legacy-skill"] }],
+        projectRoot: testDir,
+        logger,
+      }),
+    ).resolves.toEqual(["legacy-skill"]);
+  });
+
   it("should fetch skills from a remote source", async () => {
     // Mock: remote has one skill directory with one file
     mockClientInstance.listDirectory.mockImplementation(

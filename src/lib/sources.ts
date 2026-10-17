@@ -581,6 +581,8 @@ async function prefetchGithubSkills(params: {
       frozen: context.frozen,
       sourceEntry,
       curatedDir: join(context.projectRoot, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH),
+      // A name an earlier source takes holds that source's copy, as in the serial pass.
+      alreadyFetchedSkillNames: await claim.earlier(),
     })
   ) {
     claim.settle(lockedSkillNames);
@@ -887,7 +889,11 @@ export async function getInstalledSourceSkillNames({
       entry === undefined ||
       (getSourceFilters(source).skills !== undefined &&
         !lockedSkillConfigMatches({ locked: entry, sourceEntry: source, acceptLegacy: true })) ||
-      !(await checkLockedSkillsAreValid({ curatedDir, skills: entry.skills }))
+      !(await checkLockedSkillsAreValid({
+        curatedDir,
+        skills: entry.skills,
+        presenceOnlySkillNames: skillNames,
+      }))
     ) {
       throw new Error(
         `Existing source "${source.source}" is not fully installed. Run 'rulesync install' before adding another source.`,
@@ -1394,15 +1400,25 @@ async function cleanUnlistedSourceArtifacts(params: {
  * The locked hash keys each file by the path the transport reported. The
  * GitHub API and npm report POSIX paths, while the git transport reports
  * platform paths, so on Windows both spellings are accepted.
+ *
+ * Only presence is checked for a skill whose content this entry cannot vouch
+ * for: one an earlier source already installed under the same name (the
+ * curated directory then holds that source's copy, which wins), and one locked
+ * with an empty integrity by the migration from the legacy lockfile format.
  */
 async function checkLockedSkillsAreValid(params: {
   curatedDir: string;
   skills: Record<string, { integrity: string }>;
+  presenceOnlySkillNames?: Pick<Set<string>, "has">;
 }): Promise<boolean> {
-  for (const [name, entry] of Object.entries(params.skills)) {
-    const skillDir = join(params.curatedDir, name);
+  const { curatedDir, skills, presenceOnlySkillNames = new Set() } = params;
+  for (const [name, entry] of Object.entries(skills)) {
+    const skillDir = join(curatedDir, name);
     if (!(await directoryExists(skillDir))) {
       return false;
+    }
+    if (entry.integrity === "" || presenceOnlySkillNames.has(name)) {
+      continue;
     }
     const files = await Promise.all(
       (await listFilePathsRecursively(skillDir, { includeHidden: true })).map(
@@ -2114,14 +2130,27 @@ async function canReuseLockedSkills(params: {
   frozen: boolean;
   sourceEntry: SourceEntry;
   curatedDir: string;
+  alreadyFetchedSkillNames: Pick<Set<string>, "has">;
 }): Promise<boolean> {
-  const { locked, resolvedSha, updateSources, frozen, sourceEntry, curatedDir } = params;
+  const {
+    locked,
+    resolvedSha,
+    updateSources,
+    frozen,
+    sourceEntry,
+    curatedDir,
+    alreadyFetchedSkillNames,
+  } = params;
   return (
     locked !== undefined &&
     resolvedSha === locked.resolvedRef &&
     !updateSources &&
     lockedSkillConfigMatches({ locked, sourceEntry, acceptLegacy: frozen }) &&
-    (await checkLockedSkillsAreValid({ curatedDir, skills: locked.skills }))
+    (await checkLockedSkillsAreValid({
+      curatedDir,
+      skills: locked.skills,
+      presenceOnlySkillNames: alreadyFetchedSkillNames,
+    }))
   );
 }
 
@@ -2735,6 +2764,7 @@ async function discoverGithubSkillDirs(params: {
         await cleanPreviousCuratedSkills({
           curatedDir,
           lockedSkillNames: Object.keys(locked.skills),
+          protectedSkillNames: alreadyFetchedSkillNames,
           logger,
         });
       }
@@ -2839,6 +2869,7 @@ async function fetchSource(params: {
       frozen,
       sourceEntry,
       curatedDir,
+      alreadyFetchedSkillNames,
     })
   ) {
     logger.debug(`SHA unchanged for ${sourceKey}, skipping re-fetch.`);
@@ -2896,7 +2927,12 @@ async function fetchSource(params: {
   assertMatchingSkillsFound({ skillNames: remoteSkillNames, source: sourceKey });
 
   if (locked && !fallbackHandled) {
-    await cleanPreviousCuratedSkills({ curatedDir, lockedSkillNames, logger });
+    await cleanPreviousCuratedSkills({
+      curatedDir,
+      lockedSkillNames,
+      protectedSkillNames: alreadyFetchedSkillNames,
+      logger,
+    });
   }
 
   for (const skillDir of filteredDirs) {
@@ -2997,6 +3033,7 @@ async function fetchSourceViaGit(params: {
       frozen,
       sourceEntry,
       curatedDir,
+      alreadyFetchedSkillNames,
     })
   ) {
     return { skillCount: 0, fetchedSkillNames: lockedSkillNames, updatedLock: lock };
@@ -3031,7 +3068,12 @@ async function fetchSourceViaGit(params: {
   assertMatchingSkillsFound({ skillNames: filteredNames, source: url });
 
   if (locked) {
-    await cleanPreviousCuratedSkills({ curatedDir, lockedSkillNames, logger });
+    await cleanPreviousCuratedSkills({
+      curatedDir,
+      lockedSkillNames,
+      protectedSkillNames: alreadyFetchedSkillNames,
+      logger,
+    });
   }
 
   const fetchedSkills: Record<string, LockedSkill> = {};
@@ -3349,7 +3391,12 @@ async function fetchNpmSkills(params: {
     : allNames.filter((name) => selectedFiles.skillFilter.includes(name));
   assertMatchingSkillsFound({ skillNames: remoteSkillNames, source: packageName });
   if (locked) {
-    await cleanPreviousCuratedSkills({ curatedDir: curatedSkillsDir, lockedSkillNames, logger });
+    await cleanPreviousCuratedSkills({
+      curatedDir: curatedSkillsDir,
+      lockedSkillNames,
+      protectedSkillNames: alreadyFetchedSkillNames,
+      logger,
+    });
   }
   const fetchedSkills: Record<string, LockedSkill> = {};
   for (const skillName of remoteSkillNames) {
@@ -3451,6 +3498,7 @@ async function canReuseLockedNpmArtifacts(params: {
   curatedSkillsDir: string;
   curatedRulesDir: string;
   localRuleNames: Set<string>;
+  alreadyFetchedSkillNames: Set<string>;
   alreadyFetchedRuleNames: Set<string>;
 }): Promise<boolean> {
   const {
@@ -3463,6 +3511,7 @@ async function canReuseLockedNpmArtifacts(params: {
     curatedSkillsDir,
     curatedRulesDir,
     localRuleNames,
+    alreadyFetchedSkillNames,
     alreadyFetchedRuleNames,
   } = params;
   if (locked === undefined) {
@@ -3476,7 +3525,11 @@ async function canReuseLockedNpmArtifacts(params: {
         sourceEntry: { ...sourceEntry, skills: filters.skills },
         acceptLegacy: frozen,
       }) &&
-      (await checkLockedSkillsAreValid({ curatedDir: curatedSkillsDir, skills: locked.skills })));
+      (await checkLockedSkillsAreValid({
+        curatedDir: curatedSkillsDir,
+        skills: locked.skills,
+        presenceOnlySkillNames: alreadyFetchedSkillNames,
+      })));
   if (!skillsExist) {
     return false;
   }
@@ -3563,6 +3616,7 @@ async function fetchSourceViaNpm(params: {
       curatedSkillsDir,
       curatedRulesDir,
       localRuleNames,
+      alreadyFetchedSkillNames,
       alreadyFetchedRuleNames,
     }))
   ) {
