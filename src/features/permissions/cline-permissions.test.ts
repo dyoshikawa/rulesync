@@ -55,6 +55,30 @@ describe("ClinePermissions", () => {
     expect(content.allowRedirects).toBe(false);
   });
 
+  it("should warn that the Cline permissions output is deprecated", async () => {
+    const logger = createMockLogger();
+    const rulesyncPermissions = new RulesyncPermissions({
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: JSON.stringify({ permission: { bash: { "git *": "allow" } } }),
+    });
+
+    await ClinePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+      logger,
+    });
+
+    expect(logger.error).not.toHaveBeenCalled();
+    const deprecationCalls = logger.warn.mock.calls.filter(
+      (c: unknown[]) => typeof c[0] === "string" && c[0].includes("is deprecated"),
+    );
+    expect(deprecationCalls).toHaveLength(1);
+    const message = deprecationCalls[0]?.[0] as string;
+    expect(message).toContain("CLINE_COMMAND_PERMISSIONS");
+    expect(message).toContain("preToolUse hook");
+  });
+
   it("should translate ask rules to deny (fail-closed) and aggregate notices into a single warn", async () => {
     const logger = createMockLogger();
     const rulesyncPermissions = new RulesyncPermissions({
@@ -281,7 +305,11 @@ describe("ClinePermissions", () => {
     const content = JSON.parse(instance.getFileContent());
     expect(content.allow).toEqual([]);
     expect(content.deny).toEqual([]);
-    expect(logger.warn).not.toHaveBeenCalled();
+    // Only the deprecation warning is emitted; no translation notice.
+    expect(logger.warn).toHaveBeenCalledTimes(1);
+    expect(logger.warn).not.toHaveBeenCalledWith(
+      expect.stringContaining("Cline command permissions translation notice"),
+    );
   });
 
   it("should ignore the all-tools category's allow rules", async () => {
