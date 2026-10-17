@@ -215,6 +215,23 @@ function collectOwnedRefs({
   return owned;
 }
 
+/**
+ * The merge keeps every unowned existing handler where it is. Some tools key
+ * state by position — Codex CLI persists a hook's trust review under its event,
+ * matcher group index and handler index — so moving a handler the user already
+ * reviewed would silently change which hook that review belongs to. Hence:
+ * - an unowned existing handler stays at its index;
+ * - a newly generated handler is appended to the first existing group with its
+ *   matcher and group-level keys, or in a new group after the existing ones;
+ * - within a group, the slots rulesync's own handlers occupy (including the
+ *   appended ones) are filled in generated order, so reordering the sources
+ *   still reorders the generated handlers, which matters wherever handlers
+ *   run in order (a Qwen Code `sequential` group, a Cursor list).
+ *
+ * A retracted handler, or a group left empty by retractions, is still removed,
+ * which shifts whatever follows it in the same list; that is unavoidable
+ * without leaving a placeholder behind.
+ */
 function mergeMatcherGroups({
   existing,
   generated,
@@ -230,45 +247,79 @@ function mergeMatcherGroups({
   previouslyOwned: ReadonlySet<string>;
   logger: Logger | undefined;
 }): unknown[] {
-  const merged = [...generated];
+  const pending = createPendingGenerated();
+  for (const group of generated) {
+    if (isMatcherGroup(group)) {
+      addPending({
+        pending,
+        handlers: group.hooks,
+        event,
+        matcher: matcherKey(group.matcher),
+        attributes: groupAttributesKey(group),
+      });
+    }
+  }
 
+  const merged: unknown[] = [];
+  const homes = new Map<string, MatcherGroup>();
   for (const group of existing) {
     if (!isMatcherGroup(group)) {
       warnSkip({ logger, event, expected: "a matcher group" });
       continue;
     }
     const matcher = matcherKey(group.matcher);
-    const preserved = group.hooks
-      .filter((handler) =>
-        shouldPreserve({ handler, event, matcher, seen, previouslyOwned, logger }),
-      )
-      .map((handler) => cloneHandler(handler));
-    if (preserved.length === 0) {
+    const hooks = keepExistingHandlers({
+      handlers: group.hooks,
+      event,
+      matcher,
+      attributes: groupAttributesKey(group),
+      pending,
+      seen,
+      previouslyOwned,
+      logger,
+    });
+    if (hooks.length === 0) {
       continue;
     }
-    // Group-level keys other than `matcher` and `hooks` (a Qwen Code
-    // `sequential`, a Factory Droid `commandRegex`) change how the group's
-    // handlers run, so a preserved handler joins another group only when those
-    // keys agree; otherwise its group is kept as a group of its own.
-    const attributes = groupAttributesKey(group);
-    const target = merged.find(
-      (candidate) =>
-        isMatcherGroup(candidate) &&
-        matcherKey(candidate.matcher) === matcher &&
-        groupAttributesKey(candidate) === attributes,
-    );
-    if (target !== undefined && isMatcherGroup(target)) {
-      target.hooks.push(...preserved);
-    } else {
-      // Group-level keys other than `hooks` belong to the preserved handlers,
-      // so they ride along.
-      merged.push({ ...omitPrototypePollutionKeys(group), hooks: preserved });
+    // Group-level keys other than `hooks` (a Qwen Code `sequential`, a
+    // Factory Droid `commandRegex`) belong to the group, so they stay with it.
+    const kept: MatcherGroup = { ...omitPrototypePollutionKeys(group), hooks };
+    merged.push(kept);
+    const home = groupSlotKey(group);
+    if (!homes.has(home)) {
+      homes.set(home, kept);
     }
   }
 
+  for (const group of generated) {
+    if (!isMatcherGroup(group)) {
+      merged.push(group);
+      continue;
+    }
+    const remaining = group.hooks.filter((handler) => !pending.placed.has(handler));
+    if (remaining.length === 0) {
+      continue;
+    }
+    const home = homes.get(groupSlotKey(group));
+    if (home === undefined) {
+      merged.push({ ...group, hooks: remaining });
+    } else {
+      home.hooks.push(...remaining);
+    }
+  }
+
+  const order = generatedOrder(
+    generated.flatMap((group) => (isMatcherGroup(group) ? group.hooks : [])),
+  );
+  for (const group of merged) {
+    if (isMatcherGroup(group)) {
+      orderGeneratedSlots({ handlers: group.hooks, order });
+    }
+  }
   return merged;
 }
 
+/** The flat-list counterpart of {@link mergeMatcherGroups}, with the same positional rules. */
 function mergeFlatHandlers({
   existing,
   generated,
@@ -284,18 +335,152 @@ function mergeFlatHandlers({
   previouslyOwned: ReadonlySet<string>;
   logger: Logger | undefined;
 }): unknown[] {
-  const preserved: unknown[] = [];
+  const pending = createPendingGenerated();
+  addPending({ pending, handlers: generated, event, matcher: undefined, attributes: "" });
+
+  const flat: unknown[] = [];
   for (const handler of existing) {
     if (isMatcherGroup(handler)) {
       warnSkip({ logger, event, expected: "a flat handler" });
       continue;
     }
-    if (!shouldPreserve({ handler, event, matcher: undefined, seen, previouslyOwned, logger })) {
+    flat.push(handler);
+  }
+  const merged = keepExistingHandlers({
+    handlers: flat,
+    event,
+    matcher: undefined,
+    attributes: "",
+    pending,
+    seen,
+    previouslyOwned,
+    logger,
+  });
+  merged.push(...generated.filter((handler) => !pending.placed.has(handler)));
+  orderGeneratedSlots({ handlers: merged, order: generatedOrder(generated) });
+  return merged;
+}
+
+/** Each generated handler's position in the generated list, by object identity. */
+function generatedOrder(handlers: unknown[]): Map<unknown, number> {
+  const order = new Map<unknown, number>();
+  for (const [index, handler] of handlers.entries()) {
+    if (isPlainObject(handler)) {
+      order.set(handler, index);
+    }
+  }
+  return order;
+}
+
+/**
+ * Rewrite, in place, the slots of `handlers` that hold generated handlers so
+ * they follow the generated order. Every other slot — an unowned handler — is
+ * left at its index.
+ */
+function orderGeneratedSlots({
+  handlers,
+  order,
+}: {
+  handlers: unknown[];
+  order: ReadonlyMap<unknown, number>;
+}): void {
+  const slots: number[] = [];
+  for (const [index, handler] of handlers.entries()) {
+    if (order.has(handler)) {
+      slots.push(index);
+    }
+  }
+  const sorted = slots
+    .map((index) => handlers[index])
+    .toSorted((left, right) => (order.get(left) ?? 0) - (order.get(right) ?? 0));
+  for (const [position, index] of slots.entries()) {
+    handlers[index] = sorted[position];
+  }
+}
+
+/**
+ * Generated handlers of one event waiting for a position: `byKey` queues them
+ * by ownership key and group attributes, and `placed` records the ones an
+ * existing handler's slot has already taken, so only the rest are appended.
+ * The attributes are part of the lookup because they change how a group's
+ * handlers run (a Qwen Code `sequential`, say): a generated handler takes an
+ * existing slot only in a group whose attributes match its own.
+ */
+type PendingGenerated = {
+  byKey: Map<string, unknown[]>;
+  placed: Set<unknown>;
+};
+
+function createPendingGenerated(): PendingGenerated {
+  return { byKey: new Map(), placed: new Set() };
+}
+
+function addPending({
+  pending,
+  handlers,
+  event,
+  matcher,
+  attributes,
+}: {
+  pending: PendingGenerated;
+  handlers: unknown[];
+  event: string;
+  matcher: string | undefined;
+  attributes: string;
+}): void {
+  for (const handler of handlers) {
+    if (!isPlainObject(handler)) {
       continue;
     }
-    preserved.push(cloneHandler(handler));
+    const key = pendingKey({ event, matcher, attributes, handler });
+    const queue = pending.byKey.get(key);
+    if (queue === undefined) {
+      pending.byKey.set(key, [handler]);
+    } else {
+      queue.push(handler);
+    }
   }
-  return [...generated, ...preserved];
+}
+
+/**
+ * Walk one existing list in order and decide each handler: replaced in place
+ * by its generated copy, kept as unowned, or dropped (retracted or duplicate).
+ */
+function keepExistingHandlers({
+  handlers,
+  event,
+  matcher,
+  attributes,
+  pending,
+  seen,
+  previouslyOwned,
+  logger,
+}: {
+  handlers: unknown[];
+  event: string;
+  matcher: string | undefined;
+  attributes: string;
+  pending: PendingGenerated;
+  seen: Set<string>;
+  previouslyOwned: ReadonlySet<string>;
+  logger: Logger | undefined;
+}): unknown[] {
+  const kept: unknown[] = [];
+  for (const handler of handlers) {
+    if (isPlainObject(handler)) {
+      const key = pendingKey({ event, matcher, attributes, handler });
+      const generated = pending.byKey.get(key)?.shift();
+      if (generated !== undefined) {
+        pending.placed.add(generated);
+        kept.push(generated);
+        continue;
+      }
+    }
+    if (shouldPreserve({ handler, event, matcher, seen, previouslyOwned, logger })) {
+      kept.push(cloneHandler(handler));
+    }
+  }
+  return kept;
 }
 
 type MatcherGroup = {
@@ -429,6 +614,26 @@ function stableStringify(value: unknown): string {
  */
 function matcherKey(matcher: unknown): string {
   return matcher === undefined ? "" : stableStringify(matcher);
+}
+
+function pendingKey({
+  event,
+  matcher,
+  attributes,
+  handler,
+}: {
+  event: string;
+  matcher: string | undefined;
+  attributes: string;
+  handler: Record<string, unknown>;
+}): string {
+  const key = ownedHookKey({ event, matcher, identity: handlerIdentity(handler) });
+  return JSON.stringify([key, attributes]);
+}
+
+/** Groups that share a matcher and attributes are interchangeable homes for a handler. */
+function groupSlotKey(group: MatcherGroup): string {
+  return JSON.stringify([matcherKey(group.matcher), groupAttributesKey(group)]);
 }
 
 /** The stable form of a matcher group's keys other than `matcher` and `hooks`. */

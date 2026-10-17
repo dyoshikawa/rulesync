@@ -583,8 +583,8 @@ describe("QwencodeHooks", () => {
       const parsed = JSON.parse(qwencodeHooks.getFileContent());
       expect(parsed.model).toEqual({ name: "unchanged" });
       expect(parsed.hooks.PreToolUse).toEqual([
-        { matcher: "Bash", hooks: [{ type: "command", command: "echo generated" }] },
         foreignSequentialGroup,
+        { matcher: "Bash", hooks: [{ type: "command", command: "echo generated" }] },
       ]);
       expect(lockFiles).toHaveLength(1);
       expect(lockFiles[0]?.getRelativeDirPath()).toBe(".qwen");
