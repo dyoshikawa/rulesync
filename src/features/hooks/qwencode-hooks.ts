@@ -378,7 +378,9 @@ export class QwencodeHooks extends ToolHooks {
       : undefined;
     // A preserved third-party group keeps its own `sequential` flag: the
     // helper folds it into a generated group only when every group-level key
-    // agrees, so a sequential group never turns parallel or vice versa.
+    // agrees, so the flag is never dropped or copied onto another group. (Qwen
+    // Code still runs a whole plan sequentially when any matching group sets
+    // it.)
     const merged = mergeGeneratedHookLists({
       existingContent,
       generatedHooks: canonicalToQwencodeHooks(config, logger),
