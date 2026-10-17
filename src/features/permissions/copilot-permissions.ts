@@ -11,6 +11,8 @@ import {
   COPILOT_DEFAULT_PERMISSION_MODES,
   type CopilotDefaultPermissionMode,
   type CopilotSandbox,
+  CopilotSandboxEnabledSchema,
+  CopilotSandboxUserConfiguredPathsSchema,
   type PermissionAction,
 } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
@@ -81,12 +83,6 @@ const DEFAULT_PERMISSION_MODE_KEY = "chat.permissions.default";
  */
 const SANDBOX_KEY_PREFIX = "chat.agent.sandbox.";
 
-const UserConfiguredPathsSchema = z.strictObject({
-  readwritePaths: z.optional(z.array(z.string())),
-  readonlyPaths: z.optional(z.array(z.string())),
-  deniedPaths: z.optional(z.array(z.string())),
-});
-
 /**
  * The `copilot.sandbox` leaves rulesync manages, each a flat VS Code setting
  * (`SANDBOX_KEY_PREFIX` + the dotted path) with the value shape VS Code
@@ -96,8 +92,19 @@ const UserConfiguredPathsSchema = z.strictObject({
  * @see https://code.visualstudio.com/docs/agents/run/agent-sandboxing
  * @see https://code.visualstudio.com/docs/agents/reference/ai-settings
  */
-const SANDBOX_LEAVES: readonly { path: readonly string[]; schema: z.ZodMiniType }[] = [
-  { path: ["enabled"], schema: z.enum(["off", "on"]) },
+const SANDBOX_LEAVES: readonly {
+  path: readonly string[];
+  schema: z.ZodMiniType;
+  /** Maps a legacy value VS Code still accepts to the current shape on import. */
+  normalize?: (value: unknown) => unknown;
+}[] = [
+  {
+    path: ["enabled"],
+    schema: CopilotSandboxEnabledSchema,
+    // VS Code still accepts the pre-1.141 boolean and reads `true` as "on" and
+    // `false` as "off" (`normalizeAgentSandboxEnabledValue`).
+    normalize: (value) => (value === true ? "on" : value === false ? "off" : value),
+  },
   { path: ["network", "allowNetwork"], schema: z.boolean() },
   { path: ["network", "allowLocalNetwork"], schema: z.boolean() },
   { path: ["allowUnsandboxedCommands"], schema: z.boolean() },
@@ -106,7 +113,10 @@ const SANDBOX_LEAVES: readonly { path: readonly string[]; schema: z.ZodMiniType 
   { path: ["credentials", "authenticategit"], schema: z.boolean() },
   { path: ["credentials", "authenticategh"], schema: z.boolean() },
   { path: ["fileSystem", "allowDevToolAccess"], schema: z.boolean() },
-  { path: ["fileSystem", "userConfiguredPaths"], schema: UserConfiguredPathsSchema },
+  {
+    path: ["fileSystem", "userConfiguredPaths"],
+    schema: CopilotSandboxUserConfiguredPathsSchema,
+  },
 ];
 
 const USER_CONFIGURED_PATHS_KEY = `${SANDBOX_KEY_PREFIX}fileSystem.userConfiguredPaths`;
@@ -223,8 +233,9 @@ function buildSandboxPatch({
  */
 function readSandboxFromSettings(settings: Record<string, unknown>): CopilotSandbox | undefined {
   const sandbox: Record<string, unknown> = {};
-  for (const { path, schema } of SANDBOX_LEAVES) {
-    const parsed = schema.safeParse(settings[sandboxKey(path)]);
+  for (const { path, schema, normalize } of SANDBOX_LEAVES) {
+    const value = settings[sandboxKey(path)];
+    const parsed = schema.safeParse(normalize === undefined ? value : normalize(value));
     if (!parsed.success) {
       continue;
     }

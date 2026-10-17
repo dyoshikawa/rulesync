@@ -77,6 +77,8 @@ describe("ClinePermissions", () => {
     const message = deprecationCalls[0]?.[0] as string;
     expect(message).toContain("CLINE_COMMAND_PERMISSIONS");
     expect(message).toContain("preToolUse hook");
+    expect(message).toContain("stops the whole Cline task");
+    expect(message.startsWith("WARNING")).toBe(false);
   });
 
   it("should translate ask rules to deny (fail-closed) and aggregate notices into a single warn", async () => {
@@ -306,6 +308,10 @@ describe("ClinePermissions", () => {
     expect(content.allow).toEqual([]);
     expect(content.deny).toEqual([]);
     // Only the deprecation warning is emitted; no translation notice.
+    const deprecationCalls = logger.warn.mock.calls.filter(
+      (c: unknown[]) => typeof c[0] === "string" && c[0].includes("is deprecated"),
+    );
+    expect(deprecationCalls).toHaveLength(1);
     expect(logger.warn).toHaveBeenCalledTimes(1);
     expect(logger.warn).not.toHaveBeenCalledWith(
       expect.stringContaining("Cline command permissions translation notice"),

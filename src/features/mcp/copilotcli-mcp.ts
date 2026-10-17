@@ -471,19 +471,27 @@ export class CopilotcliMcp extends ToolMcp {
     const json = JSON.parse(fileContent);
 
     // The off-switch for a disabled server lives in the settings file (written
-    // by `getAuxiliaryFiles`). When that file exists but cannot be parsed, the
+    // by `getAuxiliaryFiles`). When that file exists but cannot be parsed, or
+    // its `disabledMcpServers` is not a string array (left untouched), the
     // switch cannot be written — so the disabled server's runnable definition
     // is not written either, or it would simply start (fail-closed).
     const settings = await readCopilotCliSettings({ outputRoot, global });
+    const existingDisabled = settings.document?.disabledMcpServers;
+    const offSwitchBlocker =
+      settings.document === null
+        ? "cannot be parsed"
+        : existingDisabled !== undefined && !isStringArray(existingDisabled)
+          ? "has a disabledMcpServers value that is not an array of server names"
+          : undefined;
     const mcpServers = Object.fromEntries(
       Object.entries(rulesyncMcp.getMcpServers()).filter(([name, server]) => {
-        if (server.disabled !== true || settings.document !== null) {
+        if (server.disabled !== true || offSwitchBlocker === undefined) {
           return true;
         }
         logger?.warn(
           `[CopilotcliMcp] Skipping disabled MCP server "${name}": ` +
-            `${join(settings.paths.relativeDirPath, settings.paths.relativeFilePath)} cannot be ` +
-            `parsed, so disabledMcpServers cannot be written to switch it off.`,
+            `${join(settings.paths.relativeDirPath, settings.paths.relativeFilePath)} ` +
+            `${offSwitchBlocker}, so disabledMcpServers cannot be written to switch it off.`,
         );
         return false;
       }),
@@ -520,7 +528,8 @@ export class CopilotcliMcp extends ToolMcp {
    * Copilot CLI actually consults: an MCP file entry has no `disabled` field.
    * rulesync owns the toggle for the servers it writes; names it does not
    * manage keep their existing state. The file is not created or touched when
-   * there is nothing to disable and nothing to retract.
+   * there is nothing to disable and nothing to retract, nor when the existing
+   * `disabledMcpServers` is not a string array (left as is, with a warning).
    */
   static override async getAuxiliaryFiles({
     outputRoot = process.cwd(),
@@ -548,7 +557,17 @@ export class CopilotcliMcp extends ToolMcp {
     }
 
     const existing = settings.document.disabledMcpServers;
-    const existingDisabled = isStringArray(existing) ? existing : [];
+    if (existing !== undefined && !isStringArray(existing)) {
+      // Rewriting it would silently drop whatever the user put there, so the
+      // value is left as it is and the toggle is not updated this run.
+      logger?.warn(
+        `Skipping the Copilot CLI disabledMcpServers update: the existing value is not an array ` +
+          `of server names. Fix it in ${join(settings.paths.relativeDirPath, settings.paths.relativeFilePath)} ` +
+          `so rulesync can manage the toggle.`,
+      );
+      return [];
+    }
+    const existingDisabled = existing ?? [];
     const managedNameSet = new Set(managedNames);
     // Removal flips an off-switch, so a managed name that is disabled on disk
     // but enabled canonically is called out rather than silently re-enabled.

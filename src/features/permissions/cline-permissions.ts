@@ -45,11 +45,13 @@ import {
  */
 
 const CLINE_PERMISSIONS_DEPRECATION_WARNING =
-  "WARNING: The Cline permissions output (.cline/command-permissions.json) is deprecated. " +
+  "The Cline permissions output (.cline/command-permissions.json) is deprecated. " +
   "No Cline CLI 3 release reads CLINE_COMMAND_PERMISSIONS, so the generated allow/deny " +
   "lists are not enforced by current Cline releases. To block shell commands in Cline, " +
   "use a preToolUse hook (rulesync hooks feature, cline target) that cancels the " +
-  "run_commands calls you do not allow. See https://docs.cline.bot/cli/cli-reference.";
+  "run_commands calls you do not allow. Note that a hook returning `cancel: true` stops " +
+  "the whole Cline task, not just that one tool call " +
+  "(https://github.com/cline/cline/issues/14697). See https://docs.cline.bot/cli/cli-reference.";
 
 const ClineCommandPermissionsSchema = z.looseObject({
   allow: z.optional(z.array(z.string())),

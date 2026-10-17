@@ -125,6 +125,16 @@ export type CodewhalePermissionsOverride = z.infer<typeof CodewhalePermissionsOv
 export const COPILOT_DEFAULT_PERMISSION_MODES = ["default", "autoApprove", "autopilot"] as const;
 export type CopilotDefaultPermissionMode = (typeof COPILOT_DEFAULT_PERMISSION_MODES)[number];
 
+/** `chat.agent.sandbox.enabled`: `"off"` or `"on"`. */
+export const CopilotSandboxEnabledSchema = z.enum(["off", "on"]);
+
+/** `chat.agent.sandbox.fileSystem.userConfiguredPaths`. */
+export const CopilotSandboxUserConfiguredPathsSchema = z.strictObject({
+  readwritePaths: z.optional(z.array(z.string())),
+  readonlyPaths: z.optional(z.array(z.string())),
+  deniedPaths: z.optional(z.array(z.string())),
+});
+
 /**
  * The Agent Host sandbox settings VS Code 1.141 settled on, as a nested object
  * whose path mirrors the dotted setting key under `chat.agent.sandbox.` — e.g.
@@ -137,7 +147,7 @@ export type CopilotDefaultPermissionMode = (typeof COPILOT_DEFAULT_PERMISSION_MO
  * @see https://code.visualstudio.com/docs/agents/reference/ai-settings
  */
 const CopilotSandboxSchema = z.strictObject({
-  enabled: z.optional(z.enum(["off", "on"])),
+  enabled: z.optional(CopilotSandboxEnabledSchema),
   network: z.optional(
     z.strictObject({
       allowNetwork: z.optional(z.boolean()),
@@ -156,13 +166,7 @@ const CopilotSandboxSchema = z.strictObject({
   fileSystem: z.optional(
     z.strictObject({
       allowDevToolAccess: z.optional(z.boolean()),
-      userConfiguredPaths: z.optional(
-        z.strictObject({
-          readwritePaths: z.optional(z.array(z.string())),
-          readonlyPaths: z.optional(z.array(z.string())),
-          deniedPaths: z.optional(z.array(z.string())),
-        }),
-      ),
+      userConfiguredPaths: z.optional(CopilotSandboxUserConfiguredPathsSchema),
     }),
   ),
 });

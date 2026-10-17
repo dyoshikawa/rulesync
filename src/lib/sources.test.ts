@@ -711,6 +711,50 @@ describe("resolveAndFetchSources", () => {
     ).resolves.toEqual(["shared"]);
   });
 
+  it("should reject a tampered skill shared by several installed sources", async () => {
+    const { readLockFile } = await import("./sources-lock.js");
+    const curatedDir = join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
+    const skillDir = join(curatedDir, "shared");
+    // The earlier source's copy is on disk; the later source locked its own
+    // content, which is only checked for presence.
+    const earlierIntegrity = seedCuratedSkill({
+      curatedDir,
+      name: "shared",
+      files: { "SKILL.md": "# shared from org-a\n" },
+    });
+    vi.mocked(readLockFile).mockResolvedValue({
+      lockfileVersion: 1,
+      sources: {
+        "org-a/repo": {
+          resolvedRef: "sha-a",
+          skills: { shared: { integrity: earlierIntegrity } },
+        },
+        "org-b/repo": {
+          resolvedRef: "sha-b",
+          skills: {
+            shared: {
+              integrity: computeSkillIntegrity([
+                { path: "SKILL.md", content: "# shared from org-b\n" },
+              ]),
+            },
+          },
+        },
+      },
+    });
+    existsInMemory();
+    const sources = [{ source: "org-a/repo" }, { source: "org-b/repo" }];
+
+    await expect(
+      getInstalledSourceSkillNames({ sources, projectRoot: testDir, logger }),
+    ).resolves.toEqual(["shared"]);
+
+    writtenFiles.set(join(skillDir, "SKILL.md"), "# shared from org-a\nedited\n");
+
+    await expect(
+      getInstalledSourceSkillNames({ sources, projectRoot: testDir, logger }),
+    ).rejects.toThrow(/Existing source "org-a\/repo" is not fully installed/);
+  });
+
   it("should only check the presence of a skill locked with an empty integrity", async () => {
     const { readLockFile } = await import("./sources-lock.js");
     const curatedDir = join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);

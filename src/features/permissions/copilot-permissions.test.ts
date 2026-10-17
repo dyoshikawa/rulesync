@@ -483,6 +483,24 @@ describe("CopilotPermissions", () => {
       });
     });
 
+    it.each([
+      { value: true, expected: "on" },
+      { value: false, expected: "off" },
+    ])(
+      "imports the legacy boolean chat.agent.sandbox.enabled $value as $expected",
+      ({ value, expected }) => {
+        const permissions = new CopilotPermissions({
+          relativeDirPath: ".vscode",
+          relativeFilePath: "settings.json",
+          fileContent: JSON.stringify({ [SANDBOX_ENABLED_KEY]: value }),
+          validate: false,
+        });
+
+        const json = permissions.toRulesyncPermissions().getJson();
+        expect(json.copilot).toEqual({ sandbox: { enabled: expected } });
+      },
+    );
+
     it("skips a sandbox value whose shape VS Code would reject", () => {
       const permissions = new CopilotPermissions({
         relativeDirPath: ".vscode",
