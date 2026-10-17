@@ -1,10 +1,15 @@
 import { basename, dirname, join, posix, relative, sep } from "node:path";
 
 import { encode } from "@toon-format/toon";
+import * as smolToml from "smol-toml";
 import { z } from "zod/mini";
 
 import { CODEBUDDY_LOCAL_RULE_FILE_NAME } from "../../constants/codebuddy-paths.js";
-import { CODEXCLI_PROJECT_DOC_MAX_BYTES } from "../../constants/codexcli-paths.js";
+import {
+  CODEXCLI_DIR,
+  CODEXCLI_MCP_FILE_NAME,
+  CODEXCLI_PROJECT_DOC_MAX_BYTES,
+} from "../../constants/codexcli-paths.js";
 import { CRUSH_LOCAL_RULE_FILE_NAME } from "../../constants/crush-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { KIMI_CODE_PLUGIN_SYSTEM_PROMPT_MAX_BYTES } from "../../constants/plugin-paths.js";
@@ -705,7 +710,7 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
           bytes: CODEXCLI_PROJECT_DOC_MAX_BYTES,
           remedy:
             "Codex CLI stops reading project `AGENTS.md` files once their combined size on the root-to-working-directory chain reaches `project_doc_max_bytes` (32 KiB by default) and silently drops the rest. " +
-            "Move directory-scoped rules into nested `AGENTS.md` files with `agentsmd.subprojectPath` (or `deriveSubprojectPathFromGlobs: true` in rulesync.jsonc), trim the rules, or raise `project_doc_max_bytes` in `.codex/config.toml` (ignore this warning if you already have).",
+            "Move directory-scoped rules into nested `AGENTS.md` files with `agentsmd.subprojectPath` (or `deriveSubprojectPathFromGlobs: true` in rulesync.jsonc), trim the rules, or raise `project_doc_max_bytes` in `.codex/config.toml`.",
         },
       },
     },
@@ -1664,7 +1669,7 @@ export class RulesProcessor extends FeatureProcessor {
     this.warnForOutputPathCollisions({ outputFiles, convertedRules });
     await this.warnForDeactivatedImportOnlyRoots({ toolRules, factory });
     await this.warnForWarpLegacyRootFile(toolRules);
-    this.warnForInstructionBudget({ toolRules, meta });
+    await this.warnForInstructionBudget({ toolRules, meta });
     return outputFiles;
   }
 
@@ -1683,21 +1688,46 @@ export class RulesProcessor extends FeatureProcessor {
    * once, at its shallowest directory. With several output roots the warning
    * names the root it refers to. An output root below the git root is measured
    * without the parent directories' files Codex would also load, so the
-   * estimate can come out low there. The budget checked is the tool's default: a value
-   * raised by hand in the tool's own config is not read. Global scope is not
-   * checked because Codex loads the personal `~/.codex/AGENTS.md` outside the
+   * estimate can come out low there. For Codex, a non-negative safe integer in
+   * the output root's `.codex/config.toml` overrides the default budget. This
+   * only reads the top-level setting, not Codex's full config layering or trust
+   * resolution. Missing, malformed or unusable settings retain the default.
+   * Global scope is not checked because Codex loads the personal
+   * `~/.codex/AGENTS.md` outside the
    * project budget.
    */
-  private warnForInstructionBudget({
+  private async warnForInstructionBudget({
     toolRules,
     meta,
   }: {
     toolRules: ToolRule[];
     meta: ToolRuleFactory["meta"];
-  }): void {
+  }): Promise<void> {
     const budget = meta.projectInstructionBudget;
     if (budget === undefined || this.global) {
       return;
+    }
+
+    let budgetBytes = budget.bytes;
+    if (this.toolTarget === "codexcli") {
+      const configPath = join(this.outputRoot, CODEXCLI_DIR, CODEXCLI_MCP_FILE_NAME);
+      try {
+        if (await fileExists(configPath)) {
+          const configured = smolToml.parse(await readFileContent(configPath))[
+            "project_doc_max_bytes"
+          ];
+          if (
+            typeof configured === "number" &&
+            Number.isSafeInteger(configured) &&
+            configured >= 0
+          ) {
+            budgetBytes = configured;
+          }
+        }
+      } catch {
+        // An optional diagnostic must not fail generation for an unreadable or
+        // malformed tool config. Keep the default budget in that case.
+      }
     }
 
     const files = toolRules.map((rule) => ({
@@ -1714,9 +1744,9 @@ export class RulesProcessor extends FeatureProcessor {
 
     const rootFiles = files.filter(({ dir }) => dir === ".");
     const rootBytes = rootFiles.reduce((sum, { bytes }) => sum + bytes, 0);
-    if (rootBytes > budget.bytes) {
+    if (rootBytes > budgetBytes) {
       this.logger.warn(
-        `The generated ${this.toolTarget} root instruction file${location} (${rootFiles.map(({ path }) => path).join(", ")}) is ${rootBytes} bytes, over the ${budget.bytes}-byte limit. ${budget.remedy}`,
+        `The generated ${this.toolTarget} root instruction file${location} (${rootFiles.map(({ path }) => path).join(", ")}) is ${rootBytes} bytes, over the ${budgetBytes}-byte limit. ${budget.remedy}`,
       );
       return;
     }
@@ -1733,10 +1763,10 @@ export class RulesProcessor extends FeatureProcessor {
       }
       const chain = files.filter(({ dir }) => isAncestorOrSelf(dir, file.dir));
       const chainBytes = chain.reduce((sum, { bytes }) => sum + bytes, 0);
-      if (chainBytes > budget.bytes) {
+      if (chainBytes > budgetBytes) {
         reportedDirs.push(file.dir);
         this.logger.warn(
-          `The generated ${this.toolTarget} instruction files${location} loaded while working in '${file.dir}' (${chain.map(({ path }) => path).join(", ")}) total ${chainBytes} bytes, over the ${budget.bytes}-byte limit (as is every directory below it). ${budget.remedy}`,
+          `The generated ${this.toolTarget} instruction files${location} loaded while working in '${file.dir}' (${chain.map(({ path }) => path).join(", ")}) total ${chainBytes} bytes, over the ${budgetBytes}-byte limit (as is every directory below it). ${budget.remedy}`,
         );
       }
     }

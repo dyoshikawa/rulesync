@@ -3398,6 +3398,108 @@ globs: ["packages/api/**/*"]
       expect(warnings[0]).toContain("32768");
     });
 
+    it("should honor a raised project budget without modifying the config", async () => {
+      const configPath = join(testDir, ".codex", "config.toml");
+      const config = 'project_doc_max_bytes = 131072\nmodel = "example"\n';
+      await writeFileContent(configPath, config);
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "codexcli" });
+
+      await processor.convertRulesyncFilesToToolFiles([
+        rule({ name: "overview.md", body: "a".repeat(42000), root: true }),
+      ]);
+
+      expect(budgetWarnings()).toHaveLength(0);
+      expect(await readFileContent(configPath)).toBe(config);
+    });
+
+    it("should report the configured budget for an oversized nested chain", async () => {
+      await writeFileContent(
+        join(testDir, ".codex", "config.toml"),
+        "project_doc_max_bytes = 50000\n",
+      );
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "codexcli" });
+
+      await processor.convertRulesyncFilesToToolFiles([
+        rule({ name: "overview.md", body: "a".repeat(30000), root: true }),
+        rule({ name: "service.md", body: "b".repeat(30000), subprojectPath: "service" }),
+      ]);
+
+      expect(budgetWarnings()).toHaveLength(1);
+      expect(budgetWarnings()[0]).toContain("60002 bytes, over the 50000-byte limit");
+      expect(budgetWarnings()[0]).toContain("'service'");
+    });
+
+    it("should not warn at the configured byte boundary", async () => {
+      await writeFileContent(
+        join(testDir, ".codex", "config.toml"),
+        "project_doc_max_bytes = 50000\n",
+      );
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "codexcli" });
+
+      await processor.convertRulesyncFilesToToolFiles([
+        rule({ name: "overview.md", body: "a".repeat(49999), root: true }),
+      ]);
+
+      expect(budgetWarnings()).toHaveLength(0);
+    });
+
+    it.each([0, 1000])("should honor a lowered project budget of %i bytes", async (bytes) => {
+      await writeFileContent(
+        join(testDir, ".codex", "config.toml"),
+        `project_doc_max_bytes = ${bytes}\n`,
+      );
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "codexcli" });
+
+      await processor.convertRulesyncFilesToToolFiles([
+        rule({ name: "overview.md", body: "a".repeat(2000), root: true }),
+      ]);
+
+      expect(budgetWarnings()).toHaveLength(1);
+      expect(budgetWarnings()[0]).toContain(`over the ${bytes}-byte limit`);
+    });
+
+    it.each([
+      'project_doc_max_bytes = "131072"',
+      "project_doc_max_bytes = -1",
+      "project_doc_max_bytes = 1.5",
+      "project_doc_max_bytes = inf",
+      "project_doc_max_bytes = 9007199254740992",
+      "project_doc_max_bytes = [",
+      'model = "example"',
+      "[profiles.large]\nproject_doc_max_bytes = 131072",
+    ])("should retain the default budget for unusable config: %s", async (config) => {
+      await writeFileContent(join(testDir, ".codex", "config.toml"), config);
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "codexcli" });
+
+      await processor.convertRulesyncFilesToToolFiles([
+        rule({ name: "overview.md", body: "a".repeat(40000), root: true }),
+      ]);
+
+      expect(budgetWarnings()).toHaveLength(1);
+      expect(budgetWarnings()[0]).toContain("over the 32768-byte limit");
+    });
+
+    it("should read the config relative to the output root, not cwd", async () => {
+      const outputRoot = join(testDir, "app");
+      await writeFileContent(
+        join(testDir, ".codex", "config.toml"),
+        "project_doc_max_bytes = 131072\n",
+      );
+      await writeFileContent(
+        join(outputRoot, ".codex", "config.toml"),
+        "project_doc_max_bytes = 1000\n",
+      );
+      const processor = new RulesProcessor({ logger, outputRoot, toolTarget: "codexcli" });
+
+      await processor.convertRulesyncFilesToToolFiles([
+        rule({ name: "overview.md", body: "a".repeat(2000), root: true }),
+      ]);
+
+      expect(budgetWarnings()).toHaveLength(1);
+      expect(budgetWarnings()[0]).toContain(`under '${outputRoot}'`);
+      expect(budgetWarnings()[0]).toContain("over the 1000-byte limit");
+    });
+
     it("should not warn when the written root AGENTS.md is exactly 32 KiB", async () => {
       const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "codexcli" });
 

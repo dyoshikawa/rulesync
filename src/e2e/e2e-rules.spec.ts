@@ -790,6 +790,17 @@ ${"x".repeat(33 * 1024)}
     expect(root).toContain("Large Rule");
     expect(root).not.toContain("Rule for svc1");
     expect(stderr).toContain("project_doc_max_bytes");
+
+    const configPath = join(testDir, ".codex", "config.toml");
+    const config = "project_doc_max_bytes = 131072\n";
+    await writeFileContent(configPath, config);
+    const raised = await runGenerate({
+      target: "codexcli",
+      features: "rules",
+      env: { NODE_ENV: "e2e" },
+    });
+    expect(raised.stderr).not.toContain("project_doc_max_bytes");
+    expect(await readFileContent(configPath)).toBe(config);
   });
 
   it("should fold junie non-root rules into the root .junie/AGENTS.md", async () => {
