@@ -238,7 +238,7 @@ rulesync generate
 
 ## Lockfile
 
-The lockfile at `rulesync.lock` (at the project root) records the resolved commit SHA, the skill and rule selections each entry was written for, and per-artifact integrity hashes for each source so that builds are reproducible. Rulesync verifies cached rule content against these hashes before reusing it. It is safe to commit this file. An example:
+The lockfile at `rulesync.lock` (at the project root) records the resolved commit SHA, the skill and rule selections each entry was written for, and per-artifact integrity hashes for each source so that builds are reproducible. Rulesync verifies cached rule and skill content against these hashes before reusing it: a curated rule or skill whose files were edited, added, or removed in place is fetched again at its locked ref (under `--frozen` too) and restored to the locked content. It is safe to commit this file. An example:
 
 ```json
 {

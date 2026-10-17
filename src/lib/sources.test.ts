@@ -1,5 +1,5 @@
 import { mkdir, symlink, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, relative, sep } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -16,13 +16,14 @@ import {
   applyFileMode,
   directoryExists,
   fileExists,
+  listFilePathsRecursively,
   listSubdirectoryNames,
   readFileContent,
   removeDirectoryStrict as removeDirectory,
   removeFileStrict as removeFile,
   writeFileContent,
 } from "../utils/file.js";
-import { computeRuleIntegrity } from "./sources-lock.js";
+import { computeRuleIntegrity, computeSkillIntegrity } from "./sources-lock.js";
 import {
   getInstalledSourceRuleNames,
   getInstalledSourceSkillNames,
@@ -73,6 +74,7 @@ vi.mock("../utils/file.js", async (importOriginal) => {
     directoryExists: directoryExistsMock,
     directoryExistsStrict: directoryExistsMock,
     fileExists: vi.fn(),
+    listFilePathsRecursively: vi.fn(),
     listSubdirectoryNames: vi.fn(),
     readFileContent: vi.fn(),
     removeDirectoryStrict: vi.fn(),
@@ -85,6 +87,30 @@ vi.mock("../utils/file.js", async (importOriginal) => {
 });
 
 const logger = createMockLogger();
+
+/**
+ * The files written through the mocked `writeFileContent`, by absolute path.
+ * The mocked `readFileContent` and `listFilePathsRecursively` read them back,
+ * so a curated skill written by one install is what the next one verifies
+ * against the lockfile integrity.
+ */
+const writtenFiles = new Map<string, string>();
+
+/**
+ * Put a curated skill on the in-memory disk and return the integrity the
+ * lockfile records for it.
+ */
+function seedCuratedSkill(params: {
+  curatedDir: string;
+  name: string;
+  files?: Record<string, string>;
+}): string {
+  const files = params.files ?? { "SKILL.md": `# ${params.name}\n` };
+  for (const [relativePath, content] of Object.entries(files)) {
+    writtenFiles.set(join(params.curatedDir, params.name, relativePath), content);
+  }
+  return computeSkillIntegrity(Object.entries(files).map(([path, content]) => ({ path, content })));
+}
 
 /**
  * Write a rule the project holds itself. The local rules are read off the disk
@@ -174,10 +200,24 @@ describe("resolveAndFetchSources", () => {
     vi.mocked(directoryExists).mockResolvedValue(false);
     vi.mocked(fileExists).mockResolvedValue(false);
     vi.mocked(listSubdirectoryNames).mockResolvedValue([]);
-    vi.mocked(readFileContent).mockResolvedValue("");
+    writtenFiles.clear();
+    vi.mocked(readFileContent).mockImplementation(
+      async (path: string) => writtenFiles.get(path) ?? "",
+    );
+    // The in-memory files join the real ones, which the local rules live in.
+    const actualFile = await vi.importActual<typeof import("../utils/file.js")>("../utils/file.js");
+    vi.mocked(listFilePathsRecursively).mockImplementation(async (dirPath, options) => {
+      const inMemory = [...writtenFiles.keys()]
+        .filter((path) => path.startsWith(`${dirPath}${sep}`))
+        .map((path) => relative(dirPath, path));
+      const onDisk = await actualFile.listFilePathsRecursively(dirPath, options);
+      return [...new Set([...onDisk, ...inMemory])].toSorted();
+    });
     vi.mocked(removeDirectory).mockResolvedValue(undefined);
     vi.mocked(removeFile).mockResolvedValue(undefined);
-    vi.mocked(writeFileContent).mockResolvedValue(undefined);
+    vi.mocked(writeFileContent).mockImplementation(async (path: string, content: string) => {
+      writtenFiles.set(path, content);
+    });
   });
 
   afterEach(async () => {
@@ -215,12 +255,16 @@ describe("resolveAndFetchSources", () => {
 
   it("should reserve skill names from fully installed existing sources", async () => {
     const { readLockFile } = await import("./sources-lock.js");
+    const existingIntegrity = seedCuratedSkill({
+      curatedDir: join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH),
+      name: "existing-skill",
+    });
     vi.mocked(readLockFile).mockResolvedValue({
       lockfileVersion: 1,
       sources: {
         "org/existing": {
           resolvedRef: "existing-sha",
-          skills: { "existing-skill": { integrity: "sha256-existing" } },
+          skills: { "existing-skill": { integrity: existingIntegrity } },
         },
       },
     });
@@ -373,7 +417,9 @@ describe("resolveAndFetchSources", () => {
       sources: {
         "https://github.com/org/repo": {
           resolvedRef: "locked-sha-123",
-          skills: { "cached-skill": { integrity: "sha256-cached" } },
+          skills: {
+            "cached-skill": { integrity: seedCuratedSkill({ curatedDir, name: "cached-skill" }) },
+          },
           skillSelection: ["*"],
           skillsPath: "skills",
         },
@@ -399,6 +445,116 @@ describe("resolveAndFetchSources", () => {
     expect(result.sourcesProcessed).toBe(1);
     // removeDirectory should not have been called (no cleanup needed)
     expect(removeDirectory).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    {
+      name: "a locked file was edited",
+      tamper: (skillDir: string) =>
+        writtenFiles.set(join(skillDir, "SKILL.md"), "# cached-skill\nedited\n"),
+    },
+    {
+      name: "a file was added",
+      tamper: (skillDir: string) => writtenFiles.set(join(skillDir, "notes.md"), "extra\n"),
+    },
+    {
+      name: "a locked file was removed",
+      tamper: (skillDir: string) => writtenFiles.delete(join(skillDir, "references/guide.md")),
+    },
+  ])("should re-fetch a locked skill in frozen mode when $name", async ({ tamper }) => {
+    const { readLockFile, writeLockFile } = await import("./sources-lock.js");
+    const curatedDir = join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
+    const skillDir = join(curatedDir, "cached-skill");
+    const remoteFiles = { "SKILL.md": "# cached-skill\n", "references/guide.md": "guide\n" };
+    vi.mocked(readLockFile).mockResolvedValue({
+      lockfileVersion: 1,
+      sources: {
+        "org/repo": {
+          resolvedRef: "locked-sha-123",
+          skills: {
+            "cached-skill": {
+              integrity: seedCuratedSkill({ curatedDir, name: "cached-skill", files: remoteFiles }),
+            },
+          },
+          skillSelection: ["*"],
+          skillsPath: "skills",
+        },
+      },
+    });
+    tamper(skillDir);
+    vi.mocked(directoryExists).mockImplementation(async (path: string) => path === skillDir);
+    mockClientInstance.listDirectory.mockImplementation(
+      async (_owner: string, _repo: string, path: string) => {
+        if (path === "skills") {
+          return [{ name: "cached-skill", path: "skills/cached-skill", type: "dir" }];
+        }
+        if (path === "skills/cached-skill") {
+          return [
+            { name: "SKILL.md", path: "skills/cached-skill/SKILL.md", type: "file", size: 20 },
+            { name: "references", path: "skills/cached-skill/references", type: "dir" },
+          ];
+        }
+        if (path === "skills/cached-skill/references") {
+          return [
+            {
+              name: "guide.md",
+              path: "skills/cached-skill/references/guide.md",
+              type: "file",
+              size: 10,
+            },
+          ];
+        }
+        return [];
+      },
+    );
+    mockClientInstance.getFileContent.mockImplementation(
+      async (_owner: string, _repo: string, path: string) =>
+        path.endsWith("SKILL.md") ? remoteFiles["SKILL.md"] : remoteFiles["references/guide.md"],
+    );
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "org/repo" }],
+      projectRoot: testDir,
+      options: { frozen: true },
+    });
+
+    expect(result.failedSourceCount).toBe(0);
+    expect(result.fetchedSkillCount).toBe(1);
+    expect(removeDirectory).toHaveBeenCalledWith(skillDir);
+    expect(writtenFiles.get(join(skillDir, "SKILL.md"))).toBe(remoteFiles["SKILL.md"]);
+    expect(writtenFiles.get(join(skillDir, "references", "guide.md"))).toBe(
+      remoteFiles["references/guide.md"],
+    );
+    expect(writeLockFile).not.toHaveBeenCalled();
+  });
+
+  it("should not count an existing source with an edited skill as fully installed", async () => {
+    const { readLockFile } = await import("./sources-lock.js");
+    const curatedDir = join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
+    vi.mocked(readLockFile).mockResolvedValue({
+      lockfileVersion: 1,
+      sources: {
+        "org/existing": {
+          resolvedRef: "existing-sha",
+          skills: {
+            "existing-skill": {
+              integrity: seedCuratedSkill({ curatedDir, name: "existing-skill" }),
+            },
+          },
+        },
+      },
+    });
+    writtenFiles.set(join(curatedDir, "existing-skill", "SKILL.md"), "edited\n");
+    vi.mocked(directoryExists).mockResolvedValue(true);
+
+    await expect(
+      getInstalledSourceSkillNames({
+        sources: [{ source: "org/existing" }],
+        projectRoot: testDir,
+        logger,
+      }),
+    ).rejects.toThrow('Existing source "org/existing" is not fully installed.');
   });
 
   it("should fetch skills from a remote source", async () => {
@@ -1109,7 +1265,14 @@ describe("resolveAndFetchSources", () => {
       sources: {
         "org/repo": {
           resolvedRef: "locked-sha",
-          skills: { "cached-skill": { integrity: "sha256-cached" } },
+          skills: {
+            "cached-skill": {
+              integrity: seedCuratedSkill({
+                curatedDir: join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH),
+                name: "cached-skill",
+              }),
+            },
+          },
           skillSelection: ["*"],
           skillsPath: "skills",
           rules: { "testing-guidelines": { integrity: "sha256-old" } },
@@ -2330,7 +2493,10 @@ describe("resolveAndFetchSources", () => {
       sources: {
         "https://github.com/org/repo": {
           resolvedRef: "locked-sha-123",
-          skills: { "skill-a": { integrity: "sha256-a" }, "skill-b": { integrity: "sha256-b" } },
+          skills: {
+            "skill-a": { integrity: seedCuratedSkill({ curatedDir, name: "skill-a" }) },
+            "skill-b": { integrity: seedCuratedSkill({ curatedDir, name: "skill-b" }) },
+          },
         },
       },
     });
@@ -2528,7 +2694,7 @@ describe("resolveAndFetchSources", () => {
       sources: {
         "org/repo:exports/skills": {
           resolvedRef: "locked-sha-123",
-          skills: { demo: { integrity: "sha256-demo" } },
+          skills: { demo: { integrity: seedCuratedSkill({ curatedDir, name: "demo" }) } },
           skillSelection: ["*"],
           skillsPath: "exports/skills",
         },
@@ -2586,7 +2752,7 @@ describe("resolveAndFetchSources", () => {
       sources: {
         "https://github.com/org/repo": {
           resolvedRef: "locked-sha-123",
-          skills: { demo: { integrity: "sha256-demo" } },
+          skills: { demo: { integrity: seedCuratedSkill({ curatedDir, name: "demo" }) } },
           skillSelection: ["*"],
         },
       },
@@ -2725,12 +2891,13 @@ describe("resolveAndFetchSources", () => {
   it("should preserve the locked skill selection across a rules-only refetch", async () => {
     const { readLockFile, writeLockFile } = await import("./sources-lock.js");
     const curatedDir = join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
+    const skillIntegrity = seedCuratedSkill({ curatedDir, name: "skill-a" });
     vi.mocked(readLockFile).mockResolvedValue({
       lockfileVersion: 1,
       sources: {
         "org/repo": {
           resolvedRef: "locked-sha-123",
-          skills: { "skill-a": { integrity: "sha256-a" } },
+          skills: { "skill-a": { integrity: skillIntegrity } },
           skillSelection: ["skill-a"],
           skillsPath: "skills",
         },
@@ -2752,7 +2919,7 @@ describe("resolveAndFetchSources", () => {
     expect(result.fetchedSkillCount).toBe(0);
     expect(result.fetchedRuleCount).toBe(1);
     expect(vi.mocked(writeLockFile).mock.calls.at(-1)?.[0].lock.sources["org/repo"]).toMatchObject({
-      skills: { "skill-a": { integrity: "sha256-a" } },
+      skills: { "skill-a": { integrity: skillIntegrity } },
       skillSelection: ["skill-a"],
       ruleSelection: ["rule"],
     });
@@ -3061,7 +3228,9 @@ describe("resolveAndFetchSources", () => {
         "https://dev.azure.com/org/_git/repo": {
           resolvedRef: "b".repeat(40),
           requestedRef: "main",
-          skills: { "cached-skill": { integrity: "sha256-cached" } },
+          skills: {
+            "cached-skill": { integrity: seedCuratedSkill({ curatedDir, name: "cached-skill" }) },
+          },
           skillSelection: ["*"],
           skillsPath: "skills",
         },
