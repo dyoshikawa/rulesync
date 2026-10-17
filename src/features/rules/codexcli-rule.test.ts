@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
-import { CodexcliRule } from "./codexcli-rule.js";
+import { CodexcliRule, readCodexcliProjectDocMaxBytes } from "./codexcli-rule.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 
 describe("CodexcliRule", () => {
@@ -937,6 +937,50 @@ interface ApiResponse<T> {
       const rulesyncRule = rule.toRulesyncRule();
       expect(rulesyncRule.validate().success).toBe(true);
       expect(rulesyncRule.getBody()).toBe(rootContent);
+    });
+  });
+
+  describe("readCodexcliProjectDocMaxBytes", () => {
+    const writeConfig = (content: string) =>
+      writeFileContent(join(testDir, ".codex", "config.toml"), content);
+
+    it("should return the configured project_doc_max_bytes", async () => {
+      await writeConfig('model = "gpt-5"\nproject_doc_max_bytes = 131072\n');
+
+      await expect(readCodexcliProjectDocMaxBytes(testDir)).resolves.toBe(131072);
+    });
+
+    it("should return undefined when .codex/config.toml does not exist", async () => {
+      await expect(readCodexcliProjectDocMaxBytes(testDir)).resolves.toBeUndefined();
+    });
+
+    it("should return undefined when the key is not set", async () => {
+      await writeConfig('model = "gpt-5"\n');
+
+      await expect(readCodexcliProjectDocMaxBytes(testDir)).resolves.toBeUndefined();
+    });
+
+    it("should return undefined when the key is only set inside a table", async () => {
+      await writeConfig("[profiles.big]\nproject_doc_max_bytes = 131072\n");
+
+      await expect(readCodexcliProjectDocMaxBytes(testDir)).resolves.toBeUndefined();
+    });
+
+    it.each([
+      ["a string", 'project_doc_max_bytes = "131072"\n'],
+      ["zero", "project_doc_max_bytes = 0\n"],
+      ["a negative number", "project_doc_max_bytes = -1\n"],
+      ["a float", "project_doc_max_bytes = 1.5\n"],
+    ])("should return undefined when the value is %s", async (_label, content) => {
+      await writeConfig(content);
+
+      await expect(readCodexcliProjectDocMaxBytes(testDir)).resolves.toBeUndefined();
+    });
+
+    it("should return undefined when the file is not valid TOML", async () => {
+      await writeConfig("project_doc_max_bytes = = 1\n");
+
+      await expect(readCodexcliProjectDocMaxBytes(testDir)).resolves.toBeUndefined();
     });
   });
 });
