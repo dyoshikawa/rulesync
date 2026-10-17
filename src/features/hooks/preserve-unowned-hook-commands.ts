@@ -247,7 +247,13 @@ function mergeMatcherGroups({
   const pending = createPendingGenerated();
   for (const group of generated) {
     if (isMatcherGroup(group)) {
-      addPending({ pending, handlers: group.hooks, event, matcher: matcherKey(group.matcher) });
+      addPending({
+        pending,
+        handlers: group.hooks,
+        event,
+        matcher: matcherKey(group.matcher),
+        attributes: groupAttributesKey(group),
+      });
     }
   }
 
@@ -263,6 +269,7 @@ function mergeMatcherGroups({
       handlers: group.hooks,
       event,
       matcher,
+      attributes: groupAttributesKey(group),
       pending,
       seen,
       previouslyOwned,
@@ -271,12 +278,13 @@ function mergeMatcherGroups({
     if (hooks.length === 0) {
       continue;
     }
-    // Group-level keys other than `hooks` (a Factory Droid `commandRegex`,
-    // say) belong to the group, so they stay with it.
+    // Group-level keys other than `hooks` (a Qwen Code `sequential`, a
+    // Factory Droid `commandRegex`) belong to the group, so they stay with it.
     const kept: MatcherGroup = { ...omitPrototypePollutionKeys(group), hooks };
     merged.push(kept);
-    if (!homes.has(matcher)) {
-      homes.set(matcher, kept);
+    const home = groupSlotKey(group);
+    if (!homes.has(home)) {
+      homes.set(home, kept);
     }
   }
 
@@ -289,7 +297,7 @@ function mergeMatcherGroups({
     if (remaining.length === 0) {
       continue;
     }
-    const home = homes.get(matcherKey(group.matcher));
+    const home = homes.get(groupSlotKey(group));
     if (home === undefined) {
       merged.push({ ...group, hooks: remaining });
     } else {
@@ -317,7 +325,7 @@ function mergeFlatHandlers({
   logger: Logger | undefined;
 }): unknown[] {
   const pending = createPendingGenerated();
-  addPending({ pending, handlers: generated, event, matcher: undefined });
+  addPending({ pending, handlers: generated, event, matcher: undefined, attributes: "" });
 
   const flat: unknown[] = [];
   for (const handler of existing) {
@@ -331,6 +339,7 @@ function mergeFlatHandlers({
     handlers: flat,
     event,
     matcher: undefined,
+    attributes: "",
     pending,
     seen,
     previouslyOwned,
@@ -342,8 +351,11 @@ function mergeFlatHandlers({
 
 /**
  * Generated handlers of one event waiting for a position: `byKey` queues them
- * by ownership key, and `placed` records the ones an existing handler's slot
- * has already taken, so only the rest are appended.
+ * by ownership key and group attributes, and `placed` records the ones an
+ * existing handler's slot has already taken, so only the rest are appended.
+ * The attributes are part of the lookup because they change how a group's
+ * handlers run (a Qwen Code `sequential`, say): a generated handler takes an
+ * existing slot only in a group whose attributes match its own.
  */
 type PendingGenerated = {
   byKey: Map<string, unknown[]>;
@@ -359,17 +371,19 @@ function addPending({
   handlers,
   event,
   matcher,
+  attributes,
 }: {
   pending: PendingGenerated;
   handlers: unknown[];
   event: string;
   matcher: string | undefined;
+  attributes: string;
 }): void {
   for (const handler of handlers) {
     if (!isPlainObject(handler)) {
       continue;
     }
-    const key = ownedHookKey({ event, matcher, identity: handlerIdentity(handler) });
+    const key = pendingKey({ event, matcher, attributes, handler });
     const queue = pending.byKey.get(key);
     if (queue === undefined) {
       pending.byKey.set(key, [handler]);
@@ -387,6 +401,7 @@ function keepExistingHandlers({
   handlers,
   event,
   matcher,
+  attributes,
   pending,
   seen,
   previouslyOwned,
@@ -395,6 +410,7 @@ function keepExistingHandlers({
   handlers: unknown[];
   event: string;
   matcher: string | undefined;
+  attributes: string;
   pending: PendingGenerated;
   seen: Set<string>;
   previouslyOwned: ReadonlySet<string>;
@@ -403,7 +419,7 @@ function keepExistingHandlers({
   const kept: unknown[] = [];
   for (const handler of handlers) {
     if (isPlainObject(handler)) {
-      const key = ownedHookKey({ event, matcher, identity: handlerIdentity(handler) });
+      const key = pendingKey({ event, matcher, attributes, handler });
       const generated = pending.byKey.get(key)?.shift();
       if (generated !== undefined) {
         pending.placed.add(generated);
@@ -549,6 +565,32 @@ function stableStringify(value: unknown): string {
  */
 function matcherKey(matcher: unknown): string {
   return matcher === undefined ? "" : stableStringify(matcher);
+}
+
+function pendingKey({
+  event,
+  matcher,
+  attributes,
+  handler,
+}: {
+  event: string;
+  matcher: string | undefined;
+  attributes: string;
+  handler: Record<string, unknown>;
+}): string {
+  const key = ownedHookKey({ event, matcher, identity: handlerIdentity(handler) });
+  return JSON.stringify([key, attributes]);
+}
+
+/** Groups that share a matcher and attributes are interchangeable homes for a handler. */
+function groupSlotKey(group: MatcherGroup): string {
+  return JSON.stringify([matcherKey(group.matcher), groupAttributesKey(group)]);
+}
+
+/** The stable form of a matcher group's keys other than `matcher` and `hooks`. */
+function groupAttributesKey(group: MatcherGroup): string {
+  const { matcher: _matcher, hooks: _hooks, ...attributes } = group;
+  return stableStringify(attributes);
 }
 
 function warnSkip({

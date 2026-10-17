@@ -512,5 +512,59 @@ describe("mergeGeneratedHookLists", () => {
         { matcher: "Bash", commandRegex: "^git ", hooks: [{ command: "theirs.sh" }] },
       ]);
     });
+
+    it("does not fold a group into a generated one whose group-level keys differ", () => {
+      const merged = merge({
+        existing: {
+          PreToolUse: [
+            { matcher: "Bash", sequential: true, hooks: [{ command: "theirs-seq.sh" }] },
+            { matcher: "Bash", hooks: [{ command: "theirs-par.sh" }] },
+          ],
+        },
+        generated: { PreToolUse: [{ matcher: "Bash", hooks: [{ command: "ours.sh" }] }] },
+      });
+
+      expect(merged.hooks.PreToolUse).toEqual([
+        { matcher: "Bash", sequential: true, hooks: [{ command: "theirs-seq.sh" }] },
+        { matcher: "Bash", hooks: [{ command: "theirs-par.sh" }, { command: "ours.sh" }] },
+      ]);
+    });
+
+    it("moves a generated handler out of a group whose group-level keys no longer match", () => {
+      const merged = merge({
+        existing: {
+          PreToolUse: [
+            {
+              matcher: "Bash",
+              sequential: true,
+              hooks: [{ command: "theirs.sh" }, { command: "ours.sh" }],
+            },
+          ],
+        },
+        generated: { PreToolUse: [{ matcher: "Bash", hooks: [{ command: "ours.sh" }] }] },
+        previouslyOwned: new Set([
+          ownedHookKey({ event: "PreToolUse", matcher: '"Bash"', identity: "command:ours.sh" }),
+        ]),
+      });
+
+      expect(merged.hooks.PreToolUse).toEqual([
+        { matcher: "Bash", sequential: true, hooks: [{ command: "theirs.sh" }] },
+        { matcher: "Bash", hooks: [{ command: "ours.sh" }] },
+      ]);
+    });
+
+    it("does not fold a plain group into a generated sequential one", () => {
+      const merged = merge({
+        existing: { PreToolUse: [{ matcher: "Bash", hooks: [{ command: "theirs.sh" }] }] },
+        generated: {
+          PreToolUse: [{ matcher: "Bash", sequential: true, hooks: [{ command: "ours.sh" }] }],
+        },
+      });
+
+      expect(merged.hooks.PreToolUse).toEqual([
+        { matcher: "Bash", hooks: [{ command: "theirs.sh" }] },
+        { matcher: "Bash", sequential: true, hooks: [{ command: "ours.sh" }] },
+      ]);
+    });
   });
 });
