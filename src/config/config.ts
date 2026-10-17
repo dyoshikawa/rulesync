@@ -124,8 +124,8 @@ export const ConfigParamsSchema = z.object({
   simulateSubagents: optional(z.boolean()),
   simulateSkills: optional(z.boolean()),
   // Keep hook entries a third party wrote into a destination rulesync also
-  // writes (`.claude/settings.json`, `.codex/hooks.json`, `.cursor/hooks.json`)
-  // instead of replacing the list. Off by default: with it on, rulesync records
+  // writes (`.claude/settings.json`, `.codex/hooks.json`, `.cursor/hooks.json`,
+  // `.qwen/settings.json`) instead of replacing the list. Off by default: with it on, rulesync records
   // what it generated in a `.rulesync-hooks-lock.json` beside the destination so
   // it can still retract its own hooks, and everything else is left alone.
   preserveUnownedHooks: optional(z.boolean()),
