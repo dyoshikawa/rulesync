@@ -660,6 +660,20 @@ describe("mergeGeneratedHookLists", () => {
       ]);
     });
 
+    it("still separates a group whose unknown group-level key is false", () => {
+      const merged = merge({
+        existing: {
+          PreToolUse: [{ matcher: "Bash", custom: false, hooks: [{ command: "theirs.sh" }] }],
+        },
+        generated: { PreToolUse: [{ matcher: "Bash", hooks: [{ command: "ours.sh" }] }] },
+      });
+
+      expect(merged.hooks.PreToolUse).toEqual([
+        { matcher: "Bash", custom: false, hooks: [{ command: "theirs.sh" }] },
+        { matcher: "Bash", hooks: [{ command: "ours.sh" }] },
+      ]);
+    });
+
     it("does not fold a plain group into a generated sequential one", () => {
       const merged = merge({
         existing: { PreToolUse: [{ matcher: "Bash", hooks: [{ command: "theirs.sh" }] }] },

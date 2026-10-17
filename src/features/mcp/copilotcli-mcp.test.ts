@@ -1273,13 +1273,28 @@ describe("CopilotcliMcp", () => {
         join(testDir, ".github", "copilot", "settings.json"),
         JSON.stringify({ disabledMcpServers: "foo" }),
       );
+      const rulesyncMcp = makeRulesyncMcp({
+        off: { command: "npx", disabled: true },
+        on: { command: "node" },
+      });
 
+      const copilotCliMcp = await CopilotcliMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        logger: mockLogger,
+      });
       const files = await CopilotcliMcp.getAuxiliaryFiles({
         outputRoot: testDir,
-        rulesyncMcp: makeRulesyncMcp({ off: { command: "npx", disabled: true } }),
+        rulesyncMcp,
         logger: mockLogger,
       });
 
+      // The off-switch cannot be written, so the disabled server is not
+      // written as a runnable server either (fail-closed).
+      expect(Object.keys(copilotCliMcp.getJson().mcpServers ?? {})).toEqual(["on"]);
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Skipping disabled MCP server "off"'),
+      );
       expect(files).toEqual([]);
       expect(mockLogger.warn).toHaveBeenCalledWith(
         expect.stringContaining("not an array of server names"),

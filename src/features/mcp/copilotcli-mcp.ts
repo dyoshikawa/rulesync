@@ -471,19 +471,27 @@ export class CopilotcliMcp extends ToolMcp {
     const json = JSON.parse(fileContent);
 
     // The off-switch for a disabled server lives in the settings file (written
-    // by `getAuxiliaryFiles`). When that file exists but cannot be parsed, the
+    // by `getAuxiliaryFiles`). When that file exists but cannot be parsed, or
+    // its `disabledMcpServers` is not a string array (left untouched), the
     // switch cannot be written — so the disabled server's runnable definition
     // is not written either, or it would simply start (fail-closed).
     const settings = await readCopilotCliSettings({ outputRoot, global });
+    const existingDisabled = settings.document?.disabledMcpServers;
+    const offSwitchBlocker =
+      settings.document === null
+        ? "cannot be parsed"
+        : existingDisabled !== undefined && !isStringArray(existingDisabled)
+          ? "has a disabledMcpServers value that is not an array of server names"
+          : undefined;
     const mcpServers = Object.fromEntries(
       Object.entries(rulesyncMcp.getMcpServers()).filter(([name, server]) => {
-        if (server.disabled !== true || settings.document !== null) {
+        if (server.disabled !== true || offSwitchBlocker === undefined) {
           return true;
         }
         logger?.warn(
           `[CopilotcliMcp] Skipping disabled MCP server "${name}": ` +
-            `${join(settings.paths.relativeDirPath, settings.paths.relativeFilePath)} cannot be ` +
-            `parsed, so disabledMcpServers cannot be written to switch it off.`,
+            `${join(settings.paths.relativeDirPath, settings.paths.relativeFilePath)} ` +
+            `${offSwitchBlocker}, so disabledMcpServers cannot be written to switch it off.`,
         );
         return false;
       }),
