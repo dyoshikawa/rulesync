@@ -54,10 +54,13 @@ Example:
   // file. By default the generated hooks replace the destination's hook list
   // wholesale, so a handler another tool (or a person) added by hand is lost on
   // the next `generate`. Turning this on keeps such handlers and appends the
-  // generated ones. It applies to Claude Code, Codex CLI and Cursor, in both
-  // project and global scope; the Claude Code *plugin* bundle always replaces,
-  // because Rulesync owns that directory outright. There is no CLI flag: this
-  // is a project policy, not a per-invocation one.
+  // generated ones. It applies to Claude Code, Codex CLI, Cursor and Qwen
+  // Code, in both project and global scope; the Claude Code *plugin* bundle
+  // always replaces, because Rulesync owns that directory outright. A kept
+  // matcher group joins a generated one only when its other group-level keys
+  // (such as Qwen Code's `sequential`) agree, so it never changes how its
+  // handlers run. There is no CLI flag: this is a project policy, not a
+  // per-invocation one.
   //
   // To stay able to retract a hook it did write, Rulesync records what it
   // generated in a `.rulesync-hooks-lock.json` next to each hooks file (e.g.

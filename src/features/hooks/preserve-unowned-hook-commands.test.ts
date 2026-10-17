@@ -389,5 +389,36 @@ describe("mergeGeneratedHookLists", () => {
         { matcher: "Bash", commandRegex: "^git ", hooks: [{ command: "theirs.sh" }] },
       ]);
     });
+
+    it("does not fold a group into a generated one whose group-level keys differ", () => {
+      const merged = merge({
+        existing: {
+          PreToolUse: [
+            { matcher: "Bash", sequential: true, hooks: [{ command: "theirs-seq.sh" }] },
+            { matcher: "Bash", hooks: [{ command: "theirs-par.sh" }] },
+          ],
+        },
+        generated: { PreToolUse: [{ matcher: "Bash", hooks: [{ command: "ours.sh" }] }] },
+      });
+
+      expect(merged.hooks.PreToolUse).toEqual([
+        { matcher: "Bash", hooks: [{ command: "ours.sh" }, { command: "theirs-par.sh" }] },
+        { matcher: "Bash", sequential: true, hooks: [{ command: "theirs-seq.sh" }] },
+      ]);
+    });
+
+    it("does not fold a plain group into a generated sequential one", () => {
+      const merged = merge({
+        existing: { PreToolUse: [{ matcher: "Bash", hooks: [{ command: "theirs.sh" }] }] },
+        generated: {
+          PreToolUse: [{ matcher: "Bash", sequential: true, hooks: [{ command: "ours.sh" }] }],
+        },
+      });
+
+      expect(merged.hooks.PreToolUse).toEqual([
+        { matcher: "Bash", sequential: true, hooks: [{ command: "ours.sh" }] },
+        { matcher: "Bash", hooks: [{ command: "theirs.sh" }] },
+      ]);
+    });
   });
 });

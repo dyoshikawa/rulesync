@@ -3,7 +3,6 @@ import { join } from "node:path";
 import { z } from "zod/mini";
 
 import { QWENCODE_DIR, QWENCODE_SETTINGS_FILE_NAME } from "../../constants/qwencode-paths.js";
-import type { AiFileParams } from "../../types/ai-file.js";
 import type { ValidationResult } from "../../types/ai-file.js";
 import type { HooksConfig } from "../../types/hooks.js";
 import {
@@ -11,12 +10,15 @@ import {
   QWENCODE_TO_CANONICAL_EVENT_NAMES,
   CANONICAL_TO_QWENCODE_EVENT_NAMES,
 } from "../../types/hooks.js";
+import type { ToolFile } from "../../types/tool-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { compact } from "../../utils/object.js";
 import { lookupOwn } from "../../utils/own-lookup.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
+import { HOOKS_OWNERSHIP_LOCK_FILE_NAME, parseHooksOwnershipLock } from "./hooks-ownership-lock.js";
+import { mergeGeneratedHookLists } from "./preserve-unowned-hook-commands.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import { buildImportedHooksConfig } from "./tool-hooks-converter.js";
 import {
@@ -24,6 +26,7 @@ import {
   type ToolHooksForDeletionParams,
   type ToolHooksFromFileParams,
   type ToolHooksFromRulesyncHooksParams,
+  type ToolHooksParams,
   type ToolHooksSettablePaths,
 } from "./tool-hooks.js";
 
@@ -322,7 +325,7 @@ function qwencodeHooksToCanonical(qwencodeHooks: unknown): HooksConfig["hooks"] 
 }
 
 export class QwencodeHooks extends ToolHooks {
-  constructor(params: AiFileParams) {
+  constructor(params: ToolHooksParams) {
     super({
       ...params,
       fileContent: params.fileContent ?? "{}",
@@ -359,13 +362,32 @@ export class QwencodeHooks extends ToolHooks {
     rulesyncHooks,
     validate = true,
     global = false,
+    preserveUnowned = false,
     logger,
   }: ToolHooksFromRulesyncHooksParams & { global?: boolean }): Promise<QwencodeHooks> {
     const paths = QwencodeHooks.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const existingContent = (await readFileContentOrNull(filePath)) ?? JSON.stringify({}, null, 2);
     const config = rulesyncHooks.getJson();
-    const patch: Record<string, unknown> = { hooks: canonicalToQwencodeHooks(config, logger) };
+    const previouslyOwned = preserveUnowned
+      ? parseHooksOwnershipLock(
+          await readFileContentOrNull(
+            join(outputRoot, paths.relativeDirPath, HOOKS_OWNERSHIP_LOCK_FILE_NAME),
+          ),
+        )
+      : undefined;
+    // A preserved third-party group keeps its own `sequential` flag: the
+    // helper folds it into a generated group only when every group-level key
+    // agrees, so a sequential group never turns parallel or vice versa.
+    const merged = mergeGeneratedHookLists({
+      existingContent,
+      generatedHooks: canonicalToQwencodeHooks(config, logger),
+      shape: "matcher-groups",
+      preserveUnowned,
+      previouslyOwned,
+      logger,
+    });
+    const patch: Record<string, unknown> = { hooks: merged.hooks };
     // Round-trip Qwen Code's top-level switch that disables every hook.
     const disableAllHooks = config.qwencode?.disableAllHooks;
     if (typeof disableAllHooks === "boolean") {
@@ -383,8 +405,24 @@ export class QwencodeHooks extends ToolHooks {
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
       fileContent,
+      ownedHookRefs: preserveUnowned ? merged.owned : undefined,
       validate,
     });
+  }
+
+  static override supportsPreserveUnowned(): boolean {
+    return true;
+  }
+
+  static override async getAuxiliaryFiles({
+    toolHooks,
+  }: {
+    outputRoot?: string;
+    global?: boolean;
+    toolHooks?: ToolHooks;
+    logger?: Logger;
+  } = {}): Promise<ToolFile[]> {
+    return toolHooks instanceof QwencodeHooks ? toolHooks.getOwnershipLockFiles() : [];
   }
 
   toRulesyncHooks(): RulesyncHooks {
