@@ -54,18 +54,27 @@ Example:
   // file. By default the generated hooks replace the destination's hook list
   // wholesale, so a handler another tool (or a person) added by hand is lost on
   // the next `generate`. Turning this on keeps such handlers and appends the
-  // generated ones. It applies to Claude Code, Codex CLI and Cursor, in both
-  // project and global scope; the Claude Code *plugin* bundle always replaces,
-  // because Rulesync owns that directory outright. There is no CLI flag: this
-  // is a project policy, not a per-invocation one.
+  // generated ones. It applies to Claude Code, Codex CLI, Cursor and Qwen
+  // Code, in both project and global scope; the Claude Code *plugin* bundle
+  // always replaces, because Rulesync owns that directory outright. A kept
+  // matcher group joins a generated one only when its other group-level keys
+  // (such as Qwen Code's `sequential`) agree, so it never changes how its
+  // handlers run. There is no CLI flag: this is a project policy, not a
+  // per-invocation one.
   //
   // To stay able to retract a hook it did write, Rulesync records what it
   // generated in a `.rulesync-hooks-lock.json` next to each hooks file (e.g.
   // `.claude/.rulesync-hooks-lock.json`). Commit it alongside the generated
   // hooks. A handler listed there that the sources no longer define is removed;
-  // anything else is kept. The very first run after opting in has no lock yet,
-  // so a hook Rulesync wrote before is kept once and retracted from the run
-  // after that.
+  // anything else is kept. The lock is the only ownership history: Rulesync
+  // never reconstructs it from the hooks file. The first run after opting in
+  // has no lock yet, so it records only the hooks the sources define on that
+  // run. A hook Rulesync wrote earlier is retracted later only if the sources
+  // still define it on that first run; one already removed from the sources is
+  // indistinguishable from a hand-written handler and is kept. The same holds
+  // whenever the lock is missing, unreadable or from another lock version:
+  // prior history is lost, so restore the matching lock or review and remove
+  // the stale handlers by hand.
   "preserveUnownedHooks": false,
 
   // Derive `agentsmd.subprojectPath` from each non-root rule's `globs`, so a

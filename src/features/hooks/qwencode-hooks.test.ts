@@ -5,6 +5,10 @@ import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
+import {
+  HOOKS_OWNERSHIP_LOCK_FILE_NAME,
+  serializeHooksOwnershipLock,
+} from "./hooks-ownership-lock.js";
 import { QwencodeHooks } from "./qwencode-hooks.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
 
@@ -517,6 +521,134 @@ describe("QwencodeHooks", () => {
       const parsed = JSON.parse(qwencodeHooks.getFileContent());
       expect(parsed.disableAllHooks).toBe(true);
       expect(parsed.hooks.PreToolUse[0].sequential).toBe(true);
+    });
+  });
+
+  describe("fromRulesyncHooks - preserveUnowned", () => {
+    const settingsPath = () => join(testDir, ".qwen", "settings.json");
+    const lockPath = () => join(testDir, ".qwen", HOOKS_OWNERSHIP_LOCK_FILE_NAME);
+
+    const foreignSequentialGroup = {
+      matcher: "Bash",
+      sequential: true,
+      hooks: [{ type: "command", command: "echo foreign" }],
+    };
+
+    function rulesyncHooksWith(hooks: Record<string, unknown>) {
+      return new RulesyncHooks(
+        createMockAiFileParams({
+          outputRoot: testDir,
+          fileContent: JSON.stringify({ version: 1, hooks }),
+        }),
+      );
+    }
+
+    async function writeSettings(settings: Record<string, unknown>) {
+      await ensureDir(join(testDir, ".qwen"));
+      await writeFileContent(settingsPath(), JSON.stringify(settings, null, 2));
+    }
+
+    async function generate({
+      hooks,
+      preserveUnowned,
+    }: {
+      hooks: Record<string, unknown>;
+      preserveUnowned?: boolean;
+    }) {
+      const qwencodeHooks = await QwencodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks: rulesyncHooksWith(hooks),
+        validate: false,
+        preserveUnowned,
+      });
+      const lockFiles = await QwencodeHooks.getAuxiliaryFiles({ toolHooks: qwencodeHooks });
+      return { qwencodeHooks, lockFiles };
+    }
+
+    it("should support preserving unowned hooks", () => {
+      expect(QwencodeHooks.supportsPreserveUnowned()).toBe(true);
+    });
+
+    it("should keep unrelated settings and a foreign sequential group apart from the generated one", async () => {
+      await writeSettings({
+        model: { name: "unchanged" },
+        hooks: { PreToolUse: [foreignSequentialGroup] },
+      });
+
+      const { qwencodeHooks, lockFiles } = await generate({
+        hooks: { preToolUse: [{ command: "echo generated", matcher: "Bash" }] },
+        preserveUnowned: true,
+      });
+
+      const parsed = JSON.parse(qwencodeHooks.getFileContent());
+      expect(parsed.model).toEqual({ name: "unchanged" });
+      expect(parsed.hooks.PreToolUse).toEqual([
+        { matcher: "Bash", hooks: [{ type: "command", command: "echo generated" }] },
+        foreignSequentialGroup,
+      ]);
+      expect(lockFiles).toHaveLength(1);
+      expect(lockFiles[0]?.getRelativeDirPath()).toBe(".qwen");
+      expect(lockFiles[0]?.getRelativeFilePath()).toBe(HOOKS_OWNERSHIP_LOCK_FILE_NAME);
+      expect(JSON.parse(lockFiles[0]!.getFileContent()).owned).toEqual([
+        { event: "PreToolUse", matcher: '"Bash"', identity: "command:echo generated" },
+      ]);
+    });
+
+    it("should retract a formerly generated hook recorded in the lock and keep the foreign one", async () => {
+      await writeSettings({
+        hooks: {
+          PreToolUse: [
+            { matcher: "Bash", hooks: [{ type: "command", command: "echo generated" }] },
+            foreignSequentialGroup,
+          ],
+        },
+      });
+      await writeFileContent(
+        lockPath(),
+        serializeHooksOwnershipLock([
+          { event: "PreToolUse", matcher: '"Bash"', identity: "command:echo generated" },
+        ]),
+      );
+
+      const { qwencodeHooks, lockFiles } = await generate({ hooks: {}, preserveUnowned: true });
+
+      const parsed = JSON.parse(qwencodeHooks.getFileContent());
+      expect(parsed.hooks.PreToolUse).toEqual([foreignSequentialGroup]);
+      expect(JSON.parse(lockFiles[0]!.getFileContent()).owned).toEqual([]);
+    });
+
+    it("should be idempotent across repeated generations", async () => {
+      await writeSettings({
+        model: { name: "unchanged" },
+        hooks: { PreToolUse: [foreignSequentialGroup] },
+      });
+      const hooks = { preToolUse: [{ command: "echo generated", matcher: "Bash" }] };
+
+      const first = await generate({ hooks, preserveUnowned: true });
+      await writeFileContent(settingsPath(), first.qwencodeHooks.getFileContent());
+      await writeFileContent(lockPath(), first.lockFiles[0]!.getFileContent());
+
+      const second = await generate({ hooks, preserveUnowned: true });
+      expect(second.qwencodeHooks.getFileContent()).toBe(first.qwencodeHooks.getFileContent());
+      expect(second.lockFiles[0]!.getFileContent()).toBe(first.lockFiles[0]!.getFileContent());
+    });
+
+    it("should replace existing hooks and write no lock when preservation is off", async () => {
+      await writeSettings({
+        model: { name: "unchanged" },
+        hooks: { PreToolUse: [foreignSequentialGroup] },
+      });
+
+      const { qwencodeHooks, lockFiles } = await generate({
+        hooks: { preToolUse: [{ command: "echo generated", matcher: "Bash" }] },
+      });
+
+      const parsed = JSON.parse(qwencodeHooks.getFileContent());
+      expect(parsed.model).toEqual({ name: "unchanged" });
+      expect(parsed.hooks.PreToolUse).toEqual([
+        { matcher: "Bash", hooks: [{ type: "command", command: "echo generated" }] },
+      ]);
+      expect(lockFiles).toEqual([]);
     });
   });
 
