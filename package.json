@@ -121,7 +121,7 @@
     "repomix": "1.18.1",
     "resend": "6.33.0",
     "secretlint": "13.0.7",
-    "simple-git": "3.36.0",
+    "simple-git": "4.0.2",
     "simple-git-hooks": "2.14.0",
     "sort-package-json": "4.0.0",
     "tsdown": "0.23.1",
