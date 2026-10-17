@@ -643,6 +643,23 @@ describe("mergeGeneratedHookLists", () => {
       ]);
     });
 
+    it("folds a generated handler into a group whose group-level keys are only defaults", () => {
+      const merged = merge({
+        existing: {
+          PreToolUse: [{ matcher: "Bash", sequential: false, hooks: [{ command: "theirs.sh" }] }],
+        },
+        generated: { PreToolUse: [{ matcher: "Bash", hooks: [{ command: "ours.sh" }] }] },
+      });
+
+      expect(merged.hooks.PreToolUse).toEqual([
+        {
+          matcher: "Bash",
+          sequential: false,
+          hooks: [{ command: "theirs.sh" }, { command: "ours.sh" }],
+        },
+      ]);
+    });
+
     it("does not fold a plain group into a generated sequential one", () => {
       const merged = merge({
         existing: { PreToolUse: [{ matcher: "Bash", hooks: [{ command: "theirs.sh" }] }] },

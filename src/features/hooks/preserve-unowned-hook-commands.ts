@@ -636,10 +636,20 @@ function groupSlotKey(group: MatcherGroup): string {
   return JSON.stringify([matcherKey(group.matcher), groupAttributesKey(group)]);
 }
 
-/** The stable form of a matcher group's keys other than `matcher` and `hooks`. */
+/**
+ * The stable form of a matcher group's keys other than `matcher` and `hooks`.
+ *
+ * A key set to its default is the same group as one that omits it: the only
+ * boolean group-level key rulesync writes (Qwen Code's `sequential`) defaults
+ * to `false` and is emitted only when `true`, so an explicit `false` (or an
+ * `undefined`) is dropped before comparing.
+ */
 function groupAttributesKey(group: MatcherGroup): string {
   const { matcher: _matcher, hooks: _hooks, ...attributes } = group;
-  return stableStringify(attributes);
+  const nonDefault = Object.fromEntries(
+    Object.entries(attributes).filter(([, value]) => value !== undefined && value !== false),
+  );
+  return stableStringify(nonDefault);
 }
 
 function warnSkip({

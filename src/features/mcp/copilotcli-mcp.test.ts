@@ -1267,6 +1267,47 @@ describe("CopilotcliMcp", () => {
       ).toEqual([]);
     });
 
+    it("should leave a disabledMcpServers value that is not a string array untouched", async () => {
+      const mockLogger = { warn: vi.fn() } as unknown as Logger;
+      await writeFileContent(
+        join(testDir, ".github", "copilot", "settings.json"),
+        JSON.stringify({ disabledMcpServers: "foo" }),
+      );
+
+      const files = await CopilotcliMcp.getAuxiliaryFiles({
+        outputRoot: testDir,
+        rulesyncMcp: makeRulesyncMcp({ off: { command: "npx", disabled: true } }),
+        logger: mockLogger,
+      });
+
+      expect(files).toEqual([]);
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("not an array of server names"),
+      );
+    });
+
+    it("should keep unmanaged names and not treat skipped servers as managed", async () => {
+      await writeFileContent(
+        join(testDir, ".github", "copilot", "settings.json"),
+        JSON.stringify({ disabledMcpServers: ["socket", "user-server"] }),
+      );
+
+      const files = await CopilotcliMcp.getAuxiliaryFiles({
+        outputRoot: testDir,
+        rulesyncMcp: makeRulesyncMcp({
+          // A WebSocket server is never written, so it is not managed: its
+          // existing toggle is neither retracted nor added.
+          socket: { type: "ws", url: "wss://example.com/mcp" },
+          socketOff: { type: "ws", url: "wss://example.com/off", disabled: true },
+          off: { command: "npx", disabled: true },
+        }),
+      });
+
+      expect(JSON.parse(files[0]?.getFileContent() ?? "")).toEqual({
+        disabledMcpServers: ["off", "socket", "user-server"],
+      });
+    });
+
     it("should skip a disabled server when the settings file cannot be parsed", async () => {
       const mockLogger = { warn: vi.fn() } as unknown as Logger;
       await writeFileContent(join(testDir, ".github", "copilot", "settings.json"), "{ not json");

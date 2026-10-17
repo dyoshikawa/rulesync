@@ -434,12 +434,15 @@ type ToolRuleFactory = {
      * When the tool lets a project raise the budget in its own config,
      * `readConfiguredBytes` returns that value (or `undefined` when unset), and
      * it replaces `bytes`; `configuredSource` names where it came from.
+     * `defaultLimitHint` is appended only when the default budget was used,
+     * e.g. to point out a budget set somewhere rulesync does not read.
      */
     projectInstructionBudget?: {
       bytes: number;
       remedy: string;
       readConfiguredBytes?: (outputRoot: string) => Promise<number | undefined>;
       configuredSource?: string;
+      defaultLimitHint?: string;
     };
   };
 };
@@ -710,9 +713,12 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
           bytes: CODEXCLI_PROJECT_DOC_MAX_BYTES,
           remedy:
             "Codex CLI stops reading project `AGENTS.md` files once their combined size on the root-to-working-directory chain reaches `project_doc_max_bytes` (32 KiB by default) and silently drops the rest. " +
-            "Move directory-scoped rules into nested `AGENTS.md` files with `agentsmd.subprojectPath` (or `deriveSubprojectPathFromGlobs: true` in rulesync.jsonc), trim the rules, or raise `project_doc_max_bytes` in `.codex/config.toml`.",
+            "Move directory-scoped rules into nested `AGENTS.md` files with `agentsmd.subprojectPath` (or `deriveSubprojectPathFromGlobs: true` in rulesync.jsonc), trim the rules, or raise `project_doc_max_bytes` in `.codex/config.toml` (Codex reads that file only if the project is trusted).",
           readConfiguredBytes: readCodexcliProjectDocMaxBytes,
-          configuredSource: "`project_doc_max_bytes` in `.codex/config.toml`",
+          configuredSource:
+            "`project_doc_max_bytes` in `.codex/config.toml` (honored only if the project is trusted)",
+          defaultLimitHint:
+            "Rulesync does not read `~/.codex/config.toml`; ignore this warning if you already raised `project_doc_max_bytes` there.",
         },
       },
     },
@@ -1717,6 +1723,10 @@ export class RulesProcessor extends FeatureProcessor {
         : configuredBytes === undefined
           ? `${limitBytes}-byte default limit`
           : `${limitBytes}-byte limit set by ${budget.configuredSource ?? "the tool config"}`;
+    const remedy =
+      configuredBytes === undefined && budget.defaultLimitHint !== undefined
+        ? `${budget.remedy} ${budget.defaultLimitHint}`
+        : budget.remedy;
 
     const files = toolRules.map((rule) => ({
       // Drop a trailing slash (an explicit `subprojectPath: "a/"`) so the
@@ -1734,7 +1744,7 @@ export class RulesProcessor extends FeatureProcessor {
     const rootBytes = rootFiles.reduce((sum, { bytes }) => sum + bytes, 0);
     if (rootBytes > limitBytes) {
       this.logger.warn(
-        `The generated ${this.toolTarget} root instruction file${location} (${rootFiles.map(({ path }) => path).join(", ")}) is ${rootBytes} bytes, over the ${limitLabel}. ${budget.remedy}`,
+        `The generated ${this.toolTarget} root instruction file${location} (${rootFiles.map(({ path }) => path).join(", ")}) is ${rootBytes} bytes, over the ${limitLabel}. ${remedy}`,
       );
       return;
     }
@@ -1754,7 +1764,7 @@ export class RulesProcessor extends FeatureProcessor {
       if (chainBytes > limitBytes) {
         reportedDirs.push(file.dir);
         this.logger.warn(
-          `The generated ${this.toolTarget} instruction files${location} loaded while working in '${file.dir}' (${chain.map(({ path }) => path).join(", ")}) total ${chainBytes} bytes, over the ${limitLabel} (as is every directory below it). ${budget.remedy}`,
+          `The generated ${this.toolTarget} instruction files${location} loaded while working in '${file.dir}' (${chain.map(({ path }) => path).join(", ")}) total ${chainBytes} bytes, over the ${limitLabel} (as is every directory below it). ${remedy}`,
         );
       }
     }

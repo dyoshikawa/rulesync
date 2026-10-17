@@ -633,6 +633,37 @@ describe("QwencodeHooks", () => {
       expect(second.lockFiles[0]!.getFileContent()).toBe(first.lockFiles[0]!.getFileContent());
     });
 
+    it("should preserve foreign hooks and write the lock under ~/.qwen in global mode", async () => {
+      // In global mode the output root is the home directory, so the settings
+      // and the lock live under `<home>/.qwen`.
+      await writeSettings({ hooks: { PreToolUse: [foreignSequentialGroup] } });
+
+      const qwencodeHooks = await QwencodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks: rulesyncHooksWith({
+          preToolUse: [{ command: "echo generated", matcher: "Bash" }],
+        }),
+        validate: false,
+        global: true,
+        preserveUnowned: true,
+      });
+      const lockFiles = await QwencodeHooks.getAuxiliaryFiles({ toolHooks: qwencodeHooks });
+
+      expect(qwencodeHooks.getRelativeDirPath()).toBe(".qwen");
+      expect(qwencodeHooks.getRelativeFilePath()).toBe("settings.json");
+      const parsed = JSON.parse(qwencodeHooks.getFileContent());
+      expect(parsed.hooks.PreToolUse).toEqual([
+        foreignSequentialGroup,
+        { matcher: "Bash", hooks: [{ type: "command", command: "echo generated" }] },
+      ]);
+      expect(lockFiles).toHaveLength(1);
+      expect(lockFiles[0]?.getRelativeDirPath()).toBe(".qwen");
+      expect(lockFiles[0]?.getRelativeFilePath()).toBe(HOOKS_OWNERSHIP_LOCK_FILE_NAME);
+      expect(JSON.parse(lockFiles[0]!.getFileContent()).owned).toEqual([
+        { event: "PreToolUse", matcher: '"Bash"', identity: "command:echo generated" },
+      ]);
+    });
+
     it("should replace existing hooks and write no lock when preservation is off", async () => {
       await writeSettings({
         model: { name: "unchanged" },

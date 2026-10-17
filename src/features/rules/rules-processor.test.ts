@@ -3564,6 +3564,10 @@ globs: ["packages/api/**/*"]
       const warnings = budgetWarnings();
       expect(warnings).toHaveLength(1);
       expect(warnings[0]).toContain("over the 32768-byte default limit");
+      expect(warnings[0]).toContain("only if the project is trusted");
+      expect(warnings[0]).toContain(
+        "ignore this warning if you already raised `project_doc_max_bytes` there",
+      );
     });
 
     it("should use project_doc_max_bytes from .codex/config.toml as the budget", async () => {
@@ -3595,8 +3599,9 @@ globs: ["packages/api/**/*"]
       const warnings = budgetWarnings();
       expect(warnings).toHaveLength(1);
       expect(warnings[0]).toContain(
-        "over the 50000-byte limit set by `project_doc_max_bytes` in `.codex/config.toml`",
+        "over the 50000-byte limit set by `project_doc_max_bytes` in `.codex/config.toml` (honored only if the project is trusted)",
       );
+      expect(warnings[0]).not.toContain("~/.codex/config.toml");
     });
 
     it("should read the configured budget from the output root's .codex/config.toml", async () => {
