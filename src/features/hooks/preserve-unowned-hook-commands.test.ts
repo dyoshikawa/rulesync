@@ -146,8 +146,8 @@ describe("mergeGeneratedHookLists", () => {
           SessionStart: [
             {
               hooks: [
-                { type: "command", command: "echo new" },
                 { type: "command", command: "echo generated", timeout: 10 },
+                { type: "command", command: "echo new" },
               ],
             },
           ],
@@ -166,6 +166,96 @@ describe("mergeGeneratedHookLists", () => {
             { type: "command", command: "echo new" },
           ],
         },
+      ]);
+    });
+
+    it("reflects a reorder of generated handlers", () => {
+      const merged = merge({
+        existing: {
+          SessionStart: [
+            {
+              hooks: [
+                { type: "command", command: "a.sh" },
+                { type: "command", command: "b.sh" },
+              ],
+            },
+          ],
+        },
+        generated: {
+          SessionStart: [
+            {
+              hooks: [
+                { type: "command", command: "b.sh" },
+                { type: "command", command: "a.sh" },
+              ],
+            },
+          ],
+        },
+      });
+
+      expect(firstGroupCommands(merged.hooks, "SessionStart")).toEqual(["b.sh", "a.sh"]);
+    });
+
+    it("orders a new generated handler before an existing one that follows it in the sources", () => {
+      const merged = merge({
+        existing: {
+          SessionStart: [
+            {
+              hooks: [
+                { type: "command", command: "theirs.sh" },
+                { type: "command", command: "y.sh" },
+              ],
+            },
+          ],
+        },
+        generated: {
+          SessionStart: [
+            {
+              hooks: [
+                { type: "command", command: "x.sh" },
+                { type: "command", command: "y.sh" },
+              ],
+            },
+          ],
+        },
+      });
+
+      expect(firstGroupCommands(merged.hooks, "SessionStart")).toEqual([
+        "theirs.sh",
+        "x.sh",
+        "y.sh",
+      ]);
+    });
+
+    it("keeps an unowned handler between generated ones at its index", () => {
+      const merged = merge({
+        existing: {
+          SessionStart: [
+            {
+              hooks: [
+                { type: "command", command: "a.sh" },
+                { type: "command", command: "theirs.sh" },
+                { type: "command", command: "b.sh" },
+              ],
+            },
+          ],
+        },
+        generated: {
+          SessionStart: [
+            {
+              hooks: [
+                { type: "command", command: "b.sh" },
+                { type: "command", command: "a.sh" },
+              ],
+            },
+          ],
+        },
+      });
+
+      expect(firstGroupCommands(merged.hooks, "SessionStart")).toEqual([
+        "b.sh",
+        "theirs.sh",
+        "a.sh",
       ]);
     });
 
@@ -213,7 +303,7 @@ describe("mergeGeneratedHookLists", () => {
       expect(second.hooks).toEqual(first.hooks);
     });
 
-    it("keeps flat handlers in place and appends new ones", () => {
+    it("keeps unowned flat handlers in place and orders generated ones by the sources", () => {
       const merged = merge({
         existing: {
           sessionStart: [{ command: "theirs.sh" }, { command: "shared.sh", timeout: 5 }],
@@ -229,8 +319,8 @@ describe("mergeGeneratedHookLists", () => {
 
       expect(merged.hooks.sessionStart).toEqual([
         { command: "theirs.sh" },
-        { type: "command", command: "shared.sh" },
         { type: "command", command: "new.sh" },
+        { type: "command", command: "shared.sh" },
       ]);
     });
   });

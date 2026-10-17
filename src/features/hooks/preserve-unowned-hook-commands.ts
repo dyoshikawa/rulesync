@@ -216,14 +216,17 @@ function collectOwnedRefs({
 }
 
 /**
- * The merge keeps every existing handler where it is. Some tools key state by
- * position — Codex CLI persists a hook's trust review under its event, matcher
- * group index and handler index — so moving a handler the user already
+ * The merge keeps every unowned existing handler where it is. Some tools key
+ * state by position — Codex CLI persists a hook's trust review under its event,
+ * matcher group index and handler index — so moving a handler the user already
  * reviewed would silently change which hook that review belongs to. Hence:
- * - an existing handler this run generates is updated in place;
- * - an unowned existing handler stays in place;
+ * - an unowned existing handler stays at its index;
  * - a newly generated handler is appended to the first existing group with its
- *   matcher, or in a new group after the existing ones.
+ *   matcher and group-level keys, or in a new group after the existing ones;
+ * - within a group, the slots rulesync's own handlers occupy (including the
+ *   appended ones) are filled in generated order, so reordering the sources
+ *   still reorders the generated handlers, which matters wherever handlers
+ *   run in order (a Qwen Code `sequential` group, a Cursor list).
  *
  * A retracted handler, or a group left empty by retractions, is still removed,
  * which shifts whatever follows it in the same list; that is unavoidable
@@ -305,6 +308,14 @@ function mergeMatcherGroups({
     }
   }
 
+  const order = generatedOrder(
+    generated.flatMap((group) => (isMatcherGroup(group) ? group.hooks : [])),
+  );
+  for (const group of merged) {
+    if (isMatcherGroup(group)) {
+      orderGeneratedSlots({ handlers: group.hooks, order });
+    }
+  }
   return merged;
 }
 
@@ -346,7 +357,45 @@ function mergeFlatHandlers({
     logger,
   });
   merged.push(...generated.filter((handler) => !pending.placed.has(handler)));
+  orderGeneratedSlots({ handlers: merged, order: generatedOrder(generated) });
   return merged;
+}
+
+/** Each generated handler's position in the generated list, by object identity. */
+function generatedOrder(handlers: unknown[]): Map<unknown, number> {
+  const order = new Map<unknown, number>();
+  for (const [index, handler] of handlers.entries()) {
+    if (isPlainObject(handler)) {
+      order.set(handler, index);
+    }
+  }
+  return order;
+}
+
+/**
+ * Rewrite, in place, the slots of `handlers` that hold generated handlers so
+ * they follow the generated order. Every other slot — an unowned handler — is
+ * left at its index.
+ */
+function orderGeneratedSlots({
+  handlers,
+  order,
+}: {
+  handlers: unknown[];
+  order: ReadonlyMap<unknown, number>;
+}): void {
+  const slots: number[] = [];
+  for (const [index, handler] of handlers.entries()) {
+    if (order.has(handler)) {
+      slots.push(index);
+    }
+  }
+  const sorted = slots
+    .map((index) => handlers[index])
+    .toSorted((left, right) => (order.get(left) ?? 0) - (order.get(right) ?? 0));
+  for (const [position, index] of slots.entries()) {
+    handlers[index] = sorted[position];
+  }
 }
 
 /**
