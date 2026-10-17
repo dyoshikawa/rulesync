@@ -4439,6 +4439,49 @@ describe("resolveAndFetchSources", () => {
       );
     });
 
+    it("does not hold back the listing of a source without a lock entry behind earlier sources", async () => {
+      // repo-a's listing answers only once repo-b and repo-c have started
+      // theirs (or after a fallback timeout, so a regression fails rather than hangs).
+      const startedListings = new Set<string>();
+      let releaseRepoA: () => void = () => {};
+      const repoAGate = new Promise<void>((resolve) => {
+        releaseRepoA = resolve;
+      });
+      let releasedByFallback = false;
+      const fallback = setTimeout(() => {
+        releasedByFallback = true;
+        releaseRepoA();
+      }, 500);
+      mockClientInstance.listDirectory.mockImplementation(
+        async (_owner: string, repo: string, path: string) => {
+          if (path === "skills") {
+            startedListings.add(repo);
+            if (startedListings.has("repo-b") && startedListings.has("repo-c")) {
+              releaseRepoA();
+            }
+            if (repo === "repo-a") {
+              await repoAGate;
+            }
+            return [{ name: `${repo}-only`, path: `skills/${repo}-only`, type: "dir" }];
+          }
+          return [{ name: "SKILL.md", path: `${path}/SKILL.md`, type: "file", size: 10 }];
+        },
+      );
+
+      try {
+        const result = await resolveAndFetchSources({
+          logger,
+          sources: [{ source: "org/repo-a" }, { source: "org/repo-b" }, { source: "org/repo-c" }],
+          projectRoot: testDir,
+        });
+        expect(result.failedSourceCount).toBe(0);
+        expect(result.fetchedSkillCount).toBe(3);
+      } finally {
+        clearTimeout(fallback);
+      }
+      expect(releasedByFallback).toBe(false);
+    });
+
     it("bounds how many sources and requests are in flight at once", async () => {
       const sourceCount = SOURCE_PREFETCH_CONCURRENCY_LIMIT + 3;
       const filesPerSkill = FETCH_CONCURRENCY_LIMIT + 5;

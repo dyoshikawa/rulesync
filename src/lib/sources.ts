@@ -582,7 +582,9 @@ async function prefetchGithubSkills(params: {
       sourceEntry,
       curatedDir: join(context.projectRoot, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH),
       // A name an earlier source takes holds that source's copy, as in the serial pass.
-      alreadyFetchedSkillNames: await claim.earlier(),
+      // Waited on only when the lock could be reused, so the listing of a source
+      // that must be fetched anyway does not queue behind earlier ones.
+      getAlreadyFetchedSkillNames: claim.earlier,
     })
   ) {
     claim.settle(lockedSkillNames);
@@ -2130,7 +2132,11 @@ async function canReuseLockedSkills(params: {
   frozen: boolean;
   sourceEntry: SourceEntry;
   curatedDir: string;
-  alreadyFetchedSkillNames: Pick<Set<string>, "has">;
+  /**
+   * The names earlier sources took. A thunk, so a caller that has to wait for
+   * them waits only when the cheaper checks already allow the reuse.
+   */
+  getAlreadyFetchedSkillNames: () => Promise<Pick<Set<string>, "has">>;
 }): Promise<boolean> {
   const {
     locked,
@@ -2139,7 +2145,7 @@ async function canReuseLockedSkills(params: {
     frozen,
     sourceEntry,
     curatedDir,
-    alreadyFetchedSkillNames,
+    getAlreadyFetchedSkillNames,
   } = params;
   return (
     locked !== undefined &&
@@ -2149,7 +2155,7 @@ async function canReuseLockedSkills(params: {
     (await checkLockedSkillsAreValid({
       curatedDir,
       skills: locked.skills,
-      presenceOnlySkillNames: alreadyFetchedSkillNames,
+      presenceOnlySkillNames: await getAlreadyFetchedSkillNames(),
     }))
   );
 }
@@ -2869,7 +2875,7 @@ async function fetchSource(params: {
       frozen,
       sourceEntry,
       curatedDir,
-      alreadyFetchedSkillNames,
+      getAlreadyFetchedSkillNames: async () => alreadyFetchedSkillNames,
     })
   ) {
     logger.debug(`SHA unchanged for ${sourceKey}, skipping re-fetch.`);
@@ -3033,7 +3039,7 @@ async function fetchSourceViaGit(params: {
       frozen,
       sourceEntry,
       curatedDir,
-      alreadyFetchedSkillNames,
+      getAlreadyFetchedSkillNames: async () => alreadyFetchedSkillNames,
     })
   ) {
     return { skillCount: 0, fetchedSkillNames: lockedSkillNames, updatedLock: lock };
