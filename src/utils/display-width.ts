@@ -94,12 +94,12 @@ const WIDE_CHARACTERS_PATTERN =
  * The ranges are the `East_Asian_Width=A` property of Unicode 17.0, taken from
  * the table `get-east-asian-width` 1.6.0 carries and merged where two are
  * adjacent. The table is written out here rather than read from the package so
- * that the one lookup adds no dependency of its own, and the drift test in
- * `display-width.test.ts` is what keeps it honest: it loads the package through
- * the prompt renderer that already depends on it, walks every code point, and
- * fails when this table and the property disagree in either direction. When
- * the renderer's copy moves to a newer Unicode, that test is what fails, and
- * the table is regenerated from the new property — its ranges, marks aside,
+ * that the one lookup adds no runtime dependency of its own, and the drift test
+ * in `display-width.test.ts` is what keeps it honest: it loads the package,
+ * pinned as a dev dependency, walks every code point, and fails when this
+ * table and the property disagree in either direction. When that pin moves to
+ * a newer Unicode, that test is what fails, and the table is regenerated from
+ * the new property — its ranges, marks aside,
  * merged where adjacent and written as escapes — with the version named here.
  *
  * Three stretches of the property are left out because they never reach this

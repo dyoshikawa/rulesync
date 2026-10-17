@@ -1,6 +1,4 @@
-import { createRequire } from "node:module";
-import { pathToFileURL } from "node:url";
-
+import { eastAsianWidthType } from "get-east-asian-width";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -192,22 +190,12 @@ describe("shortenToWidth", () => {
 });
 
 // The table is held to the property it was written from rather than trusted:
-// `get-east-asian-width` is the copy the prompt renderer measures with, and it
-// is found the way the renderer finds it, one dependency at a time —
-// `@inquirer/checkbox` depends on `@inquirer/core`, which depends on
-// `fast-wrap-ansi`, which depends on `fast-string-width`, which depends on
-// `get-east-asian-width` — so that the test checks the renderer's own copy
-// rather than whichever one the package manager happened to hoist beside it.
-// Each step resolves the package's main entry rather than its `package.json`,
-// which `fast-wrap-ansi` and `fast-string-width` do not expose. A failure to
-// resolve fails the test rather than skipping it, because a renderer that
-// stopped depending on the package is a change worth noticing.
-//
-// The package is not a dependency of this one and a static import cannot reach
-// it from `src`, so `createRequire` does the resolving and a dynamic import does
-// the loading: the package is ESM only, and `require` of an ESM module is not
-// something every Node this package supports can do. This is the one place the
-// static-import rule gives way, and it gives way in a test.
+// every code point is checked against `get-east-asian-width`, pinned as a dev
+// dependency so the Unicode version it encodes changes only on purpose. The
+// prompt renderer used to measure with this package too, and the test once
+// resolved it through the renderer's own dependency chain; `fast-string-width`
+// 3 dropped it (and East Asian Ambiguous handling with it), so the chain only
+// still resolved through a copy another dependency happened to hoist.
 const FIRST_SURROGATE = 0xd800;
 const LAST_SURROGATE = 0xdfff;
 const LAST_CODE_POINT = 0x10ffff;
@@ -216,23 +204,8 @@ function formatCodePoint(codePoint: number): string {
   return `U+${codePoint.toString(16).toUpperCase().padStart(4, "0")}`;
 }
 
-async function loadRendererEastAsianWidth(): Promise<{
-  eastAsianWidthType: (codePoint: number) => string;
-}> {
-  const checkboxRequire = createRequire(
-    createRequire(import.meta.url).resolve("@inquirer/checkbox/package.json"),
-  );
-  const core = checkboxRequire.resolve("@inquirer/core");
-  const fastWrapAnsi = createRequire(core).resolve("fast-wrap-ansi");
-  const fastStringWidth = createRequire(fastWrapAnsi).resolve("fast-string-width");
-  const getEastAsianWidth = createRequire(fastStringWidth).resolve("get-east-asian-width");
-  return await import(pathToFileURL(getEastAsianWidth).href);
-}
-
 describe("AMBIGUOUS_CHARACTERS_PATTERN", () => {
-  it("should hold every East Asian Ambiguous code point of the renderer's Unicode, marks aside, and nothing else", async () => {
-    const { eastAsianWidthType } = await loadRendererEastAsianWidth();
-
+  it("should hold every East Asian Ambiguous code point of the pinned Unicode, marks aside, and nothing else", () => {
     const missingFromTable: string[] = [];
     const extraInTable: string[] = [];
     for (let codePoint = 0; codePoint <= LAST_CODE_POINT; codePoint++) {
