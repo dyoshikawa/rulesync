@@ -753,6 +753,9 @@ describe("McpProcessor", () => {
       });
 
       vi.mocked(CopilotcliMcp.fromRulesyncMcp).mockResolvedValue(mockToolMcp);
+      // The `disabledMcpServers` settings writer reads the real servers, which
+      // the mocked RulesyncMcp does not carry; nothing is disabled here anyway.
+      vi.spyOn(CopilotcliMcp, "getAuxiliaryFiles").mockResolvedValue([]);
 
       const processor = new McpProcessor({
         logger: createMockLogger(),
@@ -788,6 +791,9 @@ describe("McpProcessor", () => {
       });
 
       vi.mocked(CopilotcliMcp.fromRulesyncMcp).mockResolvedValue(mockToolMcp);
+      // The `disabledMcpServers` settings writer reads the real servers, which
+      // the mocked RulesyncMcp does not carry; nothing is disabled here anyway.
+      vi.spyOn(CopilotcliMcp, "getAuxiliaryFiles").mockResolvedValue([]);
 
       const processor = new McpProcessor({
         logger: createMockLogger(),
