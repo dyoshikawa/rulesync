@@ -246,14 +246,22 @@ function mergeMatcherGroups({
     if (preserved.length === 0) {
       continue;
     }
+    // Group-level keys other than `matcher` and `hooks` (a Qwen Code
+    // `sequential`, a Factory Droid `commandRegex`) change how the group's
+    // handlers run, so a preserved handler joins another group only when those
+    // keys agree; otherwise its group is kept as a group of its own.
+    const attributes = groupAttributesKey(group);
     const target = merged.find(
-      (candidate) => isMatcherGroup(candidate) && matcherKey(candidate.matcher) === matcher,
+      (candidate) =>
+        isMatcherGroup(candidate) &&
+        matcherKey(candidate.matcher) === matcher &&
+        groupAttributesKey(candidate) === attributes,
     );
     if (target !== undefined && isMatcherGroup(target)) {
       target.hooks.push(...preserved);
     } else {
-      // Group-level keys other than `hooks` (a Factory Droid `commandRegex`,
-      // say) belong to the preserved handlers, so they ride along.
+      // Group-level keys other than `hooks` belong to the preserved handlers,
+      // so they ride along.
       merged.push({ ...omitPrototypePollutionKeys(group), hooks: preserved });
     }
   }
@@ -421,6 +429,12 @@ function stableStringify(value: unknown): string {
  */
 function matcherKey(matcher: unknown): string {
   return matcher === undefined ? "" : stableStringify(matcher);
+}
+
+/** The stable form of a matcher group's keys other than `matcher` and `hooks`. */
+function groupAttributesKey(group: MatcherGroup): string {
+  const { matcher: _matcher, hooks: _hooks, ...attributes } = group;
+  return stableStringify(attributes);
 }
 
 function warnSkip({
