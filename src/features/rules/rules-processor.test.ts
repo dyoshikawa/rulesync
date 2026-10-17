@@ -3554,6 +3554,66 @@ globs: ["packages/api/**/*"]
       expect(budgetWarnings()).toHaveLength(1);
     });
 
+    it("should name the default limit when .codex/config.toml does not raise it", async () => {
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "codexcli" });
+
+      await processor.convertRulesyncFilesToToolFiles([
+        rule({ name: "overview.md", body: "a".repeat(40000), root: true }),
+      ]);
+
+      const warnings = budgetWarnings();
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]).toContain("over the 32768-byte default limit");
+    });
+
+    it("should use project_doc_max_bytes from .codex/config.toml as the budget", async () => {
+      await writeFileContent(
+        join(testDir, ".codex", "config.toml"),
+        'model = "gpt-5"\nproject_doc_max_bytes = 131072\n',
+      );
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "codexcli" });
+
+      await processor.convertRulesyncFilesToToolFiles([
+        rule({ name: "overview.md", body: "a".repeat(40000), root: true }),
+        rule({ name: "svc1.md", body: "b".repeat(40000), subprojectPath: "services/svc1" }),
+      ]);
+
+      expect(budgetWarnings()).toHaveLength(0);
+    });
+
+    it("should warn against the configured budget and name where it came from", async () => {
+      await writeFileContent(
+        join(testDir, ".codex", "config.toml"),
+        "project_doc_max_bytes = 50000\n",
+      );
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "codexcli" });
+
+      await processor.convertRulesyncFilesToToolFiles([
+        rule({ name: "overview.md", body: "a".repeat(60000), root: true }),
+      ]);
+
+      const warnings = budgetWarnings();
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]).toContain(
+        "over the 50000-byte limit set by `project_doc_max_bytes` in `.codex/config.toml`",
+      );
+    });
+
+    it("should read the configured budget from the output root's .codex/config.toml", async () => {
+      const outputRoot = join(testDir, "packages", "app");
+      await writeFileContent(
+        join(outputRoot, ".codex", "config.toml"),
+        "project_doc_max_bytes = 131072\n",
+      );
+      const processor = new RulesProcessor({ logger, outputRoot, toolTarget: "codexcli" });
+
+      await processor.convertRulesyncFilesToToolFiles([
+        rule({ name: "overview.md", body: "a".repeat(40000), root: true }),
+      ]);
+
+      expect(budgetWarnings()).toHaveLength(0);
+    });
+
     it("should not warn for targets without an instruction budget", async () => {
       const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "pool" });
 
