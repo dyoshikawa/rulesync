@@ -1478,6 +1478,9 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
   // than retracted. Hooks owns only the `disableAllHooks` switch (hook
   // definitions go to `.github/hooks/*.json`), and only patches it when the
   // `copilotcli` override authors it, so a hand-set value otherwise survives.
+  // MCP owns only `disabledMcpServers` (server definitions go to
+  // `.github/mcp.json`), recomputed for the servers it writes while names it
+  // does not manage keep their state.
   ".github/copilot/settings.json": {
     format: "json",
     // The user's committed Copilot CLI config: refuse to read-modify-write a
@@ -1485,17 +1488,19 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
     invalidRootPolicy: "error",
     features: {
       hooks: { kind: "replace-owned-keys", ownedKeys: ["disableAllHooks"] },
+      mcp: { kind: "replace-owned-keys", ownedKeys: ["disabledMcpServers"] },
       permissions: { kind: "replace-owned-keys", ownedKeys: ["deniedUrls"] },
     },
   },
   // Copilot CLI user settings (`~/.copilot/settings.json`): the same file the
-  // CLI writes its own preferences into, so only the two URL lists and the
-  // `disableAllHooks` switch are owned.
+  // CLI writes its own preferences into, so only the two URL lists, the
+  // `disableAllHooks` switch and `disabledMcpServers` are owned.
   ".copilot/settings.json": {
     format: "json",
     invalidRootPolicy: "error",
     features: {
       hooks: { kind: "replace-owned-keys", ownedKeys: ["disableAllHooks"] },
+      mcp: { kind: "replace-owned-keys", ownedKeys: ["disabledMcpServers"] },
       permissions: { kind: "replace-owned-keys", ownedKeys: ["allowedUrls", "deniedUrls"] },
     },
   },

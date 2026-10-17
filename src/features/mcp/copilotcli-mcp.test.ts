@@ -10,7 +10,7 @@ import {
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
-import { CopilotcliMcp } from "./copilotcli-mcp.js";
+import { CopilotcliMcp, CopilotcliMcpSettings } from "./copilotcli-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 
 describe("CopilotcliMcp", () => {
@@ -1163,6 +1163,181 @@ describe("CopilotcliMcp", () => {
       expect(roundTrippedMcp.getJson()).toEqual({ mcpServers: originalServers });
       // Project mode writes the workspace MCP config to .github/mcp.json.
       expect(roundTrippedMcp.getFilePath()).toBe(join(testDir, ".github/mcp.json"));
+    });
+  });
+
+  describe("disabledMcpServers", () => {
+    const makeRulesyncMcp = (mcpServers: Record<string, unknown>) =>
+      new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({ mcpServers }),
+      });
+
+    it("should keep a disabled server's definition but drop the disabled key", async () => {
+      const copilotCliMcp = await CopilotcliMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp: makeRulesyncMcp({ off: { command: "npx", disabled: true } }),
+      });
+
+      expect(copilotCliMcp.getJson().mcpServers).toEqual({
+        off: { type: "stdio", command: "npx" },
+      });
+    });
+
+    it("should write disabledMcpServers to .github/copilot/settings.json, keeping other keys", async () => {
+      await writeFileContent(
+        join(testDir, ".github", "copilot", "settings.json"),
+        JSON.stringify({ model: "gpt-5", disabledMcpServers: ["user-server", "on"] }),
+      );
+
+      const files = await CopilotcliMcp.getAuxiliaryFiles({
+        outputRoot: testDir,
+        rulesyncMcp: makeRulesyncMcp({
+          off: { command: "npx", disabled: true },
+          on: { command: "node" },
+          broken: { disabled: true },
+        }),
+      });
+
+      expect(files).toHaveLength(1);
+      const [file] = files;
+      expect(file).toBeInstanceOf(CopilotcliMcpSettings);
+      expect(file?.getRelativeDirPath()).toBe(join(".github", "copilot"));
+      expect(file?.getRelativeFilePath()).toBe("settings.json");
+      expect(file?.isDeletable()).toBe(false);
+      // `user-server` is not managed and survives; `on` is managed and enabled
+      // canonically, so it is retracted; `broken` is never written as a server,
+      // so it gains no toggle.
+      expect(JSON.parse(file?.getFileContent() ?? "")).toEqual({
+        model: "gpt-5",
+        disabledMcpServers: ["off", "user-server"],
+      });
+    });
+
+    it("should write ~/.copilot/settings.json in global mode", async () => {
+      const files = await CopilotcliMcp.getAuxiliaryFiles({
+        outputRoot: testDir,
+        global: true,
+        rulesyncMcp: makeRulesyncMcp({ off: { command: "npx", disabled: true } }),
+      });
+
+      expect(files[0]?.getRelativeDirPath()).toBe(".copilot");
+      expect(JSON.parse(files[0]?.getFileContent() ?? "")).toEqual({
+        disabledMcpServers: ["off"],
+      });
+    });
+
+    it("should warn when re-enabling a managed server and remove an emptied key", async () => {
+      const mockLogger = { warn: vi.fn() } as unknown as Logger;
+      await writeFileContent(
+        join(testDir, ".github", "copilot", "settings.json"),
+        JSON.stringify({ deniedUrls: ["x.example"], disabledMcpServers: ["on"] }),
+      );
+
+      const files = await CopilotcliMcp.getAuxiliaryFiles({
+        outputRoot: testDir,
+        rulesyncMcp: makeRulesyncMcp({ on: { command: "node" } }),
+        logger: mockLogger,
+      });
+
+      expect(JSON.parse(files[0]?.getFileContent() ?? "")).toEqual({
+        deniedUrls: ["x.example"],
+      });
+      expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining("re-enabling on"));
+    });
+
+    it("should not create or touch the settings file when there is nothing to change", async () => {
+      expect(
+        await CopilotcliMcp.getAuxiliaryFiles({
+          outputRoot: testDir,
+          rulesyncMcp: makeRulesyncMcp({ on: { command: "node" } }),
+        }),
+      ).toEqual([]);
+
+      await writeFileContent(
+        join(testDir, ".github", "copilot", "settings.json"),
+        JSON.stringify({ disabledMcpServers: ["off"] }),
+      );
+      expect(
+        await CopilotcliMcp.getAuxiliaryFiles({
+          outputRoot: testDir,
+          rulesyncMcp: makeRulesyncMcp({ off: { command: "npx", disabled: true } }),
+        }),
+      ).toEqual([]);
+    });
+
+    it("should skip a disabled server when the settings file cannot be parsed", async () => {
+      const mockLogger = { warn: vi.fn() } as unknown as Logger;
+      await writeFileContent(join(testDir, ".github", "copilot", "settings.json"), "{ not json");
+      const rulesyncMcp = makeRulesyncMcp({
+        off: { command: "npx", disabled: true },
+        on: { command: "node" },
+      });
+
+      const copilotCliMcp = await CopilotcliMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        logger: mockLogger,
+      });
+      const files = await CopilotcliMcp.getAuxiliaryFiles({
+        outputRoot: testDir,
+        rulesyncMcp,
+        logger: mockLogger,
+      });
+
+      expect(Object.keys(copilotCliMcp.getJson().mcpServers ?? {})).toEqual(["on"]);
+      expect(files).toEqual([]);
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Skipping disabled MCP server "off"'),
+      );
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("Skipping the Copilot CLI disabledMcpServers update"),
+      );
+    });
+
+    it("should import disabledMcpServers back as disabled: true", async () => {
+      await writeFileContent(
+        join(testDir, ".github", "mcp.json"),
+        JSON.stringify({
+          mcpServers: {
+            off: { type: "stdio", command: "npx" },
+            on: { type: "stdio", command: "node" },
+          },
+        }),
+      );
+      await writeFileContent(
+        join(testDir, ".github", "copilot", "settings.json"),
+        JSON.stringify({ disabledMcpServers: ["off", "not-here", "__proto__"] }),
+      );
+
+      const copilotCliMcp = await CopilotcliMcp.fromFile({ outputRoot: testDir });
+
+      expect(copilotCliMcp.toRulesyncMcp().getMcpServers()).toEqual({
+        off: { command: "npx", disabled: true },
+        on: { command: "node" },
+      });
+    });
+
+    it("should refuse to import past an unparsable settings file", async () => {
+      await writeFileContent(
+        join(testDir, ".github", "mcp.json"),
+        JSON.stringify({ mcpServers: { off: { type: "stdio", command: "npx" } } }),
+      );
+      await writeFileContent(join(testDir, ".github", "copilot", "settings.json"), "{ not json");
+
+      await expect(CopilotcliMcp.fromFile({ outputRoot: testDir })).rejects.toThrow(
+        "Cannot import Copilot CLI MCP servers",
+      );
+    });
+
+    it("should declare the settings file as an extra shared write path", () => {
+      expect(CopilotcliMcp.getExtraSharedWritePaths()).toEqual([
+        { relativeDirPath: join(".github", "copilot"), relativeFilePath: "settings.json" },
+      ]);
+      expect(CopilotcliMcp.getExtraSharedWritePaths({ global: true })).toEqual([
+        { relativeDirPath: ".copilot", relativeFilePath: "settings.json" },
+      ]);
     });
   });
 });
