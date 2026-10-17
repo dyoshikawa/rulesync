@@ -32,6 +32,7 @@ import {
   removeFileStrict,
   removeDirectoryStrict,
   runWithDirectoryRollback,
+  toPosixPath,
   writeFileContent,
 } from "../utils/file.js";
 import type { Logger } from "../utils/logger.js";
@@ -580,7 +581,6 @@ async function prefetchGithubSkills(params: {
       frozen: context.frozen,
       sourceEntry,
       curatedDir: join(context.projectRoot, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH),
-      lockedSkillNames,
     })
   ) {
     claim.settle(lockedSkillNames);
@@ -1399,6 +1399,42 @@ async function checkLockedSkillsExist(curatedDir: string, skillNames: string[]):
   return true;
 }
 
+/**
+ * Check that every locked skill is on disk in the curated directory and that
+ * its files still hash to the integrity the lockfile records, the skills
+ * counterpart of {@link checkLockedRulesAreValid}. A locked entry with an
+ * empty integrity (a lockfile migrated from the legacy format) has nothing to
+ * compare against, so only its presence is checked.
+ */
+async function checkLockedSkillsAreValid(params: {
+  curatedDir: string;
+  skills: Record<string, { integrity: string }>;
+}): Promise<boolean> {
+  for (const [name, entry] of Object.entries(params.skills)) {
+    const skillDir = join(params.curatedDir, name);
+    if (!(await directoryExists(skillDir))) {
+      return false;
+    }
+    if (!entry.integrity) {
+      continue;
+    }
+    const relativePaths = await listFilePathsRecursively(skillDir, {
+      followSymbolicLinks: false,
+      includeHidden: true,
+    });
+    const files = await Promise.all(
+      relativePaths.map(async (relativePath) => ({
+        path: toPosixPath(relativePath),
+        content: await readFileContent(join(skillDir, relativePath)),
+      })),
+    );
+    if (computeSkillIntegrity(files) !== entry.integrity) {
+      return false;
+    }
+  }
+  return true;
+}
+
 async function checkLockedRulesAreValid(params: {
   curatedDir: string;
   locked: Pick<LockedSource, "rules">;
@@ -2084,16 +2120,14 @@ async function canReuseLockedSkills(params: {
   frozen: boolean;
   sourceEntry: SourceEntry;
   curatedDir: string;
-  lockedSkillNames: string[];
 }): Promise<boolean> {
-  const { locked, resolvedSha, updateSources, frozen, sourceEntry, curatedDir, lockedSkillNames } =
-    params;
+  const { locked, resolvedSha, updateSources, frozen, sourceEntry, curatedDir } = params;
   return (
     locked !== undefined &&
     resolvedSha === locked.resolvedRef &&
     !updateSources &&
     lockedSkillConfigMatches({ locked, sourceEntry, acceptLegacy: frozen }) &&
-    (await checkLockedSkillsExist(curatedDir, lockedSkillNames))
+    (await checkLockedSkillsAreValid({ curatedDir, skills: locked.skills }))
   );
 }
 
@@ -2811,7 +2845,6 @@ async function fetchSource(params: {
       frozen,
       sourceEntry,
       curatedDir,
-      lockedSkillNames,
     })
   ) {
     logger.debug(`SHA unchanged for ${sourceKey}, skipping re-fetch.`);
@@ -2970,7 +3003,6 @@ async function fetchSourceViaGit(params: {
       frozen,
       sourceEntry,
       curatedDir,
-      lockedSkillNames,
     })
   ) {
     return { skillCount: 0, fetchedSkillNames: lockedSkillNames, updatedLock: lock };
@@ -3450,7 +3482,7 @@ async function canReuseLockedNpmArtifacts(params: {
         sourceEntry: { ...sourceEntry, skills: filters.skills },
         acceptLegacy: frozen,
       }) &&
-      (await checkLockedSkillsExist(curatedSkillsDir, lockedSkillNames)));
+      (await checkLockedSkillsAreValid({ curatedDir: curatedSkillsDir, skills: locked.skills })));
   if (!skillsExist) {
     return false;
   }
