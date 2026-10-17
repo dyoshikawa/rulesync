@@ -336,6 +336,8 @@ Example:
 
 By default the generated hooks replace the destination's hook list wholesale, so a handler another tool or a person added by hand there is lost on the next `generate`. Setting `"preserveUnownedHooks": true` in `rulesync.jsonc` keeps those handlers and appends the generated ones instead; see [Configuration](../guide/configuration.md). It covers Claude Code, Codex CLI and Cursor (the Claude Code plugin bundle always replaces) and records what Rulesync generated in a `.rulesync-hooks-lock.json` next to each hooks file, so a hook Rulesync wrote and the sources no longer define is still retracted.
 
+Preservation keeps existing handlers in their positions, because Codex CLI keys a hook's trust review by its event, matcher group index and handler index. A handler Rulesync already wrote is updated where it sits, a new one is appended to the first existing group with its matcher (or in a new group after the existing ones), and a third-party handler keeps its place. Removing a hook, or the last hook of a group, still shifts the entries after it, so Codex may ask you to review those again.
+
 **Hook entry keys:**
 
 - `command` (required): Shell command to execute when the event fires.

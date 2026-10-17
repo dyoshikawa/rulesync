@@ -105,11 +105,134 @@ describe("mergeGeneratedHookLists", () => {
     expect(merged.hooks.SessionStart).toEqual([
       {
         hooks: [
-          { type: "command", command: "echo start" },
           { type: "http", url: "https://example.test/hook" },
+          { type: "command", command: "echo start" },
         ],
       },
     ]);
+  });
+
+  describe("positions", () => {
+    it("appends a new generated handler after an existing unowned one", () => {
+      const merged = merge({
+        existing: {
+          SessionStart: [{ hooks: [{ type: "command", command: "echo foreign" }] }],
+        },
+        generated: {
+          SessionStart: [{ hooks: [{ type: "command", command: "echo generated" }] }],
+        },
+      });
+
+      expect(firstGroupCommands(merged.hooks, "SessionStart")).toEqual([
+        "echo foreign",
+        "echo generated",
+      ]);
+    });
+
+    it("updates a generated handler in place instead of moving it", () => {
+      const merged = merge({
+        existing: {
+          SessionStart: [
+            {
+              hooks: [
+                { type: "command", command: "echo foreign" },
+                { type: "command", command: "echo generated", timeout: 5 },
+                { type: "command", command: "echo another-foreign" },
+              ],
+            },
+          ],
+        },
+        generated: {
+          SessionStart: [
+            {
+              hooks: [
+                { type: "command", command: "echo new" },
+                { type: "command", command: "echo generated", timeout: 10 },
+              ],
+            },
+          ],
+        },
+        previouslyOwned: new Set([
+          ownedHookKey({ event: "SessionStart", matcher: "", identity: "command:echo generated" }),
+        ]),
+      });
+
+      expect(merged.hooks.SessionStart).toEqual([
+        {
+          hooks: [
+            { type: "command", command: "echo foreign" },
+            { type: "command", command: "echo generated", timeout: 10 },
+            { type: "command", command: "echo another-foreign" },
+            { type: "command", command: "echo new" },
+          ],
+        },
+      ]);
+    });
+
+    it("adds a group for a new matcher after the existing groups", () => {
+      const merged = merge({
+        existing: {
+          PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: "theirs.sh" }] }],
+        },
+        generated: {
+          PreToolUse: [
+            { matcher: "Edit", hooks: [{ type: "command", command: "edit.sh" }] },
+            { matcher: "Bash", hooks: [{ type: "command", command: "bash.sh" }] },
+          ],
+        },
+      });
+
+      expect(merged.hooks.PreToolUse).toEqual([
+        {
+          matcher: "Bash",
+          hooks: [
+            { type: "command", command: "theirs.sh" },
+            { type: "command", command: "bash.sh" },
+          ],
+        },
+        { matcher: "Edit", hooks: [{ type: "command", command: "edit.sh" }] },
+      ]);
+    });
+
+    it("is stable when the merged output is merged again", () => {
+      const generated = {
+        SessionStart: [{ hooks: [{ type: "command", command: "echo generated" }] }],
+      };
+      const first = merge({
+        existing: {
+          SessionStart: [{ hooks: [{ type: "command", command: "echo foreign" }] }],
+        },
+        generated,
+      });
+      const second = merge({
+        existing: first.hooks,
+        generated,
+        previouslyOwned: new Set(first.owned.map((ref) => ownedHookKey(ref))),
+      });
+
+      expect(second.hooks).toEqual(first.hooks);
+    });
+
+    it("keeps flat handlers in place and appends new ones", () => {
+      const merged = merge({
+        existing: {
+          sessionStart: [{ command: "theirs.sh" }, { command: "shared.sh", timeout: 5 }],
+        },
+        generated: {
+          sessionStart: [
+            { type: "command", command: "new.sh" },
+            { type: "command", command: "shared.sh" },
+          ],
+        },
+        shape: "flat",
+      });
+
+      expect(merged.hooks.sessionStart).toEqual([
+        { command: "theirs.sh" },
+        { type: "command", command: "shared.sh" },
+        { type: "command", command: "new.sh" },
+      ]);
+    });
   });
 
   it("does not throw when an existing event is named toString", () => {
