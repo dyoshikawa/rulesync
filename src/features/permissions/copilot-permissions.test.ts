@@ -2,6 +2,7 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { writeFileContent } from "../../utils/file.js";
 import { CopilotPermissions } from "./copilot-permissions.js";
@@ -11,6 +12,18 @@ const AUTO_APPROVE_KEY = "chat.tools.terminal.autoApprove";
 const EDITS_KEY = "chat.tools.edits.autoApprove";
 const URLS_KEY = "chat.tools.urls.autoApprove";
 const DEFAULT_PERMISSION_MODE_KEY = "chat.permissions.default";
+const SANDBOX_ENABLED_KEY = "chat.agent.sandbox.enabled";
+const SANDBOX_ALLOW_NETWORK_KEY = "chat.agent.sandbox.network.allowNetwork";
+const SANDBOX_USER_PATHS_KEY = "chat.agent.sandbox.fileSystem.userConfiguredPaths";
+
+function createRulesyncPermissionsWithCopilot(copilot: Record<string, unknown>) {
+  return new RulesyncPermissions({
+    relativeDirPath: ".rulesync",
+    relativeFilePath: "permissions.json",
+    fileContent: JSON.stringify({ permission: {}, copilot }),
+    validate: true,
+  }).forTarget({ toolTarget: "copilot" });
+}
 
 function createRulesyncPermissions(permission: Record<string, Record<string, string>>) {
   return new RulesyncPermissions({
@@ -272,6 +285,107 @@ describe("CopilotPermissions", () => {
           }),
       ).toThrow();
     });
+
+    it("writes copilot.sandbox leaves to the flat chat.agent.sandbox.* settings", async () => {
+      const logger = createMockLogger();
+      const permissions = await CopilotPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissionsWithCopilot({
+          sandbox: {
+            enabled: "on",
+            network: { allowNetwork: false },
+            mcpServers: true,
+            credentials: { authenticategh: false },
+            fileSystem: { userConfiguredPaths: { deniedPaths: ["/secrets"] } },
+          },
+        }),
+        logger,
+      });
+
+      const json = JSON.parse(permissions.getFileContent());
+      expect(json).toEqual({
+        [SANDBOX_ENABLED_KEY]: "on",
+        [SANDBOX_ALLOW_NETWORK_KEY]: false,
+        "chat.agent.sandbox.mcpServers": true,
+        "chat.agent.sandbox.credentials.authenticategh": false,
+        [SANDBOX_USER_PATHS_KEY]: { deniedPaths: ["/secrets"] },
+      });
+      // Every value written here tightens the sandbox, so nothing is reported.
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("leaves sandbox keys the override does not state as the file has them", async () => {
+      await writeFileContent(
+        join(testDir, ".vscode", "settings.json"),
+        JSON.stringify({
+          [SANDBOX_ENABLED_KEY]: "on",
+          [SANDBOX_USER_PATHS_KEY]: { deniedPaths: ["/secrets"], readonlyPaths: ["/old"] },
+        }),
+      );
+
+      const permissions = await CopilotPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissionsWithCopilot({
+          sandbox: {
+            network: { allowNetwork: false },
+            fileSystem: { userConfiguredPaths: { readonlyPaths: ["/shared"] } },
+          },
+        }),
+        logger: createMockLogger(),
+      });
+
+      const json = JSON.parse(permissions.getFileContent());
+      expect(json[SANDBOX_ENABLED_KEY]).toBe("on");
+      expect(json[SANDBOX_ALLOW_NETWORK_KEY]).toBe(false);
+      // The paths object merges per list: a hand-written deniedPaths survives.
+      expect(json[SANDBOX_USER_PATHS_KEY]).toEqual({
+        deniedPaths: ["/secrets"],
+        readonlyPaths: ["/shared"],
+      });
+    });
+
+    it("leaves every sandbox key alone without the override", async () => {
+      await writeFileContent(
+        join(testDir, ".vscode", "settings.json"),
+        JSON.stringify({ [SANDBOX_ENABLED_KEY]: "on" }),
+      );
+
+      const permissions = await CopilotPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({ bash: { "git *": "allow" } }),
+      });
+
+      expect(JSON.parse(permissions.getFileContent())[SANDBOX_ENABLED_KEY]).toBe("on");
+    });
+
+    it("warns once about every sandbox value that loosens the sandbox", async () => {
+      const logger = createMockLogger();
+      await CopilotPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissionsWithCopilot({
+          sandbox: {
+            enabled: "off",
+            network: { allowLocalNetwork: true },
+            lspServers: false,
+            fileSystem: { userConfiguredPaths: { readwritePaths: ["/build"] } },
+          },
+        }),
+        logger,
+      });
+
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      const message = String(vi.mocked(logger.warn).mock.calls[0]?.[0]);
+      expect(message).toContain("'sandbox.enabled'");
+      expect(message).toContain("'sandbox.network.allowLocalNetwork'");
+      expect(message).toContain("'sandbox.lspServers'");
+      expect(message).toContain("'sandbox.fileSystem.userConfiguredPaths.readwritePaths'");
+    });
+
+    it("rejects a sandbox key VS Code does not register", () => {
+      expect(() =>
+        createRulesyncPermissionsWithCopilot({ sandbox: { allowNetwork: true } }),
+      ).toThrow();
+    });
   });
 
   describe("toRulesyncPermissions", () => {
@@ -340,6 +454,49 @@ describe("CopilotPermissions", () => {
       const json = permissions.toRulesyncPermissions().getJson();
       expect(json).not.toHaveProperty("copilot");
     });
+
+    it("imports chat.agent.sandbox.* settings as a nested copilot.sandbox", () => {
+      const permissions = new CopilotPermissions({
+        relativeDirPath: ".vscode",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          [SANDBOX_ENABLED_KEY]: "on",
+          [SANDBOX_ALLOW_NETWORK_KEY]: false,
+          "chat.agent.sandbox.fileSystem.allowDevToolAccess": false,
+          [SANDBOX_USER_PATHS_KEY]: { deniedPaths: ["/secrets"] },
+          // Deprecated 1.138 shape: not modeled, so not imported.
+          "chat.agent.sandbox.allowNetwork": true,
+        }),
+        validate: false,
+      });
+
+      const json = permissions.toRulesyncPermissions().getJson();
+      expect(json.copilot).toEqual({
+        sandbox: {
+          enabled: "on",
+          network: { allowNetwork: false },
+          fileSystem: {
+            allowDevToolAccess: false,
+            userConfiguredPaths: { deniedPaths: ["/secrets"] },
+          },
+        },
+      });
+    });
+
+    it("skips a sandbox value whose shape VS Code would reject", () => {
+      const permissions = new CopilotPermissions({
+        relativeDirPath: ".vscode",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          [SANDBOX_ENABLED_KEY]: "allowNetwork",
+          [SANDBOX_ALLOW_NETWORK_KEY]: "yes",
+        }),
+        validate: false,
+      });
+
+      const json = permissions.toRulesyncPermissions().getJson();
+      expect(json).not.toHaveProperty("copilot");
+    });
   });
 
   describe("round-trip", () => {
@@ -388,6 +545,28 @@ describe("CopilotPermissions", () => {
 
       const json = reimported.toRulesyncPermissions().getJson();
       expect(json.copilot).toEqual({ defaultPermissionMode: "autopilot" });
+    });
+
+    it("preserves copilot.sandbox through generate then import", async () => {
+      const sandbox = {
+        enabled: "on",
+        network: { allowNetwork: false, allowLocalNetwork: false },
+        credentials: { authenticategit: false },
+        fileSystem: { userConfiguredPaths: { readonlyPaths: ["/shared"], deniedPaths: ["/x"] } },
+      };
+      const generated = await CopilotPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissionsWithCopilot({ sandbox }),
+        logger: createMockLogger(),
+      });
+      const reimported = new CopilotPermissions({
+        relativeDirPath: ".vscode",
+        relativeFilePath: "settings.json",
+        fileContent: generated.getFileContent(),
+        validate: false,
+      });
+
+      expect(reimported.toRulesyncPermissions().getJson().copilot).toEqual({ sandbox });
     });
   });
 });

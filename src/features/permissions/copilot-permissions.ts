@@ -1,5 +1,7 @@
 import { join } from "node:path";
 
+import { z } from "zod/mini";
+
 import {
   COPILOT_MCP_DIR,
   COPILOT_VSCODE_SETTINGS_FILE_NAME,
@@ -8,6 +10,7 @@ import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import {
   COPILOT_DEFAULT_PERMISSION_MODES,
   type CopilotDefaultPermissionMode,
+  type CopilotSandbox,
   type PermissionAction,
 } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
@@ -19,6 +22,16 @@ import {
   sharedConfigFileKey,
 } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
+import {
+  collectTrustAffectingSandboxPaths,
+  isNonEmptyList,
+  isNotFalse,
+  isNotTrue,
+  readSandboxPath,
+  type TrustAffectingSandboxPath,
+  UNREADABLE_SANDBOX_PATH,
+  warnOnTrustAffectingEntries,
+} from "./sandbox-trust.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -61,6 +74,174 @@ const AUTO_APPROVE_KEYS: Readonly<Record<string, string>> = {
  * @see https://code.visualstudio.com/docs/agents/reference/ai-settings
  */
 const DEFAULT_PERMISSION_MODE_KEY = "chat.permissions.default";
+
+/**
+ * The prefix every Agent Host sandbox setting shares. A `copilot.sandbox` leaf
+ * at path `a.b` is written to `chat.agent.sandbox.a.b`.
+ */
+const SANDBOX_KEY_PREFIX = "chat.agent.sandbox.";
+
+const UserConfiguredPathsSchema = z.strictObject({
+  readwritePaths: z.optional(z.array(z.string())),
+  readonlyPaths: z.optional(z.array(z.string())),
+  deniedPaths: z.optional(z.array(z.string())),
+});
+
+/**
+ * The `copilot.sandbox` leaves rulesync manages, each a flat VS Code setting
+ * (`SANDBOX_KEY_PREFIX` + the dotted path) with the value shape VS Code
+ * registers for it. The shape is re-checked on import, so a hand-written value
+ * VS Code would not accept is skipped instead of failing the whole import.
+ *
+ * @see https://code.visualstudio.com/docs/agents/run/agent-sandboxing
+ * @see https://code.visualstudio.com/docs/agents/reference/ai-settings
+ */
+const SANDBOX_LEAVES: readonly { path: readonly string[]; schema: z.ZodMiniType }[] = [
+  { path: ["enabled"], schema: z.enum(["off", "on"]) },
+  { path: ["network", "allowNetwork"], schema: z.boolean() },
+  { path: ["network", "allowLocalNetwork"], schema: z.boolean() },
+  { path: ["allowUnsandboxedCommands"], schema: z.boolean() },
+  { path: ["mcpServers"], schema: z.boolean() },
+  { path: ["lspServers"], schema: z.boolean() },
+  { path: ["credentials", "authenticategit"], schema: z.boolean() },
+  { path: ["credentials", "authenticategh"], schema: z.boolean() },
+  { path: ["fileSystem", "allowDevToolAccess"], schema: z.boolean() },
+  { path: ["fileSystem", "userConfiguredPaths"], schema: UserConfiguredPathsSchema },
+];
+
+const USER_CONFIGURED_PATHS_KEY = `${SANDBOX_KEY_PREFIX}fileSystem.userConfiguredPaths`;
+
+/**
+ * `copilot.sandbox` values that loosen the Agent Host sandbox. They are still
+ * written — a sandbox policy is the user's call — but never silently. Each
+ * `widens` names the value that does *not* loosen anything and reports the
+ * rest, so an unexpected value is reported rather than ignored.
+ *
+ * @see https://code.visualstudio.com/docs/agents/run/agent-sandboxing
+ */
+const COPILOT_TRUST_AFFECTING_SANDBOX_PATHS: readonly TrustAffectingSandboxPath[] = [
+  {
+    path: ["enabled"],
+    reason: "turns the sandbox off, so agent terminal commands run unconfined",
+    widens: (value) => value !== "on",
+  },
+  {
+    path: ["network", "allowNetwork"],
+    reason: "lets sandboxed commands reach the external network",
+    widens: isNotFalse,
+  },
+  {
+    path: ["network", "allowLocalNetwork"],
+    reason: "lets sandboxed commands reach local network resources",
+    widens: isNotFalse,
+  },
+  {
+    path: ["allowUnsandboxedCommands"],
+    reason: "lets the agent ask to run a blocked command outside the sandbox",
+    widens: isNotFalse,
+  },
+  {
+    path: ["mcpServers"],
+    reason: "runs locally launched MCP servers outside the sandbox",
+    widens: isNotTrue,
+  },
+  {
+    path: ["lspServers"],
+    reason: "runs language servers outside the sandbox",
+    widens: isNotTrue,
+  },
+  {
+    path: ["credentials", "authenticategit"],
+    reason: "hands your Git credentials to sandboxed commands",
+    widens: isNotFalse,
+  },
+  {
+    path: ["credentials", "authenticategh"],
+    reason: "hands your GitHub CLI authentication to sandboxed commands",
+    widens: isNotFalse,
+  },
+  {
+    path: ["fileSystem", "allowDevToolAccess"],
+    reason:
+      "grants sandboxed commands developer-tool directories, which can hold credentials such as registry tokens",
+    widens: isNotFalse,
+  },
+  {
+    path: ["fileSystem", "userConfiguredPaths", "readwritePaths"],
+    reason: "adds paths sandboxed commands may write to, outside the working directory",
+    widens: isNonEmptyList,
+  },
+  {
+    path: ["fileSystem", "userConfiguredPaths", "readonlyPaths"],
+    reason: "adds paths sandboxed commands may read, outside the working directory",
+    widens: isNonEmptyList,
+  },
+];
+
+const COPILOT_TOOL_LABEL = "GitHub Copilot";
+
+function sandboxKey(path: readonly string[]): string {
+  return `${SANDBOX_KEY_PREFIX}${path.join(".")}`;
+}
+
+/**
+ * Patch entries for every `copilot.sandbox` leaf the canonical config states.
+ * Leaves it does not state are left as the file has them, so authoring only
+ * `network.allowNetwork` never disturbs a hand-written `enabled`. The
+ * `userConfiguredPaths` object merges per list for the same reason: authoring
+ * `readwritePaths` keeps a hand-written `deniedPaths`, which would otherwise be
+ * a restriction lost without a word.
+ */
+function buildSandboxPatch({
+  sandbox,
+  existingSettings,
+}: {
+  sandbox: CopilotSandbox;
+  existingSettings: Record<string, unknown>;
+}): Record<string, unknown> {
+  const patch: Record<string, unknown> = {};
+  for (const { path } of SANDBOX_LEAVES) {
+    const value = readSandboxPath({ sandbox, path });
+    if (value === undefined || value === UNREADABLE_SANDBOX_PATH) {
+      continue;
+    }
+    const key = sandboxKey(path);
+    if (key === USER_CONFIGURED_PATHS_KEY && isPlainObject(value)) {
+      const existing = existingSettings[key];
+      patch[key] = { ...(isPlainObject(existing) ? existing : {}), ...value };
+      continue;
+    }
+    patch[key] = value;
+  }
+  return patch;
+}
+
+/**
+ * Lift every managed `chat.agent.sandbox.*` key the file holds back into a
+ * nested `copilot.sandbox` object. A value whose shape VS Code would reject is
+ * skipped; the write path leaves it in place.
+ */
+function readSandboxFromSettings(settings: Record<string, unknown>): CopilotSandbox | undefined {
+  const sandbox: Record<string, unknown> = {};
+  for (const { path, schema } of SANDBOX_LEAVES) {
+    const parsed = schema.safeParse(settings[sandboxKey(path)]);
+    if (!parsed.success) {
+      continue;
+    }
+    let cursor = sandbox;
+    for (const segment of path.slice(0, -1)) {
+      const next = cursor[segment];
+      const child = isPlainObject(next) ? next : {};
+      cursor[segment] = child;
+      cursor = child;
+    }
+    const leaf = path[path.length - 1];
+    if (leaf !== undefined) {
+      cursor[leaf] = parsed.data;
+    }
+  }
+  return Object.keys(sandbox).length > 0 ? sandbox : undefined;
+}
 
 function isCopilotDefaultPermissionMode(value: unknown): value is CopilotDefaultPermissionMode {
   return COPILOT_DEFAULT_PERMISSION_MODES.some((mode) => mode === value);
@@ -124,7 +305,9 @@ function buildAutoApproveValue(
  * hand-written edits or urls map.
  * The `copilot.defaultPermissionMode` override writes `chat.permissions.default`
  * (the starting permission level of new chat sessions); without it the key is
- * left untouched.
+ * left untouched. The `copilot.sandbox` override writes the Agent Host sandbox
+ * settings (`chat.agent.sandbox.*`, see {@link SANDBOX_LEAVES}) per key, and
+ * warns about every value it writes that loosens the sandbox.
  * Only project scope is modeled: VS Code's user-scope settings.json lives at a
  * platform-dependent path outside rulesync's home-relative global model.
  */
@@ -199,6 +382,29 @@ export class CopilotPermissions extends ToolPermissions {
     if (defaultPermissionMode !== undefined) {
       patch[DEFAULT_PERMISSION_MODE_KEY] = defaultPermissionMode;
     }
+    const sandbox = config.copilot?.sandbox;
+    if (sandbox !== undefined) {
+      Object.assign(
+        patch,
+        buildSandboxPatch({
+          sandbox,
+          existingSettings: parseSharedConfig({
+            format: "jsonc",
+            fileContent: existingContent,
+            filePath,
+          }),
+        }),
+      );
+      warnOnTrustAffectingEntries({
+        toolLabel: COPILOT_TOOL_LABEL,
+        entries: collectTrustAffectingSandboxPaths({
+          sandbox,
+          paths: COPILOT_TRUST_AFFECTING_SANDBOX_PATHS,
+        }),
+        relativeFilePath: join(paths.relativeDirPath, paths.relativeFilePath),
+        logger,
+      });
+    }
 
     return new CopilotPermissions({
       outputRoot,
@@ -253,13 +459,16 @@ export class CopilotPermissions extends ToolPermissions {
     }
 
     const defaultPermissionMode = settings[DEFAULT_PERMISSION_MODE_KEY];
+    const sandbox = readSandboxFromSettings(settings);
+    const copilot = {
+      ...(isCopilotDefaultPermissionMode(defaultPermissionMode) && { defaultPermissionMode }),
+      ...(sandbox !== undefined && { sandbox }),
+    };
     return this.toRulesyncPermissionsDefault({
       fileContent: JSON.stringify(
         {
           permission,
-          ...(isCopilotDefaultPermissionMode(defaultPermissionMode) && {
-            copilot: { defaultPermissionMode },
-          }),
+          ...(Object.keys(copilot).length > 0 && { copilot }),
         },
         null,
         2,

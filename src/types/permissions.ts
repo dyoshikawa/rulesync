@@ -126,13 +126,58 @@ export const COPILOT_DEFAULT_PERMISSION_MODES = ["default", "autoApprove", "auto
 export type CopilotDefaultPermissionMode = (typeof COPILOT_DEFAULT_PERMISSION_MODES)[number];
 
 /**
+ * The Agent Host sandbox settings VS Code 1.141 settled on, as a nested object
+ * whose path mirrors the dotted setting key under `chat.agent.sandbox.` — e.g.
+ * `network.allowNetwork` writes `chat.agent.sandbox.network.allowNetwork`.
+ * Only the documented, registered keys are accepted; the deprecated 1.138
+ * shapes (`chat.agent.sandbox.allowNetwork`, `.fileSystem.linux|mac|windows`)
+ * are not modeled, since the Agent Host ignores them.
+ *
+ * @see https://code.visualstudio.com/docs/agents/run/agent-sandboxing
+ * @see https://code.visualstudio.com/docs/agents/reference/ai-settings
+ */
+const CopilotSandboxSchema = z.strictObject({
+  enabled: z.optional(z.enum(["off", "on"])),
+  network: z.optional(
+    z.strictObject({
+      allowNetwork: z.optional(z.boolean()),
+      allowLocalNetwork: z.optional(z.boolean()),
+    }),
+  ),
+  allowUnsandboxedCommands: z.optional(z.boolean()),
+  mcpServers: z.optional(z.boolean()),
+  lspServers: z.optional(z.boolean()),
+  credentials: z.optional(
+    z.strictObject({
+      authenticategit: z.optional(z.boolean()),
+      authenticategh: z.optional(z.boolean()),
+    }),
+  ),
+  fileSystem: z.optional(
+    z.strictObject({
+      allowDevToolAccess: z.optional(z.boolean()),
+      userConfiguredPaths: z.optional(
+        z.strictObject({
+          readwritePaths: z.optional(z.array(z.string())),
+          readonlyPaths: z.optional(z.array(z.string())),
+          deniedPaths: z.optional(z.array(z.string())),
+        }),
+      ),
+    }),
+  ),
+});
+export type CopilotSandbox = z.infer<typeof CopilotSandboxSchema>;
+
+/**
  * Tool-scoped override block for GitHub Copilot in VS Code.
  * `defaultPermissionMode` writes the workspace `chat.permissions.default`
- * setting, which has no canonical category.
+ * setting, and `sandbox` writes the `chat.agent.sandbox.*` settings; neither
+ * has a canonical category.
  */
 const CopilotPermissionsOverrideSchema = z.looseObject({
   permission: z.optional(ToolScopedPermissionSchema),
   defaultPermissionMode: z.optional(z.enum(COPILOT_DEFAULT_PERMISSION_MODES)),
+  sandbox: z.optional(CopilotSandboxSchema),
 });
 export type CopilotPermissionsOverride = z.infer<typeof CopilotPermissionsOverrideSchema>;
 

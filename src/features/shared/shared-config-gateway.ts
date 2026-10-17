@@ -1507,7 +1507,8 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
   // (`.vscode/mcp.json`, declared just below).
   //
   // Three targets reach this file through the same `permissions` feature —
-  // `copilot` (the `chat.tools.*` keys and `chat.permissions.default`), `zoocode` (the `zoo-code.*` command
+  // `copilot` (the `chat.tools.*` keys, `chat.permissions.default` and the
+  // `chat.agent.sandbox.*` keys), `zoocode` (the `zoo-code.*` command
   // lists) and `roo` (the same lists under the archived lineage's `roo-cline.*`
   // spelling) — so `ownedKeys` is their union. They stay independent because a
   // patch only ever names the keys its own adapter builds: generating for one
@@ -1529,6 +1530,16 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
           "chat.tools.edits.autoApprove",
           "chat.tools.urls.autoApprove",
           "chat.permissions.default",
+          "chat.agent.sandbox.enabled",
+          "chat.agent.sandbox.network.allowNetwork",
+          "chat.agent.sandbox.network.allowLocalNetwork",
+          "chat.agent.sandbox.allowUnsandboxedCommands",
+          "chat.agent.sandbox.mcpServers",
+          "chat.agent.sandbox.lspServers",
+          "chat.agent.sandbox.credentials.authenticategit",
+          "chat.agent.sandbox.credentials.authenticategh",
+          "chat.agent.sandbox.fileSystem.allowDevToolAccess",
+          "chat.agent.sandbox.fileSystem.userConfiguredPaths",
           "zoo-code.allowedCommands",
           "zoo-code.deniedCommands",
           "roo-cline.allowedCommands",
