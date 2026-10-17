@@ -26,8 +26,9 @@ import {
 } from "./tool-permissions.js";
 
 /**
- * Cline CLI loads command permissions from the `CLINE_COMMAND_PERMISSIONS` environment variable.
- * Cline supports only `allow` and `deny` (no `ask`), and only for shell commands.
+ * The legacy Cline CLI loaded command permissions from the `CLINE_COMMAND_PERMISSIONS`
+ * environment variable. It supported only `allow` and `deny` (no `ask`), and only for
+ * shell commands.
  * Schema:
  * ```json
  * { "allow": ["pattern1", ...], "deny": ["pattern2", ...], "allowRedirects": false }
@@ -35,7 +36,20 @@ import {
  *
  * Rulesync writes the JSON to `.cline/command-permissions.json` so users can do:
  * `export CLINE_COMMAND_PERMISSIONS=$(cat .cline/command-permissions.json)`
+ *
+ * Deprecated: no Cline CLI 3 release reads `CLINE_COMMAND_PERMISSIONS`. Upstream removed
+ * it from the docs in cline/cline@6354d209, and the CLI reference now says the CLI has no
+ * allow or deny list for shell commands and recommends a `PreToolUse` hook instead
+ * (https://docs.cline.bot/cli/cli-reference). The output is still generated for
+ * compatibility, with a deprecation warning on every generation.
  */
+
+const CLINE_PERMISSIONS_DEPRECATION_WARNING =
+  "WARNING: The Cline permissions output (.cline/command-permissions.json) is deprecated. " +
+  "No Cline CLI 3 release reads CLINE_COMMAND_PERMISSIONS, so the generated allow/deny " +
+  "lists are not enforced by current Cline releases. To block shell commands in Cline, " +
+  "use a preToolUse hook (rulesync hooks feature, cline target) that cancels the " +
+  "run_commands calls you do not allow. See https://docs.cline.bot/cli/cli-reference.";
 
 const ClineCommandPermissionsSchema = z.looseObject({
   allow: z.optional(z.array(z.string())),
@@ -88,7 +102,7 @@ function translateClinePermissions(
   // Cline has no `ask` list, so an `ask` rule has to land somewhere else, and
   // where depends on the category that wrote it. A `bash` rule is a command
   // pattern by construction: its `ask` becomes a `deny`, and its `deny` is
-  // written as it stands, where Cline's documented deny-priority enforces it and
+  // written as it stands, where the legacy Cline CLI's deny-priority enforces it and
   // the allow rules beside it keep working.
   //
   // A rule under the all-tools `*` need not name a command at all — `secrets/**`
@@ -320,6 +334,8 @@ export class ClinePermissions extends ToolPermissions {
     global = false,
     logger,
   }: ToolPermissionsFromRulesyncPermissionsParams): Promise<ClinePermissions> {
+    logger?.warn(CLINE_PERMISSIONS_DEPRECATION_WARNING);
+
     const paths = ClinePermissions.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const existingContent = (await readFileContentOrNull(filePath)) ?? "{}";
@@ -378,8 +394,8 @@ export class ClinePermissions extends ToolPermissions {
       logger?.warn(
         `Cline command permissions: pattern(s) ${collisions
           .map((p) => `'${p}'`)
-          .join(", ")} appear in both 'allow' and 'deny'. Cline documents that deny rules ` +
-          `always take precedence, so the 'allow' entry has no effect. ` +
+          .join(", ")} appear in both 'allow' and 'deny'. The legacy Cline CLI gave deny rules ` +
+          `precedence, so the 'allow' entry has no effect. ` +
           `Consider removing the duplicate rule.`,
       );
     }
