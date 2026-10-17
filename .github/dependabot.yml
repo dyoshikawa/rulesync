@@ -36,16 +36,6 @@ updates:
       - "cm-dyoshikawa"
     allow:
       - dependency-type: "all"
-    # effect and sury are not used by our source: they are optional peers that
-    # xsschema (via fastmcp) loads through dynamic import(), kept installed for
-    # the `bun build --compile` binaries. Their majors must follow xsschema's
-    # peer ranges (effect ^3, sury ^10); effect 4 also breaks the bytecode
-    # binaries ("Expected CommonJS module to have a function wrapper").
-    ignore:
-      - dependency-name: "effect"
-        update-types: ["version-update:semver-major"]
-      - dependency-name: "sury"
-        update-types: ["version-update:semver-major"]
 
   # Automatic updates for GitHub Actions
   - package-ecosystem: "github-actions"
