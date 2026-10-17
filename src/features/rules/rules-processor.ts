@@ -75,7 +75,7 @@ import { ClineRule } from "./cline-rule.js";
 import { CodebuddyRule } from "./codebuddy-rule.js";
 import { CodebuffRule } from "./codebuff-rule.js";
 import { CodewhaleRule } from "./codewhale-rule.js";
-import { CodexcliRule } from "./codexcli-rule.js";
+import { CodexcliRule, readCodexcliProjectDocMaxBytes } from "./codexcli-rule.js";
 import { CommandcodeRule } from "./commandcode-rule.js";
 import { ContinueRule } from "./continue-rule.js";
 import { CopilotRule } from "./copilot-rule.js";
@@ -431,10 +431,15 @@ type ToolRuleFactory = {
      * `project_doc_max_bytes`, or the size past which Kimi Code ignores a
      * plugin's `SYSTEM.md`). Project scope only; generation warns when a
      * generated chain exceeds `bytes`, appending the tool-specific `remedy`.
+     * When the tool lets a project raise the budget in its own config,
+     * `readConfiguredBytes` returns that value (or `undefined` when unset), and
+     * it replaces `bytes`; `configuredSource` names where it came from.
      */
     projectInstructionBudget?: {
       bytes: number;
       remedy: string;
+      readConfiguredBytes?: (outputRoot: string) => Promise<number | undefined>;
+      configuredSource?: string;
     };
   };
 };
@@ -705,7 +710,9 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
           bytes: CODEXCLI_PROJECT_DOC_MAX_BYTES,
           remedy:
             "Codex CLI stops reading project `AGENTS.md` files once their combined size on the root-to-working-directory chain reaches `project_doc_max_bytes` (32 KiB by default) and silently drops the rest. " +
-            "Move directory-scoped rules into nested `AGENTS.md` files with `agentsmd.subprojectPath` (or `deriveSubprojectPathFromGlobs: true` in rulesync.jsonc), trim the rules, or raise `project_doc_max_bytes` in `.codex/config.toml` (ignore this warning if you already have).",
+            "Move directory-scoped rules into nested `AGENTS.md` files with `agentsmd.subprojectPath` (or `deriveSubprojectPathFromGlobs: true` in rulesync.jsonc), trim the rules, or raise `project_doc_max_bytes` in `.codex/config.toml`.",
+          readConfiguredBytes: readCodexcliProjectDocMaxBytes,
+          configuredSource: "`project_doc_max_bytes` in `.codex/config.toml`",
         },
       },
     },
@@ -1664,7 +1671,7 @@ export class RulesProcessor extends FeatureProcessor {
     this.warnForOutputPathCollisions({ outputFiles, convertedRules });
     await this.warnForDeactivatedImportOnlyRoots({ toolRules, factory });
     await this.warnForWarpLegacyRootFile(toolRules);
-    this.warnForInstructionBudget({ toolRules, meta });
+    await this.warnForInstructionBudget({ toolRules, meta });
     return outputFiles;
   }
 
@@ -1683,22 +1690,33 @@ export class RulesProcessor extends FeatureProcessor {
    * once, at its shallowest directory. With several output roots the warning
    * names the root it refers to. An output root below the git root is measured
    * without the parent directories' files Codex would also load, so the
-   * estimate can come out low there. The budget checked is the tool's default: a value
-   * raised by hand in the tool's own config is not read. Global scope is not
+   * estimate can come out low there. The budget checked is the value set in the
+   * output root's tool config when the tool supports one (Codex's
+   * `project_doc_max_bytes` in `.codex/config.toml`), else the tool's default;
+   * the warning names which one it used. Global scope is not
    * checked because Codex loads the personal `~/.codex/AGENTS.md` outside the
    * project budget.
    */
-  private warnForInstructionBudget({
+  private async warnForInstructionBudget({
     toolRules,
     meta,
   }: {
     toolRules: ToolRule[];
     meta: ToolRuleFactory["meta"];
-  }): void {
+  }): Promise<void> {
     const budget = meta.projectInstructionBudget;
     if (budget === undefined || this.global) {
       return;
     }
+    const configuredBytes = await budget.readConfiguredBytes?.(this.outputRoot);
+    const limitBytes = configuredBytes ?? budget.bytes;
+    // Name the source of the budget only when the tool's config can change it.
+    const limitLabel =
+      budget.readConfiguredBytes === undefined
+        ? `${limitBytes}-byte limit`
+        : configuredBytes === undefined
+          ? `${limitBytes}-byte default limit`
+          : `${limitBytes}-byte limit set by ${budget.configuredSource ?? "the tool config"}`;
 
     const files = toolRules.map((rule) => ({
       // Drop a trailing slash (an explicit `subprojectPath: "a/"`) so the
@@ -1714,9 +1732,9 @@ export class RulesProcessor extends FeatureProcessor {
 
     const rootFiles = files.filter(({ dir }) => dir === ".");
     const rootBytes = rootFiles.reduce((sum, { bytes }) => sum + bytes, 0);
-    if (rootBytes > budget.bytes) {
+    if (rootBytes > limitBytes) {
       this.logger.warn(
-        `The generated ${this.toolTarget} root instruction file${location} (${rootFiles.map(({ path }) => path).join(", ")}) is ${rootBytes} bytes, over the ${budget.bytes}-byte limit. ${budget.remedy}`,
+        `The generated ${this.toolTarget} root instruction file${location} (${rootFiles.map(({ path }) => path).join(", ")}) is ${rootBytes} bytes, over the ${limitLabel}. ${budget.remedy}`,
       );
       return;
     }
@@ -1733,10 +1751,10 @@ export class RulesProcessor extends FeatureProcessor {
       }
       const chain = files.filter(({ dir }) => isAncestorOrSelf(dir, file.dir));
       const chainBytes = chain.reduce((sum, { bytes }) => sum + bytes, 0);
-      if (chainBytes > budget.bytes) {
+      if (chainBytes > limitBytes) {
         reportedDirs.push(file.dir);
         this.logger.warn(
-          `The generated ${this.toolTarget} instruction files${location} loaded while working in '${file.dir}' (${chain.map(({ path }) => path).join(", ")}) total ${chainBytes} bytes, over the ${budget.bytes}-byte limit (as is every directory below it). ${budget.remedy}`,
+          `The generated ${this.toolTarget} instruction files${location} loaded while working in '${file.dir}' (${chain.map(({ path }) => path).join(", ")}) total ${chainBytes} bytes, over the ${limitLabel} (as is every directory below it). ${budget.remedy}`,
         );
       }
     }

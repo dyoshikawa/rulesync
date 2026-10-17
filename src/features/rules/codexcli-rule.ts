@@ -1,4 +1,10 @@
-import { CODEXCLI_DIR } from "../../constants/codexcli-paths.js";
+import { join } from "node:path";
+
+import * as smolToml from "smol-toml";
+
+import { CODEXCLI_DIR, CODEXCLI_MCP_FILE_NAME } from "../../constants/codexcli-paths.js";
+import { readFileContentOrNull } from "../../utils/file.js";
+import { isPlainObject } from "../../utils/type-guards.js";
 import { NestedAgentsmdRule, NestedAgentsmdRuleFamily } from "./nested-agentsmd-rule.js";
 
 /**
@@ -17,7 +23,8 @@ import { NestedAgentsmdRule, NestedAgentsmdRuleFamily } from "./nested-agentsmd-
  * `<subprojectPath>/AGENTS.md` (project scope only); every other non-root rule
  * folds into the root `AGENTS.md`, since Codex has no modular rules directory.
  * The project files on the root-to-cwd chain share one `project_doc_max_bytes`
- * budget (32 KiB by default), which the RulesProcessor warns about.
+ * budget (32 KiB by default, or the value set in the project's
+ * `.codex/config.toml`), which the RulesProcessor warns about.
  *
  * @see https://learn.chatgpt.com/docs/agent-configuration/agents-md
  */
@@ -25,4 +32,36 @@ export class CodexcliRule extends NestedAgentsmdRule {
   protected static getFamily(): NestedAgentsmdRuleFamily {
     return { globalDir: CODEXCLI_DIR, toolTarget: "codexcli" };
   }
+}
+
+/**
+ * Read the `project_doc_max_bytes` value set in the project's
+ * `.codex/config.toml`, which Codex loads for trusted projects and which
+ * overrides the 32 KiB default budget for project `AGENTS.md` files.
+ *
+ * Answers `undefined` when the file is missing, is not valid TOML, or does not
+ * set the key to a positive integer, so the caller falls back to the default.
+ *
+ * @see https://learn.chatgpt.com/docs/config-file/config-reference
+ */
+export async function readCodexcliProjectDocMaxBytes(
+  outputRoot: string,
+): Promise<number | undefined> {
+  const content = await readFileContentOrNull(
+    join(outputRoot, CODEXCLI_DIR, CODEXCLI_MCP_FILE_NAME),
+  );
+  if (content === null) {
+    return undefined;
+  }
+  let parsed: unknown;
+  try {
+    parsed = smolToml.parse(content);
+  } catch {
+    return undefined;
+  }
+  if (!isPlainObject(parsed)) {
+    return undefined;
+  }
+  const value = parsed.project_doc_max_bytes;
+  return typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? value : undefined;
 }
