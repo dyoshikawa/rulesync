@@ -156,6 +156,8 @@
     "asyncio",
     "Auggie",
     "augmentcode",
+    "authenticategh",
+    "authenticategit",
     "augmentignore",
     "augmentinclude",
     "autoapprove",
