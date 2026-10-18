@@ -60,6 +60,22 @@ export function isCodexcliToolConfig(value: unknown): value is Record<string, un
   return CodexcliMcpToolConfigSchema.safeParse(value).success;
 }
 
+// Crush's `MCPChannelReply` (v0.97.0): Go decodes it into a typed struct, so
+// a malformed value (a route that is not an object, or one without `tool`)
+// would fail the whole crush.json load rather than just this server.
+// https://github.com/charmbracelet/crush/blob/v0.98.1/internal/config/config.go
+const CrushChannelReplyRouteSchema = z.looseObject({
+  tool: z.string(),
+  target_param: z.optional(z.string()),
+  target_meta: z.optional(z.string()),
+});
+export const CrushChannelReplySchema = z.looseObject({
+  user: z.optional(CrushChannelReplyRouteSchema),
+  group: z.optional(CrushChannelReplyRouteSchema),
+  message_param: z.optional(z.string()),
+  suppress_tools: z.optional(z.array(z.string())),
+});
+
 export const McpServerSchema = z.looseObject({
   // `streamable-http` is the MCP spec's transport name and an accepted alias for
   // `http` (Claude Code), so configs copied from server docs work unchanged.
@@ -151,7 +167,7 @@ export const McpServerSchema = z.looseObject({
   crushOauthCallbackPort: z.optional(z.int()),
   crushSessionless: z.optional(z.boolean()),
   crushChannelEnabled: z.optional(z.boolean()),
-  crushChannelReply: z.optional(z.record(z.string(), z.unknown())),
+  crushChannelReply: z.optional(CrushChannelReplySchema),
   // Pool-specific: the per-server `allow` list of tool-name glob patterns Pool's
   // approval layer auto-approves (`deny` wins over it). Written as `allow` by
   // `pool-mcp.ts` and stripped by `RulesyncMcp.getMcpServers()`, like

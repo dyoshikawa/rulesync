@@ -180,6 +180,36 @@ describe("CrushMcp", () => {
       });
     });
 
+    it("should drop a channel_reply Crush could not decode, with a warning", async () => {
+      const logger = createMockLogger();
+      const mcp = await CrushMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp: buildRulesyncMcp({
+          // A route without `tool` and a route that is not an object.
+          noTool: { command: "fs", crushChannelReply: { user: { target_param: "user_id" } } },
+          rawString: { command: "fs", channel_reply: { group: "send" } },
+          ok: {
+            command: "fs",
+            crushChannelReply: { user: { tool: "reply" }, suppress_tools: ["send"] },
+          },
+        }),
+        logger,
+      });
+
+      expect(serversOf(mcp)).toEqual({
+        noTool: { type: "stdio", command: "fs" },
+        rawString: { type: "stdio", command: "fs" },
+        ok: {
+          type: "stdio",
+          command: "fs",
+          channel_reply: { user: { tool: "reply" }, suppress_tools: ["send"] },
+        },
+      });
+      expect(logger.warn).toHaveBeenCalledTimes(2);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"crushChannelReply"'));
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"channel_reply"'));
+    });
+
     it("should round a fractional timeout up and drop a fractional callback port", async () => {
       const mcp = await CrushMcp.fromRulesyncMcp({
         outputRoot: testDir,
