@@ -433,9 +433,12 @@ type ToolRuleFactory = {
      * generated chain exceeds `bytes`, appending the tool-specific `remedy`.
      * When the tool lets a project raise the budget in its own config,
      * `readConfiguredBytes` returns that value (or `undefined` when unset), and
-     * it replaces `bytes`; `configuredSource` names where it came from.
-     * `defaultLimitHint` is appended only when the default budget was used,
-     * e.g. to point out a budget set somewhere rulesync does not read.
+     * it replaces `bytes`; `configuredSource` names where it came from. A
+     * configured value of `0` means the tool loads no project instruction
+     * files at all (Codex's "project docs disabled"), and generation says so
+     * instead of reporting the size. `defaultLimitHint` is appended only when
+     * the default budget was used, e.g. to point out a budget set somewhere
+     * rulesync does not read.
      */
     projectInstructionBudget?: {
       bytes: number;
@@ -702,8 +705,10 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         // directory-scoped rule is emitted as a nested `<subprojectPath>/AGENTS.md`
         // while plain topic rules fold into the root file (mirrors pool/vibe).
         // The project files on one chain share `project_doc_max_bytes`
-        // (32 KiB by default, `codex-rs/config/defaults.toml`); Codex drops
-        // everything past it without a warning, so generation warns instead.
+        // (32 KiB by default, `codex-rs/config/defaults.toml`); Codex truncates
+        // the file that crosses it and skips the later ones without telling
+        // the user, so generation warns instead. A budget of 0 disables
+        // project docs entirely (`codex-rs/core/src/agents_md.rs`).
         // https://learn.chatgpt.com/docs/agent-configuration/agents-md
         extension: "md",
         supportsGlobal: true,
@@ -712,7 +717,7 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         projectInstructionBudget: {
           bytes: CODEXCLI_PROJECT_DOC_MAX_BYTES,
           remedy:
-            "Codex CLI stops reading project `AGENTS.md` files once their combined size on the root-to-working-directory chain reaches `project_doc_max_bytes` (32 KiB by default) and silently drops the rest. " +
+            "Codex CLI stops reading project `AGENTS.md` files once their combined size on the root-to-working-directory chain reaches `project_doc_max_bytes` (32 KiB by default): it silently truncates the file that crosses the limit and skips the files after it. " +
             "Move directory-scoped rules into nested `AGENTS.md` files with `agentsmd.subprojectPath` (or `deriveSubprojectPathFromGlobs: true` in rulesync.jsonc), trim the rules, or raise `project_doc_max_bytes` in `.codex/config.toml` (Codex reads that file only if the project is trusted).",
           readConfiguredBytes: readCodexcliProjectDocMaxBytes,
           configuredSource:
@@ -1706,9 +1711,11 @@ export class RulesProcessor extends FeatureProcessor {
    * estimate can come out low there. The budget checked is the value set in the
    * output root's tool config when the tool supports one (Codex's
    * `project_doc_max_bytes` in `.codex/config.toml`), else the tool's default;
-   * the warning names which one it used. Global scope is not
-   * checked because Codex loads the personal `~/.codex/AGENTS.md` outside the
-   * project budget.
+   * the warning names which one it used. A configured budget of `0` disables
+   * project docs in Codex, so that case gets a single warning saying the
+   * generated files will not be loaded instead of a size report. Global scope
+   * is not checked because Codex loads the personal `~/.codex/AGENTS.md`
+   * outside the project budget.
    */
   private async warnForInstructionBudget({
     toolRules,
@@ -1718,10 +1725,20 @@ export class RulesProcessor extends FeatureProcessor {
     meta: ToolRuleFactory["meta"];
   }): Promise<void> {
     const budget = meta.projectInstructionBudget;
-    if (budget === undefined || this.global) {
+    if (budget === undefined || this.global || toolRules.length === 0) {
       return;
     }
     const configuredBytes = await budget.readConfiguredBytes?.(this.outputRoot);
+    const location = this.outputRoot === process.cwd() ? "" : ` under '${this.outputRoot}'`;
+    if (configuredBytes === 0) {
+      const paths = toolRules.map((rule) =>
+        toPosixPath(join(rule.getRelativeDirPath(), rule.getRelativeFilePath())),
+      );
+      this.logger.warn(
+        `${budget.configuredSource ?? "The tool config"}${location} is set to 0, which disables ${this.toolTarget}'s project instruction files: the generated ${paths.join(", ")} will not be loaded. Remove the setting or set it to a positive byte count to load them.`,
+      );
+      return;
+    }
     const limitBytes = configuredBytes ?? budget.bytes;
     // Name the source of the budget only when the tool's config can change it.
     const limitLabel =
@@ -1745,7 +1762,6 @@ export class RulesProcessor extends FeatureProcessor {
     }));
     const isAncestorOrSelf = (ancestor: string, dir: string): boolean =>
       ancestor === "." || ancestor === dir || dir.startsWith(`${ancestor}/`);
-    const location = this.outputRoot === process.cwd() ? "" : ` under '${this.outputRoot}'`;
 
     const rootFiles = files.filter(({ dir }) => dir === ".");
     const rootBytes = rootFiles.reduce((sum, { bytes }) => sum + bytes, 0);
