@@ -68,6 +68,9 @@ const QODER_OVERRIDE_GROUPS = Object.keys(QODER_OVERRIDE_GROUP_KEYS) as QoderOve
  */
 const QODER_AUTO_MODE_KEY = "autoMode";
 
+/** The `autoMode` keys rulesync writes and imports. */
+const QODER_AUTO_MODE_KEYS = ["allow", "soft_deny", "environment"] as const;
+
 /** Top-level globs that keep project/local memory files from loading. */
 const QODER_AGENTS_MD_EXCLUDES_KEY = "agentsMdExcludes";
 
@@ -298,16 +301,17 @@ function buildQoderRuleLists({
  */
 function pickQoderGroupKeys({
   group,
+  allowedKeys,
   authored,
   where,
   logger,
 }: {
-  group: QoderOverrideGroup;
+  group: string;
+  allowedKeys: readonly string[];
   authored: Record<string, unknown>;
   where: string;
   logger?: Logger;
 }): Record<string, unknown> {
-  const allowedKeys: readonly string[] = QODER_OVERRIDE_GROUP_KEYS[group];
   const picked: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(authored)) {
     if (isPrototypePollutionKey(key) || value === undefined) {
@@ -390,7 +394,13 @@ function buildQoderOverridePatch({
     if (!isRecord(authored)) {
       continue;
     }
-    const picked = pickQoderGroupKeys({ group, authored, where, logger });
+    const picked = pickQoderGroupKeys({
+      group,
+      allowedKeys: QODER_OVERRIDE_GROUP_KEYS[group],
+      authored,
+      where,
+      logger,
+    });
     if (Object.keys(picked).length > 0) {
       const existingGroup = isRecord(existing[group]) ? existing[group] : {};
       patch[group] = { ...existingGroup, ...picked };
@@ -400,7 +410,19 @@ function buildQoderOverridePatch({
   const autoMode = override[QODER_AUTO_MODE_KEY];
   if (isRecord(autoMode)) {
     if (global) {
-      patch[QODER_AUTO_MODE_KEY] = autoMode;
+      const picked = pickQoderGroupKeys({
+        group: QODER_AUTO_MODE_KEY,
+        allowedKeys: QODER_AUTO_MODE_KEYS,
+        authored: autoMode,
+        where,
+        logger,
+      });
+      if (Object.keys(picked).length > 0) {
+        const existingAutoMode = isRecord(existing[QODER_AUTO_MODE_KEY])
+          ? existing[QODER_AUTO_MODE_KEY]
+          : {};
+        patch[QODER_AUTO_MODE_KEY] = { ...existingAutoMode, ...picked };
+      }
     } else {
       logger?.warn(
         `Qoder permissions: skipping qoder.autoMode in project mode — Qoder reads autoMode from the user settings only. Run 'rulesync generate --global' to write it to ~/.qoder/settings.json.`,
@@ -474,15 +496,16 @@ function liftQoderOverride({
     }
   }
   const autoMode = settings[QODER_AUTO_MODE_KEY];
-  if (
-    global &&
-    isRecord(autoMode) &&
-    Object.keys(autoMode).length > 0 &&
-    ["allow", "soft_deny", "environment"].every(
-      (key) => autoMode[key] === undefined || isLiftableQoderValue(key, autoMode[key]),
-    )
-  ) {
-    lifted[QODER_AUTO_MODE_KEY] = autoMode;
+  if (global && isRecord(autoMode)) {
+    const picked: Record<string, unknown> = {};
+    for (const key of QODER_AUTO_MODE_KEYS) {
+      if (Object.hasOwn(autoMode, key) && isLiftableQoderValue(key, autoMode[key])) {
+        picked[key] = autoMode[key];
+      }
+    }
+    if (Object.keys(picked).length > 0) {
+      lifted[QODER_AUTO_MODE_KEY] = picked;
+    }
   }
   const excludes = settings[QODER_AGENTS_MD_EXCLUDES_KEY];
   if (isLiftableQoderValue(QODER_AGENTS_MD_EXCLUDES_KEY, excludes)) {

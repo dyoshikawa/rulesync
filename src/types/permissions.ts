@@ -665,8 +665,10 @@ export type ReasonixPermissionsOverride = z.infer<typeof ReasonixPermissionsOver
  * `autoMode` classifier guidance (`allow` / `soft_deny` / `environment`).
  * Qoder reads `autoMode` from the user settings only, so it is written by
  * `--global` generate alone. Only the keys listed here are written; any other
- * key of these groups (`tools.shell.pager`, `general.preferredEditor`, ...) is
- * skipped with a warning.
+ * key of these groups or of `autoMode` (`tools.shell.pager`,
+ * `general.preferredEditor`, ...) is skipped with a warning. Each authored key
+ * is laid over what the file holds; removing it from the override leaves the
+ * previously written value in place.
  *
  * @see https://docs.qoder.com/cli/output-styles
  * @see https://docs.qoder.com/cli/settings-reference

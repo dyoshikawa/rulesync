@@ -399,6 +399,24 @@ describe("QoderPermissions", () => {
       );
     });
 
+    it("merges autoMode per key and skips unmodeled autoMode keys", async () => {
+      await writeSettings(testDir, {
+        autoMode: { soft_deny: ["deleting files"], environment: ["old"] },
+      });
+      const logger = createMockLogger();
+
+      const settings = await generateWithOverride(
+        { autoMode: { environment: ["pnpm monorepo"], extra: ["x"] } },
+        { global: true, logger },
+      );
+
+      expect(settings).toEqual({
+        autoMode: { soft_deny: ["deleting files"], environment: ["pnpm monorepo"] },
+        permissions: { allow: ["Bash(ls)"] },
+      });
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("qoder.autoMode.extra"));
+    });
+
     it("imports the modeled settings into the qoder override", () => {
       const fileContent = JSON.stringify({
         general: { vimMode: true, defaultPermissionMode: "accept_edits" },
