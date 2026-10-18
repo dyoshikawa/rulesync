@@ -133,6 +133,7 @@ export const RulesyncMcpFileSchema = z.looseObject({
   kiro: z.optional(toolScopedMcpSchema),
   mimocode: z.optional(toolScopedMcpSchema),
   omp: z.optional(toolScopedMcpSchema),
+  openclaw: z.optional(toolScopedMcpSchema),
   opencode: z.optional(toolScopedMcpSchema),
   pi: z.optional(toolScopedMcpSchema),
   qoder: z.optional(toolScopedMcpSchema),
