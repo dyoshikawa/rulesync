@@ -1548,7 +1548,7 @@ describe("RulesyncMcp", () => {
       expect((rulesyncMcp.getJson().mcpServers.pal as any).musecodeMode).toBe("optional");
     });
 
-    it("should strip the crush-only OAuth and sessionless keys from getMcpServers output", () => {
+    it("should strip the crush-only OAuth, sessionless and channel keys from getMcpServers output", () => {
       // The crush generator re-merges them from getJson(); the client secret
       // in particular must not be copied into every other tool's config. Both
       // the `crush*` authoring keys and the raw Crush spellings are stripped.
@@ -1564,6 +1564,8 @@ describe("RulesyncMcp", () => {
               crushOauthClientSecret: "client-secret-value",
               crushOauthCallbackPort: 8765,
               crushSessionless: true,
+              crushChannelEnabled: true,
+              crushChannelReply: { user: { tool: "reply", target_param: "user_id" } },
             },
             raw: {
               url: "https://example.com/mcp",
@@ -1571,6 +1573,8 @@ describe("RulesyncMcp", () => {
               oauth_client_secret: "client-secret-value",
               oauth_callback_port: 8765,
               sessionless: true,
+              channel_enabled: true,
+              channel_reply: { user: { tool: "reply", target_param: "user_id" } },
             },
           },
         }),
