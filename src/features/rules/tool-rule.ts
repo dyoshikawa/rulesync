@@ -389,7 +389,7 @@ export abstract class ToolRule extends ToolFile {
 
   abstract toRulesyncRule(): RulesyncRule;
 
-  protected toRulesyncRuleDefault(): RulesyncRule {
+  protected toRulesyncRuleDefault({ body }: { body?: string } = {}): RulesyncRule {
     return new RulesyncRule({
       outputRoot: process.cwd(),
       relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
@@ -400,7 +400,7 @@ export abstract class ToolRule extends ToolFile {
         description: this.description,
         globs: this.globs ?? (this.isRoot() ? ["**/*"] : []),
       },
-      body: this.getFileContent(),
+      body: body ?? this.getFileContent(),
     });
   }
 

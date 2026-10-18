@@ -151,6 +151,70 @@ const formatRulePaths = (rules: RulesyncRule[]): string =>
   rules.map((r) => join(r.getRelativeDirPath(), r.getRelativeFilePath())).join(", ");
 
 /**
+ * The leading `---` frontmatter block (with its closing delimiter line) that
+ * every one of `contents` starts with, or `undefined` when one lacks it or the
+ * blocks differ.
+ */
+const findSharedLeadingFrontmatter = (contents: string[]): string | undefined => {
+  const blocks = contents.map(
+    (content) => /^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/.exec(content)?.[0],
+  );
+  const first = blocks[0];
+  return first !== undefined && blocks.every((block) => block === first) ? first : undefined;
+};
+
+/**
+ * Whether a group of rules colliding on one output path is composed into one
+ * file, and the frontmatter block the composed file keeps, if any.
+ */
+const decideRuleComposition = ({
+  group,
+  collisionPolicy,
+}: {
+  group: RuleConversion[];
+  collisionPolicy: RuleCollisionPolicy;
+}): { shouldCompose: boolean; sharedRootFrontmatter: string | undefined } => {
+  const contents = group.map(({ toolRule }) => toolRule.getFileContent());
+  const allGeneratedRulesAreRoots = group.every(({ toolRule }) => toolRule.isRoot());
+  // Composition is only structure-preserving when every fragment is plain
+  // Markdown. An adapter may prepend a frontmatter block to some outputs
+  // (Amp gates non-root files on a leading `globs:` block); concatenating
+  // such a fragment would bury its block mid-body where the tool no longer
+  // reads it, so those groups fall through to preserve-or-reject instead.
+  const allFragmentsArePlain = contents.every((content) => !/^---\r?\n/.test(content));
+  // A root file that an adapter always writes with the same fixed
+  // frontmatter (Antigravity's plugin `rules/AGENTS.md`) composes too: the
+  // block is kept once at the top and only the bodies are concatenated.
+  const sharedRootFrontmatter = allGeneratedRulesAreRoots
+    ? findSharedLeadingFrontmatter(contents)
+    : undefined;
+  const shouldCompose =
+    ((collisionPolicy === "fold" || collisionPolicy === "compose" || allGeneratedRulesAreRoots) &&
+      allFragmentsArePlain) ||
+    sharedRootFrontmatter !== undefined;
+  return { shouldCompose, sharedRootFrontmatter };
+};
+
+/**
+ * Concatenate colliding rule fragments. With `sharedFrontmatter` (the block
+ * every fragment starts with), the block is stripped from each fragment and
+ * written once at the top.
+ */
+const composeRuleFragments = ({
+  contents,
+  sharedFrontmatter,
+}: {
+  contents: string[];
+  sharedFrontmatter: string | undefined;
+}): string => {
+  const merged = contents
+    .map((content) => content.slice(sharedFrontmatter?.length ?? 0).trim())
+    .filter((content) => content.length > 0)
+    .join("\n\n");
+  return sharedFrontmatter === undefined ? merged : `${sharedFrontmatter}${merged}\n`;
+};
+
+/**
  * Rule discovery mode for determining how non-root rules are referenced.
  * - `auto`: Tool auto-discovers rules in a directory, no reference section needed
  * - `toon`: Tool requires explicit references using TOON format
@@ -2256,23 +2320,13 @@ export class RulesProcessor extends FeatureProcessor {
       }
 
       const rootConversion = group.find(({ toolRule }) => toolRule.isRoot());
-      const allGeneratedRulesAreRoots = group.every(({ toolRule }) => toolRule.isRoot());
       const hasSourceRoot = group.some(
         ({ rulesyncRule }) => rulesyncRule.getFrontmatter().root === true,
       );
-      // Composition is only structure-preserving when every fragment is plain
-      // Markdown. An adapter may prepend a frontmatter block to some outputs
-      // (Amp gates non-root files on a leading `globs:` block); concatenating
-      // such a fragment would bury its block mid-body where the tool no longer
-      // reads it, so those groups fall through to preserve-or-reject instead.
-      const allFragmentsArePlain = group.every(
-        ({ toolRule }) => !/^---\r?\n/.test(toolRule.getFileContent()),
-      );
-      const shouldCompose =
-        (collisionPolicy === "fold" ||
-          collisionPolicy === "compose" ||
-          allGeneratedRulesAreRoots) &&
-        allFragmentsArePlain;
+      const { shouldCompose, sharedRootFrontmatter } = decideRuleComposition({
+        group,
+        collisionPolicy,
+      });
 
       if (!shouldCompose && hasSourceRoot) {
         throw new Error(
@@ -2292,11 +2346,12 @@ export class RulesProcessor extends FeatureProcessor {
         continue;
       }
       const ordered = [target, ...group.filter((rule) => rule !== target)];
-      const mergedContent = ordered
-        .map(({ toolRule }) => toolRule.getFileContent().trim())
-        .filter((content) => content.length > 0)
-        .join("\n\n");
-      target.toolRule.setFileContent(mergedContent);
+      target.toolRule.setFileContent(
+        composeRuleFragments({
+          contents: ordered.map(({ toolRule }) => toolRule.getFileContent()),
+          sharedFrontmatter: sharedRootFrontmatter,
+        }),
+      );
       survivors.add(target);
     }
 
