@@ -429,6 +429,7 @@ export const permissionsProcessorToolTargetTuple = [
   "rovodev",
   "tabnine",
   "takt",
+  "trae",
   "vibe",
   "warp",
   "warpcli",

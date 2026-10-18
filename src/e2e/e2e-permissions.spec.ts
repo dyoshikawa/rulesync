@@ -110,6 +110,7 @@ const permissionsGlobalTargets = [
   "junie",
   "lettacode",
   "qoder",
+  "trae",
   "kiro-cli",
   "kiro-ide",
 ] as const;
@@ -2838,6 +2839,51 @@ describe("E2E: permissions (global mode)", () => {
     expect(generated.permissions).toEqual({
       allow: ["Bash(git *)"],
       deny: ["Bash(rm -rf *)"],
+    });
+  });
+
+  it("should generate trae permissions into ~/.trae/permission/global.json (global-only)", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "git *": "allow", "rm -rf *": "deny" },
+            "mcp__github__*": { "*": "ask" },
+            webfetch: { "github.com": "allow" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({
+      target: "trae",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const generated = JSON.parse(
+      await readFileContent(join(homeDir, ".trae", "permission", "global.json")),
+    );
+    expect(generated).toEqual({
+      customProfiles: {
+        defaultCustomProfile: {
+          approval: {
+            commandRules: {
+              "git *": { approval: "allow" },
+              "rm -rf *": { approval: "deny" },
+            },
+            mcpRules: { "github__*": { approval: "ask" } },
+          },
+        },
+      },
+      resourceAuthorization: { network: { allow: ["github.com"] } },
     });
   });
 
