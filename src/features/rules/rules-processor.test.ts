@@ -3879,6 +3879,22 @@ globs: ["packages/api/**/*"]
       expect((localRule as RulesyncRule).getFrontmatter().localRoot).toBe(true);
     });
 
+    it("should import AGENTS.local.md as a localRoot rulesync rule for dsh (issue #3526)", async () => {
+      await writeFileContent(join(testDir, "AGENTS.md"), "# Root");
+      await writeFileContent(join(testDir, "AGENTS.local.md"), "# Personal dsh rules");
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "dsh" });
+      const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(
+        await processor.loadToolFiles(),
+      );
+
+      const localRule = findLocalRule(rulesyncFiles, "AGENTS.local.md");
+      expect(localRule).toBeInstanceOf(RulesyncRule);
+      expect((localRule as RulesyncRule).getFrontmatter().localRoot).toBe(true);
+      expect((localRule as RulesyncRule).getFrontmatter().targets).toEqual(["dsh"]);
+      expect((localRule as RulesyncRule).getBody()).toBe("# Personal dsh rules");
+    });
+
     it("should import REASONIX.local.md as a localRoot rulesync rule for reasonix", async () => {
       await writeFileContent(join(testDir, "REASONIX.md"), "# Root");
       await writeFileContent(join(testDir, "REASONIX.local.md"), "# Personal reasonix rules");
@@ -4347,6 +4363,69 @@ targets: ["*"]
       // Plain markdown: Devin's local file carries no trigger frontmatter.
       expect(localRule?.getFileContent()).toBe("# Personal overrides");
       const rootRule = result.find((r) => r.getRelativeFilePath() === "AGENTS.md");
+      expect(rootRule?.getFileContent()).not.toContain("# Personal overrides");
+    });
+
+    it("should generate AGENTS.local.md for dsh instead of folding it into AGENTS.md (issue #3526)", async () => {
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "dsh" });
+
+      const rulesyncRules = [
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "root.md",
+          frontmatter: { root: true, targets: ["dsh"] },
+          body: "# Root",
+        }),
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "local.md",
+          frontmatter: { localRoot: true, targets: ["dsh"] },
+          body: "# Personal overrides",
+        }),
+      ];
+
+      const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+
+      const localRule = result.find((r) => r.getRelativeFilePath() === "AGENTS.local.md");
+      expect(localRule).toBeDefined();
+      expect(localRule?.getRelativeDirPath()).toBe(".");
+      expect(localRule?.getFileContent()).toBe("# Personal overrides");
+      const rootRule = result.find((r) => r.getRelativeFilePath() === "AGENTS.md");
+      expect(rootRule?.getFileContent()).not.toContain("# Personal overrides");
+    });
+
+    it("should not emit AGENTS.local.md for dsh in global mode (issue #3526)", async () => {
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "dsh",
+        global: true,
+      });
+
+      const rulesyncRules = [
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "root.md",
+          frontmatter: { root: true, targets: ["dsh"] },
+          body: "# Root",
+        }),
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "local.md",
+          frontmatter: { localRoot: true, targets: ["dsh"] },
+          body: "# Personal overrides",
+        }),
+      ];
+
+      const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+
+      expect(result.some((r) => r.getRelativeFilePath() === "AGENTS.local.md")).toBe(false);
+      const rootRule = result.find((r) => r.getRelativeFilePath() === "AGENTS.md");
+      expect(rootRule?.getRelativeDirPath()).toBe(".dsh");
       expect(rootRule?.getFileContent()).not.toContain("# Personal overrides");
     });
 
