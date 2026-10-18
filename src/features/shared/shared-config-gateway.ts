@@ -63,9 +63,11 @@ import { loadYaml } from "../../utils/yaml.js";
 // Format codecs
 // ---------------------------------------------------------------------------
 
-// `json5` reads JSON5 (unquoted keys, single quotes, comments, ...) and
-// writes JSON, which is valid JSON5; a file that is also valid JSONC is edited
-// in place like a `jsonc` one, so its comments survive.
+// `json5` reads JSON5 (unquoted keys, single quotes, comments, ...). A new
+// file is written as JSON, which is valid JSON5; an existing file that is also
+// valid JSONC is edited in place like a `jsonc` one, so its comments survive,
+// and any other existing file is refused (`Json5EditRefusedError`) rather than
+// rewritten whole.
 export type SharedConfigFormat = "yaml" | "json" | "jsonc" | "json5" | "toml";
 
 export type SharedConfigDocument = Record<string, unknown>;
@@ -959,6 +961,13 @@ export function serializeSharedConfig({
   }
 
   const wholeBecause = (reason: string): string => {
+    if (format === "json5") {
+      // A JSON5 file is never rewritten whole: JSON output would drop its
+      // comments and turn JSON5-only values (`Infinity`, `NaN`, hex numbers)
+      // into something else, in a file — OpenClaw's Gateway config — that
+      // also holds credentials and every other setting. Refuse instead.
+      throw new Json5EditRefusedError({ filePath, reason });
+    }
     warnAboutWholeJsoncRewrite({ filePath, reason, logger });
     return whole;
   };
@@ -986,7 +995,7 @@ export function serializeSharedConfig({
       // JSON5-only syntax — unquoted keys, single quotes, hex numbers, ...
       return wholeBecause(
         format === "json5"
-          ? "it uses JSON5 syntax (such as unquoted keys) that cannot be edited in place"
+          ? "it uses JSON5-only syntax (such as unquoted keys, single quotes, hex numbers, Infinity or NaN)"
           : "it could not be parsed",
       );
     }
@@ -1032,7 +1041,25 @@ export function serializeSharedConfig({
       leadingKeys,
     });
   } catch (error) {
+    if (error instanceof Json5EditRefusedError) throw error;
     return wholeBecause(`the editor refused it (${stripControlCharacters(formatError(error))})`);
+  }
+}
+
+/**
+ * Thrown instead of rewriting a `json5` file whole (see
+ * {@link serializeSharedConfig}); nothing is written.
+ */
+export class Json5EditRefusedError extends Error {
+  constructor({ filePath, reason }: { filePath: string | undefined; reason: string }) {
+    const subject = filePath === undefined ? "a shared JSON5 config file" : quoteForLog(filePath);
+    super(
+      `Refusing to update ${subject}: rulesync cannot edit it in place because ${reason}, ` +
+        "and rewriting it whole would drop its comments and could change its values. " +
+        "Convert it to JSONC-compatible syntax (double-quoted keys and strings, decimal numbers; " +
+        "comments and trailing commas are fine), or add the entries by hand.",
+    );
+    this.name = "Json5EditRefusedError";
   }
 }
 

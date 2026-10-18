@@ -11,6 +11,7 @@ import { McpServers } from "../../types/mcp.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { PROTOTYPE_POLLUTION_KEYS } from "../../utils/prototype-pollution.js";
+import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { isPlainObject, isRecord, isStringArray } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
@@ -52,13 +53,59 @@ function parseOpenclawConfig(fileContent: string, filePath?: string): Record<str
   });
 }
 
+// `oauth` string keys OpenClaw reads besides `identity`; `authProfileId` and
+// `scope` are trimmed and must not be empty, and the two URLs are URLs.
 const OPENCLAW_OAUTH_STRING_KEYS = [
-  "identity",
   "authProfileId",
   "scope",
   "redirectUrl",
   "clientMetadataUrl",
 ] as const;
+
+const OPENCLAW_OAUTH_IDENTITIES = new Set(["shared", "per-requester"]);
+
+/**
+ * Copies the `oauth` keys OpenClaw accepts. A known key with a value its
+ * schema rejects (an `identity` other than `shared` / `per-requester`, a blank
+ * string) is dropped with a warning, since the Gateway would refuse to start
+ * on it; keys OpenClaw does not know are left behind silently, as they belong
+ * to other tools' `oauth` blocks.
+ */
+function copyOpenclawOauth({
+  source,
+  serverName,
+  logger,
+}: {
+  source: Record<string, unknown>;
+  serverName: string | undefined;
+  logger: Logger | undefined;
+}): Record<string, unknown> | undefined {
+  const oauth: Record<string, unknown> = {};
+  const dropped: string[] = [];
+  if (source.identity !== undefined) {
+    if (typeof source.identity === "string" && OPENCLAW_OAUTH_IDENTITIES.has(source.identity)) {
+      oauth.identity = source.identity;
+    } else {
+      dropped.push("identity");
+    }
+  }
+  for (const key of OPENCLAW_OAUTH_STRING_KEYS) {
+    const value = source[key];
+    if (value === undefined) continue;
+    if (typeof value === "string" && value.trim() !== "") {
+      oauth[key] = value;
+    } else {
+      dropped.push(key);
+    }
+  }
+  if (dropped.length > 0 && serverName !== undefined) {
+    logger?.warn(
+      `OpenClaw MCP: dropping invalid oauth ${dropped.map((key) => `"${key}"`).join(", ")} ` +
+        `of ${quoteValueForWarning(serverName)}; OpenClaw's config validation would reject it.`,
+    );
+  }
+  return Object.keys(oauth).length > 0 ? oauth : undefined;
+}
 
 const OPENCLAW_CODEX_APPROVAL_MODES = new Set(["auto", "prompt", "approve"]);
 
@@ -77,6 +124,7 @@ const OPENCLAW_CODEX_APPROVAL_MODES = new Set(["auto", "prompt", "approve"]);
 function copyOpenclawOnlyFields(
   source: Record<string, unknown>,
   target: Record<string, unknown>,
+  { serverName, logger }: { serverName?: string; logger?: Logger } = {},
 ): boolean {
   let copied = false;
   if (source.auth === "oauth") {
@@ -84,11 +132,8 @@ function copyOpenclawOnlyFields(
     copied = true;
   }
   if (isRecord(source.oauth)) {
-    const oauth: Record<string, unknown> = {};
-    for (const key of OPENCLAW_OAUTH_STRING_KEYS) {
-      if (typeof source.oauth[key] === "string") oauth[key] = source.oauth[key];
-    }
-    if (Object.keys(oauth).length > 0) {
+    const oauth = copyOpenclawOauth({ source: source.oauth, serverName, logger });
+    if (oauth) {
       target.oauth = oauth;
       copied = true;
     }
@@ -222,7 +267,7 @@ function convertServerToOpenclaw({
     out.toolFilter = { ...(include && { include }), ...(exclude && { exclude }) };
   }
 
-  copyOpenclawOnlyFields(config, out);
+  copyOpenclawOnlyFields(config, out, { serverName: name, logger });
   return out;
 }
 
@@ -384,10 +429,21 @@ export class OpenclawMcp extends ToolMcp {
     const existingServers = isRecord(existingMcp[OPENCLAW_MCP_SERVERS_KEY])
       ? existingMcp[OPENCLAW_MCP_SERVERS_KEY]
       : {};
-    const servers = {
-      ...existingServers,
-      ...convertToOpenclawFormat({ mcpServers: rulesyncMcp.getMcpServers(), logger }),
-    };
+    const converted = convertToOpenclawFormat({ mcpServers: rulesyncMcp.getMcpServers(), logger });
+    const servers = { ...existingServers, ...converted };
+
+    // Servers are merged, never retracted: one removed from the rulesync
+    // source (or added by `openclaw mcp set`) stays here, so say which.
+    const kept = Object.keys(existingServers).filter(
+      (name) => !PROTOTYPE_POLLUTION_KEYS.has(name) && !Object.hasOwn(converted, name),
+    );
+    if (kept.length > 0) {
+      logger?.warn(
+        `OpenClaw MCP servers not defined in rulesync are kept in ${join(paths.relativeDirPath, paths.relativeFilePath)}: ` +
+          `${kept.map((name) => quoteValueForWarning(name)).join(", ")}. ` +
+          "Remove them with 'openclaw mcp unset <name>' if they are no longer wanted.",
+      );
+    }
 
     return new OpenclawMcp({
       outputRoot,

@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { writeFileContent } from "../../utils/file.js";
+import { readFileContent, writeFileContent } from "../../utils/file.js";
 import { parseJson5 } from "../../utils/json5.js";
 import { OpenclawMcp } from "./openclaw-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
@@ -186,27 +186,29 @@ describe("OpenclawMcp", () => {
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("without a command"));
     });
 
-    it("merges into an existing JSON5 config, keeping every other key and server", async () => {
+    it("merges into an existing config, keeping every other key and server", async () => {
       await writeFileContent(
         configPath(),
         `{
   // Gateway settings
-  gateway: { port: 18789, auth: { token: 'secret' } },
-  mcp: {
-    sessionIdleTtlMs: 3600000,
-    servers: {
-      mine: { command: 'uvx', args: ['mcp-server-fetch'] },
-      shared: { command: 'old' },
+  "gateway": { "port": 18789, "auth": { "token": "secret" } },
+  "mcp": {
+    "sessionIdleTtlMs": 3600000,
+    "servers": {
+      "mine": { "command": "uvx", "args": ["mcp-server-fetch"] },
+      "shared": { "command": "old" },
     },
   },
 }
 `,
       );
 
-      const mcp = await generate({ mcpServers: { shared: { command: "new" } } });
-      const written = parseJson5(mcp.getFileContent());
+      const logger = createMockLogger();
+      const mcp = await generate({ mcpServers: { shared: { command: "new" } } }, logger);
+      const content = mcp.getFileContent();
 
-      expect(written).toEqual({
+      expect(content).toContain("// Gateway settings");
+      expect(parseJson5(content)).toEqual({
         gateway: { port: 18789, auth: { token: "secret" } },
         mcp: {
           sessionIdleTtlMs: 3600000,
@@ -216,6 +218,58 @@ describe("OpenclawMcp", () => {
           },
         },
       });
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringMatching(/not defined in rulesync are kept .*"mine".*openclaw mcp unset/),
+      );
+    });
+
+    it("refuses a config using JSON5-only syntax instead of rewriting it", async () => {
+      const original = `{
+  // Gateway settings
+  gateway: { port: 18789, auth: { token: 'secret' } },
+}
+`;
+      await writeFileContent(configPath(), original);
+
+      await expect(generate({ mcpServers: { ok: { command: "ok" } } })).rejects.toThrow(
+        /Refusing to update .*openclaw\.json.*JSON5-only syntax/s,
+      );
+      expect(await readFileContent(configPath())).toBe(original);
+    });
+
+    it("drops invalid oauth values with a warning", async () => {
+      const logger = createMockLogger();
+      const mcp = await generate(
+        {
+          mcpServers: {
+            remote: {
+              url: "https://example.com/mcp",
+              auth: "oauth",
+              oauth: {
+                identity: "everyone",
+                scope: "  ",
+                authProfileId: "",
+                redirectUrl: "https://example.com/cb",
+                client_id: "hermes-only",
+              },
+            },
+          },
+        },
+        logger,
+      );
+
+      expect(serversOf(mcp)).toEqual({
+        remote: {
+          url: "https://example.com/mcp",
+          transport: "streamable-http",
+          auth: "oauth",
+          oauth: { redirectUrl: "https://example.com/cb" },
+        },
+      });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('dropping invalid oauth "identity", "authProfileId", "scope"'),
+      );
     });
 
     it("edits a JSONC-compatible config in place, keeping its comments", async () => {

@@ -16,6 +16,7 @@ import {
   diffSharedConfigOwnedKeys,
   HERMES_CONFIG_SHARED_FILE_KEY,
   isReadDenyEntry,
+  Json5EditRefusedError,
   MAX_SHARED_CONFIG_DEPTH,
   MAX_SHARED_CONFIG_STRING_CHARS,
   MAX_SHARED_CONFIG_VALUES,
@@ -274,19 +275,52 @@ describe("json5 format", () => {
     expect(parseSharedConfig({ format: "json5", fileContent: result })).toEqual({ a: 1, b: 2 });
   });
 
-  it("rewrites a file using JSON5-only syntax whole, as JSON, and says why", () => {
+  it.each([
+    ["unquoted keys", "{ // keep\n  a: 1 }"],
+    ["single quotes", "{ \"a\": 'x' }"],
+    ["Infinity", '{ "a": Infinity }'],
+    ["hex numbers", '{ "a": 0x10 }'],
+  ])("refuses to rewrite a file using %s whole, writing nothing", (_label, existingContent) => {
     const logger = createMockLogger();
-    const result = serializeSharedConfig({
-      format: "json5",
-      document: { a: 1, b: 2 },
-      existingContent: "{ // gone\n  a: 1 }",
-      filePath: "openclaw.json",
-      logger,
-    });
-    expect(result).toBe('{\n  "a": 1,\n  "b": 2\n}');
-    expect(wholeRewriteWarnings(logger)).toEqual([
-      expect.stringContaining("uses JSON5 syntax (such as unquoted keys)"),
-    ]);
+    expect(() =>
+      serializeSharedConfig({
+        format: "json5",
+        document: { a: 1, b: 2 },
+        existingContent,
+        filePath: "openclaw.json",
+        logger,
+      }),
+    ).toThrow(Json5EditRefusedError);
+    expect(wholeRewriteWarnings(logger)).toEqual([]);
+  });
+
+  it("names the file, the reason and the way out in the refusal", () => {
+    expect(() =>
+      serializeSharedConfig({
+        format: "json5",
+        document: { a: 1 },
+        existingContent: "{ a: 1 }",
+        filePath: "openclaw.json",
+      }),
+    ).toThrow(
+      /Refusing to update .*openclaw\.json.*JSON5-only syntax.*Convert it to JSONC-compatible syntax/s,
+    );
+  });
+
+  it("refuses the other whole-rewrite fallbacks too, such as a duplicate key", () => {
+    expect(() =>
+      serializeSharedConfig({
+        format: "json5",
+        document: { a: 2 },
+        existingContent: '{ "a": 1, "a": 1 }',
+      }),
+    ).toThrow("states the key");
+  });
+
+  it("writes a new file as JSON", () => {
+    expect(
+      serializeSharedConfig({ format: "json5", document: { a: 1 }, existingContent: "" }),
+    ).toBe('{\n  "a": 1\n}');
   });
 });
 

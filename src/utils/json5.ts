@@ -6,6 +6,9 @@
  * of which `jsonc-parser` accepts. Only reading is needed: strict JSON is valid
  * JSON5, so writers emit JSON.
  *
+ * Hand-written rather than depending on the `json5` package so reading one
+ * config file adds no new runtime dependency to the published CLI.
+ *
  * Supported: `//` and `/* *\/` comments, unquoted identifier keys, single- and
  * double-quoted strings with every JSON5 escape (including line
  * continuations), trailing commas, hexadecimal numbers, leading or trailing
