@@ -71,6 +71,7 @@ import { KimiCodePluginCommand } from "./kimi-code-plugin-command.js";
 import { KiroCliCommand } from "./kiro-cli-command.js";
 import { KiroCommand } from "./kiro-command.js";
 import { KiroIdeCommand } from "./kiro-ide-command.js";
+import { LettacodeCommand } from "./lettacode-command.js";
 import { MimocodeCommand } from "./mimocode-command.js";
 import { OmpCommand } from "./omp-command.js";
 import { OpenCodeCommand } from "./opencode-command.js";
@@ -633,6 +634,25 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
         supportsGlobal: false,
         isSimulated: false,
         supportsSubdirectory: false,
+      },
+    },
+  ],
+  [
+    "lettacode",
+    {
+      // Letta Code custom slash commands: `*.md` files discovered recursively
+      // under `.commands/` (project, at the working-directory root rather than
+      // under `.letta/`) and `~/.letta/commands/` (global). A subdirectory is a
+      // namespace. `--delete` never sweeps the generic project `.commands/`
+      // directory; see `LettacodeCommand.forDeletion`.
+      // https://docs.letta.com/platform/cli/slash-commands
+      class: LettacodeCommand,
+      meta: {
+        extension: "md",
+        supportsProject: true,
+        supportsGlobal: true,
+        isSimulated: false,
+        supportsSubdirectory: true,
       },
     },
   ],
