@@ -208,9 +208,8 @@ const skillsGenerateTargets = [
     outputPath: join(".agents", "skills", "test-skill", "SKILL.md"),
   },
   {
-    // GitLab Duo reads project skills from the repository-root `skills/` directory.
     target: "gitlabduo",
-    outputPath: join("skills", "test-skill", "SKILL.md"),
+    outputPath: join(".agents", "skills", "test-skill", "SKILL.md"),
   },
   {
     target: "takt",
@@ -473,7 +472,7 @@ This is the test skill body content.
     },
   );
 
-  it("should never sweep hand-authored gitlabduo skills from the committed root skills directory", async () => {
+  it("should never sweep hand-authored gitlabduo skills from the import-only root skills directory", async () => {
     const testDir = getTestDir();
 
     await writeFileContent(
@@ -491,9 +490,9 @@ This is the test skill body content.
 
     await runGenerate({ target: "gitlabduo", features: "skills", deleteFiles: true });
 
-    expect(await readFileContent(join(testDir, "skills", "test-skill", "SKILL.md"))).toContain(
-      "test skill body content",
-    );
+    expect(
+      await readFileContent(join(testDir, ".agents", "skills", "test-skill", "SKILL.md")),
+    ).toContain("test skill body content");
     expect(await readFileContent(handAuthoredPath)).toBe("# hand-authored\n");
   });
 });
@@ -520,6 +519,8 @@ describe("E2E: skills (import)", () => {
     { target: "trae", sourcePath: join(".trae", "skills", "test-skill", "SKILL.md") },
     { target: "codexcli", sourcePath: join(".agents", "skills", "test-skill", "SKILL.md") },
     { target: "lettacode", sourcePath: join(".agents", "skills", "test-skill", "SKILL.md") },
+    { target: "gitlabduo", sourcePath: join(".agents", "skills", "test-skill", "SKILL.md") },
+    // GitLab Duo also reads the project-root `skills/`, imported but never written.
     { target: "gitlabduo", sourcePath: join("skills", "test-skill", "SKILL.md") },
     { target: "copilot", sourcePath: join(".github", "skills", "test-skill", "SKILL.md") },
     { target: "mimocode", sourcePath: join(".mimocode", "skill", "test-skill", "SKILL.md") },

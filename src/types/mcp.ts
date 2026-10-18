@@ -60,6 +60,22 @@ export function isCodexcliToolConfig(value: unknown): value is Record<string, un
   return CodexcliMcpToolConfigSchema.safeParse(value).success;
 }
 
+// Crush's `MCPChannelReply` (v0.97.0): Go decodes it into a typed struct, so
+// a malformed value (a route that is not an object, or one without `tool`)
+// would fail the whole crush.json load rather than just this server.
+// https://github.com/charmbracelet/crush/blob/v0.98.1/internal/config/config.go
+const CrushChannelReplyRouteSchema = z.looseObject({
+  tool: z.string(),
+  target_param: z.optional(z.string()),
+  target_meta: z.optional(z.string()),
+});
+export const CrushChannelReplySchema = z.looseObject({
+  user: z.optional(CrushChannelReplyRouteSchema),
+  group: z.optional(CrushChannelReplyRouteSchema),
+  message_param: z.optional(z.string()),
+  suppress_tools: z.optional(z.array(z.string())),
+});
+
 export const McpServerSchema = z.looseObject({
   // `streamable-http` is the MCP spec's transport name and an accepted alias for
   // `http` (Claude Code), so configs copied from server docs work unchanged.
@@ -136,8 +152,10 @@ export const McpServerSchema = z.looseObject({
   rovodevEnableInstructions: z.optional(z.boolean()),
   // Crush-specific: the OAuth 2.1 flow Crush runs for an HTTP server
   // (`oauth`, `oauth_client_id`, `oauth_client_secret`, `oauth_callback_port`)
-  // and its `sessionless` marker for a server that issues no
-  // `Mcp-Session-Id`. Written under Crush's own names by `crush-mcp.ts` and
+  // its `sessionless` marker for a server that issues no `Mcp-Session-Id`,
+  // and its Claude Channels keys (`channel_enabled`, `channel_reply`, since
+  // v0.97.0), which only matter for a server that implements channels.
+  // Written under Crush's own names by `crush-mcp.ts` and
   // stripped by `RulesyncMcp.getMcpServers()`, like `envVars`: the client
   // secret in particular must not be copied into every other tool's config.
   // Namespaced because the canonical `oauth` key already carries Claude
@@ -148,6 +166,17 @@ export const McpServerSchema = z.looseObject({
   crushOauthClientSecret: z.optional(z.string()),
   crushOauthCallbackPort: z.optional(z.int()),
   crushSessionless: z.optional(z.boolean()),
+  crushChannelEnabled: z.optional(z.boolean()),
+  crushChannelReply: z.optional(CrushChannelReplySchema),
+  // ZCode-specific: the per-server `oauth` ZCode runs for an http/sse server,
+  // `{ type: "client_credentials", clientId, clientSecret, clientName?, scope? }`
+  // or `{ type: "authorization_code", clientId?, clientSecret?, clientName?,
+  // redirectPath?, scope? }` (read off the 3.14.3/3.15.3 runtime schema).
+  // Written as `oauth` by `zcode-mcp.ts` and stripped by
+  // `RulesyncMcp.getMcpServers()`, like the `crush*` OAuth keys: the client
+  // secret must not be copied into every other tool's config, and the
+  // canonical `oauth` key already carries Claude Code's `{ clientId }` object.
+  zcodeOauth: z.optional(z.looseObject({ type: z.string() })),
   // Pool-specific: the per-server `allow` list of tool-name glob patterns Pool's
   // approval layer auto-approves (`deny` wins over it). Written as `allow` by
   // `pool-mcp.ts` and stripped by `RulesyncMcp.getMcpServers()`, like

@@ -655,12 +655,14 @@ export class RulesyncMcp extends RulesyncFile {
           // others: it decides whether a third-party server's own instructions
           // are pasted into the agent's system prompt, so carrying it to a tool
           // the author never named would widen what steers the model.
-          // The `crush*` OAuth and sessionless keys — and the raw Crush
+          // The `crush*` OAuth, sessionless and channel keys — and the raw Crush
           // spellings someone copying a `crush.json` entry writes — are
           // re-merged by the crush generator the same way; the client secret
           // among them is the reason they must not reach any other tool.
           // `poolAllow` is Pool's approval allowlist, re-merged by the pool
           // generator the same way; it is an approval decision only Pool reads.
+          // `zcodeOauth` is ZCode's OAuth block, re-merged by the zcode
+          // generators the same way; it may carry a client secret.
           // `enabled` is stripped because OpenCode, Kilo, Grok CLI
           // and Goose have a NATIVE `enabled` field with different semantics a
           // leaked value would silently collide with.
@@ -682,11 +684,16 @@ export class RulesyncMcp extends RulesyncFile {
               "crushOauthClientSecret",
               "crushOauthCallbackPort",
               "crushSessionless",
+              "crushChannelEnabled",
+              "crushChannelReply",
               "poolAllow",
+              "zcodeOauth",
               "oauth_client_id",
               "oauth_client_secret",
               "oauth_callback_port",
               "sessionless",
+              "channel_enabled",
+              "channel_reply",
               "enabled",
             ]),
           ];

@@ -7,12 +7,19 @@ import { join } from "node:path";
  * only the default location. Project-scoped assets live under a `.dsh/`
  * directory at the project root.
  *
- * Rules: `dsh-agent-instructions` loads the user-global `$DSH_HOME/AGENTS.md`
- * (root file only — the user-global file has no `.local.md` overlay), then the
- * project chain of `AGENTS.md` / `CLAUDE.md` files from the project root (the
- * nearest ancestor holding `.git`) down to the session cwd, broad to specific.
- * Rulesync emits `AGENTS.md` only; `CLAUDE.md` is the `claudecode` target's
- * file, and a `CLAUDE.md` duplicating its sibling `AGENTS.md` renders once.
+ * Rules: `dsh-agent-instructions` loads the user-global chain —
+ * `$DSH_HOME/AGENTS.md`, then `<agentsHome>/AGENTS.md` (`$DSH_AGENTS_HOME`,
+ * default `~/.agents`, since dsh-v0.2.1-alpha.2) — then the project chain of
+ * `AGENTS.md` / `CLAUDE.md` files plus their `AGENTS.local.md` /
+ * `CLAUDE.local.md` overlays from the project root (the nearest ancestor
+ * holding `.git`) down to the session cwd, broad to specific. Neither
+ * user-global root has a `.local.md` overlay. The two user-global roots share
+ * one dedupe group, so the shared-root file collapses behind the harness-home
+ * file only when both match after trimming; otherwise both load. Rulesync
+ * writes only `$DSH_HOME/AGENTS.md` globally (never the shared
+ * `~/.agents/AGENTS.md`), and `AGENTS.md` / `AGENTS.local.md` in the project;
+ * `CLAUDE.md` is the `claudecode` target's file, and a `CLAUDE.md` duplicating
+ * its sibling `AGENTS.md` renders once.
  *
  * Skills: `dsh-skill-filesystem` scans `<projectRoot>/.dsh/skills` (rank 100),
  * `<projectRoot>/.agents/skills` (200), `<dshHome>/skills` (400) and
