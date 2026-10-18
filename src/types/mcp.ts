@@ -148,6 +148,15 @@ export const McpServerSchema = z.looseObject({
   crushOauthClientSecret: z.optional(z.string()),
   crushOauthCallbackPort: z.optional(z.int()),
   crushSessionless: z.optional(z.boolean()),
+  // ZCode-specific: the per-server `oauth` ZCode runs for an http/sse server,
+  // `{ type: "client_credentials", clientId, clientSecret, clientName?, scope? }`
+  // or `{ type: "authorization_code", clientId?, clientSecret?, clientName?,
+  // redirectPath?, scope? }` (read off the 3.14.3/3.15.3 runtime schema).
+  // Written as `oauth` by `zcode-mcp.ts` and stripped by
+  // `RulesyncMcp.getMcpServers()`, like the `crush*` OAuth keys: the client
+  // secret must not be copied into every other tool's config, and the
+  // canonical `oauth` key already carries Claude Code's `{ clientId }` object.
+  zcodeOauth: z.optional(z.looseObject({ type: z.string() })),
   // Pool-specific: the per-server `allow` list of tool-name glob patterns Pool's
   // approval layer auto-approves (`deny` wins over it). Written as `allow` by
   // `pool-mcp.ts` and stripped by `RulesyncMcp.getMcpServers()`, like
