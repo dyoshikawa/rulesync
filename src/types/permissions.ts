@@ -600,8 +600,12 @@ export type TabninePermissionsOverride = z.infer<typeof TabninePermissionsOverri
  * are merged into the matching `reasonix.toml` table and emitted only for
  * Reasonix, while the shared `permission` block continues to drive
  * `[permissions].allow`/`ask`/`deny`. Kept `looseObject` (verbatim passthrough).
- * Note: the whole `[sandbox]` table round-trips, but only the plan-mode keys are
- * re-extracted from `[agent]` on import — other `agent` keys authored here reach
+ * The user-only `[sandbox]` keys (`allow_devices`, `egress_unlisted`,
+ * `host_authorities`) are written only by `--global` generate: Reasonix replaces
+ * a project value with the user's (`narrowSandbox` in `project_scope.go`).
+ * Note: the whole `[sandbox]` table round-trips (minus the user-only keys of a
+ * project file), but only the plan-mode keys are re-extracted from `[agent]` on
+ * import — other `agent` keys authored here reach
  * `reasonix.toml` on generate but are not re-extracted back into the override.
  *
  * @example
