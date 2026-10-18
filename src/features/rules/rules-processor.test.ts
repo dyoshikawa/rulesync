@@ -3604,6 +3604,25 @@ globs: ["packages/api/**/*"]
       expect(warnings[0]).not.toContain("~/.codex/config.toml");
     });
 
+    it("should say project docs are disabled when project_doc_max_bytes is 0", async () => {
+      await writeFileContent(join(testDir, ".codex", "config.toml"), "project_doc_max_bytes = 0\n");
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "codexcli" });
+
+      await processor.convertRulesyncFilesToToolFiles([
+        rule({ name: "overview.md", body: "small", root: true }),
+        rule({ name: "svc1.md", body: "b".repeat(40000), subprojectPath: "services/svc1" }),
+      ]);
+
+      const warnings = budgetWarnings();
+      expect(warnings).toHaveLength(1);
+      expect(warnings[0]).toContain(
+        "`project_doc_max_bytes` in `.codex/config.toml` (honored only if the project is trusted) is set to 0",
+      );
+      expect(warnings[0]).toContain("disables codexcli's project instruction files");
+      expect(warnings[0]).toContain("AGENTS.md, services/svc1/AGENTS.md will not be loaded");
+      expect(warnings[0]).not.toContain("byte default limit");
+    });
+
     it("should read the configured budget from the output root's .codex/config.toml", async () => {
       const outputRoot = join(testDir, "packages", "app");
       await writeFileContent(
