@@ -28,6 +28,7 @@ import type { Feature } from "../../types/features.js";
 import { type BoundedWalk, createBoundedWalk } from "../../utils/bounded-walk.js";
 import { quoteForLog, stripControlCharacters } from "../../utils/control-characters.js";
 import { formatError } from "../../utils/error.js";
+import { parseJson5 } from "../../utils/json5.js";
 import { type Logger, warnOnceWithFallback } from "../../utils/logger.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
@@ -62,7 +63,12 @@ import { loadYaml } from "../../utils/yaml.js";
 // Format codecs
 // ---------------------------------------------------------------------------
 
-export type SharedConfigFormat = "yaml" | "json" | "jsonc" | "toml";
+// `json5` reads JSON5 (unquoted keys, single quotes, comments, ...). A new
+// file is written as JSON, which is valid JSON5; an existing file that is also
+// valid JSONC is edited in place like a `jsonc` one, so its comments survive,
+// and any other existing file is refused (`Json5EditRefusedError`) rather than
+// rewritten whole.
+export type SharedConfigFormat = "yaml" | "json" | "jsonc" | "json5" | "toml";
 
 export type SharedConfigDocument = Record<string, unknown>;
 
@@ -228,6 +234,8 @@ export function parseSharedConfig({
       parsed = parseToml(fileContent);
     } else if (format === "json") {
       parsed = JSON.parse(fileContent);
+    } else if (format === "json5") {
+      parsed = parseJson5(fileContent);
     } else if (jsoncParseErrors === "error") {
       const errors: JsoncParseError[] = [];
       parsed = parseJsonc(fileContent, errors, { allowTrailingComma: true });
@@ -948,11 +956,18 @@ export function serializeSharedConfig({
   logger?: Logger | undefined;
 }): string {
   const whole = stringifySharedConfig({ format, document });
-  if (format !== "jsonc" || existingContent.trim() === "") {
+  if ((format !== "jsonc" && format !== "json5") || existingContent.trim() === "") {
     return whole;
   }
 
   const wholeBecause = (reason: string): string => {
+    if (format === "json5") {
+      // A JSON5 file is never rewritten whole: JSON output would drop its
+      // comments and turn JSON5-only values (`Infinity`, `NaN`, hex numbers)
+      // into something else, in a file — OpenClaw's Gateway config — that
+      // also holds credentials and every other setting. Refuse instead.
+      throw new Json5EditRefusedError({ filePath, reason });
+    }
     warnAboutWholeJsoncRewrite({ filePath, reason, logger });
     return whole;
   };
@@ -976,7 +991,13 @@ export function serializeSharedConfig({
     const errors: JsoncParseError[] = [];
     const root = parseTree(existingContent, errors, { allowTrailingComma: true });
     if (root === undefined || errors.length > 0) {
-      return wholeBecause("it could not be parsed");
+      // A JSON5 file that parsed (the caller read it) but not as JSONC uses
+      // JSON5-only syntax — unquoted keys, single quotes, hex numbers, ...
+      return wholeBecause(
+        format === "json5"
+          ? "it uses JSON5-only syntax (such as unquoted keys, single quotes, hex numbers, Infinity or NaN)"
+          : "it could not be parsed",
+      );
     }
     if (root.type !== "object") {
       return wholeBecause("its root is not an object");
@@ -1020,7 +1041,25 @@ export function serializeSharedConfig({
       leadingKeys,
     });
   } catch (error) {
+    if (error instanceof Json5EditRefusedError) throw error;
     return wholeBecause(`the editor refused it (${stripControlCharacters(formatError(error))})`);
+  }
+}
+
+/**
+ * Thrown instead of rewriting a `json5` file whole (see
+ * {@link serializeSharedConfig}); nothing is written.
+ */
+export class Json5EditRefusedError extends Error {
+  constructor({ filePath, reason }: { filePath: string | undefined; reason: string }) {
+    const subject = filePath === undefined ? "a shared JSON5 config file" : quoteForLog(filePath);
+    super(
+      `Refusing to update ${subject}: rulesync cannot edit it in place because ${reason}, ` +
+        "and rewriting it whole would drop its comments and could change its values. " +
+        "Convert it to JSONC-compatible syntax (double-quoted keys and strings, decimal numbers; " +
+        "comments and trailing commas are fine), or add the entries by hand.",
+    );
+    this.name = "Json5EditRefusedError";
   }
 }
 
@@ -1171,6 +1210,7 @@ export const KIMI_CODE_HOME_CONFIG_SHARED_FILE_KEY = "config.toml";
 export const REASONIX_PROJECT_CONFIG_SHARED_FILE_KEY = "reasonix.toml";
 export const REASONIX_GLOBAL_CONFIG_SHARED_FILE_KEY = ".reasonix/config.toml";
 export const ROVODEV_CONFIG_SHARED_FILE_KEY = ".rovodev/config.yml";
+export const OPENCLAW_CONFIG_SHARED_FILE_KEY = ".openclaw/openclaw.json";
 export const POOL_PROJECT_SETTINGS_SHARED_FILE_KEY = ".poolside/settings.yaml";
 export const POOL_GLOBAL_SETTINGS_SHARED_FILE_KEY = ".config/poolside/settings.yaml";
 
@@ -1791,16 +1831,30 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
   // MCP owns `mcpServers` (user scope only; project servers go to `.mcp.json`),
   // hooks own `hooks`, and permissions own `permissions` (the adapter
   // re-spreads the sibling keys of that object: `additionalDirectories`,
-  // `trustDirectories`, ...) plus the top-level `outputStyle` of the `qoder`
-  // override, which is only in the patch when authored, so a value the user
-  // set by hand survives an unrelated regeneration.
+  // `trustDirectories`, ...) plus the top-level keys the `qoder` override
+  // authors (`outputStyle`, `autoMode`, `agentsMdExcludes`, and the `general`,
+  // `tools`, `mcp` and `agents` groups, re-spread by the adapter so their other
+  // keys are kept). Each is only in the patch when authored, so a value the
+  // user set by hand survives an unrelated regeneration.
   ".qoder/settings.json": {
     format: "json",
     invalidRootPolicy: "error",
     features: {
       mcp: { kind: "replace-owned-keys", ownedKeys: ["mcpServers"] },
       hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
-      permissions: { kind: "replace-owned-keys", ownedKeys: ["permissions", "outputStyle"] },
+      permissions: {
+        kind: "replace-owned-keys",
+        ownedKeys: [
+          "permissions",
+          "outputStyle",
+          "general",
+          "tools",
+          "mcp",
+          "agents",
+          "autoMode",
+          "agentsMdExcludes",
+        ],
+      },
     },
   },
   // Tabnine CLI settings: the project file (`.tabnine/agent/settings.json`)
@@ -2039,6 +2093,20 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
       // Likewise recomputed: the generated levels are merged over the existing
       // `toolPermissions` block before the patch is applied.
       permissions: { kind: "replace-owned-keys", ownedKeys: ["toolPermissions"] },
+    },
+  },
+  // OpenClaw's Gateway config (`~/.openclaw/openclaw.json`, JSON5): it also
+  // holds credentials, channels, agents and every other Gateway setting, and
+  // the Gateway refuses to start on a config it cannot validate, so a file
+  // rulesync cannot parse is refused instead of being replaced. The `mcp`
+  // block is recomputed from the existing file before being applied — servers
+  // rulesync does not own and siblings such as `mcp.sessionIdleTtlMs` are
+  // carried over — so the whole key is owned here.
+  [OPENCLAW_CONFIG_SHARED_FILE_KEY]: {
+    format: "json5",
+    invalidRootPolicy: "error",
+    features: {
+      mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp"] },
     },
   },
 };

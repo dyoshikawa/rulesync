@@ -97,6 +97,7 @@ export class ZcodePluginMcp extends ToolMcp {
       mcpServers: rulesyncMcp.getMcpServers(),
       logger,
       enableKey: ZCODE_PLUGIN_ENABLE_KEY,
+      rawServerOf: (name) => rulesyncMcp.getRawMcpServer(name),
     });
     return new ZcodePluginMcp({
       outputRoot,
@@ -110,7 +111,6 @@ export class ZcodePluginMcp extends ToolMcp {
   toRulesyncMcp(): RulesyncMcp {
     const mcpServers = convertFromZcodeFormat({
       zcodeServers: serversOf(this.json),
-      enableKey: ZCODE_PLUGIN_ENABLE_KEY,
     });
     return this.toRulesyncMcpDefault({
       fileContent: JSON.stringify({ mcpServers }, null, 2),

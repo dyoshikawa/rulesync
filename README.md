@@ -106,7 +106,7 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 | deepagents-cli            |  ✅   |        | ✅  |          |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | Factory Droid             |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |   ✅   |
 | OpenCode                  |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
-| OpenClaw                  |  ✅   |        |     |          |           |        |       |             |        |
+| OpenClaw                  |  ✅   |        | ✅  |          |           |        |       |             |        |
 | MiMo Code                 |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | GitLab Duo CLI            |  ✅   |        | ✅  |    ✅    |           |   ✅   |  ✅   |             |   ✅   |
 | Cline                     |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
@@ -131,7 +131,7 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 | Kiro ⚠️                   |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | Kiro CLI                  |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | Kiro IDE                  |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
-| Letta Code                |       |   ✅   |     |          |    ✅     |   ✅   |  ✅   |     ✅      |        |
+| Letta Code                |       |   ✅   |     |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | Google Antigravity IDE    |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | Google Antigravity CLI    |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | Google Antigravity plugin |  ✅   |        | ✅  |          |    ✅     |   ✅   |  ✅   |             |        |
