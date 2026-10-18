@@ -1815,7 +1815,11 @@ export function toolHooksToCanonical({
       defs.push(...toolMatcherEntryToCanonical({ rawEntry, eventName, converterConfig, warn }));
     }
     if (defs.length > 0) {
-      canonical[eventName] = defs;
+      // Append rather than assign: a tool can expose two native names for one
+      // canonical event (Devin's `PostCompaction` and `PostCompact`), and both
+      // keys' hooks must survive the import.
+      const existing = Object.hasOwn(canonical, eventName) ? canonical[eventName] : undefined;
+      canonical[eventName] = existing ? [...existing, ...defs] : defs;
     }
   }
   return canonical;

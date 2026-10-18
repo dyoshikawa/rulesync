@@ -51,7 +51,11 @@ export abstract class ToolPermissions extends ToolFile {
     throw new Error("Please implement this method in the subclass.");
   }
 
-  abstract toRulesyncPermissions(): RulesyncPermissions;
+  /**
+   * `logger` lets a translator report source content it cannot import; most
+   * translators do not need it.
+   */
+  abstract toRulesyncPermissions(params?: { logger?: Logger }): RulesyncPermissions;
 
   protected toRulesyncPermissionsDefault({
     fileContent,

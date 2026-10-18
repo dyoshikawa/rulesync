@@ -16,6 +16,7 @@ import { getZedGlobalDir } from "../constants/zed-paths.js";
 import { McpProcessor } from "../features/mcp/mcp-processor.js";
 import { fileExists, readFileContent, writeFileContent } from "../utils/file.js";
 import { getHermesagentGlobalDir } from "../utils/hermesagent.js";
+import { parseJson5 } from "../utils/json5.js";
 import {
   assertGenerateMatrixCoversTargets,
   runGenerate,
@@ -1025,6 +1026,7 @@ const mcpGlobalTargets = [
   { target: "hermesagent", outputPath: join(getHermesagentGlobalDir(), "config.yaml") },
   { target: "mimocode", outputPath: join(".config", "mimocode", "mimocode.jsonc") },
   { target: "omp", outputPath: join(".omp", "agent", "mcp.json") },
+  { target: "openclaw", outputPath: join(".openclaw", "openclaw.json") },
   { target: "opencode", outputPath: join(".config", "opencode", "opencode.jsonc") },
   { target: "pi", outputPath: join(".pi", "agent", "mcp.json") },
   { target: "pool", outputPath: join(".config", "poolside", "settings.yaml") },
@@ -1295,6 +1297,13 @@ describe("E2E: mcp (global mode)", () => {
           include: ["read"],
           exclude: ["delete"],
         });
+      }
+      if (target === "openclaw") {
+        const server = toTable(toTable(toTable(parseJson5(generatedContent)).mcp).servers)[
+          "test-server"
+        ];
+        expect(toTable(server).toolFilter).toEqual({ include: ["read"], exclude: ["delete"] });
+        expect(toTable(server)).not.toHaveProperty("type");
       }
     },
   );
