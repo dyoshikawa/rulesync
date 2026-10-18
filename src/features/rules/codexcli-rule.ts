@@ -39,8 +39,11 @@ export class CodexcliRule extends NestedAgentsmdRule {
  * `.codex/config.toml`, which Codex loads for trusted projects and which
  * overrides the 32 KiB default budget for project `AGENTS.md` files.
  *
- * Answers `undefined` when the file is missing, is not valid TOML, or does not
- * set the key to a positive integer, so the caller falls back to the default.
+ * Answers `0` when the key is set to `0`, which Codex treats as "project docs
+ * disabled" (`codex-rs/core/src/agents_md.rs` loads nothing for a zero
+ * budget). Answers `undefined` when the file is missing, is not valid TOML, or
+ * does not set the key to a non-negative integer, so the caller falls back to
+ * the default.
  *
  * @see https://learn.chatgpt.com/docs/config-file/config-reference
  */
@@ -63,5 +66,5 @@ export async function readCodexcliProjectDocMaxBytes(
     return undefined;
   }
   const value = parsed.project_doc_max_bytes;
-  return typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? value : undefined;
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : undefined;
 }
