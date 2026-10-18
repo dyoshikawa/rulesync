@@ -3623,6 +3623,15 @@ globs: ["packages/api/**/*"]
       expect(warnings[0]).not.toContain("byte default limit");
     });
 
+    it("should not warn when project_doc_max_bytes is 0 and no rule is generated", async () => {
+      await writeFileContent(join(testDir, ".codex", "config.toml"), "project_doc_max_bytes = 0\n");
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "codexcli" });
+
+      await processor.convertRulesyncFilesToToolFiles([]);
+
+      expect(budgetWarnings()).toHaveLength(0);
+    });
+
     it("should read the configured budget from the output root's .codex/config.toml", async () => {
       const outputRoot = join(testDir, "packages", "app");
       await writeFileContent(

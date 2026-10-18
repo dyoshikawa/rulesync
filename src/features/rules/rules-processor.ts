@@ -436,8 +436,9 @@ type ToolRuleFactory = {
      * it replaces `bytes`; `configuredSource` names where it came from. A
      * configured value of `0` means the tool loads no project instruction
      * files at all (Codex's "project docs disabled"), and generation says so
-     * instead of reporting the size. `defaultLimitHint` is appended only when the default budget was used,
-     * e.g. to point out a budget set somewhere rulesync does not read.
+     * instead of reporting the size. `defaultLimitHint` is appended only when
+     * the default budget was used, e.g. to point out a budget set somewhere
+     * rulesync does not read.
      */
     projectInstructionBudget?: {
       bytes: number;
@@ -1705,9 +1706,9 @@ export class RulesProcessor extends FeatureProcessor {
    * `project_doc_max_bytes` in `.codex/config.toml`), else the tool's default;
    * the warning names which one it used. A configured budget of `0` disables
    * project docs in Codex, so that case gets a single warning saying the
-   * generated files will not be loaded instead of a size report. Global scope is not
-   * checked because Codex loads the personal `~/.codex/AGENTS.md` outside the
-   * project budget.
+   * generated files will not be loaded instead of a size report. Global scope
+   * is not checked because Codex loads the personal `~/.codex/AGENTS.md`
+   * outside the project budget.
    */
   private async warnForInstructionBudget({
     toolRules,
@@ -1717,7 +1718,7 @@ export class RulesProcessor extends FeatureProcessor {
     meta: ToolRuleFactory["meta"];
   }): Promise<void> {
     const budget = meta.projectInstructionBudget;
-    if (budget === undefined || this.global) {
+    if (budget === undefined || this.global || toolRules.length === 0) {
       return;
     }
     const configuredBytes = await budget.readConfiguredBytes?.(this.outputRoot);
