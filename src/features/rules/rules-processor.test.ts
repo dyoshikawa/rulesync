@@ -2926,6 +2926,33 @@ Content that would fail parsing`;
   });
 
   describe("convertRulesyncFilesToToolFiles collision handling", () => {
+    it("should compose antigravity-plugin root fragments under one trigger block", async () => {
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "antigravity-plugin",
+      });
+      const rulesyncRules = ["10-first-root.md", "20-second-root.md"].map(
+        (relativeFilePath, index) =>
+          new RulesyncRule({
+            outputRoot: testDir,
+            relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+            relativeFilePath,
+            frontmatter: { root: true, targets: ["*"] },
+            body: `# Root Fragment ${index + 1}`,
+          }),
+      );
+
+      const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+
+      expect(result).toHaveLength(1);
+      expect(result[0]?.getRelativeDirPath()).toBe("rules");
+      expect(result[0]?.getRelativeFilePath()).toBe("AGENTS.md");
+      expect(result[0]?.getFileContent()).toBe(
+        "---\ntrigger: always_on\n---\n# Root Fragment 1\n\n# Root Fragment 2\n",
+      );
+    });
+
     it.each(["devin", "antigravity-ide"] as const)(
       "should warn for metadata-bearing project rules normalized to the same %s path",
       async (toolTarget) => {

@@ -149,7 +149,7 @@ The `convert` command does not accept packaging targets because it has no separa
 | `devin-plugin`       | `AGENTS.md`, `rules/*.md` | `.mcp.json`       | —                  | `agents/*/AGENT.md`             | `skills/*/SKILL.md` | `hooks.json`                 |
 | `kimi-code-plugin`   | `SYSTEM.md`               | —                 | `commands/**/*.md` | `agents/*.md`                   | `skills/*/SKILL.md` | —                            |
 
-Claude-specific frontmatter and hook overrides continue to use the `claudecode` sections in Rulesync source files. Antigravity plugin output uses the `antigravity-ide` conversion model and override sections because its plugin components follow the Antigravity IDE format.
+Claude-specific frontmatter and hook overrides continue to use the `claudecode` sections in Rulesync source files. Antigravity plugin output uses the `antigravity-ide` conversion model and override sections because its plugin components follow the Antigravity IDE format. The one difference is the root rule: it is written to `rules/AGENTS.md` with `trigger: always_on` frontmatter, because Antigravity requires a valid `trigger` on every `.md` file in a `rules/` directory and `agy plugin validate` reports a rule without one as an error (CLI [1.4.1](https://github.com/google-antigravity/antigravity-cli/releases/tag/1.4.1)). Import accepts `rules/AGENTS.md` with or without that frontmatter and keeps only its body.
 
 ## AugmentCode plugins
 
