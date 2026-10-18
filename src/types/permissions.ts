@@ -1585,6 +1585,7 @@ export const PermissionsConfigSchema = z.looseObject({
   "kimi-code": z.optional(KimiCodePermissionsOverrideSchema),
   roo: z.optional(CanonicalPermissionsOverrideSchema),
   rovodev: z.optional(CanonicalPermissionsOverrideSchema),
+  trae: z.optional(CanonicalPermissionsOverrideSchema),
   zoocode: z.optional(CanonicalPermissionsOverrideSchema),
 });
 export type PermissionsConfig = z.infer<typeof PermissionsConfigSchema>;

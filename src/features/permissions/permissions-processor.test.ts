@@ -159,6 +159,7 @@ describe("PermissionsProcessor", () => {
         "warp",
         "warpcli",
         "zed",
+        "trae",
       ]);
     });
 

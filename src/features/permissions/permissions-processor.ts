@@ -62,6 +62,7 @@ import type {
   ToolPermissionsSettablePaths,
 } from "./tool-permissions.js";
 import { ToolPermissions } from "./tool-permissions.js";
+import { TraePermissions } from "./trae-permissions.js";
 import { VibePermissions } from "./vibe-permissions.js";
 import { WarpPermissions } from "./warp-permissions.js";
 import { WarpcliPermissions } from "./warpcli-permissions.js";
@@ -697,6 +698,19 @@ export const toolPermissionsFactories = new Map<
         // `ProjectSettingsContent`, which has no `agent` field, so every
         // `agent.*` key written there is ignored.
         // https://github.com/zed-industries/zed/blob/main/crates/settings_content/src/project.rs
+        supportsProject: false,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+    },
+  ],
+  [
+    "trae",
+    {
+      class: TraePermissions,
+      meta: {
+        // TRAE keeps its permission policy in the user file
+        // `~/.trae/permission/global.json`; there is no project-scoped one.
         supportsProject: false,
         supportsGlobal: true,
         supportsImport: true,

@@ -1798,6 +1798,22 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
       permissions: { kind: "replace-owned-keys", ownedKeys: ["permissions", "outputStyle"] },
     },
   },
+  // TRAE's global permission file (`~/.trae/permission/global.json`) also holds
+  // the user's custom permission mode (`shellSandbox`, `approval.reviewer`,
+  // `sceneRules`, ...) and `resourceAuthorization.filesystem`, so it is edited
+  // in place and an unparseable root is refused. The permissions adapter
+  // re-spreads both owned objects and only rewrites `approval.commandRules`,
+  // `approval.mcpRules` and `resourceAuthorization.network.allow` / `deny`.
+  ".trae/permission/global.json": {
+    format: "json",
+    invalidRootPolicy: "error",
+    features: {
+      permissions: {
+        kind: "replace-owned-keys",
+        ownedKeys: ["customProfiles", "resourceAuthorization"],
+      },
+    },
+  },
   // Tabnine CLI settings: the project file (`.tabnine/agent/settings.json`)
   // and the user file (`~/.tabnine/agent/settings.json`) share one layout and
   // carry unrelated Tabnine settings (`general`, `context`, `ui`, ...), so they
