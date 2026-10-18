@@ -2450,7 +2450,7 @@ export class RulesProcessor extends FeatureProcessor {
   /**
    * Handle localRoot rule generation based on tool target.
    * - `separate-local-file`: writes a dedicated `*.local.md` root file
-   *   (claudecode/legacy: `./CLAUDE.local.md`, rovodev: `./AGENTS.local.md`)
+   *   (claudecode/legacy: `./CLAUDE.local.md`, rovodev/dsh: `./AGENTS.local.md`)
    * - `append-to-root` (default): appends the body to the root file
    */
   private handleLocalRootRule(
