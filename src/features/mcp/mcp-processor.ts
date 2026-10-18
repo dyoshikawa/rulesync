@@ -46,6 +46,7 @@ import { KiroMcp } from "./kiro-mcp.js";
 import { MimocodeMcp } from "./mimocode-mcp.js";
 import { MusecodeMcp } from "./musecode-mcp.js";
 import { OmpMcp } from "./omp-mcp.js";
+import { OpenclawMcp } from "./openclaw-mcp.js";
 import { OpencodeMcp } from "./opencode-mcp.js";
 import { PiMcp } from "./pi-mcp.js";
 import { PoolMcp } from "./pool-mcp.js";
@@ -558,6 +559,22 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
       // no project-scoped MCP location. Per-server tool filtering uses
       // `tools.include` and `tools.exclude`.
       class: HermesagentMcp,
+      meta: {
+        supportsProject: false,
+        supportsGlobal: true,
+        supportsEnabledTools: true,
+        supportsDisabledTools: true,
+      },
+    },
+  ],
+  [
+    "openclaw",
+    {
+      // OpenClaw reads MCP servers from `mcp.servers` of its global JSON5
+      // Gateway config `~/.openclaw/openclaw.json`; it has no project-scoped
+      // MCP location. Per-server tool filtering uses `toolFilter.include` and
+      // `toolFilter.exclude`.
+      class: OpenclawMcp,
       meta: {
         supportsProject: false,
         supportsGlobal: true,

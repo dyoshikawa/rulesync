@@ -28,6 +28,7 @@ import type { Feature } from "../../types/features.js";
 import { type BoundedWalk, createBoundedWalk } from "../../utils/bounded-walk.js";
 import { quoteForLog, stripControlCharacters } from "../../utils/control-characters.js";
 import { formatError } from "../../utils/error.js";
+import { parseJson5 } from "../../utils/json5.js";
 import { type Logger, warnOnceWithFallback } from "../../utils/logger.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
@@ -62,7 +63,10 @@ import { loadYaml } from "../../utils/yaml.js";
 // Format codecs
 // ---------------------------------------------------------------------------
 
-export type SharedConfigFormat = "yaml" | "json" | "jsonc" | "toml";
+// `json5` reads JSON5 (unquoted keys, single quotes, comments, ...) and
+// writes JSON, which is valid JSON5; a file that is also valid JSONC is edited
+// in place like a `jsonc` one, so its comments survive.
+export type SharedConfigFormat = "yaml" | "json" | "jsonc" | "json5" | "toml";
 
 export type SharedConfigDocument = Record<string, unknown>;
 
@@ -228,6 +232,8 @@ export function parseSharedConfig({
       parsed = parseToml(fileContent);
     } else if (format === "json") {
       parsed = JSON.parse(fileContent);
+    } else if (format === "json5") {
+      parsed = parseJson5(fileContent);
     } else if (jsoncParseErrors === "error") {
       const errors: JsoncParseError[] = [];
       parsed = parseJsonc(fileContent, errors, { allowTrailingComma: true });
@@ -948,7 +954,7 @@ export function serializeSharedConfig({
   logger?: Logger | undefined;
 }): string {
   const whole = stringifySharedConfig({ format, document });
-  if (format !== "jsonc" || existingContent.trim() === "") {
+  if ((format !== "jsonc" && format !== "json5") || existingContent.trim() === "") {
     return whole;
   }
 
@@ -976,7 +982,13 @@ export function serializeSharedConfig({
     const errors: JsoncParseError[] = [];
     const root = parseTree(existingContent, errors, { allowTrailingComma: true });
     if (root === undefined || errors.length > 0) {
-      return wholeBecause("it could not be parsed");
+      // A JSON5 file that parsed (the caller read it) but not as JSONC uses
+      // JSON5-only syntax — unquoted keys, single quotes, hex numbers, ...
+      return wholeBecause(
+        format === "json5"
+          ? "it uses JSON5 syntax (such as unquoted keys) that cannot be edited in place"
+          : "it could not be parsed",
+      );
     }
     if (root.type !== "object") {
       return wholeBecause("its root is not an object");
@@ -1171,6 +1183,7 @@ export const KIMI_CODE_HOME_CONFIG_SHARED_FILE_KEY = "config.toml";
 export const REASONIX_PROJECT_CONFIG_SHARED_FILE_KEY = "reasonix.toml";
 export const REASONIX_GLOBAL_CONFIG_SHARED_FILE_KEY = ".reasonix/config.toml";
 export const ROVODEV_CONFIG_SHARED_FILE_KEY = ".rovodev/config.yml";
+export const OPENCLAW_CONFIG_SHARED_FILE_KEY = ".openclaw/openclaw.json";
 export const POOL_PROJECT_SETTINGS_SHARED_FILE_KEY = ".poolside/settings.yaml";
 export const POOL_GLOBAL_SETTINGS_SHARED_FILE_KEY = ".config/poolside/settings.yaml";
 
@@ -2034,6 +2047,20 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
       // Likewise recomputed: the generated levels are merged over the existing
       // `toolPermissions` block before the patch is applied.
       permissions: { kind: "replace-owned-keys", ownedKeys: ["toolPermissions"] },
+    },
+  },
+  // OpenClaw's Gateway config (`~/.openclaw/openclaw.json`, JSON5): it also
+  // holds credentials, channels, agents and every other Gateway setting, and
+  // the Gateway refuses to start on a config it cannot validate, so a file
+  // rulesync cannot parse is refused instead of being replaced. The `mcp`
+  // block is recomputed from the existing file before being applied — servers
+  // rulesync does not own and siblings such as `mcp.sessionIdleTtlMs` are
+  // carried over — so the whole key is owned here.
+  [OPENCLAW_CONFIG_SHARED_FILE_KEY]: {
+    format: "json5",
+    invalidRootPolicy: "error",
+    features: {
+      mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp"] },
     },
   },
 };

@@ -245,6 +245,51 @@ plugins:
   });
 });
 
+describe("json5 format", () => {
+  it("parses JSON5 syntax jsonc-parser rejects and drops pollution keys", () => {
+    expect(
+      parseSharedConfig({
+        format: "json5",
+        fileContent:
+          "{ // c\n  mcp: { servers: { a: { command: 'x' } } }, __proto__: { p: 1 }, n: 0x10, }",
+      }),
+    ).toEqual({ mcp: { servers: { a: { command: "x" } } }, n: 16 });
+    expect(parseSharedConfig({ format: "json5", fileContent: "" })).toEqual({});
+  });
+
+  it("wraps a JSON5 syntax error with the file path", () => {
+    expect(() =>
+      parseSharedConfig({ format: "json5", fileContent: "{ a: }", filePath: "openclaw.json" }),
+    ).toThrow("Failed to parse shared config at openclaw.json: SyntaxError: JSON5: unexpected");
+  });
+
+  it("edits a JSONC-compatible file in place, keeping its comments", () => {
+    const existingContent = '{\n  // keep\n  "a": 1\n}\n';
+    const result = serializeSharedConfig({
+      format: "json5",
+      document: { a: 1, b: 2 },
+      existingContent,
+    });
+    expect(result).toContain("// keep");
+    expect(parseSharedConfig({ format: "json5", fileContent: result })).toEqual({ a: 1, b: 2 });
+  });
+
+  it("rewrites a file using JSON5-only syntax whole, as JSON, and says why", () => {
+    const logger = createMockLogger();
+    const result = serializeSharedConfig({
+      format: "json5",
+      document: { a: 1, b: 2 },
+      existingContent: "{ // gone\n  a: 1 }",
+      filePath: "openclaw.json",
+      logger,
+    });
+    expect(result).toBe('{\n  "a": 1,\n  "b": 2\n}');
+    expect(wholeRewriteWarnings(logger)).toEqual([
+      expect.stringContaining("uses JSON5 syntax (such as unquoted keys)"),
+    ]);
+  });
+});
+
 describe("stringifySharedConfig", () => {
   it("emits YAML with exactly one trailing newline", () => {
     expect(stringifySharedConfig({ format: "yaml", document: { a: 1 } })).toBe("a: 1\n");
