@@ -117,6 +117,61 @@ describe("ZcodeMcp", () => {
       });
     });
 
+    it("should write timeout as timeoutMs and keep cwd, protocolVersion and a ZCode oauth", async () => {
+      const mcp = await ZcodeMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp: buildRulesyncMcp({
+          local: { command: "srv", cwd: "./tools", timeout: 30000, protocolVersion: "legacy" },
+          remote: {
+            type: "http",
+            url: "https://example.com/mcp",
+            // A cwd only applies to stdio servers.
+            cwd: "./ignored",
+            oauth: { type: "authorization_code", clientId: "abc", scope: "read" },
+          },
+          explicit: { command: "srv", timeout: 1000, timeoutMs: 5000 },
+        }),
+      });
+
+      expect(serversOf(mcp)).toEqual({
+        local: {
+          command: "srv",
+          args: [],
+          cwd: "./tools",
+          timeoutMs: 30000,
+          protocolVersion: "legacy",
+        },
+        remote: {
+          type: "http",
+          url: "https://example.com/mcp",
+          oauth: { type: "authorization_code", clientId: "abc", scope: "read" },
+        },
+        // An explicit timeoutMs wins over the canonical timeout.
+        explicit: { command: "srv", args: [], timeoutMs: 5000 },
+      });
+    });
+
+    it("should drop an oauth ZCode cannot read and an invalid timeout", async () => {
+      const logger = createMockLogger();
+      const mcp = await ZcodeMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp: buildRulesyncMcp({
+          // Claude Code's oauth shape has no ZCode flow `type`.
+          remote: { type: "http", url: "https://example.com/mcp", oauth: { clientId: "abc" } },
+          local: { command: "srv", timeout: -1 },
+        }),
+        logger,
+      });
+
+      expect(serversOf(mcp)).toEqual({
+        remote: { type: "http", url: "https://example.com/mcp" },
+        local: { command: "srv", args: [] },
+      });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('"local": dropping timeout'),
+      );
+    });
+
     it("should warn-and-skip servers ZCode cannot run", async () => {
       const logger = createMockLogger();
       const mcp = await ZcodeMcp.fromRulesyncMcp({
@@ -240,6 +295,30 @@ describe("ZcodeMcp", () => {
           on: { command: "srv2" },
           remote: { type: "sse", url: "https://example.com/sse" },
         },
+      });
+    });
+
+    it("should lift timeoutMs back into timeout and keep the other ZCode keys", () => {
+      const oauth = { type: "client_credentials", clientId: "id", clientSecret: "secret" };
+      const mcp = new ZcodeMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".zcode",
+        relativeFilePath: "config.json",
+        fileContent: JSON.stringify({
+          mcp: {
+            servers: {
+              local: { command: "srv", cwd: "./tools", timeoutMs: 30000, protocolVersion: "auto" },
+              remote: { type: "http", url: "https://example.com/mcp", oauth },
+              both: { command: "srv", timeout: 1000, timeoutMs: 5000 },
+            },
+          },
+        }),
+      });
+
+      expect(JSON.parse(mcp.toRulesyncMcp().getFileContent()).mcpServers).toEqual({
+        local: { command: "srv", cwd: "./tools", timeout: 30000, protocolVersion: "auto" },
+        remote: { type: "http", url: "https://example.com/mcp", oauth },
+        both: { command: "srv", timeout: 1000, timeoutMs: 5000 },
       });
     });
 

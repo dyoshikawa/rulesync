@@ -73,12 +73,93 @@ function asZcodeRemoteType(stated: string | undefined, url: string): "http" | "s
 }
 
 /**
+ * The two OAuth flows ZCode's per-server `oauth` union accepts on a remote
+ * server. Read off the 3.14.3/3.15.3 runtime config schema, since ZCode's MCP
+ * page only says to "enable OAuth for the service in its configuration".
+ */
+const ZCODE_OAUTH_TYPES: ReadonlySet<unknown> = new Set([
+  "client_credentials",
+  "authorization_code",
+]);
+
+/**
+ * Whether an `oauth` value is ZCode-shaped (`{ type: "client_credentials" |
+ * "authorization_code", ... }`). The canonical `oauth` key also carries Claude
+ * Code's `{ clientId }` object, which ZCode's strict server schema would reject
+ * (skipping the whole server), so only a value naming a ZCode flow is copied.
+ */
+function isZcodeOauth(value: unknown): value is Record<string, unknown> {
+  return isRecord(value) && ZCODE_OAUTH_TYPES.has(value.type);
+}
+
+/**
+ * Resolve ZCode's per-server `timeoutMs` (a positive number of milliseconds):
+ * an explicit `timeoutMs` wins, otherwise the canonical `timeout`
+ * (milliseconds, the `gitlabduo-mcp.ts` precedent) is used. A value ZCode
+ * would reject is dropped with a warning instead of making ZCode skip the
+ * server.
+ */
+function resolveZcodeTimeoutMs({
+  serverName,
+  config,
+  logger,
+}: {
+  serverName: string;
+  config: Record<string, unknown>;
+  logger?: Logger;
+}): number | undefined {
+  const value = config.timeoutMs ?? config.timeout;
+  if (value === undefined) return undefined;
+  if (typeof value === "number" && Number.isFinite(value) && value > 0) return value;
+  logger?.warn(
+    `ZCode MCP server "${serverName}": dropping timeout ${JSON.stringify(value)}, as timeoutMs must be a positive number of milliseconds.`,
+  );
+  return undefined;
+}
+
+/**
+ * The per-server keys ZCode reads on every transport: `timeoutMs`,
+ * `protocolVersion` and the enable toggle (`enableKey`).
+ */
+function toZcodeCommonKeys({
+  serverName,
+  config,
+  enableKey,
+  logger,
+}: {
+  serverName: string;
+  config: Record<string, unknown>;
+  enableKey: string;
+  logger?: Logger;
+}): Record<string, unknown> {
+  const common: Record<string, unknown> = {};
+  const timeoutMs = resolveZcodeTimeoutMs({ serverName, config, logger });
+  if (timeoutMs !== undefined) {
+    common.timeoutMs = timeoutMs;
+  }
+  if (typeof config.protocolVersion === "string" && config.protocolVersion !== "") {
+    common.protocolVersion = config.protocolVersion;
+  }
+  if (config.disabled === true) {
+    common[enableKey] = false;
+  }
+  return common;
+}
+
+/**
  * Convert canonical rulesync servers to ZCode's native `mcp.servers` shape:
  * stdio servers carry `command`/`args`/`env`, remote servers carry
  * `type` (`http` or `sse`), `url` and optional `headers`. A canonical
  * `disabled: true` maps to ZCode's `enable: false` (`enabled: false` in a
  * plugin's `.mcp.json`, via `enableKey`), which it defaults to `true` when
  * absent.
+ *
+ * Every server also carries `timeoutMs` (from the canonical `timeout`, or an
+ * explicit `timeoutMs`) and a verbatim `protocolVersion`; stdio servers carry
+ * `cwd`, and remote servers a ZCode-shaped `oauth`. ZCode's docs do not name
+ * these keys, so they follow the 3.14.3/3.15.3 runtime's per-server schema,
+ * which is strict: an unknown key makes ZCode skip the server, which is why the
+ * output stays a whitelist.
  *
  * @see https://zcode.z.ai/en/docs/mcp-services
  */
@@ -143,6 +224,11 @@ export function convertToZcodeFormat({
       if (config.headers && Object.keys(config.headers).length > 0) {
         converted.headers = config.headers;
       }
+      // A canonical (Claude Code-shaped) `oauth` is left out on purpose: see
+      // `isZcodeOauth`.
+      if (isZcodeOauth(config.oauth)) {
+        converted.oauth = config.oauth;
+      }
     } else {
       const commandArray = resolveLocalMcpCommand(config);
       const [command, ...args] = commandArray;
@@ -160,12 +246,14 @@ export function convertToZcodeFormat({
       if (config.env && Object.keys(config.env).length > 0) {
         converted.env = config.env;
       }
+      if (typeof config.cwd === "string" && config.cwd !== "") {
+        converted.cwd = config.cwd;
+      }
     }
-    if (config.disabled === true) {
-      converted[enableKey] = false;
-    }
-
-    result[name] = converted;
+    result[name] = {
+      ...converted,
+      ...toZcodeCommonKeys({ serverName: name, config, enableKey, logger }),
+    };
   }
 
   return result;
@@ -175,8 +263,10 @@ export function convertToZcodeFormat({
  * Convert ZCode's native `mcp.servers` shape back to canonical rulesync
  * servers: `enable: false` maps back to `disabled: true`, and unknown keys pass
  * through untouched so an import keeps whatever a hand-authored entry declared.
- * Generation back out is a whitelist, so only the keys `convertToZcodeFormat`
- * writes are re-emitted.
+ * `timeoutMs` is lifted back into the canonical `timeout` (milliseconds) unless
+ * the server already states a `timeout`, in which case both are kept and
+ * `timeoutMs` keeps winning on the next generate. Generation back out is a
+ * whitelist, so only the keys `convertToZcodeFormat` writes are re-emitted.
  *
  * An explicit `enable: true` is dropped rather than mapped to a canonical
  * `disabled: false`: absent already means enabled on both sides, so the flag
@@ -202,6 +292,10 @@ export function convertFromZcodeFormat({
         if (value === false) {
           converted.disabled = true;
         }
+        continue;
+      }
+      if (key === "timeoutMs" && typeof value === "number" && config.timeout === undefined) {
+        converted.timeout = value;
         continue;
       }
       converted[key] = value;
