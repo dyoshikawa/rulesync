@@ -1469,6 +1469,13 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",
         collisionPolicy: "fold",
+        // The project chain also loads `AGENTS.local.md` as an additive local
+        // overlay at each level (default `localInstructionFileCandidates`), so
+        // a localRoot rule gets its own file beside the root `AGENTS.md`
+        // instead of being appended to the committed one. Project scope only:
+        // neither user-global root has a local overlay.
+        localRootMode: "separate-local-file",
+        localRootFileName: "AGENTS.local.md",
       },
     },
   ],
@@ -2459,7 +2466,7 @@ export class RulesProcessor extends FeatureProcessor {
   /**
    * Handle localRoot rule generation based on tool target.
    * - `separate-local-file`: writes a dedicated `*.local.md` root file
-   *   (claudecode/legacy: `./CLAUDE.local.md`, rovodev: `./AGENTS.local.md`)
+   *   (claudecode/legacy: `./CLAUDE.local.md`, rovodev/dsh: `./AGENTS.local.md`)
    * - `append-to-root` (default): appends the body to the root file
    */
   private handleLocalRootRule(
@@ -2594,10 +2601,11 @@ export class RulesProcessor extends FeatureProcessor {
         localRoot,
       });
     }
-    // Crush and Reasonix both read their `.local` file from the working
-    // directory root, next to the shared root file (`CRUSH.md` / `REASONIX.md`);
-    // neither has a tool directory to put it in.
-    const workingRootClass = [CrushRule, ReasonixRule].find((base) =>
+    // Crush, Reasonix and DeepSeek Harness all read their `.local` file from
+    // the working directory root, next to the shared root file (`CRUSH.md` /
+    // `REASONIX.md` / `AGENTS.md`), as plain markdown; none has a tool
+    // directory to put it in.
+    const workingRootClass = [CrushRule, ReasonixRule, DshRule].find((base) =>
       isClassOrSubclassOf({ candidate: factory.class, base }),
     );
     if (workingRootClass) {

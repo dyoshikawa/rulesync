@@ -3907,6 +3907,52 @@ globs: ["packages/api/**/*"]
       expect((localRule as RulesyncRule).getFrontmatter().localRoot).toBe(true);
     });
 
+    it("should import AGENTS.local.md as a localRoot rulesync rule for dsh (issue #3526)", async () => {
+      await writeFileContent(join(testDir, "AGENTS.md"), "# Root");
+      await writeFileContent(join(testDir, "AGENTS.local.md"), "# Personal dsh rules");
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "dsh" });
+      const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(
+        await processor.loadToolFiles(),
+      );
+
+      const localRule = findLocalRule(rulesyncFiles, "AGENTS.local.md");
+      expect(localRule).toBeInstanceOf(RulesyncRule);
+      expect((localRule as RulesyncRule).getFrontmatter().localRoot).toBe(true);
+      expect((localRule as RulesyncRule).getFrontmatter().targets).toEqual(["dsh"]);
+      expect((localRule as RulesyncRule).getBody()).toBe("# Personal dsh rules");
+    });
+
+    it("should round-trip the dsh AGENTS.local.md through import and generate (issue #3526)", async () => {
+      await writeFileContent(join(testDir, "AGENTS.md"), "# Root");
+      await writeFileContent(join(testDir, "AGENTS.local.md"), "# Personal dsh rules");
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "dsh" });
+      const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(
+        await processor.loadToolFiles(),
+      );
+      const regenerated = await processor.convertRulesyncFilesToToolFiles(rulesyncFiles);
+
+      const localFile = regenerated.find((r) => r.getRelativeFilePath() === "AGENTS.local.md");
+      expect(localFile?.getRelativeDirPath()).toBe(".");
+      expect(localFile?.getFileContent().trim()).toBe("# Personal dsh rules");
+      const rootFile = regenerated.find((r) => r.getRelativeFilePath() === "AGENTS.md");
+      expect(rootFile?.getFileContent()).toContain("# Root");
+      expect(rootFile?.getFileContent()).not.toContain("# Personal dsh rules");
+    });
+
+    it("should list the dsh AGENTS.local.md as a deletion candidate (issue #3526)", async () => {
+      await writeFileContent(join(testDir, "AGENTS.md"), "# Root");
+      await writeFileContent(join(testDir, "AGENTS.local.md"), "# Personal dsh rules");
+
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "dsh" });
+      const forDeletion = await processor.loadToolFiles({ forDeletion: true });
+      const deletionPaths = forDeletion.map((file) =>
+        join(file.getRelativeDirPath(), file.getRelativeFilePath()),
+      );
+      expect(deletionPaths).toContain("AGENTS.local.md");
+    });
+
     it("should import REASONIX.local.md as a localRoot rulesync rule for reasonix", async () => {
       await writeFileContent(join(testDir, "REASONIX.md"), "# Root");
       await writeFileContent(join(testDir, "REASONIX.local.md"), "# Personal reasonix rules");
@@ -4375,6 +4421,69 @@ targets: ["*"]
       // Plain markdown: Devin's local file carries no trigger frontmatter.
       expect(localRule?.getFileContent()).toBe("# Personal overrides");
       const rootRule = result.find((r) => r.getRelativeFilePath() === "AGENTS.md");
+      expect(rootRule?.getFileContent()).not.toContain("# Personal overrides");
+    });
+
+    it("should generate AGENTS.local.md for dsh instead of folding it into AGENTS.md (issue #3526)", async () => {
+      const processor = new RulesProcessor({ logger, outputRoot: testDir, toolTarget: "dsh" });
+
+      const rulesyncRules = [
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "root.md",
+          frontmatter: { root: true, targets: ["dsh"] },
+          body: "# Root",
+        }),
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "local.md",
+          frontmatter: { localRoot: true, targets: ["dsh"] },
+          body: "# Personal overrides",
+        }),
+      ];
+
+      const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+
+      const localRule = result.find((r) => r.getRelativeFilePath() === "AGENTS.local.md");
+      expect(localRule).toBeDefined();
+      expect(localRule?.getRelativeDirPath()).toBe(".");
+      expect(localRule?.getFileContent()).toBe("# Personal overrides");
+      const rootRule = result.find((r) => r.getRelativeFilePath() === "AGENTS.md");
+      expect(rootRule?.getFileContent()).not.toContain("# Personal overrides");
+    });
+
+    it("should not emit AGENTS.local.md for dsh in global mode (issue #3526)", async () => {
+      const processor = new RulesProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "dsh",
+        global: true,
+      });
+
+      const rulesyncRules = [
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "root.md",
+          frontmatter: { root: true, targets: ["dsh"] },
+          body: "# Root",
+        }),
+        new RulesyncRule({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+          relativeFilePath: "local.md",
+          frontmatter: { localRoot: true, targets: ["dsh"] },
+          body: "# Personal overrides",
+        }),
+      ];
+
+      const result = await processor.convertRulesyncFilesToToolFiles(rulesyncRules);
+
+      expect(result.some((r) => r.getRelativeFilePath() === "AGENTS.local.md")).toBe(false);
+      const rootRule = result.find((r) => r.getRelativeFilePath() === "AGENTS.md");
+      expect(rootRule?.getRelativeDirPath()).toBe(".dsh");
       expect(rootRule?.getFileContent()).not.toContain("# Personal overrides");
     });
 
