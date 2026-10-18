@@ -216,7 +216,76 @@ const REASONIX_TRUST_AFFECTING_SANDBOX_PATHS: readonly TrustAffectingSandboxPath
       "may reach is decided by this path rather than by the project directory",
     widens: escapesTheProject,
   },
+  {
+    path: ["allow_devices"],
+    reason:
+      "binds host device nodes into the Linux Bash sandbox, which otherwise sees a private /dev",
+    widens: isNonEmptyList,
+  },
+  {
+    path: ["egress_unlisted"],
+    reason:
+      "lets sandboxed Bash reach hosts that allowed_domains does not name without asking first",
+    widens: (value) =>
+      typeof value !== "string" || !["", "ask"].includes(value.trim().toLowerCase()),
+  },
+  {
+    path: ["host_authorities"],
+    reason:
+      "lets sandboxed Bash call host services beyond the SSH agent, such as a container daemon " +
+      "socket, which amounts to host-wide execution",
+    widens: (value) =>
+      !Array.isArray(value) ||
+      value.some((entry) => typeof entry !== "string" || entry.trim() !== "ssh_agent"),
+  },
 ];
+
+/**
+ * `[sandbox]` keys Reasonix reads only from the user config. In project scope
+ * `narrowSandbox` replaces each of them with the user's value (and reports a
+ * project `egress_unlisted` as user-only), so a repository cannot hand itself a
+ * device, a host service or unprompted egress. A project-scope generate skips
+ * them with a warning, the way `applyPermissionsMode` treats `mode`.
+ *
+ * @see https://github.com/esengine/DeepSeek-Reasonix/blob/studio-v2.44.0/internal/contract/config/project_scope.go
+ * @see https://github.com/esengine/DeepSeek-Reasonix/blob/studio-v2.44.0/internal/contract/config/config.go
+ */
+const REASONIX_USER_ONLY_SANDBOX_KEYS: readonly string[] = [
+  "allow_devices",
+  "egress_unlisted",
+  "host_authorities",
+];
+
+/**
+ * Removes the user-only `[sandbox]` keys from a project-scope override, warning
+ * once about what was skipped. The keys are left alone in the file, so whatever
+ * it already had survives the shallow merge. Global scope keeps them all, and
+ * a non-table override is returned as is, so the trust check still reports its
+ * shape rather than seeing nothing.
+ */
+function dropUserOnlySandboxKeys({
+  sandbox,
+  global,
+  relativeFilePath,
+  logger,
+}: {
+  sandbox: unknown;
+  global: boolean;
+  relativeFilePath: string;
+  logger?: Logger;
+}): unknown {
+  if (global || !isRecord(sandbox)) return sandbox;
+  const skipped = REASONIX_USER_ONLY_SANDBOX_KEYS.filter((key) => sandbox[key] !== undefined);
+  if (skipped.length === 0) return sandbox;
+  logger?.warn(
+    `Reasonix permissions: skipping ${skipped.map((key) => `reasonix.sandbox.${key}`).join(", ")} ` +
+      `for the project-scoped ${relativeFilePath}; Reasonix reads ${
+        skipped.length === 1 ? "this key" : "these keys"
+      } only from the user config and replaces a project value with the user's, so generate ` +
+      "it with --global instead.",
+  );
+  return Object.fromEntries(Object.entries(sandbox).filter(([key]) => !skipped.includes(key)));
+}
 
 /**
  * Whether a `workspace_root` points somewhere other than inside the project the
@@ -572,15 +641,21 @@ export class ReasonixPermissions extends ToolPermissions {
     // merged at the table's top level, so the override's keys win while unrelated
     // sibling keys the user set directly (e.g. `[agent].model`) are preserved.
     if (override?.sandbox !== undefined) {
+      const authoredSandbox = dropUserOnlySandboxKeys({
+        sandbox: override.sandbox,
+        global,
+        relativeFilePath: relativeFilePathForLog,
+        logger,
+      });
       const mergedSandbox = {
         ...asReasonixRecord(parsed.sandbox),
-        ...asReasonixRecord(override.sandbox),
+        ...asReasonixRecord(authoredSandbox),
       };
       patch.sandbox = mergedSandbox;
       trustAffecting.push(
         ...collectSandboxOverlayEntries({
           existing: parsed.sandbox,
-          authored: override.sandbox,
+          authored: authoredSandbox,
           merged: mergedSandbox,
         }),
       );
@@ -669,7 +744,14 @@ export class ReasonixPermissions extends ToolPermissions {
     // shallow on generate but the extract is whole-table for `[sandbox]`, so an
     // existing `[sandbox]` key the override did not author is pulled into the
     // override on the next import.
-    const sandbox = asReasonixRecord(this.toml.sandbox);
+    // The user-only keys are lifted from the user config alone, as `mode` is
+    // below: Reasonix ignores them in a project file, and a project generate
+    // would only skip them again.
+    const sandbox = Object.fromEntries(
+      Object.entries(asReasonixRecord(this.toml.sandbox)).filter(
+        ([key]) => this.global || !REASONIX_USER_ONLY_SANDBOX_KEYS.includes(key),
+      ),
+    );
     const agentPlanMode = pickReasonixKeys(this.toml.agent, [
       ...REASONIX_OVERRIDE_AGENT_KEYS,
       ...REASONIX_RETIRED_AGENT_KEYS,

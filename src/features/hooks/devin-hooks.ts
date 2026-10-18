@@ -37,7 +37,8 @@ import {
  *
  * Devin matches `matcher` against the event's `tool_name`, which is only
  * meaningful for the tool/permission lifecycle events
- * (`PreToolUse`/`PostToolUse`/`PermissionRequest`). The session, turn, and
+ * (`PreToolUse`/`PostToolUse`/`PermissionRequest`). `PreCompact` takes a
+ * `manual` / `auto` trigger matcher instead. The other session, turn, and
  * compaction events are matcher-less; any matcher defined on them is dropped
  * with a warning.
  */

@@ -890,7 +890,7 @@ export class PermissionsProcessor extends FeatureProcessor {
 
   async convertToolFilesToRulesyncFiles(toolFiles: ToolFile[]): Promise<RulesyncFile[]> {
     const permissions = toolFiles.filter((f): f is ToolPermissions => f instanceof ToolPermissions);
-    return permissions.map((p) => p.toRulesyncPermissions());
+    return permissions.map((p) => p.toRulesyncPermissions({ logger: this.logger }));
   }
 
   static getToolTargets({
