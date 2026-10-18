@@ -868,6 +868,111 @@ describe("ReasonixPermissions", () => {
       expect(logger.warn.mock.calls[0]?.[0]).toContain(".reasonix/config.toml");
     });
 
+    describe("user-only [sandbox] keys", () => {
+      const userOnlySandbox = {
+        allow_devices: ["/dev/nvidia*"],
+        egress_unlisted: "allow",
+        host_authorities: ["docker"],
+        network: false,
+      };
+
+      const generateSandbox = async ({
+        sandbox,
+        global,
+        existing,
+      }: {
+        sandbox: Record<string, unknown>;
+        global: boolean;
+        existing?: Record<string, unknown>;
+      }) => {
+        if (existing !== undefined) {
+          await writeFileContent(
+            join(testDir, ...(global ? [".reasonix", "config.toml"] : ["reasonix.toml"])),
+            smolToml.stringify(existing),
+          );
+        }
+        const logger = createMockLogger();
+        const instance = await ReasonixPermissions.fromRulesyncPermissions({
+          outputRoot: testDir,
+          rulesyncPermissions: new RulesyncPermissions({
+            relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+            relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+            fileContent: JSON.stringify({ permission: {}, reasonix: { sandbox } }),
+          }),
+          global,
+          logger,
+        });
+        const parsed = smolToml.parse(instance.getFileContent()) as any;
+        const messages = logger.warn.mock.calls.map(([message]) => String(message));
+        return { parsed, messages };
+      };
+
+      it("writes them globally and names each one as trust-affecting", async () => {
+        const { parsed, messages } = await generateSandbox({
+          sandbox: userOnlySandbox,
+          global: true,
+        });
+
+        expect(parsed.sandbox).toEqual(userOnlySandbox);
+        expect(messages).toHaveLength(1);
+        expect(messages[0]).toContain("3 trust-affecting changes to .reasonix/config.toml");
+        expect(messages[0]).toContain("'sandbox.allow_devices'");
+        expect(messages[0]).toContain("'sandbox.egress_unlisted'");
+        expect(messages[0]).toContain("'sandbox.host_authorities'");
+      });
+
+      it("stays quiet about their restrictive values", async () => {
+        const { messages } = await generateSandbox({
+          sandbox: { allow_devices: [], egress_unlisted: " Ask", host_authorities: ["ssh_agent"] },
+          global: true,
+        });
+
+        expect(messages).toEqual([]);
+      });
+
+      it.each<[string, unknown]>([
+        ["egress_unlisted", "ALLOW"],
+        ["egress_unlisted", "alow"],
+        ["egress_unlisted", true],
+        ["host_authorities", ["ssh_agent", "podman"]],
+        ["host_authorities", "docker"],
+        ["allow_devices", "/dev/kvm"],
+      ])("announces %s = %j", async (key, value) => {
+        const { messages } = await generateSandbox({ sandbox: { [key]: value }, global: true });
+
+        expect(messages).toHaveLength(1);
+        expect(messages[0]).toContain(`'sandbox.${key}'`);
+      });
+
+      it("skips them in project scope and keeps the file's values", async () => {
+        const { parsed, messages } = await generateSandbox({
+          sandbox: userOnlySandbox,
+          global: false,
+          existing: { sandbox: { host_authorities: ["ssh_agent"] } },
+        });
+
+        expect(parsed.sandbox).toEqual({ host_authorities: ["ssh_agent"], network: false });
+        expect(messages).toHaveLength(1);
+        expect(messages[0]).toContain(
+          "skipping reasonix.sandbox.allow_devices, reasonix.sandbox.egress_unlisted, " +
+            "reasonix.sandbox.host_authorities",
+        );
+        expect(messages[0]).toContain("only from the user config");
+      });
+
+      it("still names the other trust-affecting keys in project scope", async () => {
+        const { parsed, messages } = await generateSandbox({
+          sandbox: { egress_unlisted: "allow", network: true },
+          global: false,
+        });
+
+        expect(parsed.sandbox).toEqual({ network: true });
+        expect(messages).toHaveLength(2);
+        expect(messages.join("\n")).toContain("'sandbox.network'");
+        expect(messages.join("\n")).not.toContain("'sandbox.egress_unlisted'");
+      });
+    });
+
     describe("reasonix.mode", () => {
       const generateMode = async ({
         mode,
@@ -1229,6 +1334,36 @@ describe("ReasonixPermissions", () => {
       expect(globalConfig.reasonix.mode).toBe("deny");
       // Inert in a project file, so it stays there instead of entering the override.
       expect(projectConfig.reasonix?.mode).toBeUndefined();
+    });
+
+    it("should lift the user-only [sandbox] keys from the global config only", async () => {
+      const sandboxToml = [
+        "[sandbox]",
+        "network = false",
+        'allow_devices = ["/dev/nvidia*"]',
+        'egress_unlisted = "allow"',
+        'host_authorities = ["docker"]',
+      ].join("\n");
+      await writeFileContent(join(testDir, ".reasonix", "config.toml"), sandboxToml);
+      await writeFileContent(join(testDir, "reasonix.toml"), sandboxToml);
+
+      const globalConfig = (
+        await ReasonixPermissions.fromFile({ outputRoot: testDir, global: true })
+      )
+        .toRulesyncPermissions()
+        .getJson() as Record<string, any>;
+      const projectConfig = (await ReasonixPermissions.fromFile({ outputRoot: testDir }))
+        .toRulesyncPermissions()
+        .getJson() as Record<string, any>;
+
+      expect(globalConfig.reasonix.sandbox).toEqual({
+        network: false,
+        allow_devices: ["/dev/nvidia*"],
+        egress_unlisted: "allow",
+        host_authorities: ["docker"],
+      });
+      // Inert in a project file, so they stay there instead of entering the override.
+      expect(projectConfig.reasonix.sandbox).toEqual({ network: false });
     });
 
     it("should not lift a mode Reasonix does not document", async () => {
