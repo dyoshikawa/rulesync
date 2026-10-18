@@ -627,16 +627,18 @@ describe("committedOutput check outputs", () => {
     expect(toolCommandFactories.get("lettacode")?.meta.committedOutput).toBe(true);
   });
 
-  it("never ignores GitLab Duo's committed root skills directory", () => {
+  it("never ignores GitLab Duo's import-only root skills directory", () => {
     const entries = deriveAllGitignoreEntries()
       .filter((tag) => tag.target === "gitlabduo")
       .map((tag) => tag.entry);
-    // GitLab Duo reads project skills from the repository-root `skills/`; a
-    // recursive entry for it would also swallow unrelated `skills` directories
-    // such as rulesync's own distributed skills. Its checks file is committed
-    // too; only the shared `.agents/commands/` and its local-only files remain.
+    // GitLab Duo also reads project skills from the repository-root `skills/`,
+    // which rulesync only imports from; a recursive entry for it would swallow
+    // unrelated `skills` directories such as rulesync's own distributed skills.
+    // Its checks file is committed too, so only the shared `.agents/` trees and
+    // its local-only files remain.
     expect(entries.toSorted()).toEqual([
       "**/.agents/commands/",
+      "**/.agents/skills/",
       "**/.gitlab/duo/chat-rules.md",
       "**/.gitlab/duo/hooks.json",
       "**/.gitlab/duo/mcp.json",
@@ -682,10 +684,5 @@ describe("committedOutput check outputs", () => {
       (factory) => factory.meta.committedOutput === true,
     );
     expect(flagged.length).toBeGreaterThan(0);
-  });
-
-  it("keeps the committedOutput flag meaningful for skills (gitlabduo sets it)", async () => {
-    const { toolSkillFactories } = await import("../../features/skills/skills-processor.js");
-    expect(toolSkillFactories.get("gitlabduo")?.meta.committedOutput).toBe(true);
   });
 });

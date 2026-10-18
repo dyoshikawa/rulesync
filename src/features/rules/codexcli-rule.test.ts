@@ -966,9 +966,14 @@ interface ApiResponse<T> {
       await expect(readCodexcliProjectDocMaxBytes(testDir)).resolves.toBeUndefined();
     });
 
+    it("should return 0 when project docs are disabled with project_doc_max_bytes = 0", async () => {
+      await writeConfig("project_doc_max_bytes = 0\n");
+
+      await expect(readCodexcliProjectDocMaxBytes(testDir)).resolves.toBe(0);
+    });
+
     it.each([
       ["a string", 'project_doc_max_bytes = "131072"\n'],
-      ["zero", "project_doc_max_bytes = 0\n"],
       ["a negative number", "project_doc_max_bytes = -1\n"],
       ["a float", "project_doc_max_bytes = 1.5\n"],
     ])("should return undefined when the value is %s", async (_label, content) => {

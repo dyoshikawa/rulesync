@@ -2340,9 +2340,10 @@ Test skill content`;
       },
     );
 
-    it("should not sweep a committed project skills root (gitlabduo)", async () => {
-      // GitLab Duo reads project skills from the repository-root `skills/`,
-      // which routinely holds hand-authored skills rulesync never generated.
+    it("should sweep gitlabduo's .agents/skills but never its import-only skills/ root", async () => {
+      // GitLab Duo also reads the repository-root `skills/`, which routinely
+      // holds hand-authored skills rulesync never generated, so only the
+      // `.agents/skills/` root rulesync writes is swept.
       const processor = new SkillsProcessor({
         logger: createMockLogger(),
         outputRoot: testDir,
@@ -2352,8 +2353,16 @@ Test skill content`;
         join(testDir, "skills", "hand-authored", "SKILL.md"),
         "---\nname: hand-authored\ndescription: Test skill\n---\nContent",
       );
+      await writeFileContent(
+        join(testDir, ".agents", "skills", "orphan", "SKILL.md"),
+        "---\nname: orphan\ndescription: Test skill\n---\nContent",
+      );
 
-      expect(await processor.loadToolDirsToDelete()).toEqual([]);
+      const dirsToDelete = await processor.loadToolDirsToDelete();
+
+      expect(dirsToDelete.map((dir) => dir.getRelativePathFromCwd())).toEqual([
+        ".agents/skills/orphan",
+      ]);
     });
 
     it("should not sweep a cursor category folder without SKILL.md", async () => {
