@@ -11,7 +11,13 @@ import { parseJsonc as parseJsoncStrict } from "../../utils/jsonc.js";
 import type { Logger } from "../../utils/logger.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { isRecord } from "../../utils/type-guards.js";
-import { findOpencodeV2McpContainers, lowerOpencodeV2Mcp } from "../opencode-config.js";
+import {
+  findOpencodeV2McpContainers,
+  lowerOpencodeV2Mcp,
+  mergeOpencodeConfigValues,
+  readOpencodeDotDirConfigLayers,
+  warnOpencodeDotDirOverrides,
+} from "../opencode-config.js";
 import {
   applySharedConfigPatch,
   sharedConfigFileKey,
@@ -561,7 +567,19 @@ export class OpencodeMcp extends ToolMcp {
     }
 
     const fileContentToUse = fileContent ?? '{"mcp":{}}';
-    const json = parseJsonc(fileContentToUse);
+    // OpenCode merges `.opencode/opencode.json(c)` over the root config, so
+    // their servers are imported too, each file lowered on its own first.
+    const overlays = await readOpencodeDotDirConfigLayers({
+      outputRoot,
+      global,
+      layout: this.layout,
+    });
+    const json =
+      overlays.length === 0
+        ? parseJsonc(fileContentToUse)
+        : [parseJsonc(fileContentToUse), ...overlays.map(({ config }) => config)]
+            .map((layer: unknown) => this.lowerConfig(layer, logger))
+            .reduce(mergeOpencodeConfigValues);
     const newJson = { ...json, mcp: json.mcp ?? {} };
 
     return new this({
@@ -625,6 +643,19 @@ export class OpencodeMcp extends ToolMcp {
       (existingMcp.success ? existingMcp.data.mcp : undefined) ?? {},
       logger,
     );
+    const generatedMcp = undefinedWhenEmpty(convertedMcp);
+    const generatedTools = Object.keys(mcpTools).length > 0 ? mcpTools : undefined;
+    warnOpencodeDotDirOverrides({
+      generated: { mcp: generatedMcp, tools: generatedTools },
+      overlays: (
+        await readOpencodeDotDirConfigLayers({ outputRoot, global, layout: this.layout })
+      ).map((overlay) => {
+        const lowered = this.lowerConfig(overlay.config);
+        return { ...overlay, config: isRecord(lowered) ? lowered : {} };
+      }),
+      rootFileName: relativeFilePath,
+      logger,
+    });
 
     return new this({
       outputRoot,
@@ -637,10 +668,7 @@ export class OpencodeMcp extends ToolMcp {
         fileKey: sharedConfigFileKey(basePaths),
         feature: "mcp",
         existingContent: fileContent ?? "",
-        patch: {
-          mcp: undefinedWhenEmpty(convertedMcp),
-          tools: Object.keys(mcpTools).length > 0 ? mcpTools : undefined,
-        },
+        patch: { mcp: generatedMcp, tools: generatedTools },
         filePath: join(jsonDir, relativeFilePath),
         logger,
       }),

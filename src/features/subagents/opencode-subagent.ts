@@ -11,8 +11,8 @@ import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.
 import {
   asOpencodeEntries,
   getOpencodeAgentEntries,
-  getOpencodeConfigDir,
-  readOpencodeConfig,
+  mergeOpencodeEntryLayers,
+  readOpencodeConfigLayers,
   resolveOpencodeFileTemplate,
 } from "../opencode-config.js";
 import { OpenCodeStyleSubagent, OpenCodeStyleSubagentParams } from "./opencode-style-subagent.js";
@@ -88,6 +88,41 @@ async function resolveOpenCodeAgentPrompt({
     return "";
   }
   return resolveOpencodeFileTemplate({ value: prompt, configDir });
+}
+
+/**
+ * Resolves the `prompt` of each inline agent entry of one config file against
+ * that file's directory, so entries from several files can be merged without
+ * losing where a `"{file:./path}"` reference points.
+ */
+async function resolveOpenCodeAgentPrompts({
+  entries,
+  configDir,
+}: {
+  entries: Record<string, unknown> | null;
+  configDir: string;
+}): Promise<Record<string, unknown> | null> {
+  if (entries === null) {
+    return null;
+  }
+  const resolved: Record<string, unknown> = {};
+  for (const [name, rawEntry] of Object.entries(entries)) {
+    const entry = asOpencodeEntries(rawEntry);
+    const value =
+      entry === null || !Object.hasOwn(entry, "prompt")
+        ? rawEntry
+        : {
+            ...entry,
+            prompt: await resolveOpenCodeAgentPrompt({ prompt: entry.prompt, configDir }),
+          };
+    Object.defineProperty(resolved, name, {
+      value,
+      enumerable: true,
+      configurable: true,
+      writable: true,
+    });
+  }
+  return resolved;
 }
 
 export class OpenCodeSubagent extends OpenCodeStyleSubagent {
@@ -200,8 +235,9 @@ export class OpenCodeSubagent extends OpenCodeStyleSubagent {
   }
 
   /**
-   * Imports agents defined inline in `opencode.json` / `opencode.jsonc` under
-   * the top-level `agent` key — or its V2 spelling `agents`, see
+   * Imports agents defined inline in `opencode.json` / `opencode.jsonc` (and,
+   * at project scope, `.opencode/opencode.json(c)`, which OpenCode merges over
+   * them) under the top-level `agent` key — or its V2 spelling `agents`, see
    * `getOpencodeAgentEntries` — (in addition to the Markdown files under
    * `.opencode/agents/`). Each entry's `prompt` becomes the subagent body
    * (a `"{file:./path}"` reference is resolved relative to the config file's
@@ -220,14 +256,24 @@ export class OpenCodeSubagent extends OpenCodeStyleSubagent {
     outputRoot?: string;
     global?: boolean;
   } = {}): Promise<OpenCodeSubagent[]> {
-    const config = await readOpencodeConfig({ outputRoot, global, layout: this.layout });
-    const agentEntries = getOpencodeAgentEntries({ config, layout: this.layout });
+    // Each file is lowered on its own and its `prompt` resolved against its
+    // own directory before the files are merged, later files winning, as
+    // OpenCode merges `.opencode/opencode.json(c)` over the root config.
+    const layers = await readOpencodeConfigLayers({ outputRoot, global, layout: this.layout });
+    const layerEntries = await Promise.all(
+      layers.map(({ config, configDir }) =>
+        resolveOpenCodeAgentPrompts({
+          entries: getOpencodeAgentEntries({ config, layout: this.layout }),
+          configDir,
+        }),
+      ),
+    );
+    const agentEntries = mergeOpencodeEntryLayers(layerEntries);
     if (!agentEntries) {
       return [];
     }
 
     const paths = this.getSettablePaths({ global });
-    const configDir = getOpencodeConfigDir({ outputRoot, global, layout: this.layout });
     const subagents: OpenCodeSubagent[] = [];
 
     for (const [name, rawEntry] of Object.entries(agentEntries)) {
@@ -237,7 +283,7 @@ export class OpenCodeSubagent extends OpenCodeStyleSubagent {
       }
 
       const { prompt, ...frontmatterFields } = entry;
-      const body = await resolveOpenCodeAgentPrompt({ prompt, configDir });
+      const body = typeof prompt === "string" ? prompt : "";
 
       const parseResult = OpenCodeSubagentFrontmatterSchema.safeParse(frontmatterFields);
       if (!parseResult.success) {

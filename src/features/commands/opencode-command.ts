@@ -10,7 +10,8 @@ import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.
 import {
   asOpencodeEntries,
   getOpencodeCommandEntries,
-  readOpencodeConfig,
+  mergeOpencodeEntryLayers,
+  readOpencodeConfigLayers,
 } from "../opencode-config.js";
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
 import {
@@ -205,8 +206,9 @@ export class OpenCodeCommand extends ToolCommand {
   }
 
   /**
-   * Imports commands defined inline in `opencode.json` / `opencode.jsonc` under
-   * the top-level `command` key — or its V2 spelling `commands`, see
+   * Imports commands defined inline in `opencode.json` / `opencode.jsonc` (and,
+   * at project scope, `.opencode/opencode.json(c)`, which OpenCode merges over
+   * them) under the top-level `command` key — or its V2 spelling `commands`, see
    * `getOpencodeCommandEntries` — (in addition to the Markdown files under
    * `.opencode/commands/`). Each entry's `template` becomes the command body,
    * while `description` / `agent` / `model` / `variant` / `subtask` map to the
@@ -225,8 +227,12 @@ export class OpenCodeCommand extends ToolCommand {
     outputRoot?: string;
     global?: boolean;
   } = {}): Promise<OpenCodeCommand[]> {
-    const config = await readOpencodeConfig({ outputRoot, global, layout: this.layout });
-    const commandEntries = getOpencodeCommandEntries({ config, layout: this.layout });
+    // Each file is lowered on its own and later files win, as OpenCode merges
+    // `.opencode/opencode.json(c)` over the root config.
+    const layers = await readOpencodeConfigLayers({ outputRoot, global, layout: this.layout });
+    const commandEntries = mergeOpencodeEntryLayers(
+      layers.map(({ config }) => getOpencodeCommandEntries({ config, layout: this.layout })),
+    );
     if (!commandEntries) {
       return [];
     }

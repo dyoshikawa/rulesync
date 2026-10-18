@@ -2,7 +2,9 @@ import { join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 
 import { OPENCODE_LAYOUT, type OpencodeLayout } from "../constants/opencode-paths.js";
-import { readFileContentOrNull } from "../utils/file.js";
+import { readFileContentOrNull, toPosixPath } from "../utils/file.js";
+import type { Logger } from "../utils/logger.js";
+import { quoteValueForWarning } from "../utils/quote-value.js";
 import { isRecord, isStringArray } from "../utils/type-guards.js";
 import { parseSharedConfig } from "./shared/shared-config-gateway.js";
 
@@ -51,6 +53,168 @@ export async function readOpencodeConfig({
   }
 
   return parseSharedConfig({ format: "jsonc", fileContent });
+}
+
+/** One parsed OpenCode config file and the directory its relative paths resolve against. */
+export type OpencodeConfigLayer = {
+  /** Absolute directory holding the file. */
+  configDir: string;
+  config: Record<string, unknown>;
+};
+
+/** A `.opencode/` config file, with its path relative to `outputRoot` for messages. */
+export type OpencodeDotDirConfigLayer = OpencodeConfigLayer & { relativeFilePath: string };
+
+/**
+ * Reads the project-scope config files OpenCode merges over the root
+ * `opencode.json(c)`: `.opencode/opencode.json`, then `.opencode/opencode.jsonc`,
+ * in the order OpenCode loads them (a later file wins). Returns an empty list
+ * in global mode and for layouts without this location (MiMo Code).
+ *
+ * @see https://opencode.ai/docs/config/#precedence-order
+ * @see https://github.com/anomalyco/opencode/blob/v1.19.3/packages/opencode/src/config/config.ts
+ */
+export async function readOpencodeDotDirConfigLayers({
+  outputRoot,
+  global = false,
+  layout = OPENCODE_LAYOUT,
+}: {
+  outputRoot: string;
+  global?: boolean;
+  layout?: OpencodeLayout;
+}): Promise<OpencodeDotDirConfigLayer[]> {
+  if (global || !layout.readsDotDirConfig) {
+    return [];
+  }
+  const configDir = join(outputRoot, layout.dir);
+  const layers: OpencodeDotDirConfigLayer[] = [];
+  for (const fileName of [layout.jsonFileName, layout.jsoncFileName]) {
+    const fileContent = await readFileContentOrNull(join(configDir, fileName));
+    if (fileContent === null) {
+      continue;
+    }
+    layers.push({
+      relativeFilePath: join(layout.dir, fileName),
+      configDir,
+      config: parseSharedConfig({ format: "jsonc", fileContent }),
+    });
+  }
+  return layers;
+}
+
+/**
+ * Reads every OpenCode config file that applies at this scope, lowest
+ * precedence first: the root config (see {@link readOpencodeConfig}), then the
+ * `.opencode/` files (see {@link readOpencodeDotDirConfigLayers}).
+ */
+export async function readOpencodeConfigLayers({
+  outputRoot,
+  global = false,
+  layout = OPENCODE_LAYOUT,
+}: {
+  outputRoot: string;
+  global?: boolean;
+  layout?: OpencodeLayout;
+}): Promise<OpencodeConfigLayer[]> {
+  return [
+    {
+      configDir: getOpencodeConfigDir({ outputRoot, global, layout }),
+      config: await readOpencodeConfig({ outputRoot, global, layout }),
+    },
+    ...(await readOpencodeDotDirConfigLayers({ outputRoot, global, layout })),
+  ];
+}
+
+/**
+ * Deep-merges `source` over `target` the way OpenCode merges its config files
+ * (remeda's `mergeDeep`): plain objects merge key by key, and any other value —
+ * arrays included — replaces the target's.
+ */
+export function mergeOpencodeConfigValues(target: unknown, source: unknown): unknown {
+  if (!isRecord(target) || !isRecord(source)) {
+    return source;
+  }
+  const merged: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(target)) {
+    setOwnEntry(merged, key, value);
+  }
+  for (const [key, value] of Object.entries(source)) {
+    setOwnEntry(
+      merged,
+      key,
+      Object.hasOwn(target, key) ? mergeOpencodeConfigValues(target[key], value) : value,
+    );
+  }
+  return merged;
+}
+
+/**
+ * Merges per-file entry maps (the `command` or `agent` entries of each config
+ * layer, lowest precedence first) into one, as OpenCode does. Returns `null`
+ * when no layer has entries.
+ */
+export function mergeOpencodeEntryLayers(
+  layers: Array<Record<string, unknown> | null>,
+): Record<string, unknown> | null {
+  let merged: Record<string, unknown> | null = null;
+  for (const entries of layers) {
+    if (entries === null) {
+      continue;
+    }
+    const next = mergeOpencodeConfigValues(merged ?? {}, entries);
+    merged = isRecord(next) ? next : merged;
+  }
+  return merged;
+}
+
+/**
+ * Warns when a `.opencode/opencode.json(c)` file sets entries that the
+ * generated root config also sets. OpenCode merges those files over the root
+ * config, so their entries win and the generated ones never take effect.
+ *
+ * `generated` maps each top-level key rulesync writes (`mcp`, `permission`) to
+ * its generated value. `overlays` are the `.opencode/` layers, already lowered
+ * by the caller where needed.
+ */
+export function warnOpencodeDotDirOverrides({
+  generated,
+  overlays,
+  rootFileName,
+  logger,
+}: {
+  generated: Record<string, unknown>;
+  overlays: OpencodeDotDirConfigLayer[];
+  rootFileName: string;
+  logger?: Logger;
+}): void {
+  if (!logger) {
+    return;
+  }
+  for (const overlay of overlays) {
+    const overridden: string[] = [];
+    for (const [key, value] of Object.entries(generated)) {
+      if (value === undefined || !Object.hasOwn(overlay.config, key)) {
+        continue;
+      }
+      const overlayValue = overlay.config[key];
+      if (!isRecord(value) || !isRecord(overlayValue)) {
+        overridden.push(`"${key}"`);
+        continue;
+      }
+      for (const name of Object.keys(value)) {
+        if (Object.hasOwn(overlayValue, name)) {
+          overridden.push(`"${key}" > ${quoteValueForWarning(name)}`);
+        }
+      }
+    }
+    if (overridden.length > 0) {
+      logger.warn(
+        `OpenCode merges "${toPosixPath(overlay.relativeFilePath)}" over the generated ` +
+          `"${rootFileName}", so its values for these generated entries take precedence: ` +
+          `${overridden.join(", ")}.`,
+      );
+    }
+  }
 }
 
 /**
