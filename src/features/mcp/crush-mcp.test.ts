@@ -111,6 +111,11 @@ describe("CrushMcp", () => {
             crushOauthClientId: "id",
             crushOauthClientSecret: "client-secret-value",
             crushOauthCallbackPort: 8765,
+            crushChannelEnabled: true,
+            crushChannelReply: {
+              user: { tool: "send_message_to_user", target_param: "user_id" },
+              message_param: "text",
+            },
             // Claude Code's OAuth object is not Crush's boolean and is ignored.
             oauth: { clientId: "claude" },
           },
@@ -130,6 +135,11 @@ describe("CrushMcp", () => {
           oauth_client_id: "id",
           oauth_client_secret: "client-secret-value",
           oauth_callback_port: 8765,
+          channel_enabled: true,
+          channel_reply: {
+            user: { tool: "send_message_to_user", target_param: "user_id" },
+            message_param: "text",
+          },
         },
       });
     });
@@ -146,8 +156,12 @@ describe("CrushMcp", () => {
             oauth_client_id: "id",
             oauth_callback_port: 8765,
             sessionless: true,
+            channel_enabled: true,
+            channel_reply: { group: { tool: "send", target_param: "chat_id" } },
           },
           typed: { url: "https://example.com/mcp", crushOauth: false, oauth: true },
+          // A non-object reply route is refused rather than written.
+          bad: { command: "fs", crushChannelReply: "send", channel_enabled: "yes" },
         }),
       });
 
@@ -158,8 +172,11 @@ describe("CrushMcp", () => {
           oauth_client_id: "id",
           oauth_callback_port: 8765,
           sessionless: true,
+          channel_enabled: true,
+          channel_reply: { group: { tool: "send", target_param: "chat_id" } },
         },
         typed: { type: "http", url: "https://example.com/mcp", oauth: false },
+        bad: { type: "stdio", command: "fs" },
       });
     });
 
@@ -342,6 +359,8 @@ describe("CrushMcp", () => {
               oauth: true,
               oauth_client_secret: "client-secret-value",
               oauth_callback_port: "not-a-port",
+              channel_enabled: true,
+              channel_reply: { user: { tool: "reply", target_param: "user_id" } },
             },
           },
         }),
@@ -358,6 +377,8 @@ describe("CrushMcp", () => {
             crushSessionless: true,
             crushOauth: true,
             crushOauthClientSecret: "client-secret-value",
+            crushChannelEnabled: true,
+            crushChannelReply: { user: { tool: "reply", target_param: "user_id" } },
           },
         },
       });

@@ -39,7 +39,9 @@ import {
  * Crush-only MCP fields with no canonical counterpart, authored under a
  * `crush`-prefixed key in `.rulesync/mcp.jsonc` and written under Crush's own
  * name: `oauth*` drive Crush's OAuth 2.1 flow for HTTP servers and
- * `sessionless` marks a server that issues no `Mcp-Session-Id`.
+ * `sessionless` marks a server that issues no `Mcp-Session-Id`, and
+ * `channel_enabled` / `channel_reply` (v0.97.0) turn a server that implements
+ * Claude Channels into a channel and route replies back through its tools.
  * `RulesyncMcp.getMcpServers()` strips both spellings so the client secret
  * never reaches another tool's config; `fromRulesyncMcp` re-merges them from
  * the raw source JSON, honouring the raw Crush spelling as a fallback for an
@@ -90,6 +92,21 @@ const CRUSH_ONLY_KEYS: readonly {
     canonical: "crushSessionless",
     crush: "sessionless",
     accepts: (v) => typeof v === "boolean",
+    rawFallback: true,
+  },
+  {
+    canonical: "crushChannelEnabled",
+    crush: "channel_enabled",
+    accepts: (v) => typeof v === "boolean",
+    rawFallback: true,
+  },
+  {
+    // Crush decodes it into its `MCPChannelReply` struct (`user` / `group`
+    // routes, `message_param`, `suppress_tools`); the object is forwarded as
+    // authored and only a non-object is refused.
+    canonical: "crushChannelReply",
+    crush: "channel_reply",
+    accepts: isRecord,
     rawFallback: true,
   },
 ];
@@ -284,8 +301,8 @@ function convertToCrushFormat(mcpServers: McpServers, logger?: Logger): Record<s
  * servers. `stdio` is Crush's default `type`, so it is dropped (a canonical
  * server with a `command` is stdio already); `http` and `sse` are kept as the
  * canonical transport names; `disabled_tools`/`enabled_tools` become the
- * canonical `disabledTools`/`enabledTools`; the Crush-only OAuth and
- * `sessionless` fields are lifted into their `crush*` authoring keys (a value
+ * canonical `disabledTools`/`enabledTools`; the Crush-only OAuth,
+ * `sessionless` and channel fields are lifted into their `crush*` authoring keys (a value
  * of the wrong type is dropped, as Crush itself would refuse it), and any
  * other key is kept verbatim so an import preserves what a hand-authored
  * entry declared.
