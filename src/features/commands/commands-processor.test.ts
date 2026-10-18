@@ -1446,6 +1446,47 @@ describe("CommandsProcessor", () => {
   });
 
   describe("loadToolFiles with forDeletion: true", () => {
+    it("never sweeps a committedOutput project root (Letta Code's .commands/)", async () => {
+      await writeFileContent(join(testDir, ".commands", "hand-written.md"), "Hand-written prompt");
+
+      const actualFile =
+        await vi.importActual<typeof import("../../utils/file.js")>("../../utils/file.js");
+      mockFindFilesByGlobs.mockImplementation(actualFile.findFilesByGlobs);
+
+      try {
+        const projectProcessor = new CommandsProcessor({
+          logger,
+          outputRoot: testDir,
+          toolTarget: "lettacode",
+        });
+        expect(await projectProcessor.loadToolFiles({ forDeletion: true })).toEqual([]);
+        expect(mockFindFilesByGlobs).not.toHaveBeenCalled();
+      } finally {
+        mockFindFilesByGlobs.mockReset();
+      }
+    });
+
+    it("still sweeps a committedOutput target at global scope", async () => {
+      await writeFileContent(join(testDir, ".letta", "commands", "stale.md"), "Stale prompt");
+
+      const actualFile =
+        await vi.importActual<typeof import("../../utils/file.js")>("../../utils/file.js");
+      mockFindFilesByGlobs.mockImplementation(actualFile.findFilesByGlobs);
+
+      try {
+        const globalProcessor = new CommandsProcessor({
+          logger,
+          outputRoot: testDir,
+          toolTarget: "lettacode",
+          global: true,
+        });
+        const toolFiles = await globalProcessor.loadToolFiles({ forDeletion: true });
+        expect(toolFiles.map((file) => file.getRelativeFilePath())).toEqual(["stale.md"]);
+      } finally {
+        mockFindFilesByGlobs.mockReset();
+      }
+    });
+
     it("should load files when the output root contains glob metacharacters", async () => {
       const literalRoot = join(testDir, "project(glob)");
       await writeFileContent(

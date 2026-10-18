@@ -365,7 +365,6 @@ rulesync.local.jsonc
 **/.kilo/commands/
 **/.kimi-code/skills/
 **/.kiro/prompts/
-**/.commands/
 **/.mimocode/commands/
 **/.omp/commands/
 **/.opencode/commands/

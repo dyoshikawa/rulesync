@@ -175,6 +175,21 @@ type ToolCommandFactory = {
      * or crashing on — files that feature (or the user) placed there.
      */
     skipToolFileScan?: boolean;
+    /**
+     * Whether the upstream tool reads the project commands from the
+     * **committed** repository through a root too generic to ignore (Letta
+     * Code's repository-root `.commands/`). The gitignore derivation skips such
+     * outputs: a recursive entry for `.commands/` would hide hand-authored
+     * prompts that belong in version control.
+     *
+     * The `--delete` orphan sweep also leaves such a project root alone: it
+     * routinely holds hand-authored commands that no `.rulesync/commands/`
+     * source accounts for, and nothing on disk tells them apart from a command
+     * rulesync generated earlier. Generation still overwrites the commands it
+     * emits; a stale generated command there has to be removed by hand. Global
+     * scope is swept as usual.
+     */
+    committedOutput?: boolean;
     failOnFlattenCollision?: boolean;
     /**
      * When true, a command from `loadAdditionalImportFiles` is treated as a
@@ -642,9 +657,8 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
     {
       // Letta Code custom slash commands: `*.md` files discovered recursively
       // under `.commands/` (project, at the working-directory root rather than
-      // under `.letta/`) and `~/.letta/commands/` (global). A subdirectory is a
-      // namespace. `--delete` never sweeps the generic project `.commands/`
-      // directory; see `LettacodeCommand.forDeletion`.
+      // under `.letta/`) and `~/.letta/commands/` (global). Commands are
+      // invoked by basename; subdirectories only organize files.
       // https://docs.letta.com/platform/cli/slash-commands
       class: LettacodeCommand,
       meta: {
@@ -653,6 +667,10 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
         supportsGlobal: true,
         isSimulated: false,
         supportsSubdirectory: true,
+        // The project `.commands/` is a generic repository-root directory that
+        // is committed and may hold hand-written prompts: not gitignored, and
+        // never swept by `--delete`.
+        committedOutput: true,
       },
     },
   ],
@@ -1156,6 +1174,23 @@ export class CommandsProcessor extends FeatureProcessor {
   }
 
   /**
+   * Whether {@link loadToolFiles} must not scan the tool's output tree at all.
+   * `skipToolFileScan` targets never scan it; a `committedOutput` target is not
+   * swept at project scope, because nothing on disk tells a hand-written
+   * command in such a committed root apart from one rulesync generated.
+   */
+  private skipsToolFileScan({
+    factory,
+    forDeletion,
+  }: {
+    factory: ToolCommandFactory;
+    forDeletion: boolean;
+  }): boolean {
+    if (factory.meta.skipToolFileScan) return true;
+    return forDeletion && factory.meta.committedOutput === true && !this.global;
+  }
+
+  /**
    * Implementation of abstract method from FeatureProcessor
    * Load tool-specific command configurations and parse them into ToolCommand instances
    */
@@ -1165,7 +1200,7 @@ export class CommandsProcessor extends FeatureProcessor {
     forDeletion?: boolean;
   } = {}): Promise<ToolFile[]> {
     const factory = this.getFactory(this.toolTarget);
-    if (factory.meta.skipToolFileScan) {
+    if (this.skipsToolFileScan({ factory, forDeletion })) {
       return [];
     }
     const paths = factory.class.getSettablePaths({ global: this.global });

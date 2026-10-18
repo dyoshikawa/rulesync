@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { basename, join } from "node:path";
 
 import { z } from "zod/mini";
 
@@ -42,8 +42,6 @@ export type LettacodeCommandFrontmatter = z.infer<typeof LettacodeCommandFrontma
 export type LettacodeCommandParams = {
   frontmatter: LettacodeCommandFrontmatter;
   body: string;
-  /** False for a project-scope deletion candidate; see {@link LettacodeCommand.forDeletion}. */
-  deletable?: boolean;
 } & Omit<AiFileParams, "fileContent">;
 
 function pickLettacodeFrontmatter({
@@ -75,9 +73,10 @@ function pickLettacodeFrontmatter({
 /**
  * Letta Code custom slash commands: Markdown prompt files under `.commands/`
  * (project, at the working-directory root) and `~/.letta/commands/` (global),
- * discovered recursively. The file basename is the command id and a
- * subdirectory is a namespace; a project command wins over a global one with
- * the same id. Frontmatter supports `description` (defaulting to the first body
+ * discovered recursively. The file basename is the command id
+ * (`git/commit.md` is invoked as `/commit`; `findCustomCommand` matches the
+ * id only), so two files with the same basename collide and the first one
+ * found wins; a project command wins over a global one with the same id. Frontmatter supports `description` (defaulting to the first body
  * line) and `argument-hint`; the body supports `$ARGUMENTS`, `$1`..`$9`,
  * `` !`command` `` and `@file`.
  *
@@ -91,9 +90,8 @@ function pickLettacodeFrontmatter({
 export class LettacodeCommand extends ToolCommand {
   private readonly frontmatter: LettacodeCommandFrontmatter;
   private readonly body: string;
-  private readonly deletable: boolean;
 
-  constructor({ frontmatter, body, deletable = true, ...rest }: LettacodeCommandParams) {
+  constructor({ frontmatter, body, ...rest }: LettacodeCommandParams) {
     if (rest.validate) {
       const result = LettacodeCommandFrontmatterSchema.safeParse(frontmatter);
       if (!result.success) {
@@ -110,7 +108,6 @@ export class LettacodeCommand extends ToolCommand {
 
     this.frontmatter = frontmatter;
     this.body = body;
-    this.deletable = deletable;
   }
 
   static getSettablePaths({ global = false }: { global?: boolean } = {}): ToolCommandSettablePaths {
@@ -127,10 +124,6 @@ export class LettacodeCommand extends ToolCommand {
 
   getFrontmatter(): Record<string, unknown> {
     return this.frontmatter;
-  }
-
-  override isDeletable(): boolean {
-    return this.deletable;
   }
 
   toRulesyncCommand(): RulesyncCommand {
@@ -204,6 +197,37 @@ export class LettacodeCommand extends ToolCommand {
     };
   }
 
+  /**
+   * Warn when two targeted commands share a basename. Letta Code invokes a
+   * command by its basename only, so `git/commit.md` and `release/commit.md`
+   * are both `/commit` and only the first one Letta Code finds is reachable.
+   * Both files are still written, so this warns instead of failing the run.
+   */
+  static validateRulesyncCommands({
+    rulesyncCommands,
+    logger,
+  }: {
+    rulesyncCommands: RulesyncCommand[];
+    logger: Logger;
+  }): void {
+    const pathsById = new Map<string, string[]>();
+    for (const command of rulesyncCommands) {
+      if (!this.isTargetedByRulesyncCommand(command)) continue;
+      const relativeFilePath = command.getRelativeFilePath();
+      const id = basename(relativeFilePath, ".md");
+      pathsById.set(id, [...(pathsById.get(id) ?? []), relativeFilePath]);
+    }
+    for (const [id, paths] of pathsById) {
+      if (paths.length < 2) continue;
+      logger.warn(
+        `Letta Code invokes commands by file basename, so ${paths
+          .map((path) => quoteForLog(path))
+          .join(", ")} are all /${stripControlCharacters(id)} and only one of them is reachable. ` +
+          `Rename them to make each invocable.`,
+      );
+    }
+  }
+
   static isTargetedByRulesyncCommand(rulesyncCommand: RulesyncCommand): boolean {
     return this.isTargetedByRulesyncCommandDefault({
       rulesyncCommand,
@@ -238,14 +262,6 @@ export class LettacodeCommand extends ToolCommand {
     });
   }
 
-  /**
-   * The project root `.commands/` is a generic directory name at the top of
-   * the repository, so it may well hold prompts rulesync never wrote (Letta
-   * Code reads every `*.md` there). `--delete` therefore leaves project-scope
-   * files alone: generation still overwrites the commands rulesync emits, but
-   * a stale one is removed by hand. The global `~/.letta/commands/` directory
-   * belongs to Letta Code and is swept as usual.
-   */
   static forDeletion({
     outputRoot = process.cwd(),
     relativeDirPath,
@@ -260,7 +276,6 @@ export class LettacodeCommand extends ToolCommand {
       body: "",
       validate: false,
       global,
-      deletable: global,
     });
   }
 }

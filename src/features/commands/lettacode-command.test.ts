@@ -154,26 +154,33 @@ describe("LettacodeCommand", () => {
     });
   });
 
-  describe("forDeletion", () => {
-    it("never marks a project-scope .commands file deletable", () => {
-      const command = LettacodeCommand.forDeletion({
-        outputRoot: testDir,
-        relativeDirPath: ".commands",
-        relativeFilePath: "stale.md",
+  describe("validateRulesyncCommands", () => {
+    it("warns when two targeted commands share a basename", () => {
+      const logger = createMockLogger();
+      LettacodeCommand.validateRulesyncCommands({
+        rulesyncCommands: [
+          createRulesyncCommand({ targets: ["*"] }, join("git", "commit.md")),
+          createRulesyncCommand({ targets: ["*"] }, join("release", "commit.md")),
+          createRulesyncCommand({ targets: ["*"] }, "review.md"),
+        ],
+        logger,
       });
 
-      expect(command.isDeletable()).toBe(false);
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("/commit"));
     });
 
-    it("marks a global .letta/commands file deletable", () => {
-      const command = LettacodeCommand.forDeletion({
-        outputRoot: testDir,
-        relativeDirPath: join(".letta", "commands"),
-        relativeFilePath: "stale.md",
-        global: true,
+    it("ignores commands not targeted at lettacode", () => {
+      const logger = createMockLogger();
+      LettacodeCommand.validateRulesyncCommands({
+        rulesyncCommands: [
+          createRulesyncCommand({ targets: ["*"] }, join("git", "commit.md")),
+          createRulesyncCommand({ targets: ["claudecode"] }, "commit.md"),
+        ],
+        logger,
       });
 
-      expect(command.isDeletable()).toBe(true);
+      expect(logger.warn).not.toHaveBeenCalled();
     });
   });
 
