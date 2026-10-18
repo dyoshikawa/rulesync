@@ -69,6 +69,21 @@ const GROKCLI_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   // and it is merged into the spawned command's environment — so it is emitted
   // on `command` hooks only, matching how Qwen Code gates the same field.
   recordPassthroughFields: [{ canonical: "env", tool: "env", commandOnly: true }],
+  // Command hooks: the exec form. Since Grok 1.0.63 a present `args` array
+  // (`[]` included) makes `command` one program spawned with these arguments
+  // and no shell. Grok 1.0.49–1.0.62 skip a handler carrying `args` with a
+  // hook load error, which still beats dropping `args` and running a bare
+  // `command` with the wrong arguments. An `http` handler ignores `args`, so
+  // it is emitted on command hooks only.
+  arrayPassthroughFields: [{ canonical: "args", tool: "args", commandOnly: true }],
+  // Grok does not evaluate Claude Code's `if` condition: since 1.0.49 it skips
+  // a handler that sets `if` (only an enforced hook still runs). Dropping just
+  // the field would widen the hook to every call its matcher selects, so a
+  // canonical hook with `if` is skipped with a warning on generate. On import,
+  // an `if` found in a Grok hook file is kept, so the hook stays conditional
+  // for the tools that honour it.
+  skippedWhenFields: ["if"],
+  stringPassthroughFields: [{ canonical: "if", tool: "if" }],
   noMatcherEvents: GROKCLI_NO_MATCHER_EVENTS,
 };
 
