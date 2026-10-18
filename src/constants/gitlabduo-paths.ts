@@ -28,7 +28,19 @@ export const GITLABDUO_COMMANDS_DIR = join(".agents", "commands");
 /** User custom slash commands. */
 export const GITLABDUO_GLOBAL_COMMANDS_DIR = join(GITLABDUO_DIR, "commands");
 
-/** Project skills live in a non-hidden `skills/` directory at the project root. */
-export const GITLABDUO_SKILLS_DIR = "skills";
+/**
+ * Project skills live in the cross-tool `.agents/skills/` directory, which
+ * GitLab Duo reads alongside a non-hidden `skills/` directory at the project
+ * root; when both hold a skill of the same name, `.agents/skills/` wins.
+ *
+ * @see https://docs.gitlab.com/user/duo_agent_platform/customize/agent_skills/
+ */
+export const GITLABDUO_SKILLS_DIR = join(".agents", "skills");
+/**
+ * The project-root `skills/` directory GitLab Duo also reads. Earlier rulesync
+ * versions wrote project skills there; it is now an import-only root, since it
+ * routinely holds hand-authored skills rulesync must not manage.
+ */
+export const GITLABDUO_LEGACY_SKILLS_DIR = "skills";
 /** User skills (requires `--enable-global-skills` / `GITLAB_ENABLE_GLOBAL_SKILLS`). */
 export const GITLABDUO_GLOBAL_SKILLS_DIR = join(GITLABDUO_DIR, "skills");

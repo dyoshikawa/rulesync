@@ -151,6 +151,70 @@ const formatRulePaths = (rules: RulesyncRule[]): string =>
   rules.map((r) => join(r.getRelativeDirPath(), r.getRelativeFilePath())).join(", ");
 
 /**
+ * The leading `---` frontmatter block (with its closing delimiter line) that
+ * every one of `contents` starts with, or `undefined` when one lacks it or the
+ * blocks differ.
+ */
+const findSharedLeadingFrontmatter = (contents: string[]): string | undefined => {
+  const blocks = contents.map(
+    (content) => /^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/.exec(content)?.[0],
+  );
+  const first = blocks[0];
+  return first !== undefined && blocks.every((block) => block === first) ? first : undefined;
+};
+
+/**
+ * Whether a group of rules colliding on one output path is composed into one
+ * file, and the frontmatter block the composed file keeps, if any.
+ */
+const decideRuleComposition = ({
+  group,
+  collisionPolicy,
+}: {
+  group: RuleConversion[];
+  collisionPolicy: RuleCollisionPolicy;
+}): { shouldCompose: boolean; sharedRootFrontmatter: string | undefined } => {
+  const contents = group.map(({ toolRule }) => toolRule.getFileContent());
+  const allGeneratedRulesAreRoots = group.every(({ toolRule }) => toolRule.isRoot());
+  // Composition is only structure-preserving when every fragment is plain
+  // Markdown. An adapter may prepend a frontmatter block to some outputs
+  // (Amp gates non-root files on a leading `globs:` block); concatenating
+  // such a fragment would bury its block mid-body where the tool no longer
+  // reads it, so those groups fall through to preserve-or-reject instead.
+  const allFragmentsArePlain = contents.every((content) => !/^---\r?\n/.test(content));
+  // A root file that an adapter always writes with the same fixed
+  // frontmatter (Antigravity's plugin `rules/AGENTS.md`) composes too: the
+  // block is kept once at the top and only the bodies are concatenated.
+  const sharedRootFrontmatter = allGeneratedRulesAreRoots
+    ? findSharedLeadingFrontmatter(contents)
+    : undefined;
+  const shouldCompose =
+    ((collisionPolicy === "fold" || collisionPolicy === "compose" || allGeneratedRulesAreRoots) &&
+      allFragmentsArePlain) ||
+    sharedRootFrontmatter !== undefined;
+  return { shouldCompose, sharedRootFrontmatter };
+};
+
+/**
+ * Concatenate colliding rule fragments. With `sharedFrontmatter` (the block
+ * every fragment starts with), the block is stripped from each fragment and
+ * written once at the top.
+ */
+const composeRuleFragments = ({
+  contents,
+  sharedFrontmatter,
+}: {
+  contents: string[];
+  sharedFrontmatter: string | undefined;
+}): string => {
+  const merged = contents
+    .map((content) => content.slice(sharedFrontmatter?.length ?? 0).trim())
+    .filter((content) => content.length > 0)
+    .join("\n\n");
+  return sharedFrontmatter === undefined ? merged : `${sharedFrontmatter}${merged}\n`;
+};
+
+/**
  * Rule discovery mode for determining how non-root rules are referenced.
  * - `auto`: Tool auto-discovers rules in a directory, no reference section needed
  * - `toon`: Tool requires explicit references using TOON format
@@ -433,9 +497,12 @@ type ToolRuleFactory = {
      * generated chain exceeds `bytes`, appending the tool-specific `remedy`.
      * When the tool lets a project raise the budget in its own config,
      * `readConfiguredBytes` returns that value (or `undefined` when unset), and
-     * it replaces `bytes`; `configuredSource` names where it came from.
-     * `defaultLimitHint` is appended only when the default budget was used,
-     * e.g. to point out a budget set somewhere rulesync does not read.
+     * it replaces `bytes`; `configuredSource` names where it came from. A
+     * configured value of `0` means the tool loads no project instruction
+     * files at all (Codex's "project docs disabled"), and generation says so
+     * instead of reporting the size. `defaultLimitHint` is appended only when
+     * the default budget was used, e.g. to point out a budget set somewhere
+     * rulesync does not read.
      */
     projectInstructionBudget?: {
       bytes: number;
@@ -702,8 +769,10 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         // directory-scoped rule is emitted as a nested `<subprojectPath>/AGENTS.md`
         // while plain topic rules fold into the root file (mirrors pool/vibe).
         // The project files on one chain share `project_doc_max_bytes`
-        // (32 KiB by default, `codex-rs/config/defaults.toml`); Codex drops
-        // everything past it without a warning, so generation warns instead.
+        // (32 KiB by default, `codex-rs/config/defaults.toml`); Codex truncates
+        // the file that crosses it and skips the later ones without telling
+        // the user, so generation warns instead. A budget of 0 disables
+        // project docs entirely (`codex-rs/core/src/agents_md.rs`).
         // https://learn.chatgpt.com/docs/agent-configuration/agents-md
         extension: "md",
         supportsGlobal: true,
@@ -712,7 +781,7 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         projectInstructionBudget: {
           bytes: CODEXCLI_PROJECT_DOC_MAX_BYTES,
           remedy:
-            "Codex CLI stops reading project `AGENTS.md` files once their combined size on the root-to-working-directory chain reaches `project_doc_max_bytes` (32 KiB by default) and silently drops the rest. " +
+            "Codex CLI stops reading project `AGENTS.md` files once their combined size on the root-to-working-directory chain reaches `project_doc_max_bytes` (32 KiB by default): it silently truncates the file that crosses the limit and skips the files after it. " +
             "Move directory-scoped rules into nested `AGENTS.md` files with `agentsmd.subprojectPath` (or `deriveSubprojectPathFromGlobs: true` in rulesync.jsonc), trim the rules, or raise `project_doc_max_bytes` in `.codex/config.toml` (Codex reads that file only if the project is trusted).",
           readConfiguredBytes: readCodexcliProjectDocMaxBytes,
           configuredSource:
@@ -1464,6 +1533,13 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         supportsGlobal: true,
         ruleDiscoveryMode: "auto",
         collisionPolicy: "fold",
+        // The project chain also loads `AGENTS.local.md` as an additive local
+        // overlay at each level (default `localInstructionFileCandidates`), so
+        // a localRoot rule gets its own file beside the root `AGENTS.md`
+        // instead of being appended to the committed one. Project scope only:
+        // neither user-global root has a local overlay.
+        localRootMode: "separate-local-file",
+        localRootFileName: "AGENTS.local.md",
       },
     },
   ],
@@ -1699,9 +1775,11 @@ export class RulesProcessor extends FeatureProcessor {
    * estimate can come out low there. The budget checked is the value set in the
    * output root's tool config when the tool supports one (Codex's
    * `project_doc_max_bytes` in `.codex/config.toml`), else the tool's default;
-   * the warning names which one it used. Global scope is not
-   * checked because Codex loads the personal `~/.codex/AGENTS.md` outside the
-   * project budget.
+   * the warning names which one it used. A configured budget of `0` disables
+   * project docs in Codex, so that case gets a single warning saying the
+   * generated files will not be loaded instead of a size report. Global scope
+   * is not checked because Codex loads the personal `~/.codex/AGENTS.md`
+   * outside the project budget.
    */
   private async warnForInstructionBudget({
     toolRules,
@@ -1711,10 +1789,20 @@ export class RulesProcessor extends FeatureProcessor {
     meta: ToolRuleFactory["meta"];
   }): Promise<void> {
     const budget = meta.projectInstructionBudget;
-    if (budget === undefined || this.global) {
+    if (budget === undefined || this.global || toolRules.length === 0) {
       return;
     }
     const configuredBytes = await budget.readConfiguredBytes?.(this.outputRoot);
+    const location = this.outputRoot === process.cwd() ? "" : ` under '${this.outputRoot}'`;
+    if (configuredBytes === 0) {
+      const paths = toolRules.map((rule) =>
+        toPosixPath(join(rule.getRelativeDirPath(), rule.getRelativeFilePath())),
+      );
+      this.logger.warn(
+        `${budget.configuredSource ?? "The tool config"}${location} is set to 0, which disables ${this.toolTarget}'s project instruction files: the generated ${paths.join(", ")} will not be loaded. Remove the setting or set it to a positive byte count to load them.`,
+      );
+      return;
+    }
     const limitBytes = configuredBytes ?? budget.bytes;
     // Name the source of the budget only when the tool's config can change it.
     const limitLabel =
@@ -1738,7 +1826,6 @@ export class RulesProcessor extends FeatureProcessor {
     }));
     const isAncestorOrSelf = (ancestor: string, dir: string): boolean =>
       ancestor === "." || ancestor === dir || dir.startsWith(`${ancestor}/`);
-    const location = this.outputRoot === process.cwd() ? "" : ` under '${this.outputRoot}'`;
 
     const rootFiles = files.filter(({ dir }) => dir === ".");
     const rootBytes = rootFiles.reduce((sum, { bytes }) => sum + bytes, 0);
@@ -2256,23 +2343,13 @@ export class RulesProcessor extends FeatureProcessor {
       }
 
       const rootConversion = group.find(({ toolRule }) => toolRule.isRoot());
-      const allGeneratedRulesAreRoots = group.every(({ toolRule }) => toolRule.isRoot());
       const hasSourceRoot = group.some(
         ({ rulesyncRule }) => rulesyncRule.getFrontmatter().root === true,
       );
-      // Composition is only structure-preserving when every fragment is plain
-      // Markdown. An adapter may prepend a frontmatter block to some outputs
-      // (Amp gates non-root files on a leading `globs:` block); concatenating
-      // such a fragment would bury its block mid-body where the tool no longer
-      // reads it, so those groups fall through to preserve-or-reject instead.
-      const allFragmentsArePlain = group.every(
-        ({ toolRule }) => !/^---\r?\n/.test(toolRule.getFileContent()),
-      );
-      const shouldCompose =
-        (collisionPolicy === "fold" ||
-          collisionPolicy === "compose" ||
-          allGeneratedRulesAreRoots) &&
-        allFragmentsArePlain;
+      const { shouldCompose, sharedRootFrontmatter } = decideRuleComposition({
+        group,
+        collisionPolicy,
+      });
 
       if (!shouldCompose && hasSourceRoot) {
         throw new Error(
@@ -2292,11 +2369,12 @@ export class RulesProcessor extends FeatureProcessor {
         continue;
       }
       const ordered = [target, ...group.filter((rule) => rule !== target)];
-      const mergedContent = ordered
-        .map(({ toolRule }) => toolRule.getFileContent().trim())
-        .filter((content) => content.length > 0)
-        .join("\n\n");
-      target.toolRule.setFileContent(mergedContent);
+      target.toolRule.setFileContent(
+        composeRuleFragments({
+          contents: ordered.map(({ toolRule }) => toolRule.getFileContent()),
+          sharedFrontmatter: sharedRootFrontmatter,
+        }),
+      );
       survivors.add(target);
     }
 
@@ -2443,7 +2521,7 @@ export class RulesProcessor extends FeatureProcessor {
   /**
    * Handle localRoot rule generation based on tool target.
    * - `separate-local-file`: writes a dedicated `*.local.md` root file
-   *   (claudecode/legacy: `./CLAUDE.local.md`, rovodev: `./AGENTS.local.md`)
+   *   (claudecode/legacy: `./CLAUDE.local.md`, rovodev/dsh: `./AGENTS.local.md`)
    * - `append-to-root` (default): appends the body to the root file
    */
   private handleLocalRootRule(
@@ -2578,10 +2656,11 @@ export class RulesProcessor extends FeatureProcessor {
         localRoot,
       });
     }
-    // Crush and Reasonix both read their `.local` file from the working
-    // directory root, next to the shared root file (`CRUSH.md` / `REASONIX.md`);
-    // neither has a tool directory to put it in.
-    const workingRootClass = [CrushRule, ReasonixRule].find((base) =>
+    // Crush, Reasonix and DeepSeek Harness all read their `.local` file from
+    // the working directory root, next to the shared root file (`CRUSH.md` /
+    // `REASONIX.md` / `AGENTS.md`), as plain markdown; none has a tool
+    // directory to put it in.
+    const workingRootClass = [CrushRule, ReasonixRule, DshRule].find((base) =>
       isClassOrSubclassOf({ candidate: factory.class, base }),
     );
     if (workingRootClass) {
