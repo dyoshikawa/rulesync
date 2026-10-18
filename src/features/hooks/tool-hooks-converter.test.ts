@@ -690,6 +690,31 @@ describe("toolHooksToCanonical with an event named after an Object.prototype mem
   });
 });
 
+describe("toolHooksToCanonical with two native names for one canonical event", () => {
+  it("appends the second key's hooks instead of overwriting the first", () => {
+    const converterConfig: ToolHooksConverterConfig = {
+      ...BASE_CONFIG,
+      toolToCanonicalEventNames: {
+        ...BASE_CONFIG.toolToCanonicalEventNames,
+        LegacyStop: "stop",
+        Stop: "stop",
+      },
+    };
+    const canonical = toolHooksToCanonical({
+      hooks: {
+        LegacyStop: [{ hooks: [{ type: "command", command: "./legacy.sh" }] }],
+        Stop: [{ hooks: [{ type: "command", command: "./new.sh" }] }],
+      },
+      converterConfig,
+    });
+
+    expect(canonical.stop).toEqual([
+      { type: "command", command: "./legacy.sh" },
+      { type: "command", command: "./new.sh" },
+    ]);
+  });
+});
+
 describe("timeoutUnit (tool timeouts in milliseconds)", () => {
   const MS_CONFIG: ToolHooksConverterConfig = { ...BASE_CONFIG, timeoutUnit: "milliseconds" };
 

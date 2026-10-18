@@ -297,6 +297,51 @@ describe("DevinHooks", () => {
       expect(parsed.hooks).toEqual(config.hooks);
     });
 
+    it("should round-trip the preCompact event with its trigger matcher via the PreCompact key", async () => {
+      const config = {
+        version: 1,
+        hooks: {
+          preCompact: [{ type: "command", command: "pre-compact.sh", matcher: "auto" }],
+        },
+      };
+      const rulesyncHooks = makeRulesyncHooks(config);
+
+      const devinHooks = await DevinHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const generated = JSON.parse(devinHooks.getFileContent());
+      expect(generated.PreCompact).toEqual([
+        { matcher: "auto", hooks: [{ type: "command", command: "pre-compact.sh" }] },
+      ]);
+
+      const parsed = JSON.parse(devinHooks.toRulesyncHooks().getFileContent());
+      expect(parsed.hooks).toEqual(config.hooks);
+    });
+
+    it("should import PostCompact as an alias of postCompact, keeping PostCompaction hooks too", () => {
+      const devinHooks = new DevinHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".devin",
+        relativeFilePath: "hooks.v1.json",
+        fileContent: JSON.stringify({
+          PostCompaction: [{ hooks: [{ type: "command", command: "legacy.sh" }] }],
+          PostCompact: [{ hooks: [{ type: "command", command: "new.sh" }] }],
+        }),
+        validate: false,
+      });
+
+      const parsed = JSON.parse(devinHooks.toRulesyncHooks().getFileContent());
+      expect(parsed.hooks).toEqual({
+        postCompact: [
+          { type: "command", command: "legacy.sh" },
+          { type: "command", command: "new.sh" },
+        ],
+      });
+    });
+
     it("should throw on invalid JSON content", () => {
       const devinHooks = new DevinHooks({
         outputRoot: testDir,
