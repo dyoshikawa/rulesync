@@ -42,6 +42,29 @@ describe("DevinPluginHooks", () => {
     expect(JSON.parse(hooks.getFileContent())).not.toHaveProperty("hooks");
   });
 
+  it("keeps the trigger matcher of a preCompact hook under PreCompact", async () => {
+    const rulesyncHooks = new RulesyncHooks({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "hooks.json",
+      fileContent: JSON.stringify({
+        version: 1,
+        hooks: { preCompact: [{ matcher: "manual", command: "./scripts/pre-compact.sh" }] },
+      }),
+    });
+
+    const hooks = await DevinPluginHooks.fromRulesyncHooks({ outputRoot: testDir, rulesyncHooks });
+
+    expect(JSON.parse(hooks.getFileContent())).toEqual({
+      PreCompact: [
+        {
+          matcher: "manual",
+          hooks: [{ type: "command", command: "./scripts/pre-compact.sh" }],
+        },
+      ],
+    });
+  });
+
   it("imports hooks.json back into canonical hooks", async () => {
     await writeFileContent(
       join(testDir, "hooks.json"),

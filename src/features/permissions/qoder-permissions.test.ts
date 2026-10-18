@@ -1,3 +1,4 @@
+// cspell:ignore dont -- the Qoder dont_ask permission mode
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -279,6 +280,172 @@ describe("QoderPermissions", () => {
         .getJson();
 
       expect(json.qoder).toBeUndefined();
+    });
+  });
+
+  describe("qoder settings override", () => {
+    async function generateWithOverride(
+      override: Record<string, unknown>,
+      { global = false, logger = createMockLogger() } = {},
+    ) {
+      const permissions = await QoderPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: ".rulesync",
+          relativeFilePath: "permissions.json",
+          fileContent: JSON.stringify({ permission: { bash: { ls: "allow" } }, qoder: override }),
+          validate: true,
+        }),
+        global,
+        logger,
+      });
+      return JSON.parse(permissions.getFileContent());
+    }
+
+    it("merges the authored group keys over the existing groups", async () => {
+      await writeSettings(testDir, {
+        general: { vimMode: true, defaultPermissionMode: "default" },
+        tools: { useRipgrep: false },
+        mcp: { allowed: ["old"] },
+      });
+
+      const settings = await generateWithOverride({
+        general: { defaultPermissionMode: "plan" },
+        tools: { core: ["Read", "Grep"], exclude: ["WebSearch"] },
+        mcp: { allowed: ["github"], excluded: ["legacy"], lazyLoad: true },
+        agents: { overrides: { Explore: { enabled: false } } },
+        agentsMdExcludes: ["vendor/**/AGENTS.md"],
+      });
+
+      expect(settings).toEqual({
+        general: { vimMode: true, defaultPermissionMode: "plan" },
+        tools: { useRipgrep: false, core: ["Read", "Grep"], exclude: ["WebSearch"] },
+        mcp: { allowed: ["github"], excluded: ["legacy"], lazyLoad: true },
+        agents: { overrides: { Explore: { enabled: false } } },
+        agentsMdExcludes: ["vendor/**/AGENTS.md"],
+        permissions: { allow: ["Bash(ls)"] },
+      });
+    });
+
+    it("keeps hand-set group keys when the override authors none", async () => {
+      await writeSettings(testDir, { mcp: { lazyLoad: true }, agentsMdExcludes: ["a"] });
+
+      const settings = await generateWithOverride({});
+
+      expect(settings).toEqual({
+        mcp: { lazyLoad: true },
+        agentsMdExcludes: ["a"],
+        permissions: { allow: ["Bash(ls)"] },
+      });
+    });
+
+    it("skips group keys it does not model, with a warning", async () => {
+      const logger = createMockLogger();
+
+      const settings = await generateWithOverride(
+        { tools: { shell: { pager: "less" } }, general: { preferredEditor: "vim" } },
+        { logger },
+      );
+
+      expect(settings).toEqual({ permissions: { allow: ["Bash(ls)"] } });
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("qoder.tools.shell"));
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("qoder.general.preferredEditor"),
+      );
+    });
+
+    it("announces settings that skip approval prompts", async () => {
+      const logger = createMockLogger();
+
+      await generateWithOverride(
+        {
+          general: { defaultPermissionMode: "bypassPermissions" },
+          mcp: { enableAllProjectMcpServers: true, enabledProjectMcpServers: ["playwright"] },
+        },
+        { logger },
+      );
+
+      const warnings = vi.mocked(logger.warn).mock.calls.map(([message]) => String(message));
+      expect(warnings).toEqual(
+        expect.arrayContaining([
+          expect.stringContaining("qoder.general.defaultPermissionMode"),
+          expect.stringContaining("qoder.mcp.enableAllProjectMcpServers"),
+          expect.stringContaining('"playwright"'),
+        ]),
+      );
+    });
+
+    it("does not announce a mode that still asks", async () => {
+      const logger = createMockLogger();
+
+      await generateWithOverride({ general: { defaultPermissionMode: "dont_ask" } }, { logger });
+
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("writes autoMode in global mode only", async () => {
+      const autoMode = { allow: ["running tests"], environment: ["pnpm monorepo"] };
+      const logger = createMockLogger();
+
+      const project = await generateWithOverride({ autoMode }, { logger });
+      expect(project).toEqual({ permissions: { allow: ["Bash(ls)"] } });
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("project mode"));
+
+      const globalLogger = createMockLogger();
+      const user = await generateWithOverride({ autoMode }, { global: true, logger: globalLogger });
+      expect(user).toEqual({ autoMode, permissions: { allow: ["Bash(ls)"] } });
+      expect(globalLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("qoder.autoMode.allow"),
+      );
+    });
+
+    it("merges autoMode per key and skips unmodeled autoMode keys", async () => {
+      await writeSettings(testDir, {
+        autoMode: { soft_deny: ["deleting files"], environment: ["old"] },
+      });
+      const logger = createMockLogger();
+
+      const settings = await generateWithOverride(
+        { autoMode: { environment: ["pnpm monorepo"], extra: ["x"] } },
+        { global: true, logger },
+      );
+
+      expect(settings).toEqual({
+        autoMode: { soft_deny: ["deleting files"], environment: ["pnpm monorepo"] },
+        permissions: { allow: ["Bash(ls)"] },
+      });
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("qoder.autoMode.extra"));
+    });
+
+    it("imports the modeled settings into the qoder override", () => {
+      const fileContent = JSON.stringify({
+        general: { vimMode: true, defaultPermissionMode: "accept_edits" },
+        tools: { core: ["Read"], shell: { pager: "less" } },
+        mcp: { enabledProjectMcpServers: ["playwright"], lazyLoad: "yes" },
+        agents: { overrides: { Explore: { enabled: false } } },
+        autoMode: { allow: ["running tests"] },
+        agentsMdExcludes: ["vendor/**"],
+      });
+      const load = (global: boolean) =>
+        new QoderPermissions({
+          outputRoot: testDir,
+          relativeDirPath: SETTINGS_DIR,
+          relativeFilePath: SETTINGS_FILE,
+          fileContent,
+          global,
+        })
+          .toRulesyncPermissions()
+          .getJson().qoder;
+
+      const shared = {
+        general: { defaultPermissionMode: "accept_edits" },
+        tools: { core: ["Read"] },
+        mcp: { enabledProjectMcpServers: ["playwright"] },
+        agents: { overrides: { Explore: { enabled: false } } },
+        agentsMdExcludes: ["vendor/**"],
+      };
+      expect(load(false)).toEqual(shared);
+      expect(load(true)).toEqual({ ...shared, autoMode: { allow: ["running tests"] } });
     });
   });
 

@@ -44,6 +44,36 @@ describe("ZcodePluginMcp", () => {
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("socket"));
   });
 
+  it("carries timeoutMs, cwd and protocolVersion into the plugin's .mcp.json and back", async () => {
+    const mcp = await ZcodePluginMcp.fromRulesyncMcp({
+      outputRoot: ".",
+      rulesyncMcp: buildRulesyncMcp({
+        local: { command: "srv", cwd: "./tools", timeout: 30000, protocolVersion: "legacy" },
+      }),
+    });
+
+    expect(JSON.parse(mcp.getFileContent())).toEqual({
+      mcpServers: {
+        local: {
+          command: "srv",
+          args: [],
+          cwd: "./tools",
+          timeoutMs: 30000,
+          protocolVersion: "legacy",
+        },
+      },
+    });
+    expect(mcp.toRulesyncMcp().getMcpServers()).toEqual({
+      local: {
+        command: "srv",
+        args: [],
+        cwd: "./tools",
+        timeout: 30000,
+        protocolVersion: "legacy",
+      },
+    });
+  });
+
   it("imports both the mcpServers wrapper and a bare server map", () => {
     const wrapped = new ZcodePluginMcp({
       outputRoot: ".",
