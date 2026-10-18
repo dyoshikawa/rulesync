@@ -192,6 +192,7 @@ export const commandsProcessorToolTargetTuple = [
   "kiro",
   "kiro-cli",
   "kiro-ide",
+  "lettacode",
   "mimocode",
   "omp",
   "opencode",

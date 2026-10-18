@@ -612,6 +612,21 @@ describe("committedOutput check outputs", () => {
     expect(entries).not.toContain("**/.gitlab/duo/mr-review-instructions.yaml");
   });
 
+  it("never ignores Letta Code's committed root .commands directory", () => {
+    const entries = deriveAllGitignoreEntries()
+      .filter((tag) => tag.target === "lettacode")
+      .map((tag) => tag.entry);
+    // Letta Code reads project commands from the repository-root `.commands/`,
+    // a generic directory whose prompts belong in version control.
+    expect(entries).not.toContain("**/.commands/");
+    expect(filterGitignoreEntries()).not.toContain("**/.commands/");
+  });
+
+  it("keeps the committedOutput flag meaningful for commands (lettacode sets it)", async () => {
+    const { toolCommandFactories } = await import("../../features/commands/commands-processor.js");
+    expect(toolCommandFactories.get("lettacode")?.meta.committedOutput).toBe(true);
+  });
+
   it("never ignores GitLab Duo's import-only root skills directory", () => {
     const entries = deriveAllGitignoreEntries()
       .filter((tag) => tag.target === "gitlabduo")
