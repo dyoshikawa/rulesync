@@ -251,9 +251,13 @@ describe("DevinPermissions", () => {
       expect(parsed.forbiddenPlugins).toEqual(["*"]);
       expect(parsed.optionalPlugins).toEqual(["hand/kept"]);
       expect(parsed.permissions.allow).toEqual(["Read(src/**)"]);
-      expect(logger.warn).toHaveBeenCalledTimes(1);
-      const [warning] = logger.warn.mock.calls[0] as [string];
-      expect(warning).toContain("requiredPlugins");
+      // One warning for the required plugins, one for the dropped `old/*`.
+      expect(logger.warn).toHaveBeenCalledTimes(2);
+      const warnings = logger.warn.mock.calls.map(([message]) => String(message));
+      expect(warnings.some((w) => w.includes("forbiddenPlugins") && w.includes("old/*"))).toBe(
+        true,
+      );
+      const warning = warnings.find((w) => w.includes("requiredPlugins")) ?? "";
       expect(warning).toContain("acme/secure-base");
       expect(warning).toContain("acme/audit-logging");
     });
@@ -275,6 +279,30 @@ describe("DevinPermissions", () => {
       });
 
       expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("should warn when replacing forbiddenPlugins drops an entry the file held", async () => {
+      await ensureDir(join(testDir, ".devin"));
+      await writeFileContent(
+        join(testDir, ".devin", "config.json"),
+        JSON.stringify({ forbiddenPlugins: ["*", "acme/bad"] }),
+      );
+      const logger = createMockLogger();
+      const perms = await DevinPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({
+          permission: {},
+          devin: { forbiddenPlugins: ["acme/bad"] },
+        }),
+        logger,
+      });
+
+      expect(JSON.parse(perms.getFileContent()).forbiddenPlugins).toEqual(["acme/bad"]);
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      const [warning] = logger.warn.mock.calls[0] as [string];
+      expect(warning).toContain("forbiddenPlugins");
+      expect(warning).toContain('"*"');
+      expect(warning).not.toContain("acme/bad");
     });
 
     it("should drop the devin plugin governance lists in global mode with a warning", async () => {
@@ -828,6 +856,28 @@ describe("DevinPermissions", () => {
       const parsed = JSON.parse(perms.toRulesyncPermissions().getFileContent());
       expect(parsed.permission.websearch).toEqual({ "*": "deny" });
       expect(parsed.permission.web_search).toBeUndefined();
+    });
+
+    it("should skip a malformed plugin governance list on import with a warning", () => {
+      const logger = createMockLogger();
+      const perms = new DevinPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".devin",
+        relativeFilePath: "config.json",
+        fileContent: JSON.stringify({
+          forbiddenPlugins: ["acme/*", 42],
+          optionalPlugins: "acme/approved",
+          requiredPlugins: ["acme/base"],
+        }),
+        validate: false,
+      });
+
+      const parsed = JSON.parse(perms.toRulesyncPermissions({ logger }).getFileContent());
+      expect(parsed.devin).toEqual({ requiredPlugins: ["acme/base"] });
+      expect(logger.warn).toHaveBeenCalledTimes(2);
+      const warnings = logger.warn.mock.calls.map(([message]) => String(message));
+      expect(warnings.some((w) => w.includes("forbiddenPlugins"))).toBe(true);
+      expect(warnings.some((w) => w.includes("optionalPlugins"))).toBe(true);
     });
 
     it("should route the plugin governance lists into the devin override", () => {

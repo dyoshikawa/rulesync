@@ -1516,13 +1516,23 @@ export type ZedPermissionsOverride = z.infer<typeof ZedPermissionsOverrideSchema
  * @see https://docs.devin.ai/cli/reference/configuration/config-file
  * @see https://docs.devin.ai/cli/extensibility/plugins/overview
  */
-const DevinPluginSourceSchema = z.union([z.string(), z.looseObject({})]);
+const DevinPluginSourceListSchema = z.array(z.union([z.string(), z.looseObject({})]));
+/**
+ * Shapes of the Devin repo-level plugin governance lists, keyed by their
+ * `.devin/config.json` name. Shared by the override schema and the import,
+ * which drops a list that would not pass it.
+ */
+export const DEVIN_PLUGIN_GOVERNANCE_SCHEMAS = {
+  requiredPlugins: DevinPluginSourceListSchema,
+  optionalPlugins: DevinPluginSourceListSchema,
+  forbiddenPlugins: z.array(z.string()),
+} as const;
 const DevinPermissionsOverrideSchema = z.looseObject({
   permission: z.optional(ToolScopedPermissionSchema),
   sandbox: z.optional(z.looseObject({})),
-  requiredPlugins: z.optional(z.array(DevinPluginSourceSchema)),
-  optionalPlugins: z.optional(z.array(DevinPluginSourceSchema)),
-  forbiddenPlugins: z.optional(z.array(z.string())),
+  requiredPlugins: z.optional(DEVIN_PLUGIN_GOVERNANCE_SCHEMAS.requiredPlugins),
+  optionalPlugins: z.optional(DEVIN_PLUGIN_GOVERNANCE_SCHEMAS.optionalPlugins),
+  forbiddenPlugins: z.optional(DEVIN_PLUGIN_GOVERNANCE_SCHEMAS.forbiddenPlugins),
 });
 export type DevinPermissionsOverride = z.infer<typeof DevinPermissionsOverrideSchema>;
 

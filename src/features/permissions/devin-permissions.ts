@@ -9,7 +9,11 @@ import {
   DEVIN_GLOBAL_CONFIG_DIR_PATH,
 } from "../../constants/devin-paths.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
-import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
+import {
+  DEVIN_PLUGIN_GOVERNANCE_SCHEMAS,
+  type PermissionAction,
+  type PermissionsConfig,
+} from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull, toPosixPath } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
@@ -425,7 +429,7 @@ export class DevinPermissions extends ToolPermissions {
     });
   }
 
-  toRulesyncPermissions(): RulesyncPermissions {
+  toRulesyncPermissions({ logger }: { logger?: Logger } = {}): RulesyncPermissions {
     let settings: Record<string, unknown>;
     try {
       const parsed: unknown = JSON.parse(this.getFileContent());
@@ -463,10 +467,17 @@ export class DevinPermissions extends ToolPermissions {
       devinOverride.sandbox = sandbox;
     }
     // The repo-level plugin governance lists round-trip verbatim, like `sandbox`.
+    // A list the override schema would reject is dropped with a warning, so it
+    // cannot make the next generate fail on the imported source.
     for (const key of DEVIN_PLUGIN_GOVERNANCE_KEYS) {
       const value = settings[key];
-      if (Array.isArray(value)) {
+      if (value === undefined) continue;
+      if (DEVIN_PLUGIN_GOVERNANCE_SCHEMAS[key].safeParse(value).success) {
         devinOverride[key] = value;
+      } else {
+        logger?.warn(
+          `Skipped Devin \`${key}\` on import: ${key === "forbiddenPlugins" ? "expected an array of strings" : "expected an array of plugin sources (strings or objects)"}.`,
+        );
       }
     }
     const result: Record<string, unknown> = { ...config };
@@ -516,7 +527,8 @@ const DEVIN_PLUGIN_GOVERNANCE_KEYS = [
  * project `.devin/config.json`. Each authored list replaces the file's list
  * whole; a list it does not author is left as the file holds it. Devin reads these
  * lists only from a checkout's `.devin/config.json`, so in global mode they are
- * dropped with a warning. A non-empty `requiredPlugins` that changes the file
+ * dropped with a warning. Losing a `forbiddenPlugins` entry the file held is
+ * announced, since that lifts a restriction. A non-empty `requiredPlugins` that changes the file
  * is announced, since Devin installs required plugins automatically and a
  * plugin can ship its own hooks and MCP servers.
  */
@@ -545,6 +557,18 @@ function applyPluginGovernanceOverride({
   }
   for (const key of authoredKeys) {
     patch[key] = override?.[key];
+  }
+  // `forbiddenPlugins` is a restriction: an authored list replaces the file's
+  // list whole, so an entry only the file held stops being forbidden.
+  const forbidden = override?.forbiddenPlugins;
+  if (Array.isArray(forbidden) && Array.isArray(settings.forbiddenPlugins)) {
+    const lost = settings.forbiddenPlugins.filter((entry) => !forbidden.includes(entry));
+    if (lost.length > 0) {
+      logger?.warn(
+        `Replacing Devin \`forbiddenPlugins\` drops ${lost.map(quoteValueForWarning).join(", ")} ` +
+          "from '.devin/config.json': those plugins are no longer forbidden at the repo level.",
+      );
+    }
   }
   const required = override?.requiredPlugins;
   if (
