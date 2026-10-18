@@ -1,3 +1,4 @@
+// cspell:ignore acceptedits bypasspermissions -- lower-cased Qoder permission mode aliases
 import { join } from "node:path";
 
 import { QODER_DIR, QODER_SETTINGS_FILE_NAME } from "../../constants/qoder-paths.js";
@@ -33,6 +34,59 @@ const QODER_PERMISSIONS_KEY = "permissions";
  * @see https://docs.qoder.com/cli/settings-reference
  */
 const QODER_OUTPUT_STYLE_KEY = "outputStyle";
+
+/**
+ * The settings groups the `qoder` override may author, each with the only keys
+ * of that group rulesync writes and imports. A group's other keys are kept as
+ * the file has them; an override key not listed here is skipped with a
+ * warning, so a shared permissions file cannot reach `tools.shell.pager`,
+ * `general.preferredEditor` and the like.
+ * @see https://docs.qoder.com/cli/settings-reference
+ */
+const QODER_OVERRIDE_GROUP_KEYS = {
+  general: ["defaultPermissionMode"],
+  tools: ["core", "exclude"],
+  mcp: [
+    "allowed",
+    "excluded",
+    "enableAllProjectMcpServers",
+    "enabledProjectMcpServers",
+    "lazyLoad",
+  ],
+  agents: ["overrides"],
+} as const satisfies Record<string, readonly string[]>;
+
+type QoderOverrideGroup = keyof typeof QODER_OVERRIDE_GROUP_KEYS;
+
+const QODER_OVERRIDE_GROUPS = Object.keys(QODER_OVERRIDE_GROUP_KEYS) as QoderOverrideGroup[];
+
+/**
+ * Top-level Auto-mode classifier guidance. Qoder reads it from the user
+ * settings only (a workspace file could otherwise bias the classifier), so it
+ * is written and imported in global mode alone.
+ * @see https://docs.qoder.com/en/cli/permissions
+ */
+const QODER_AUTO_MODE_KEY = "autoMode";
+
+/** The `autoMode` keys rulesync writes and imports. */
+const QODER_AUTO_MODE_KEYS = ["allow", "soft_deny", "environment"] as const;
+
+/** Top-level globs that keep project/local memory files from loading. */
+const QODER_AGENTS_MD_EXCLUDES_KEY = "agentsMdExcludes";
+
+/**
+ * `general.defaultPermissionMode` values (lower-cased; Qoder matches them
+ * case-insensitively) that let actions run without a prompt.
+ * @see https://docs.qoder.com/en/cli/permissions
+ */
+const QODER_PERMISSIVE_MODES = new Set([
+  "accept_edits",
+  "acceptedits",
+  "auto",
+  "bypass_permissions",
+  "bypasspermissions",
+  "yolo",
+]);
 
 const CATCH_ALL_PATTERN = "*";
 
@@ -242,6 +296,225 @@ function buildQoderRuleLists({
 }
 
 /**
+ * The keys of one authored override group that rulesync writes; any other key
+ * is skipped with a warning.
+ */
+function pickQoderGroupKeys({
+  group,
+  allowedKeys,
+  authored,
+  where,
+  logger,
+}: {
+  group: string;
+  allowedKeys: readonly string[];
+  authored: Record<string, unknown>;
+  where: string;
+  logger?: Logger;
+}): Record<string, unknown> {
+  const picked: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(authored)) {
+    if (isPrototypePollutionKey(key) || value === undefined) {
+      continue;
+    }
+    if (!allowedKeys.includes(key)) {
+      logger?.warn(
+        `Qoder permissions: skipping qoder.${group}.${key} — Rulesync writes only ${allowedKeys.map((k) => `${group}.${k}`).join(", ")} from the qoder override; set other keys in ${where} by hand.`,
+      );
+      continue;
+    }
+    picked[key] = value;
+  }
+  return picked;
+}
+
+/** Name every written override setting that lets Qoder act with fewer prompts. */
+function announcePermissiveQoderSettings({
+  patch,
+  where,
+  logger,
+}: {
+  patch: Record<string, unknown>;
+  where: string;
+  logger?: Logger;
+}): void {
+  const general = isRecord(patch.general) ? patch.general : {};
+  const mode = general.defaultPermissionMode;
+  if (typeof mode === "string" && QODER_PERMISSIVE_MODES.has(mode.trim().toLowerCase())) {
+    logger?.warn(
+      `Qoder permissions: qoder.general.defaultPermissionMode = ${JSON.stringify(mode)} was written to ${where}, so Qoder starts every session it applies to in a mode that runs actions without asking first.`,
+    );
+  }
+  const mcp = isRecord(patch.mcp) ? patch.mcp : {};
+  if (mcp.enableAllProjectMcpServers === true) {
+    logger?.warn(
+      `Qoder permissions: qoder.mcp.enableAllProjectMcpServers = true was written to ${where}, so Qoder starts every project-level MCP server without asking for approval.`,
+    );
+  }
+  const enabledServers = toStringList(mcp.enabledProjectMcpServers);
+  if (enabledServers.length > 0) {
+    logger?.warn(
+      `Qoder permissions: qoder.mcp.enabledProjectMcpServers was written to ${where}, so Qoder starts the project-level MCP servers ${enabledServers.map((name) => JSON.stringify(name)).join(", ")} without asking for approval.`,
+    );
+  }
+  const autoMode = isRecord(patch[QODER_AUTO_MODE_KEY]) ? patch[QODER_AUTO_MODE_KEY] : {};
+  if (toStringList(autoMode.allow).length > 0) {
+    logger?.warn(
+      `Qoder permissions: qoder.autoMode.allow was written to ${where}, so Qoder's Auto-mode classifier leans toward approving the actions it describes.`,
+    );
+  }
+}
+
+/**
+ * The top-level keys the `qoder` override contributes to the settings patch,
+ * besides `permissions` and `outputStyle`. Each group is the existing group
+ * with the authored keys laid over it; a key is only in the patch when
+ * authored. Every write that lets Qoder act with fewer prompts is announced.
+ */
+function buildQoderOverridePatch({
+  override,
+  existing,
+  global,
+  filePath,
+  logger,
+}: {
+  override: Record<string, unknown> | undefined;
+  existing: Record<string, unknown>;
+  global: boolean;
+  filePath: string;
+  logger?: Logger;
+}): Record<string, unknown> {
+  const patch: Record<string, unknown> = {};
+  if (override === undefined) {
+    return patch;
+  }
+  const where = `${filePath}${global ? " in the home directory" : ""}`;
+  for (const group of QODER_OVERRIDE_GROUPS) {
+    const authored = override[group];
+    if (!isRecord(authored)) {
+      continue;
+    }
+    const picked = pickQoderGroupKeys({
+      group,
+      allowedKeys: QODER_OVERRIDE_GROUP_KEYS[group],
+      authored,
+      where,
+      logger,
+    });
+    if (Object.keys(picked).length > 0) {
+      const existingGroup = isRecord(existing[group]) ? existing[group] : {};
+      patch[group] = { ...existingGroup, ...picked };
+    }
+  }
+
+  const autoMode = override[QODER_AUTO_MODE_KEY];
+  if (isRecord(autoMode)) {
+    if (global) {
+      const picked = pickQoderGroupKeys({
+        group: QODER_AUTO_MODE_KEY,
+        allowedKeys: QODER_AUTO_MODE_KEYS,
+        authored: autoMode,
+        where,
+        logger,
+      });
+      if (Object.keys(picked).length > 0) {
+        const existingAutoMode = isRecord(existing[QODER_AUTO_MODE_KEY])
+          ? existing[QODER_AUTO_MODE_KEY]
+          : {};
+        patch[QODER_AUTO_MODE_KEY] = { ...existingAutoMode, ...picked };
+      }
+    } else {
+      logger?.warn(
+        `Qoder permissions: skipping qoder.autoMode in project mode — Qoder reads autoMode from the user settings only. Run 'rulesync generate --global' to write it to ~/.qoder/settings.json.`,
+      );
+    }
+  }
+
+  const excludes = override[QODER_AGENTS_MD_EXCLUDES_KEY];
+  if (Array.isArray(excludes)) {
+    patch[QODER_AGENTS_MD_EXCLUDES_KEY] = toStringList(excludes);
+  }
+  // Announce what the override authored, not what the file already held.
+  announcePermissiveQoderSettings({
+    patch: {
+      general: override.general,
+      mcp: override.mcp,
+      ...(global && { [QODER_AUTO_MODE_KEY]: autoMode }),
+    },
+    where,
+    logger,
+  });
+  return patch;
+}
+
+/**
+ * Whether a settings value has the shape the `qoder` override schema accepts
+ * for that key, so an off-spec value is left in the file instead of making the
+ * imported permissions file fail validation.
+ */
+function isLiftableQoderValue(key: string, value: unknown): boolean {
+  switch (key) {
+    case "defaultPermissionMode":
+      return typeof value === "string" && value.trim() !== "";
+    case "enableAllProjectMcpServers":
+    case "lazyLoad":
+      return typeof value === "boolean";
+    case "overrides":
+      return isRecord(value) && Object.values(value).every(isRecord);
+    default:
+      return Array.isArray(value) && value.every((entry) => typeof entry === "string");
+  }
+}
+
+/**
+ * Lift the settings the `qoder` override authors (other than `outputStyle`)
+ * back out of a settings file. `autoMode` is lifted only from the user file,
+ * the one Qoder reads it from.
+ */
+function liftQoderOverride({
+  settings,
+  global,
+}: {
+  settings: Record<string, unknown>;
+  global: boolean;
+}): Record<string, unknown> {
+  const lifted: Record<string, unknown> = {};
+  for (const group of QODER_OVERRIDE_GROUPS) {
+    const existingGroup = settings[group];
+    if (!isRecord(existingGroup)) {
+      continue;
+    }
+    const picked: Record<string, unknown> = {};
+    for (const key of QODER_OVERRIDE_GROUP_KEYS[group]) {
+      const value = Object.hasOwn(existingGroup, key) ? existingGroup[key] : undefined;
+      if (isLiftableQoderValue(key, value)) {
+        picked[key] = value;
+      }
+    }
+    if (Object.keys(picked).length > 0) {
+      lifted[group] = picked;
+    }
+  }
+  const autoMode = settings[QODER_AUTO_MODE_KEY];
+  if (global && isRecord(autoMode)) {
+    const picked: Record<string, unknown> = {};
+    for (const key of QODER_AUTO_MODE_KEYS) {
+      if (Object.hasOwn(autoMode, key) && isLiftableQoderValue(key, autoMode[key])) {
+        picked[key] = autoMode[key];
+      }
+    }
+    if (Object.keys(picked).length > 0) {
+      lifted[QODER_AUTO_MODE_KEY] = picked;
+    }
+  }
+  const excludes = settings[QODER_AGENTS_MD_EXCLUDES_KEY];
+  if (isLiftableQoderValue(QODER_AGENTS_MD_EXCLUDES_KEY, excludes)) {
+    lifted[QODER_AGENTS_MD_EXCLUDES_KEY] = excludes;
+  }
+  return lifted;
+}
+
+/**
  * Qoder permissions.
  *
  * Rules live under the `permissions` key of `.qoder/settings.json` (project)
@@ -253,7 +526,9 @@ function buildQoderRuleLists({
  * (`additionalDirectories`, `trustDirectories`) are kept, and the file is
  * never deleted. `.qoder/settings.local.json` (where `/allow` and `/deny`
  * persist) is left to the user. The `qoder` override's `outputStyle` is
- * written to (and imported from) the top-level `outputStyle` key.
+ * written to (and imported from) the top-level `outputStyle` key, and its
+ * other settings (`general`, `tools`, `mcp`, `agents`, `autoMode`,
+ * `agentsMdExcludes`) through `buildQoderOverridePatch` / `liftQoderOverride`.
  *
  * @see https://docs.qoder.com/en/cli/permissions
  * @see https://docs.qoder.com/cli/output-styles
@@ -342,6 +617,13 @@ export class QoderPermissions extends ToolPermissions {
         patch: {
           [QODER_PERMISSIONS_KEY]: Object.keys(permissions).length > 0 ? permissions : undefined,
           ...(outputStyle !== undefined && { [QODER_OUTPUT_STYLE_KEY]: outputStyle }),
+          ...buildQoderOverridePatch({
+            override: config.qoder,
+            existing,
+            global,
+            filePath: join(paths.relativeDirPath, paths.relativeFilePath),
+            logger,
+          }),
         },
         filePath,
       }),
@@ -380,10 +662,13 @@ export class QoderPermissions extends ToolPermissions {
       }
     }
     const outputStyle = settings[QODER_OUTPUT_STYLE_KEY];
-    const hasOutputStyle = typeof outputStyle === "string" && outputStyle.trim() !== "";
+    const qoder: Record<string, unknown> = {
+      ...(typeof outputStyle === "string" && outputStyle.trim() !== "" && { outputStyle }),
+      ...liftQoderOverride({ settings, global: this.global }),
+    };
     return this.toRulesyncPermissionsDefault({
       fileContent: JSON.stringify(
-        { permission, ...(hasOutputStyle && { qoder: { outputStyle } }) },
+        { permission, ...(Object.keys(qoder).length > 0 && { qoder }) },
         null,
         2,
       ),

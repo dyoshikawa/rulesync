@@ -111,6 +111,11 @@ describe("CrushMcp", () => {
             crushOauthClientId: "id",
             crushOauthClientSecret: "client-secret-value",
             crushOauthCallbackPort: 8765,
+            crushChannelEnabled: true,
+            crushChannelReply: {
+              user: { tool: "send_message_to_user", target_param: "user_id" },
+              message_param: "text",
+            },
             // Claude Code's OAuth object is not Crush's boolean and is ignored.
             oauth: { clientId: "claude" },
           },
@@ -130,6 +135,11 @@ describe("CrushMcp", () => {
           oauth_client_id: "id",
           oauth_client_secret: "client-secret-value",
           oauth_callback_port: 8765,
+          channel_enabled: true,
+          channel_reply: {
+            user: { tool: "send_message_to_user", target_param: "user_id" },
+            message_param: "text",
+          },
         },
       });
     });
@@ -146,8 +156,12 @@ describe("CrushMcp", () => {
             oauth_client_id: "id",
             oauth_callback_port: 8765,
             sessionless: true,
+            channel_enabled: true,
+            channel_reply: { group: { tool: "send", target_param: "chat_id" } },
           },
           typed: { url: "https://example.com/mcp", crushOauth: false, oauth: true },
+          // A non-object reply route is refused rather than written.
+          bad: { command: "fs", crushChannelReply: "send", channel_enabled: "yes" },
         }),
       });
 
@@ -158,9 +172,42 @@ describe("CrushMcp", () => {
           oauth_client_id: "id",
           oauth_callback_port: 8765,
           sessionless: true,
+          channel_enabled: true,
+          channel_reply: { group: { tool: "send", target_param: "chat_id" } },
         },
         typed: { type: "http", url: "https://example.com/mcp", oauth: false },
+        bad: { type: "stdio", command: "fs" },
       });
+    });
+
+    it("should drop a channel_reply Crush could not decode, with a warning", async () => {
+      const logger = createMockLogger();
+      const mcp = await CrushMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp: buildRulesyncMcp({
+          // A route without `tool` and a route that is not an object.
+          noTool: { command: "fs", crushChannelReply: { user: { target_param: "user_id" } } },
+          rawString: { command: "fs", channel_reply: { group: "send" } },
+          ok: {
+            command: "fs",
+            crushChannelReply: { user: { tool: "reply" }, suppress_tools: ["send"] },
+          },
+        }),
+        logger,
+      });
+
+      expect(serversOf(mcp)).toEqual({
+        noTool: { type: "stdio", command: "fs" },
+        rawString: { type: "stdio", command: "fs" },
+        ok: {
+          type: "stdio",
+          command: "fs",
+          channel_reply: { user: { tool: "reply" }, suppress_tools: ["send"] },
+        },
+      });
+      expect(logger.warn).toHaveBeenCalledTimes(2);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"crushChannelReply"'));
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"channel_reply"'));
     });
 
     it("should round a fractional timeout up and drop a fractional callback port", async () => {
@@ -342,6 +389,8 @@ describe("CrushMcp", () => {
               oauth: true,
               oauth_client_secret: "client-secret-value",
               oauth_callback_port: "not-a-port",
+              channel_enabled: true,
+              channel_reply: { user: { tool: "reply", target_param: "user_id" } },
             },
           },
         }),
@@ -358,6 +407,8 @@ describe("CrushMcp", () => {
             crushSessionless: true,
             crushOauth: true,
             crushOauthClientSecret: "client-secret-value",
+            crushChannelEnabled: true,
+            crushChannelReply: { user: { tool: "reply", target_param: "user_id" } },
           },
         },
       });

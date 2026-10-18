@@ -15,3 +15,14 @@ export const OPENCLAW_WORKSPACE_DIR_PATH = join(".openclaw", "workspace");
 // is no nested per-directory discovery.
 // @see https://docs.openclaw.ai/concepts/system-prompt
 export const OPENCLAW_RULE_FILE_NAME = "AGENTS.md";
+
+// Gateway config. OpenClaw reads its JSON5 config from
+// `~/.openclaw/openclaw.json`; `OPENCLAW_CONFIG_PATH`, `OPENCLAW_STATE_DIR` and
+// `OPENCLAW_PROFILE` can move it, but rulesync writes the default location
+// only. MCP servers live under `mcp.servers`; the file has no project scope.
+// @see https://docs.openclaw.ai/gateway/configuration
+// @see https://docs.openclaw.ai/gateway/config-extensions
+export const OPENCLAW_CONFIG_DIR_PATH = ".openclaw";
+export const OPENCLAW_CONFIG_FILE_NAME = "openclaw.json";
+export const OPENCLAW_MCP_CONFIG_KEY = "mcp";
+export const OPENCLAW_MCP_SERVERS_KEY = "servers";

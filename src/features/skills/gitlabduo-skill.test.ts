@@ -37,11 +37,23 @@ describe("GitlabduoSkill", () => {
       validate: true,
     });
 
-  it("should resolve skills/ for the project and .gitlab/duo/skills globally", () => {
-    expect(GitlabduoSkill.getSettablePaths().relativeDirPath).toBe("skills");
-    expect(GitlabduoSkill.getSettablePaths({ global: true }).relativeDirPath).toBe(
-      join(".gitlab", "duo", "skills"),
-    );
+  it("should resolve .agents/skills for the project and .gitlab/duo/skills globally", () => {
+    expect(GitlabduoSkill.getSettablePaths()).toEqual({
+      relativeDirPath: join(".agents", "skills"),
+      importOnlySkillRoots: ["skills"],
+    });
+    expect(GitlabduoSkill.getSettablePaths({ global: true })).toEqual({
+      relativeDirPath: join(".gitlab", "duo", "skills"),
+    });
+  });
+
+  it("should write project skills into .agents/skills", () => {
+    const skill = GitlabduoSkill.fromRulesyncSkill({
+      outputRoot: testDir,
+      rulesyncSkill: makeRulesyncSkill(["gitlabduo"]),
+    });
+
+    expect(skill.getRelativeDirPath()).toBe(join(".agents", "skills"));
   });
 
   it("should be targeted by gitlabduo and wildcard skills only", () => {
@@ -68,23 +80,20 @@ describe("GitlabduoSkill", () => {
     });
   });
 
-  it("should load a skill from skills/ and build deletion entries there", async () => {
+  it("should load a skill from the import-only skills/ root", async () => {
     await writeFileContent(
       join(testDir, "skills", "daily-report", "SKILL.md"),
       "---\nname: daily-report\ndescription: Prepare a daily report\n---\n\nBody",
     );
 
-    const skill = await GitlabduoSkill.fromDir({ outputRoot: testDir, dirName: "daily-report" });
+    const skill = await GitlabduoSkill.fromDir({
+      outputRoot: testDir,
+      relativeDirPath: "skills",
+      dirName: "daily-report",
+    });
     expect(skill).toBeInstanceOf(GitlabduoSkill);
     expect(skill.getRelativeDirPath()).toBe("skills");
     expect(skill.toRulesyncSkill().getFrontmatter().name).toBe("daily-report");
-
-    const forDeletion = GitlabduoSkill.forDeletion({
-      outputRoot: testDir,
-      relativeDirPath: "skills",
-      dirName: "old",
-    });
-    expect(forDeletion).toBeInstanceOf(GitlabduoSkill);
   });
 
   it("should only own skills/ subdirectories that hold a SKILL.md", async () => {
