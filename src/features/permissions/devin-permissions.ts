@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { isDeepStrictEqual } from "node:util";
 
 import { uniq } from "es-toolkit";
 
@@ -13,6 +14,7 @@ import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull, toPosixPath } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
+import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { isRecord } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
@@ -219,7 +221,8 @@ const DEVIN_RESTRICTION_LOSING_SANDBOX_PATHS: readonly RestrictionLosingSandboxP
  * (MCP moved to the dedicated mcp_config.json in v3000.3), so reads and writes
  * merge into the existing JSON and the file is never deleted; only the keys
  * this feature manages are rewritten — `permissions`, plus `sandbox` in global
- * mode when the `devin` override authors it.
+ * mode and the plugin governance lists (`requiredPlugins` / `optionalPlugins` /
+ * `forbiddenPlugins`) in project mode when the `devin` override authors them.
  *
  * The sibling `sandbox` block — which decides what a permitted command may
  * reach rather than which commands are permitted — has no canonical category
@@ -241,7 +244,8 @@ export class DevinPermissions extends ToolPermissions {
   /**
    * config.json may carry the MCP/hooks features' keys, so it is never deleted;
    * only the keys this feature manages are rewritten — `permissions`, plus
-   * `sandbox` in global mode when the `devin` override authors it.
+   * `sandbox` (global) and the plugin governance lists (project) when the
+   * `devin` override authors them.
    */
   override isDeletable(): boolean {
     return false;
@@ -398,6 +402,14 @@ export class DevinPermissions extends ToolPermissions {
       }
     }
 
+    applyPluginGovernanceOverride({
+      override: config.devin,
+      settings,
+      patch,
+      global,
+      logger,
+    });
+
     return new DevinPermissions({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
@@ -446,9 +458,20 @@ export class DevinPermissions extends ToolPermissions {
     // the person doing the import. claudecode and kilo import their global-only
     // keys the same way.
     const sandbox = asDevinRecord(settings.sandbox);
-    const result: Record<string, unknown> = { ...config };
+    const devinOverride: Record<string, unknown> = {};
     if (Object.keys(sandbox).length > 0) {
-      result.devin = { sandbox };
+      devinOverride.sandbox = sandbox;
+    }
+    // The repo-level plugin governance lists round-trip verbatim, like `sandbox`.
+    for (const key of DEVIN_PLUGIN_GOVERNANCE_KEYS) {
+      const value = settings[key];
+      if (Array.isArray(value)) {
+        devinOverride[key] = value;
+      }
+    }
+    const result: Record<string, unknown> = { ...config };
+    if (Object.keys(devinOverride).length > 0) {
+      result.devin = devinOverride;
     }
 
     return this.toRulesyncPermissionsDefault({
@@ -474,6 +497,65 @@ export class DevinPermissions extends ToolPermissions {
       fileContent: JSON.stringify({ permissions: {} }, null, 2),
       validate: false,
     });
+  }
+}
+
+/**
+ * The repo-level plugin governance lists of a checkout's `.devin/config.json`.
+ *
+ * @see https://docs.devin.ai/cli/extensibility/plugins/overview
+ */
+const DEVIN_PLUGIN_GOVERNANCE_KEYS = [
+  "requiredPlugins",
+  "optionalPlugins",
+  "forbiddenPlugins",
+] as const;
+
+/**
+ * Patch the plugin governance lists the `devin` override authors into the
+ * project `.devin/config.json`. Each authored list replaces the file's list
+ * whole; a list it does not author is left as the file holds it. Devin reads these
+ * lists only from a checkout's `.devin/config.json`, so in global mode they are
+ * dropped with a warning. A non-empty `requiredPlugins` that changes the file
+ * is announced, since Devin installs required plugins automatically and a
+ * plugin can ship its own hooks and MCP servers.
+ */
+function applyPluginGovernanceOverride({
+  override,
+  settings,
+  patch,
+  global,
+  logger,
+}: {
+  override: Record<string, unknown> | undefined;
+  settings: Record<string, unknown>;
+  patch: Record<string, unknown>;
+  global: boolean;
+  logger?: Logger;
+}): void {
+  const authoredKeys = DEVIN_PLUGIN_GOVERNANCE_KEYS.filter((key) => override?.[key] !== undefined);
+  if (authoredKeys.length === 0) return;
+  if (global) {
+    logger?.warn(
+      `Devin reads the plugin governance lists (${authoredKeys.join(", ")}) from a checkout's ` +
+        "'.devin/config.json' only, so they were dropped from the user config. Generate without " +
+        "--global to author them.",
+    );
+    return;
+  }
+  for (const key of authoredKeys) {
+    patch[key] = override?.[key];
+  }
+  const required = override?.requiredPlugins;
+  if (
+    Array.isArray(required) &&
+    required.length > 0 &&
+    !isDeepStrictEqual(required, settings.requiredPlugins)
+  ) {
+    logger?.warn(
+      `Writing Devin \`requiredPlugins\` (${required.map(quoteValueForWarning).join(", ")}): Devin installs required plugins ` +
+        "automatically, and a plugin can ship its own hooks and MCP servers.",
+    );
   }
 }
 

@@ -223,6 +223,80 @@ describe("DevinPermissions", () => {
       expect(parsed.permissions.allow).toContain("Read(src/**)");
     });
 
+    it("should write the devin plugin governance lists into the project config.json", async () => {
+      await ensureDir(join(testDir, ".devin"));
+      await writeFileContent(
+        join(testDir, ".devin", "config.json"),
+        JSON.stringify({ optionalPlugins: ["hand/kept"], forbiddenPlugins: ["old/*"] }),
+      );
+      const logger = createMockLogger();
+      const perms = await DevinPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({
+          permission: { read: { "src/**": "allow" } },
+          devin: {
+            requiredPlugins: ["acme/secure-base", { source: "github", repo: "acme/audit-logging" }],
+            forbiddenPlugins: ["*"],
+          },
+        }),
+        logger,
+      });
+
+      const parsed = JSON.parse(perms.getFileContent());
+      expect(parsed.requiredPlugins).toEqual([
+        "acme/secure-base",
+        { source: "github", repo: "acme/audit-logging" },
+      ]);
+      // An authored list replaces the file's list; a list it does not author is kept.
+      expect(parsed.forbiddenPlugins).toEqual(["*"]);
+      expect(parsed.optionalPlugins).toEqual(["hand/kept"]);
+      expect(parsed.permissions.allow).toEqual(["Read(src/**)"]);
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      const [warning] = logger.warn.mock.calls[0] as [string];
+      expect(warning).toContain("requiredPlugins");
+      expect(warning).toContain("acme/secure-base");
+      expect(warning).toContain("acme/audit-logging");
+    });
+
+    it("should not warn when requiredPlugins already matches the project config.json", async () => {
+      await ensureDir(join(testDir, ".devin"));
+      await writeFileContent(
+        join(testDir, ".devin", "config.json"),
+        JSON.stringify({ requiredPlugins: ["acme/secure-base"] }),
+      );
+      const logger = createMockLogger();
+      await DevinPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({
+          permission: {},
+          devin: { requiredPlugins: ["acme/secure-base"] },
+        }),
+        logger,
+      });
+
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("should drop the devin plugin governance lists in global mode with a warning", async () => {
+      const logger = createMockLogger();
+      const perms = await DevinPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({
+          permission: {},
+          devin: { forbiddenPlugins: ["*"], optionalPlugins: ["acme/approved"] },
+        }),
+        global: true,
+        logger,
+      });
+
+      const parsed = JSON.parse(perms.getFileContent());
+      expect(parsed.forbiddenPlugins).toBeUndefined();
+      expect(parsed.optionalPlugins).toBeUndefined();
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      const [warning] = logger.warn.mock.calls[0] as [string];
+      expect(warning).toContain("optionalPlugins, forbiddenPlugins");
+    });
+
     it("should write the devin.sandbox override into the global config.json", async () => {
       const logger = createMockLogger();
       const perms = await DevinPermissions.fromRulesyncPermissions({
@@ -754,6 +828,28 @@ describe("DevinPermissions", () => {
       const parsed = JSON.parse(perms.toRulesyncPermissions().getFileContent());
       expect(parsed.permission.websearch).toEqual({ "*": "deny" });
       expect(parsed.permission.web_search).toBeUndefined();
+    });
+
+    it("should route the plugin governance lists into the devin override", () => {
+      const perms = new DevinPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".devin",
+        relativeFilePath: "config.json",
+        fileContent: JSON.stringify({
+          permissions: { allow: ["Read(src/**)"] },
+          requiredPlugins: [{ source: "github", repo: "acme/audit-logging" }],
+          optionalPlugins: ["acme/approved"],
+          forbiddenPlugins: ["*"],
+        }),
+        validate: false,
+      });
+
+      const parsed = JSON.parse(perms.toRulesyncPermissions().getFileContent());
+      expect(parsed.devin).toEqual({
+        requiredPlugins: [{ source: "github", repo: "acme/audit-logging" }],
+        optionalPlugins: ["acme/approved"],
+        forbiddenPlugins: ["*"],
+      });
     });
 
     it("should route the sandbox block into the devin override", () => {

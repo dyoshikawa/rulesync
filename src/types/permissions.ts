@@ -1499,14 +1499,30 @@ export type ZedPermissionsOverride = z.infer<typeof ZedPermissionsOverrideSchema
  *
  * @example
  * { "sandbox": { "allowed_domains": ["github.com"], "network_mode": "limited" } }
+ * The same override carries the repo-level plugin governance lists Devin reads
+ * from a checkout's `.devin/config.json`: `requiredPlugins` (plugin sources
+ * installed automatically), `optionalPlugins` (endorsed sources that carve an
+ * exception out of a forbidden entry; never installed) and `forbiddenPlugins`
+ * (plugin identities or `*` globs that may not load). A source is a string
+ * (`"owner/repo"` or a git URL) or an object such as
+ * `{ "source": "github", "repo": "owner/repo" }`. They are a repo governance
+ * level, so they are emitted at project scope only.
+ *
  * @example
  * { "sandbox": { "excluded": { "allow": ["Exec(git status *)"], "deny": ["Exec(git tag *)"] } } }
+ * @example
+ * { "forbiddenPlugins": ["*"], "optionalPlugins": ["acme/approved"] }
  * @see https://docs.devin.ai/cli/sandbox
  * @see https://docs.devin.ai/cli/reference/configuration/config-file
+ * @see https://docs.devin.ai/cli/extensibility/plugins/overview
  */
+const DevinPluginSourceSchema = z.union([z.string(), z.looseObject({})]);
 const DevinPermissionsOverrideSchema = z.looseObject({
   permission: z.optional(ToolScopedPermissionSchema),
   sandbox: z.optional(z.looseObject({})),
+  requiredPlugins: z.optional(z.array(DevinPluginSourceSchema)),
+  optionalPlugins: z.optional(z.array(DevinPluginSourceSchema)),
+  forbiddenPlugins: z.optional(z.array(z.string())),
 });
 export type DevinPermissionsOverride = z.infer<typeof DevinPermissionsOverrideSchema>;
 

@@ -1620,7 +1620,12 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
   ".devin/config.json": {
     format: "json",
     features: {
-      permissions: { kind: "replace-owned-keys", ownedKeys: ["permissions"] },
+      // The repo-level plugin governance lists are patched only when the
+      // `devin` override authors them, so a hand-set value survives.
+      permissions: {
+        kind: "replace-owned-keys",
+        ownedKeys: ["permissions", "requiredPlugins", "optionalPlugins", "forbiddenPlugins"],
+      },
     },
   },
   ".config/devin/config.json": {
