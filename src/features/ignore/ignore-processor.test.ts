@@ -489,6 +489,7 @@ describe("IgnoreProcessor", () => {
         "continue",
         "crush",
         "cursor",
+        "firebender",
         "grokcli",
         "hermesagent",
         "junie",
@@ -517,6 +518,7 @@ describe("IgnoreProcessor", () => {
       expect(IgnoreProcessor.getToolTargets({ global: true })).toEqual([
         "continue",
         "devin",
+        "firebender",
         "grokcli",
         "kilo",
         "kiro",

@@ -317,6 +317,8 @@ rulesync.local.jsonc
 **/.factory/rules/
 **/DESIGN.md
 **/.factory/threat-model.md
+**/.firebender/AGENTS.md
+**/.firebender/rules/
 **/.goosehints
 **/.hermes.md
 **/.gitlab/duo/chat-rules.md
@@ -359,6 +361,7 @@ rulesync.local.jsonc
 **/.github/prompts/
 **/.cursor/commands/
 **/.factory/commands/
+**/.firebender/commands/
 **/.goose/recipes/
 **/.grok/commands/
 **/.junie/commands/
@@ -396,6 +399,7 @@ rulesync.local.jsonc
 **/.factory/skills/**
 !**/.factory/skills/review-guidelines/
 !**/.factory/skills/review-guidelines/SKILL.md
+**/.firebender/skills/
 **/.goose/skills/
 **/.grok/skills/
 **/.junie/skills/
@@ -432,6 +436,7 @@ rulesync.local.jsonc
 **/.deepagents/agents/
 **/.devin/agents/
 **/.factory/droids/
+**/.firebender/agents/
 **/.goose/agents/
 **/.hermes/rulesync/subagents/
 **/.grok/agents/
@@ -478,6 +483,7 @@ rulesync.local.jsonc
 **/.amp/plugins/rulesync-hooks.ts
 **/.agents/hooks.json
 **/.cursor/hooks.json
+**/.firebender/hooks.json
 **/.codewhale/hooks.toml
 **/.codex/hooks.json
 **/.github/hooks/copilot-hooks.json

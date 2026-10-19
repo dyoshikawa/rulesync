@@ -25,6 +25,7 @@ Rulesync supports both **generation** and **import** for All of the major AI cod
 | Cursor                    | cursor             |  ✅   |   ✅   |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |   ✅   |
 | deepagents-cli            | deepagents         | ✅ 🌏 |        | ✅ 🌏 🔧 |          |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |     🌏      |        |
 | Factory Droid             | factorydroid       | ✅ 🌏 |        | ✅ 🌏 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |   ✅   |
+| Firebender                | firebender         | ✅ 🌏 | ✅ 🌏  |  ✅ 🌏   |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |             |        |
 | OpenCode                  | opencode           | ✅ 🌏 |        | ✅ 🌏 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |
 | OpenClaw                  | openclaw           | ✅ 🌏 |        |  🌏 🔧   |          |           |        |       |             |        |
 | MiMo Code                 | mimocode           | ✅ 🌏 |        | ✅ 🌏 🔧 |  ✅ 🌏   |   ✅ 🌏   | ✅ 🌏  | ✅ 🌏 |    ✅ 🌏    |        |

@@ -62,6 +62,7 @@ const mcpGenerateTargets = [
   { target: "pool", outputPath: join(".poolside", "settings.yaml") },
   { target: "deepagents", outputPath: join(".deepagents", ".mcp.json") },
   { target: "factorydroid", outputPath: join(".factory", "mcp.json") },
+  { target: "firebender", outputPath: "firebender.json" },
   { target: "goose", outputPath: join(".agents", "plugins", "rulesync", ".mcp.json") },
   { target: "kilo", outputPath: "kilo.jsonc" },
   { target: "kimi-code", outputPath: join(".kimi-code", "mcp.json") },
@@ -558,6 +559,11 @@ describe("E2E: mcp", () => {
       outputPath: join(".poolside", "settings.yaml"),
       content: "pool:\n  worktree_prefix: feat-\n",
     },
+    {
+      target: "firebender",
+      outputPath: "firebender.json",
+      content: JSON.stringify({ useCursorRules: false }, null, 2),
+    },
   ])(
     "should succeed in check mode when a $target mcp file is non-deletable",
     async ({ target, outputPath, content }) => {
@@ -844,6 +850,7 @@ describe("E2E: mcp (import)", () => {
     { target: "deepagents", sourcePath: join(".deepagents", ".mcp.json") },
     { target: "gitlabduo", sourcePath: join(".gitlab", "duo", "mcp.json") },
     { target: "factorydroid", sourcePath: join(".factory", "mcp.json") },
+    { target: "firebender", sourcePath: "firebender.json" },
     { target: "kimi-code", sourcePath: join(".kimi-code", "mcp.json") },
     { target: "roo", sourcePath: join(".roo", "mcp.json") },
     { target: "kiro", sourcePath: join(".kiro", "settings", "mcp.json") },
@@ -1035,6 +1042,7 @@ const mcpGlobalTargets = [
   { target: "grokcli", outputPath: join(".grok", "config.toml") },
   { target: "copilotcli", outputPath: join(".copilot", "mcp-config.json") },
   { target: "factorydroid", outputPath: join(".factory", "mcp.json") },
+  { target: "firebender", outputPath: join(".firebender", "firebender.json") },
   { target: "rovodev", outputPath: join(".rovodev", "mcp.json") },
   {
     target: "cline",

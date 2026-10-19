@@ -49,6 +49,7 @@ import { DeepagentsSubagent } from "./deepagents-subagent.js";
 import { DevinPluginSubagent } from "./devin-plugin-subagent.js";
 import { DevinSubagent } from "./devin-subagent.js";
 import { FactorydroidSubagent } from "./factorydroid-subagent.js";
+import { FirebenderSubagent } from "./firebender-subagent.js";
 import { GooseSubagent } from "./goose-subagent.js";
 import { GrokcliSubagent } from "./grokcli-subagent.js";
 import { HermesagentSubagent } from "./hermesagent-subagent.js";
@@ -546,6 +547,26 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
         supportsProject: true,
         supportsSimulated: false,
         supportsGlobal: true,
+        filePattern: "*.md",
+      },
+    },
+  ],
+  [
+    "firebender",
+    {
+      // Firebender agents are Markdown files that only load once listed in
+      // the `agents` array of `firebender.json` (project root, or
+      // `~/.firebender/firebender.json`). rulesync writes them to
+      // .firebender/agents/ (project) and ~/.firebender/agents/ (global) and
+      // registers each one; the shared config file is never deleted, so an
+      // empty aggregate is what unregisters stale agents.
+      // https://docs.firebender.com/api-reference/agents
+      class: FirebenderSubagent,
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: true,
+        emitsEmptyAggregate: true,
         filePattern: "*.md",
       },
     },

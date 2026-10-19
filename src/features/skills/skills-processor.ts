@@ -59,6 +59,7 @@ import { DevinPluginSkill } from "./devin-plugin-skill.js";
 import { DevinSkill } from "./devin-skill.js";
 import { DshSkill } from "./dsh-skill.js";
 import { FactorydroidSkill } from "./factorydroid-skill.js";
+import { FirebenderSkill } from "./firebender-skill.js";
 import { GitlabduoSkill } from "./gitlabduo-skill.js";
 import { GooseSkill } from "./goose-skill.js";
 import { GrokcliSkill } from "./grokcli-skill.js";
@@ -482,6 +483,16 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
       // (project) and ~/.factory/skills/ (global).
       // https://docs.factory.ai/cli/configuration/skills
       class: FactorydroidSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "firebender",
+    {
+      // Firebender reads <name>/SKILL.md directories from .firebender/skills/
+      // (project) and ~/.firebender/skills/ (user).
+      // https://docs.firebender.com/api-reference/skills
+      class: FirebenderSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],

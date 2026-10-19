@@ -105,6 +105,7 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 | Cursor                    |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |   ✅   |
 | deepagents-cli            |  ✅   |        | ✅  |          |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | Factory Droid             |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |   ✅   |
+| Firebender                |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |             |        |
 | OpenCode                  |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | OpenClaw                  |  ✅   |        | ✅  |          |           |        |       |             |        |
 | MiMo Code                 |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |

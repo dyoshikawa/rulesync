@@ -23,6 +23,7 @@ import {
   CONTINUE_HOOK_EVENTS,
   CORTEXCODE_HOOK_EVENTS,
   CURSOR_HOOK_EVENTS,
+  FIREBENDER_HOOK_EVENTS,
   DEEPAGENTS_HOOK_EVENTS,
   DEVIN_HOOK_EVENTS,
   FACTORYDROID_HOOK_EVENTS,
@@ -85,6 +86,7 @@ import { DeepagentsHooks } from "./deepagents-hooks.js";
 import { DevinHooks } from "./devin-hooks.js";
 import { DevinPluginHooks } from "./devin-plugin-hooks.js";
 import { FactorydroidHooks } from "./factorydroid-hooks.js";
+import { FirebenderHooks } from "./firebender-hooks.js";
 import { GitlabduoHooks } from "./gitlabduo-hooks.js";
 import { GooseHooks } from "./goose-hooks.js";
 import { GrokcliHooks } from "./grokcli-hooks.js";
@@ -396,6 +398,24 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       },
       supportedEvents: CURSOR_HOOK_EVENTS,
       supportedHookTypes: ["command", "prompt"],
+      supportsMatcher: true,
+    },
+  ],
+  [
+    "firebender",
+    {
+      class: FirebenderHooks,
+      meta: {
+        // `.firebender/hooks.json` (project) and `~/.firebender/hooks.json`
+        // (global), in Cursor's `{ version, hooks }` layout.
+        // https://docs.firebender.com/multi-agent/hooks
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+      supportedEvents: FIREBENDER_HOOK_EVENTS,
+      // Only command-based hooks are documented.
+      supportedHookTypes: ["command"],
       supportsMatcher: true,
     },
   ],

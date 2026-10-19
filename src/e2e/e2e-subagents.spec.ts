@@ -176,6 +176,10 @@ const subagentsGenerateTargets = [
     outputPath: join(".factory", "droids", "planner.md"),
   },
   {
+    target: "firebender",
+    outputPath: join(".firebender", "agents", "planner.md"),
+  },
+  {
     target: "cline",
     outputPath: join(".cline", "agents", "planner.yaml"),
   },
@@ -242,6 +246,7 @@ const subagentsGlobalTargets = [
   { target: "rovodev", outputPath: join(".rovodev", "subagents", "planner.md") },
   { target: "takt", outputPath: join(".takt", "facets", "personas", "planner.md") },
   { target: "factorydroid", outputPath: join(".factory", "droids", "planner.md") },
+  { target: "firebender", outputPath: join(".firebender", "agents", "planner.md") },
   { target: "cline", outputPath: join(".cline", "agents", "planner.yaml") },
   { target: "codebuddy", outputPath: join(".codebuddy", "agents", "planner.md") },
   {
@@ -461,6 +466,7 @@ You are a subagent-only helper.
     { target: "lettacode", orphanPath: join(".letta", "agents", "orphan.md") },
     { target: "junie", orphanPath: join(".junie", "agents", "orphan.md") },
     { target: "factorydroid", orphanPath: join(".factory", "droids", "orphan.md") },
+    { target: "firebender", orphanPath: join(".firebender", "agents", "orphan.md") },
     { target: "cline", orphanPath: join(".cline", "agents", "orphan.yaml") },
     { target: "codebuddy", orphanPath: join(".codebuddy", "agents", "orphan.md") },
     { target: "vibe", orphanPath: join(".vibe", "agents", "orphan.toml") },
@@ -495,6 +501,45 @@ You are a subagent-only helper.
       expect(await readFileContent(join(testDir, orphanPath))).toBe(orphanContent);
     },
   );
+});
+
+describe("E2E: subagents (firebender)", () => {
+  const { getTestDir } = useTestDirectory();
+
+  it("should register generated agents in firebender.json without touching other keys", async () => {
+    const testDir = getTestDir();
+
+    // Firebender only loads agents listed in the `agents` array of
+    // firebender.json. Entries outside rulesync's `.firebender/agents/` stay,
+    // stale entries inside it are replaced, and other keys are preserved.
+    await writeFileContent(
+      join(testDir, "firebender.json"),
+      JSON.stringify({
+        useCursorRules: false,
+        agents: ["~/firebender-agents/mine.md", ".firebender/agents/stale.md"],
+      }),
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md"),
+      `---
+name: planner
+targets: ["firebender"]
+description: "Plans implementation tasks"
+---
+You are the planner.
+`,
+    );
+
+    await runGenerate({ target: "firebender", features: "subagents" });
+
+    expect(JSON.parse(await readFileContent(join(testDir, "firebender.json")))).toEqual({
+      useCursorRules: false,
+      agents: ["~/firebender-agents/mine.md", ".firebender/agents/planner.md"],
+    });
+    expect(await readFileContent(join(testDir, ".firebender", "agents", "planner.md"))).toContain(
+      "callable: true",
+    );
+  });
 });
 
 describe("E2E: subagents (pool)", () => {
@@ -693,6 +738,7 @@ describe("E2E: subagents (import)", () => {
     { target: "deepagents", sourcePath: join(".deepagents", "agents", "planner", "AGENTS.md") },
     { target: "junie", sourcePath: join(".junie", "agents", "planner.md") },
     { target: "factorydroid", sourcePath: join(".factory", "droids", "planner.md") },
+    { target: "firebender", sourcePath: join(".firebender", "agents", "planner.md") },
     { target: "cline", sourcePath: join(".cline", "agents", "planner.yaml") },
     { target: "codebuddy", sourcePath: join(".codebuddy", "agents", "planner.md") },
     { target: "devin", sourcePath: join(".devin", "agents", "planner", "AGENT.md") },

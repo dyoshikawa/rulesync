@@ -53,6 +53,7 @@ import { CopilotCommand } from "./copilot-command.js";
 import { CursorCommand } from "./cursor-command.js";
 import { DevinCommand } from "./devin-command.js";
 import { FactorydroidCommand } from "./factorydroid-command.js";
+import { FirebenderCommand } from "./firebender-command.js";
 import { GitlabduoCommand } from "./gitlabduo-command.js";
 import {
   getGooseSlashCommandsConfigContent,
@@ -158,7 +159,7 @@ type ToolCommandFactory = {
   };
   meta: {
     /** File extension for the command file */
-    extension: "json" | "md" | "toml" | "prompt.md" | "yaml";
+    extension: "json" | "md" | "mdc" | "toml" | "prompt.md" | "yaml";
     /** Whether the tool supports project-level commands */
     supportsProject: boolean;
     /** Whether the tool supports global (user-level) commands */
@@ -474,6 +475,22 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
         // .factory/commands/ (project) and ~/.factory/commands/ (personal/global).
         // https://docs.factory.ai/cli/configuration/custom-slash-commands
         extension: "md",
+        supportsProject: true,
+        supportsGlobal: true,
+        isSimulated: false,
+        supportsSubdirectory: false,
+      },
+    },
+  ],
+  [
+    "firebender",
+    {
+      class: FirebenderCommand,
+      meta: {
+        // Firebender commands are `.mdc` files under .firebender/commands/
+        // (project) and ~/.firebender/commands/ (personal/global).
+        // https://docs.firebender.com/api-reference/commands
+        extension: "mdc",
         supportsProject: true,
         supportsGlobal: true,
         isSimulated: false,
