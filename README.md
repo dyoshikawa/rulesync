@@ -137,6 +137,7 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 | Google Antigravity CLI    |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | Google Antigravity plugin |  ✅   |        | ✅  |          |    ✅     |   ✅   |  ✅   |             |        |
 | JetBrains AI Assistant    |  ✅   |   ✅   | ✅  |          |           |   ✅   |       |             |        |
+| Gemini in Android Studio  |       |   ✅   |     |          |           |   ✅   |       |             |        |
 | JetBrains Junie           |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
 | AugmentCode               |  ✅   |   ✅   | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |   ✅   |
 | AugmentCode plugin        |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |             |        |

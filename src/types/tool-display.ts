@@ -66,6 +66,7 @@ export const TOOL_DISPLAY: ReadonlyArray<ToolDisplayEntry> = [
   { key: "antigravity-cli", label: "Google Antigravity CLI", group: "ai" },
   { key: "antigravity-plugin", label: "Google Antigravity plugin", group: "ai" },
   { key: "aiassistant", label: "JetBrains AI Assistant", group: "ai" },
+  { key: "androidstudio", label: "Gemini in Android Studio", group: "ai" },
   { key: "junie", label: "JetBrains Junie", group: "ai" },
   { key: "augmentcode", label: "AugmentCode", group: "ai" },
   { key: "augmentcode-plugin", label: "AugmentCode plugin", group: "ai" },
