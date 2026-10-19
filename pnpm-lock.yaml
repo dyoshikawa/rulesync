@@ -8,7 +8,7 @@ overrides:
   gray-matter>js-yaml: 4.3.1
 
 patchedDependencies:
-  gray-matter@4.0.3: 0e2b238ee6601ee9b92d68bebc85640d09c5c5fb08f0d4d1b832a6084098ff73
+  gray-matter@4.0.3: c1785234a54123a90edb14a65c473e969b6b6f6376765e8df36b2e61a5b93088
 
 importers:
 
@@ -43,7 +43,7 @@ importers:
         version: 16.2.4
       gray-matter:
         specifier: 4.0.3
-        version: 4.0.3(patch_hash=0e2b238ee6601ee9b92d68bebc85640d09c5c5fb08f0d4d1b832a6084098ff73)
+        version: 4.0.3(patch_hash=c1785234a54123a90edb14a65c473e969b6b6f6376765e8df36b2e61a5b93088)
       js-yaml:
         specifier: 5.5.0
         version: 5.5.0
@@ -6348,7 +6348,7 @@ snapshots:
 
   gpt-tokenizer@4.0.3: {}
 
-  gray-matter@4.0.3(patch_hash=0e2b238ee6601ee9b92d68bebc85640d09c5c5fb08f0d4d1b832a6084098ff73):
+  gray-matter@4.0.3(patch_hash=c1785234a54123a90edb14a65c473e969b6b6f6376765e8df36b2e61a5b93088):
     dependencies:
       js-yaml: 4.3.1
       kind-of: 6.0.3

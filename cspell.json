@@ -20,7 +20,8 @@
     ".gitignore",
     "docs/**",
     ".rulesync/**",
-    "src/generated/**"
+    "src/generated/**",
+    "patches/**"
   ],
   "words": [
     "bunx",
