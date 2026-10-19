@@ -70,6 +70,7 @@ const commandsGenerateTargets = [
   { target: "gitlabduo", outputPath: join(".agents", "commands", "review-pr.md") },
   { target: "grokcli", outputPath: join(".grok", "commands", "review-pr.md") },
   { target: "qwencode", outputPath: join(".qwen", "commands", "review-pr.md") },
+  { target: "lettacode", outputPath: join(".commands", "review-pr.md") },
   { target: "reasonix", outputPath: join(".reasonix", "commands", "review-pr.md") },
   { target: "rovodev", outputPath: join(".rovodev", "prompts", "review-pr.md") },
   { target: "zcode", outputPath: join(".zcode", "commands", "review-pr.md") },
@@ -126,6 +127,7 @@ const commandsGlobalTargets = [
     target: "hermesagent",
     outputPath: join(getHermesagentGlobalDir(), "rulesync", "commands", "review-pr.json"),
   },
+  { target: "lettacode", outputPath: join(".letta", "commands", "review-pr.md") },
   { target: "reasonix", outputPath: join(".reasonix", "commands", "review-pr.md") },
   { target: "rovodev", outputPath: join(".rovodev", "prompts", "review-pr.md") },
   { target: "zcode", outputPath: join(".zcode", "commands", "review-pr.md") },
@@ -514,6 +516,7 @@ describe("E2E: commands (import)", () => {
     { target: "factorydroid", sourcePath: join(".factory", "commands", "review-pr.md") },
     { target: "gitlabduo", sourcePath: join(".agents", "commands", "review-pr.md") },
     { target: "grokcli", sourcePath: join(".grok", "commands", "review-pr.md") },
+    { target: "lettacode", sourcePath: join(".commands", "review-pr.md") },
     { target: "reasonix", sourcePath: join(".reasonix", "commands", "review-pr.md") },
     { target: "rovodev", sourcePath: join(".rovodev", "prompts", "review-pr.md") },
   ])("should import $target commands", async ({ target, sourcePath }) => {

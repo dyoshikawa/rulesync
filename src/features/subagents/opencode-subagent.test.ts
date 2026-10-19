@@ -345,6 +345,42 @@ Body content`,
       expect(frontmatter.prompt).toBeUndefined();
     });
 
+    it("merges inline agents from .opencode/opencode.json over the root config", async () => {
+      await writeFileContent(join(testDir, ".opencode", "prompts", "agent.txt"), "Dot prompt");
+      await writeFileContent(
+        join(testDir, "opencode.json"),
+        JSON.stringify({
+          agent: {
+            reviewer: { description: "Root", mode: "subagent", prompt: "Root prompt" },
+            keeper: { description: "Keeps its prompt", prompt: "Kept prompt" },
+          },
+        }),
+      );
+      await writeFileContent(
+        join(testDir, ".opencode", "opencode.json"),
+        JSON.stringify({
+          agent: {
+            // Resolved against `.opencode/`, the directory of this file.
+            reviewer: { description: "Dot", prompt: "{file:./prompts/agent.txt}" },
+            keeper: { temperature: 0.1 },
+          },
+        }),
+      );
+
+      const subagents = await OpenCodeSubagent.loadAdditionalImportFiles({ outputRoot: testDir });
+      const byName = new Map(subagents.map((agent) => [agent.getRelativeFilePath(), agent]));
+
+      const reviewer = byName.get("reviewer.md");
+      expect(reviewer?.getBody()).toBe("Dot prompt");
+      expect(reviewer?.getFrontmatter()).toMatchObject({ description: "Dot", mode: "subagent" });
+      const keeper = byName.get("keeper.md");
+      expect(keeper?.getBody()).toBe("Kept prompt");
+      expect(keeper?.getFrontmatter()).toMatchObject({
+        description: "Keeps its prompt",
+        temperature: 0.1,
+      });
+    });
+
     it("resolves a {file:./path} prompt reference relative to the config dir", async () => {
       await writeFileContent(join(testDir, "prompts", "agent.txt"), "Prompt from file");
       await writeFileContent(

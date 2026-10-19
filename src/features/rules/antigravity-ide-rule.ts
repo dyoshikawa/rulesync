@@ -87,12 +87,25 @@ export class AntigravityIdeRule extends ToolRule {
 
     super({
       ...rest,
-      // Root rules are plain markdown (`AGENTS.md` / `GEMINI.md`); non-root
-      // rules carry Antigravity trigger frontmatter.
-      fileContent: rest.root ? body : stringifyFrontmatter(body, frontmatter),
+      // Root rules are plain markdown (`AGENTS.md` / `GEMINI.md`) unless the
+      // target gives them frontmatter (the plugin's `rules/AGENTS.md`);
+      // non-root rules carry Antigravity trigger frontmatter.
+      fileContent:
+        rest.root && Object.keys(frontmatter).length === 0
+          ? body
+          : stringifyFrontmatter(body, frontmatter),
     });
     this.frontmatter = frontmatter;
     this.body = body;
+  }
+
+  /**
+   * Frontmatter written on the root rule. The project `AGENTS.md` and the
+   * global `GEMINI.md` take none; a subclass whose root rule sits inside a
+   * `rules/` directory, where every `.md` needs a `trigger`, overrides it.
+   */
+  protected static getRootRuleFrontmatter(): AntigravityRuleFrontmatter {
+    return {};
   }
 
   protected static getGlobalRootPath(excludeToolDir?: boolean): {
@@ -163,15 +176,21 @@ export class AntigravityIdeRule extends ToolRule {
       (relativeDirPath === undefined || relativeDirPath === paths.root.relativeDirPath);
     if (isRoot) {
       const rootPath = paths.root;
-      const rootContent = await readFileContent(
-        join(outputRoot, rootPath.relativeDirPath, rootPath.relativeFilePath),
-      );
+      const rootFilePath = join(outputRoot, rootPath.relativeDirPath, rootPath.relativeFilePath);
+      const rootContent = await readFileContent(rootFilePath);
+      const rootFrontmatter = this.getRootRuleFrontmatter();
+      // A root rule that takes frontmatter is read with or without it, and
+      // only its body is kept: the frontmatter is fixed by the target.
+      const rootBody =
+        Object.keys(rootFrontmatter).length === 0
+          ? rootContent
+          : parseFrontmatter(rootContent, rootFilePath).body;
       return new this({
         outputRoot,
         relativeDirPath: rootPath.relativeDirPath,
         relativeFilePath: rootPath.relativeFilePath,
-        frontmatter: {},
-        body: rootContent,
+        frontmatter: rootFrontmatter,
+        body: rootBody,
         validate,
         root: true,
         global,
@@ -250,7 +269,7 @@ export class AntigravityIdeRule extends ToolRule {
         outputRoot,
         relativeDirPath: rootPath.relativeDirPath,
         relativeFilePath: rootPath.relativeFilePath,
-        frontmatter: {},
+        frontmatter: this.getRootRuleFrontmatter(),
         body: rulesyncRule.getBody(),
         validate,
         root: true,
@@ -298,8 +317,9 @@ export class AntigravityIdeRule extends ToolRule {
 
   toRulesyncRule(): RulesyncRule {
     if (this.root) {
-      // Global GEMINI.md round-trips as a plain root rule.
-      return this.toRulesyncRuleDefault();
+      // The root rule round-trips as a plain root rule; any root frontmatter
+      // is target-fixed and dropped.
+      return this.toRulesyncRuleDefault({ body: this.body });
     }
 
     const strategy = STRATEGIES.find((s) => s.canHandle(this.frontmatter.trigger));

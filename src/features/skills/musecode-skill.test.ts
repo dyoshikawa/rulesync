@@ -6,6 +6,7 @@ import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
+import { AgentsSkillsSkill } from "./agentsskills-skill.js";
 import { MusecodeSkill } from "./musecode-skill.js";
 import { RulesyncSkill } from "./rulesync-skill.js";
 
@@ -71,6 +72,86 @@ describe("MusecodeSkill", () => {
         global: true,
       });
       expect(musecodeSkill.getRelativeDirPath()).toBe(join(".config", "muse", "skills"));
+    });
+  });
+
+  describe("Agent Skills packaging fields", () => {
+    const makeSkill = (frontmatter: Record<string, unknown>) =>
+      new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "demo",
+        frontmatter: { name: "demo", description: "Demo", ...frontmatter },
+        body: "b",
+        validate: true,
+      });
+
+    it("emits the root-level license, compatibility and metadata", () => {
+      const musecodeSkill = MusecodeSkill.fromRulesyncSkill({
+        rulesyncSkill: makeSkill({
+          license: "MIT",
+          compatibility: "Requires git",
+          metadata: { "display-name": "Demo Skill" },
+        }),
+      });
+      expect(musecodeSkill.getFrontmatter()).toEqual({
+        name: "demo",
+        description: "Demo",
+        license: "MIT",
+        compatibility: "Requires git",
+        metadata: { "display-name": "Demo Skill" },
+      });
+    });
+
+    it("lets the musecode section override the root values outright", () => {
+      const musecodeSkill = MusecodeSkill.fromRulesyncSkill({
+        rulesyncSkill: makeSkill({
+          license: "MIT",
+          metadata: { author: "root" },
+          musecode: { license: "Apache-2.0", metadata: { "display-name": "Muse Demo" } },
+        }),
+        global: true,
+      });
+      expect(musecodeSkill.getFrontmatter()).toEqual({
+        name: "demo",
+        description: "Demo",
+        license: "Apache-2.0",
+        metadata: { "display-name": "Muse Demo" },
+      });
+    });
+
+    it("writes the same packaging fields as agentsskills to the shared .agents/skills root", () => {
+      const rulesyncSkill = makeSkill({
+        license: "MIT",
+        compatibility: { requires: "git" },
+        metadata: { "display-name": "Demo Skill", version: 2 },
+      });
+      const musecodeSkill = MusecodeSkill.fromRulesyncSkill({ rulesyncSkill });
+      const agentsSkill = AgentsSkillsSkill.fromRulesyncSkill({ rulesyncSkill });
+
+      expect(musecodeSkill.getRelativeDirPath()).toBe(agentsSkill.getRelativeDirPath());
+      expect(musecodeSkill.getFrontmatter()).toEqual(agentsSkill.getFrontmatter());
+    });
+
+    it("round-trips the packaging fields through the musecode section on import", async () => {
+      const skillDir = join(testDir, ".agents", "skills", "demo");
+      await ensureDir(skillDir);
+      await writeFileContent(
+        join(skillDir, SKILL_FILE_NAME),
+        `---\nname: demo\ndescription: Demo\nlicense: MIT\nmetadata:\n  display-name: Demo Skill\n---\n\nBody.`,
+      );
+
+      const musecodeSkill = await MusecodeSkill.fromDir({ outputRoot: testDir, dirName: "demo" });
+      const rulesyncSkill = musecodeSkill.toRulesyncSkill();
+      expect(rulesyncSkill.getFrontmatter()).toEqual({
+        name: "demo",
+        description: "Demo",
+        targets: ["*"],
+        musecode: { license: "MIT", metadata: { "display-name": "Demo Skill" } },
+      });
+
+      const regenerated = MusecodeSkill.fromRulesyncSkill({ rulesyncSkill });
+      expect(regenerated.getFrontmatter()).toEqual(musecodeSkill.getFrontmatter());
     });
   });
 

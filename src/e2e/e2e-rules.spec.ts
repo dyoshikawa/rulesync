@@ -790,6 +790,32 @@ ${"x".repeat(33 * 1024)}
     expect(root).toContain("Large Rule");
     expect(root).not.toContain("Rule for svc1");
     expect(stderr).toContain("project_doc_max_bytes");
+
+    // Raising the budget in `.codex/config.toml` suppresses the warning, and
+    // rulesync only reads that file, never rewrites it.
+    const configPath = join(testDir, ".codex", "config.toml");
+    const raisedConfig = "project_doc_max_bytes = 131072\n";
+    await writeFileContent(configPath, raisedConfig);
+    const raised = await runGenerate({
+      target: "codexcli",
+      features: "rules",
+      env: { NODE_ENV: "e2e" },
+    });
+    expect(raised.stderr).not.toContain("project_doc_max_bytes");
+    expect(await readFileContent(configPath)).toBe(raisedConfig);
+
+    // `project_doc_max_bytes = 0` disables project docs in Codex, so the
+    // warning says the generated files will not be loaded.
+    const disabledConfig = "project_doc_max_bytes = 0\n";
+    await writeFileContent(configPath, disabledConfig);
+    const disabled = await runGenerate({
+      target: "codexcli",
+      features: "rules",
+      env: { NODE_ENV: "e2e" },
+    });
+    expect(disabled.stderr).toContain("is set to 0");
+    expect(disabled.stderr).toContain("will not be loaded");
+    expect(await readFileContent(configPath)).toBe(disabledConfig);
   });
 
   it("should fold junie non-root rules into the root .junie/AGENTS.md", async () => {

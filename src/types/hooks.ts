@@ -347,10 +347,13 @@ export const CLAUDE_HOOK_EVENTS: readonly HookEvent[] = [
  * eight events: `PreToolUse`, `PostToolUse`, `PermissionRequest`,
  * `UserPromptSubmit`, `Stop`, `SessionStart`, `SessionEnd`, and
  * `PostCompaction` (fires after context compaction; added in the Devin CLI
- * stable changelog — https://docs.devin.ai/cli/changelog/stable). The
- * tool/permission events (`PreToolUse`/`PostToolUse`/`PermissionRequest`) carry
- * a `matcher` (regex against `tool_name`); the session/turn/compaction events
- * do not.
+ * stable changelog — https://docs.devin.ai/cli/changelog/stable). CLI
+ * v3000.11.92 added `PreCompact` and `PostCompact`, which run before and after
+ * compaction with `manual` / `auto` trigger matchers; `PostCompaction` stays
+ * supported. The tool/permission events (`PreToolUse`/`PostToolUse`/
+ * `PermissionRequest`) carry a `matcher` (regex against `tool_name`) and
+ * `PreCompact` a trigger matcher; the other session/turn/compaction events do
+ * not.
  *
  * Hooks live in `.devin/hooks.v1.json` (project, standalone — the hooks object
  * is the entire file) or under the `"hooks"` key of `.devin/config.json` /
@@ -366,6 +369,7 @@ export const DEVIN_HOOK_EVENTS: readonly HookEvent[] = [
   "beforeSubmitPrompt",
   "stop",
   "permissionRequest",
+  "preCompact",
   "postCompact",
 ];
 
@@ -1906,17 +1910,24 @@ export const CANONICAL_TO_DEVIN_EVENT_NAMES: Record<string, string> = {
   beforeSubmitPrompt: "UserPromptSubmit",
   stop: "Stop",
   permissionRequest: "PermissionRequest",
-  // Devin's post-context-compaction event uses the `PostCompaction` PascalCase
-  // key (not `PostCompact`). https://docs.devin.ai/cli/changelog/stable
+  // `PreCompact` (CLI v3000.11.92) runs before context compaction and takes a
+  // `manual` / `auto` trigger matcher.
+  preCompact: "PreCompact",
+  // Devin's post-context-compaction event is emitted under the long-standing
+  // `PostCompaction` key, which v3000.11.92 keeps supported next to the new
+  // `PostCompact` and which older CLIs also read.
+  // https://docs.devin.ai/cli/changelog/stable
   postCompact: "PostCompaction",
 };
 
 /**
- * Map Devin Local PascalCase event names to canonical camelCase.
+ * Map Devin Local PascalCase event names to canonical camelCase. `PostCompact`
+ * (CLI v3000.11.92) is accepted on import as an alias of `PostCompaction`.
  */
-export const DEVIN_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
-  Object.entries(CANONICAL_TO_DEVIN_EVENT_NAMES).map(([k, v]) => [v, k]),
-);
+export const DEVIN_TO_CANONICAL_EVENT_NAMES: Record<string, string> = {
+  ...Object.fromEntries(Object.entries(CANONICAL_TO_DEVIN_EVENT_NAMES).map(([k, v]) => [v, k])),
+  PostCompact: "postCompact",
+};
 
 /**
  * Map canonical camelCase event names to AugmentCode PascalCase.

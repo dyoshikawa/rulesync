@@ -94,6 +94,25 @@ describe("ClaudecodePluginSubagent", () => {
       );
     });
 
+    it("should drop initialPrompt with a warning that does not cite security", () => {
+      const subagent = generate({
+        outputRoot: testDir,
+        rulesyncSubagent: buildRulesyncSubagent({
+          claudecode: { model: "haiku", initialPrompt: "/review" },
+        }),
+      });
+
+      const { frontmatter } = parseFrontmatter(subagent.getFileContent(), "agents/reviewer.md");
+      expect(frontmatter).not.toHaveProperty("initialPrompt");
+      expect(frontmatter).toMatchObject({ name: "reviewer", model: "haiku" });
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          "Dropping initialPrompt from claudecode-plugin subagent reviewer.md: Claude Code ignores these fields",
+        ),
+      );
+    });
+
     it("should keep isolation when it is worktree", () => {
       const subagent = generate({
         outputRoot: testDir,
@@ -164,7 +183,11 @@ describe("ClaudecodePluginSubagent", () => {
         outputRoot: testDir,
         relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
         rulesyncSubagent: buildRulesyncSubagent({
-          claudecode: { permissionMode: "acceptEdits", isolation: "sandbox" },
+          claudecode: {
+            permissionMode: "acceptEdits",
+            isolation: "sandbox",
+            initialPrompt: "/review",
+          },
         }),
         logger,
       });
@@ -173,7 +196,11 @@ describe("ClaudecodePluginSubagent", () => {
         subagent.getFileContent(),
         ".claude/agents/reviewer.md",
       );
-      expect(frontmatter).toMatchObject({ permissionMode: "acceptEdits", isolation: "sandbox" });
+      expect(frontmatter).toMatchObject({
+        permissionMode: "acceptEdits",
+        isolation: "sandbox",
+        initialPrompt: "/review",
+      });
       expect(logger.warn).not.toHaveBeenCalled();
     });
   });

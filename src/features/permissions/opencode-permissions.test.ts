@@ -46,6 +46,50 @@ describe("OpencodePermissions", () => {
     expect(json.permission).toEqual({});
   });
 
+  it("should merge permission rules from .opencode/opencode.json over the root config", async () => {
+    await writeFileContent(
+      join(testDir, "opencode.json"),
+      JSON.stringify({ permission: { bash: { "*": "ask" }, edit: "deny" } }),
+    );
+    await writeFileContent(
+      join(testDir, ".opencode", "opencode.json"),
+      JSON.stringify({ permission: { bash: { "git *": "allow" }, webfetch: "allow" } }),
+    );
+
+    const instance = await OpencodePermissions.fromFile({ outputRoot: testDir });
+
+    expect(instance.getRelativeFilePath()).toBe("opencode.json");
+    expect(instance.getJson().permission).toEqual({
+      bash: { "*": "ask", "git *": "allow" },
+      edit: "deny",
+      webfetch: "allow",
+    });
+  });
+
+  it("should warn when .opencode/opencode.json overrides a generated permission key", async () => {
+    await writeFileContent(
+      join(testDir, ".opencode", "opencode.jsonc"),
+      JSON.stringify({ permission: { bash: "allow", webfetch: "deny" } }),
+    );
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: JSON.stringify({ permission: { bash: { "*": "ask" } } }),
+    });
+    const logger = { warn: vi.fn() } as any;
+
+    await OpencodePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+      logger,
+    });
+
+    expect(logger.warn).toHaveBeenCalledWith(
+      'OpenCode merges ".opencode/opencode.jsonc" over the generated "opencode.jsonc", so its values for these generated entries take precedence: "permission" > "bash".',
+    );
+  });
+
   it("should merge rulesync permission into existing opencode config", async () => {
     await writeFileContent(join(testDir, "opencode.json"), JSON.stringify({ model: "x" }));
     const rulesyncPermissions = new RulesyncPermissions({

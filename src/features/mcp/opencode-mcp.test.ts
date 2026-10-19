@@ -170,6 +170,60 @@ describe("OpencodeMcp", () => {
   });
 
   describe("fromFile", () => {
+    it("should merge servers from .opencode/opencode.json(c) over the root config", async () => {
+      await writeFileContent(
+        join(testDir, "opencode.json"),
+        JSON.stringify({
+          mcp: {
+            shared: { type: "local", command: ["root"], enabled: true },
+            rootOnly: { type: "remote", url: "https://root.example.com" },
+          },
+        }),
+      );
+      await writeFileContent(
+        join(testDir, ".opencode", "opencode.json"),
+        JSON.stringify({ mcp: { shared: { command: ["dot"] } } }),
+      );
+      await writeFileContent(
+        join(testDir, ".opencode", "opencode.jsonc"),
+        // A V2 envelope in one file is lowered before the files are merged.
+        '{ "mcp": { "servers": { "dotOnly": { "type": "remote", "url": "https://dot.example.com" } } } }',
+      );
+
+      const opencodeMcp = await OpencodeMcp.fromFile({ outputRoot: testDir });
+
+      expect(opencodeMcp.getFilePath()).toBe(join(testDir, "opencode.json"));
+      expect(opencodeMcp.getJson().mcp).toEqual({
+        shared: { type: "local", command: ["dot"], enabled: true },
+        rootOnly: { type: "remote", url: "https://root.example.com", enabled: true },
+        dotOnly: { type: "remote", url: "https://dot.example.com", enabled: true },
+      });
+    });
+
+    it("should import servers from .opencode/opencode.json without a root config", async () => {
+      await writeFileContent(
+        join(testDir, ".opencode", "opencode.json"),
+        JSON.stringify({ mcp: { dot: { type: "local", command: ["dot"] } } }),
+      );
+
+      const opencodeMcp = await OpencodeMcp.fromFile({ outputRoot: testDir });
+
+      expect(opencodeMcp.getJson().mcp).toEqual({
+        dot: { type: "local", command: ["dot"], enabled: true },
+      });
+    });
+
+    it("should not read .opencode/opencode.json in global mode", async () => {
+      await writeFileContent(
+        join(testDir, ".opencode", "opencode.json"),
+        JSON.stringify({ mcp: { dot: { type: "local", command: ["dot"] } } }),
+      );
+
+      const opencodeMcp = await OpencodeMcp.fromFile({ outputRoot: testDir, global: true });
+
+      expect(opencodeMcp.getJson().mcp).toEqual({});
+    });
+
     it("should create instance from file with default parameters", async () => {
       const jsonData = {
         mcp: {
@@ -385,6 +439,30 @@ describe("OpencodeMcp", () => {
   });
 
   describe("fromRulesyncMcp", () => {
+    it("should warn when .opencode/opencode.json overrides a generated server", async () => {
+      await writeFileContent(
+        join(testDir, ".opencode", "opencode.json"),
+        JSON.stringify({ mcp: { servers: { "test-server": { disabled: true } }, other: {} } }),
+      );
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({ mcpServers: { "test-server": { command: "node" } } }),
+      });
+      const logger = { warn: vi.fn() } as unknown as Logger;
+
+      const opencodeMcp = await OpencodeMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        logger,
+      });
+
+      expect(opencodeMcp.getFilePath()).toBe(join(testDir, "opencode.jsonc"));
+      expect(logger.warn).toHaveBeenCalledWith(
+        'OpenCode merges ".opencode/opencode.json" over the generated "opencode.jsonc", so its values for these generated entries take precedence: "mcp" > "test-server".',
+      );
+    });
+
     it("should create instance from RulesyncMcp with default parameters", async () => {
       const jsonData = {
         mcpServers: {
