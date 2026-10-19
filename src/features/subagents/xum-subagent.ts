@@ -142,7 +142,9 @@ export class XumSubagent extends ToolSubagent {
     const subagentSection = xumSection.subagent;
     const result = XumSubagentFrontmatterSchema.safeParse({
       name: rulesyncFrontmatter.name,
-      description: rulesyncFrontmatter.description,
+      // Xum requires a non-empty `description` when one is present and drops a
+      // definition whose frontmatter fails to parse, so an empty one is omitted.
+      ...(rulesyncFrontmatter.description && { description: rulesyncFrontmatter.description }),
       ...(xumSection.base === undefined &&
         xumSection.tools === undefined && { base: XUM_DEFAULT_BASE_AGENT }),
       ...xumSection,

@@ -41,20 +41,21 @@ function quoteShellWord(value: string): string {
 }
 
 /**
- * Build the shell command string a Xum stdio server is launched with. The
- * canonical `command` string is kept verbatim (Xum itself treats it as a raw
- * shell string, so `npx -y pkg` authored as one string keeps working); the
- * remaining argv elements are quoted where needed.
+ * Build the shell command string a Xum stdio server is launched with. A
+ * `command` string is kept verbatim (Xum itself treats it as a raw shell
+ * string, so `npx -y pkg` authored as one string keeps working); an explicit
+ * argv (`command` as an array) and every `args` element are quoted where
+ * needed, so `/opt/my tools/srv` stays one word.
  */
 function buildCommandString(server: McpServer): string | undefined {
-  const [command, ...commandArgs]: string[] = Array.isArray(server.command)
-    ? server.command
-    : typeof server.command === "string"
-      ? [server.command]
-      : [];
-  if (command === undefined || command.trim() === "") return undefined;
-  const args = [...commandArgs, ...(server.args ?? [])];
-  return [command, ...args.map(quoteShellWord)].join(" ");
+  const args = server.args ?? [];
+  if (Array.isArray(server.command)) {
+    const [executable] = server.command;
+    if (executable === undefined || executable.trim() === "") return undefined;
+    return [...server.command, ...args].map(quoteShellWord).join(" ");
+  }
+  if (typeof server.command !== "string" || server.command.trim() === "") return undefined;
+  return [server.command, ...args.map(quoteShellWord)].join(" ");
 }
 
 /** Split a plain command string back into `command` + `args` when it is safe to. */

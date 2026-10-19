@@ -129,7 +129,7 @@ import {
 import { TraeRule } from "./trae-rule.js";
 import { VibeRule } from "./vibe-rule.js";
 import { WarpRule } from "./warp-rule.js";
-import { XumRule } from "./xum-rule.js";
+import { ensureXumSectionBoundary, XumRule } from "./xum-rule.js";
 import { ZcodeRule } from "./zcode-rule.js";
 import { ZedRule } from "./zed-rule.js";
 import { ZoocodeRule } from "./zoocode-rule.js";
@@ -2696,9 +2696,27 @@ export class RulesProcessor extends FeatureProcessor {
         localRoot,
       });
     }
-    // Qwen Code and Xum read the personal local file from their tool directory
-    // (`.qwen/QWEN.local.md`, `.xum/AGENTS.local.md`), not the project root
-    // (project scope only; global handling never reaches here).
+    return this.buildToolDirLocalRootFile({ factory, fileName, body, relativeDirPath, localRoot });
+  }
+
+  /**
+   * Qwen Code and Xum read the personal local file from their tool directory
+   * (`.qwen/QWEN.local.md`, `.xum/AGENTS.local.md`), not the project root
+   * (project scope only; global handling never reaches here).
+   */
+  private buildToolDirLocalRootFile({
+    factory,
+    fileName,
+    body,
+    relativeDirPath,
+    localRoot,
+  }: {
+    factory: ToolRuleFactory;
+    fileName: string;
+    body: string;
+    relativeDirPath: string | undefined;
+    localRoot: boolean;
+  }): ToolRule | null {
     const toolDirEntry = (
       [
         [QwencodeRule, QWENCODE_DIR],
@@ -2711,7 +2729,13 @@ export class RulesProcessor extends FeatureProcessor {
         outputRoot: this.outputRoot,
         relativeDirPath: relativeDirPath ?? toolDir,
         relativeFilePath: fileName,
-        fileContent: body,
+        // Xum appends `AGENTS.local.md` to `AGENTS.md` as one document, so the
+        // generated overlay opens at a section boundary like a folded rule does
+        // (an imported file is read back as written).
+        fileContent:
+          toolDirClass === XumRule && !localRoot
+            ? ensureXumSectionBoundary({ body, heading: "Local instructions" })
+            : body,
         validate: true,
         root: true,
         localRoot,

@@ -52,6 +52,7 @@ describe("XumMcp", () => {
         },
         chrome: { command: "npx -y chrome-devtools-mcp@latest --headless" },
         quoted: { command: ["node", "server.js"], args: ["--name", "it's here"] },
+        spaced: { command: ["/opt/my tools/srv", "--flag"] },
       }),
     });
 
@@ -62,6 +63,7 @@ describe("XumMcp", () => {
         memory: "npx -y @modelcontextprotocol/server-memory",
         chrome: "npx -y chrome-devtools-mcp@latest --headless",
         quoted: "node server.js --name 'it'\\''s here'",
+        spaced: "'/opt/my tools/srv' --flag",
       },
     });
   });

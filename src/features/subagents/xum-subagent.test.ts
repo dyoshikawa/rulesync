@@ -125,6 +125,16 @@ describe("XumSubagent", () => {
     expect(rulesync.getBody()).toBe("Only edit docs.");
   });
 
+  it("should omit an empty description, which Xum would reject", () => {
+    const subagent = XumSubagent.fromRulesyncSubagent({
+      outputRoot: testDir,
+      relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+      rulesyncSubagent: makeRulesyncSubagent({ description: "" }),
+    }) as XumSubagent;
+
+    expect(subagent.getFrontmatter()).not.toHaveProperty("description");
+  });
+
   it("should only target xum or wildcard subagents", () => {
     expect(
       XumSubagent.isTargetedByRulesyncSubagent(makeRulesyncSubagent({ targets: ["xum"] })),
