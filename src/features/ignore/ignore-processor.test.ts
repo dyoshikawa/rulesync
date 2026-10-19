@@ -479,6 +479,7 @@ describe("IgnoreProcessor", () => {
       const toolTargets = IgnoreProcessor.getToolTargets();
       const expectedTargets = [
         "aiassistant",
+        "androidstudio",
         "antigravity-cli",
         "augmentcode",
         "bob",

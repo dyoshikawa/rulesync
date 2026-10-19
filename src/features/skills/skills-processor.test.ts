@@ -2732,6 +2732,7 @@ Content that would fail parsing`;
         new Set([
           "agentsskills",
           "aiassistant",
+          "androidstudio",
           "amp",
           "antigravity-cli",
           "antigravity-ide",
@@ -2802,6 +2803,7 @@ Content that would fail parsing`;
           "agentsmd",
           "agentsskills",
           "aiassistant",
+          "androidstudio",
           "amp",
           "antigravity-cli",
           "antigravity-ide",
@@ -2871,6 +2873,7 @@ Content that would fail parsing`;
         new Set([
           "agentsskills",
           "aiassistant",
+          "androidstudio",
           "amp",
           "antigravity-cli",
           "antigravity-ide",
@@ -2951,6 +2954,7 @@ Content that would fail parsing`;
       const targets = SkillsProcessor.getToolTargetsGlobal();
       expect(targets).toEqual([
         "agentsskills",
+        "androidstudio",
         "amp",
         "antigravity-cli",
         "antigravity-ide",
@@ -3013,6 +3017,7 @@ Content that would fail parsing`;
       const targets = SkillsProcessor.getToolTargets({ global: true });
       expect(targets).toEqual([
         "agentsskills",
+        "androidstudio",
         "amp",
         "antigravity-cli",
         "antigravity-ide",

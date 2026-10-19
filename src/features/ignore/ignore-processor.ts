@@ -14,6 +14,7 @@ import { isFileNotFoundError } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { getRulesyncSourceCandidates } from "../../utils/rulesync-source-path.js";
 import { AiassistantIgnore } from "./aiassistant-ignore.js";
+import { AndroidstudioIgnore } from "./androidstudio-ignore.js";
 import { AntigravityCliIgnore } from "./antigravity-cli-ignore.js";
 import { AugmentcodeIgnore } from "./augmentcode-ignore.js";
 import { BobIgnore } from "./bob-ignore.js";
@@ -71,6 +72,9 @@ type ToolIgnoreFactory = {
 
 export const toolIgnoreFactories = new Map<IgnoreProcessorToolTarget, ToolIgnoreFactory>([
   ["aiassistant", { class: AiassistantIgnore }],
+  // Gemini in Android Studio reads `.aiexclude` (gitignore syntax); project only.
+  // https://developer.android.com/studio/gemini/aiexclude
+  ["androidstudio", { class: AndroidstudioIgnore }],
   ["antigravity-cli", { class: AntigravityCliIgnore }],
   ["augmentcode", { class: AugmentcodeIgnore }],
   ["bob", { class: BobIgnore }],
