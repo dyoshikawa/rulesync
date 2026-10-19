@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { writeFileContent } from "../../utils/file.js";
+import { readFileContent, removeFile, writeFileContent } from "../../utils/file.js";
 import { FirebenderAgentsRegistry, FirebenderSubagent } from "./firebender-subagent.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
 
@@ -251,6 +251,79 @@ describe("FirebenderSubagent", () => {
     ]);
     expect(logger.warn).toHaveBeenCalledTimes(1);
     expect(logger.warn.mock.calls[0]?.[0]).toContain("gone.md");
+  });
+
+  it("should drop managed entries that --delete will sweep, even when their file exists", async () => {
+    await writeFileContent(
+      join(testDir, ".firebender", "agents", "mine.md"),
+      "---\nname: Mine\n---\n\nMine.\n",
+    );
+    const logger = createMockLogger();
+    const { registry } = splitResult(
+      await FirebenderSubagent.fromRulesyncSubagents({
+        outputRoot: testDir,
+        rulesyncSubagents: [makeRulesyncSubagent()],
+        deleteOrphans: true,
+        logger,
+      }),
+    );
+
+    registry?.setFileContent(
+      JSON.stringify({
+        agents: [
+          "~/firebender-agents/elsewhere.md",
+          ".firebender/agents/mine.md",
+          ".firebender/agents/code-reviewer.md",
+        ],
+      }),
+    );
+
+    expect(JSON.parse(registry?.getFileContent() ?? "").agents).toEqual([
+      "~/firebender-agents/elsewhere.md",
+      ".firebender/agents/code-reviewer.md",
+    ]);
+    expect(logger.warn).toHaveBeenCalledTimes(1);
+    expect(logger.warn.mock.calls[0]?.[0]).toContain("mine.md");
+  });
+
+  it("should converge in one --delete run after a subagent source is removed", async () => {
+    // First generate: two agents written and registered.
+    const first = await FirebenderSubagent.fromRulesyncSubagents({
+      outputRoot: testDir,
+      rulesyncSubagents: [
+        makeRulesyncSubagent(),
+        makeRulesyncSubagent({ relativeFilePath: "test-writer.md" }),
+      ],
+    });
+    for (const file of first) {
+      await writeFileContent(file.getFilePath(), file.getFileContent());
+    }
+
+    // `test-writer` is removed from the source; the --delete run's registry
+    // is computed before the sweep deletes `.firebender/agents/test-writer.md`.
+    const { registry } = splitResult(
+      await FirebenderSubagent.fromRulesyncSubagents({
+        outputRoot: testDir,
+        rulesyncSubagents: [makeRulesyncSubagent()],
+        deleteOrphans: true,
+      }),
+    );
+    registry?.setFileContent(await readFileContent(join(testDir, "firebender.json")));
+    const afterDelete = registry?.getFileContent() ?? "";
+    expect(JSON.parse(afterDelete).agents).toEqual([".firebender/agents/code-reviewer.md"]);
+    await writeFileContent(join(testDir, "firebender.json"), afterDelete);
+    await removeFile(join(testDir, ".firebender", "agents", "test-writer.md"));
+
+    // A following `--delete --check` computes the same content: up to date.
+    const { registry: checkRegistry } = splitResult(
+      await FirebenderSubagent.fromRulesyncSubagents({
+        outputRoot: testDir,
+        rulesyncSubagents: [makeRulesyncSubagent()],
+        deleteOrphans: true,
+      }),
+    );
+    checkRegistry?.setFileContent(afterDelete);
+    expect(checkRegistry?.getFileContent()).toBe(afterDelete);
   });
 
   it("should not warn when a generated agent's entry is only respelled", async () => {

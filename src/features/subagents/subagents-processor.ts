@@ -106,6 +106,12 @@ type ToolSubagentFactory = {
       rulesyncSubagents: RulesyncSubagent[];
       global?: boolean;
       logger?: Logger;
+      /**
+       * Whether this run's `--delete` sweep will remove the orphaned files in
+       * the tool's subagent directory, so an aggregate that indexes those
+       * files (Firebender's `agents` registry) can drop them in the same run.
+       */
+      deleteOrphans?: boolean;
     }): ToolSubagent | ToolSubagent[] | Promise<ToolSubagent | ToolSubagent[]>;
     fromFile(params: ToolSubagentFromFileParams): Promise<ToolSubagent>;
     forDeletion(params: ToolSubagentForDeletionParams): ToolSubagent;
@@ -1008,6 +1014,7 @@ function compareRelativePathsShallowestFirst(left: string, right: string): numbe
 export class SubagentsProcessor extends FeatureProcessor {
   private readonly toolTarget: SubagentsProcessorToolTarget;
   private readonly global: boolean;
+  private readonly deleteOrphans: boolean;
   private readonly getFactory: GetFactory;
   /**
    * Whether the last `loadRulesyncFiles` found a `subagents/` directory under
@@ -1023,6 +1030,7 @@ export class SubagentsProcessor extends FeatureProcessor {
     global = false,
     getFactory = defaultGetFactory,
     dryRun = false,
+    deleteOrphans = false,
     logger,
   }: {
     outputRoot?: string;
@@ -1031,9 +1039,12 @@ export class SubagentsProcessor extends FeatureProcessor {
     global?: boolean;
     getFactory?: GetFactory;
     dryRun?: boolean;
+    /** Whether the run sweeps orphaned subagent files (`--delete`). */
+    deleteOrphans?: boolean;
     logger: Logger;
   }) {
     super({ outputRoot, inputRoots, dryRun, logger });
+    this.deleteOrphans = deleteOrphans;
     const result = SubagentsProcessorToolTargetSchema.safeParse(toolTarget);
     if (!result.success) {
       throw new Error(
@@ -1089,6 +1100,9 @@ export class SubagentsProcessor extends FeatureProcessor {
         rulesyncSubagents: targeted,
         global: this.global,
         logger: this.logger,
+        // The sweep is skipped when a source failed to load (see generate.ts),
+        // so the aggregate must not assume those files go away either.
+        deleteOrphans: this.deleteOrphans && !this.hasRulesyncSourceLoadFailure(),
       });
 
       return Array.isArray(toolSubagents) ? toolSubagents : [toolSubagents];

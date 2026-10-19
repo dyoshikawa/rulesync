@@ -204,11 +204,13 @@ export class FirebenderSubagent extends ToolSubagent {
     rulesyncSubagents,
     global = false,
     logger,
+    deleteOrphans = false,
   }: {
     outputRoot?: string;
     rulesyncSubagents: RulesyncSubagent[];
     global?: boolean;
     logger?: Logger;
+    deleteOrphans?: boolean;
   }): Promise<ToolSubagent[]> {
     const agentsDirPath = this.getSettablePaths({ global }).relativeDirPath;
     const existingAgentFileNames = new Set(
@@ -230,6 +232,7 @@ export class FirebenderSubagent extends ToolSubagent {
         toAgentsEntry({ relativeFilePath: subagent.getRelativeFilePath(), global }),
       ),
       existingAgentFileNames,
+      deleteOrphans,
       global,
       logger,
     });
@@ -339,6 +342,12 @@ type FirebenderAgentsRegistryParams = Omit<AiFileParams, "fileContent"> & {
   entries: string[];
   /** File names present in the agent directory before this run writes to it. */
   existingAgentFileNames?: ReadonlySet<string>;
+  /**
+   * Whether this run's `--delete` sweep removes every agent file it did not
+   * generate (`.firebender/agents/*.md`). The sweep runs after this file is
+   * written, so the registry drops those entries up front instead.
+   */
+  deleteOrphans?: boolean;
   logger?: Logger;
 };
 
@@ -347,27 +356,31 @@ type FirebenderAgentsRegistryParams = Omit<AiFileParams, "fileContent"> & {
  * an agent file. Every generated agent is registered. An existing entry that
  * points into rulesync's agent directory is kept while its file exists (a
  * hand-written agent there stays registered) and dropped, with a warning, once
- * the file is gone; under `--delete` the orphan sweep runs after this write,
- * so an agent removed from `.rulesync/subagents/` is unregistered on the next
- * run. Every other entry and every other key of the file is kept.
+ * the file is gone. Under `--delete` the orphan sweep removes every agent file
+ * there that this run does not generate, but only after this file is written,
+ * so in that mode such entries are dropped here too and a single run
+ * converges. Every other entry and every other key of the file is kept.
  * The array is merged into the file on disk at write time and the file itself
  * is never deleted.
  */
 export class FirebenderAgentsRegistry extends ToolSubagent {
   private readonly entries: string[];
   private readonly existingAgentFileNames: ReadonlySet<string>;
+  private readonly deleteOrphans: boolean;
   private readonly logger: Logger | undefined;
   private mergedContent: string | null = null;
 
   constructor({
     entries,
     existingAgentFileNames = new Set(),
+    deleteOrphans = false,
     logger,
     ...rest
   }: FirebenderAgentsRegistryParams) {
     super({ ...rest, fileContent: "" });
     this.entries = entries;
     this.existingAgentFileNames = existingAgentFileNames;
+    this.deleteOrphans = deleteOrphans;
     this.logger = logger;
   }
 
@@ -435,7 +448,7 @@ export class FirebenderAgentsRegistry extends ToolSubagent {
           agents.push(generated);
           placed.add(fileName);
         }
-      } else if (this.existingAgentFileNames.has(fileName)) {
+      } else if (!this.deleteOrphans && this.existingAgentFileNames.has(fileName)) {
         agents.push(entry);
       } else {
         dropped.push(String(entry));
@@ -451,7 +464,9 @@ export class FirebenderAgentsRegistry extends ToolSubagent {
     if (dropped.length > 0) {
       this.logger?.warn(
         `Unregistered Firebender agent(s) ${dropped.map((entry) => quoteValueForWarning(entry)).join(", ")} from ${filePath}: ` +
-          `the agent file no longer exists.`,
+          (this.deleteOrphans
+            ? "--delete removes agent files that .rulesync/subagents/ no longer generates."
+            : "the agent file no longer exists."),
       );
     }
 

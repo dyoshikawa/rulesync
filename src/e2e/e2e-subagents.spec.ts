@@ -540,6 +540,45 @@ You are the planner.
       "callable: true",
     );
   });
+
+  it("should unregister a removed agent in a single --delete run", async () => {
+    const testDir = getTestDir();
+    const writeSubagent = (name: string) =>
+      writeFileContent(
+        join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, `${name}.md`),
+        `---
+name: ${name}
+targets: ["firebender"]
+description: "${name} agent"
+---
+You are ${name}.
+`,
+      );
+    await writeSubagent("planner");
+    await writeSubagent("reviewer");
+    await runGenerate({ target: "firebender", features: "subagents" });
+    expect(JSON.parse(await readFileContent(join(testDir, "firebender.json"))).agents).toEqual([
+      ".firebender/agents/planner.md",
+      ".firebender/agents/reviewer.md",
+    ]);
+
+    await removeFile(join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "reviewer.md"));
+    await runGenerate({ target: "firebender", features: "subagents", deleteFiles: true });
+
+    expect(JSON.parse(await readFileContent(join(testDir, "firebender.json"))).agents).toEqual([
+      ".firebender/agents/planner.md",
+    ]);
+    expect(await fileExists(join(testDir, ".firebender", "agents", "reviewer.md"))).toBe(false);
+
+    const { stdout } = await runGenerate({
+      target: "firebender",
+      features: "subagents",
+      deleteFiles: true,
+      check: true,
+      env: { NODE_ENV: "e2e" },
+    });
+    expect(stdout).toContain("All files are up to date.");
+  });
 });
 
 describe("E2E: subagents (pool)", () => {
