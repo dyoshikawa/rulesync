@@ -39,6 +39,12 @@ export type OpencodeLayout = {
    * does since v1.18.24. Import reads them only when this is set.
    */
   readsV2ConfigSpellings: boolean;
+  /**
+   * Whether the tool also reads `<dir>/<jsonFileName>` and `<dir>/<jsoncFileName>`
+   * at project scope and merges them over the root config, as OpenCode does for
+   * `.opencode/opencode.json(c)`. Only meaningful when `configDir` is not `dir`.
+   */
+  readsDotDirConfig: boolean;
 };
 
 export const OPENCODE_LAYOUT: OpencodeLayout = {
@@ -49,4 +55,5 @@ export const OPENCODE_LAYOUT: OpencodeLayout = {
   jsonFileName: OPENCODE_JSON_FILE_NAME,
   jsoncFileName: OPENCODE_JSONC_FILE_NAME,
   readsV2ConfigSpellings: true,
+  readsDotDirConfig: true,
 };

@@ -62,6 +62,7 @@ import type {
   ToolPermissionsSettablePaths,
 } from "./tool-permissions.js";
 import { ToolPermissions } from "./tool-permissions.js";
+import { TraePermissions } from "./trae-permissions.js";
 import { VibePermissions } from "./vibe-permissions.js";
 import { WarpPermissions } from "./warp-permissions.js";
 import { WarpcliPermissions } from "./warpcli-permissions.js";
@@ -704,6 +705,19 @@ export const toolPermissionsFactories = new Map<
     },
   ],
   [
+    "trae",
+    {
+      class: TraePermissions,
+      meta: {
+        // TRAE keeps its permission policy in the user file
+        // `~/.trae/permission/global.json`; there is no project-scoped one.
+        supportsProject: false,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+    },
+  ],
+  [
     "zoocode",
     {
       class: ZoocodePermissions,
@@ -876,7 +890,7 @@ export class PermissionsProcessor extends FeatureProcessor {
 
   async convertToolFilesToRulesyncFiles(toolFiles: ToolFile[]): Promise<RulesyncFile[]> {
     const permissions = toolFiles.filter((f): f is ToolPermissions => f instanceof ToolPermissions);
-    return permissions.map((p) => p.toRulesyncPermissions());
+    return permissions.map((p) => p.toRulesyncPermissions({ logger: this.logger }));
   }
 
   static getToolTargets({

@@ -17,6 +17,11 @@ import { readFileContentOrNull } from "../../utils/file.js";
 import { parseJsonc as parseJsoncStrict } from "../../utils/jsonc.js";
 import type { Logger } from "../../utils/logger.js";
 import { isRecord } from "../../utils/type-guards.js";
+import {
+  mergeOpencodeConfigValues,
+  readOpencodeDotDirConfigLayers,
+  warnOpencodeDotDirOverrides,
+} from "../opencode-config.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { honorAllToolsOnBash } from "./shell-command-categories.js";
@@ -266,7 +271,16 @@ export class OpencodePermissions extends ToolPermissions {
       }
     }
 
-    const parsed: unknown = parseJsonc(fileContent ?? "{}");
+    // OpenCode merges `.opencode/opencode.json(c)` over the root config, so
+    // their permission rules are imported too.
+    const overlays = await readOpencodeDotDirConfigLayers({
+      outputRoot,
+      global,
+      layout: this.layout,
+    });
+    const parsed = overlays
+      .map(({ config }): unknown => config)
+      .reduce(mergeOpencodeConfigValues, parseJsonc(fileContent ?? "{}"));
     const record = isRecord(parsed) ? parsed : {};
     const nextJson = {
       ...record,
@@ -360,6 +374,13 @@ export class OpencodePermissions extends ToolPermissions {
       const opencodePermission = toOpencodePermission({ category, value, logger });
       permission[category] = opencodePermission;
     }
+
+    warnOpencodeDotDirOverrides({
+      generated: { permission },
+      overlays: await readOpencodeDotDirConfigLayers({ outputRoot, global, layout: this.layout }),
+      rootFileName: relativeFilePath,
+      logger,
+    });
 
     return new this({
       outputRoot,

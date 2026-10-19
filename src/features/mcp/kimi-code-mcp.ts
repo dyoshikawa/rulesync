@@ -52,6 +52,35 @@ function normalizeKimiCodeTransport({
   return hasCommand ? "stdio" : "http";
 }
 
+/**
+ * The only `executor` value Kimi Code accepts on a stdio server. 2.2.0 removed
+ * the never-implemented `kaos` option and narrowed the schema to
+ * `z.enum(['local'])`, so any other value makes Kimi fail validation when it
+ * loads `mcp.json`.
+ * @see https://github.com/MoonshotAI/kimi-code/pull/4184
+ */
+const KIMI_CODE_MCP_EXECUTOR = "local";
+
+/** Remove, with a warning, an `executor` value Kimi Code would reject. Mutates `server`. */
+function dropUnsupportedKimiCodeExecutor({
+  name,
+  server,
+  logger,
+}: {
+  name: string;
+  server: Record<string, unknown>;
+  logger?: Logger;
+}): void {
+  if (server.executor === undefined || server.executor === KIMI_CODE_MCP_EXECUTOR) {
+    return;
+  }
+  warnWithFallback(
+    logger,
+    `Kimi Code MCP: dropping executor ${JSON.stringify(server.executor)} from "${name}" because Kimi Code only accepts "${KIMI_CODE_MCP_EXECUTOR}".`,
+  );
+  delete server.executor;
+}
+
 function toKimiCodeServer({
   name,
   server,
@@ -94,11 +123,11 @@ function toKimiCodeServer({
   };
   // Kimi's documented per-server keys beyond the transport itself. `deferred`
   // (0.43.0) keeps the server's tools out of the top-level tool list until the
-  // model loads them on demand. `executor` (`local` | `kaos`) and `runtime_id`
-  // pick where a stdio server runs; they are accepted by the server schema but
-  // not documented yet.
+  // model loads them on demand. `executor` (only `local` since 2.2.0) and
+  // `runtime_id` pick where a stdio server runs; they are accepted by the
+  // server schema but not documented yet.
   // https://moonshotai.github.io/kimi-code/en/customization/mcp.html
-  // https://github.com/MoonshotAI/kimi-code/blob/%40moonshot-ai/kimi-code%402.1.1/packages/agent-core-v2/src/mcpCore/config-schema.ts
+  // https://github.com/MoonshotAI/kimi-code/blob/%40moonshot-ai/kimi-code%402.2.0/packages/agent-core-v2/src/mcpCore/config-schema.ts
   for (const field of [
     "env",
     "cwd",
@@ -117,6 +146,7 @@ function toKimiCodeServer({
       converted[field] = server[field];
     }
   }
+  dropUnsupportedKimiCodeExecutor({ name, server: converted, logger });
   if (server.disabled === true) {
     converted.enabled = false;
   }
@@ -140,10 +170,17 @@ function toKimiCodeServers({
   return result;
 }
 
-function fromKimiCodeServers(servers: McpServers): McpServers {
+function fromKimiCodeServers({
+  servers,
+  logger,
+}: {
+  servers: McpServers;
+  logger?: Logger;
+}): McpServers {
   return Object.fromEntries(
     Object.entries(servers).map(([name, server]) => {
       const { transport, enabled, ...rest } = server;
+      dropUnsupportedKimiCodeExecutor({ name, server: rest, logger });
       const type =
         transport === "stdio" || transport === "sse" || transport === "http"
           ? transport
@@ -177,6 +214,8 @@ export type KimiCodeMcpDefaults = {
 
 type KimiCodeMcpExtraParams = {
   configDefaults?: KimiCodeMcpDefaults;
+  /** Kept for the synchronous `toRulesyncMcp`, which warns about dropped keys. */
+  logger?: Logger;
 };
 
 /** Path of the shared user `config.toml`, relative to the output root. */
@@ -318,10 +357,12 @@ export class KimiCodeMcp extends ToolMcp {
    * a different file that only the async `fromFile` can read.
    */
   private readonly configDefaults: { startupTimeoutMs?: number; toolTimeoutMs?: number };
+  private readonly logger: Logger | undefined;
 
-  constructor(params: ToolMcpParams & KimiCodeMcpExtraParams) {
+  constructor({ configDefaults, logger, ...params }: ToolMcpParams & KimiCodeMcpExtraParams) {
     super(params);
-    this.configDefaults = params.configDefaults ?? {};
+    this.configDefaults = configDefaults ?? {};
+    this.logger = logger;
     try {
       this.json = this.fileContent ? JSON.parse(this.fileContent) : {};
     } catch (error) {
@@ -347,6 +388,7 @@ export class KimiCodeMcp extends ToolMcp {
     outputRoot = process.cwd(),
     validate = true,
     global = false,
+    logger,
   }: ToolMcpFromFileParams): Promise<KimiCodeMcp> {
     const paths = this.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
@@ -359,6 +401,7 @@ export class KimiCodeMcp extends ToolMcp {
       validate,
       global,
       configDefaults: global ? await readKimiCodeMcpDefaults({ outputRoot }) : {},
+      logger,
     });
   }
 
@@ -477,9 +520,10 @@ export class KimiCodeMcp extends ToolMcp {
       fileContent: JSON.stringify(
         {
           ...this.json,
-          mcpServers: fromKimiCodeServers(
-            isMcpServers(this.json.mcpServers) ? this.json.mcpServers : {},
-          ),
+          mcpServers: fromKimiCodeServers({
+            servers: isMcpServers(this.json.mcpServers) ? this.json.mcpServers : {},
+            logger: this.logger,
+          }),
           ...(Object.keys(this.configDefaults).length > 0 && {
             "kimi-code": this.configDefaults,
           }),

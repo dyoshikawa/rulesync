@@ -10,7 +10,14 @@ import {
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
-import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
+import { toSpecConformantAgentSkillFields } from "./agentsskills-skill.js";
+import {
+  RulesyncSkill,
+  RulesyncSkillFrontmatter,
+  RulesyncSkillFrontmatterInput,
+  SkillFile,
+} from "./rulesync-skill.js";
+import { resolveCompatibility, resolveLicense, resolveMetadata } from "./skills-utils.js";
 import {
   ToolSkill,
   ToolSkillForDeletionParams,
@@ -22,6 +29,13 @@ import {
 const MusecodeSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
+  // Agent Skills packaging fields Muse Code reads: `skills inspect` reports
+  // `license` (1.4.0) and `metadata.display-name` names the skill in the
+  // transcript and `/skills` (1.4.7).
+  // https://dev.meta.ai/docs/muse-code/changelog
+  license: z.optional(z.string()),
+  compatibility: z.optional(z.union([z.string(), z.looseObject({})])),
+  metadata: z.optional(z.looseObject({})),
 });
 
 export type MusecodeSkillFrontmatter = z.infer<typeof MusecodeSkillFrontmatterSchema>;
@@ -36,6 +50,33 @@ export type MusecodeSkillParams = {
   validate?: boolean;
   global?: boolean;
 };
+
+/**
+ * Build the Muse Code frontmatter. `license`, `compatibility` and `metadata`
+ * come from the `musecode` section with the root-level values as fallback, and
+ * are normalized exactly as the `agentsskills` writer normalizes them: at
+ * project scope both targets write the same `.agents/skills/<name>/SKILL.md`,
+ * so for a skill without per-target overrides the file no longer depends on
+ * which of the two runs last.
+ */
+function buildMusecodeFrontmatter(
+  rulesyncFrontmatter: RulesyncSkillFrontmatter,
+): MusecodeSkillFrontmatter {
+  const section = rulesyncFrontmatter.musecode;
+  const license = resolveLicense({ rootFrontmatter: rulesyncFrontmatter, section });
+  const compatibility = resolveCompatibility({ rootFrontmatter: rulesyncFrontmatter, section });
+  const metadata = resolveMetadata({ rootFrontmatter: rulesyncFrontmatter, section });
+
+  return {
+    name: rulesyncFrontmatter.name,
+    description: rulesyncFrontmatter.description,
+    ...toSpecConformantAgentSkillFields({
+      ...(license !== undefined && { license }),
+      ...(compatibility !== undefined && { compatibility }),
+      ...(metadata !== undefined && { metadata }),
+    }),
+  };
+}
 
 /**
  * Represents a Meta Muse Code skill directory.
@@ -118,10 +159,16 @@ export class MusecodeSkill extends ToolSkill {
 
   toRulesyncSkill(): RulesyncSkill {
     const frontmatter = this.getFrontmatter();
+    const musecodeSection = {
+      ...(frontmatter.license !== undefined && { license: frontmatter.license }),
+      ...(frontmatter.compatibility !== undefined && { compatibility: frontmatter.compatibility }),
+      ...(frontmatter.metadata !== undefined && { metadata: frontmatter.metadata }),
+    };
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
       name: frontmatter.name,
       description: frontmatter.description,
       targets: ["*"],
+      ...(Object.keys(musecodeSection).length > 0 && { musecode: musecodeSection }),
     };
 
     return new RulesyncSkill({
@@ -143,12 +190,7 @@ export class MusecodeSkill extends ToolSkill {
     global = false,
   }: ToolSkillFromRulesyncSkillParams): MusecodeSkill {
     const settablePaths = MusecodeSkill.getSettablePaths({ global });
-    const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
-
-    const musecodeFrontmatter: MusecodeSkillFrontmatter = {
-      name: rulesyncFrontmatter.name,
-      description: rulesyncFrontmatter.description,
-    };
+    const musecodeFrontmatter = buildMusecodeFrontmatter(rulesyncSkill.getFrontmatter());
 
     return new MusecodeSkill({
       outputRoot,

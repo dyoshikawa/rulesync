@@ -11,8 +11,13 @@ import {
   getOpencodeCommandEntries,
   getOpencodeConfigDir,
   getOpencodeSkillPaths,
+  mergeOpencodeConfigValues,
+  mergeOpencodeEntryLayers,
   readOpencodeConfig,
+  readOpencodeConfigLayers,
+  readOpencodeDotDirConfigLayers,
   resolveOpencodeFileTemplate,
+  warnOpencodeDotDirOverrides,
 } from "./opencode-config.js";
 
 describe("opencode-config", () => {
@@ -48,6 +53,120 @@ describe("opencode-config", () => {
     it("returns an empty object when the config is not an object", async () => {
       await writeFileContent(join(testDir, "opencode.json"), "[1, 2, 3]");
       expect(await readOpencodeConfig({ outputRoot: testDir })).toEqual({});
+    });
+  });
+
+  describe("readOpencodeDotDirConfigLayers", () => {
+    it("reads .opencode/opencode.json, then .opencode/opencode.jsonc", async () => {
+      await writeFileContent(join(testDir, ".opencode", "opencode.jsonc"), '{ "x": 2 // c\n}');
+      await writeFileContent(join(testDir, ".opencode", "opencode.json"), JSON.stringify({ x: 1 }));
+      expect(await readOpencodeDotDirConfigLayers({ outputRoot: testDir })).toEqual([
+        {
+          relativeFilePath: join(".opencode", "opencode.json"),
+          configDir: join(testDir, ".opencode"),
+          config: { x: 1 },
+        },
+        {
+          relativeFilePath: join(".opencode", "opencode.jsonc"),
+          configDir: join(testDir, ".opencode"),
+          config: { x: 2 },
+        },
+      ]);
+    });
+
+    it("returns no layers in global mode or for a layout without the location", async () => {
+      await writeFileContent(join(testDir, ".opencode", "opencode.json"), JSON.stringify({ x: 1 }));
+      expect(await readOpencodeDotDirConfigLayers({ outputRoot: testDir, global: true })).toEqual(
+        [],
+      );
+      expect(
+        await readOpencodeDotDirConfigLayers({ outputRoot: testDir, layout: MIMOCODE_LAYOUT }),
+      ).toEqual([]);
+    });
+  });
+
+  describe("readOpencodeConfigLayers", () => {
+    it("returns the root config first, then the .opencode files", async () => {
+      await writeFileContent(join(testDir, "opencode.json"), JSON.stringify({ x: 0 }));
+      await writeFileContent(join(testDir, ".opencode", "opencode.json"), JSON.stringify({ x: 1 }));
+      const layers = await readOpencodeConfigLayers({ outputRoot: testDir });
+      expect(layers.map(({ config, configDir }) => ({ config, configDir }))).toEqual([
+        { config: { x: 0 }, configDir: testDir },
+        { config: { x: 1 }, configDir: join(testDir, ".opencode") },
+      ]);
+    });
+  });
+
+  describe("mergeOpencodeConfigValues", () => {
+    it("merges objects deeply and lets other values replace", () => {
+      expect(
+        mergeOpencodeConfigValues(
+          { mcp: { a: { type: "local", command: ["a"] } }, list: [1], keep: true },
+          { mcp: { a: { enabled: false }, b: { type: "remote" } }, list: [2] },
+        ),
+      ).toEqual({
+        mcp: { a: { type: "local", command: ["a"], enabled: false }, b: { type: "remote" } },
+        list: [2],
+        keep: true,
+      });
+      expect(
+        mergeOpencodeConfigValues({ permission: { bash: "ask" } }, { permission: "allow" }),
+      ).toEqual({ permission: "allow" });
+    });
+
+    it("keeps a __proto__ key as an own entry", () => {
+      const merged = mergeOpencodeConfigValues({}, JSON.parse('{"__proto__": {"polluted": 1}}'));
+      expect(Object.hasOwn(merged as object, "__proto__")).toBe(true);
+      expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+    });
+  });
+
+  describe("mergeOpencodeEntryLayers", () => {
+    it("merges entries across layers, later layers winning", () => {
+      expect(
+        mergeOpencodeEntryLayers([
+          { a: { template: "root", agent: "build" } },
+          null,
+          { a: { template: "dot" }, b: { template: "b" } },
+        ]),
+      ).toEqual({ a: { template: "dot", agent: "build" }, b: { template: "b" } });
+    });
+
+    it("returns null when no layer has entries", () => {
+      expect(mergeOpencodeEntryLayers([null, null])).toBeNull();
+    });
+  });
+
+  describe("warnOpencodeDotDirOverrides", () => {
+    const overlay = (config: Record<string, unknown>) => ({
+      relativeFilePath: join(".opencode", "opencode.json"),
+      configDir: join(testDir, ".opencode"),
+      config,
+    });
+
+    it("warns about generated entries the .opencode file also sets", () => {
+      const logger = { warn: vi.fn() };
+      warnOpencodeDotDirOverrides({
+        generated: { mcp: { a: {}, b: {} }, permission: "allow", tools: undefined },
+        overlays: [overlay({ mcp: { b: {}, c: {} }, permission: { bash: "ask" }, tools: {} })],
+        rootFileName: "opencode.json",
+        logger: logger as never,
+      });
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn.mock.calls[0]?.[0]).toBe(
+        'OpenCode merges ".opencode/opencode.json" over the generated "opencode.json", so its values for these generated entries take precedence: "mcp" > "b", "permission".',
+      );
+    });
+
+    it("does not warn when nothing overlaps", () => {
+      const logger = { warn: vi.fn() };
+      warnOpencodeDotDirOverrides({
+        generated: { mcp: { a: {} } },
+        overlays: [overlay({ mcp: { c: {} }, instructions: ["x.md"] })],
+        rootFileName: "opencode.json",
+        logger: logger as never,
+      });
+      expect(logger.warn).not.toHaveBeenCalled();
     });
   });
 

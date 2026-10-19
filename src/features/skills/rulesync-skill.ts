@@ -467,6 +467,16 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
       metadata: z.optional(z.looseObject({})),
     }),
   ),
+  // Meta Muse Code reads the Agent Skills packaging fields: `skills inspect`
+  // reports `license` (1.4.0) and `metadata.display-name` renames the skill in
+  // the UI (1.4.7). https://dev.meta.ai/docs/muse-code/changelog
+  musecode: z.optional(
+    z.looseObject({
+      license: z.optional(z.string()),
+      compatibility: z.optional(z.union([z.string(), z.looseObject({})])),
+      metadata: z.optional(z.looseObject({})),
+    }),
+  ),
   // ZCode's "Skill SKILL.md Field Reference" allowlists exactly five keys:
   // required `name`/`description` plus optional `when_to_use`, `license` and
   // `metadata`. There is no `compatibility` field, so it is not offered here.
@@ -727,6 +737,11 @@ export type RulesyncSkillFrontmatterInput = {
   crush?: {
     "disable-model-invocation"?: boolean;
     "user-invocable"?: boolean;
+    license?: string;
+    compatibility?: string | Record<string, unknown>;
+    metadata?: Record<string, unknown>;
+  };
+  musecode?: {
     license?: string;
     compatibility?: string | Record<string, unknown>;
     metadata?: Record<string, unknown>;

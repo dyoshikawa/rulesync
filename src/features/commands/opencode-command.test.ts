@@ -209,6 +209,34 @@ describe("OpenCodeCommand", () => {
   });
 
   describe("loadAdditionalImportFiles", () => {
+    it("merges inline commands from .opencode/opencode.json(c) over the root config", async () => {
+      await writeFileContent(
+        join(testDir, "opencode.json"),
+        JSON.stringify({ command: { test: { template: "Root", description: "Run tests" } } }),
+      );
+      await writeFileContent(
+        join(testDir, ".opencode", "opencode.json"),
+        JSON.stringify({ command: { test: { template: "Dot" } } }),
+      );
+      await writeFileContent(
+        join(testDir, ".opencode", "opencode.jsonc"),
+        JSON.stringify({ commands: { review: { template: "Review", model: "a/b#high" } } }),
+      );
+
+      const commands = await OpenCodeCommand.loadAdditionalImportFiles({ outputRoot: testDir });
+
+      expect(
+        commands.map((command) => [
+          command.getRelativeFilePath(),
+          command.getBody(),
+          command.getFrontmatter(),
+        ]),
+      ).toEqual([
+        ["test.md", "Dot", { description: "Run tests" }],
+        ["review.md", "Review", { model: "a/b", variant: "high" }],
+      ]);
+    });
+
     it("imports inline commands from opencode.json", async () => {
       await writeFileContent(
         join(testDir, "opencode.json"),

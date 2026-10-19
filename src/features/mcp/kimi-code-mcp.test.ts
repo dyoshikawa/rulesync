@@ -207,7 +207,7 @@ describe("KimiCodeMcp global config defaults", () => {
               type: "stdio",
               command: "npx",
               args: ["-y", "server"],
-              executor: "kaos",
+              executor: "local",
               runtime_id: "runtime-1",
             },
           },
@@ -218,7 +218,7 @@ describe("KimiCodeMcp global config defaults", () => {
         transport: "stdio",
         command: "npx",
         args: ["-y", "server"],
-        executor: "kaos",
+        executor: "local",
         runtime_id: "runtime-1",
       });
 
@@ -229,7 +229,7 @@ describe("KimiCodeMcp global config defaults", () => {
             sandboxed: {
               transport: "stdio",
               command: "npx",
-              executor: "kaos",
+              executor: "local",
               runtime_id: "runtime-1",
             },
           },
@@ -241,9 +241,60 @@ describe("KimiCodeMcp global config defaults", () => {
       expect(JSON.parse(imported.getFileContent()).mcpServers.sandboxed).toEqual({
         type: "stdio",
         command: "npx",
-        executor: "kaos",
+        executor: "local",
         runtime_id: "runtime-1",
       });
+    });
+
+    it("should drop an executor other than local with a warning on generate", async () => {
+      const logger = createMockLogger();
+      const generated = await KimiCodeMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        logger,
+        rulesyncMcp: rulesyncMcp({
+          mcpServers: {
+            sandboxed: {
+              type: "stdio",
+              command: "npx",
+              executor: "kaos",
+              runtime_id: "runtime-1",
+            },
+          },
+        }),
+      });
+
+      expect(JSON.parse(generated.getFileContent()).mcpServers.sandboxed).toEqual({
+        transport: "stdio",
+        command: "npx",
+        runtime_id: "runtime-1",
+      });
+      expect(logger.warn).toHaveBeenCalledWith(
+        'Kimi Code MCP: dropping executor "kaos" from "sandboxed" because Kimi Code only accepts "local".',
+      );
+    });
+
+    it("should drop an executor other than local with a warning on import", async () => {
+      const logger = createMockLogger();
+      await writeFileContent(
+        join(testDir, ".kimi-code", "mcp.json"),
+        JSON.stringify({
+          mcpServers: {
+            sandboxed: { transport: "stdio", command: "npx", executor: "kaos" },
+          },
+        }),
+      );
+
+      const imported = (
+        await KimiCodeMcp.fromFile({ outputRoot: testDir, logger })
+      ).toRulesyncMcp();
+
+      expect(JSON.parse(imported.getFileContent()).mcpServers.sandboxed).toEqual({
+        type: "stdio",
+        command: "npx",
+      });
+      expect(logger.warn).toHaveBeenCalledWith(
+        'Kimi Code MCP: dropping executor "kaos" from "sandboxed" because Kimi Code only accepts "local".',
+      );
     });
   });
 
