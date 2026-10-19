@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  findFrontmatterBlockBounds,
   FRONTMATTER_PARSE_OPTIONS,
   MAX_FRONTMATTER_DEPTH,
   MAX_FRONTMATTER_RAW_CHARS,
@@ -851,6 +852,24 @@ const code = "preserved";
         expect(() => parseFrontmatter(content)).toThrow(/Frontmatter block is larger than/);
       },
     );
+
+    it.each(["---\n---\n", "---yaml\n---\n", "--- \r\n---\r\n"])(
+      "should read an empty %j block followed by a long body",
+      (fences) => {
+        const body = "x".repeat(MAX_FRONTMATTER_RAW_CHARS + 1);
+
+        const result = parseFrontmatter(`${fences}${body}`);
+
+        expect(result.frontmatter).toEqual({});
+        expect(result.body).toBe(body);
+      },
+    );
+
+    it("should give an empty block empty bounds instead of reaching into the body", () => {
+      const content = "---\n---\nglobs: *.ts\n---\n";
+
+      expect(findFrontmatterBlockBounds(content)).toEqual({ blockStart: 4, blockEnd: 4 });
+    });
 
     it("should apply the size guard to a block with no closing fence", () => {
       const content = `---\ndescription: "${"a".repeat(MAX_FRONTMATTER_RAW_CHARS)}"\n`;

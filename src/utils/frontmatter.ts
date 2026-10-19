@@ -326,9 +326,13 @@ type FrontmatterFence = {
   /** The language named after the opening `---`, trimmed (`""` for none). */
   language: string;
   /**
-   * Offset in `content` just past the fence line's line break, or `undefined`
-   * when the content has no line break at all.
+   * Offset in `content` of the fence line's line break, or `undefined` when
+   * the content has no line break at all. gray-matter looks for the closing
+   * `\n---` from here, so an empty block (`---\n---`) closes on this very
+   * line break.
    */
+  lineBreakStart: number | undefined;
+  /** Offset in `content` just past that line break. */
   lineEnd: number | undefined;
 };
 
@@ -355,8 +359,10 @@ function readFrontmatterFence(content: string): FrontmatterFence | undefined {
   const afterFence = text.slice(3);
   const lineBreak = /\r?\n/.exec(afterFence);
   const language = afterFence.slice(0, lineBreak ? lineBreak.index : -1).trim();
-  const lineEnd = lineBreak ? offset + 3 + lineBreak.index + lineBreak[0].length : undefined;
-  return { language, lineEnd };
+  const lineBreakStart = lineBreak ? offset + 3 + lineBreak.index : undefined;
+  const lineEnd =
+    lineBreak && lineBreakStart !== undefined ? lineBreakStart + lineBreak[0].length : undefined;
+  return { language, lineBreakStart, lineEnd };
 }
 
 /**
@@ -383,10 +389,10 @@ function assertYamlFrontmatterLanguage(content: string): void {
  */
 function measureFrontmatterBlockChars(content: string): number {
   const fence = readFrontmatterFence(content);
-  if (fence?.lineEnd === undefined) {
+  if (fence?.lineBreakStart === undefined) {
     return 0;
   }
-  const rest = content.slice(fence.lineEnd);
+  const rest = content.slice(fence.lineBreakStart);
   const closeIndex = rest.indexOf("\n---");
   return closeIndex === -1 ? rest.length : closeIndex;
 }
@@ -531,17 +537,27 @@ export function findFrontmatterBlockBounds(
   content: string,
 ): { blockStart: number; blockEnd: number } | undefined {
   const fence = readFrontmatterFence(content);
-  if (fence?.lineEnd === undefined || !ALLOWED_FRONTMATTER_LANGUAGE_PATTERN.test(fence.language)) {
+  if (
+    fence?.lineBreakStart === undefined ||
+    fence.lineEnd === undefined ||
+    !ALLOWED_FRONTMATTER_LANGUAGE_PATTERN.test(fence.language)
+  ) {
     return undefined;
   }
 
   const blockStart = fence.lineEnd;
-  const closing = /\r?\n---/.exec(content.slice(blockStart));
+  // Search from the fence line's own line break, as gray-matter does, so an
+  // empty block (`---\n---`) closes there instead of at a later `---` in the
+  // body.
+  const closing = /\r?\n---/.exec(content.slice(fence.lineBreakStart));
   if (!closing) {
     return undefined;
   }
+  if (closing.index === 0) {
+    return { blockStart, blockEnd: blockStart };
+  }
 
-  return { blockStart, blockEnd: blockStart + closing.index };
+  return { blockStart, blockEnd: fence.lineBreakStart + closing.index };
 }
 
 /**
