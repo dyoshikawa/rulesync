@@ -23,10 +23,17 @@ jobs:
           GH_REPO: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_AUTHOR_TYPE: ${{ github.event.pull_request.user.type }}
           AUTHOR_ASSOCIATION: ${{ github.event.pull_request.author_association }}
           EVENT_ACTION: ${{ github.event.action }}
         run: |
           set -euo pipefail
+
+          # Automated dependency updates are not external contributor submissions.
+          if [ "$PR_AUTHOR_TYPE" = "Bot" ]; then
+            echo "Author is a bot — skipping policy checks."
+            exit 0
+          fi
 
           # Skip for repository members
           if [ "$AUTHOR_ASSOCIATION" = "OWNER" ] || [ "$AUTHOR_ASSOCIATION" = "MEMBER" ] || [ "$AUTHOR_ASSOCIATION" = "COLLABORATOR" ]; then
