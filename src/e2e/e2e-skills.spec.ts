@@ -60,6 +60,10 @@ const skillsGenerateTargets = [
     outputPath: join(".xum", "skills", "test-skill", "SKILL.md"),
   },
   {
+    target: "androidstudio",
+    outputPath: join(".android-studio", "skills", "test-skill", "SKILL.md"),
+  },
+  {
     target: "continue",
     outputPath: join(".continue", "skills", "test-skill", "SKILL.md"),
   },
@@ -415,6 +419,10 @@ This is the test skill body content.
     },
     { target: "qoder", orphanPath: join(".qoder", "skills", "orphan-skill", "SKILL.md") },
     { target: "xum", orphanPath: join(".xum", "skills", "orphan-skill", "SKILL.md") },
+    {
+      target: "androidstudio",
+      orphanPath: join(".android-studio", "skills", "orphan-skill", "SKILL.md"),
+    },
     { target: "continue", orphanPath: join(".continue", "skills", "orphan-skill", "SKILL.md") },
     { target: "cursor", orphanPath: join(".cursor", "skills", "orphan-skill", "SKILL.md") },
     { target: "trae", orphanPath: join(".trae", "skills", "orphan-skill", "SKILL.md") },
@@ -520,6 +528,10 @@ describe("E2E: skills (import)", () => {
     },
     { target: "qoder", sourcePath: join(".qoder", "skills", "test-skill", "SKILL.md") },
     { target: "xum", sourcePath: join(".xum", "skills", "test-skill", "SKILL.md") },
+    {
+      target: "androidstudio",
+      sourcePath: join(".android-studio", "skills", "test-skill", "SKILL.md"),
+    },
     { target: "continue", sourcePath: join(".continue", "skills", "test-skill", "SKILL.md") },
     { target: "cursor", sourcePath: join(".cursor", "skills", "test-skill", "SKILL.md") },
     { target: "trae", sourcePath: join(".trae", "skills", "test-skill", "SKILL.md") },
@@ -1152,6 +1164,10 @@ const skillsGlobalTargets = [
   {
     target: "xum",
     outputPath: join(".xum", "skills", "test-skill", "SKILL.md"),
+  },
+  {
+    target: "androidstudio",
+    outputPath: join(".android-studio", "skills", "test-skill", "SKILL.md"),
   },
   {
     target: "continue",

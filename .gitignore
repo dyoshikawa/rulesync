@@ -381,6 +381,7 @@ rulesync.local.jsonc
 **/.devin/skills/
 **/.warp/skills/
 **/.zcode/commands/
+**/.android-studio/skills/
 **/.augment/skills/
 **/.bob/skills/
 **/.claude/skills/
@@ -506,6 +507,7 @@ rulesync.local.jsonc
 **/.cursor/cli.json
 **/.pi/settings.json
 **/.aiignore
+**/.aiexclude
 **/.geminiignore
 **/.augmentignore
 **/.bobignore

@@ -35,6 +35,7 @@ import { AgentsmdSkill } from "./agentsmd-skill.js";
 import { AgentsSkillsSkill } from "./agentsskills-skill.js";
 import { AiassistantSkill } from "./aiassistant-skill.js";
 import { AmpSkill } from "./amp-skill.js";
+import { AndroidstudioSkill } from "./androidstudio-skill.js";
 import { AntigravityCliSkill } from "./antigravity-cli-skill.js";
 import { AntigravityIdeSkill } from "./antigravity-ide-skill.js";
 import { AntigravityPluginSkill } from "./antigravity-plugin-skill.js";
@@ -272,6 +273,16 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
       // https://www.jetbrains.com/help/ai-assistant/agent-skills.html
       class: AiassistantSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: false },
+    },
+  ],
+  [
+    "androidstudio",
+    {
+      // Gemini in Android Studio (Quail 1+) loads Agent Skills from
+      // `.android-studio/skills/` at the project root or in the home directory.
+      // https://developer.android.com/studio/gemini/skills
+      class: AndroidstudioSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],
   [
