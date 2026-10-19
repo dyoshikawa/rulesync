@@ -384,8 +384,8 @@ const ZCODE_ENABLE_KEYS: ReadonlySet<string> = new Set(["enable", "enabled"]);
  * and unknown keys pass through untouched so an import keeps whatever a
  * hand-authored entry declared. `timeoutMs` is lifted back into the canonical
  * `timeout` (milliseconds); when the server also states a `timeout`, ZCode
- * has already dropped that one, so `timeoutMs` replaces it. A ZCode-shaped
- * `oauth` is imported as the namespaced `zcodeOauth`, so its client secret is
+ * has already dropped that one, so `timeoutMs` replaces it. Any record
+ * `oauth` is imported as the namespaced `zcodeOauth`, so a client secret is
  * never emitted to another tool. Generation back out is a whitelist, so only
  * the keys `convertToZcodeFormat` writes are re-emitted.
  *
@@ -421,7 +421,11 @@ export function convertFromZcodeFormat({
       if (key === "timeout" && typeof config.timeoutMs === "number") {
         continue;
       }
-      if (key === "oauth" && isZcodeOauth(value)) {
+      // Every record `oauth` goes to the namespaced key, even one naming no
+      // ZCode flow: it may still carry a client secret, and as canonical
+      // `oauth` it would reach every other tool. Generation drops one that
+      // names no flow, with a warning.
+      if (key === "oauth" && isRecord(value)) {
         converted[ZCODE_OAUTH_CANONICAL_KEY] = value;
         continue;
       }
