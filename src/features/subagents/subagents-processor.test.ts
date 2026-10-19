@@ -1930,6 +1930,7 @@ Second global content`;
         "tabnine",
         "takt",
         "vibe",
+        "xum",
         "zcode",
       ]);
     });
@@ -2009,6 +2010,7 @@ Second global content`;
           "takt",
           "vibe",
           "vibe-plugin",
+          "xum",
           "zcode",
           "zcode-plugin",
         ]),

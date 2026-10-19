@@ -17,6 +17,7 @@ import {
   RULESYNC_RULES_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
 import { WARP_LEGACY_RULE_FILE_NAME } from "../../constants/warp-paths.js";
+import { XUM_DIR, XUM_LOCAL_RULE_FILE_NAME } from "../../constants/xum-paths.js";
 import {
   caseFoldIdentity,
   FeatureProcessor,
@@ -128,6 +129,7 @@ import {
 import { TraeRule } from "./trae-rule.js";
 import { VibeRule } from "./vibe-rule.js";
 import { WarpRule } from "./warp-rule.js";
+import { ensureXumSectionBoundary, XumRule } from "./xum-rule.js";
 import { ZcodeRule } from "./zcode-rule.js";
 import { ZedRule } from "./zed-rule.js";
 import { ZoocodeRule } from "./zoocode-rule.js";
@@ -1445,6 +1447,26 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
     },
   ],
   [
+    "xum",
+    {
+      class: XumRule,
+      meta: {
+        // Xum (formerly Mux) reads the Xum-dedicated `.xum/AGENTS.md` (project)
+        // and `~/.xum/AGENTS.md` (user) on top of the shared root `AGENTS.md`,
+        // which the `agentsmd` target writes. There is no rules directory, so
+        // topic rules fold into that single file. The personal
+        // `.xum/AGENTS.local.md` overlay beside it takes a localRoot rule.
+        // https://xum.cdr.dev/agents/instruction-files
+        extension: "md",
+        supportsGlobal: true,
+        ruleDiscoveryMode: "auto",
+        collisionPolicy: "fold",
+        localRootMode: "separate-local-file",
+        localRootFileName: XUM_LOCAL_RULE_FILE_NAME,
+      },
+    },
+  ],
+  [
     "devin",
     {
       class: DevinRule,
@@ -2674,14 +2696,46 @@ export class RulesProcessor extends FeatureProcessor {
         localRoot,
       });
     }
-    if (isClassOrSubclassOf({ candidate: factory.class, base: QwencodeRule })) {
-      // Qwen Code reads the personal local context file from `.qwen/`, not the
-      // project root (project scope only; global handling never reaches here).
-      return new QwencodeRule({
+    return this.buildToolDirLocalRootFile({ factory, fileName, body, relativeDirPath, localRoot });
+  }
+
+  /**
+   * Qwen Code and Xum read the personal local file from their tool directory
+   * (`.qwen/QWEN.local.md`, `.xum/AGENTS.local.md`), not the project root
+   * (project scope only; global handling never reaches here).
+   */
+  private buildToolDirLocalRootFile({
+    factory,
+    fileName,
+    body,
+    relativeDirPath,
+    localRoot,
+  }: {
+    factory: ToolRuleFactory;
+    fileName: string;
+    body: string;
+    relativeDirPath: string | undefined;
+    localRoot: boolean;
+  }): ToolRule | null {
+    const toolDirEntry = (
+      [
+        [QwencodeRule, QWENCODE_DIR],
+        [XumRule, XUM_DIR],
+      ] as const
+    ).find(([base]) => isClassOrSubclassOf({ candidate: factory.class, base }));
+    if (toolDirEntry) {
+      const [toolDirClass, toolDir] = toolDirEntry;
+      return new toolDirClass({
         outputRoot: this.outputRoot,
-        relativeDirPath: relativeDirPath ?? QWENCODE_DIR,
+        relativeDirPath: relativeDirPath ?? toolDir,
         relativeFilePath: fileName,
-        fileContent: body,
+        // Xum appends `AGENTS.local.md` to `AGENTS.md` as one document, so the
+        // generated overlay opens at a section boundary like a folded rule does
+        // (an imported file is read back as written).
+        fileContent:
+          toolDirClass === XumRule && !localRoot
+            ? ensureXumSectionBoundary({ body, heading: "Local instructions" })
+            : body,
         validate: true,
         root: true,
         localRoot,

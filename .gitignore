@@ -344,6 +344,7 @@ rulesync.local.jsonc
 **/.tabnine/guidelines/
 **/.takt/facets/policies/
 **/.trae/rules/
+**/.xum/AGENTS.md
 **/.devin/rules/
 **/.rules
 **/.agents/commands/
@@ -416,6 +417,7 @@ rulesync.local.jsonc
 **/.takt/facets/knowledge/
 **/.trae/skills/
 **/.vibe/skills/
+**/.xum/skills/
 **/.zcode/skills/
 **/.dsh/skills/
 **/.agents/agents/
@@ -450,6 +452,7 @@ rulesync.local.jsonc
 **/.tabnine/agent/agents/
 **/.takt/facets/personas/
 **/.vibe/agents/
+**/.xum/agents/
 **/.zcode/agents/
 **/.ai/mcp/mcp.json
 **/.agents/mcp_config.json
@@ -475,6 +478,7 @@ rulesync.local.jsonc
 **/.roo/mcp.json
 **/.trae/mcp.json
 **/.warp/.mcp.json
+**/.xum/mcp.jsonc
 **/.devin/mcp_config.json
 **/.amp/plugins/rulesync-hooks.ts
 **/.agents/hooks.json

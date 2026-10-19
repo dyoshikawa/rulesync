@@ -144,6 +144,7 @@ The tables below show whether each tool supports a given feature (✅ = supporte
 | Devin plugin              |  ✅   |        | ✅  |          |    ✅     |   ✅   |  ✅   |             |        |
 | Warp                      |  ✅   |   ✅   | ✅  |    ✅    |           |   ✅   |       |     ✅      |        |
 | Warp Agent CLI            |       |        | ✅  |          |           |        |       |     ✅      |        |
+| Xum                       |  ✅   |        | ✅  |          |    ✅     |   ✅   |       |             |        |
 | Replit                    |  ✅   |        |     |          |           |   ✅   |       |             |        |
 | Pi Coding Agent           |  ✅   |        | ✅  |    ✅    |           |   ✅   |  ✅   |     ✅      |        |
 | oh-my-pi                  |  ✅   |        | ✅  |    ✅    |    ✅     |   ✅   |  ✅   |     ✅      |        |
