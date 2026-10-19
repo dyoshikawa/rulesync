@@ -71,6 +71,7 @@ import { VibeMcp } from "./vibe-mcp.js";
 import { VibePluginMcp } from "./vibe-plugin-mcp.js";
 import { WarpMcp } from "./warp-mcp.js";
 import { WarpcliMcp } from "./warpcli-mcp.js";
+import { XumMcp } from "./xum-mcp.js";
 import { ZcodeMcp } from "./zcode-mcp.js";
 import { ZcodePluginMcp } from "./zcode-plugin-mcp.js";
 import { ZedMcp } from "./zed-mcp.js";
@@ -976,6 +977,23 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
         supportsProject: false,
         supportsGlobal: true,
         supportsEnabledTools: false,
+        supportsDisabledTools: false,
+      },
+    },
+  ],
+  [
+    "xum",
+    {
+      // Xum reads `~/.xum/mcp.jsonc` (user) and the repo override
+      // `.xum/mcp.jsonc` (project): a `servers` map of stdio command strings
+      // or `{ transport, url, headers }` remote entries. `toolAllowlist` maps
+      // the canonical `enabledTools`; there is no per-server deny list.
+      // https://xum.cdr.dev/config/mcp-servers
+      class: XumMcp,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsEnabledTools: true,
         supportsDisabledTools: false,
       },
     },

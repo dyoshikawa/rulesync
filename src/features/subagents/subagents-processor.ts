@@ -83,6 +83,7 @@ import {
 } from "./tool-subagent.js";
 import { VibePluginSubagent } from "./vibe-plugin-subagent.js";
 import { VibeSubagent } from "./vibe-subagent.js";
+import { XumSubagent } from "./xum-subagent.js";
 import { ZcodePluginSubagent } from "./zcode-plugin-subagent.js";
 import { ZcodeSubagent } from "./zcode-subagent.js";
 import { ZoocodeSubagent } from "./zoocode-subagent.js";
@@ -929,6 +930,22 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
         supportsSimulated: false,
         supportsGlobal: false,
         filePattern: "*.toml",
+      },
+    },
+  ],
+  [
+    "xum",
+    {
+      // Xum agent definitions are native Markdown + YAML frontmatter directly
+      // under `.xum/agents/` (project) and `~/.xum/agents/` (user/global);
+      // subfolders are ignored.
+      // https://xum.cdr.dev/agents
+      class: XumSubagent,
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: "*.md",
       },
     },
   ],

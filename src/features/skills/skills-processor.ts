@@ -105,6 +105,7 @@ import { TraeSkill } from "./trae-skill.js";
 import { VibePluginSkill } from "./vibe-plugin-skill.js";
 import { VibeSkill } from "./vibe-skill.js";
 import { WarpSkill } from "./warp-skill.js";
+import { XumSkill } from "./xum-skill.js";
 import { ZcodePluginSkill } from "./zcode-plugin-skill.js";
 import { ZcodeSkill } from "./zcode-skill.js";
 import { ZedSkill } from "./zed-skill.js";
@@ -789,6 +790,16 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
     "warp",
     {
       class: WarpSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "xum",
+    {
+      // Xum skills are directories (`<name>/SKILL.md`) under `.xum/skills/`
+      // (project) / `~/.xum/skills/` (user).
+      // https://xum.cdr.dev/agents/agent-skills
+      class: XumSkill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],

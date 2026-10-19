@@ -148,6 +148,7 @@ export const RulesyncMcpFileSchema = z.looseObject({
   vibe: z.optional(toolScopedMcpSchema),
   warp: z.optional(toolScopedMcpSchema),
   warpcli: z.optional(toolScopedMcpSchema),
+  xum: z.optional(toolScopedMcpSchema),
   zed: z.optional(toolScopedMcpSchema),
 });
 

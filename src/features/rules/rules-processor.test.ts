@@ -2359,6 +2359,7 @@ describe("RulesProcessor", () => {
         "takt",
         "trae",
         "warp",
+        "xum",
         "devin",
       ];
 
@@ -2675,6 +2676,7 @@ Content that would fail parsing`;
         "takt",
         "vibe",
         "warp",
+        "xum",
         "devin",
         "zcode",
         "zed",
@@ -2746,7 +2748,8 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("commandcode");
       expect(globalTargets).toContain("openclaw");
       expect(globalTargets).toContain("qoder");
-      expect(globalTargets.length).toBe(49);
+      expect(globalTargets).toContain("xum");
+      expect(globalTargets.length).toBe(50);
 
       // These targets should NOT be in global mode
       expect(globalTargets).not.toContain("cursor");
@@ -5948,6 +5951,7 @@ targets: ["factorydroid"]
         "reasonix",
         "vibe",
         "warp",
+        "xum",
         "zcode",
         "dsh",
       ]);

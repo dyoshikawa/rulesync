@@ -72,6 +72,7 @@ describe("tool targets", () => {
         "trae",
         "vibe",
         "warp",
+        "xum",
         "devin",
         "devin-plugin",
         "zcode",
