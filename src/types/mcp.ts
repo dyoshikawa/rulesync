@@ -176,7 +176,9 @@ export const McpServerSchema = z.looseObject({
   // `RulesyncMcp.getMcpServers()`, like the `crush*` OAuth keys: the client
   // secret must not be copied into every other tool's config, and the
   // canonical `oauth` key already carries Claude Code's `{ clientId }` object.
-  zcodeOauth: z.optional(z.looseObject({ type: z.string() })),
+  // Any object is accepted here: `zcode-mcp.ts` drops one that names no ZCode
+  // flow with a warning instead of failing the whole file.
+  zcodeOauth: z.optional(z.looseObject({})),
   // Pool-specific: the per-server `allow` list of tool-name glob patterns Pool's
   // approval layer auto-approves (`deny` wins over it). Written as `allow` by
   // `pool-mcp.ts` and stripped by `RulesyncMcp.getMcpServers()`, like

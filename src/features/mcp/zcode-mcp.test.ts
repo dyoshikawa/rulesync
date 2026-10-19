@@ -363,6 +363,30 @@ describe("ZcodeMcp", () => {
       });
     });
 
+    it("should import an oauth naming no ZCode flow as zcodeOauth, not canonical oauth", () => {
+      const oauth = { type: "foo", clientSecret: "secret" };
+      const mcp = new ZcodeMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".zcode",
+        relativeFilePath: "config.json",
+        fileContent: JSON.stringify({
+          mcp: {
+            servers: {
+              odd: { type: "http", url: "https://example.com/mcp", oauth },
+              untyped: { type: "http", url: "https://example.com/mcp", oauth: { clientId: "id" } },
+            },
+          },
+        }),
+      });
+
+      const servers = JSON.parse(mcp.toRulesyncMcp().getFileContent()).mcpServers;
+      expect(servers).toEqual({
+        odd: { type: "http", url: "https://example.com/mcp", zcodeOauth: oauth },
+        untyped: { type: "http", url: "https://example.com/mcp", zcodeOauth: { clientId: "id" } },
+      });
+      expect(servers.odd.oauth).toBeUndefined();
+    });
+
     it("should yield empty servers when the config has no mcp block", () => {
       const mcp = new ZcodeMcp({
         outputRoot: testDir,
