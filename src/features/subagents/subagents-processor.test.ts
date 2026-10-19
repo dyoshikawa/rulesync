@@ -359,6 +359,32 @@ describe("SubagentsProcessor", () => {
       expect(poolProcessor.emitsToolFilesForEmptySource()).toBe(false);
     });
 
+    it("is true for firebender without a source directory only when deleting orphans", async () => {
+      // `--delete` sweeps `.firebender/agents/*.md` even without a source
+      // directory, so the registry must be rewritten in the same run.
+      const make = (toolTarget: "firebender" | "pool", deleteOrphans: boolean) =>
+        new SubagentsProcessor({
+          logger: createMockLogger(),
+          outputRoot: testDir,
+          toolTarget,
+          deleteOrphans,
+        });
+      const firebenderDelete = make("firebender", true);
+      const firebenderPlain = make("firebender", false);
+      const poolDelete = make("pool", true);
+
+      await firebenderDelete.loadRulesyncFiles();
+      await firebenderPlain.loadRulesyncFiles();
+      await poolDelete.loadRulesyncFiles();
+
+      expect(firebenderDelete.emitsToolFilesForEmptySource()).toBe(true);
+      expect(firebenderPlain.emitsToolFilesForEmptySource()).toBe(false);
+      expect(poolDelete.emitsToolFilesForEmptySource()).toBe(false);
+
+      const toolFiles = await firebenderDelete.convertRulesyncFilesToToolFiles([]);
+      expect(toolFiles.map((file) => file.getRelativeFilePath())).toEqual(["firebender.json"]);
+    });
+
     it("converts an empty source list into an agentless Pool settings patch", async () => {
       // Removing the last rulesync subagent must still write the aggregate so
       // the agents generated earlier are retracted from settings.yaml.

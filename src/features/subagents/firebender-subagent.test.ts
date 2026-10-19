@@ -1,3 +1,4 @@
+import { symlink } from "node:fs/promises";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -5,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { readFileContent, removeFile, writeFileContent } from "../../utils/file.js";
+import { ensureDir, readFileContent, removeFile, writeFileContent } from "../../utils/file.js";
 import { FirebenderAgentsRegistry, FirebenderSubagent } from "./firebender-subagent.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
 
@@ -325,6 +326,35 @@ describe("FirebenderSubagent", () => {
     checkRegistry?.setFileContent(afterDelete);
     expect(checkRegistry?.getFileContent()).toBe(afterDelete);
   });
+
+  it.skipIf(process.platform === "win32")(
+    "should leave agents untouched when the agent directory links outside the root",
+    async () => {
+      const { testDir: outsideDir, cleanup: cleanupOutside } = await setupTestDirectory();
+      await ensureDir(join(testDir, ".firebender"));
+      await symlink(outsideDir, join(testDir, ".firebender", "agents"));
+      try {
+        const { registry } = splitResult(
+          await FirebenderSubagent.fromRulesyncSubagents({
+            outputRoot: testDir,
+            rulesyncSubagents: [makeRulesyncSubagent()],
+            deleteOrphans: true,
+          }),
+        );
+
+        registry?.setFileContent(
+          JSON.stringify({ agents: [".firebender/agents/mine.md"], useCursorRules: false }),
+        );
+
+        expect(JSON.parse(registry?.getFileContent() ?? "")).toEqual({
+          agents: [".firebender/agents/mine.md"],
+          useCursorRules: false,
+        });
+      } finally {
+        await cleanupOutside();
+      }
+    },
+  );
 
   it("should not warn when a generated agent's entry is only respelled", async () => {
     const logger = createMockLogger();

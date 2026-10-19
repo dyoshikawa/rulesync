@@ -9,6 +9,7 @@ import {
   ensureDir,
   fileExists,
   readFileContent,
+  removeDirectory,
   removeFile,
   writeFileContent,
 } from "../utils/file.js";
@@ -539,6 +540,39 @@ You are the planner.
     expect(await readFileContent(join(testDir, ".firebender", "agents", "planner.md"))).toContain(
       "callable: true",
     );
+  });
+
+  it("should unregister swept agents when the subagents source directory is gone", async () => {
+    const testDir = getTestDir();
+    await writeFileContent(
+      join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "rev.md"),
+      `---
+name: rev
+targets: ["firebender"]
+description: "Reviewer"
+---
+You review.
+`,
+    );
+    await runGenerate({ target: "firebender", features: "subagents" });
+    expect(JSON.parse(await readFileContent(join(testDir, "firebender.json"))).agents).toEqual([
+      ".firebender/agents/rev.md",
+    ]);
+
+    await removeDirectory(join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH));
+    await runGenerate({ target: "firebender", features: "subagents", deleteFiles: true });
+
+    expect(await fileExists(join(testDir, ".firebender", "agents", "rev.md"))).toBe(false);
+    expect(JSON.parse(await readFileContent(join(testDir, "firebender.json")))).toEqual({});
+
+    const { stdout } = await runGenerate({
+      target: "firebender",
+      features: "subagents",
+      deleteFiles: true,
+      check: true,
+      env: { NODE_ENV: "e2e" },
+    });
+    expect(stdout).toContain("All files are up to date.");
   });
 
   it("should unregister a removed agent in a single --delete run", async () => {

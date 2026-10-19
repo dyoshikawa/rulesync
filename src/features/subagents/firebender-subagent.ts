@@ -12,7 +12,12 @@ import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-p
 import type { SharedWritePath } from "../../lib/shared-file-derive.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
-import { listDirectoryEntryNames, readFileContent, toPosixPath } from "../../utils/file.js";
+import {
+  listDirectoryEntryNames,
+  readFileContent,
+  toPosixPath,
+  writablePathEscapesRoot,
+} from "../../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
 import type { Logger } from "../../utils/logger.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
@@ -213,8 +218,16 @@ export class FirebenderSubagent extends ToolSubagent {
     deleteOrphans?: boolean;
   }): Promise<ToolSubagent[]> {
     const agentsDirPath = this.getSettablePaths({ global }).relativeDirPath;
+    // The writer refuses, and the sweep skips, an agent directory that a
+    // symbolic link leads out of the output root; the registry follows suit
+    // and leaves `agents` as it is rather than (un)registering files that are
+    // never written or deleted.
+    const agentsDirEscapesRoot = await writablePathEscapesRoot({
+      rootPath: outputRoot,
+      targetPath: join(outputRoot, agentsDirPath, "agent.md"),
+    });
     const existingAgentFileNames = new Set(
-      await listDirectoryEntryNames(join(outputRoot, agentsDirPath)),
+      agentsDirEscapesRoot ? [] : await listDirectoryEntryNames(join(outputRoot, agentsDirPath)),
     );
     const subagents = rulesyncSubagents.map((rulesyncSubagent) =>
       this.fromRulesyncSubagent({
@@ -233,6 +246,7 @@ export class FirebenderSubagent extends ToolSubagent {
       ),
       existingAgentFileNames,
       deleteOrphans,
+      frozen: agentsDirEscapesRoot,
       global,
       logger,
     });
@@ -348,6 +362,8 @@ type FirebenderAgentsRegistryParams = Omit<AiFileParams, "fileContent"> & {
    * written, so the registry drops those entries up front instead.
    */
   deleteOrphans?: boolean;
+  /** Leave `agents` untouched (the agent directory resolves outside the root). */
+  frozen?: boolean;
   logger?: Logger;
 };
 
@@ -367,6 +383,7 @@ export class FirebenderAgentsRegistry extends ToolSubagent {
   private readonly entries: string[];
   private readonly existingAgentFileNames: ReadonlySet<string>;
   private readonly deleteOrphans: boolean;
+  private readonly frozen: boolean;
   private readonly logger: Logger | undefined;
   private mergedContent: string | null = null;
 
@@ -374,6 +391,7 @@ export class FirebenderAgentsRegistry extends ToolSubagent {
     entries,
     existingAgentFileNames = new Set(),
     deleteOrphans = false,
+    frozen = false,
     logger,
     ...rest
   }: FirebenderAgentsRegistryParams) {
@@ -381,6 +399,7 @@ export class FirebenderAgentsRegistry extends ToolSubagent {
     this.entries = entries;
     this.existingAgentFileNames = existingAgentFileNames;
     this.deleteOrphans = deleteOrphans;
+    this.frozen = frozen;
     this.logger = logger;
   }
 
@@ -419,6 +438,16 @@ export class FirebenderAgentsRegistry extends ToolSubagent {
       filePath,
       invalidRootPolicy: "error",
     });
+    if (this.frozen) {
+      return applySharedConfigPatch({
+        fileKey: sharedConfigFileKey(paths),
+        feature: "subagents",
+        existingContent,
+        patch: { agents: existing.agents },
+        filePath,
+        logger: this.logger,
+      });
+    }
     const existingEntries: unknown[] = Array.isArray(existing.agents) ? existing.agents : [];
     const generatedByFileName = new Map(
       this.entries.map((entry) => [

@@ -158,6 +158,15 @@ type ToolSubagentFactory = {
      */
     emitsEmptyAggregate?: boolean;
     /**
+     * With {@link emitsEmptyAggregate}, also emit the empty aggregate when the
+     * rulesync subagents directory does not exist at all, as long as the run
+     * sweeps orphans (`--delete`). Set by a tool whose aggregate indexes
+     * per-agent files that the sweep deletes even without a source directory
+     * (Firebender's `agents` registry), so the index is not left pointing at
+     * files that are gone.
+     */
+    emitsEmptyAggregateOnDelete?: boolean;
+    /**
      * File pattern for import (e.g., "*.md", "*.json").
      *
      * A glob, not a filesystem path, so multi-segment patterns are spelled with
@@ -573,6 +582,7 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
         supportsSimulated: false,
         supportsGlobal: true,
         emitsEmptyAggregate: true,
+        emitsEmptyAggregateOnDelete: true,
         filePattern: "*.md",
       },
     },
@@ -1057,9 +1067,13 @@ export class SubagentsProcessor extends FeatureProcessor {
   }
 
   override emitsToolFilesForEmptySource(): boolean {
+    const { meta } = this.getFactory(this.toolTarget);
+    if (meta.emitsEmptyAggregate !== true) {
+      return false;
+    }
     return (
-      this.rulesyncSourceDirFound &&
-      this.getFactory(this.toolTarget).meta.emitsEmptyAggregate === true
+      this.rulesyncSourceDirFound ||
+      (this.deleteOrphans && meta.emitsEmptyAggregateOnDelete === true)
     );
   }
 
