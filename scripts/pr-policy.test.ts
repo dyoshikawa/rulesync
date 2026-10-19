@@ -9,9 +9,18 @@ import { describe, expect, it } from "vitest";
 const workflow = load(
   readFileSync(new URL("../.github/workflows/pr-policy.yml", import.meta.url), "utf8"),
 ) as {
-  jobs: { "check-policy": { steps: { env: Record<string, string>; run: string }[] } };
+  jobs: { "check-policy": { steps: { name: string; env: Record<string, string>; run: string }[] } };
 };
-const step = workflow.jobs["check-policy"].steps[0]!;
+
+function getPolicyStep(steps: (typeof workflow.jobs)["check-policy"]["steps"]) {
+  const policyStep = steps.find((candidate) => candidate.name === "Check contributor policy");
+  if (!policyStep) {
+    throw new Error("Check contributor policy step is missing");
+  }
+  return policyStep;
+}
+
+const step = getPolicyStep(workflow.jobs["check-policy"].steps);
 
 function runPolicy(env: Record<string, string> = {}) {
   // Execute the workflow's actual shell, but intercept every gh invocation.
@@ -45,6 +54,18 @@ ${step.run}`,
 }
 
 describe("PR policy workflow", () => {
+  it("finds the policy step after an unrelated step", () => {
+    const steps = [{ name: "Prepare runner", env: {}, run: "exit 1" }, step];
+
+    expect(getPolicyStep(steps)).toBe(step);
+  });
+
+  it("fails explicitly when the policy step is missing", () => {
+    expect(() => getPolicyStep([{ name: "Prepare runner", env: {}, run: "exit 0" }])).toThrow(
+      "Check contributor policy step is missing",
+    );
+  });
+
   it("reads the PR author's account type from the event", () => {
     expect(step.env.PR_AUTHOR_TYPE).toBe("${{ github.event.pull_request.user.type }}");
   });
