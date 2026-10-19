@@ -68,6 +68,7 @@ export const rulesProcessorToolTargetTuple = [
 
 export const ignoreProcessorToolTargetTuple = [
   "aiassistant",
+  "androidstudio",
   "antigravity-cli",
   "augmentcode",
   "bob",
@@ -274,6 +275,7 @@ export const skillsProcessorToolTargetTuple = [
   "agentsmd",
   "agentsskills",
   "aiassistant",
+  "androidstudio",
   "amp",
   "antigravity-cli",
   "antigravity-ide",
