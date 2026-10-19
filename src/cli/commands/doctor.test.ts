@@ -249,7 +249,11 @@ describe("collectConfigFileDiagnostics", () => {
         },
       ],
     });
-    const diagnostics = collectConfigFileDiagnostics({ file: FILE, content, env: {} });
+    const diagnostics = collectConfigFileDiagnostics({
+      file: FILE,
+      content,
+      env: { RULESYNC_NPM_TRUSTED_REGISTRIES: "https://registry.example.com" },
+    });
     expect(diagnostics).toEqual([
       expect.objectContaining({ code: "config/token-env-not-set", severity: "warning" }),
     ]);
@@ -271,9 +275,35 @@ describe("collectConfigFileDiagnostics", () => {
     const diagnostics = collectConfigFileDiagnostics({
       file: FILE,
       content,
-      env: { MY_NPM_TOKEN: "secret" },
+      env: {
+        MY_NPM_TOKEN: "secret",
+        RULESYNC_NPM_TRUSTED_REGISTRIES: "https://registry.example.com",
+      },
     });
     expect(diagnostics).toEqual([]);
+  });
+
+  it("reports a tokenEnv sent to a registry the environment does not trust", () => {
+    const content = JSON.stringify({
+      $schema: RULESYNC_CONFIG_SCHEMA_URL,
+      targets: ["claudecode"],
+      sources: [
+        {
+          source: "org/pkg",
+          transport: "npm",
+          registry: "https://registry.example.com",
+          tokenEnv: "MY_NPM_TOKEN",
+        },
+      ],
+    });
+    const diagnostics = collectConfigFileDiagnostics({
+      file: FILE,
+      content,
+      env: { MY_NPM_TOKEN: "secret" },
+    });
+    expect(diagnostics).toEqual([
+      expect.objectContaining({ code: "config/token-registry-not-trusted", severity: "error" }),
+    ]);
   });
 
   it("reports a tokenEnv that names a non-npm secret", () => {

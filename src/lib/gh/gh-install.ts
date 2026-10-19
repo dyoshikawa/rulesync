@@ -7,6 +7,7 @@ import type { SourceEntry } from "../../config/config.js";
 import { FETCH_CONCURRENCY_LIMIT, MAX_FILE_SIZE } from "../../constants/rulesync-paths.js";
 import { formatError } from "../../utils/error.js";
 import {
+  assertPathResolvesInsideRoot,
   checkPathTraversal,
   getHomeDirectory,
   removeFile,
@@ -358,17 +359,68 @@ async function removeStaleGhFiles(params: {
     }
   }
   for (const prev of existingLock.installations) {
+    const scope: GhScope = prev.scope === "user" ? "user" : "project";
+    const allowedPrefix = staleRemovalPrefix({ installation: prev, scope });
+    if (allowedPrefix === undefined) {
+      logger.warn(
+        `Refusing to remove stale gh files for an unrecognized lock entry (agent "${prev.agent}", skill "${prev.skill}").`,
+      );
+      continue;
+    }
+    // The lockfile is committed with the project, so a user-scope entry alone
+    // must not be enough to delete files under the home directory: only clean
+    // up after a source the current config still installs at user scope.
+    if (
+      scope === "user" &&
+      !newLock.installations.some(
+        (inst) => inst.scope === "user" && inst.source === prev.source && inst.agent === prev.agent,
+      )
+    ) {
+      if (prev.deployed_files.some((deployed) => !newDeployed.has(`${prev.scope}::${deployed}`))) {
+        logger.warn(
+          `Not removing stale user-scope gh files of "${prev.source}" (skill "${prev.skill}"): the source is no longer installed at user scope. Remove them by hand if they are no longer wanted.`,
+        );
+      }
+      continue;
+    }
     for (const deployed of prev.deployed_files) {
       const key = `${prev.scope}::${deployed}`;
       if (newDeployed.has(key)) continue;
-      await removeStaleFile({
-        relativePath: deployed,
-        scope: prev.scope === "user" ? "user" : "project",
-        projectRoot,
-        logger,
-      });
+      if (!toPosixPath(deployed).startsWith(allowedPrefix)) {
+        logger.warn(
+          `Refusing to remove stale gh file outside the skill's install directory: "${deployed}".`,
+        );
+        continue;
+      }
+      await removeStaleFile({ relativePath: deployed, scope, projectRoot, logger });
     }
   }
+}
+
+/**
+ * The only directory a lock entry's deployed files may be removed from: the
+ * install directory of its agent and scope, joined with its skill name. A
+ * committed lockfile names arbitrary paths, so without this a lock entry could
+ * list `.ssh/authorized_keys` as a "stale" file. Returns `undefined` for an
+ * entry whose agent or skill name rulesync would never have written.
+ */
+function staleRemovalPrefix(params: {
+  installation: GhLock["installations"][number];
+  scope: GhScope;
+}): string | undefined {
+  const { installation, scope } = params;
+  const agent = GH_AGENTS.find((candidate) => candidate === installation.agent);
+  const skill = installation.skill;
+  if (
+    agent === undefined ||
+    skill === "" ||
+    skill === "." ||
+    skill === ".." ||
+    /[/\\]/.test(skill)
+  ) {
+    return undefined;
+  }
+  return `${toPosixPath(join(relativeInstallDirFor({ agent, scope }), skill))}/`;
 }
 
 async function installSource(params: {
@@ -460,6 +512,7 @@ async function installSource(params: {
       repo,
       resolvedSha,
       installRelDir,
+      scope,
       scopeRoot,
       sourceUrl,
       repository,
@@ -674,6 +727,7 @@ async function buildSkillDeployment(params: {
   repo: string;
   resolvedSha: string;
   installRelDir: string;
+  scope: GhScope;
   scopeRoot: string;
   sourceUrl: string;
   repository: string;
@@ -691,6 +745,7 @@ async function buildSkillDeployment(params: {
     repo,
     resolvedSha,
     installRelDir,
+    scope,
     scopeRoot,
     sourceUrl,
     repository,
@@ -758,6 +813,13 @@ async function buildSkillDeployment(params: {
     }
 
     const absolutePath = join(scopeRoot, deployRelative);
+    // checkPathTraversal is textual only: a symbolic link committed to the
+    // project (`.agents/skills -> ~/somewhere`) would otherwise redirect the
+    // write. User scope is left alone, since linking `~/.claude` into a
+    // dotfiles checkout is the user's own, deliberate setup.
+    if (scope === "project") {
+      await assertPathResolvesInsideRoot({ rootPath: scopeRoot, targetPath: absolutePath });
+    }
     deployed.push({ relativeToScopeRoot: deployRelative, absolutePath, content });
 
     if (!frozen) {
@@ -817,6 +879,16 @@ async function removeStaleFile(params: {
     return;
   }
   const absolute = join(scopeRoot, relativePath);
+  if (scope === "project") {
+    try {
+      await assertPathResolvesInsideRoot({ rootPath: scopeRoot, targetPath: absolute });
+    } catch {
+      logger.warn(
+        `Refusing to remove stale gh file that resolves outside the project: "${relativePath}".`,
+      );
+      return;
+    }
+  }
   await removeFile(absolute);
   logger.debug(`Removed stale gh file: ${relativePath}`);
 }

@@ -22,6 +22,7 @@ import {
   RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH,
 } from "../../constants/rulesync-paths.js";
 import { createFeatureScaffold, parseScaffoldFeatureKeyword } from "../../lib/feature-scaffold.js";
+import { DEFAULT_NPM_TOKEN_ENV, isAllowedNpmTokenEnvName } from "../../lib/npm-client.js";
 import { normalizeNpmSourceKey } from "../../lib/npm-sources-lock.js";
 import { normalizeSourceKey } from "../../lib/sources-lock.js";
 import {
@@ -232,6 +233,12 @@ function detectFormattingOptions(content: string): FormattingOptions {
 
 function buildSourceEntry(options: AddCommandOptions): SourceEntry {
   assertSourceHasNoEmbeddedCredentials(options.source);
+  // `install` refuses any other name, so do not write a config it cannot use.
+  if (options.tokenEnv !== undefined && !isAllowedNpmTokenEnvName(options.tokenEnv)) {
+    throw new Error(
+      `--token-env "${options.tokenEnv}" is not allowed. It must be "${DEFAULT_NPM_TOKEN_ENV}" or end with "_${DEFAULT_NPM_TOKEN_ENV}" (e.g. "ACME_${DEFAULT_NPM_TOKEN_ENV}").`,
+    );
+  }
   return SourceEntrySchema.parse({
     source: options.source,
     skills: options.skills,

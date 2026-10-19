@@ -104,7 +104,10 @@ export function createProgram(): Command {
     .option("-p, --path <path>", "Skills path within the source")
     .option("--rules-path <path>", "Rules path within the source")
     .option("--registry <url>", "npm-compatible registry URL")
-    .option("--token-env <name>", "Environment variable containing the npm registry token")
+    .option(
+      "--token-env <name>",
+      "Environment variable containing the npm registry token (NPM_TOKEN or *_NPM_TOKEN)",
+    )
     .option("--token <token>", "GitHub token for private repositories")
     .option("-c, --config <path>", "Path to configuration file")
     .option("-V, --verbose", "Verbose output")

@@ -1297,6 +1297,62 @@ describe("resolveAndFetchSources", () => {
     ).toBe(computeRuleIntegrity(newRuleContent));
   });
 
+  it.each([
+    { frozen: true, expectedFailures: 1 },
+    { frozen: false, expectedFailures: 0 },
+  ])(
+    "should handle a rule integrity mismatch at the locked ref (frozen: $frozen)",
+    async ({ frozen, expectedFailures }) => {
+      const { readLockFile } = await import("./sources-lock.js");
+      const lockedSha = "c".repeat(40);
+      vi.mocked(readLockFile).mockResolvedValue({
+        lockfileVersion: 1,
+        sources: {
+          "org/repo": {
+            requestedRef: "main",
+            resolvedRef: lockedSha,
+            skills: {},
+            rules: { shared: { integrity: computeRuleIntegrity("locked rule") } },
+            ruleSelection: ["shared"],
+            rulesPath: "rules",
+            resolvedRuleNames: ["shared"],
+          },
+        },
+      });
+      vi.mocked(fileExists).mockResolvedValue(false);
+      mockClientInstance.resolveRefToSha.mockResolvedValue(lockedSha);
+      mockClientInstance.listDirectory.mockImplementation(
+        async (_owner: string, _repo: string, path: string) =>
+          path === "rules"
+            ? [{ name: "shared.md", path: "rules/shared.md", type: "file", size: 50 }]
+            : [],
+      );
+      mockClientInstance.getFileContent.mockResolvedValue("tampered rule");
+
+      const result = await resolveAndFetchSources({
+        logger,
+        sources: [{ source: "org/repo", rules: ["shared"] }],
+        projectRoot: testDir,
+        options: { frozen },
+      });
+
+      expect(result.failedSourceCount).toBe(expectedFailures);
+      const wroteTampered = vi
+        .mocked(writeFileContent)
+        .mock.calls.some(
+          ([path, content]) => path.endsWith("shared.md") && content === "tampered rule",
+        );
+      expect(wroteTampered).toBe(!frozen);
+      if (frozen) {
+        expect(logger.error).toHaveBeenCalledWith(
+          expect.stringContaining("Refusing to install it under --frozen"),
+        );
+      } else {
+        expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("Integrity mismatch"));
+      }
+    },
+  );
+
   it("should preserve existing rules when a GitHub download fails", async () => {
     const { readLockFile } = await import("./sources-lock.js");
     vi.mocked(readLockFile).mockResolvedValue({

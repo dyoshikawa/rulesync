@@ -2785,6 +2785,59 @@ Follow these guidelines for TypeScript development.
     expect(summary.created).toBeGreaterThanOrEqual(0);
   });
 
+  it.skipIf(process.platform === "win32")(
+    "should refuse to write a converted file through a symbolic link that leads outside the output root",
+    async () => {
+      mockClientInstance.listDirectory.mockImplementation(
+        (_owner: string, _repo: string, path: string) => {
+          if (path === "rules") {
+            return Promise.resolve([
+              {
+                name: "coding-guidelines.md",
+                path: "rules/coding-guidelines.md",
+                type: "file",
+                sha: "abc",
+                size: 200,
+                download_url: "https://example.com",
+              },
+            ]);
+          }
+          const error = new Error("Not found");
+          Object.assign(error, { statusCode: 404 });
+          return Promise.reject(error);
+        },
+      );
+      mockClientInstance.getFileContent.mockResolvedValue(
+        "---\ndescription: Guidelines\n---\n\n# Guidelines\n",
+      );
+      const projectRoot = join(testDir, "project");
+      const outsideDir = join(testDir, "outside");
+      await ensureDir(outsideDir);
+      await ensureDir(projectRoot);
+      await symlink(outsideDir, join(projectRoot, ".rulesync"));
+      // A root that does not exist yet is still fine.
+      const freshRoot = join(testDir, "fresh");
+      await fetchFiles({
+        logger,
+        source: "owner/repo",
+        options: { features: ["rules"], target: "claudecode" },
+        outputRoot: freshRoot,
+      });
+      expect(await readdir(freshRoot)).toEqual([".rulesync"]);
+
+      await expect(
+        fetchFiles({
+          logger,
+          source: "owner/repo",
+          options: { features: ["rules"], target: "claudecode" },
+          outputRoot: projectRoot,
+        }),
+      ).rejects.toThrow("resolves outside");
+
+      expect(await readdir(outsideDir)).toEqual([]);
+    },
+  );
+
   it("should handle unsupported feature/target combination gracefully", async () => {
     // Mock an empty response
     mockClientInstance.listDirectory.mockImplementation(() => {

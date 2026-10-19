@@ -320,7 +320,7 @@ It is safe (and recommended) to commit this file as well.
 
 ## Authentication
 
-GitHub transport uses the `GITHUB_TOKEN` or `GH_TOKEN` environment variable for authentication. This is required for private repositories and recommended for better rate limits. Git transport relies on your local git credential configuration (SSH keys, credential helpers, etc.). npm transport (experimental) uses the `NPM_TOKEN` environment variable, or the variable named by the per-source `tokenEnv` field; `.npmrc` files are not read.
+GitHub transport uses the `GITHUB_TOKEN` or `GH_TOKEN` environment variable for authentication. This is required for private repositories and recommended for better rate limits. Git transport relies on your local git credential configuration (SSH keys, credential helpers, etc.). npm transport (experimental) uses the `NPM_TOKEN` environment variable, or the variable named by the per-source `tokenEnv` field (which must be `NPM_TOKEN` or end with `_NPM_TOKEN`); `.npmrc` files are not read. A registry other than `https://registry.npmjs.org` only receives the token when its origin is listed in `RULESYNC_NPM_TRUSTED_REGISTRIES` (see [npm Transport](#npm-transport-experimental)).
 
 ```bash
 # Using environment variable

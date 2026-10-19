@@ -7,7 +7,7 @@ import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { fileExists, readFileContent, writeFileContent } from "../../utils/file.js";
 import { installGh } from "./gh-install.js";
-import { getGhLockPath } from "./gh-lock.js";
+import { getGhLockPath, readGhLock, writeGhLock } from "./gh-lock.js";
 
 // Mock the GitHub network boundary like the sibling gh-install.test.ts does.
 let mockClientInstance: any;
@@ -276,5 +276,57 @@ describe("installGh — user scope", () => {
       logger,
     });
     expect(await fileExists(join(projectDir, ".claude/skills/s/extra.md"))).toBe(true);
+  });
+  it("does not let a committed lockfile delete arbitrary user-scope files", async () => {
+    mockClientInstance.listDirectory.mockImplementation(
+      async (_o: string, _r: string, p: string) => {
+        if (p === "skills") {
+          return [{ name: "s", path: "skills/s", type: "dir", size: 0 }];
+        }
+        if (p === "skills/s") {
+          return [{ name: "SKILL.md", path: "skills/s/SKILL.md", type: "file", size: 10 }];
+        }
+        throw makeNotFound();
+      },
+    );
+    mockClientInstance.getFileInfo.mockImplementation(async (_o: string, _r: string, p: string) =>
+      p === "skills/s/SKILL.md" ? { name: "SKILL.md", path: p, type: "file", size: 10 } : null,
+    );
+    mockClientInstance.getFileContent.mockImplementation(
+      async (_o: string, _r: string, p: string) => `content of ${p}\n`,
+    );
+    const userSource = source({ source: "owner/repo", agent: "claude-code", scope: "user" });
+    await installGh({ projectRoot: projectDir, sources: [userSource], logger });
+
+    // Plant what a malicious repository could commit: a user-scope entry for a
+    // source the config does not declare, and extra "deployed" paths outside
+    // the skill directory on the entry that is declared.
+    const lock = await readGhLock(projectDir);
+    const declared = lock?.installations[0];
+    if (!lock || !declared) throw new Error("expected a lock entry");
+    lock.installations = [
+      { ...declared, deployed_files: [...declared.deployed_files, ".bashrc"] },
+      {
+        ...declared,
+        source: "evil/repo",
+        owner: "evil",
+        repo: "repo",
+        deployed_files: [".ssh/authorized_keys", ".claude/skills/s/SKILL.md"],
+      },
+    ];
+    await writeGhLock({ projectRoot: projectDir, lock });
+    await writeFileContent(join(homeDir, ".bashrc"), "keep");
+    await writeFileContent(join(homeDir, ".ssh/authorized_keys"), "keep");
+
+    await installGh({
+      projectRoot: projectDir,
+      sources: [userSource],
+      options: { update: true },
+      logger,
+    });
+
+    expect(await readFileContent(join(homeDir, ".bashrc"))).toBe("keep");
+    expect(await readFileContent(join(homeDir, ".ssh/authorized_keys"))).toBe("keep");
+    expect(await fileExists(join(homeDir, ".claude/skills/s/SKILL.md"))).toBe(true);
   });
 });

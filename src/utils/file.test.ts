@@ -169,6 +169,15 @@ describe("file utilities", () => {
         ).resolves.toBeUndefined();
       });
 
+      it("should accept any path under a root that does not exist yet", async () => {
+        await expect(
+          assertPathResolvesInsideRoot({
+            rootPath: join(testDir, "missing-root"),
+            targetPath: join(testDir, "missing-root", "a", "b.md"),
+          }),
+        ).resolves.toBeUndefined();
+      });
+
       it("should accept a symbolic link that resolves inside the root", async () => {
         const sharedDir = join(testDir, "shared");
         await ensureDir(sharedDir);

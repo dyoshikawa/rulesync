@@ -112,13 +112,15 @@ type FeatureProcessor = {
  * Process feature conversion for a single feature type
  * @param processor - The processor to use for loading and converting files
  * @param outputDir - Output directory for converted files
+ * @param outputRoot - Root every converted file must resolve inside
  * @returns The paths of converted files
  */
 async function processFeatureConversion(params: {
   processor: FeatureProcessor;
   outputDir: string;
+  outputRoot: string;
 }): Promise<{ paths: string[] }> {
-  const { processor, outputDir } = params;
+  const { processor, outputDir, outputRoot } = params;
   const paths: string[] = [];
 
   const toolFiles = await processor.loadToolFiles();
@@ -127,9 +129,16 @@ async function processFeatureConversion(params: {
   }
 
   const rulesyncFiles = await processor.convertToolFilesToRulesyncFiles(toolFiles);
-  for (const file of rulesyncFiles) {
+  const outputs = rulesyncFiles.map((file) => {
     const relativePath = join(file.getRelativeDirPath(), file.getRelativeFilePath());
-    const outputPath = join(outputDir, relativePath);
+    return { file, relativePath, outputPath: join(outputDir, relativePath) };
+  });
+  // As in fetchFiles: refuse, before anything is written, an output that a
+  // symbolic link already in the project leads outside the output root.
+  for (const { outputPath } of outputs) {
+    await assertPathResolvesInsideRoot({ rootPath: outputRoot, targetPath: outputPath });
+  }
+  for (const { file, relativePath, outputPath } of outputs) {
     await writeFileContent(outputPath, file.getFileContent());
     paths.push(relativePath);
   }
@@ -141,6 +150,7 @@ async function processFeatureConversion(params: {
  * Convert fetched tool-specific files to rulesync format
  * @param tempDir - Temporary directory containing tool-specific files
  * @param outputDir - Output directory for rulesync files
+ * @param outputRoot - Root every converted file must resolve inside
  * @param target - Tool target to convert from
  * @param features - Features to convert
  * @returns Number of converted files and their paths
@@ -148,11 +158,12 @@ async function processFeatureConversion(params: {
 async function convertFetchedFilesToRulesync(params: {
   tempDir: string;
   outputDir: string;
+  outputRoot: string;
   target: ToolTarget;
   features: Feature[];
   logger: Logger;
 }): Promise<FeatureConversionResult> {
-  const { tempDir, outputDir, target, features, logger } = params;
+  const { tempDir, outputDir, outputRoot, target, features, logger } = params;
   const convertedPaths: string[] = [];
 
   // Feature conversion configurations
@@ -218,7 +229,7 @@ async function convertFetchedFilesToRulesync(params: {
       continue;
     }
     const processor = config.createProcessor();
-    const result = await processFeatureConversion({ processor, outputDir });
+    const result = await processFeatureConversion({ processor, outputDir, outputRoot });
     convertedPaths.push(...result.paths);
   }
 
@@ -1977,6 +1988,7 @@ async function fetchAndConvertToolFiles(params: {
     const { converted, convertedPaths } = await convertFetchedFilesToRulesync({
       tempDir,
       outputDir: outputBasePath,
+      outputRoot,
       target,
       features: enabledFeatures,
       logger,

@@ -17,7 +17,13 @@ import {
   RULESYNC_CONFIG_SCHEMA_URL,
   RULESYNC_LOCAL_CONFIG_RELATIVE_FILE_PATH,
 } from "../../constants/rulesync-paths.js";
-import { DEFAULT_NPM_TOKEN_ENV, isAllowedNpmTokenEnvName } from "../../lib/npm-client.js";
+import {
+  DEFAULT_NPM_REGISTRY_URL,
+  DEFAULT_NPM_TOKEN_ENV,
+  isAllowedNpmTokenEnvName,
+  isTrustedNpmRegistry,
+  NPM_TRUSTED_REGISTRIES_ENV,
+} from "../../lib/npm-client.js";
 import { ALL_FEATURES, DEPRECATED_FEATURE_REPLACEMENTS } from "../../types/features.js";
 import { CLIError, ErrorCodes } from "../../types/json-output.js";
 import { ALL_TOOL_TARGETS } from "../../types/tool-targets.js";
@@ -465,6 +471,18 @@ function checkTokenEnvVars({
         file,
         message: `Source '${String(source.source ?? "<unnamed>")}' sets tokenEnv '${tokenEnv}', which is not an npm token variable.`,
         hint: `Use ${DEFAULT_NPM_TOKEN_ENV} or a name ending with _${DEFAULT_NPM_TOKEN_ENV} (e.g. ACME_${DEFAULT_NPM_TOKEN_ENV}).`,
+      });
+      continue;
+    }
+    const registry =
+      typeof source.registry === "string" ? source.registry : DEFAULT_NPM_REGISTRY_URL;
+    if (!isTrustedNpmRegistry(registry, env)) {
+      diagnostics.push({
+        severity: "error",
+        code: "config/token-registry-not-trusted",
+        file,
+        message: `Source '${String(source.source ?? "<unnamed>")}' sends tokenEnv '${tokenEnv}' to registry ${registry}, which is not trusted, so install will refuse it.`,
+        hint: `Add the registry's origin to the ${NPM_TRUSTED_REGISTRIES_ENV} environment variable (comma-separated).`,
       });
       continue;
     }

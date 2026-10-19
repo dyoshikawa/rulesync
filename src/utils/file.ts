@@ -90,7 +90,17 @@ export async function assertPathResolvesInsideRoot(params: {
   targetPath: string;
 }): Promise<void> {
   const { rootPath, targetPath } = params;
-  const realRoot = await realpath(rootPath);
+  let realRoot: string;
+  try {
+    realRoot = await realpath(rootPath);
+  } catch (error) {
+    // A root that does not exist yet has nothing inside it, so no link either;
+    // the write will create the whole tree.
+    if (isFileNotFoundError(error)) {
+      return;
+    }
+    throw error;
+  }
   let existingPath = resolve(targetPath);
   while (true) {
     let realExisting: string;
