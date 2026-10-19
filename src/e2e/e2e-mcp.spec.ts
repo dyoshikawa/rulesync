@@ -50,6 +50,7 @@ const mcpGenerateTargets = [
   { target: "codebuddy", outputPath: ".mcp.json" },
   { target: "commandcode", outputPath: ".mcp.json" },
   { target: "qoder", outputPath: ".mcp.json" },
+  { target: "xum", outputPath: join(".xum", "mcp.jsonc") },
   { target: "gitlabduo", outputPath: join(".gitlab", "duo", "mcp.json") },
   { target: "grokcli", outputPath: join(".grok", "config.toml") },
   { target: "copilot", outputPath: join(".vscode", "mcp.json") },
@@ -457,6 +458,7 @@ describe("E2E: mcp", () => {
     { target: "codebuddy", orphanPath: ".mcp.json" },
     { target: "commandcode", orphanPath: ".mcp.json" },
     { target: "qoder", orphanPath: ".mcp.json" },
+    { target: "xum", orphanPath: join(".xum", "mcp.jsonc") },
     { target: "continue", orphanPath: join(".continue", "mcpServers", "mcp.json") },
     { target: "cursor", orphanPath: join(".cursor", "mcp.json") },
     { target: "trae", orphanPath: join(".trae", "mcp.json") },
@@ -876,6 +878,13 @@ describe("E2E: mcp (import)", () => {
     { target: "antigravity-ide", sourcePath: join(".agents", "mcp_config.json") },
     { target: "antigravity-cli", sourcePath: join(".agents", "mcp_config.json") },
     { target: "warp", sourcePath: join(".warp", ".mcp.json") },
+    // Xum keys its servers by `servers` and writes a stdio server as one shell
+    // command string.
+    {
+      target: "xum",
+      sourcePath: join(".xum", "mcp.jsonc"),
+      sourceContent: '{\n  // Xum MCP servers\n  "servers": { "test-server": "echo hello" },\n}\n',
+    },
     // Crush keys its servers by the top-level `mcp` object (with a required
     // `type`) instead of `mcpServers`.
     {
@@ -1046,6 +1055,7 @@ const mcpGlobalTargets = [
   { target: "codebuddy", outputPath: join(".codebuddy", ".mcp.json") },
   { target: "commandcode", outputPath: join(".commandcode", "mcp.json") },
   { target: "qoder", outputPath: join(".qoder", "settings.json") },
+  { target: "xum", outputPath: join(".xum", "mcp.jsonc") },
   { target: "musecode", outputPath: join(".config", "muse", "settings.json") },
   { target: "kilo", outputPath: join(".config", "kilo", "kilo.jsonc") },
   { target: "kimi-code", outputPath: join(".kimi-code", "mcp.json") },

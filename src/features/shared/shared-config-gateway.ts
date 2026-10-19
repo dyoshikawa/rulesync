@@ -1614,6 +1614,20 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
       mcp: { kind: "replace-owned-keys", ownedKeys: ["servers"] },
     },
   },
+  // Xum MCP config (`.xum/mcp.jsonc` in a repo, `~/.xum/mcp.jsonc` for the
+  // user): a JSONC document whose `servers` map rulesync owns. Xum's own
+  // Settings → MCP screen writes `enabledPluginServers` (Agent Plugin consent)
+  // into the user file, so every other top-level key is preserved and a file
+  // that does not fully parse is refused rather than rewritten.
+  // https://xum.cdr.dev/config/mcp-servers
+  ".xum/mcp.jsonc": {
+    format: "jsonc",
+    invalidRootPolicy: "error",
+    jsoncParseErrors: "error",
+    features: {
+      mcp: { kind: "replace-owned-keys", ownedKeys: ["servers"] },
+    },
+  },
   // Qwen Code settings: `permissions` is recomputed from the existing file
   // (unmanaged-tool entries preserved, managed ones replaced) before being
   // applied, and so are the `tools`/`security`/`skills`/`general` override groups and the MCP
