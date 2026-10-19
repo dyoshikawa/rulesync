@@ -6,7 +6,13 @@ import { Semaphore } from "es-toolkit/promise";
 import { FETCH_CONCURRENCY_LIMIT, MAX_FILE_SIZE } from "../../constants/rulesync-paths.js";
 import type { GitHubFileEntry } from "../../types/fetch.js";
 import { formatError } from "../../utils/error.js";
-import { checkPathTraversal, removeFile, toPosixPath, writeFileContent } from "../../utils/file.js";
+import {
+  assertPathResolvesInsideRoot,
+  checkPathTraversal,
+  removeFile,
+  toPosixPath,
+  writeFileContent,
+} from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { GitHubClient, GitHubClientError, logGitHubAuthHints } from "../github-client.js";
 import { listDirectoryRecursive, withSemaphore } from "../github-utils.js";
@@ -282,6 +288,16 @@ async function removeStaleApmFiles(params: {
       continue;
     }
     const absolute = join(projectRoot, relativePath);
+    // checkPathTraversal is textual only: a symbolic link already inside the
+    // project could still lead the removal outside of it.
+    try {
+      await assertPathResolvesInsideRoot({ rootPath: projectRoot, targetPath: absolute });
+    } catch {
+      logger.warn(
+        `Refusing to remove stale apm file that resolves outside projectRoot: "${relativePath}".`,
+      );
+      continue;
+    }
     // `removeFile` is best-effort and swallows ENOENT, so missing files are
     // a no-op. This keeps a corrupted partial-install from blowing up here.
     await removeFile(absolute);
@@ -360,7 +376,7 @@ async function installDependency(params: {
   // Under --frozen we deferred all writes until after the hash check passed.
   if (frozen) {
     for (const { path: deployRelative, content } of deployed) {
-      await writeFileContent(join(projectRoot, deployRelative), content);
+      await writeApmFile({ projectRoot, deployRelative, content });
     }
   }
 
@@ -448,9 +464,26 @@ async function collectPrimitiveDeployments(params: {
     }
     deployed.push({ path: deployRelative, content });
     if (!frozen) {
-      await writeFileContent(join(projectRoot, deployRelative), content);
+      await writeApmFile({ projectRoot, deployRelative, content });
     }
   }
+}
+
+/**
+ * Write one deployed apm file, refusing a target that resolves outside the
+ * project. `checkPathTraversal` only checks the path text, so a symlinked
+ * directory committed to the project (`.github/instructions -> ~/.ssh`, say)
+ * would otherwise redirect the write.
+ */
+async function writeApmFile(params: {
+  projectRoot: string;
+  deployRelative: string;
+  content: string;
+}): Promise<void> {
+  const { projectRoot, deployRelative, content } = params;
+  const targetPath = join(projectRoot, deployRelative);
+  await assertPathResolvesInsideRoot({ rootPath: projectRoot, targetPath });
+  await writeFileContent(targetPath, content);
 }
 
 /**

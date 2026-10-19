@@ -245,7 +245,7 @@ describe("collectConfigFileDiagnostics", () => {
           source: "org/pkg",
           transport: "npm",
           registry: "https://registry.example.com",
-          tokenEnv: "MY_UNSET_TOKEN",
+          tokenEnv: "MY_UNSET_NPM_TOKEN",
         },
       ],
     });
@@ -264,16 +264,39 @@ describe("collectConfigFileDiagnostics", () => {
           source: "org/pkg",
           transport: "npm",
           registry: "https://registry.example.com",
-          tokenEnv: "MY_TOKEN",
+          tokenEnv: "MY_NPM_TOKEN",
         },
       ],
     });
     const diagnostics = collectConfigFileDiagnostics({
       file: FILE,
       content,
-      env: { MY_TOKEN: "secret" },
+      env: { MY_NPM_TOKEN: "secret" },
     });
     expect(diagnostics).toEqual([]);
+  });
+
+  it("reports a tokenEnv that names a non-npm secret", () => {
+    const content = JSON.stringify({
+      $schema: RULESYNC_CONFIG_SCHEMA_URL,
+      targets: ["claudecode"],
+      sources: [
+        {
+          source: "org/pkg",
+          transport: "npm",
+          registry: "https://registry.example.com",
+          tokenEnv: "GITHUB_TOKEN",
+        },
+      ],
+    });
+    const diagnostics = collectConfigFileDiagnostics({
+      file: FILE,
+      content,
+      env: { GITHUB_TOKEN: "secret" },
+    });
+    expect(diagnostics).toEqual([
+      expect.objectContaining({ code: "config/token-env-not-allowed", severity: "error" }),
+    ]);
   });
 
   it("surfaces schema violations on other keys as invalid-value errors", () => {

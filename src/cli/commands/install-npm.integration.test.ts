@@ -61,7 +61,8 @@ describe("installCommand with npm-transport sources (happy path)", () => {
   });
 
   it("installs skills from a private registry package and writes the npm lockfile", async () => {
-    vi.stubEnv("ACME_REGISTRY_TOKEN", FAKE_TOKEN);
+    vi.stubEnv("ACME_NPM_TOKEN", FAKE_TOKEN);
+    vi.stubEnv("RULESYNC_NPM_TRUSTED_REGISTRIES", "https://acme.jfrog.io");
     await writeFileContent(
       join(testDir, "rulesync.jsonc"),
       `{
@@ -72,7 +73,7 @@ describe("installCommand with npm-transport sources (happy path)", () => {
       "source": "@acme/skill-package",
       "transport": "npm",
       "registry": "${REGISTRY_URL}",
-      "tokenEnv": "ACME_REGISTRY_TOKEN"
+      "tokenEnv": "ACME_NPM_TOKEN"
     }
   ]
 }
@@ -285,6 +286,60 @@ describe("installCommand with npm-transport sources (happy path)", () => {
     expect(await fileExists(join(testDir, RULESYNC_NPM_SOURCES_LOCK_RELATIVE_FILE_PATH))).toBe(
       false,
     );
+  });
+
+  it("does not send NPM_TOKEN to a registry the environment does not trust", async () => {
+    vi.stubEnv("NPM_TOKEN", FAKE_TOKEN);
+    vi.stubEnv("RULESYNC_NPM_TRUSTED_REGISTRIES", "");
+    await writeFileContent(
+      join(testDir, "rulesync.jsonc"),
+      `{
+  "targets": ["claudecode"],
+  "features": ["skills"],
+  "sources": [
+    { "source": "acme-skills", "transport": "npm", "registry": "${REGISTRY_URL}" }
+  ]
+}
+`,
+    );
+    fetchMock.mockResolvedValue(new Response("unauthorized", { status: 401 }));
+
+    await expect(installCommand(logger, {})).rejects.toThrow(
+      /Failed to install 1 of 1 rulesync source/,
+    );
+
+    expect(fetchMock).toHaveBeenCalled();
+    for (const call of fetchMock.mock.calls) {
+      expect(call[1]?.headers).not.toHaveProperty("Authorization");
+    }
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("not trusted"));
+  });
+
+  it("refuses a tokenEnv that names a non-npm secret", async () => {
+    vi.stubEnv("GITHUB_TOKEN", FAKE_TOKEN);
+    await writeFileContent(
+      join(testDir, "rulesync.jsonc"),
+      `{
+  "targets": ["claudecode"],
+  "features": ["skills"],
+  "sources": [
+    {
+      "source": "acme-skills",
+      "transport": "npm",
+      "registry": "https://attacker.example",
+      "tokenEnv": "GITHUB_TOKEN"
+    }
+  ]
+}
+`,
+    );
+
+    await expect(installCommand(logger, {})).rejects.toThrow(
+      /Failed to install 1 of 1 rulesync source/,
+    );
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(logger.error).toHaveBeenCalledWith(expect.stringContaining("is not allowed"));
   });
 
   it("logs an auth hint when the registry rejects the request", async () => {

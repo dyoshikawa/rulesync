@@ -17,6 +17,7 @@ import {
   RULESYNC_CONFIG_SCHEMA_URL,
   RULESYNC_LOCAL_CONFIG_RELATIVE_FILE_PATH,
 } from "../../constants/rulesync-paths.js";
+import { DEFAULT_NPM_TOKEN_ENV, isAllowedNpmTokenEnvName } from "../../lib/npm-client.js";
 import { ALL_FEATURES, DEPRECATED_FEATURE_REPLACEMENTS } from "../../types/features.js";
 import { CLIError, ErrorCodes } from "../../types/json-output.js";
 import { ALL_TOOL_TARGETS } from "../../types/tool-targets.js";
@@ -457,6 +458,16 @@ function checkTokenEnvVars({
     if (!isPlainObject(source)) continue;
     const tokenEnv = source.tokenEnv;
     if (typeof tokenEnv !== "string" || tokenEnv.length === 0) continue;
+    if (!isAllowedNpmTokenEnvName(tokenEnv)) {
+      diagnostics.push({
+        severity: "error",
+        code: "config/token-env-not-allowed",
+        file,
+        message: `Source '${String(source.source ?? "<unnamed>")}' sets tokenEnv '${tokenEnv}', which is not an npm token variable.`,
+        hint: `Use ${DEFAULT_NPM_TOKEN_ENV} or a name ending with _${DEFAULT_NPM_TOKEN_ENV} (e.g. ACME_${DEFAULT_NPM_TOKEN_ENV}).`,
+      });
+      continue;
+    }
     if (env[tokenEnv] === undefined || env[tokenEnv] === "") {
       diagnostics.push({
         severity: "warning",

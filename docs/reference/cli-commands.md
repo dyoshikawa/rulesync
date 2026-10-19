@@ -764,7 +764,7 @@ It is especially useful for catching **silently ignored configuration**: the con
 - Conflicting target pairs (e.g. `claudecode` + `claudecode-legacy`).
 - `$schema` presence and whether it points at the current config schema URL.
 - Structural schema violations on any other key (wrong types, malformed `sources` entries).
-- `sources[].tokenEnv` naming an environment variable that is not set.
+- `sources[].tokenEnv` naming an environment variable that is not set, or one that is not `NPM_TOKEN` / `*_NPM_TOKEN` (error).
 - `inputRoot` or the first `inputRoots` entry pointing at a directory that does not exist. Later `inputRoots` entries are optional overlays and may be absent.
 - `inputRoot` or an `inputRoots` entry set to an empty string, which makes `generate` fail with `outputRoot cannot be an empty string` before it resolves any source tree.
 - Duplicate entries in `inputRoots` (warning; duplicates are ignored at generate time).

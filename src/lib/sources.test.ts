@@ -3226,7 +3226,13 @@ describe("resolveAndFetchSources", () => {
       sources: {
         "org/repo": {
           resolvedRef: "sha-123",
-          skills: { "missing-skill": { integrity: "sha256-xxx" } },
+          skills: {
+            "missing-skill": {
+              integrity: computeSkillIntegrity([
+                { path: "SKILL.md", content: "locked skill content" },
+              ]),
+            },
+          },
         },
       },
     });
@@ -3307,6 +3313,53 @@ describe("resolveAndFetchSources", () => {
 
     // Should have warned about integrity mismatch
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("Integrity mismatch"));
+  });
+
+  it("should refuse an integrity mismatch under --frozen without writing the skill", async () => {
+    const { readLockFile } = await import("./sources-lock.js");
+
+    vi.mocked(readLockFile).mockResolvedValue({
+      lockfileVersion: 1,
+      sources: {
+        "org/repo": {
+          resolvedRef: "locked-sha-123",
+          requestedRef: "main",
+          skills: { "my-skill": { integrity: "sha256-old-hash" } },
+        },
+      },
+    });
+    vi.mocked(directoryExists).mockResolvedValue(false);
+    mockClientInstance.resolveRefToSha.mockResolvedValue("locked-sha-123");
+    mockClientInstance.listDirectory.mockImplementation(
+      async (_owner: string, _repo: string, path: string) => {
+        if (path === "skills") {
+          return [{ name: "my-skill", path: "skills/my-skill", type: "dir" }];
+        }
+        if (path === "skills/my-skill") {
+          return [{ name: "SKILL.md", path: "skills/my-skill/SKILL.md", type: "file", size: 100 }];
+        }
+        return [];
+      },
+    );
+    mockClientInstance.getFileContent.mockResolvedValue("tampered content");
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "https://github.com/org/repo" }],
+      projectRoot: testDir,
+      options: { frozen: true },
+    });
+
+    expect(result.failedSourceCount).toBe(1);
+    expect(result.fetchedSkillCount).toBe(0);
+
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.stringContaining("Refusing to install it under --frozen"),
+    );
+    expect(writeFileContent).not.toHaveBeenCalledWith(
+      expect.stringContaining("my-skill"),
+      "tampered content",
+    );
   });
 
   it("should preserve lock entries for skipped skills", async () => {

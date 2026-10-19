@@ -81,13 +81,83 @@ export function validateNpmRegistryUrl(url: string, options?: { logger?: Logger 
 }
 
 /**
- * Resolve the registry token from the environment. When `tokenEnv` is set it
- * must name an existing environment variable; otherwise `NPM_TOKEN` is used
- * when present. The token value itself is never logged.
+ * Environment variable listing extra registry origins (comma-separated) that
+ * may receive a token. It is read from the environment, never from
+ * `rulesync.jsonc`, so a repository cannot grant itself trust.
  */
-export function resolveNpmToken(params: { tokenEnv?: string }): string | undefined {
-  const { tokenEnv } = params;
+export const NPM_TRUSTED_REGISTRIES_ENV = "RULESYNC_NPM_TRUSTED_REGISTRIES";
+
+/**
+ * Names `tokenEnv` may point at: `NPM_TOKEN` itself or any `*_NPM_TOKEN`.
+ * `tokenEnv` comes from the committed `rulesync.jsonc`, so without this rule a
+ * repository could have rulesync read any secret in the environment (a
+ * `GITHUB_TOKEN`, cloud credentials, ...) and send it to a registry.
+ */
+const NPM_TOKEN_ENV_NAME_REGEX = /^(?:[A-Z0-9_]*_)?NPM_TOKEN$/;
+
+export function isAllowedNpmTokenEnvName(name: string): boolean {
+  return NPM_TOKEN_ENV_NAME_REGEX.test(name);
+}
+
+function toOrigin(url: string): string | undefined {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Whether a registry may receive the token: the default npm registry, or an
+ * origin the user listed in {@link NPM_TRUSTED_REGISTRIES_ENV}.
+ */
+export function isTrustedNpmRegistry(
+  registryUrl: string,
+  env: Record<string, string | undefined> = process.env,
+): boolean {
+  const origin = toOrigin(registryUrl);
+  if (origin === undefined) {
+    return false;
+  }
+  if (origin === toOrigin(DEFAULT_NPM_REGISTRY_URL)) {
+    return true;
+  }
+  const trusted = (env[NPM_TRUSTED_REGISTRIES_ENV] ?? "")
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry !== "")
+    .map((entry) => toOrigin(entry));
+  return trusted.includes(origin);
+}
+
+/**
+ * Resolve the registry token from the environment. When `tokenEnv` is set it
+ * must name an existing `NPM_TOKEN` / `*_NPM_TOKEN` variable; otherwise
+ * `NPM_TOKEN` is used when present. A token is only ever returned for a
+ * trusted registry (see {@link isTrustedNpmRegistry}): `registry` and
+ * `tokenEnv` both come from the project's config, so a cloned repository must
+ * not be able to point the user's token at a host of its choosing. The token
+ * value itself is never logged.
+ */
+export function resolveNpmToken(params: {
+  tokenEnv?: string;
+  registryUrl: string;
+  logger?: Logger;
+}): string | undefined {
+  const { tokenEnv, registryUrl, logger } = params;
+  if (tokenEnv !== undefined && !isAllowedNpmTokenEnvName(tokenEnv)) {
+    throw new NpmClientError(
+      `tokenEnv "${tokenEnv}" is not allowed. It must be "${DEFAULT_NPM_TOKEN_ENV}" or end with "_${DEFAULT_NPM_TOKEN_ENV}" (e.g. "ACME_${DEFAULT_NPM_TOKEN_ENV}").`,
+    );
+  }
+
+  const trusted = isTrustedNpmRegistry(registryUrl);
   if (tokenEnv !== undefined) {
+    if (!trusted) {
+      throw new NpmClientError(
+        `Refusing to send the token from "${tokenEnv}" to registry ${registryUrl}: the registry is not trusted. Add its origin to the ${NPM_TRUSTED_REGISTRIES_ENV} environment variable (comma-separated) to allow it.`,
+      );
+    }
     const value = process.env[tokenEnv];
     if (value === undefined || value === "") {
       throw new NpmClientError(
@@ -96,8 +166,18 @@ export function resolveNpmToken(params: { tokenEnv?: string }): string | undefin
     }
     return value;
   }
+
   const fallback = process.env[DEFAULT_NPM_TOKEN_ENV];
-  return fallback === undefined || fallback === "" ? undefined : fallback;
+  if (fallback === undefined || fallback === "") {
+    return undefined;
+  }
+  if (!trusted) {
+    logger?.warn(
+      `Not sending ${DEFAULT_NPM_TOKEN_ENV} to registry ${registryUrl}: the registry is not trusted. Add its origin to the ${NPM_TRUSTED_REGISTRIES_ENV} environment variable (comma-separated) to allow it.`,
+    );
+    return undefined;
+  }
+  return fallback;
 }
 
 /** Build the packument URL for a (possibly scoped) package on a registry. */
@@ -390,7 +470,7 @@ export function logNpmAuthHints(params: { error: NpmClientError; logger: Logger 
   const { error, logger } = params;
   if (error.statusCode === 401 || error.statusCode === 403) {
     logger.info(
-      "Hint: The registry rejected the request. Set NPM_TOKEN (or the per-source tokenEnv variable) to a token with read access. Note: .npmrc files are not read by the npm transport.",
+      `Hint: The registry rejected the request. Set NPM_TOKEN (or the per-source tokenEnv variable) to a token with read access; a registry other than ${DEFAULT_NPM_REGISTRY_URL} only receives it when its origin is listed in ${NPM_TRUSTED_REGISTRIES_ENV}. Note: .npmrc files are not read by the npm transport.`,
     );
   } else if (error.statusCode === 404) {
     logger.info(

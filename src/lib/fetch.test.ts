@@ -1,4 +1,4 @@
-import { chmod, link, lstat, stat, symlink } from "node:fs/promises";
+import { chmod, link, lstat, readdir, stat, symlink } from "node:fs/promises";
 import { join, posix } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
@@ -3815,6 +3815,26 @@ describe("fetchFiles skill pruning", () => {
       // `lstat`, not `fileExists`: the latter follows the link and would pass
       // just as well had the link been replaced by a real directory.
       expect((await lstat(join(skillsRoot, "skill-a", "scripts"))).isSymbolicLink()).toBe(true);
+    },
+  );
+
+  it.skipIf(process.platform === "win32")(
+    "should refuse to write through a symbolic link that leads outside the output root",
+    async () => {
+      mockSkillRepository();
+      mockClientInstance.getFileContent.mockResolvedValue("# Fetched");
+      const projectRoot = join(testDir, "project");
+      const outsideDir = join(testDir, "outside");
+      await ensureDir(outsideDir);
+      await ensureDir(join(projectRoot, ".rulesync", "skills"));
+      await symlink(outsideDir, join(projectRoot, ".rulesync", "skills", "skill-a"));
+
+      await expect(
+        fetchFiles({ logger, source: "owner/repo", outputRoot: projectRoot }),
+      ).rejects.toThrow("resolves outside");
+
+      expect(await readdir(outsideDir)).toEqual([]);
+      expect(await fileExists(join(projectRoot, ".rulesync", "skills", "skill-b"))).toBe(false);
     },
   );
 

@@ -44,6 +44,7 @@ import {
 import { formatError } from "../utils/error.js";
 import {
   applyFileMode,
+  assertPathResolvesInsideRoot,
   checkPathTraversal,
   createTempDirectory,
   directoryExists,
@@ -1687,6 +1688,16 @@ export async function fetchFiles(params: FetchParams): Promise<FetchSummary> {
     });
 
     validateFileSize(relativePath, size);
+  }
+
+  // checkPathTraversal above is textual only. Refuse, before anything is
+  // written, a target that a symbolic link already in the project (a
+  // symlinked `.rulesync/skills/<name>`, say) leads outside the output root.
+  for (const { relativePath } of filesToFetch) {
+    await assertPathResolvesInsideRoot({
+      rootPath: outputRoot,
+      targetPath: join(outputBasePath, relativePath),
+    });
   }
 
   // Process files in parallel with concurrency control

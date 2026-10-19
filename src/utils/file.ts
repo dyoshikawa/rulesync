@@ -74,6 +74,61 @@ export async function assertWritablePathInsideRoot(params: {
   }
 }
 
+/**
+ * Refuse a write or removal target whose real location is outside `rootPath`.
+ *
+ * Unlike {@link assertWritablePathInsideRoot}, a symbolic link on the way is
+ * allowed as long as it resolves inside the root: projects deliberately link a
+ * skill directory to a shared one next to it. What this stops is a link that
+ * leads elsewhere — a cloned repository committing `.rulesync/skills/x ->
+ * ~/.ssh`, say — which a textual check such as {@link checkPathTraversal}
+ * cannot see. The deepest existing ancestor of `targetPath` is resolved, and
+ * an existing target that is itself a link is resolved too.
+ */
+export async function assertPathResolvesInsideRoot(params: {
+  rootPath: string;
+  targetPath: string;
+}): Promise<void> {
+  const { rootPath, targetPath } = params;
+  const realRoot = await realpath(rootPath);
+  let existingPath = resolve(targetPath);
+  while (true) {
+    let realExisting: string;
+    try {
+      realExisting = await realpath(existingPath);
+    } catch (error) {
+      if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) {
+        throw error;
+      }
+      // A dangling link has no real path; resolve where it points instead of
+      // skipping past it to its parent.
+      if (await isSymbolicLink(existingPath)) {
+        throw new Error(`Refusing to write through a dangling symbolic link: ${targetPath}.`, {
+          cause: error,
+        });
+      }
+      const parentPath = dirname(existingPath);
+      if (parentPath === existingPath) {
+        throw error;
+      }
+      existingPath = parentPath;
+      continue;
+    }
+    if (pathEscapesRoot(relative(realRoot, realExisting))) {
+      throw new Error(`Path resolves outside ${rootPath} through a symbolic link: ${targetPath}.`);
+    }
+    return;
+  }
+}
+
+async function isSymbolicLink(filePath: string): Promise<boolean> {
+  try {
+    return (await lstat(filePath)).isSymbolicLink();
+  } catch {
+    return false;
+  }
+}
+
 export async function assertTreeContainsNoSymlinks(dirPath: string): Promise<void> {
   for (const entry of await readdir(dirPath, { withFileTypes: true })) {
     const entryPath = join(dirPath, entry.name);
