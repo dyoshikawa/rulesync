@@ -95,8 +95,14 @@ export async function assertPathResolvesInsideRoot(params: {
     realRoot = await realpath(rootPath);
   } catch (error) {
     // A root that does not exist yet has nothing inside it, so no link either;
-    // the write will create the whole tree.
+    // the write will create the whole tree. A dangling link in its place would
+    // send that tree elsewhere, though.
     if (isFileNotFoundError(error)) {
+      if (await isSymbolicLink(rootPath)) {
+        throw new Error(`Refusing to write through a dangling symbolic link: ${rootPath}.`, {
+          cause: error,
+        });
+      }
       return;
     }
     throw error;

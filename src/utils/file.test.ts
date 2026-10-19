@@ -178,6 +178,18 @@ describe("file utilities", () => {
         ).resolves.toBeUndefined();
       });
 
+      it("should reject a root that is a dangling symbolic link", async () => {
+        const linkedRoot = join(testDir, "linked-root");
+        await symlink(join(testDir, "missing", "target"), linkedRoot);
+
+        await expect(
+          assertPathResolvesInsideRoot({
+            rootPath: linkedRoot,
+            targetPath: join(linkedRoot, "a.md"),
+          }),
+        ).rejects.toThrow("dangling symbolic link");
+      });
+
       it("should accept a symbolic link that resolves inside the root", async () => {
         const sharedDir = join(testDir, "shared");
         await ensureDir(sharedDir);

@@ -209,6 +209,8 @@ Example `rulesync.jsonc`:
 
 Run with `npx rulesync install --mode gh`.
 
+Files that a previous run deployed and the upstream no longer ships are removed again, but only from that skill's own install directory. Because `rulesync-gh.lock.yaml` is committed with the project, user-scope files are only cleaned up while the current config still installs the same source with the same agent at user scope; otherwise rulesync warns and leaves them for you to remove.
+
 ## CLI Options
 
 The `install` command accepts these flags:

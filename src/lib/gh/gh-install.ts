@@ -370,6 +370,10 @@ async function removeStaleGhFiles(params: {
     // The lockfile is committed with the project, so a user-scope entry alone
     // must not be enough to delete files under the home directory: only clean
     // up after a source the current config still installs at user scope.
+    // rulesync.jsonc is committed too, so this does not stop a repository that
+    // declares a user-scope source on purpose; what bounds the damage is the
+    // install-directory prefix below (such a repository could overwrite the
+    // same skill directory anyway).
     if (
       scope === "user" &&
       !newLock.installations.some(
@@ -413,9 +417,10 @@ function staleRemovalPrefix(params: {
   const skill = installation.skill;
   if (
     agent === undefined ||
-    skill === "" ||
-    skill === "." ||
-    skill === ".." ||
+    // Dot-only names and a trailing dot or space collapse under Windows path
+    // normalization, which would move the prefix up a directory.
+    /^\.*$/.test(skill) ||
+    /[. ]$/.test(skill) ||
     /[/\\]/.test(skill)
   ) {
     return undefined;
