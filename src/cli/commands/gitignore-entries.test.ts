@@ -154,6 +154,10 @@ describe("registry derivation", () => {
       // (project scope writes `.mcp.json` instead), so project derivation never
       // yields it.
       "**/.qoder/settings.json",
+      // Firebender personal config: emitted in GLOBAL scope only (project
+      // scope writes the project-root `firebender.json` instead), so project
+      // derivation never yields it.
+      "**/.firebender/firebender.json",
     ]);
     const rawEntries = new Set(deriveAllGitignoreEntriesUnfiltered().map((tag) => tag.entry));
     const stale = [...DERIVED_PATHS_NOT_GITIGNORED].filter(

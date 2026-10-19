@@ -25,6 +25,7 @@ import { ContinueIgnore } from "./continue-ignore.js";
 import { CrushIgnore } from "./crush-ignore.js";
 import { CursorIgnore } from "./cursor-ignore.js";
 import { DevinIgnore } from "./devin-ignore.js";
+import { FirebenderIgnore } from "./firebender-ignore.js";
 import { GrokcliIgnore } from "./grokcli-ignore.js";
 import { HermesagentIgnore } from "./hermesagent-ignore.js";
 import { JunieIgnore } from "./junie-ignore.js";
@@ -86,6 +87,8 @@ export const toolIgnoreFactories = new Map<IgnoreProcessorToolTarget, ToolIgnore
   ["continue", { class: ContinueIgnore }],
   ["crush", { class: CrushIgnore }],
   ["cursor", { class: CursorIgnore }],
+  // Firebender keeps its ignore list in the `ignore` key of `firebender.json`.
+  ["firebender", { class: FirebenderIgnore }],
   // Grok CLI has no ignore file; the deny list goes into a sandbox profile.
   ["grokcli", { class: GrokcliIgnore }],
   ["hermesagent", { class: HermesagentIgnore }],
@@ -115,6 +118,9 @@ const ignoreProcessorToolTargets: ToolTarget[] = [...toolIgnoreFactories.keys()]
 const ignoreProcessorGlobalToolTargets: ToolTarget[] = [
   "continue",
   "devin",
+  // Firebender appends the personal `~/.firebender/firebender.json` `ignore`
+  // list to the project one. https://docs.firebender.com/api-reference/syntax
+  "firebender",
   "grokcli",
   // Kilo's global ignore file is the legacy `~/.kilocode/.kilocodeignore`.
   "kilo",

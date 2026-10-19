@@ -2650,6 +2650,7 @@ Content that would fail parsing`;
         "crush",
         "deepagents",
         "factorydroid",
+        "firebender",
         "goose",
         "gitlabduo",
         "grokcli",
@@ -2748,7 +2749,7 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("openclaw");
       expect(globalTargets).toContain("qoder");
       expect(globalTargets).toContain("xum");
-      expect(globalTargets.length).toBe(49);
+      expect(globalTargets.length).toBe(50);
 
       // These targets should NOT be in global mode
       expect(globalTargets).not.toContain("cursor");

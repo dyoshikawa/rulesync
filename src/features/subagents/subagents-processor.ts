@@ -49,6 +49,7 @@ import { DeepagentsSubagent } from "./deepagents-subagent.js";
 import { DevinPluginSubagent } from "./devin-plugin-subagent.js";
 import { DevinSubagent } from "./devin-subagent.js";
 import { FactorydroidSubagent } from "./factorydroid-subagent.js";
+import { FirebenderSubagent } from "./firebender-subagent.js";
 import { GooseSubagent } from "./goose-subagent.js";
 import { GrokcliSubagent } from "./grokcli-subagent.js";
 import { HermesagentSubagent } from "./hermesagent-subagent.js";
@@ -106,7 +107,13 @@ type ToolSubagentFactory = {
       rulesyncSubagents: RulesyncSubagent[];
       global?: boolean;
       logger?: Logger;
-    }): ToolSubagent | ToolSubagent[];
+      /**
+       * Whether this run's `--delete` sweep will remove the orphaned files in
+       * the tool's subagent directory, so an aggregate that indexes those
+       * files (Firebender's `agents` registry) can drop them in the same run.
+       */
+      deleteOrphans?: boolean;
+    }): ToolSubagent | ToolSubagent[] | Promise<ToolSubagent | ToolSubagent[]>;
     fromFile(params: ToolSubagentFromFileParams): Promise<ToolSubagent>;
     forDeletion(params: ToolSubagentForDeletionParams): ToolSubagent;
     getSettablePaths(options?: { global?: boolean }): ToolSubagentSettablePaths;
@@ -151,6 +158,15 @@ type ToolSubagentFactory = {
      * unset and rely on orphan deletion instead.
      */
     emitsEmptyAggregate?: boolean;
+    /**
+     * With {@link emitsEmptyAggregate}, also emit the empty aggregate when the
+     * rulesync subagents directory does not exist at all, as long as the run
+     * sweeps orphans (`--delete`). Set by a tool whose aggregate indexes
+     * per-agent files that the sweep deletes even without a source directory
+     * (Firebender's `agents` registry), so the index is not left pointing at
+     * files that are gone.
+     */
+    emitsEmptyAggregateOnDelete?: boolean;
     /**
      * File pattern for import (e.g., "*.md", "*.json").
      *
@@ -547,6 +563,27 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
         supportsProject: true,
         supportsSimulated: false,
         supportsGlobal: true,
+        filePattern: "*.md",
+      },
+    },
+  ],
+  [
+    "firebender",
+    {
+      // Firebender agents are Markdown files that only load once listed in
+      // the `agents` array of `firebender.json` (project root, or
+      // `~/.firebender/firebender.json`). rulesync writes them to
+      // .firebender/agents/ (project) and ~/.firebender/agents/ (global) and
+      // registers each one; the shared config file is never deleted, so an
+      // empty aggregate is what unregisters stale agents.
+      // https://docs.firebender.com/api-reference/agents
+      class: FirebenderSubagent,
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: true,
+        emitsEmptyAggregate: true,
+        emitsEmptyAggregateOnDelete: true,
         filePattern: "*.md",
       },
     },
@@ -1004,6 +1041,7 @@ function compareRelativePathsShallowestFirst(left: string, right: string): numbe
 export class SubagentsProcessor extends FeatureProcessor {
   private readonly toolTarget: SubagentsProcessorToolTarget;
   private readonly global: boolean;
+  private readonly deleteOrphans: boolean;
   private readonly getFactory: GetFactory;
   /**
    * Whether the last `loadRulesyncFiles` found a `subagents/` directory under
@@ -1019,6 +1057,7 @@ export class SubagentsProcessor extends FeatureProcessor {
     global = false,
     getFactory = defaultGetFactory,
     dryRun = false,
+    deleteOrphans = false,
     logger,
   }: {
     outputRoot?: string;
@@ -1027,9 +1066,12 @@ export class SubagentsProcessor extends FeatureProcessor {
     global?: boolean;
     getFactory?: GetFactory;
     dryRun?: boolean;
+    /** Whether the run sweeps orphaned subagent files (`--delete`). */
+    deleteOrphans?: boolean;
     logger: Logger;
   }) {
     super({ outputRoot, inputRoots, dryRun, logger });
+    this.deleteOrphans = deleteOrphans;
     const result = SubagentsProcessorToolTargetSchema.safeParse(toolTarget);
     if (!result.success) {
       throw new Error(
@@ -1042,9 +1084,13 @@ export class SubagentsProcessor extends FeatureProcessor {
   }
 
   override emitsToolFilesForEmptySource(): boolean {
+    const { meta } = this.getFactory(this.toolTarget);
+    if (meta.emitsEmptyAggregate !== true) {
+      return false;
+    }
     return (
-      this.rulesyncSourceDirFound &&
-      this.getFactory(this.toolTarget).meta.emitsEmptyAggregate === true
+      this.rulesyncSourceDirFound ||
+      (this.deleteOrphans && meta.emitsEmptyAggregateOnDelete === true)
     );
   }
 
@@ -1080,11 +1126,14 @@ export class SubagentsProcessor extends FeatureProcessor {
       if (targeted.length === 0 && !this.emitsToolFilesForEmptySource()) {
         return [];
       }
-      const toolSubagents = factory.class.fromRulesyncSubagents({
+      const toolSubagents = await factory.class.fromRulesyncSubagents({
         outputRoot: this.outputRoot,
         rulesyncSubagents: targeted,
         global: this.global,
         logger: this.logger,
+        // The sweep is skipped when a source failed to load (see generate.ts),
+        // so the aggregate must not assume those files go away either.
+        deleteOrphans: this.deleteOrphans && !this.hasRulesyncSourceLoadFailure(),
       });
 
       return Array.isArray(toolSubagents) ? toolSubagents : [toolSubagents];

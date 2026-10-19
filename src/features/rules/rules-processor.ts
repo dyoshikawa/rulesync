@@ -89,6 +89,7 @@ import { DevinPluginRule } from "./devin-plugin-rule.js";
 import { DevinRule } from "./devin-rule.js";
 import { DshRule } from "./dsh-rule.js";
 import { FactorydroidRule } from "./factorydroid-rule.js";
+import { FirebenderRule } from "./firebender-rule.js";
 import { GitlabduoRule } from "./gitlabduo-rule.js";
 import { GooseRule } from "./goose-rule.js";
 import { GrokcliRule } from "./grokcli-rule.js";
@@ -928,6 +929,24 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         supportsGlobal: true,
         ruleDiscoveryMode: "toon",
         collisionPolicy: "compose",
+      },
+    },
+  ],
+  [
+    "firebender",
+    {
+      // Firebender reads `.firebender/AGENTS.md` first (before the
+      // project-root `AGENTS.md`, falling back to `~/.firebender/AGENTS.md`)
+      // and auto-loads every `.firebender/rules/*.mdc` /
+      // `~/.firebender/rules/*.mdc` file by its Cursor-style frontmatter.
+      // Commands, subagents and skills are native, so nothing is simulated.
+      // https://docs.firebender.com/api-reference/rules
+      // https://docs.firebender.com/api-reference/agents-md
+      class: FirebenderRule,
+      meta: {
+        extension: "mdc",
+        supportsGlobal: true,
+        ruleDiscoveryMode: "auto",
       },
     },
   ],

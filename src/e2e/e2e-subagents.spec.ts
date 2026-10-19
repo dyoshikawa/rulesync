@@ -9,6 +9,7 @@ import {
   ensureDir,
   fileExists,
   readFileContent,
+  removeDirectory,
   removeFile,
   writeFileContent,
 } from "../utils/file.js";
@@ -180,6 +181,10 @@ const subagentsGenerateTargets = [
     outputPath: join(".factory", "droids", "planner.md"),
   },
   {
+    target: "firebender",
+    outputPath: join(".firebender", "agents", "planner.md"),
+  },
+  {
     target: "cline",
     outputPath: join(".cline", "agents", "planner.yaml"),
   },
@@ -247,6 +252,7 @@ const subagentsGlobalTargets = [
   { target: "rovodev", outputPath: join(".rovodev", "subagents", "planner.md") },
   { target: "takt", outputPath: join(".takt", "facets", "personas", "planner.md") },
   { target: "factorydroid", outputPath: join(".factory", "droids", "planner.md") },
+  { target: "firebender", outputPath: join(".firebender", "agents", "planner.md") },
   { target: "cline", outputPath: join(".cline", "agents", "planner.yaml") },
   { target: "codebuddy", outputPath: join(".codebuddy", "agents", "planner.md") },
   {
@@ -467,6 +473,7 @@ You are a subagent-only helper.
     { target: "lettacode", orphanPath: join(".letta", "agents", "orphan.md") },
     { target: "junie", orphanPath: join(".junie", "agents", "orphan.md") },
     { target: "factorydroid", orphanPath: join(".factory", "droids", "orphan.md") },
+    { target: "firebender", orphanPath: join(".firebender", "agents", "orphan.md") },
     { target: "cline", orphanPath: join(".cline", "agents", "orphan.yaml") },
     { target: "codebuddy", orphanPath: join(".codebuddy", "agents", "orphan.md") },
     { target: "vibe", orphanPath: join(".vibe", "agents", "orphan.toml") },
@@ -501,6 +508,117 @@ You are a subagent-only helper.
       expect(await readFileContent(join(testDir, orphanPath))).toBe(orphanContent);
     },
   );
+});
+
+describe("E2E: subagents (firebender)", () => {
+  const { getTestDir } = useTestDirectory();
+
+  it("should register generated agents in firebender.json without touching other keys", async () => {
+    const testDir = getTestDir();
+
+    // Firebender only loads agents listed in the `agents` array of
+    // firebender.json. Entries outside rulesync's `.firebender/agents/` stay,
+    // stale entries inside it are replaced, and other keys are preserved.
+    await writeFileContent(
+      join(testDir, "firebender.json"),
+      JSON.stringify({
+        useCursorRules: false,
+        agents: ["~/firebender-agents/mine.md", ".firebender/agents/stale.md"],
+      }),
+    );
+    await writeFileContent(
+      join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "planner.md"),
+      `---
+name: planner
+targets: ["firebender"]
+description: "Plans implementation tasks"
+---
+You are the planner.
+`,
+    );
+
+    await runGenerate({ target: "firebender", features: "subagents" });
+
+    expect(JSON.parse(await readFileContent(join(testDir, "firebender.json")))).toEqual({
+      useCursorRules: false,
+      agents: ["~/firebender-agents/mine.md", ".firebender/agents/planner.md"],
+    });
+    expect(await readFileContent(join(testDir, ".firebender", "agents", "planner.md"))).toContain(
+      "callable: true",
+    );
+  });
+
+  it("should unregister swept agents when the subagents source directory is gone", async () => {
+    const testDir = getTestDir();
+    await writeFileContent(
+      join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "rev.md"),
+      `---
+name: rev
+targets: ["firebender"]
+description: "Reviewer"
+---
+You review.
+`,
+    );
+    await runGenerate({ target: "firebender", features: "subagents" });
+    expect(JSON.parse(await readFileContent(join(testDir, "firebender.json"))).agents).toEqual([
+      ".firebender/agents/rev.md",
+    ]);
+
+    await removeDirectory(join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH));
+    await runGenerate({ target: "firebender", features: "subagents", deleteFiles: true });
+
+    expect(await fileExists(join(testDir, ".firebender", "agents", "rev.md"))).toBe(false);
+    expect(JSON.parse(await readFileContent(join(testDir, "firebender.json")))).toEqual({});
+
+    const { stdout } = await runGenerate({
+      target: "firebender",
+      features: "subagents",
+      deleteFiles: true,
+      check: true,
+      env: { NODE_ENV: "e2e" },
+    });
+    expect(stdout).toContain("All files are up to date.");
+  });
+
+  it("should unregister a removed agent in a single --delete run", async () => {
+    const testDir = getTestDir();
+    const writeSubagent = (name: string) =>
+      writeFileContent(
+        join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, `${name}.md`),
+        `---
+name: ${name}
+targets: ["firebender"]
+description: "${name} agent"
+---
+You are ${name}.
+`,
+      );
+    await writeSubagent("planner");
+    await writeSubagent("reviewer");
+    await runGenerate({ target: "firebender", features: "subagents" });
+    expect(JSON.parse(await readFileContent(join(testDir, "firebender.json"))).agents).toEqual([
+      ".firebender/agents/planner.md",
+      ".firebender/agents/reviewer.md",
+    ]);
+
+    await removeFile(join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "reviewer.md"));
+    await runGenerate({ target: "firebender", features: "subagents", deleteFiles: true });
+
+    expect(JSON.parse(await readFileContent(join(testDir, "firebender.json"))).agents).toEqual([
+      ".firebender/agents/planner.md",
+    ]);
+    expect(await fileExists(join(testDir, ".firebender", "agents", "reviewer.md"))).toBe(false);
+
+    const { stdout } = await runGenerate({
+      target: "firebender",
+      features: "subagents",
+      deleteFiles: true,
+      check: true,
+      env: { NODE_ENV: "e2e" },
+    });
+    expect(stdout).toContain("All files are up to date.");
+  });
 });
 
 describe("E2E: subagents (pool)", () => {
@@ -700,6 +818,7 @@ describe("E2E: subagents (import)", () => {
     { target: "deepagents", sourcePath: join(".deepagents", "agents", "planner", "AGENTS.md") },
     { target: "junie", sourcePath: join(".junie", "agents", "planner.md") },
     { target: "factorydroid", sourcePath: join(".factory", "droids", "planner.md") },
+    { target: "firebender", sourcePath: join(".firebender", "agents", "planner.md") },
     { target: "cline", sourcePath: join(".cline", "agents", "planner.yaml") },
     { target: "codebuddy", sourcePath: join(".codebuddy", "agents", "planner.md") },
     { target: "devin", sourcePath: join(".devin", "agents", "planner", "AGENT.md") },

@@ -43,6 +43,8 @@ function assertHookCommandsPreserved(parsed: { hooks?: unknown }): void {
 const hooksKeyedEventNames: Record<string, { sessionStart: string; stop: string }> = {
   // Cursor uses camelCase event names.
   cursor: { sessionStart: "sessionStart", stop: "stop" },
+  // Firebender follows Cursor's `{ version, hooks }` layout and event names.
+  firebender: { sessionStart: "sessionStart", stop: "stop" },
   // Copilot and Copilot CLI use camelCase event names and both map the
   // canonical `stop` event to `agentStop`.
   copilot: { sessionStart: "sessionStart", stop: "agentStop" },
@@ -149,6 +151,7 @@ const hooksGenerateTargets = [
   { target: "claudecode-plugin", outputPath: join("hooks", "hooks.json") },
   { target: "zcode-plugin", outputPath: join("hooks", "hooks.json") },
   { target: "cursor", outputPath: join(".cursor", "hooks.json") },
+  { target: "firebender", outputPath: join(".firebender", "hooks.json") },
   { target: "mimocode", outputPath: join(".mimocode", "plugins", "rulesync-hooks.js") },
   { target: "opencode", outputPath: join(".opencode", "plugins", "rulesync-hooks.js") },
   { target: "kilo", outputPath: join(".kilo", "plugins", "rulesync-hooks.js") },
@@ -866,6 +869,7 @@ describe("E2E: hooks", () => {
     // claudecode, kiro use shared config files (isDeletable=false) — excluded.
     // factorydroid now writes a dedicated .factory/hooks.json (isDeletable=true).
     { target: "cursor", orphanPath: join(".cursor", "hooks.json") },
+    { target: "firebender", orphanPath: join(".firebender", "hooks.json") },
     { target: "mimocode", orphanPath: join(".mimocode", "plugins", "rulesync-hooks.js") },
     { target: "opencode", orphanPath: join(".opencode", "plugins", "rulesync-hooks.js") },
     { target: "pi", orphanPath: join(".pi", "extensions", "rulesync-hooks.ts") },
@@ -977,6 +981,16 @@ describe("E2E: hooks (import)", () => {
         version: 1,
         hooks: {
           sessionStart: [{ type: "command", bash: "echo session started" }],
+        },
+      },
+    },
+    {
+      target: "firebender",
+      sourcePath: join(".firebender", "hooks.json"),
+      sourceContent: {
+        version: 1,
+        hooks: {
+          sessionStart: [{ command: "echo session started" }],
         },
       },
     },
@@ -1246,6 +1260,7 @@ const hooksGlobalTargets = [
   { target: "deepagents", outputPath: join(".deepagents", "hooks.json") },
   { target: "junie", outputPath: join(".junie", "config.json") },
   { target: "cursor", outputPath: join(".cursor", "hooks.json") },
+  { target: "firebender", outputPath: join(".firebender", "hooks.json") },
   { target: "copilot", outputPath: join(".copilot", "hooks", "copilot-ide-hooks.json") },
   { target: "copilotcli", outputPath: join(".copilot", "hooks", "copilot-hooks.json") },
   { target: "antigravity-ide", outputPath: join(".gemini", "config", "hooks.json") },

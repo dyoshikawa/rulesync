@@ -1674,6 +1674,7 @@ async function generateSubagentsCore(params: {
         toolTarget: toolTarget,
         global: config.getGlobal(),
         dryRun: config.isPreviewMode(),
+        deleteOrphans: config.getDelete(),
         logger,
       });
 

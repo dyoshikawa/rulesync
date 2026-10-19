@@ -290,6 +290,30 @@ export const CURSOR_HOOK_EVENTS: readonly HookEvent[] = [
 ];
 
 /**
+ * Hook events supported by Firebender.
+ *
+ * Firebender's `hooks.json` follows Cursor's layout, and every event it fires
+ * is spelled like its canonical counterpart, so no name mapping is needed.
+ * @see https://docs.firebender.com/multi-agent/hooks
+ */
+export const FIREBENDER_HOOK_EVENTS: readonly HookEvent[] = [
+  "sessionStart",
+  "sessionEnd",
+  "subagentStart",
+  "subagentStop",
+  "preToolUse",
+  "postToolUse",
+  "beforeShellExecution",
+  "afterShellExecution",
+  "beforeMCPExecution",
+  "afterMCPExecution",
+  "beforeReadFile",
+  "afterFileEdit",
+  "preCompact",
+  "stop",
+];
+
+/**
  * Hook events supported by Claude Code.
  *
  * Covers the full documented event surface.
@@ -1786,6 +1810,7 @@ export const HooksConfigSchema = z.looseObject({
   version: z.optional(z.number()),
   hooks: canonicalHooksRecordSchema,
   cursor: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  firebender: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   claudecode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   copilot: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   copilotcli: z.optional(

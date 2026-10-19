@@ -1362,6 +1362,27 @@ const CRUSH_CONFIG_DECLARATION: SharedConfigFileDeclaration = {
 };
 
 /**
+ * Firebender's `firebender.json`, shared by the project (`<project>/firebender.json`)
+ * and personal (`~/.firebender/firebender.json`) spellings so a policy edit
+ * lands on both. The file also carries `rules`, `commands`, `mcpEnvFile`,
+ * `worktrees` and `useCursorRules` keys rulesync does not own, so every writer
+ * refuses to read-modify-write a file it could not parse. Each feature owns
+ * one whole top-level key: `ignore` (recomputed from `.rulesync/.aiignore`),
+ * `mcpServers` (the complete server map) and `agents` (recomputed from the
+ * existing list, with the entries for rulesync's own agent directory replaced).
+ * https://docs.firebender.com/api-reference/syntax
+ */
+const FIREBENDER_CONFIG_DECLARATION: SharedConfigFileDeclaration = {
+  format: "json",
+  invalidRootPolicy: "error",
+  features: {
+    ignore: { kind: "replace-owned-keys", ownedKeys: ["ignore"] },
+    subagents: { kind: "replace-owned-keys", ownedKeys: ["agents"] },
+    mcp: { kind: "replace-owned-keys", ownedKeys: ["mcpServers"] },
+  },
+};
+
+/**
  * What the two Claude Code settings files have in common: both are plain JSON,
  * and both validate against the one published schema, which the gateway
  * points every file it writes at. `.claude/settings.local.json` is the same
@@ -1726,6 +1747,8 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
   // full by the writer and retracted with an explicit `undefined`.
   "crush.json": CRUSH_CONFIG_DECLARATION,
   ".config/crush/crush.json": CRUSH_CONFIG_DECLARATION,
+  "firebender.json": FIREBENDER_CONFIG_DECLARATION,
+  ".firebender/firebender.json": FIREBENDER_CONFIG_DECLARATION,
   // IBM Bob settings: the hooks feature owns `hooks` in both the project file
   // (`.bob/settings.json`) and the user file (`~/.bob/settings/settings.json`);
   // the permissions feature owns `approval` and `autoApprove` in the user file

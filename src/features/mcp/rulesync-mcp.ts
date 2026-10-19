@@ -123,6 +123,7 @@ export const RulesyncMcpFileSchema = z.looseObject({
   devin: z.optional(toolScopedMcpSchema),
   dsh: z.optional(toolScopedMcpSchema),
   factorydroid: z.optional(toolScopedMcpSchema),
+  firebender: z.optional(toolScopedMcpSchema),
   gitlabduo: z.optional(toolScopedMcpSchema),
   goose: z.optional(toolScopedMcpSchema),
   grokcli: z.optional(toolScopedMcpSchema),

@@ -35,6 +35,7 @@ import { DevinMcp } from "./devin-mcp.js";
 import { DevinPluginMcp } from "./devin-plugin-mcp.js";
 import { DshMcp } from "./dsh-mcp.js";
 import { FactorydroidMcp } from "./factorydroid-mcp.js";
+import { FirebenderMcp } from "./firebender-mcp.js";
 import { GitlabduoMcp } from "./gitlabduo-mcp.js";
 import { GooseMcp } from "./goose-mcp.js";
 import { GrokcliMcp } from "./grokcli-mcp.js";
@@ -496,6 +497,22 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
         // https://docs.factory.ai/cli/configuration/mcp
         supportsEnabledTools: false,
         supportsDisabledTools: true,
+      },
+    },
+  ],
+  [
+    "firebender",
+    {
+      // Firebender reads the `mcpServers` key of the project-root
+      // `firebender.json` and of `~/.firebender/firebender.json`. Per-server
+      // tool filters are not part of the documented entry shape.
+      // https://docs.firebender.com/api-reference/syntax
+      class: FirebenderMcp,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsEnabledTools: false,
+        supportsDisabledTools: false,
       },
     },
   ],

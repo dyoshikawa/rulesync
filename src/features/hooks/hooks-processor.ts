@@ -26,6 +26,7 @@ import {
   DEEPAGENTS_HOOK_EVENTS,
   DEVIN_HOOK_EVENTS,
   FACTORYDROID_HOOK_EVENTS,
+  FIREBENDER_HOOK_EVENTS,
   CLINE_HOOK_EVENTS,
   CRUSH_HOOK_EVENTS,
   GOOSE_HOOK_EVENTS,
@@ -85,6 +86,7 @@ import { DeepagentsHooks } from "./deepagents-hooks.js";
 import { DevinHooks } from "./devin-hooks.js";
 import { DevinPluginHooks } from "./devin-plugin-hooks.js";
 import { FactorydroidHooks } from "./factorydroid-hooks.js";
+import { FirebenderHooks } from "./firebender-hooks.js";
 import { GitlabduoHooks } from "./gitlabduo-hooks.js";
 import { GooseHooks } from "./goose-hooks.js";
 import { GrokcliHooks } from "./grokcli-hooks.js";
@@ -396,6 +398,25 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       },
       supportedEvents: CURSOR_HOOK_EVENTS,
       supportedHookTypes: ["command", "prompt"],
+      supportsMatcher: true,
+    },
+  ],
+  [
+    "firebender",
+    {
+      class: FirebenderHooks,
+      meta: {
+        // `.firebender/hooks.json` (project) and `~/.firebender/hooks.json`
+        // (global), in Cursor's `{ version, hooks }` layout.
+        // https://docs.firebender.com/multi-agent/hooks
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+      supportedEvents: FIREBENDER_HOOK_EVENTS,
+      // The config table lists `type: "command" | "prompt"`, but what a prompt
+      // hook does is undocumented, so only command hooks are generated.
+      supportedHookTypes: ["command"],
       supportsMatcher: true,
     },
   ],

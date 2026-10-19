@@ -35,6 +35,7 @@ import {
 
 const ignoreGenerateTargets = [
   { target: "cursor", outputPath: ".cursorignore", format: "plaintext" as const },
+  { target: "firebender", outputPath: "firebender.json", format: "json" as const },
   {
     target: "claudecode",
     outputPath: join(".claude", "settings.json"),
@@ -159,6 +160,10 @@ credentials/
           extends: "workspace",
           deny: ["**/tmp/**", "**/credentials/**", "**/*.secret", "**/*.secret/**"],
         });
+      } else if (format === "json" && target === "firebender") {
+        // Firebender keeps the patterns in the `ignore` key of firebender.json.
+        const parsed = JSON.parse(generatedContent);
+        expect(parsed.ignore).toEqual(["tmp/", "credentials/", "*.secret"]);
       } else if (format === "json" && target === "zed") {
         // Zed uses JSON format with private_files
         const parsed = JSON.parse(generatedContent);
@@ -335,6 +340,23 @@ credentials/
     expect(importedContent).toContain("credentials/");
   });
 
+  it("should import firebender ignore from the ignore key of firebender.json", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, "firebender.json"),
+      JSON.stringify({ ignore: ["tmp/", "credentials/"], useCursorRules: false }),
+    );
+
+    await runImport({ target: "firebender", features: "ignore" });
+
+    const importedContent = await readFileContent(
+      join(testDir, RULESYNC_AIIGNORE_RELATIVE_FILE_PATH),
+    );
+    expect(importedContent).toContain("tmp/");
+    expect(importedContent).toContain("credentials/");
+  });
+
   it("should import reasonix ignore from the [permissions] deny table", async () => {
     const testDir = getTestDir();
 
@@ -391,6 +413,7 @@ describe("E2E: ignore (global mode)", () => {
       outputPath: join(getZedGlobalDir(), ZED_SETTINGS_FILE_NAME),
     },
     { target: "grokcli", outputPath: join(GROKCLI_DIR, GROKCLI_SANDBOX_FILE_NAME) },
+    { target: "firebender", outputPath: join(".firebender", "firebender.json") },
   ] as const;
 
   it("global matrix must cover every native global ignore tool target", () => {

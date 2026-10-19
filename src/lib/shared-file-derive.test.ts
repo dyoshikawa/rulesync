@@ -199,6 +199,11 @@ describe("shared-file write derivation", () => {
           "mcp",
           "permissions",
         ],
+        ".firebender/firebender.json": [
+          "ignore",
+          "mcp",
+          "subagents",
+        ],
         ".github/copilot/settings.json": [
           "hooks",
           "mcp",
@@ -313,6 +318,11 @@ describe("shared-file write derivation", () => {
           "hooks",
           "mcp",
           "permissions",
+        ],
+        "firebender.json": [
+          "ignore",
+          "mcp",
+          "subagents",
         ],
         "kilo.json": [
           "mcp",

@@ -67,6 +67,12 @@ export const SHARED_USER_MANAGED_CONFIG_PATHS: readonly string[] = [
   // the user's own patches sit beside the MCP rows rulesync writes.
   ".dsh/cordis.patch.yml",
   ".factory/settings.json",
+  // Firebender config: the project-root file (documented as version-controlled
+  // and shared with the team) and the personal one under `~/.firebender/`. Both
+  // carry the user's own settings (`rules`, `commands`, `worktrees`, ...)
+  // beside the `ignore`, `mcpServers` and `agents` keys rulesync writes.
+  "firebender.json",
+  ".firebender/firebender.json",
   ".grok/config.toml",
   // Grok sandbox profiles: rulesync owns only `[profiles.rulesync]`; the
   // user's own custom profiles sit beside it in both scopes.
