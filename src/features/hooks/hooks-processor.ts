@@ -23,10 +23,10 @@ import {
   CONTINUE_HOOK_EVENTS,
   CORTEXCODE_HOOK_EVENTS,
   CURSOR_HOOK_EVENTS,
-  FIREBENDER_HOOK_EVENTS,
   DEEPAGENTS_HOOK_EVENTS,
   DEVIN_HOOK_EVENTS,
   FACTORYDROID_HOOK_EVENTS,
+  FIREBENDER_HOOK_EVENTS,
   CLINE_HOOK_EVENTS,
   CRUSH_HOOK_EVENTS,
   GOOSE_HOOK_EVENTS,
@@ -414,7 +414,8 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
         supportsImport: true,
       },
       supportedEvents: FIREBENDER_HOOK_EVENTS,
-      // Only command-based hooks are documented.
+      // The config table lists `type: "command" | "prompt"`, but what a prompt
+      // hook does is undocumented, so only command hooks are generated.
       supportedHookTypes: ["command"],
       supportsMatcher: true,
     },

@@ -6,14 +6,13 @@ import {
   FIREBENDER_AGENTS_DIR_NAME,
   FIREBENDER_AGENTS_DIR_PATH,
   FIREBENDER_CONFIG_FILE_NAME,
-  FIREBENDER_DIR,
   getFirebenderConfigDir,
 } from "../../constants/firebender-paths.js";
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import type { SharedWritePath } from "../../lib/shared-file-derive.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
-import { readFileContent, toPosixPath } from "../../utils/file.js";
+import { listDirectoryEntryNames, readFileContent, toPosixPath } from "../../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
 import type { Logger } from "../../utils/logger.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
@@ -76,12 +75,19 @@ function toAgentsEntry({
 }
 
 /**
- * Whether an existing `agents` entry points into the directory rulesync owns
- * (`.firebender/agents/` in the project, `~/.firebender/agents/` globally).
- * Those entries are recomputed from the generated agents on every run; any
- * other entry (`~/firebender-agents/...`, an absolute path) is left alone.
+ * The agent file name an existing `agents` entry points at when it lies
+ * directly inside the directory rulesync writes agents to
+ * (`.firebender/agents/` in the project; `agents/` or `~/.firebender/agents/`
+ * in the personal config), or `undefined` for any other entry
+ * (`~/firebender-agents/...`, an absolute path, a nested path).
  */
-function isManagedAgentsEntry({ entry, global }: { entry: string; global: boolean }): boolean {
+function managedAgentFileName({
+  entry,
+  global,
+}: {
+  entry: string;
+  global: boolean;
+}): string | undefined {
   const normalized = toPosixPath(entry).replace(/^\.\//, "");
   const prefix = global
     ? `${FIREBENDER_AGENTS_DIR_NAME}/`
@@ -92,7 +98,7 @@ function isManagedAgentsEntry({ entry, global }: { entry: string; global: boolea
     : global && normalized.startsWith(homePrefix)
       ? normalized.slice(homePrefix.length)
       : undefined;
-  return rest !== undefined && rest.endsWith(".md") && !rest.includes("/");
+  return rest !== undefined && rest.endsWith(".md") && !rest.includes("/") ? rest : undefined;
 }
 
 /**
@@ -159,11 +165,13 @@ export class FirebenderSubagent extends ToolSubagent {
 
   toRulesyncSubagent(): RulesyncSubagent {
     const { name, description, callable, ...rest } = this.frontmatter;
-    // `callable: true` is what generation writes by default, so only a
-    // different value needs carrying.
+    // Generation writes `callable: true` unless told otherwise, while
+    // Firebender treats an omitted `callable` as `false`; so only `true` can
+    // be left implicit, and an omitted value is carried as an explicit
+    // `false` to keep a mode-only agent from becoming delegatable.
     const firebenderSection: Record<string, unknown> = {
       ...rest,
-      ...(callable !== undefined && callable !== true && { callable }),
+      ...(callable !== true && { callable: callable ?? false }),
     };
 
     const rulesyncFrontmatter: RulesyncSubagentFrontmatter = {
@@ -187,9 +195,11 @@ export class FirebenderSubagent extends ToolSubagent {
    * Every targeted subagent becomes its own agent file, plus one
    * {@link FirebenderAgentsRegistry} that lists them in `firebender.json`.
    * The registry is emitted even when no subagent is targeted, so agents a
-   * previous run registered are retracted.
+   * previous run registered are retracted once their files are gone. The
+   * agent directory is listed up front so the registry can tell a registered
+   * file that still exists (kept, whoever wrote it) from a stale one.
    */
-  static fromRulesyncSubagents({
+  static async fromRulesyncSubagents({
     outputRoot = process.cwd(),
     rulesyncSubagents,
     global = false,
@@ -199,7 +209,11 @@ export class FirebenderSubagent extends ToolSubagent {
     rulesyncSubagents: RulesyncSubagent[];
     global?: boolean;
     logger?: Logger;
-  }): ToolSubagent[] {
+  }): Promise<ToolSubagent[]> {
+    const agentsDirPath = this.getSettablePaths({ global }).relativeDirPath;
+    const existingAgentFileNames = new Set(
+      await listDirectoryEntryNames(join(outputRoot, agentsDirPath)),
+    );
     const subagents = rulesyncSubagents.map((rulesyncSubagent) =>
       this.fromRulesyncSubagent({
         outputRoot,
@@ -215,6 +229,7 @@ export class FirebenderSubagent extends ToolSubagent {
       entries: subagents.map((subagent) =>
         toAgentsEntry({ relativeFilePath: subagent.getRelativeFilePath(), global }),
       ),
+      existingAgentFileNames,
       global,
       logger,
     });
@@ -322,25 +337,37 @@ export class FirebenderSubagent extends ToolSubagent {
 
 type FirebenderAgentsRegistryParams = Omit<AiFileParams, "fileContent"> & {
   entries: string[];
+  /** File names present in the agent directory before this run writes to it. */
+  existingAgentFileNames?: ReadonlySet<string>;
   logger?: Logger;
 };
 
 /**
  * The `agents` array of `firebender.json`, which Firebender requires to load
- * an agent file. Entries pointing into rulesync's agent directory are
- * recomputed from the generated agents (so a removed subagent is
- * unregistered); every other entry and every other key of the file is kept.
+ * an agent file. Every generated agent is registered. An existing entry that
+ * points into rulesync's agent directory is kept while its file exists (a
+ * hand-written agent there stays registered) and dropped, with a warning, once
+ * the file is gone; under `--delete` the orphan sweep runs after this write,
+ * so an agent removed from `.rulesync/subagents/` is unregistered on the next
+ * run. Every other entry and every other key of the file is kept.
  * The array is merged into the file on disk at write time and the file itself
  * is never deleted.
  */
 export class FirebenderAgentsRegistry extends ToolSubagent {
   private readonly entries: string[];
+  private readonly existingAgentFileNames: ReadonlySet<string>;
   private readonly logger: Logger | undefined;
   private mergedContent: string | null = null;
 
-  constructor({ entries, logger, ...rest }: FirebenderAgentsRegistryParams) {
+  constructor({
+    entries,
+    existingAgentFileNames = new Set(),
+    logger,
+    ...rest
+  }: FirebenderAgentsRegistryParams) {
     super({ ...rest, fileContent: "" });
     this.entries = entries;
+    this.existingAgentFileNames = existingAgentFileNames;
     this.logger = logger;
   }
 
@@ -379,26 +406,54 @@ export class FirebenderAgentsRegistry extends ToolSubagent {
       filePath,
       invalidRootPolicy: "error",
     });
-    const existingEntries = Array.isArray(existing.agents) ? existing.agents : [];
-    const kept = existingEntries.filter(
-      (entry) => typeof entry !== "string" || !isManagedAgentsEntry({ entry, global: this.global }),
+    const existingEntries: unknown[] = Array.isArray(existing.agents) ? existing.agents : [];
+    const generatedByFileName = new Map(
+      this.entries.map((entry) => [
+        managedAgentFileName({ entry, global: this.global }) ?? entry,
+        entry,
+      ]),
     );
-    const dropped = existingEntries.filter(
-      (entry): entry is string =>
-        typeof entry === "string" &&
-        isManagedAgentsEntry({ entry, global: this.global }) &&
-        !this.entries.includes(toPosixPath(entry).replace(/^\.\//, "")),
-    );
+
+    const agents: unknown[] = [];
+    const placed = new Set<string>();
+    const dropped: string[] = [];
+    for (const entry of existingEntries) {
+      const fileName =
+        typeof entry === "string"
+          ? managedAgentFileName({ entry, global: this.global })
+          : undefined;
+      if (fileName === undefined) {
+        agents.push(entry);
+        continue;
+      }
+      const generated = generatedByFileName.get(fileName);
+      if (generated !== undefined) {
+        // A generated agent takes the canonical spelling in place of however
+        // the entry was written (`./.firebender/agents/a.md`,
+        // `~/.firebender/agents/a.md`, ...); that is not an unregistration.
+        if (!placed.has(fileName)) {
+          agents.push(generated);
+          placed.add(fileName);
+        }
+      } else if (this.existingAgentFileNames.has(fileName)) {
+        agents.push(entry);
+      } else {
+        dropped.push(String(entry));
+      }
+    }
+    for (const [fileName, entry] of generatedByFileName) {
+      if (!placed.has(fileName)) {
+        agents.push(entry);
+        placed.add(fileName);
+      }
+    }
+
     if (dropped.length > 0) {
-      const sourceDir = this.global
-        ? `~/${toPosixPath(FIREBENDER_DIR)}/${FIREBENDER_AGENTS_DIR_NAME}/`
-        : `${toPosixPath(FIREBENDER_AGENTS_DIR_PATH)}/`;
       this.logger?.warn(
         `Unregistered Firebender agent(s) ${dropped.map((entry) => quoteValueForWarning(entry)).join(", ")} from ${filePath}: ` +
-          `rulesync recomputes the "agents" entries under ${sourceDir} from .rulesync/subagents/ on every run.`,
+          `the agent file no longer exists.`,
       );
     }
-    const agents = [...kept, ...this.entries.filter((entry) => !kept.includes(entry))];
 
     return applySharedConfigPatch({
       fileKey: sharedConfigFileKey(paths),

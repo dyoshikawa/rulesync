@@ -27,8 +27,9 @@ import {
  * `~/.firebender/hooks.json` (global). The file follows Cursor's layout — a
  * `version` plus a `hooks` map from camelCase event names to lists of
  * `{ command, timeout?, loop_limit?, matcher? }` entries — and every event is
- * spelled like its canonical counterpart. Only command hooks are documented,
- * so other hook types are skipped (the HooksProcessor warns about them).
+ * spelled like its canonical counterpart. The per-hook `type` accepts
+ * `"command" | "prompt"`, but the docs never say what a prompt hook does, so
+ * only command hooks are generated (the HooksProcessor warns about the rest).
  *
  * @see https://docs.firebender.com/multi-agent/hooks
  */

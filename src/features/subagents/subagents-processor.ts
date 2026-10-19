@@ -106,7 +106,7 @@ type ToolSubagentFactory = {
       rulesyncSubagents: RulesyncSubagent[];
       global?: boolean;
       logger?: Logger;
-    }): ToolSubagent | ToolSubagent[];
+    }): ToolSubagent | ToolSubagent[] | Promise<ToolSubagent | ToolSubagent[]>;
     fromFile(params: ToolSubagentFromFileParams): Promise<ToolSubagent>;
     forDeletion(params: ToolSubagentForDeletionParams): ToolSubagent;
     getSettablePaths(options?: { global?: boolean }): ToolSubagentSettablePaths;
@@ -1084,7 +1084,7 @@ export class SubagentsProcessor extends FeatureProcessor {
       if (targeted.length === 0 && !this.emitsToolFilesForEmptySource()) {
         return [];
       }
-      const toolSubagents = factory.class.fromRulesyncSubagents({
+      const toolSubagents = await factory.class.fromRulesyncSubagents({
         outputRoot: this.outputRoot,
         rulesyncSubagents: targeted,
         global: this.global,

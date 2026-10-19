@@ -94,9 +94,9 @@ describe("FirebenderSubagent", () => {
     expect(subagent.getFrontmatter().callable).toBe(false);
   });
 
-  it("should register every generated agent in the project firebender.json", () => {
+  it("should register every generated agent in the project firebender.json", async () => {
     const { agents, registry } = splitResult(
-      FirebenderSubagent.fromRulesyncSubagents({
+      await FirebenderSubagent.fromRulesyncSubagents({
         outputRoot: testDir,
         rulesyncSubagents: [
           makeRulesyncSubagent(),
@@ -116,9 +116,9 @@ describe("FirebenderSubagent", () => {
     });
   });
 
-  it("should register global agents relative to ~/.firebender", () => {
+  it("should register global agents relative to ~/.firebender", async () => {
     const { registry } = splitResult(
-      FirebenderSubagent.fromRulesyncSubagents({
+      await FirebenderSubagent.fromRulesyncSubagents({
         outputRoot: testDir,
         rulesyncSubagents: [makeRulesyncSubagent()],
         global: true,
@@ -129,10 +129,10 @@ describe("FirebenderSubagent", () => {
     expect(registry?.getEntries()).toEqual(["agents/code-reviewer.md"]);
   });
 
-  it("should merge into an existing firebender.json, keeping unmanaged entries and keys", () => {
+  it("should merge into an existing firebender.json, keeping unmanaged entries and keys", async () => {
     const logger = createMockLogger();
     const { registry } = splitResult(
-      FirebenderSubagent.fromRulesyncSubagents({
+      await FirebenderSubagent.fromRulesyncSubagents({
         outputRoot: testDir,
         rulesyncSubagents: [makeRulesyncSubagent()],
         logger,
@@ -156,8 +156,8 @@ describe("FirebenderSubagent", () => {
       ignore: ["dist/**"],
       agents: [
         "~/firebender-agents/test-writer.md",
-        "/absolute/path/to/agent.md",
         ".firebender/agents/code-reviewer.md",
+        "/absolute/path/to/agent.md",
       ],
       mcpServers: { weather: { command: "npx" } },
     });
@@ -165,9 +165,12 @@ describe("FirebenderSubagent", () => {
     expect(logger.warn.mock.calls[0]?.[0]).toContain("stale.md");
   });
 
-  it("should retract the agents key when nothing is left to register", () => {
+  it("should retract the agents key when nothing is left to register", async () => {
     const { registry } = splitResult(
-      FirebenderSubagent.fromRulesyncSubagents({ outputRoot: testDir, rulesyncSubagents: [] }),
+      await FirebenderSubagent.fromRulesyncSubagents({
+        outputRoot: testDir,
+        rulesyncSubagents: [],
+      }),
     );
 
     registry?.setFileContent(
@@ -198,6 +201,96 @@ describe("FirebenderSubagent", () => {
     });
     expect(rulesyncSubagent.getFrontmatter().firebender).not.toHaveProperty("callable");
     expect(rulesyncSubagent.getBody()).toBe("You query databases.");
+  });
+
+  it("should keep a registered hand-written agent whose file still exists (project)", async () => {
+    await writeFileContent(
+      join(testDir, ".firebender", "agents", "mine.md"),
+      "---\nname: Mine\n---\n\nMine.\n",
+    );
+    const logger = createMockLogger();
+    const { registry } = splitResult(
+      await FirebenderSubagent.fromRulesyncSubagents({
+        outputRoot: testDir,
+        rulesyncSubagents: [makeRulesyncSubagent()],
+        logger,
+      }),
+    );
+
+    registry?.setFileContent(JSON.stringify({ agents: [".firebender/agents/mine.md"] }));
+
+    expect(JSON.parse(registry?.getFileContent() ?? "").agents).toEqual([
+      ".firebender/agents/mine.md",
+      ".firebender/agents/code-reviewer.md",
+    ]);
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
+  it("should keep a registered hand-written agent whose file still exists (global)", async () => {
+    await writeFileContent(
+      join(testDir, ".firebender", "agents", "mine.md"),
+      "---\nname: Mine\n---\n\nMine.\n",
+    );
+    const logger = createMockLogger();
+    const { registry } = splitResult(
+      await FirebenderSubagent.fromRulesyncSubagents({
+        outputRoot: testDir,
+        rulesyncSubagents: [makeRulesyncSubagent()],
+        global: true,
+        logger,
+      }),
+    );
+
+    registry?.setFileContent(
+      JSON.stringify({ agents: ["agents/mine.md", "~/.firebender/agents/gone.md"] }),
+    );
+
+    expect(JSON.parse(registry?.getFileContent() ?? "").agents).toEqual([
+      "agents/mine.md",
+      "agents/code-reviewer.md",
+    ]);
+    expect(logger.warn).toHaveBeenCalledTimes(1);
+    expect(logger.warn.mock.calls[0]?.[0]).toContain("gone.md");
+  });
+
+  it("should not warn when a generated agent's entry is only respelled", async () => {
+    const logger = createMockLogger();
+    const { registry } = splitResult(
+      await FirebenderSubagent.fromRulesyncSubagents({
+        outputRoot: testDir,
+        rulesyncSubagents: [makeRulesyncSubagent()],
+        global: true,
+        logger,
+      }),
+    );
+
+    registry?.setFileContent(JSON.stringify({ agents: ["~/.firebender/agents/code-reviewer.md"] }));
+
+    expect(JSON.parse(registry?.getFileContent() ?? "").agents).toEqual([
+      "agents/code-reviewer.md",
+    ]);
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
+  it("should import an agent without callable as firebender.callable: false", async () => {
+    await writeFileContent(
+      join(testDir, ".firebender", "agents", "mode.md"),
+      "---\nname: Mode Only\ndescription: A mode\n---\n\nYou are a mode.\n",
+    );
+
+    const subagent = await FirebenderSubagent.fromFile({
+      outputRoot: testDir,
+      relativeFilePath: "mode.md",
+    });
+    const rulesyncSubagent = subagent.toRulesyncSubagent();
+
+    expect(rulesyncSubagent.getFrontmatter().firebender).toEqual({ callable: false });
+    const regenerated = FirebenderSubagent.fromRulesyncSubagent({
+      outputRoot: testDir,
+      relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+      rulesyncSubagent,
+    });
+    expect(regenerated.getFrontmatter().callable).toBe(false);
   });
 
   it("should be targeted by firebender and wildcard subagents only", () => {
