@@ -168,7 +168,7 @@ export class FirebenderSubagent extends ToolSubagent {
     // Generation writes `callable: true` unless told otherwise, while
     // Firebender treats an omitted `callable` as `false`; so only `true` can
     // be left implicit, and an omitted value is carried as an explicit
-    // `false` to keep a mode-only agent from becoming delegatable.
+    // `false` so a mode-only agent does not become callable.
     const firebenderSection: Record<string, unknown> = {
       ...rest,
       ...(callable !== true && { callable: callable ?? false }),
@@ -430,7 +430,7 @@ export class FirebenderAgentsRegistry extends ToolSubagent {
       if (generated !== undefined) {
         // A generated agent takes the canonical spelling in place of however
         // the entry was written (`./.firebender/agents/a.md`,
-        // `~/.firebender/agents/a.md`, ...); that is not an unregistration.
+        // `~/.firebender/agents/a.md`, ...); that does not unregister anything.
         if (!placed.has(fileName)) {
           agents.push(generated);
           placed.add(fileName);
