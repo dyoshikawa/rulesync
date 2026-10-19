@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  FRONTMATTER_PARSE_OPTIONS,
   MAX_FRONTMATTER_DEPTH,
   MAX_FRONTMATTER_RAW_CHARS,
   MAX_FRONTMATTER_STRING_CHARS,
@@ -841,6 +842,51 @@ const code = "preserved";
         expect(result.body).toBe("Body");
       },
     );
+
+    it.each(["---\r\r\n", "---yaml\r\r\n", "--- \r\n"])(
+      "should apply the size guard to a %j fence line gray-matter accepts",
+      (fence) => {
+        const content = `${fence}description: "${"a".repeat(MAX_FRONTMATTER_RAW_CHARS)}"\n---\nBody`;
+
+        expect(() => parseFrontmatter(content)).toThrow(/Frontmatter block is larger than/);
+      },
+    );
+
+    it("should apply the size guard to a block with no closing fence", () => {
+      const content = `---\ndescription: "${"a".repeat(MAX_FRONTMATTER_RAW_CHARS)}"\n`;
+
+      expect(() => parseFrontmatter(content)).toThrow(/Frontmatter block is larger than/);
+    });
+
+    it("should refuse a JavaScript fence even when gray-matter still ships its eval engine", async () => {
+      // The pnpm patch that removes gray-matter's JavaScript engine only applies
+      // inside this repository; an installed rulesync gets the unpatched
+      // package. Re-register an eval-based engine to stand in for it and check
+      // that the engine overrides passed by parseFrontmatter still win.
+      const actualModule = await vi.importActual<typeof import("gray-matter")>("gray-matter");
+      const actualMatter =
+        (actualModule as unknown as { default: typeof actualModule }).default || actualModule;
+      // gray-matter's typings do not declare the `engines` export.
+      const { engines } = actualMatter as unknown as { engines: Record<string, unknown> };
+      engines.javascript = {
+        parse: (input: string) => {
+          // eslint-disable-next-line no-eval -- deliberately mirrors the upstream engine
+          return (0, eval)(`(${input})`);
+        },
+      };
+      try {
+        const content =
+          '---js\n{ name: (globalThis.__RULESYNC_FRONTMATTER_PWNED__ = 1, "x") }\n---\n';
+        // Bypass the language check to exercise the engine overrides alone.
+        expect(() => actualMatter(content, FRONTMATTER_PARSE_OPTIONS)).toThrow(
+          /executable language/,
+        );
+        expect(() => parseFrontmatter(content)).toThrow(/Unsupported frontmatter language/);
+        expect(globals.__RULESYNC_FRONTMATTER_PWNED__).toBeUndefined();
+      } finally {
+        delete engines.javascript;
+      }
+    });
 
     it("should apply the size guard to an explicit yaml fence", () => {
       const content = `---yaml\ndescription: "${"a".repeat(MAX_FRONTMATTER_RAW_CHARS)}"\n---\nBody`;

@@ -302,8 +302,14 @@ const REFUSED_FRONTMATTER_ENGINE = {
  * Engines passed to every gray-matter parse. Supplying them merges over
  * gray-matter's defaults, so the JavaScript engine (and the CoffeeScript names
  * a plugin could register) can never be reached through an alias.
+ *
+ * `patches/gray-matter@4.0.3.patch` also deletes the JavaScript engine, but a
+ * pnpm patch only applies inside this repository: gray-matter is an external
+ * dependency of the published package, so an installed rulesync runs the
+ * unpatched gray-matter, and this override plus the language check are what
+ * protect it. Exported for the test that pins that.
  */
-const FRONTMATTER_PARSE_OPTIONS = {
+export const FRONTMATTER_PARSE_OPTIONS = {
   engines: {
     javascript: REFUSED_FRONTMATTER_ENGINE,
     js: REFUSED_FRONTMATTER_ENGINE,
@@ -316,30 +322,73 @@ const FRONTMATTER_PARSE_OPTIONS = {
 /** Frontmatter languages accepted after the opening `---` fence. */
 const ALLOWED_FRONTMATTER_LANGUAGE_PATTERN = /^(?:ya?ml)?$/i;
 
+type FrontmatterFence = {
+  /** The language named after the opening `---`, trimmed (`""` for none). */
+  language: string;
+  /**
+   * Offset in `content` just past the fence line's line break, or `undefined`
+   * when the content has no line break at all.
+   */
+  lineEnd: number | undefined;
+};
+
 /**
- * Refuse a frontmatter fence that names any language other than YAML.
+ * Read the opening frontmatter fence the way gray-matter does, or return
+ * `undefined` when gray-matter would see no frontmatter at all.
  *
- * This mirrors how gray-matter reads the language: the text between the
- * opening `---` and the first line break, trimmed (gray-matter drops the last
- * character when there is no line break at all, so that case is mirrored as
- * well). Only YAML is ever written by rulesync or by the tools it targets, so
- * anything else — `---js` above all, whose block gray-matter would `eval()` —
- * is rejected before gray-matter sees the content.
+ * gray-matter strips one byte order mark, treats `---` as a fence only when a
+ * fourth `-` does not follow, and takes the language from the text between the
+ * fence and the first `\r?\n`, trimmed — dropping the last character when
+ * there is no line break at all. Every check below that has to agree with
+ * gray-matter on where the block is (the language check, the size guard, the
+ * repair pass) goes through this one reading, so none of them can be bypassed
+ * by a fence line gray-matter accepts and a stricter pattern would not (a
+ * stray `\r` before the line break, say).
  */
-function assertYamlFrontmatterLanguage(content: string): void {
-  const text = content.startsWith("\uFEFF") ? content.slice(1) : content;
-  // gray-matter only treats `---` as a fence when a fourth `-` does not follow.
+function readFrontmatterFence(content: string): FrontmatterFence | undefined {
+  const offset = content.startsWith("\uFEFF") ? 1 : 0;
+  const text = content.slice(offset);
   if (!text.startsWith("---") || text.charAt(3) === "-") {
-    return;
+    return undefined;
   }
 
   const afterFence = text.slice(3);
-  const language = afterFence.slice(0, afterFence.search(/\r?\n/)).trim();
-  if (!ALLOWED_FRONTMATTER_LANGUAGE_PATTERN.test(language)) {
+  const lineBreak = /\r?\n/.exec(afterFence);
+  const language = afterFence.slice(0, lineBreak ? lineBreak.index : -1).trim();
+  const lineEnd = lineBreak ? offset + 3 + lineBreak.index + lineBreak[0].length : undefined;
+  return { language, lineEnd };
+}
+
+/**
+ * Refuse a frontmatter fence that names any language other than YAML.
+ *
+ * Only YAML is ever written by rulesync or by the tools it targets, so anything
+ * else — `---js` above all, whose block gray-matter would `eval()` — is
+ * rejected before gray-matter sees the content.
+ */
+function assertYamlFrontmatterLanguage(content: string): void {
+  const fence = readFrontmatterFence(content);
+  if (fence && !ALLOWED_FRONTMATTER_LANGUAGE_PATTERN.test(fence.language)) {
     throw new Error(
-      `Unsupported frontmatter language ${JSON.stringify(language.slice(0, 40))}; only YAML frontmatter is supported`,
+      `Unsupported frontmatter language ${JSON.stringify(fence.language.slice(0, 40))}; only YAML frontmatter is supported`,
     );
   }
+}
+
+/**
+ * The number of characters gray-matter would hand to the YAML parser as the
+ * frontmatter block. Unlike {@link findFrontmatterBlockBounds}, a missing
+ * closing fence does not make this zero: gray-matter then parses everything
+ * after the fence line, so that is what the size guard has to measure.
+ */
+function measureFrontmatterBlockChars(content: string): number {
+  const fence = readFrontmatterFence(content);
+  if (fence?.lineEnd === undefined) {
+    return 0;
+  }
+  const rest = content.slice(fence.lineEnd);
+  const closeIndex = rest.indexOf("\n---");
+  return closeIndex === -1 ? rest.length : closeIndex;
 }
 
 export function parseFrontmatter(
@@ -355,8 +404,7 @@ export function parseFrontmatter(
   let hasFrontmatter: boolean;
   try {
     assertYamlFrontmatterLanguage(content);
-    const bounds = findFrontmatterBlockBounds(content);
-    if (bounds && bounds.blockEnd - bounds.blockStart > MAX_FRONTMATTER_RAW_CHARS) {
+    if (measureFrontmatterBlockChars(content) > MAX_FRONTMATTER_RAW_CHARS) {
       // A complex YAML key (an array or mapping used as a mapping key) costs
       // real memory inside js-yaml while it parses, before any post-parse
       // budget above ever runs. Refusing an oversized block outright keeps
@@ -470,25 +518,24 @@ function repairFrontmatterLine(line: string): RepairedLine {
 
 /**
  * Locate a raw `---`-delimited frontmatter block's bounds within `content`,
- * without parsing it. Shared by the size guard in {@link parseFrontmatter} and
- * the YAML repair pass below, so both agree on exactly what gray-matter would
- * treat as the block: gray-matter ends it at the first `\n---`, with no
- * requirement that the delimiter be alone on its line, so a stricter pattern
- * here would run past gray-matter's delimiter and act on text that is really
- * the body.
+ * without parsing it, for the YAML repair pass below and the rule loaders that
+ * pre-process `globs:`. The opening fence is read exactly as gray-matter reads
+ * it ({@link readFrontmatterFence}); an explicit `yaml` / `yml` language is
+ * still YAML, any other language yields no bounds. gray-matter ends the block
+ * at the first `\n---`, with no requirement that the delimiter be alone on its
+ * line, so a stricter pattern here would run past gray-matter's delimiter and
+ * act on text that is really the body. A block with no closing fence has no
+ * bounds; the size guard measures that case separately.
  */
 export function findFrontmatterBlockBounds(
   content: string,
 ): { blockStart: number; blockEnd: number } | undefined {
-  // An explicit `yaml` / `yml` language after the fence is still YAML to
-  // gray-matter, so it has to count here too, or such a block would bypass the
-  // size guard in parseFrontmatter.
-  const opening = /^\uFEFF?---(?:[^\S\r\n]*ya?ml)?[^\S\r\n]*\r?\n/i.exec(content);
-  if (!opening) {
+  const fence = readFrontmatterFence(content);
+  if (fence?.lineEnd === undefined || !ALLOWED_FRONTMATTER_LANGUAGE_PATTERN.test(fence.language)) {
     return undefined;
   }
 
-  const blockStart = opening[0].length;
+  const blockStart = fence.lineEnd;
   const closing = /\r?\n---/.exec(content.slice(blockStart));
   if (!closing) {
     return undefined;
@@ -535,8 +582,9 @@ function repairMalformedFrontmatterYaml(
  * narrow — one pass, top-level entries only, and the original error is what
  * surfaces if it does not help, so a genuinely broken file still fails with the
  * message that describes what is actually wrong with it. A file with no closing
- * `---`, or one whose opening fence carries a language tag, is not repaired at
- * all: neither is a frontmatter block gray-matter would have read.
+ * `---` is not repaired at all, and one whose opening fence names a language
+ * other than YAML is refused outright (an explicit `---yaml` / `---yml` fence
+ * is repaired like a plain one).
  *
  * @see https://agentskills.io/client-implementation/adding-skills-support
  */

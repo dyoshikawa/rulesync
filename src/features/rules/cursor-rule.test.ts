@@ -569,6 +569,19 @@ This is the rule content
       expect(rule.getBody()).toBe("Example:\n\nglobs: *.ts");
     });
 
+    it("should quote unquoted globs under an explicit yaml fence", async () => {
+      const filePath = join(testDir, ".cursor/rules", "yaml-fence.mdc");
+      await writeFileContent(filePath, "---yaml\nalwaysApply: false\nglobs: *.ts\n---\nBody\n");
+
+      const rule = await CursorRule.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "yaml-fence.mdc",
+      });
+
+      expect(rule.getFrontmatter().globs).toBe("*.ts");
+      expect(rule.getBody()).toBe("Body");
+    });
+
     it("should trim trailing blanks from an unquoted globs value", async () => {
       const filePath = join(testDir, ".cursor/rules", "blanks.mdc");
       await writeFileContent(filePath, "---\nalwaysApply: false\nglobs: *.ts  \n---\nBody\n");

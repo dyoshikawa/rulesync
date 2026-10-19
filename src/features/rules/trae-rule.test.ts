@@ -103,6 +103,12 @@ describe("TraeRule", () => {
     });
   });
 
+  it("should import unquoted globs under an explicit yaml fence", async () => {
+    expect(await importFile("---yaml\nalwaysApply: false\nglobs: *.py\n---\nBody\n")).toMatchObject(
+      { globs: ["*.py"] },
+    );
+  });
+
   it("should import unquoted and list globs and an empty globs line", async () => {
     expect(await importFile("---\nalwaysApply: false\nglobs: *.py\n---\nBody\n")).toMatchObject({
       globs: ["*.py"],
