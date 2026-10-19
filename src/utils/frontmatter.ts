@@ -276,6 +276,72 @@ export function stringifyFrontmatter(
   return matter.stringify(file, cleanFrontmatter);
 }
 
+/**
+ * Thrown in place of gray-matter's built-in JavaScript engine.
+ *
+ * gray-matter picks the parser from the text after the opening fence, so a
+ * file that opens with `---js` or `---javascript` has its frontmatter handed
+ * to `eval()`. Frontmatter here comes from third-party skills, fetched sources
+ * and untrusted repositories, so that would run arbitrary code on the machine
+ * of whoever generates or imports it. Every engine name that resolves to code
+ * execution is mapped to this refusal; {@link assertYamlFrontmatterLanguage}
+ * refuses those fences earlier still, so this is the second line of defense.
+ */
+function refuseExecutableFrontmatter(): never {
+  throw new Error(
+    "Frontmatter written in an executable language (JavaScript / CoffeeScript) is not supported; use YAML",
+  );
+}
+
+const REFUSED_FRONTMATTER_ENGINE = {
+  parse: refuseExecutableFrontmatter,
+  stringify: refuseExecutableFrontmatter,
+};
+
+/**
+ * Engines passed to every gray-matter parse. Supplying them merges over
+ * gray-matter's defaults, so the JavaScript engine (and the CoffeeScript names
+ * a plugin could register) can never be reached through an alias.
+ */
+const FRONTMATTER_PARSE_OPTIONS = {
+  engines: {
+    javascript: REFUSED_FRONTMATTER_ENGINE,
+    js: REFUSED_FRONTMATTER_ENGINE,
+    coffee: REFUSED_FRONTMATTER_ENGINE,
+    coffeescript: REFUSED_FRONTMATTER_ENGINE,
+    cson: REFUSED_FRONTMATTER_ENGINE,
+  },
+};
+
+/** Frontmatter languages accepted after the opening `---` fence. */
+const ALLOWED_FRONTMATTER_LANGUAGE_PATTERN = /^(?:ya?ml)?$/i;
+
+/**
+ * Refuse a frontmatter fence that names any language other than YAML.
+ *
+ * This mirrors how gray-matter reads the language: the text between the
+ * opening `---` and the first line break, trimmed (gray-matter drops the last
+ * character when there is no line break at all, so that case is mirrored as
+ * well). Only YAML is ever written by rulesync or by the tools it targets, so
+ * anything else — `---js` above all, whose block gray-matter would `eval()` —
+ * is rejected before gray-matter sees the content.
+ */
+function assertYamlFrontmatterLanguage(content: string): void {
+  const text = content.startsWith("\uFEFF") ? content.slice(1) : content;
+  // gray-matter only treats `---` as a fence when a fourth `-` does not follow.
+  if (!text.startsWith("---") || text.charAt(3) === "-") {
+    return;
+  }
+
+  const afterFence = text.slice(3);
+  const language = afterFence.slice(0, afterFence.search(/\r?\n/)).trim();
+  if (!ALLOWED_FRONTMATTER_LANGUAGE_PATTERN.test(language)) {
+    throw new Error(
+      `Unsupported frontmatter language ${JSON.stringify(language.slice(0, 40))}; only YAML frontmatter is supported`,
+    );
+  }
+}
+
 export function parseFrontmatter(
   content: string,
   filePath?: string,
@@ -288,6 +354,7 @@ export function parseFrontmatter(
   let body: string;
   let hasFrontmatter: boolean;
   try {
+    assertYamlFrontmatterLanguage(content);
     const bounds = findFrontmatterBlockBounds(content);
     if (bounds && bounds.blockEnd - bounds.blockStart > MAX_FRONTMATTER_RAW_CHARS) {
       // A complex YAML key (an array or mapping used as a mapping key) costs
@@ -299,15 +366,17 @@ export function parseFrontmatter(
       );
     }
 
-    // The empty options object is what turns gray-matter's content cache off,
-    // and it has to stay off. The cache is written *before* the YAML is
+    // Passing an options object is what turns gray-matter's content cache
+    // off, and it has to stay off. The cache is written *before* the YAML is
     // parsed, so a file that throws leaves an entry behind whose `data` is
     // empty and whose `content` is the whole unparsed file; the next parse of
     // identical content — the same malformed skill vendored under two
     // directories, say — hits that entry and returns empty frontmatter with the
     // frontmatter text spilled into the body, instead of reporting the error
     // again. Caching a parse this cheap is not worth failing silently.
-    const result = matter(content, {});
+    // The options also replace the executable engines; see
+    // FRONTMATTER_PARSE_OPTIONS.
+    const result = matter(content, FRONTMATTER_PARSE_OPTIONS);
     // Strip null/undefined values from parsed frontmatter for consistency.
     // YAML parses bare keys (e.g. "description:") as null, which would fail
     // Zod validation (z.optional(z.string()) does not accept null). The same
@@ -411,7 +480,10 @@ function repairFrontmatterLine(line: string): RepairedLine {
 export function findFrontmatterBlockBounds(
   content: string,
 ): { blockStart: number; blockEnd: number } | undefined {
-  const opening = /^\uFEFF?---[^\S\r\n]*\r?\n/.exec(content);
+  // An explicit `yaml` / `yml` language after the fence is still YAML to
+  // gray-matter, so it has to count here too, or such a block would bypass the
+  // size guard in parseFrontmatter.
+  const opening = /^\uFEFF?---(?:[^\S\r\n]*ya?ml)?[^\S\r\n]*\r?\n/i.exec(content);
   if (!opening) {
     return undefined;
   }

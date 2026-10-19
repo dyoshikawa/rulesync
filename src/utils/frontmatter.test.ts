@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   MAX_FRONTMATTER_DEPTH,
@@ -765,6 +765,93 @@ const code = "preserved";
 
       // Reset mock
       mockMatter.shouldThrow = false;
+    });
+  });
+
+  describe("executable frontmatter languages", () => {
+    const globals = globalThis as { __RULESYNC_FRONTMATTER_PWNED__?: unknown };
+
+    beforeEach(() => {
+      delete globals.__RULESYNC_FRONTMATTER_PWNED__;
+    });
+
+    afterEach(() => {
+      delete globals.__RULESYNC_FRONTMATTER_PWNED__;
+    });
+
+    it.each([
+      "---js",
+      "---javascript",
+      "---JS",
+      "--- js ",
+      "---coffee",
+      "---coffeescript",
+      "---cson",
+      "---json",
+    ])("should refuse a %j fence without evaluating the block", (fence) => {
+      const content = `${fence}\n{ name: (globalThis.__RULESYNC_FRONTMATTER_PWNED__ = 1, "x") }\n---\nBody`;
+
+      expect(() => parseFrontmatter(content, "skills/evil/SKILL.md")).toThrow(
+        /Failed to parse frontmatter in skills\/evil\/SKILL\.md: .*Unsupported frontmatter language/,
+      );
+      expect(globals.__RULESYNC_FRONTMATTER_PWNED__).toBeUndefined();
+    });
+
+    it("should refuse a JavaScript fence with a byte order mark and CRLF line endings", () => {
+      const content =
+        '\uFEFF---js\r\n{ name: (globalThis.__RULESYNC_FRONTMATTER_PWNED__ = 1, "x") }\r\n---\r\nBody';
+
+      expect(() => parseFrontmatter(content)).toThrow(/Unsupported frontmatter language/);
+      expect(globals.__RULESYNC_FRONTMATTER_PWNED__).toBeUndefined();
+    });
+
+    it("should refuse a JavaScript fence through the YAML repair path", () => {
+      const content =
+        '---js\n{ name: (globalThis.__RULESYNC_FRONTMATTER_PWNED__ = 1, "x") }\n---\nBody';
+
+      expect(() => parseFrontmatterWithYamlRepair(content)).toThrow(
+        /Unsupported frontmatter language/,
+      );
+      expect(globals.__RULESYNC_FRONTMATTER_PWNED__).toBeUndefined();
+    });
+
+    it("should keep the patched gray-matter free of its eval-based JavaScript engine", async () => {
+      const actualModule = await vi.importActual<typeof import("gray-matter")>("gray-matter");
+      const actualMatter =
+        (actualModule as unknown as { default: typeof actualModule }).default || actualModule;
+
+      // gray-matter's typings do not declare the `engines` export.
+      const { engines } = actualMatter as unknown as { engines: Record<string, unknown> };
+      expect(Object.hasOwn(engines, "javascript")).toBe(false);
+      expect(() =>
+        actualMatter(
+          '---js\n{ name: (globalThis.__RULESYNC_FRONTMATTER_PWNED__ = 1, "x") }\n---\n',
+          {},
+        ),
+      ).toThrow(/engine "js" is not registered/);
+      expect(globals.__RULESYNC_FRONTMATTER_PWNED__).toBeUndefined();
+    });
+
+    it.each(["---yaml", "---yml", "--- YAML "])(
+      "should still parse an explicit %j fence",
+      (fence) => {
+        const result = parseFrontmatter(`${fence}\nname: test\n---\nBody`);
+
+        expect(result.frontmatter).toEqual({ name: "test" });
+        expect(result.body).toBe("Body");
+      },
+    );
+
+    it("should apply the size guard to an explicit yaml fence", () => {
+      const content = `---yaml\ndescription: "${"a".repeat(MAX_FRONTMATTER_RAW_CHARS)}"\n---\nBody`;
+
+      expect(() => parseFrontmatter(content)).toThrow(/Frontmatter block is larger than/);
+    });
+
+    it("should not treat a body that only starts with dashes as a language fence", () => {
+      const result = parseFrontmatter("----\nnot frontmatter\n");
+
+      expect(result.frontmatter).toEqual({});
     });
   });
 

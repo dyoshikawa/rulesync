@@ -1,5 +1,5 @@
 diff --git a/lib/engines.js b/lib/engines.js
-index 38f993db06cf364191ac635a6590c2d29303297d..bba7b012fb901eb37498cb953a34cfdc44098fd7 100644
+index 38f993db06cf364191ac635a6590c2d29303297d..c0f06e814f3af522074cc1e2e4da2646427bd71b 100644
 --- a/lib/engines.js
 +++ b/lib/engines.js
 @@ -13,8 +13,8 @@ const engines = exports = module.exports;
@@ -13,3 +13,31 @@ index 38f993db06cf364191ac635a6590c2d29303297d..bba7b012fb901eb37498cb953a34cfdc
  };
  
  /**
+@@ -31,24 +31,7 @@ engines.json = {
+ 
+ /**
+  * JavaScript
++ *
++ * Removed: the upstream engine passes the frontmatter block to eval(), so a
++ * file opening with `---js` would run arbitrary code. Patched out for rulesync.
+  */
+-
+-engines.javascript = {
+-  parse: function parse(str, options, wrap) {
+-    /* eslint no-eval: 0 */
+-    try {
+-      if (wrap !== false) {
+-        str = '(function() {\nreturn ' + str.trim() + ';\n}());';
+-      }
+-      return eval(str) || {};
+-    } catch (err) {
+-      if (wrap !== false && /(unexpected|identifier)/i.test(err.message)) {
+-        return parse(str, options, false);
+-      }
+-      throw new SyntaxError(err);
+-    }
+-  },
+-  stringify: function() {
+-    throw new Error('stringifying JavaScript is not supported');
+-  }
+-};
