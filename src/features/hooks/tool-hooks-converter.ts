@@ -144,6 +144,16 @@ export type ToolHooksConverterConfig = {
    * whose entries are all strings are emitted and imported, so a malformed
    * value cannot leak into a config the tool would reject.
    */
+  /**
+   * Canonical fields that *restrict* when a hook runs and that the tool
+   * refuses to honour: it skips a handler carrying one rather than run it
+   * unconditionally. On export, a definition carrying a non-empty value for
+   * one of them is skipped with a warning, so the generated config holds
+   * neither a handler the tool will not load nor a widened one that fires on
+   * every call its matcher selects. Import is unaffected: list the field in
+   * {@link stringPassthroughFields} too to keep it on an imported hook.
+   */
+  skippedWhenFields?: ReadonlyArray<"if">;
   arrayPassthroughFields?: ReadonlyArray<{
     readonly canonical: "args";
     readonly tool: string;
@@ -1079,6 +1089,62 @@ function emitAllPassthroughFields({
   };
 }
 
+/**
+ * Why a definition must not be emitted for this tool, or `undefined` when it
+ * can be: it carries a restricting field the tool refuses to honour (see
+ * `skippedWhenFields`).
+ */
+function describeExportSkipReason({
+  def,
+  hookType,
+  eventName,
+  converterConfig,
+}: {
+  def: HooksConfig["hooks"][string][number];
+  hookType: HookType;
+  eventName: string;
+  converterConfig: ToolHooksConverterConfig;
+}): string | undefined {
+  const field = converterConfig.skippedWhenFields?.find((name) => isNonEmptyString(def[name]));
+  if (field === undefined) {
+    return undefined;
+  }
+  return (
+    `Skipping a "${eventName}" ${hookType} hook (${quoteValueForWarning(def.command ?? def.url)}): ` +
+    `this tool does not support its "${field}" condition (${quoteValueForWarning(def[field])}), ` +
+    `and without it the hook would run on every call its matcher selects.`
+  );
+}
+
+/**
+ * Whether a definition can be emitted for this tool: its hook type is one the
+ * tool supports, and it carries no restricting field the tool refuses to
+ * honour (warned about here).
+ */
+function isEmittableDefinition({
+  def,
+  hookType,
+  eventName,
+  converterConfig,
+  warn,
+}: {
+  def: HooksConfig["hooks"][string][number];
+  hookType: HookType;
+  eventName: string;
+  converterConfig: ToolHooksConverterConfig;
+  warn?: (message: string) => void;
+}): boolean {
+  if (!isSupportedHookType({ type: hookType, converterConfig })) {
+    return false;
+  }
+  const skipReason = describeExportSkipReason({ def, hookType, eventName, converterConfig });
+  if (skipReason !== undefined) {
+    warn?.(skipReason);
+    return false;
+  }
+  return true;
+}
+
 function buildToolHooks({
   defs,
   eventName,
@@ -1093,7 +1159,7 @@ function buildToolHooks({
   const hooks: Array<Record<string, unknown>> = [];
   for (const def of defs) {
     const hookType = def.type ?? "command";
-    if (!isSupportedHookType({ type: hookType, converterConfig })) {
+    if (!isEmittableDefinition({ def, hookType, eventName, converterConfig, warn })) {
       continue;
     }
     const command = applyCommandPrefix({ def, converterConfig });

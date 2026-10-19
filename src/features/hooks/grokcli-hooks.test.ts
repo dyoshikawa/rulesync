@@ -547,3 +547,134 @@ describe("GrokcliHooks per-handler env", () => {
     ).toEqual([{ type: "command", command: "./notify.sh", env: { CI: "1" } }]);
   });
 });
+
+describe("GrokcliHooks args and if (issue #2498)", () => {
+  let testDir: string;
+  let cleanup: () => Promise<void>;
+
+  beforeEach(async () => {
+    ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
+  });
+
+  afterEach(async () => {
+    await cleanup();
+    vi.restoreAllMocks();
+  });
+
+  const fromCanonical = (config: unknown, logger = createMockLogger()) =>
+    GrokcliHooks.fromRulesyncHooks({
+      outputRoot: testDir,
+      rulesyncHooks: new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      }),
+      logger,
+    });
+
+  const fromToolFile = (config: unknown) =>
+    new GrokcliHooks({
+      outputRoot: testDir,
+      relativeDirPath: join(".grok", "hooks"),
+      relativeFilePath: "rulesync.json",
+      fileContent: JSON.stringify(config),
+    });
+
+  it("emits args on a command hook only", async () => {
+    // Grok 1.0.63+: a present `args` array makes `command` one program run
+    // without a shell; an http handler ignores `args`.
+    const hooks = await fromCanonical({
+      version: 1,
+      hooks: {
+        preToolUse: [
+          { type: "command", matcher: "Bash", command: "node", args: ["guard.js", "--strict"] },
+          { type: "command", matcher: "Bash", command: "./exec.sh", args: [] },
+          { type: "http", matcher: "Bash", url: "https://example.com/hook", args: ["x"] },
+        ],
+      },
+    });
+
+    const written = JSON.parse(hooks.getFileContent()).hooks.PreToolUse[0].hooks;
+    expect(written).toEqual([
+      { type: "command", command: "node", args: ["guard.js", "--strict"] },
+      { type: "command", command: "./exec.sh", args: [] },
+      { type: "http", url: "https://example.com/hook" },
+    ]);
+  });
+
+  it("round-trips args through generate and import", async () => {
+    const hooks = await fromCanonical({
+      version: 1,
+      hooks: { stop: [{ type: "command", command: "node", args: ["notify.js"] }] },
+    });
+
+    expect(
+      fromToolFile(JSON.parse(hooks.getFileContent())).toRulesyncHooks().getJson().hooks.stop,
+    ).toEqual([{ type: "command", command: "node", args: ["notify.js"] }]);
+  });
+
+  it("skips a hook carrying if with a warning instead of widening it", async () => {
+    const logger = createMockLogger();
+    const warnSpy = vi.spyOn(logger, "warn");
+    const hooks = await fromCanonical(
+      {
+        version: 1,
+        hooks: {
+          preToolUse: [
+            {
+              type: "command",
+              matcher: "Bash",
+              command: "./guard-push.sh",
+              if: "Bash(git push *)",
+            },
+            { type: "command", matcher: "Bash", command: "./audit.sh" },
+          ],
+        },
+      },
+      logger,
+    );
+
+    const written = JSON.parse(hooks.getFileContent()).hooks.PreToolUse[0].hooks;
+    expect(written).toEqual([{ type: "command", command: "./audit.sh" }]);
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('"if" condition'));
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("./guard-push.sh"));
+  });
+
+  it("drops the whole event when its only hook carries if", async () => {
+    const hooks = await fromCanonical({
+      version: 1,
+      hooks: {
+        preToolUse: [{ type: "command", matcher: "Bash", command: "./x.sh", if: "Bash(rm *)" }],
+      },
+    });
+
+    expect(JSON.parse(hooks.getFileContent()).hooks).toEqual({});
+  });
+
+  it("keeps if on a hook imported from a Grok hook file", () => {
+    const imported = fromToolFile({
+      hooks: {
+        PreToolUse: [
+          {
+            matcher: "Bash",
+            hooks: [{ type: "command", command: "./guard-push.sh", if: "Bash(git push *)" }],
+          },
+        ],
+      },
+    })
+      .toRulesyncHooks()
+      .getJson().hooks.preToolUse;
+
+    expect(imported).toEqual([
+      {
+        type: "command",
+        command: "./guard-push.sh",
+        if: "Bash(git push *)",
+        matcher: "Bash",
+      },
+    ]);
+  });
+});
