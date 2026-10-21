@@ -182,8 +182,14 @@ describe("HermesagentSubagent", () => {
             pluginName: "rulesync-subagents",
             pluginInit: pluginInit(),
             specKind: "subagents",
-            // A spec from an older Rulesync still carries the underscored name.
-            specs: { "Code_Reviewer.json": { ...reviewerSpec, hermes: undefined } },
+            // Without a spec name, the slug is normalized like hermesSlashName().
+            specs: {
+              "Code_Reviewer.json": {
+                ...reviewerSpec,
+                slug: "Code__Review.er_",
+                hermes: undefined,
+              },
+            },
             args: "",
             injectResult: false,
             contextSessionKey: "agent:main:telegram:dm:1",

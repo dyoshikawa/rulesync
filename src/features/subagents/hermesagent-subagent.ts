@@ -59,6 +59,7 @@ function getPluginInitContent(): string {
 
 import json
 import logging
+import re
 from pathlib import Path
 
 
@@ -88,7 +89,10 @@ def _command_name(subagent, slug):
     hermes = subagent.get("hermes")
     name = hermes.get("command") if isinstance(hermes, dict) else None
     name = name or f"rulesync-subagent-{slug}"
-    return str(name).lower().replace("_", "-").replace(" ", "-")
+    # Mirrors hermesSlashName() in src/features/shared/hermes-plugin-commands.ts.
+    name = re.sub(r"[ _]", "-", str(name).lower())
+    name = re.sub(r"[^a-z0-9-]", "", name)
+    return re.sub(r"-{2,}", "-", name).strip("-")
 
 
 ${getHermesQueueUserMessagePython({ pluginName: "rulesync-subagents" })}
