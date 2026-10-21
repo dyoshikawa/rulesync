@@ -13,6 +13,7 @@ import {
   applyFileMode,
   assertDirectoryIfExists,
   assertTreeContainsNoSymlinks,
+  assertPathResolvesInsideRoot,
   assertWritablePathInsideRoot,
   checkPathTraversal,
   createPathResolver,
@@ -158,6 +159,94 @@ describe("file utilities", () => {
   });
 
   describe.skipIf(process.platform === "win32")("safe writable paths", () => {
+    describe("assertPathResolvesInsideRoot", () => {
+      it("should accept a path that does not exist yet", async () => {
+        await expect(
+          assertPathResolvesInsideRoot({
+            rootPath: testDir,
+            targetPath: join(testDir, "a", "b", "c.md"),
+          }),
+        ).resolves.toBeUndefined();
+      });
+
+      it("should accept any path under a root that does not exist yet", async () => {
+        await expect(
+          assertPathResolvesInsideRoot({
+            rootPath: join(testDir, "missing-root"),
+            targetPath: join(testDir, "missing-root", "a", "b.md"),
+          }),
+        ).resolves.toBeUndefined();
+      });
+
+      it("should reject a root that is a dangling symbolic link", async () => {
+        const linkedRoot = join(testDir, "linked-root");
+        await symlink(join(testDir, "missing", "target"), linkedRoot);
+
+        await expect(
+          assertPathResolvesInsideRoot({
+            rootPath: linkedRoot,
+            targetPath: join(linkedRoot, "a.md"),
+          }),
+        ).rejects.toThrow("dangling symbolic link");
+      });
+
+      it("should accept a symbolic link that resolves inside the root", async () => {
+        const sharedDir = join(testDir, "shared");
+        await ensureDir(sharedDir);
+        await symlink(sharedDir, join(testDir, "linked"));
+
+        await expect(
+          assertPathResolvesInsideRoot({
+            rootPath: testDir,
+            targetPath: join(testDir, "linked", "nested", "file.md"),
+          }),
+        ).resolves.toBeUndefined();
+      });
+
+      it("should reject an ancestor symbolic link that resolves outside the root", async () => {
+        const rootDir = join(testDir, "project");
+        const outsideDir = join(testDir, "outside");
+        await ensureDir(rootDir);
+        await ensureDir(outsideDir);
+        await symlink(outsideDir, join(rootDir, "linked"));
+
+        await expect(
+          assertPathResolvesInsideRoot({
+            rootPath: rootDir,
+            targetPath: join(rootDir, "linked", "nested", "file.md"),
+          }),
+        ).rejects.toThrow("resolves outside");
+      });
+
+      it("should reject an existing file link that resolves outside the root", async () => {
+        const rootDir = join(testDir, "project");
+        const outsideFile = join(testDir, "outside.md");
+        await ensureDir(rootDir);
+        await writeFileContent(outsideFile, "secret");
+        await symlink(outsideFile, join(rootDir, "linked.md"));
+
+        await expect(
+          assertPathResolvesInsideRoot({
+            rootPath: rootDir,
+            targetPath: join(rootDir, "linked.md"),
+          }),
+        ).rejects.toThrow("resolves outside");
+      });
+
+      it("should reject a dangling symbolic link", async () => {
+        const rootDir = join(testDir, "project");
+        await ensureDir(rootDir);
+        await symlink(join(testDir, "missing", "dir"), join(rootDir, "dangling"));
+
+        await expect(
+          assertPathResolvesInsideRoot({
+            rootPath: rootDir,
+            targetPath: join(rootDir, "dangling", "file.md"),
+          }),
+        ).rejects.toThrow("dangling symbolic link");
+      });
+    });
+
     it("should reject a curated directory that is a symbolic link", async () => {
       const actualDir = join(testDir, "actual");
       const linkedDir = join(testDir, "linked");

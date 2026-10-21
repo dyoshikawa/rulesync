@@ -480,6 +480,23 @@ describe("addCommand", () => {
     expect(parsed.sources).toEqual([{ source: "owner/new" }]);
   });
 
+  it("should reject a --token-env that install would refuse without modifying the config", async () => {
+    const configPath = join(testDir, "rulesync.jsonc");
+    const originalContent = `{
+  "targets": ["claudecode"],
+  "features": ["skills"]
+}
+`;
+    await writeFileContent(configPath, originalContent);
+
+    await expect(
+      addCommand(logger, { source: "@acme/skills", transport: "npm", tokenEnv: "GITHUB_TOKEN" }),
+    ).rejects.toThrow(/--token-env "GITHUB_TOKEN" is not allowed/);
+
+    expect(await readFileContent(configPath)).toBe(originalContent);
+    expect(resolveAndFetchSources).not.toHaveBeenCalled();
+  });
+
   it("should reject a duplicate normalized source without modifying the config", async () => {
     const configPath = join(testDir, "rulesync.jsonc");
     const originalContent = `{

@@ -1571,6 +1571,7 @@ async function replaceCuratedRules(params: {
   localRuleNames: Set<string>;
   alreadyFetchedRuleNames: Set<string>;
   compareLockedIntegrity: boolean;
+  frozen: boolean;
   logger: Logger;
 }): Promise<Record<string, LockedRule>> {
   const {
@@ -1583,6 +1584,7 @@ async function replaceCuratedRules(params: {
     localRuleNames,
     alreadyFetchedRuleNames,
     compareLockedIntegrity,
+    frozen,
     logger,
   } = params;
   const protectedRuleNames = alreadyFetchedRuleNames;
@@ -1620,6 +1622,7 @@ async function replaceCuratedRules(params: {
         resolvedRef,
         sourceKey,
         compareLockedIntegrity,
+        frozen,
         logger,
       });
     }
@@ -1705,6 +1708,24 @@ function isValidRuleName(ruleName: string): boolean {
   );
 }
 
+/**
+ * A fetched artifact whose content no longer matches the integrity recorded
+ * for the same resolved ref. Under `--frozen` that is fatal — the lockfile is
+ * the contract, and the gh transport refuses the same case — otherwise it is
+ * reported and the new content is taken.
+ */
+function reportIntegrityMismatch(params: {
+  message: string;
+  frozen: boolean;
+  logger: Logger;
+}): void {
+  const { message, frozen, logger } = params;
+  if (frozen) {
+    throw new Error(`${message} Refusing to install it under --frozen.`);
+  }
+  logger.warn(message);
+}
+
 async function writeRuleAndComputeIntegrity(params: {
   rule: RemoteRuleFile;
   curatedDir: string;
@@ -1712,6 +1733,7 @@ async function writeRuleAndComputeIntegrity(params: {
   resolvedRef: string;
   sourceKey: string;
   compareLockedIntegrity?: boolean;
+  frozen: boolean;
   logger: Logger;
 }): Promise<LockedRule> {
   const {
@@ -1721,11 +1743,11 @@ async function writeRuleAndComputeIntegrity(params: {
     resolvedRef,
     sourceKey,
     compareLockedIntegrity = true,
+    frozen,
     logger,
   } = params;
   const relativePath = `${rule.name}.md`;
   checkPathTraversal({ relativePath, intendedRootDir: curatedDir });
-  await writeFileContent(join(curatedDir, relativePath), rule.content);
   const integrity = computeRuleIntegrity(rule.content);
   const lockedRuleEntry = locked?.rules?.[rule.name];
   if (
@@ -1734,10 +1756,13 @@ async function writeRuleAndComputeIntegrity(params: {
     lockedRuleEntry.integrity !== integrity &&
     resolvedRef === locked?.resolvedRef
   ) {
-    logger.warn(
-      `Integrity mismatch for rule "${rule.name}" from ${sourceKey}: expected "${lockedRuleEntry.integrity}", got "${integrity}". Content may have been tampered with.`,
-    );
+    reportIntegrityMismatch({
+      message: `Integrity mismatch for rule "${rule.name}" from ${sourceKey}: expected "${lockedRuleEntry.integrity}", got "${integrity}". Content may have been tampered with.`,
+      frozen,
+      logger,
+    });
   }
+  await writeFileContent(join(curatedDir, relativePath), rule.content);
   return { integrity };
 }
 
@@ -1752,34 +1777,41 @@ async function writeSkillAndComputeIntegrity(params: {
   locked: LockedSource | undefined;
   resolvedSha: string;
   sourceKey: string;
+  frozen: boolean;
   logger: Logger;
 }): Promise<LockedSkill> {
-  const { skillName, files, curatedDir, locked, resolvedSha, sourceKey, logger } = params;
-  const written: Array<{ path: string; content: string }> = [];
-
+  const { skillName, files, curatedDir, locked, resolvedSha, sourceKey, frozen, logger } = params;
   for (const file of files) {
     checkPathTraversal({
       relativePath: file.relativePath,
       intendedRootDir: join(curatedDir, skillName),
     });
-    const filePath = join(curatedDir, skillName, file.relativePath);
-    await writeFileContent(filePath, file.content);
-    if (file.executable === true) {
-      await applyFileMode(filePath, 0o755);
-    }
-    written.push({ path: file.relativePath, content: file.content });
   }
 
-  const integrity = computeSkillIntegrity(written);
+  // Compare before writing, so a mismatch under --frozen leaves the curated
+  // directory as it was.
+  const integrity = computeSkillIntegrity(
+    files.map((file) => ({ path: file.relativePath, content: file.content })),
+  );
   const lockedSkillEntry = locked?.skills[skillName];
   if (
     lockedSkillEntry?.integrity &&
     lockedSkillEntry.integrity !== integrity &&
     resolvedSha === locked?.resolvedRef
   ) {
-    logger.warn(
-      `Integrity mismatch for skill "${skillName}" from ${sourceKey}: expected "${lockedSkillEntry.integrity}", got "${integrity}". Content may have been tampered with.`,
-    );
+    reportIntegrityMismatch({
+      message: `Integrity mismatch for skill "${skillName}" from ${sourceKey}: expected "${lockedSkillEntry.integrity}", got "${integrity}". Content may have been tampered with.`,
+      frozen,
+      logger,
+    });
+  }
+
+  for (const file of files) {
+    const filePath = join(curatedDir, skillName, file.relativePath);
+    await writeFileContent(filePath, file.content);
+    if (file.executable === true) {
+      await applyFileMode(filePath, 0o755);
+    }
   }
 
   return { integrity };
@@ -2251,6 +2283,7 @@ async function fetchRulesViaGithub(params: {
   alreadyFetchedRuleNames: Set<string>;
   updateSources: boolean;
   forceRefetch: boolean;
+  frozen: boolean;
   logger: Logger;
 }): Promise<{ ruleCount: number; fetchedRuleNames: string[]; updatedLock: SourcesLock }> {
   const {
@@ -2262,6 +2295,7 @@ async function fetchRulesViaGithub(params: {
     alreadyFetchedRuleNames,
     updateSources,
     forceRefetch,
+    frozen,
     logger,
   } = params;
   const parsedFromSource = parseSource(sourceEntry.source);
@@ -2352,6 +2386,7 @@ async function fetchRulesViaGithub(params: {
     localRuleNames,
     alreadyFetchedRuleNames,
     compareLockedIntegrity: !updateSources && !forceRefetch,
+    frozen,
     logger,
   });
   const result = buildRuleLockUpdate({
@@ -2463,6 +2498,7 @@ async function fetchRulesViaGit(params: {
     localRuleNames,
     alreadyFetchedRuleNames,
     compareLockedIntegrity: !updateSources && !forceRefetch,
+    frozen,
     logger,
   });
   const result = buildRuleLockUpdate({
@@ -2549,6 +2585,7 @@ async function fetchRootLevelFallbackSkill(params: {
   semaphore: Semaphore;
   getExecutablePaths: ExecutablePathsLoader;
   fetchedSkills: Record<string, LockedSkill>;
+  frozen: boolean;
   logger: Logger;
 }): Promise<{ handled: boolean; remoteSkillNames: string[] }> {
   const {
@@ -2567,6 +2604,7 @@ async function fetchRootLevelFallbackSkill(params: {
     semaphore,
     getExecutablePaths,
     fetchedSkills,
+    frozen,
     logger,
   } = params;
 
@@ -2616,6 +2654,7 @@ async function fetchRootLevelFallbackSkill(params: {
       locked,
       resolvedSha,
       sourceKey,
+      frozen,
       logger,
     });
     logger.debug(`Fetched skill "${fallbackSkillName}" from ${sourceKey}`);
@@ -2639,6 +2678,7 @@ async function fetchGithubSkillDir(params: {
   client: GitHubClient;
   semaphore: Semaphore;
   getExecutablePaths: ExecutablePathsLoader;
+  frozen: boolean;
   logger: Logger;
 }): Promise<LockedSkill> {
   const {
@@ -2652,6 +2692,7 @@ async function fetchGithubSkillDir(params: {
     client,
     semaphore,
     getExecutablePaths,
+    frozen,
     logger,
   } = params;
 
@@ -2693,6 +2734,7 @@ async function fetchGithubSkillDir(params: {
     locked,
     resolvedSha,
     sourceKey,
+    frozen,
     logger,
   });
 }
@@ -2719,6 +2761,7 @@ async function discoverGithubSkillDirs(params: {
   semaphore: Semaphore;
   getExecutablePaths: ExecutablePathsLoader;
   fetchedSkills: Record<string, LockedSkill>;
+  frozen: boolean;
   logger: Logger;
 }): Promise<
   | { status: "notFound" }
@@ -2745,6 +2788,7 @@ async function discoverGithubSkillDirs(params: {
     semaphore,
     getExecutablePaths,
     fetchedSkills,
+    frozen,
     logger,
   } = params;
 
@@ -2790,6 +2834,7 @@ async function discoverGithubSkillDirs(params: {
         semaphore,
         getExecutablePaths,
         fetchedSkills,
+        frozen,
         logger,
       });
       if (fallback.handled) {
@@ -2918,6 +2963,7 @@ async function fetchSource(params: {
     semaphore,
     getExecutablePaths,
     fetchedSkills,
+    frozen,
     logger,
   });
   if (discovery.status === "notFound") {
@@ -2965,6 +3011,7 @@ async function fetchSource(params: {
       client,
       semaphore,
       getExecutablePaths,
+      frozen,
       logger,
     });
     logger.debug(`Fetched skill "${skillDir.name}" from ${sourceKey}`);
@@ -3103,6 +3150,7 @@ async function fetchSourceViaGit(params: {
       locked,
       resolvedSha,
       sourceKey: url,
+      frozen,
       logger,
     });
   }
@@ -3360,6 +3408,7 @@ async function fetchNpmSkills(params: {
   localSkillNames: Set<string>;
   alreadyFetchedSkillNames: Set<string>;
   resolvedVersion: string;
+  frozen: boolean;
   logger: Logger;
 }): Promise<{
   fetchedSkills: Record<string, LockedSkill>;
@@ -3379,6 +3428,7 @@ async function fetchNpmSkills(params: {
     localSkillNames,
     alreadyFetchedSkillNames,
     resolvedVersion,
+    frozen,
     logger,
   } = params;
   const skillFilter = sourceEntry.skills ?? [];
@@ -3424,6 +3474,7 @@ async function fetchNpmSkills(params: {
       locked: lockedForIntegrityCheck,
       resolvedSha: resolvedVersion,
       sourceKey: packageName,
+      frozen,
       logger,
     });
     logger.debug(`Fetched skill "${skillName}" from ${packageName}`);
@@ -3442,6 +3493,7 @@ async function fetchNpmRules(params: {
   alreadyFetchedRuleNames: Set<string>;
   resolvedVersion: string;
   updateSources: boolean;
+  frozen: boolean;
   logger: Logger;
 }): Promise<{ fetchedRules: Record<string, LockedRule>; resolvedRuleNames: string[] }> {
   if (params.sourceEntry.rules === undefined) {
@@ -3458,6 +3510,7 @@ async function fetchNpmRules(params: {
     alreadyFetchedRuleNames,
     resolvedVersion,
     updateSources,
+    frozen,
     logger,
   } = params;
   const normalizedRulesPath = resolveRulesPath(sourceEntry);
@@ -3489,6 +3542,7 @@ async function fetchNpmRules(params: {
     localRuleNames,
     alreadyFetchedRuleNames,
     compareLockedIntegrity: !updateSources,
+    frozen,
     logger,
   });
   return { fetchedRules, resolvedRuleNames };
@@ -3593,7 +3647,7 @@ async function fetchSourceViaNpm(params: {
   validateNpmPackageName(packageName);
   const registryUrl = sourceEntry.registry ?? DEFAULT_NPM_REGISTRY_URL;
   validateNpmRegistryUrl(registryUrl, { logger });
-  const token = resolveNpmToken({ tokenEnv: sourceEntry.tokenEnv });
+  const token = resolveNpmToken({ tokenEnv: sourceEntry.tokenEnv, registryUrl, logger });
 
   const sourceKey = packageName;
   const locked = getNpmLockedSource(npmLock, sourceKey);
@@ -3665,6 +3719,7 @@ async function fetchSourceViaNpm(params: {
     localSkillNames,
     alreadyFetchedSkillNames,
     resolvedVersion,
+    frozen,
     logger,
   });
 
@@ -3679,6 +3734,7 @@ async function fetchSourceViaNpm(params: {
     alreadyFetchedRuleNames,
     resolvedVersion,
     updateSources,
+    frozen,
     logger,
   });
 

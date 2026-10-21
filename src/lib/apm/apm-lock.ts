@@ -3,7 +3,12 @@ import { join } from "node:path";
 import { dump } from "js-yaml";
 import { nonnegative, optional, refine, z } from "zod/mini";
 
-import { fileExists, readFileContent, writeFileContent } from "../../utils/file.js";
+import {
+  assertWritablePathInsideRoot,
+  fileExists,
+  readFileContent,
+  writeFileContent,
+} from "../../utils/file.js";
 import { loadYaml } from "../../utils/yaml.js";
 
 /**
@@ -138,6 +143,9 @@ export async function readApmLock(projectRoot: string): Promise<ApmLock | null> 
 export async function writeApmLock(params: { projectRoot: string; lock: ApmLock }): Promise<void> {
   const path = getApmLockPath(params.projectRoot);
   const content = serializeApmLock(params.lock);
+  // The lockfile is committed with the project; refuse to follow a link that
+  // would make this write overwrite a file elsewhere.
+  await assertWritablePathInsideRoot({ rootPath: params.projectRoot, targetPath: path });
   await writeFileContent(path, content);
 }
 

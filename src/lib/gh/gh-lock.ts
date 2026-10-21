@@ -3,7 +3,12 @@ import { join } from "node:path";
 import { dump } from "js-yaml";
 import { optional, refine, z } from "zod/mini";
 
-import { fileExists, readFileContent, writeFileContent } from "../../utils/file.js";
+import {
+  assertWritablePathInsideRoot,
+  fileExists,
+  readFileContent,
+  writeFileContent,
+} from "../../utils/file.js";
 import { loadYaml } from "../../utils/yaml.js";
 
 /**
@@ -115,6 +120,9 @@ export async function readGhLock(projectRoot: string): Promise<GhLock | null> {
 export async function writeGhLock(params: { projectRoot: string; lock: GhLock }): Promise<void> {
   const path = getGhLockPath(params.projectRoot);
   const content = serializeGhLock(params.lock);
+  // The lockfile is committed with the project; refuse to follow a link that
+  // would make this write overwrite a file elsewhere.
+  await assertWritablePathInsideRoot({ rootPath: params.projectRoot, targetPath: path });
   await writeFileContent(path, content);
 }
 

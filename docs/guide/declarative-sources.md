@@ -71,7 +71,7 @@ Add a `sources` array to your `rulesync.jsonc`:
       "source": "@acme/skill-package",
       "transport": "npm",
       "registry": "https://acme.jfrog.io/artifactory/api/npm/npm-local/",
-      "tokenEnv": "ACME_REGISTRY_TOKEN",
+      "tokenEnv": "ACME_NPM_TOKEN",
     },
   ],
 }
@@ -89,7 +89,7 @@ Each entry in `sources` accepts:
 | `path`      | `string`   | Path to the skills directory within the repository. Defaults to `"skills"`. Set to `""`, `"."`, or `"./"` to target the entire repository root (see note below). For GitHub transport, use the `:path` source syntax.                                                      |
 | `rulesPath` | `string`   | Path to the rules directory within the repository or package. Defaults to `"rules"`. This is independent from the skills-only `path` field.                                                                                                                                |
 | `registry`  | `string`   | npm transport only. Base URL of the npm-compatible registry. Defaults to `https://registry.npmjs.org`.                                                                                                                                                                     |
-| `tokenEnv`  | `string`   | npm transport only. Name of the environment variable holding the registry token. Defaults to `NPM_TOKEN`.                                                                                                                                                                  |
+| `tokenEnv`  | `string`   | npm transport only. Name of the environment variable holding the registry token. Defaults to `NPM_TOKEN`. Must be `NPM_TOKEN` or end with `_NPM_TOKEN` (e.g. `ACME_NPM_TOKEN`).                                                                                            |
 
 An empty `skills` or `rules` list fails only the source that declares it, in `--frozen` mode too: the other sources are still installed into `.curated/`, and then `install` exits with an error that counts the failed sources.
 
@@ -116,6 +116,11 @@ How a package is fetched:
 Package layout: skills are discovered the same way as for the git transports. Skill directories under `skills/` (or the configured `path`) are installed as `.rulesync/skills/.curated/<name>/`. Direct `.md` files under `rules/` (or the configured `rulesPath`) can be selected with `rules` and are installed under `.rulesync/rules/.curated/`. A single-skill package with `SKILL.md` at the package root is installed as one skill named after the package's base name (`@acme/my-skill` installs as `my-skill`); note that this root fallback installs the package's root-level files only, so prefer the `skills/<name>/` layout for skills that carry subdirectories such as `references/`.
 
 Authentication uses a bearer token from an environment variable: `NPM_TOKEN` by default, or the variable named by the per-source `tokenEnv` field. The token is sent as `Authorization: Bearer <token>` to the registry (and to the tarball host only when it matches the registry host). `.npmrc` files are intentionally **not** read.
+
+Because `registry` and `tokenEnv` live in the project's committed config, a cloned repository must not be able to send your token to a host of its choosing. rulesync therefore:
+
+- only accepts a `tokenEnv` named `NPM_TOKEN` or ending with `_NPM_TOKEN`, so a config cannot point it at unrelated secrets such as `GITHUB_TOKEN`;
+- only sends a token to `https://registry.npmjs.org`, or to a registry whose origin you list in the `RULESYNC_NPM_TRUSTED_REGISTRIES` environment variable (comma-separated, e.g. `RULESYNC_NPM_TRUSTED_REGISTRIES=https://acme.jfrog.io`). For any other registry, the `NPM_TOKEN` fallback is not sent (rulesync warns and requests anonymously), and an explicit `tokenEnv` is an error.
 
 Resolved versions are pinned in `rulesync-npm.lock.json` (next to `rulesync.lock`), which records the resolved version, the tarball integrity, and per-artifact content hashes. Commit it for reproducible installs; `--update` and `--frozen` behave the same as for git sources.
 
@@ -204,6 +209,8 @@ Example `rulesync.jsonc`:
 
 Run with `npx rulesync install --mode gh`.
 
+Files that a previous run deployed and the upstream no longer ships are removed again, but only from that skill's own install directory. Because `rulesync-gh.lock.yaml` is committed with the project, user-scope files are only cleaned up while the current config still installs the same source with the same agent at user scope; otherwise rulesync warns and leaves them for you to remove.
+
 ## CLI Options
 
 The `install` command accepts these flags:
@@ -238,7 +245,7 @@ rulesync generate
 
 ## Lockfile
 
-The lockfile at `rulesync.lock` (at the project root) records the resolved commit SHA, the skill and rule selections each entry was written for, and per-artifact integrity hashes for each source so that builds are reproducible. Rulesync verifies cached rule and skill content against these hashes before reusing it: a curated rule or skill whose files were edited, added, or removed in place is fetched again at its locked ref (under `--frozen` too) and restored to the locked content. Two cases are checked for presence only: a skill whose name an earlier declared source already installed (the curated directory holds that source's copy, which takes precedence), and a skill locked with an empty integrity by the migration from the legacy lockfile format, until `--update` or a ref change fetches it again and records its hash. It is safe to commit this file. An example:
+The lockfile at `rulesync.lock` (at the project root) records the resolved commit SHA, the skill and rule selections each entry was written for, and per-artifact integrity hashes for each source so that builds are reproducible. Rulesync verifies cached rule and skill content against these hashes before reusing it: a curated rule or skill whose files were edited, added, or removed in place is fetched again at its locked ref (under `--frozen` too) and restored to the locked content. If the content fetched at the locked ref does not match the recorded hash, rulesync warns and takes it; under `--frozen` it refuses to install that source instead. Two cases are checked for presence only: a skill whose name an earlier declared source already installed (the curated directory holds that source's copy, which takes precedence), and a skill locked with an empty integrity by the migration from the legacy lockfile format, until `--update` or a ref change fetches it again and records its hash. It is safe to commit this file. An example:
 
 ```json
 {
@@ -315,7 +322,7 @@ It is safe (and recommended) to commit this file as well.
 
 ## Authentication
 
-GitHub transport uses the `GITHUB_TOKEN` or `GH_TOKEN` environment variable for authentication. This is required for private repositories and recommended for better rate limits. Git transport relies on your local git credential configuration (SSH keys, credential helpers, etc.). npm transport (experimental) uses the `NPM_TOKEN` environment variable, or the variable named by the per-source `tokenEnv` field; `.npmrc` files are not read.
+GitHub transport uses the `GITHUB_TOKEN` or `GH_TOKEN` environment variable for authentication. This is required for private repositories and recommended for better rate limits. Git transport relies on your local git credential configuration (SSH keys, credential helpers, etc.). npm transport (experimental) uses the `NPM_TOKEN` environment variable, or the variable named by the per-source `tokenEnv` field (which must be `NPM_TOKEN` or end with `_NPM_TOKEN`); `.npmrc` files are not read. A registry other than `https://registry.npmjs.org` only receives the token when its origin is listed in `RULESYNC_NPM_TRUSTED_REGISTRIES` (see [npm Transport](#npm-transport-experimental)).
 
 ```bash
 # Using environment variable

@@ -1297,6 +1297,62 @@ describe("resolveAndFetchSources", () => {
     ).toBe(computeRuleIntegrity(newRuleContent));
   });
 
+  it.each([
+    { frozen: true, expectedFailures: 1 },
+    { frozen: false, expectedFailures: 0 },
+  ])(
+    "should handle a rule integrity mismatch at the locked ref (frozen: $frozen)",
+    async ({ frozen, expectedFailures }) => {
+      const { readLockFile } = await import("./sources-lock.js");
+      const lockedSha = "c".repeat(40);
+      vi.mocked(readLockFile).mockResolvedValue({
+        lockfileVersion: 1,
+        sources: {
+          "org/repo": {
+            requestedRef: "main",
+            resolvedRef: lockedSha,
+            skills: {},
+            rules: { shared: { integrity: computeRuleIntegrity("locked rule") } },
+            ruleSelection: ["shared"],
+            rulesPath: "rules",
+            resolvedRuleNames: ["shared"],
+          },
+        },
+      });
+      vi.mocked(fileExists).mockResolvedValue(false);
+      mockClientInstance.resolveRefToSha.mockResolvedValue(lockedSha);
+      mockClientInstance.listDirectory.mockImplementation(
+        async (_owner: string, _repo: string, path: string) =>
+          path === "rules"
+            ? [{ name: "shared.md", path: "rules/shared.md", type: "file", size: 50 }]
+            : [],
+      );
+      mockClientInstance.getFileContent.mockResolvedValue("tampered rule");
+
+      const result = await resolveAndFetchSources({
+        logger,
+        sources: [{ source: "org/repo", rules: ["shared"] }],
+        projectRoot: testDir,
+        options: { frozen },
+      });
+
+      expect(result.failedSourceCount).toBe(expectedFailures);
+      const wroteTampered = vi
+        .mocked(writeFileContent)
+        .mock.calls.some(
+          ([path, content]) => path.endsWith("shared.md") && content === "tampered rule",
+        );
+      expect(wroteTampered).toBe(!frozen);
+      if (frozen) {
+        expect(logger.error).toHaveBeenCalledWith(
+          expect.stringContaining("Refusing to install it under --frozen"),
+        );
+      } else {
+        expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("Integrity mismatch"));
+      }
+    },
+  );
+
   it("should preserve existing rules when a GitHub download fails", async () => {
     const { readLockFile } = await import("./sources-lock.js");
     vi.mocked(readLockFile).mockResolvedValue({
@@ -3226,7 +3282,13 @@ describe("resolveAndFetchSources", () => {
       sources: {
         "org/repo": {
           resolvedRef: "sha-123",
-          skills: { "missing-skill": { integrity: "sha256-xxx" } },
+          skills: {
+            "missing-skill": {
+              integrity: computeSkillIntegrity([
+                { path: "SKILL.md", content: "locked skill content" },
+              ]),
+            },
+          },
         },
       },
     });
@@ -3307,6 +3369,53 @@ describe("resolveAndFetchSources", () => {
 
     // Should have warned about integrity mismatch
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("Integrity mismatch"));
+  });
+
+  it("should refuse an integrity mismatch under --frozen without writing the skill", async () => {
+    const { readLockFile } = await import("./sources-lock.js");
+
+    vi.mocked(readLockFile).mockResolvedValue({
+      lockfileVersion: 1,
+      sources: {
+        "org/repo": {
+          resolvedRef: "locked-sha-123",
+          requestedRef: "main",
+          skills: { "my-skill": { integrity: "sha256-old-hash" } },
+        },
+      },
+    });
+    vi.mocked(directoryExists).mockResolvedValue(false);
+    mockClientInstance.resolveRefToSha.mockResolvedValue("locked-sha-123");
+    mockClientInstance.listDirectory.mockImplementation(
+      async (_owner: string, _repo: string, path: string) => {
+        if (path === "skills") {
+          return [{ name: "my-skill", path: "skills/my-skill", type: "dir" }];
+        }
+        if (path === "skills/my-skill") {
+          return [{ name: "SKILL.md", path: "skills/my-skill/SKILL.md", type: "file", size: 100 }];
+        }
+        return [];
+      },
+    );
+    mockClientInstance.getFileContent.mockResolvedValue("tampered content");
+
+    const result = await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "https://github.com/org/repo" }],
+      projectRoot: testDir,
+      options: { frozen: true },
+    });
+
+    expect(result.failedSourceCount).toBe(1);
+    expect(result.fetchedSkillCount).toBe(0);
+
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.stringContaining("Refusing to install it under --frozen"),
+    );
+    expect(writeFileContent).not.toHaveBeenCalledWith(
+      expect.stringContaining("my-skill"),
+      "tampered content",
+    );
   });
 
   it("should preserve lock entries for skipped skills", async () => {

@@ -625,7 +625,7 @@ describe("Config", () => {
           source: "@acme/skills",
           transport: "npm",
           registry: "https://acme.jfrog.io/artifactory/api/npm/npm-local/",
-          tokenEnv: "ACME_REGISTRY_TOKEN",
+          tokenEnv: "ACME_NPM_TOKEN",
         },
       ]);
       expect(result.success).toBe(true);

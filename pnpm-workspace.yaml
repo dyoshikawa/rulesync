@@ -7,6 +7,7 @@ allowBuilds:
 ignoreScripts: false
 minimumReleaseAge: 1440 # 1 day
 overrides:
-  gray-matter>js-yaml: 4.3.1
+  gray-matter>js-yaml: 4.3.2
+  "js-yaml@<4.3.2": 4.3.2
 patchedDependencies:
   gray-matter@4.0.3: patches/gray-matter@4.0.3.patch

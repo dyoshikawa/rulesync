@@ -1,7 +1,10 @@
+import { readdir, symlink } from "node:fs/promises";
+import { join } from "node:path";
+
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { readFileContent } from "../../utils/file.js";
+import { readFileContent, writeFileContent } from "../../utils/file.js";
 import {
   createEmptyGhLock,
   findGhLockInstallation,
@@ -182,6 +185,23 @@ installations:
     afterEach(async () => {
       await cleanup();
     });
+
+    it.skipIf(process.platform === "win32")(
+      "refuses to write through a lockfile that is a symbolic link",
+      async () => {
+        const outside = join(testDir, "outside");
+        await writeFileContent(join(outside, "target.yaml"), "keep");
+        const projectRoot = join(testDir, "project");
+        await writeFileContent(join(projectRoot, ".keep"), "");
+        await symlink(join(outside, "target.yaml"), getGhLockPath(projectRoot));
+
+        await expect(writeGhLock({ projectRoot, lock: createEmptyGhLock() })).rejects.toThrow(
+          /symbolic link/,
+        );
+        expect(await readFileContent(join(outside, "target.yaml"))).toBe("keep");
+        expect(await readdir(outside)).toEqual(["target.yaml"]);
+      },
+    );
 
     it("returns null when the lockfile does not exist", async () => {
       expect(await readGhLock(testDir)).toBeNull();

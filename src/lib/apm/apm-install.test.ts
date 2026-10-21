@@ -1,3 +1,4 @@
+import { mkdir, readdir, symlink } from "node:fs/promises";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -159,6 +160,46 @@ describe("installApm", () => {
     });
     expect(lock?.dependencies[0]?.content_hash).toMatch(/^sha256:[0-9a-f]{64}$/);
   });
+
+  it.skipIf(process.platform === "win32")(
+    "refuses to deploy through a symbolic link that leads outside projectRoot",
+    async () => {
+      mockClientInstance.listDirectory.mockImplementation(
+        async (_owner: string, _repo: string, path: string) => {
+          if (path === ".apm/instructions") {
+            return [
+              {
+                name: "security.instructions.md",
+                path: ".apm/instructions/security.instructions.md",
+                type: "file",
+                size: 100,
+              },
+            ];
+          }
+          const err = new Error(`Not found: ${path}`) as Error & { statusCode?: number };
+          err.statusCode = 404;
+          throw err;
+        },
+      );
+      mockClientInstance.getFileContent.mockResolvedValue("planted");
+      const projectRoot = join(testDir, "project");
+      const outsideDir = join(testDir, "outside");
+      await mkdir(join(projectRoot, ".github"), { recursive: true });
+      await mkdir(outsideDir, { recursive: true });
+      await symlink(outsideDir, join(projectRoot, ".github", "instructions"));
+      await writeFileContent(
+        getApmManifestPath(projectRoot),
+        `dependencies:
+  apm:
+    - acme/security#v1.0.0
+`,
+      );
+
+      await installApm({ projectRoot, logger }).catch(() => undefined);
+
+      expect(await readdir(outsideDir)).toEqual([]);
+    },
+  );
 
   it("uses the default branch when no ref is given", async () => {
     await writeManifest(

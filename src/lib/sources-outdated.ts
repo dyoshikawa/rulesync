@@ -98,7 +98,7 @@ async function resolveLatestRef(params: {
     validateNpmPackageName(packageName);
     const registryUrl = sourceEntry.registry ?? DEFAULT_NPM_REGISTRY_URL;
     validateNpmRegistryUrl(registryUrl, { logger });
-    const token = resolveNpmToken({ tokenEnv: sourceEntry.tokenEnv });
+    const token = resolveNpmToken({ tokenEnv: sourceEntry.tokenEnv, registryUrl, logger });
     const requestedRef =
       resolveNpmFetchVersion({ sourceEntry, locked: undefined, updateSources: true })
         .requestedVersion ?? "latest";
