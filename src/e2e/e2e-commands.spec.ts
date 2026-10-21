@@ -610,7 +610,7 @@ describe("E2E: commands (global mode)", () => {
     );
     const config = await readFileContent(join(homeDir, getHermesagentGlobalDir(), "config.yaml"));
     expect(plugin).toContain("ctx.register_command(slug, handler, description)");
-    expect(plugin).toContain('"delegate_task"');
+    expect(plugin).toContain('ctx.inject_message(message, role="user", session_key=session_key)');
     expect(plugin).toContain('Path(__file__).resolve().parents[2] / "rulesync" / "commands"');
     expect(plugin).not.toContain('Path.home() / ".hermes"');
     expect(config).toContain("- rulesync-commands");

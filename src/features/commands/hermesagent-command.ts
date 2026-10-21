@@ -28,6 +28,10 @@ import {
   getHermesagentRulesyncOutputRoot,
   getHermesagentSharedConfigWritePaths,
 } from "../../utils/hermesagent.js";
+import {
+  getHermesQueueUserMessagePython,
+  hermesSlashName,
+} from "../shared/hermes-plugin-commands.js";
 import { applySharedConfigPatch, parseSharedConfig } from "../shared/shared-config-gateway.js";
 import { HermesagentSkill } from "../skills/hermesagent-skill.js";
 import { RulesyncSkill } from "../skills/rulesync-skill.js";
@@ -47,15 +51,6 @@ const HermesCommandSpecSchema = z.object({
 });
 
 type HermesCommandSpec = z.infer<typeof HermesCommandSpecSchema>;
-
-function hermesSlashName(value: string): string {
-  return value
-    .toLowerCase()
-    .replace(/[ _]/g, "-")
-    .replace(/[^a-z0-9-]/g, "")
-    .replace(/-{2,}/g, "-")
-    .replace(/^-|-$/g, "");
-}
 
 function getPluginManifestContent(): string {
   return [
@@ -91,6 +86,8 @@ def _load_commands():
     return commands
 
 
+${getHermesQueueUserMessagePython({ pluginName: "rulesync-commands" })}
+
 def _register_command(ctx, command):
     slug = command.get("slug")
     if not slug:
@@ -100,31 +97,22 @@ def _register_command(ctx, command):
     prompt = command.get("prompt") or ""
 
     def handler(args=None, **kwargs):
-        del kwargs
         raw_args = ""
         if isinstance(args, dict):
             raw_args = args.get("args") or args.get("context") or args.get("prompt") or ""
         elif args is not None:
             raw_args = str(args)
 
-        context_parts = [prompt] if prompt else []
+        parts = [prompt] if prompt else []
         if raw_args:
-            context_parts.append(f"User arguments:\\n{raw_args}")
+            parts.append(f"User arguments:\\n{raw_args}")
 
-        # delegate_task takes no model-facing "toolsets" argument: the child
-        # inherits the parent's enabled toolsets. "tasks" is the only shape its
-        # schema advertises; a top-level "goal" is an unadvertised legacy path.
-        return ctx.dispatch_tool(
-            "delegate_task",
-            {
-                "tasks": [
-                    {
-                        "goal": description,
-                        "context": "\\n\\n".join(context_parts),
-                    },
-                ],
-            },
-        )
+        # A slash command runs outside any agent turn, so calling delegate_task
+        # here fails with "delegate_task requires a parent agent context".
+        # Queue the command prompt as the session's next user message instead.
+        label = f"the /{slug} command"
+        error = _queue_user_message(ctx, "\\n\\n".join(parts) or description, kwargs, label)
+        return error or f"Queued {label}."
 
     ctx.register_command(slug, handler, description)
 
