@@ -9,7 +9,9 @@ import { describe, expect, it } from "vitest";
 const workflow = load(
   readFileSync(new URL("../.github/workflows/pr-policy.yml", import.meta.url), "utf8"),
 ) as {
-  jobs: { "check-policy": { steps: { name: string; env: Record<string, string>; run: string }[] } };
+  jobs: {
+    "check-policy": { steps: { name?: string; env: Record<string, string>; run: string }[] };
+  };
 };
 
 function getPolicyStep(steps: (typeof workflow.jobs)["check-policy"]["steps"]) {
@@ -66,10 +68,15 @@ describe("PR policy workflow", () => {
     );
   });
 
+  // The bot cases below set PR_AUTHOR_TYPE directly, so this is the only check
+  // that the workflow actually wires it to the event's account type.
   it("reads the PR author's account type from the event", () => {
     expect(step.env.PR_AUTHOR_TYPE).toBe("${{ github.event.pull_request.user.type }}");
   });
+});
 
+// These tests run the policy step's bash script, so they need bash (CI runs on ubuntu-latest).
+describe.skipIf(process.platform === "win32")("PR policy script", () => {
   it.each(["dependabot[bot]", "renovate[bot]", "another-app[bot]"])(
     "skips bot author %s even when it exceeds both limits",
     (login) => {

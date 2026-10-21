@@ -8,8 +8,9 @@ If you're new to the project, you can ask [DeepWiki](https://deepwiki.com/dyoshi
 
 ## Pull Request Guidelines
 
-- For external contributors, keep the number of added lines in a PR to around 400 lines or fewer. The hard limit is 1,000 lines — PRs exceeding it will be automatically closed by our CI.
-- External contributors may have up to 2 open PRs at a time. This limit is automatically enforced — a third PR will be closed by our CI. If you want to open more, please either temporarily close an existing PR or wait until an existing PR has been reviewed by a maintainer.
+- For external contributors, keep the number of added lines in a PR to around 400 lines or fewer. The hard limit is 1,000 lines — when a PR is opened above it, our CI comments and asks you to split it.
+- External contributors may have up to 2 open PRs at a time. When you open a third one, our CI comments on it to point this out. If you want to open more, please either temporarily close an existing PR or wait until an existing PR has been reviewed by a maintainer.
+- PRs opened by bots and GitHub Apps (e.g. Dependabot) are exempt from both limits.
 - Please note that the maintainer may add additional commits on top of your commits before merging at their discretion. In such cases, your original commits will still be preserved as your contribution.
 - Before marking your PR as "Ready for Review", use the `review-pr` skill with an AI agent (e.g., Claude Code) in this repository to get automated feedback and address any issues.
 
