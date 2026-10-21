@@ -1,10 +1,14 @@
-import { execFile } from "node:child_process";
+import { execFile, spawnSync } from "node:child_process";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
 import { writeFileContent } from "../utils/file.js";
 
 const execFileAsync = promisify(execFile);
+
+/** Whether a `python3` interpreter is available to run the generated plugins. */
+export const hasPython3 =
+  process.platform !== "win32" && spawnSync("python3", ["--version"]).status === 0;
 
 export type HermesPluginRun = {
   commands: string[];
@@ -71,6 +75,9 @@ export async function runHermesPlugin({
       "import logging",
       "import sys",
       "",
+      "options = json.loads(sys.argv[1])",
+      "sys.path.insert(0, options['stubs'])",
+      "",
       "warnings = []",
       "class _Collect(logging.Handler):",
       "    def emit(self, record):",
@@ -88,7 +95,6 @@ export async function runHermesPlugin({
       "        self.injected.append({'content': content, 'role': role, 'kwargs': kwargs})",
       "        return self.inject_result",
       "",
-      "options = json.loads(sys.argv[1])",
       "spec = importlib.util.spec_from_file_location('plugin', options['init'])",
       "plugin = importlib.util.module_from_spec(spec)",
       "spec.loader.exec_module(plugin)",
@@ -111,8 +117,11 @@ export async function runHermesPlugin({
   const { stdout } = await execFileAsync(
     "python3",
     [
+      // Isolated mode: no user site-packages, no PYTHON* env vars, no script dir on sys.path.
+      "-I",
       runnerPath,
       JSON.stringify({
+        stubs: stubDir,
         init: join(pluginDir, "__init__.py"),
         args,
         kwargs: handlerKwargs,
@@ -121,8 +130,9 @@ export async function runHermesPlugin({
     ],
     {
       env: {
-        ...process.env,
-        PYTHONPATH: stubDir,
+        ...Object.fromEntries(
+          Object.entries(process.env).filter(([name]) => !name.startsWith("PYTHON")),
+        ),
         STUB_CONTEXT_SESSION_KEY: contextSessionKey,
       },
     },

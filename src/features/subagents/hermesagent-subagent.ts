@@ -49,7 +49,7 @@ function getPluginManifestContent(): string {
   return [
     "name: rulesync-subagents",
     'version: "1.0.0"',
-    "description: Exposes RuleSync subagents as Hermes native delegation commands.",
+    "description: Exposes RuleSync subagents as Hermes slash commands that queue a delegation prompt.",
     "",
   ].join("\n");
 }

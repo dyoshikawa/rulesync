@@ -7,7 +7,7 @@ import {
   RULESYNC_RELATIVE_DIR_PATH,
   RULESYNC_SKILLS_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
-import { runHermesPlugin } from "../../test-utils/hermes-plugin-runner.js";
+import { hasPython3, runHermesPlugin } from "../../test-utils/hermes-plugin-runner.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { CommandsProcessor } from "./commands-processor.js";
@@ -89,7 +89,7 @@ describe("HermesagentCommand", () => {
     expect(config?.getFileContent()).toContain("- rulesync-commands");
   });
 
-  it.runIf(process.platform !== "win32")(
+  it.runIf(hasPython3)(
     "queues the command prompt as a user message and reports a refused injection",
     async () => {
       const files = await HermesagentCommand.getAuxiliaryFiles({
@@ -136,7 +136,8 @@ describe("HermesagentCommand", () => {
       });
       expect(refused.injected[0]?.kwargs).toEqual({ session_key: "agent:main:telegram:dm:1" });
       expect(refused.replies.review).toBe(
-        "Hermes refused to queue the /review command. Allow it with " +
+        "Hermes refused to queue the /review command: there is no active session, or this plugin " +
+          "may not inject messages. In gateway sessions, set " +
           "plugins.entries.rulesync-commands.allow_gateway_injection: true in config.yaml.",
       );
     },

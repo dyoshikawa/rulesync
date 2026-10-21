@@ -49,7 +49,8 @@ def _queue_user_message(ctx, message, kwargs, label):
         return f"Could not queue {label}: {error}"
     if not queued:
         return (
-            f"Hermes refused to queue {label}. Allow it with "
+            f"Hermes refused to queue {label}: there is no active session, or this plugin "
+            "may not inject messages. In gateway sessions, set "
             "plugins.entries.${pluginName}.allow_gateway_injection: true in config.yaml."
         )
     return None

@@ -10,7 +10,7 @@ import {
   HERMESAGENT_RULESYNC_SUBAGENTS_PLUGIN_DIR_PATH,
 } from "../../constants/hermesagent-paths.js";
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
-import { runHermesPlugin } from "../../test-utils/hermes-plugin-runner.js";
+import { hasPython3, runHermesPlugin } from "../../test-utils/hermes-plugin-runner.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { getHermesagentSharedConfigWritePaths } from "../../utils/hermesagent.js";
 import { parseSharedConfig } from "../shared/shared-config-gateway.js";
@@ -137,7 +137,7 @@ describe("HermesagentSubagent", () => {
       hermes: { command: "rulesync-subagent-code-reviewer" },
     };
 
-    test.runIf(process.platform !== "win32")(
+    test.runIf(hasPython3)(
       "queues the brief as a user message on the calling session",
       async () => {
         const { testDir, cleanup } = await setupTestDirectory();
@@ -172,7 +172,7 @@ describe("HermesagentSubagent", () => {
       },
     );
 
-    test.runIf(process.platform !== "win32")(
+    test.runIf(hasPython3)(
       "falls back to the session context key and reports a refused injection",
       async () => {
         const { testDir, cleanup } = await setupTestDirectory();
@@ -192,7 +192,8 @@ describe("HermesagentSubagent", () => {
           expect(run.commands).toEqual(["rulesync-subagent-code-reviewer"]);
           expect(run.injected[0]?.kwargs).toEqual({ session_key: "agent:main:telegram:dm:1" });
           expect(run.replies["rulesync-subagent-code-reviewer"]).toBe(
-            "Hermes refused to queue the Reviewer subagent task. Allow it with " +
+            "Hermes refused to queue the Reviewer subagent task: there is no active session, or this plugin " +
+              "may not inject messages. In gateway sessions, set " +
               "plugins.entries.rulesync-subagents.allow_gateway_injection: true in config.yaml.",
           );
         } finally {
@@ -201,7 +202,7 @@ describe("HermesagentSubagent", () => {
       },
     );
 
-    test.runIf(process.platform !== "win32")(
+    test.runIf(hasPython3)(
       "warns and keeps the first subagent when two map to the same command",
       async () => {
         const { testDir, cleanup } = await setupTestDirectory();
