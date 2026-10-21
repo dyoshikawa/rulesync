@@ -470,7 +470,7 @@ function checkTokenEnvVars({
         code: "config/token-env-not-allowed",
         file,
         message: `Source '${String(source.source ?? "<unnamed>")}' sets tokenEnv '${tokenEnv}', which is not an npm token variable.`,
-        hint: `Use ${DEFAULT_NPM_TOKEN_ENV} or a name ending with _${DEFAULT_NPM_TOKEN_ENV} (e.g. ACME_${DEFAULT_NPM_TOKEN_ENV}).`,
+        hint: `Use ${DEFAULT_NPM_TOKEN_ENV}, NODE_AUTH_TOKEN, or a name ending with _${DEFAULT_NPM_TOKEN_ENV} (e.g. ACME_${DEFAULT_NPM_TOKEN_ENV}).`,
       });
       continue;
     }

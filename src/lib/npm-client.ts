@@ -88,12 +88,12 @@ export function validateNpmRegistryUrl(url: string, options?: { logger?: Logger 
 export const NPM_TRUSTED_REGISTRIES_ENV = "RULESYNC_NPM_TRUSTED_REGISTRIES";
 
 /**
- * Names `tokenEnv` may point at: `NPM_TOKEN` itself or any `*_NPM_TOKEN`.
+ * Names `tokenEnv` may point at: `NPM_TOKEN`, `NODE_AUTH_TOKEN`, or any `*_NPM_TOKEN`.
  * `tokenEnv` comes from the committed `rulesync.jsonc`, so without this rule a
  * repository could have rulesync read any secret in the environment (a
  * `GITHUB_TOKEN`, cloud credentials, ...) and send it to a registry.
  */
-const NPM_TOKEN_ENV_NAME_REGEX = /^(?:[A-Z0-9_]*_)?NPM_TOKEN$/;
+const NPM_TOKEN_ENV_NAME_REGEX = /^(?:(?:[A-Z0-9_]*_)?NPM_TOKEN|NODE_AUTH_TOKEN)$/;
 
 export function isAllowedNpmTokenEnvName(name: string): boolean {
   return NPM_TOKEN_ENV_NAME_REGEX.test(name);
@@ -132,7 +132,7 @@ export function isTrustedNpmRegistry(
 
 /**
  * Resolve the registry token from the environment. When `tokenEnv` is set it
- * must name an existing `NPM_TOKEN` / `*_NPM_TOKEN` variable; otherwise
+ * must name an existing `NPM_TOKEN` / `NODE_AUTH_TOKEN` / `*_NPM_TOKEN` variable; otherwise
  * `NPM_TOKEN` is used when present. A token is only ever returned for a
  * trusted registry (see {@link isTrustedNpmRegistry}): `registry` and
  * `tokenEnv` both come from the project's config, so a cloned repository must
@@ -147,7 +147,7 @@ export function resolveNpmToken(params: {
   const { tokenEnv, registryUrl, logger } = params;
   if (tokenEnv !== undefined && !isAllowedNpmTokenEnvName(tokenEnv)) {
     throw new NpmClientError(
-      `tokenEnv "${tokenEnv}" is not allowed. It must be "${DEFAULT_NPM_TOKEN_ENV}" or end with "_${DEFAULT_NPM_TOKEN_ENV}" (e.g. "ACME_${DEFAULT_NPM_TOKEN_ENV}").`,
+      `tokenEnv "${tokenEnv}" is not allowed. It must be "${DEFAULT_NPM_TOKEN_ENV}", "NODE_AUTH_TOKEN", or end with "_${DEFAULT_NPM_TOKEN_ENV}" (e.g. "ACME_${DEFAULT_NPM_TOKEN_ENV}").`,
     );
   }
 

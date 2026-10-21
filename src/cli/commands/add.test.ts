@@ -480,6 +480,26 @@ describe("addCommand", () => {
     expect(parsed.sources).toEqual([{ source: "owner/new" }]);
   });
 
+  it("should accept NODE_AUTH_TOKEN for an npm source", async () => {
+    const configPath = join(testDir, "rulesync.jsonc");
+    await writeFileContent(
+      configPath,
+      JSON.stringify({ targets: ["claudecode"], features: ["skills"] }),
+    );
+
+    await addCommand(logger, {
+      source: "@acme/skills",
+      transport: "npm",
+      tokenEnv: "NODE_AUTH_TOKEN",
+    });
+
+    const parsed = parseJsonc(await readFileContent(configPath)) as { sources: SourceEntry[] };
+    expect(parsed.sources).toEqual([
+      { source: "@acme/skills", transport: "npm", tokenEnv: "NODE_AUTH_TOKEN" },
+    ]);
+    expect(resolveAndFetchSources).toHaveBeenCalled();
+  });
+
   it("should reject a --token-env that install would refuse without modifying the config", async () => {
     const configPath = join(testDir, "rulesync.jsonc");
     const originalContent = `{

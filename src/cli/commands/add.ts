@@ -236,7 +236,7 @@ function buildSourceEntry(options: AddCommandOptions): SourceEntry {
   // `install` refuses any other name, so do not write a config it cannot use.
   if (options.tokenEnv !== undefined && !isAllowedNpmTokenEnvName(options.tokenEnv)) {
     throw new Error(
-      `--token-env "${options.tokenEnv}" is not allowed. It must be "${DEFAULT_NPM_TOKEN_ENV}" or end with "_${DEFAULT_NPM_TOKEN_ENV}" (e.g. "ACME_${DEFAULT_NPM_TOKEN_ENV}").`,
+      `--token-env "${options.tokenEnv}" is not allowed. It must be "${DEFAULT_NPM_TOKEN_ENV}", "NODE_AUTH_TOKEN", or end with "_${DEFAULT_NPM_TOKEN_ENV}" (e.g. "ACME_${DEFAULT_NPM_TOKEN_ENV}").`,
     );
   }
   return SourceEntrySchema.parse({
