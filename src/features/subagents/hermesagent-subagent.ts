@@ -18,6 +18,10 @@ import {
   getHermesagentRulesyncOutputRoot,
   getHermesagentSharedConfigWritePaths,
 } from "../../utils/hermesagent.js";
+import {
+  getHermesQueueUserMessagePython,
+  hermesSlashName,
+} from "../shared/hermes-plugin-commands.js";
 import { applySharedConfigPatch, parseSharedConfig } from "../shared/shared-config-gateway.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
 import {
@@ -37,14 +41,8 @@ function subagentSlug(relativeFilePath: string): string {
   return basename(relativeFilePath, ".md").replace(/[^a-zA-Z0-9_-]/g, "_");
 }
 
-/**
- * Hermes' messaging gateway looks plugin commands up with every `_` turned
- * into `-` (`gateway/run_inbound_hooks.py`), and `register_command` lowercases
- * the name, so the command must be lowercase and hyphenated to be reachable.
- * Keep in sync with `_command_name` in the generated plugin.
- */
 function hermesCommandName(slug: string): string {
-  return `rulesync-subagent-${slug.replace(/_/g, "-").toLowerCase()}`;
+  return hermesSlashName(`rulesync-subagent-${slug}`);
 }
 
 function getPluginManifestContent(): string {
@@ -60,9 +58,11 @@ function getPluginInitContent(): string {
   return `"""RuleSync-generated Hermes subagent commands."""
 
 import json
+import logging
 from pathlib import Path
 
 
+logger = logging.getLogger(__name__)
 SUBAGENTS_DIR = Path(__file__).resolve().parents[2] / "rulesync" / "subagents"
 
 
@@ -82,29 +82,33 @@ def _load_subagents():
     return subagents
 
 
-def _command_name(slug):
-    # Hermes' messaging gateway resolves plugin commands with "_" turned into
-    # "-", so an underscored name is never found there.
-    return "rulesync-subagent-" + str(slug).replace("_", "-").lower()
+def _command_name(subagent, slug):
+    # The spec carries the name Rulesync normalized; Hermes' messaging gateway
+    # resolves plugin commands with "_" turned into "-", so keep it hyphenated.
+    hermes = subagent.get("hermes")
+    name = hermes.get("command") if isinstance(hermes, dict) else None
+    name = name or f"rulesync-subagent-{slug}"
+    return str(name).lower().replace("_", "-").replace(" ", "-")
 
 
-def _session_key(kwargs):
-    session_key = kwargs.get("session_key")
-    if session_key:
-        return session_key
-    try:
-        from gateway.session_context import get_session_env
-    except Exception:
-        return None
-    return get_session_env("HERMES_SESSION_KEY") or None
+${getHermesQueueUserMessagePython({ pluginName: "rulesync-subagents" })}
 
-
-def _register_subagent(ctx, subagent):
+def _register_subagent(ctx, subagent, registered):
     slug = subagent.get("slug")
     if not slug:
         return
 
-    command_name = _command_name(slug)
+    command_name = _command_name(subagent, slug)
+    if command_name in registered:
+        logger.warning(
+            "rulesync-subagents: %s and %s both map to /%s; keeping the first.",
+            registered[command_name],
+            subagent.get("_path"),
+            command_name,
+        )
+        return
+    registered[command_name] = subagent.get("_path")
+
     name = subagent.get("name") or slug
     description = subagent.get("description") or f"Delegate work to the {name} RuleSync subagent."
     system_prompt = subagent.get("prompt") or ""
@@ -128,31 +132,18 @@ def _register_subagent(ctx, subagent):
             parts.append(f"Subagent instructions:\\n{system_prompt}")
         if user_context:
             parts.append(f"Task details:\\n{user_context}")
-        message = "\\n\\n".join(parts)
 
-        session_key = _session_key(kwargs)
-        try:
-            if session_key:
-                queued = ctx.inject_message(message, role="user", session_key=session_key)
-            else:
-                queued = ctx.inject_message(message, role="user")
-        except Exception as error:
-            return f"Could not queue the {name} subagent task: {error}"
-
-        if not queued:
-            return (
-                f"Hermes refused to queue the {name} subagent task. In gateway sessions, "
-                "allow it with plugins.entries.rulesync-subagents.allow_gateway_injection: true "
-                "in config.yaml."
-            )
-        return f"Queued the {name} subagent task; the agent will delegate it."
+        label = f"the {name} subagent task"
+        error = _queue_user_message(ctx, "\\n\\n".join(parts), kwargs, label)
+        return error or f"Queued {label}; the agent will delegate it."
 
     ctx.register_command(command_name, handler, description)
 
 
 def register(ctx):
+    registered = {}
     for subagent in _load_subagents():
-        _register_subagent(ctx, subagent)
+        _register_subagent(ctx, subagent, registered)
 `;
 }
 

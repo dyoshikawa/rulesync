@@ -7,6 +7,7 @@ import {
   RULESYNC_RELATIVE_DIR_PATH,
   RULESYNC_SKILLS_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
+import { runHermesPlugin } from "../../test-utils/hermes-plugin-runner.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { CommandsProcessor } from "./commands-processor.js";
@@ -76,14 +77,9 @@ describe("HermesagentCommand", () => {
     const config = files.find((file) => file.getRelativePathFromCwd() === ".hermes/config.yaml");
 
     expect(init?.getFileContent()).toContain("ctx.register_command(slug, handler, description)");
-    expect(init?.getFileContent()).toContain('ctx.dispatch_tool(\n            "delegate_task"');
-    // delegate_task takes no model-facing "toolsets" argument (issue #2414).
-    expect(init?.getFileContent()).not.toContain('"toolsets":');
-    // Dispatch through the advertised `tasks=[...]` batch shape, not the
-    // legacy top-level `goal` (issue #2414).
-    expect(init?.getFileContent()).toContain(
-      '"tasks": [\n                    {\n                        "goal": description,',
-    );
+    // A slash command has no parent agent, so delegate_task cannot be called
+    // from it; the prompt is queued as a user message instead (issue #3563).
+    expect(init?.getFileContent()).not.toContain("ctx.dispatch_tool(");
     expect(init?.getFileContent()).toContain(
       'Path(__file__).resolve().parents[2] / "rulesync" / "commands"',
     );
@@ -92,6 +88,59 @@ describe("HermesagentCommand", () => {
     expect(config?.getFileContent()).toContain("- existing-plugin");
     expect(config?.getFileContent()).toContain("- rulesync-commands");
   });
+
+  it.runIf(process.platform !== "win32")(
+    "queues the command prompt as a user message and reports a refused injection",
+    async () => {
+      const files = await HermesagentCommand.getAuxiliaryFiles({
+        toolCommands: [
+          HermesagentCommand.fromRulesyncCommand({ rulesyncCommand: rulesyncCommand() }),
+        ],
+      });
+      const init = files.find((file) => file.getRelativeFilePath() === "__init__.py");
+      if (!init) throw new Error("Hermes commands plugin was not generated");
+      const spec = {
+        slug: "review",
+        description: "Review the current changes",
+        prompt: "Review the diff carefully.",
+      };
+
+      const accepted = await runHermesPlugin({
+        root: join(testDir, "accepted"),
+        pluginName: "rulesync-commands",
+        pluginInit: init.getFileContent(),
+        specKind: "commands",
+        specs: { "review.json": spec },
+        args: "src/",
+        handlerKwargs: { session_key: "agent:main:cli:abc" },
+      });
+      expect(accepted.commands).toEqual(["review"]);
+      expect(accepted.injected).toEqual([
+        {
+          content: "Review the diff carefully.\n\nUser arguments:\nsrc/",
+          role: "user",
+          kwargs: { session_key: "agent:main:cli:abc" },
+        },
+      ]);
+      expect(accepted.replies.review).toBe("Queued the /review command.");
+
+      const refused = await runHermesPlugin({
+        root: join(testDir, "refused"),
+        pluginName: "rulesync-commands",
+        pluginInit: init.getFileContent(),
+        specKind: "commands",
+        specs: { "review.json": spec },
+        args: "",
+        injectResult: false,
+        contextSessionKey: "agent:main:telegram:dm:1",
+      });
+      expect(refused.injected[0]?.kwargs).toEqual({ session_key: "agent:main:telegram:dm:1" });
+      expect(refused.replies.review).toBe(
+        "Hermes refused to queue the /review command. Allow it with " +
+          "plugins.entries.rulesync-commands.allow_gateway_injection: true in config.yaml.",
+      );
+    },
+  );
 
   it("cleans the commands plugin only when its ownership marker matches", async () => {
     const pluginDir = join(testDir, ".hermes", "plugins", "rulesync-commands");

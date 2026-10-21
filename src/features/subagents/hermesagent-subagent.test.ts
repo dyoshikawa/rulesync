@@ -10,6 +10,7 @@ import {
   HERMESAGENT_RULESYNC_SUBAGENTS_PLUGIN_DIR_PATH,
 } from "../../constants/hermesagent-paths.js";
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import { runHermesPlugin } from "../../test-utils/hermes-plugin-runner.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { getHermesagentSharedConfigWritePaths } from "../../utils/hermesagent.js";
 import { parseSharedConfig } from "../shared/shared-config-gateway.js";
@@ -89,19 +90,9 @@ describe("HermesagentSubagent", () => {
     expect(subagentSpec?.getFileContent()).not.toContain("toolsets");
 
     const plugin = files.find((file) => file.getRelativeFilePath() === `__init__.py`);
-    // Hermes' gateway looks plugin commands up with "_" turned into "-", so the
-    // registered name must be hyphenated (issue #3563).
-    expect(plugin?.getFileContent()).toContain(
-      'return "rulesync-subagent-" + str(slug).replace("_", "-").lower()',
-    );
-    expect(plugin?.getFileContent()).not.toContain("rulesync_subagent_");
     // A slash command has no parent agent, so delegate_task cannot be called
     // from it; the brief is queued as a user message instead (issue #3563).
     expect(plugin?.getFileContent()).not.toContain("ctx.dispatch_tool(");
-    expect(plugin?.getFileContent()).toContain(
-      'ctx.inject_message(message, role="user", session_key=session_key)',
-    );
-    expect(plugin?.getFileContent()).toContain("Use the delegate_task tool");
     expect(plugin?.getFileContent()).toContain("ctx.register_command");
     expect(plugin?.getFileContent()).toContain(
       'Path(__file__).resolve().parents[2] / "rulesync" / "subagents"',
@@ -128,6 +119,121 @@ describe("HermesagentSubagent", () => {
       slug: "Code_Reviewer",
       hermes: { command: "rulesync-subagent-code-reviewer" },
     });
+  });
+
+  describe("generated plugin (python3)", () => {
+    const pluginInit = (): string => {
+      const init = HermesagentSubagent.fromRulesyncSubagents({ rulesyncSubagents: [] }).find(
+        (file) => file.getRelativeFilePath() === "__init__.py",
+      );
+      if (!init) throw new Error("Hermes subagents plugin was not generated");
+      return init.getFileContent();
+    };
+    const reviewerSpec = {
+      slug: "Code_Reviewer",
+      name: "Reviewer",
+      description: "Review code",
+      prompt: "Be careful.",
+      hermes: { command: "rulesync-subagent-code-reviewer" },
+    };
+
+    test.runIf(process.platform !== "win32")(
+      "queues the brief as a user message on the calling session",
+      async () => {
+        const { testDir, cleanup } = await setupTestDirectory();
+        try {
+          const run = await runHermesPlugin({
+            root: testDir,
+            pluginName: "rulesync-subagents",
+            pluginInit: pluginInit(),
+            specKind: "subagents",
+            specs: { "Code_Reviewer.json": reviewerSpec },
+            args: "check src/",
+            handlerKwargs: { session_key: "agent:main:cli:abc" },
+          });
+
+          expect(run.commands).toEqual(["rulesync-subagent-code-reviewer"]);
+          expect(run.injected).toEqual([
+            {
+              content:
+                "Use the delegate_task tool to hand the following task to a subagent acting as " +
+                "the Reviewer RuleSync subagent.\n\nGoal: Review code\n\n" +
+                "Subagent instructions:\nBe careful.\n\nTask details:\ncheck src/",
+              role: "user",
+              kwargs: { session_key: "agent:main:cli:abc" },
+            },
+          ]);
+          expect(run.replies["rulesync-subagent-code-reviewer"]).toBe(
+            "Queued the Reviewer subagent task; the agent will delegate it.",
+          );
+        } finally {
+          await cleanup();
+        }
+      },
+    );
+
+    test.runIf(process.platform !== "win32")(
+      "falls back to the session context key and reports a refused injection",
+      async () => {
+        const { testDir, cleanup } = await setupTestDirectory();
+        try {
+          const run = await runHermesPlugin({
+            root: testDir,
+            pluginName: "rulesync-subagents",
+            pluginInit: pluginInit(),
+            specKind: "subagents",
+            // A spec from an older Rulesync still carries the underscored name.
+            specs: { "Code_Reviewer.json": { ...reviewerSpec, hermes: undefined } },
+            args: "",
+            injectResult: false,
+            contextSessionKey: "agent:main:telegram:dm:1",
+          });
+
+          expect(run.commands).toEqual(["rulesync-subagent-code-reviewer"]);
+          expect(run.injected[0]?.kwargs).toEqual({ session_key: "agent:main:telegram:dm:1" });
+          expect(run.replies["rulesync-subagent-code-reviewer"]).toBe(
+            "Hermes refused to queue the Reviewer subagent task. Allow it with " +
+              "plugins.entries.rulesync-subagents.allow_gateway_injection: true in config.yaml.",
+          );
+        } finally {
+          await cleanup();
+        }
+      },
+    );
+
+    test.runIf(process.platform !== "win32")(
+      "warns and keeps the first subagent when two map to the same command",
+      async () => {
+        const { testDir, cleanup } = await setupTestDirectory();
+        try {
+          const run = await runHermesPlugin({
+            root: testDir,
+            pluginName: "rulesync-subagents",
+            pluginInit: pluginInit(),
+            specKind: "subagents",
+            specs: {
+              // Distinct file names on case-insensitive file systems too.
+              "a-reviewer.json": reviewerSpec,
+              "b-reviewer.json": {
+                ...reviewerSpec,
+                slug: "code-reviewer",
+                name: "Other",
+                hermes: undefined,
+              },
+            },
+            args: "",
+            handlerKwargs: { session_key: "agent:main:cli:abc" },
+          });
+
+          expect(run.commands).toEqual(["rulesync-subagent-code-reviewer"]);
+          expect(run.replies["rulesync-subagent-code-reviewer"]).toContain("Reviewer");
+          expect(run.warnings).toHaveLength(1);
+          expect(run.warnings[0]).toContain("both map to /rulesync-subagent-code-reviewer");
+        } finally {
+          await cleanup();
+        }
+      },
+    );
   });
 
   test("declares the Hermes subagent directory as settable", () => {
