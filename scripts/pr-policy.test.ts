@@ -55,8 +55,7 @@ ${step.run}`,
   });
 }
 
-// The policy step is a bash script, so these tests need bash (CI runs on ubuntu-latest).
-describe.skipIf(process.platform === "win32")("PR policy workflow", () => {
+describe("PR policy workflow", () => {
   it("finds the policy step after an unrelated step", () => {
     const steps = [{ name: "Prepare runner", env: {}, run: "exit 1" }, step];
 
@@ -74,7 +73,10 @@ describe.skipIf(process.platform === "win32")("PR policy workflow", () => {
   it("reads the PR author's account type from the event", () => {
     expect(step.env.PR_AUTHOR_TYPE).toBe("${{ github.event.pull_request.user.type }}");
   });
+});
 
+// These tests run the policy step's bash script, so they need bash (CI runs on ubuntu-latest).
+describe.skipIf(process.platform === "win32")("PR policy script", () => {
   it.each(["dependabot[bot]", "renovate[bot]", "another-app[bot]"])(
     "skips bot author %s even when it exceeds both limits",
     (login) => {
