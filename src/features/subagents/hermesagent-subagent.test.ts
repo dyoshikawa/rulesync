@@ -79,24 +79,29 @@ describe("HermesagentSubagent", () => {
       description: "Review code changes",
       prompt: "Review the code carefully.",
       hermes: {
-        command: "rulesync_subagent_reviewer",
-        dispatch: "delegate_task",
+        command: "rulesync-subagent-reviewer",
+        dispatch: "inject_message",
       },
     });
 
     // delegate_task takes no model-facing "toolsets" argument (issue #2414),
-    // so neither the spec nor the dispatch payload may advertise one.
+    // so the spec must not advertise one.
     expect(subagentSpec?.getFileContent()).not.toContain("toolsets");
 
     const plugin = files.find((file) => file.getRelativeFilePath() === `__init__.py`);
-    expect(plugin?.getFileContent()).toContain("ctx.dispatch_tool(");
-    expect(plugin?.getFileContent()).toContain('"delegate_task"');
-    expect(plugin?.getFileContent()).not.toContain('"toolsets":');
-    // Dispatch through the advertised `tasks=[...]` batch shape, not the
-    // legacy top-level `goal` (issue #2414).
+    // Hermes' gateway looks plugin commands up with "_" turned into "-", so the
+    // registered name must be hyphenated (issue #3563).
     expect(plugin?.getFileContent()).toContain(
-      '"tasks": [\n                    {\n                        "goal": description,',
+      'return "rulesync-subagent-" + str(slug).replace("_", "-").lower()',
     );
+    expect(plugin?.getFileContent()).not.toContain("rulesync_subagent_");
+    // A slash command has no parent agent, so delegate_task cannot be called
+    // from it; the brief is queued as a user message instead (issue #3563).
+    expect(plugin?.getFileContent()).not.toContain("ctx.dispatch_tool(");
+    expect(plugin?.getFileContent()).toContain(
+      'ctx.inject_message(message, role="user", session_key=session_key)',
+    );
+    expect(plugin?.getFileContent()).toContain("Use the delegate_task tool");
     expect(plugin?.getFileContent()).toContain("ctx.register_command");
     expect(plugin?.getFileContent()).toContain(
       'Path(__file__).resolve().parents[2] / "rulesync" / "subagents"',
@@ -104,6 +109,25 @@ describe("HermesagentSubagent", () => {
 
     const manifest = files.find((file) => file.getRelativeFilePath() === `plugin.yaml`);
     expect(manifest?.getFileContent()).toContain("name: rulesync-subagents");
+  });
+
+  test("hyphenates and lowercases the Hermes command name of an underscored slug", () => {
+    const rulesyncSubagent = new RulesyncSubagent({
+      relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+      relativeFilePath: `${RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH}/Code_Reviewer.md`,
+      frontmatter: { name: "Code Reviewer" },
+      body: "Review the code carefully.",
+    });
+
+    const subagent = HermesagentSubagent.fromRulesyncSubagent({
+      relativeDirPath: HERMESAGENT_RULESYNC_SUBAGENTS_DIR_PATH,
+      rulesyncSubagent,
+    });
+
+    expect(JSON.parse(subagent.getFileContent())).toMatchObject({
+      slug: "Code_Reviewer",
+      hermes: { command: "rulesync-subagent-code-reviewer" },
+    });
   });
 
   test("declares the Hermes subagent directory as settable", () => {

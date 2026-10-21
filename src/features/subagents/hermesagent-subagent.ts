@@ -37,8 +37,14 @@ function subagentSlug(relativeFilePath: string): string {
   return basename(relativeFilePath, ".md").replace(/[^a-zA-Z0-9_-]/g, "_");
 }
 
+/**
+ * Hermes' messaging gateway looks plugin commands up with every `_` turned
+ * into `-` (`gateway/run_inbound_hooks.py`), and `register_command` lowercases
+ * the name, so the command must be lowercase and hyphenated to be reachable.
+ * Keep in sync with `_command_name` in the generated plugin.
+ */
 function hermesCommandName(slug: string): string {
-  return `rulesync_subagent_${slug}`;
+  return `rulesync-subagent-${slug.replace(/_/g, "-").toLowerCase()}`;
 }
 
 function getPluginManifestContent(): string {
@@ -76,45 +82,70 @@ def _load_subagents():
     return subagents
 
 
+def _command_name(slug):
+    # Hermes' messaging gateway resolves plugin commands with "_" turned into
+    # "-", so an underscored name is never found there.
+    return "rulesync-subagent-" + str(slug).replace("_", "-").lower()
+
+
+def _session_key(kwargs):
+    session_key = kwargs.get("session_key")
+    if session_key:
+        return session_key
+    try:
+        from gateway.session_context import get_session_env
+    except Exception:
+        return None
+    return get_session_env("HERMES_SESSION_KEY") or None
+
+
 def _register_subagent(ctx, subagent):
     slug = subagent.get("slug")
     if not slug:
         return
 
-    command_name = f"rulesync_subagent_{slug}"
+    command_name = _command_name(slug)
     name = subagent.get("name") or slug
     description = subagent.get("description") or f"Delegate work to the {name} RuleSync subagent."
     system_prompt = subagent.get("prompt") or ""
 
     def handler(args=None, **kwargs):
-        del kwargs
         user_context = ""
         if isinstance(args, dict):
             user_context = args.get("context") or args.get("task") or args.get("prompt") or ""
         elif args is not None:
             user_context = str(args)
 
-        context_parts = []
+        # A slash command runs outside any agent turn, so calling delegate_task
+        # here fails with "delegate_task requires a parent agent context".
+        # Queue the brief as a user message instead; the agent then delegates.
+        parts = [
+            f"Use the delegate_task tool to hand the following task to a subagent "
+            f"acting as the {name} RuleSync subagent.",
+            f"Goal: {description}",
+        ]
         if system_prompt:
-            context_parts.append(system_prompt)
+            parts.append(f"Subagent instructions:\\n{system_prompt}")
         if user_context:
-            context_parts.append(user_context)
+            parts.append(f"Task details:\\n{user_context}")
+        message = "\\n\\n".join(parts)
 
-        # delegate_task takes no model-facing "toolsets" argument: a subagent
-        # inherits the parent's enabled toolsets (role="orchestrator" is the
-        # only knob that changes them). "tasks" is the only shape its schema
-        # advertises; a top-level "goal" is an unadvertised legacy path.
-        return ctx.dispatch_tool(
-            "delegate_task",
-            {
-                "tasks": [
-                    {
-                        "goal": description,
-                        "context": "\\n\\n".join(context_parts),
-                    },
-                ],
-            },
-        )
+        session_key = _session_key(kwargs)
+        try:
+            if session_key:
+                queued = ctx.inject_message(message, role="user", session_key=session_key)
+            else:
+                queued = ctx.inject_message(message, role="user")
+        except Exception as error:
+            return f"Could not queue the {name} subagent task: {error}"
+
+        if not queued:
+            return (
+                f"Hermes refused to queue the {name} subagent task. In gateway sessions, "
+                "allow it with plugins.entries.rulesync-subagents.allow_gateway_injection: true "
+                "in config.yaml."
+            )
+        return f"Queued the {name} subagent task; the agent will delegate it."
 
     ctx.register_command(command_name, handler, description)
 
@@ -168,7 +199,7 @@ function getSubagentSpec(rulesyncSubagent: RulesyncSubagent): Record<string, unk
     prompt: rulesyncSubagent.getBody(),
     hermes: {
       command: hermesCommandName(slug),
-      dispatch: "delegate_task",
+      dispatch: "inject_message",
     },
   };
 }
