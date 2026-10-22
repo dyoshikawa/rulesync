@@ -61,7 +61,9 @@ describe("OpencodeHooks", () => {
 
       // Both shell events land in the named tool.execute.* hooks with an
       // implicit bash gate, alongside the matcher-driven preToolUse handler.
-      expect(content).toContain('"tool.execute.before": async (input) =>');
+      // The preToolUse handler receives the stdin payload, so the before hook
+      // also takes `output` (the tool arguments).
+      expect(content).toContain('"tool.execute.before": async (input, output) =>');
       expect(content).toContain('"tool.execute.after": async (input) =>');
       const gateCount = content.split('if (input.tool === "bash")').length - 1;
       expect(gateCount).toBe(2);

@@ -36,6 +36,10 @@ import {
  *    (`preferred` lets a `subagents` settings override or the `/subagents`
  *    picker replace the model; `required` locks dispatch to the authored
  *    list). CLI v1.0.81+; the shared reference page still lists `model` only.
+ *  - The VS Code Copilot harness also documents `model` as a string array
+ *    in preference order. Preserve that spelling instead of rewriting it
+ *    to the separate `models` field.
+ *    https://github.com/microsoft/vscode-docs/blob/main/docs/agents/reference/custom-agent-file-reference.md
  *
  * `looseObject` is used so that future additional fields are passed through
  * unchanged (consistent with the rest of rulesync's frontmatter schemas).
@@ -45,7 +49,7 @@ const CopilotCliSubagentFrontmatterSchema = z.looseObject({
   name: z.optional(z.string()),
   target: z.optional(z.string()),
   tools: z.optional(z.union([z.string(), z.array(z.string())])),
-  model: z.optional(z.string()),
+  model: z.optional(z.union([z.string(), z.array(z.string())])),
   models: z.optional(z.array(z.string())),
   modelPolicy: z.optional(z.enum(["preferred", "required"])),
   "disable-model-invocation": z.optional(z.boolean()),
