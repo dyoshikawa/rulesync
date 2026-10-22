@@ -1714,6 +1714,7 @@ describe("ClaudecodePermissions", () => {
       [{ allowUnsandboxedCommands: true }, "sandbox.allowUnsandboxedCommands"],
       [{ autoAllowBashIfSandboxed: true }, "sandbox.autoAllowBashIfSandboxed"],
       [{ enableWeakerNestedSandbox: true }, "sandbox.enableWeakerNestedSandbox"],
+      [{ allowNestedUserNamespaces: true }, "sandbox.allowNestedUserNamespaces"],
       [{ enableWeakerNetworkIsolation: true }, "sandbox.enableWeakerNetworkIsolation"],
       [{ ignoreViolations: { "*": ["/etc/hosts"] } }, "sandbox.ignoreViolations"],
       [{ network: { allowMachLookup: ["*"] } }, "sandbox.network.allowMachLookup"],
@@ -1761,6 +1762,7 @@ describe("ClaudecodePermissions", () => {
               enabled: false,
               allowUnsandboxedCommands: false,
               autoAllowBashIfSandboxed: false,
+              allowNestedUserNamespaces: false,
               excludedCommands: [],
               filesystem: { denyWrite: ["~/.ssh"] },
               ignoreViolations: {},
@@ -2458,6 +2460,7 @@ describe("ClaudecodePermissions", () => {
       ["disableSkillShellExecution", "disableSkillShellExecution", 0],
       ["sandbox.filesystem.allowRead", "sandbox", { filesystem: { allowRead: "/etc" } }],
       ["sandbox.enableWeakerNestedSandbox", "sandbox", { enableWeakerNestedSandbox: 1 }],
+      ["sandbox.allowNestedUserNamespaces", "sandbox", { allowNestedUserNamespaces: "true" }],
       ["sandbox.network.allowLocalBinding", "sandbox", { network: { allowLocalBinding: "yes" } }],
     ])("reports an off-type '%s' rather than passing it over", async (label, key, value) => {
       const mockLogger = createMockLogger();

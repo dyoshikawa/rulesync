@@ -117,14 +117,21 @@ describe("ZcodeMcp", () => {
       });
     });
 
-    it("should write timeout as timeoutMs and keep cwd, protocolVersion and zcodeOauth", async () => {
+    it("should write timeout as timeoutMs and keep cwd, protocolVersion, alwaysLoad and zcodeOauth", async () => {
       const mcp = await ZcodeMcp.fromRulesyncMcp({
         outputRoot: testDir,
         rulesyncMcp: buildRulesyncMcp({
-          local: { command: "srv", cwd: "./tools", timeout: 30000, protocolVersion: "legacy" },
+          local: {
+            command: "srv",
+            cwd: "./tools",
+            timeout: 30000,
+            protocolVersion: "legacy",
+            alwaysLoad: true,
+          },
           remote: {
             type: "http",
             url: "https://example.com/mcp",
+            alwaysLoad: false,
             // A cwd only applies to stdio servers.
             cwd: "./ignored",
             zcodeOauth: { type: "authorization_code", clientId: "abc", scope: "read" },
@@ -140,10 +147,12 @@ describe("ZcodeMcp", () => {
           cwd: "./tools",
           timeoutMs: 30000,
           protocolVersion: "legacy",
+          alwaysLoad: true,
         },
         remote: {
           type: "http",
           url: "https://example.com/mcp",
+          alwaysLoad: false,
           oauth: { type: "authorization_code", clientId: "abc", scope: "read" },
         },
         // An explicit timeoutMs wins over the canonical timeout.
@@ -174,6 +183,12 @@ describe("ZcodeMcp", () => {
           // An invalid timeoutMs falls back to the canonical timeout.
           "bad-timeout-ms": { command: "srv", timeoutMs: 0, timeout: 2000 },
           "bad-protocol": { command: "srv", protocolVersion: "2025-06-18" },
+          "bad-always-load": { command: "srv", alwaysLoad: "yes" },
+          "bad-always-load-remote": {
+            type: "http",
+            url: "https://example.com/d",
+            alwaysLoad: "yes",
+          },
         }),
         logger,
       });
@@ -189,6 +204,8 @@ describe("ZcodeMcp", () => {
         "bad-timeout": { command: "srv", args: [] },
         "bad-timeout-ms": { command: "srv", args: [], timeoutMs: 2000 },
         "bad-protocol": { command: "srv", args: [] },
+        "bad-always-load": { command: "srv", args: [] },
+        "bad-always-load-remote": { type: "http", url: "https://example.com/d" },
       });
       const warnings = vi.mocked(logger.warn).mock.calls.map(([message]) => String(message));
       expect(warnings).toEqual(
@@ -198,6 +215,8 @@ describe("ZcodeMcp", () => {
           expect.stringContaining('"bad-timeout": dropping timeout'),
           expect.stringContaining('"bad-timeout-ms": ignoring timeoutMs'),
           expect.stringContaining('"bad-protocol": dropping protocolVersion'),
+          expect.stringContaining('"bad-always-load": dropping alwaysLoad'),
+          expect.stringContaining('"bad-always-load-remote": dropping alwaysLoad'),
         ]),
       );
     });
@@ -345,8 +364,14 @@ describe("ZcodeMcp", () => {
         fileContent: JSON.stringify({
           mcp: {
             servers: {
-              local: { command: "srv", cwd: "./tools", timeoutMs: 30000, protocolVersion: "auto" },
-              remote: { type: "http", url: "https://example.com/mcp", oauth },
+              local: {
+                command: "srv",
+                cwd: "./tools",
+                timeoutMs: 30000,
+                protocolVersion: "auto",
+                alwaysLoad: true,
+              },
+              remote: { type: "http", url: "https://example.com/mcp", oauth, alwaysLoad: false },
               both: { command: "srv", timeout: 1000, timeoutMs: 5000 },
               off: { command: "srv", enabled: false },
             },
@@ -355,8 +380,19 @@ describe("ZcodeMcp", () => {
       });
 
       expect(JSON.parse(mcp.toRulesyncMcp().getFileContent()).mcpServers).toEqual({
-        local: { command: "srv", cwd: "./tools", timeout: 30000, protocolVersion: "auto" },
-        remote: { type: "http", url: "https://example.com/mcp", zcodeOauth: oauth },
+        local: {
+          command: "srv",
+          cwd: "./tools",
+          timeout: 30000,
+          protocolVersion: "auto",
+          alwaysLoad: true,
+        },
+        remote: {
+          type: "http",
+          url: "https://example.com/mcp",
+          zcodeOauth: oauth,
+          alwaysLoad: false,
+        },
         // ZCode drops `timeout`, so `timeoutMs` is the value that applies.
         both: { command: "srv", timeout: 5000 },
         off: { command: "srv", disabled: true },

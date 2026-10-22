@@ -10,6 +10,7 @@ import {
   assertPathResolvesInsideRoot,
   checkPathTraversal,
   getHomeDirectory,
+  PathOutsideRootError,
   removeFile,
   toPosixPath,
   writeFileContent,
@@ -887,9 +888,11 @@ async function removeStaleFile(params: {
   if (scope === "project") {
     try {
       await assertPathResolvesInsideRoot({ rootPath: scopeRoot, targetPath: absolute });
-    } catch {
+    } catch (error) {
       logger.warn(
-        `Refusing to remove stale gh file that resolves outside the project: "${relativePath}".`,
+        error instanceof PathOutsideRootError
+          ? `Refusing to remove stale gh file "${relativePath}": ${error.message}`
+          : `Skipping removal of stale gh file "${relativePath}": ${formatError(error)}`,
       );
       return;
     }
