@@ -212,10 +212,13 @@ const KimiCodePermissionsOverrideSchema = z.looseObject({
   defaultPermissionMode: z.optional(z.enum(["manual", "yolo", "auto"])),
   /**
    * Kimi's `[permission] dangerous_command_guard` switch (Kimi Code 0.40.0,
-   * default `true`). `false` turns off the built-in dangerous-command policy
-   * (no confirmation for `rm -rf`, `shutdown` and the like).
+   * default `true`). Since Kimi Code 2.3.0, `false` turns off every built-in
+   * guard confirmation policy: dangerous commands (`rm -rf`, `shutdown` and the
+   * like), sensitive-file access (`.env`, `id_rsa`, ...) and git control-path
+   * access. Before 2.3.0 it only covered dangerous commands.
    *
    * @see https://moonshotai.github.io/kimi-code/en/configuration/config-files.html#permission
+   * @see https://github.com/MoonshotAI/kimi-code/pull/4250
    */
   dangerousCommandGuard: z.optional(z.boolean()),
   rules: z.optional(

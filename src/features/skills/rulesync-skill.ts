@@ -62,14 +62,15 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
   targets: z._default(RulesyncTargetsSchema, ["*"]),
   // Default for tools that support the flag (claudecode, codebuddy, copilot, copilotcli, crush,
   // cursor, zed, pi, omp, qwencode, vibe, grokcli, factorydroid, dsh, reasonix, commandcode,
-  // lettacode, opencode, mimocode).
+  // lettacode, opencode, mimocode, xum).
   // A target-section value of the same key overrides this default.
   // `devin` also consumes this root value (mapping `true` onto a user-only
   // `triggers` list); it has no section key of the same name, but a
   // `devin.triggers` section value overrides it.
   "disable-model-invocation": z.optional(z.boolean()),
   // Default for tools that support the flag (claudecode, codebuddy, copilot, copilotcli,
-  // crush, cursor, qwencode, vibe, grokcli, factorydroid, dsh, reasonix, commandcode, lettacode).
+  // crush, cursor, qwencode, vibe, grokcli, factorydroid, dsh, reasonix, commandcode, lettacode,
+  // xum).
   // A target-section value of the same key overrides this default.
   // `devin` also consumes this root value (mapping `false` onto a model-only
   // `triggers` list); it has no section key of the same name, but a
@@ -477,6 +478,22 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
       metadata: z.optional(z.looseObject({})),
     }),
   ),
+  // Xum reads these keys on top of the Agent Skills standard fields; the
+  // section is written into SKILL.md verbatim. `advertise: false` is Xum's
+  // alias for `disable-model-invocation: true`, and `paths` (a list or a
+  // comma-separated string of globs) makes the skill path-scoped.
+  // https://xum.cdr.dev/agents/agent-skills
+  xum: z.optional(
+    z.looseObject({
+      "disable-model-invocation": z.optional(z.boolean()),
+      advertise: z.optional(z.boolean()),
+      "user-invocable": z.optional(z.boolean()),
+      "argument-hint": z.optional(z.string()),
+      when_to_use: z.optional(z.string()),
+      "when-to-use": z.optional(z.string()),
+      paths: z.optional(z.union([z.string(), z.array(z.string())])),
+    }),
+  ),
   // ZCode's "Skill SKILL.md Field Reference" allowlists exactly five keys:
   // required `name`/`description` plus optional `when_to_use`, `license` and
   // `metadata`. There is no `compatibility` field, so it is not offered here.
@@ -745,6 +762,16 @@ export type RulesyncSkillFrontmatterInput = {
     license?: string;
     compatibility?: string | Record<string, unknown>;
     metadata?: Record<string, unknown>;
+  };
+  xum?: {
+    "disable-model-invocation"?: boolean;
+    advertise?: boolean;
+    "user-invocable"?: boolean;
+    "argument-hint"?: string;
+    when_to_use?: string;
+    "when-to-use"?: string;
+    paths?: string | string[];
+    [key: string]: unknown;
   };
   zcode?: {
     when_to_use?: string;

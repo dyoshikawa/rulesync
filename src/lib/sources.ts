@@ -1788,8 +1788,11 @@ async function writeSkillAndComputeIntegrity(params: {
     });
   }
 
-  // Compare before writing, so a mismatch under --frozen leaves the curated
-  // directory as it was.
+  // Compare before writing, so a mismatch under --frozen writes none of this
+  // skill's files. It does not leave the curated directory as it was:
+  // cleanPreviousCuratedSkills has already removed the source's locked skills,
+  // and skills processed earlier in the same source have already been
+  // written. Unlike rules, skills are not rolled back.
   const integrity = computeSkillIntegrity(
     files.map((file) => ({ path: file.relativePath, content: file.content })),
   );
