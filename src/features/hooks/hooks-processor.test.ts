@@ -717,6 +717,64 @@ describe("HooksProcessor", () => {
       expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("matcher"));
     });
 
+    it("should keep Copilot CLI matchers on matcher-aware events without a skipped-matcher warning", async () => {
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          hooks: {
+            preToolUse: [{ command: "guard.sh", matcher: "bash" }],
+            preCompact: [{ command: "compact.sh", matcher: "auto" }],
+          },
+        }),
+        validate: false,
+      });
+
+      const processor = new HooksProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "copilotcli",
+      });
+      const [toolFile] = await processor.convertRulesyncFilesToToolFiles([rulesyncHooks]);
+
+      expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("matcher"));
+      const content = JSON.parse(toolFile?.getFileContent() ?? "{}");
+      expect(content.hooks.preToolUse[0].matcher).toBe("bash");
+      expect(content.hooks.preCompact[0].matcher).toBe("auto");
+    });
+
+    it("should only report the Copilot CLI adapter's matcher drop on other events", async () => {
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          hooks: {
+            sessionStart: [{ command: "start.sh", matcher: "startup" }],
+          },
+        }),
+        validate: false,
+      });
+
+      const processor = new HooksProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "copilotcli",
+      });
+      const [toolFile] = await processor.convertRulesyncFilesToToolFiles([rulesyncHooks]);
+
+      expect(logger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining("Skipped matcher hook(s)"),
+      );
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("dropping matcher \"startup\" on 'sessionStart'"),
+      );
+      const content = JSON.parse(toolFile?.getFileContent() ?? "{}");
+      expect(content.hooks.sessionStart[0].matcher).toBeUndefined();
+      expect(JSON.stringify(content.hooks.sessionStart[0])).toContain("start.sh");
+    });
+
     it("should warn and skip OpenCode matchers on the shell events", async () => {
       const rulesyncHooks = new RulesyncHooks({
         outputRoot: testDir,
