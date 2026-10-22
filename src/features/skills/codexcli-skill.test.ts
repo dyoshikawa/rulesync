@@ -859,6 +859,26 @@ This is the body of the codex cli skill.`;
         expect(codexCliSkill.getFrontmatter().metadata).toEqual({ version: "1" });
       });
 
+      it("should round-trip an empty short-description instead of dropping it", async () => {
+        const skillDir = join(testDir, ".agents", "skills", "test-skill");
+        await ensureDir(skillDir);
+        await writeFileContent(
+          join(skillDir, SKILL_FILE_NAME),
+          `---\nname: Test Skill\ndescription: AI-facing description\nmetadata:\n  short-description: ""\n---\n\nBody.`,
+        );
+
+        const skill = await CodexCliSkill.fromDir({
+          outputRoot: testDir,
+          dirName: "test-skill",
+          global: false,
+        });
+        const rulesyncSkill = skill.toRulesyncSkill();
+
+        expect(rulesyncSkill.getFrontmatter().codexcli).toEqual({ "short-description": "" });
+        const regenerated = CodexCliSkill.fromRulesyncSkill({ rulesyncSkill, validate: true });
+        expect(regenerated.getFrontmatter().metadata).toEqual({ "short-description": "" });
+      });
+
       it("should round-trip root metadata and codexcli.short-description through import", () => {
         const rulesyncSkill = createRulesyncSkill({
           "disable-model-invocation": true,

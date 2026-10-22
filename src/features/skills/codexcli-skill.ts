@@ -347,7 +347,7 @@ export class CodexCliSkill extends ToolSkill {
     const { "short-description": shortDescription, ...rootMetadata } = frontmatter.metadata ?? {};
 
     const codexcliSection: Record<string, unknown> = {
-      ...(shortDescription && { "short-description": shortDescription }),
+      ...(shortDescription !== undefined && { "short-description": shortDescription }),
       ...openaiSection,
     };
 
@@ -387,7 +387,7 @@ export class CodexCliSkill extends ToolSkill {
 
     const metadata = buildSkillMetadata({
       rootMetadata: rulesyncFrontmatter.metadata,
-      shortDescription: rulesyncFrontmatter.codexcli?.["short-description"] || undefined,
+      shortDescription: rulesyncFrontmatter.codexcli?.["short-description"],
     });
     const disableModelInvocation = rulesyncFrontmatter["disable-model-invocation"];
     const codexFrontmatter: CodexCliSkillFrontmatter = {
