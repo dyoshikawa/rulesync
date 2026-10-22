@@ -11,12 +11,14 @@ import { calculateTotalCount } from "../utils/result.js";
 import { type McpResultCounts, type McpWarnings, warningsField } from "./types.js";
 
 /**
- * Schema for convert options
+ * Schema for convert options, mirroring every CLI `convert` flag (`--from`,
+ * `--to`, `--features`, `--global`, `--dry-run`).
  * Excluded parameters:
- * - outputRoots: Always use [process.cwd()] in MCP context
  * - verbose: Meaningless in MCP (no console output)
  * - silent: Meaningless in MCP
- * - configPath: Always use default path from process.cwd()
+ * The CLI has no output-root or config-path flag for convert, so neither does
+ * this schema: conversion always reads and writes under process.cwd() (or the
+ * home directory with `global`).
  */
 export const convertOptionsSchema = z.object({
   from: z.string(),

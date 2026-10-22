@@ -1,4 +1,5 @@
-import { join } from "node:path";
+import { rm, symlink } from "node:fs/promises";
+import { basename, dirname, join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -10,7 +11,7 @@ import {
   RULESYNC_RULES_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
-import { ensureDir, writeFileContent } from "../utils/file.js";
+import { ensureDir, fileExists, writeFileContent } from "../utils/file.js";
 import { executeGenerate, type McpGenerateResult } from "./generate.js";
 
 describe("MCP Generate Tools", () => {
@@ -461,6 +462,310 @@ targets: ["*"]
 
       expect(result.success).toBe(true);
       expect(result.config?.delete).toBe(true);
+    });
+  });
+
+  describe("executeGenerate with CLI-parity options", () => {
+    const writeOverviewRule = async (sourceTree: string): Promise<void> => {
+      await writeFileContent(
+        join(sourceTree, RULES_FEATURE_SUBDIR, "overview.md"),
+        `---
+root: true
+targets: ["*"]
+description: "Test rule"
+---
+# Test Rule`,
+      );
+    };
+
+    beforeEach(async () => {
+      await writeOverviewRule(join(testDir, RULESYNC_RELATIVE_DIR_PATH));
+    });
+
+    it("should leave preview fields out of a normal run", async () => {
+      const result = await executeGenerate({ targets: ["cursor"], features: ["rules"] });
+
+      expect(result.success).toBe(true);
+      expect(result.upToDate).toBeUndefined();
+      expect(result.plan).toBeUndefined();
+      expect(result.config?.dryRun).toBe(false);
+      expect(result.config?.check).toBe(false);
+    });
+
+    it("should preview a dryRun without writing files", async () => {
+      const result = await executeGenerate({
+        targets: ["cursor"],
+        features: ["rules"],
+        dryRun: true,
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.config?.dryRun).toBe(true);
+      expect(result.upToDate).toBe(false);
+      expect(result.message).toContain("[DRY RUN]");
+      expect(result.plan?.operations).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ action: "write", kind: "file", feature: "rules" }),
+        ]),
+      );
+      expect(await fileExists(join(testDir, ".cursor", "rules", "overview.mdc"))).toBe(false);
+    });
+
+    it("should report outdated outputs under check without writing or failing", async () => {
+      const result = await executeGenerate({
+        targets: ["cursor"],
+        features: ["rules"],
+        check: true,
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.config?.check).toBe(true);
+      expect(result.upToDate).toBe(false);
+      expect(result.message).toContain("not up to date");
+      expect(result.plan?.operations.length).toBeGreaterThan(0);
+      expect(await fileExists(join(testDir, ".cursor", "rules", "overview.mdc"))).toBe(false);
+    });
+
+    it("should report up-to-date outputs under check after a real run", async () => {
+      await executeGenerate({ targets: ["cursor"], features: ["rules"] });
+
+      const result = await executeGenerate({
+        targets: ["cursor"],
+        features: ["rules"],
+        check: true,
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.upToDate).toBe(true);
+      expect(result.plan?.operations).toEqual([]);
+      expect(result.message).toContain("All files are up to date");
+    });
+
+    it("should write into outputRoots inside the project", async () => {
+      const result = await executeGenerate({
+        targets: ["cursor"],
+        features: ["rules"],
+        outputRoots: ["packages/app"],
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.config?.outputRoots).toEqual([join(testDir, "packages", "app")]);
+      expect(
+        await fileExists(join(testDir, "packages", "app", ".cursor", "rules", "overview.mdc")),
+      ).toBe(true);
+    });
+
+    it("should reject outputRoots outside the project", async () => {
+      for (const outputRoot of ["../outside", dirname(testDir)]) {
+        const result = await executeGenerate({
+          targets: ["cursor"],
+          features: ["rules"],
+          outputRoots: [outputRoot],
+        });
+
+        expect(result.success).toBe(false);
+        expect(result.error).toContain("outputRoots must stay inside the project directory");
+      }
+    });
+
+    it("should read sources from inputRoots inside the project", async () => {
+      await writeOverviewRule(join(testDir, "central", RULESYNC_RELATIVE_DIR_PATH));
+
+      const result = await executeGenerate({
+        targets: ["cursor"],
+        features: ["rules"],
+        inputRoots: [join("central", RULESYNC_RELATIVE_DIR_PATH)],
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.config?.inputRoots).toEqual([
+        join(testDir, "central", RULESYNC_RELATIVE_DIR_PATH),
+      ]);
+    });
+
+    it("should accept the deprecated inputRoot inside the project", async () => {
+      await writeOverviewRule(join(testDir, "central", RULESYNC_RELATIVE_DIR_PATH));
+
+      const result = await executeGenerate({
+        targets: ["cursor"],
+        features: ["rules"],
+        inputRoot: "central",
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.config?.inputRoots).toEqual([
+        join(testDir, "central", RULESYNC_RELATIVE_DIR_PATH),
+      ]);
+    });
+
+    it("should reject inputRoots and inputRoot outside the project", async () => {
+      const plural = await executeGenerate({ inputRoots: ["../elsewhere/.rulesync"] });
+      const singular = await executeGenerate({ inputRoot: "../elsewhere" });
+
+      expect(plural.success).toBe(false);
+      expect(plural.error).toContain("inputRoots must stay inside the project directory");
+      expect(singular.success).toBe(false);
+      expect(singular.error).toContain("inputRoot must stay inside the project directory");
+    });
+
+    it("should reject inputRoot combined with inputRoots, as the CLI does", async () => {
+      const result = await executeGenerate({
+        inputRoot: "central",
+        inputRoots: [join("central", RULESYNC_RELATIVE_DIR_PATH)],
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toMatch(/inputRoot/);
+    });
+
+    it("should load the configuration from configPath inside the project", async () => {
+      await writeFileContent(
+        join(testDir, "config", "custom.jsonc"),
+        JSON.stringify({ targets: ["claudecode"], features: ["rules"] }),
+      );
+
+      const result = await executeGenerate({ configPath: join("config", "custom.jsonc") });
+
+      expect(result.success).toBe(true);
+      expect(result.config?.targets).toEqual(["claudecode"]);
+    });
+
+    it("should reject configPath outside the project", async () => {
+      const result = await executeGenerate({ configPath: "../other/rulesync.jsonc" });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain("configPath must stay inside the project directory");
+    });
+
+    it("should reject roots outside the project declared by the file configPath loads", async () => {
+      const outside = dirname(testDir);
+      await writeFileContent(
+        join(testDir, "node_modules", "pkg", "rulesync.jsonc"),
+        JSON.stringify({ targets: ["cursor"], features: ["rules"], outputRoots: [outside] }),
+      );
+      await writeFileContent(
+        join(testDir, "config", "inputs.jsonc"),
+        JSON.stringify({ targets: ["cursor"], features: ["rules"], inputRoots: [outside] }),
+      );
+
+      const viaOutputRoots = await executeGenerate({
+        configPath: join("node_modules", "pkg", "rulesync.jsonc"),
+      });
+      const viaInputRoots = await executeGenerate({
+        configPath: join("config", "inputs.jsonc"),
+      });
+
+      expect(viaOutputRoots.success).toBe(false);
+      expect(viaOutputRoots.error).toContain(
+        "outputRoots (as resolved from the configuration file) must stay inside the project directory",
+      );
+      expect(viaInputRoots.success).toBe(false);
+      expect(viaInputRoots.error).toContain(
+        "inputRoots (as resolved from the configuration file) must stay inside the project directory",
+      );
+    });
+
+    it("should reject roots outside the project declared by the file inputRoot selects", async () => {
+      await writeOverviewRule(join(testDir, "central", RULESYNC_RELATIVE_DIR_PATH));
+      await writeFileContent(
+        join(testDir, "central", RULESYNC_CONFIG_RELATIVE_FILE_PATH),
+        JSON.stringify({
+          targets: ["cursor"],
+          features: ["rules"],
+          outputRoots: [dirname(testDir)],
+        }),
+      );
+
+      const result = await executeGenerate({ inputRoot: "central" });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain(
+        "outputRoots (as resolved from the configuration file) must stay inside the project directory",
+      );
+    });
+
+    it("should judge configPath relative to inputRoot, where the resolver reads it", async () => {
+      const outside = join(dirname(testDir), `outside-config-${basename(testDir)}`);
+      await writeFileContent(
+        join(outside, "rulesync.jsonc"),
+        JSON.stringify({ targets: ["cursor"], features: ["rules"] }),
+      );
+      await ensureDir(join(testDir, "sub"));
+      await symlink(outside, join(testDir, "sub", "link"), "dir");
+
+      try {
+        const result = await executeGenerate({
+          inputRoot: "sub",
+          configPath: join("link", "rulesync.jsonc"),
+        });
+
+        expect(result.success).toBe(false);
+        expect(result.error).toContain("configPath must stay inside the project directory");
+      } finally {
+        await rm(outside, { recursive: true, force: true });
+      }
+    });
+
+    it.each([["dryRun"], ["check"]] as const)(
+      "should delete nothing when retireTargets runs under %s",
+      async (mode) => {
+        await executeGenerate({ targets: ["cursor"], features: ["rules"] });
+        const cursorRule = join(testDir, ".cursor", "rules", "overview.mdc");
+        await writeFileContent(
+          join(testDir, RULESYNC_CONFIG_RELATIVE_FILE_PATH),
+          JSON.stringify({ targets: ["claudecode"], features: ["rules"] }),
+        );
+
+        const result = await executeGenerate({
+          retireTargets: ["cursor"],
+          features: ["rules"],
+          [mode]: true,
+        });
+
+        expect(result.success).toBe(true);
+        expect(result.upToDate).toBe(false);
+        expect(result.plan?.operations).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ action: "delete", path: ".cursor/rules/overview.mdc" }),
+          ]),
+        );
+        expect(await fileExists(cursorRule)).toBe(true);
+      },
+    );
+
+    it("should require features for retireTargets, as the CLI does", async () => {
+      const result = await executeGenerate({ retireTargets: ["cursor"] });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain("requires --features");
+    });
+
+    it("should reject retireTargets combined with targets, as the CLI does", async () => {
+      const result = await executeGenerate({
+        retireTargets: ["cursor"],
+        targets: ["claudecode"],
+        features: ["rules"],
+      });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain("cannot be combined with --targets");
+    });
+
+    it("should delete the outputs of a retired target", async () => {
+      await executeGenerate({ targets: ["cursor"], features: ["rules"] });
+      const cursorRule = join(testDir, ".cursor", "rules", "overview.mdc");
+      expect(await fileExists(cursorRule)).toBe(true);
+
+      await writeFileContent(
+        join(testDir, RULESYNC_CONFIG_RELATIVE_FILE_PATH),
+        JSON.stringify({ targets: ["claudecode"], features: ["rules"] }),
+      );
+
+      const result = await executeGenerate({ retireTargets: ["cursor"], features: ["rules"] });
+
+      expect(result.success).toBe(true);
+      expect(result.config?.retireTargets).toEqual(["cursor"]);
+      expect(await fileExists(cursorRule)).toBe(false);
     });
   });
 });
