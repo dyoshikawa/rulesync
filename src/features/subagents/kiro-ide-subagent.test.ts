@@ -110,6 +110,21 @@ describe("KiroIdeSubagent", () => {
     expect(subagent.getFrontmatter().name).toBe("helper");
   });
 
+  it("derives an omitted nested agent name from its path", () => {
+    const subagent = new KiroIdeSubagent({
+      outputRoot: testDir,
+      relativeDirPath: join(".kiro", "agents"),
+      relativeFilePath: join("team", "planner.md"),
+      frontmatter: { description: "Plans tasks" },
+      body: "Plan.",
+      fileContent: "",
+    });
+
+    const rulesyncSubagent = subagent.toRulesyncSubagent();
+    expect(rulesyncSubagent.getFrontmatter().name).toBe("team/planner");
+    expect(rulesyncSubagent.getRelativeFilePath()).toBe(join("team", "planner.md"));
+  });
+
   it("targets the kiro-ide tool", () => {
     expect(KiroIdeSubagent.isTargetedByRulesyncSubagent(buildRulesyncSubagent())).toBe(true);
     expect(

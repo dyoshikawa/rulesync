@@ -568,7 +568,13 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       },
       supportedEvents: COPILOTCLI_HOOK_EVENTS,
       supportedHookTypes: ["command", "prompt", "http"],
-      supportsMatcher: false,
+      // `matcher` is honored on the six events the hooks reference documents
+      // (preToolUse, postToolUse, permissionRequest, notification, preCompact,
+      // subagentStart); the adapter emits it there and itself drops it (with a
+      // warning) on the other events, keeping the hook. No `matcherEvents` here,
+      // so the processor does not also report those hooks as skipped.
+      // https://docs.github.com/en/copilot/reference/hooks-reference
+      supportsMatcher: true,
     },
   ],
   [

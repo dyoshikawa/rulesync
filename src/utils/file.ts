@@ -75,6 +75,18 @@ export async function assertWritablePathInsideRoot(params: {
 }
 
 /**
+ * Thrown by {@link assertPathResolvesInsideRoot} when a symbolic link leads
+ * the target outside the root, or the target is reached through a dangling
+ * link. Any other error it throws comes from the filesystem itself.
+ */
+export class PathOutsideRootError extends Error {
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = "PathOutsideRootError";
+  }
+}
+
+/**
  * Refuse a write or removal target whose real location is outside `rootPath`.
  *
  * Unlike {@link assertWritablePathInsideRoot}, a symbolic link on the way is
@@ -98,10 +110,13 @@ export async function assertPathResolvesInsideRoot(params: {
     // the write will create the whole tree. A dangling link in its place would
     // send that tree elsewhere, though.
     if (isFileNotFoundError(error)) {
-      if (await isSymbolicLink(rootPath)) {
-        throw new Error(`Refusing to write through a dangling symbolic link: ${rootPath}.`, {
-          cause: error,
-        });
+      if (await isSymlink(rootPath)) {
+        throw new PathOutsideRootError(
+          `Refusing to write through a dangling symbolic link: ${rootPath}.`,
+          {
+            cause: error,
+          },
+        );
       }
       return;
     }
@@ -118,10 +133,13 @@ export async function assertPathResolvesInsideRoot(params: {
       }
       // A dangling link has no real path; resolve where it points instead of
       // skipping past it to its parent.
-      if (await isSymbolicLink(existingPath)) {
-        throw new Error(`Refusing to write through a dangling symbolic link: ${targetPath}.`, {
-          cause: error,
-        });
+      if (await isSymlink(existingPath)) {
+        throw new PathOutsideRootError(
+          `Refusing to write through a dangling symbolic link: ${targetPath}.`,
+          {
+            cause: error,
+          },
+        );
       }
       const parentPath = dirname(existingPath);
       if (parentPath === existingPath) {
@@ -131,17 +149,11 @@ export async function assertPathResolvesInsideRoot(params: {
       continue;
     }
     if (pathEscapesRoot(relative(realRoot, realExisting))) {
-      throw new Error(`Path resolves outside ${rootPath} through a symbolic link: ${targetPath}.`);
+      throw new PathOutsideRootError(
+        `Path resolves outside ${rootPath} through a symbolic link: ${targetPath}.`,
+      );
     }
     return;
-  }
-}
-
-async function isSymbolicLink(filePath: string): Promise<boolean> {
-  try {
-    return (await lstat(filePath)).isSymbolicLink();
-  } catch {
-    return false;
   }
 }
 
