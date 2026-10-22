@@ -505,6 +505,63 @@ describe("HermesagentMcp", () => {
       expect(servers.streamable?.transport).toBeUndefined();
     });
 
+    it("writes and imports the v0.22.3 tool_costs/spend_limit/cost_unit keys (issue #2414)", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            render: {
+              command: "render-mcp",
+              tool_costs: {
+                generate_image: 2,
+                generate_video: [5, 20],
+                animate: { credits: 3, note: "per animation" },
+              },
+              spend_limit: 50,
+              cost_unit: "tokens",
+            },
+          },
+        }),
+      });
+
+      const mcp = await HermesagentMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+      });
+      const servers = getMcpServers(mcp.getFileContent());
+
+      expect(servers.render?.tool_costs).toEqual({
+        generate_image: 2,
+        generate_video: [5, 20],
+        animate: { credits: 3, note: "per animation" },
+      });
+      expect(servers.render?.spend_limit).toBe(50);
+      expect(servers.render?.cost_unit).toBe("tokens");
+
+      const imported = JSON.parse(
+        new HermesagentMcp({
+          outputRoot: testDir,
+          relativeDirPath: HERMES_DIR,
+          relativeFilePath: HERMES_FILE,
+          validate: false,
+          fileContent: mcp.getFileContent(),
+          global: true,
+        })
+          .toRulesyncMcp()
+          .getFileContent(),
+      );
+      // Hermes-only keys ride the tool-scoped override block.
+      expect(imported.hermesagent.mcpServers.render.spend_limit).toBe(50);
+      expect(imported.hermesagent.mcpServers.render.cost_unit).toBe("tokens");
+      expect(imported.hermesagent.mcpServers.render.tool_costs).toEqual({
+        generate_image: 2,
+        generate_video: [5, 20],
+        animate: { credits: 3, note: "per animation" },
+      });
+    });
+
     it("writes transport: sse for an sse server spelled with the httpUrl alias", async () => {
       const mcp = await HermesagentMcp.fromRulesyncMcp({
         outputRoot: testDir,

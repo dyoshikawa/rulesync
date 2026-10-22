@@ -111,12 +111,27 @@ function copyHermesOauth(source: unknown): Record<string, unknown> | undefined {
   return Object.keys(oauth).length > 0 ? oauth : undefined;
 }
 
+// Per-server scalars copied verbatim when they have the expected type: the
+// stdio recycle timeouts (seconds), and the per-chat budget for the server's
+// costed tools (v0.22.3; `0`/absent = no limit) with the label shown with
+// costs (default `credits`), both read by `tools/mcp_tool_costs.py` together
+// with the `tool_costs` mapping. A costed call that would exceed `spend_limit`
+// asks first even on a `trust: full` server, so dropping it on regenerate
+// would silently remove the guard.
+const HERMES_TYPED_SCALAR_KEYS = [
+  ["idle_timeout_seconds", "number"],
+  ["max_lifetime_seconds", "number"],
+  ["spend_limit", "number"],
+  ["cost_unit", "string"],
+] as const;
+
 // Per-server mappings Hermes reads as a whole; see `copyHermesAdvancedFields`.
 const HERMES_OPAQUE_MAPPING_KEYS = [
   "sampling",
   "elicitation",
   "identity_header",
   "lifecycle",
+  "tool_costs",
 ] as const;
 
 /**
@@ -124,7 +139,8 @@ const HERMES_OPAQUE_MAPPING_KEYS = [
  * alias — `auth` (`oauth` for OAuth 2.1/PKCE), mTLS `client_cert` (string PEM
  * path, or `[cert, key]`/`[cert, key, password]` list) and `client_key`,
  * `connect_timeout` (seconds), `supports_parallel_tool_calls`, `protocol`,
- * `lazy`, `keepalive_interval`, `elicitation`, `trust`, and `identity_header` —
+ * `lazy`, `keepalive_interval`, `elicitation`, `trust`, `identity_header`,
+ * `tool_costs`, `spend_limit`, and `cost_unit` —
  * verbatim from `source` to `target`. Field names are identical on both sides
  * (the canonical `McpServerSchema` is a `looseObject`), so this serves export
  * and import alike. See the Hermes mcp-config-reference.
@@ -159,8 +175,8 @@ function copyHermesAdvancedFields(
     target.oauth = oauth;
     copied = true;
   }
-  for (const key of ["idle_timeout_seconds", "max_lifetime_seconds"] as const) {
-    if (typeof source[key] === "number") {
+  for (const [key, type] of HERMES_TYPED_SCALAR_KEYS) {
+    if (typeof source[key] === type) {
       target[key] = source[key];
       copied = true;
     }
@@ -209,7 +225,9 @@ function copyHermesAdvancedFields(
   // `identity_header` (per-user header for remote servers: `{name, value_from:
   // "static" | "profile", value}`) and `lifecycle` (the stdio recycle timeouts
   // `idle_timeout_seconds`/`max_lifetime_seconds`, which the top-level keys
-  // take precedence over; `tools/mcp_tool_common.py`). Copied as opaque
+  // take precedence over; `tools/mcp_tool_common.py`) and `tool_costs` (v0.22.3:
+  // per-tool declared costs keyed by MCP tool name, each a number, a
+  // `[min, max]` range or `{credits, note}`). Copied as opaque
   // objects so new sub-keys keep working; cloned so no reference is shared
   // with the source, with pollution keys dropped.
   for (const key of HERMES_OPAQUE_MAPPING_KEYS) {
