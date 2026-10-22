@@ -891,7 +891,7 @@ async function removeStaleFile(params: {
     } catch (error) {
       logger.warn(
         error instanceof PathOutsideRootError
-          ? `Refusing to remove stale gh file that resolves outside the project: "${relativePath}".`
+          ? `Refusing to remove stale gh file "${relativePath}": ${error.message}`
           : `Skipping removal of stale gh file "${relativePath}": ${formatError(error)}`,
       );
       return;

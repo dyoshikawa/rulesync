@@ -686,7 +686,9 @@ ${deployedFiles.map((file) => `      - ${file}`).join("\n")}
 
       expect(await fileExists(join(outsideDir, "old.instructions.md"))).toBe(true);
       expect(localLogger.warn).toHaveBeenCalledWith(
-        'Refusing to remove stale apm file that resolves outside projectRoot: ".github/instructions/old.instructions.md".',
+        expect.stringMatching(
+          /^Refusing to remove stale apm file "\.github\/instructions\/old\.instructions\.md": Path resolves outside /,
+        ),
       );
     },
   );

@@ -614,12 +614,6 @@ The scope is deliberately narrow:
 
 Pass `--no-prune` to get the old purely additive behavior.
 
-### Symbolic Links Out of the Project
-
-`fetch` refuses to write through a local symbolic link whose real path lies outside the project root (the current directory). Every target is checked before anything is written, and the run fails with `Path resolves outside ... through a symbolic link`. A cloned repository could otherwise commit a link such as `.rulesync/skills/x -> ~/.ssh` and have the fetch write there.
-
-This rejects links made on purpose as well: an output directory such as `.rulesync -> ~/dotfiles/rulesync`, or a skill directory such as `.rulesync/skills/foo -> ~/shared-skills/foo`, can no longer be a fetch target. Fetch into a real directory inside the project instead, or point the link at a directory inside the project. A link that stays inside the project root is still written through. The same check applies to `rulesync install --mode gh` at project scope and to `rulesync install --mode apm`.
-
 #### Remote Paths Windows Reads Differently
 
 A backslash is an ordinary character in a filename on Linux and macOS, and a directory separator on Windows. A colon is ordinary too here, and on Windows it separates a file from one of its alternate data streams, so `skills/pdf::$INDEX_ALLOCATION` is another way of writing `skills/pdf` rather than a directory of its own. A remote file whose path contains either character therefore names one file on some systems and something else on others, so `fetch` skips it and warns rather than picking an interpretation. The rest of the fetch continues normally.
@@ -670,6 +664,12 @@ A zero-width joiner or a variation selector is dropped only where it hides somet
 Path names come from the remote repository, so every one that Rulesync prints — the fetch summary, warnings, and debug lines — has its control characters stripped first. A crafted path cannot forge or erase the lines around it, which is what makes the record of what was written and deleted worth reading.
 
 The `--json` output is the exception: it carries each path exactly as the repository spells it, because a machine consumer needs the real name to act on it. Anything that renders a value out of that JSON into a terminal has to strip it itself.
+
+### Symbolic Links Out of the Project
+
+`fetch` refuses to write through a local symbolic link whose real path lies outside the project root (the current directory). Every target is checked before anything is written, and the run fails with `Path resolves outside ... through a symbolic link`. A cloned repository could otherwise commit a link such as `.rulesync/skills/x -> ~/.ssh` and have the fetch write there.
+
+This rejects links made on purpose as well: an output directory such as `.rulesync -> ~/dotfiles/rulesync`, or a skill directory such as `.rulesync/skills/foo -> ~/shared-skills/foo`, can no longer be a fetch target. Fetch into a real directory inside the project instead, or point the link at a directory inside the project. A link that stays inside the project root is still written through. The same check applies to `rulesync install --mode gh` at project scope and to `rulesync install --mode apm`.
 
 ### Examples
 

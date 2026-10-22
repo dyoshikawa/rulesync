@@ -296,7 +296,7 @@ async function removeStaleApmFiles(params: {
     } catch (error) {
       logger.warn(
         error instanceof PathOutsideRootError
-          ? `Refusing to remove stale apm file that resolves outside projectRoot: "${relativePath}".`
+          ? `Refusing to remove stale apm file "${relativePath}": ${error.message}`
           : `Skipping removal of stale apm file "${relativePath}": ${formatError(error)}`,
       );
       continue;

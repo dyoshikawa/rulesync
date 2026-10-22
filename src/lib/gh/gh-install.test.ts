@@ -569,7 +569,9 @@ describe("installGh", () => {
 
       expect(await fileExists(join(outsideDir, "old.md"))).toBe(true);
       expect(localLogger.warn).toHaveBeenCalledWith(
-        'Refusing to remove stale gh file that resolves outside the project: ".agents/skills/s/linked/old.md".',
+        expect.stringMatching(
+          /^Refusing to remove stale gh file "\.agents\/skills\/s\/linked\/old\.md": Path resolves outside /,
+        ),
       );
     },
   );
