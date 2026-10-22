@@ -55,8 +55,10 @@ function isEmptyValue(value: unknown): boolean {
  * Antigravity documents no `type` field: the transport follows from `command`
  * (stdio) or `serverUrl` (Streamable HTTP / SSE), and `agy plugin validate`
  * reports the canonical `type` as an unknown field, so it is not written. A
- * remote server is also refused at startup when it carries `command`, `args`
- * or `env`, so an empty `args` / `env` left on a `serverUrl` server is dropped.
+ * remote server that carries `command`, `args` or `env` was also observed to be
+ * refused at startup (runtime behavior reported by `agy plugin validate` 1.4.4,
+ * not documented), so an empty `args` / `env` left on a `serverUrl` server is
+ * dropped.
  * https://antigravity.google/docs/mcp
  */
 function toAntigravityMcpServers(servers: unknown): Record<string, unknown> {

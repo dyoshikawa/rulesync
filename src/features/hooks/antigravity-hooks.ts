@@ -83,6 +83,8 @@ function toAntigravityEventMap(eventMap: Record<string, unknown[]>): Record<stri
       if (!ANTIGRAVITY_FLAT_HANDLER_EVENTS.has(event)) {
         return [event, entries];
       }
+      // A group without a `hooks` array is dropped; the shared converter
+      // always emits one, so this cannot happen today.
       const handlers = entries.flatMap((entry) =>
         isPlainObject(entry) && Array.isArray(entry.hooks) ? entry.hooks : [],
       );
