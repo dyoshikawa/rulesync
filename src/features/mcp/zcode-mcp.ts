@@ -74,7 +74,7 @@ function asZcodeRemoteType(stated: string | undefined, url: string): "http" | "s
 
 /**
  * The keys each OAuth flow of ZCode's per-server `oauth` union accepts on a
- * remote server, and which of them are required. Read off the 3.14.3/3.15.3
+ * remote server, and which of them are required. Read off the 3.14.3–3.16.2
  * runtime config schema, since ZCode's MCP page only says to "enable OAuth for
  * the service in its configuration". Both variants are strict, so any other
  * key would make ZCode skip the server.
@@ -272,9 +272,8 @@ function toZcodeCommonKeys({
  *
  * Every server also carries `timeoutMs` (from the canonical `timeout`, or an
  * explicit `timeoutMs`), an allow-listed `protocolVersion` and a boolean
- * `alwaysLoad`; stdio servers
- * carry `cwd`, and remote servers an `oauth` built from the namespaced
- * `zcodeOauth`. That key is stripped by `RulesyncMcp.getMcpServers()`, so it
+ * `alwaysLoad`; stdio servers carry `cwd`, and remote servers an `oauth` built
+ * from the namespaced `zcodeOauth`. That key is stripped by `RulesyncMcp.getMcpServers()`, so it
  * is read from the authored server through `rawServerOf`. ZCode's docs do not
  * name these keys, so they follow the 3.14.3–3.16.2 runtime's per-server
  * schema, which is strict: an unknown key makes ZCode skip the server, which

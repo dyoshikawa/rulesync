@@ -55,6 +55,7 @@ describe("ZcodePluginMcp", () => {
           protocolVersion: "legacy",
           alwaysLoad: true,
         },
+        remote: { type: "sse", url: "https://example.com/sse", alwaysLoad: false },
       }),
     });
 
@@ -68,6 +69,7 @@ describe("ZcodePluginMcp", () => {
           protocolVersion: "legacy",
           alwaysLoad: true,
         },
+        remote: { type: "sse", url: "https://example.com/sse", alwaysLoad: false },
       },
     });
     expect(mcp.toRulesyncMcp().getMcpServers()).toEqual({
@@ -79,6 +81,7 @@ describe("ZcodePluginMcp", () => {
         protocolVersion: "legacy",
         alwaysLoad: true,
       },
+      remote: { type: "sse", url: "https://example.com/sse", alwaysLoad: false },
     });
   });
 
