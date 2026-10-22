@@ -150,12 +150,19 @@ const BASH_RESERVED_WORDS = new Set([
  * command only: with a list or pipeline (`cd x && srv`) the server would not
  * see them, and in front of a group, parenthesized list or reserved word (`( srv )`,
  * `{ srv; }`, `if ...`) they are a syntax error that keeps the server from
- * starting. Only the verbatim `command` string is checked for operators;
- * argv elements are quoted by {@link quoteShellWord}.
+ * starting. Only the verbatim `command` string is checked for operators,
+ * outside complete single-quoted words; argv elements are quoted by
+ * {@link quoteShellWord}.
  */
 function envPrefixBlocker(server: McpServer, baseCommand: string): string | undefined {
-  if (typeof server.command === "string" && /[;&|(){}\n]/.test(server.command)) {
-    return "its command string contains shell operators, grouping or a newline, so bash would not pass NAME=value assignments in front of it to the server";
+  if (typeof server.command === "string") {
+    // Operators inside complete single-quoted words (`node -e 'a;b'`, a JSON
+    // argument) are literal text, so only what lies outside them counts. An
+    // unclosed quote leaves the string's meaning unclear, which blocks too.
+    const unquoted = server.command.replace(/'[^']*'/g, "");
+    if (unquoted.includes("'") || /[;&|(){}\n]/.test(unquoted)) {
+      return "its command string contains shell operators, grouping or a newline, so bash would not pass NAME=value assignments in front of it to the server";
+    }
   }
   const [firstWord] = baseCommand.trimStart().split(/\s+/);
   if (firstWord !== undefined && BASH_RESERVED_WORDS.has(firstWord)) {

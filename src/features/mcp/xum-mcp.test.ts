@@ -172,6 +172,8 @@ describe("XumMcp", () => {
         reserved: { command: "if true; then srv; fi", env: { A: "1" } },
         reservedArgv: { command: ["time", "srv"], env: { A: "1" } },
         quotedArg: { command: ["srv"], args: ["a;b"], env: { A: "1" } },
+        quotedString: { command: "node -e 'a;b'", env: { A: "1" } },
+        unclosedQuote: { command: "srv 'a", env: { A: "1" } },
         noEnv: { command: "cd x && srv" },
       }),
       logger,
@@ -186,14 +188,25 @@ describe("XumMcp", () => {
         reserved: "if true; then srv; fi",
         reservedArgv: "time srv",
         quotedArg: "A=1 srv 'a;b'",
+        quotedString: "A=1 node -e 'a;b'",
+        unclosedQuote: "srv 'a",
         noEnv: "cd x && srv",
       },
     });
     const warnings = logger.warn.mock.calls.map(([message]) => String(message));
-    for (const name of ["list", "parenGroup", "group", "multiline", "reserved", "reservedArgv"]) {
+    for (const name of [
+      "list",
+      "parenGroup",
+      "group",
+      "multiline",
+      "reserved",
+      "reservedArgv",
+      "unclosedQuote",
+    ]) {
       expect(warnings.some((message) => message.includes(`"${name}" sets env, but`))).toBe(true);
     }
     expect(warnings.some((message) => message.includes('"quotedArg"'))).toBe(false);
+    expect(warnings.some((message) => message.includes('"quotedString"'))).toBe(false);
     expect(warnings.some((message) => message.includes('"noEnv"'))).toBe(false);
   });
 
@@ -228,7 +241,10 @@ describe("XumMcp", () => {
     };
     const generated = await XumMcp.fromRulesyncMcp({
       outputRoot: testDir,
-      rulesyncMcp: makeRulesyncMcp({ srv: { command: "npx", args: ["-y", "srv"], env } }),
+      rulesyncMcp: makeRulesyncMcp({
+        srv: { command: "npx", args: ["-y", "srv"], env },
+        withOperatorArg: { command: "srv", args: ["a;b", '{"a":1}'], env: { A: "1" } },
+      }),
     });
     await writeFileContent(join(testDir, ".xum", "mcp.jsonc"), generated.getFileContent());
 
@@ -236,6 +252,7 @@ describe("XumMcp", () => {
 
     expect(imported.toRulesyncMcp().getMcpServers()).toEqual({
       srv: { command: "npx", args: ["-y", "srv"], env },
+      withOperatorArg: { command: "srv 'a;b' '{\"a\":1}'", env: { A: "1" } },
     });
   });
 
