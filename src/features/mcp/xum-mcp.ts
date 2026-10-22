@@ -58,6 +58,99 @@ function buildCommandString(server: McpServer): string | undefined {
   return [server.command, ...args.map(quoteShellWord)].join(" ");
 }
 
+/** A name bash accepts on the left of a `NAME=value` assignment. */
+const SHELL_ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+/** A canonical `${VAR}` reference whose name bash can expand. */
+const ENV_VAR_REFERENCE = /\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g;
+
+/**
+ * Quote an env value for a `NAME=value` assignment. Literal text is
+ * single-quoted, so nothing in it is expanded or run, while every canonical
+ * `${VAR}` reference is emitted as `"${VAR}"` so bash still expands it from
+ * the environment Xum starts the server with. The pieces are concatenated into
+ * one shell word: `Bearer ${TOKEN}` becomes `'Bearer '"${TOKEN}"`.
+ */
+function quoteEnvValue(value: string): string {
+  if (value === "") return "''";
+  const parts: string[] = [];
+  let last = 0;
+  for (const match of value.matchAll(ENV_VAR_REFERENCE)) {
+    if (match.index > last) parts.push(quoteShellWord(value.slice(last, match.index)));
+    parts.push(`"\${${match[1]}}"`);
+    last = match.index + match[0].length;
+  }
+  if (last < value.length) parts.push(quoteShellWord(value.slice(last)));
+  return parts.join("");
+}
+
+/**
+ * Build the `NAME=value ` prefix that sets a stdio server's `env` for its
+ * command only (Xum runs the command string with bash). Returns the prefix and
+ * the names that cannot be bash assignment targets, which are left out.
+ */
+function buildEnvPrefix(env: Record<string, string>): { prefix: string; invalidNames: string[] } {
+  const assignments: string[] = [];
+  const invalidNames: string[] = [];
+  for (const [name, value] of Object.entries(env)) {
+    if (PROTOTYPE_POLLUTION_KEYS.has(name)) continue;
+    if (!SHELL_ENV_NAME.test(name) || typeof value !== "string") {
+      invalidNames.push(name);
+      continue;
+    }
+    assignments.push(`${name}=${quoteEnvValue(value)}`);
+  }
+  return { prefix: assignments.map((assignment) => `${assignment} `).join(""), invalidNames };
+}
+
+/**
+ * One leading `NAME=value` assignment in exactly the shape {@link quoteEnvValue}
+ * writes: bare shell-safe characters, single-quoted text (with the `'\''`
+ * escape) and `"${VAR}"` references, followed by whitespace.
+ */
+const LEADING_ENV_ASSIGNMENT =
+  /^([A-Za-z_][A-Za-z0-9_]*)=((?:[A-Za-z0-9_\-.,:/@%+=]+|'[^']*'|\\'|"\$\{[A-Za-z_][A-Za-z0-9_]*\}")*)\s+/;
+
+/** Decode a value written by {@link quoteEnvValue} back into its canonical form. */
+function unquoteEnvValue(quoted: string): string {
+  return quoted.replace(/'([^']*)'|\\'|"(\$\{[A-Za-z_][A-Za-z0-9_]*\})"/g, (_m, single, ref) =>
+    typeof single === "string" ? single : typeof ref === "string" ? ref : "'",
+  );
+}
+
+/**
+ * Split leading `NAME=value` assignments off a command string, but only when
+ * every one of them is in the shape rulesync writes and a command follows;
+ * anything else (for example a `$(...)` substitution) keeps the whole string as
+ * the command.
+ */
+function splitEnvPrefix(command: string): { env?: Record<string, string>; rest: string } {
+  const env: Record<string, string> = {};
+  let rest = command.trimStart();
+  for (;;) {
+    const match = LEADING_ENV_ASSIGNMENT.exec(rest);
+    if (match === null) break;
+    const [whole, name, quoted] = match;
+    if (name === undefined || quoted === undefined || PROTOTYPE_POLLUTION_KEYS.has(name)) break;
+    env[name] = unquoteEnvValue(quoted);
+    rest = rest.slice(whole.length);
+  }
+  if (
+    Object.keys(env).length === 0 ||
+    rest.trim() === "" ||
+    /^[A-Za-z_][A-Za-z0-9_]*=/.test(rest)
+  ) {
+    return { rest: command };
+  }
+  return { env, rest };
+}
+
+/** Read a command string back into `env` + `command` + `args`. */
+function parseCommandString(command: string): Pick<McpServer, "command" | "args" | "env"> {
+  const { env, rest } = splitEnvPrefix(command);
+  return { ...(env !== undefined && { env }), ...splitCommandString(rest) };
+}
+
 /** Split a plain command string back into `command` + `args` when it is safe to. */
 function splitCommandString(command: string): Pick<McpServer, "command" | "args"> {
   const trimmed = command.trim();
@@ -123,17 +216,27 @@ function convertServerToXum({
     };
   }
 
-  const command = buildCommandString(server);
-  if (command === undefined) return skip("it has no command");
-  const dropped = [
-    ...(isPlainObject(server.env) && Object.keys(server.env).length > 0 ? ["env"] : []),
-    ...(typeof server.cwd === "string" ? ["cwd"] : []),
-  ];
-  if (dropped.length > 0) {
+  const baseCommand = buildCommandString(server);
+  if (baseCommand === undefined) return skip("it has no command");
+  // Xum runs the command string with bash, so `env` becomes `NAME=value`
+  // assignments in front of it, which set each variable for this command only.
+  let command = baseCommand;
+  if (isPlainObject(server.env)) {
+    const { prefix, invalidNames } = buildEnvPrefix(server.env);
+    command = `${prefix}${baseCommand}`;
+    if (invalidNames.length > 0) {
+      warnWithFallback(
+        logger,
+        `Xum MCP: ${quoteValueForWarning(name)} sets env ${invalidNames.map(quoteValueForWarning).join(", ")}, ` +
+          `which cannot be a bash variable assignment; the server is written without it.`,
+      );
+    }
+  }
+  if (typeof server.cwd === "string") {
     warnWithFallback(
       logger,
-      `Xum MCP: ${quoteValueForWarning(name)} sets ${dropped.join(" and ")}, which Xum's mcp.jsonc cannot express; ` +
-        `the server is written without it (Xum starts stdio servers with your shell environment in the workspace directory).`,
+      `Xum MCP: ${quoteValueForWarning(name)} sets cwd, which Xum's mcp.jsonc cannot express; ` +
+        `the server is written without it (Xum starts stdio servers in the workspace directory).`,
     );
   }
   return Object.keys(settings).length > 0 ? { command, ...settings } : command;
@@ -156,7 +259,7 @@ function convertFromXumFormat(servers: unknown): McpServers {
   for (const [name, entry] of Object.entries(servers)) {
     if (PROTOTYPE_POLLUTION_KEYS.has(name)) continue;
     if (typeof entry === "string") {
-      result[name] = splitCommandString(entry);
+      result[name] = parseCommandString(entry);
       continue;
     }
     if (!isPlainObject(entry)) continue;
@@ -167,7 +270,7 @@ function convertFromXumFormat(servers: unknown): McpServers {
       const headers = copyStringHeaders(entry.headers);
       if (headers !== undefined) server.headers = headers;
     } else if (typeof entry.command === "string") {
-      Object.assign(server, splitCommandString(entry.command));
+      Object.assign(server, parseCommandString(entry.command));
     } else {
       continue;
     }
@@ -185,9 +288,10 @@ function convertFromXumFormat(servers: unknown): McpServers {
  * (project; a server there wins over the user one of the same name). Both are
  * a JSONC document with a `servers` map:
  *
- * - a stdio server is a shell command string (the object form `{ command }`
- *   carries `disabled` / `toolAllowlist`); Xum's mcp.jsonc has no `env` or
- *   `cwd`, so those are dropped with a warning;
+ * - a stdio server is a shell command string run with bash (the object form
+ *   `{ command }` carries `disabled` / `toolAllowlist`); `env` is written as
+ *   `NAME=value` assignments in front of the command, and `cwd`, which has no
+ *   equivalent, is dropped with a warning;
  * - a remote server is `{ transport: "http" | "sse" | "auto", url, headers }`
  *   (the transport defaults to auto-detection).
  *
