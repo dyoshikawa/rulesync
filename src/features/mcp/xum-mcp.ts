@@ -106,10 +106,12 @@ function buildEnvPrefix(env: Record<string, string>): { prefix: string; invalidN
 /**
  * One leading `NAME=value` assignment in exactly the shape {@link quoteEnvValue}
  * writes: bare shell-safe characters, single-quoted text (with the `'\''`
- * escape) and `"${VAR}"` references, followed by whitespace.
+ * escape) and `"${VAR}"` references, followed by whitespace. Bare characters
+ * are matched one at a time, so every alternative starts with a distinct
+ * character and the pattern cannot backtrack exponentially.
  */
 const LEADING_ENV_ASSIGNMENT =
-  /^([A-Za-z_][A-Za-z0-9_]*)=((?:[A-Za-z0-9_\-.,:/@%+=]+|'[^']*'|\\'|"\$\{[A-Za-z_][A-Za-z0-9_]*\}")*)\s+/;
+  /^([A-Za-z_][A-Za-z0-9_]*)=((?:[A-Za-z0-9_\-.,:/@%+=]|'[^']*'|\\'|"\$\{[A-Za-z_][A-Za-z0-9_]*\}")*)\s+/;
 
 /** Decode a value written by {@link quoteEnvValue} back into its canonical form. */
 function unquoteEnvValue(quoted: string): string {
