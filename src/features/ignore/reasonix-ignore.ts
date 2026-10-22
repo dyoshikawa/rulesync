@@ -155,7 +155,6 @@ export class ReasonixIgnore extends ToolIgnore {
     await warnIfReasonixNestedProjectConfigShadowed({
       outputRoot,
       global,
-      feature: "ignore",
       logger,
     });
     const patterns = rulesyncIgnore

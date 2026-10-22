@@ -189,7 +189,7 @@ export class ReasonixMcp extends ToolMcp {
     global = false,
     logger,
   }: ToolMcpFromRulesyncMcpParams): Promise<ReasonixMcp> {
-    await warnIfReasonixNestedProjectConfigShadowed({ outputRoot, global, feature: "mcp", logger });
+    await warnIfReasonixNestedProjectConfigShadowed({ outputRoot, global, logger });
     const paths = this.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const existingContent = (await readFileContentOrNull(filePath)) ?? "";

@@ -40,7 +40,7 @@ describe("ReasonixMcp", () => {
 
     expect(logger.warn).toHaveBeenCalledTimes(1);
     expect(String(logger.warn.mock.calls[0]?.[0])).toContain(
-      "Reasonix mcp: .reasonix/reasonix.toml exists but reasonix.toml does not",
+      "Reasonix: .reasonix/reasonix.toml exists but reasonix.toml does not",
     );
   });
 

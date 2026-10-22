@@ -16,7 +16,7 @@ import type {
 } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull, toPosixPath } from "../../utils/file.js";
-import type { Logger } from "../../utils/logger.js";
+import { type Logger, warnWithFallback } from "../../utils/logger.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { isRecord } from "../../utils/type-guards.js";
 import {
@@ -522,22 +522,63 @@ function applyAskOnExternalOrigin({
 }
 
 /**
- * The `tools` patch entry: the `[tools]` table with the override's `disabled`
- * list laid over it, or nothing when the override does not author one. `[tools] disabled` only
- * removes tools, and a project file can only add to the user's list, so it
- * carries no trust rows. Only that key is written: the rest of `[tools]`
- * (timeouts, search backends, ...) stays as the file has it.
+ * The `tools` patch entry — the `[tools]` table with the override's `disabled`
+ * list laid over it, or nothing when the override does not author one — and the
+ * trust rows it carries. Adding a name only removes a tool, and a project file
+ * can only add to the user's list, so that stays quiet. The list is replaced
+ * whole, though, so a name the file had turned off and the override leaves out
+ * is turned back on, and that is reported, as are a `[tools]` or a `disabled`
+ * the file holds in a shape that cannot be read. Only `disabled` is written:
+ * the rest of `[tools]` (timeouts, search backends, ...) stays as it is.
  */
-function toolsDisabledPatch({
+function applyToolsDisabled({
   existing,
   override,
 }: {
   existing: unknown;
   override: ReasonixPermissionsOverride | undefined;
-}): { tools?: Record<string, unknown> } {
+}): { patch: { tools?: Record<string, unknown> }; entries: TrustAffectingEntry[] } {
   const disabled = override?.tools?.disabled;
-  if (disabled === undefined) return {};
-  return { tools: { ...asReasonixRecord(existing), disabled } };
+  if (disabled === undefined) return { patch: {}, entries: [] };
+  const patch = { tools: { ...asReasonixRecord(existing), disabled } };
+  if (existing === undefined) return { patch, entries: [] };
+  if (!isRecord(existing)) {
+    return {
+      patch,
+      entries: [
+        {
+          label: "tools",
+          reason: replacedUnreadableReason({ shape: "object", toolLabel: REASONIX_TOOL_LABEL }),
+        },
+      ],
+    };
+  }
+  const before = existing.disabled;
+  if (before === undefined) return { patch, entries: [] };
+  if (!Array.isArray(before)) {
+    return {
+      patch,
+      entries: [
+        {
+          label: "tools.disabled",
+          reason: replacedUnreadableReason({ shape: "list", toolLabel: REASONIX_TOOL_LABEL }),
+        },
+      ],
+    };
+  }
+  const reEnabled = uniq(before.filter((name) => !disabled.includes(name as string)));
+  if (reEnabled.length === 0) return { patch, entries: [] };
+  return {
+    patch,
+    entries: [
+      {
+        label: "tools.disabled",
+        reason: `turns back on ${reEnabled
+          .map((name) => quoteValueForWarning(name))
+          .join(", ")}, which the file had turned off`,
+      },
+    ],
+  };
 }
 
 function parseReasonixConfig(fileContent: string): ReasonixConfig {
@@ -640,7 +681,6 @@ export class ReasonixPermissions extends ToolPermissions {
     await warnIfReasonixNestedProjectConfigShadowed({
       outputRoot,
       global,
-      feature: "permissions",
       logger,
     });
     const paths = this.getSettablePaths({ global });
@@ -727,7 +767,9 @@ export class ReasonixPermissions extends ToolPermissions {
 
     const patch: Record<string, unknown> = { permissions: mergedPermissions };
 
-    Object.assign(patch, toolsDisabledPatch({ existing: parsed.tools, override }));
+    const toolsDisabled = applyToolsDisabled({ existing: parsed.tools, override });
+    Object.assign(patch, toolsDisabled.patch);
+    trustAffecting.push(...toolsDisabled.entries);
 
     // Overlay the Reasonix-scoped override's `[sandbox]`/`[agent]` tables. Shallow
     // merged at the table's top level, so the override's keys win while unrelated
@@ -873,7 +915,16 @@ export class ReasonixPermissions extends ToolPermissions {
     }
     const toolsDisabled = asReasonixRecord(this.toml.tools).disabled;
     if (Array.isArray(toolsDisabled)) {
-      reasonixOverride.tools = { disabled: toStringArray(toolsDisabled) };
+      const names = toStringArray(toolsDisabled);
+      if (names.length < toolsDisabled.length) {
+        warnWithFallback(
+          undefined,
+          `Reasonix permissions: ${this.getRelativePathFromCwd()} [tools] disabled holds ` +
+            `${toolsDisabled.length - names.length} non-string entries; they are not imported ` +
+            "into reasonix.tools.disabled, so the next generate drops them.",
+        );
+      }
+      reasonixOverride.tools = { disabled: names };
     }
     if (Object.keys(sandbox).length > 0) reasonixOverride.sandbox = sandbox;
     if (Object.keys(agentPlanMode).length > 0) reasonixOverride.agent = agentPlanMode;

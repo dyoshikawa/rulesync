@@ -10,6 +10,7 @@ import {
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { writeFileContent } from "../../utils/file.js";
+import { fallbackLogger } from "../../utils/logger.js";
 import { ReasonixPermissions } from "./reasonix-permissions.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 
@@ -1163,7 +1164,7 @@ describe("ReasonixPermissions", () => {
       it("writes [tools] disabled and keeps the other [tools] keys", async () => {
         await writeFileContent(
           join(testDir, "reasonix.toml"),
-          smolToml.stringify({ tools: { bash_timeout_seconds: 60, disabled: ["ask"] } }),
+          smolToml.stringify({ tools: { bash_timeout_seconds: 60, disabled: ["web_fetch"] } }),
         );
         const logger = createMockLogger();
 
@@ -1186,6 +1187,72 @@ describe("ReasonixPermissions", () => {
           disabled: ["web_fetch", "web_search"],
         });
         expect(logger.warn).not.toHaveBeenCalled();
+      });
+
+      const generateToolsDisabled = async ({
+        disabled,
+        existing,
+      }: {
+        disabled: string[];
+        existing: Record<string, unknown>;
+      }) => {
+        await writeFileContent(join(testDir, "reasonix.toml"), smolToml.stringify(existing));
+        const logger = createMockLogger();
+        const instance = await ReasonixPermissions.fromRulesyncPermissions({
+          outputRoot: testDir,
+          rulesyncPermissions: new RulesyncPermissions({
+            relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+            relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+            fileContent: JSON.stringify({ permission: {}, reasonix: { tools: { disabled } } }),
+          }),
+          logger,
+        });
+        const parsed = smolToml.parse(instance.getFileContent()) as any;
+        const messages = logger.warn.mock.calls.map(([message]) => String(message));
+        return { parsed, messages };
+      };
+
+      it("announces tools the override turns back on", async () => {
+        const { parsed, messages } = await generateToolsDisabled({
+          disabled: ["web_fetch"],
+          existing: { tools: { disabled: ["bash", "web_fetch"] } },
+        });
+        expect(parsed.tools.disabled).toEqual(["web_fetch"]);
+        expect(messages).toHaveLength(1);
+        expect(messages[0]).toContain("'tools.disabled'");
+        expect(messages[0]).toContain('"bash"');
+        expect(messages[0]).not.toContain('"web_fetch"');
+      });
+
+      it("announces an empty list that turns every disabled tool back on", async () => {
+        const { messages } = await generateToolsDisabled({
+          disabled: [],
+          existing: { tools: { disabled: ["bash", "ask"] } },
+        });
+        expect(messages).toHaveLength(1);
+        expect(messages[0]).toContain('"bash", "ask"');
+      });
+
+      it("announces a disabled value that is not a list", async () => {
+        const { parsed, messages } = await generateToolsDisabled({
+          disabled: ["web_fetch"],
+          existing: { tools: { disabled: "bash" } },
+        });
+        expect(parsed.tools.disabled).toEqual(["web_fetch"]);
+        expect(messages).toHaveLength(1);
+        expect(messages[0]).toContain("'tools.disabled'");
+        expect(messages[0]).toContain("not the list Reasonix documents");
+      });
+
+      it("announces a [tools] value that is not a table", async () => {
+        const { parsed, messages } = await generateToolsDisabled({
+          disabled: ["web_fetch"],
+          existing: { tools: "off" },
+        });
+        expect(parsed.tools).toEqual({ disabled: ["web_fetch"] });
+        expect(messages).toHaveLength(1);
+        expect(messages[0]).toContain("'tools'");
+        expect(messages[0]).toContain("not the object Reasonix documents");
       });
 
       it("leaves [tools] untouched when the override does not author it", async () => {
@@ -1221,6 +1288,22 @@ describe("ReasonixPermissions", () => {
           tools: { disabled: ["web_fetch"] },
         });
       });
+
+      it("warns about non-string [tools] disabled entries it cannot import", () => {
+        const warn = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+        const instance = new ReasonixPermissions({
+          outputRoot: testDir,
+          relativeDirPath: ".",
+          relativeFilePath: "reasonix.toml",
+          fileContent: ["[tools]", 'disabled = ["web_fetch", 1]'].join("\n"),
+        });
+
+        const json = instance.toRulesyncPermissions().getJson();
+
+        expect(json.reasonix).toEqual({ tools: { disabled: ["web_fetch"] } });
+        expect(warn).toHaveBeenCalledTimes(1);
+        expect(String(warn.mock.calls[0]?.[0])).toContain("1 non-string entries");
+      });
     });
 
     describe("nested .reasonix/reasonix.toml", () => {
@@ -1248,6 +1331,13 @@ describe("ReasonixPermissions", () => {
 
         expect(messages).toHaveLength(1);
         expect(messages[0]).toContain(".reasonix/reasonix.toml exists but reasonix.toml does not");
+      });
+
+      it("warns once per run however many features write the file", async () => {
+        await writeFileContent(join(testDir, ".reasonix", "reasonix.toml"), "");
+
+        expect(await generateProject()).toHaveLength(1);
+        expect(await generateProject()).toEqual([]);
       });
 
       it("stays quiet when the root reasonix.toml already exists", async () => {

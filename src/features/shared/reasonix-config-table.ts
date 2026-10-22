@@ -5,7 +5,7 @@ import {
   REASONIX_PROJECT_MCP_FILE_NAME,
 } from "../../constants/reasonix-paths.js";
 import { fileExists, isPresentButUnresolvable, toPosixPath } from "../../utils/file.js";
-import type { Logger } from "../../utils/logger.js";
+import { type Logger, warnOnceWithFallback } from "../../utils/logger.js";
 import { isPlainObject } from "../../utils/type-guards.js";
 
 /**
@@ -67,7 +67,8 @@ async function isPathPresent(path: string): Promise<boolean> {
  * file exists it wins, so every setting in the nested file (permissions,
  * sandbox, disabled tools, MCP servers, ...) silently stops applying. rulesync
  * writes only the root file, so it cannot keep the nested one in effect; this
- * at least names the problem. Like Reasonix, anything at the root path
+ * at least names the problem, once per run however many of the features that
+ * write the file (mcp, permissions, ignore) are generated. Like Reasonix, anything at the root path
  * (including a broken symlink) counts as the root file being there.
  * @see https://github.com/esengine/DeepSeek-Reasonix/blob/studio-v2.47.1/internal/contract/config/paths.go
  * @see https://github.com/esengine/DeepSeek-Reasonix/blob/studio-v2.47.1/docs/CONFIG_PATHS.md
@@ -75,22 +76,21 @@ async function isPathPresent(path: string): Promise<boolean> {
 export async function warnIfReasonixNestedProjectConfigShadowed({
   outputRoot,
   global,
-  feature,
   logger,
 }: {
   outputRoot: string;
   global: boolean;
-  feature: string;
   logger?: Logger;
 }): Promise<void> {
-  if (global || logger === undefined) return;
+  if (global) return;
   if (await isPathPresent(join(outputRoot, REASONIX_PROJECT_MCP_FILE_NAME))) return;
   if (!(await isPathPresent(join(outputRoot, REASONIX_NESTED_PROJECT_CONFIG_RELATIVE_FILE_PATH)))) {
     return;
   }
   const nested = toPosixPath(REASONIX_NESTED_PROJECT_CONFIG_RELATIVE_FILE_PATH);
-  logger.warn(
-    `Reasonix ${feature}: ${nested} exists but ${REASONIX_PROJECT_MCP_FILE_NAME} does not. ` +
+  warnOnceWithFallback(
+    logger,
+    `Reasonix: ${nested} exists but ${REASONIX_PROJECT_MCP_FILE_NAME} does not. ` +
       `Generating creates ${REASONIX_PROJECT_MCP_FILE_NAME}, and Reasonix then reads it instead of ` +
       `${nested} (the two are never merged), so every setting in ${nested} stops applying. ` +
       `Move those settings into ${REASONIX_PROJECT_MCP_FILE_NAME} or the rulesync sources.`,

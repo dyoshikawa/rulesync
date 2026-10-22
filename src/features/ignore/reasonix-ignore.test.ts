@@ -95,7 +95,7 @@ describe("ReasonixIgnore", () => {
       });
 
       expect(logger.warn).toHaveBeenCalledTimes(1);
-      expect(String(logger.warn.mock.calls[0]?.[0])).toContain("Reasonix ignore:");
+      expect(String(logger.warn.mock.calls[0]?.[0])).toContain(".reasonix/reasonix.toml exists");
     });
 
     it("should write read_file(...) deny entries into the project config", async () => {
