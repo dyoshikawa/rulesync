@@ -36,9 +36,15 @@ import {
  *    (`preferred` lets a `subagents` settings override or the `/subagents`
  *    picker replace the model; `required` locks dispatch to the authored
  *    list). CLI v1.0.81+; the shared reference page still lists `model` only.
- *  - The VS Code Copilot harness also documents `model` as a string array
- *    in preference order. Preserve that spelling instead of rewriting it
- *    to the separate `models` field.
+ *  - `model` may also be a list of models in preference order. The Copilot
+ *    CLI changelog for v1.0.83 (2026-09-04) says "Custom agents can list
+ *    several models in `model`, tried in order until one is available to
+ *    you"; the CLI command reference and the shared configuration reference
+ *    still document `model` as a string, so older CLI versions may not read
+ *    the list form (a string is the safe form there). The VS Code Copilot
+ *    harness documents the same array spelling. Preserve a list as authored
+ *    instead of rewriting it to the separate `models` field.
+ *    https://github.com/github/copilot-cli/blob/main/changelog.md#1083---2026-09-04
  *    https://github.com/microsoft/vscode-docs/blob/main/docs/agents/reference/custom-agent-file-reference.md
  *
  * `looseObject` is used so that future additional fields are passed through

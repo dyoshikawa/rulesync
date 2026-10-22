@@ -747,7 +747,10 @@ copilot: # for GitHub Copilot specific parameters
     - agent/runSubagent
 copilotcli: # for GitHub Copilot CLI specific parameters (generated to .github/agents/*.agent.md)
   model: claude-sonnet-4.6 # (optional) model id; inherits the session model when unset
-  models: ["claude-opus-5", "claude-sonnet-4.6"] # (optional, CLI v1.0.81+) models in priority order; overrides `model`
+  # `model` also accepts a list in preference order, e.g. [gpt-5.5, claude-opus-5.5] (CLI v1.0.83+;
+  # the CLI reference still documents a string, so prefer a string for older CLIs). Rulesync keeps the
+  # list in `model` as authored and never moves it into `models`.
+  models: ["claude-opus-5", "claude-sonnet-4.6"] # (optional, CLI v1.0.81+) models in priority order; overrides `model` when both are set
   modelPolicy: preferred # (optional) preferred (default, overridable) | required (locks dispatch to the authored list)
   tools: ["read", "edit"] # (optional) tools available to the agent (string or list)
 opencode: # for OpenCode-specific parameters
