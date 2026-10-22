@@ -67,14 +67,17 @@ const toolScopedMcpSchema = z.looseObject({
 /**
  * Kimi Code's tool-scoped block also carries the `[mcp]` defaults from its
  * shared user config: connect and per-tool-call timeouts that apply to *every*
- * MCP server, including ones rulesync did not write. Per-server
- * `startupTimeoutMs` / `toolTimeoutMs` in `mcpServers` still win.
+ * MCP server, including ones rulesync did not write, and (Kimi Code 2.3.0)
+ * `defaultDeferred`, which loads every server's tools on demand unless the
+ * server opts out. Per-server `startupTimeoutMs` / `toolTimeoutMs` / `deferred`
+ * in `mcpServers` still win.
  *
  * @see https://moonshotai.github.io/kimi-code/en/configuration/config-files.html#mcp
  */
 const kimiCodeScopedMcpSchema = z.extend(toolScopedMcpSchema, {
   startupTimeoutMs: z.optional(z.number()),
   toolTimeoutMs: z.optional(z.number()),
+  defaultDeferred: z.optional(z.boolean()),
 });
 
 /**
