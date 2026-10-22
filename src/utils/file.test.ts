@@ -35,6 +35,7 @@ import {
   listFileNames,
   listFilePathsRecursively,
   listSubdirectoryNames,
+  PathOutsideRootError,
   posixRelativePathEscapesRoot,
   readFileBufferOrNull,
   readFileContent,
@@ -244,6 +245,32 @@ describe("file utilities", () => {
             targetPath: join(rootDir, "dangling", "file.md"),
           }),
         ).rejects.toThrow("dangling symbolic link");
+      });
+
+      it("should throw PathOutsideRootError only for a link that escapes the root", async () => {
+        const rootDir = join(testDir, "project");
+        const outsideDir = join(testDir, "outside");
+        await ensureDir(rootDir);
+        await ensureDir(outsideDir);
+        await symlink(outsideDir, join(rootDir, "linked"));
+        await symlink(join(testDir, "missing"), join(rootDir, "dangling"));
+        await symlink("loop", join(rootDir, "loop"));
+
+        await expect(
+          assertPathResolvesInsideRoot({ rootPath: rootDir, targetPath: join(rootDir, "linked") }),
+        ).rejects.toBeInstanceOf(PathOutsideRootError);
+        await expect(
+          assertPathResolvesInsideRoot({
+            rootPath: rootDir,
+            targetPath: join(rootDir, "dangling", "file.md"),
+          }),
+        ).rejects.toBeInstanceOf(PathOutsideRootError);
+        const loopError = await assertPathResolvesInsideRoot({
+          rootPath: rootDir,
+          targetPath: join(rootDir, "loop", "file.md"),
+        }).catch((error: unknown) => error);
+        expect(loopError).not.toBeInstanceOf(PathOutsideRootError);
+        expect(loopError).toMatchObject({ code: "ELOOP" });
       });
     });
 

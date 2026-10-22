@@ -109,11 +109,14 @@ function toOrigin(url: string): string | undefined {
 
 /**
  * Whether a registry may receive the token: the default npm registry, or an
- * origin the user listed in {@link NPM_TRUSTED_REGISTRIES_ENV}.
+ * origin the user listed in {@link NPM_TRUSTED_REGISTRIES_ENV}. An entry that
+ * is not a URL with an origin (`acme.jfrog.io` without a scheme, say) trusts
+ * nothing, and is reported through `logger` so the user can tell why.
  */
 export function isTrustedNpmRegistry(
   registryUrl: string,
   env: Record<string, string | undefined> = process.env,
+  logger?: Logger,
 ): boolean {
   const origin = toOrigin(registryUrl);
   if (origin === undefined) {
@@ -122,11 +125,23 @@ export function isTrustedNpmRegistry(
   if (origin === toOrigin(DEFAULT_NPM_REGISTRY_URL)) {
     return true;
   }
-  const trusted = (env[NPM_TRUSTED_REGISTRIES_ENV] ?? "")
-    .split(",")
-    .map((entry) => entry.trim())
-    .filter((entry) => entry !== "")
-    .map((entry) => toOrigin(entry));
+  const trusted: string[] = [];
+  for (const entry of (env[NPM_TRUSTED_REGISTRIES_ENV] ?? "").split(",")) {
+    const trimmed = entry.trim();
+    if (trimmed === "") {
+      continue;
+    }
+    const entryOrigin = toOrigin(trimmed);
+    // A URL without a scheme rulesync knows (`acme.jfrog.io:8080`) parses,
+    // but its origin is the opaque "null".
+    if (entryOrigin === undefined || entryOrigin === "null") {
+      logger?.warn(
+        `Ignoring ${NPM_TRUSTED_REGISTRIES_ENV} entry ${JSON.stringify(trimmed)}: it is not a registry URL with an origin (e.g. "https://acme.jfrog.io").`,
+      );
+      continue;
+    }
+    trusted.push(entryOrigin);
+  }
   return trusted.includes(origin);
 }
 
@@ -151,7 +166,7 @@ export function resolveNpmToken(params: {
     );
   }
 
-  const trusted = isTrustedNpmRegistry(registryUrl);
+  const trusted = isTrustedNpmRegistry(registryUrl, process.env, logger);
   if (tokenEnv !== undefined) {
     if (!trusted) {
       throw new NpmClientError(
