@@ -13,6 +13,7 @@ import { ValidationResult } from "../../types/ai-dir.js";
 import { formatError } from "../../utils/error.js";
 import { toPosixPath } from "../../utils/file.js";
 import { loadYaml } from "../../utils/yaml.js";
+import { toStringMetadata } from "./agentsskills-skill.js";
 import {
   RulesyncSkill,
   RulesyncSkillFrontmatter,
@@ -35,6 +36,11 @@ const CodexCliSkillFrontmatterSchema = z.looseObject({
       "short-description": z.optional(z.string()),
     }),
   ),
+  // Codex itself ignores this key (its `SkillFrontmatter` struct does not deny
+  // unknown fields) and reads the invocation policy from `agents/openai.yaml`.
+  // It is kept in `SKILL.md` because `.agents/skills/` is the shared Agent
+  // Skills interop root, and other clients reading it honor the flag.
+  "disable-model-invocation": z.optional(z.boolean()),
 });
 
 export type CodexCliSkillFrontmatter = z.infer<typeof CodexCliSkillFrontmatterSchema>;
@@ -42,7 +48,8 @@ export type CodexCliSkillFrontmatter = z.infer<typeof CodexCliSkillFrontmatterSc
 /**
  * Relative path (within a skill directory) of the Codex `agents/openai.yaml` sidecar.
  * Codex CLI reads UI metadata, invocation policy, and tool dependencies from this file;
- * `SKILL.md` frontmatter only carries `name` and `description`.
+ * from `SKILL.md` frontmatter it reads only `name`, `description` and
+ * `metadata.short-description`, ignoring any other key.
  * @see https://developers.openai.com/codex/skills.md
  */
 const CODEX_OPENAI_YAML_RELATIVE_PATH = CODEXCLI_OPENAI_YAML_RELATIVE_PATH;
@@ -179,6 +186,60 @@ function openaiYamlToCodexcliSection(
   return Object.keys(section).length > 0 ? section : undefined;
 }
 
+/**
+ * Build the `SKILL.md` `metadata` map: the root-level rulesync `metadata` with
+ * the legacy `codexcli.short-description` merged in. The tool-specific value wins
+ * over a root `metadata.short-description`, as a target section overrides the
+ * root default everywhere else. Values are stringified because the Agent Skills
+ * spec types `metadata` as a string-to-string map, and `.agents/skills/` is read
+ * by other spec clients too; Codex itself deserializes `short-description` as a
+ * string.
+ * @see https://agentskills.io/specification
+ */
+function buildSkillMetadata({
+  rootMetadata,
+  shortDescription,
+}: {
+  rootMetadata: Record<string, unknown> | undefined;
+  shortDescription: string | undefined;
+}): Record<string, string> | undefined {
+  const merged: Record<string, unknown> = {
+    ...rootMetadata,
+    ...(shortDescription !== undefined && { "short-description": shortDescription }),
+  };
+  return Object.keys(merged).length > 0 ? toStringMetadata(merged) : undefined;
+}
+
+/**
+ * Drop `policy.allow_implicit_invocation: false` from an imported sidecar section
+ * when the `SKILL.md` frontmatter already carries `disable-model-invocation: true`,
+ * since the root flag regenerates exactly that value. Keeping both would store the
+ * same setting twice in `.rulesync/skills/`.
+ */
+function dropPolicyImpliedByRootFlag(
+  section: Record<string, unknown> | undefined,
+  disableModelInvocation: boolean | undefined,
+): Record<string, unknown> | undefined {
+  const policy = section?.policy;
+  if (
+    !section ||
+    disableModelInvocation !== true ||
+    policy === null ||
+    typeof policy !== "object" ||
+    Array.isArray(policy) ||
+    (policy as Record<string, unknown>).allow_implicit_invocation !== false
+  ) {
+    return section;
+  }
+  const { allow_implicit_invocation: _implied, ...restPolicy } = policy as Record<string, unknown>;
+  const { policy: _policy, ...restSection } = section;
+  const result: Record<string, unknown> = {
+    ...restSection,
+    ...(Object.keys(restPolicy).length > 0 && { policy: restPolicy }),
+  };
+  return Object.keys(result).length > 0 ? result : undefined;
+}
+
 export type CodexCliSkillParams = {
   outputRoot?: string;
   relativeDirPath?: string;
@@ -272,13 +333,21 @@ export class CodexCliSkill extends ToolSkill {
 
   toRulesyncSkill(): RulesyncSkill {
     const frontmatter = this.getFrontmatter();
+    const disableModelInvocation = frontmatter["disable-model-invocation"];
     const { parsed, rest } = extractOpenaiYamlFile(this.getOtherFiles());
-    const openaiSection = openaiYamlToCodexcliSection(parsed);
+    const openaiSection = dropPolicyImpliedByRootFlag(
+      openaiYamlToCodexcliSection(parsed),
+      disableModelInvocation,
+    );
+
+    // `metadata.short-description` goes back to its codexcli-specific home; the
+    // other `metadata` keys and `disable-model-invocation` are the cross-tool
+    // Agent Skills fields of the shared `.agents/skills/` root, so they return to
+    // the root-level rulesync fields they were generated from.
+    const { "short-description": shortDescription, ...rootMetadata } = frontmatter.metadata ?? {};
 
     const codexcliSection: Record<string, unknown> = {
-      ...(frontmatter.metadata?.["short-description"] && {
-        "short-description": frontmatter.metadata["short-description"],
-      }),
+      ...(shortDescription && { "short-description": shortDescription }),
       ...openaiSection,
     };
 
@@ -286,6 +355,10 @@ export class CodexCliSkill extends ToolSkill {
       name: frontmatter.name,
       description: frontmatter.description,
       targets: ["*"],
+      ...(disableModelInvocation !== undefined && {
+        "disable-model-invocation": disableModelInvocation,
+      }),
+      ...(Object.keys(rootMetadata).length > 0 && { metadata: rootMetadata }),
       ...(Object.keys(codexcliSection).length > 0 && {
         codexcli: codexcliSection as RulesyncSkillFrontmatterInput["codexcli"],
       }),
@@ -312,14 +385,20 @@ export class CodexCliSkill extends ToolSkill {
     const settablePaths = CodexCliSkill.getSettablePaths({ global });
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
 
+    const metadata = buildSkillMetadata({
+      rootMetadata: rulesyncFrontmatter.metadata,
+      shortDescription: rulesyncFrontmatter.codexcli?.["short-description"] || undefined,
+    });
+    const disableModelInvocation = rulesyncFrontmatter["disable-model-invocation"];
     const codexFrontmatter: CodexCliSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
-      ...(rulesyncFrontmatter.codexcli?.["short-description"] && {
-        metadata: {
-          "short-description": rulesyncFrontmatter.codexcli["short-description"],
-        },
+      // Kept in SKILL.md for the other clients reading `.agents/skills/`, in
+      // addition to the `agents/openai.yaml` policy Codex reads below.
+      ...(disableModelInvocation !== undefined && {
+        "disable-model-invocation": disableModelInvocation,
       }),
+      ...(metadata !== undefined && { metadata }),
     };
 
     // Emit the Codex `agents/openai.yaml` sidecar when interface/policy/dependencies
