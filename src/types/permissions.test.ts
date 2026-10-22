@@ -24,6 +24,22 @@ describe("RulesyncPermissionsFileSchema tool-scoped override enums", () => {
     });
   });
 
+  describe("omp.approvalMode", () => {
+    it.each(["always-ask", "always-ask-cached", "write", "yolo"])("should accept %s", (value) => {
+      const result = RulesyncPermissionsFileSchema.safeParse(
+        withOverride({ omp: { approvalMode: value } }),
+      );
+      expect(result.success).toBe(true);
+    });
+
+    it("should reject an unknown value", () => {
+      const result = RulesyncPermissionsFileSchema.safeParse(
+        withOverride({ omp: { approvalMode: "always-ask-remember" } }),
+      );
+      expect(result.success).toBe(false);
+    });
+  });
+
   describe("warp.agent_mode_coding_permissions", () => {
     it.each(["always_ask_before_reading", "always_allow_reading", "allow_reading_specific_files"])(
       "should accept %s",

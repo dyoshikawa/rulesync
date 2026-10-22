@@ -187,12 +187,14 @@ export type CopilotPermissionsOverride = z.infer<typeof CopilotPermissionsOverri
 
 /**
  * oh-my-pi's `tools.approvalMode` values: the tool tiers it auto-approves
- * before prompting. `always-ask` auto-approves only read-only tools, `write`
- * also workspace writes, and `yolo` (oh-my-pi's default) every tier.
+ * before prompting. `always-ask` auto-approves only read-only tools,
+ * `always-ask-cached` (Ask and remember) also prompts before file reads and
+ * lets a prompt remember the granted file or folder, `write` also
+ * auto-approves workspace writes, and `yolo` (oh-my-pi's default) every tier.
  *
  * @see https://github.com/can1357/oh-my-pi/blob/main/docs/approval-mode.md
  */
-export const OMP_APPROVAL_MODES = ["always-ask", "write", "yolo"] as const;
+export const OMP_APPROVAL_MODES = ["always-ask", "always-ask-cached", "write", "yolo"] as const;
 export type OmpApprovalMode = (typeof OMP_APPROVAL_MODES)[number];
 
 /**
