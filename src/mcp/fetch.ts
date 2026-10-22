@@ -1,6 +1,7 @@
 import { z } from "zod/mini";
 
-import { fetchFiles, formatFetchSummary } from "../lib/fetch.js";
+import { RULESYNC_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
+import { fetchCommand } from "../lib/fetch-command.js";
 import { type Feature } from "../types/features.js";
 import { FetchTargetSchema } from "../types/fetch-targets.js";
 import {
@@ -8,7 +9,6 @@ import {
   type McpCommandResult,
   runCommandForMcp,
   stringifyResult,
-  withGitHubAuthHint,
 } from "./command-runner.js";
 
 /**
@@ -45,43 +45,23 @@ export async function executeFetch(options: FetchOptions): Promise<McpCommandRes
       }
       const target =
         options.target === undefined ? undefined : FetchTargetSchema.parse(options.target);
-      if (options.output !== undefined) {
-        await assertPathInsideCwd({ path: options.output, label: "output" });
-      }
-      let summary;
-      try {
-        summary = await fetchFiles({
-          source: options.source,
-          options: {
-            target,
-            features: options.features as Array<Feature | "*"> | undefined,
-            ref: options.ref,
-            path: options.path,
-            output: options.output,
-            conflict: options.conflict,
-            prune: options.prune,
-            skills: options.skills,
-          },
-          logger,
-        });
-      } catch (error) {
-        throw withGitHubAuthHint(error);
-      }
-      const filesWithStatus = (status: string) =>
-        summary.files.filter((file) => file.status === status).map((file) => file.relativePath);
-      if (summary.created + summary.overwritten + summary.skipped === 0) {
-        logger.warn("No files were fetched.");
-      }
-      logger.success(formatFetchSummary(summary));
-      return {
+      await assertPathInsideCwd({
+        path: options.output ?? RULESYNC_RELATIVE_DIR_PATH,
+        label: "output",
+      });
+      await fetchCommand(logger, {
         source: options.source,
-        ref: summary.ref,
-        created: filesWithStatus("created"),
-        overwritten: filesWithStatus("overwritten"),
-        skipped: filesWithStatus("skipped"),
-        deleted: filesWithStatus("deleted"),
-        totalFetched: summary.created + summary.overwritten + summary.skipped,
-      };
+        target,
+        features: options.features as Array<Feature | "*"> | undefined,
+        ref: options.ref,
+        path: options.path,
+        output: options.output,
+        conflict: options.conflict,
+        prune: options.prune,
+        skills: options.skills,
+        verbose: false,
+        silent: true,
+      });
     },
   });
 }

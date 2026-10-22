@@ -4,6 +4,7 @@ import { assertTargetsFeaturesExclusive, ConfigFile, ConfigFileSchema } from "..
 import {
   RULESYNC_CONFIG_RELATIVE_FILE_PATH,
   RULESYNC_CONFIG_SCHEMA_URL,
+  RULESYNC_RELATIVE_DIR_PATH,
   RULESYNC_USER_CONFIG_DIR_NAME,
   RULESYNC_XDG_CONFIG_HOME_DEFAULT_DIR_NAME,
 } from "../constants/rulesync-paths.js";
@@ -154,8 +155,8 @@ async function createConfigFile(): Promise<InitConfigFileResult> {
     : { created: true, path, seededFrom: userConfig.path };
 }
 
-async function createSampleFiles(): Promise<InitFileResult[]> {
-  const samples = [
+function createSampleScaffolds() {
+  return [
     createFeatureScaffold({ feature: "rule", name: "overview" }),
     createFeatureScaffold({ feature: "mcp" }),
     createFeatureScaffold({ feature: "subagent", name: "planner" }),
@@ -163,6 +164,23 @@ async function createSampleFiles(): Promise<InitFileResult[]> {
     createFeatureScaffold({ feature: "hooks" }),
     createFeatureScaffold({ feature: "permissions" }),
   ];
+}
+
+/**
+ * Every path `init` may create, relative to the working directory: the
+ * `.rulesync/` directory, the config file, and each sample file. Lets a caller
+ * that must keep writes inside the project check them before `init` runs.
+ */
+export function getInitWritePaths(): string[] {
+  return [
+    RULESYNC_RELATIVE_DIR_PATH,
+    RULESYNC_CONFIG_RELATIVE_FILE_PATH,
+    ...createSampleScaffolds().map((sample) => sample.relativeFilePath),
+  ];
+}
+
+async function createSampleFiles(): Promise<InitFileResult[]> {
+  const samples = createSampleScaffolds();
 
   const results: InitFileResult[] = [];
   for (const sample of samples) {

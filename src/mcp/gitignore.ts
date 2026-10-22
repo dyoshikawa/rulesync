@@ -3,7 +3,19 @@ import { z } from "zod/mini";
 import { gitignoreCommand } from "../lib/gitignore.js";
 import { resolveGitignoreTargets } from "../lib/resolve-gitignore-targets.js";
 import { type RulesyncFeatures } from "../types/features.js";
-import { type McpCommandResult, runCommandForMcp, stringifyResult } from "./command-runner.js";
+import {
+  assertPathInsideCwd,
+  type McpCommandResult,
+  runCommandForMcp,
+  stringifyResult,
+} from "./command-runner.js";
+
+/**
+ * The project files gitignore writes. Checked before the run so a committed
+ * symbolic link (dangling or not) cannot lead the write outside the project.
+ * The `gitexclude` destination is Git's own `info/exclude`, located by Git.
+ */
+const GITIGNORE_WRITE_PATHS = [".gitignore", ".gitattributes"];
 
 /**
  * Schema for gitignore options
@@ -24,6 +36,9 @@ export type GitignoreOptions = z.infer<typeof gitignoreOptionsSchema>;
 export async function executeGitignore(options: GitignoreOptions = {}): Promise<McpCommandResult> {
   return await runCommandForMcp({
     run: async (logger) => {
+      for (const path of GITIGNORE_WRITE_PATHS) {
+        await assertPathInsideCwd({ path, label: path });
+      }
       const resolvedTargets = await resolveGitignoreTargets({ cliTargets: options.targets });
       await gitignoreCommand(logger, {
         targets: resolvedTargets ? [...resolvedTargets] : undefined,

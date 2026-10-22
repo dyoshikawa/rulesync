@@ -1,7 +1,6 @@
 import { resolve } from "node:path";
 import { format } from "node:util";
 
-import { GitHubClientError } from "../lib/github-client.js";
 import { stripControlCharacters } from "../utils/control-characters.js";
 import { formatError } from "../utils/error.js";
 import { assertPathResolvesInsideRoot, checkPathTraversal } from "../utils/file.js";
@@ -144,18 +143,6 @@ export async function assertPathInsideCwd({
       cause: error,
     });
   }
-}
-
-/** Point an authentication failure at the environment variables the server reads. */
-export function withGitHubAuthHint(error: unknown): unknown {
-  if (!(error instanceof GitHubClientError)) {
-    return error;
-  }
-  const hint =
-    error.statusCode === 401 || error.statusCode === 403
-      ? " Set GITHUB_TOKEN or GH_TOKEN in the MCP server's environment."
-      : "";
-  return new Error(`GitHub API Error: ${error.message}.${hint}`, { cause: error });
 }
 
 export function stringifyResult(result: McpCommandResult): string {

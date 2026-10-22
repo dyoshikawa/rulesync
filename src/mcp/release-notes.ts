@@ -1,17 +1,7 @@
 import { z } from "zod/mini";
 
-import { GitHubClient } from "../lib/github-client.js";
-import {
-  fetchReleaseNotes,
-  parseRepository,
-  resolveReleaseNotesFilter,
-} from "../lib/release-notes.js";
-import {
-  type McpCommandResult,
-  runCommandForMcp,
-  stringifyResult,
-  withGitHubAuthHint,
-} from "./command-runner.js";
+import { releaseNotesCommand } from "../lib/release-notes-command.js";
+import { type McpCommandResult, runCommandForMcp, stringifyResult } from "./command-runner.js";
 
 /**
  * Schema for release-notes options
@@ -43,34 +33,10 @@ export async function executeReleaseNotes(options: ReleaseNotesOptions): Promise
       if (!options.source) {
         throw new Error("source is required.");
       }
-      const { source, latest, ...filterOptions } = options;
-      const { owner, repo } = parseRepository(source);
-      const filter = resolveReleaseNotesFilter({
-        ...filterOptions,
-        latest: latest === undefined ? undefined : String(latest),
+      await releaseNotesCommand(logger, {
+        ...options,
+        latest: options.latest === undefined ? undefined : String(options.latest),
       });
-      const client = new GitHubClient({ token: GitHubClient.resolveToken() });
-      let releases;
-      try {
-        releases = await fetchReleaseNotes({
-          client,
-          owner,
-          repo,
-          filter,
-          includePrereleases: filterOptions.includePrereleases,
-        });
-      } catch (error) {
-        throw withGitHubAuthHint(error);
-      }
-      if (releases.length === 0) {
-        logger.warn(`No releases found for ${owner}/${repo}.`);
-      }
-      return {
-        repository: `${owner}/${repo}`,
-        filter,
-        releases,
-        totalReleases: releases.length,
-      };
     },
   });
 }

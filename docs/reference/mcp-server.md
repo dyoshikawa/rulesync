@@ -77,6 +77,7 @@ The CLI commands below run through `operation: "run"` with the same behavior as 
 | `releaseNotes` | `releaseNotesOptions` | `source` (required, `owner/repo`), `latest`, `since`, `until`, `tag`, `from`, `to`, `includePrereleases`                               |
 
 - Path options (`configPath`, `output`) must stay inside the directory the server runs in; a path that leads outside it, textually or through a symbolic link, is rejected.
+- The fixed files that `init`, `gitignore` and `fetch` write are checked the same way before anything is written: `init` refuses to run when `.rulesync/`, `rulesync.jsonc`, or any sample file it creates is a symbolic link (dangling or not) that leads outside the project; `gitignore` does the same for `.gitignore` and `.gitattributes`; and `fetch` checks its output directory, `.rulesync` by default. The `gitexclude` destination is the exception: it is Git's own `info/exclude`, which Git locates, and in a linked worktree it lives in the main repository's `.git` directory.
 - `install` with `mode: "gh"` refuses a configuration that declares a source with `scope: "user"`, since that would install outside the project; run it from the CLI instead.
 - There is no `token` option: `add`, `fetch`, `install` and `releaseNotes` read `GITHUB_TOKEN` / `GH_TOKEN` (and the npm token variables named by `tokenEnv`) from the server's environment.
 - `fetch` has no `interactive` option; select skills with `skills`. `add` never prompts: without `force`, an existing scaffold file is left unchanged and the call fails.
