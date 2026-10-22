@@ -123,6 +123,21 @@ The CLI commands below run through `operation: "run"` with the same behavior as 
 - `docs` returns `result.content` (the Markdown, with its `id`), `result.matches` (`id` and `snippet` per match; empty when nothing matches), or `result.documents`.
 - `releaseNotes` returns `result.releases` (tag, name, date, URL, and Markdown body of each release).
 
+## CLI parity
+
+Every `rulesync` CLI command and option is available through the MCP server unless it is listed below. A command `foo-bar` is the `fooBar` feature with `operation: "run"`, and its options and positional arguments are keys of `fooBarOptions`, in camelCase (`--dry-run` is `dryRun`, `--no-prune` is `prune: false`). The one renamed option is `--config`, which is `configPath`. A test (`src/cli/mcp-parity.test.ts`) compares the commands and options registered by the CLI with the MCP schemas, so a new CLI command or option has to ship with MCP support or with an entry in this list (`MCP_PARITY_EXCLUSIONS` in `src/cli/mcp-parity.ts`).
+
+| Excluded                | Scope         | Reason                                                                                                              |
+| ----------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `mcp`                   | command       | Starts the MCP server itself.                                                                                       |
+| `update`                | command       | Replaces the rulesync binary the server is running from; npm and Homebrew installs only print upgrade instructions. |
+| `--version`             | program       | Prints the CLI version; not a command an agent runs.                                                                |
+| `--json`                | program       | MCP results are always structured JSON.                                                                             |
+| `--verbose`, `--silent` | every command | The MCP server writes no console output.                                                                            |
+| `--token`               | every command | Secrets stay out of tool arguments; `GITHUB_TOKEN` / `GH_TOKEN` from the server's environment is used instead.      |
+| `--watch`               | `generate`    | Long-running; an MCP call must return.                                                                              |
+| `--interactive`         | `fetch`       | Needs a terminal prompt; select skills with `skills` instead.                                                       |
+
 ## Usage
 
 ### Starting the MCP Server

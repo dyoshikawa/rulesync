@@ -148,4 +148,4 @@ No. Rulesync is a CLI and a library, and it does not ship a `rulesync ui` comman
 A graphical front end can be built on top of Rulesync instead, from either of two existing entry points:
 
 - The [Programmatic API](./api/programmatic-api.md) exports `generate`, `importFromTool` and `convertFromTool`, so a desktop or web app can drive the same operations as the CLI from Node.js.
-- The [Rulesync MCP Server](./reference/mcp-server.md) lets an AI agent read, create, update and delete Rulesync files and run `generate`, `import` and `convert`, which covers the "browse, edit and regenerate" part of a dashboard from inside your coding assistant.
+- The [Rulesync MCP Server](./reference/mcp-server.md) lets an AI agent read, create, update and delete Rulesync files and run the CLI commands (`generate`, `import`, `convert`, `doctor`, `install` and the others; see [CLI parity](./reference/mcp-server.md#cli-parity)), which covers the "browse, edit and regenerate" part of a dashboard from inside your coding assistant.
