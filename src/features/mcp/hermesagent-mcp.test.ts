@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { load } from "js-yaml";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { isRecord } from "../../utils/type-guards.js";
@@ -560,6 +561,86 @@ describe("HermesagentMcp", () => {
         generate_video: [5, 20],
         animate: { credits: 3, note: "per animation" },
       });
+    });
+
+    it("drops cost keys Hermes would reject on generate, with a warning (issue #2414)", async () => {
+      const logger = createMockLogger();
+      const mcp = await HermesagentMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        global: true,
+        logger,
+        rulesyncMcp: new RulesyncMcp({
+          relativeDirPath: ".rulesync",
+          relativeFilePath: ".mcp.json",
+          fileContent: JSON.stringify({
+            mcpServers: {
+              stringLimit: { command: "a", spend_limit: "5", cost_unit: 3, tool_costs: [1, 2] },
+              negativeLimit: { command: "b", spend_limit: -1, cost_unit: "  ", tool_costs: "x" },
+              longUnit: { command: "c", cost_unit: "u".repeat(33) },
+            },
+          }),
+        }),
+      });
+      const servers = getMcpServers(mcp.getFileContent());
+
+      for (const name of ["stringLimit", "negativeLimit", "longUnit"]) {
+        expect(servers[name]).not.toHaveProperty("spend_limit");
+        expect(servers[name]).not.toHaveProperty("cost_unit");
+        expect(servers[name]).not.toHaveProperty("tool_costs");
+      }
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('spend_limit "5"'));
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("spend_limit -1"));
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("cost_unit 3"));
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('cost_unit "  "'));
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(`cost_unit "${"u".repeat(33)}"`),
+      );
+      expect(
+        logger.warn.mock.calls.filter(([message]) => String(message).includes("tool_costs")),
+      ).toHaveLength(2);
+    });
+
+    it("strips nested prototype-pollution keys from tool_costs (issue #2414)", async () => {
+      const mcp = await HermesagentMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        global: true,
+        rulesyncMcp: new RulesyncMcp({
+          relativeDirPath: ".rulesync",
+          relativeFilePath: ".mcp.json",
+          fileContent:
+            '{"mcpServers":{"render":{"command":"render-mcp","tool_costs":{"__proto__":{"polluted":true},"animate":{"credits":3,"__proto__":{"polluted":true}}}}}}',
+        }),
+      });
+
+      const toolCosts = getMcpServers(mcp.getFileContent()).render?.tool_costs;
+      expect(toolCosts).toEqual({ animate: { credits: 3 } });
+      expect(mcp.getFileContent()).not.toContain("polluted");
+      expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+    });
+
+    it("drops a NaN spend_limit on import, with a warning (issue #2414)", () => {
+      const logger = createMockLogger();
+      const mcp = new HermesagentMcp({
+        outputRoot: testDir,
+        relativeDirPath: HERMES_DIR,
+        relativeFilePath: HERMES_FILE,
+        validate: false,
+        logger,
+        fileContent: [
+          "mcp_servers:",
+          "  render:",
+          "    command: render-mcp",
+          "    spend_limit: .nan",
+          "    cost_unit: tokens",
+          "",
+        ].join("\n"),
+        global: true,
+      });
+
+      const imported = JSON.parse(mcp.toRulesyncMcp().getFileContent());
+      expect(imported.hermesagent.mcpServers.render).not.toHaveProperty("spend_limit");
+      expect(imported.hermesagent.mcpServers.render.cost_unit).toBe("tokens");
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("spend_limit NaN"));
     });
 
     it("writes transport: sse for an sse server spelled with the httpUrl alias", async () => {
