@@ -667,7 +667,7 @@ describe("HooksProcessor", () => {
       },
     );
 
-    it("should log warning when matcher hooks exist and target does not support them", async () => {
+    it("should warn only about matcher hooks on events copilot does not match on", async () => {
       const config = {
         version: 1,
         hooks: {
@@ -676,6 +676,7 @@ describe("HooksProcessor", () => {
             { type: "command", command: "all-tools.sh" },
           ],
           postToolUse: [{ type: "command", command: "format.sh", matcher: "Edit" }],
+          sessionStart: [{ type: "command", command: "start.sh", matcher: "startup" }],
         },
       };
       const rulesyncHooks = new RulesyncHooks({
@@ -690,10 +691,8 @@ describe("HooksProcessor", () => {
       await processor.convertRulesyncFilesToToolFiles([rulesyncHooks]);
 
       expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining("Skipped matcher hook(s) for copilot (not supported)"),
+        "Skipped matcher hook(s) for copilot (not supported): sessionStart",
       );
-      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("preToolUse"));
-      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("postToolUse"));
     });
 
     it("should not log matcher warning for targets that support matchers", async () => {

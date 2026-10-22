@@ -210,6 +210,15 @@ function fromKimiCodeServers({
 export type KimiCodeMcpDefaults = {
   startupTimeoutMs?: number;
   toolTimeoutMs?: number;
+  /**
+   * `[mcp] default_deferred` (Kimi Code 2.3.0): load every server's tools on
+   * demand unless the server sets `deferred: false` in `mcp.json`. Only takes
+   * effect when Kimi's experimental `tool-select` flag is on, and is captured
+   * when a server connects (a change applies after reconnect or restart).
+   * @see https://github.com/MoonshotAI/kimi-code/pull/4210
+   * @see https://moonshotai.github.io/kimi-code/en/customization/mcp.html
+   */
+  defaultDeferred?: boolean;
 };
 
 type KimiCodeMcpExtraParams = {
@@ -277,14 +286,17 @@ async function readKimiCodeMcpDefaults({
     ...(typeof config.mcp.tool_timeout_ms === "number" && {
       toolTimeoutMs: config.mcp.tool_timeout_ms,
     }),
+    ...(typeof config.mcp.default_deferred === "boolean" && {
+      defaultDeferred: config.mcp.default_deferred,
+    }),
   };
 }
 
 /**
  * Kimi's `[mcp]` section in the shared user config sets the default connect and
- * per-tool-call timeouts for *every* MCP server, including ones rulesync did not
- * write. Per-server values in `mcp.json` still take precedence; this only moves
- * the floor.
+ * per-tool-call timeouts, and whether tools load on demand, for *every* MCP
+ * server, including ones rulesync did not write. Per-server values in
+ * `mcp.json` still take precedence; this only moves the default.
  *
  * Written as an auxiliary file so it goes through the normal write phase and
  * respects `--dry-run`, and merged through the shared-config gateway so the
@@ -292,7 +304,8 @@ async function readKimiCodeMcpDefaults({
  *
  * The gateway replaces an owned key wholesale, and `mcp` is a table, so the
  * section is recomputed from the existing file: authoring only
- * `startupTimeoutMs` must not delete a hand-written `tool_timeout_ms`. Same
+ * `startupTimeoutMs` must not delete a hand-written `tool_timeout_ms` or
+ * `default_deferred`. Same
  * approach the `.vibe/config.toml` `tools` writer takes.
  *
  * @see https://moonshotai.github.io/kimi-code/en/configuration/config-files.html#mcp
@@ -334,6 +347,9 @@ export class KimiCodeMcpConfigToml extends ToolFile {
           ...(defaults.toolTimeoutMs !== undefined && {
             tool_timeout_ms: defaults.toolTimeoutMs,
           }),
+          ...(defaults.defaultDeferred !== undefined && {
+            default_deferred: defaults.defaultDeferred,
+          }),
         },
       },
       // Relative, matching the hooks and permissions writers of the same file,
@@ -356,7 +372,7 @@ export class KimiCodeMcp extends ToolMcp {
    * instance because `toRulesyncMcp` is synchronous, while the defaults live in
    * a different file that only the async `fromFile` can read.
    */
-  private readonly configDefaults: { startupTimeoutMs?: number; toolTimeoutMs?: number };
+  private readonly configDefaults: KimiCodeMcpDefaults;
   private readonly logger: Logger | undefined;
 
   constructor({ configDefaults, logger, ...params }: ToolMcpParams & KimiCodeMcpExtraParams) {
@@ -484,7 +500,13 @@ export class KimiCodeMcp extends ToolMcp {
     const startupTimeoutMs =
       typeof block.startupTimeoutMs === "number" ? block.startupTimeoutMs : undefined;
     const toolTimeoutMs = typeof block.toolTimeoutMs === "number" ? block.toolTimeoutMs : undefined;
-    if (startupTimeoutMs === undefined && toolTimeoutMs === undefined) {
+    const defaultDeferred =
+      typeof block.defaultDeferred === "boolean" ? block.defaultDeferred : undefined;
+    if (
+      startupTimeoutMs === undefined &&
+      toolTimeoutMs === undefined &&
+      defaultDeferred === undefined
+    ) {
       return [];
     }
 
@@ -495,7 +517,7 @@ export class KimiCodeMcp extends ToolMcp {
       const paths = kimiCodeConfigRelativePath();
       warnWithFallback(
         logger,
-        `Skipping the Kimi Code MCP timeout defaults: ${join(paths.relativeDirPath, paths.relativeFilePath)} is not valid TOML.`,
+        `Skipping the Kimi Code MCP [mcp] defaults: ${join(paths.relativeDirPath, paths.relativeFilePath)} is not valid TOML.`,
       );
       return [];
     }
@@ -503,7 +525,7 @@ export class KimiCodeMcp extends ToolMcp {
     return [
       KimiCodeMcpConfigToml.fromDefaults({
         outputRoot,
-        defaults: { startupTimeoutMs, toolTimeoutMs },
+        defaults: { startupTimeoutMs, toolTimeoutMs, defaultDeferred },
         existing,
       }),
     ];

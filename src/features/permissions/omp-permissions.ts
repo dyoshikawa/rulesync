@@ -120,7 +120,7 @@ const MANAGED_OMP_TOOLS: ReadonlySet<string> = new Set([
  *   catch-all one at its own strictness, a pattern-specific one as `prompt`).
  *
  * The `omp.approvalMode` override writes `tools.approvalMode` (`always-ask`,
- * `write` or `yolo`); without it the key is left as it is in the file, and on
+ * `always-ask-cached`, `write` or `yolo`); without it the key is left as it is in the file, and on
  * import a recognized value is read back into the override.
  *
  * `config.yml` carries every other oh-my-pi setting, so only `tools.approval`
