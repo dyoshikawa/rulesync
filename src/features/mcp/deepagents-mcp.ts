@@ -149,7 +149,8 @@ function toDeepagentsOauth({
       );
       continue;
     }
-    if (nativeKey !== key && Object.hasOwn(source, nativeKey)) continue;
+    // A usable native `client_id` wins; an unusable one falls back to `clientId`.
+    if (nativeKey !== key && isDeepagentsOauthValue(source[nativeKey])) continue;
     if (!isDeepagentsOauthValue(value)) {
       logger?.warn(
         `${TOOL_NAME} MCP: dropping oauth.${key} on "${name}"; deepagents requires a ` +

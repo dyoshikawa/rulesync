@@ -313,6 +313,67 @@ describe("DeepagentsMcp", () => {
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"lookalike"'));
     });
 
+    it("should fall back to clientId when the native client_id is unusable", async () => {
+      const { mcp, logger } = await generate({
+        slack: { ...slack, oauth: { client_id: "  ", clientId: "canonical" } },
+        reversed: { ...slack, oauth: { clientId: "canonical", client_id: "  " } },
+      });
+
+      expect(mcp.getJson().mcpServers).toEqual({
+        slack: { ...slack, oauth: { client_id: "canonical" } },
+        reversed: { ...slack, oauth: { client_id: "canonical" } },
+      });
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("oauth.client_id"));
+    });
+
+    it("should drop a value holding a control character", async () => {
+      const { mcp, logger } = await generate({
+        slack: { ...slack, oauth: { clientId: "123.456", client_secret: "app\nsecret" } },
+        badId: { ...slack, oauth: { clientId: "123\u0007456" } },
+      });
+
+      expect(mcp.getJson().mcpServers).toEqual({
+        slack: { ...slack, oauth: { client_id: "123.456" } },
+        badId: slack,
+      });
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("oauth.client_secret"));
+    });
+
+    it("should check the parsed host, case-insensitively, and honor httpUrl", async () => {
+      const { mcp, logger } = await generate({
+        suffix: {
+          url: "https://slack.com.evil.example/mcp",
+          auth: "oauth",
+          oauth: { clientId: "a" },
+        },
+        upper: { url: "https://MCP.SLACK.COM/mcp", auth: "oauth", oauth: { clientId: "a" } },
+        viaHttpUrl: {
+          httpUrl: "https://mcp.slack.com/mcp",
+          auth: "oauth",
+          oauth: { clientId: "a" },
+        },
+      });
+
+      expect(mcp.getJson().mcpServers).toEqual({
+        suffix: { url: "https://slack.com.evil.example/mcp", auth: "oauth" },
+        upper: { url: "https://MCP.SLACK.COM/mcp", auth: "oauth", oauth: { client_id: "a" } },
+        viaHttpUrl: {
+          url: "https://mcp.slack.com/mcp",
+          type: "http",
+          auth: "oauth",
+          oauth: { client_id: "a" },
+        },
+      });
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"suffix"'));
+    });
+
+    it("should omit a non-object oauth", async () => {
+      const { mcp, logger } = await generate({ slack: { ...slack, oauth: false } });
+
+      expect(mcp.getJson().mcpServers).toEqual({ slack });
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("requires oauth.client_id"));
+    });
+
     it("should omit oauth when no usable client id remains", async () => {
       const { mcp, logger } = await generate({
         noId: { ...slack, oauth: { callbackPort: 8080 } },
