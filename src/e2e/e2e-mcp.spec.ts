@@ -1114,7 +1114,7 @@ describe("E2E: mcp (global mode)", () => {
     });
   });
 
-  it("should generate and import the Kimi Code global MCP timeout defaults", async () => {
+  it("should generate and import the Kimi Code global MCP [mcp] defaults", async () => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();
 
@@ -1124,7 +1124,7 @@ describe("E2E: mcp (global mode)", () => {
       join(projectDir, RULESYNC_MCP_RELATIVE_FILE_PATH),
       JSON.stringify({
         mcpServers: { remote: { type: "http", url: "https://example.com/mcp" } },
-        "kimi-code": { startupTimeoutMs: 45000, toolTimeoutMs: 90000 },
+        "kimi-code": { startupTimeoutMs: 45000, toolTimeoutMs: 90000, defaultDeferred: true },
       }),
     );
 
@@ -1138,7 +1138,11 @@ describe("E2E: mcp (global mode)", () => {
     const generated = smolToml.parse(
       await readFileContent(join(homeDir, ".kimi-code", "config.toml")),
     );
-    expect(generated.mcp).toEqual({ startup_timeout_ms: 45000, tool_timeout_ms: 90000 });
+    expect(generated.mcp).toEqual({
+      startup_timeout_ms: 45000,
+      tool_timeout_ms: 90000,
+      default_deferred: true,
+    });
     // The servers themselves stay in mcp.json.
     expect(
       JSON.parse(await readFileContent(join(homeDir, ".kimi-code", "mcp.json"))).mcpServers.remote
@@ -1155,7 +1159,11 @@ describe("E2E: mcp (global mode)", () => {
     const imported = JSON.parse(
       await readFileContent(join(homeDir, RULESYNC_MCP_RELATIVE_FILE_PATH)),
     );
-    expect(imported["kimi-code"]).toEqual({ startupTimeoutMs: 45000, toolTimeoutMs: 90000 });
+    expect(imported["kimi-code"]).toEqual({
+      startupTimeoutMs: 45000,
+      toolTimeoutMs: 90000,
+      defaultDeferred: true,
+    });
   });
 
   it("should merge dsh MCP rows into ~/.dsh/cordis.patch.yml and import them back", async () => {
