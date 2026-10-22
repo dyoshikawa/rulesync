@@ -238,6 +238,169 @@ describe("TaktPermissions", () => {
       expect(toRecord(providerOptions.claude).reasoning_effort).toBe("high");
     });
 
+    describe("provider_options keys Takt refuses to load from config.yaml", () => {
+      const generate = async ({
+        providerOptions,
+        global = false,
+        logger,
+      }: {
+        providerOptions: Record<string, unknown>;
+        global?: boolean;
+        logger?: ReturnType<typeof createMockLogger>;
+      }) =>
+        TaktPermissions.fromRulesyncPermissions({
+          outputRoot: testDir,
+          global,
+          rulesyncPermissions: makeRulesyncPermissionsJson({
+            permission: { bash: { "*": "allow" } },
+            takt: { provider_options: providerOptions },
+          }),
+          ...(logger !== undefined && { logger }),
+        });
+
+      it("drops project-scope plugins, non-loopback base_url and deepseek reasoning_effort", async () => {
+        const logger = createMockLogger();
+
+        const permissions = await generate({
+          logger,
+          providerOptions: {
+            codex: { base_url: "https://proxy.example.com/v1", network_access: true },
+            claude: { base_url: "https://gateway.example.com" },
+            deepseek_harness: {
+              base_url: "http://127.0.0.1:8787/v1",
+              reasoning_effort: "high",
+              plugins: ["npm:example-plugin@1.0.0"],
+            },
+          },
+        });
+
+        const providerOptions = toRecord(
+          toRecord(load(permissions.getFileContent())).provider_options,
+        );
+        expect(providerOptions).toEqual({
+          codex: { network_access: true },
+          deepseek_harness: { base_url: "http://127.0.0.1:8787/v1" },
+        });
+        expect(logger.warn).toHaveBeenCalledTimes(1);
+        const message = String(vi.mocked(logger.warn).mock.calls[0]?.[0]);
+        for (const key of [
+          "provider_options.codex.base_url",
+          "provider_options.claude.base_url",
+          "provider_options.deepseek_harness.reasoning_effort",
+          "provider_options.deepseek_harness.plugins",
+        ]) {
+          expect(message).toContain(`"${key}"`);
+        }
+      });
+
+      it("keeps loopback base URLs and an empty plugins list at project scope", async () => {
+        const logger = createMockLogger();
+        const providerOptions = {
+          codex: { base_url: "http://localhost:8080/v1" },
+          claude: { base_url: "http://[::1]:8787" },
+          deepseek_harness: { base_url: "http://api.localhost/v1", plugins: [] },
+        };
+
+        const permissions = await generate({ logger, providerOptions });
+
+        expect(toRecord(load(permissions.getFileContent())).provider_options).toEqual(
+          providerOptions,
+        );
+        expect(logger.warn).not.toHaveBeenCalled();
+      });
+
+      it.each([
+        "http://127.0.0.1@evil.com",
+        "http://[::ffff:127.0.0.1]",
+        "http://127.0.0.1.evil.com",
+        "not a url",
+      ])("drops the look-alike or unparseable base_url %s at project scope", async (baseUrl) => {
+        const logger = createMockLogger();
+
+        const permissions = await generate({
+          logger,
+          providerOptions: { codex: { base_url: baseUrl, network_access: true } },
+        });
+
+        expect(toRecord(load(permissions.getFileContent())).provider_options).toEqual({
+          codex: { network_access: true },
+        });
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining('"provider_options.codex.base_url"'),
+        );
+      });
+
+      it("keeps the shorthand loopback base_url http://127.1 at project scope", async () => {
+        const logger = createMockLogger();
+
+        const permissions = await generate({
+          logger,
+          providerOptions: { codex: { base_url: "http://127.1" } },
+        });
+
+        expect(toRecord(load(permissions.getFileContent())).provider_options).toEqual({
+          codex: { base_url: "http://127.1" },
+        });
+        expect(logger.warn).not.toHaveBeenCalled();
+      });
+
+      it("drops a non-array plugins and a non-string base_url at project scope", async () => {
+        const logger = createMockLogger();
+
+        const permissions = await generate({
+          logger,
+          providerOptions: {
+            claude: { base_url: 8080, effort: "high" },
+            deepseek_harness: { plugins: "npm:example-plugin@1.0.0", base_url: null },
+          },
+        });
+
+        expect(toRecord(load(permissions.getFileContent())).provider_options).toEqual({
+          claude: { effort: "high" },
+        });
+        const message = String(vi.mocked(logger.warn).mock.calls[0]?.[0]);
+        for (const key of [
+          "provider_options.claude.base_url",
+          "provider_options.deepseek_harness.plugins",
+          "provider_options.deepseek_harness.base_url",
+        ]) {
+          expect(message).toContain(`"${key}"`);
+        }
+      });
+
+      it("keeps plugins and remote base_url at global scope but still drops reasoning_effort", async () => {
+        const logger = createMockLogger();
+
+        const permissions = await generate({
+          global: true,
+          logger,
+          providerOptions: {
+            codex: { base_url: "https://proxy.example.com/v1" },
+            deepseek_harness: {
+              reasoning_effort: "high",
+              plugins: ["npm:example-plugin@1.0.0"],
+            },
+          },
+        });
+
+        expect(toRecord(load(permissions.getFileContent())).provider_options).toEqual({
+          codex: { base_url: "https://proxy.example.com/v1" },
+          deepseek_harness: { plugins: ["npm:example-plugin@1.0.0"] },
+        });
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining('"provider_options.deepseek_harness.reasoning_effort"'),
+        );
+      });
+
+      it("omits provider_options entirely when every authored key is dropped", async () => {
+        const permissions = await generate({
+          providerOptions: { deepseek_harness: { plugins: ["npm:example-plugin@1.0.0"] } },
+        });
+
+        expect(toRecord(load(permissions.getFileContent())).provider_options).toBeUndefined();
+      });
+    });
+
     it("round-trips the override through export then import", async () => {
       const generated = await TaktPermissions.fromRulesyncPermissions({
         outputRoot: testDir,
