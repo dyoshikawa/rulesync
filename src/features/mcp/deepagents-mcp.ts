@@ -9,6 +9,7 @@ import {
 } from "../../utils/deepagents.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
+import { PROTOTYPE_POLLUTION_KEYS } from "../../utils/prototype-pollution.js";
 import { isRecord } from "../../utils/type-guards.js";
 import {
   isRemoteMcpServer,
@@ -105,6 +106,89 @@ function applyDeepagentsCommand({
 }
 
 /**
+ * Translate a canonical `oauth` block into dcode's custom Slack OAuth app
+ * settings, or `undefined` (after warning) when it has to be left out.
+ *
+ * Since deepagents-code 0.1.87, `_validate_slack_oauth_config` accepts `oauth`
+ * only as `{ client_id, client_secret? }` of non-empty strings, and only on a
+ * `slack.com` / `*.slack.com` server with `auth: "oauth"`; anything else makes
+ * dcode skip the whole server. The canonical block usually carries Claude
+ * Code's `{ clientId, callbackPort, ... }` shape, so `clientId` becomes
+ * `client_id` (a native `client_id` wins), `client_secret` passes through, and
+ * every other key is dropped.
+ *
+ * @see https://github.com/langchain-ai/deepagents/blob/deepagents-code%3D%3D0.1.87/libs/code/deepagents_code/mcp_config.py
+ */
+function toDeepagentsOauth({
+  name,
+  oauth,
+  converted,
+  logger,
+}: {
+  name: string;
+  oauth: unknown;
+  converted: Record<string, unknown>;
+  logger?: Logger;
+}): Record<string, string> | undefined {
+  if (!isSlackOauthServer(converted)) {
+    logger?.warn(
+      `${TOOL_NAME} MCP: dropping oauth on "${name}"; deepagents reads it only on a Slack ` +
+        `(slack.com) server with auth: "oauth" and skips any other server that sets it.`,
+    );
+    return undefined;
+  }
+  const source = isRecord(oauth) ? oauth : {};
+  const result: Record<string, string> = {};
+  for (const [key, value] of Object.entries(source)) {
+    if (PROTOTYPE_POLLUTION_KEYS.has(key)) continue;
+    const nativeKey = key === "clientId" ? "client_id" : key;
+    if (nativeKey !== "client_id" && nativeKey !== "client_secret") {
+      logger?.warn(
+        `${TOOL_NAME} MCP: dropping oauth.${key} on "${name}"; deepagents accepts only ` +
+          `client_id and client_secret.`,
+      );
+      continue;
+    }
+    if (nativeKey !== key && Object.hasOwn(source, nativeKey)) continue;
+    if (!isDeepagentsOauthValue(value)) {
+      logger?.warn(
+        `${TOOL_NAME} MCP: dropping oauth.${key} on "${name}"; deepagents requires a ` +
+          `non-empty string without control characters.`,
+      );
+      continue;
+    }
+    result[nativeKey] = value;
+  }
+  if (result.client_id === undefined) {
+    logger?.warn(
+      `${TOOL_NAME} MCP: dropping oauth on "${name}"; deepagents requires oauth.client_id ` +
+        `(canonical clientId) and skips a server without it.`,
+    );
+    return undefined;
+  }
+  return result;
+}
+
+function isDeepagentsOauthValue(value: unknown): value is string {
+  // Mirrors upstream's `[\x00-\x1f\x7f]` check.
+  // oxlint-disable-next-line no-control-regex
+  return typeof value === "string" && value.trim() !== "" && !/[\x00-\x1f\x7f]/.test(value);
+}
+
+function isSlackOauthServer(server: Record<string, unknown>): boolean {
+  if (server.auth !== "oauth" || typeof server.url !== "string") {
+    return false;
+  }
+  let host: string;
+  try {
+    host = new URL(server.url).hostname.toLowerCase();
+  } catch {
+    return false;
+  }
+  return host === "slack.com" || host.endsWith(".slack.com");
+}
+
+/**
  * Translate one canonical server into dcode's `.mcp.json` shape, or `null` to
  * skip it.
  *
@@ -153,6 +237,7 @@ function toDeepagentsServer({
     transport,
     disabled: _disabled,
     httpUrl,
+    oauth,
     ...rest
   } = server;
   const converted: Record<string, unknown> = { ...rest };
@@ -181,6 +266,13 @@ function toDeepagentsServer({
       converted.transport = normalized;
     } else {
       converted.type = normalized;
+    }
+  }
+
+  if (oauth !== undefined) {
+    const deepagentsOauth = toDeepagentsOauth({ name, oauth, converted, logger });
+    if (deepagentsOauth !== undefined) {
+      converted.oauth = deepagentsOauth;
     }
   }
 
@@ -247,6 +339,14 @@ function toRulesyncServer(server: Record<string, unknown>): Record<string, unkno
 
   if (Array.isArray(allowedTools)) {
     converted.enabledTools = allowedTools;
+  }
+
+  // dcode's `client_id` is the canonical (Claude Code) `clientId`; renaming it
+  // back keeps generate → import → generate stable. `client_secret` has no
+  // canonical spelling, so it stays as is.
+  if (isRecord(converted.oauth) && Object.hasOwn(converted.oauth, "client_id")) {
+    const { client_id: clientId, ...oauthRest } = converted.oauth;
+    converted.oauth = Object.hasOwn(oauthRest, "clientId") ? oauthRest : { clientId, ...oauthRest };
   }
 
   return converted;
