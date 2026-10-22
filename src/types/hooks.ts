@@ -832,12 +832,15 @@ export const KIRO_IDE_HOOK_EVENTS: readonly HookEvent[] = [
 /**
  * Hook events supported by Google Antigravity (both the IDE and the CLI).
  *
- * Antigravity exposes a Claude-style hooks surface covering the five
- * tool/model/turn lifecycle events it documents: `PreToolUse`, `PostToolUse`,
- * `PreInvocation`, `PostInvocation`, and `Stop`. The model-invocation events
- * (`PreInvocation`/`PostInvocation`) and `Stop` are matcher-less handler lists.
+ * Antigravity exposes a Claude-style hooks surface covering the six
+ * session/tool/model/turn lifecycle events it documents: `SessionStart`,
+ * `PreToolUse`, `PostToolUse`, `PreInvocation`, `PostInvocation`, and `Stop`.
+ * `SessionStart`, the model-invocation events (`PreInvocation`/`PostInvocation`)
+ * and `Stop` are matcher-less handler lists.
+ * https://antigravity.google/docs/hooks
  */
 export const ANTIGRAVITY_HOOK_EVENTS: readonly HookEvent[] = [
+  "sessionStart",
   "preToolUse",
   "postToolUse",
   "preModelInvocation",
@@ -2013,10 +2016,11 @@ export const AUGMENTCODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Obje
 
 /**
  * Map canonical camelCase event names to Antigravity PascalCase.
- * Antigravity uses the same PascalCase names as Claude for its tool/turn events,
+ * Antigravity uses the same PascalCase names as Claude for its session/tool/turn events,
  * plus `PreInvocation`/`PostInvocation` for the model-invocation lifecycle.
  */
 export const CANONICAL_TO_ANTIGRAVITY_EVENT_NAMES: Record<string, string> = {
+  sessionStart: "SessionStart",
   preToolUse: "PreToolUse",
   postToolUse: "PostToolUse",
   preModelInvocation: "PreInvocation",
