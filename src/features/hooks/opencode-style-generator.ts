@@ -1,3 +1,4 @@
+// cspell:ignore nothrow subshell redirections -- Bun Shell API and shell terms
 import { HooksConfig, CONTROL_CHARS } from "../../types/hooks.js";
 
 /**
@@ -68,6 +69,79 @@ const SHELL_EVENT_TOOL_GATES: Record<string, { toolEvent: string; tool: string }
   afterShellExecution: { toolEvent: "tool.execute.after", tool: "bash" },
 };
 
+/**
+ * Canonical events whose command receives a Claude Code-style JSON payload on
+ * stdin and whose result can deny the call, mapped to the `hook_event_name`
+ * the payload carries. Only `preToolUse` (`tool.execute.before`) takes part:
+ * it is the one named hook where throwing aborts the call — OpenCode rejects
+ * the tool call and returns the error message to the model (the `.env`
+ * protection example in the plugins doc).
+ *
+ * The payload mirrors Claude Code's `PreToolUse` input: `hook_event_name`,
+ * `session_id` (`input.sessionID`), `tool_use_id` (`input.callID`),
+ * `tool_name` (the raw OpenCode tool name — `bash`, `edit`, `<server>_<tool>`
+ * for MCP — the same subject a `matcher` is tested against), `tool_input`
+ * (`output.args`) and `cwd`.
+ *
+ * Bun Shell has no stdin option on a command and rejects redirections on a
+ * subshell, so the payload is piped in by the shell's builtin `echo`
+ * (`echo ${payload} | <command>`); Bun escapes the interpolated value, so the
+ * payload never reaches the shell as syntax. The pipe feeds the first
+ * pipeline of the command — a compound `a && b` or `a; b` gives the payload
+ * to `a` only, so multi-step guards belong in a script.
+ *
+ * @see https://opencode.ai/docs/plugins/
+ * @see https://bun.sh/docs/runtime/shell
+ * @see https://code.claude.com/docs/en/hooks
+ */
+const STDIN_PAYLOAD_EVENTS: Record<string, string> = {
+  preToolUse: "PreToolUse",
+};
+
+/**
+ * Name of the helper the generated plugin defines when a `preToolUse` handler
+ * is present. It interprets the command's result like Claude Code does for a
+ * `PreToolUse` hook, throwing (which aborts the OpenCode tool call) when the
+ * hook denies it:
+ * - exit code 2 → deny, with the command's stderr as the reason;
+ * - exit code 0 with JSON stdout whose `hookSpecificOutput.permissionDecision`
+ *   is `"deny"` → deny, with `permissionDecisionReason` as the reason;
+ * - exit code 0 otherwise → allow;
+ * - any other non-zero exit → deny too. Claude Code treats that as a
+ *   non-blocking error, but before this payload contract existed the plugin
+ *   ran the command through Bun Shell's default throwing mode, so every
+ *   non-zero exit aborted the call. Keeping that preserves guards that block
+ *   with `exit 1`, rather than silently failing them open.
+ */
+const PRE_TOOL_USE_RESULT_HELPER = "__rulesyncEnforcePreToolUseResult";
+
+const PRE_TOOL_USE_RESULT_HELPER_LINES: readonly string[] = [
+  `const ${PRE_TOOL_USE_RESULT_HELPER} = (result) => {`,
+  "  const stderr = result.stderr.toString().trim();",
+  "  if (result.exitCode === 0) {",
+  "    let parsed;",
+  "    try {",
+  "      parsed = JSON.parse(result.stdout.toString());",
+  "    } catch {",
+  "      return;",
+  "    }",
+  '    const specific = parsed && typeof parsed === "object" ? parsed.hookSpecificOutput : undefined;',
+  '    if (specific && typeof specific === "object" && specific.permissionDecision === "deny") {',
+  "      throw new Error(",
+  '        typeof specific.permissionDecisionReason === "string" && specific.permissionDecisionReason !== ""',
+  "          ? specific.permissionDecisionReason",
+  '          : "Blocked by a preToolUse hook.",',
+  "      );",
+  "    }",
+  "    return;",
+  "  }",
+  "  if (result.exitCode === 2) {",
+  '    throw new Error(stderr || "Blocked by a preToolUse hook.");',
+  "  }",
+  '  throw new Error(stderr || "preToolUse hook command failed with exit code " + result.exitCode + ".");',
+  "};",
+];
+
 function escapeForTemplateLiteral(command: string): string {
   return command.replace(/\\/g, "\\\\").replace(/`/g, "\\`").replace(/\$\{/g, "\\${");
 }
@@ -88,8 +162,29 @@ function validateAndSanitizeMatcher(matcher: string): string {
   return sanitized.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
-type Handler = { command: string; matcher?: string; toolGate?: string; propertyGate?: string };
+type Handler = {
+  command: string;
+  matcher?: string;
+  toolGate?: string;
+  propertyGate?: string;
+  /** `hook_event_name` of the stdin payload; set only for `STDIN_PAYLOAD_EVENTS`. */
+  stdinEvent?: string;
+};
 type HandlerGroup = Record<string, Handler[]>;
+
+/** The per-canonical-event gates and payload flag every handler of it carries. */
+function handlerExtrasFor(
+  canonicalEvent: string,
+): Pick<Handler, "toolGate" | "propertyGate" | "stdinEvent"> {
+  const shellGate = SHELL_EVENT_TOOL_GATES[canonicalEvent];
+  const propertyGate = GENERIC_EVENT_PROPERTY_GATES[canonicalEvent];
+  const stdinEvent = shellGate ? undefined : STDIN_PAYLOAD_EVENTS[canonicalEvent];
+  return {
+    ...(shellGate ? { toolGate: shellGate.tool } : {}),
+    ...(propertyGate ? { propertyGate } : {}),
+    ...(stdinEvent ? { stdinEvent } : {}),
+  };
+}
 
 /**
  * Group the effective hooks into named (tool.execute.*) and generic event
@@ -108,7 +203,7 @@ function collectOpencodeStyleHandlers({
 }): void {
   for (const [canonicalEvent, definitions] of Object.entries(effectiveHooks)) {
     const shellGate = SHELL_EVENT_TOOL_GATES[canonicalEvent];
-    const propertyGate = GENERIC_EVENT_PROPERTY_GATES[canonicalEvent];
+    const extras = handlerExtrasFor(canonicalEvent);
     const toolEvent = shellGate?.toolEvent ?? eventMap[canonicalEvent];
     if (!toolEvent) continue;
 
@@ -132,8 +227,7 @@ function collectOpencodeStyleHandlers({
       handlers.push({
         command: def.command,
         matcher: def.matcher ? def.matcher : undefined,
-        ...(shellGate ? { toolGate: shellGate.tool } : {}),
-        ...(propertyGate ? { propertyGate } : {}),
+        ...extras,
       });
     }
 
@@ -180,29 +274,65 @@ function buildGenericEventBodyLines(genericEventHandlers: HandlerGroup): string[
   return bodyLines;
 }
 
+function stdinPayloadVariable(stdinEvent: string): string {
+  return `__rulesync${stdinEvent}Input`;
+}
+
+/**
+ * The statement that runs a handler's command. A handler with a stdin payload
+ * pipes the payload in and hands the result to the deny-aware helper; every
+ * other handler keeps Bun Shell's default mode, where a non-zero exit throws.
+ */
+function buildRunStatement(handler: Handler): string {
+  const escapedCommand = escapeForTemplateLiteral(handler.command);
+  if (handler.stdinEvent) {
+    const payload = stdinPayloadVariable(handler.stdinEvent);
+    return `${PRE_TOOL_USE_RESULT_HELPER}(await $\`echo \${${payload}} | ${escapedCommand}\`.nothrow().quiet());`;
+  }
+  return `await $\`${escapedCommand}\`;`;
+}
+
 /** Emit the named (`tool.execute.*`) handler blocks. */
 function buildNamedEventBodyLines(namedEventHandlers: HandlerGroup): string[] {
   const bodyLines: string[] = [];
   for (const [eventName, handlers] of Object.entries(namedEventHandlers)) {
     const matcherSubject = NAMED_HOOK_MATCHER_SUBJECTS[eventName] ?? null;
-    bodyLines.push(`    "${eventName}": async (input) => {`);
+    const stdinEvents = [
+      ...new Set(handlers.flatMap((handler) => (handler.stdinEvent ? [handler.stdinEvent] : []))),
+    ];
+    bodyLines.push(
+      `    "${eventName}": async (${stdinEvents.length > 0 ? "input, output" : "input"}) => {`,
+    );
+    // Built once per invocation and shared by every handler of the event.
+    // `stdinEvent` only ever holds a value from `STDIN_PAYLOAD_EVENTS`, never
+    // user input, so it is safe to emit as an identifier suffix and a string.
+    for (const stdinEvent of stdinEvents) {
+      bodyLines.push(`      const ${stdinPayloadVariable(stdinEvent)} = JSON.stringify({`);
+      bodyLines.push(`        hook_event_name: "${stdinEvent}",`);
+      bodyLines.push("        session_id: input.sessionID,");
+      bodyLines.push("        tool_use_id: input.callID,");
+      bodyLines.push("        tool_name: input.tool,");
+      bodyLines.push("        tool_input: output?.args,");
+      bodyLines.push("        cwd: process.cwd(),");
+      bodyLines.push("      });");
+    }
     for (const handler of handlers) {
-      const escapedCommand = escapeForTemplateLiteral(handler.command);
+      const runStatement = buildRunStatement(handler);
       if (handler.toolGate) {
         // Shell-event handler: fires only for the gated tool's executions.
         bodyLines.push(`      if (input.tool === "${handler.toolGate}") {`);
-        bodyLines.push(`        await $\`${escapedCommand}\`;`);
+        bodyLines.push(`        ${runStatement}`);
         bodyLines.push("      }");
       } else if (handler.matcher && matcherSubject !== null) {
         const safeMatcher = validateAndSanitizeMatcher(handler.matcher);
         bodyLines.push("      {");
         bodyLines.push(`        const __re = new RegExp("${safeMatcher}");`);
         bodyLines.push(`        if (__re.test(${matcherSubject})) {`);
-        bodyLines.push(`          await $\`${escapedCommand}\`;`);
+        bodyLines.push(`          ${runStatement}`);
         bodyLines.push("        }");
         bodyLines.push("      }");
       } else {
-        bodyLines.push(`      await $\`${escapedCommand}\`;`);
+        bodyLines.push(`      ${runStatement}`);
       }
     }
     bodyLines.push("    },");
@@ -212,9 +342,11 @@ function buildNamedEventBodyLines(namedEventHandlers: HandlerGroup): string[] {
 
 /** Wrap the handler body lines in the requested export shape. */
 function wrapInExportShape({
+  preambleLines,
   bodyLines,
   exportStyle,
 }: {
+  preambleLines: readonly string[];
   bodyLines: string[];
   exportStyle: "named" | "default";
 }): string[] {
@@ -223,6 +355,9 @@ function wrapInExportShape({
     lines.push("export default {");
     lines.push('  id: "rulesync-hooks",');
     lines.push("  server: async ({ $ }) => {");
+    for (const line of preambleLines) {
+      lines.push(`    ${line}`);
+    }
     lines.push("    return {");
     // Indent the handler entries by an extra two spaces to account for the
     // additional `server` function nesting level. Blank lines stay empty.
@@ -234,6 +369,9 @@ function wrapInExportShape({
     lines.push("};");
   } else {
     lines.push("export const RulesyncHooksPlugin = async ({ $ }) => {");
+    for (const line of preambleLines) {
+      lines.push(`  ${line}`);
+    }
     lines.push("  return {");
     lines.push(...bodyLines);
     lines.push("  };");
@@ -284,7 +422,15 @@ export function generateOpencodeStylePluginCode(
     ...buildNamedEventBodyLines(namedEventHandlers),
   ];
 
-  const lines = wrapInExportShape({ bodyLines, exportStyle });
+  // The deny-aware result helper is defined once in the plugin function body,
+  // and only when a handler uses it, so plugins without a stdin-payload hook
+  // stay byte-for-byte unchanged.
+  const usesStdinPayload = Object.values(namedEventHandlers).some((handlers) =>
+    handlers.some((handler) => handler.stdinEvent !== undefined),
+  );
+  const preambleLines = usesStdinPayload ? PRE_TOOL_USE_RESULT_HELPER_LINES : [];
+
+  const lines = wrapInExportShape({ preambleLines, bodyLines, exportStyle });
 
   return lines.join("\n");
 }
