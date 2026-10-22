@@ -15,6 +15,7 @@ import {
   REASONIX_READ_TOOL_NAME,
   toReasonixStringArray,
   toReasonixTable,
+  warnIfReasonixNestedProjectConfigShadowed,
 } from "../shared/reasonix-config-table.js";
 import {
   applyIgnoreReadDenies,
@@ -149,7 +150,14 @@ export class ReasonixIgnore extends ToolIgnore {
     outputRoot = process.cwd(),
     rulesyncIgnore,
     global = false,
+    logger,
   }: ToolIgnoreFromRulesyncIgnoreParams): Promise<ReasonixIgnore> {
+    await warnIfReasonixNestedProjectConfigShadowed({
+      outputRoot,
+      global,
+      feature: "ignore",
+      logger,
+    });
     const patterns = rulesyncIgnore
       .getFileContent()
       .split(/\r?\n|\r/)

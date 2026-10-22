@@ -315,6 +315,7 @@ export class IgnoreProcessor extends FeatureProcessor {
       rulesyncIgnore,
       options: this.featureOptions,
       global: this.global,
+      logger: this.logger,
     });
 
     const auxiliaryFiles = await factory.class.getAuxiliaryFiles?.({

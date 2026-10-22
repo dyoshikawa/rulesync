@@ -9,7 +9,11 @@ import {
   REASONIX_PROJECT_PERMISSIONS_FILE_NAME,
 } from "../../constants/reasonix-paths.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
-import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
+import type {
+  PermissionAction,
+  PermissionsConfig,
+  ReasonixPermissionsOverride,
+} from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull, toPosixPath } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
@@ -20,6 +24,7 @@ import {
   REASONIX_READ_TOOL_NAME,
   toReasonixStringArray as toStringArray,
   toReasonixTable as toPermissionsTable,
+  warnIfReasonixNestedProjectConfigShadowed,
 } from "../shared/reasonix-config-table.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
@@ -173,6 +178,9 @@ const REASONIX_TOOL_LABEL = "Reasonix";
 
 /** The `[permissions]` key the override's `allowDynamicBash` writes and reads. */
 const REASONIX_ALLOW_DYNAMIC_BASH_KEY = "allow_dynamic_bash";
+
+/** The `[permissions]` key the override's `askOnExternalOrigin` writes and reads. */
+const REASONIX_ASK_ON_EXTERNAL_ORIGIN_KEY = "ask_on_external_origin";
 
 /**
  * `[sandbox]` keys whose authored value loosens the enforcement layer beneath
@@ -465,6 +473,73 @@ function applyPermissionsMode({
   ];
 }
 
+/**
+ * Writes the override's `askOnExternalOrigin` into `[permissions]`. Reasonix
+ * honors the key only in the user config (`narrowPermissions` in
+ * `project_scope.go`), so a project-scope generate skips it with a warning and
+ * leaves whatever the file had. Turning it on only adds prompts, so that is
+ * quiet; turning off a value the file had on is reported, since Auto and YOLO
+ * then run calls that repeat text from a web page or tool result without asking.
+ * As with `applyAllowDynamicBash`, only a literal `true` counts as quiet, so a
+ * value a `--no-validate` run let through is never written in silence.
+ *
+ * @see https://github.com/esengine/DeepSeek-Reasonix/blob/studio-v2.47.1/docs/GUIDE.md
+ */
+function applyAskOnExternalOrigin({
+  permissions,
+  override,
+  global,
+  relativeFilePath,
+  logger,
+}: {
+  permissions: ReasonixPermissionsTable;
+  override: ReasonixPermissionsOverride | undefined;
+  global: boolean;
+  relativeFilePath: string;
+  logger?: Logger;
+}): TrustAffectingEntry[] {
+  const authored = override?.askOnExternalOrigin;
+  if (authored === undefined) return [];
+  if (!global) {
+    logger?.warn(
+      `Reasonix permissions: skipping reasonix.askOnExternalOrigin for the project-scoped ` +
+        `${relativeFilePath}; Reasonix honors [permissions] ask_on_external_origin only in the ` +
+        "user config and ignores a project value, so generate it with --global instead.",
+    );
+    return [];
+  }
+  const previous = permissions[REASONIX_ASK_ON_EXTERNAL_ORIGIN_KEY];
+  permissions[REASONIX_ASK_ON_EXTERNAL_ORIGIN_KEY] = authored;
+  if (authored === true || (previous !== true && authored === false)) return [];
+  return [
+    {
+      label: `permissions.${REASONIX_ASK_ON_EXTERNAL_ORIGIN_KEY}`,
+      reason:
+        "lets Auto and YOLO run a call that repeats text from a web page or tool result " +
+        "without asking first",
+    },
+  ];
+}
+
+/**
+ * The `tools` patch entry: the `[tools]` table with the override's `disabled`
+ * list laid over it, or nothing when the override does not author one. `[tools] disabled` only
+ * removes tools, and a project file can only add to the user's list, so it
+ * carries no trust rows. Only that key is written: the rest of `[tools]`
+ * (timeouts, search backends, ...) stays as the file has it.
+ */
+function toolsDisabledPatch({
+  existing,
+  override,
+}: {
+  existing: unknown;
+  override: ReasonixPermissionsOverride | undefined;
+}): { tools?: Record<string, unknown> } {
+  const disabled = override?.tools?.disabled;
+  if (disabled === undefined) return {};
+  return { tools: { ...asReasonixRecord(existing), disabled } };
+}
+
 function parseReasonixConfig(fileContent: string): ReasonixConfig {
   const parsed = smolToml.parse(fileContent || smolToml.stringify({}));
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
@@ -562,6 +637,12 @@ export class ReasonixPermissions extends ToolPermissions {
     logger,
     global = false,
   }: ToolPermissionsFromRulesyncPermissionsParams): Promise<ReasonixPermissions> {
+    await warnIfReasonixNestedProjectConfigShadowed({
+      outputRoot,
+      global,
+      feature: "permissions",
+      logger,
+    });
     const paths = this.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const relativeFilePathForLog = toPosixPath(join(paths.relativeDirPath, paths.relativeFilePath));
@@ -634,8 +715,19 @@ export class ReasonixPermissions extends ToolPermissions {
         logger,
       }),
     );
+    trustAffecting.push(
+      ...applyAskOnExternalOrigin({
+        permissions: mergedPermissions,
+        override,
+        global,
+        relativeFilePath: relativeFilePathForLog,
+        logger,
+      }),
+    );
 
     const patch: Record<string, unknown> = { permissions: mergedPermissions };
+
+    Object.assign(patch, toolsDisabledPatch({ existing: parsed.tools, override }));
 
     // Overlay the Reasonix-scoped override's `[sandbox]`/`[agent]` tables. Shallow
     // merged at the table's top level, so the override's keys win while unrelated
@@ -773,6 +865,15 @@ export class ReasonixPermissions extends ToolPermissions {
       REASONIX_PERMISSION_MODES.has(permissions.mode)
     ) {
       reasonixOverride.mode = permissions.mode;
+    }
+    // `ask_on_external_origin` is user-config only, like `mode`.
+    const askOnExternalOrigin = permissions[REASONIX_ASK_ON_EXTERNAL_ORIGIN_KEY];
+    if (this.global && typeof askOnExternalOrigin === "boolean") {
+      reasonixOverride.askOnExternalOrigin = askOnExternalOrigin;
+    }
+    const toolsDisabled = asReasonixRecord(this.toml.tools).disabled;
+    if (Array.isArray(toolsDisabled)) {
+      reasonixOverride.tools = { disabled: toStringArray(toolsDisabled) };
     }
     if (Object.keys(sandbox).length > 0) reasonixOverride.sandbox = sandbox;
     if (Object.keys(agentPlanMode).length > 0) reasonixOverride.agent = agentPlanMode;

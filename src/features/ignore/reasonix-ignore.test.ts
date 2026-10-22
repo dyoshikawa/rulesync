@@ -7,6 +7,7 @@ import {
   RULESYNC_AIIGNORE_FILE_NAME,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, readFileContent, writeFileContent } from "../../utils/file.js";
 import { ReasonixIgnore } from "./reasonix-ignore.js";
@@ -83,6 +84,20 @@ describe("ReasonixIgnore", () => {
   });
 
   describe("fromRulesyncIgnore", () => {
+    it("warns when generate would shadow a nested .reasonix/reasonix.toml", async () => {
+      await writeFileContent(join(testDir, ".reasonix", "reasonix.toml"), "");
+      const logger = createMockLogger();
+
+      await ReasonixIgnore.fromRulesyncIgnore({
+        outputRoot: testDir,
+        rulesyncIgnore: rulesyncIgnoreOf("*.log\n"),
+        logger,
+      });
+
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(String(logger.warn.mock.calls[0]?.[0])).toContain("Reasonix ignore:");
+    });
+
     it("should write read_file(...) deny entries into the project config", async () => {
       const ignore = await ReasonixIgnore.fromRulesyncIgnore({
         outputRoot: testDir,

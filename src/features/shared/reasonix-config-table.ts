@@ -1,3 +1,11 @@
+import { join } from "node:path";
+
+import {
+  REASONIX_NESTED_PROJECT_CONFIG_RELATIVE_FILE_PATH,
+  REASONIX_PROJECT_MCP_FILE_NAME,
+} from "../../constants/reasonix-paths.js";
+import { fileExists, isPresentButUnresolvable, toPosixPath } from "../../utils/file.js";
+import type { Logger } from "../../utils/logger.js";
 import { isPlainObject } from "../../utils/type-guards.js";
 
 /**
@@ -45,3 +53,46 @@ export const REASONIX_READ_TOOL_NAME = "read_file";
  * treated as rulesync-owned on generate so the dormant copy is replaced.
  */
 export const REASONIX_LEGACY_READ_TOOL_NAME = "Read";
+
+async function isPathPresent(path: string): Promise<boolean> {
+  return (await fileExists(path)) || (await isPresentButUnresolvable(path));
+}
+
+/**
+ * Warns when a project-scope generate is about to create `./reasonix.toml`
+ * next to an existing `.reasonix/reasonix.toml`.
+ *
+ * Since v2.46.0 Reasonix reads `.reasonix/reasonix.toml` as the project config
+ * when `./reasonix.toml` is absent, and never merges the two: once the root
+ * file exists it wins, so every setting in the nested file (permissions,
+ * sandbox, disabled tools, MCP servers, ...) silently stops applying. rulesync
+ * writes only the root file, so it cannot keep the nested one in effect; this
+ * at least names the problem. Like Reasonix, anything at the root path
+ * (including a broken symlink) counts as the root file being there.
+ * @see https://github.com/esengine/DeepSeek-Reasonix/blob/studio-v2.47.1/internal/contract/config/paths.go
+ * @see https://github.com/esengine/DeepSeek-Reasonix/blob/studio-v2.47.1/docs/CONFIG_PATHS.md
+ */
+export async function warnIfReasonixNestedProjectConfigShadowed({
+  outputRoot,
+  global,
+  feature,
+  logger,
+}: {
+  outputRoot: string;
+  global: boolean;
+  feature: string;
+  logger?: Logger;
+}): Promise<void> {
+  if (global || logger === undefined) return;
+  if (await isPathPresent(join(outputRoot, REASONIX_PROJECT_MCP_FILE_NAME))) return;
+  if (!(await isPathPresent(join(outputRoot, REASONIX_NESTED_PROJECT_CONFIG_RELATIVE_FILE_PATH)))) {
+    return;
+  }
+  const nested = toPosixPath(REASONIX_NESTED_PROJECT_CONFIG_RELATIVE_FILE_PATH);
+  logger.warn(
+    `Reasonix ${feature}: ${nested} exists but ${REASONIX_PROJECT_MCP_FILE_NAME} does not. ` +
+      `Generating creates ${REASONIX_PROJECT_MCP_FILE_NAME}, and Reasonix then reads it instead of ` +
+      `${nested} (the two are never merged), so every setting in ${nested} stops applying. ` +
+      `Move those settings into ${REASONIX_PROJECT_MCP_FILE_NAME} or the rulesync sources.`,
+  );
+}

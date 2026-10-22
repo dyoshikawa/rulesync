@@ -13,6 +13,7 @@ import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { isRecord } from "../../utils/type-guards.js";
+import { warnIfReasonixNestedProjectConfigShadowed } from "../shared/reasonix-config-table.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
@@ -188,6 +189,7 @@ export class ReasonixMcp extends ToolMcp {
     global = false,
     logger,
   }: ToolMcpFromRulesyncMcpParams): Promise<ReasonixMcp> {
+    await warnIfReasonixNestedProjectConfigShadowed({ outputRoot, global, feature: "mcp", logger });
     const paths = this.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const existingContent = (await readFileContentOrNull(filePath)) ?? "";

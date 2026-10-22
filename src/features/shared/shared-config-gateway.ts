@@ -2109,7 +2109,7 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
   [KIMI_CODE_CONFIG_SHARED_FILE_KEY]: KIMI_CODE_CONFIG_DECLARATION,
   [KIMI_CODE_HOME_CONFIG_SHARED_FILE_KEY]: KIMI_CODE_CONFIG_DECLARATION,
   // Reasonix project config (`./reasonix.toml`): mcp owns `plugins`;
-  // permissions owns `permissions`/`sandbox`/`agent`. All three are recomputed
+  // permissions owns `permissions`/`sandbox`/`agent`/`tools`. All are recomputed
   // from the existing file (unmanaged entries and sibling override keys
   // preserved) before being applied. `ignore` writes `Read(...)` entries into
   // `permissions.deny` under the same entry-level rule as `.claude/settings.json`
@@ -2119,7 +2119,10 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
     features: {
       ignore: { kind: "custom", policyFunction: "applyIgnoreReadDenies" },
       mcp: { kind: "replace-owned-keys", ownedKeys: ["plugins"] },
-      permissions: { kind: "replace-owned-keys", ownedKeys: ["permissions", "sandbox", "agent"] },
+      permissions: {
+        kind: "replace-owned-keys",
+        ownedKeys: ["permissions", "sandbox", "agent", "tools"],
+      },
     },
   },
   // Reasonix global config (`~/.reasonix/config.toml`) — same shape as the
@@ -2129,7 +2132,10 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
     features: {
       ignore: { kind: "custom", policyFunction: "applyIgnoreReadDenies" },
       mcp: { kind: "replace-owned-keys", ownedKeys: ["plugins"] },
-      permissions: { kind: "replace-owned-keys", ownedKeys: ["permissions", "sandbox", "agent"] },
+      permissions: {
+        kind: "replace-owned-keys",
+        ownedKeys: ["permissions", "sandbox", "agent", "tools"],
+      },
     },
   },
   [ROVODEV_CONFIG_SHARED_FILE_KEY]: {
