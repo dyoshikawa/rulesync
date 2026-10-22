@@ -5,6 +5,7 @@ import {
 import { AiFileFromFileParams, AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { FeatureOptions } from "../../types/features.js";
 import { ToolFile } from "../../types/tool-file.js";
+import type { Logger } from "../../utils/logger.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 
 export type ToolIgnoreParams = AiFileParams;
@@ -22,6 +23,7 @@ export type ToolIgnoreFromRulesyncIgnoreParams = Omit<
 > & {
   rulesyncIgnore: RulesyncIgnore;
   options?: ToolIgnoreFeatureOptions;
+  logger?: Logger;
 };
 
 export type ToolIgnoreSettablePaths = {

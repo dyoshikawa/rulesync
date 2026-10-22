@@ -619,6 +619,8 @@ export type TabninePermissionsOverride = z.infer<typeof TabninePermissionsOverri
  * { "allowDynamicBash": true, "rawAllow": ["Bash=pnpm test"] }
  * @example
  * { "mode": "deny" }
+ * @example
+ * { "tools": { "disabled": ["web_fetch"] }, "askOnExternalOrigin": true }
  */
 const ReasonixPermissionsOverrideSchema = z.looseObject({
   permission: z.optional(ToolScopedPermissionSchema),
@@ -654,6 +656,23 @@ const ReasonixPermissionsOverrideSchema = z.looseObject({
   // is written only by `--global` generate.
   // @see https://github.com/esengine/DeepSeek-Reasonix/blob/main-v2/docs/SPEC.md
   mode: z.optional(z.enum(["ask", "allow", "deny"])),
+  // `[permissions] ask_on_external_origin` (v2.47.0): makes Auto and YOLO ask
+  // before a call that repeats text a web page or tool result gave the task.
+  // Off by default and user config only (`narrowPermissions` in
+  // `project_scope.go`), so like `mode` it is written only by `--global`
+  // generate.
+  // @see https://github.com/esengine/DeepSeek-Reasonix/blob/studio-v2.47.1/docs/GUIDE.md
+  askOnExternalOrigin: z.optional(z.boolean()),
+  // `[tools] disabled` (v2.45.0): built-in, framework and MCP tools removed
+  // from every request by name. A project file can only add to the user's
+  // list, so the key only ever narrows. Only `disabled` is written; the rest
+  // of the `[tools]` table is left as the file has it.
+  // @see https://github.com/esengine/DeepSeek-Reasonix/blob/studio-v2.47.1/internal/contract/config/config.go
+  tools: z.optional(
+    z.strictObject({
+      disabled: z.optional(z.array(z.string())),
+    }),
+  ),
 });
 export type ReasonixPermissionsOverride = z.infer<typeof ReasonixPermissionsOverrideSchema>;
 
