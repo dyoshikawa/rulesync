@@ -9,6 +9,7 @@ import { formatError } from "../../utils/error.js";
 import {
   assertPathResolvesInsideRoot,
   checkPathTraversal,
+  PathOutsideRootError,
   removeFile,
   toPosixPath,
   writeFileContent,
@@ -292,9 +293,11 @@ async function removeStaleApmFiles(params: {
     // project could still lead the removal outside of it.
     try {
       await assertPathResolvesInsideRoot({ rootPath: projectRoot, targetPath: absolute });
-    } catch {
+    } catch (error) {
       logger.warn(
-        `Refusing to remove stale apm file that resolves outside projectRoot: "${relativePath}".`,
+        error instanceof PathOutsideRootError
+          ? `Refusing to remove stale apm file "${relativePath}": ${error.message}`
+          : `Skipping removal of stale apm file "${relativePath}": ${formatError(error)}`,
       );
       continue;
     }
@@ -374,7 +377,15 @@ async function installDependency(params: {
   assertFrozenContentHashMatches({ frozen, locked, contentHash, repoUrl, logger });
 
   // Under --frozen we deferred all writes until after the hash check passed.
+  // Every target is checked before any is written, so a symbolic link
+  // rejected for one file does not leave the files before it on disk.
   if (frozen) {
+    for (const { path: deployRelative } of deployed) {
+      await assertPathResolvesInsideRoot({
+        rootPath: projectRoot,
+        targetPath: join(projectRoot, deployRelative),
+      });
+    }
     for (const { path: deployRelative, content } of deployed) {
       await writeApmFile({ projectRoot, deployRelative, content });
     }

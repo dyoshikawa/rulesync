@@ -602,7 +602,7 @@ The scope is deliberately narrow:
 - Only the `skills/<name>/` directories fetched in **this** run are pruned. A skill left out by `--skills` or `--interactive` is untouched.
 - Other features (`rules/`, `commands/`, `subagents/`, …) are never pruned — the issue only exists for directory-based skills.
 - Directories the remote skill no longer has are removed as well, and are listed in the summary under their own name with a trailing slash.
-- Symbolic links are unlinked, never followed: a link inside a skill directory can only ever lose the link itself, never whatever it points at. A skill directory that is **itself** a symbolic link is not pruned at all, since deleting through it would reach outside the output directory; Rulesync warns and leaves it alone.
+- Symbolic links are unlinked, never followed: a link inside a skill directory can only ever lose the link itself, never whatever it points at. A skill directory that is **itself** a symbolic link (one that stays inside the project, see [Symbolic Links Out of the Project](#symbolic-links-out-of-the-project)) is not pruned at all, since deleting through it would reach outside the output directory; Rulesync warns and leaves it alone.
 - A local file that the filesystem holds as the same file as one just fetched — a second name for it on a case-insensitive or Unicode-normalizing filesystem, or a hard link — is kept, even though the remote list does not carry that name. The same applies to a symbolic link that resolves to a file or directory this run wrote: it is kept rather than unlinked, since the fetch may have written through it.
 - A skill directory Rulesync cannot read or delete from — a permission it does not hold, a disk that gave out — stops that skill's prune where it failed rather than the whole fetch. Rulesync warns, still lists whatever it had already deleted, and moves on to the next skill.
 - Nothing more than 15 directories below the skill directory is pruned. That is a limit on the local walk, deep enough that a fetched tree stays well inside it; Rulesync warns and leaves anything deeper alone.
@@ -664,6 +664,12 @@ A zero-width joiner or a variation selector is dropped only where it hides somet
 Path names come from the remote repository, so every one that Rulesync prints — the fetch summary, warnings, and debug lines — has its control characters stripped first. A crafted path cannot forge or erase the lines around it, which is what makes the record of what was written and deleted worth reading.
 
 The `--json` output is the exception: it carries each path exactly as the repository spells it, because a machine consumer needs the real name to act on it. Anything that renders a value out of that JSON into a terminal has to strip it itself.
+
+### Symbolic Links Out of the Project
+
+`fetch` refuses to write through a local symbolic link whose real path lies outside the project root (the current directory). Every target is checked before anything is written, and the run fails with `Path resolves outside ... through a symbolic link`. A cloned repository could otherwise commit a link such as `.rulesync/skills/x -> ~/.ssh` and have the fetch write there.
+
+This rejects links made on purpose as well: an output directory such as `.rulesync -> ~/dotfiles/rulesync`, or a skill directory such as `.rulesync/skills/foo -> ~/shared-skills/foo`, can no longer be a fetch target. Fetch into a real directory inside the project instead, or point the link at a directory inside the project. A link that stays inside the project root is still written through. The same check applies to `rulesync install --mode gh` at project scope and to `rulesync install --mode apm`.
 
 ### Examples
 

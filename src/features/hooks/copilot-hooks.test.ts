@@ -7,6 +7,7 @@ import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { CopilotHooks } from "./copilot-hooks.js";
+import { HooksProcessor } from "./hooks-processor.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
 
 describe("CopilotHooks", () => {
@@ -315,7 +316,13 @@ describe("CopilotHooks", () => {
       const config = {
         version: 1,
         hooks: {
-          sessionStart: [{ type: "command", command: "echo hello", env: { LOG_LEVEL: "debug" } }],
+          sessionStart: [
+            {
+              type: "command",
+              command: "echo hello",
+              env: { LOG_LEVEL: "debug" },
+            },
+          ],
         },
       };
       const rulesyncHooks = new RulesyncHooks({
@@ -368,13 +375,22 @@ describe("CopilotHooks", () => {
       expect(entry.command).not.toContain("$CLAUDE_PROJECT_DIR");
     });
 
-    it("should skip hooks with matcher", async () => {
+    it("should emit matcher on matcher-aware events and skip matcher hooks elsewhere", async () => {
       const config = {
         version: 1,
         hooks: {
           preToolUse: [
             { type: "command", command: "lint.sh", matcher: "Write" },
             { type: "command", command: "all-tools.sh" },
+          ],
+          postToolUse: [{ type: "command", command: "format.sh", matcher: "Edit|Write" }],
+          preCompact: [{ type: "command", command: "compact.sh", matcher: "auto" }],
+          subagentStart: [{ type: "command", command: "agent.sh", matcher: "reviewer" }],
+          // `sessionStart` does not honor a matcher, so the scoped entry is
+          // dropped instead of being emitted unscoped.
+          sessionStart: [
+            { type: "command", command: "scoped.sh", matcher: "ignored" },
+            { type: "command", command: "start.sh" },
           ],
         },
       };
@@ -392,11 +408,53 @@ describe("CopilotHooks", () => {
         validate: false,
       });
 
-      const content = copilotHooks.getFileContent();
-      const parsed = JSON.parse(content);
-      // Only the non-matcher hook should be present
-      expect(parsed.hooks.preToolUse).toHaveLength(1);
-      expect(parsed.hooks.preToolUse[0].command).toBe("all-tools.sh");
+      const parsed = JSON.parse(copilotHooks.getFileContent());
+      expect(parsed.hooks.preToolUse).toEqual([
+        { type: "command", matcher: "Write", command: "lint.sh" },
+        { type: "command", command: "all-tools.sh" },
+      ]);
+      expect(parsed.hooks.postToolUse).toEqual([
+        { type: "command", matcher: "Edit|Write", command: "format.sh" },
+      ]);
+      expect(parsed.hooks.preCompact).toEqual([
+        { type: "command", matcher: "auto", command: "compact.sh" },
+      ]);
+      expect(parsed.hooks.subagentStart).toEqual([
+        { type: "command", matcher: "reviewer", command: "agent.sh" },
+      ]);
+      expect(parsed.hooks.sessionStart).toEqual([{ type: "command", command: "start.sh" }]);
+    });
+
+    it("should emit matcher authored in the copilot override block", async () => {
+      const config = {
+        version: 1,
+        hooks: {},
+        copilot: {
+          hooks: {
+            preToolUse: [{ type: "command", command: "guard.sh", matcher: "bash" }],
+            sessionStart: [{ type: "command", command: "scoped.sh", matcher: "ignored" }],
+          },
+        },
+      };
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      });
+
+      const copilotHooks = await CopilotHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      const parsed = JSON.parse(copilotHooks.getFileContent());
+      expect(parsed.hooks.preToolUse).toEqual([
+        { type: "command", matcher: "bash", command: "guard.sh" },
+      ]);
+      expect(parsed.hooks.sessionStart).toBeUndefined();
     });
 
     it("should skip prompt-type hooks", async () => {
@@ -532,8 +590,8 @@ describe("CopilotHooks", () => {
       const config = {
         version: 1,
         hooks: {
-          preToolUse: [
-            // All hooks have matcher or are prompt type — all skipped
+          sessionStart: [
+            // All hooks have a matcher on a non-matcher event or are prompt type — all skipped
             { type: "prompt", prompt: "Check carefully" },
             { type: "command", command: "lint.sh", matcher: "Write" },
           ],
@@ -555,8 +613,8 @@ describe("CopilotHooks", () => {
 
       const content = copilotHooks.getFileContent();
       const parsed = JSON.parse(content);
-      // preToolUse should be absent since all hooks were filtered out
-      expect(parsed.hooks.preToolUse).toBeUndefined();
+      // sessionStart should be absent since all hooks were filtered out
+      expect(parsed.hooks.sessionStart).toBeUndefined();
     });
 
     it("should pass through unknown keys and keep bash/powershell overrides", async () => {
@@ -566,7 +624,12 @@ describe("CopilotHooks", () => {
         copilot: {
           hooks: {
             sessionStart: [
-              { type: "command", bash: "run.sh", powershell: "run.ps1", customKey: 123 },
+              {
+                type: "command",
+                bash: "run.sh",
+                powershell: "run.ps1",
+                customKey: 123,
+              },
             ],
           },
         },
@@ -677,6 +740,61 @@ describe("CopilotHooks", () => {
       expect(json.hooks.afterError?.[0]?.command).toBe("handle-error.sh");
     });
 
+    it("should preserve matcher on import so it round-trips", () => {
+      const copilotHooks = new CopilotHooks({
+        outputRoot: testDir,
+        relativeDirPath: join(".github", "hooks"),
+        relativeFilePath: "copilot-hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            preToolUse: [{ type: "command", matcher: "bash", bash: "guard.sh" }],
+            postToolUse: [{ type: "command", matcher: "", bash: "log.sh" }],
+          },
+        }),
+        validate: false,
+      });
+
+      const json = copilotHooks.toRulesyncHooks().getJson();
+      expect(json.hooks.preToolUse?.[0]?.matcher).toBe("bash");
+      expect(json.hooks.preToolUse?.[0]?.command).toBe("guard.sh");
+      expect(json.hooks.postToolUse?.[0]?.matcher).toBeUndefined();
+    });
+
+    it("should skip an imported matcher hook on a non-matcher event on regenerate, with a warning", async () => {
+      const imported = new CopilotHooks({
+        outputRoot: testDir,
+        relativeDirPath: join(".github", "hooks"),
+        relativeFilePath: "copilot-hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            sessionStart: [
+              { type: "command", matcher: "startup", bash: "scoped.sh" },
+              { type: "command", bash: "start.sh" },
+            ],
+          },
+        }),
+        validate: false,
+      });
+      const rulesyncHooks = imported.toRulesyncHooks();
+      expect(rulesyncHooks.getJson().hooks.sessionStart?.[0]?.matcher).toBe("startup");
+
+      const logger = createMockLogger();
+      const processor = new HooksProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "copilot",
+      });
+      const [generated] = await processor.convertRulesyncFilesToToolFiles([rulesyncHooks]);
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        "Skipped matcher hook(s) for copilot (not supported): sessionStart",
+      );
+      const parsed = JSON.parse(generated!.getFileContent());
+      expect(parsed.hooks.sessionStart).toEqual([{ type: "command", bash: "start.sh" }]);
+    });
+
     it("should map agentStop/subagentStop back to canonical stop/subagentStop", () => {
       const copilotHooks = new CopilotHooks({
         outputRoot: testDir,
@@ -729,7 +847,13 @@ describe("CopilotHooks", () => {
         fileContent: JSON.stringify({
           version: 1,
           hooks: {
-            sessionStart: [{ type: "command", powershell: "Write-Output start", timeoutSec: 15 }],
+            sessionStart: [
+              {
+                type: "command",
+                powershell: "Write-Output start",
+                timeoutSec: 15,
+              },
+            ],
           },
         }),
         validate: false,
@@ -753,7 +877,11 @@ describe("CopilotHooks", () => {
           version: 1,
           hooks: {
             sessionStart: [
-              { type: "command", bash: "echo start", powershell: "Write-Output start" },
+              {
+                type: "command",
+                bash: "echo start",
+                powershell: "Write-Output start",
+              },
             ],
           },
         }),
@@ -781,7 +909,11 @@ describe("CopilotHooks", () => {
           version: 1,
           hooks: {
             sessionStart: [
-              { type: "command", bash: "echo start", powershell: "Write-Output start" },
+              {
+                type: "command",
+                bash: "echo start",
+                powershell: "Write-Output start",
+              },
             ],
           },
         }),
@@ -805,7 +937,11 @@ describe("CopilotHooks", () => {
           version: 1,
           hooks: {
             sessionStart: [
-              { type: "command", powershell: "Write-Output hi", env: { LOG_LEVEL: "debug" } },
+              {
+                type: "command",
+                powershell: "Write-Output hi",
+                env: { LOG_LEVEL: "debug" },
+              },
             ],
             preToolUse: [{ type: "command", command: "portable.sh" }],
           },
@@ -815,7 +951,9 @@ describe("CopilotHooks", () => {
 
       const imported = copilotHooks.toRulesyncHooks().getJson();
       expect(imported.hooks.sessionStart?.[0]?.shell).toBe("powershell");
-      expect(imported.hooks.sessionStart?.[0]?.env).toEqual({ LOG_LEVEL: "debug" });
+      expect(imported.hooks.sessionStart?.[0]?.env).toEqual({
+        LOG_LEVEL: "debug",
+      });
       // A portable entry leaves `shell` unset, so re-export writes it back
       // portable rather than promoting it to a shell-specific field.
       expect(imported.hooks.preToolUse?.[0]?.shell).toBeUndefined();
@@ -830,7 +968,9 @@ describe("CopilotHooks", () => {
         ).getFileContent(),
       );
       expect(reExported.hooks.sessionStart[0].powershell).toBe("Write-Output hi");
-      expect(reExported.hooks.sessionStart[0].env).toEqual({ LOG_LEVEL: "debug" });
+      expect(reExported.hooks.sessionStart[0].env).toEqual({
+        LOG_LEVEL: "debug",
+      });
       expect(reExported.hooks.preToolUse[0].command).toBe("portable.sh");
     });
 
@@ -843,7 +983,12 @@ describe("CopilotHooks", () => {
           version: 1,
           hooks: {
             sessionStart: [
-              { type: "command", bash: "echo hi", cwd: "packages/api", timeoutSec: 30 },
+              {
+                type: "command",
+                bash: "echo hi",
+                cwd: "packages/api",
+                timeoutSec: 30,
+              },
             ],
           },
         }),
@@ -892,7 +1037,13 @@ describe("CopilotHooks", () => {
             sessionStart: [{ type: "command", windows: "echo win", osx: "echo mac" }],
             // A shell field plus an override: the shell selector is recorded
             // and the override rides along.
-            agentStop: [{ type: "command", bash: "echo bye", windows: "Write-Output bye" }],
+            agentStop: [
+              {
+                type: "command",
+                bash: "echo bye",
+                windows: "Write-Output bye",
+              },
+            ],
           },
         }),
         validate: false,
@@ -977,7 +1128,10 @@ describe("CopilotHooks", () => {
 
       const generated = JSON.parse(
         (
-          await CopilotHooks.fromRulesyncHooks({ outputRoot: testDir, rulesyncHooks })
+          await CopilotHooks.fromRulesyncHooks({
+            outputRoot: testDir,
+            rulesyncHooks,
+          })
         ).getFileContent(),
       );
       expect(generated.hooks.preToolUse[0]).toEqual({
@@ -997,7 +1151,14 @@ describe("CopilotHooks", () => {
           version: 1,
           hooks: {
             sessionStart: [{ type: "command", bash: "echo hi", timeout: 45 }],
-            sessionEnd: [{ type: "command", bash: "echo bye", timeout: 45, timeoutSec: 10 }],
+            sessionEnd: [
+              {
+                type: "command",
+                bash: "echo bye",
+                timeout: 45,
+                timeoutSec: 10,
+              },
+            ],
           },
         }),
         validate: false,
@@ -1058,7 +1219,12 @@ describe("CopilotHooks", () => {
           version: 1,
           hooks: {
             sessionStart: [
-              { type: "command", bash: "run.sh", powershell: "run.ps1", customKey: 123 },
+              {
+                type: "command",
+                bash: "run.sh",
+                powershell: "run.ps1",
+                customKey: 123,
+              },
             ],
           },
         }),
@@ -1098,7 +1264,9 @@ describe("CopilotHooks", () => {
       const overrideHooks = (json as { copilot?: { hooks?: Record<string, unknown[]> } }).copilot
         ?.hooks;
       expect(Object.keys(overrideHooks ?? {})).toEqual(["toString"]);
-      expect(overrideHooks?.["toString"]?.[0]).toMatchObject({ command: "echo crafted" });
+      expect(overrideHooks?.["toString"]?.[0]).toMatchObject({
+        command: "echo crafted",
+      });
     });
   });
 
