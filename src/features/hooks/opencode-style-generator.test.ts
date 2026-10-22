@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { CANONICAL_TO_OPENCODE_EVENT_NAMES, type HooksConfig } from "../../types/hooks.js";
 import { writeFileContent } from "../../utils/file.js";
+import { buildBlockReasonSanitizerLines } from "./hook-block-reason.js";
 import { generateOpencodeStylePluginCode } from "./opencode-style-generator.js";
 
 const SUPPORTED_EVENTS = [
@@ -100,10 +101,12 @@ describe("generateOpencodeStylePluginCode", () => {
     code,
     exportStyle,
     $,
+    directory,
   }: {
     code: string;
     exportStyle: "named" | "default";
     $: unknown;
+    directory?: string;
   }): Promise<ToolExecuteBefore> => {
     moduleCounter += 1;
     const filePath = join(testDir, `plugin-${moduleCounter}.mjs`);
@@ -111,8 +114,8 @@ describe("generateOpencodeStylePluginCode", () => {
     const mod = await import(/* @vite-ignore */ pathToFileURL(filePath).href);
     const hooks =
       exportStyle === "named"
-        ? await mod.RulesyncHooksPlugin({ $ })
-        : await mod.default.server({ $ });
+        ? await mod.RulesyncHooksPlugin({ $, directory })
+        : await mod.default.server({ $, directory });
     return hooks["tool.execute.before"];
   };
 
@@ -127,9 +130,13 @@ describe("generateOpencodeStylePluginCode", () => {
 
       expect(code).toBe(
         [
-          "export const RulesyncHooksPlugin = async ({ $ }) => {",
+          "export const RulesyncHooksPlugin = async ({ $, directory }) => {",
+          ...buildBlockReasonSanitizerLines({ typed: false }).map((line) =>
+            line === "" ? "" : `  ${line}`,
+          ),
+          "",
           "  const __rulesyncEnforcePreToolUseResult = (result) => {",
-          "    const stderr = result.stderr.toString().trim();",
+          "    const stderr = result.stderr.toString();",
           "    if (result.exitCode === 0) {",
           "      let parsed;",
           "      try {",
@@ -140,33 +147,38 @@ describe("generateOpencodeStylePluginCode", () => {
           '      const specific = parsed && typeof parsed === "object" ? parsed.hookSpecificOutput : undefined;',
           '      if (specific && typeof specific === "object" && specific.permissionDecision === "deny") {',
           "        throw new Error(",
-          '          typeof specific.permissionDecisionReason === "string" && specific.permissionDecisionReason !== ""',
-          "            ? specific.permissionDecisionReason",
-          '            : "Blocked by a preToolUse hook.",',
+          '          (typeof specific.permissionDecisionReason === "string" &&',
+          "            sanitizeBlockReason(specific.permissionDecisionReason)) ||",
+          '            "Blocked by a preToolUse hook.",',
           "        );",
           "      }",
           "      return;",
           "    }",
           "    if (result.exitCode === 2) {",
-          '      throw new Error(stderr || "Blocked by a preToolUse hook.");',
+          '      throw new Error(sanitizeBlockReason(stderr) || "Blocked by a preToolUse hook.");',
           "    }",
-          '    throw new Error(stderr || "preToolUse hook command failed with exit code " + result.exitCode + ".");',
+          "    throw new Error(",
+          "      sanitizeBlockReason(stderr) ||",
+          '        "preToolUse hook command failed with exit code " + result.exitCode + ".",',
+          "    );",
           "  };",
           "  return {",
           '    "tool.execute.before": async (input, output) => {',
-          "      const __rulesyncPreToolUseInput = JSON.stringify({",
-          '        hook_event_name: "PreToolUse",',
-          "        session_id: input.sessionID,",
-          "        tool_use_id: input.callID,",
-          "        tool_name: input.tool,",
-          "        tool_input: output?.args,",
-          "        cwd: process.cwd(),",
-          "      });",
-          "      __rulesyncEnforcePreToolUseResult(await $`echo ${__rulesyncPreToolUseInput} | guard.sh`.nothrow().quiet());",
+          "      let __rulesyncPreToolUseInputCache;",
+          "      const __rulesyncPreToolUseInput = () =>",
+          "        (__rulesyncPreToolUseInputCache ??= JSON.stringify({",
+          '          hook_event_name: "PreToolUse",',
+          "          session_id: input.sessionID,",
+          "          tool_use_id: input.callID,",
+          "          tool_name: input.tool,",
+          "          tool_input: output?.args,",
+          "          cwd: directory ?? process.cwd(),",
+          "        }));",
+          "      __rulesyncEnforcePreToolUseResult(await $`echo ${__rulesyncPreToolUseInput()} | guard.sh`.nothrow().quiet());",
           "      {",
           '        const __re = new RegExp("bash");',
           "        if (__re.test(input.tool)) {",
-          "          __rulesyncEnforcePreToolUseResult(await $`echo ${__rulesyncPreToolUseInput} | bash-guard.sh`.nothrow().quiet());",
+          "          __rulesyncEnforcePreToolUseResult(await $`echo ${__rulesyncPreToolUseInput()} | bash-guard.sh`.nothrow().quiet());",
           "        }",
           "      }",
           "    },",
@@ -203,6 +215,93 @@ describe("generateOpencodeStylePluginCode", () => {
         tool_input: { title: "x" },
         cwd: testDir,
       });
+    });
+
+    it("should report the plugin context's directory as cwd", async () => {
+      const { $, calls } = createFakeShell(() => ok());
+      const before = await loadBeforeHook({
+        code: generate({ preToolUse: [{ type: "command", command: "guard.sh" }] }),
+        exportStyle: "named",
+        $,
+        directory: "/work/project",
+      });
+
+      await before({ tool: "bash", sessionID: "s", callID: "c" }, { args: {} });
+
+      expect(JSON.parse(String(calls[0]?.values[0])).cwd).toBe("/work/project");
+    });
+
+    it("should serialize the payload lazily and only once per tool call", async () => {
+      const { $, calls } = createFakeShell(() => ok());
+      const before = await loadBeforeHook({
+        code: generate({
+          preToolUse: [
+            { type: "command", command: "first.sh", matcher: "^bash$" },
+            { type: "command", command: "second.sh", matcher: "^bash$" },
+          ],
+        }),
+        exportStyle: "named",
+        $,
+      });
+      let argsReads = 0;
+      const output = {
+        get args() {
+          argsReads += 1;
+          return { command: "ls" };
+        },
+      };
+
+      await before({ tool: "edit", sessionID: "s", callID: "c" }, output);
+      expect(argsReads).toBe(0);
+      expect(calls).toHaveLength(0);
+
+      await before({ tool: "bash", sessionID: "s", callID: "c" }, output);
+      expect(argsReads).toBe(1);
+      expect(calls).toHaveLength(2);
+      expect(calls[1]?.values[0]).toBe(calls[0]?.values[0]);
+    });
+
+    it("should strip control characters from and cap the deny reason", async () => {
+      const { $ } = createFakeShell(() => ({
+        exitCode: 2,
+        stdout: "",
+        stderr: `\u001b[31mno\u202e push\u001b[0m\r\n${"x".repeat(3000)}`,
+      }));
+      const before = await loadBeforeHook({
+        code: generate({ preToolUse: [{ type: "command", command: "guard.sh" }] }),
+        exportStyle: "named",
+        $,
+      });
+
+      const error = await before({ tool: "bash", sessionID: "s", callID: "c" }, { args: {} }).then(
+        () => undefined,
+        (caught: unknown) => caught,
+      );
+
+      expect(error).toBeInstanceOf(Error);
+      const message = (error as Error).message;
+      expect(message.startsWith("no push\nxxx")).toBe(true);
+      expect(message).toHaveLength(2003);
+      expect(message.endsWith("...")).toBe(true);
+    });
+
+    it("should sanitize the permissionDecisionReason too", async () => {
+      const decision = JSON.stringify({
+        hookSpecificOutput: {
+          permissionDecision: "deny",
+          permissionDecisionReason: "\u001b[2J stop\u200b here",
+        },
+      });
+      const { $ } = createFakeShell(() => ok(decision));
+      const before = await loadBeforeHook({
+        code: generate({ preToolUse: [{ type: "command", command: "guard.sh" }] }),
+        exportStyle: "named",
+        $,
+      });
+
+      await expect(
+        before({ tool: "bash", sessionID: "s", callID: "c" }, { args: {} }),
+      ).rejects.toThrow(/^stop here$/);
     });
 
     it("should deny with stderr as the reason on exit code 2", async () => {
@@ -306,7 +405,7 @@ describe("generateOpencodeStylePluginCode", () => {
       });
 
       expect(code).toContain(
-        "await $`echo ${__rulesyncPreToolUseInput} | echo \\${HOME} \\`id\\` \\\\x`.nothrow().quiet()",
+        "await $`echo ${__rulesyncPreToolUseInput()} | echo \\${HOME} \\`id\\` \\\\x`.nothrow().quiet()",
       );
       execFileSync("node", ["--input-type=module", "--check"], { input: code });
     });
@@ -342,19 +441,19 @@ describe("generateOpencodeStylePluginCode", () => {
         [
           "export default {",
           '  id: "rulesync-hooks",',
-          "  server: async ({ $ }) => {",
-          "    const __rulesyncEnforcePreToolUseResult = (result) => {",
+          "  server: async ({ $, directory }) => {",
+          "    const MAX_BLOCK_REASON_LENGTH = 2000;",
         ].join("\n"),
       );
       expect(code).toContain(
         [
           "    return {",
           '      "tool.execute.before": async (input, output) => {',
-          "        const __rulesyncPreToolUseInput = JSON.stringify({",
+          "        let __rulesyncPreToolUseInputCache;",
         ].join("\n"),
       );
       expect(code).toContain(
-        "            __rulesyncEnforcePreToolUseResult(await $`echo ${__rulesyncPreToolUseInput} | guard.sh`.nothrow().quiet());",
+        "            __rulesyncEnforcePreToolUseResult(await $`echo ${__rulesyncPreToolUseInput()} | guard.sh`.nothrow().quiet());",
       );
       execFileSync("node", ["--input-type=module", "--check"], { input: code });
     });

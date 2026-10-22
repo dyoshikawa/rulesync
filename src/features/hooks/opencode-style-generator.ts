@@ -1,5 +1,6 @@
 // cspell:ignore nothrow subshell redirections -- Bun Shell API and shell terms
 import { HooksConfig, CONTROL_CHARS } from "../../types/hooks.js";
+import { buildBlockReasonSanitizerLines } from "./hook-block-reason.js";
 
 /**
  * Tool events emitted as named `(input, ...)` hooks rather than through the
@@ -81,7 +82,9 @@ const SHELL_EVENT_TOOL_GATES: Record<string, { toolEvent: string; tool: string }
  * `session_id` (`input.sessionID`), `tool_use_id` (`input.callID`),
  * `tool_name` (the raw OpenCode tool name — `bash`, `edit`, `<server>_<tool>`
  * for MCP — the same subject a `matcher` is tested against), `tool_input`
- * (`output.args`) and `cwd`.
+ * (`output.args`) and `cwd` (the plugin context's `directory`, falling back to
+ * `process.cwd()`). It is serialized lazily, on the first handler whose
+ * matcher matches, so a tool call no hook applies to pays nothing for it.
  *
  * Bun Shell has no stdin option on a command and rejects redirections on a
  * subshell, so the payload is piped in by the shell's builtin `echo`
@@ -107,7 +110,13 @@ const STDIN_PAYLOAD_EVENTS: Record<string, string> = {
  * - exit code 0 with JSON stdout whose `hookSpecificOutput.permissionDecision`
  *   is `"deny"` → deny, with `permissionDecisionReason` as the reason;
  * - exit code 0 otherwise → allow;
- * - any other non-zero exit → deny too. Claude Code treats that as a
+ * - any other non-zero exit → deny too, with stderr or the exit code.
+ *
+ * Every reason goes through the `sanitizeBlockReason` helper shared with the
+ * Pi extension (`hook-block-reason.ts`): control and format characters are
+ * stripped and the text is capped at 2000 characters before the model sees it.
+ *
+ * The other non-zero exit case is deliberate. Claude Code treats that as a
  *   non-blocking error, but before this payload contract existed the plugin
  *   ran the command through Bun Shell's default throwing mode, so every
  *   non-zero exit aborted the call. Keeping that preserves guards that block
@@ -116,8 +125,10 @@ const STDIN_PAYLOAD_EVENTS: Record<string, string> = {
 const PRE_TOOL_USE_RESULT_HELPER = "__rulesyncEnforcePreToolUseResult";
 
 const PRE_TOOL_USE_RESULT_HELPER_LINES: readonly string[] = [
+  ...buildBlockReasonSanitizerLines({ typed: false }),
+  "",
   `const ${PRE_TOOL_USE_RESULT_HELPER} = (result) => {`,
-  "  const stderr = result.stderr.toString().trim();",
+  "  const stderr = result.stderr.toString();",
   "  if (result.exitCode === 0) {",
   "    let parsed;",
   "    try {",
@@ -128,17 +139,20 @@ const PRE_TOOL_USE_RESULT_HELPER_LINES: readonly string[] = [
   '    const specific = parsed && typeof parsed === "object" ? parsed.hookSpecificOutput : undefined;',
   '    if (specific && typeof specific === "object" && specific.permissionDecision === "deny") {',
   "      throw new Error(",
-  '        typeof specific.permissionDecisionReason === "string" && specific.permissionDecisionReason !== ""',
-  "          ? specific.permissionDecisionReason",
-  '          : "Blocked by a preToolUse hook.",',
+  '        (typeof specific.permissionDecisionReason === "string" &&',
+  "          sanitizeBlockReason(specific.permissionDecisionReason)) ||",
+  '          "Blocked by a preToolUse hook.",',
   "      );",
   "    }",
   "    return;",
   "  }",
   "  if (result.exitCode === 2) {",
-  '    throw new Error(stderr || "Blocked by a preToolUse hook.");',
+  '    throw new Error(sanitizeBlockReason(stderr) || "Blocked by a preToolUse hook.");',
   "  }",
-  '  throw new Error(stderr || "preToolUse hook command failed with exit code " + result.exitCode + ".");',
+  "  throw new Error(",
+  "    sanitizeBlockReason(stderr) ||",
+  '      "preToolUse hook command failed with exit code " + result.exitCode + ".",',
+  "  );",
   "};",
 ];
 
@@ -287,7 +301,7 @@ function buildRunStatement(handler: Handler): string {
   const escapedCommand = escapeForTemplateLiteral(handler.command);
   if (handler.stdinEvent) {
     const payload = stdinPayloadVariable(handler.stdinEvent);
-    return `${PRE_TOOL_USE_RESULT_HELPER}(await $\`echo \${${payload}} | ${escapedCommand}\`.nothrow().quiet());`;
+    return `${PRE_TOOL_USE_RESULT_HELPER}(await $\`echo \${${payload}()} | ${escapedCommand}\`.nothrow().quiet());`;
   }
   return `await $\`${escapedCommand}\`;`;
 }
@@ -303,18 +317,21 @@ function buildNamedEventBodyLines(namedEventHandlers: HandlerGroup): string[] {
     bodyLines.push(
       `    "${eventName}": async (${stdinEvents.length > 0 ? "input, output" : "input"}) => {`,
     );
-    // Built once per invocation and shared by every handler of the event.
+    // Serialized at most once per invocation, by the first handler that runs.
     // `stdinEvent` only ever holds a value from `STDIN_PAYLOAD_EVENTS`, never
     // user input, so it is safe to emit as an identifier suffix and a string.
     for (const stdinEvent of stdinEvents) {
-      bodyLines.push(`      const ${stdinPayloadVariable(stdinEvent)} = JSON.stringify({`);
-      bodyLines.push(`        hook_event_name: "${stdinEvent}",`);
-      bodyLines.push("        session_id: input.sessionID,");
-      bodyLines.push("        tool_use_id: input.callID,");
-      bodyLines.push("        tool_name: input.tool,");
-      bodyLines.push("        tool_input: output?.args,");
-      bodyLines.push("        cwd: process.cwd(),");
-      bodyLines.push("      });");
+      const payload = stdinPayloadVariable(stdinEvent);
+      bodyLines.push(`      let ${payload}Cache;`);
+      bodyLines.push(`      const ${payload} = () =>`);
+      bodyLines.push(`        (${payload}Cache ??= JSON.stringify({`);
+      bodyLines.push(`          hook_event_name: "${stdinEvent}",`);
+      bodyLines.push("          session_id: input.sessionID,");
+      bodyLines.push("          tool_use_id: input.callID,");
+      bodyLines.push("          tool_name: input.tool,");
+      bodyLines.push("          tool_input: output?.args,");
+      bodyLines.push("          cwd: directory ?? process.cwd(),");
+      bodyLines.push("        }));");
     }
     for (const handler of handlers) {
       const runStatement = buildRunStatement(handler);
@@ -350,13 +367,17 @@ function wrapInExportShape({
   bodyLines: string[];
   exportStyle: "named" | "default";
 }): string[] {
+  // `directory` (the session's working directory, in both the OpenCode and the
+  // Kilo plugin context) is only read by the stdin payload, so plugins without
+  // one keep destructuring `$` alone.
+  const pluginContextPattern = preambleLines.length > 0 ? "{ $, directory }" : "{ $ }";
   const lines: string[] = [];
   if (exportStyle === "default") {
     lines.push("export default {");
     lines.push('  id: "rulesync-hooks",');
-    lines.push("  server: async ({ $ }) => {");
+    lines.push(`  server: async (${pluginContextPattern}) => {`);
     for (const line of preambleLines) {
-      lines.push(`    ${line}`);
+      lines.push(line === "" ? "" : `    ${line}`);
     }
     lines.push("    return {");
     // Indent the handler entries by an extra two spaces to account for the
@@ -368,9 +389,9 @@ function wrapInExportShape({
     lines.push("  },");
     lines.push("};");
   } else {
-    lines.push("export const RulesyncHooksPlugin = async ({ $ }) => {");
+    lines.push(`export const RulesyncHooksPlugin = async (${pluginContextPattern}) => {`);
     for (const line of preambleLines) {
-      lines.push(`  ${line}`);
+      lines.push(line === "" ? "" : `  ${line}`);
     }
     lines.push("  return {");
     lines.push(...bodyLines);

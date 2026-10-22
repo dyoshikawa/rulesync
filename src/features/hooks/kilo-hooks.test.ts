@@ -371,7 +371,7 @@ describe("KiloHooks", () => {
       // Canonical Kilo plugin shape: default export with id + server descriptor.
       expect(content).toContain("export default {");
       expect(content).toContain('  id: "rulesync-hooks",');
-      expect(content).toContain("  server: async ({ $ }) => {");
+      expect(content).toContain("  server: async ({ $, directory }) => {");
       // Must NOT emit the legacy named export used by the OpenCode target.
       expect(content).not.toContain("export const RulesyncHooksPlugin");
       // Handlers are still present, just nested under `server`.
