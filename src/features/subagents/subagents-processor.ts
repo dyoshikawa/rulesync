@@ -654,7 +654,9 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
   [
     // Kiro CLI loads agent configs from both `.kiro/agents/` (workspace) and
     // `~/.kiro/agents/` (global); local agents take precedence over global
-    // ones with the same name. https://kiro.dev/docs/cli/custom-agents/configuration-reference/
+    // ones with the same name. Nested directories are read too, and the agent
+    // name is the path without the extension (`team/planner.json` is
+    // `team/planner`). https://kiro.dev/docs/custom-agents/
     "kiro-cli",
     {
       class: KiroCliSubagent,
@@ -662,13 +664,15 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
         supportsProject: true,
         supportsSimulated: false,
         supportsGlobal: true,
-        filePattern: "*.json",
+        filePattern: "**/*.json",
+        supportsNestedPaths: true,
       },
     },
   ],
   [
     // Kiro IDE loads custom agents from `.kiro/agents/` (workspace) and
-    // `~/.kiro/agents/` (global). https://kiro.dev/docs/chat/subagents/
+    // `~/.kiro/agents/` (global), including nested directories.
+    // https://kiro.dev/docs/chat/subagents/ https://kiro.dev/docs/custom-agents/
     "kiro-ide",
     {
       class: KiroIdeSubagent,
@@ -676,7 +680,8 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
         supportsProject: true,
         supportsSimulated: false,
         supportsGlobal: true,
-        filePattern: "*.md",
+        filePattern: "**/*.md",
+        supportsNestedPaths: true,
       },
     },
   ],
