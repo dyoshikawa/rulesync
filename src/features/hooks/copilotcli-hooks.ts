@@ -17,6 +17,7 @@ import type { HooksConfig } from "../../types/hooks.js";
 import {
   CANONICAL_TO_COPILOTCLI_EVENT_NAMES,
   COPILOTCLI_HOOK_EVENTS,
+  COPILOTCLI_MATCHER_HOOK_EVENTS,
   COPILOTCLI_TO_CANONICAL_EVENT_NAMES,
   HookDefinitionSchema,
 } from "../../types/hooks.js";
@@ -98,25 +99,13 @@ import {
  */
 /**
  * Canonical events whose Copilot CLI hook entries honor an optional `matcher`
- * field (a regex compiled as `^(?:PATTERN)$`, tested against `toolName`).
- *
- * Confirmed by the upstream changelog: v1.0.36 (2026-04-24, `preToolUse.matcher`
- * honored) and v1.0.63 (2026-06-15, "PostToolUse hook matchers (e.g.
- * `Edit|Write`) are now honored instead of silently dropped").
- * @see https://docs.github.com/en/copilot/reference/hooks-reference
+ * field (a regex compiled as `^(?:PATTERN)$`). The hooks reference filters each
+ * on a different field: the tool name for `preToolUse` / `postToolUse` /
+ * `permissionRequest`, `notification_type`, the `preCompact` trigger
+ * (`manual` | `auto`) and the `subagentStart` agent name.
+ * See {@link COPILOTCLI_MATCHER_HOOK_EVENTS}.
  */
-const COPILOTCLI_MATCHER_EVENTS: ReadonlySet<string> = new Set([
-  "preToolUse",
-  "postToolUse",
-  // The hooks reference documents `matcher` on four more events, each filtering
-  // on a different field: `notification` (notification_type),
-  // `permissionRequest` (toolName), `preCompact` (trigger: "manual" | "auto")
-  // and `subagentStart` (agentName).
-  "notification",
-  "permissionRequest",
-  "preCompact",
-  "subagentStart",
-]);
+const COPILOTCLI_MATCHER_EVENTS: ReadonlySet<string> = new Set(COPILOTCLI_MATCHER_HOOK_EVENTS);
 
 /** Human-readable list of the matcher-aware events, for the drop warning. */
 const COPILOTCLI_MATCHER_EVENTS_LABEL = [...COPILOTCLI_MATCHER_EVENTS].join("/");
