@@ -1,11 +1,11 @@
-import { basename, join } from "node:path";
+import { join } from "node:path";
 
 import { z } from "zod/mini";
 
 import { KIRO_AGENTS_DIR_PATH } from "../../constants/kiro-paths.js";
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
-import { readFileContent } from "../../utils/file.js";
+import { readFileContent, toPosixPath } from "../../utils/file.js";
 import { RulesyncSubagent, RulesyncSubagentFrontmatter } from "./rulesync-subagent.js";
 import {
   ToolSubagent,
@@ -117,7 +117,9 @@ export class KiroSubagent extends ToolSubagent {
 
     const rulesyncFrontmatter: RulesyncSubagentFrontmatter = {
       targets: [toolTarget],
-      name: name ?? basename(this.getRelativeFilePath(), ".json"),
+      // Kiro names an agent after its path without the extension, so a nested
+      // `team/planner.json` is `team/planner`. https://kiro.dev/docs/custom-agents/
+      name: name ?? toPosixPath(this.getRelativeFilePath()).replace(/\.json$/, ""),
       description: description ?? undefined,
       // Only include kiro section if there are fields
       ...(Object.keys(kiroSection).length > 0 && { kiro: kiroSection }),

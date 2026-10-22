@@ -6,7 +6,7 @@ import { KIRO_AGENTS_DIR_PATH } from "../../constants/kiro-paths.js";
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
-import { readFileContent } from "../../utils/file.js";
+import { readFileContent, toPosixPath } from "../../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
 import { RulesyncSubagent, RulesyncSubagentFrontmatter } from "./rulesync-subagent.js";
 import {
@@ -82,7 +82,9 @@ export class KiroIdeSubagent extends ToolSubagent {
 
     const rulesyncFrontmatter: RulesyncSubagentFrontmatter = {
       targets: ["*"] as const,
-      name: name ?? this.getRelativeFilePath().replace(/\.md$/, ""),
+      // Kiro names an agent after its path without the extension, so a nested
+      // `team/planner.md` is `team/planner`. https://kiro.dev/docs/custom-agents/
+      name: name ?? toPosixPath(this.getRelativeFilePath()).replace(/\.md$/, ""),
       description: description ?? "",
       ...(Object.keys(kiroIdeSection).length > 0 && { "kiro-ide": kiroIdeSection }),
     };

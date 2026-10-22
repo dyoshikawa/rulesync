@@ -189,6 +189,21 @@ describe("KiroSubagent", () => {
     });
   });
 
+  it("should derive an omitted nested agent name from its path", () => {
+    const subagent = new KiroSubagent({
+      outputRoot: testDir,
+      relativeDirPath: ".kiro/agents",
+      relativeFilePath: join("team", "planner.json"),
+      body: JSON.stringify({ description: "Nested agent" }),
+      fileContent: "",
+      validate: true,
+    });
+
+    const rulesyncSubagent = subagent.toRulesyncSubagent();
+    expect(rulesyncSubagent.getFrontmatter().name).toBe("team/planner");
+    expect(rulesyncSubagent.getRelativeFilePath()).toBe(join("team", "planner.md"));
+  });
+
   it("should create KiroSubagent from RulesyncSubagent with frontmatter", () => {
     const rulesyncSubagent = new RulesyncSubagent({
       outputRoot: testDir,
