@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { extname, join } from "node:path";
 
 import { z } from "zod/mini";
 
@@ -46,6 +46,16 @@ const KiroCliSubagentJsonSchema = z.looseObject({
 });
 
 type KiroCliSubagentJson = z.infer<typeof KiroCliSubagentJsonSchema>;
+
+/**
+ * The name Kiro gives an agent file: its path relative to the agents directory
+ * without the extension, so a nested `team/planner.md` is `team/planner`.
+ * https://kiro.dev/docs/custom-agents/
+ */
+export function kiroAgentNameFromPath(relativeFilePath: string): string {
+  const posixPath = toPosixPath(relativeFilePath);
+  return posixPath.slice(0, posixPath.length - extname(posixPath).length);
+}
 
 export type KiroSubagentParams = {
   body: string;
@@ -117,9 +127,7 @@ export class KiroSubagent extends ToolSubagent {
 
     const rulesyncFrontmatter: RulesyncSubagentFrontmatter = {
       targets: [toolTarget],
-      // Kiro names an agent after its path without the extension, so a nested
-      // `team/planner.json` is `team/planner`. https://kiro.dev/docs/custom-agents/
-      name: name ?? toPosixPath(this.getRelativeFilePath()).replace(/\.json$/, ""),
+      name: name ?? kiroAgentNameFromPath(this.getRelativeFilePath()),
       description: description ?? undefined,
       // Only include kiro section if there are fields
       ...(Object.keys(kiroSection).length > 0 && { kiro: kiroSection }),
