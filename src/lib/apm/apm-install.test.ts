@@ -645,6 +645,153 @@ dependencies:
     expect(warnMessages.some((m) => m.includes(absoluteOutside))).toBe(true);
   });
 
+  function staleLockYaml(deployedFiles: string[]): string {
+    return `lockfile_version: "1"
+generated_at: "2026-04-20T00:00:00Z"
+apm_version: "0.7.7"
+dependencies:
+  - repo_url: https://github.com/acme/security
+    resolved_commit: ${VALID_SHA}
+    resolved_ref: v1.0.0
+    depth: 1
+    package_type: apm_package
+    deployed_files:
+${deployedFiles.map((file) => `      - ${file}`).join("\n")}
+`;
+  }
+
+  it.skipIf(process.platform === "win32")(
+    "refuses to remove a stale file that a symbolic link leads outside projectRoot",
+    async () => {
+      const projectRoot = join(testDir, "project");
+      const outsideDir = join(testDir, "outside");
+      await writeFileContent(join(outsideDir, "old.instructions.md"), "outside");
+      await mkdir(join(projectRoot, ".github"), { recursive: true });
+      await symlink(outsideDir, join(projectRoot, ".github", "instructions"));
+      await writeFileContent(
+        getApmLockPath(projectRoot),
+        staleLockYaml([".github/instructions/old.instructions.md"]),
+      );
+      await writeFileContent(
+        getApmManifestPath(projectRoot),
+        `dependencies:
+  apm:
+    - acme/security#v1.0.0
+`,
+      );
+      mockClientInstance.listDirectory.mockResolvedValue([]);
+
+      const localLogger = createMockLogger();
+      await installApm({ projectRoot, logger: localLogger, options: { update: true } });
+
+      expect(await fileExists(join(outsideDir, "old.instructions.md"))).toBe(true);
+      expect(localLogger.warn).toHaveBeenCalledWith(
+        'Refusing to remove stale apm file that resolves outside projectRoot: ".github/instructions/old.instructions.md".',
+      );
+    },
+  );
+
+  it.skipIf(process.platform === "win32")(
+    "reports a filesystem error during stale-file removal as it is",
+    async () => {
+      await mkdir(join(testDir, ".github", "instructions"), { recursive: true });
+      await symlink("loop", join(testDir, ".github", "instructions", "loop"));
+      await writeFileContent(
+        getApmLockPath(testDir),
+        staleLockYaml([".github/instructions/loop/old.instructions.md"]),
+      );
+      await writeManifest(
+        `dependencies:
+  apm:
+    - acme/security#v1.0.0
+`,
+      );
+      mockClientInstance.listDirectory.mockResolvedValue([]);
+
+      const localLogger = createMockLogger();
+      await installApm({ projectRoot: testDir, logger: localLogger, options: { update: true } });
+
+      const warnMessages = localLogger.warn.mock.calls.map((args) => String(args[0]));
+      expect(
+        warnMessages.some(
+          (m) =>
+            m.startsWith(
+              'Skipping removal of stale apm file ".github/instructions/loop/old.instructions.md":',
+            ) && m.includes("ELOOP"),
+        ),
+      ).toBe(true);
+      expect(warnMessages.some((m) => m.includes("resolves outside"))).toBe(false);
+    },
+  );
+
+  it.skipIf(process.platform === "win32")(
+    "--frozen checks every target before writing any of them",
+    async () => {
+      const projectRoot = join(testDir, "project");
+      const outsideDir = join(testDir, "outside");
+      await mkdir(join(projectRoot, ".github"), { recursive: true });
+      await mkdir(outsideDir, { recursive: true });
+      // `.github/instructions/...` sorts before `.github/skills/...`, so the
+      // rejected target is the second one written.
+      await symlink(outsideDir, join(projectRoot, ".github", "skills"));
+      // A hash rulesync did not write skips the integrity check, so the run
+      // reaches the deferred writes.
+      await writeFileContent(
+        getApmLockPath(projectRoot),
+        `lockfile_version: "1"
+generated_at: "2026-04-20T00:00:00Z"
+apm_version: "0.7.7"
+dependencies:
+  - repo_url: https://github.com/acme/security
+    resolved_commit: ${VALID_SHA}
+    resolved_ref: v1.0.0
+    depth: 1
+    package_type: apm_package
+    content_hash: "sha256:legacy"
+    deployed_files:
+      - .github/instructions/a.instructions.md
+      - .github/skills/s/SKILL.md
+`,
+      );
+      await writeFileContent(
+        getApmManifestPath(projectRoot),
+        `dependencies:
+  apm:
+    - acme/security#v1.0.0
+`,
+      );
+      mockClientInstance.listDirectory.mockImplementation(
+        async (_owner: string, _repo: string, path: string) => {
+          if (path === ".apm/instructions") {
+            return [
+              {
+                name: "a.instructions.md",
+                path: ".apm/instructions/a.instructions.md",
+                type: "file",
+                size: 10,
+              },
+            ];
+          }
+          if (path === ".apm/skills") {
+            return [{ name: "s", path: ".apm/skills/s", type: "dir", size: 0 }];
+          }
+          if (path === ".apm/skills/s") {
+            return [{ name: "SKILL.md", path: ".apm/skills/s/SKILL.md", type: "file", size: 10 }];
+          }
+          return [];
+        },
+      );
+      mockClientInstance.getFileContent.mockResolvedValue("content");
+
+      await installApm({ projectRoot, logger, options: { frozen: true } }).catch(() => undefined);
+
+      expect(await readdir(outsideDir)).toEqual([]);
+      expect(await fileExists(join(projectRoot, ".github/instructions/a.instructions.md"))).toBe(
+        false,
+      );
+    },
+  );
+
   it("preserves top-level mcp_servers and other loose fields across install rewrites", async () => {
     // A lockfile produced by the upstream `apm` CLI may carry extra top-level
     // fields (mcp_servers, custom extensions, etc.). Rulesync must not wipe
