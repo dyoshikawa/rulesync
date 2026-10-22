@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createMockLogger } from "../../test-utils/mock-logger.js";
-import { docsCommand, normalizeDocId } from "./docs.js";
+import { docsCommand } from "./docs.js";
 
 let stdoutLines: string[] = [];
 
@@ -16,32 +16,6 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
-});
-
-describe("normalizeDocId", () => {
-  it("passes through plain and nested identifiers", () => {
-    expect(normalizeDocId("faq")).toBe("faq");
-    expect(normalizeDocId("guide/configuration")).toBe("guide/configuration");
-  });
-
-  it("strips the docs/ prefix and the .md extension", () => {
-    expect(normalizeDocId("docs/faq.md")).toBe("faq");
-    expect(normalizeDocId("guide/configuration.md")).toBe("guide/configuration");
-  });
-
-  it("normalizes backslashes and redundant segments", () => {
-    expect(normalizeDocId("guide\\configuration")).toBe("guide/configuration");
-    expect(normalizeDocId("./guide//configuration")).toBe("guide/configuration");
-  });
-
-  it("rejects traversal, absolute paths, and drive letters", () => {
-    expect(normalizeDocId("../package.json")).toBeNull();
-    expect(normalizeDocId("guide/../../secret")).toBeNull();
-    expect(normalizeDocId("/etc/passwd")).toBeNull();
-    expect(normalizeDocId("C:/windows")).toBeNull();
-    expect(normalizeDocId("")).toBeNull();
-    expect(normalizeDocId("docs")).toBeNull();
-  });
 });
 
 describe("docsCommand", () => {

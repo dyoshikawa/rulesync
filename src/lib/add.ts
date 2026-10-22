@@ -11,8 +11,8 @@ import {
   printParseErrorCode,
 } from "jsonc-parser";
 
-import { ConfigResolver } from "../../config/config-resolver.js";
-import { ConfigFileSchema, type SourceEntry, SourceEntrySchema } from "../../config/config.js";
+import { ConfigResolver } from "../config/config-resolver.js";
+import { ConfigFileSchema, type SourceEntry, SourceEntrySchema } from "../config/config.js";
 import {
   RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH,
   RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH,
@@ -20,16 +20,7 @@ import {
   RULESYNC_LOCAL_CONFIG_RELATIVE_FILE_PATH,
   RULESYNC_NPM_SOURCES_LOCK_RELATIVE_FILE_PATH,
   RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH,
-} from "../../constants/rulesync-paths.js";
-import { createFeatureScaffold, parseScaffoldFeatureKeyword } from "../../lib/feature-scaffold.js";
-import { DEFAULT_NPM_TOKEN_ENV, isAllowedNpmTokenEnvName } from "../../lib/npm-client.js";
-import { normalizeNpmSourceKey } from "../../lib/npm-sources-lock.js";
-import { normalizeSourceKey } from "../../lib/sources-lock.js";
-import {
-  getInstalledSourceRuleNames,
-  getInstalledSourceSkillNames,
-  resolveAndFetchSources,
-} from "../../lib/sources.js";
+} from "../constants/rulesync-paths.js";
 import {
   assertDirectoryIfExists,
   assertTreeContainsNoSymlinks,
@@ -42,8 +33,17 @@ import {
   readFileContentOrNull,
   resolvePath,
   writeFileContent,
-} from "../../utils/file.js";
-import type { Logger } from "../../utils/logger.js";
+} from "../utils/file.js";
+import type { Logger } from "../utils/logger.js";
+import { createFeatureScaffold, parseScaffoldFeatureKeyword } from "./feature-scaffold.js";
+import { DEFAULT_NPM_TOKEN_ENV, isAllowedNpmTokenEnvName } from "./npm-client.js";
+import { normalizeNpmSourceKey } from "./npm-sources-lock.js";
+import { normalizeSourceKey } from "./sources-lock.js";
+import {
+  getInstalledSourceRuleNames,
+  getInstalledSourceSkillNames,
+  resolveAndFetchSources,
+} from "./sources.js";
 
 export type AddCommandOptions = {
   source: string;

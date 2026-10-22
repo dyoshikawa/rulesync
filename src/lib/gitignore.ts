@@ -1,12 +1,12 @@
 import { join } from "node:path";
 
-import { ConfigResolver } from "../../config/config-resolver.js";
-import { resolveGitExcludePath } from "../../lib/git-client.js";
-import type { Feature, GitignoreDestination, RulesyncFeatures } from "../../types/features.js";
-import type { ToolTarget } from "../../types/tool-targets.js";
-import { formatError } from "../../utils/error.js";
-import { fileExists, readFileContent, writeFileContent } from "../../utils/file.js";
-import type { Logger } from "../../utils/logger.js";
+import { ConfigResolver } from "../config/config-resolver.js";
+import type { Feature, GitignoreDestination, RulesyncFeatures } from "../types/features.js";
+import type { ToolTarget } from "../types/tool-targets.js";
+import { formatError } from "../utils/error.js";
+import { fileExists, readFileContent, writeFileContent } from "../utils/file.js";
+import type { Logger } from "../utils/logger.js";
+import { resolveGitExcludePath } from "./git-client.js";
 import {
   ALL_GITIGNORE_ENTRIES,
   resolveGitignoreEntries,

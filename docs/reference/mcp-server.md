@@ -14,12 +14,13 @@ The single `rulesyncTool` multiplexes by `feature` and `operation`:
 - `generate`: `run`
 - `import`: `run`
 - `convert`: `run`
+- `init`, `gitignore`, `add`, `fetch`, `install`, `doctor`, `docs`, `releaseNotes`: `run` (see [CLI commands](#cli-commands))
 
 The `permissions` feature operates on `.rulesync/permissions.jsonc` and the `hooks` feature operates on `.rulesync/hooks.jsonc`. Both accept a `content` string (valid JSONC) on `put`.
 
-### Warnings from `generate` / `run`, `import` / `run`, and `convert` / `run`
+### Warnings from `run` operations
 
-The server writes nothing to a console the calling agent can read, so a diagnostic raised while reading the source tool's files, or while generating — for example, that a machine-local overrides file such as `.factory/settings.local.json` was read into files rulesync commits — travels back in the result instead, as a `warnings` array of strings. The field is omitted when the operation had nothing to report, and is present on failures too, since a run that warned and then failed is exactly when the warnings matter. At most 100 warnings are returned, each truncated to 1,000 characters and 8,000 characters in total; a run that exceeds any of those limits says so in a final entry rather than growing the result without bound. These three operations are the only ones that report warnings — the `list` / `get` / `put` / `delete` operations read and write `.rulesync/` files that the caller can inspect for itself, and say nothing.
+The server writes nothing to a console the calling agent can read, so a diagnostic raised while reading the source tool's files, or while generating — for example, that a machine-local overrides file such as `.factory/settings.local.json` was read into files rulesync commits — travels back in the result instead, as a `warnings` array of strings. The field is omitted when the operation had nothing to report, and is present on failures too, since a run that warned and then failed is exactly when the warnings matter. At most 100 warnings are returned, each truncated to 1,000 characters and 8,000 characters in total; a run that exceeds any of those limits says so in a final entry rather than growing the result without bound. Every `run` operation reports warnings this way — the `list` / `get` / `put` / `delete` operations read and write `.rulesync/` files that the caller can inspect for itself, and say nothing.
 
 ### `rule` frontmatter
 
@@ -59,6 +60,30 @@ When invoking `feature: "convert"` with `operation: "run"`, pass `convertOptions
 | `features` | `string[]` | No       | Features to convert (e.g. `["rules", "commands"]`). Defaults to `["*"]`.           |
 | `global`   | `boolean`  | No       | Convert global (user-scope) configurations. Defaults to `false`.                   |
 | `dryRun`   | `boolean`  | No       | Preview changes without writing files. Defaults to `false`.                        |
+
+### CLI commands
+
+The CLI commands below run through `operation: "run"` with the same behavior as on the command line, reusing the same implementations. Each takes its options in its own object, named after the feature (`gitignoreOptions`, `addOptions`, ...), with the CLI flags in camelCase. Every result is a JSON object with `success`, an optional `message` (the command's own summary), `result` (the data the command reports under `--json`), `error` on failure, and `warnings` as described above. Nothing is written to stdout.
+
+| Feature        | Options object        | Options                                                                                                                                |
+| -------------- | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `init`         | none                  | —                                                                                                                                      |
+| `gitignore`    | `gitignoreOptions`    | `targets`, `features`                                                                                                                  |
+| `add`          | `addOptions`          | `source` (required), `name`, `force`, `skills`, `rules`, `transport`, `ref`, `path`, `rulesPath`, `registry`, `tokenEnv`, `configPath` |
+| `fetch`        | `fetchOptions`        | `source` (required), `target`, `features`, `ref`, `path`, `output`, `conflict`, `prune`, `skills`                                      |
+| `install`      | `installOptions`      | `mode`, `update`, `frozen`, `outdated`, `configPath`                                                                                   |
+| `doctor`       | `doctorOptions`       | `configPath`, `strict`                                                                                                                 |
+| `docs`         | `docsOptions`         | `document` or `search`; neither lists the documents                                                                                    |
+| `releaseNotes` | `releaseNotesOptions` | `source` (required, `owner/repo`), `latest`, `since`, `until`, `tag`, `from`, `to`, `includePrereleases`                               |
+
+- Path options (`configPath`, `output`) must stay inside the directory the server runs in; a path that leads outside it, textually or through a symbolic link, is rejected.
+- `install` with `mode: "gh"` refuses a configuration that declares a source with `scope: "user"`, since that would install outside the project; run it from the CLI instead.
+- There is no `token` option: `add`, `fetch`, `install` and `releaseNotes` read `GITHUB_TOKEN` / `GH_TOKEN` (and the npm token variables named by `tokenEnv`) from the server's environment.
+- `fetch` has no `interactive` option; select skills with `skills`. `add` never prompts: without `force`, an existing scaffold file is left unchanged and the call fails.
+- `doctor` returns `result.diagnostics` (each with `severity`, `code`, `file`, `message`, and optional `hint`, `line`, `column`) and `result.summary`. `success` means the diagnosis ran; `result.passed` says whether the configuration passed it (no errors, and no warnings with `strict`).
+- `install` with `outdated: true` writes nothing and returns `result.sources` (the lockfile status of every source) and `result.upToDate`, instead of failing when a source is behind.
+- `docs` returns `result.content` (the Markdown, with its `id`), `result.matches` (`id` and `snippet` per match; empty when nothing matches), or `result.documents`.
+- `releaseNotes` returns `result.releases` (tag, name, date, URL, and Markdown body of each release).
 
 ## Usage
 

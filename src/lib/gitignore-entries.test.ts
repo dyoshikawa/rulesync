@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createMockLogger } from "../../test-utils/mock-logger.js";
-import { ALL_TOOL_TARGETS, PACKAGING_TOOL_TARGETS } from "../../types/tool-targets.js";
+import { createMockLogger } from "../test-utils/mock-logger.js";
+import { ALL_TOOL_TARGETS, PACKAGING_TOOL_TARGETS } from "../types/tool-targets.js";
 import {
   deriveAllGitignoreEntries,
   deriveAllGitignoreEntriesUnfiltered,
@@ -627,7 +627,7 @@ describe("committedOutput check outputs", () => {
   });
 
   it("keeps the committedOutput flag meaningful for commands (lettacode sets it)", async () => {
-    const { toolCommandFactories } = await import("../../features/commands/commands-processor.js");
+    const { toolCommandFactories } = await import("../features/commands/commands-processor.js");
     expect(toolCommandFactories.get("lettacode")?.meta.committedOutput).toBe(true);
   });
 
@@ -683,7 +683,7 @@ describe("committedOutput check outputs", () => {
   });
 
   it("keeps the committedOutput flag meaningful (at least one checks factory sets it)", async () => {
-    const { toolCheckFactories } = await import("../../features/checks/checks-processor.js");
+    const { toolCheckFactories } = await import("../features/checks/checks-processor.js");
     const flagged = [...toolCheckFactories.values()].filter(
       (factory) => factory.meta.committedOutput === true,
     );
