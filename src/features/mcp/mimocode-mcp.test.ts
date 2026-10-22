@@ -158,4 +158,20 @@ describe("MimocodeMcp retraction (issue #2562)", () => {
     expect(mcp.getRelativePathFromCwd()).toBe(join(".mimocode", "mimocode.json"));
     expect(JSON.parse(mcp.getFileContent())).toEqual({ other: 1 });
   });
+
+  it('should reject configShape "v2", which MiMo Code does not read', async () => {
+    const rulesyncMcp = new RulesyncMcp({
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: "mcp.json",
+      fileContent: JSON.stringify({ mcpServers: {} }),
+    });
+
+    await expect(
+      MimocodeMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        featureOptions: { configShape: "v2" },
+      }),
+    ).rejects.toThrow('`configShape: "v2"` is supported only for OpenCode');
+  });
 });

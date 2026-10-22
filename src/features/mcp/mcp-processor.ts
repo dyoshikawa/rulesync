@@ -2,6 +2,7 @@ import { z } from "zod/mini";
 
 import { RULESYNC_MCP_RELATIVE_FILE_PATH } from "../../constants/rulesync-paths.js";
 import { FeatureProcessor } from "../../types/feature-processor.js";
+import type { FeatureOptions } from "../../types/features.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { mcpProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
@@ -1148,6 +1149,7 @@ export class McpProcessor extends FeatureProcessor {
   private readonly toolTarget: McpProcessorToolTarget;
   private readonly global: boolean;
   private readonly getFactory: GetFactory;
+  private readonly featureOptions?: FeatureOptions;
 
   constructor({
     outputRoot = process.cwd(),
@@ -1157,6 +1159,7 @@ export class McpProcessor extends FeatureProcessor {
     getFactory = defaultGetFactory,
     dryRun = false,
     logger,
+    featureOptions,
   }: {
     outputRoot?: string;
     inputRoots?: readonly [string, ...string[]] | readonly string[];
@@ -1165,6 +1168,7 @@ export class McpProcessor extends FeatureProcessor {
     getFactory?: GetFactory;
     dryRun?: boolean;
     logger: Logger;
+    featureOptions?: FeatureOptions;
   }) {
     super({ outputRoot, inputRoots, dryRun, logger });
     const result = McpProcessorToolTargetSchema.safeParse(toolTarget);
@@ -1176,6 +1180,7 @@ export class McpProcessor extends FeatureProcessor {
     this.toolTarget = result.data;
     this.global = global;
     this.getFactory = getFactory;
+    this.featureOptions = featureOptions;
   }
 
   /**
@@ -1284,6 +1289,7 @@ export class McpProcessor extends FeatureProcessor {
           rulesyncMcp: filteredRulesyncMcp,
           global: this.global,
           logger: this.logger,
+          featureOptions: this.featureOptions,
         });
       }),
     );

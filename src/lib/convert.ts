@@ -261,6 +261,7 @@ function buildMcpStrategy(ctx: ConvertContext) {
         global,
         dryRun,
         logger,
+        featureOptions: config.getFeatureOptions(toolTarget, "mcp"),
       }),
     loadSource: (p) => p.loadToolFiles(),
     toRulesync: (p, files) => p.convertToolFilesToRulesyncFiles(files),

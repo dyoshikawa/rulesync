@@ -10,9 +10,13 @@ import {
   getOpencodeAgentEntries,
   getOpencodeCommandEntries,
   getOpencodeConfigDir,
+  getOpencodeMcpServerEntry,
   getOpencodeSkillPaths,
+  getOpencodeV2GlobalMcpTimeout,
+  lowerOpencodeV2Mcp,
   mergeOpencodeConfigValues,
   mergeOpencodeEntryLayers,
+  raiseOpencodeServerToV2,
   readOpencodeConfig,
   readOpencodeConfigLayers,
   readOpencodeDotDirConfigLayers,
@@ -358,6 +362,118 @@ describe("opencode-config", () => {
       expect(
         await resolveOpencodeFileTemplate({ value: "{file:./nope.txt}", configDir: testDir }),
       ).toBe("{file:./nope.txt}");
+    });
+  });
+
+  describe("raiseOpencodeServerToV2", () => {
+    it("should be inverted by lowerOpencodeV2Mcp", () => {
+      const v1 = {
+        type: "remote",
+        url: "https://example.com/mcp",
+        enabled: false,
+        timeout: 5000,
+        oauth: { clientId: "id", clientSecret: "s", callbackPort: 8080, redirectUri: "r" },
+        protocol: "auto",
+        codemode: false,
+      };
+
+      const raised = raiseOpencodeServerToV2(v1, undefined);
+
+      expect(raised).toEqual({
+        type: "remote",
+        url: "https://example.com/mcp",
+        disabled: true,
+        timeout: { catalog: 5000, execution: 5000 },
+        oauth: { client_id: "id", client_secret: "s", callback_port: 8080, redirect_uri: "r" },
+        protocol: "auto",
+        codemode: false,
+      });
+      expect(lowerOpencodeV2Mcp({ servers: { x: raised } })).toEqual({ x: v1 });
+    });
+
+    it("should not write disabled for an enabled server", () => {
+      expect(
+        raiseOpencodeServerToV2({ type: "local", command: ["a"], enabled: true }, undefined),
+      ).toEqual({ type: "local", command: ["a"] });
+    });
+
+    it("should pass oauth false and an object timeout through", () => {
+      const timeout = { startup: 1000 };
+
+      expect(
+        raiseOpencodeServerToV2(
+          { type: "remote", url: "https://example.com", oauth: false, timeout },
+          undefined,
+        ),
+      ).toEqual({ type: "remote", url: "https://example.com", oauth: false, timeout });
+    });
+
+    it("should keep the existing timeout and oauth objects when they lower to the canonical values", () => {
+      const existing = {
+        timeout: { startup: 1000, catalog: 9000 },
+        oauth: { client_id: "a", auth_server_metadata_url: "https://auth.example.com" },
+      };
+
+      expect(
+        raiseOpencodeServerToV2(
+          { type: "remote", url: "https://example.com", oauth: { clientId: "a" } },
+          existing,
+        ),
+      ).toEqual({ type: "remote", url: "https://example.com", ...existing });
+    });
+
+    it("should keep the existing startup timeout when the canonical timeout changes", () => {
+      expect(
+        raiseOpencodeServerToV2(
+          { type: "local", command: ["a"], timeout: 3000 },
+          { timeout: { startup: 1000, catalog: 9000 } },
+        ),
+      ).toEqual({
+        type: "local",
+        command: ["a"],
+        timeout: { startup: 1000, catalog: 3000, execution: 3000 },
+      });
+    });
+  });
+
+  describe("getOpencodeMcpServerEntry", () => {
+    it("should prefer the mcp.servers entry over a flat entry of the same name", () => {
+      const mcp = {
+        a: { type: "local", command: ["flat"] },
+        b: { type: "local", command: ["b"] },
+        servers: { a: { type: "local", command: ["v2"] } },
+      };
+
+      expect(getOpencodeMcpServerEntry(mcp, "a")).toEqual({ type: "local", command: ["v2"] });
+      expect(getOpencodeMcpServerEntry(mcp, "b")).toEqual({ type: "local", command: ["b"] });
+      expect(getOpencodeMcpServerEntry(mcp, "missing")).toBeUndefined();
+      expect(getOpencodeMcpServerEntry(undefined, "a")).toBeUndefined();
+    });
+
+    it("should read only own entries, so a server named __proto__ or constructor is safe", () => {
+      const mcp = JSON.parse(
+        '{"servers": {"__proto__": {"type": "local", "command": ["p"]}}}',
+      ) as unknown;
+
+      expect(getOpencodeMcpServerEntry(mcp, "__proto__")).toEqual({
+        type: "local",
+        command: ["p"],
+      });
+      expect(getOpencodeMcpServerEntry(mcp, "constructor")).toBeUndefined();
+      expect(getOpencodeMcpServerEntry({}, "toString")).toBeUndefined();
+    });
+  });
+
+  describe("getOpencodeV2GlobalMcpTimeout", () => {
+    it("should return a non-empty global timeout object only", () => {
+      expect(getOpencodeV2GlobalMcpTimeout({ timeout: { startup: 45000 } })).toEqual({
+        startup: 45000,
+      });
+      expect(getOpencodeV2GlobalMcpTimeout({ timeout: {} })).toBeUndefined();
+      expect(
+        getOpencodeV2GlobalMcpTimeout({ timeout: { type: "local", command: ["t"] } }),
+      ).toBeUndefined();
+      expect(getOpencodeV2GlobalMcpTimeout(undefined)).toBeUndefined();
     });
   });
 });

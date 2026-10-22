@@ -1020,6 +1020,29 @@ describe("McpProcessor", () => {
       expect(rulesyncMcp.stripMcpServerFields).toHaveBeenCalledWith([]);
     });
 
+    it("should pass the feature options to the tool class", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({ mcpServers: {} }),
+      });
+      vi.mocked(OpencodeMcp.fromRulesyncMcp).mockResolvedValue({} as any);
+
+      const processor = new McpProcessor({
+        logger: createMockLogger(),
+        outputRoot: testDir,
+        toolTarget: "opencode",
+        featureOptions: { configShape: "v2" },
+      });
+
+      await processor.convertRulesyncFilesToToolFiles([rulesyncMcp]);
+
+      expect(OpencodeMcp.fromRulesyncMcp).toHaveBeenCalledWith(
+        expect.objectContaining({ featureOptions: { configShape: "v2" } }),
+      );
+    });
+
     it("should not strip enabledTools and disabledTools for kilo", async () => {
       // Kilo's `tools` map is the same surface OpenCode's is, and the Kilo
       // adapter has always imported it; stripping the fields left it unable to
