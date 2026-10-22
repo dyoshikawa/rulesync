@@ -622,6 +622,25 @@ export const COPILOT_HOOK_EVENTS: readonly HookEvent[] = [
 ];
 
 /**
+ * The {@link COPILOT_HOOK_EVENTS} whose hook entries honor an optional
+ * `matcher` regex. The hooks reference documents matcher filtering on
+ * `preToolUse` / `postToolUse` / `permissionRequest` (tool name), `preCompact`
+ * (trigger) and `subagentStart` (agent name), plus `notification`; the last
+ * two are not authorable for `copilot`, so they are not listed here. VS Code's
+ * migration guide confirms the Copilot harness "applies documented matcher
+ * rules" (only the legacy Local harness ignores them).
+ *
+ * @see https://docs.github.com/en/copilot/reference/hooks-reference
+ * @see https://code.visualstudio.com/docs/agent-customization/migrate-customizations
+ */
+export const COPILOT_MATCHER_HOOK_EVENTS: readonly HookEvent[] = [
+  "preToolUse",
+  "postToolUse",
+  "preCompact",
+  "subagentStart",
+];
+
+/**
  * Hook events supported by the GitHub Copilot CLI (`copilotcli-hooks.ts`).
  *
  * The CLI documents a wider event surface than the shared cloud-agent set, so

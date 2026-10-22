@@ -368,13 +368,22 @@ describe("CopilotHooks", () => {
       expect(entry.command).not.toContain("$CLAUDE_PROJECT_DIR");
     });
 
-    it("should skip hooks with matcher", async () => {
+    it("should emit matcher on matcher-aware events and skip matcher hooks elsewhere", async () => {
       const config = {
         version: 1,
         hooks: {
           preToolUse: [
             { type: "command", command: "lint.sh", matcher: "Write" },
             { type: "command", command: "all-tools.sh" },
+          ],
+          postToolUse: [{ type: "command", command: "format.sh", matcher: "Edit|Write" }],
+          preCompact: [{ type: "command", command: "compact.sh", matcher: "auto" }],
+          subagentStart: [{ type: "command", command: "agent.sh", matcher: "reviewer" }],
+          // `sessionStart` does not honor a matcher, so the scoped entry is
+          // dropped instead of being emitted unscoped.
+          sessionStart: [
+            { type: "command", command: "scoped.sh", matcher: "ignored" },
+            { type: "command", command: "start.sh" },
           ],
         },
       };
@@ -392,11 +401,21 @@ describe("CopilotHooks", () => {
         validate: false,
       });
 
-      const content = copilotHooks.getFileContent();
-      const parsed = JSON.parse(content);
-      // Only the non-matcher hook should be present
-      expect(parsed.hooks.preToolUse).toHaveLength(1);
-      expect(parsed.hooks.preToolUse[0].command).toBe("all-tools.sh");
+      const parsed = JSON.parse(copilotHooks.getFileContent());
+      expect(parsed.hooks.preToolUse).toEqual([
+        { type: "command", matcher: "Write", command: "lint.sh" },
+        { type: "command", command: "all-tools.sh" },
+      ]);
+      expect(parsed.hooks.postToolUse).toEqual([
+        { type: "command", matcher: "Edit|Write", command: "format.sh" },
+      ]);
+      expect(parsed.hooks.preCompact).toEqual([
+        { type: "command", matcher: "auto", command: "compact.sh" },
+      ]);
+      expect(parsed.hooks.subagentStart).toEqual([
+        { type: "command", matcher: "reviewer", command: "agent.sh" },
+      ]);
+      expect(parsed.hooks.sessionStart).toEqual([{ type: "command", command: "start.sh" }]);
     });
 
     it("should skip prompt-type hooks", async () => {
@@ -532,8 +551,8 @@ describe("CopilotHooks", () => {
       const config = {
         version: 1,
         hooks: {
-          preToolUse: [
-            // All hooks have matcher or are prompt type — all skipped
+          sessionStart: [
+            // All hooks have a matcher on a non-matcher event or are prompt type — all skipped
             { type: "prompt", prompt: "Check carefully" },
             { type: "command", command: "lint.sh", matcher: "Write" },
           ],
@@ -555,8 +574,8 @@ describe("CopilotHooks", () => {
 
       const content = copilotHooks.getFileContent();
       const parsed = JSON.parse(content);
-      // preToolUse should be absent since all hooks were filtered out
-      expect(parsed.hooks.preToolUse).toBeUndefined();
+      // sessionStart should be absent since all hooks were filtered out
+      expect(parsed.hooks.sessionStart).toBeUndefined();
     });
 
     it("should pass through unknown keys and keep bash/powershell overrides", async () => {
@@ -675,6 +694,27 @@ describe("CopilotHooks", () => {
       expect(json.hooks.beforeSubmitPrompt?.[0]?.command).toBe("log-prompt.sh");
       expect(json.hooks.afterError).toHaveLength(1);
       expect(json.hooks.afterError?.[0]?.command).toBe("handle-error.sh");
+    });
+
+    it("should preserve matcher on import so it round-trips", () => {
+      const copilotHooks = new CopilotHooks({
+        outputRoot: testDir,
+        relativeDirPath: join(".github", "hooks"),
+        relativeFilePath: "copilot-hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            preToolUse: [{ type: "command", matcher: "bash", bash: "guard.sh" }],
+            postToolUse: [{ type: "command", matcher: "", bash: "log.sh" }],
+          },
+        }),
+        validate: false,
+      });
+
+      const json = copilotHooks.toRulesyncHooks().getJson();
+      expect(json.hooks.preToolUse?.[0]?.matcher).toBe("bash");
+      expect(json.hooks.preToolUse?.[0]?.command).toBe("guard.sh");
+      expect(json.hooks.postToolUse?.[0]?.matcher).toBeUndefined();
     });
 
     it("should map agentStop/subagentStop back to canonical stop/subagentStop", () => {

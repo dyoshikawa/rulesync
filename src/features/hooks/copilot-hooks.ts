@@ -15,6 +15,7 @@ import {
   COPILOT_TO_CANONICAL_EVENT_NAMES,
   CANONICAL_TO_COPILOT_EVENT_NAMES,
   COPILOT_HOOK_EVENTS,
+  COPILOT_MATCHER_HOOK_EVENTS,
   HookDefinitionSchema,
 } from "../../types/hooks.js";
 import { formatError } from "../../utils/error.js";
@@ -44,11 +45,17 @@ import {
  * entry that uses them instead of a shell field is not mistaken for one
  * without a command.
  *
+ * An optional `matcher` regex is honored on the events in
+ * {@link COPILOT_MATCHER_HOOK_EVENTS}. The VS Code per-OS override fields come
+ * from the legacy Local hooks reference and are kept for existing files.
+ *
  * @see https://docs.github.com/en/copilot/reference/hooks-reference
+ * @see https://code.visualstudio.com/docs/agent-customization/hooks
  * @see https://code.visualstudio.com/docs/agents/reference/hooks-reference
  */
 const CopilotHookEntrySchema = z.looseObject({
   type: z.string(),
+  matcher: z.optional(z.string()),
   bash: z.optional(z.string()),
   powershell: z.optional(z.string()),
   command: z.optional(z.string()),
@@ -91,18 +98,22 @@ function canonicalToCopilotHooks(config: HooksConfig): Record<string, CopilotHoo
     ...sharedConfigHooks,
     ...config.copilot?.hooks,
   };
+  const matcherEvents: Set<string> = new Set(COPILOT_MATCHER_HOOK_EVENTS);
   const copilot: Record<string, CopilotHookEntry[]> = {};
   for (const [eventName, definitions] of Object.entries(effectiveHooks)) {
+    const matcherSupported = matcherEvents.has(eventName);
     const copilotEventName =
       lookupOwn({ record: CANONICAL_TO_COPILOT_EVENT_NAMES, key: eventName }) ?? eventName;
     const entries: CopilotHookEntry[] = [];
     for (const def of definitions) {
       const hookType = def.type ?? "command";
 
-      // Not supported. VS Code documents that it ignores `matcher` values
-      // ("hooks run on all tool invocations regardless of the matcher"), so an
-      // entry that depends on one is dropped rather than emitted unscoped.
-      if (def.matcher) continue;
+      // The hooks reference documents `matcher` filtering on a fixed set of
+      // events, and the VS Code Copilot harness applies the same rules (only
+      // the legacy Local harness ignores matchers). On any other event an
+      // entry that depends on a matcher is dropped rather than emitted
+      // unscoped; the processor reports it as a skipped matcher hook.
+      if (def.matcher && !matcherSupported) continue;
       if (hookType !== "command") continue;
 
       const command = def.command;
@@ -115,6 +126,7 @@ function canonicalToCopilotHooks(config: HooksConfig): Record<string, CopilotHoo
 
       entries.push({
         type: hookType,
+        ...(def.matcher && { matcher: def.matcher }),
         ...(command !== undefined && command !== null && { [commandField]: command }),
         // `env` is a canonical field Copilot supports natively on command
         // hooks. It is filtered out of `rest` as a canonical key, so without
@@ -226,6 +238,9 @@ function copilotHooksToCanonical(copilotHooks: unknown, logger?: Logger): HooksC
 
       defs.push({
         type: "command",
+        // Kept on any event so the entry round-trips; generate re-emits it on
+        // the matcher-aware events and skips the entry elsewhere.
+        ...(entry.matcher !== undefined && entry.matcher !== "" && { matcher: entry.matcher }),
         ...(command !== undefined && { command }),
         ...(shell !== undefined && { shell }),
         ...(timeout !== undefined && { timeout }),

@@ -19,6 +19,7 @@ import {
   CODEWHALE_MATCHER_HOOK_EVENTS,
   COMMANDCODE_HOOK_EVENTS,
   COPILOT_HOOK_EVENTS,
+  COPILOT_MATCHER_HOOK_EVENTS,
   COPILOTCLI_HOOK_EVENTS,
   CONTINUE_HOOK_EVENTS,
   CORTEXCODE_HOOK_EVENTS,
@@ -550,7 +551,8 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       },
       supportedEvents: COPILOT_HOOK_EVENTS,
       supportedHookTypes: ["command"],
-      supportsMatcher: false,
+      supportsMatcher: true,
+      matcherEvents: COPILOT_MATCHER_HOOK_EVENTS,
     },
   ],
   [
