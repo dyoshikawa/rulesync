@@ -1,12 +1,8 @@
 import { z } from "zod/mini";
 
 import { addCommand } from "../lib/add.js";
-import {
-  assertPathInsideCwd,
-  type McpCommandResult,
-  runCommandForMcp,
-  stringifyResult,
-} from "./command-runner.js";
+import { type McpCommandResult, runCommandForMcp, stringifyResult } from "./command-runner.js";
+import { assertPathOptionWithinCwd } from "./path-options.js";
 
 /**
  * Schema for add options
@@ -46,7 +42,7 @@ export async function executeAdd(options: AddOptions): Promise<McpCommandResult>
         throw new Error("source is required.");
       }
       if (options.configPath !== undefined) {
-        await assertPathInsideCwd({ path: options.configPath, label: "configPath" });
+        await assertPathOptionWithinCwd({ path: options.configPath, label: "configPath" });
       }
       await addCommand(logger, { ...options, verbose: false, silent: true });
     },

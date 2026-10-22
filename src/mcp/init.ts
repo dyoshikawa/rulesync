@@ -1,11 +1,7 @@
 import { initCommand } from "../lib/init-command.js";
 import { getInitWritePaths } from "../lib/init.js";
-import {
-  assertPathInsideCwd,
-  type McpCommandResult,
-  runCommandForMcp,
-  stringifyResult,
-} from "./command-runner.js";
+import { type McpCommandResult, runCommandForMcp, stringifyResult } from "./command-runner.js";
+import { assertPathOptionWithinCwd } from "./path-options.js";
 
 /**
  * Execute the rulesync init command via MCP.
@@ -20,7 +16,7 @@ export async function executeInit(): Promise<McpCommandResult> {
   return await runCommandForMcp({
     run: async (logger) => {
       for (const path of getInitWritePaths()) {
-        await assertPathInsideCwd({ path, label: path });
+        await assertPathOptionWithinCwd({ path, label: path });
       }
       await initCommand(logger);
     },

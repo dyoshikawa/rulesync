@@ -49,9 +49,46 @@ When feeding entries returned by `get` back into `put`, keep their `encoding` fi
 
 A `"base64"` body must be canonical base64 (the standard or the URL-safe alphabet, padding optional); otherwise `put` fails with `Invalid base64 body for other file <name>`. The 1MB skill size limit is evaluated against the decoded byte length of each other file.
 
+### `generate` / `run` options
+
+When invoking `feature: "generate"` with `operation: "run"`, pass `generateOptions` (optional; every field is optional and falls back to `rulesync.jsonc`, then the defaults). The options mirror the CLI's `rulesync generate` flags, except `--watch` (long-running), `--verbose`, `--silent` and `--json`, which have no meaning for a single MCP call:
+
+| Option              | Type       | Description                                                                                                                                                  |
+| ------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `targets`           | `string[]` | Tools to generate for (e.g. `["claudecode", "cursor"]` or `["*"]`).                                                                                          |
+| `features`          | `string[]` | Features to generate (e.g. `["rules", "skills"]` or `["*"]`).                                                                                                |
+| `delete`            | `boolean`  | Delete existing generated files before generating.                                                                                                           |
+| `global`            | `boolean`  | Generate global (user-scope) configuration files.                                                                                                            |
+| `simulateCommands`  | `boolean`  | Generate simulated commands.                                                                                                                                 |
+| `simulateSubagents` | `boolean`  | Generate simulated subagents.                                                                                                                                |
+| `simulateSkills`    | `boolean`  | Generate simulated skills.                                                                                                                                   |
+| `dryRun`            | `boolean`  | Preview the run without writing or deleting anything.                                                                                                        |
+| `check`             | `boolean`  | Report whether the outputs are up to date without writing anything. Unlike the CLI, the call does not fail when changes are needed; read `upToDate` instead. |
+| `retireTargets`     | `string[]` | Tools the project no longer uses; deletes the outputs rulesync manages for them. Requires `features` (not `"*"`) and cannot be combined with `targets`.      |
+| `outputRoots`       | `string[]` | Output root directories.                                                                                                                                     |
+| `inputRoots`        | `string[]` | Ordered rulesync source trees (each directly contains `rules/`, `skills/`, ...). Cannot be combined with `inputRoot`.                                        |
+| `inputRoot`         | `string`   | Deprecated: parent directory of a `.rulesync/` source tree. Prefer `inputRoots`. Cannot be combined with `inputRoots`.                                       |
+| `configPath`        | `string`   | Path to the configuration file.                                                                                                                              |
+
+Every path option (`outputRoots`, `inputRoots`, `inputRoot`, `configPath`) must stay inside the directory the server runs in: relative paths are resolved against it, symbolic links are followed, and a `..` segment or a path whose real location is outside it is rejected. As on the CLI, `configPath` is resolved against `inputRoot` when both are given (and cannot leave it). When `configPath` or `inputRoot` selects the configuration file, the `outputRoots` and `inputRoots` that file declares must stay inside the directory too (the home directory used under `global` is exempt). This is stricter than the CLI on purpose — an agent may only point rulesync at the project it was connected to.
+
+With `check` or `dryRun`, the result also carries `upToDate` (`true` when a real run would change nothing; a pending deletion counts as a change) and `plan`, the list of writes and deletions a real run would perform, in the same shape as the `plan` of `rulesync generate --json`. The result's `config` echoes the resolved `dryRun`, `check`, `retireTargets`, `outputRoots` and `inputRoots`.
+
+### `import` / `run` options
+
+When invoking `feature: "import"` with `operation: "run"`, pass `importOptions` with the following shape:
+
+| Option       | Type       | Required | Description                                                                                                                       |
+| ------------ | ---------- | -------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `target`     | `string`   | One of   | The tool to import from (e.g. `"claudecode"`).                                                                                    |
+| `targets`    | `string[]` | One of   | The CLI-style form of `target`: a list holding exactly one tool. Pass either `target` or `targets`, not both.                     |
+| `features`   | `string[]` | No       | Features to import (e.g. `["rules", "commands"]` or `["*"]`).                                                                     |
+| `global`     | `boolean`  | No       | Import global (user-scope) configuration files.                                                                                   |
+| `outputRoot` | `string`   | No       | Root directory containing the tool configuration to import. Must stay inside the directory the server runs in, as for `generate`. |
+
 ### `convert` / `run` options
 
-When invoking `feature: "convert"` with `operation: "run"`, pass `convertOptions` with the following shape:
+When invoking `feature: "convert"` with `operation: "run"`, pass `convertOptions` with the following shape. It covers every flag of `rulesync convert` except `--verbose` and `--silent`:
 
 | Option     | Type       | Required | Description                                                                        |
 | ---------- | ---------- | -------- | ---------------------------------------------------------------------------------- |

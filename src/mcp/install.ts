@@ -3,12 +3,8 @@ import { z } from "zod/mini";
 import { ConfigResolver } from "../config/config-resolver.js";
 import { INSTALL_MODES, installCommand } from "../lib/install.js";
 import { CLIError, ErrorCodes } from "../types/json-output.js";
-import {
-  assertPathInsideCwd,
-  type McpCommandResult,
-  runCommandForMcp,
-  stringifyResult,
-} from "./command-runner.js";
+import { type McpCommandResult, runCommandForMcp, stringifyResult } from "./command-runner.js";
+import { assertPathOptionWithinCwd } from "./path-options.js";
 
 /**
  * Schema for install options
@@ -86,7 +82,7 @@ export async function executeInstall(options: InstallOptions = {}): Promise<McpC
   return await runCommandForMcp({
     run: async (logger) => {
       if (options.configPath !== undefined) {
-        await assertPathInsideCwd({ path: options.configPath, label: "configPath" });
+        await assertPathOptionWithinCwd({ path: options.configPath, label: "configPath" });
       }
       if (options.mode === "gh") {
         await assertNoUserScopeSources({ configPath: options.configPath });

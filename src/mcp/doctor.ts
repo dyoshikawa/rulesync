@@ -2,12 +2,8 @@ import { z } from "zod/mini";
 
 import { doctorCommand } from "../lib/doctor.js";
 import { CLIError, ErrorCodes } from "../types/json-output.js";
-import {
-  assertPathInsideCwd,
-  type McpCommandResult,
-  runCommandForMcp,
-  stringifyResult,
-} from "./command-runner.js";
+import { type McpCommandResult, runCommandForMcp, stringifyResult } from "./command-runner.js";
+import { assertPathOptionWithinCwd } from "./path-options.js";
 
 /**
  * Schema for doctor options
@@ -31,7 +27,7 @@ export async function executeDoctor(options: DoctorOptions = {}): Promise<McpCom
   return await runCommandForMcp({
     run: async (logger) => {
       if (options.configPath !== undefined) {
-        await assertPathInsideCwd({ path: options.configPath, label: "configPath" });
+        await assertPathOptionWithinCwd({ path: options.configPath, label: "configPath" });
       }
       await doctorCommand(logger, {
         config: options.configPath,

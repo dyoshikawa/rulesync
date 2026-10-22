@@ -1,7 +1,10 @@
+import { resolve } from "node:path";
+
 import { z } from "zod/mini";
 
 import { ConfigResolver } from "../config/config-resolver.js";
 import { Config } from "../config/config.js";
+import { buildGeneratePlanFromResult, type GeneratePlan } from "../lib/generate-plan.js";
 import {
   formatSourceLoadFailure,
   generate,
@@ -10,12 +13,13 @@ import {
 } from "../lib/generate.js";
 import { type RulesyncFeatures } from "../types/features.js";
 import { ErrorCodes } from "../types/json-output.js";
-import { type RulesyncTargets } from "../types/tool-targets.js";
+import { type RulesyncTargets, type ToolTarget } from "../types/tool-targets.js";
 import { stripControlCharactersKeepingLineFeeds } from "../utils/control-characters.js";
 import { formatError } from "../utils/error.js";
 import { WarningCollectingLogger, withFallbackLoggerTarget } from "../utils/logger.js";
 import { calculateTotalCount } from "../utils/result.js";
 import { truncateText } from "../utils/truncate.js";
+import { assertPathOptionsWithinCwd, assertPathOptionWithinCwd } from "./path-options.js";
 import { type McpResultCounts, type McpWarnings, warningsField } from "./types.js";
 
 /**
@@ -95,12 +99,15 @@ const MAX_COLLECTED_ERROR_LENGTH = 1_000;
 const MAX_COLLECTED_ERRORS_TOTAL_LENGTH = 4_000;
 
 /**
- * Schema for generate options
+ * Schema for generate options, mirroring the CLI's `generate` flags.
+ *
+ * Path options (`outputRoots`, `inputRoots`, `inputRoot`, `configPath`) must
+ * stay inside the project (`process.cwd()`); see `assertPathOptionWithinCwd`.
+ *
  * Excluded parameters:
- * - outputRoots: Always use [process.cwd()] in MCP context
+ * - watch: Long-running; an MCP call must return a single result
  * - verbose: Meaningless in MCP (no console output)
  * - silent: Meaningless in MCP
- * - configPath: Always use default path from process.cwd()
  */
 export const generateOptionsSchema = z.object({
   targets: z.optional(z.array(z.string())),
@@ -110,6 +117,31 @@ export const generateOptionsSchema = z.object({
   simulateCommands: z.optional(z.boolean()),
   simulateSubagents: z.optional(z.boolean()),
   simulateSkills: z.optional(z.boolean()),
+  /** Preview the run without writing or deleting anything (CLI: `--dry-run`). */
+  dryRun: z.optional(z.boolean()),
+  /**
+   * Report whether the outputs are up to date without writing anything
+   * (CLI: `--check`). The result's `upToDate` carries the answer; the call
+   * itself still succeeds either way.
+   */
+  check: z.optional(z.boolean()),
+  /**
+   * Tools the project no longer uses; deletes the outputs rulesync manages for
+   * them (CLI: `--retire-targets`). Requires `features` and cannot be combined
+   * with `targets`.
+   */
+  retireTargets: z.optional(z.array(z.string())),
+  /** Output root directories, inside the project (CLI: `--output-roots`). */
+  outputRoots: z.optional(z.array(z.string())),
+  /** Ordered rulesync source trees, inside the project (CLI: `--input-roots`). */
+  inputRoots: z.optional(z.array(z.string())),
+  /**
+   * Deprecated: parent directory of a `.rulesync/` source tree (CLI:
+   * `--input-root`). Prefer `inputRoots`. Cannot be combined with `inputRoots`.
+   */
+  inputRoot: z.optional(z.string()),
+  /** Path to the configuration file, inside the project (CLI: `--config`). */
+  configPath: z.optional(z.string()),
 });
 
 export type GenerateOptions = z.infer<typeof generateOptionsSchema>;
@@ -131,7 +163,23 @@ export type McpGenerateResult = {
     simulateCommands: boolean;
     simulateSubagents: boolean;
     simulateSkills: boolean;
+    dryRun: boolean;
+    check: boolean;
+    retireTargets: string[];
+    outputRoots: string[];
+    inputRoots: string[];
   };
+  /**
+   * Present only for a `check` or `dryRun` run: whether the outputs already
+   * match the sources, i.e. whether a real run would change nothing. Deletions
+   * count as changes, so this can be `false` while `totalCount` is 0.
+   */
+  upToDate?: boolean;
+  /**
+   * Present only for a `check` or `dryRun` run: the writes and deletions a real
+   * run would perform, in the same shape as `rulesync generate --json`'s plan.
+   */
+  plan?: GeneratePlan;
   error?: string;
 } & McpWarnings;
 
@@ -158,6 +206,11 @@ export async function executeGenerate(options: GenerateOptions = {}): Promise<Mc
         // Resolve config with MCP parameters taking precedence
         // ConfigResolver handles: CLI options > rulesync.local.jsonc > rulesync.jsonc > defaults
         // In MCP context, options act as CLI options (highest priority)
+        await assertGeneratePathOptionsWithinCwd(options);
+
+        // The resolver enforces the same rules the CLI does: `inputRoot` and
+        // `inputRoots` are mutually exclusive, and `retireTargets` requires an
+        // explicit `features` list and cannot be combined with `targets`.
         const config = await ConfigResolver.resolve({
           targets: options.targets as RulesyncTargets | undefined,
           features: options.features as RulesyncFeatures | undefined,
@@ -166,11 +219,19 @@ export async function executeGenerate(options: GenerateOptions = {}): Promise<Mc
           simulateCommands: options.simulateCommands,
           simulateSubagents: options.simulateSubagents,
           simulateSkills: options.simulateSkills,
-          // Always use default outputRoots (process.cwd()) and configPath
+          dryRun: options.dryRun,
+          check: options.check,
+          retireTargets: options.retireTargets as ToolTarget[] | undefined,
+          outputRoots: options.outputRoots,
+          inputRoots: options.inputRoots,
+          inputRoot: options.inputRoot,
+          configPath: options.configPath,
           // verbose and silent are meaningless in MCP context
           verbose: false,
           silent: true,
         });
+
+        await assertResolvedRootsWithinCwd({ options, config });
 
         const inputRoots = config.getInputRoots();
         const inputRootInspection = await inspectInputRoots(inputRoots);
@@ -203,6 +264,68 @@ export async function executeGenerate(options: GenerateOptions = {}): Promise<Mc
 }
 
 /**
+ * Path options an MCP caller passes must stay inside the project. The resolver
+ * only rejects traversal patterns and accepts any normalized absolute path,
+ * which is right for a person at a shell but would let an agent write into
+ * (or read sources from) any directory on the machine.
+ */
+async function assertGeneratePathOptionsWithinCwd(options: GenerateOptions): Promise<void> {
+  await assertPathOptionsWithinCwd({ paths: options.outputRoots, label: "outputRoots" });
+  await assertPathOptionsWithinCwd({ paths: options.inputRoots, label: "inputRoots" });
+  if (options.inputRoot !== undefined) {
+    await assertPathOptionWithinCwd({ path: options.inputRoot, label: "inputRoot" });
+  }
+  if (options.configPath !== undefined) {
+    // The resolver reads `configPath` relative to `inputRoot` when one is
+    // given, so judge the path it will actually read.
+    await assertPathOptionWithinCwd({
+      path:
+        options.inputRoot !== undefined
+          ? resolve(options.inputRoot, options.configPath)
+          : options.configPath,
+      label: "configPath",
+    });
+  }
+}
+
+/**
+ * When the caller chose which configuration file is loaded (`configPath`, or
+ * `inputRoot`, which anchors the configuration lookup), the roots that file
+ * declares are effectively caller-supplied too: a file the agent points at —
+ * one inside `node_modules`, say — could otherwise carry absolute
+ * `outputRoots`/`inputRoots` anywhere on the machine. Confine the resolved
+ * roots the same way as the arguments. The project's own default
+ * configuration is the user's, and keeps working as it does on the CLI.
+ * Under `global`, the resolver replaces the output roots with the home
+ * directory, which is not the caller's choice and is left alone.
+ */
+async function assertResolvedRootsWithinCwd({
+  options,
+  config,
+}: {
+  options: GenerateOptions;
+  config: Config;
+}): Promise<void> {
+  if (options.configPath === undefined && options.inputRoot === undefined) {
+    return;
+  }
+  await assertPathOptionWithinCwd({
+    path: config.getConfigFilePath(),
+    label: "configPath (as resolved)",
+  });
+  if (!config.getGlobal()) {
+    await assertPathOptionsWithinCwd({
+      paths: config.getOutputRoots(),
+      label: "outputRoots (as resolved from the configuration file)",
+    });
+  }
+  await assertPathOptionsWithinCwd({
+    paths: config.getInputRoots(),
+    label: "inputRoots (as resolved from the configuration file)",
+  });
+}
+
+/**
  * Build a human-readable summary of a successful generation.
  *
  * `generate` is idempotent: `totalCount` reflects only files whose content
@@ -210,10 +333,29 @@ export async function executeGenerate(options: GenerateOptions = {}): Promise<Mc
  * outcome — not a failure. The message makes that explicit so MCP callers do
  * not misread a zero count as a broken generate.
  */
-function buildGenerateMessage(params: { totalCount: number; config: Config }): string {
-  const { totalCount, config } = params;
+function buildGenerateMessage(params: {
+  totalCount: number;
+  hasDiff: boolean;
+  config: Config;
+}): string {
+  const { totalCount, hasDiff, config } = params;
   const targets = config.getTargets().join(", ");
   const features = config.getFeatures().join(", ");
+
+  if (config.getCheck()) {
+    return hasDiff
+      ? `Files are not up to date for targets [${targets}] and features [${features}]. ` +
+          `Run generate without 'check' to update them; 'plan' lists the pending changes.`
+      : `All files are up to date for targets [${targets}] and features [${features}].`;
+  }
+
+  if (config.getDryRun()) {
+    return hasDiff
+      ? `[DRY RUN] Would write ${totalCount} file(s) for targets [${targets}] and features ` +
+          `[${features}]. Nothing was written; 'plan' lists the pending changes.`
+      : `[DRY RUN] No changes needed for targets [${targets}] and features [${features}]; ` +
+          `the outputs are already up to date.`;
+  }
 
   if (totalCount > 0) {
     return `Generated ${totalCount} file(s) for targets [${targets}] and features [${features}].`;
@@ -234,10 +376,11 @@ function buildSuccessResponse(params: {
   const { generateResult, config, logger } = params;
 
   const totalCount = calculateTotalCount(generateResult);
+  const isPreview = config.isPreviewMode();
 
   return {
     success: true,
-    message: buildGenerateMessage({ totalCount, config }),
+    message: buildGenerateMessage({ totalCount, hasDiff: generateResult.hasDiff, config }),
     result: {
       rulesCount: generateResult.rulesCount,
       ignoreCount: generateResult.ignoreCount,
@@ -260,7 +403,18 @@ function buildSuccessResponse(params: {
       simulateCommands: config.getSimulateCommands(),
       simulateSubagents: config.getSimulateSubagents(),
       simulateSkills: config.getSimulateSkills(),
+      dryRun: config.getDryRun(),
+      check: config.getCheck(),
+      retireTargets: config.getRetireTargets(),
+      outputRoots: config.getOutputRoots(),
+      inputRoots: [...config.getInputRoots()],
     },
+    ...(isPreview
+      ? {
+          upToDate: !generateResult.hasDiff,
+          plan: buildGeneratePlanFromResult(generateResult),
+        }
+      : {}),
     ...warningsField(logger),
   };
 }
@@ -273,7 +427,7 @@ export const generateTools = {
   executeGenerate: {
     name: "executeGenerate",
     description:
-      "Execute the rulesync generate command to create output files for AI tools. Uses rulesync.jsonc settings by default, but options can override them. Idempotent: only files whose content changed are written, so a totalCount of 0 means the outputs are already up to date (a successful no-op), not a failure. See the 'message' field for a human-readable summary. A 'warnings' array of strings is present, on success and on failure alike, when the run had something worth acting on to report.",
+      "Execute the rulesync generate command to create output files for AI tools. Uses rulesync.jsonc settings by default, but options can override them. Accepts the CLI's options (dryRun, check, retireTargets, outputRoots, inputRoots, inputRoot, configPath, ...) except watch/verbose/silent; path options must stay inside the project directory. With check or dryRun nothing is written, and 'upToDate' plus 'plan' report what a real run would change. Idempotent: only files whose content changed are written, so a totalCount of 0 means the outputs are already up to date (a successful no-op), not a failure. See the 'message' field for a human-readable summary. A 'warnings' array of strings is present, on success and on failure alike, when the run had something worth acting on to report.",
     parameters: generateToolSchemas.executeGenerate,
     execute: async (options: GenerateOptions = {}): Promise<string> => {
       const result = await executeGenerate(options);

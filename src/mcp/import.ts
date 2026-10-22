@@ -8,23 +8,30 @@ import { type RulesyncTargets, type ToolTarget } from "../types/tool-targets.js"
 import { formatError } from "../utils/error.js";
 import { WarningCollectingLogger, withFallbackLoggerTarget } from "../utils/logger.js";
 import { calculateTotalCount } from "../utils/result.js";
+import { assertPathOptionWithinCwd } from "./path-options.js";
 import { type McpResultCounts, type McpWarnings, warningsField } from "./types.js";
 
 /**
- * Schema for import options
- * Note: Import requires exactly one target tool
+ * Schema for import options, mirroring the CLI's `import` flags.
+ *
+ * Import reads from exactly one tool. `targets` mirrors the CLI's `--targets`
+ * (a list that must hold exactly one tool); `target` is the older single-value
+ * form and keeps working. Pass one of them, not both.
+ *
  * Excluded parameters:
- * - outputRoots: Always use [process.cwd()] in MCP context
  * - verbose: Meaningless in MCP (no console output)
  * - silent: Meaningless in MCP
- * - configPath: Always use default path from process.cwd()
- * - delete: Not applicable to import
- * - simulateCommands/simulateSubagents/simulateSkills: Not applicable to import
  */
 export const importOptionsSchema = z.object({
-  target: z.string(),
+  target: z.optional(z.string()),
+  targets: z.optional(z.array(z.string())),
   features: z.optional(z.array(z.string())),
   global: z.optional(z.boolean()),
+  /**
+   * Root directory containing the tool configuration to import, inside the
+   * project (CLI: `--output-root`). Defaults to the project directory.
+   */
+  outputRoot: z.optional(z.string()),
 });
 
 export type ImportOptions = z.infer<typeof importOptionsSchema>;
@@ -36,6 +43,7 @@ export type McpImportResult = {
     target: string;
     features: string[];
     global: boolean;
+    outputRoots: string[];
   };
   error?: string;
 } & McpWarnings;
@@ -61,22 +69,23 @@ export async function executeImport(options: ImportOptions): Promise<McpImportRe
     return await withFallbackLoggerTarget({
       logger,
       operation: async () => {
-        // Validate target
-        if (!options.target) {
-          return {
-            success: false,
-            error: "target is required. Please specify a tool to import from.",
-          };
+        const targetResult = resolveImportTarget(options);
+        if ("error" in targetResult) {
+          return { success: false, error: targetResult.error };
+        }
+
+        if (options.outputRoot !== undefined) {
+          await assertPathOptionWithinCwd({ path: options.outputRoot, label: "outputRoot" });
         }
 
         // Resolve config with MCP parameters taking precedence
         // ConfigResolver handles: CLI options > rulesync.local.jsonc > rulesync.jsonc > defaults
         // In MCP context, options act as CLI options (highest priority)
         const config = await ConfigResolver.resolve({
-          targets: [options.target] as RulesyncTargets,
+          targets: [targetResult.target] as RulesyncTargets,
           features: options.features as RulesyncFeatures | undefined,
           global: options.global,
-          // Always use default outputRoots (process.cwd()) and configPath
+          outputRoots: options.outputRoot !== undefined ? [options.outputRoot] : undefined,
           // verbose and silent are meaningless in MCP context
           verbose: false,
           silent: true,
@@ -96,6 +105,30 @@ export async function executeImport(options: ImportOptions): Promise<McpImportRe
       ...warningsField(logger),
     };
   }
+}
+
+/**
+ * Picks the single tool to import from out of `target` (legacy) or `targets`
+ * (CLI parity), applying the CLI's rule that only one tool is imported at a time.
+ */
+function resolveImportTarget(options: ImportOptions): { target: string } | { error: string } {
+  if (options.target !== undefined && options.targets !== undefined) {
+    return { error: "Specify either target or targets, not both." };
+  }
+
+  if (options.targets !== undefined) {
+    if (options.targets.length > 1) {
+      return { error: "Only one tool can be imported at a time; targets must hold exactly one." };
+    }
+    const [target] = options.targets;
+    if (target) {
+      return { target };
+    }
+  } else if (options.target) {
+    return { target: options.target };
+  }
+
+  return { error: "target is required. Please specify a tool to import from." };
 }
 
 function buildSuccessResponse(params: {
@@ -126,6 +159,7 @@ function buildSuccessResponse(params: {
       target: tool,
       features: config.getFeatures(),
       global: config.getGlobal(),
+      outputRoots: config.getOutputRoots(),
     },
     ...warningsField(logger),
   };
@@ -139,7 +173,7 @@ export const importTools = {
   executeImport: {
     name: "executeImport",
     description:
-      "Execute the rulesync import command to import configuration files from an AI tool into .rulesync directory. Requires exactly one target tool to import from. A 'warnings' array of strings is present, on success and on failure alike, when the run had something worth acting on to report.",
+      "Execute the rulesync import command to import configuration files from an AI tool into .rulesync directory. Requires exactly one tool to import from, given as 'target' or as a one-element 'targets' list (not both). 'outputRoot' (inside the project directory) selects where the tool configuration is read from. A 'warnings' array of strings is present, on success and on failure alike, when the run had something worth acting on to report.",
     parameters: importToolSchemas.executeImport,
     execute: async (options: ImportOptions): Promise<string> => {
       const result = await executeImport(options);

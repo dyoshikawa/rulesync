@@ -4,12 +4,8 @@ import { RULESYNC_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import { fetchCommand } from "../lib/fetch-command.js";
 import { type Feature } from "../types/features.js";
 import { FetchTargetSchema } from "../types/fetch-targets.js";
-import {
-  assertPathInsideCwd,
-  type McpCommandResult,
-  runCommandForMcp,
-  stringifyResult,
-} from "./command-runner.js";
+import { type McpCommandResult, runCommandForMcp, stringifyResult } from "./command-runner.js";
+import { assertPathOptionWithinCwd } from "./path-options.js";
 
 /**
  * Schema for fetch options
@@ -45,7 +41,7 @@ export async function executeFetch(options: FetchOptions): Promise<McpCommandRes
       }
       const target =
         options.target === undefined ? undefined : FetchTargetSchema.parse(options.target);
-      await assertPathInsideCwd({
+      await assertPathOptionWithinCwd({
         path: options.output ?? RULESYNC_RELATIVE_DIR_PATH,
         label: "output",
       });

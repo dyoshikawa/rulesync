@@ -1,9 +1,7 @@
-import { resolve } from "node:path";
 import { format } from "node:util";
 
 import { stripControlCharacters } from "../utils/control-characters.js";
 import { formatError } from "../utils/error.js";
-import { assertPathResolvesInsideRoot, checkPathTraversal } from "../utils/file.js";
 import { WarningCollectingLogger, withFallbackLoggerTarget } from "../utils/logger.js";
 import { truncateText } from "../utils/truncate.js";
 import { type McpWarnings, warningsField } from "./types.js";
@@ -120,28 +118,6 @@ export async function runCommandForMcp({
       error: formatError(error),
       ...warningsField(logger),
     };
-  }
-}
-
-/**
- * Refuse a path option that leads outside the project (`process.cwd()`),
- * textually (`..`, an absolute path elsewhere) or through a symbolic link.
- */
-export async function assertPathInsideCwd({
-  path,
-  label,
-}: {
-  path: string;
-  label: string;
-}): Promise<void> {
-  const cwd = process.cwd();
-  try {
-    checkPathTraversal({ relativePath: path, intendedRootDir: cwd });
-    await assertPathResolvesInsideRoot({ rootPath: cwd, targetPath: resolve(cwd, path) });
-  } catch (error) {
-    throw new Error(`${label} must stay inside the project directory: ${formatError(error)}`, {
-      cause: error,
-    });
   }
 }
 

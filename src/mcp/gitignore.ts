@@ -3,12 +3,8 @@ import { z } from "zod/mini";
 import { gitignoreCommand } from "../lib/gitignore.js";
 import { resolveGitignoreTargets } from "../lib/resolve-gitignore-targets.js";
 import { type RulesyncFeatures } from "../types/features.js";
-import {
-  assertPathInsideCwd,
-  type McpCommandResult,
-  runCommandForMcp,
-  stringifyResult,
-} from "./command-runner.js";
+import { type McpCommandResult, runCommandForMcp, stringifyResult } from "./command-runner.js";
+import { assertPathOptionWithinCwd } from "./path-options.js";
 
 /**
  * The project files gitignore writes. Checked before the run so a committed
@@ -37,7 +33,7 @@ export async function executeGitignore(options: GitignoreOptions = {}): Promise<
   return await runCommandForMcp({
     run: async (logger) => {
       for (const path of GITIGNORE_WRITE_PATHS) {
-        await assertPathInsideCwd({ path, label: path });
+        await assertPathOptionWithinCwd({ path, label: path });
       }
       const resolvedTargets = await resolveGitignoreTargets({ cliTargets: options.targets });
       await gitignoreCommand(logger, {

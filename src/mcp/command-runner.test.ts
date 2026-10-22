@@ -1,11 +1,6 @@
-import { symlink } from "node:fs/promises";
-import { join } from "node:path";
+import { describe, expect, it, vi } from "vitest";
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
-import { setupTestDirectory } from "../test-utils/test-directories.js";
-import { ensureDir } from "../utils/file.js";
-import { assertPathInsideCwd, McpCommandLogger, runCommandForMcp } from "./command-runner.js";
+import { McpCommandLogger, runCommandForMcp } from "./command-runner.js";
 
 describe("McpCommandLogger", () => {
   it("reports JSON mode and keeps captured data and success lines", () => {
@@ -86,62 +81,5 @@ describe("runCommandForMcp", () => {
     } finally {
       write.mockRestore();
     }
-  });
-});
-
-describe("assertPathInsideCwd", () => {
-  let testDir: string;
-  let cleanup: () => Promise<void>;
-
-  beforeEach(async () => {
-    ({ testDir, cleanup } = await setupTestDirectory());
-    vi.spyOn(process, "cwd").mockReturnValue(testDir);
-  });
-
-  afterEach(async () => {
-    await cleanup();
-    vi.restoreAllMocks();
-  });
-
-  it("accepts relative and absolute paths inside the project", async () => {
-    await expect(assertPathInsideCwd({ path: "a/b", label: "output" })).resolves.toBeUndefined();
-    await expect(
-      assertPathInsideCwd({ path: join(testDir, "a"), label: "output" }),
-    ).resolves.toBeUndefined();
-  });
-
-  it("rejects paths that leave the project", async () => {
-    await expect(assertPathInsideCwd({ path: "../outside", label: "output" })).rejects.toThrow(
-      /output must stay inside the project directory/,
-    );
-    await expect(
-      assertPathInsideCwd({ path: join(testDir, "..", "elsewhere"), label: "configPath" }),
-    ).rejects.toThrow(/configPath must stay inside the project directory/);
-  });
-
-  it("rejects paths that leave the project through a symbolic link", async () => {
-    const outside = await setupTestDirectory();
-    try {
-      await ensureDir(join(outside.testDir, "target"));
-      await symlink(outside.testDir, join(testDir, "link"));
-
-      await expect(assertPathInsideCwd({ path: "link", label: "output" })).rejects.toThrow(
-        /output must stay inside the project directory/,
-      );
-      await expect(
-        assertPathInsideCwd({ path: join("link", "target", "new-dir"), label: "output" }),
-      ).rejects.toThrow(/output must stay inside the project directory/);
-    } finally {
-      await outside.cleanup();
-    }
-  });
-
-  it("accepts a symbolic link that stays inside the project", async () => {
-    await ensureDir(join(testDir, "real"));
-    await symlink(join(testDir, "real"), join(testDir, "inner-link"));
-
-    await expect(
-      assertPathInsideCwd({ path: join("inner-link", "x"), label: "output" }),
-    ).resolves.toBeUndefined();
   });
 });
