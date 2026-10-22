@@ -603,9 +603,11 @@ This is the body of the codex cli skill.`;
 
         const codexCliSkill = CodexCliSkill.fromRulesyncSkill({ rulesyncSkill, validate: true });
 
+        // The flag also stays in SKILL.md for other clients reading `.agents/skills/`.
         expect(codexCliSkill.getFrontmatter()).toEqual({
           name: "Test Skill",
           description: "AI-facing description",
+          "disable-model-invocation": true,
         });
         expect(load(findOpenaiYaml(codexCliSkill) ?? "")).toEqual({
           policy: { allow_implicit_invocation: false },
@@ -640,6 +642,7 @@ This is the body of the codex cli skill.`;
         expect(codexCliSkill.getFrontmatter()).toEqual({
           name: "Test Skill",
           description: "AI-facing description",
+          "disable-model-invocation": true,
           metadata: { "short-description": "User-facing description" },
         });
         expect(load(findOpenaiYaml(codexCliSkill) ?? "")).toEqual({
@@ -721,6 +724,187 @@ This is the body of the codex cli skill.`;
         expect(load(findOpenaiYaml(regenerated) ?? "")).toEqual({
           policy: { allow_implicit_invocation: false },
         });
+      });
+
+      it("should write a root disable-model-invocation: false into SKILL.md without a sidecar", () => {
+        const rulesyncSkill = createRulesyncSkill({ "disable-model-invocation": false });
+
+        const codexCliSkill = CodexCliSkill.fromRulesyncSkill({ rulesyncSkill, validate: true });
+
+        expect(codexCliSkill.getFrontmatter()).toEqual({
+          name: "Test Skill",
+          description: "AI-facing description",
+          "disable-model-invocation": false,
+        });
+        expect(findOpenaiYaml(codexCliSkill)).toBeUndefined();
+      });
+
+      it("should import SKILL.md disable-model-invocation to the root without duplicating the implied policy", async () => {
+        const skillDir = join(testDir, ".agents", "skills", "test-skill");
+        await ensureDir(join(skillDir, "agents"));
+        await writeFileContent(
+          join(skillDir, SKILL_FILE_NAME),
+          `---\nname: Test Skill\ndescription: AI-facing description\ndisable-model-invocation: true\n---\n\nBody.`,
+        );
+        await writeFileContent(
+          join(skillDir, "agents", "openai.yaml"),
+          ["policy:", "  allow_implicit_invocation: false", ""].join("\n"),
+        );
+
+        const skill = await CodexCliSkill.fromDir({
+          outputRoot: testDir,
+          dirName: "test-skill",
+          global: false,
+        });
+        const rulesyncSkill = skill.toRulesyncSkill();
+        const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
+
+        expect(rulesyncFrontmatter["disable-model-invocation"]).toBe(true);
+        expect(rulesyncFrontmatter.codexcli).toBeUndefined();
+
+        const regenerated = CodexCliSkill.fromRulesyncSkill({ rulesyncSkill, validate: true });
+        expect(regenerated.getFrontmatter()).toEqual(skill.getFrontmatter());
+        expect(load(findOpenaiYaml(regenerated) ?? "")).toEqual({
+          policy: { allow_implicit_invocation: false },
+        });
+      });
+
+      it("should keep a sidecar policy that differs from the SKILL.md flag on import", async () => {
+        const skillDir = join(testDir, ".agents", "skills", "test-skill");
+        await ensureDir(join(skillDir, "agents"));
+        await writeFileContent(
+          join(skillDir, SKILL_FILE_NAME),
+          `---\nname: Test Skill\ndescription: AI-facing description\ndisable-model-invocation: true\n---\n\nBody.`,
+        );
+        await writeFileContent(
+          join(skillDir, "agents", "openai.yaml"),
+          ["policy:", "  allow_implicit_invocation: true", "  products: [codex]", ""].join("\n"),
+        );
+
+        const skill = await CodexCliSkill.fromDir({
+          outputRoot: testDir,
+          dirName: "test-skill",
+          global: false,
+        });
+        const rulesyncFrontmatter = skill.toRulesyncSkill().getFrontmatter();
+
+        expect(rulesyncFrontmatter["disable-model-invocation"]).toBe(true);
+        expect(rulesyncFrontmatter.codexcli).toEqual({
+          policy: { allow_implicit_invocation: true, products: ["codex"] },
+        });
+      });
+    });
+
+    describe("root metadata passthrough", () => {
+      const createRulesyncSkill = (frontmatter: Record<string, unknown>) =>
+        new RulesyncSkill({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+          dirName: "test-skill",
+          frontmatter: {
+            name: "Test Skill",
+            description: "AI-facing description",
+            ...frontmatter,
+          },
+          body: "Test body content",
+          validate: true,
+        });
+
+      it("should pass the root metadata through to SKILL.md", () => {
+        const rulesyncSkill = createRulesyncSkill({
+          metadata: { author: "someone", version: "0.0.1" },
+        });
+
+        const codexCliSkill = CodexCliSkill.fromRulesyncSkill({ rulesyncSkill, validate: true });
+
+        expect(codexCliSkill.getFrontmatter()).toEqual({
+          name: "Test Skill",
+          description: "AI-facing description",
+          metadata: { author: "someone", version: "0.0.1" },
+        });
+      });
+
+      it("should merge codexcli.short-description into the root metadata", () => {
+        const rulesyncSkill = createRulesyncSkill({
+          metadata: { author: "someone" },
+          codexcli: { "short-description": "User-facing description" },
+        });
+
+        const codexCliSkill = CodexCliSkill.fromRulesyncSkill({ rulesyncSkill, validate: true });
+
+        expect(codexCliSkill.getFrontmatter().metadata).toEqual({
+          author: "someone",
+          "short-description": "User-facing description",
+        });
+      });
+
+      it("should let codexcli.short-description win over a root metadata.short-description", () => {
+        const rulesyncSkill = createRulesyncSkill({
+          metadata: { "short-description": "Root value" },
+          codexcli: { "short-description": "Codex value" },
+        });
+
+        const codexCliSkill = CodexCliSkill.fromRulesyncSkill({ rulesyncSkill, validate: true });
+
+        expect(codexCliSkill.getFrontmatter().metadata).toEqual({
+          "short-description": "Codex value",
+        });
+      });
+
+      it("should stringify non-string metadata values", () => {
+        const rulesyncSkill = createRulesyncSkill({ metadata: { version: 1 } });
+
+        const codexCliSkill = CodexCliSkill.fromRulesyncSkill({ rulesyncSkill, validate: true });
+
+        expect(codexCliSkill.getFrontmatter().metadata).toEqual({ version: "1" });
+      });
+
+      it("should round-trip an empty short-description instead of dropping it", async () => {
+        const skillDir = join(testDir, ".agents", "skills", "test-skill");
+        await ensureDir(skillDir);
+        await writeFileContent(
+          join(skillDir, SKILL_FILE_NAME),
+          `---\nname: Test Skill\ndescription: AI-facing description\nmetadata:\n  short-description: ""\n---\n\nBody.`,
+        );
+
+        const skill = await CodexCliSkill.fromDir({
+          outputRoot: testDir,
+          dirName: "test-skill",
+          global: false,
+        });
+        const rulesyncSkill = skill.toRulesyncSkill();
+
+        expect(rulesyncSkill.getFrontmatter().codexcli).toEqual({ "short-description": "" });
+        const regenerated = CodexCliSkill.fromRulesyncSkill({ rulesyncSkill, validate: true });
+        expect(regenerated.getFrontmatter().metadata).toEqual({ "short-description": "" });
+      });
+
+      it("should round-trip root metadata and codexcli.short-description through import", () => {
+        const rulesyncSkill = createRulesyncSkill({
+          "disable-model-invocation": true,
+          metadata: { author: "someone", version: "0.0.1" },
+          codexcli: { "short-description": "User-facing description" },
+        });
+
+        const generated = CodexCliSkill.fromRulesyncSkill({ rulesyncSkill, validate: true });
+        const importedSkill = generated.toRulesyncSkill();
+        const imported = importedSkill.getFrontmatter();
+
+        expect(imported["disable-model-invocation"]).toBe(true);
+        expect(imported.metadata).toEqual({ author: "someone", version: "0.0.1" });
+        // `short-description` is not duplicated into the root metadata, and the
+        // sidecar policy implied by the root flag is not stored a second time.
+        expect(imported.codexcli).toEqual({
+          "short-description": "User-facing description",
+          interface: { short_description: "User-facing description" },
+        });
+
+        const regenerated = CodexCliSkill.fromRulesyncSkill({
+          rulesyncSkill: importedSkill,
+          validate: true,
+        });
+        expect(regenerated.getFrontmatter()).toEqual(generated.getFrontmatter());
+        expect(findOpenaiYaml(regenerated)).toEqual(findOpenaiYaml(generated));
       });
     });
   });

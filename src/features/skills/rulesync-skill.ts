@@ -67,6 +67,8 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
   // `devin` also consumes this root value (mapping `true` onto a user-only
   // `triggers` list); it has no section key of the same name, but a
   // `devin.triggers` section value overrides it.
+  // `codexcli` writes this root value into `SKILL.md` as-is and also maps
+  // `true` onto `policy.allow_implicit_invocation: false` in `agents/openai.yaml`.
   "disable-model-invocation": z.optional(z.boolean()),
   // Default for tools that support the flag (claudecode, codebuddy, copilot, copilotcli,
   // crush, cursor, qwencode, vibe, grokcli, factorydroid, dsh, reasonix, commandcode, lettacode,
