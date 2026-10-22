@@ -645,7 +645,8 @@ const OPENCODE_V1_TO_V2_OAUTH_KEYS: ReadonlyMap<string, string> = new Map(
  * file already has for the server (`existing`): its `timeout` object and its
  * `oauth` object are kept verbatim whenever lowering them gives back exactly
  * what the canonical server carries, so a V2 file survives import and
- * generate unchanged.
+ * generate unchanged. When the canonical `timeout` differs, the existing
+ * `startup` value is still kept.
  */
 export function raiseOpencodeServerToV2(
   server: Record<string, unknown>,
@@ -662,7 +663,15 @@ export function raiseOpencodeServerToV2(
   if (existingTimeout !== null && lowerOpencodeV2Timeout(existingTimeout) === timeout) {
     raised.timeout = existingTimeout;
   } else if (typeof timeout === "number") {
-    raised.timeout = { catalog: timeout, execution: timeout };
+    // A changed canonical timeout replaces `catalog` and `execution`, the two
+    // values it stands for; the existing `startup`, which it never carries, is
+    // kept.
+    const startup = existingTimeout?.startup;
+    raised.timeout = {
+      ...(startup !== undefined && { startup }),
+      catalog: timeout,
+      execution: timeout,
+    };
   } else if (timeout !== undefined) {
     raised.timeout = timeout;
   }
