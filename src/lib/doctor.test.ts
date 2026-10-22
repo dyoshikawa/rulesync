@@ -259,7 +259,7 @@ describe("collectConfigFileDiagnostics", () => {
     ]);
   });
 
-  it("does not warn when the tokenEnv variable is set", () => {
+  it.each(["MY_NPM_TOKEN", "NODE_AUTH_TOKEN"])("does not warn when %s is set", (tokenEnv) => {
     const content = JSON.stringify({
       $schema: RULESYNC_CONFIG_SCHEMA_URL,
       targets: ["claudecode"],
@@ -268,7 +268,7 @@ describe("collectConfigFileDiagnostics", () => {
           source: "org/pkg",
           transport: "npm",
           registry: "https://registry.example.com",
-          tokenEnv: "MY_NPM_TOKEN",
+          tokenEnv,
         },
       ],
     });
@@ -276,7 +276,7 @@ describe("collectConfigFileDiagnostics", () => {
       file: FILE,
       content,
       env: {
-        MY_NPM_TOKEN: "secret",
+        [tokenEnv]: "secret",
         RULESYNC_NPM_TRUSTED_REGISTRIES: "https://registry.example.com",
       },
     });

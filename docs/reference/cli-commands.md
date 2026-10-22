@@ -511,20 +511,20 @@ The selected configuration file must already exist. Run `rulesync init` first, o
 
 The operation fetches only the source being added; existing declarations are not re-fetched. Existing sources must already be locked and installed, otherwise run `rulesync install` first. The operation is transactional: if the new source fails to install, Rulesync restores the manifest, source lockfiles, curated rules, and curated skills to their pre-command state.
 
-| Option                | Description                                                                                       |
-| --------------------- | ------------------------------------------------------------------------------------------------- |
-| `--name <name>`       | Name for a rule, command, subagent, skill, or check scaffold                                      |
-| `--force`             | Replace an existing scaffold file without prompting                                               |
-| `--skills <skills>`   | Comma-separated skill names. `*` selects all skills.                                              |
-| `--rules <rules>`     | Comma-separated rule names. Names may omit `.md`; `*` selects direct `.md` files under rulesPath. |
-| `--transport <type>`  | `github` (default), `git`, or experimental `npm`                                                  |
-| `--ref <ref>`         | Git ref, npm version, or npm dist-tag                                                             |
-| `--path <path>`       | Skills path within the source; defaults to `skills`                                               |
-| `--rules-path <path>` | Rules path within the source; defaults to `rules`                                                 |
-| `--registry <url>`    | npm-compatible registry URL                                                                       |
-| `--token-env <name>`  | Environment variable containing the npm registry token (`NPM_TOKEN` or `*_NPM_TOKEN`)             |
-| `--token <token>`     | GitHub token for private repositories                                                             |
-| `--config <path>`     | Configuration file to edit (default: `rulesync.jsonc`)                                            |
+| Option                | Description                                                                                               |
+| --------------------- | --------------------------------------------------------------------------------------------------------- |
+| `--name <name>`       | Name for a rule, command, subagent, skill, or check scaffold                                              |
+| `--force`             | Replace an existing scaffold file without prompting                                                       |
+| `--skills <skills>`   | Comma-separated skill names. `*` selects all skills.                                                      |
+| `--rules <rules>`     | Comma-separated rule names. Names may omit `.md`; `*` selects direct `.md` files under rulesPath.         |
+| `--transport <type>`  | `github` (default), `git`, or experimental `npm`                                                          |
+| `--ref <ref>`         | Git ref, npm version, or npm dist-tag                                                                     |
+| `--path <path>`       | Skills path within the source; defaults to `skills`                                                       |
+| `--rules-path <path>` | Rules path within the source; defaults to `rules`                                                         |
+| `--registry <url>`    | npm-compatible registry URL                                                                               |
+| `--token-env <name>`  | Environment variable containing the npm registry token (`NPM_TOKEN`, `NODE_AUTH_TOKEN`, or `*_NPM_TOKEN`) |
+| `--token <token>`     | GitHub token for private repositories                                                                     |
+| `--config <path>`     | Configuration file to edit (default: `rulesync.jsonc`)                                                    |
 
 When neither `--skills` nor `--rules` is provided, all skills are installed for backward compatibility. Providing only `--rules` installs no skills.
 
@@ -770,7 +770,7 @@ It is especially useful for catching **silently ignored configuration**: the con
 - Conflicting target pairs (e.g. `claudecode` + `claudecode-legacy`).
 - `$schema` presence and whether it points at the current config schema URL.
 - Structural schema violations on any other key (wrong types, malformed `sources` entries).
-- `sources[].tokenEnv` naming an environment variable that is not set, one that is not `NPM_TOKEN` / `*_NPM_TOKEN` (error), or one sent to a registry not listed in `RULESYNC_NPM_TRUSTED_REGISTRIES` (error).
+- `sources[].tokenEnv` naming an environment variable that is not set, one that is not `NPM_TOKEN` / `NODE_AUTH_TOKEN` / `*_NPM_TOKEN` (error), or one sent to a registry not listed in `RULESYNC_NPM_TRUSTED_REGISTRIES` (error).
 - `inputRoot` or the first `inputRoots` entry pointing at a directory that does not exist. Later `inputRoots` entries are optional overlays and may be absent.
 - `inputRoot` or an `inputRoots` entry set to an empty string, which makes `generate` fail with `outputRoot cannot be an empty string` before it resolves any source tree.
 - Duplicate entries in `inputRoots` (warning; duplicates are ignored at generate time).

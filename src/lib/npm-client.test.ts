@@ -91,18 +91,16 @@ describe("resolveNpmToken", () => {
   const defaultRegistry = "https://registry.npmjs.org";
   const customRegistry = "https://npm.acme.example/api/npm/";
 
-  it("reads the variable named by tokenEnv", () => {
-    vi.stubEnv("ACME_NPM_TOKEN", FAKE_TOKEN);
-    expect(resolveNpmToken({ tokenEnv: "ACME_NPM_TOKEN", registryUrl: defaultRegistry })).toBe(
-      FAKE_TOKEN,
-    );
+  it.each(["ACME_NPM_TOKEN", "NODE_AUTH_TOKEN"])("reads tokenEnv %s", (tokenEnv) => {
+    vi.stubEnv(tokenEnv, FAKE_TOKEN);
+    expect(resolveNpmToken({ tokenEnv, registryUrl: defaultRegistry })).toBe(FAKE_TOKEN);
   });
 
-  it("throws when tokenEnv names an unset variable", () => {
-    vi.stubEnv("ACME_NPM_TOKEN", "");
-    expect(() =>
-      resolveNpmToken({ tokenEnv: "ACME_NPM_TOKEN", registryUrl: defaultRegistry }),
-    ).toThrow(/ACME_NPM_TOKEN/);
+  it.each(["ACME_NPM_TOKEN", "NODE_AUTH_TOKEN"])("throws when %s is unset", (tokenEnv) => {
+    vi.stubEnv(tokenEnv, "");
+    expect(() => resolveNpmToken({ tokenEnv, registryUrl: defaultRegistry })).toThrow(
+      `Environment variable "${tokenEnv}" (from tokenEnv) is not set`,
+    );
   });
 
   it.each([
@@ -111,6 +109,9 @@ describe("resolveNpmToken", () => {
     "MY_REGISTRY_TOKEN",
     "npm_token",
     "NPM_TOKENS",
+    "ACME_NODE_AUTH_TOKEN",
+    "NODE_AUTH_TOKENS",
+    "node_auth_token",
   ])("refuses tokenEnv %j, which is not an NPM_TOKEN variable", (tokenEnv) => {
     vi.stubEnv(tokenEnv, FAKE_TOKEN);
     expect(() => resolveNpmToken({ tokenEnv, registryUrl: defaultRegistry })).toThrow(
@@ -147,12 +148,12 @@ describe("resolveNpmToken", () => {
     );
   });
 
-  it("refuses an explicit tokenEnv for an untrusted registry", () => {
-    vi.stubEnv("NPM_TOKEN", FAKE_TOKEN);
+  it.each(["NPM_TOKEN", "NODE_AUTH_TOKEN"])("refuses %s for an untrusted registry", (tokenEnv) => {
+    vi.stubEnv(tokenEnv, FAKE_TOKEN);
     vi.stubEnv("RULESYNC_NPM_TRUSTED_REGISTRIES", "");
-    expect(() =>
-      resolveNpmToken({ tokenEnv: "NPM_TOKEN", registryUrl: "https://attacker.example" }),
-    ).toThrow(/not trusted/);
+    expect(() => resolveNpmToken({ tokenEnv, registryUrl: "https://attacker.example" })).toThrow(
+      /not trusted/,
+    );
   });
 
   it("treats a lookalike of the default registry as untrusted", () => {

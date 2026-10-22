@@ -89,7 +89,7 @@ Each entry in `sources` accepts:
 | `path`      | `string`   | Path to the skills directory within the repository. Defaults to `"skills"`. Set to `""`, `"."`, or `"./"` to target the entire repository root (see note below). For GitHub transport, use the `:path` source syntax.                                                      |
 | `rulesPath` | `string`   | Path to the rules directory within the repository or package. Defaults to `"rules"`. This is independent from the skills-only `path` field.                                                                                                                                |
 | `registry`  | `string`   | npm transport only. Base URL of the npm-compatible registry. Defaults to `https://registry.npmjs.org`.                                                                                                                                                                     |
-| `tokenEnv`  | `string`   | npm transport only. Name of the environment variable holding the registry token. Defaults to `NPM_TOKEN`. Must be `NPM_TOKEN` or end with `_NPM_TOKEN` (e.g. `ACME_NPM_TOKEN`).                                                                                            |
+| `tokenEnv`  | `string`   | npm transport only. Name of the environment variable holding the registry token. Defaults to `NPM_TOKEN`. Must be `NPM_TOKEN`, `NODE_AUTH_TOKEN`, or end with `_NPM_TOKEN` (e.g. `ACME_NPM_TOKEN`).                                                                        |
 
 An empty `skills` or `rules` list fails only the source that declares it, in `--frozen` mode too: the other sources are still installed into `.curated/`, and then `install` exits with an error that counts the failed sources.
 
@@ -117,9 +117,11 @@ Package layout: skills are discovered the same way as for the git transports. Sk
 
 Authentication uses a bearer token from an environment variable: `NPM_TOKEN` by default, or the variable named by the per-source `tokenEnv` field. The token is sent as `Authorization: Bearer <token>` to the registry (and to the tarball host only when it matches the registry host). `.npmrc` files are intentionally **not** read.
 
+For CI environments using `NODE_AUTH_TOKEN`, set `"tokenEnv": "NODE_AUTH_TOKEN"` explicitly. The default remains `NPM_TOKEN`.
+
 Because `registry` and `tokenEnv` live in the project's committed config, a cloned repository must not be able to send your token to a host of its choosing. rulesync therefore:
 
-- only accepts a `tokenEnv` named `NPM_TOKEN` or ending with `_NPM_TOKEN`, so a config cannot point it at unrelated secrets such as `GITHUB_TOKEN`;
+- only accepts a `tokenEnv` named `NPM_TOKEN`, `NODE_AUTH_TOKEN`, or ending with `_NPM_TOKEN`, so a config cannot point it at unrelated secrets such as `GITHUB_TOKEN`;
 - only sends a token to `https://registry.npmjs.org`, or to a registry whose origin you list in the `RULESYNC_NPM_TRUSTED_REGISTRIES` environment variable (comma-separated, e.g. `RULESYNC_NPM_TRUSTED_REGISTRIES=https://acme.jfrog.io`). Each entry must be a full URL with its scheme; an entry such as `acme.jfrog.io` cannot be read as an origin, so it trusts nothing and rulesync warns about it. For any other registry, the `NPM_TOKEN` fallback is not sent (rulesync warns and requests anonymously), and an explicit `tokenEnv` is an error.
 
 Resolved versions are pinned in `rulesync-npm.lock.json` (next to `rulesync.lock`), which records the resolved version, the tarball integrity, and per-artifact content hashes. Commit it for reproducible installs; `--update` and `--frozen` behave the same as for git sources.
@@ -324,7 +326,7 @@ It is safe (and recommended) to commit this file as well.
 
 ## Authentication
 
-GitHub transport uses the `GITHUB_TOKEN` or `GH_TOKEN` environment variable for authentication. This is required for private repositories and recommended for better rate limits. Git transport relies on your local git credential configuration (SSH keys, credential helpers, etc.). npm transport (experimental) uses the `NPM_TOKEN` environment variable, or the variable named by the per-source `tokenEnv` field (which must be `NPM_TOKEN` or end with `_NPM_TOKEN`); `.npmrc` files are not read. A registry other than `https://registry.npmjs.org` only receives the token when its origin is listed in `RULESYNC_NPM_TRUSTED_REGISTRIES` (see [npm Transport](#npm-transport-experimental)).
+GitHub transport uses the `GITHUB_TOKEN` or `GH_TOKEN` environment variable for authentication. This is required for private repositories and recommended for better rate limits. Git transport relies on your local git credential configuration (SSH keys, credential helpers, etc.). npm transport (experimental) uses the `NPM_TOKEN` environment variable, or the variable named by the per-source `tokenEnv` field (which must be `NPM_TOKEN`, `NODE_AUTH_TOKEN`, or end with `_NPM_TOKEN`); `.npmrc` files are not read. A registry other than `https://registry.npmjs.org` only receives the token when its origin is listed in `RULESYNC_NPM_TRUSTED_REGISTRIES` (see [npm Transport](#npm-transport-experimental)).
 
 ```bash
 # Using environment variable

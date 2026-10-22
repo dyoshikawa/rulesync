@@ -109,7 +109,7 @@ export function createProgram(): Command {
     .option("--registry <url>", "npm-compatible registry URL")
     .option(
       "--token-env <name>",
-      "Environment variable containing the npm registry token (NPM_TOKEN or *_NPM_TOKEN)",
+      "Environment variable containing the npm registry token (NPM_TOKEN, NODE_AUTH_TOKEN, or *_NPM_TOKEN)",
     )
     .option("--token <token>", "GitHub token for private repositories")
     .option("-c, --config <path>", "Path to configuration file")
