@@ -1,8 +1,8 @@
 import { z } from "zod/mini";
 
-import { buildGeneratePlan, type GeneratePlan } from "../cli/commands/generate.js";
 import { ConfigResolver } from "../config/config-resolver.js";
 import { Config } from "../config/config.js";
+import { buildGeneratePlanFromResult, type GeneratePlan } from "../lib/generate-plan.js";
 import {
   formatSourceLoadFailure,
   generate,
@@ -204,7 +204,7 @@ export async function executeGenerate(options: GenerateOptions = {}): Promise<Mc
         // Resolve config with MCP parameters taking precedence
         // ConfigResolver handles: CLI options > rulesync.local.jsonc > rulesync.jsonc > defaults
         // In MCP context, options act as CLI options (highest priority)
-        assertGeneratePathOptionsWithinCwd(options);
+        await assertGeneratePathOptionsWithinCwd(options);
 
         // The resolver enforces the same rules the CLI does: `inputRoot` and
         // `inputRoots` are mutually exclusive, and `retireTargets` requires an
@@ -228,6 +228,8 @@ export async function executeGenerate(options: GenerateOptions = {}): Promise<Mc
           verbose: false,
           silent: true,
         });
+
+        await assertResolvedRootsWithinCwd({ options, config });
 
         const inputRoots = config.getInputRoots();
         const inputRootInspection = await inspectInputRoots(inputRoots);
@@ -265,15 +267,48 @@ export async function executeGenerate(options: GenerateOptions = {}): Promise<Mc
  * which is right for a person at a shell but would let an agent write into
  * (or read sources from) any directory on the machine.
  */
-function assertGeneratePathOptionsWithinCwd(options: GenerateOptions): void {
-  assertPathOptionsWithinCwd({ paths: options.outputRoots, label: "outputRoots" });
-  assertPathOptionsWithinCwd({ paths: options.inputRoots, label: "inputRoots" });
+async function assertGeneratePathOptionsWithinCwd(options: GenerateOptions): Promise<void> {
+  await assertPathOptionsWithinCwd({ paths: options.outputRoots, label: "outputRoots" });
+  await assertPathOptionsWithinCwd({ paths: options.inputRoots, label: "inputRoots" });
   if (options.inputRoot !== undefined) {
-    assertPathOptionWithinCwd({ path: options.inputRoot, label: "inputRoot" });
+    await assertPathOptionWithinCwd({ path: options.inputRoot, label: "inputRoot" });
   }
   if (options.configPath !== undefined) {
-    assertPathOptionWithinCwd({ path: options.configPath, label: "configPath" });
+    await assertPathOptionWithinCwd({ path: options.configPath, label: "configPath" });
   }
+}
+
+/**
+ * When the caller chose which configuration file is loaded (`configPath`, or
+ * `inputRoot`, which anchors the configuration lookup), the roots that file
+ * declares are effectively caller-supplied too: a file the agent points at —
+ * one inside `node_modules`, say — could otherwise carry absolute
+ * `outputRoots`/`inputRoots` anywhere on the machine. Confine the resolved
+ * roots the same way as the arguments. The project's own default
+ * configuration is the user's, and keeps working as it does on the CLI.
+ * Under `global`, the resolver replaces the output roots with the home
+ * directory, which is not the caller's choice and is left alone.
+ */
+async function assertResolvedRootsWithinCwd({
+  options,
+  config,
+}: {
+  options: GenerateOptions;
+  config: Config;
+}): Promise<void> {
+  if (options.configPath === undefined && options.inputRoot === undefined) {
+    return;
+  }
+  if (!config.getGlobal()) {
+    await assertPathOptionsWithinCwd({
+      paths: config.getOutputRoots(),
+      label: "outputRoots (as resolved from the configuration file)",
+    });
+  }
+  await assertPathOptionsWithinCwd({
+    paths: config.getInputRoots(),
+    label: "inputRoots (as resolved from the configuration file)",
+  });
 }
 
 /**
@@ -363,31 +398,11 @@ function buildSuccessResponse(params: {
     ...(isPreview
       ? {
           upToDate: !generateResult.hasDiff,
-          plan: buildPlan(generateResult),
+          plan: buildGeneratePlanFromResult(generateResult),
         }
       : {}),
     ...warningsField(logger),
   };
-}
-
-function buildPlan(generateResult: GenerateResult): GeneratePlan {
-  return buildGeneratePlan({
-    featureResults: {
-      ignore: { paths: generateResult.ignorePaths },
-      mcp: { paths: generateResult.mcpPaths },
-      commands: { paths: generateResult.commandsPaths },
-      subagents: { paths: generateResult.subagentsPaths },
-      skills: { paths: generateResult.skillsPaths },
-      hooks: { paths: generateResult.hooksPaths },
-      permissions: { paths: generateResult.permissionsPaths },
-      checks: { paths: generateResult.checksPaths },
-      rules: { paths: generateResult.rulesPaths },
-      activation: { paths: generateResult.activationPaths },
-      pluginManifest: { paths: generateResult.pluginManifestPaths },
-    },
-    deletedPathsByFeature: generateResult.deletedPathsByFeature,
-    keyOperationsByFeature: generateResult.keyOperationsByFeature,
-  });
 }
 
 const generateToolSchemas = {

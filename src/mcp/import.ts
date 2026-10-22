@@ -75,7 +75,7 @@ export async function executeImport(options: ImportOptions): Promise<McpImportRe
         }
 
         if (options.outputRoot !== undefined) {
-          assertPathOptionWithinCwd({ path: options.outputRoot, label: "outputRoot" });
+          await assertPathOptionWithinCwd({ path: options.outputRoot, label: "outputRoot" });
         }
 
         // Resolve config with MCP parameters taking precedence
