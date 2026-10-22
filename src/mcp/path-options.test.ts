@@ -120,6 +120,15 @@ describe("assertPathOptionWithinCwd", () => {
     ).resolves.toBeUndefined();
   });
 
+  it("rejects a not-yet-existing path below a symbolic link that points outside cwd", async () => {
+    await mkdir(join(testDir, "outside", "target"), { recursive: true });
+    await symlink(join(testDir, "outside"), join(projectDir, "escape"));
+
+    await expect(
+      assertPathOptionWithinCwd({ path: join("escape", "target", "new-dir"), label: "output" }),
+    ).rejects.toThrow("output must stay inside the project directory");
+  });
+
   it("rejects an empty string", async () => {
     await expect(assertPathOptionWithinCwd({ path: "  ", label: "inputRoot" })).rejects.toThrow(
       "inputRoot must not be an empty string",

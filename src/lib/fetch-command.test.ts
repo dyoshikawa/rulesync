@@ -1,18 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { fetchFiles, formatFetchSummary } from "../../lib/fetch.js";
-import { GitHubClientError } from "../../lib/github-client.js";
-import { SkillSelectionCancelledError } from "../../lib/skill-prompt.js";
-import { createMockLogger } from "../../test-utils/mock-logger.js";
-import type { FetchSummary } from "../../types/fetch.js";
-import { fetchCommand } from "./fetch.js";
+import { createMockLogger } from "../test-utils/mock-logger.js";
+import type { FetchSummary } from "../types/fetch.js";
+import { fetchCommand } from "./fetch-command.js";
+import { fetchFiles, formatFetchSummary } from "./fetch.js";
+import { GitHubClientError } from "./github-client.js";
+import { SkillSelectionCancelledError } from "./skill-prompt.js";
 
 // Mock dependencies
-vi.mock("../../lib/fetch.js");
-vi.mock("../../lib/github-client.js", async () => {
-  const actual = await vi.importActual<typeof import("../../lib/github-client.js")>(
-    "../../lib/github-client.js",
-  );
+vi.mock("./fetch.js");
+vi.mock("./github-client.js", async () => {
+  const actual = await vi.importActual<typeof import("./github-client.js")>("./github-client.js");
   return {
     ...actual,
     GitHubClientError: actual.GitHubClientError,

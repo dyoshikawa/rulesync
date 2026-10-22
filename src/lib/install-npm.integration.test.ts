@@ -6,11 +6,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH,
   RULESYNC_NPM_SOURCES_LOCK_RELATIVE_FILE_PATH,
-} from "../../constants/rulesync-paths.js";
-import { createMockLogger } from "../../test-utils/mock-logger.js";
-import { buildTarball } from "../../test-utils/tar-fixture.js";
-import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { fileExists, readFileContent, writeFileContent } from "../../utils/file.js";
+} from "../constants/rulesync-paths.js";
+import { createMockLogger } from "../test-utils/mock-logger.js";
+import { buildTarball } from "../test-utils/tar-fixture.js";
+import { setupTestDirectory } from "../test-utils/test-directories.js";
+import { fileExists, readFileContent, writeFileContent } from "../utils/file.js";
 import { installCommand } from "./install.js";
 
 // Obviously-fake placeholder token for tests (never a real credential).

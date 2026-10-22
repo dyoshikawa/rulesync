@@ -2,10 +2,10 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { getGhLockPath } from "../../lib/gh/gh-lock.js";
-import { createMockLogger } from "../../test-utils/mock-logger.js";
-import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { fileExists, readFileContent, writeFileContent } from "../../utils/file.js";
+import { createMockLogger } from "../test-utils/mock-logger.js";
+import { setupTestDirectory } from "../test-utils/test-directories.js";
+import { fileExists, readFileContent, writeFileContent } from "../utils/file.js";
+import { getGhLockPath } from "./gh/gh-lock.js";
 import { installCommand } from "./install.js";
 
 // Mock only the network boundary. Everything else (config loader, lockfile
@@ -13,7 +13,7 @@ import { installCommand } from "./install.js";
 // this is the happy-path E2E for --mode gh.
 let mockClientInstance: any;
 
-vi.mock("../../lib/github-client.js", () => ({
+vi.mock("./github-client.js", () => ({
   GitHubClient: class MockGitHubClient {
     static resolveToken = vi.fn().mockReturnValue(undefined);
 

@@ -1,13 +1,13 @@
-import { GitHubClient, GitHubClientError } from "../../lib/github-client.js";
+import { CLIError, ErrorCodes } from "../types/json-output.js";
+import type { Logger } from "../utils/logger.js";
+import { GitHubClient, GitHubClientError } from "./github-client.js";
 import {
   fetchReleaseNotes,
   formatReleaseNotesMarkdown,
   parseRepository,
   type ReleaseNotesOptions,
   resolveReleaseNotesFilter,
-} from "../../lib/release-notes.js";
-import { CLIError, ErrorCodes } from "../../types/json-output.js";
-import type { Logger } from "../../utils/logger.js";
+} from "./release-notes.js";
 
 export type ReleaseNotesCommandOptions = ReleaseNotesOptions & {
   source: string;

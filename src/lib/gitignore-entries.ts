@@ -1,45 +1,39 @@
 import {
   AUGMENTCODE_DIR,
   AUGMENTCODE_SETTINGS_LOCAL_FILE_NAME,
-} from "../../constants/augmentcode-paths.js";
+} from "../constants/augmentcode-paths.js";
 import {
   CLAUDECODE_AGENT_MEMORY_LOCAL_DIR_NAME,
   CLAUDECODE_DIR,
   CLAUDECODE_LOCAL_RULE_FILE_NAME,
   CLAUDECODE_MEMORIES_DIR_NAME,
   CLAUDECODE_SETTINGS_LOCAL_FILE_NAME,
-} from "../../constants/claudecode-paths.js";
-import { CODEBUDDY_DIR, CODEBUDDY_LOCAL_RULE_FILE_NAME } from "../../constants/codebuddy-paths.js";
-import { CODEXCLI_BASH_RULES_FILE_NAME, CODEXCLI_DIR } from "../../constants/codexcli-paths.js";
+} from "../constants/claudecode-paths.js";
+import { CODEBUDDY_DIR, CODEBUDDY_LOCAL_RULE_FILE_NAME } from "../constants/codebuddy-paths.js";
+import { CODEXCLI_BASH_RULES_FILE_NAME, CODEXCLI_DIR } from "../constants/codexcli-paths.js";
 import {
   COMMANDCODE_DIR,
   COMMANDCODE_SETTINGS_LOCAL_FILE_NAME,
-} from "../../constants/commandcode-paths.js";
-import { CRUSH_LOCAL_RULE_FILE_NAME } from "../../constants/crush-paths.js";
+} from "../constants/commandcode-paths.js";
+import { CRUSH_LOCAL_RULE_FILE_NAME } from "../constants/crush-paths.js";
 import {
   FACTORYDROID_DIR,
   FACTORYDROID_SETTINGS_LOCAL_FILE_NAME,
-} from "../../constants/factorydroid-paths.js";
-import {
-  LETTACODE_DIR,
-  LETTACODE_SETTINGS_LOCAL_FILE_NAME,
-} from "../../constants/lettacode-paths.js";
-import { QWENCODE_DIR, QWENCODE_LOCAL_RULE_FILE_NAME } from "../../constants/qwencode-paths.js";
-import { REASONIX_LOCAL_RULE_FILE_NAME } from "../../constants/reasonix-paths.js";
+} from "../constants/factorydroid-paths.js";
+import { LETTACODE_DIR, LETTACODE_SETTINGS_LOCAL_FILE_NAME } from "../constants/lettacode-paths.js";
+import { QWENCODE_DIR, QWENCODE_LOCAL_RULE_FILE_NAME } from "../constants/qwencode-paths.js";
+import { REASONIX_LOCAL_RULE_FILE_NAME } from "../constants/reasonix-paths.js";
 import {
   RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH,
   RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH,
-} from "../../constants/rulesync-paths.js";
+} from "../constants/rulesync-paths.js";
 import {
   ALL_FEATURES_WITH_WILDCARD,
   type Feature,
   type RulesyncFeatures,
-} from "../../types/features.js";
-import {
-  ALL_TOOL_TARGETS_WITH_WILDCARD,
-  PACKAGING_TOOL_TARGETS,
-} from "../../types/tool-targets.js";
-import type { Logger } from "../../utils/logger.js";
+} from "../types/features.js";
+import { ALL_TOOL_TARGETS_WITH_WILDCARD, PACKAGING_TOOL_TARGETS } from "../types/tool-targets.js";
+import type { Logger } from "../utils/logger.js";
 import {
   deriveAllGitignoreEntries,
   type GitignoreEntryTag,

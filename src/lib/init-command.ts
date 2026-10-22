@@ -1,13 +1,13 @@
-import { SKILL_FILE_NAME } from "../../constants/general.js";
+import { SKILL_FILE_NAME } from "../constants/general.js";
 import {
   RULESYNC_HOOKS_RELATIVE_FILE_PATH,
   RULESYNC_MCP_RELATIVE_FILE_PATH,
   RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH,
   RULESYNC_RELATIVE_DIR_PATH,
-} from "../../constants/rulesync-paths.js";
-import { init } from "../../lib/init.js";
-import { ensureDir } from "../../utils/file.js";
-import type { Logger } from "../../utils/logger.js";
+} from "../constants/rulesync-paths.js";
+import { ensureDir } from "../utils/file.js";
+import type { Logger } from "../utils/logger.js";
+import { init } from "./init.js";
 
 export async function initCommand(logger: Logger): Promise<void> {
   logger.debug("Initializing rulesync...");

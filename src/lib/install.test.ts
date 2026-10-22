@@ -1,23 +1,23 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ConfigResolver } from "../../config/config-resolver.js";
-import type { SourceEntry } from "../../config/config.js";
-import { Config } from "../../config/config.js";
-import { installApm } from "../../lib/apm/apm-install.js";
-import { apmManifestExists } from "../../lib/apm/apm-manifest.js";
-import { installGh } from "../../lib/gh/gh-install.js";
-import { checkOutdatedSources } from "../../lib/sources-outdated.js";
-import { resolveAndFetchSources } from "../../lib/sources.js";
-import { createMockLogger } from "../../test-utils/mock-logger.js";
+import { ConfigResolver } from "../config/config-resolver.js";
+import type { SourceEntry } from "../config/config.js";
+import { Config } from "../config/config.js";
+import { createMockLogger } from "../test-utils/mock-logger.js";
+import { installApm } from "./apm/apm-install.js";
+import { apmManifestExists } from "./apm/apm-manifest.js";
+import { installGh } from "./gh/gh-install.js";
 import { installCommand } from "./install.js";
+import { checkOutdatedSources } from "./sources-outdated.js";
+import { resolveAndFetchSources } from "./sources.js";
 
 // Mock dependencies
-vi.mock("../../config/config-resolver.js");
-vi.mock("../../lib/sources.js");
-vi.mock("../../lib/sources-outdated.js");
-vi.mock("../../lib/apm/apm-install.js");
-vi.mock("../../lib/apm/apm-manifest.js");
-vi.mock("../../lib/gh/gh-install.js");
+vi.mock("../config/config-resolver.js");
+vi.mock("./sources.js");
+vi.mock("./sources-outdated.js");
+vi.mock("./apm/apm-install.js");
+vi.mock("./apm/apm-manifest.js");
+vi.mock("./gh/gh-install.js");
 
 function createMockConfig(sources: SourceEntry[]): Config {
   return {

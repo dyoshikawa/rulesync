@@ -1,11 +1,11 @@
 import { join } from "node:path";
 
-import { ConfigResolver } from "../../config/config-resolver.js";
+import { ConfigResolver } from "../config/config-resolver.js";
 import {
   RULESYNC_CONFIG_RELATIVE_FILE_PATH,
   RULESYNC_LOCAL_CONFIG_RELATIVE_FILE_PATH,
-} from "../../constants/rulesync-paths.js";
-import { fileExists } from "../../utils/file.js";
+} from "../constants/rulesync-paths.js";
+import { fileExists } from "../utils/file.js";
 
 export type ResolveGitignoreTargetsParams = {
   readonly cliTargets: readonly string[] | undefined;

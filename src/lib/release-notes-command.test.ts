@@ -1,18 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { GitHubClientError } from "../../lib/github-client.js";
-import { createMockLogger } from "../../test-utils/mock-logger.js";
-import type { GitHubRelease } from "../../types/fetch.js";
-import { CLIError } from "../../types/json-output.js";
-import { releaseNotesCommand } from "./release-notes.js";
+import { createMockLogger } from "../test-utils/mock-logger.js";
+import type { GitHubRelease } from "../types/fetch.js";
+import { CLIError } from "../types/json-output.js";
+import { GitHubClientError } from "./github-client.js";
+import { releaseNotesCommand } from "./release-notes-command.js";
 
 const listReleases = vi.fn<() => Promise<GitHubRelease[]>>();
 const getReleaseByTag = vi.fn<() => Promise<GitHubRelease>>();
 
-vi.mock("../../lib/github-client.js", async () => {
-  const actual = await vi.importActual<typeof import("../../lib/github-client.js")>(
-    "../../lib/github-client.js",
-  );
+vi.mock("./github-client.js", async () => {
+  const actual = await vi.importActual<typeof import("./github-client.js")>("./github-client.js");
   return {
     ...actual,
     GitHubClient: class MockGitHubClient {

@@ -1,8 +1,8 @@
-import { SHARED_USER_MANAGED_CONFIG_PATHS } from "../../constants/shared-config-paths.js";
-import type { ToolRuleExtraFixedFile } from "../../features/rules/tool-rule.js";
-import type { Feature } from "../../types/features.js";
-import { getProcessorRegistryEntry } from "../../types/processor-registry.js";
-import type { ToolTarget } from "../../types/tool-targets.js";
+import { SHARED_USER_MANAGED_CONFIG_PATHS } from "../constants/shared-config-paths.js";
+import type { ToolRuleExtraFixedFile } from "../features/rules/tool-rule.js";
+import type { Feature } from "../types/features.js";
+import { getProcessorRegistryEntry } from "../types/processor-registry.js";
+import type { ToolTarget } from "../types/tool-targets.js";
 
 export type GitignoreEntryTarget = ToolTarget | "common";
 

@@ -2,7 +2,7 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { SKILL_FILE_NAME } from "../../constants/general.js";
+import { SKILL_FILE_NAME } from "../constants/general.js";
 import {
   RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
   RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
@@ -14,29 +14,29 @@ import {
   RULESYNC_RULES_RELATIVE_DIR_PATH,
   RULESYNC_SKILLS_RELATIVE_DIR_PATH,
   RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
-} from "../../constants/rulesync-paths.js";
-import { RulesyncHooks } from "../../features/hooks/rulesync-hooks.js";
-import { RulesyncMcp } from "../../features/mcp/rulesync-mcp.js";
-import { RulesyncRule } from "../../features/rules/rulesync-rule.js";
-import { RulesyncSkill } from "../../features/skills/rulesync-skill.js";
-import { RulesyncSubagent } from "../../features/subagents/rulesync-subagent.js";
-import { createMockLogger } from "../../test-utils/mock-logger.js";
+} from "../constants/rulesync-paths.js";
+import { RulesyncHooks } from "../features/hooks/rulesync-hooks.js";
+import { RulesyncMcp } from "../features/mcp/rulesync-mcp.js";
+import { RulesyncRule } from "../features/rules/rulesync-rule.js";
+import { RulesyncSkill } from "../features/skills/rulesync-skill.js";
+import { RulesyncSubagent } from "../features/subagents/rulesync-subagent.js";
+import { createMockLogger } from "../test-utils/mock-logger.js";
 import {
   ensureDir,
   fileExists,
   getHomeDirectory,
   readFileContent,
   writeFileContent,
-} from "../../utils/file.js";
-import { initCommand } from "./init.js";
+} from "../utils/file.js";
+import { initCommand } from "./init-command.js";
 
 // Mock dependencies
-vi.mock("../../utils/file.js");
-vi.mock("../../features/hooks/rulesync-hooks.js");
-vi.mock("../../features/mcp/rulesync-mcp.js");
-vi.mock("../../features/rules/rulesync-rule.js");
-vi.mock("../../features/skills/rulesync-skill.js");
-vi.mock("../../features/subagents/rulesync-subagent.js");
+vi.mock("../utils/file.js");
+vi.mock("../features/hooks/rulesync-hooks.js");
+vi.mock("../features/mcp/rulesync-mcp.js");
+vi.mock("../features/rules/rulesync-rule.js");
+vi.mock("../features/skills/rulesync-skill.js");
+vi.mock("../features/subagents/rulesync-subagent.js");
 
 describe("initCommand", () => {
   let mockLogger: ReturnType<typeof createMockLogger>;

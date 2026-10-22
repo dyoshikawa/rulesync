@@ -6,30 +6,30 @@ import {
   type InputRootConfig,
   mergeInputRootConfigs,
   resolveEffectiveInputRoots,
-} from "../../config/config-resolver.js";
+} from "../config/config-resolver.js";
 import {
   CONFLICTING_TARGET_PAIRS,
   ConfigFileSchema,
   GITIGNORE_DESTINATION_KEY,
-} from "../../config/config.js";
+} from "../config/config.js";
 import {
   RULESYNC_CONFIG_RELATIVE_FILE_PATH,
   RULESYNC_CONFIG_SCHEMA_URL,
   RULESYNC_LOCAL_CONFIG_RELATIVE_FILE_PATH,
-} from "../../constants/rulesync-paths.js";
+} from "../constants/rulesync-paths.js";
+import { ALL_FEATURES, DEPRECATED_FEATURE_REPLACEMENTS } from "../types/features.js";
+import { CLIError, ErrorCodes } from "../types/json-output.js";
+import { ALL_TOOL_TARGETS } from "../types/tool-targets.js";
+import { stripControlCharacters } from "../utils/control-characters.js";
+import { directoryExists, fileExists, readFileContent, resolvePath } from "../utils/file.js";
+import type { Logger } from "../utils/logger.js";
 import {
   DEFAULT_NPM_REGISTRY_URL,
   DEFAULT_NPM_TOKEN_ENV,
   isAllowedNpmTokenEnvName,
   isTrustedNpmRegistry,
   NPM_TRUSTED_REGISTRIES_ENV,
-} from "../../lib/npm-client.js";
-import { ALL_FEATURES, DEPRECATED_FEATURE_REPLACEMENTS } from "../../types/features.js";
-import { CLIError, ErrorCodes } from "../../types/json-output.js";
-import { ALL_TOOL_TARGETS } from "../../types/tool-targets.js";
-import { stripControlCharacters } from "../../utils/control-characters.js";
-import { directoryExists, fileExists, readFileContent, resolvePath } from "../../utils/file.js";
-import type { Logger } from "../../utils/logger.js";
+} from "./npm-client.js";
 
 export type DoctorSeverity = "error" | "warning" | "info";
 

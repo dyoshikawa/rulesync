@@ -4,8 +4,8 @@ import { join } from "node:path";
 import { parse as parseJsonc } from "jsonc-parser";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { SourceEntry } from "../../config/config.js";
-import { SKILL_FILE_NAME } from "../../constants/general.js";
+import type { SourceEntry } from "../config/config.js";
+import { SKILL_FILE_NAME } from "../constants/general.js";
 import {
   RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
   RULESYNC_CHECKS_RELATIVE_DIR_PATH,
@@ -23,20 +23,20 @@ import {
   RULESYNC_SKILLS_RELATIVE_DIR_PATH,
   RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH,
   RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
-} from "../../constants/rulesync-paths.js";
-import { RulesyncSkill } from "../../features/skills/rulesync-skill.js";
-import { RulesyncSubagent } from "../../features/subagents/rulesync-subagent.js";
+} from "../constants/rulesync-paths.js";
+import { RulesyncSkill } from "../features/skills/rulesync-skill.js";
+import { RulesyncSubagent } from "../features/subagents/rulesync-subagent.js";
+import { createMockLogger } from "../test-utils/mock-logger.js";
+import { setupTestDirectory } from "../test-utils/test-directories.js";
+import { ensureDir, fileExists, readFileContent, writeFileContent } from "../utils/file.js";
+import { addCommand } from "./add.js";
 import {
   getInstalledSourceRuleNames,
   getInstalledSourceSkillNames,
   resolveAndFetchSources,
-} from "../../lib/sources.js";
-import { createMockLogger } from "../../test-utils/mock-logger.js";
-import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { ensureDir, fileExists, readFileContent, writeFileContent } from "../../utils/file.js";
-import { addCommand } from "./add.js";
+} from "./sources.js";
 
-vi.mock("../../lib/sources.js");
+vi.mock("./sources.js");
 
 describe("addCommand", () => {
   let testDir: string;

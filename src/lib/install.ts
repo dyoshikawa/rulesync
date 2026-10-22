@@ -1,11 +1,11 @@
-import { ConfigResolver } from "../../config/config-resolver.js";
-import { installApm } from "../../lib/apm/apm-install.js";
-import { apmManifestExists } from "../../lib/apm/apm-manifest.js";
-import { installGh } from "../../lib/gh/gh-install.js";
-import { checkOutdatedSources } from "../../lib/sources-outdated.js";
-import { resolveAndFetchSources } from "../../lib/sources.js";
-import { CLIError, ErrorCodes } from "../../types/json-output.js";
-import type { Logger } from "../../utils/logger.js";
+import { ConfigResolver } from "../config/config-resolver.js";
+import { CLIError, ErrorCodes } from "../types/json-output.js";
+import type { Logger } from "../utils/logger.js";
+import { installApm } from "./apm/apm-install.js";
+import { apmManifestExists } from "./apm/apm-manifest.js";
+import { installGh } from "./gh/gh-install.js";
+import { checkOutdatedSources } from "./sources-outdated.js";
+import { resolveAndFetchSources } from "./sources.js";
 
 export const INSTALL_MODES = ["rulesync", "apm", "gh"] as const;
 export type InstallMode = (typeof INSTALL_MODES)[number];

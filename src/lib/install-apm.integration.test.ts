@@ -2,11 +2,11 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { getApmLockPath } from "../../lib/apm/apm-lock.js";
-import { getApmManifestPath } from "../../lib/apm/apm-manifest.js";
-import { createMockLogger } from "../../test-utils/mock-logger.js";
-import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { fileExists, readFileContent, writeFileContent } from "../../utils/file.js";
+import { createMockLogger } from "../test-utils/mock-logger.js";
+import { setupTestDirectory } from "../test-utils/test-directories.js";
+import { fileExists, readFileContent, writeFileContent } from "../utils/file.js";
+import { getApmLockPath } from "./apm/apm-lock.js";
+import { getApmManifestPath } from "./apm/apm-manifest.js";
 import { installCommand } from "./install.js";
 
 // Mock only the network boundary. Everything else (manifest parsing,
@@ -14,7 +14,7 @@ import { installCommand } from "./install.js";
 // temporary test directory — this is the happy-path E2E for --mode apm.
 let mockClientInstance: any;
 
-vi.mock("../../lib/github-client.js", () => ({
+vi.mock("./github-client.js", () => ({
   GitHubClient: class MockGitHubClient {
     static resolveToken = vi.fn().mockReturnValue(undefined);
 
