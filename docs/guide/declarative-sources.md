@@ -122,7 +122,7 @@ For CI environments using `NODE_AUTH_TOKEN`, set `"tokenEnv": "NODE_AUTH_TOKEN"`
 Because `registry` and `tokenEnv` live in the project's committed config, a cloned repository must not be able to send your token to a host of its choosing. rulesync therefore:
 
 - only accepts a `tokenEnv` named `NPM_TOKEN`, `NODE_AUTH_TOKEN`, or ending with `_NPM_TOKEN`, so a config cannot point it at unrelated secrets such as `GITHUB_TOKEN`;
-- only sends a token to `https://registry.npmjs.org`, or to a registry whose origin you list in the `RULESYNC_NPM_TRUSTED_REGISTRIES` environment variable (comma-separated, e.g. `RULESYNC_NPM_TRUSTED_REGISTRIES=https://acme.jfrog.io`). For any other registry, the `NPM_TOKEN` fallback is not sent (rulesync warns and requests anonymously), and an explicit `tokenEnv` is an error.
+- only sends a token to `https://registry.npmjs.org`, or to a registry whose origin you list in the `RULESYNC_NPM_TRUSTED_REGISTRIES` environment variable (comma-separated, e.g. `RULESYNC_NPM_TRUSTED_REGISTRIES=https://acme.jfrog.io`). Each entry must be a full URL with its scheme; an entry such as `acme.jfrog.io` cannot be read as an origin, so it trusts nothing and rulesync warns about it. For any other registry, the `NPM_TOKEN` fallback is not sent (rulesync warns and requests anonymously), and an explicit `tokenEnv` is an error.
 
 Resolved versions are pinned in `rulesync-npm.lock.json` (next to `rulesync.lock`), which records the resolved version, the tarball integrity, and per-artifact content hashes. Commit it for reproducible installs; `--update` and `--frozen` behave the same as for git sources.
 
@@ -210,6 +210,8 @@ Example `rulesync.jsonc`:
 ```
 
 Run with `npx rulesync install --mode gh`.
+
+At project scope, a deployed file whose path leads outside the project through a local symbolic link (for example `.agents/skills -> ~/shared-skills`) is refused, and the install fails with `Path resolves outside ... through a symbolic link`. User scope is not checked, so a `~/.claude` linked into a dotfiles checkout keeps working.
 
 Files that a previous run deployed and the upstream no longer ships are removed again, but only from that skill's own install directory. Because `rulesync-gh.lock.yaml` is committed with the project, user-scope files are only cleaned up while the current config still installs the same source with the same agent at user scope; otherwise rulesync warns and leaves them for you to remove.
 

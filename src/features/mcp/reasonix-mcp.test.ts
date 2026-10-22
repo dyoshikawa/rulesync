@@ -23,6 +23,42 @@ describe("ReasonixMcp", () => {
     vi.restoreAllMocks();
   });
 
+  it("warns when generate would shadow a nested .reasonix/reasonix.toml", async () => {
+    await writeFileContent(
+      join(testDir, ".reasonix", "reasonix.toml"),
+      ["[permissions]", 'deny = ["Bash(rm *)"]'].join("\n"),
+    );
+    const rulesyncMcp = new RulesyncMcp({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "mcp.json",
+      fileContent: JSON.stringify({ mcpServers: {} }),
+    });
+    const logger = createMockLogger();
+
+    await ReasonixMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp, logger });
+
+    expect(logger.warn).toHaveBeenCalledTimes(1);
+    expect(String(logger.warn.mock.calls[0]?.[0])).toContain(
+      "Reasonix: .reasonix/reasonix.toml exists but reasonix.toml does not",
+    );
+  });
+
+  it("does not warn about the nested project config in global scope", async () => {
+    await writeFileContent(join(testDir, ".reasonix", "reasonix.toml"), "");
+    const rulesyncMcp = new RulesyncMcp({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "mcp.json",
+      fileContent: JSON.stringify({ mcpServers: {} }),
+    });
+    const logger = createMockLogger();
+
+    await ReasonixMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp, logger, global: true });
+
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
   it("should export rulesync MCP servers as Reasonix [[plugins]] and preserve config keys", async () => {
     await writeFileContent(
       join(testDir, "reasonix.toml"),

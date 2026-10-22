@@ -840,4 +840,105 @@ targets: ["*"]
       ).rejects.toThrow(/supported operations/i);
     });
   });
+
+  describe("CLI command features", () => {
+    const runOnlyFeatures = [
+      "init",
+      "gitignore",
+      "add",
+      "fetch",
+      "install",
+      "doctor",
+      "docs",
+      "releaseNotes",
+    ] as const;
+
+    it.each(runOnlyFeatures)("rejects operations other than run for %s", async (feature) => {
+      for (const operation of ["list", "get", "put", "delete"] as const) {
+        await expect(rulesyncTool.execute({ feature, operation })).rejects.toThrow(
+          /supported operations: run/i,
+        );
+      }
+    });
+
+    it.each([
+      ["add", "addOptions"],
+      ["fetch", "fetchOptions"],
+      ["releaseNotes", "releaseNotesOptions"],
+    ] as const)("requires options for %s", async (feature, optionsName) => {
+      await expect(rulesyncTool.execute({ feature, operation: "run" })).rejects.toThrow(
+        `${optionsName} is required`,
+      );
+    });
+
+    it("runs docs without options to list documents", async () => {
+      const parsed = JSON.parse(await rulesyncTool.execute({ feature: "docs", operation: "run" }));
+
+      expect(parsed.success).toBe(true);
+      expect(parsed.result.documents).toContain("guide/configuration");
+    });
+
+    it("runs docs search through docsOptions", async () => {
+      const parsed = JSON.parse(
+        await rulesyncTool.execute({
+          feature: "docs",
+          operation: "run",
+          docsOptions: { search: "gitignore" },
+        }),
+      );
+
+      expect(parsed.success).toBe(true);
+      expect(parsed.result.matches.length).toBeGreaterThan(0);
+    });
+
+    it("runs doctor and returns diagnostics", async () => {
+      const parsed = JSON.parse(
+        await rulesyncTool.execute({ feature: "doctor", operation: "run", doctorOptions: {} }),
+      );
+
+      expect(parsed.success).toBe(true);
+      expect(parsed.result.passed).toBe(true);
+      expect(Array.isArray(parsed.result.diagnostics)).toBe(true);
+    });
+
+    it("runs gitignore through gitignoreOptions", async () => {
+      const parsed = JSON.parse(
+        await rulesyncTool.execute({
+          feature: "gitignore",
+          operation: "run",
+          gitignoreOptions: { targets: ["claudecode"] },
+        }),
+      );
+
+      expect(parsed.success).toBe(true);
+      expect(parsed.result.entriesAdded.length).toBeGreaterThan(0);
+    });
+
+    it("drops a token argument instead of accepting it", async () => {
+      // `token` is a source-only option: if it reached `add`, the scaffold
+      // request below would be rejected as mixing scaffold and source options.
+      const parsed = JSON.parse(
+        await rulesyncTool.execute({
+          feature: "add",
+          operation: "run",
+          addOptions: { source: "rule", name: "from-tool", token: "secret" } as never,
+        }),
+      );
+
+      expect(parsed.success).toBe(true);
+    });
+
+    it("rejects a fetch output directory outside the project", async () => {
+      const parsed = JSON.parse(
+        await rulesyncTool.execute({
+          feature: "fetch",
+          operation: "run",
+          fetchOptions: { source: "owner/repo", output: "../outside" },
+        }),
+      );
+
+      expect(parsed.success).toBe(false);
+      expect(parsed.error).toContain("output must stay inside the project directory");
+    });
+  });
 });

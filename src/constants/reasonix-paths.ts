@@ -6,6 +6,15 @@ import { join } from "node:path";
 export const REASONIX_PROJECT_MCP_FILE_NAME = "reasonix.toml";
 export const REASONIX_GLOBAL_DIR = ".reasonix";
 export const REASONIX_GLOBAL_MCP_FILE_NAME = "config.toml";
+// Since v2.46.0 Reasonix falls back to `.reasonix/reasonix.toml` as the project
+// config when `./reasonix.toml` is absent. The two are never merged: the root
+// file wins whenever it exists (`ProjectConfigPath` in
+// `internal/contract/config/paths.go`). rulesync still writes the root file, so
+// it only uses this path to warn when that write would shadow the nested one.
+export const REASONIX_NESTED_PROJECT_CONFIG_RELATIVE_FILE_PATH = join(
+  ".reasonix",
+  REASONIX_PROJECT_MCP_FILE_NAME,
+);
 
 // The `[permissions]` table lives in the same shared TOML file as `[[plugins]]`:
 // `./reasonix.toml` (project) / `~/.reasonix/config.toml` (global).

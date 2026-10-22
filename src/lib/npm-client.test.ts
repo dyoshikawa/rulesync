@@ -138,6 +138,16 @@ describe("resolveNpmToken", () => {
     expect(warnLogger.warn).not.toHaveBeenCalledWith(expect.stringContaining(FAKE_TOKEN));
   });
 
+  it("warns about a trusted entry without a scheme instead of dropping it silently", () => {
+    vi.stubEnv("NPM_TOKEN", FAKE_TOKEN);
+    vi.stubEnv("RULESYNC_NPM_TRUSTED_REGISTRIES", "npm.acme.example");
+    const warnLogger = createMockLogger();
+    expect(resolveNpmToken({ registryUrl: customRegistry, logger: warnLogger })).toBeUndefined();
+    expect(warnLogger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('Ignoring RULESYNC_NPM_TRUSTED_REGISTRIES entry "npm.acme.example"'),
+    );
+  });
+
   it.each(["NPM_TOKEN", "NODE_AUTH_TOKEN"])("refuses %s for an untrusted registry", (tokenEnv) => {
     vi.stubEnv(tokenEnv, FAKE_TOKEN);
     vi.stubEnv("RULESYNC_NPM_TRUSTED_REGISTRIES", "");
@@ -172,6 +182,33 @@ describe("isTrustedNpmRegistry", () => {
     expect(
       isTrustedNpmRegistry("https://npm.acme.example", {
         RULESYNC_NPM_TRUSTED_REGISTRIES: "not a url,,",
+      }),
+    ).toBe(false);
+  });
+
+  it("warns about each trusted entry that has no origin", () => {
+    const warnLogger = createMockLogger();
+    expect(
+      isTrustedNpmRegistry(
+        "https://npm.acme.example",
+        {
+          RULESYNC_NPM_TRUSTED_REGISTRIES:
+            "npm.acme.example, npm.acme.example:8080 ,, https://npm.acme.example",
+        },
+        warnLogger,
+      ),
+    ).toBe(true);
+    expect(warnLogger.warn).toHaveBeenCalledTimes(2);
+    expect(warnLogger.warn).toHaveBeenCalledWith(expect.stringContaining('"npm.acme.example"'));
+    expect(warnLogger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('"npm.acme.example:8080"'),
+    );
+  });
+
+  it("does not trust an entry whose origin is opaque", () => {
+    expect(
+      isTrustedNpmRegistry("custom:registry", {
+        RULESYNC_NPM_TRUSTED_REGISTRIES: "other:entry",
       }),
     ).toBe(false);
   });

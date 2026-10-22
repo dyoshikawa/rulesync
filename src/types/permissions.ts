@@ -187,12 +187,14 @@ export type CopilotPermissionsOverride = z.infer<typeof CopilotPermissionsOverri
 
 /**
  * oh-my-pi's `tools.approvalMode` values: the tool tiers it auto-approves
- * before prompting. `always-ask` auto-approves only read-only tools, `write`
- * also workspace writes, and `yolo` (oh-my-pi's default) every tier.
+ * before prompting. `always-ask` auto-approves only read-only tools,
+ * `always-ask-cached` (Ask and remember) also prompts before file reads and
+ * lets a prompt remember the granted file or folder, `write` also
+ * auto-approves workspace writes, and `yolo` (oh-my-pi's default) every tier.
  *
  * @see https://github.com/can1357/oh-my-pi/blob/main/docs/approval-mode.md
  */
-export const OMP_APPROVAL_MODES = ["always-ask", "write", "yolo"] as const;
+export const OMP_APPROVAL_MODES = ["always-ask", "always-ask-cached", "write", "yolo"] as const;
 export type OmpApprovalMode = (typeof OMP_APPROVAL_MODES)[number];
 
 /**
@@ -210,10 +212,13 @@ const KimiCodePermissionsOverrideSchema = z.looseObject({
   defaultPermissionMode: z.optional(z.enum(["manual", "yolo", "auto"])),
   /**
    * Kimi's `[permission] dangerous_command_guard` switch (Kimi Code 0.40.0,
-   * default `true`). `false` turns off the built-in dangerous-command policy
-   * (no confirmation for `rm -rf`, `shutdown` and the like).
+   * default `true`). Since Kimi Code 2.3.0, `false` turns off every built-in
+   * guard confirmation policy: dangerous commands (`rm -rf`, `shutdown` and the
+   * like), sensitive-file access (`.env`, `id_rsa`, ...) and git control-path
+   * access. Before 2.3.0 it only covered dangerous commands.
    *
    * @see https://moonshotai.github.io/kimi-code/en/configuration/config-files.html#permission
+   * @see https://github.com/MoonshotAI/kimi-code/pull/4250
    */
   dangerousCommandGuard: z.optional(z.boolean()),
   rules: z.optional(
@@ -614,6 +619,8 @@ export type TabninePermissionsOverride = z.infer<typeof TabninePermissionsOverri
  * { "allowDynamicBash": true, "rawAllow": ["Bash=pnpm test"] }
  * @example
  * { "mode": "deny" }
+ * @example
+ * { "tools": { "disabled": ["web_fetch"] }, "askOnExternalOrigin": true }
  */
 const ReasonixPermissionsOverrideSchema = z.looseObject({
   permission: z.optional(ToolScopedPermissionSchema),
@@ -649,6 +656,23 @@ const ReasonixPermissionsOverrideSchema = z.looseObject({
   // is written only by `--global` generate.
   // @see https://github.com/esengine/DeepSeek-Reasonix/blob/main-v2/docs/SPEC.md
   mode: z.optional(z.enum(["ask", "allow", "deny"])),
+  // `[permissions] ask_on_external_origin` (v2.47.0): makes Auto and YOLO ask
+  // before a call that repeats text a web page or tool result gave the task.
+  // Off by default and user config only (`narrowPermissions` in
+  // `project_scope.go`), so like `mode` it is written only by `--global`
+  // generate.
+  // @see https://github.com/esengine/DeepSeek-Reasonix/blob/studio-v2.47.1/docs/GUIDE.md
+  askOnExternalOrigin: z.optional(z.boolean()),
+  // `[tools] disabled` (v2.45.0): built-in, framework and MCP tools removed
+  // from every request by name. A project file can only add to the user's
+  // list, so the key only ever narrows. Only `disabled` is written; the rest
+  // of the `[tools]` table is left as the file has it.
+  // @see https://github.com/esengine/DeepSeek-Reasonix/blob/studio-v2.47.1/internal/contract/config/config.go
+  tools: z.optional(
+    z.strictObject({
+      disabled: z.optional(z.array(z.string())),
+    }),
+  ),
 });
 export type ReasonixPermissionsOverride = z.infer<typeof ReasonixPermissionsOverrideSchema>;
 

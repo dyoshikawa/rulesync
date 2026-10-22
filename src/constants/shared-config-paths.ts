@@ -13,7 +13,7 @@ import { toPosixPath } from "../utils/file.js";
  * Two behaviors are derived from this single list:
  *
  * - They are deliberately **not** gitignored (`DERIVED_PATHS_NOT_GITIGNORED` in
- *   `src/cli/commands/gitignore-derive.ts`), because a user may hand-author
+ *   `src/lib/gitignore-derive.ts`), because a user may hand-author
  *   settings in them that should stay version-controlled.
  * - Because they are committable, rulesync must not **create** one just to hold
  *   an empty payload — that would be pure `git status` noise. See

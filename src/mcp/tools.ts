@@ -21,15 +21,23 @@ import {
   RulesyncSubagentFrontmatterSchema,
 } from "../features/subagents/rulesync-subagent.js";
 import { withWarnOnceScope } from "../utils/warned-once.js";
+import { addOptionsSchema, addTools } from "./add.js";
 import { checkTools } from "./checks.js";
 import { commandTools } from "./commands.js";
 import { convertOptionsSchema, convertTools } from "./convert.js";
+import { docsOptionsSchema, docsTools } from "./docs.js";
+import { doctorOptionsSchema, doctorTools } from "./doctor.js";
+import { fetchOptionsSchema, fetchTools } from "./fetch.js";
 import { generateOptionsSchema, generateTools } from "./generate.js";
+import { gitignoreOptionsSchema, gitignoreTools } from "./gitignore.js";
 import { hooksTools } from "./hooks.js";
 import { ignoreTools } from "./ignore.js";
 import { importOptionsSchema, importTools } from "./import.js";
+import { initTools } from "./init.js";
+import { installOptionsSchema, installTools } from "./install.js";
 import { mcpTools } from "./mcp.js";
 import { permissionsTools } from "./permissions.js";
+import { releaseNotesOptionsSchema, releaseNotesTools } from "./release-notes.js";
 import { ruleTools } from "./rules.js";
 import { skillTools } from "./skills.js";
 import { subagentTools } from "./subagents.js";
@@ -47,6 +55,14 @@ const rulesyncFeatureSchema = z.enum([
   "generate",
   "import",
   "convert",
+  "init",
+  "gitignore",
+  "add",
+  "fetch",
+  "install",
+  "doctor",
+  "docs",
+  "releaseNotes",
 ]);
 
 const rulesyncOperationSchema = z.enum(["list", "get", "put", "delete", "run"]);
@@ -68,14 +84,21 @@ const rulesyncToolSchema = z.object({
   generateOptions: z.optional(generateOptionsSchema),
   importOptions: z.optional(importOptionsSchema),
   convertOptions: z.optional(convertOptionsSchema),
+  gitignoreOptions: z.optional(gitignoreOptionsSchema),
+  addOptions: z.optional(addOptionsSchema),
+  fetchOptions: z.optional(fetchOptionsSchema),
+  installOptions: z.optional(installOptionsSchema),
+  doctorOptions: z.optional(doctorOptionsSchema),
+  docsOptions: z.optional(docsOptionsSchema),
+  releaseNotesOptions: z.optional(releaseNotesOptionsSchema),
 });
 
 type RulesyncFeature = z.infer<typeof rulesyncFeatureSchema>;
 type RulesyncOperation = z.infer<typeof rulesyncOperationSchema>;
 type RulesyncToolArgs = z.infer<typeof rulesyncToolSchema>;
-type RulesyncFrontmatterFeature = Exclude<
+type RulesyncFrontmatterFeature = Extract<
   RulesyncFeature,
-  "ignore" | "mcp" | "permissions" | "hooks" | "generate" | "import" | "convert"
+  "rule" | "command" | "subagent" | "skill" | "check"
 >;
 type RulesyncFrontmatterByFeature = {
   rule: RulesyncRuleFrontmatter;
@@ -85,7 +108,7 @@ type RulesyncFrontmatterByFeature = {
   check: RulesyncCheckFrontmatter;
 };
 
-const supportedOperationsByFeature: Record<RulesyncFeature, RulesyncOperation[]> = {
+export const supportedOperationsByFeature: Record<RulesyncFeature, RulesyncOperation[]> = {
   rule: ["list", "get", "put", "delete"],
   command: ["list", "get", "put", "delete"],
   subagent: ["list", "get", "put", "delete"],
@@ -98,6 +121,14 @@ const supportedOperationsByFeature: Record<RulesyncFeature, RulesyncOperation[]>
   generate: ["run"],
   import: ["run"],
   convert: ["run"],
+  init: ["run"],
+  gitignore: ["run"],
+  add: ["run"],
+  fetch: ["run"],
+  install: ["run"],
+  doctor: ["run"],
+  docs: ["run"],
+  releaseNotes: ["run"],
 };
 
 function assertSupported({
@@ -423,6 +454,13 @@ function executeConvert(parsed: RulesyncToolArgs) {
   return convertTools.executeConvert.execute(parsed.convertOptions);
 }
 
+function requireOptions<T>({ options, name }: { options: T | undefined; name: string }): T {
+  if (!options) {
+    throw new Error(`${name} is required for this feature`);
+  }
+  return options;
+}
+
 const featureExecutors: Record<RulesyncFeature, (parsed: RulesyncToolArgs) => Promise<string>> = {
   rule: executeRule,
   command: executeCommand,
@@ -436,12 +474,28 @@ const featureExecutors: Record<RulesyncFeature, (parsed: RulesyncToolArgs) => Pr
   generate: executeGenerate,
   import: executeImport,
   convert: executeConvert,
+  // The features below support only the "run" operation.
+  init: () => initTools.executeInit.execute(),
+  gitignore: (parsed) => gitignoreTools.executeGitignore.execute(parsed.gitignoreOptions ?? {}),
+  add: (parsed) =>
+    addTools.executeAdd.execute(requireOptions({ options: parsed.addOptions, name: "addOptions" })),
+  fetch: (parsed) =>
+    fetchTools.executeFetch.execute(
+      requireOptions({ options: parsed.fetchOptions, name: "fetchOptions" }),
+    ),
+  install: (parsed) => installTools.executeInstall.execute(parsed.installOptions ?? {}),
+  doctor: (parsed) => doctorTools.executeDoctor.execute(parsed.doctorOptions ?? {}),
+  docs: (parsed) => docsTools.executeDocs.execute(parsed.docsOptions ?? {}),
+  releaseNotes: (parsed) =>
+    releaseNotesTools.executeReleaseNotes.execute(
+      requireOptions({ options: parsed.releaseNotesOptions, name: "releaseNotesOptions" }),
+    ),
 };
 
 export const rulesyncTool = {
   name: "rulesyncTool",
   description:
-    'Manage Rulesync files through a single MCP tool. Features: rule/command/subagent/skill/check support list/get/put/delete; ignore/mcp/permissions/hooks support get/put/delete only; generate supports run only; import supports run only; convert supports run only. Parameters: list requires no targetPathFromCwd (lists all items); get/delete require targetPathFromCwd; put requires targetPathFromCwd, frontmatter, and body (or content for ignore/mcp/permissions/hooks); generate/run uses generateOptions to configure generation; import/run uses importOptions to configure import; convert/run uses convertOptions to configure conversion. skill otherFiles entries accept an optional encoding ("utf-8" by default, "base64" for binary files) and are returned with the encoding they require.',
+    'Manage Rulesync files and run rulesync commands through a single MCP tool. Features: rule/command/subagent/skill/check support list/get/put/delete; ignore/mcp/permissions/hooks support get/put/delete only; generate/import/convert/init/gitignore/add/fetch/install/doctor/docs/releaseNotes support run only. Parameters: list requires no targetPathFromCwd (lists all items); get/delete require targetPathFromCwd; put requires targetPathFromCwd, frontmatter, and body (or content for ignore/mcp/permissions/hooks); generate/run uses generateOptions to configure generation; import/run uses importOptions to configure import; convert/run uses convertOptions to configure conversion; init/run takes no options; gitignore/run uses optional gitignoreOptions; add/run requires addOptions (source); fetch/run requires fetchOptions (source); install/run uses optional installOptions (outdated: true only reports lockfile status); doctor/run uses optional doctorOptions and returns diagnostics with severities; docs/run uses optional docsOptions (document, search, or neither to list documents); releaseNotes/run requires releaseNotesOptions (source as owner/repo). Path options (configPath, output) must stay inside the project; GitHub tokens are read from GITHUB_TOKEN/GH_TOKEN. skill otherFiles entries accept an optional encoding ("utf-8" by default, "base64" for binary files) and are returned with the encoding they require.',
   parameters: rulesyncToolSchema,
   // Each call gets its own once-per-run bookkeeping. The server is long-lived
   // and does not serialize requests, so without a scope the process-wide record

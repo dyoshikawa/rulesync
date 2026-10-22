@@ -1,27 +1,30 @@
 import { Command } from "commander";
 
+import { addCommand, type AddCommandOptions } from "../lib/add.js";
+import { doctorCommand, type DoctorOptions } from "../lib/doctor.js";
+import { fetchCommand } from "../lib/fetch-command.js";
+import { gitignoreCommand } from "../lib/gitignore.js";
+import { initCommand } from "../lib/init-command.js";
+import { INSTALL_MODES, InstallMode, installCommand } from "../lib/install.js";
+import {
+  releaseNotesCommand,
+  type ReleaseNotesCommandOptions,
+} from "../lib/release-notes-command.js";
 import { DEFAULT_LATEST_COUNT } from "../lib/release-notes.js";
+import { resolveGitignoreTargets } from "../lib/resolve-gitignore-targets.js";
 import { ALL_FEATURES, RulesyncFeatures } from "../types/features.js";
 import { FetchOptions } from "../types/fetch.js";
 import type { Logger } from "../utils/logger.js";
 import { parseCommaSeparatedList } from "../utils/parse-comma-separated-list.js";
-import { addCommand, type AddCommandOptions } from "./commands/add.js";
 import { convertCommand, ConvertOptions } from "./commands/convert.js";
 import { docsCommand, type DocsOptions } from "./commands/docs.js";
-import { doctorCommand, type DoctorOptions } from "./commands/doctor.js";
-import { fetchCommand } from "./commands/fetch.js";
 import { generateCommand, GenerateOptions } from "./commands/generate.js";
-import { gitignoreCommand } from "./commands/gitignore.js";
 import { importCommand, ImportOptions } from "./commands/import.js";
-import { initCommand } from "./commands/init.js";
-import { INSTALL_MODES, InstallMode, installCommand } from "./commands/install.js";
 import { mcpCommand } from "./commands/mcp.js";
-import { releaseNotesCommand, type ReleaseNotesCommandOptions } from "./commands/release-notes.js";
-import { resolveGitignoreTargets } from "./commands/resolve-gitignore-targets.js";
 import { updateCommand, UpdateCommandOptions } from "./commands/update.js";
 import { wrapCommand as _wrapCommand } from "./wrap-command.js";
 
-const getVersion = () => "39.0.0";
+const getVersion = () => "40.1.0";
 const FEATURES_HELP = `${ALL_FEATURES.join(",")}; ignore is deprecated, use permissions`;
 
 function wrapCommand(

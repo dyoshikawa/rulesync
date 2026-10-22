@@ -297,13 +297,16 @@ describe("E2E: hooks", () => {
         target === "antigravity-cli" ||
         target === "antigravity-plugin"
       ) {
-        // Antigravity nests the event → matcher-entry map under a generated
-        // `rulesync` hook name and supports preToolUse/postToolUse/
-        // preModelInvocation/postModelInvocation/stop (see ANTIGRAVITY_HOOK_EVENTS
-        // in src/types/hooks.ts). `sessionStart` is therefore dropped, and only
-        // audit.sh — mapped to `Stop` — survives generation.
-        expect(parsed.rulesync.Stop).toBeDefined();
-        expect(JSON.stringify(parsed)).toContain(".rulesync/hooks/audit.sh");
+        // Antigravity nests the event map under a generated `rulesync` hook
+        // name (see ANTIGRAVITY_HOOK_EVENTS in src/types/hooks.ts).
+        // `SessionStart` and `Stop` are matcher-less, so their handlers sit
+        // directly under the event key instead of in a `{ hooks: [...] }` group.
+        expect(parsed.rulesync.SessionStart).toEqual([
+          { type: "command", command: ".rulesync/hooks/session-start.sh" },
+        ]);
+        expect(parsed.rulesync.Stop).toEqual([
+          { type: "command", command: ".rulesync/hooks/audit.sh" },
+        ]);
       } else if (target === "kiro-ide" || target === "kiro-cli") {
         // Kiro's standalone hooks format, shared by the IDE and by CLI 3.0:
         // a `{ version: "v1", hooks: [...] }` envelope with one entry per hook.

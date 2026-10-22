@@ -114,21 +114,173 @@ describe("XumMcp", () => {
     });
   });
 
-  it("should skip websocket servers and warn about env it cannot express", async () => {
+  it("should skip websocket servers and warn about cwd it cannot express", async () => {
     const logger = createMockLogger();
     const xum = await XumMcp.fromRulesyncMcp({
       outputRoot: testDir,
       rulesyncMcp: makeRulesyncMcp({
         ws: { type: "ws", url: "wss://example.com/ws" },
-        withEnv: { command: "server", env: { TOKEN: "x" } },
+        withCwd: { command: "server", cwd: "/srv" },
       }),
       logger,
     });
 
-    expect(parseJsonc(xum.getFileContent())).toEqual({ servers: { withEnv: "server" } });
+    expect(parseJsonc(xum.getFileContent())).toEqual({ servers: { withCwd: "server" } });
     const warnings = logger.warn.mock.calls.map(([message]) => String(message));
     expect(warnings.some((message) => message.includes('"ws"'))).toBe(true);
-    expect(warnings.some((message) => message.includes("env"))).toBe(true);
+    expect(warnings.some((message) => message.includes("cwd"))).toBe(true);
+  });
+
+  it("should prefix stdio commands with shell-quoted env assignments", async () => {
+    const logger = createMockLogger();
+    const xum = await XumMcp.fromRulesyncMcp({
+      outputRoot: testDir,
+      rulesyncMcp: makeRulesyncMcp({
+        plain: { command: "npx", args: ["-y", "srv"], env: { FOO: "bar" } },
+        quoted: {
+          command: "server",
+          env: { GREETING: "it's $HOME; rm -rf /", AUTH: "Bearer ${TOKEN}", EMPTY: "" },
+        },
+        off: { command: "off-server", env: { FOO: "bar" }, disabled: true },
+        badName: { command: "server", env: { "BAD-NAME": "x", OK: "1" } },
+      }),
+      logger,
+    });
+
+    expect(parseJsonc(xum.getFileContent())).toEqual({
+      servers: {
+        plain: "FOO=bar npx -y srv",
+        quoted: `GREETING='it'\\''s $HOME; rm -rf /' AUTH='Bearer '"\${TOKEN}" EMPTY='' server`,
+        off: { command: "FOO=bar off-server", disabled: true },
+        badName: "OK=1 server",
+      },
+    });
+    const warnings = logger.warn.mock.calls.map(([message]) => String(message));
+    expect(warnings.some((message) => message.includes("BAD-NAME"))).toBe(true);
+    expect(warnings.some((message) => message.includes("FOO"))).toBe(false);
+  });
+
+  it("should drop env with a warning when a prefix would not reach the server", async () => {
+    const logger = createMockLogger();
+    const xum = await XumMcp.fromRulesyncMcp({
+      outputRoot: testDir,
+      rulesyncMcp: makeRulesyncMcp({
+        list: { command: "cd x && srv", env: { A: "1" } },
+        parenGroup: { command: "( srv )", env: { A: "1" } },
+        group: { command: "{ srv; }", env: { A: "1" } },
+        multiline: { command: "srv\nother", env: { A: "1" } },
+        reserved: { command: "if true; then srv; fi", env: { A: "1" } },
+        reservedArgv: { command: ["time", "srv"], env: { A: "1" } },
+        quotedArg: { command: ["srv"], args: ["a;b"], env: { A: "1" } },
+        quotedString: { command: "node -e 'a;b'", env: { A: "1" } },
+        unclosedQuote: { command: "srv 'a", env: { A: "1" } },
+        noEnv: { command: "cd x && srv" },
+      }),
+      logger,
+    });
+
+    expect(parseJsonc(xum.getFileContent())).toEqual({
+      servers: {
+        list: "cd x && srv",
+        parenGroup: "( srv )",
+        group: "{ srv; }",
+        multiline: "srv\nother",
+        reserved: "if true; then srv; fi",
+        reservedArgv: "time srv",
+        quotedArg: "A=1 srv 'a;b'",
+        quotedString: "A=1 node -e 'a;b'",
+        unclosedQuote: "srv 'a",
+        noEnv: "cd x && srv",
+      },
+    });
+    const warnings = logger.warn.mock.calls.map(([message]) => String(message));
+    for (const name of [
+      "list",
+      "parenGroup",
+      "group",
+      "multiline",
+      "reserved",
+      "reservedArgv",
+      "unclosedQuote",
+    ]) {
+      expect(warnings.some((message) => message.includes(`"${name}" sets env, but`))).toBe(true);
+    }
+    expect(warnings.some((message) => message.includes('"quotedArg"'))).toBe(false);
+    expect(warnings.some((message) => message.includes('"quotedString"'))).toBe(false);
+    expect(warnings.some((message) => message.includes('"noEnv"'))).toBe(false);
+  });
+
+  it("should warn separately about unassignable names and non-string values", async () => {
+    const logger = createMockLogger();
+    const xum = await XumMcp.fromRulesyncMcp({
+      outputRoot: testDir,
+      rulesyncMcp: {
+        getMcpServers: () => ({
+          srv: { command: "srv", env: { "BAD-NAME": "x", NUM: 1, OK: "1" } },
+        }),
+      } as never,
+      logger,
+    });
+
+    expect(parseJsonc(xum.getFileContent())).toEqual({ servers: { srv: "OK=1 srv" } });
+    const warnings = logger.warn.mock.calls.map(([message]) => String(message));
+    expect(
+      warnings.some((message) => message.includes("BAD-NAME") && message.includes("variable name")),
+    ).toBe(true);
+    expect(
+      warnings.some((message) => message.includes("NUM") && message.includes("not a string")),
+    ).toBe(true);
+  });
+
+  it("should round-trip env written as an assignment prefix", async () => {
+    const env = {
+      GREETING: "it's $HOME; rm -rf /",
+      AUTH: "Bearer ${TOKEN}",
+      EMPTY: "",
+      FOO: "a=b",
+    };
+    const generated = await XumMcp.fromRulesyncMcp({
+      outputRoot: testDir,
+      rulesyncMcp: makeRulesyncMcp({
+        srv: { command: "npx", args: ["-y", "srv"], env },
+        withOperatorArg: { command: "srv", args: ["a;b", '{"a":1}'], env: { A: "1" } },
+      }),
+    });
+    await writeFileContent(join(testDir, ".xum", "mcp.jsonc"), generated.getFileContent());
+
+    const imported = await XumMcp.fromFile({ outputRoot: testDir });
+
+    expect(imported.toRulesyncMcp().getMcpServers()).toEqual({
+      srv: { command: "npx", args: ["-y", "srv"], env },
+      withOperatorArg: { command: "srv 'a;b' '{\"a\":1}'", env: { A: "1" } },
+    });
+  });
+
+  it("should keep a command string whole when its assignment prefix is not in the shape rulesync writes", async () => {
+    await writeFileContent(
+      join(testDir, ".xum", "mcp.jsonc"),
+      JSON.stringify({
+        servers: {
+          github:
+            'GITHUB_PERSONAL_ACCESS_TOKEN="$(cat ~/.config/github-mcp/token)" docker run -i --rm -e GITHUB_PERSONAL_ACCESS_TOKEN ghcr.io/github/github-mcp-server',
+          onlyAssignment: "FOO=bar",
+          newline: "FOO=bar\nsrv",
+          list: "FOO=bar cd x && srv",
+        },
+      }),
+    );
+
+    const xum = await XumMcp.fromFile({ outputRoot: testDir });
+
+    expect(xum.toRulesyncMcp().getMcpServers()).toEqual({
+      github: {
+        command:
+          'GITHUB_PERSONAL_ACCESS_TOKEN="$(cat ~/.config/github-mcp/token)" docker run -i --rm -e GITHUB_PERSONAL_ACCESS_TOKEN ghcr.io/github/github-mcp-server',
+      },
+      onlyAssignment: { command: "FOO=bar" },
+      newline: { command: "FOO=bar\nsrv" },
+      list: { command: "FOO=bar cd x && srv" },
+    });
   });
 
   it("should keep other top-level keys such as enabledPluginServers", async () => {

@@ -1,0 +1,486 @@
+import {
+  AUGMENTCODE_DIR,
+  AUGMENTCODE_SETTINGS_LOCAL_FILE_NAME,
+} from "../constants/augmentcode-paths.js";
+import {
+  CLAUDECODE_AGENT_MEMORY_LOCAL_DIR_NAME,
+  CLAUDECODE_DIR,
+  CLAUDECODE_LOCAL_RULE_FILE_NAME,
+  CLAUDECODE_MEMORIES_DIR_NAME,
+  CLAUDECODE_SETTINGS_LOCAL_FILE_NAME,
+} from "../constants/claudecode-paths.js";
+import { CODEBUDDY_DIR, CODEBUDDY_LOCAL_RULE_FILE_NAME } from "../constants/codebuddy-paths.js";
+import { CODEXCLI_BASH_RULES_FILE_NAME, CODEXCLI_DIR } from "../constants/codexcli-paths.js";
+import {
+  COMMANDCODE_DIR,
+  COMMANDCODE_SETTINGS_LOCAL_FILE_NAME,
+} from "../constants/commandcode-paths.js";
+import { CRUSH_LOCAL_RULE_FILE_NAME } from "../constants/crush-paths.js";
+import {
+  FACTORYDROID_DIR,
+  FACTORYDROID_SETTINGS_LOCAL_FILE_NAME,
+} from "../constants/factorydroid-paths.js";
+import { LETTACODE_DIR, LETTACODE_SETTINGS_LOCAL_FILE_NAME } from "../constants/lettacode-paths.js";
+import { QWENCODE_DIR, QWENCODE_LOCAL_RULE_FILE_NAME } from "../constants/qwencode-paths.js";
+import { REASONIX_LOCAL_RULE_FILE_NAME } from "../constants/reasonix-paths.js";
+import {
+  RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH,
+  RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH,
+} from "../constants/rulesync-paths.js";
+import {
+  ALL_FEATURES_WITH_WILDCARD,
+  type Feature,
+  type RulesyncFeatures,
+} from "../types/features.js";
+import { ALL_TOOL_TARGETS_WITH_WILDCARD, PACKAGING_TOOL_TARGETS } from "../types/tool-targets.js";
+import type { Logger } from "../utils/logger.js";
+import {
+  deriveAllGitignoreEntries,
+  type GitignoreEntryTag,
+  type GitignoreEntryTarget,
+} from "./gitignore-derive.js";
+
+const normalizeGitignoreEntryTargets = (
+  target: GitignoreEntryTag["target"],
+): ReadonlyArray<GitignoreEntryTarget> => {
+  return typeof target === "string" ? [target] : target;
+};
+
+// Hand-maintained entries that are NOT derivable from any tool's
+// getSettablePaths, because they are not rulesync-owned generated outputs:
+//   - rulesync's own meta files (`.rulesync/**`, `rulesync.local.jsonc`, the
+//     `AGENTS.local.md` / `CLAUDE.local.md` local-root files, the `.aiignore`
+//     un-ignore exception)
+//   - third-party tool by-products rulesync never writes but gitignores as a
+//     convenience (`.claude/*.lock`, `.takt/runs/`, lock files, …)
+//   - the `.codexignore` ghost (codexcli has no ignore processor)
+// Everything a tool actually emits is derived below from getSettablePaths.
+export const HAND_MAINTAINED_GITIGNORE_ENTRIES: ReadonlyArray<GitignoreEntryTag> = [
+  // rulesync's own meta files (common scope).
+  {
+    target: "common",
+    feature: "general",
+    entry: `${RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH}/`,
+  },
+  {
+    target: "common",
+    feature: "general",
+    entry: `${RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH}/`,
+  },
+  { target: "common", feature: "general", entry: ".rulesync/rules/*.local.md" },
+  { target: "common", feature: "general", entry: "rulesync.local.jsonc" },
+  // The conventional per-developer overlay source tree. The multi-root guide
+  // describes it as untracked, so ignoring it keeps that promise by default;
+  // a team that does want to commit it can un-ignore it locally.
+  { target: "common", feature: "general", entry: ".rulesync.local/" },
+  // AGENTS.local.md is placed in common scope (not rovodev-only) so that
+  // local rule files are always gitignored regardless of which targets are enabled.
+  { target: "common", feature: "general", entry: "**/AGENTS.local.md" },
+
+  // Local-root rule files: materialized outside getSettablePaths.
+  { target: "claudecode", feature: "rules", entry: `**/${CLAUDECODE_LOCAL_RULE_FILE_NAME}` },
+  // Qwen Code's personal project context file (v0.16.2): emitted for localRoot
+  // rules but must not be committed (Qwen Code does not gitignore it itself).
+  {
+    target: "qwencode",
+    feature: "rules",
+    entry: `**/${QWENCODE_DIR}/${QWENCODE_LOCAL_RULE_FILE_NAME}`,
+  },
+  {
+    target: "claudecode",
+    feature: "rules",
+    entry: `**/${CLAUDECODE_DIR}/${CLAUDECODE_LOCAL_RULE_FILE_NAME}`,
+  },
+  // CodeBuddy Code's personal project memory file, mirroring Claude Code's
+  // CLAUDE.local.md convention: materialized outside getSettablePaths for the
+  // "separate-local-file" localRootMode, at both the project root and the
+  // `.codebuddy/` alternative root.
+  { target: "codebuddy", feature: "rules", entry: `**/${CODEBUDDY_LOCAL_RULE_FILE_NAME}` },
+  {
+    target: "codebuddy",
+    feature: "rules",
+    entry: `**/${CODEBUDDY_DIR}/${CODEBUDDY_LOCAL_RULE_FILE_NAME}`,
+  },
+  // Crush's personal project context file. Unlike CodeBuddy Code, Crush does
+  // not add it to `.gitignore` itself, so the derived list has to.
+  { target: "crush", feature: "rules", entry: `**/${CRUSH_LOCAL_RULE_FILE_NAME}` },
+  { target: "reasonix", feature: "rules", entry: `**/${REASONIX_LOCAL_RULE_FILE_NAME}` },
+
+  // Vibe subagent system prompts: written by the subagents feature next to the
+  // agent TOML, but outside `getSettablePaths` (which names only
+  // `.vibe/agents/`), so the derived list does not cover them.
+  { target: "vibe", feature: "subagents", entry: "**/.vibe/prompts/" },
+
+  // Third-party tool by-products rulesync gitignores but never writes itself.
+  { target: "claudecode", feature: "general", entry: `**/${CLAUDECODE_DIR}/*.lock` },
+  {
+    target: "claudecode",
+    feature: "general",
+    entry: `**/${CLAUDECODE_DIR}/${CLAUDECODE_SETTINGS_LOCAL_FILE_NAME}`,
+  },
+  {
+    target: "claudecode",
+    feature: "general",
+    entry: `**/${CLAUDECODE_DIR}/${CLAUDECODE_MEMORIES_DIR_NAME}/`,
+  },
+  // Memory of a subagent with `memory: local`, which Claude Code documents as
+  // not checked into version control. `memory: project` (`.claude/agent-memory/`)
+  // is meant to be committed, so it is deliberately not listed.
+  {
+    target: "claudecode",
+    feature: "general",
+    entry: `**/${CLAUDECODE_DIR}/${CLAUDECODE_AGENT_MEMORY_LOCAL_DIR_NAME}/`,
+  },
+  { target: "opencode", feature: "general", entry: "**/.opencode/package-lock.json" },
+  // Devin's personal MCP override (documented as gitignored; never emitted by
+  // rulesync). https://docs.devin.ai/cli/extensibility/mcp/configuration
+  { target: "devin", feature: "mcp", entry: "**/.devin/mcp_config.local.json" },
+  // Factory Droid's personal settings overlay. Rulesync reads it when importing
+  // permissions and hooks, so a repository is likely to have one, but Factory
+  // documents it as machine-local and rulesync never writes it.
+  // https://docs.factory.ai/droid-cli/settings
+  {
+    target: "factorydroid",
+    feature: "general",
+    entry: `**/${FACTORYDROID_DIR}/${FACTORYDROID_SETTINGS_LOCAL_FILE_NAME}`,
+  },
+  // AugmentCode's personal settings overlay, read on import for the same reason
+  // and documented the same way as Factory Droid's above.
+  // https://docs.augmentcode.com/cli/configuration
+  {
+    target: "augmentcode",
+    feature: "general",
+    entry: `**/${AUGMENTCODE_DIR}/${AUGMENTCODE_SETTINGS_LOCAL_FILE_NAME}`,
+  },
+  // Command Code's personal settings overlay, documented as "personal,
+  // gitignored" (`--local` approvals are written there); never emitted by
+  // rulesync. https://commandcode.ai/docs/permissions
+  {
+    target: "commandcode",
+    feature: "general",
+    entry: `**/${COMMANDCODE_DIR}/${COMMANDCODE_SETTINGS_LOCAL_FILE_NAME}`,
+  },
+  // Letta Code's personal project settings, documented as "personal,
+  // gitignored"; never emitted by rulesync.
+  // https://docs.letta.com/reference/settings/index.md
+  {
+    target: "lettacode",
+    feature: "general",
+    entry: `**/${LETTACODE_DIR}/${LETTACODE_SETTINGS_LOCAL_FILE_NAME}`,
+  },
+  { target: "rovodev", feature: "general", entry: "**/.rovodev/.rulesync/" },
+  // Qwen Code's per-run by-products under the project `.qwen/`, which Qwen Code
+  // never gitignores itself: the `/review` cache (its docs tell users to ignore
+  // it), saved review reports, the `/review` scratch worktrees and findings
+  // under `tmp/`, and the fixed `<repoRoot>/.qwen/worktrees/` location of
+  // general-purpose and agent worktrees. Listed per path rather than as `.qwen/`
+  // so the committed config there (and `.qwen/team-memory/`) stays trackable.
+  // https://qwenlm.github.io/qwen-code-docs/en/users/features/code-review/
+  // https://qwenlm.github.io/qwen-code-docs/en/users/features/worktree/
+  { target: "qwencode", feature: "general", entry: `**/${QWENCODE_DIR}/review-cache/` },
+  { target: "qwencode", feature: "general", entry: `**/${QWENCODE_DIR}/reviews/` },
+  { target: "qwencode", feature: "general", entry: `**/${QWENCODE_DIR}/tmp/` },
+  { target: "qwencode", feature: "general", entry: `**/${QWENCODE_DIR}/worktrees/` },
+  { target: "takt", feature: "general", entry: "**/.takt/runs/" },
+  { target: "takt", feature: "general", entry: "**/.takt/tasks/" },
+  { target: "takt", feature: "general", entry: "**/.takt/.cache/" },
+  // `takt make` (0.64.0) keeps every Workflow Maker run under
+  // `.takt/make/<timestamp>/`, and completed and failed runs are never removed.
+  { target: "takt", feature: "general", entry: "**/.takt/make/" },
+  { target: "takt", feature: "general", entry: "**/.takt/config.yaml" },
+  // Meta Muse Code's subagent worktrees: `--subagent-worktree-isolation` checks
+  // each child agent out into a repo-relative `.muse/worktrees/<child>` git
+  // worktree, and the documented `cleanup_policy: remove_if_clean` removes one
+  // only while it is clean, so a worktree with uncommitted work stays in the
+  // checkout. Only the worktree
+  // directory is ignored, not `.muse/` as a whole: `.muse/hooks.json` is
+  // committed project config.
+  // https://dev.meta.ai/docs/cookbook/subagent-fanout
+  { target: "musecode", feature: "general", entry: "**/.muse/worktrees/" },
+
+  // Vibe Code's plugin data root: a plugin installed under the project's
+  // `.vibe/plugins/<name>/` gets its data root from
+  // `root.parent.parent / "plugin-data"` whenever no `data_root_base` override
+  // is supplied — and the session-open path, `PluginResolver.from_harness_files`,
+  // supplies none — so a project plugin materializes into
+  // `<project>/.vibe/plugin-data/<plugin>/`. It holds generated knowledge
+  // documents and vendored `libraries/` dependencies (node_modules, Python
+  // packages), all written by Vibe rather than by rulesync. Only that directory
+  // is ignored, not `.vibe/` as a whole, which carries committed project config.
+  // https://github.com/mistralai/mistral-vibe/blob/v2.25.0/vibe/core/plugins/_native.py
+  { target: "vibe", feature: "general", entry: "**/.vibe/plugin-data/" },
+
+  // Augment Code's legacy single-file rules path: accepted on import but never
+  // generated (so not in getSettablePaths), gitignored as a convenience.
+  { target: "augmentcode", feature: "rules", entry: "**/.augment-guidelines" },
+
+  // Devin's legacy Windsurf-era workflows directory: commands are now emitted
+  // onto the skills surface, but outputs generated by earlier rulesync versions
+  // may still exist there, so keep them gitignored as a convenience.
+  { target: "devin", feature: "commands", entry: "**/.devin/workflows/" },
+
+  // Antigravity commands are emitted onto the shared `.agents/skills/` surface
+  // (workflows are retired), while their settable paths still point at the
+  // legacy workflows directory for import and cleanup, so the derived entries
+  // would miss the generated skills under the commands feature.
+  // https://antigravity.google/docs/migration/workflows-to-skills
+  { target: "antigravity-ide", feature: "commands", entry: "**/.agents/skills/" },
+  { target: "antigravity-cli", feature: "commands", entry: "**/.agents/skills/" },
+
+  // Junie's undocumented memories directory: non-root rules are now folded
+  // into the root `.junie/AGENTS.md`, but outputs generated by earlier
+  // rulesync versions may still exist there, so keep them gitignored.
+  { target: "junie", feature: "rules", entry: "**/.junie/memories/" },
+
+  // Goose retired `.gooseignore` upstream (removed "in favour of gitignore
+  // etc"), so rulesync no longer generates it — but outputs from earlier
+  // versions may still exist, so keep them gitignored.
+  { target: "goose", feature: "ignore", entry: "**/.gooseignore" },
+
+  // Goose subagents moved from the inert sub-recipe YAML surface to the
+  // custom-agent Markdown surface; outputs generated by earlier rulesync
+  // versions may still exist under the old directory, so keep them gitignored.
+  { target: "goose", feature: "subagents", entry: "**/.goose/recipes/subagents/" },
+
+  // AGENTS.md subagents moved from `.agents/subagents/` — a directory no
+  // documented client reads — to the cross-vendor `.agents/agents/` root that
+  // AGENTS.md-era clients actually scan; outputs generated by earlier rulesync
+  // versions may still exist under the old directory, so keep them gitignored.
+  { target: "agentsmd", feature: "subagents", entry: "**/.agents/subagents/" },
+
+  // Junie's allowlist is user-scope only (`~/.junie/allowlist.json`), so the
+  // project path left getSettablePaths — but earlier rulesync versions wrote a
+  // project `.junie/allowlist.json` Junie never reads, so keep those stale
+  // outputs gitignored.
+  { target: "junie", feature: "permissions", entry: "**/.junie/allowlist.json" },
+
+  // Shared trees and global-scope outputs not produced via project getSettablePaths.
+  { target: "rovodev", feature: "skills", entry: "**/.agents/skills/" },
+  // The `prompts.yml` manifest is produced via `RovodevCommand.getAuxiliaryFiles`,
+  // not `getSettablePaths` (only the sibling `.rovodev/prompts/` content-file
+  // directory is derived automatically), so it needs a hand-maintained entry.
+  { target: "rovodev", feature: "commands", entry: "**/.rovodev/prompts.yml" },
+  { target: "devin", feature: "skills", entry: "**/.config/devin/skills/" },
+  { target: "copilotcli", feature: "subagents", entry: "**/.copilot/agents/" },
+  { target: "copilotcli", feature: "mcp", entry: "**/.copilot/mcp-config.json" },
+  { target: "copilotcli", feature: "hooks", entry: "**/.copilot/hooks/" },
+  // Hermes project plugins include generated Python/manifest/ownership files
+  // alongside the primary patterns/check specs exposed by getSettablePaths.
+  { target: "hermesagent", feature: "ignore", entry: "**/.hermes/plugins/rulesync-ignore/" },
+  { target: "hermesagent", feature: "checks", entry: "**/.hermes/plugins/rulesync-checks/" },
+
+  // Cline's hook scripts are produced via `ClineHooks.getAuxiliaryFiles`, not
+  // `getSettablePaths` (which only exposes the manifest), and their names are
+  // fixed by the two runtimes that read the hooks directory: the VS Code
+  // extension's `VALID_HOOK_TYPES` and the SDK/CLI's `HookConfigFileName`. This
+  // list is the union rulesync emits, mirroring `CANONICAL_TO_CLINE_EVENT_NAMES`.
+  // They are listed one by one rather than as a directory so a hand-authored
+  // hook in the same directory — one rulesync deliberately never manages —
+  // stays tracked.
+  { target: "cline", feature: "hooks", entry: "**/.clinerules/hooks/Notification" },
+  { target: "cline", feature: "hooks", entry: "**/.clinerules/hooks/Notification.ps1" },
+  { target: "cline", feature: "hooks", entry: "**/.clinerules/hooks/PostToolUse" },
+  { target: "cline", feature: "hooks", entry: "**/.clinerules/hooks/PostToolUse.ps1" },
+  { target: "cline", feature: "hooks", entry: "**/.clinerules/hooks/PreCompact" },
+  { target: "cline", feature: "hooks", entry: "**/.clinerules/hooks/PreCompact.ps1" },
+  { target: "cline", feature: "hooks", entry: "**/.clinerules/hooks/PreToolUse" },
+  { target: "cline", feature: "hooks", entry: "**/.clinerules/hooks/PreToolUse.ps1" },
+  { target: "cline", feature: "hooks", entry: "**/.clinerules/hooks/SessionShutdown" },
+  { target: "cline", feature: "hooks", entry: "**/.clinerules/hooks/SessionShutdown.ps1" },
+  { target: "cline", feature: "hooks", entry: "**/.clinerules/hooks/TaskCancel" },
+  { target: "cline", feature: "hooks", entry: "**/.clinerules/hooks/TaskCancel.ps1" },
+  { target: "cline", feature: "hooks", entry: "**/.clinerules/hooks/TaskComplete" },
+  { target: "cline", feature: "hooks", entry: "**/.clinerules/hooks/TaskComplete.ps1" },
+  { target: "cline", feature: "hooks", entry: "**/.clinerules/hooks/TaskError" },
+  { target: "cline", feature: "hooks", entry: "**/.clinerules/hooks/TaskError.ps1" },
+  { target: "cline", feature: "hooks", entry: "**/.clinerules/hooks/TaskStart" },
+  { target: "cline", feature: "hooks", entry: "**/.clinerules/hooks/TaskStart.ps1" },
+  { target: "cline", feature: "hooks", entry: "**/.clinerules/hooks/UserPromptSubmit" },
+  { target: "cline", feature: "hooks", entry: "**/.clinerules/hooks/UserPromptSubmit.ps1" },
+
+  // Roo aggregates subagents into a single `.roomodes` file (no settable path).
+  { target: "roo", feature: "subagents", entry: "**/.roomodes" },
+
+  // codexcli has no ignore processor; its `.codexignore` is a ghost entry.
+  { target: "codexcli", feature: "ignore", entry: "**/.codexignore" },
+
+  // Codex CLI's `rulesync.rules` bash-permission file is produced by
+  // `createCodexcliBashRulesFile` in codexcli-permissions.ts. That file is
+  // written outside `getSettablePaths`, so it is not derived automatically and
+  // needs a hand-maintained entry. Only the single rulesync-owned file is
+  // ignored: `.codex/rules/` is a general Codex rules location where users can
+  // hand-author their own `*.rules` files that should stay version-controlled.
+  {
+    target: "codexcli",
+    feature: "permissions",
+    entry: `**/${CODEXCLI_DIR}/rules/${CODEXCLI_BASH_RULES_FILE_NAME}`,
+  },
+];
+
+export const GITIGNORE_ENTRY_REGISTRY: ReadonlyArray<GitignoreEntryTag> = [
+  ...HAND_MAINTAINED_GITIGNORE_ENTRIES,
+
+  // Every entry a tool actually emits, derived from its getSettablePaths.
+  ...deriveAllGitignoreEntries(),
+
+  // Keep this after ignore entries like Junie's "**/.aiignore" so the exception remains effective.
+  { target: "common", feature: "general", entry: "!.rulesync/.aiignore" },
+];
+
+/**
+ * Entries an older rulesync wrote that this one no longer emits, each paired
+ * with the entry that took its place. They are still recognized so `rulesync
+ * gitignore` can take the old spelling back out of the file it manages.
+ *
+ * Leaving one behind is not harmless. A bare `.factory/skills/` directory
+ * pattern ignores the directory itself, and git never descends into an ignored
+ * directory — so the widened contents pattern and the negations that re-include
+ * the committed Factory Droid checks file would all be dead letters, and the
+ * reviewer would never see a file rulesync writes on every generate.
+ */
+export const RETIRED_GITIGNORE_ENTRIES: ReadonlyArray<{
+  readonly entry: string;
+  readonly replacedBy: string;
+}> = [
+  {
+    entry: `**/${FACTORYDROID_DIR}/skills/`,
+    replacedBy: `**/${FACTORYDROID_DIR}/skills/**`,
+  },
+];
+
+export const ALL_GITIGNORE_ENTRIES: ReadonlyArray<string> = (() => {
+  // The registry may register the SAME entry under multiple feature tags
+  // The exported default list excludes opt-in packaging targets and dedupes
+  // while preserving the original insertion order.
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const tag of GITIGNORE_ENTRY_REGISTRY) {
+    const targets = normalizeGitignoreEntryTargets(tag.target);
+    const isPackagingOnly = targets.every((target) =>
+      PACKAGING_TOOL_TARGETS.includes(target as (typeof PACKAGING_TOOL_TARGETS)[number]),
+    );
+    if (isPackagingOnly) continue;
+    if (seen.has(tag.entry)) continue;
+    seen.add(tag.entry);
+    result.push(tag.entry);
+  }
+  return result;
+})();
+
+type FilterGitignoreEntriesParams = {
+  readonly targets?: ReadonlyArray<string>;
+  readonly features?: RulesyncFeatures;
+};
+
+export type ResolvedGitignoreEntry = {
+  readonly entry: string;
+  readonly target: ReadonlyArray<GitignoreEntryTarget>;
+  readonly feature: Feature | "general";
+};
+
+const isTargetSelected = (
+  target: GitignoreEntryTag["target"],
+  selectedTargets: ReadonlyArray<string> | undefined,
+): boolean => {
+  const targets = normalizeGitignoreEntryTargets(target);
+
+  if (targets.includes("common")) return true;
+  if (!selectedTargets || selectedTargets.length === 0 || selectedTargets.includes("*")) {
+    return targets.some(
+      (candidate) =>
+        selectedTargets?.includes(candidate) ||
+        !PACKAGING_TOOL_TARGETS.includes(candidate as (typeof PACKAGING_TOOL_TARGETS)[number]),
+    );
+  }
+  return targets.some((candidate) => selectedTargets.includes(candidate));
+};
+
+const getSelectedGitignoreEntryTargets = (
+  target: GitignoreEntryTag["target"],
+  selectedTargets: ReadonlyArray<string> | undefined,
+): ReadonlyArray<GitignoreEntryTarget> => {
+  const targets = normalizeGitignoreEntryTargets(target);
+
+  if (targets.includes("common")) return ["common"];
+  if (!selectedTargets || selectedTargets.length === 0 || selectedTargets.includes("*")) {
+    return targets.filter(
+      (candidate) =>
+        selectedTargets?.includes(candidate) ||
+        !PACKAGING_TOOL_TARGETS.includes(candidate as (typeof PACKAGING_TOOL_TARGETS)[number]),
+    );
+  }
+
+  return targets.filter((candidate) => selectedTargets.includes(candidate));
+};
+
+const isFeatureSelected = (
+  feature: Feature | "general",
+  features: RulesyncFeatures | undefined,
+): boolean => {
+  if (feature === "general") return true;
+  if (!features) return true;
+  if (features.length === 0) return true;
+  if (features.includes("*")) return true;
+  return features.includes(feature);
+};
+
+const warnInvalidTargets = (targets: ReadonlyArray<string>, logger?: Logger): void => {
+  const validTargets = new Set<string>(ALL_TOOL_TARGETS_WITH_WILDCARD);
+  for (const target of targets) {
+    if (!validTargets.has(target)) {
+      logger?.warn(
+        `Unknown target '${target}'. Valid targets: ${ALL_TOOL_TARGETS_WITH_WILDCARD.join(", ")}`,
+      );
+    }
+  }
+};
+
+const warnInvalidFeatures = (features: RulesyncFeatures, logger?: Logger): void => {
+  const validFeatures = new Set<string>(ALL_FEATURES_WITH_WILDCARD);
+  const warned = new Set<string>();
+  for (const feature of features) {
+    if (!validFeatures.has(feature) && !warned.has(feature)) {
+      warned.add(feature);
+      logger?.warn(
+        `Unknown feature '${feature}'. Valid features: ${ALL_FEATURES_WITH_WILDCARD.join(", ")}`,
+      );
+    }
+  }
+};
+
+export const filterGitignoreEntries = (
+  params?: FilterGitignoreEntriesParams & { logger?: Logger },
+): string[] => {
+  return resolveGitignoreEntries(params).map((entry) => entry.entry);
+};
+
+export const resolveGitignoreEntries = (
+  params?: FilterGitignoreEntriesParams & { logger?: Logger },
+): ResolvedGitignoreEntry[] => {
+  const { targets, features, logger } = params ?? {};
+
+  if (targets && targets.length > 0) {
+    warnInvalidTargets(targets, logger);
+  }
+  if (features) {
+    warnInvalidFeatures(features, logger);
+  }
+
+  const seen = new Set<string>();
+  const result: ResolvedGitignoreEntry[] = [];
+
+  for (const tag of GITIGNORE_ENTRY_REGISTRY) {
+    if (!isTargetSelected(tag.target, targets)) continue;
+    const selectedTagTargets = getSelectedGitignoreEntryTargets(tag.target, targets);
+    if (!isFeatureSelected(tag.feature, features)) continue;
+    if (seen.has(tag.entry)) continue;
+    seen.add(tag.entry);
+    result.push({
+      entry: tag.entry,
+      target: selectedTagTargets,
+      feature: tag.feature,
+    });
+  }
+
+  return result;
+};

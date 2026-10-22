@@ -171,7 +171,7 @@ export const McpServerSchema = z.looseObject({
   // ZCode-specific: the per-server `oauth` ZCode runs for an http/sse server,
   // `{ type: "client_credentials", clientId, clientSecret, clientName?, scope? }`
   // or `{ type: "authorization_code", clientId?, clientSecret?, clientName?,
-  // redirectPath?, scope? }` (read off the 3.14.3/3.15.3 runtime schema).
+  // redirectPath?, scope? }` (read off the 3.14.3–3.16.2 runtime schema).
   // Written as `oauth` by `zcode-mcp.ts` and stripped by
   // `RulesyncMcp.getMcpServers()`, like the `crush*` OAuth keys: the client
   // secret must not be copied into every other tool's config, and the
