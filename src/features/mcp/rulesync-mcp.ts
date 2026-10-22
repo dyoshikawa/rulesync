@@ -70,7 +70,9 @@ const toolScopedMcpSchema = z.looseObject({
  * MCP server, including ones rulesync did not write, and (Kimi Code 2.3.0)
  * `defaultDeferred`, which loads every server's tools on demand unless the
  * server opts out. Per-server `startupTimeoutMs` / `toolTimeoutMs` / `deferred`
- * in `mcpServers` still win.
+ * in `mcpServers` still win. `defaultDeferred` only takes effect when Kimi's
+ * experimental `tool-select` flag is on, and is captured when a server connects
+ * (MoonshotAI/kimi-code#4210).
  *
  * @see https://moonshotai.github.io/kimi-code/en/configuration/config-files.html#mcp
  */

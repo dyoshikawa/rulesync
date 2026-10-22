@@ -212,8 +212,11 @@ export type KimiCodeMcpDefaults = {
   toolTimeoutMs?: number;
   /**
    * `[mcp] default_deferred` (Kimi Code 2.3.0): load every server's tools on
-   * demand unless the server sets `deferred: false` in `mcp.json`.
+   * demand unless the server sets `deferred: false` in `mcp.json`. Only takes
+   * effect when Kimi's experimental `tool-select` flag is on, and is captured
+   * when a server connects (a change applies after reconnect or restart).
    * @see https://github.com/MoonshotAI/kimi-code/pull/4210
+   * @see https://moonshotai.github.io/kimi-code/en/customization/mcp.html
    */
   defaultDeferred?: boolean;
 };
