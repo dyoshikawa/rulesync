@@ -86,32 +86,94 @@ function quoteEnvValue(value: string): string {
 
 /**
  * Build the `NAME=value ` prefix that sets a stdio server's `env` for its
- * command only (Xum runs the command string with bash). Returns the prefix and
- * the names that cannot be bash assignment targets, which are left out.
+ * command only (Xum runs the command string with bash). Returns the prefix
+ * plus the entries left out: names that cannot be bash assignment targets and
+ * entries whose value is not a string.
  */
-function buildEnvPrefix(env: Record<string, string>): { prefix: string; invalidNames: string[] } {
+function buildEnvPrefix(env: Record<string, unknown>): {
+  prefix: string;
+  invalidNames: string[];
+  nonStringNames: string[];
+} {
   const assignments: string[] = [];
   const invalidNames: string[] = [];
+  const nonStringNames: string[] = [];
   for (const [name, value] of Object.entries(env)) {
     if (PROTOTYPE_POLLUTION_KEYS.has(name)) continue;
-    if (!SHELL_ENV_NAME.test(name) || typeof value !== "string") {
+    if (!SHELL_ENV_NAME.test(name)) {
       invalidNames.push(name);
+      continue;
+    }
+    if (typeof value !== "string") {
+      nonStringNames.push(name);
       continue;
     }
     assignments.push(`${name}=${quoteEnvValue(value)}`);
   }
-  return { prefix: assignments.map((assignment) => `${assignment} `).join(""), invalidNames };
+  return {
+    prefix: assignments.map((assignment) => `${assignment} `).join(""),
+    invalidNames,
+    nonStringNames,
+  };
+}
+
+// cspell:ignore coproc -- a bash reserved word
+/** Bash reserved words; a command starting with one cannot take an assignment prefix. */
+const BASH_RESERVED_WORDS = new Set([
+  "!",
+  "[[",
+  "]]",
+  "{",
+  "}",
+  "case",
+  "coproc",
+  "do",
+  "done",
+  "elif",
+  "else",
+  "esac",
+  "fi",
+  "for",
+  "function",
+  "if",
+  "in",
+  "select",
+  "then",
+  "time",
+  "until",
+  "while",
+]);
+
+/**
+ * Explain why a `NAME=value` prefix would not reach the server, or return
+ * `undefined` when it would. Bash applies such assignments to the first simple
+ * command only: with a list or pipeline (`cd x && srv`) the server would not
+ * see them, and in front of a group, parenthesized list or reserved word (`( srv )`,
+ * `{ srv; }`, `if ...`) they are a syntax error that keeps the server from
+ * starting. Only the verbatim `command` string is checked for operators;
+ * argv elements are quoted by {@link quoteShellWord}.
+ */
+function envPrefixBlocker(server: McpServer, baseCommand: string): string | undefined {
+  if (typeof server.command === "string" && /[;&|(){}\n]/.test(server.command)) {
+    return "its command string contains shell operators, grouping or a newline, so bash would not pass NAME=value assignments in front of it to the server";
+  }
+  const [firstWord] = baseCommand.trimStart().split(/\s+/);
+  if (firstWord !== undefined && BASH_RESERVED_WORDS.has(firstWord)) {
+    return `its command starts with the bash reserved word ${quoteValueForWarning(firstWord)}, which cannot follow NAME=value assignments`;
+  }
+  return undefined;
 }
 
 /**
  * One leading `NAME=value` assignment in exactly the shape {@link quoteEnvValue}
  * writes: bare shell-safe characters, single-quoted text (with the `'\''`
- * escape) and `"${VAR}"` references, followed by whitespace. Bare characters
+ * escape) and `"${VAR}"` references, followed by spaces or tabs (a newline
+ * would end the command, so the assignment would not apply to what follows). Bare characters
  * are matched one at a time, so every alternative starts with a distinct
  * character and the pattern cannot backtrack exponentially.
  */
 const LEADING_ENV_ASSIGNMENT =
-  /^([A-Za-z_][A-Za-z0-9_]*)=((?:[A-Za-z0-9_\-.,:/@%+=]|'[^']*'|\\'|"\$\{[A-Za-z_][A-Za-z0-9_]*\}")*)\s+/;
+  /^([A-Za-z_][A-Za-z0-9_]*)=((?:[A-Za-z0-9_\-.,:/@%+=]|'[^']*'|\\'|"\$\{[A-Za-z_][A-Za-z0-9_]*\}")*)[ \t]+/;
 
 /** Decode a value written by {@link quoteEnvValue} back into its canonical form. */
 function unquoteEnvValue(quoted: string): string {
@@ -122,8 +184,8 @@ function unquoteEnvValue(quoted: string): string {
 
 /**
  * Split leading `NAME=value` assignments off a command string, but only when
- * every one of them is in the shape rulesync writes and a command follows;
- * anything else (for example a `$(...)` substitution) keeps the whole string as
+ * every one of them is in the shape rulesync writes and a plain command
+ * follows (see {@link envPrefixBlocker}); anything else (for example a `$(...)` substitution) keeps the whole string as
  * the command.
  */
 function splitEnvPrefix(command: string): { env?: Record<string, string>; rest: string } {
@@ -140,7 +202,10 @@ function splitEnvPrefix(command: string): { env?: Record<string, string>; rest: 
   if (
     Object.keys(env).length === 0 ||
     rest.trim() === "" ||
-    /^[A-Za-z_][A-Za-z0-9_]*=/.test(rest)
+    /^[A-Za-z_][A-Za-z0-9_]*=/.test(rest) ||
+    // The assignments would not reach the whole command (or are a syntax
+    // error), and the writer never emits such a prefix, so keep it as authored.
+    envPrefixBlocker({ command: rest }, rest) !== undefined
   ) {
     return { rest: command };
   }
@@ -223,15 +288,30 @@ function convertServerToXum({
   // Xum runs the command string with bash, so `env` becomes `NAME=value`
   // assignments in front of it, which set each variable for this command only.
   let command = baseCommand;
-  if (isPlainObject(server.env)) {
-    const { prefix, invalidNames } = buildEnvPrefix(server.env);
-    command = `${prefix}${baseCommand}`;
-    if (invalidNames.length > 0) {
+  if (isPlainObject(server.env) && Object.keys(server.env).length > 0) {
+    const blocker = envPrefixBlocker(server, baseCommand);
+    if (blocker !== undefined) {
       warnWithFallback(
         logger,
-        `Xum MCP: ${quoteValueForWarning(name)} sets env ${invalidNames.map(quoteValueForWarning).join(", ")}, ` +
-          `which cannot be a bash variable assignment; the server is written without it.`,
+        `Xum MCP: ${quoteValueForWarning(name)} sets env, but ${blocker}; the server is written without env.`,
       );
+    } else {
+      const { prefix, invalidNames, nonStringNames } = buildEnvPrefix(server.env);
+      command = `${prefix}${baseCommand}`;
+      if (invalidNames.length > 0) {
+        warnWithFallback(
+          logger,
+          `Xum MCP: ${quoteValueForWarning(name)} sets env ${invalidNames.map(quoteValueForWarning).join(", ")}, ` +
+            `which cannot be a bash variable name; the server is written without it.`,
+        );
+      }
+      if (nonStringNames.length > 0) {
+        warnWithFallback(
+          logger,
+          `Xum MCP: ${quoteValueForWarning(name)} sets env ${nonStringNames.map(quoteValueForWarning).join(", ")} ` +
+            `to a value that is not a string; the server is written without it.`,
+        );
+      }
     }
   }
   if (typeof server.cwd === "string") {

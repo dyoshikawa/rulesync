@@ -160,6 +160,65 @@ describe("XumMcp", () => {
     expect(warnings.some((message) => message.includes("FOO"))).toBe(false);
   });
 
+  it("should drop env with a warning when a prefix would not reach the server", async () => {
+    const logger = createMockLogger();
+    const xum = await XumMcp.fromRulesyncMcp({
+      outputRoot: testDir,
+      rulesyncMcp: makeRulesyncMcp({
+        list: { command: "cd x && srv", env: { A: "1" } },
+        parenGroup: { command: "( srv )", env: { A: "1" } },
+        group: { command: "{ srv; }", env: { A: "1" } },
+        multiline: { command: "srv\nother", env: { A: "1" } },
+        reserved: { command: "if true; then srv; fi", env: { A: "1" } },
+        reservedArgv: { command: ["time", "srv"], env: { A: "1" } },
+        quotedArg: { command: ["srv"], args: ["a;b"], env: { A: "1" } },
+        noEnv: { command: "cd x && srv" },
+      }),
+      logger,
+    });
+
+    expect(parseJsonc(xum.getFileContent())).toEqual({
+      servers: {
+        list: "cd x && srv",
+        parenGroup: "( srv )",
+        group: "{ srv; }",
+        multiline: "srv\nother",
+        reserved: "if true; then srv; fi",
+        reservedArgv: "time srv",
+        quotedArg: "A=1 srv 'a;b'",
+        noEnv: "cd x && srv",
+      },
+    });
+    const warnings = logger.warn.mock.calls.map(([message]) => String(message));
+    for (const name of ["list", "parenGroup", "group", "multiline", "reserved", "reservedArgv"]) {
+      expect(warnings.some((message) => message.includes(`"${name}" sets env, but`))).toBe(true);
+    }
+    expect(warnings.some((message) => message.includes('"quotedArg"'))).toBe(false);
+    expect(warnings.some((message) => message.includes('"noEnv"'))).toBe(false);
+  });
+
+  it("should warn separately about unassignable names and non-string values", async () => {
+    const logger = createMockLogger();
+    const xum = await XumMcp.fromRulesyncMcp({
+      outputRoot: testDir,
+      rulesyncMcp: {
+        getMcpServers: () => ({
+          srv: { command: "srv", env: { "BAD-NAME": "x", NUM: 1, OK: "1" } },
+        }),
+      } as never,
+      logger,
+    });
+
+    expect(parseJsonc(xum.getFileContent())).toEqual({ servers: { srv: "OK=1 srv" } });
+    const warnings = logger.warn.mock.calls.map(([message]) => String(message));
+    expect(
+      warnings.some((message) => message.includes("BAD-NAME") && message.includes("variable name")),
+    ).toBe(true);
+    expect(
+      warnings.some((message) => message.includes("NUM") && message.includes("not a string")),
+    ).toBe(true);
+  });
+
   it("should round-trip env written as an assignment prefix", async () => {
     const env = {
       GREETING: "it's $HOME; rm -rf /",
@@ -188,6 +247,8 @@ describe("XumMcp", () => {
           github:
             'GITHUB_PERSONAL_ACCESS_TOKEN="$(cat ~/.config/github-mcp/token)" docker run -i --rm -e GITHUB_PERSONAL_ACCESS_TOKEN ghcr.io/github/github-mcp-server',
           onlyAssignment: "FOO=bar",
+          newline: "FOO=bar\nsrv",
+          list: "FOO=bar cd x && srv",
         },
       }),
     );
@@ -200,6 +261,8 @@ describe("XumMcp", () => {
           'GITHUB_PERSONAL_ACCESS_TOKEN="$(cat ~/.config/github-mcp/token)" docker run -i --rm -e GITHUB_PERSONAL_ACCESS_TOKEN ghcr.io/github/github-mcp-server',
       },
       onlyAssignment: { command: "FOO=bar" },
+      newline: { command: "FOO=bar\nsrv" },
+      list: { command: "FOO=bar cd x && srv" },
     });
   });
 

@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { RulesyncSkill } from "./rulesync-skill.js";
 import { XumSkill } from "./xum-skill.js";
@@ -126,6 +127,27 @@ describe("XumSkill", () => {
       }),
     });
     expect(overridden.getFrontmatter()["disable-model-invocation"]).toBe(false);
+  });
+
+  it("should ignore Agent Skills standard keys in the xum section with a warning", () => {
+    const logger = createMockLogger();
+    const skill = XumSkill.fromRulesyncSkill({
+      outputRoot: testDir,
+      logger,
+      rulesyncSkill: makeRulesyncSkillWithFrontmatter({
+        agentsskills: { license: "MIT" },
+        xum: { license: "Apache-2.0", metadata: { a: "b" }, paths: "src/**" },
+      }),
+    });
+
+    expect(skill.getFrontmatter()).toEqual({
+      name: "api-doc-generator",
+      description: "Generate API documentation",
+      license: "MIT",
+      paths: "src/**",
+    });
+    const warnings = logger.warn.mock.calls.map(([message]) => String(message));
+    expect(warnings.some((message) => message.includes('"license", "metadata"'))).toBe(true);
   });
 
   it("should not take Claude Code-only paths into the Xum frontmatter", () => {

@@ -1,4 +1,9 @@
+import { join } from "node:path";
+
+import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { XUM_SKILLS_DIR_PATH } from "../../constants/xum-paths.js";
+import { warnWithFallback } from "../../utils/logger.js";
+import { quoteValueForWarning } from "../../utils/quote-value.js";
 import {
   AgentsSkillsSkill,
   type AgentsSkillsSkillFrontmatter,
@@ -85,13 +90,27 @@ export class XumSkill extends AgentsSkillsSkill {
     const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
     const dirName = rulesyncSkill.getDirName();
 
-    // The `xum` section carries Xum-specific frontmatter verbatim; the
-    // canonical name/description always win over a stray same-named key in it.
-    const {
-      name: _sectionName,
-      description: _sectionDescription,
-      ...xumSection
-    } = rulesyncFrontmatter.xum ?? {};
+    // The `xum` section carries Xum-specific frontmatter verbatim. The
+    // canonical name/description and the Agent Skills standard fields (which
+    // come from the root and the `agentsskills` section) are not taken from
+    // it, so they cannot change sides on a generate -> import round trip.
+    const xumSection: Record<string, unknown> = {};
+    const ignoredKeys: string[] = [];
+    for (const [key, value] of Object.entries(rulesyncFrontmatter.xum ?? {})) {
+      if (AGENT_SKILLS_STANDARD_KEYS.has(key)) {
+        ignoredKeys.push(key);
+      } else {
+        xumSection[key] = value;
+      }
+    }
+    if (ignoredKeys.length > 0) {
+      warnWithFallback(
+        logger,
+        `${join(outputRoot, settablePaths.relativeDirPath, dirName, SKILL_FILE_NAME)}: ` +
+          `the xum section sets ${ignoredKeys.map(quoteValueForWarning).join(", ")}, which ${ignoredKeys.length === 1 ? "is" : "are"} ignored there; ` +
+          "set name/description at the root and the Agent Skills standard fields at the root or in the agentsskills section.",
+      );
+    }
     const userInvocable = resolveUserInvocable({
       rootFrontmatter: rulesyncFrontmatter,
       section: xumSection,
