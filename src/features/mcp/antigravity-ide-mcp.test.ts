@@ -275,12 +275,41 @@ describe("AntigravityIdeMcp", () => {
         string,
         Record<string, unknown>
       >;
+      // `type` is not an Antigravity field: the transport follows from
+      // `serverUrl` / `command`.
       expect(server["http-server"]).toEqual({
-        type: "http",
         serverUrl: "https://example.com/mcp",
         disabledTools: ["danger"],
       });
       expect(server["http-server"]).not.toHaveProperty("url");
+    });
+
+    it("should drop `type` and the empty stdio fields of a remote server when generating", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            remote: { type: "sse", url: "https://example.com/sse", args: [], env: {} },
+            local: { type: "stdio", command: "node", args: [], env: {} },
+          },
+        }),
+      });
+
+      const antigravityIdeMcp = await AntigravityIdeMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+      });
+
+      const servers = antigravityIdeMcp.getJson().mcpServers as Record<
+        string,
+        Record<string, unknown>
+      >;
+      // Antigravity refuses to start a remote server that also sets `args` or
+      // `env`, even empty ones.
+      expect(servers.remote).toEqual({ serverUrl: "https://example.com/sse" });
+      // A stdio server keeps its (empty) `args` / `env`.
+      expect(servers.local).toEqual({ command: "node", args: [], env: {} });
     });
 
     it("should rename `serverUrl` back to canonical `url` when importing", () => {

@@ -371,6 +371,20 @@ describe("OmpPermissions", () => {
     });
   });
 
+  it("should write the always-ask-cached approval mode", async () => {
+    const permissions = await OmpPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: rulesyncPermissionsFrom({
+        permission: { read: { "*": "allow" } },
+        omp: { approvalMode: "always-ask-cached" },
+      }).forTarget({ toolTarget: "omp" }),
+    });
+
+    expect(loadYaml(permissions.getFileContent())).toEqual({
+      tools: { approvalMode: "always-ask-cached", approval: { read: "allow" } },
+    });
+  });
+
   it("should write the approval mode even when no permission rules are authored", async () => {
     const permissions = await OmpPermissions.fromRulesyncPermissions({
       outputRoot: testDir,
@@ -395,6 +409,7 @@ describe("OmpPermissions", () => {
         .getJson();
 
     expect(importMode("always-ask").omp).toEqual({ approvalMode: "always-ask" });
+    expect(importMode("always-ask-cached").omp).toEqual({ approvalMode: "always-ask-cached" });
     // oh-my-pi matches the mode exactly, so these fall back to its default.
     expect(importMode("Write").omp).toBeUndefined();
     expect(importMode("exec").omp).toBeUndefined();
