@@ -3547,4 +3547,153 @@ describe("OpencodeMcp retraction (issue #2562)", () => {
 
     expect(JSON.parse(mcp.getFileContent())).toEqual({ other: 1 });
   });
+
+  describe('configShape "v2"', () => {
+    const v2Options = { configShape: "v2" };
+    const makeRulesyncMcp = (mcpServers: Record<string, unknown>) =>
+      new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({ mcpServers }),
+      });
+
+    it("should write servers under mcp.servers with disabled only when disabled", async () => {
+      const opencodeMcp = await OpencodeMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp: makeRulesyncMcp({
+          fs: { type: "stdio", command: "npx", args: ["fs"], env: { A: "${A}" } },
+          off: { type: "stdio", command: "off", disabled: true },
+          web: {
+            type: "http",
+            url: "https://example.com/mcp",
+            timeout: 5000,
+            oauth: { clientId: "id", callbackPort: 8080 },
+            protocol: "auto",
+            codemode: false,
+          },
+        }),
+        featureOptions: v2Options,
+      });
+
+      expect(opencodeMcp.validate().success).toBe(true);
+      expect(JSON.parse(opencodeMcp.getFileContent())).toEqual({
+        mcp: {
+          servers: {
+            fs: { type: "local", command: ["npx", "fs"], environment: { A: "{env:A}" } },
+            off: { type: "local", command: ["off"], disabled: true },
+            web: {
+              type: "remote",
+              url: "https://example.com/mcp",
+              timeout: { catalog: 5000, execution: 5000 },
+              oauth: { client_id: "id", callback_port: 8080 },
+              protocol: "auto",
+              codemode: false,
+            },
+          },
+        },
+      });
+    });
+
+    it("should leave the V1 output unchanged without the option or with configShape v1", async () => {
+      const rulesyncMcp = makeRulesyncMcp({ fs: { type: "stdio", command: "fs" } });
+      const expected = { mcp: { fs: { type: "local", command: ["fs"], enabled: true } } };
+
+      const withoutOption = await OpencodeMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+      const withV1 = await OpencodeMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        featureOptions: { configShape: "v1" },
+      });
+
+      expect(JSON.parse(withoutOption.getFileContent())).toEqual(expected);
+      expect(JSON.parse(withV1.getFileContent())).toEqual(expected);
+    });
+
+    it("should round-trip a V2-shaped opencode.json without changing its shape or warning", async () => {
+      const config = {
+        mcp: {
+          timeout: { startup: 45000 },
+          servers: {
+            x: {
+              type: "remote",
+              url: "https://example.com/mcp",
+              oauth: { client_id: "a", auth_server_metadata_url: "https://auth.example.com" },
+              timeout: { startup: 1000, catalog: 9000 },
+              protocol: "2026-07-28",
+              codemode: false,
+            },
+            y: {
+              type: "remote",
+              url: "https://example.com/y",
+              timeout: { catalog: 7000, execution: 7000 },
+            },
+            fs: { type: "local", command: ["npx", "fs"], disabled: true },
+          },
+        },
+      };
+      await writeFileContent(join(testDir, "opencode.json"), JSON.stringify(config));
+      const mockLogger = { warn: vi.fn() } as unknown as Logger;
+
+      const imported = await OpencodeMcp.fromFile({ outputRoot: testDir });
+      const generated = await OpencodeMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp: imported.toRulesyncMcp(),
+        logger: mockLogger,
+        featureOptions: v2Options,
+      });
+
+      expect(JSON.parse(generated.getFileContent())).toEqual(config);
+      expect(mockLogger.warn).not.toHaveBeenCalled();
+    });
+
+    it("should move flat V1 entries of an existing file under mcp.servers", async () => {
+      await writeFileContent(
+        join(testDir, "opencode.json"),
+        JSON.stringify({ mcp: { fs: { type: "local", command: ["fs"], enabled: false } } }),
+      );
+      const mockLogger = { warn: vi.fn() } as unknown as Logger;
+
+      const imported = await OpencodeMcp.fromFile({ outputRoot: testDir });
+      const generated = await OpencodeMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp: imported.toRulesyncMcp(),
+        logger: mockLogger,
+        featureOptions: v2Options,
+      });
+
+      expect(JSON.parse(generated.getFileContent())).toEqual({
+        mcp: { servers: { fs: { type: "local", command: ["fs"], disabled: true } } },
+      });
+      expect(mockLogger.warn).not.toHaveBeenCalled();
+    });
+
+    it("should skip a transport-less server with a warning, as V2 has no toggle entry", async () => {
+      const mockLogger = { warn: vi.fn() } as unknown as Logger;
+
+      const generated = await OpencodeMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp: makeRulesyncMcp({
+          shared: { disabled: true },
+          fs: { type: "stdio", command: "fs" },
+        }),
+        logger: mockLogger,
+        featureOptions: v2Options,
+      });
+
+      expect(JSON.parse(generated.getFileContent())).toEqual({
+        mcp: { servers: { fs: { type: "local", command: ["fs"] } } },
+      });
+      expect(mockLogger.warn).toHaveBeenCalledWith(expect.stringContaining("no toggle-only entry"));
+    });
+
+    it("should reject an unknown configShape", async () => {
+      await expect(
+        OpencodeMcp.fromRulesyncMcp({
+          outputRoot: testDir,
+          rulesyncMcp: makeRulesyncMcp({}),
+          featureOptions: { configShape: "v3" },
+        }),
+      ).rejects.toThrow('`configShape` must be either "v1" or "v2"');
+    });
+  });
 });

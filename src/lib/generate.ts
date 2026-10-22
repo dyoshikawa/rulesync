@@ -1547,6 +1547,7 @@ async function generateMcpCore(params: {
         global: config.getGlobal(),
         dryRun: config.isPreviewMode(),
         logger,
+        featureOptions: config.getFeatureOptions(toolTarget, "mcp"),
       });
 
       const rulesyncFiles = await processor.loadRulesyncFiles();

@@ -5,6 +5,7 @@ import { refine, z } from "zod/mini";
 
 import { OPENCODE_LAYOUT, type OpencodeLayout } from "../../constants/opencode-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
+import type { FeatureOptions } from "../../types/features.js";
 import { McpServers } from "../../types/mcp.js";
 import { readFileContentOrNull, toPosixPath } from "../../utils/file.js";
 import { parseJsonc as parseJsoncStrict } from "../../utils/jsonc.js";
@@ -13,8 +14,11 @@ import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { isRecord } from "../../utils/type-guards.js";
 import {
   findOpencodeV2McpContainers,
+  getOpencodeMcpServerEntry,
+  getOpencodeV2GlobalMcpTimeout,
   lowerOpencodeV2Mcp,
   mergeOpencodeConfigValues,
+  raiseOpencodeServerToV2,
   readOpencodeDotDirConfigLayers,
   warnOpencodeDotDirOverrides,
 } from "../opencode-config.js";
@@ -90,11 +94,12 @@ const OpencodeMcpRemoteServerSchema = z.looseObject({
 // `alwaysAllow`, `trust`) into `opencode.json`.
 // `protocol` (`legacy` | `auto` | `2026-07-28`) and `codemode` are OpenCode V2
 // per-server keys (https://opencode.ai/v2/docs/mcp-servers/). This adapter
-// reads and writes the V1 file shape (a flat `mcp` map), so the two keys reach
-// it only when a canonical server carries them — hand-authored in
-// `.rulesync/mcp.jsonc`, or imported from a flat-`mcp` `opencode.json` entry
-// that has them — and they are never emitted otherwise. V1's published schema
-// does not list them.
+// writes the V1 file shape (a flat `mcp` map) unless the `mcp` feature option
+// `configShape: "v2"` asks for the V2 `mcp.servers` envelope, so the two keys
+// reach it only when a canonical server carries them — hand-authored in
+// `.rulesync/mcp.jsonc`, or imported from an `opencode.json` entry that has
+// them — and they are never emitted otherwise. V1's published schema does not
+// list them.
 // https://opencode.ai/docs/mcp-servers
 const OPENCODE_PASSTHROUGH_SERVER_FIELDS = ["timeout", "oauth", "protocol", "codemode"] as const;
 
@@ -351,6 +356,7 @@ function convertServerToOpencodeFormat(
   serverName: string,
   serverConfig: McpServerConfig,
   existingEntry: OpencodeMcpServer | undefined,
+  configShape: OpencodeMcpConfigShape,
   logger?: Logger,
 ): OpencodeMcpServer | null {
   // Preserve OpenCode-supported extras (e.g. timeout, oauth, protocol, codemode) on export so a
@@ -366,6 +372,17 @@ function convertServerToOpencodeFormat(
   const enabled = serverConfig.disabled !== undefined ? !serverConfig.disabled : true;
 
   if (declaresNoTransport(serverConfig)) {
+    if (configShape === "v2") {
+      // OpenCode V2 documents no toggle-only entry: every `mcp.servers` entry
+      // is a local or remote server, so there is nothing to write.
+      return warnAndSkipMcpServer({
+        toolName: "OpenCode",
+        serverName,
+        reason:
+          'no transport, and the OpenCode V2 shape ("configShape": "v2") has no toggle-only entry',
+        logger,
+      });
+    }
     if (serverConfig.disabled === undefined) {
       // A toggle overrides whatever the global config or a marketplace says
       // about a server of this name, so writing `enabled: true` for a server
@@ -434,6 +451,7 @@ function convertServerToOpencodeFormat(
 function convertToOpencodeFormat(
   mcpServers: McpServers,
   existingMcp: Record<string, OpencodeMcpServer>,
+  configShape: OpencodeMcpConfigShape,
   logger?: Logger,
 ): {
   mcp: Record<string, OpencodeMcpServer>;
@@ -448,6 +466,7 @@ function convertToOpencodeFormat(
           serverName,
           serverConfig,
           existingMcp[serverName],
+          configShape,
           logger,
         );
 
@@ -471,6 +490,18 @@ function convertToOpencodeFormat(
 
   return { mcp, tools };
 }
+
+/**
+ * The `mcp` key shape `generate` writes: OpenCode V1's flat `mcp.<name>` map
+ * with `enabled` (the default, which both 1.x and 2.x read), or OpenCode V2's
+ * `mcp.servers.<name>` envelope with `disabled`.
+ * https://opencode.ai/v2/docs/mcp-servers/
+ */
+type OpencodeMcpConfigShape = "v1" | "v2";
+
+const OpencodeMcpFeatureOptionsSchema = z.looseObject({
+  configShape: z.optional(z.enum(["v1", "v2"])),
+});
 
 export class OpencodeMcp extends ToolMcp {
   /** Directory layout; OpenCode forks (MiMo Code) override it. */
@@ -526,6 +557,30 @@ export class OpencodeMcp extends ToolMcp {
 
   getJson(): OpencodeConfig {
     return this.json;
+  }
+
+  /**
+   * Reads the `configShape` option of the target's `mcp` feature options
+   * (`targets.opencode.mcp.configShape`). Only a layout that reads the V2
+   * spellings back can be given the V2 shape.
+   */
+  protected static resolveConfigShape(options?: FeatureOptions): OpencodeMcpConfigShape {
+    if (!options) {
+      return "v1";
+    }
+    const parsed = OpencodeMcpFeatureOptionsSchema.safeParse(options);
+    if (!parsed.success) {
+      throw new Error(
+        `Invalid options for the ${this.layout.toolTarget} mcp feature: \`configShape\` must be either "v1" or "v2".`,
+      );
+    }
+    const configShape = parsed.data.configShape ?? "v1";
+    if (configShape === "v2" && !this.layout.readsV2ConfigSpellings) {
+      throw new Error(
+        `Invalid options for the ${this.layout.toolTarget} mcp feature: \`configShape: "v2"\` is supported only for OpenCode.`,
+      );
+    }
+    return configShape;
   }
 
   /**
@@ -598,7 +653,9 @@ export class OpencodeMcp extends ToolMcp {
     validate = true,
     global = false,
     logger,
+    featureOptions,
   }: ToolMcpFromRulesyncMcpParams): Promise<OpencodeMcp> {
+    const configShape = this.resolveConfigShape(featureOptions);
     const basePaths = this.getSettablePaths({ global });
     const jsonDir = join(outputRoot, basePaths.relativeDirPath);
 
@@ -628,8 +685,9 @@ export class OpencodeMcp extends ToolMcp {
     // A toggle under the V2 `mcp.servers` envelope counts too.
     const existingJson: unknown = parseJsonc(fileContent || "{}");
     const existingMcp = OpencodeConfigSchema.safeParse(this.lowerConfig(existingJson));
-    if (this.layout.readsV2ConfigSpellings && isRecord(existingJson)) {
-      const containers = findOpencodeV2McpContainers(existingJson.mcp);
+    const existingRawMcp = isRecord(existingJson) ? existingJson.mcp : undefined;
+    if (configShape === "v1" && this.layout.readsV2ConfigSpellings) {
+      const containers = findOpencodeV2McpContainers(existingRawMcp);
       if (containers.length > 0) {
         logger?.warn(
           `OpenCode MCP: the whole "mcp" key is rewritten in the flat V1 shape, so ` +
@@ -641,12 +699,19 @@ export class OpencodeMcp extends ToolMcp {
     const { mcp: convertedMcp, tools: mcpTools } = convertToOpencodeFormat(
       transformedServers,
       (existingMcp.success ? existingMcp.data.mcp : undefined) ?? {},
+      configShape,
       logger,
     );
-    const generatedMcp = undefinedWhenEmpty(convertedMcp);
+    const generatedServers = undefinedWhenEmpty(convertedMcp);
+    const generatedMcp =
+      configShape === "v2"
+        ? this.toV2Mcp({ servers: convertedMcp, existingRawMcp })
+        : generatedServers;
     const generatedTools = Object.keys(mcpTools).length > 0 ? mcpTools : undefined;
     warnOpencodeDotDirOverrides({
-      generated: { mcp: generatedMcp, tools: generatedTools },
+      // Overlays are compared in their lowered (flat) form, so the flat
+      // server map is what is checked in either shape.
+      generated: { mcp: generatedServers, tools: generatedTools },
       overlays: (
         await readOpencodeDotDirConfigLayers({ outputRoot, global, layout: this.layout })
       ).map((overlay) => {
@@ -674,6 +739,39 @@ export class OpencodeMcp extends ToolMcp {
       }),
       validate,
     });
+  }
+
+  /**
+   * Builds the V2 `mcp` value: each server raised to the V2 spelling under the
+   * `mcp.servers` envelope, keeping what the existing file has that Rulesync
+   * cannot express (see {@link raiseOpencodeServerToV2}), plus the existing
+   * global `mcp.timeout`, which has no canonical counterpart.
+   */
+  private static toV2Mcp({
+    servers,
+    existingRawMcp,
+  }: {
+    servers: Record<string, OpencodeMcpServer>;
+    existingRawMcp: unknown;
+  }): Record<string, unknown> | undefined {
+    const v2Servers: Record<string, unknown> = {};
+    for (const [name, server] of Object.entries(servers)) {
+      Object.defineProperty(v2Servers, name, {
+        value: raiseOpencodeServerToV2(server, getOpencodeMcpServerEntry(existingRawMcp, name)),
+        enumerable: true,
+        configurable: true,
+        writable: true,
+      });
+    }
+    const globalTimeout = getOpencodeV2GlobalMcpTimeout(existingRawMcp);
+    const hasServers = Object.keys(v2Servers).length > 0;
+    if (!hasServers && globalTimeout === undefined) {
+      return undefined;
+    }
+    return {
+      ...(globalTimeout !== undefined && { timeout: globalTimeout }),
+      ...(hasServers && { servers: v2Servers }),
+    };
   }
 
   /**

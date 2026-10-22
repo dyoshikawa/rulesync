@@ -605,6 +605,88 @@ export function findOpencodeV2McpContainers(mcp: unknown): string[] {
 }
 
 /**
+ * Returns the non-empty V2 global `mcp.timeout` object of an OpenCode `mcp`
+ * value, or `undefined` when there is none.
+ */
+export function getOpencodeV2GlobalMcpTimeout(mcp: unknown): Record<string, unknown> | undefined {
+  return isRecord(mcp) && findOpencodeV2McpContainers(mcp).includes("mcp.timeout")
+    ? (mcp.timeout as Record<string, unknown>)
+    : undefined;
+}
+
+/**
+ * Returns the raw entry an OpenCode `mcp` value holds for a server: the one
+ * under the V2 `mcp.servers` envelope, or else the flat V1 entry.
+ */
+export function getOpencodeMcpServerEntry(mcp: unknown, name: string): unknown {
+  if (!isRecord(mcp)) {
+    return undefined;
+  }
+  const envelope = getOpencodeV2McpEnvelope(mcp);
+  if (envelope !== null && Object.hasOwn(envelope, name)) {
+    return envelope[name];
+  }
+  return Object.hasOwn(mcp, name) ? mcp[name] : undefined;
+}
+
+const OPENCODE_V1_TO_V2_OAUTH_KEYS: ReadonlyMap<string, string> = new Map(
+  [...OPENCODE_V2_OAUTH_KEYS].map(([v2, v1]) => [v1, v2]),
+);
+
+/**
+ * Raises one V1-shaped OpenCode MCP server (`local` or `remote`) to the V2
+ * spelling — the inverse of {@link lowerOpencodeV2Server}:
+ *
+ * - `enabled` is dropped and `disabled: true` written only for a disabled server;
+ * - a number `timeout` becomes `{ catalog, execution }`, and camelCase `oauth`
+ *   keys become snake_case.
+ *
+ * Values Rulesync's canonical form cannot hold are taken from the entry the
+ * file already has for the server (`existing`): its `timeout` object and its
+ * `oauth` object are kept verbatim whenever lowering them gives back exactly
+ * what the canonical server carries, so a V2 file survives import and
+ * generate unchanged.
+ */
+export function raiseOpencodeServerToV2(
+  server: Record<string, unknown>,
+  existing: unknown,
+): Record<string, unknown> {
+  const { enabled, timeout, oauth, ...rest } = server;
+  const raised: Record<string, unknown> = { ...rest };
+  if (enabled === false) {
+    raised.disabled = true;
+  }
+
+  const existingTimeout =
+    isRecord(existing) && isRecord(existing.timeout) ? existing.timeout : null;
+  if (existingTimeout !== null && lowerOpencodeV2Timeout(existingTimeout) === timeout) {
+    raised.timeout = existingTimeout;
+  } else if (typeof timeout === "number") {
+    raised.timeout = { catalog: timeout, execution: timeout };
+  } else if (timeout !== undefined) {
+    raised.timeout = timeout;
+  }
+
+  const existingOauth = isRecord(existing) && isRecord(existing.oauth) ? existing.oauth : null;
+  if (
+    existingOauth !== null &&
+    isRecord(oauth) &&
+    isDeepStrictEqual(lowerOpencodeV2OAuth(existingOauth, ""), oauth)
+  ) {
+    raised.oauth = existingOauth;
+  } else if (isRecord(oauth)) {
+    const snakeOauth: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(oauth)) {
+      setOwnEntry(snakeOauth, OPENCODE_V1_TO_V2_OAUTH_KEYS.get(key) ?? key, value);
+    }
+    raised.oauth = snakeOauth;
+  } else if (oauth !== undefined) {
+    raised.oauth = oauth;
+  }
+  return raised;
+}
+
+/**
  * Lowers OpenCode V2 `mcp` spellings found in a V1 config to the flat V1 map,
  * the way OpenCode V1 itself does since v1.18.24 (`normalizeMcp`):
  *
