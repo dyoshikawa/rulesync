@@ -218,7 +218,11 @@ function resolveZcodeTimeoutMs({
 
 /**
  * The per-server keys ZCode reads on every transport: `timeoutMs`,
- * `protocolVersion` and the enable toggle (`enableKey`).
+ * `protocolVersion`, `alwaysLoad` and the enable toggle (`enableKey`).
+ *
+ * `alwaysLoad` (added in 3.16.2 alongside tool search) keeps a server's tools
+ * loaded up front instead of deferring them behind tool search. ZCode's schema
+ * types it as a boolean, so any other value is dropped with a warning.
  */
 function toZcodeCommonKeys({
   serverName,
@@ -244,6 +248,14 @@ function toZcodeCommonKeys({
       `ZCode MCP server "${serverName}": dropping protocolVersion ${JSON.stringify(protocolVersion)}, as ZCode accepts only ${[...ZCODE_PROTOCOL_VERSIONS].map((v) => JSON.stringify(v)).join(", ")}.`,
     );
   }
+  const { alwaysLoad } = config;
+  if (typeof alwaysLoad === "boolean") {
+    common.alwaysLoad = alwaysLoad;
+  } else if (alwaysLoad !== undefined) {
+    logger?.warn(
+      `ZCode MCP server "${serverName}": dropping alwaysLoad ${JSON.stringify(alwaysLoad)}, as it must be a boolean.`,
+    );
+  }
   if (config.disabled === true) {
     common[enableKey] = false;
   }
@@ -259,11 +271,12 @@ function toZcodeCommonKeys({
  * absent.
  *
  * Every server also carries `timeoutMs` (from the canonical `timeout`, or an
- * explicit `timeoutMs`) and an allow-listed `protocolVersion`; stdio servers
+ * explicit `timeoutMs`), an allow-listed `protocolVersion` and a boolean
+ * `alwaysLoad`; stdio servers
  * carry `cwd`, and remote servers an `oauth` built from the namespaced
  * `zcodeOauth`. That key is stripped by `RulesyncMcp.getMcpServers()`, so it
  * is read from the authored server through `rawServerOf`. ZCode's docs do not
- * name these keys, so they follow the 3.14.3/3.15.3 runtime's per-server
+ * name these keys, so they follow the 3.14.3–3.16.2 runtime's per-server
  * schema, which is strict: an unknown key makes ZCode skip the server, which
  * is why the output stays a whitelist.
  *
