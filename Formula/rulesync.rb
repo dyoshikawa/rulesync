@@ -7,28 +7,28 @@
 class Rulesync < Formula
   desc "Unified AI rules management CLI that generates config files for AI dev tools"
   homepage "https://github.com/dyoshikawa/rulesync"
-  version "39.0.0"
+  version "40.0.0"
   license "MIT"
 
   on_macos do
     on_arm do
       url "https://github.com/dyoshikawa/rulesync/releases/download/v#{version}/rulesync-darwin-arm64"
-      sha256 "4ffefb6605aae74bbfb5eaa559e359b48808ac35c9abd37348723a39579d15e8"
+      sha256 "fd8cb68c454e3d5fa88060bd3d0b09cd795adb78e76206d99887c6c7a11dc16f"
     end
     on_intel do
       url "https://github.com/dyoshikawa/rulesync/releases/download/v#{version}/rulesync-darwin-x64"
-      sha256 "df12a4a45f5b8e7fd6b7c973d1bfcc0a3e37308644ed832b2cc9e1fdb1dcf05d"
+      sha256 "858eb03fdb9f01bc7ca83b909a6937419e652953829ba436a9e7df86e486ef5c"
     end
   end
 
   on_linux do
     on_arm do
       url "https://github.com/dyoshikawa/rulesync/releases/download/v#{version}/rulesync-linux-arm64"
-      sha256 "7b3aa0b4dc4bd03def4185d86d59fe59f8485614231c9a3907b984532f100ea6"
+      sha256 "3bab51d2e168f6273e193d6abb7be54380eb6ee7a0711cb77c05d4173b197f72"
     end
     on_intel do
       url "https://github.com/dyoshikawa/rulesync/releases/download/v#{version}/rulesync-linux-x64"
-      sha256 "b172dc77713e81e36b1fdadfd5292566dc52e801788d7ded4f3e57fbae39f78c"
+      sha256 "6bb958991ac84e88426875bb5bab95108b8d3c3a4212a7877227c0c70165028c"
     end
   end
 
