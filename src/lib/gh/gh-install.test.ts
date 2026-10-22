@@ -1,3 +1,4 @@
+import { mkdir, readdir, symlink } from "node:fs/promises";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -5,9 +6,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SourceEntry } from "../../config/config.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { fileExists, readFileContent } from "../../utils/file.js";
+import { fileExists, readFileContent, writeFileContent } from "../../utils/file.js";
 import { installGh } from "./gh-install.js";
-import { getGhLockPath, readGhLock } from "./gh-lock.js";
+import { getGhLockPath, readGhLock, writeGhLock } from "./gh-lock.js";
 
 let mockClientInstance: any;
 
@@ -484,4 +485,120 @@ describe("installGh", () => {
     });
     expect(await fileExists(getGhLockPath(testDir))).toBe(true);
   });
+
+  it.skipIf(process.platform === "win32")(
+    "refuses a project-scope write through a symbolic link that leads outside the project",
+    async () => {
+      setupSingleSkill("s");
+      const projectRoot = join(testDir, "project");
+      const outsideDir = join(testDir, "outside");
+      await mkdir(join(projectRoot, ".agents"), { recursive: true });
+      await mkdir(outsideDir, { recursive: true });
+      await symlink(outsideDir, join(projectRoot, ".agents", "skills"));
+
+      const result = await installGh({
+        projectRoot,
+        sources: [source({ source: "owner/repo" })],
+        logger,
+      });
+
+      expect(result.failedSourceCount).toBe(1);
+      expect(await readdir(outsideDir)).toEqual([]);
+    },
+  );
+
+  /**
+   * Install skill "s" once, then add `extraDeployedFiles` to its lock entry so
+   * that the next install sees them as stale.
+   */
+  async function installWithExtraLockedFiles(extraDeployedFiles: string[]): Promise<void> {
+    setupSingleSkill("s");
+    await installGh({ projectRoot: testDir, sources: [source({ source: "owner/repo" })], logger });
+    const lock = await readGhLock(testDir);
+    const installation = lock?.installations[0];
+    if (!lock || !installation) {
+      throw new Error("expected a lock entry after the first install");
+    }
+    installation.deployed_files.push(...extraDeployedFiles);
+    await writeGhLock({ projectRoot: testDir, lock });
+  }
+
+  it("refuses to remove stale files outside the skill's install directory", async () => {
+    await writeFileContent(join(testDir, ".agents/skills/other/keep.md"), "other skill");
+    await writeFileContent(join(testDir, "README.md"), "project file");
+    await installWithExtraLockedFiles([".agents/skills/other/keep.md", "README.md"]);
+
+    const localLogger = createMockLogger();
+    await installGh({
+      projectRoot: testDir,
+      sources: [source({ source: "owner/repo" })],
+      options: { update: true },
+      logger: localLogger,
+    });
+
+    expect(await fileExists(join(testDir, ".agents/skills/other/keep.md"))).toBe(true);
+    expect(await fileExists(join(testDir, "README.md"))).toBe(true);
+    const warnMessages = localLogger.warn.mock.calls.map((args) => String(args[0]));
+    for (const path of [".agents/skills/other/keep.md", "README.md"]) {
+      expect(warnMessages).toContain(
+        `Refusing to remove stale gh file outside the skill's install directory: "${path}".`,
+      );
+    }
+  });
+
+  it.skipIf(process.platform === "win32")(
+    "refuses to remove a stale file that a symbolic link leads outside the project",
+    async () => {
+      const projectRoot = join(testDir, "project");
+      const outsideDir = join(testDir, "outside");
+      await writeFileContent(join(outsideDir, "old.md"), "outside");
+      setupSingleSkill("s");
+      await installGh({ projectRoot, sources: [source({ source: "owner/repo" })], logger });
+      await symlink(outsideDir, join(projectRoot, ".agents/skills/s/linked"));
+      const lock = await readGhLock(projectRoot);
+      lock?.installations[0]?.deployed_files.push(".agents/skills/s/linked/old.md");
+      await writeGhLock({ projectRoot, lock: lock! });
+
+      const localLogger = createMockLogger();
+      await installGh({
+        projectRoot,
+        sources: [source({ source: "owner/repo" })],
+        options: { update: true },
+        logger: localLogger,
+      });
+
+      expect(await fileExists(join(outsideDir, "old.md"))).toBe(true);
+      expect(localLogger.warn).toHaveBeenCalledWith(
+        expect.stringMatching(
+          /^Refusing to remove stale gh file "\.agents\/skills\/s\/linked\/old\.md": Path resolves outside /,
+        ),
+      );
+    },
+  );
+
+  it.skipIf(process.platform === "win32")(
+    "reports a filesystem error during stale-file removal as it is",
+    async () => {
+      await installWithExtraLockedFiles([".agents/skills/s/loop/old.md"]);
+      await symlink("loop", join(testDir, ".agents/skills/s/loop"));
+
+      const localLogger = createMockLogger();
+      await installGh({
+        projectRoot: testDir,
+        sources: [source({ source: "owner/repo" })],
+        options: { update: true },
+        logger: localLogger,
+      });
+
+      const warnMessages = localLogger.warn.mock.calls.map((args) => String(args[0]));
+      expect(
+        warnMessages.some(
+          (m) =>
+            m.startsWith('Skipping removal of stale gh file ".agents/skills/s/loop/old.md":') &&
+            m.includes("ELOOP"),
+        ),
+      ).toBe(true);
+      expect(warnMessages.some((m) => m.includes("resolves outside"))).toBe(false);
+    },
+  );
 });
