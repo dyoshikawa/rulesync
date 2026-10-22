@@ -283,7 +283,12 @@ export class TaktPermissions extends ToolPermissions {
     }
     const overrideProviderOptions = runtimeModeRefusesProviderOptions
       ? undefined
-      : authoredProviderOptions;
+      : dropUntrustedProviderOptions({
+          providerOptions: authoredProviderOptions,
+          global,
+          filePath,
+          logger,
+        });
 
     const authoredPolicies = pickSecurityPolicies(override, {
       filePath,
@@ -1080,6 +1085,109 @@ function taktModeToRulesyncConfig(mode: unknown): PermissionsConfig {
       // `readonly` and any unset/unknown mode.
       return { permission: { bash: { [CATCH_ALL_PATTERN]: "deny" } } };
   }
+}
+
+// Providers whose `provider_options.<provider>.base_url` Takt restricts to
+// loopback hosts when it comes from a project `.takt/config.yaml`.
+// https://github.com/nrslib/takt/blob/main/src/infra/config/providerOptions.ts
+const TAKT_BASE_URL_PROVIDERS = ["codex", "claude", "deepseek_harness"] as const;
+const TAKT_DEEPSEEK_HARNESS_KEY = "deepseek_harness";
+
+/** Mirrors Takt's `isLoopbackBaseUrl`: localhost, *.localhost, ::1 or 127.x.x.x. */
+function isLoopbackBaseUrl(value: string): boolean {
+  let hostname: string;
+  try {
+    hostname = new URL(value).hostname.toLowerCase();
+  } catch {
+    return false;
+  }
+  if (
+    hostname === "localhost" ||
+    hostname.endsWith(".localhost") ||
+    hostname === "::1" ||
+    hostname === "[::1]"
+  ) {
+    return true;
+  }
+  const octets = hostname.split(".");
+  return (
+    octets.length === 4 &&
+    octets[0] === "127" &&
+    octets.every((octet) => /^\d+$/.test(octet) && Number(octet) <= 255)
+  );
+}
+
+/**
+ * Drop the `provider_options` entries Takt refuses to load from `config.yaml`
+ * (it fails at startup with a `Configuration error`), warning for each:
+ *   - `deepseek_harness.reasoning_effort` in either scope — Takt accepts it only
+ *     in runtime profile options or `TAKT_PROVIDER_OPTIONS_DEEPSEEK_HARNESS_REASONING_EFFORT`.
+ *   - at project scope, a non-empty `deepseek_harness.plugins` (Takt 0.71.0+,
+ *     global config only) and a non-loopback `{codex,claude,deepseek_harness}.base_url`.
+ * https://github.com/nrslib/takt/blob/main/src/infra/config/providerOptions.ts
+ * https://github.com/nrslib/takt/blob/main/docs/configuration.md
+ */
+function dropUntrustedProviderOptions({
+  providerOptions,
+  global,
+  filePath,
+  logger,
+}: {
+  providerOptions: Record<string, unknown> | undefined;
+  global: boolean;
+  filePath: string;
+  logger?: Logger;
+}): Record<string, unknown> | undefined {
+  if (providerOptions === undefined) {
+    return undefined;
+  }
+  const dropped: string[] = [];
+  const result: Record<string, unknown> = {};
+  for (const [provider, options] of Object.entries(providerOptions)) {
+    if (!isPlainObject(options)) {
+      result[provider] = options;
+      continue;
+    }
+    const kept: Record<string, unknown> = { ...options };
+    const drop = (key: string): void => {
+      delete kept[key];
+      dropped.push(`${TAKT_PROVIDER_OPTIONS_KEY}.${provider}.${key}`);
+    };
+    if (provider === TAKT_DEEPSEEK_HARNESS_KEY) {
+      if (kept.reasoning_effort !== undefined) {
+        drop("reasoning_effort");
+      }
+      if (!global && Array.isArray(kept.plugins) && kept.plugins.length > 0) {
+        drop("plugins");
+      }
+    }
+    if (
+      !global &&
+      (TAKT_BASE_URL_PROVIDERS as readonly string[]).includes(provider) &&
+      typeof kept.base_url === "string" &&
+      !isLoopbackBaseUrl(kept.base_url)
+    ) {
+      drop("base_url");
+    }
+    // A provider left empty only because of the drops above is omitted.
+    if (Object.keys(kept).length > 0 || Object.keys(options).length === 0) {
+      result[provider] = kept;
+    }
+  }
+  if (dropped.length === 0) {
+    return providerOptions;
+  }
+  logger?.warn(
+    `Takt permissions: not writing ${dropped.map((key) => `"${key}"`).join(", ")} to ${filePath} ` +
+      `because Takt refuses to load ${dropped.length === 1 ? "it" : "them"} from ` +
+      `${global ? "config.yaml" : "a project config.yaml"} and fails at startup with a ` +
+      `"Configuration error". Set non-loopback base URLs and DeepSeek Harness plugins in the ` +
+      `global ~/.takt/config.yaml (or the TAKT_PROVIDER_OPTIONS_* environment variables), and ` +
+      `DeepSeek Harness reasoning_effort in a runtime.yaml profile's options or ` +
+      `TAKT_PROVIDER_OPTIONS_DEEPSEEK_HARNESS_REASONING_EFFORT, then remove them from the ` +
+      `\`takt\` block of the rulesync source.`,
+  );
+  return Object.keys(result).length > 0 ? result : undefined;
 }
 
 /**
