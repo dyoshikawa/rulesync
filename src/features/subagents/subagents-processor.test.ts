@@ -436,7 +436,7 @@ describe("SubagentsProcessor", () => {
     });
   });
 
-  it.each(["cursor", "deepagents", "roo"] as const)(
+  it.each(["cursor", "deepagents", "roo", "kiro"] as const)(
     "skips nested sources for the flat %s target while keeping Claude Code nesting",
     async (toolTarget) => {
       const logger = createMockLogger();
@@ -467,6 +467,50 @@ describe("SubagentsProcessor", () => {
     },
   );
 
+  it.each([
+    ["kiro-cli", join("team", "planner.json")],
+    ["kiro-ide", join("team", "planner.md")],
+  ] as const)("keeps the nested path of a %s subagent", async (toolTarget, expectedPath) => {
+    const logger = createMockLogger();
+    const nested = new RulesyncSubagent({
+      outputRoot: testDir,
+      relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+      relativeFilePath: join("team", "planner.md"),
+      frontmatter: { name: "planner", description: "Plans tasks", targets: ["*"] },
+      body: "Plan the work.",
+    });
+
+    const processor = new SubagentsProcessor({ logger, outputRoot: testDir, toolTarget });
+    const toolFiles = await processor.convertRulesyncFilesToToolFiles([nested]);
+
+    expect(toolFiles.map((file) => file.getRelativeFilePath())).toEqual([expectedPath]);
+    expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("Skipping nested"));
+  });
+
+  it.each([
+    ["kiro-cli", "planner.json", JSON.stringify({ name: "planner", description: "Plans" })],
+    ["kiro-ide", "planner.md", "---\nname: planner\ndescription: Plans\n---\n\nPlan."],
+  ] as const)(
+    "loads nested %s agents for import and deletion",
+    async (toolTarget, fileName, content) => {
+      const agentsDir = join(testDir, ".kiro", "agents");
+      await writeFileContent(join(agentsDir, fileName), content);
+      await writeFileContent(join(agentsDir, "team", fileName), content);
+
+      const processor = new SubagentsProcessor({
+        logger: createMockLogger(),
+        outputRoot: testDir,
+        toolTarget,
+      });
+      const imported = await processor.loadToolFiles();
+      const deletionCandidates = await processor.loadToolFiles({ forDeletion: true });
+
+      const expected = [fileName, join("team", fileName)];
+      expect(imported.map((file) => file.getRelativeFilePath())).toEqual(expected);
+      expect(deletionCandidates.map((file) => file.getRelativeFilePath())).toEqual(expected);
+    },
+  );
+
   it("marks only recursively scanned targets as supporting nested paths", () => {
     const factories = [...toolSubagentFactories];
     const flaggedTargets = factories
@@ -476,7 +520,13 @@ describe("SubagentsProcessor", () => {
       .filter(([, factory]) => factory.meta.filePattern.startsWith("**/"))
       .map(([toolTarget]) => toolTarget);
     expect(flaggedTargets).toEqual(recursiveTargets);
-    expect(flaggedTargets).toEqual(["claudecode", "claudecode-legacy", "kimi-code"]);
+    expect(flaggedTargets).toEqual([
+      "claudecode",
+      "claudecode-legacy",
+      "kiro-cli",
+      "kiro-ide",
+      "kimi-code",
+    ]);
   });
 
   it("warns but still writes both nested subagents that share a name", async () => {

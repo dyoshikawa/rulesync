@@ -342,6 +342,16 @@ const CLAUDECODE_TRUST_AFFECTING_SANDBOX_PATHS: readonly TrustAffectingSandboxPa
     widens: isNotFalse,
   },
   {
+    // Added in Claude Code v2.1.305 and not yet in the sandboxing docs; the
+    // release note says it lets sandboxed commands get around the sandbox's
+    // file protections.
+    // @see https://github.com/anthropics/claude-code/releases/tag/v2.1.305
+    path: ["allowNestedUserNamespaces"],
+    reason:
+      "lets sandboxed Linux commands create user namespaces, which gets around the sandbox's file protections",
+    widens: isNotFalse,
+  },
+  {
     path: ["allowUnsandboxedCommands"],
     reason: "controls whether Claude may retry a blocked command outside the sandbox",
     // Documented default `true`, and this predicate reports that value too. It
