@@ -1,4 +1,5 @@
-import { dirname, join } from "node:path";
+import { rm, symlink } from "node:fs/promises";
+import { basename, dirname, join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -662,6 +663,47 @@ description: "Test rule"
       expect(viaInputRoots.error).toContain(
         "inputRoots (as resolved from the configuration file) must stay inside the project directory",
       );
+    });
+
+    it("should reject roots outside the project declared by the file inputRoot selects", async () => {
+      await writeOverviewRule(join(testDir, "central", RULESYNC_RELATIVE_DIR_PATH));
+      await writeFileContent(
+        join(testDir, "central", RULESYNC_CONFIG_RELATIVE_FILE_PATH),
+        JSON.stringify({
+          targets: ["cursor"],
+          features: ["rules"],
+          outputRoots: [dirname(testDir)],
+        }),
+      );
+
+      const result = await executeGenerate({ inputRoot: "central" });
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain(
+        "outputRoots (as resolved from the configuration file) must stay inside the project directory",
+      );
+    });
+
+    it("should judge configPath relative to inputRoot, where the resolver reads it", async () => {
+      const outside = join(dirname(testDir), `outside-config-${basename(testDir)}`);
+      await writeFileContent(
+        join(outside, "rulesync.jsonc"),
+        JSON.stringify({ targets: ["cursor"], features: ["rules"] }),
+      );
+      await ensureDir(join(testDir, "sub"));
+      await symlink(outside, join(testDir, "sub", "link"), "dir");
+
+      try {
+        const result = await executeGenerate({
+          inputRoot: "sub",
+          configPath: join("link", "rulesync.jsonc"),
+        });
+
+        expect(result.success).toBe(false);
+        expect(result.error).toContain("configPath must stay inside the project directory");
+      } finally {
+        await rm(outside, { recursive: true, force: true });
+      }
     });
 
     it.each([["dryRun"], ["check"]] as const)(

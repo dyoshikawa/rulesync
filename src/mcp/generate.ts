@@ -1,3 +1,5 @@
+import { resolve } from "node:path";
+
 import { z } from "zod/mini";
 
 import { ConfigResolver } from "../config/config-resolver.js";
@@ -274,7 +276,15 @@ async function assertGeneratePathOptionsWithinCwd(options: GenerateOptions): Pro
     await assertPathOptionWithinCwd({ path: options.inputRoot, label: "inputRoot" });
   }
   if (options.configPath !== undefined) {
-    await assertPathOptionWithinCwd({ path: options.configPath, label: "configPath" });
+    // The resolver reads `configPath` relative to `inputRoot` when one is
+    // given, so judge the path it will actually read.
+    await assertPathOptionWithinCwd({
+      path:
+        options.inputRoot !== undefined
+          ? resolve(options.inputRoot, options.configPath)
+          : options.configPath,
+      label: "configPath",
+    });
   }
 }
 
@@ -299,6 +309,10 @@ async function assertResolvedRootsWithinCwd({
   if (options.configPath === undefined && options.inputRoot === undefined) {
     return;
   }
+  await assertPathOptionWithinCwd({
+    path: config.getConfigFilePath(),
+    label: "configPath (as resolved)",
+  });
   if (!config.getGlobal()) {
     await assertPathOptionsWithinCwd({
       paths: config.getOutputRoots(),

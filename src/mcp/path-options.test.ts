@@ -68,6 +68,25 @@ describe("assertPathOptionWithinCwd", () => {
     ).rejects.toThrow("outputRoots must stay inside the project directory");
   });
 
+  it("rejects a dangling symbolic link whose target would be outside cwd", async () => {
+    await symlink(join(testDir, "not-created-yet"), join(projectDir, "dangling"), "dir");
+
+    await expect(
+      assertPathOptionWithinCwd({ path: "dangling", label: "outputRoots" }),
+    ).rejects.toThrow("outputRoots must stay inside the project directory");
+    await expect(
+      assertPathOptionWithinCwd({ path: join("dangling", "nested"), label: "outputRoots" }),
+    ).rejects.toThrow("outputRoots must stay inside the project directory");
+  });
+
+  it("accepts a dangling symbolic link whose target would be inside cwd", async () => {
+    await symlink(join(projectDir, "later"), join(projectDir, "dangling"), "dir");
+
+    await expect(
+      assertPathOptionWithinCwd({ path: join("dangling", "nested"), label: "outputRoots" }),
+    ).resolves.toBeUndefined();
+  });
+
   it("accepts a path through a symbolic link that points inside cwd", async () => {
     await mkdir(join(projectDir, "real"), { recursive: true });
     await symlink(join(projectDir, "real"), join(projectDir, "alias"), "dir");

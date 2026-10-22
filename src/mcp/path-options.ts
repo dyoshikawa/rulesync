@@ -1,4 +1,4 @@
-import { realpath } from "node:fs/promises";
+import { lstat, readlink, realpath } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 /**
@@ -66,10 +66,22 @@ function isWithin({ root, path }: { root: string; path: string }): boolean {
 }
 
 /**
+ * How many dangling symbolic links one path may pass through. `realpath`
+ * itself reports a loop of existing links (`ELOOP`); this bounds a chain of
+ * links whose final target does not exist yet.
+ */
+const MAX_DANGLING_LINK_HOPS = 40;
+
+/**
  * Resolves symbolic links in the longest existing ancestor of an absolute path
  * and re-appends the segments that do not exist yet.
+ *
+ * A dangling symbolic link (`link -> /elsewhere/new`) makes `realpath` fail
+ * with `ENOENT` exactly like a missing path, yet writing through it would
+ * create its target. So a component that is missing for `realpath` but present
+ * for `lstat` is followed by hand, and its target is what gets judged.
  */
-async function realpathOfLongestExistingPrefix(absolutePath: string): Promise<string> {
+async function realpathOfLongestExistingPrefix(absolutePath: string, hops = 0): Promise<string> {
   const missingSegments: string[] = [];
   let current = absolutePath;
 
@@ -81,6 +93,18 @@ async function realpathOfLongestExistingPrefix(absolutePath: string): Promise<st
       if (!isMissingPathError(error)) {
         throw error;
       }
+      const danglingTarget = await readDanglingLinkTarget(current);
+      if (danglingTarget !== undefined) {
+        if (hops >= MAX_DANGLING_LINK_HOPS) {
+          throw new Error(`Too many symbolic links while resolving ${absolutePath}`, {
+            cause: error,
+          });
+        }
+        return realpathOfLongestExistingPrefix(
+          join(resolve(dirname(current), danglingTarget), ...missingSegments),
+          hops + 1,
+        );
+      }
       const parent = dirname(current);
       if (parent === current) {
         return absolutePath;
@@ -88,6 +112,19 @@ async function realpathOfLongestExistingPrefix(absolutePath: string): Promise<st
       missingSegments.unshift(basename(current));
       current = parent;
     }
+  }
+}
+
+/** The target of `path` when it is a symbolic link (one `realpath` could not follow), else `undefined`. */
+async function readDanglingLinkTarget(path: string): Promise<string | undefined> {
+  try {
+    const stats = await lstat(path);
+    return stats.isSymbolicLink() ? await readlink(path) : undefined;
+  } catch (error) {
+    if (isMissingPathError(error)) {
+      return undefined;
+    }
+    throw error;
   }
 }
 
