@@ -274,10 +274,10 @@ describe("HermesagentHooks", () => {
       expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining("failClosed"));
     });
 
-    it("does not warn about the events VALID_HOOKS gained in v0.20.1 through v0.21.6 (issue #2414)", async () => {
+    it("does not warn about the events VALID_HOOKS gained in v0.20.1 through v0.22.3 (issue #2414)", async () => {
       const warnSpy = vi.spyOn(logger, "warn").mockClear();
-      // The names `VALID_HOOKS` grew by between v2026.8.3 (23) and v0.21.6
-      // (44), minus `transform_api_error_classification`, which shell hooks may
+      // The names `VALID_HOOKS` grew by between v2026.8.3 (23) and v0.22.3
+      // (46), minus `transform_api_error_classification`, which shell hooks may
       // not register for (covered by its own case below).
       const addedEvents = [
         "agent_loop_stopped",
@@ -300,6 +300,8 @@ describe("HermesagentHooks", () => {
         "post_gateway_admission",
         "on_human_input_request",
         "on_human_input_resolved",
+        "on_session_delete",
+        "post_compaction",
       ];
       const rulesyncHooks = rulesyncHooksFrom({
         version: 1,
@@ -353,7 +355,7 @@ describe("HermesagentHooks", () => {
       await HermesagentHooks.fromRulesyncHooks({ outputRoot: ".", rulesyncHooks, logger });
 
       expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining('"on_future_event" is not documented by Hermes Agent v0.21.6'),
+        expect.stringContaining('"on_future_event" is not documented by Hermes Agent v0.22.3'),
       );
     });
 

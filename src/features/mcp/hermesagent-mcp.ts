@@ -14,8 +14,10 @@ import {
   getHermesagentRulesyncOutputRoot,
   getHermesagentSharedConfigWritePaths,
 } from "../../utils/hermesagent.js";
+import type { Logger } from "../../utils/logger.js";
 import {
   omitPrototypePollutionKeys,
+  omitPrototypePollutionKeysDeep,
   PROTOTYPE_POLLUTION_KEYS,
 } from "../../utils/prototype-pollution.js";
 import { isPlainObject, isRecord, isStringArray } from "../../utils/type-guards.js";
@@ -111,6 +113,80 @@ function copyHermesOauth(source: unknown): Record<string, unknown> | undefined {
   return Object.keys(oauth).length > 0 ? oauth : undefined;
 }
 
+// Longest `cost_unit` Hermes accepts (`tools/mcp_tool_costs.py`).
+const HERMES_COST_UNIT_MAX_LENGTH = 32;
+
+// Renders a rejected value for a warning; `JSON.stringify` would print `NaN`
+// and `Infinity` as `null`.
+function describeHermesValue(value: unknown): string {
+  return typeof value === "number" ? String(value) : (JSON.stringify(value) ?? String(value));
+}
+
+/**
+ * Copies the per-server MCP cost keys Hermes v0.22.3 reads in
+ * `tools/mcp_tool_costs.py`: `tool_costs` (declared per-tool costs keyed by
+ * MCP tool name; each a number, a `[min, max]` range or `{credits, note}`),
+ * `spend_limit` (per-chat budget for the server's costed tools; `0`/absent =
+ * no limit) and `cost_unit` (label shown with costs; default `credits`).
+ *
+ * A costed call that would exceed `spend_limit` asks first even on a
+ * `trust: full` server, so dropping the key on regenerate would silently
+ * remove the guard. Values Hermes would reject when loading the server are
+ * dropped with a warning instead of being written into a config Hermes then
+ * refuses: `spend_limit` must be a finite non-negative number, `cost_unit` a
+ * non-blank string of at most 32 characters, and `tool_costs` a mapping. The
+ * mapping is rebuilt as an opaque object (so no reference is shared with the
+ * source), with prototype-pollution keys removed at every depth since its
+ * values may themselves be objects.
+ */
+function copyHermesCostFields({
+  source,
+  target,
+  logger,
+}: {
+  source: Record<string, unknown>;
+  target: Record<string, unknown>;
+  logger?: Logger;
+}): boolean {
+  let copied = false;
+  const { spend_limit: spendLimit, cost_unit: costUnit, tool_costs: toolCosts } = source;
+  if (spendLimit !== undefined) {
+    if (typeof spendLimit === "number" && Number.isFinite(spendLimit) && spendLimit >= 0) {
+      target.spend_limit = spendLimit;
+      copied = true;
+    } else {
+      logger?.warn(
+        `Hermes MCP: dropping spend_limit ${describeHermesValue(spendLimit)}; Hermes requires a non-negative number.`,
+      );
+    }
+  }
+  if (costUnit !== undefined) {
+    if (
+      typeof costUnit === "string" &&
+      costUnit.trim() !== "" &&
+      costUnit.length <= HERMES_COST_UNIT_MAX_LENGTH
+    ) {
+      target.cost_unit = costUnit;
+      copied = true;
+    } else {
+      logger?.warn(
+        `Hermes MCP: dropping cost_unit ${describeHermesValue(costUnit)}; Hermes requires a non-empty string of at most ${HERMES_COST_UNIT_MAX_LENGTH} characters.`,
+      );
+    }
+  }
+  if (toolCosts !== undefined) {
+    if (isPlainObject(toolCosts)) {
+      target.tool_costs = omitPrototypePollutionKeysDeep(toolCosts);
+      copied = true;
+    } else {
+      logger?.warn(
+        "Hermes MCP: dropping tool_costs; Hermes requires a mapping of MCP tool names to costs.",
+      );
+    }
+  }
+  return copied;
+}
+
 // Per-server mappings Hermes reads as a whole; see `copyHermesAdvancedFields`.
 const HERMES_OPAQUE_MAPPING_KEYS = [
   "sampling",
@@ -124,7 +200,8 @@ const HERMES_OPAQUE_MAPPING_KEYS = [
  * alias — `auth` (`oauth` for OAuth 2.1/PKCE), mTLS `client_cert` (string PEM
  * path, or `[cert, key]`/`[cert, key, password]` list) and `client_key`,
  * `connect_timeout` (seconds), `supports_parallel_tool_calls`, `protocol`,
- * `lazy`, `keepalive_interval`, `elicitation`, `trust`, and `identity_header` —
+ * `lazy`, `keepalive_interval`, `elicitation`, `trust`, `identity_header`, and
+ * the cost keys (see {@link copyHermesCostFields}) —
  * verbatim from `source` to `target`. Field names are identical on both sides
  * (the canonical `McpServerSchema` is a `looseObject`), so this serves export
  * and import alike. See the Hermes mcp-config-reference.
@@ -132,8 +209,9 @@ const HERMES_OPAQUE_MAPPING_KEYS = [
 function copyHermesAdvancedFields(
   source: Record<string, unknown>,
   target: Record<string, unknown>,
+  logger?: Logger,
 ): boolean {
-  let copied = false;
+  let copied = copyHermesCostFields({ source, target, logger });
   if (typeof source.auth === "string") {
     target.auth = source.auth;
     copied = true;
@@ -273,7 +351,10 @@ function applyHermesToolsBlock(
  * as Hermes's own `transport: sse`, without which Hermes would connect to it
  * over Streamable HTTP.
  */
-function convertServerToHermes(config: Record<string, unknown>): Record<string, unknown> {
+function convertServerToHermes(
+  config: Record<string, unknown>,
+  logger?: Logger,
+): Record<string, unknown> {
   const out: Record<string, unknown> = {};
 
   const command = config.command;
@@ -307,7 +388,7 @@ function convertServerToHermes(config: Record<string, unknown>): Record<string, 
   if (timeout !== undefined) out.timeout = timeout;
 
   // Advanced Hermes-recognized per-server fields (auth/mTLS/timeout/parallel).
-  copyHermesAdvancedFields(config, out);
+  copyHermesAdvancedFields(config, out, logger);
 
   // Per-server selective tool loading. Canonical `enabledTools`/`disabledTools`
   // map to Hermes's `tools: { include, exclude }` block (include = whitelist,
@@ -323,12 +404,15 @@ function convertServerToHermes(config: Record<string, unknown>): Record<string, 
 /**
  * Converts rulesync canonical MCP servers into Hermes `mcp_servers:` entries.
  */
-function convertToHermesFormat(mcpServers: McpServers): Record<string, Record<string, unknown>> {
+function convertToHermesFormat(
+  mcpServers: McpServers,
+  logger?: Logger,
+): Record<string, Record<string, unknown>> {
   const result: Record<string, Record<string, unknown>> = {};
 
   for (const [name, config] of Object.entries(mcpServers)) {
     if (PROTOTYPE_POLLUTION_KEYS.has(name) || !isRecord(config)) continue;
-    result[name] = convertServerToHermes(config);
+    result[name] = convertServerToHermes(config, logger);
   }
 
   return result;
@@ -355,7 +439,10 @@ function mergeHermesMcpServers(
  * Mirrors {@link convertToHermesFormat}: `enabled: false` maps back to the
  * canonical `disabled: true`, and only recognized fields are carried over.
  */
-function convertFromHermesFormat(mcpServers: Record<string, unknown>): {
+function convertFromHermesFormat(
+  mcpServers: Record<string, unknown>,
+  logger?: Logger,
+): {
   mcpServers: McpServers;
   hermesOverrides: McpServers;
 } {
@@ -380,7 +467,7 @@ function convertFromHermesFormat(mcpServers: Record<string, unknown>): {
 
     result[name] = server;
     const hermesServer = { ...server };
-    if (copyHermesAdvancedFields(config, hermesServer)) {
+    if (copyHermesAdvancedFields(config, hermesServer, logger)) {
       hermesOverrides[name] = hermesServer;
     }
   }
@@ -400,9 +487,11 @@ function convertFromHermesFormat(mcpServers: Record<string, unknown>): {
  */
 export class HermesagentMcp extends ToolMcp {
   private config: Record<string, unknown>;
+  private readonly logger: Logger | undefined;
 
-  constructor(params: ToolMcpParams) {
+  constructor({ logger, ...params }: ToolMcpParams & { logger?: Logger }) {
     super(params);
+    this.logger = logger;
     this.config =
       this.fileContent !== undefined
         ? parseSharedConfig({ format: "yaml", fileContent: this.fileContent })
@@ -464,6 +553,7 @@ export class HermesagentMcp extends ToolMcp {
     outputRoot = process.cwd(),
     validate = true,
     global = false,
+    logger,
   }: ToolMcpFromFileParams): Promise<HermesagentMcp> {
     if (!global) {
       throw new Error(HERMESAGENT_GLOBAL_ONLY_MESSAGE);
@@ -479,6 +569,7 @@ export class HermesagentMcp extends ToolMcp {
       fileContent,
       validate,
       global,
+      logger,
     });
   }
 
@@ -487,6 +578,7 @@ export class HermesagentMcp extends ToolMcp {
     rulesyncMcp,
     validate = true,
     global = false,
+    logger,
   }: ToolMcpFromRulesyncMcpParams): Promise<HermesagentMcp> {
     if (!global) {
       throw new Error(HERMESAGENT_GLOBAL_ONLY_MESSAGE);
@@ -503,7 +595,7 @@ export class HermesagentMcp extends ToolMcp {
     // keys (model, terminal, ...).
     const merged = mergeHermesMcpServers(
       config,
-      convertToHermesFormat(rulesyncMcp.getMcpServers()),
+      convertToHermesFormat(rulesyncMcp.getMcpServers(), logger),
     );
 
     return new HermesagentMcp({
@@ -518,12 +610,16 @@ export class HermesagentMcp extends ToolMcp {
       }),
       validate,
       global,
+      logger,
     });
   }
 
   toRulesyncMcp(): RulesyncMcp {
     const mcpServers = isRecord(this.config.mcp_servers) ? this.config.mcp_servers : {};
-    const { mcpServers: servers, hermesOverrides } = convertFromHermesFormat(mcpServers);
+    const { mcpServers: servers, hermesOverrides } = convertFromHermesFormat(
+      mcpServers,
+      this.logger,
+    );
     return this.toRulesyncMcpDefault({
       outputRoot: getHermesagentRulesyncOutputRoot({
         nativeOutputRoot: this.outputRoot,
