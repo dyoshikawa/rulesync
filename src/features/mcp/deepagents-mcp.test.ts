@@ -257,6 +257,151 @@ describe("DeepagentsMcp", () => {
     });
   });
 
+  describe("oauth", () => {
+    const slack = { url: "https://mcp.slack.com/mcp", auth: "oauth" };
+
+    const generate = async (mcpServers: Record<string, unknown>) => {
+      const logger = createMockLogger();
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({ mcpServers }),
+      });
+      const mcp = await DeepagentsMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp, logger });
+      return { mcp, logger };
+    };
+
+    it("should map the canonical oauth block to client_id/client_secret on a Slack server", async () => {
+      const { mcp, logger } = await generate({
+        slack: {
+          ...slack,
+          oauth: { clientId: "123.456", client_secret: "app-secret", callbackPort: 8080 },
+        },
+      });
+
+      expect(mcp.getJson().mcpServers).toEqual({
+        slack: { ...slack, oauth: { client_id: "123.456", client_secret: "app-secret" } },
+      });
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("oauth.callbackPort"));
+    });
+
+    it("should prefer a native client_id over the canonical clientId", async () => {
+      const { mcp } = await generate({
+        slack: { ...slack, oauth: { clientId: "canonical", client_id: "native" } },
+      });
+
+      expect(mcp.getJson().mcpServers).toEqual({
+        slack: { ...slack, oauth: { client_id: "native" } },
+      });
+    });
+
+    it("should omit oauth with a warning on a non-Slack server or one without auth: oauth", async () => {
+      const { mcp, logger } = await generate({
+        other: { url: "https://example.com/mcp", oauth: { clientId: "abc" } },
+        noAuth: { url: "https://mcp.slack.com/mcp", oauth: { clientId: "abc" } },
+        lookalike: { url: "https://evilslack.com/mcp", auth: "oauth", oauth: { clientId: "abc" } },
+      });
+
+      expect(mcp.getJson().mcpServers).toEqual({
+        other: { url: "https://example.com/mcp" },
+        noAuth: { url: "https://mcp.slack.com/mcp" },
+        lookalike: { url: "https://evilslack.com/mcp", auth: "oauth" },
+      });
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"other"'));
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"noAuth"'));
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"lookalike"'));
+    });
+
+    it("should fall back to clientId when the native client_id is unusable", async () => {
+      const { mcp, logger } = await generate({
+        slack: { ...slack, oauth: { client_id: "  ", clientId: "canonical" } },
+        reversed: { ...slack, oauth: { clientId: "canonical", client_id: "  " } },
+      });
+
+      expect(mcp.getJson().mcpServers).toEqual({
+        slack: { ...slack, oauth: { client_id: "canonical" } },
+        reversed: { ...slack, oauth: { client_id: "canonical" } },
+      });
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("oauth.client_id"));
+    });
+
+    it("should drop a value holding a control character", async () => {
+      const { mcp, logger } = await generate({
+        slack: { ...slack, oauth: { clientId: "123.456", client_secret: "app\nsecret" } },
+        badId: { ...slack, oauth: { clientId: "123\u0007456" } },
+      });
+
+      expect(mcp.getJson().mcpServers).toEqual({
+        slack: { ...slack, oauth: { client_id: "123.456" } },
+        badId: slack,
+      });
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("oauth.client_secret"));
+    });
+
+    it("should check the parsed host, case-insensitively, and honor httpUrl", async () => {
+      const { mcp, logger } = await generate({
+        suffix: {
+          url: "https://slack.com.evil.example/mcp",
+          auth: "oauth",
+          oauth: { clientId: "a" },
+        },
+        upper: { url: "https://MCP.SLACK.COM/mcp", auth: "oauth", oauth: { clientId: "a" } },
+        viaHttpUrl: {
+          httpUrl: "https://mcp.slack.com/mcp",
+          auth: "oauth",
+          oauth: { clientId: "a" },
+        },
+      });
+
+      expect(mcp.getJson().mcpServers).toEqual({
+        suffix: { url: "https://slack.com.evil.example/mcp", auth: "oauth" },
+        upper: { url: "https://MCP.SLACK.COM/mcp", auth: "oauth", oauth: { client_id: "a" } },
+        viaHttpUrl: {
+          url: "https://mcp.slack.com/mcp",
+          type: "http",
+          auth: "oauth",
+          oauth: { client_id: "a" },
+        },
+      });
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"suffix"'));
+    });
+
+    it("should omit a non-object oauth", async () => {
+      const { mcp, logger } = await generate({ slack: { ...slack, oauth: false } });
+
+      expect(mcp.getJson().mcpServers).toEqual({ slack });
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("requires oauth.client_id"));
+    });
+
+    it("should omit oauth when no usable client id remains", async () => {
+      const { mcp, logger } = await generate({
+        noId: { ...slack, oauth: { callbackPort: 8080 } },
+        blankId: { ...slack, oauth: { clientId: "  ", client_secret: "app-secret" } },
+      });
+
+      expect(mcp.getJson().mcpServers).toEqual({ noId: slack, blankId: slack });
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("requires oauth.client_id"));
+    });
+
+    it("should lift client_id back to clientId on import", () => {
+      const mcp = new DeepagentsMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".deepagents",
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            slack: { ...slack, oauth: { client_id: "123.456", client_secret: "app-secret" } },
+          },
+        }),
+      });
+
+      expect(mcp.toRulesyncMcp().getMcpServers()).toEqual({
+        slack: { ...slack, oauth: { clientId: "123.456", client_secret: "app-secret" } },
+      });
+    });
+  });
+
   describe("toRulesyncMcp", () => {
     it("should convert deepagents mcp config to rulesync format", () => {
       const mcp = new DeepagentsMcp({
