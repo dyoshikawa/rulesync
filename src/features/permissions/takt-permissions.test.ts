@@ -309,6 +309,65 @@ describe("TaktPermissions", () => {
         expect(logger.warn).not.toHaveBeenCalled();
       });
 
+      it.each([
+        "http://127.0.0.1@evil.com",
+        "http://[::ffff:127.0.0.1]",
+        "http://127.0.0.1.evil.com",
+        "not a url",
+      ])("drops the look-alike or unparseable base_url %s at project scope", async (baseUrl) => {
+        const logger = createMockLogger();
+
+        const permissions = await generate({
+          logger,
+          providerOptions: { codex: { base_url: baseUrl, network_access: true } },
+        });
+
+        expect(toRecord(load(permissions.getFileContent())).provider_options).toEqual({
+          codex: { network_access: true },
+        });
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining('"provider_options.codex.base_url"'),
+        );
+      });
+
+      it("keeps the shorthand loopback base_url http://127.1 at project scope", async () => {
+        const logger = createMockLogger();
+
+        const permissions = await generate({
+          logger,
+          providerOptions: { codex: { base_url: "http://127.1" } },
+        });
+
+        expect(toRecord(load(permissions.getFileContent())).provider_options).toEqual({
+          codex: { base_url: "http://127.1" },
+        });
+        expect(logger.warn).not.toHaveBeenCalled();
+      });
+
+      it("drops a non-array plugins and a non-string base_url at project scope", async () => {
+        const logger = createMockLogger();
+
+        const permissions = await generate({
+          logger,
+          providerOptions: {
+            claude: { base_url: 8080, effort: "high" },
+            deepseek_harness: { plugins: "npm:example-plugin@1.0.0", base_url: null },
+          },
+        });
+
+        expect(toRecord(load(permissions.getFileContent())).provider_options).toEqual({
+          claude: { effort: "high" },
+        });
+        const message = String(vi.mocked(logger.warn).mock.calls[0]?.[0]);
+        for (const key of [
+          "provider_options.claude.base_url",
+          "provider_options.deepseek_harness.plugins",
+          "provider_options.deepseek_harness.base_url",
+        ]) {
+          expect(message).toContain(`"${key}"`);
+        }
+      });
+
       it("keeps plugins and remote base_url at global scope but still drops reasoning_effort", async () => {
         const logger = createMockLogger();
 

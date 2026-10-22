@@ -1117,6 +1117,40 @@ function isLoopbackBaseUrl(value: string): boolean {
   );
 }
 
+/** The keys of one `provider_options.<provider>` entry Takt rejects in config.yaml. */
+function untrustedProviderOptionKeys({
+  provider,
+  options,
+  global,
+}: {
+  provider: string;
+  options: Record<string, unknown>;
+  global: boolean;
+}): string[] {
+  const keys: string[] = [];
+  if (provider === TAKT_DEEPSEEK_HARNESS_KEY) {
+    if (options.reasoning_effort !== undefined) {
+      keys.push("reasoning_effort");
+    }
+    // A non-array value is not a valid plugin list either way, so it is dropped
+    // rather than passed through to fail Takt's schema at startup.
+    const { plugins } = options;
+    if (!global && plugins !== undefined && (!Array.isArray(plugins) || plugins.length > 0)) {
+      keys.push("plugins");
+    }
+  }
+  const baseUrl = options.base_url;
+  if (
+    !global &&
+    (TAKT_BASE_URL_PROVIDERS as readonly string[]).includes(provider) &&
+    baseUrl !== undefined &&
+    (typeof baseUrl !== "string" || !isLoopbackBaseUrl(baseUrl))
+  ) {
+    keys.push("base_url");
+  }
+  return keys;
+}
+
 /**
  * Drop the `provider_options` entries Takt refuses to load from `config.yaml`
  * (it fails at startup with a `Configuration error`), warning for each:
@@ -1148,27 +1182,11 @@ function dropUntrustedProviderOptions({
       result[provider] = options;
       continue;
     }
-    const kept: Record<string, unknown> = { ...options };
-    const drop = (key: string): void => {
-      delete kept[key];
-      dropped.push(`${TAKT_PROVIDER_OPTIONS_KEY}.${provider}.${key}`);
-    };
-    if (provider === TAKT_DEEPSEEK_HARNESS_KEY) {
-      if (kept.reasoning_effort !== undefined) {
-        drop("reasoning_effort");
-      }
-      if (!global && Array.isArray(kept.plugins) && kept.plugins.length > 0) {
-        drop("plugins");
-      }
-    }
-    if (
-      !global &&
-      (TAKT_BASE_URL_PROVIDERS as readonly string[]).includes(provider) &&
-      typeof kept.base_url === "string" &&
-      !isLoopbackBaseUrl(kept.base_url)
-    ) {
-      drop("base_url");
-    }
+    const untrusted = untrustedProviderOptionKeys({ provider, options, global });
+    const kept = Object.fromEntries(
+      Object.entries(options).filter(([key]) => !untrusted.includes(key)),
+    );
+    dropped.push(...untrusted.map((key) => `${TAKT_PROVIDER_OPTIONS_KEY}.${provider}.${key}`));
     // A provider left empty only because of the drops above is omitted.
     if (Object.keys(kept).length > 0 || Object.keys(options).length === 0) {
       result[provider] = kept;
