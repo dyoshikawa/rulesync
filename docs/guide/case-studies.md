@@ -14,5 +14,4 @@ Rulesync is trusted by leading companies and recognized by the industry:
 - **Zenn**: [Adding Rulesync configuration to zenn-editor](https://github.com/zenn-dev/zenn-editor/commit/3fa309d9d73d1cf14e376690f52a3504d49d5c1c)
 - **Octane**: [Generating agent rules with Rulesync](https://github.com/octanejs/octane/commit/3f26327262ea61c0f2de6169b243d0d0021f4fc2)
 - **Forum Virium Helsinki**: [Centralizing AI coding rules with Rulesync](https://github.com/ForumViriumHelsinki/.github/pull/27)
-- **YANET**: [Generating client agent trees from one source with Rulesync](https://github.com/yanet-platform/yanet2/pull/1793)
-- **Instructure**: [Building Canvas MCP client setup guides on Rulesync's client definitions](https://github.com/instructure/instructure.ai/pull/239)
+- **YANET**: [Generating Claude Code and Codex subagents from one source with Rulesync](https://github.com/yanet-platform/yanet2/pull/1793)
