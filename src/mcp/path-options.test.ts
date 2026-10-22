@@ -79,6 +79,17 @@ describe("assertPathOptionWithinCwd", () => {
     ).rejects.toThrow("outputRoots must stay inside the project directory");
   });
 
+  it("resolves a relative dangling link target against the link's real parent", async () => {
+    // `a/link` spells cwd/a/link, but `a` is cwd itself, so the OS resolves
+    // `../x` against cwd and lands outside it.
+    await symlink(".", join(projectDir, "a"), "dir");
+    await symlink(join("..", "x"), join(projectDir, "link"), "dir");
+
+    await expect(
+      assertPathOptionWithinCwd({ path: join("a", "link"), label: "outputRoots" }),
+    ).rejects.toThrow("outputRoots must stay inside the project directory");
+  });
+
   it("accepts a dangling symbolic link whose target would be inside cwd", async () => {
     await symlink(join(projectDir, "later"), join(projectDir, "dangling"), "dir");
 

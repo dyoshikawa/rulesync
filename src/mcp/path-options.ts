@@ -100,8 +100,12 @@ async function realpathOfLongestExistingPrefix(absolutePath: string, hops = 0): 
             cause: error,
           });
         }
+        // A relative target is resolved by the OS against the link's real
+        // parent directory, not the (possibly symlinked) spelling used to
+        // reach it. The parent exists, since `lstat` found the link in it.
+        const realParent = await realpath(dirname(current));
         return realpathOfLongestExistingPrefix(
-          join(resolve(dirname(current), danglingTarget), ...missingSegments),
+          join(resolve(realParent, danglingTarget), ...missingSegments),
           hops + 1,
         );
       }
