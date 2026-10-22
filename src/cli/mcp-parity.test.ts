@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { rulesyncTool } from "../mcp/tools.js";
+import { rulesyncTool, supportedOperationsByFeature } from "../mcp/tools.js";
 import { MCP_OPTION_NAME_MAP, MCP_PARITY_EXCLUSIONS, mcpFeatureForCommand } from "./mcp-parity.js";
 import { createProgram } from "./program.js";
 
@@ -30,9 +30,15 @@ const commands = program.commands.filter((command) => !(command.name() in comman
 
 describe("CLI / MCP parity", () => {
   it.each(commands.map((command) => command.name()))(
-    "exposes the %s command as an MCP feature",
+    "exposes the %s command as an MCP feature with a run operation",
     (name) => {
-      expect(mcpFeatures).toContain(mcpFeatureForCommand(name));
+      const feature = mcpFeatureForCommand(name);
+      expect(mcpFeatures).toContain(feature);
+      // A file feature that happens to share the command's name (`mcp`,
+      // `hooks`, ...) does not count: the command must be runnable.
+      const operations: readonly string[] =
+        supportedOperationsByFeature[feature as keyof typeof supportedOperationsByFeature] ?? [];
+      expect(operations, `'${feature}' has no run operation`).toContain("run");
     },
   );
 
@@ -90,6 +96,17 @@ describe("CLI / MCP parity", () => {
       const allOptions = new Set(commands.flatMap((command) => [...optionNamesOf(command.name())]));
       for (const name of Object.keys(optionExclusions)) {
         expect(allOptions, `stale option exclusion '${name}'`).toContain(name);
+      }
+    });
+
+    it("keeps options excluded from every command out of every MCP options schema", () => {
+      for (const feature of mcpFeatures) {
+        const keys = mcpOptionKeys(feature);
+        for (const name of Object.keys(optionExclusions)) {
+          expect(keys, `'${feature}Options' accepts excluded option '${name}'`).not.toContain(
+            MCP_OPTION_NAME_MAP[name] ?? name,
+          );
+        }
       }
     });
 

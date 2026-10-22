@@ -108,7 +108,7 @@ type RulesyncFrontmatterByFeature = {
   check: RulesyncCheckFrontmatter;
 };
 
-const supportedOperationsByFeature: Record<RulesyncFeature, RulesyncOperation[]> = {
+export const supportedOperationsByFeature: Record<RulesyncFeature, RulesyncOperation[]> = {
   rule: ["list", "get", "put", "delete"],
   command: ["list", "get", "put", "delete"],
   subagent: ["list", "get", "put", "delete"],
