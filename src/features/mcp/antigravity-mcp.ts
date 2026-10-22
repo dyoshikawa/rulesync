@@ -8,6 +8,7 @@ import {
 import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { parseJsonc } from "../../utils/jsonc.js";
+import { isPlainObject } from "../../utils/type-guards.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -39,13 +40,43 @@ function renameServerField(servers: unknown, from: string, to: string): Record<s
   );
 }
 
+function isEmptyValue(value: unknown): boolean {
+  if (Array.isArray(value)) {
+    return value.length === 0;
+  }
+  return isPlainObject(value) && Object.keys(value).length === 0;
+}
+
 /**
  * Antigravity uses `serverUrl` (not the canonical `url`) for HTTP/SSE MCP
  * servers. Convert the canonical shape into Antigravity's on the way out, and
- * back to canonical on the way in, so round-tripping is lossless.
+ * back to canonical on the way in.
+ *
+ * Antigravity documents no `type` field: the transport follows from `command`
+ * (stdio) or `serverUrl` (Streamable HTTP / SSE), and `agy plugin validate`
+ * reports the canonical `type` as an unknown field, so it is not written. A
+ * remote server is also refused at startup when it carries `command`, `args`
+ * or `env`, so an empty `args` / `env` left on a `serverUrl` server is dropped.
+ * https://antigravity.google/docs/mcp
  */
 function toAntigravityMcpServers(servers: unknown): Record<string, unknown> {
-  return renameServerField(servers, "url", "serverUrl");
+  const renamed = renameServerField(servers, "url", "serverUrl");
+  return Object.fromEntries(
+    Object.entries(renamed).map(([name, config]) => {
+      if (!isPlainObject(config)) {
+        return [name, config];
+      }
+      const isRemote = typeof config.serverUrl === "string";
+      const converted = Object.fromEntries(
+        Object.entries(config).filter(
+          ([key, value]) =>
+            key !== "type" &&
+            !(isRemote && (key === "args" || key === "env") && isEmptyValue(value)),
+        ),
+      );
+      return [name, converted];
+    }),
+  );
 }
 
 function toCanonicalMcpServers(servers: unknown): Record<string, unknown> {

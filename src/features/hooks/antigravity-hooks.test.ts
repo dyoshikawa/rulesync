@@ -64,6 +64,7 @@ describe("AntigravityHooks", () => {
                 sessionStart: [{ type: "command", command: "echo start" }],
                 preToolUse: [{ type: "command", command: "echo pre" }],
                 stop: [{ type: "command", command: "echo stop" }],
+                sessionEnd: [{ type: "command", command: "echo end" }],
               },
             }),
           }),
@@ -82,24 +83,28 @@ describe("AntigravityHooks", () => {
         const hookEntry = parsed.rulesync;
         expect(hookEntry).toBeDefined();
 
-        // Supported canonical events are mapped to their Antigravity names.
-        expect(hookEntry.PreToolUse).toBeDefined();
-        expect(hookEntry.PreToolUse[0].hooks[0].command).toBe("echo pre");
-        expect(hookEntry.Stop).toBeDefined();
-        expect(hookEntry.Stop[0].hooks[0].command).toBe("echo stop");
+        // Tool events keep the matcher-group shape; SessionStart and Stop are
+        // flat handler lists.
+        expect(hookEntry.PreToolUse).toEqual([
+          { hooks: [{ type: "command", command: "echo pre" }] },
+        ]);
+        expect(hookEntry.SessionStart).toEqual([{ type: "command", command: "echo start" }]);
+        expect(hookEntry.Stop).toEqual([{ type: "command", command: "echo stop" }]);
 
-        // The unsupported `sessionStart` event is dropped entirely.
-        expect(hookEntry.SessionStart).toBeUndefined();
-        expect(hookEntry.sessionStart).toBeUndefined();
+        // The unsupported `sessionEnd` event is dropped entirely.
+        expect(Object.keys(hookEntry).toSorted()).toEqual(["PreToolUse", "SessionStart", "Stop"]);
       });
 
-      it("should emit matcher-less PreInvocation/PostInvocation handler lists", async () => {
+      it("should emit matcher-less events as flat handler lists", async () => {
         const rulesyncHooks = new RulesyncHooks(
           createMockAiFileParams({
             fileContent: JSON.stringify({
               version: 1,
               hooks: {
-                preModelInvocation: [{ type: "command", command: "echo pre-model" }],
+                preModelInvocation: [
+                  { type: "command", command: "echo pre-model", timeout: 10 },
+                  { type: "command", command: "echo pre-model-2", matcher: "ignored" },
+                ],
                 postModelInvocation: [{ type: "command", command: "echo post-model" }],
               },
             }),
@@ -114,12 +119,15 @@ describe("AntigravityHooks", () => {
 
         const hookEntry = JSON.parse(hooks.getFileContent()).rulesync;
 
-        // Model-invocation events map to Antigravity's PascalCase names and are
-        // emitted as matcher-less handler lists (no `matcher` field).
-        expect(hookEntry.PreInvocation[0]).toEqual({
-          hooks: [{ type: "command", command: "echo pre-model" }],
-        });
-        expect(hookEntry.PostInvocation[0].hooks[0].command).toBe("echo post-model");
+        // Model-invocation events map to Antigravity's PascalCase names, and
+        // their handlers sit directly under the event key: Antigravity rejects
+        // a `{ hooks: [...] }` group there and skips the whole file. Handlers
+        // from different matcher groups are merged into the one list.
+        expect(hookEntry.PreInvocation).toEqual([
+          { type: "command", command: "echo pre-model", timeout: 10 },
+          { type: "command", command: "echo pre-model-2" },
+        ]);
+        expect(hookEntry.PostInvocation).toEqual([{ type: "command", command: "echo post-model" }]);
       });
 
       it(`should apply the ${overrideKey} per-target override`, async () => {
@@ -177,6 +185,70 @@ describe("AntigravityHooks", () => {
         expect(parsed.hooks.stop?.[0]).toEqual({
           type: "command",
           command: "echo stop",
+        });
+      });
+
+      it("should import flat handler lists for matcher-less events", () => {
+        const hooks = new HooksClass(
+          createMockAiFileParams({
+            fileContent: JSON.stringify({
+              rulesync: {
+                SessionStart: [{ type: "command", command: "echo start" }],
+                PreToolUse: [
+                  { matcher: "run_command", hooks: [{ type: "command", command: "echo pre" }] },
+                ],
+                PreInvocation: [{ type: "command", command: "echo pre-model", timeout: 5 }],
+                PostInvocation: [{ command: "echo post-model" }],
+                Stop: [
+                  { type: "command", command: "echo stop-1" },
+                  { type: "command", command: "echo stop-2" },
+                ],
+              },
+            }),
+          }),
+        );
+
+        const parsed = hooks.toRulesyncHooks().getJson();
+
+        expect(parsed.hooks).toEqual({
+          sessionStart: [{ type: "command", command: "echo start" }],
+          preToolUse: [{ type: "command", command: "echo pre", matcher: "run_command" }],
+          preModelInvocation: [{ type: "command", command: "echo pre-model", timeout: 5 }],
+          postModelInvocation: [{ type: "command", command: "echo post-model" }],
+          stop: [
+            { type: "command", command: "echo stop-1" },
+            { type: "command", command: "echo stop-2" },
+          ],
+        });
+      });
+
+      it("should round-trip generated matcher-less events", async () => {
+        const rulesyncHooks = new RulesyncHooks(
+          createMockAiFileParams({
+            fileContent: JSON.stringify({
+              version: 1,
+              hooks: {
+                sessionStart: [{ type: "command", command: "echo start" }],
+                stop: [{ type: "command", command: "echo stop", timeout: 3 }],
+              },
+            }),
+          }),
+        );
+        const generated = await HooksClass.fromRulesyncHooks({
+          outputRoot: testDir,
+          rulesyncHooks,
+          validate: true,
+        });
+
+        const parsed = new HooksClass(
+          createMockAiFileParams({ fileContent: generated.getFileContent() }),
+        )
+          .toRulesyncHooks()
+          .getJson();
+
+        expect(parsed.hooks).toEqual({
+          sessionStart: [{ type: "command", command: "echo start" }],
+          stop: [{ type: "command", command: "echo stop", timeout: 3 }],
         });
       });
 

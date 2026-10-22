@@ -16,6 +16,7 @@ import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { lookupOwn } from "../../utils/own-lookup.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
+import { isPlainObject } from "../../utils/type-guards.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import type { ToolHooksConverterConfig } from "./tool-hooks-converter.js";
 import {
@@ -32,20 +33,83 @@ import {
 } from "./tool-hooks.js";
 
 /**
- * Antigravity uses a Claude-Code-like `hooks.json` (matcher shape). The
- * `PreToolUse`/`PostToolUse` events use the matcher-based array shape, while
- * `PreInvocation`/`PostInvocation`/`Stop` are matcher-less handler lists.
- * `projectDirVar` is empty because Antigravity does not document a
- * project-directory variable for commands.
+ * Canonical events whose Antigravity counterparts (`SessionStart`,
+ * `PreInvocation`, `PostInvocation`, `Stop`) take no matcher.
+ */
+const ANTIGRAVITY_NO_MATCHER_EVENTS: ReadonlySet<string> = new Set([
+  "sessionStart",
+  "preModelInvocation",
+  "postModelInvocation",
+  "stop",
+]);
+
+/**
+ * Antigravity event names whose value is a flat list of handlers
+ * (`"Stop": [ { "type": "command", "command": "..." } ]`) rather than a list
+ * of `{ "matcher", "hooks": [...] }` groups. Antigravity's loader rejects a
+ * wrapped group under these events ("command hook must specify 'command'")
+ * and then skips the whole `hooks.json`.
+ * https://antigravity.google/docs/hooks
+ */
+const ANTIGRAVITY_FLAT_HANDLER_EVENTS: ReadonlySet<string> = new Set(
+  [...ANTIGRAVITY_NO_MATCHER_EVENTS].map(
+    (event) => lookupOwn({ record: CANONICAL_TO_ANTIGRAVITY_EVENT_NAMES, key: event }) ?? event,
+  ),
+);
+
+/**
+ * Antigravity uses a Claude-Code-like `hooks.json`. The `PreToolUse` /
+ * `PostToolUse` events use the matcher-based group shape, while `SessionStart`,
+ * `PreInvocation`, `PostInvocation` and `Stop` are flat handler lists (see
+ * {@link toAntigravityEventMap}). `projectDirVar` is empty because Antigravity
+ * does not document a project-directory variable for commands.
  */
 const ANTIGRAVITY_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   supportedEvents: ANTIGRAVITY_HOOK_EVENTS,
   canonicalToToolEventNames: CANONICAL_TO_ANTIGRAVITY_EVENT_NAMES,
   toolToCanonicalEventNames: ANTIGRAVITY_TO_CANONICAL_EVENT_NAMES,
   projectDirVar: "",
-  noMatcherEvents: new Set(["preModelInvocation", "postModelInvocation", "stop"]),
+  noMatcherEvents: ANTIGRAVITY_NO_MATCHER_EVENTS,
   supportedHookTypes: new Set(["command"]),
 };
+
+/**
+ * Turn the shared converter's matcher-group output into Antigravity's shape:
+ * the matcher-less events get their handlers directly under the event key.
+ */
+function toAntigravityEventMap(eventMap: Record<string, unknown[]>): Record<string, unknown[]> {
+  return Object.fromEntries(
+    Object.entries(eventMap).map(([event, entries]) => {
+      if (!ANTIGRAVITY_FLAT_HANDLER_EVENTS.has(event)) {
+        return [event, entries];
+      }
+      const handlers = entries.flatMap((entry) =>
+        isPlainObject(entry) && Array.isArray(entry.hooks) ? entry.hooks : [],
+      );
+      return [event, handlers];
+    }),
+  );
+}
+
+/**
+ * Reverse of {@link toAntigravityEventMap} for import: wrap each flat handler
+ * of a matcher-less event in a `{ hooks: [...] }` group so the shared converter
+ * can read it. An entry that is already a group (`{ hooks: [...] }`, as older
+ * rulesync versions wrote) is kept as is.
+ */
+function toMatcherGroupEventMap(eventMap: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(eventMap).map(([event, entries]) => {
+      if (!ANTIGRAVITY_FLAT_HANDLER_EVENTS.has(event) || !Array.isArray(entries)) {
+        return [event, entries];
+      }
+      const groups = entries.map((entry) =>
+        isPlainObject(entry) && !("hooks" in entry) ? { hooks: [entry] } : entry,
+      );
+      return [event, groups];
+    }),
+  );
+}
 
 /**
  * Antigravity's `hooks.json` is keyed by a named hook whose value holds the
@@ -102,8 +166,8 @@ type AntigravityOverrideKey = "antigravity-ide" | "antigravity-cli";
  * Hooks generator for Google Antigravity (both the IDE and the CLI).
  *
  * Antigravity writes a dedicated `hooks.json` keyed by a named hook whose
- * value holds the Claude-Code-style event → matcher-entry map
- * (`{ "<name>": { "<Event>": [...] } }`). Project and global modes share the
+ * value holds the event map (`{ "<name>": { "<Event>": [...] } }`): matcher
+ * groups for the tool events, flat handler lists for the others. Project and global modes share the
  * same shape; only the location differs (`.agents/hooks.json` vs
  * `~/.gemini/config/hooks.json`).
  *
@@ -167,12 +231,14 @@ class AntigravityHooks extends ToolHooks {
     // hooks.json is dedicated to hooks, so any existing content is fully
     // replaced; the write happens later in `writeAiFiles`.
     const config = rulesyncHooks.getJson();
-    const eventMap = canonicalToToolHooks({
-      config,
-      toolOverrideHooks: config[this.getOverrideKey()]?.hooks,
-      converterConfig: ANTIGRAVITY_CONVERTER_CONFIG,
-      logger,
-    });
+    const eventMap = toAntigravityEventMap(
+      canonicalToToolHooks({
+        config,
+        toolOverrideHooks: config[this.getOverrideKey()]?.hooks,
+        converterConfig: ANTIGRAVITY_CONVERTER_CONFIG,
+        logger,
+      }),
+    );
     // Antigravity expects the event map nested under a named hook
     // (`{ "<name>": { "<Event>": [...] } }`), not flat at the top level.
     const antigravityHooks =
@@ -199,7 +265,7 @@ class AntigravityHooks extends ToolHooks {
       );
     }
     const hooks = toolHooksToCanonical({
-      hooks: flattenAntigravityHooks(parsed),
+      hooks: toMatcherGroupEventMap(flattenAntigravityHooks(parsed)),
       converterConfig: ANTIGRAVITY_CONVERTER_CONFIG,
       logger,
     });
