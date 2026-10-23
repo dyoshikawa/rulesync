@@ -508,4 +508,29 @@ describe("KiroPermissions", () => {
     // `write` carries no ask, so its trust entry stays; so does the unrelated `use_aws`.
     expect(JSON.parse(kiroPermissions.getFileContent()).allowedTools).toEqual(["use_aws", "write"]);
   });
+
+  it("withholds path allows under an all-tools catch-all ask and untrusts grep/glob/web tools", async () => {
+    await ensureDir(join(testDir, ".kiro", "agents"));
+    await writeFileContent(
+      join(testDir, ".kiro", "agents", "default.json"),
+      JSON.stringify({ allowedTools: ["grep", "glob", "web_fetch", "use_aws"] }),
+    );
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: { "*": { "*": "ask" }, read: { "docs/**": "allow" } },
+      }),
+    });
+
+    const kiroPermissions = await KiroPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    const content = JSON.parse(kiroPermissions.getFileContent());
+    expect(content.toolsSettings.read.allowedPaths).toEqual([]);
+    expect(content.allowedTools).toEqual(["use_aws"]);
+  });
 });

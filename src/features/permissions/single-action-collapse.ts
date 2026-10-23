@@ -65,10 +65,12 @@ function restrictsNarrowerPatterns(rules: Record<string, PermissionAction> | und
  * prompts for everything in the category, which is the closest the whole-tool
  * surface gets without blocking the inputs the author allowed. A narrower
  * restriction written under the all-tools `*` category (`allToolsRules`)
- * covers every category too, so it downgrades the allow as well. A catch-all
- * `ask` or `deny` already restricts at least as much and is kept. Returns
+ * covers every category too, so it downgrades the allow as well, and a
+ * stricter all-tools catch-all (`"*": {"*": "deny"}`) raises the category's
+ * catch-all to its own action. Otherwise a catch-all `ask` or `deny` already
+ * restricts at least as much and is kept. Returns
  * `undefined` when the category has no catch-all, and `downgraded: true` when
- * the allow was turned into `ask`, so the caller can say so in its warning.
+ * the catch-all was made stricter, so the caller can say so in its warning.
  */
 export function failSafeCatchAllAction({
   rules,
@@ -81,8 +83,22 @@ export function failSafeCatchAllAction({
   downgraded: boolean;
 } {
   const catchAll = Object.hasOwn(rules, "*") ? rules["*"] : undefined;
-  if (catchAll !== "allow") {
-    return { action: catchAll, downgraded: false };
+  if (catchAll === undefined) {
+    return { action: undefined, downgraded: false };
+  }
+  // The all-tools catch-all covers this category's inputs too, and the
+  // stricter rule wins whatever its scope (`deny > ask > allow`).
+  const allToolsCatchAll =
+    allToolsRules !== undefined && Object.hasOwn(allToolsRules, "*")
+      ? allToolsRules["*"]
+      : undefined;
+  const raised =
+    allToolsCatchAll !== undefined &&
+    PERMISSION_ACTION_PRIORITY[allToolsCatchAll] > PERMISSION_ACTION_PRIORITY[catchAll]
+      ? allToolsCatchAll
+      : catchAll;
+  if (raised !== "allow") {
+    return { action: raised, downgraded: raised !== catchAll };
   }
   return restrictsNarrowerPatterns(rules) || restrictsNarrowerPatterns(allToolsRules)
     ? { action: "ask", downgraded: true }

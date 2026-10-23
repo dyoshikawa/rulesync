@@ -653,6 +653,7 @@ function convertRulesyncToRovodevToolPermissions({
       logger?.warn(
         `Rovo Dev permissions have no target for the "${category}" category. Skipping it.`,
       );
+      markSharedToolKeyRestriction({ category, rules, restrictedToolKeys });
       continue;
     }
 
@@ -713,7 +714,27 @@ function convertRulesyncToRovodevToolPermissions({
 }
 
 /**
- * Set every tool key left at `allow` to `ask` when a category mapping onto it
+ * `read` writes the `grep` tool key while the `grep` category has no target of
+ * its own, so a skipped `grep` restriction must still stop a `read` allow from
+ * auto-approving searches.
+ */
+function markSharedToolKeyRestriction({
+  category,
+  rules,
+  restrictedToolKeys,
+}: {
+  category: string;
+  rules: Record<string, PermissionAction>;
+  restrictedToolKeys: Set<RovodevToolPermissionKey>;
+}): void {
+  if (category === "grep" && Object.values(rules).some((action) => action !== "allow")) {
+    restrictedToolKeys.add("grep");
+  }
+}
+
+/**
+ * Set every tool key left at `allow` — or unset under an `allow`
+ * `toolPermissions.default` — to `ask` when a category mapping onto it
  * restricts a path the key cannot express. The per-category downgrade already
  * covers a restriction in the same category; this catches the one from
  * another category sharing the key (`edit: {"*": "allow"}` beside
@@ -730,7 +751,11 @@ function downgradeRestrictedToolKeys({
 }): void {
   const downgraded: string[] = [];
   for (const toolKey of restrictedToolKeys) {
-    if (toolPermissions.tools?.[toolKey] === "allow") {
+    // A key left unset falls back to `toolPermissions.default`, so an `allow`
+    // default would auto-approve the restricted path just the same.
+    const effective = toolPermissions.tools?.[toolKey] ?? toolPermissions.default;
+    if (effective === "allow") {
+      toolPermissions.tools ??= {};
       toolPermissions.tools[toolKey] = "ask";
       downgraded.push(toolKey);
     }
@@ -738,7 +763,7 @@ function downgradeRestrictedToolKeys({
   if (downgraded.length > 0) {
     logger?.warn(
       `Rovo Dev: ${downgraded.join(", ")} ${downgraded.length === 1 ? "is" : "are"} set to "ask" ` +
-        `instead of "allow" because another category mapping onto ${downgraded.length === 1 ? "it" : "them"} ` +
+        `instead of "allow" because a category mapping onto ${downgraded.length === 1 ? "it" : "them"} ` +
         `restricts a path the per-tool level cannot express.`,
     );
   }

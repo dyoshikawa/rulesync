@@ -96,4 +96,13 @@ describe("failSafeCatchAllAction", () => {
       failSafeCatchAllAction({ rules: { "*": "allow" }, allToolsRules: { "*": "allow" } }),
     ).toEqual({ action: "allow", downgraded: false });
   });
+
+  it("raises a category catch-all to a stricter all-tools catch-all", () => {
+    expect(
+      failSafeCatchAllAction({ rules: { "*": "allow" }, allToolsRules: { "*": "deny" } }),
+    ).toEqual({ action: "deny", downgraded: true });
+    expect(
+      failSafeCatchAllAction({ rules: { "*": "deny" }, allToolsRules: { "*": "ask" } }),
+    ).toEqual({ action: "deny", downgraded: false });
+  });
 });

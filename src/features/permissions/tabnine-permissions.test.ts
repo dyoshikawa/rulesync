@@ -75,6 +75,18 @@ describe("TabninePermissions", () => {
   });
 
   describe("fromRulesyncPermissions", () => {
+    it("does not auto-approve a tool when the all-tools catch-all denies", async () => {
+      const permissions = await TabninePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          permission: { "*": { "*": "deny" }, edit: { "*": "allow" } },
+        }),
+      });
+
+      const json = JSON.parse(permissions.getFileContent());
+      expect(json.tools?.allowed ?? []).not.toContain("replace");
+    });
+
     it("withholds a whole-tool allow when the all-tools category restricts a pattern", async () => {
       const permissions = await TabninePermissions.fromRulesyncPermissions({
         outputRoot: testDir,

@@ -94,6 +94,51 @@ describe("RovodevPermissions", () => {
   });
 
   describe("fromRulesyncPermissions", () => {
+    it("writes ask for a restricted tool key that would fall back to an allow default", async () => {
+      const perms = await RovodevPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          "*": { "*": "allow" },
+          edit: { "secrets/**": "deny" },
+        }),
+        global: true,
+      });
+
+      expect(toolPermissionsOf(perms.getFileContent()).default).toBe("allow");
+      const levels = toolLevelsOf(perms.getFileContent());
+      for (const key of ["find_and_replace_code", "create_file", "delete_file", "move_file"]) {
+        expect(levels[key]).toBe("ask");
+      }
+    });
+
+    it("downgrades the grep key a read allow writes when the grep category restricts a path", async () => {
+      const perms = await RovodevPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          read: { "*": "allow" },
+          grep: { "secrets/**": "deny" },
+        }),
+        global: true,
+      });
+
+      const levels = toolLevelsOf(perms.getFileContent());
+      expect(levels.grep).toBe("ask");
+      expect(levels.open_files).toBe("allow");
+    });
+
+    it("raises a category catch-all allow to a stricter all-tools catch-all", async () => {
+      const perms = await RovodevPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          "*": { "*": "deny" },
+          edit: { "*": "allow" },
+        }),
+        global: true,
+      });
+
+      expect(toolLevelsOf(perms.getFileContent()).create_file).toBe("deny");
+    });
+
     it("downgrades shared tool keys when another category restricts a path on them", async () => {
       const perms = await RovodevPermissions.fromRulesyncPermissions({
         outputRoot: testDir,

@@ -243,7 +243,7 @@ function buildKiroPermissionsFromRulesync({
     logger,
   });
   withholdPathAllowsCoveredByRestrictions({ pathBuckets, config, logger });
-  untrustToolsWithAsks({ nextAllowedTools, shellAsks, pathBuckets, config, logger });
+  untrustToolsWithRestrictions({ nextAllowedTools, shellAsks, pathBuckets, config, logger });
 
   // `shell`/`read`/`write` are always emitted (even empty) to match the prior
   // behavior; `grep`/`glob` are only emitted when they carry a rule so existing
@@ -351,6 +351,9 @@ const KIRO_TRUSTED_TOOL_NAMES: Readonly<Record<string, readonly string[]>> = {
   shell: ["shell", "execute_bash"],
   read: ["read", "fs_read"],
   write: ["write", "fs_write"],
+  grep: ["grep"],
+  glob: ["glob"],
+  web: ["web_fetch", "web_search"],
 };
 const KIRO_TRUST_ALL_TOOL_NAMES = ["*", "@builtin"];
 
@@ -360,7 +363,7 @@ const KIRO_TRUST_ALL_TOOL_NAMES = ["*", "@builtin"];
  * all-tools `*` restriction) was meant to stop at the prompt. Remove the
  * entries that trust a surface carrying such a rule, and say so.
  */
-function untrustToolsWithAsks({
+function untrustToolsWithRestrictions({
   nextAllowedTools,
   shellAsks,
   pathBuckets,
@@ -378,17 +381,19 @@ function untrustToolsWithAsks({
   );
   const restrictedSurfaces = new Set<string>();
   if (shellAsks.length > 0 || allToolsRestricted) restrictedSurfaces.add("shell");
-  for (const surface of ["read", "write"]) {
+  for (const surface of ["read", "write", "grep", "glob"]) {
     if ((pathBuckets[surface]?.ask.length ?? 0) > 0 || allToolsRestricted) {
       restrictedSurfaces.add(surface);
     }
   }
-  // The web tools have no entry of their own here (`applyKiroWebPermission`
-  // handles `web_fetch`/`web_search`), but a trust-all entry covers them too.
+  // `applyKiroWebPermission` already handles the `web_fetch`/`web_search`
+  // entries of a stated web category, but a trust-all entry covers them too;
+  // an all-tools restriction reaches them even when no web category is stated.
   const webRestricted = ["webfetch", "websearch"].some((category) =>
     Object.values(config.permission[category] ?? {}).some((action) => action !== "allow"),
   );
-  if (webRestricted) restrictedSurfaces.add("web");
+  if (allToolsRestricted) restrictedSurfaces.add("web");
+  else if (webRestricted) restrictedSurfaces.add("trust-all");
   if (restrictedSurfaces.size === 0) return;
   const untrusted = [
     ...KIRO_TRUST_ALL_TOOL_NAMES,
@@ -417,8 +422,10 @@ function withholdPathAllowsCoveredByRestrictions({
   config: PermissionsConfig;
   logger?: ToolPermissionsFromRulesyncPermissionsParams["logger"];
 }): void {
+  // The all-tools catch-all is included: a `"*": "deny"` or `"ask"` there
+  // overlaps every path allow.
   const allToolsRestrictions = Object.entries(config.permission["*"] ?? {})
-    .filter(([pattern, action]) => pattern !== "*" && action !== "allow")
+    .filter(([, action]) => action !== "allow")
     .map(([pattern]) => pattern);
   for (const [key, bucket] of Object.entries(pathBuckets)) {
     bucket.allow = withholdAllowsCoveredByAsks({

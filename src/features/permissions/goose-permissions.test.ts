@@ -161,6 +161,21 @@ describe("GoosePermissions", () => {
   });
 
   describe("fromRulesyncPermissions", () => {
+    it("raises a category catch-all allow to a stricter all-tools catch-all", async () => {
+      const perms = await GoosePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          "*": { "*": "ask" },
+          edit: { "*": "allow" },
+        }),
+        global: true,
+      });
+
+      const user = userPermissionOf(perms.getFileContent());
+      expect(user.always_allow).toEqual([]);
+      expect(user.ask_before).toContain("edit");
+    });
+
     it("lists a catch-all allow under ask_before when the all-tools category restricts a pattern", async () => {
       const perms = await GoosePermissions.fromRulesyncPermissions({
         outputRoot: testDir,
