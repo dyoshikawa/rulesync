@@ -103,6 +103,16 @@ export function collectShellCommandRules(
 }
 
 /**
+ * The widest glob a pattern stands for once a tool compares it as a command
+ * prefix: `git` also covers `git push --force`. Used only to compare allows
+ * against the restrictions, where widening can only withhold more allows,
+ * never fail open.
+ */
+export function widenToPrefixGlob(pattern: string): string {
+  return pattern.endsWith("*") ? pattern : `${pattern}*`;
+}
+
+/**
  * Build the test an adapter applies to an `allow` pattern before writing it:
  * which restrictions it cannot write name some of the same commands? The
  * answer is the list of those restrictions — empty when the `allow` may be

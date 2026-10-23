@@ -75,6 +75,18 @@ describe("TabninePermissions", () => {
   });
 
   describe("fromRulesyncPermissions", () => {
+    it("withholds a whole-tool allow when the all-tools category restricts a pattern", async () => {
+      const permissions = await TabninePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          permission: { "*": { "secrets/**": "deny" }, read: { "*": "allow" } },
+        }),
+      });
+
+      const json = JSON.parse(permissions.getFileContent());
+      expect(json.tools?.allowed ?? []).not.toContain("read_file");
+    });
+
     it("withholds a whole-tool allow when a narrower deny or ask in its category is skipped", async () => {
       const logger = createMockLogger();
       const permissions = await TabninePermissions.fromRulesyncPermissions({

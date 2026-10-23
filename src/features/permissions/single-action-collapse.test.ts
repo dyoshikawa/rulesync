@@ -57,31 +57,43 @@ describe("single-action-collapse", () => {
 
 describe("failSafeCatchAllAction", () => {
   it("downgrades a catch-all allow to ask when a narrower deny or ask exists", () => {
-    expect(failSafeCatchAllAction({ "*": "allow", "src/**": "deny" })).toEqual({
+    expect(failSafeCatchAllAction({ rules: { "*": "allow", "src/**": "deny" } })).toEqual({
       action: "ask",
       downgraded: true,
     });
-    expect(failSafeCatchAllAction({ "*": "allow", "src/**": "ask" })).toEqual({
+    expect(failSafeCatchAllAction({ rules: { "*": "allow", "src/**": "ask" } })).toEqual({
       action: "ask",
       downgraded: true,
     });
   });
 
   it("keeps a catch-all allow whose narrower rules only allow", () => {
-    expect(failSafeCatchAllAction({ "*": "allow", "src/**": "allow" })).toEqual({
+    expect(failSafeCatchAllAction({ rules: { "*": "allow", "src/**": "allow" } })).toEqual({
       action: "allow",
       downgraded: false,
     });
   });
 
   it("keeps a restricting catch-all and reports a missing one as undefined", () => {
-    expect(failSafeCatchAllAction({ "*": "deny", "src/**": "allow" })).toEqual({
+    expect(failSafeCatchAllAction({ rules: { "*": "deny", "src/**": "allow" } })).toEqual({
       action: "deny",
       downgraded: false,
     });
-    expect(failSafeCatchAllAction({ "src/**": "deny" })).toEqual({
+    expect(failSafeCatchAllAction({ rules: { "src/**": "deny" } })).toEqual({
       action: undefined,
       downgraded: false,
     });
+  });
+
+  it("downgrades a catch-all allow when the all-tools category restricts a narrower pattern", () => {
+    expect(
+      failSafeCatchAllAction({
+        rules: { "*": "allow" },
+        allToolsRules: { "*": "allow", "secrets/**": "deny" },
+      }),
+    ).toEqual({ action: "ask", downgraded: true });
+    expect(
+      failSafeCatchAllAction({ rules: { "*": "allow" }, allToolsRules: { "*": "allow" } }),
+    ).toEqual({ action: "allow", downgraded: false });
   });
 });

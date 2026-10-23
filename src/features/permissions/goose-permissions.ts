@@ -285,14 +285,17 @@ function convertRulesyncToGoosePermissionConfig({
       }
     }
 
-    const { action, downgraded } = failSafeCatchAllAction(rules);
+    const { action, downgraded } = failSafeCatchAllAction({
+      rules,
+      allToolsRules: category === "*" ? undefined : config.permission["*"],
+    });
     if (action === undefined) {
       continue;
     }
     if (downgraded) {
       logger?.warn(
-        `Goose: "${category}" allows "*" but restricts narrower patterns that ` +
-          `permission.yaml cannot express, so the "${toolName}" tool is listed under ` +
+        `Goose: "${category}" allows "*", but a narrower deny or ask (in it or in the "*" ` +
+          `category) cannot be expressed in permission.yaml, so the "${toolName}" tool is listed under ` +
           `ask_before instead of always_allow and will not be auto-approved.`,
       );
     }

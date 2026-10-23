@@ -96,7 +96,28 @@ describe("CopilotPermissions", () => {
       const json = JSON.parse(permissions.getFileContent());
       expect(json[AUTO_APPROVE_KEY]).toEqual({ git: true, "git push": false });
       expect(json[EDITS_KEY]).toEqual({ "**/*": true, "src/**": false });
-      expect(json[URLS_KEY]).toEqual({ "*": true, "internal.example": false });
+      expect(json[URLS_KEY]).toEqual({ "internal.example": false, "*": true });
+    });
+
+    it("orders false entries where VS Code lets them win: last for edits, first for urls", async () => {
+      const permissions = await CopilotPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          edit: { "src/**": "ask", "**/.env": "deny", "**/*": "allow" },
+          webfetch: { "*": "allow", "https://internal.example.com/*": "ask" },
+        }),
+      });
+
+      const json = JSON.parse(permissions.getFileContent());
+      expect(Object.entries(json[EDITS_KEY])).toEqual([
+        ["**/*", true],
+        ["src/**", false],
+        ["**/.env", false],
+      ]);
+      expect(Object.entries(json[URLS_KEY])).toEqual([
+        ["https://internal.example.com/*", false],
+        ["*", true],
+      ]);
     });
 
     it("maps bash, edit and webfetch and ignores categories VS Code cannot express", async () => {

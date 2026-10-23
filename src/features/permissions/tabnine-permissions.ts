@@ -514,7 +514,10 @@ function buildToolLists({
     // that rule restricts, so it is withheld: `ask` writes nothing, and a tool
     // in neither list keeps Tabnine's default confirmation prompt (read-only
     // tools never prompt, which is documented).
-    const { action, downgraded } = failSafeCatchAllAction(categoryRules);
+    const { action, downgraded } = failSafeCatchAllAction({
+      rules: categoryRules,
+      allToolsRules: permission["*"],
+    });
     if (downgraded) {
       withheldTools.add(toolName);
     }
@@ -538,7 +541,7 @@ function buildToolLists({
       logger,
       `Tabnine CLI permissions: did not add ${[...withheldTools].map(quoteValueForWarning).join(", ")} ` +
         `to tools.allowed although its category allows '*', because a narrower deny or ask rule ` +
-        `in that category was skipped; Tabnine will prompt before running it instead of ` +
+        `in that category (or in '*') was skipped; Tabnine will prompt before running it instead of ` +
         `auto-approving the input that rule restricts.`,
     );
   }

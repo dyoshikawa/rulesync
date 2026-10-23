@@ -21,6 +21,7 @@ import {
   collectShellCommandRules,
   partitionCommandRules,
   warnAboutUnwrittenCommandRules,
+  widenToPrefixGlob,
 } from "./shell-command-categories.js";
 import {
   ToolPermissions,
@@ -38,17 +39,6 @@ import { buildVscodeCommandLists } from "./vscode-command-lists.js";
  * counterpart in the extension's contributions.
  */
 const COMMAND_CATEGORY = "bash";
-
-/**
- * The widest glob a pattern stands for once the extension compares it as a
- * command prefix: `git` also covers `git push --force`. A bare `*` is already
- * the extension's match-everything wildcard. Used only to compare allows
- * against the restrictions, where widening can only withhold more allows,
- * never fail open.
- */
-function widenToPrefixGlob(pattern: string): string {
-  return pattern.endsWith("*") ? pattern : `${pattern}*`;
-}
 
 /**
  * Split the canonical `bash` rules — plus the restricting rules of the
@@ -105,10 +95,10 @@ function buildRooCommandLists({
 /**
  * The extension resolves a command matching both lists by the longer match, so
  * an allow entry that extends a denied prefix (`git push` allowed, `git`
- * denied) auto-approves the commands it covers despite the deny. Canonically
- * the deny wins whatever its width, so such an allow is withheld: the command
- * then hits the denied prefix. A bare `*` allow is the extension's wildcard
- * and never outranks a literal deny, so it is kept.
+ * denied) auto-approves the commands it covers despite the deny — and so does
+ * any allow beside a bare `*` deny, the extension's wildcard. Canonically the
+ * deny wins whatever its width, so such an allow is withheld: the command then
+ * hits the deny. A bare `*` allow never outranks a literal deny, so it is kept.
  */
 function withholdAllowsOutrankingDenies({
   allowed,
@@ -126,8 +116,17 @@ function withholdAllowsOutrankingDenies({
   }
   const withheld: string[] = [];
   const kept = allowed.filter((allow) => {
+    // Compared lowercased, as the extension does. A bare `*` deny is the
+    // wildcard too, and any literal allow is a longer match than it.
+    const loweredAllow = allow.toLowerCase();
     const outranks =
-      allow !== "*" && denied.some((deny) => deny !== allow && allow.startsWith(deny));
+      allow !== "*" &&
+      denied.some((deny) => {
+        const loweredDeny = deny.toLowerCase();
+        return (
+          loweredDeny !== loweredAllow && (deny === "*" || loweredAllow.startsWith(loweredDeny))
+        );
+      });
     if (outranks) {
       withheld.push(allow);
     }

@@ -161,6 +161,21 @@ describe("GoosePermissions", () => {
   });
 
   describe("fromRulesyncPermissions", () => {
+    it("lists a catch-all allow under ask_before when the all-tools category restricts a pattern", async () => {
+      const perms = await GoosePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          "*": { "secrets/**": "deny" },
+          read: { "*": "allow" },
+        }),
+        global: true,
+      });
+
+      const user = userPermissionOf(perms.getFileContent());
+      expect(user.always_allow).not.toContain("read");
+      expect(user.ask_before).toContain("read");
+    });
+
     it("lists a catch-all allow under ask_before when a narrower deny or ask is skipped", async () => {
       const mockLogger = createMockLogger();
       const perms = await GoosePermissions.fromRulesyncPermissions({

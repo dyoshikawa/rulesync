@@ -114,6 +114,47 @@ describe("RooPermissions", () => {
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("extend a denied command"));
     });
 
+    it("withholds every literal allow beside a bare '*' deny, the extension's wildcard", async () => {
+      const permissions = await RooPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          bash: { "*": "deny", "git status": "allow" },
+        }),
+      });
+
+      expect(JSON.parse(permissions.getFileContent())).toEqual({
+        [ALLOWED_KEY]: [],
+        [DENIED_KEY]: ["*"],
+      });
+    });
+
+    it("compares an allow against a denied prefix case-insensitively, as the extension does", async () => {
+      const permissions = await RooPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          bash: { git: "deny", "Git push": "allow" },
+        }),
+      });
+
+      expect(JSON.parse(permissions.getFileContent())).toEqual({
+        [ALLOWED_KEY]: [],
+        [DENIED_KEY]: ["git"],
+      });
+    });
+
+    it("withholds an allow that extends the literal prefix added for a glob deny", async () => {
+      const permissions = await RooPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          bash: { "rm -rf *": "deny", "rm -rf node_modules": "allow" },
+        }),
+      });
+
+      const json = JSON.parse(permissions.getFileContent());
+      expect(json[ALLOWED_KEY]).toEqual([]);
+      expect(json[DENIED_KEY]).toEqual(["rm -rf *", "rm -rf "]);
+    });
+
     // The two empty lists are treated differently because their contributed
     // defaults are. Retracting the allow key would not be a no-op: Roo Code
     // reads the *effective* configuration value, and `roo-cline.allowedCommands`

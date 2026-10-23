@@ -94,6 +94,35 @@ describe("RovodevPermissions", () => {
   });
 
   describe("fromRulesyncPermissions", () => {
+    it("downgrades shared tool keys when another category restricts a path on them", async () => {
+      const perms = await RovodevPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          edit: { "*": "allow" },
+          write: { "secrets/**": "deny" },
+        }),
+        global: true,
+      });
+
+      const levels = toolLevelsOf(perms.getFileContent());
+      for (const key of ["find_and_replace_code", "create_file", "delete_file", "move_file"]) {
+        expect(levels[key]).toBe("ask");
+      }
+    });
+
+    it("sets a category's tools to ask when the all-tools category restricts a pattern", async () => {
+      const perms = await RovodevPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          "*": { "secrets/**": "deny" },
+          read: { "*": "allow" },
+        }),
+        global: true,
+      });
+
+      expect(toolLevelsOf(perms.getFileContent()).open_files).toBe("ask");
+    });
+
     it("sets a category's tools to ask when its catch-all allow sits beside a skipped deny or ask", async () => {
       const mockLogger = createMockLogger();
       const perms = await RovodevPermissions.fromRulesyncPermissions({

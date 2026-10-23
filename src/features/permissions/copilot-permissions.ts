@@ -280,18 +280,38 @@ function asAutoApproveMap(value: unknown): Record<string, boolean> {
  * owns these keys, so a rule dropped from the canonical config disappears from
  * the settings file too.
  */
-function buildAutoApproveValue(
-  rules: Record<string, PermissionAction>,
-): Record<string, boolean> | undefined {
-  const autoApprove: Record<string, boolean> = {};
-  for (const [pattern, action] of Object.entries(rules)) {
-    // `false` means "never auto-approve": VS Code prompts. It is written for
-    // `ask` as well as `deny`, because omitting an `ask` would leave a broader
-    // `true` entry (`"**/*": true` beside an ask on `src/**`) to auto-approve
-    // the very input the author wanted to be asked about.
-    autoApprove[pattern] = action === "allow";
+function buildAutoApproveValue({
+  category,
+  rules,
+}: {
+  category: string;
+  rules: Record<string, PermissionAction>;
+}): Record<string, boolean> | undefined {
+  // `false` means "never auto-approve": VS Code prompts. It is written for
+  // `ask` as well as `deny`, because omitting an `ask` would leave a broader
+  // `true` entry (`"**/*": true` beside an ask on `src/**`) to auto-approve
+  // the very input the author wanted to be asked about.
+  const entries = Object.entries(rules).map(([pattern, action]): [string, boolean] => [
+    pattern,
+    action === "allow",
+  ]);
+  if (entries.length === 0) {
+    return undefined;
   }
-  return Object.keys(autoApprove).length > 0 ? autoApprove : undefined;
+  // VS Code does not resolve overlapping entries by strictness: the edits map
+  // lets the *last* matching glob win and the urls map the *first* matching
+  // pattern, so the `false` entries are placed where they win — last for
+  // edits, first for urls. (The terminal map checks denials first, so its
+  // order does not matter and is kept as written.)
+  const falseEntries = entries.filter(([, approved]) => !approved);
+  const trueEntries = entries.filter(([, approved]) => approved);
+  const ordered =
+    category === "edit"
+      ? [...trueEntries, ...falseEntries]
+      : category === "webfetch"
+        ? [...falseEntries, ...trueEntries]
+        : entries;
+  return Object.fromEntries(ordered);
 }
 
 /**
@@ -387,7 +407,7 @@ export class CopilotPermissions extends ToolPermissions {
       if (rules === undefined) {
         continue;
       }
-      patch[settingKey] = buildAutoApproveValue(rules);
+      patch[settingKey] = buildAutoApproveValue({ category, rules });
     }
     const defaultPermissionMode = config.copilot?.defaultPermissionMode;
     if (defaultPermissionMode !== undefined) {
