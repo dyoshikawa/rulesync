@@ -279,15 +279,21 @@ function assertFrozenLockCoversSources(params: {
   // Detect manifest drift on `ref`: when the user edited `ref` in
   // rulesync.jsonc without re-running install, refuse rather than
   // silently install the locked SHA against a different declared ref.
+  // A `ref` added or dropped counts as drift too: the lock pin is only used
+  // for the exact `ref` it was written for (see resolveLockedGhRef).
   const drifted: string[] = [];
   for (const rs of resolvedSources) {
-    if (!rs.ref) continue;
     const matches = existingLock.installations.filter(
-      (i) => i.source.toLowerCase() === rs.entry.source.toLowerCase(),
+      (i) =>
+        i.source.toLowerCase() === rs.entry.source.toLowerCase() &&
+        i.agent === rs.agent &&
+        i.scope === rs.scope,
     );
     for (const m of matches) {
-      if (m.requested_ref !== undefined && m.requested_ref !== rs.ref) {
-        drifted.push(`${rs.entry.source} (manifest=${rs.ref}, lock=${m.requested_ref})`);
+      if (m.requested_ref !== rs.ref) {
+        drifted.push(
+          `${rs.entry.source} (manifest=${rs.ref ?? "<none>"}, lock=${m.requested_ref ?? "<none>"})`,
+        );
         break;
       }
     }
@@ -644,10 +650,40 @@ async function resolveLockedGhRef(params: {
       `rulesync-gh.lock.yaml pins ${sourceKey} (agent=${rs.agent}, scope=${rs.scope}) to more than one commit. Run 'rulesync install --mode gh --update' to re-resolve it.`,
     );
   }
+  // The locked commit must still be part of the locked ref's history in this
+  // very repository. That stops two things. A commit that disappeared
+  // upstream (a force-push, a deleted branch) would otherwise make the skill
+  // listing read the 404 as "no skills/ directory", install nothing and sweep
+  // the deployed files as stale. And GitHub serves commits of a whole fork
+  // network through the parent repository, so a lockfile edited to pin a
+  // commit that only exists in a fork would otherwise install the fork's
+  // bytes under the trusted source's name.
+  const pinError = (detail: string, cause?: unknown): Error =>
+    new Error(
+      `rulesync-gh.lock.yaml pins ${sourceKey} to ${first.resolved_commit} (ref ${first.resolved_ref}), but ${detail}. Run 'rulesync install --mode gh --update' to re-resolve it.`,
+      cause === undefined ? undefined : { cause },
+    );
+  let status: string;
+  try {
+    status = await client.compareCommits({
+      owner: rs.owner,
+      repo: rs.repo,
+      base: first.resolved_commit,
+      head: first.resolved_ref,
+    });
+  } catch (error) {
+    throw pinError(`it could not be checked against the ref: ${formatError(error)}`, error);
+  }
+  if (status !== "identical" && status !== "ahead") {
+    throw pinError(`that commit is not in the ref's history (${status})`);
+  }
   // Recover whether the locked ref is a release tag, which decides the `ref`
   // recorded in the deployed SKILL.md (see resolveGhRef): an explicit `ref`
   // never counts as one, and without it the lock holds either the latest
-  // release's tag or the default branch the source fell back to.
+  // release's tag or the default branch the source fell back to. The lock
+  // does not record which, so the current default branch tells them apart;
+  // a default branch renamed since the lock was written is read as a tag,
+  // which changes the recorded provenance (and the content hash) once.
   const usedTag =
     rs.ref === undefined &&
     first.resolved_ref !== first.resolved_commit &&

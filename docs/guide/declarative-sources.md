@@ -211,7 +211,7 @@ Example `rulesync.jsonc`:
 
 Run with `npx rulesync install --mode gh`.
 
-A plain `rulesync install --mode gh` installs each source at the commit recorded in `rulesync-gh.lock.yaml`, so a new upstream release or a moved branch is not picked up until you run it with `--update`. A source whose `ref` was changed in `rulesync.jsonc` (or added or dropped) is no longer covered by the lock and is resolved again.
+A plain `rulesync install --mode gh` installs each source at the commit recorded in `rulesync-gh.lock.yaml`, so a new upstream release or a moved branch is not picked up until you run it with `--update`. A source whose `ref` was changed in `rulesync.jsonc` (or added or dropped) is no longer covered by the lock and is resolved again. `--frozen` fails on such a change instead. Before using a locked commit, rulesync checks that it is still in the history of the locked ref in that repository; a commit that is gone (for example after a force-push) or that only exists in a fork fails the source, and `--update` re-resolves it.
 
 At project scope, a deployed file is refused when any path component below the project root — the install directory, the skill directory, or the file itself — is a symbolic link, and the install fails with `Refusing to follow a symbolic link`. This stops a cloned repository from committing a link such as `.agents/skills/x/config -> ../../../.git/config` that would send the remote bytes into another file of the project. User scope is not checked, so a `~/.claude` linked into a dotfiles checkout keeps working.
 

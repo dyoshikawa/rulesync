@@ -34,6 +34,9 @@ vi.mock("../github-client.js", () => ({
     getFileInfo(...args: any[]) {
       return mockClientInstance.getFileInfo(...args);
     }
+    compareCommits(...args: any[]) {
+      return mockClientInstance.compareCommits(...args);
+    }
   },
   GitHubClientError: class GitHubClientError extends Error {
     statusCode?: number;
@@ -79,6 +82,7 @@ describe("installGh", () => {
       listDirectory: vi.fn(),
       getFileContent: vi.fn(),
       getFileInfo: vi.fn(),
+      compareCommits: vi.fn().mockResolvedValue("identical"),
     };
   });
 
@@ -434,7 +438,10 @@ describe("installGh", () => {
       draft: false,
       assets: [],
     });
-    mockClientInstance.resolveRefToSha.mockResolvedValue(SECOND_SHA);
+    // The new release resolves to a new commit; the locked one still exists.
+    mockClientInstance.resolveRefToSha.mockImplementation(
+      async (_o: string, _r: string, ref: string) => (ref === VALID_SHA ? VALID_SHA : SECOND_SHA),
+    );
     mockClientInstance.getFileContent.mockClear();
 
     await installGh({ projectRoot: testDir, sources: [source({ source: "owner/repo" })], logger });
@@ -460,8 +467,10 @@ describe("installGh", () => {
     const firstContent = await readFileContent(join(testDir, ".agents/skills/s/SKILL.md"));
     const firstHash = (await readGhLock(testDir))?.installations[0]?.content_hash;
 
-    // The branch moves upstream.
-    mockClientInstance.resolveRefToSha.mockResolvedValue(SECOND_SHA);
+    // The branch moves upstream; the locked commit still exists.
+    mockClientInstance.resolveRefToSha.mockImplementation(
+      async (_o: string, _r: string, ref: string) => (ref === VALID_SHA ? VALID_SHA : SECOND_SHA),
+    );
     await installGh({
       projectRoot: testDir,
       sources: [source({ source: "owner/repo" })],
@@ -472,6 +481,65 @@ describe("installGh", () => {
     expect(await readFileContent(join(testDir, ".agents/skills/s/SKILL.md"))).toBe(firstContent);
     expect(firstContent).toContain(`ref: ${VALID_SHA}`);
     expect((await readGhLock(testDir))?.installations[0]?.content_hash).toBe(firstHash);
+  });
+
+  it("fails the source and keeps its files when the locked commit is gone upstream", async () => {
+    setupSingleSkill("s");
+    await installGh({ projectRoot: testDir, sources: [source({ source: "owner/repo" })], logger });
+    const lockBefore = await readGhLock(testDir);
+
+    // The locked commit was force-pushed away: comparing against it 404s,
+    // and so would listing skills/ at it.
+    mockClientInstance.compareCommits.mockRejectedValue(makeNotFound());
+    const result = await installGh({
+      projectRoot: testDir,
+      sources: [source({ source: "owner/repo" })],
+      logger,
+    });
+
+    expect(result.failedSourceCount).toBe(1);
+    expect(logger.error).toHaveBeenCalledWith(expect.stringMatching(/could not be checked/));
+    expect(await fileExists(join(testDir, ".agents/skills/s/SKILL.md"))).toBe(true);
+    expect((await readGhLock(testDir))?.installations).toEqual(lockBefore?.installations);
+  });
+
+  it("refuses a locked commit that is not in the locked ref's history", async () => {
+    setupSingleSkill("s");
+    await installGh({ projectRoot: testDir, sources: [source({ source: "owner/repo" })], logger });
+    mockClientInstance.getFileContent.mockClear();
+
+    // e.g. a lockfile edited to pin a commit that only exists in a fork.
+    mockClientInstance.compareCommits.mockResolvedValue("diverged");
+    await expect(
+      installGh({
+        projectRoot: testDir,
+        sources: [source({ source: "owner/repo" })],
+        options: { frozen: true },
+        logger,
+      }),
+    ).rejects.toThrow(/not in the ref's history \(diverged\)/);
+
+    expect(mockClientInstance.compareCommits).toHaveBeenCalledWith({
+      owner: "owner",
+      repo: "repo",
+      base: VALID_SHA,
+      head: "v1.0.0",
+    });
+    expect(mockClientInstance.getFileContent).not.toHaveBeenCalled();
+  });
+
+  it("--frozen reports a ref added to the manifest as drift", async () => {
+    setupSingleSkill("s");
+    await installGh({ projectRoot: testDir, sources: [source({ source: "owner/repo" })], logger });
+
+    await expect(
+      installGh({
+        projectRoot: testDir,
+        sources: [source({ source: "owner/repo", ref: "v2.0.0" })],
+        options: { frozen: true },
+        logger,
+      }),
+    ).rejects.toThrow(/manifest ref does not match.*manifest=v2\.0\.0, lock=<none>/);
   });
 
   it("re-resolves when the manifest ref no longer matches the locked one", async () => {

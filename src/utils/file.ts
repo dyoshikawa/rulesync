@@ -87,6 +87,19 @@ export class PathOutsideRootError extends Error {
 }
 
 /**
+ * Thrown by {@link assertNoSymlinkBelowRoot} when the target is reached
+ * through a symbolic link below the root, even one that stays inside it. A
+ * subclass of {@link PathOutsideRootError}, so callers that tell refusals from
+ * filesystem errors keep working.
+ */
+export class SymlinkRefusedError extends PathOutsideRootError {
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = "SymlinkRefusedError";
+  }
+}
+
+/**
  * Refuse a write or removal target whose real location is outside `rootPath`.
  *
  * Unlike {@link assertWritablePathInsideRoot}, a symbolic link on the way is
@@ -193,7 +206,7 @@ export async function assertNoSymlinkBelowRoot(params: {
       throw error;
     }
     if (stats.isSymbolicLink()) {
-      throw new PathOutsideRootError(
+      throw new SymlinkRefusedError(
         `Refusing to follow a symbolic link: ${currentPath} (for ${targetPath}).`,
       );
     }

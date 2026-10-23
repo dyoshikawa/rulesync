@@ -52,6 +52,7 @@ import {
   restoreMissingExecutableBit,
   runWithDirectoryRollback,
   sharedTrailingSegments,
+  SymlinkRefusedError,
   toKebabCaseFilename,
   toPosixPath,
   validateOutputRoot,
@@ -199,7 +200,7 @@ describe("file utilities", () => {
             rootPath: testDir,
             targetPath: join(testDir, "skills", "s", "config"),
           }),
-        ).rejects.toThrow(PathOutsideRootError);
+        ).rejects.toThrow(SymlinkRefusedError);
       });
 
       it("should refuse a symlinked directory on the way to the target", async () => {
