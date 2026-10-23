@@ -76,6 +76,7 @@ import { LettacodeCommand } from "./lettacode-command.js";
 import { MimocodeCommand } from "./mimocode-command.js";
 import { OmpCommand } from "./omp-command.js";
 import { OpenCodeCommand } from "./opencode-command.js";
+import { Opencodev1Command } from "./opencodev1-command.js";
 import { PiCommand } from "./pi-command.js";
 import { QoderCommand } from "./qoder-command.js";
 import { QwencodeCommand } from "./qwencode-command.js";
@@ -721,6 +722,19 @@ export const toolCommandFactories = new Map<CommandsProcessorToolTarget, ToolCom
     "opencode",
     {
       class: OpenCodeCommand,
+      meta: {
+        extension: "md",
+        supportsProject: true,
+        supportsGlobal: true,
+        isSimulated: false,
+        supportsSubdirectory: true,
+      },
+    },
+  ],
+  [
+    "opencodev1",
+    {
+      class: Opencodev1Command,
       meta: {
         extension: "md",
         supportsProject: true,

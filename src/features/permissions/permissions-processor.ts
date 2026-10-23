@@ -45,6 +45,7 @@ import { LettacodePermissions } from "./lettacode-permissions.js";
 import { MimocodePermissions } from "./mimocode-permissions.js";
 import { OmpPermissions } from "./omp-permissions.js";
 import { OpencodePermissions } from "./opencode-permissions.js";
+import { Opencodev1Permissions } from "./opencodev1-permissions.js";
 import { PiPermissions } from "./pi-permissions.js";
 import { PoolPermissions } from "./pool-permissions.js";
 import { QoderPermissions } from "./qoder-permissions.js";
@@ -507,6 +508,17 @@ export const toolPermissionsFactories = new Map<
     "opencode",
     {
       class: OpencodePermissions,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+    },
+  ],
+  [
+    "opencodev1",
+    {
+      class: Opencodev1Permissions,
       meta: {
         supportsProject: true,
         supportsGlobal: true,

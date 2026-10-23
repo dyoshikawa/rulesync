@@ -42,6 +42,8 @@ import {
   LETTACODE_HOOK_EVENTS,
   OPENCODE_HOOK_EVENTS,
   OPENCODE_MATCHER_HOOK_EVENTS,
+  OPENCODE_V2_HOOK_EVENTS,
+  OPENCODE_V2_MATCHER_HOOK_EVENTS,
   OMP_HOOK_EVENTS,
   PI_HOOK_EVENTS,
   POOL_HOOK_EVENTS,
@@ -102,6 +104,7 @@ import { LettacodeHooks } from "./lettacode-hooks.js";
 import { MimocodeHooks } from "./mimocode-hooks.js";
 import { OmpHooks } from "./omp-hooks.js";
 import { OpencodeHooks } from "./opencode-hooks.js";
+import { Opencodev1Hooks } from "./opencodev1-hooks.js";
 import { PiHooks } from "./pi-hooks.js";
 import { PoolHooks } from "./pool-hooks.js";
 import { QoderHooks } from "./qoder-hooks.js";
@@ -619,6 +622,25 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
     "opencode",
     {
       class: OpencodeHooks,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: false,
+      },
+      // OpenCode 2.x: a `{ id, setup }` plugin (opencodev1 keeps the V1 lists).
+      supportedEvents: OPENCODE_V2_HOOK_EVENTS,
+      supportedHookTypes: ["command"],
+      supportsMatcher: true,
+      matcherEvents: OPENCODE_V2_MATCHER_HOOK_EVENTS,
+      // The adapter only emits its own native events; unknown override-block
+      // keys are dropped, so report them.
+      dropsUnknownOverrideEvents: true,
+    },
+  ],
+  [
+    "opencodev1",
+    {
+      class: Opencodev1Hooks,
       meta: {
         supportsProject: true,
         supportsGlobal: true,

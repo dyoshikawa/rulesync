@@ -62,7 +62,7 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
   targets: z._default(RulesyncTargetsSchema, ["*"]),
   // Default for tools that support the flag (claudecode, codebuddy, copilot, copilotcli, crush,
   // cursor, zed, pi, omp, qwencode, vibe, grokcli, factorydroid, dsh, reasonix, commandcode,
-  // lettacode, opencode, mimocode, xum).
+  // lettacode, opencode, opencodev1, mimocode, xum).
   // A target-section value of the same key overrides this default.
   // `devin` also consumes this root value (mapping `true` onto a user-only
   // `triggers` list); it has no section key of the same name, but a
@@ -160,6 +160,16 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
       // `metadata` at all, so it never validates or rejects them. Left
       // untyped so rulesync never aborts on a value the tool itself
       // tolerates. See https://opencode.ai/docs/skills/
+      license: z.optional(z.unknown()),
+      compatibility: z.optional(z.unknown()),
+      metadata: z.optional(z.unknown()),
+      "disable-model-invocation": z.optional(z.boolean()),
+    }),
+  ),
+  // OpenCode V1 reads the same SKILL.md fields as OpenCode (V2).
+  opencodev1: z.optional(
+    z.looseObject({
+      "allowed-tools": z.optional(z.array(z.string())),
       license: z.optional(z.unknown()),
       compatibility: z.optional(z.unknown()),
       metadata: z.optional(z.unknown()),
@@ -595,6 +605,13 @@ export type RulesyncSkillFrontmatterInput = {
     };
   };
   opencode?: {
+    "allowed-tools"?: string[];
+    license?: unknown;
+    compatibility?: unknown;
+    metadata?: unknown;
+    "disable-model-invocation"?: boolean;
+  };
+  opencodev1?: {
     "allowed-tools"?: string[];
     license?: unknown;
     compatibility?: unknown;

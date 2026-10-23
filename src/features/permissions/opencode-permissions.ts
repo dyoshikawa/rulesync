@@ -19,6 +19,7 @@ import type { Logger } from "../../utils/logger.js";
 import { isRecord } from "../../utils/type-guards.js";
 import {
   mergeOpencodeConfigValues,
+  toOpencodeV2PermissionRules,
   readOpencodeDotDirConfigLayers,
   warnOpencodeDotDirOverrides,
 } from "../opencode-config.js";
@@ -210,6 +211,99 @@ function isSharedPermissionCategory(category: string): boolean {
   );
 }
 
+/**
+ * One entry of OpenCode V2's ordered `permissions` array. The last matching
+ * entry wins.
+ *
+ * @see https://opencode.ai/v2/docs/permissions/
+ */
+const OpencodeV2PermissionRuleSchema = z.looseObject({
+  action: z.string(),
+  resource: z.string(),
+  effect: z.enum(["allow", "ask", "deny"]),
+});
+type OpencodeV2PermissionRule = z.infer<typeof OpencodeV2PermissionRuleSchema>;
+
+/**
+ * OpenCode V2 actions mapped back to the V1 permission keys the import path
+ * already translates into canonical categories.
+ */
+const OPENCODE_V2_TO_V1_PERMISSION_KEYS: Record<string, string> = {
+  shell: "bash",
+  subagent: "task",
+};
+
+/**
+ * Folds OpenCode V2's ordered `permissions` array back into the V1 per-key
+ * map the import path splits into canonical categories (`shell` → `bash`,
+ * `subagent` → `task`). A pattern repeated for one action keeps its last
+ * effect, as the last matching V2 rule wins; the relative order of rules
+ * across different actions is not representable in the map and is dropped.
+ */
+function fromOpencodeV2PermissionRules(
+  rules: readonly OpencodeV2PermissionRule[],
+): Record<string, Record<string, PermissionAction>> {
+  const permission: Record<string, Record<string, PermissionAction>> = {};
+  for (const { action, resource, effect } of rules) {
+    const key = Object.hasOwn(OPENCODE_V2_TO_V1_PERMISSION_KEYS, action)
+      ? OPENCODE_V2_TO_V1_PERMISSION_KEYS[action]!
+      : action;
+    const patterns = Object.hasOwn(permission, key) ? permission[key]! : {};
+    // Re-insert so the pattern takes the position of its last occurrence.
+    delete patterns[resource];
+    patterns[resource] = effect;
+    permission[key] = patterns;
+  }
+  return permission;
+}
+
+/**
+ * Translates the shared canonical permission block into OpenCode's native
+ * permission keys (`agent` → `task`, `write` → `edit`), so each rule is
+ * written under the key OpenCode actually reads. A folded `write` is merged
+ * with any canonical `edit` rules rather than replacing them.
+ */
+function toOpencodeSharedPermission({
+  permission,
+  toolTarget,
+  logger,
+}: {
+  permission: PermissionsConfig["permission"];
+  toolTarget: string;
+  logger?: Logger;
+}): Record<string, Record<string, PermissionAction>> {
+  const sharedPermission: Record<string, Record<string, PermissionAction>> = {};
+  for (const [category, value] of Object.entries(honorAllToolsOnBash(permission))) {
+    if (OPENCODE_UNSUPPORTED_PERMISSION_CATEGORIES.has(category)) {
+      logger?.warn(
+        `OpenCode has no permission key for the "${category}" category; its rules were skipped.`,
+      );
+      continue;
+    }
+    const key = toOpencodePermissionKey(category);
+    const existing = Object.hasOwn(sharedPermission, key) ? sharedPermission[key] : undefined;
+    if (existing) {
+      const merged = mergePatternRules(existing, value);
+      if (merged !== existing) {
+        logger?.warn(
+          `Several canonical categories map to OpenCode's "${key}" key, so their rules were merged; patterns were reordered allow, ask, deny so no rule set is loosened, which disables an allow carve-out under a broader ask or deny pattern. Set ${toolTarget}.permission.${key} to control the exact order.`,
+        );
+      }
+      // OpenCode flattens every key's rules in object order and the last
+      // match wins across keys too (a `*` key also matches `edit`), so the
+      // merged map takes the native category's own position, never the
+      // folded one's: placing it earlier could let a later key override it.
+      if (category === key) {
+        delete sharedPermission[key];
+      }
+      sharedPermission[key] = merged;
+    } else {
+      sharedPermission[key] = value;
+    }
+  }
+  return sharedPermission;
+}
+
 const OpencodePermissionsConfigSchema = z.looseObject({
   // OpenCode accepts either a per-tool object OR a bare top-level string that
   // applies uniformly to every tool (e.g. `"permission": "allow"`).
@@ -218,6 +312,8 @@ const OpencodePermissionsConfigSchema = z.looseObject({
   permission: z.optional(
     z.union([z.enum(["allow", "ask", "deny"]), z.record(z.string(), OpencodePermissionSchema)]),
   ),
+  // OpenCode V2's ordered rule list (read and written for a V2 layout only).
+  permissions: z.optional(z.array(OpencodeV2PermissionRuleSchema)),
 });
 
 type OpencodePermissionsConfig = z.infer<typeof OpencodePermissionsConfigSchema>;
@@ -282,14 +378,16 @@ export class OpencodePermissions extends ToolPermissions {
       .map(({ config }): unknown => config)
       .reduce(mergeOpencodeConfigValues, parseJsonc(fileContent ?? "{}"));
     const record = isRecord(parsed) ? parsed : {};
+    // Read as an own property rather than through the prototype chain:
+    // `jsonc-parser` assigns keys with `obj[key] = value`, so a literal
+    // `"__proto__": { "permission": ... }` in the config replaces this
+    // object's prototype, and `record.permission` would import a permission
+    // block that the word "permission" never appears next to in the file.
+    const v1Permission = Object.hasOwn(record, "permission") ? (record.permission ?? {}) : {};
+    const { permissions: v2Rules, ...rest } = record;
     const nextJson = {
-      ...record,
-      // Read as an own property rather than through the prototype chain:
-      // `jsonc-parser` assigns keys with `obj[key] = value`, so a literal
-      // `"__proto__": { "permission": ... }` in the config replaces this
-      // object's prototype, and `record.permission` would import a permission
-      // block that the word "permission" never appears next to in the file.
-      permission: Object.hasOwn(record, "permission") ? (record.permission ?? {}) : {},
+      ...rest,
+      permission: this.mergeV2PermissionRules({ v1Permission, v2Rules }),
     };
 
     return new this({
@@ -299,6 +397,46 @@ export class OpencodePermissions extends ToolPermissions {
       fileContent: JSON.stringify(nextJson, null, 2),
       validate,
     });
+  }
+
+  /**
+   * For a V2 layout, folds the V2 `permissions` array into the V1 map read
+   * from the same config. OpenCode V2 applies the V1 map's rules before the
+   * array's, so the array's patterns are merged in after (and over) them.
+   */
+  private static mergeV2PermissionRules({
+    v1Permission,
+    v2Rules,
+  }: {
+    v1Permission: unknown;
+    v2Rules: unknown;
+  }): unknown {
+    if (this.layout.configVersion !== "v2") {
+      return v1Permission;
+    }
+    const parsedRules = z.array(OpencodeV2PermissionRuleSchema).safeParse(v2Rules);
+    if (!parsedRules.success || parsedRules.data.length === 0) {
+      return v1Permission;
+    }
+    const fromV2 = fromOpencodeV2PermissionRules(parsedRules.data);
+    const merged: Record<string, unknown> =
+      typeof v1Permission === "string"
+        ? { "*": v1Permission }
+        : isRecord(v1Permission)
+          ? { ...v1Permission }
+          : {};
+    for (const [key, patterns] of Object.entries(fromV2)) {
+      const existing = Object.hasOwn(merged, key) ? merged[key] : undefined;
+      const base =
+        typeof existing === "string" ? { "*": existing } : isRecord(existing) ? existing : {};
+      const combined: Record<string, unknown> = { ...base };
+      for (const [resource, effect] of Object.entries(patterns)) {
+        delete combined[resource];
+        combined[resource] = effect;
+      }
+      merged[key] = combined;
+    }
+    return merged;
   }
 
   static async fromRulesyncPermissions({
@@ -330,53 +468,34 @@ export class OpencodePermissions extends ToolPermissions {
     // replaces the shared entry without affecting other tools' outputs.
     const overridePermission = rulesyncJson[this.layout.toolTarget]?.permission ?? {};
 
-    // Translate canonical category names into OpenCode's native permission keys
-    // (`agent` → `task`, `write` → `edit`) before emitting them, so each rule is
-    // written under the key OpenCode actually reads. A folded `write` is merged
-    // with any canonical `edit` rules rather than replacing them.
-    const sharedPermission: Record<string, Record<string, PermissionAction>> = {};
-    for (const [category, value] of Object.entries(
-      honorAllToolsOnBash(rulesyncJson.permission ?? {}),
-    )) {
-      if (OPENCODE_UNSUPPORTED_PERMISSION_CATEGORIES.has(category)) {
-        logger?.warn(
-          `OpenCode has no permission key for the "${category}" category; its rules were skipped.`,
-        );
-        continue;
-      }
-      const key = toOpencodePermissionKey(category);
-      const existing = Object.hasOwn(sharedPermission, key) ? sharedPermission[key] : undefined;
-      if (existing) {
-        const merged = mergePatternRules(existing, value);
-        if (merged !== existing) {
-          logger?.warn(
-            `Several canonical categories map to OpenCode's "${key}" key, so their rules were merged; patterns were reordered allow, ask, deny so no rule set is loosened, which disables an allow carve-out under a broader ask or deny pattern. Set opencode.permission.${key} to control the exact order.`,
-          );
-        }
-        // OpenCode flattens every key's rules in object order and the last
-        // match wins across keys too (a `*` key also matches `edit`), so the
-        // merged map takes the native category's own position, never the
-        // folded one's: placing it earlier could let a later key override it.
-        if (category === key) {
-          delete sharedPermission[key];
-        }
-        sharedPermission[key] = merged;
-      } else {
-        sharedPermission[key] = value;
-      }
-    }
+    const sharedPermission = toOpencodeSharedPermission({
+      permission: rulesyncJson.permission ?? {},
+      toolTarget: this.layout.toolTarget,
+      logger,
+    });
 
+    const isV2 = this.layout.configVersion === "v2";
     const permission: Record<string, OpencodePermission> = {};
     for (const [category, value] of Object.entries({
       ...sharedPermission,
       ...overridePermission,
     })) {
-      const opencodePermission = toOpencodePermission({ category, value, logger });
-      permission[category] = opencodePermission;
+      // OpenCode V2 matches `webfetch` / `websearch` against the URL / query,
+      // so only V1 collapses those keys to a single action.
+      permission[category] = isV2 ? value : toOpencodePermission({ category, value, logger });
     }
 
+    // OpenCode V2 reads the V1 `permission` map too and applies it before the
+    // `permissions` array, so the V2 write retracts the V1 map rather than
+    // leaving stale rules in front of the generated ones.
+    const patch = isV2
+      ? { permissions: toOpencodeV2PermissionRules(permission), permission: undefined }
+      : { permission };
+
     warnOpencodeDotDirOverrides({
-      generated: { permission },
+      // OpenCode V2 appends an overlay's rules (from either spelling) after
+      // the root config's, so they take precedence like a V1 overlay's keys.
+      generated: isV2 ? { permission, permissions: patch.permissions } : { permission },
       overlays: await readOpencodeDotDirConfigLayers({ outputRoot, global, layout: this.layout }),
       rootFileName: relativeFilePath,
       logger,
@@ -390,7 +509,7 @@ export class OpencodePermissions extends ToolPermissions {
         fileKey: sharedConfigFileKey(basePaths),
         feature: "permissions",
         existingContent: fileContent ?? "",
-        patch: { permission },
+        patch,
         filePath: join(jsonDir, relativeFilePath),
         logger,
       }),

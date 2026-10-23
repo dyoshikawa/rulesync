@@ -15,6 +15,8 @@ export const MIMOCODE_GLOBAL_DIR = join(".config", "mimocode");
 
 export const MIMOCODE_LAYOUT: OpencodeLayout = {
   toolTarget: "mimocode",
+  // MiMo Code forked OpenCode 1.x and keeps its config and plugin shapes.
+  configVersion: "v1",
   dir: MIMOCODE_DIR,
   globalDir: MIMOCODE_GLOBAL_DIR,
   configDir: MIMOCODE_DIR,

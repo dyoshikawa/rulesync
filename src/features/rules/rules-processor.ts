@@ -51,6 +51,7 @@ import { CommandsProcessor } from "../commands/commands-processor.js";
 import { KiloMcp } from "../mcp/kilo-mcp.js";
 import { MimocodeMcp } from "../mcp/mimocode-mcp.js";
 import { OpencodeMcp } from "../mcp/opencode-mcp.js";
+import { Opencodev1Mcp } from "../mcp/opencodev1-mcp.js";
 import { AgentsmdSkill } from "../skills/agentsmd-skill.js";
 import { RovodevSkill } from "../skills/rovodev-skill.js";
 import { RulesyncSkill } from "../skills/rulesync-skill.js";
@@ -106,6 +107,7 @@ import { MusecodeRule } from "./musecode-rule.js";
 import { OmpRule } from "./omp-rule.js";
 import { OpenclawRule } from "./openclaw-rule.js";
 import { OpenCodeRule } from "./opencode-rule.js";
+import { Opencodev1Rule } from "./opencodev1-rule.js";
 import { PiRule } from "./pi-rule.js";
 import { PoolRule } from "./pool-rule.js";
 import { QoderRule } from "./qoder-rule.js";
@@ -1176,6 +1178,23 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         supportsGlobal: true,
         ruleDiscoveryMode: "toon",
         mcpInstructionsRegistrar: OpencodeMcp,
+        // OpenCode reads `instructions` from the global
+        // `~/.config/opencode/opencode.json` too, so global non-root rules are
+        // generated and registered instead of being dropped.
+        mcpInstructionsRegistrarGlobal: true,
+        collisionPolicy: "compose",
+      },
+    },
+  ],
+  [
+    "opencodev1",
+    {
+      class: Opencodev1Rule,
+      meta: {
+        extension: "md",
+        supportsGlobal: true,
+        ruleDiscoveryMode: "toon",
+        mcpInstructionsRegistrar: Opencodev1Mcp,
         // OpenCode reads `instructions` from the global
         // `~/.config/opencode/opencode.json` too, so global non-root rules are
         // generated and registered instead of being dropped.

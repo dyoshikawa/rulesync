@@ -1999,6 +1999,7 @@ Second global content`;
         "mimocode",
         "omp",
         "opencode",
+        "opencodev1",
         "pool",
         "qoder",
         "qwencode",
@@ -2077,6 +2078,7 @@ Second global content`;
           "mimocode",
           "omp",
           "opencode",
+          "opencodev1",
           "pool",
           "qoder",
           "qwencode",
@@ -2112,6 +2114,7 @@ Second global content`;
         "commandcode",
         "kilo",
         "opencode",
+        "opencodev1",
       ];
       validTargets.forEach((target) => {
         expect(subagentsProcessorToolTargets).toContain(target);

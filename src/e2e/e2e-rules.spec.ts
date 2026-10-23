@@ -43,6 +43,7 @@ const rulesRootTargets = [
   { target: "mimocode", outputPath: "AGENTS.md" },
   { target: "omp", outputPath: join(".omp", "AGENTS.md") },
   { target: "opencode", outputPath: "AGENTS.md" },
+  { target: "opencodev1", outputPath: "AGENTS.md" },
   { target: "antigravity-cli", outputPath: "AGENTS.md" },
   { target: "antigravity-ide", outputPath: "AGENTS.md" },
   { target: "goose", outputPath: ".goosehints" },
@@ -1798,6 +1799,7 @@ describe("E2E: rules (import)", () => {
       importedFileName: "overview.md",
     },
     { target: "opencode", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
+    { target: "opencodev1", sourcePath: "AGENTS.md", importedFileName: "overview.md" },
     { target: "goose", sourcePath: ".goosehints", importedFileName: "overview.md" },
     {
       target: "copilotcli",
@@ -2032,6 +2034,7 @@ const rulesGlobalTargets = [
   { target: "mimocode", outputPath: join(".config", "mimocode", "AGENTS.md") },
   { target: "omp", outputPath: join(".omp", "agent", "AGENTS.md") },
   { target: "opencode", outputPath: join(".config", "opencode", "AGENTS.md") },
+  { target: "opencodev1", outputPath: join(".config", "opencode", "AGENTS.md") },
   { target: "codexcli", outputPath: join(".codex", "AGENTS.md") },
   { target: "commandcode", outputPath: join(".commandcode", "AGENTS.md") },
   { target: "qoder", outputPath: join(".qoder", "AGENTS.md") },

@@ -2352,6 +2352,7 @@ describe("RulesProcessor", () => {
         "junie",
         "kiro",
         "opencode",
+        "opencodev1",
         "qwencode",
         "roo",
         "zoocode",
@@ -2663,6 +2664,7 @@ Content that would fail parsing`;
         "mimocode",
         "omp",
         "opencode",
+        "opencodev1",
         "openclaw",
         "pi",
         "pool",
@@ -2730,6 +2732,7 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("gitlabduo");
       expect(globalTargets).toContain("mimocode");
       expect(globalTargets).toContain("opencode");
+      expect(globalTargets).toContain("opencodev1");
       expect(globalTargets).toContain("pi");
       expect(globalTargets).toContain("roo");
       expect(globalTargets).toContain("rovodev");
@@ -2749,7 +2752,7 @@ Content that would fail parsing`;
       expect(globalTargets).toContain("openclaw");
       expect(globalTargets).toContain("qoder");
       expect(globalTargets).toContain("xum");
-      expect(globalTargets.length).toBe(50);
+      expect(globalTargets.length).toBe(51);
 
       // These targets should NOT be in global mode
       expect(globalTargets).not.toContain("cursor");

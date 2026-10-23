@@ -54,8 +54,9 @@ describe("OpenCodeSubagent", () => {
       targets: ["*"],
       name: "review",
       description: "Reviews code",
+      // OpenCode V2 spells the V1 `temperature` as a request body field.
       opencode: {
-        temperature: 0.2,
+        request: { body: { temperature: 0.2 } },
         mode: "subagent",
       },
     });
@@ -88,8 +89,8 @@ describe("OpenCodeSubagent", () => {
     }) as OpenCodeSubagent;
 
     expect(toolSubagent).toBeInstanceOf(OpenCodeSubagent);
+    // No `name`: OpenCode V2 reads frontmatter carrying it as a V1 agent.
     expect(toolSubagent.getFrontmatter()).toEqual({
-      name: "docs-writer",
       description: "Writes documentation",
       model: "model-x",
       mode: "primary",
@@ -123,7 +124,6 @@ describe("OpenCodeSubagent", () => {
 
     expect(toolSubagent).toBeInstanceOf(OpenCodeSubagent);
     expect(toolSubagent.getFrontmatter()).toEqual({
-      name: "docs-writer",
       description: "Writes documentation",
       model: "model-x",
       mode: "subagent",
@@ -162,10 +162,89 @@ describe("OpenCodeSubagent", () => {
     }) as OpenCodeSubagent;
 
     expect(toolSubagent.getFrontmatter().mode).toBe("primary");
-    expect(toolSubagent.getFrontmatter().name).toBe("primary-agent");
-    expect(toolSubagent.getFrontmatter().tools).toEqual({
-      bash: true,
-      edit: true,
+    expect(toolSubagent.getFrontmatter().name).toBeUndefined();
+    expect(toolSubagent.getFrontmatter().tools).toBeUndefined();
+    expect(toolSubagent.getFrontmatter().permissions).toEqual([
+      { action: "shell", resource: "*", effect: "allow" },
+      { action: "edit", resource: "*", effect: "allow" },
+    ]);
+  });
+
+  it("should write V1 agent fields in the V2 spelling", () => {
+    const rulesyncSubagent = new RulesyncSubagent({
+      outputRoot: testDir,
+      relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+      relativeFilePath: "reviewer.md",
+      frontmatter: {
+        targets: ["*"],
+        name: "reviewer",
+        description: "Reviews",
+        opencode: {
+          model: "anthropic/claude-sonnet-4-5",
+          variant: "high",
+          temperature: 0.1,
+          top_p: 0.9,
+          maxSteps: 5,
+          disable: false,
+          color: "primary",
+          hidden: true,
+          tools: { write: false },
+          permission: { bash: { "*": "ask", "git status": "allow" }, edit: "deny" },
+          permissions: [{ action: "webfetch", resource: "*", effect: "deny" }],
+        },
+      },
+      body: "Review the diff",
+      validate: false,
+    });
+
+    const toolSubagent = OpenCodeSubagent.fromRulesyncSubagent({
+      rulesyncSubagent,
+      outputRoot: testDir,
+      relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+    }) as OpenCodeSubagent;
+
+    expect(toolSubagent.getFrontmatter()).toEqual({
+      description: "Reviews",
+      mode: "subagent",
+      model: "anthropic/claude-sonnet-4-5#high",
+      steps: 5,
+      disabled: false,
+      hidden: true,
+      request: { body: { temperature: 0.1, top_p: 0.9 } },
+      permissions: [
+        { action: "edit", resource: "*", effect: "deny" },
+        { action: "shell", resource: "*", effect: "ask" },
+        { action: "shell", resource: "git status", effect: "allow" },
+        { action: "webfetch", resource: "*", effect: "deny" },
+      ],
+    });
+  });
+
+  it("should import V1 frontmatter in the V2 spelling, keeping the name", () => {
+    const subagent = new OpenCodeSubagent({
+      outputRoot: testDir,
+      relativeDirPath: ".opencode/agents",
+      relativeFilePath: "legacy.md",
+      frontmatter: {
+        name: "legacy-agent",
+        description: "Legacy",
+        mode: "subagent",
+        disable: true,
+        permission: { bash: "deny" },
+      },
+      body: "Body",
+      fileContent: "",
+    });
+
+    expect(subagent.toRulesyncSubagent().getFrontmatter()).toEqual({
+      targets: ["*"],
+      name: "legacy-agent",
+      description: "Legacy",
+      opencode: {
+        mode: "subagent",
+        disabled: true,
+        permissions: [{ action: "shell", resource: "*", effect: "deny" }],
+      },
     });
   });
 

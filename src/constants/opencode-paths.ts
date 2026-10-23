@@ -19,12 +19,22 @@ export const OPENCODE_HOOKS_FILE_NAME = "rulesync-hooks.js";
 
 /**
  * On-disk layout of an OpenCode-family tool. OpenCode forks that keep its
- * config format but rename its directories (MiMo Code) reuse the OpenCode
- * adapters by overriding this layout instead of copying them.
+ * config format but rename its directories (MiMo Code), and OpenCode V1 itself
+ * (`opencodev1`), reuse the OpenCode adapters by overriding this layout instead
+ * of copying them.
  */
 export type OpencodeLayout = {
   /** The rulesync tool target (also the tool-scoped key in rulesync files). */
-  toolTarget: "opencode" | "mimocode";
+  toolTarget: "opencode" | "opencodev1" | "mimocode";
+  /**
+   * The config and plugin generation the tool reads. `"v2"` (OpenCode 2.x)
+   * writes the V2 spellings — the ordered `permissions` array, the
+   * `mcp.servers` envelope, `subagent` on commands, V2 agent frontmatter and a
+   * `{ id, setup }` plugin — while `"v1"` keeps the OpenCode 1.x shapes.
+   *
+   * @see https://opencode.ai/v2/docs/migrate-v1/
+   */
+  configVersion: "v1" | "v2";
   /** Project config directory (`.opencode`). */
   dir: string;
   /** Global config directory, relative to the home directory. */
@@ -49,6 +59,7 @@ export type OpencodeLayout = {
 
 export const OPENCODE_LAYOUT: OpencodeLayout = {
   toolTarget: "opencode",
+  configVersion: "v2",
   dir: OPENCODE_DIR,
   globalDir: OPENCODE_GLOBAL_DIR,
   configDir: ".",
@@ -56,4 +67,14 @@ export const OPENCODE_LAYOUT: OpencodeLayout = {
   jsoncFileName: OPENCODE_JSONC_FILE_NAME,
   readsV2ConfigSpellings: true,
   readsDotDirConfig: true,
+};
+
+/**
+ * OpenCode 1.x (`opencode-ai`). It shares OpenCode 2.x's directories and config
+ * files, but keeps the V1 config and plugin shapes.
+ */
+export const OPENCODEV1_LAYOUT: OpencodeLayout = {
+  ...OPENCODE_LAYOUT,
+  toolTarget: "opencodev1",
+  configVersion: "v1",
 };

@@ -1,0 +1,373 @@
+import { join } from "node:path";
+
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { RULESYNC_COMMANDS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import { setupTestDirectory } from "../../test-utils/test-directories.js";
+import { ensureDir, writeFileContent } from "../../utils/file.js";
+import { stringifyFrontmatter } from "../../utils/frontmatter.js";
+import { OpenCodeCommandFrontmatterSchema } from "./opencode-command.js";
+import { Opencodev1Command } from "./opencodev1-command.js";
+import { RulesyncCommand, type RulesyncCommandFrontmatter } from "./rulesync-command.js";
+
+describe("Opencodev1Command", () => {
+  let testDir: string;
+  let cleanup: () => Promise<void>;
+
+  beforeEach(async () => {
+    const result = await setupTestDirectory();
+    testDir = result.testDir;
+    cleanup = result.cleanup;
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
+  });
+
+  afterEach(async () => {
+    await cleanup();
+    vi.restoreAllMocks();
+  });
+
+  describe("constructor", () => {
+    it("should create a command with optional OpenCode fields", () => {
+      const command = new Opencodev1Command({
+        outputRoot: testDir,
+        relativeDirPath: join(".opencode", "commands"),
+        relativeFilePath: "test.md",
+        frontmatter: {
+          description: "Run tests",
+          agent: "build",
+          subtask: true,
+          model: "anthropic/claude-3-5-sonnet-20241022",
+        },
+        body: "Run the full suite",
+      });
+
+      expect(command.getBody()).toBe("Run the full suite");
+      expect(command.getFrontmatter()).toEqual({
+        description: "Run tests",
+        agent: "build",
+        subtask: true,
+        model: "anthropic/claude-3-5-sonnet-20241022",
+      });
+    });
+
+    it("should validate frontmatter when enabled", () => {
+      expect(() => {
+        new Opencodev1Command({
+          outputRoot: testDir,
+          relativeDirPath: join(".opencode", "commands"),
+          relativeFilePath: "invalid.md",
+          frontmatter: { description: 123 as unknown as string },
+          body: "content",
+          validate: true,
+        });
+      }).toThrow();
+    });
+  });
+
+  it("should type the variant field", () => {
+    expect(
+      OpenCodeCommandFrontmatterSchema.safeParse({ description: "Cmd", variant: "high" }).success,
+    ).toBe(true);
+    expect(
+      OpenCodeCommandFrontmatterSchema.safeParse({ description: "Cmd", variant: 1 }).success,
+    ).toBe(false);
+  });
+
+  it("should type the subagent field", () => {
+    expect(
+      OpenCodeCommandFrontmatterSchema.safeParse({ description: "Cmd", subagent: true }).success,
+    ).toBe(true);
+    expect(
+      OpenCodeCommandFrontmatterSchema.safeParse({ description: "Cmd", subagent: "yes" }).success,
+    ).toBe(false);
+  });
+
+  describe("getSettablePaths", () => {
+    it("should return project and global paths", () => {
+      expect(Opencodev1Command.getSettablePaths()).toEqual({
+        relativeDirPath: join(".opencode", "commands"),
+      });
+      expect(Opencodev1Command.getSettablePaths({ global: true })).toEqual({
+        relativeDirPath: join(".config", "opencode", "commands"),
+      });
+    });
+  });
+
+  describe("fromRulesyncCommand", () => {
+    it("should merge opencode frontmatter fields and respect global paths", () => {
+      const rulesyncCommand = new RulesyncCommand({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+        relativeFilePath: "custom.md",
+        frontmatter: {
+          targets: ["opencode"],
+          description: "Analyze coverage",
+          opencodev1: { subtask: true },
+        },
+        body: "Analyze coverage details",
+        fileContent: stringifyFrontmatter("Analyze coverage details", {
+          targets: ["opencode"],
+          description: "Analyze coverage",
+          opencodev1: { subtask: true },
+        }),
+      });
+
+      const command = Opencodev1Command.fromRulesyncCommand({
+        outputRoot: testDir,
+        rulesyncCommand,
+        global: true,
+      });
+
+      expect(command.getFrontmatter()).toEqual({ description: "Analyze coverage", subtask: true });
+      expect(command.getRelativeDirPath()).toBe(join(".config", "opencode", "commands"));
+    });
+
+    it("should fold the V2 subagent spelling into subtask, letting subagent win", () => {
+      const frontmatter: RulesyncCommandFrontmatter = {
+        targets: ["opencode"],
+        description: "Analyze coverage",
+        opencodev1: { subagent: false, subtask: true },
+      };
+      const rulesyncCommand = new RulesyncCommand({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+        relativeFilePath: "custom.md",
+        frontmatter,
+        body: "Analyze coverage details",
+        fileContent: stringifyFrontmatter("Analyze coverage details", frontmatter),
+      });
+
+      const command = Opencodev1Command.fromRulesyncCommand({
+        outputRoot: testDir,
+        rulesyncCommand,
+      });
+
+      expect(command.getFrontmatter()).toEqual({ description: "Analyze coverage", subtask: false });
+      expect(command.getFileContent()).not.toContain("subagent");
+    });
+  });
+
+  describe("toRulesyncCommand", () => {
+    it("should convert to RulesyncCommand with opencode metadata", () => {
+      const command = new Opencodev1Command({
+        outputRoot: testDir,
+        relativeDirPath: join(".opencode", "commands"),
+        relativeFilePath: "custom.md",
+        frontmatter: { description: "Create component", agent: "plan" },
+        body: "Create a new component named $ARGUMENTS",
+      });
+
+      const rulesyncCommand = command.toRulesyncCommand();
+
+      expect(rulesyncCommand).toBeInstanceOf(RulesyncCommand);
+      expect(rulesyncCommand.getFrontmatter()).toEqual({
+        targets: ["*"],
+        description: "Create component",
+        opencodev1: { agent: "plan" },
+      });
+      expect(rulesyncCommand.getRelativeDirPath()).toBe(RULESYNC_COMMANDS_RELATIVE_DIR_PATH);
+    });
+
+    it("should import the V2 subagent spelling as subtask", async () => {
+      const commandDir = join(testDir, ".opencode", "commands");
+      await ensureDir(commandDir);
+      await writeFileContent(
+        join(commandDir, "review.md"),
+        `---\ndescription: Review\nsubagent: true\n---\nReview the diff`,
+      );
+
+      const command = await Opencodev1Command.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "review.md",
+      });
+
+      expect(command.toRulesyncCommand().getFrontmatter()).toEqual({
+        targets: ["*"],
+        description: "Review",
+        opencodev1: { subtask: true },
+      });
+    });
+  });
+
+  describe("fromFile", () => {
+    it("should load a command file and parse frontmatter", async () => {
+      const commandDir = join(testDir, ".opencode", "commands");
+      await ensureDir(commandDir);
+      const filePath = join(commandDir, "task.md");
+      await writeFileContent(
+        filePath,
+        `---\ndescription: Review component\nagent: review\n---\nCheck @src/components/Button.tsx`,
+      );
+
+      const command = await Opencodev1Command.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "task.md",
+      });
+
+      expect(command).toBeInstanceOf(Opencodev1Command);
+      expect(OpenCodeCommandFrontmatterSchema.safeParse(command.getFrontmatter()).success).toBe(
+        true,
+      );
+      expect(command.getBody()).toBe("Check @src/components/Button.tsx");
+    });
+  });
+
+  describe("loadAdditionalImportFiles", () => {
+    it("merges inline commands from .opencode/opencode.json(c) over the root config", async () => {
+      await writeFileContent(
+        join(testDir, "opencode.json"),
+        JSON.stringify({ command: { test: { template: "Root", description: "Run tests" } } }),
+      );
+      await writeFileContent(
+        join(testDir, ".opencode", "opencode.json"),
+        JSON.stringify({ command: { test: { template: "Dot" } } }),
+      );
+      await writeFileContent(
+        join(testDir, ".opencode", "opencode.jsonc"),
+        JSON.stringify({ commands: { review: { template: "Review", model: "a/b#high" } } }),
+      );
+
+      const commands = await Opencodev1Command.loadAdditionalImportFiles({ outputRoot: testDir });
+
+      expect(
+        commands.map((command) => [
+          command.getRelativeFilePath(),
+          command.getBody(),
+          command.getFrontmatter(),
+        ]),
+      ).toEqual([
+        ["test.md", "Dot", { description: "Run tests" }],
+        ["review.md", "Review", { model: "a/b", variant: "high" }],
+      ]);
+    });
+
+    it("imports inline commands from opencode.json", async () => {
+      await writeFileContent(
+        join(testDir, "opencode.json"),
+        JSON.stringify({
+          command: {
+            test: {
+              template: "Run the full suite for $ARGUMENTS",
+              description: "Run tests",
+              agent: "build",
+              model: "anthropic/claude-3-5-sonnet-20241022",
+              subtask: true,
+            },
+          },
+        }),
+      );
+
+      const commands = await Opencodev1Command.loadAdditionalImportFiles({ outputRoot: testDir });
+
+      expect(commands).toHaveLength(1);
+      const [command] = commands;
+      expect(command).toBeInstanceOf(Opencodev1Command);
+      expect(command?.getRelativeFilePath()).toBe("test.md");
+      expect(command?.getBody()).toBe("Run the full suite for $ARGUMENTS");
+      expect(command?.getFrontmatter()).toEqual({
+        description: "Run tests",
+        agent: "build",
+        model: "anthropic/claude-3-5-sonnet-20241022",
+        subtask: true,
+      });
+    });
+
+    it("reads an inline V2 subagent as subtask, taking precedence over subtask", async () => {
+      await writeFileContent(
+        join(testDir, "opencode.json"),
+        JSON.stringify({
+          command: { review: { template: "Review", subagent: true, subtask: false } },
+        }),
+      );
+
+      const commands = await Opencodev1Command.loadAdditionalImportFiles({ outputRoot: testDir });
+
+      expect(commands.map((command) => command.getFrontmatter())).toEqual([{ subtask: true }]);
+    });
+
+    it("imports the variant of an inline command", async () => {
+      await writeFileContent(
+        join(testDir, "opencode.json"),
+        JSON.stringify({ command: { deep: { template: "Think", variant: "high" } } }),
+      );
+
+      const commands = await Opencodev1Command.loadAdditionalImportFiles({ outputRoot: testDir });
+
+      expect(commands.map((command) => command.getFrontmatter())).toEqual([{ variant: "high" }]);
+    });
+
+    it("imports V2 commands entries, keeping the V1 command on a name clash", async () => {
+      await writeFileContent(
+        join(testDir, "opencode.json"),
+        JSON.stringify({
+          command: { ship: { template: "V1 ship" } },
+          commands: {
+            ship: { template: "V2 ship" },
+            review: { template: "Review", model: "openai/gpt-5#high", subagent: true },
+          },
+        }),
+      );
+
+      const commands = await Opencodev1Command.loadAdditionalImportFiles({ outputRoot: testDir });
+
+      expect(
+        commands.map((command) => [
+          command.getRelativeFilePath(),
+          command.getBody(),
+          command.getFrontmatter(),
+        ]),
+      ).toEqual([
+        ["ship.md", "V1 ship", {}],
+        ["review.md", "Review", { model: "openai/gpt-5", variant: "high", subtask: true }],
+      ]);
+    });
+
+    it("prefers opencode.jsonc over opencode.json", async () => {
+      await writeFileContent(
+        join(testDir, "opencode.jsonc"),
+        '{\n  // inline command\n  "command": { "fromJsonc": { "template": "jsonc body" } }\n}',
+      );
+      await writeFileContent(
+        join(testDir, "opencode.json"),
+        JSON.stringify({ command: { fromJson: { template: "json body" } } }),
+      );
+
+      const commands = await Opencodev1Command.loadAdditionalImportFiles({ outputRoot: testDir });
+
+      expect(commands).toHaveLength(1);
+      expect(commands[0]?.getRelativeFilePath()).toBe("fromJsonc.md");
+      expect(commands[0]?.getBody()).toBe("jsonc body");
+    });
+
+    it("returns an empty array when there is no command block", async () => {
+      await writeFileContent(
+        join(testDir, "opencode.json"),
+        JSON.stringify({ mcp: {}, agent: { foo: { prompt: "x" } } }),
+      );
+
+      expect(await Opencodev1Command.loadAdditionalImportFiles({ outputRoot: testDir })).toEqual(
+        [],
+      );
+    });
+
+    it("returns an empty array when no config file exists", async () => {
+      expect(await Opencodev1Command.loadAdditionalImportFiles({ outputRoot: testDir })).toEqual(
+        [],
+      );
+    });
+
+    it("round-trips an imported inline command into a RulesyncCommand", async () => {
+      await writeFileContent(
+        join(testDir, "opencode.json"),
+        JSON.stringify({ command: { deploy: { template: "Deploy now", description: "Deploy" } } }),
+      );
+
+      const [command] = await Opencodev1Command.loadAdditionalImportFiles({ outputRoot: testDir });
+      const rulesyncCommand = command?.toRulesyncCommand();
+
+      expect(rulesyncCommand).toBeInstanceOf(RulesyncCommand);
+      expect(rulesyncCommand?.getBody()).toBe("Deploy now");
+      expect(rulesyncCommand?.getRelativeFilePath()).toBe("deploy.md");
+    });
+  });
+});
