@@ -34,6 +34,7 @@ import {
   SHELL_PERMISSION_CATEGORY,
   warnAboutUnwrittenCommandRules,
 } from "./shell-command-categories.js";
+import { failSafeCatchAllAction } from "./single-action-collapse.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -494,31 +495,51 @@ function buildToolLists({
   // Every other tool is named as a whole: Tabnine has no per-path or per-URL
   // pattern for `read_file`, `web_fetch`, ..., so only the `*` pattern maps.
   const unmappedPatterns: string[] = [];
+  // Tools whose `*` allow was withheld because a narrower deny/ask in the same
+  // category was skipped. Kept as a set so a second category mapping onto the
+  // same tool cannot add it back.
+  const withheldTools = new Set<string>();
+  const wholeToolAllows: string[] = [];
   for (const [category, categoryRules] of Object.entries(permission)) {
     if (category === SHELL_PERMISSION_CATEGORY || category === "*") {
       continue;
     }
     const toolName = toTabnineToolName(category);
-    for (const [pattern, action] of Object.entries(categoryRules)) {
+    for (const pattern of Object.keys(categoryRules)) {
       if (pattern !== "*") {
         unmappedPatterns.push(`${category}: ${pattern}`);
-        continue;
       }
-      if (action === "allow") {
-        allowed.push(toolName);
-      } else if (action === "deny") {
-        exclude.push(toolName);
-      }
-      // `ask` writes nothing: a tool in neither list keeps Tabnine's default
-      // confirmation prompt (read-only tools never prompt, which is documented).
+    }
+    // A `*` allow beside a skipped deny/ask would auto-approve the very input
+    // that rule restricts, so it is withheld: `ask` writes nothing, and a tool
+    // in neither list keeps Tabnine's default confirmation prompt (read-only
+    // tools never prompt, which is documented).
+    const { action, downgraded } = failSafeCatchAllAction(categoryRules);
+    if (downgraded) {
+      withheldTools.add(toolName);
+    }
+    if (action === "allow") {
+      wholeToolAllows.push(toolName);
+    } else if (action === "deny") {
+      exclude.push(toolName);
     }
   }
+  allowed.push(...wholeToolAllows.filter((toolName) => !withheldTools.has(toolName)));
   if (unmappedPatterns.length > 0) {
     warnWithFallback(
       logger,
       `Tabnine CLI permissions: skipped ${unmappedPatterns.length} rule(s) with a pattern ` +
         `other than '*' (${unmappedPatterns.map(quoteValueForWarning).join(", ")}). ` +
         `tools.allowed/tools.exclude name whole tools; only run_shell_command takes a prefix.`,
+    );
+  }
+  if (withheldTools.size > 0) {
+    warnWithFallback(
+      logger,
+      `Tabnine CLI permissions: did not add ${[...withheldTools].map(quoteValueForWarning).join(", ")} ` +
+        `to tools.allowed although its category allows '*', because a narrower deny or ask rule ` +
+        `in that category was skipped; Tabnine will prompt before running it instead of ` +
+        `auto-approving the input that rule restricts.`,
     );
   }
 

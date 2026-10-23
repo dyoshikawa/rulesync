@@ -948,9 +948,12 @@ web_search_request = true
     await runGenerate({ target: "copilot", features: "permissions" });
 
     const generated = JSON.parse(await readFileContent(join(testDir, ".vscode", "settings.json")));
+    // `ask` is written as `false` too, so no broader `true` entry can
+    // auto-approve it.
     expect(generated["chat.tools.terminal.autoApprove"]).toEqual({
       "git *": true,
       "rm -rf *": false,
+      "npm *": false,
     });
     expect(generated["chat.permissions.default"]).toBe("autoApprove");
     expect(generated["editor.tabSize"]).toBe(2);

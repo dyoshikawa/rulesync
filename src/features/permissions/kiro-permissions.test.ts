@@ -383,4 +383,58 @@ describe("KiroPermissions", () => {
     expect(shell.allowedCommands).toEqual(["git *"]);
     expect(shell.deniedCommands).toEqual(["rm *"]);
   });
+
+  it("withholds allow entries that overlap an ask, since Kiro has no ask list", async () => {
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          bash: { "*": "allow", "npm *": "allow", "git push *": "ask" },
+          edit: { "*": "allow", "src/**": "ask" },
+          read: { "docs/**": "allow", "secrets/**": "ask" },
+        },
+      }),
+    });
+
+    const kiroPermissions = await KiroPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    const content = JSON.parse(kiroPermissions.getFileContent());
+    // `npm *` names no `git push` command, so it stays.
+    expect(content.toolsSettings.shell.allowedCommands).toEqual(["npm *"]);
+    expect(content.toolsSettings.write.allowedPaths).toEqual([]);
+    // `docs/**` and `secrets/**` share no path, so the allow stays.
+    expect(content.toolsSettings.read.allowedPaths).toEqual(["docs/**"]);
+  });
+
+  it("leaves web tools out of allowedTools when a narrower deny or ask is skipped", async () => {
+    await ensureDir(join(testDir, ".kiro", "agents"));
+    await writeFileContent(
+      join(testDir, ".kiro", "agents", "default.json"),
+      JSON.stringify({ allowedTools: ["web_fetch", "web_search"] }),
+    );
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          webfetch: { "*": "allow", "evil.example": "deny" },
+          websearch: { "*": "allow", "internal *": "ask" },
+        },
+      }),
+    });
+
+    const kiroPermissions = await KiroPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    const content = JSON.parse(kiroPermissions.getFileContent());
+    expect(content.allowedTools).toEqual([]);
+  });
 });

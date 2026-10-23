@@ -45,3 +45,31 @@ export function collapseRulesToSingleAction({
 export function hasPatternSpecificRules(rules: Record<string, PermissionAction>): boolean {
   return Object.keys(rules).some((pattern) => pattern !== "*");
 }
+
+/**
+ * The action a tool that lists whole tools (no pattern matcher) can hold for a
+ * category's `*` catch-all once its pattern-level rules are dropped.
+ *
+ * A catch-all `allow` beside a narrower `deny` or `ask` would auto-approve the
+ * very input that rule restricts, so it is downgraded to `ask`: the tool then
+ * prompts for everything in the category, which is the closest the whole-tool
+ * surface gets without blocking the inputs the author allowed. A catch-all
+ * `ask` or `deny` already restricts at least as much and is kept. Returns
+ * `undefined` when the category has no catch-all, and `downgraded: true` when
+ * the allow was turned into `ask`, so the caller can say so in its warning.
+ */
+export function failSafeCatchAllAction(rules: Record<string, PermissionAction>): {
+  action: PermissionAction | undefined;
+  downgraded: boolean;
+} {
+  const catchAll = Object.hasOwn(rules, "*") ? rules["*"] : undefined;
+  if (catchAll !== "allow") {
+    return { action: catchAll, downgraded: false };
+  }
+  const restrictedElsewhere = Object.entries(rules).some(
+    ([pattern, action]) => pattern !== "*" && action !== "allow",
+  );
+  return restrictedElsewhere
+    ? { action: "ask", downgraded: true }
+    : { action: "allow", downgraded: false };
+}

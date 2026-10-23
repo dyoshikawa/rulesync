@@ -75,6 +75,26 @@ describe("TabninePermissions", () => {
   });
 
   describe("fromRulesyncPermissions", () => {
+    it("withholds a whole-tool allow when a narrower deny or ask in its category is skipped", async () => {
+      const logger = createMockLogger();
+      const permissions = await TabninePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          permission: {
+            edit: { "*": "allow", ".github/**": "deny" },
+            webfetch: { "*": "allow", "evil.example": "ask" },
+            read: { "*": "allow" },
+          },
+        }),
+        logger,
+      });
+
+      const json = JSON.parse(permissions.getFileContent());
+      expect(json.tools.allowed).toEqual(["read_file"]);
+      expect(json.tools).not.toHaveProperty("exclude");
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("Tabnine will prompt"));
+    });
+
     it("writes shell prefixes to tools.allowed/tools.exclude and leaves ask unwritten", async () => {
       const logger = createMockLogger();
       const permissions = await TabninePermissions.fromRulesyncPermissions({

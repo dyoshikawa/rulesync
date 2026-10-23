@@ -161,6 +161,30 @@ describe("GoosePermissions", () => {
   });
 
   describe("fromRulesyncPermissions", () => {
+    it("lists a catch-all allow under ask_before when a narrower deny or ask is skipped", async () => {
+      const mockLogger = createMockLogger();
+      const perms = await GoosePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          bash: { "*": "allow", "rm -rf *": "deny" },
+          edit: { "*": "allow", "src/**": "ask" },
+          webfetch: { "*": "allow", "evil.example": "deny" },
+          read: { "*": "allow", "docs/**": "allow" },
+        }),
+        global: true,
+        logger: mockLogger,
+      });
+
+      const user = userPermissionOf(perms.getFileContent());
+      // A narrower `allow` restricts nothing, so `read` stays auto-approved.
+      expect(user.always_allow).toEqual(["read"]);
+      expect(user.ask_before).toEqual(["edit", "shell", "webfetch"]);
+      expect(user.never_allow).toEqual([]);
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("will not be auto-approved"),
+      );
+    });
+
     it("maps allow/ask/deny catch-alls onto always_allow/ask_before/never_allow", async () => {
       const perms = await GoosePermissions.fromRulesyncPermissions({
         outputRoot: testDir,

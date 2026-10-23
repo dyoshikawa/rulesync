@@ -94,6 +94,42 @@ describe("RovodevPermissions", () => {
   });
 
   describe("fromRulesyncPermissions", () => {
+    it("sets a category's tools to ask when its catch-all allow sits beside a skipped deny or ask", async () => {
+      const mockLogger = createMockLogger();
+      const perms = await RovodevPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          edit: { "*": "allow", ".github/**": "deny" },
+          read: { "*": "allow", "secrets/**": "ask" },
+        }),
+        global: true,
+        logger: mockLogger,
+      });
+
+      const levels = toolLevelsOf(perms.getFileContent());
+      for (const key of ["find_and_replace_code", "create_file", "delete_file", "move_file"]) {
+        expect(levels[key]).toBe("ask");
+      }
+      for (const key of ["open_files", "expand_code_chunks", "expand_folder", "grep"]) {
+        expect(levels[key]).toBe("ask");
+      }
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("will not be auto-approved"),
+      );
+    });
+
+    it("sets toolPermissions.default to ask when the all-tools allow sits beside a skipped deny", async () => {
+      const perms = await RovodevPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          "*": { "*": "allow", "secrets/**": "deny" },
+        }),
+        global: true,
+      });
+
+      expect(toolPermissionsOf(perms.getFileContent()).default).toBe("ask");
+    });
+
     it("maps bash catch-all to bash.default and patterns to bash.commands", async () => {
       const perms = await RovodevPermissions.fromRulesyncPermissions({
         outputRoot: testDir,

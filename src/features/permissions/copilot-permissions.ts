@@ -285,13 +285,11 @@ function buildAutoApproveValue(
 ): Record<string, boolean> | undefined {
   const autoApprove: Record<string, boolean> = {};
   for (const [pattern, action] of Object.entries(rules)) {
-    if (action === "allow") {
-      autoApprove[pattern] = true;
-    } else if (action === "deny") {
-      autoApprove[pattern] = false;
-    }
-    // `ask` is represented by omitting the entry: VS Code falls through to its
-    // default in-chat approval prompt.
+    // `false` means "never auto-approve": VS Code prompts. It is written for
+    // `ask` as well as `deny`, because omitting an `ask` would leave a broader
+    // `true` entry (`"**/*": true` beside an ask on `src/**`) to auto-approve
+    // the very input the author wanted to be asked about.
+    autoApprove[pattern] = action === "allow";
   }
   return Object.keys(autoApprove).length > 0 ? autoApprove : undefined;
 }
@@ -310,8 +308,10 @@ function buildAutoApproveValue(
  * mapped (see {@link AUTO_APPROVE_KEYS}): `bash`, `edit` and `webfetch`. In
  * every one, per-pattern rules map as: `allow` → `true` (auto-approve), `deny`
  * → `false` (VS Code then always prompts — note this is "never auto-approve",
- * not a hard block), and `ask` → the entry is OMITTED (VS Code falls through to
- * the same default prompt). A key whose canonical category is absent entirely
+ * not a hard block), and `ask` → `false` as well. Omitting an `ask` entry would
+ * let a broader `true` entry that also matches auto-approve it, so the `ask`
+ * is written explicitly; it imports back as `deny`, the stricter reading of
+ * `false`. A key whose canonical category is absent entirely
  * is left untouched, so authoring only `bash` rules never disturbs a
  * hand-written edits or urls map.
  * The `copilot.defaultPermissionMode` override writes `chat.permissions.default`
@@ -380,7 +380,7 @@ export class CopilotPermissions extends ToolPermissions {
     // whose category is absent stays exactly as the user left it — otherwise
     // adopting rulesync for `bash` alone would wipe a hand-authored
     // `chat.tools.edits.autoApprove`. A category that IS stated but yields
-    // nothing (all `ask`) still retracts its key, since rulesync owns it.
+    // nothing (an empty map) still retracts its key, since rulesync owns it.
     const patch: Record<string, unknown> = {};
     for (const [category, settingKey] of Object.entries(AUTO_APPROVE_KEYS)) {
       const rules = config.permission[category];

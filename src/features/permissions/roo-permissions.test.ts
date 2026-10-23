@@ -72,6 +72,48 @@ describe("RooPermissions", () => {
       });
     });
 
+    it("withholds a catch-all allow that covers a bash ask", async () => {
+      const permissions = await RooPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          bash: { "*": "allow", "git push *": "ask" },
+        }),
+      });
+
+      expect(JSON.parse(permissions.getFileContent())).toEqual({ [ALLOWED_KEY]: [] });
+    });
+
+    it("withholds a shorter prefix allow that covers a longer bash ask", async () => {
+      const logger = createMockLogger();
+      const permissions = await RooPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          bash: { git: "allow", "git push": "ask", "npm ": "allow" },
+        }),
+        logger,
+      });
+
+      expect(JSON.parse(permissions.getFileContent())).toEqual({ [ALLOWED_KEY]: ["npm "] });
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("allow rule(s) for git"));
+    });
+
+    it("withholds an allow that extends a denied prefix, since the longer match would win", async () => {
+      const logger = createMockLogger();
+      const permissions = await RooPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          bash: { git: "deny", "git push": "allow", "npm ": "allow" },
+        }),
+        logger,
+      });
+
+      expect(JSON.parse(permissions.getFileContent())).toEqual({
+        [ALLOWED_KEY]: ["npm "],
+        [DENIED_KEY]: ["git"],
+      });
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("extend a denied command"));
+    });
+
     // The two empty lists are treated differently because their contributed
     // defaults are. Retracting the allow key would not be a no-op: Roo Code
     // reads the *effective* configuration value, and `roo-cline.allowedCommands`
