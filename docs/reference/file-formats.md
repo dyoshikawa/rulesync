@@ -1215,6 +1215,9 @@ musecode: # for Meta Muse Code-specific parameters (optional; project .agents/sk
   metadata: # (optional) free-form metadata
     display-name: "Release Helper" # (optional, Muse Code 1.4.7+) shown instead of the skill id
 amp: # for Amp-specific parameters (optional; project .agents/skills/, global ~/.config/agents/skills/)
+  # Global import also scans ~/.agents/skills/ then ~/.config/amp/skills/, in that order.
+  # Both are read-only discovery roots: generation and --delete still manage only
+  # ~/.config/agents/skills/. Import does not evaluate Amp settings or custom skills paths.
   # Amp reads the open Agent Skills standard and documents no frontmatter field beyond
   # `name`/`description`, so this section exists only to carry keys a hand-written SKILL.md adds:
   # they are imported into it and written back to the top level of the generated file instead of
