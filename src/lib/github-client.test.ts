@@ -107,6 +107,46 @@ describe("GitHubClient", () => {
     });
   });
 
+  describe("compareCommits", () => {
+    it("should return the comparison status", async () => {
+      const mockFetch = vi.spyOn(global, "fetch").mockResolvedValueOnce(
+        new Response(JSON.stringify({ status: "ahead", commits: [], files: [] }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+
+      const client = new GitHubClient();
+      const status = await client.compareCommits({
+        owner: "owner",
+        repo: "repo",
+        base: "a".repeat(40),
+        head: "v1.0.0",
+      });
+
+      expect(status).toBe("ahead");
+      expect(mockFetch).toHaveBeenCalledWith(
+        `https://api.github.com/repos/owner/repo/compare/${"a".repeat(40)}...v1.0.0?per_page=1`,
+        expect.anything(),
+      );
+    });
+
+    it("should throw GitHubClientError on 404", async () => {
+      vi.spyOn(global, "fetch").mockResolvedValueOnce(
+        new Response(JSON.stringify({ message: "Not Found" }), {
+          status: 404,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+
+      const client = new GitHubClient();
+
+      await expect(
+        client.compareCommits({ owner: "owner", repo: "repo", base: "x", head: "y" }),
+      ).rejects.toThrow(GitHubClientError);
+    });
+  });
+
   describe("listExecutablePaths", () => {
     it("should return the blobs git records as executable", async () => {
       const mockTree = {

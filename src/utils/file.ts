@@ -87,6 +87,19 @@ export class PathOutsideRootError extends Error {
 }
 
 /**
+ * Thrown by {@link assertNoSymlinkBelowRoot} when the target is reached
+ * through a symbolic link below the root, even one that stays inside it. A
+ * subclass of {@link PathOutsideRootError}, so callers that tell refusals from
+ * filesystem errors keep working.
+ */
+export class SymlinkRefusedError extends PathOutsideRootError {
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = "SymlinkRefusedError";
+  }
+}
+
+/**
  * Refuse a write or removal target whose real location is outside `rootPath`.
  *
  * Unlike {@link assertWritablePathInsideRoot}, a symbolic link on the way is
@@ -154,6 +167,49 @@ export async function assertPathResolvesInsideRoot(params: {
       );
     }
     return;
+  }
+}
+
+/**
+ * Refuse a write target that lies outside `rootPath`, or that is reached
+ * through a symbolic link anywhere below `rootPath` — the target itself
+ * included. `rootPath` itself may be a link (a project checked out under a
+ * linked directory is fine).
+ *
+ * This is stricter than {@link assertPathResolvesInsideRoot}, which accepts a
+ * link whose real path stays inside the root. That is not enough for files
+ * whose bytes come from a remote source: a cloned repository can commit
+ * `.agents/skills/x/config -> ../../../.git/config`, a link that stays inside
+ * the root while still sending the remote bytes into `.git/`. Every existing
+ * path component between the root and the target is `lstat`ed; once one is
+ * missing, nothing below it exists and the write's `mkdir -p` creates it.
+ */
+export async function assertNoSymlinkBelowRoot(params: {
+  rootPath: string;
+  targetPath: string;
+}): Promise<void> {
+  const { rootPath, targetPath } = params;
+  const relativeTarget = relative(resolve(rootPath), resolve(targetPath));
+  if (relativeTarget === "" || pathEscapesRoot(relativeTarget)) {
+    throw new PathOutsideRootError(`Path is outside ${rootPath}: ${targetPath}.`);
+  }
+  let currentPath = resolve(rootPath);
+  for (const segment of relativeTarget.split(sep)) {
+    currentPath = join(currentPath, segment);
+    let stats: Stats;
+    try {
+      stats = await lstat(currentPath);
+    } catch (error) {
+      if (isFileNotFoundError(error)) {
+        return;
+      }
+      throw error;
+    }
+    if (stats.isSymbolicLink()) {
+      throw new SymlinkRefusedError(
+        `Refusing to follow a symbolic link: ${currentPath} (for ${targetPath}).`,
+      );
+    }
   }
 }
 

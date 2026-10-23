@@ -1,3 +1,4 @@
+// cspell:ignore basehead -- the parameter name of Octokit's compareCommitsWithBasehead
 import { RequestError } from "@octokit/request-error";
 import { Octokit } from "@octokit/rest";
 
@@ -299,6 +300,34 @@ export class GitHubClient {
         ref,
       });
       return data.sha;
+    } catch (error) {
+      throw this.handleError(error);
+    }
+  }
+
+  /**
+   * How `head` relates to `base` in the repository's history: `"identical"`,
+   * `"ahead"` (`base` is an ancestor of `head`), `"behind"` or `"diverged"`.
+   * GitHub serves commits of the whole fork network through any repository
+   * of it, so this is what tells a commit of `owner/repo` itself from one that
+   * only exists in a fork.
+   */
+  async compareCommits(params: {
+    owner: string;
+    repo: string;
+    base: string;
+    head: string;
+  }): Promise<string> {
+    const { owner, repo, base, head } = params;
+    try {
+      const { data } = await this.octokit.repos.compareCommitsWithBasehead({
+        owner,
+        repo,
+        basehead: `${base}...${head}`,
+        // Only the status is needed, not the commit list or the file diff.
+        per_page: 1,
+      });
+      return data.status;
     } catch (error) {
       throw this.handleError(error);
     }
