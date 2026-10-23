@@ -64,6 +64,12 @@ describe("Config", () => {
       );
     });
 
+    it("should throw error when opencode and opencodev1 are both specified", () => {
+      expect(() => createConfig({ targets: ["opencode", "opencodev1"] })).toThrow(
+        "Conflicting targets: 'opencode' and 'opencodev1' cannot be used together. Please choose one.",
+      );
+    });
+
     it("should allow claudecode without claudecode-legacy", () => {
       expect(() => createConfig({ targets: ["claudecode"] })).not.toThrow();
     });
@@ -107,6 +113,7 @@ describe("Config", () => {
         (t) =>
           t !== "claudecode-legacy" &&
           t !== "augmentcode-legacy" &&
+          t !== "opencodev1" &&
           t !== "claudecode-plugin" &&
           t !== "antigravity-plugin" &&
           t !== "augmentcode-plugin" &&

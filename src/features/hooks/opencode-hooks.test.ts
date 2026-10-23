@@ -273,7 +273,7 @@ describe("OpencodeHooks (OpenCode V2)", () => {
       });
 
       expect(content).toContain(
-        'if (event.status === "completed" && new RegExp("write|edit").test(event.tool)) {',
+        'if (event.status === "completed" && __rulesyncMatchesTool(new RegExp("write|edit"), event.tool)) {',
       );
     });
 
@@ -401,6 +401,22 @@ describe("OpencodeHooks (OpenCode V2)", () => {
 
       await before?.({ tool: "read", sessionID: "s1", id: "c3", input: {} });
       expect(runtime.commands.filter((command) => command === "echo before-shell")).toHaveLength(1);
+      await (dispose as () => Promise<void>)();
+    });
+
+    it("matches a V1 tool name against the renamed V2 tool", async () => {
+      const content = generate({
+        hooks: { preToolUse: [{ matcher: "^bash$", command: "./guard.sh" }] },
+      });
+      const runtime = createFakeRuntime(() => ({ exitCode: 2, stdout: "", stderr: "blocked" }));
+      vi.stubGlobal("Bun", runtime.bun);
+      const plugin = await loadPlugin(content, "alias");
+      const dispose = await plugin.setup(runtime.ctx);
+      const before = runtime.hooks.get("tool:execute.before");
+
+      await expect(before?.({ tool: "shell", input: {} })).rejects.toThrow("blocked");
+      await before?.({ tool: "read", input: {} });
+      expect(runtime.commands).toHaveLength(1);
       await (dispose as () => Promise<void>)();
     });
 

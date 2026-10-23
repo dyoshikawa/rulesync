@@ -319,13 +319,16 @@ function normalizeInputRoots({
 export const CONFLICTING_TARGET_PAIRS: Array<[string, string]> = [
   ["augmentcode", "augmentcode-legacy"],
   ["claudecode", "claudecode-legacy"],
+  // OpenCode 2.x and 1.x write the same files in incompatible shapes.
+  ["opencode", "opencodev1"],
 ];
 
 /**
  * Legacy targets that should NOT be included in wildcard (*) expansion.
- * These targets must be explicitly specified.
+ * These targets must be explicitly specified. `opencodev1` writes the same
+ * files as `opencode`, so expanding both would let one overwrite the other.
  */
-const LEGACY_TARGETS = ["augmentcode-legacy", "claudecode-legacy"] as const;
+const LEGACY_TARGETS = ["augmentcode-legacy", "claudecode-legacy", "opencodev1"] as const;
 /**
  * Expand the wildcard target (`*`) to every ordinary non-legacy tool target.
  * Legacy aliases and package-root targets are excluded because they must be

@@ -19,6 +19,7 @@ import type { Logger } from "../../utils/logger.js";
 import { isRecord } from "../../utils/type-guards.js";
 import {
   mergeOpencodeConfigValues,
+  setOwnEntry,
   toOpencodeV2PermissionRules,
   readOpencodeDotDirConfigLayers,
   warnOpencodeDotDirOverrides,
@@ -250,9 +251,10 @@ function fromOpencodeV2PermissionRules(
       : action;
     const patterns = Object.hasOwn(permission, key) ? permission[key]! : {};
     // Re-insert so the pattern takes the position of its last occurrence.
+    // `setOwnEntry` keeps a `__proto__` action or resource an own key.
     delete patterns[resource];
-    patterns[resource] = effect;
-    permission[key] = patterns;
+    setOwnEntry(patterns, resource, effect);
+    setOwnEntry(permission, key, patterns);
   }
   return permission;
 }
@@ -402,7 +404,9 @@ export class OpencodePermissions extends ToolPermissions {
   /**
    * For a V2 layout, folds the V2 `permissions` array into the V1 map read
    * from the same config. OpenCode V2 applies the V1 map's rules before the
-   * array's, so the array's patterns are merged in after (and over) them.
+   * array's, so a key the array touches moves after the V1-only keys, with
+   * the array's patterns after (and over) its V1 patterns: otherwise a later
+   * V1 key could override a V2 rule that OpenCode V2 evaluates after it.
    */
   private static mergeV2PermissionRules({
     v1Permission,
@@ -419,22 +423,24 @@ export class OpencodePermissions extends ToolPermissions {
       return v1Permission;
     }
     const fromV2 = fromOpencodeV2PermissionRules(parsedRules.data);
-    const merged: Record<string, unknown> =
-      typeof v1Permission === "string"
-        ? { "*": v1Permission }
-        : isRecord(v1Permission)
-          ? { ...v1Permission }
-          : {};
+    const merged: Record<string, unknown> = {};
+    const v1Map = typeof v1Permission === "string" ? { "*": v1Permission } : v1Permission;
+    if (isRecord(v1Map)) {
+      for (const [key, value] of Object.entries(v1Map)) {
+        setOwnEntry(merged, key, value);
+      }
+    }
     for (const [key, patterns] of Object.entries(fromV2)) {
       const existing = Object.hasOwn(merged, key) ? merged[key] : undefined;
+      const combined: Record<string, unknown> = {};
       const base =
         typeof existing === "string" ? { "*": existing } : isRecord(existing) ? existing : {};
-      const combined: Record<string, unknown> = { ...base };
-      for (const [resource, effect] of Object.entries(patterns)) {
+      for (const [resource, effect] of [...Object.entries(base), ...Object.entries(patterns)]) {
         delete combined[resource];
-        combined[resource] = effect;
+        setOwnEntry(combined, resource, effect);
       }
-      merged[key] = combined;
+      delete merged[key];
+      setOwnEntry(merged, key, combined);
     }
     return merged;
   }
@@ -481,8 +487,16 @@ export class OpencodePermissions extends ToolPermissions {
       ...overridePermission,
     })) {
       // OpenCode V2 matches `webfetch` / `websearch` against the URL / query,
-      // so only V1 collapses those keys to a single action.
-      permission[category] = isV2 ? value : toOpencodePermission({ category, value, logger });
+      // so only V1 collapses those keys to a single action. An empty map of
+      // one of them would emit no rule in V2 and fall through to OpenCode's
+      // default allow, so it still becomes `deny`, as in V1.
+      permission[category] = !isV2
+        ? toOpencodePermission({ category, value, logger })
+        : typeof value !== "string" &&
+            Object.keys(value).length === 0 &&
+            OPENCODE_ACTION_ONLY_PERMISSION_KEYS.has(category)
+          ? "deny"
+          : value;
     }
 
     // OpenCode V2 reads the V1 `permission` map too and applies it before the

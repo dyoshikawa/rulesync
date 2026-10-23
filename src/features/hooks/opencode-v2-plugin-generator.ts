@@ -55,6 +55,22 @@ const OPENCODE_V2_STDIN_PAYLOAD_EVENTS: Record<string, string> = {
   preToolUse: "PreToolUse",
 };
 
+/**
+ * Helper the generated plugin defines when a handler has a matcher. A matcher
+ * is tested against the V2 tool name and, for a tool OpenCode 2.x renamed,
+ * against its OpenCode 1.x name too (`shell` was `bash`, `subagent` was
+ * `task`), so a matcher written for the V1 tool names keeps firing instead of
+ * silently failing open.
+ */
+const TOOL_MATCHER_HELPER = "__rulesyncMatchesTool";
+
+const TOOL_MATCHER_HELPER_LINES: readonly string[] = [
+  'const __rulesyncV1ToolNames = { shell: "bash", subagent: "task" };',
+  `const ${TOOL_MATCHER_HELPER} = (pattern, tool) =>`,
+  "  pattern.test(tool) ||",
+  "  (Object.hasOwn(__rulesyncV1ToolNames, tool) && pattern.test(__rulesyncV1ToolNames[tool]));",
+];
+
 /** Hook points whose `matcher` is tested against the tool name. */
 const OPENCODE_V2_MATCHABLE_HOOKS: ReadonlySet<string> = new Set([
   "tool:execute.before",
@@ -87,7 +103,7 @@ function wrapInConditions(handler: V2Handler, statement: string, indent: string)
   if (handler.gate) conditions.push(handler.gate);
   if (handler.matcher) {
     conditions.push(
-      `new RegExp("${validateAndSanitizeMatcher(handler.matcher)}").test(event.tool)`,
+      `${TOOL_MATCHER_HELPER}(new RegExp("${validateAndSanitizeMatcher(handler.matcher)}"), event.tool)`,
     );
   }
   if (conditions.length === 0) return [`${indent}${statement}`];
@@ -213,6 +229,12 @@ function buildSetupBodyLines({
   // The deny-aware result helper is defined only when a handler uses it.
   if (usesStdinPayload) {
     body.push("", ...PRE_TOOL_USE_RESULT_HELPER_LINES);
+  }
+  const usesMatcher = [...hookHandlers.values()].some((handlers) =>
+    handlers.some((handler) => handler.matcher !== undefined),
+  );
+  if (usesMatcher) {
+    body.push("", ...TOOL_MATCHER_HELPER_LINES);
   }
   const cleanup: string[] = [];
   if (hookHandlers.size > 0) {

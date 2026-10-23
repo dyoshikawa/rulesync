@@ -485,6 +485,34 @@ describe("OpencodePermissions (OpenCode V2 permissions array)", () => {
     expect(rulesync.permission.bash).toEqual({ "rm *": "deny", "*": "ask" });
   });
 
+  it("moves a key the V2 array touches after the V1-only keys on import", async () => {
+    await writeFileContent(
+      join(testDir, "opencode.json"),
+      JSON.stringify({
+        permission: { "*": "ask", edit: "deny" },
+        permissions: [{ action: "*", resource: "*", effect: "allow" }],
+      }),
+    );
+
+    const imported = await OpencodePermissions.fromFile({ outputRoot: testDir });
+
+    // OpenCode V2 evaluates [* ask, edit deny, * allow]: the trailing allow
+    // must stay after `edit` so edits are still allowed after a regenerate.
+    expect(Object.keys(imported.getJson().permission ?? {})).toEqual(["edit", "*"]);
+    expect(imported.toRulesyncPermissions().getJson().permission).toEqual({
+      edit: { "*": "deny" },
+      "*": { "*": "allow" },
+    });
+  });
+
+  it("denies an empty webfetch map instead of emitting no rule", async () => {
+    const instance = await generate({ permission: { webfetch: {}, read: {} } });
+
+    expect(instance.getJson().permissions).toEqual([
+      { action: "webfetch", resource: "*", effect: "deny" },
+    ]);
+  });
+
   it("round-trips generate → import", async () => {
     const config = {
       permission: { bash: { "*": "ask", "git *": "allow" }, agent: { "*": "deny" } },

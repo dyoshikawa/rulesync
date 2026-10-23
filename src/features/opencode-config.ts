@@ -319,7 +319,7 @@ function mergeOpencodeV2Entries({
  * Sets `target[key]` as an own, enumerable property. A plain assignment to a
  * key named `__proto__` would set the prototype instead.
  */
-function setOwnEntry(target: Record<string, unknown>, key: string, value: unknown): void {
+export function setOwnEntry(target: Record<string, unknown>, key: string, value: unknown): void {
   Object.defineProperty(target, key, {
     value,
     enumerable: true,
@@ -823,11 +823,13 @@ const OPENCODE_V1_ONLY_AGENT_KEYS = [
 const OPENCODE_V2_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
 
 /**
- * The V1 `tools` toggles and `permission` of an agent as V2 permission rules,
- * the way OpenCode V2 translates a V1 agent: one rule per tool toggle
- * (`write` / `patch` fold into `edit`), each overridden by a `permission` key
- * of the same name, then flattened in order. A bare `permission` string
- * applies to every action.
+ * The V1 `tools` toggles and `permission` of an agent as V2 permission rules:
+ * one rule per tool toggle (`write` / `patch` fold into `edit`), followed by
+ * the flattened `permission` map (a bare string applies to every action).
+ * Unlike a per-key merge, which would leave a `permission` value at its tool
+ * toggle's earlier position where a later broad rule could override it, this
+ * keeps every `permission` rule after the toggles, so the result is never
+ * looser than the `permission` map read on its own.
  */
 function toOpencodeV2AgentPermissionRules({
   tools,
@@ -836,32 +838,36 @@ function toOpencodeV2AgentPermissionRules({
   tools: unknown;
   permission: unknown;
 }): OpencodeV2PermissionRule[] {
-  const merged = new Map<string, string | Record<string, string>>();
-  if (isRecord(tools)) {
-    for (const [tool, enabled] of Object.entries(tools)) {
-      if (typeof enabled === "boolean") {
-        merged.set(toOpencodeV2PermissionAction(tool), enabled ? "allow" : "deny");
-      }
-    }
-  }
+  const toggleRules: OpencodeV2PermissionRule[] = isRecord(tools)
+    ? Object.entries(tools).flatMap(([tool, enabled]) =>
+        typeof enabled === "boolean"
+          ? [
+              {
+                action: toOpencodeV2PermissionAction(tool),
+                resource: "*",
+                effect: enabled ? "allow" : "deny",
+              },
+            ]
+          : [],
+      )
+    : [];
   const permissionMap = typeof permission === "string" ? { "*": permission } : permission;
+  const flatPermission: Record<string, string | Record<string, string>> = {};
   if (isRecord(permissionMap)) {
     for (const [key, value] of Object.entries(permissionMap)) {
       if (typeof value === "string") {
-        merged.set(key, value);
+        setOwnEntry(flatPermission, key, value);
       } else if (isRecord(value)) {
-        merged.set(
-          key,
-          Object.fromEntries(
-            Object.entries(value).filter((entry): entry is [string, string] => {
-              return typeof entry[1] === "string";
-            }),
-          ),
-        );
+        const patterns: Record<string, string> = {};
+        for (const [pattern, effect] of Object.entries(value)) {
+          if (typeof effect === "string") setOwnEntry(patterns, pattern, effect);
+        }
+        setOwnEntry(flatPermission, key, patterns);
       }
     }
   }
-  return toOpencodeV2PermissionRules(Object.fromEntries(merged));
+  const permissionRules = toOpencodeV2PermissionRules(flatPermission);
+  return [...toggleRules, ...permissionRules];
 }
 
 /**

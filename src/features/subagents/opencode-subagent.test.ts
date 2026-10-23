@@ -215,9 +215,39 @@ describe("OpenCodeSubagent", () => {
         { action: "edit", resource: "*", effect: "deny" },
         { action: "shell", resource: "*", effect: "ask" },
         { action: "shell", resource: "git status", effect: "allow" },
+        { action: "edit", resource: "*", effect: "deny" },
         { action: "webfetch", resource: "*", effect: "deny" },
       ],
     });
+  });
+
+  it("keeps permission rules after tool toggles so a broad allow cannot override them", () => {
+    const rulesyncSubagent = new RulesyncSubagent({
+      outputRoot: testDir,
+      relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+      relativeFilePath: "editor.md",
+      frontmatter: {
+        targets: ["*"],
+        name: "editor",
+        description: "Edits",
+        opencode: { tools: { edit: false }, permission: { "*": "allow", edit: "ask" } },
+      },
+      body: "Edit",
+      validate: false,
+    });
+
+    const toolSubagent = OpenCodeSubagent.fromRulesyncSubagent({
+      rulesyncSubagent,
+      outputRoot: testDir,
+      relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+    }) as OpenCodeSubagent;
+
+    // The last matching rule wins, so `edit` still asks.
+    expect(toolSubagent.getFrontmatter().permissions).toEqual([
+      { action: "edit", resource: "*", effect: "deny" },
+      { action: "*", resource: "*", effect: "allow" },
+      { action: "edit", resource: "*", effect: "ask" },
+    ]);
   });
 
   it("should import V1 frontmatter in the V2 spelling, keeping the name", () => {
