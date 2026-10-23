@@ -201,6 +201,85 @@ describe("installApm", () => {
     },
   );
 
+  it.skipIf(process.platform === "win32")(
+    "refuses to deploy through a symbolic link that stays inside projectRoot",
+    async () => {
+      mockClientInstance.listDirectory.mockImplementation(
+        async (_owner: string, _repo: string, path: string) => {
+          if (path === ".apm/instructions") {
+            return [
+              {
+                name: "x.instructions.md",
+                path: ".apm/instructions/x.instructions.md",
+                type: "file",
+                size: 100,
+              },
+            ];
+          }
+          const err = new Error(`Not found: ${path}`) as Error & { statusCode?: number };
+          err.statusCode = 404;
+          throw err;
+        },
+      );
+      mockClientInstance.getFileContent.mockResolvedValue("planted");
+      const gitConfig = join(testDir, ".git", "config");
+      await writeFileContent(gitConfig, "[core]\n");
+      await mkdir(join(testDir, ".github", "instructions"), { recursive: true });
+      await symlink(
+        "../../.git/config",
+        join(testDir, ".github", "instructions", "x.instructions.md"),
+      );
+      await writeManifest(
+        `dependencies:
+  apm:
+    - acme/security#v1.0.0
+`,
+      );
+
+      const result = await installApm({ projectRoot: testDir, logger });
+
+      expect(result.failedDependencyCount).toBe(1);
+      expect(await readFileContent(gitConfig)).toBe("[core]\n");
+    },
+  );
+
+  it.skipIf(process.platform === "win32")(
+    "refuses to deploy through a symlinked deploy directory inside projectRoot",
+    async () => {
+      mockClientInstance.listDirectory.mockImplementation(
+        async (_owner: string, _repo: string, path: string) => {
+          if (path === ".apm/instructions") {
+            return [
+              {
+                name: "x.instructions.md",
+                path: ".apm/instructions/x.instructions.md",
+                type: "file",
+                size: 100,
+              },
+            ];
+          }
+          const err = new Error(`Not found: ${path}`) as Error & { statusCode?: number };
+          err.statusCode = 404;
+          throw err;
+        },
+      );
+      mockClientInstance.getFileContent.mockResolvedValue("planted");
+      await mkdir(join(testDir, ".git"), { recursive: true });
+      await mkdir(join(testDir, ".github"), { recursive: true });
+      await symlink("../.git", join(testDir, ".github", "instructions"));
+      await writeManifest(
+        `dependencies:
+  apm:
+    - acme/security#v1.0.0
+`,
+      );
+
+      await installApm({ projectRoot: testDir, logger }).catch(() => undefined);
+
+      expect(await readdir(join(testDir, ".git"))).toEqual([]);
+    },
+  );
+
   it("uses the default branch when no ref is given", async () => {
     await writeManifest(
       `dependencies:
@@ -687,7 +766,7 @@ ${deployedFiles.map((file) => `      - ${file}`).join("\n")}
       expect(await fileExists(join(outsideDir, "old.instructions.md"))).toBe(true);
       expect(localLogger.warn).toHaveBeenCalledWith(
         expect.stringMatching(
-          /^Refusing to remove stale apm file "\.github\/instructions\/old\.instructions\.md": Path resolves outside /,
+          /^Refusing to remove stale apm file "\.github\/instructions\/old\.instructions\.md": Refusing to follow a symbolic link/,
         ),
       );
     },
@@ -696,11 +775,11 @@ ${deployedFiles.map((file) => `      - ${file}`).join("\n")}
   it.skipIf(process.platform === "win32")(
     "reports a filesystem error during stale-file removal as it is",
     async () => {
-      await mkdir(join(testDir, ".github", "instructions"), { recursive: true });
-      await symlink("loop", join(testDir, ".github", "instructions", "loop"));
+      // A regular file where a directory is expected: lstat reports ENOTDIR.
+      await writeFileContent(join(testDir, ".github", "instructions", "plain"), "not a directory");
       await writeFileContent(
         getApmLockPath(testDir),
-        staleLockYaml([".github/instructions/loop/old.instructions.md"]),
+        staleLockYaml([".github/instructions/plain/old.instructions.md"]),
       );
       await writeManifest(
         `dependencies:
@@ -718,11 +797,11 @@ ${deployedFiles.map((file) => `      - ${file}`).join("\n")}
         warnMessages.some(
           (m) =>
             m.startsWith(
-              'Skipping removal of stale apm file ".github/instructions/loop/old.instructions.md":',
-            ) && m.includes("ELOOP"),
+              'Skipping removal of stale apm file ".github/instructions/plain/old.instructions.md":',
+            ) && m.includes("ENOTDIR"),
         ),
       ).toBe(true);
-      expect(warnMessages.some((m) => m.includes("resolves outside"))).toBe(false);
+      expect(warnMessages.some((m) => m.includes("symbolic link"))).toBe(false);
     },
   );
 

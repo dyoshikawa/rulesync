@@ -669,7 +669,7 @@ The `--json` output is the exception: it carries each path exactly as the reposi
 
 `fetch` refuses to write through a local symbolic link whose real path lies outside the project root (the current directory). Every target is checked before anything is written, and the run fails with `Path resolves outside ... through a symbolic link`. A cloned repository could otherwise commit a link such as `.rulesync/skills/x -> ~/.ssh` and have the fetch write there.
 
-This rejects links made on purpose as well: an output directory such as `.rulesync -> ~/dotfiles/rulesync`, or a skill directory such as `.rulesync/skills/foo -> ~/shared-skills/foo`, can no longer be a fetch target. Fetch into a real directory inside the project instead, or point the link at a directory inside the project. A link that stays inside the project root is still written through. The same check applies to `rulesync install --mode gh` at project scope and to `rulesync install --mode apm`.
+This rejects links made on purpose as well: an output directory such as `.rulesync -> ~/dotfiles/rulesync`, or a skill directory such as `.rulesync/skills/foo -> ~/shared-skills/foo`, can no longer be a fetch target. Fetch into a real directory inside the project instead, or point the link at a directory inside the project. A link that stays inside the project root is still written through. `rulesync install --mode gh` at project scope and `rulesync install --mode apm` are stricter: they refuse a symbolic link anywhere below the project root, even one that stays inside it, and fail with `Refusing to follow a symbolic link`.
 
 ### Examples
 
