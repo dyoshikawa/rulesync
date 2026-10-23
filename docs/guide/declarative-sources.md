@@ -211,7 +211,9 @@ Example `rulesync.jsonc`:
 
 Run with `npx rulesync install --mode gh`.
 
-At project scope, a deployed file whose path leads outside the project through a local symbolic link (for example `.agents/skills -> ~/shared-skills`) is refused, and the install fails with `Path resolves outside ... through a symbolic link`. User scope is not checked, so a `~/.claude` linked into a dotfiles checkout keeps working.
+A plain `rulesync install --mode gh` installs each source at the commit recorded in `rulesync-gh.lock.yaml`, so a new upstream release or a moved branch is not picked up until you run it with `--update`. A source whose `ref` was changed in `rulesync.jsonc` (or added or dropped) is no longer covered by the lock and is resolved again.
+
+At project scope, a deployed file is refused when any path component below the project root — the install directory, the skill directory, or the file itself — is a symbolic link, and the install fails with `Refusing to follow a symbolic link`. This stops a cloned repository from committing a link such as `.agents/skills/x/config -> ../../../.git/config` that would send the remote bytes into another file of the project. User scope is not checked, so a `~/.claude` linked into a dotfiles checkout keeps working.
 
 Files that a previous run deployed and the upstream no longer ships are removed again, but only from that skill's own install directory. Because `rulesync-gh.lock.yaml` is committed with the project, user-scope files are only cleaned up while the current config still installs the same source with the same agent at user scope; otherwise rulesync warns and leaves them for you to remove.
 

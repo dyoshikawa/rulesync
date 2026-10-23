@@ -7,7 +7,7 @@ import { FETCH_CONCURRENCY_LIMIT, MAX_FILE_SIZE } from "../../constants/rulesync
 import type { GitHubFileEntry } from "../../types/fetch.js";
 import { formatError } from "../../utils/error.js";
 import {
-  assertPathResolvesInsideRoot,
+  assertNoSymlinkBelowRoot,
   checkPathTraversal,
   PathOutsideRootError,
   removeFile,
@@ -290,9 +290,9 @@ async function removeStaleApmFiles(params: {
     }
     const absolute = join(projectRoot, relativePath);
     // checkPathTraversal is textual only: a symbolic link already inside the
-    // project could still lead the removal outside of it.
+    // project could still lead the removal elsewhere.
     try {
-      await assertPathResolvesInsideRoot({ rootPath: projectRoot, targetPath: absolute });
+      await assertNoSymlinkBelowRoot({ rootPath: projectRoot, targetPath: absolute });
     } catch (error) {
       logger.warn(
         error instanceof PathOutsideRootError
@@ -381,7 +381,7 @@ async function installDependency(params: {
   // rejected for one file does not leave the files before it on disk.
   if (frozen) {
     for (const { path: deployRelative } of deployed) {
-      await assertPathResolvesInsideRoot({
+      await assertNoSymlinkBelowRoot({
         rootPath: projectRoot,
         targetPath: join(projectRoot, deployRelative),
       });
@@ -481,10 +481,12 @@ async function collectPrimitiveDeployments(params: {
 }
 
 /**
- * Write one deployed apm file, refusing a target that resolves outside the
- * project. `checkPathTraversal` only checks the path text, so a symlinked
- * directory committed to the project (`.github/instructions -> ~/.ssh`, say)
- * would otherwise redirect the write.
+ * Write one deployed apm file, refusing a target reached through a symbolic
+ * link below the project root. `checkPathTraversal` only checks the path
+ * text, so a link committed to the project would otherwise redirect the
+ * write — out of the project (`.github/instructions -> ~/.ssh`), or into a
+ * sensitive file inside it (`.github/instructions/x.instructions.md ->
+ * ../../.git/config`).
  */
 async function writeApmFile(params: {
   projectRoot: string;
@@ -493,7 +495,7 @@ async function writeApmFile(params: {
 }): Promise<void> {
   const { projectRoot, deployRelative, content } = params;
   const targetPath = join(projectRoot, deployRelative);
-  await assertPathResolvesInsideRoot({ rootPath: projectRoot, targetPath });
+  await assertNoSymlinkBelowRoot({ rootPath: projectRoot, targetPath });
   await writeFileContent(targetPath, content);
 }
 

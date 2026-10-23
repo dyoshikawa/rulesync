@@ -12,6 +12,7 @@ import {
   addTrailingNewline,
   applyFileMode,
   assertDirectoryIfExists,
+  assertNoSymlinkBelowRoot,
   assertTreeContainsNoSymlinks,
   assertPathResolvesInsideRoot,
   assertWritablePathInsideRoot,
@@ -160,6 +161,75 @@ describe("file utilities", () => {
   });
 
   describe.skipIf(process.platform === "win32")("safe writable paths", () => {
+    describe("assertNoSymlinkBelowRoot", () => {
+      it("should accept a path that does not exist yet", async () => {
+        await expect(
+          assertNoSymlinkBelowRoot({
+            rootPath: testDir,
+            targetPath: join(testDir, "a", "b", "c.md"),
+          }),
+        ).resolves.toBeUndefined();
+      });
+
+      it("should accept an existing regular file", async () => {
+        await writeFileContent(join(testDir, "a", "b.md"), "x");
+        await expect(
+          assertNoSymlinkBelowRoot({ rootPath: testDir, targetPath: join(testDir, "a", "b.md") }),
+        ).resolves.toBeUndefined();
+      });
+
+      it("should accept a root that is itself a symbolic link", async () => {
+        const realRoot = join(testDir, "real");
+        await ensureDir(realRoot);
+        await symlink(realRoot, join(testDir, "linked"));
+        await expect(
+          assertNoSymlinkBelowRoot({
+            rootPath: join(testDir, "linked"),
+            targetPath: join(testDir, "linked", "a", "b.md"),
+          }),
+        ).resolves.toBeUndefined();
+      });
+
+      it("should refuse a target that is a symbolic link staying inside the root", async () => {
+        await writeFileContent(join(testDir, ".git", "config"), "[core]");
+        await ensureDir(join(testDir, "skills", "s"));
+        await symlink("../../.git/config", join(testDir, "skills", "s", "config"));
+        await expect(
+          assertNoSymlinkBelowRoot({
+            rootPath: testDir,
+            targetPath: join(testDir, "skills", "s", "config"),
+          }),
+        ).rejects.toThrow(PathOutsideRootError);
+      });
+
+      it("should refuse a symlinked directory on the way to the target", async () => {
+        await ensureDir(join(testDir, ".git"));
+        await symlink(".git", join(testDir, "skills"));
+        await expect(
+          assertNoSymlinkBelowRoot({
+            rootPath: testDir,
+            targetPath: join(testDir, "skills", "s", "SKILL.md"),
+          }),
+        ).rejects.toThrow(/Refusing to follow a symbolic link/);
+      });
+
+      it("should refuse a dangling symbolic link", async () => {
+        await symlink("missing", join(testDir, "dangling"));
+        await expect(
+          assertNoSymlinkBelowRoot({ rootPath: testDir, targetPath: join(testDir, "dangling") }),
+        ).rejects.toThrow(PathOutsideRootError);
+      });
+
+      it("should refuse a target outside the root or the root itself", async () => {
+        await expect(
+          assertNoSymlinkBelowRoot({ rootPath: testDir, targetPath: join(testDir, "..", "x") }),
+        ).rejects.toThrow(PathOutsideRootError);
+        await expect(
+          assertNoSymlinkBelowRoot({ rootPath: testDir, targetPath: testDir }),
+        ).rejects.toThrow(PathOutsideRootError);
+      });
+    });
+
     describe("assertPathResolvesInsideRoot", () => {
       it("should accept a path that does not exist yet", async () => {
         await expect(
