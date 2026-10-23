@@ -1648,6 +1648,7 @@ export type DevinPermissionsOverride = z.infer<typeof DevinPermissionsOverrideSc
 export const PermissionsConfigSchema = z.looseObject({
   permission: z.record(PermissionCategorySchema, PermissionRulesSchema),
   opencode: z.optional(OpencodePermissionsOverrideSchema),
+  opencodev1: z.optional(OpencodePermissionsOverrideSchema),
   hermes: z.optional(HermesPermissionsOverrideSchema),
   cline: z.optional(ClinePermissionsOverrideSchema),
   kilo: z.optional(KiloPermissionsOverrideSchema),

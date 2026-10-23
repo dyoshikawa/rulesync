@@ -12,6 +12,7 @@ import {
   asOpencodeEntries,
   getOpencodeAgentEntries,
   mergeOpencodeEntryLayers,
+  raiseOpencodeAgentToV2,
   readOpencodeConfigLayers,
   resolveOpencodeFileTemplate,
 } from "../opencode-config.js";
@@ -150,12 +151,30 @@ export class OpenCodeSubagent extends OpenCodeStyleSubagent {
     super({ ...params, frontmatter, validate: false });
   }
 
-  protected getToolTarget(): Extract<ToolTarget, "opencode" | "kilo" | "mimocode"> {
+  protected getToolTarget(): Extract<ToolTarget, "opencode" | "opencodev1" | "kilo" | "mimocode"> {
     return (this.constructor as typeof OpenCodeSubagent).layout.toolTarget;
   }
 
   getFrontmatter(): OpenCodeSubagentFrontmatter {
     return this.frontmatter;
+  }
+
+  /**
+   * For OpenCode V2, imports V1 agent fields in their V2 spelling so the
+   * rulesync tool section holds what the V2 target writes back. `name` is
+   * kept: the base class reads the rulesync name from it.
+   */
+  protected override getImportFrontmatter(): OpenCodeSubagentFrontmatter {
+    if ((this.constructor as typeof OpenCodeSubagent).layout.configVersion !== "v2") {
+      return this.frontmatter;
+    }
+    const { name, mode, description } = this.frontmatter;
+    return {
+      ...raiseOpencodeAgentToV2(this.frontmatter),
+      mode,
+      ...(description !== undefined && { description }),
+      ...(name !== undefined && { name }),
+    };
   }
 
   /**
@@ -198,11 +217,21 @@ export class OpenCodeSubagent extends OpenCodeStyleSubagent {
     const rulesyncFrontmatter = rulesyncSubagent.getFrontmatter();
     const opencodeSection = rulesyncFrontmatter[this.layout.toolTarget] ?? {};
 
-    const parseResult = OpenCodeSubagentFrontmatterSchema.safeParse({
-      ...opencodeSection,
-      description: rulesyncFrontmatter.description,
-      ...(rulesyncFrontmatter.name && { name: rulesyncFrontmatter.name }),
-    });
+    // OpenCode V2 reads frontmatter carrying any V1-only field (`name`
+    // included) as a V1 agent and ignores its V2 fields, so a V2 agent is
+    // written in the V2 spelling alone, its ID coming from the file name.
+    const parseResult = OpenCodeSubagentFrontmatterSchema.safeParse(
+      this.layout.configVersion === "v2"
+        ? raiseOpencodeAgentToV2({
+            ...opencodeSection,
+            description: rulesyncFrontmatter.description,
+          })
+        : {
+            ...opencodeSection,
+            description: rulesyncFrontmatter.description,
+            ...(rulesyncFrontmatter.name && { name: rulesyncFrontmatter.name }),
+          },
+    );
 
     if (!parseResult.success) {
       throw new Error(

@@ -77,6 +77,7 @@ import { MimocodeSkill } from "./mimocode-skill.js";
 import { MusecodeSkill } from "./musecode-skill.js";
 import { OmpSkill } from "./omp-skill.js";
 import { OpenCodeSkill } from "./opencode-skill.js";
+import { Opencodev1Skill } from "./opencodev1-skill.js";
 import { PiSkill } from "./pi-skill.js";
 import { PoolSkill } from "./pool-skill.js";
 import { QoderSkill } from "./qoder-skill.js";
@@ -656,6 +657,13 @@ export const toolSkillFactories = new Map<SkillsProcessorToolTarget, ToolSkillFa
     "opencode",
     {
       class: OpenCodeSkill,
+      meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
+    },
+  ],
+  [
+    "opencodev1",
+    {
+      class: Opencodev1Skill,
       meta: { supportsProject: true, supportsSimulated: false, supportsGlobal: true },
     },
   ],

@@ -59,6 +59,7 @@ const mcpGenerateTargets = [
   { target: "mimocode", outputPath: join(".mimocode", "mimocode.jsonc") },
   { target: "omp", outputPath: join(".omp", "mcp.json") },
   { target: "opencode", outputPath: "opencode.jsonc" },
+  { target: "opencodev1", outputPath: "opencode.jsonc" },
   { target: "pi", outputPath: join(".pi", "mcp.json") },
   { target: "pool", outputPath: join(".poolside", "settings.yaml") },
   { target: "deepagents", outputPath: join(".deepagents", ".mcp.json") },
@@ -533,6 +534,11 @@ describe("E2E: mcp", () => {
     },
     {
       target: "opencode",
+      outputPath: "opencode.jsonc",
+      content: JSON.stringify({ theme: "dark", mcp: {} }, null, 2),
+    },
+    {
+      target: "opencodev1",
       outputPath: "opencode.jsonc",
       content: JSON.stringify({ theme: "dark", mcp: {} }, null, 2),
     },
@@ -1044,6 +1050,7 @@ const mcpGlobalTargets = [
   { target: "omp", outputPath: join(".omp", "agent", "mcp.json") },
   { target: "openclaw", outputPath: join(".openclaw", "openclaw.json") },
   { target: "opencode", outputPath: join(".config", "opencode", "opencode.jsonc") },
+  { target: "opencodev1", outputPath: join(".config", "opencode", "opencode.jsonc") },
   { target: "pi", outputPath: join(".pi", "agent", "mcp.json") },
   { target: "pool", outputPath: join(".config", "poolside", "settings.yaml") },
   { target: "codexcli", outputPath: join(".codex", "config.toml") },

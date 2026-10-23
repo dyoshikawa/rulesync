@@ -55,6 +55,39 @@ function foldSubagentAlias<T extends Record<string, unknown>>(
   return { ...rest, subtask: subagent };
 }
 
+/**
+ * Raises V1 command fields to the OpenCode V2 spelling: `subtask` becomes
+ * `subagent` (an existing boolean `subagent` wins, as V2 resolves
+ * `subagent ?? subtask`), and `variant` is joined onto `model` as
+ * `provider/model#variant`. V2 has no separate `variant`, so a `variant`
+ * without a `model` (or with a `model` that already names a variant) is
+ * dropped. Values of an unexpected type are left untouched for validation to
+ * report.
+ *
+ * @see https://opencode.ai/v2/docs/migrate-v1/
+ */
+function raiseToOpencodeV2CommandFields<T extends Record<string, unknown>>(
+  fields: T,
+): Record<string, unknown> {
+  const { subtask, variant, ...rest }: Record<string, unknown> = fields;
+  const raised: Record<string, unknown> = { ...rest };
+  if (typeof subtask === "boolean") {
+    if (typeof raised.subagent !== "boolean") {
+      raised.subagent = subtask;
+    }
+  } else if (subtask !== undefined) {
+    raised.subtask = subtask;
+  }
+  if (typeof variant === "string") {
+    if (typeof raised.model === "string" && !raised.model.includes("#") && variant !== "") {
+      raised.model = `${raised.model}#${variant}`;
+    }
+  } else if (variant !== undefined) {
+    raised.variant = variant;
+  }
+  return raised;
+}
+
 export type OpenCodeCommandParams = {
   frontmatter: OpenCodeCommandFrontmatter;
   body: string;
@@ -106,8 +139,11 @@ export class OpenCodeCommand extends ToolCommand {
 
   toRulesyncCommand(): RulesyncCommand {
     const { description, ...toolFields } = this.frontmatter;
-    const restFields = foldSubagentAlias(toolFields);
-    const { toolTarget } = (this.constructor as typeof OpenCodeCommand).layout;
+    const { toolTarget, configVersion } = (this.constructor as typeof OpenCodeCommand).layout;
+    const restFields =
+      configVersion === "v2"
+        ? raiseToOpencodeV2CommandFields(toolFields)
+        : foldSubagentAlias(toolFields);
 
     const rulesyncFrontmatter: RulesyncCommandFrontmatter = {
       targets: ["*"],
@@ -135,7 +171,11 @@ export class OpenCodeCommand extends ToolCommand {
     global = false,
   }: ToolCommandFromRulesyncCommandParams): OpenCodeCommand {
     const rulesyncFrontmatter = rulesyncCommand.getFrontmatter();
-    const opencodeFields = foldSubagentAlias(rulesyncFrontmatter[this.layout.toolTarget] ?? {});
+    const toolSection = rulesyncFrontmatter[this.layout.toolTarget] ?? {};
+    const opencodeFields =
+      this.layout.configVersion === "v2"
+        ? raiseToOpencodeV2CommandFields(toolSection)
+        : foldSubagentAlias(toolSection);
 
     const opencodeFrontmatter: OpenCodeCommandFrontmatter = {
       description: rulesyncFrontmatter.description,
@@ -248,13 +288,17 @@ export class OpenCodeCommand extends ToolCommand {
 
       const body = typeof entry.template === "string" ? entry.template : "";
       const { subtask } = foldSubagentAlias(entry);
-      const frontmatter: OpenCodeCommandFrontmatter = {
+      const v1Frontmatter: OpenCodeCommandFrontmatter = {
         ...(typeof entry.description === "string" && { description: entry.description }),
         ...(typeof entry.agent === "string" && { agent: entry.agent }),
         ...(typeof entry.model === "string" && { model: entry.model }),
         ...(typeof entry.variant === "string" && { variant: entry.variant }),
         ...(typeof subtask === "boolean" && { subtask }),
       };
+      const frontmatter: OpenCodeCommandFrontmatter =
+        this.layout.configVersion === "v2"
+          ? raiseToOpencodeV2CommandFields(v1Frontmatter)
+          : v1Frontmatter;
 
       commands.push(
         new this({

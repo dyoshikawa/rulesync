@@ -1,5 +1,7 @@
+// cspell:ignore nothrow -- Bun Shell API
 import { execFileSync } from "node:child_process";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -9,7 +11,95 @@ import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { OpencodeHooks } from "./opencode-hooks.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
 
-describe("OpencodeHooks", () => {
+/**
+ * Fake of the slice of the OpenCode V2 plugin context and Bun Shell the
+ * generated plugin touches, used to run the plugin's `setup` in tests.
+ */
+type ShellResult = { exitCode: number; stdout: string; stderr: string };
+type FakeHookHandler = (event: Record<string, unknown>) => Promise<void>;
+
+function createFakeRuntime(resultFor: (command: string) => ShellResult) {
+  const commands: string[] = [];
+  const hooks = new Map<string, FakeHookHandler>();
+  const pendingEvents: Array<Record<string, unknown>> = [];
+  let wakeEventStream: (() => void) | undefined;
+
+  const shell = (strings: TemplateStringsArray, ...values: unknown[]) => {
+    const command = strings.reduce(
+      (acc, part, index) => acc + part + (index < values.length ? String(values[index]) : ""),
+      "",
+    );
+    commands.push(command);
+    const result = resultFor(command);
+    const nothrowPromise = Promise.resolve(result);
+    const promise = Object.assign(
+      result.exitCode === 0
+        ? Promise.resolve(result)
+        : Promise.reject(new Error(`exit ${result.exitCode}`)),
+      {
+        nothrow: () => Object.assign(nothrowPromise, { quiet: () => nothrowPromise }),
+        quiet: () => promise,
+      },
+    );
+    // Silence unhandled rejections for promises the plugin converts with nothrow().
+    promise.catch(() => {});
+    return promise;
+  };
+  const shellInstance = Object.assign(shell, { cwd: vi.fn() });
+
+  const domain = (name: string) => ({
+    hook: async (hookName: string, handler: FakeHookHandler) => {
+      hooks.set(`${name}:${hookName}`, handler);
+      return { dispose: async () => {} };
+    },
+  });
+
+  const ctx = {
+    location: { directory: "/project" },
+    tool: domain("tool"),
+    session: domain("session"),
+    event: {
+      subscribe: ({ signal }: { signal: AbortSignal }) => ({
+        async *[Symbol.asyncIterator]() {
+          while (!signal.aborted) {
+            const next = pendingEvents.shift();
+            if (next) {
+              yield next;
+              continue;
+            }
+            await new Promise<void>((resolve) => {
+              wakeEventStream = resolve;
+              signal.addEventListener("abort", () => resolve(), { once: true });
+            });
+          }
+        },
+      }),
+    },
+  };
+
+  const bun = {
+    $: {
+      Shell: function Shell() {
+        return shellInstance;
+      },
+    },
+  };
+
+  return {
+    ctx,
+    bun,
+    commands,
+    hooks,
+    emit: async (event: Record<string, unknown>) => {
+      pendingEvents.push(event);
+      wakeEventStream?.();
+      // Let the event loop pick the event up and run its command.
+      for (let i = 0; i < 10; i++) await Promise.resolve();
+    },
+  };
+}
+
+describe("OpencodeHooks (OpenCode V2)", () => {
   let testDir: string;
   let cleanup: () => Promise<void>;
 
@@ -21,20 +111,44 @@ describe("OpencodeHooks", () => {
   afterEach(async () => {
     await cleanup();
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
+
+  const generate = (config: Record<string, unknown>): string => {
+    const rulesyncHooks = new RulesyncHooks({
+      outputRoot: testDir,
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: "hooks.json",
+      fileContent: JSON.stringify({ version: 1, ...config }),
+      validate: false,
+    });
+    return OpencodeHooks.fromRulesyncHooks({
+      outputRoot: testDir,
+      rulesyncHooks,
+      validate: false,
+    }).getFileContent();
+  };
+
+  const loadPlugin = async (content: string, name: string) => {
+    const filePath = join(testDir, `${name}.mjs`);
+    await writeFileContent(filePath, content);
+    const module = await import(pathToFileURL(filePath).href);
+    return module.default as {
+      id: string;
+      setup: (ctx: unknown) => Promise<(() => Promise<void>) | void>;
+    };
+  };
 
   describe("getSettablePaths", () => {
     it("should return .opencode/plugins and rulesync-hooks.js", () => {
-      const paths = OpencodeHooks.getSettablePaths();
-      expect(paths).toEqual({
+      expect(OpencodeHooks.getSettablePaths()).toEqual({
         relativeDirPath: join(".opencode", "plugins"),
         relativeFilePath: "rulesync-hooks.js",
       });
     });
 
     it("should return .config/opencode/plugins for global mode", () => {
-      const paths = OpencodeHooks.getSettablePaths({ global: true });
-      expect(paths).toEqual({
+      expect(OpencodeHooks.getSettablePaths({ global: true })).toEqual({
         relativeDirPath: join(".config", "opencode", "plugins"),
         relativeFilePath: "rulesync-hooks.js",
       });
@@ -42,762 +156,333 @@ describe("OpencodeHooks", () => {
   });
 
   describe("fromRulesyncHooks", () => {
-    it("should gate shell events on the bash tool inside the named hooks", () => {
-      const config = {
-        version: 1,
+    it("emits a V2 `{ id, setup }` plugin instead of the V1 module", () => {
+      const content = generate({
+        hooks: { preToolUse: [{ command: "echo pre" }] },
+      });
+
+      expect(content.startsWith("export default {\n")).toBe(true);
+      expect(content).toContain('id: "rulesync-hooks"');
+      expect(content).toContain("setup: async (ctx) => {");
+      expect(content).toContain("const $ = new Bun.$.Shell();");
+      expect(content).toContain("$.cwd(directory);");
+      expect(content).not.toContain("RulesyncHooksPlugin");
+      expect(content).not.toContain("server:");
+      execFileSync("node", ["--input-type=module", "--check"], {
+        input: content,
+      });
+    });
+
+    it("registers every supported event on its V2 hook point or event type", () => {
+      const content = generate({
         hooks: {
-          beforeShellExecution: [{ type: "command", command: "pre-shell.sh" }],
-          afterShellExecution: [{ type: "command", command: "post-shell.sh" }],
-          preToolUse: [{ type: "command", command: "pre-tool.sh", matcher: "bash|edit" }],
+          sessionStart: [{ command: "echo session-start" }],
+          sessionDelete: [{ command: "echo session-delete" }],
+          preToolUse: [{ command: "echo pre-tool" }],
+          postToolUse: [{ command: "echo post-tool" }],
+          postToolUseFailure: [{ command: "echo post-tool-failure" }],
+          beforeShellExecution: [{ command: "echo before-shell" }],
+          afterShellExecution: [{ command: "echo after-shell" }],
+          beforeSubmitPrompt: [{ command: "echo prompt" }],
+          preModelInvocation: [{ command: "echo model" }],
+          preCompact: [{ command: "echo pre-compact" }],
+          postCompact: [{ command: "echo post-compact" }],
+          stop: [{ command: "echo stop" }],
+          afterError: [{ command: "echo error" }],
+          permissionRequest: [{ command: "echo permission-asked" }],
+          permissionDenied: [{ command: "echo permission-denied" }],
         },
-      };
-      const rulesyncHooks = new RulesyncHooks({
-        relativeDirPath: ".rulesync",
-        relativeFilePath: "hooks.json",
-        fileContent: JSON.stringify(config),
       });
 
-      const content = OpencodeHooks.fromRulesyncHooks({ rulesyncHooks }).getFileContent();
-
-      // Both shell events land in the named tool.execute.* hooks with an
-      // implicit bash gate, alongside the matcher-driven preToolUse handler.
-      // The preToolUse handler receives the stdin payload, so the before hook
-      // also takes `output` (the tool arguments).
-      expect(content).toContain('"tool.execute.before": async (input, output) =>');
-      expect(content).toContain('"tool.execute.after": async (input) =>');
-      const gateCount = content.split('if (input.tool === "bash")').length - 1;
-      expect(gateCount).toBe(2);
-      expect(content).toContain("pre-shell.sh");
-      expect(content).toContain("post-shell.sh");
-      expect(content).toContain("pre-tool.sh");
-      expect(content).not.toContain("command.executed");
+      for (const hook of [
+        'ctx.tool.hook("execute.before"',
+        'ctx.tool.hook("execute.after"',
+        'ctx.session.hook("prompt"',
+        'ctx.session.hook("context"',
+        'ctx.session.hook("compaction"',
+      ]) {
+        expect(content.split(hook).length - 1).toBe(1);
+      }
+      for (const eventType of [
+        "session.created",
+        "session.deleted",
+        "session.compaction.ended",
+        "session.execution.succeeded",
+        "session.execution.failed",
+        "permission.asked",
+        "permission.replied",
+      ]) {
+        expect(content).toContain(`(event.type === "${eventType}")`);
+      }
+      expect(content).toContain("ctx.event.subscribe({ signal: __rulesyncEvents.signal })");
+      expect(content).toContain("__rulesyncEvents.abort();");
+      execFileSync("node", ["--input-type=module", "--check"], {
+        input: content,
+      });
     });
 
-    it("should filter shared hooks to OpenCode-supported events only", () => {
-      const config = {
-        version: 1,
+    it("gates the shell events on the V2 `shell` tool and splits execute.after by status", () => {
+      const content = generate({
         hooks: {
-          sessionStart: [{ type: "command", command: ".rulesync/hooks/session-start.sh" }],
-          stop: [{ command: ".rulesync/hooks/audit.sh" }],
-          afterFileEdit: [{ command: "format.sh" }],
-          afterShellExecution: [{ command: "post-shell.sh" }],
-          permissionRequest: [{ command: "perm-check.sh" }],
-          // sessionEnd has no OpenCode equivalent
-          sessionEnd: [{ command: "session-end.sh" }],
+          beforeShellExecution: [{ command: "echo before-shell" }],
+          afterShellExecution: [{ command: "echo after-shell" }],
+          postToolUse: [{ command: "echo ok" }],
+          postToolUseFailure: [{ command: "echo failed" }],
+          permissionDenied: [{ command: "echo denied" }],
         },
-      };
-      const rulesyncHooks = new RulesyncHooks({
-        outputRoot: testDir,
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: "hooks.json",
-        fileContent: JSON.stringify(config),
-        validate: false,
       });
 
-      const opencodeHooks = OpencodeHooks.fromRulesyncHooks({
-        outputRoot: testDir,
-        rulesyncHooks,
-        validate: false,
-      });
-
-      const content = opencodeHooks.getFileContent();
-
-      // Generic events should be in the event handler with event.type checks
-      expect(content).toContain('event.type === "session.created"');
-      expect(content).toContain(".rulesync/hooks/session-start.sh");
-      expect(content).toContain('event.type === "session.idle"');
-      expect(content).toContain(".rulesync/hooks/audit.sh");
-      expect(content).toContain('event.type === "file.edited"');
-      expect(content).toContain("format.sh");
-      // afterShellExecution is a bash-gated named hook, not the slash-command
-      // event `command.executed` it was once (wrongly) mapped to.
-      expect(content).not.toContain("command.executed");
-      expect(content).toContain('if (input.tool === "bash")');
-      expect(content).toContain("post-shell.sh");
-
-      // permissionRequest maps to generic event permission.asked
-      expect(content).toContain('event.type === "permission.asked"');
-      expect(content).toContain("perm-check.sh");
-
-      // Unsupported events should not appear
-      expect(content).not.toContain("session-end.sh");
+      expect(content.split('if (event.tool === "shell")').length - 1).toBe(2);
+      expect(content).not.toContain('"bash"');
+      expect(content).toContain('if (event.status === "completed")');
+      expect(content).toContain('if (event.status === "error")');
+      expect(content).toContain('if (event.data?.reply === "reject")');
     });
 
-    it("emits the compaction, error and file-watcher events", () => {
-      const rulesyncHooks = new RulesyncHooks({
-        outputRoot: testDir,
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: "hooks.json",
-        fileContent: JSON.stringify({
-          version: 1,
-          hooks: {
-            postCompact: [{ command: "after-compact.sh" }],
-            afterError: [{ command: "on-error.sh" }],
-            fileChanged: [{ command: "on-change.sh" }],
-            // A named `(input, output)` hook, not an `event.type` dispatch.
-            preCompact: [{ command: "before-compact.sh" }],
-          },
-        }),
-        validate: false,
-      });
-
-      const content = OpencodeHooks.fromRulesyncHooks({
-        outputRoot: testDir,
-        rulesyncHooks,
-        validate: false,
-      }).getFileContent();
-
-      expect(content).toContain('event.type === "session.compacted"');
-      expect(content).toContain("after-compact.sh");
-      expect(content).toContain('event.type === "session.error"');
-      expect(content).toContain("on-error.sh");
-      expect(content).toContain('event.type === "file.watcher.updated"');
-      expect(content).toContain("on-change.sh");
-
-      expect(content).toContain('"experimental.session.compacting": async (input) => {');
-      expect(content).toContain("before-compact.sh");
-      expect(content).not.toContain('event.type === "experimental.session.compacting"');
-    });
-
-    it("emits the toast, rejected-permission and chat-message events", () => {
-      const rulesyncHooks = new RulesyncHooks({
-        outputRoot: testDir,
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: "hooks.json",
-        fileContent: JSON.stringify({
-          version: 1,
-          hooks: {
-            notification: [{ command: "notify.sh" }],
-            permissionDenied: [{ command: "on-deny.sh" }],
-            beforeSubmitPrompt: [{ command: "pre-prompt.sh" }],
-          },
-        }),
-        validate: false,
-      });
-
-      const content = OpencodeHooks.fromRulesyncHooks({
-        outputRoot: testDir,
-        rulesyncHooks,
-        validate: false,
-      }).getFileContent();
-
-      expect(content).toContain('event.type === "tui.toast.show"');
-      expect(content).toContain("notify.sh");
-
-      // permission.replied fires for every reply, so the handler is gated on a
-      // rejecting one.
-      expect(content).toContain('event.type === "permission.replied"');
-      expect(content).toContain('if (event.properties.reply === "reject") {');
-      expect(content).toContain("on-deny.sh");
-
-      // chat.message is a named `(input, output)` hook, not a dispatch.
-      expect(content).toContain('"chat.message": async (input) => {');
-      expect(content).toContain("pre-prompt.sh");
-      expect(content).not.toContain('event.type === "chat.message"');
-
-      // The gate is composed into the emitted `if`, so make sure the result is
-      // still syntactically valid JavaScript.
-      execFileSync("node", ["--input-type=module", "--check"], { input: content });
-    });
-
-    it("drops a matcher on the toast and rejected-permission events", () => {
-      const rulesyncHooks = new RulesyncHooks({
-        outputRoot: testDir,
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: "hooks.json",
-        fileContent: JSON.stringify({
-          version: 1,
-          hooks: {
-            notification: [{ command: "notify.sh", matcher: "idle" }],
-            permissionDenied: [{ command: "on-deny.sh", matcher: "bash" }],
-          },
-        }),
-        validate: false,
-      });
-
-      const content = OpencodeHooks.fromRulesyncHooks({
-        outputRoot: testDir,
-        rulesyncHooks,
-        validate: false,
-      }).getFileContent();
-
-      // Generic `event.type` dispatches expose no matchable subject, so a
-      // matcher-carrying definition is skipped rather than run unconditionally.
-      expect(content).not.toContain("notify.sh");
-      expect(content).not.toContain("on-deny.sh");
-      expect(content).not.toContain("new RegExp");
-    });
-
-    it("drops a matcher on the chat-message hook, which has nothing to match on", () => {
-      const rulesyncHooks = new RulesyncHooks({
-        outputRoot: testDir,
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: "hooks.json",
-        fileContent: JSON.stringify({
-          version: 1,
-          hooks: { beforeSubmitPrompt: [{ command: "pre-prompt.sh", matcher: "deploy" }] },
-        }),
-        validate: false,
-      });
-
-      const content = OpencodeHooks.fromRulesyncHooks({
-        outputRoot: testDir,
-        rulesyncHooks,
-        validate: false,
-      }).getFileContent();
-
-      expect(content).not.toContain("pre-prompt.sh");
-      expect(content).not.toContain("new RegExp");
-    });
-
-    it("drops a matcher on the compaction hook, which has nothing to match on", () => {
-      const rulesyncHooks = new RulesyncHooks({
-        outputRoot: testDir,
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: "hooks.json",
-        fileContent: JSON.stringify({
-          version: 1,
-          hooks: { preCompact: [{ command: "before-compact.sh", matcher: "Edit" }] },
-        }),
-        validate: false,
-      });
-
-      const content = OpencodeHooks.fromRulesyncHooks({
-        outputRoot: testDir,
-        rulesyncHooks,
-        validate: false,
-      }).getFileContent();
-
-      // `input.tool` does not exist on a compaction hook's input, so the
-      // matcher cannot be honored; the definition is skipped (the processor
-      // warns "Skipped matcher hook(s)") rather than run unconditionally.
-      expect(content).not.toContain("before-compact.sh");
-      expect(content).not.toContain("input.tool");
-    });
-
-    it("emits the session-deleted, slash-command and model-request events", () => {
-      const rulesyncHooks = new RulesyncHooks({
-        outputRoot: testDir,
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: "hooks.json",
-        fileContent: JSON.stringify({
-          version: 1,
-          hooks: {
-            sessionDelete: [{ command: "on-delete.sh" }],
-            userPromptExpansion: [
-              { command: "any-command.sh" },
-              { command: "deploy-command.sh", matcher: "^deploy$" },
-            ],
-            preModelInvocation: [{ command: "pre-model.sh" }],
-          },
-        }),
-        validate: false,
-      });
-
-      const content = OpencodeHooks.fromRulesyncHooks({
-        outputRoot: testDir,
-        rulesyncHooks,
-        validate: false,
-      }).getFileContent();
-
-      expect(content).toContain('event.type === "session.deleted"');
-      expect(content).toContain("on-delete.sh");
-
-      // command.execute.before is a named hook whose matcher is tested
-      // against the slash command name.
-      expect(content).toContain('"command.execute.before": async (input) => {');
-      expect(content).toContain("any-command.sh");
-      expect(content).toContain('const __re = new RegExp("^deploy$");');
-      expect(content).toContain("if (__re.test(input.command)) {");
-      expect(content).toContain("deploy-command.sh");
-      expect(content).not.toContain('event.type === "command.execute.before"');
-
-      // chat.params is a named hook fired before every LLM request.
-      expect(content).toContain('"chat.params": async (input) => {');
-      expect(content).toContain("pre-model.sh");
-      expect(content).not.toContain('event.type === "chat.params"');
-
-      execFileSync("node", ["--input-type=module", "--check"], { input: content });
-    });
-
-    it("drops a matcher on the model-request hook, which has nothing to match on", () => {
-      const rulesyncHooks = new RulesyncHooks({
-        outputRoot: testDir,
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: "hooks.json",
-        fileContent: JSON.stringify({
-          version: 1,
-          hooks: { preModelInvocation: [{ command: "pre-model.sh", matcher: "build" }] },
-        }),
-        validate: false,
-      });
-
-      const content = OpencodeHooks.fromRulesyncHooks({
-        outputRoot: testDir,
-        rulesyncHooks,
-        validate: false,
-      }).getFileContent();
-
-      expect(content).not.toContain("pre-model.sh");
-      expect(content).not.toContain("new RegExp");
-    });
-
-    it("should generate tool event handlers with matcher support", () => {
-      const config = {
-        version: 1,
+    it("skips events without a verified OpenCode V2 counterpart", () => {
+      const content = generate({
         hooks: {
-          preToolUse: [
-            { type: "command", command: ".rulesync/hooks/lint.sh", matcher: "Write|Edit" },
-          ],
+          afterFileEdit: [{ command: "echo file-edit" }],
+          fileChanged: [{ command: "echo file-changed" }],
+          notification: [{ command: "echo toast" }],
+          userPromptExpansion: [{ command: "echo expansion" }],
         },
-      };
-      const rulesyncHooks = new RulesyncHooks({
-        outputRoot: testDir,
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: "hooks.json",
-        fileContent: JSON.stringify(config),
-        validate: false,
       });
 
-      const opencodeHooks = OpencodeHooks.fromRulesyncHooks({
-        outputRoot: testDir,
-        rulesyncHooks,
-        validate: false,
-      });
-
-      const content = opencodeHooks.getFileContent();
-      expect(content).toContain('"tool.execute.before"');
-      expect(content).toContain("input.tool");
-      expect(content).toContain('new RegExp("Write|Edit")');
-      expect(content).toContain(".rulesync/hooks/lint.sh");
-    });
-
-    it("should normalize only bare wildcard matcher to regex match-all pattern", () => {
-      const config = {
-        version: 1,
-        hooks: {
-          preToolUse: [
-            { type: "command", command: "all-tools.sh", matcher: "*" },
-            { type: "command", command: "read-tools.sh", matcher: "Read*" },
-          ],
-        },
-      };
-      const rulesyncHooks = new RulesyncHooks({
-        outputRoot: testDir,
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: "hooks.json",
-        fileContent: JSON.stringify(config),
-        validate: false,
-      });
-
-      const opencodeHooks = OpencodeHooks.fromRulesyncHooks({
-        outputRoot: testDir,
-        rulesyncHooks,
-        validate: false,
-      });
-
-      const content = opencodeHooks.getFileContent();
-      expect(content).toContain('new RegExp(".*")');
-      expect(content).toContain('new RegExp("Read*")');
-      expect(content).toContain("all-tools.sh");
-      expect(content).toContain("read-tools.sh");
-    });
-
-    it("should generate tool event handlers without matcher when not specified", () => {
-      const config = {
-        version: 1,
-        hooks: {
-          postToolUse: [{ type: "command", command: ".rulesync/hooks/post-tool.sh" }],
-        },
-      };
-      const rulesyncHooks = new RulesyncHooks({
-        outputRoot: testDir,
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: "hooks.json",
-        fileContent: JSON.stringify(config),
-        validate: false,
-      });
-
-      const opencodeHooks = OpencodeHooks.fromRulesyncHooks({
-        outputRoot: testDir,
-        rulesyncHooks,
-        validate: false,
-      });
-
-      const content = opencodeHooks.getFileContent();
-      expect(content).toContain('"tool.execute.after"');
-      expect(content).toContain(".rulesync/hooks/post-tool.sh");
-      // Should not contain matcher logic
-      expect(content).not.toContain(".test(input.tool)");
-    });
-
-    it("should skip prompt-type hooks", () => {
-      const config = {
-        version: 1,
-        hooks: {
-          sessionStart: [
-            { type: "command", command: ".rulesync/hooks/session-start.sh" },
-            { type: "prompt", prompt: "Remember to use TypeScript" },
-          ],
-        },
-      };
-      const rulesyncHooks = new RulesyncHooks({
-        outputRoot: testDir,
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: "hooks.json",
-        fileContent: JSON.stringify(config),
-        validate: false,
-      });
-
-      const opencodeHooks = OpencodeHooks.fromRulesyncHooks({
-        outputRoot: testDir,
-        rulesyncHooks,
-        validate: false,
-      });
-
-      const content = opencodeHooks.getFileContent();
-      // sessionStart is a generic event, routed through event handler
-      expect(content).toContain('event.type === "session.created"');
-      expect(content).toContain(".rulesync/hooks/session-start.sh");
-      expect(content).not.toContain("Remember to use TypeScript");
-    });
-
-    it("should merge config.opencode.hooks on top of shared hooks", () => {
-      const config = {
-        version: 1,
-        hooks: {
-          sessionStart: [{ type: "command", command: "shared.sh" }],
-        },
-        opencode: {
-          hooks: {
-            sessionStart: [{ type: "command", command: "opencode-override.sh" }],
-            stop: [{ command: "opencode-only.sh" }],
-          },
-        },
-      };
-      const rulesyncHooks = new RulesyncHooks({
-        outputRoot: testDir,
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: "hooks.json",
-        fileContent: JSON.stringify(config),
-        validate: false,
-      });
-
-      const opencodeHooks = OpencodeHooks.fromRulesyncHooks({
-        outputRoot: testDir,
-        rulesyncHooks,
-        validate: false,
-      });
-
-      const content = opencodeHooks.getFileContent();
-      expect(content).toContain("opencode-override.sh");
-      expect(content).not.toContain("shared.sh");
-      expect(content).toContain("opencode-only.sh");
-    });
-
-    it("should handle empty hooks config", () => {
-      const config = {
-        version: 1,
-        hooks: {},
-      };
-      const rulesyncHooks = new RulesyncHooks({
-        outputRoot: testDir,
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: "hooks.json",
-        fileContent: JSON.stringify(config),
-        validate: false,
-      });
-
-      const opencodeHooks = OpencodeHooks.fromRulesyncHooks({
-        outputRoot: testDir,
-        rulesyncHooks,
-        validate: false,
-      });
-
-      expect(opencodeHooks.getFileContent()).toBe(
+      expect(content).not.toContain("file-edit");
+      expect(content).not.toContain("file-changed");
+      expect(content).not.toContain("toast");
+      expect(content).not.toContain("expansion");
+      expect(content).toBe(
         [
-          "export const RulesyncHooksPlugin = async ({ $ }) => {",
-          "  return {",
-          "  };",
+          "export default {",
+          '  id: "rulesync-hooks",',
+          "  setup: async () => {",
+          "  },",
           "};",
           "",
         ].join("\n"),
       );
     });
 
-    it("should escape ${} interpolation in commands", () => {
-      const config = {
-        version: 1,
+    it("honors matchers on the tool hooks against the tool name", () => {
+      const content = generate({
         hooks: {
-          sessionStart: [{ type: "command", command: "echo ${HOME}" }],
+          postToolUse: [{ matcher: "write|edit", command: "echo formatted" }],
         },
-      };
-      const rulesyncHooks = new RulesyncHooks({
-        outputRoot: testDir,
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: "hooks.json",
-        fileContent: JSON.stringify(config),
-        validate: false,
       });
 
-      const opencodeHooks = OpencodeHooks.fromRulesyncHooks({
-        outputRoot: testDir,
-        rulesyncHooks,
-        validate: false,
-      });
-
-      const content = opencodeHooks.getFileContent();
-      // ${} should be escaped in the template literal
-      expect(content).toContain("echo \\${HOME}");
-      expect(content).not.toContain("echo ${HOME}");
+      expect(content).toContain(
+        'if (event.status === "completed" && __rulesyncMatchesTool(new RegExp("write|edit"), event.tool)) {',
+      );
     });
 
-    it("should handle multiple handlers for the same event", () => {
-      const config = {
-        version: 1,
+    it("drops matcher-carrying definitions on hook points with nothing to match", () => {
+      const content = generate({
         hooks: {
-          preToolUse: [
-            { type: "command", command: "lint.sh", matcher: "Write" },
-            { type: "command", command: "format.sh", matcher: "Edit" },
-          ],
+          beforeShellExecution: [{ matcher: "git", command: "echo shell-matched" }],
+          beforeSubmitPrompt: [{ matcher: "x", command: "echo prompt-matched" }],
+          stop: [{ matcher: "x", command: "echo stop-matched" }],
         },
-      };
-      const rulesyncHooks = new RulesyncHooks({
-        outputRoot: testDir,
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: "hooks.json",
-        fileContent: JSON.stringify(config),
-        validate: false,
       });
 
-      const opencodeHooks = OpencodeHooks.fromRulesyncHooks({
-        outputRoot: testDir,
-        rulesyncHooks,
-        validate: false,
-      });
-
-      const content = opencodeHooks.getFileContent();
-      expect(content).toContain("lint.sh");
-      expect(content).toContain("format.sh");
-      expect(content).toContain('new RegExp("Write")');
-      expect(content).toContain('new RegExp("Edit")');
+      expect(content).not.toContain("shell-matched");
+      expect(content).not.toContain("prompt-matched");
+      expect(content).not.toContain("stop-matched");
     });
 
-    it("should generate valid block-scoped regex declarations for multiple matcher handlers", () => {
-      const config = {
-        version: 1,
-        hooks: {
-          postToolUse: [
-            { type: "command", command: "audit-read.sh", matcher: "Read" },
-            { type: "command", command: "audit-write.sh", matcher: "Write" },
-            { type: "command", command: "audit-edit.sh", matcher: "Edit" },
-          ],
-        },
-      };
-      const rulesyncHooks = new RulesyncHooks({
-        outputRoot: testDir,
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: "hooks.json",
-        fileContent: JSON.stringify(config),
-        validate: false,
+    it("pipes a PreToolUse payload built from the V2 event into preToolUse commands", () => {
+      const content = generate({
+        hooks: { preToolUse: [{ matcher: "shell", command: "./guard.sh" }] },
       });
 
-      const opencodeHooks = OpencodeHooks.fromRulesyncHooks({
-        outputRoot: testDir,
-        rulesyncHooks,
-        validate: false,
-      });
-
-      const content = opencodeHooks.getFileContent();
+      expect(content).toContain('hook_event_name: "PreToolUse",');
+      expect(content).toContain("session_id: event.sessionID,");
+      expect(content).toContain("tool_use_id: event.id,");
+      expect(content).toContain("tool_name: event.tool,");
+      expect(content).toContain("tool_input: event.input,");
+      expect(content).toContain("cwd: directory,");
       expect(content).toContain(
-        [
-          "      {",
-          '        const __re = new RegExp("Read");',
-          "        if (__re.test(input.tool)) {",
-          "          await $`audit-read.sh`;",
-          "        }",
-          "      }",
-        ].join("\n"),
+        "__rulesyncEnforcePreToolUseResult(await $`echo ${__rulesyncPreToolUseInput()} | ./guard.sh`.nothrow().quiet());",
       );
-      expect(content).toContain(
-        [
-          "      {",
-          '        const __re = new RegExp("Write");',
-          "        if (__re.test(input.tool)) {",
-          "          await $`audit-write.sh`;",
-          "        }",
-          "      }",
-        ].join("\n"),
-      );
-      expect(content).toContain(
-        [
-          "      {",
-          '        const __re = new RegExp("Edit");',
-          "        if (__re.test(input.tool)) {",
-          "          await $`audit-edit.sh`;",
-          "        }",
-          "      }",
-        ].join("\n"),
-      );
-
-      execFileSync("node", ["--input-type=module", "--check"], { input: content });
+      expect(content).toContain("function sanitizeBlockReason(raw) {");
     });
 
-    it("should throw on invalid regex in matcher", () => {
-      const config = {
-        version: 1,
-        hooks: {
-          preToolUse: [{ type: "command", command: "lint.sh", matcher: "[invalid" }],
+    it("merges config.opencode.hooks on top of shared hooks and ignores opencodev1 overrides", () => {
+      const content = generate({
+        hooks: { sessionStart: [{ command: "shared.sh" }] },
+        opencode: {
+          hooks: {
+            sessionStart: [{ command: "opencode-override.sh" }],
+            stop: [{ command: "opencode-only.sh" }],
+          },
         },
-      };
-      const rulesyncHooks = new RulesyncHooks({
-        outputRoot: testDir,
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: "hooks.json",
-        fileContent: JSON.stringify(config),
-        validate: false,
+        opencodev1: { hooks: { stop: [{ command: "v1-only.sh" }] } },
       });
 
+      expect(content).toContain("opencode-override.sh");
+      expect(content).not.toContain("shared.sh");
+      expect(content).toContain("opencode-only.sh");
+      expect(content).not.toContain("v1-only.sh");
+    });
+
+    it("skips prompt-type hooks", () => {
+      const content = generate({
+        hooks: { stop: [{ type: "prompt", prompt: "Summarize" }] },
+      });
+      expect(content).not.toContain("session.execution.succeeded");
+    });
+
+    it("escapes template literal syntax in commands", () => {
+      const content = generate({
+        hooks: { stop: [{ command: "echo ${HOME} `date` \\n" }] },
+      });
+      expect(content).toContain("await $`echo \\${HOME} \\`date\\` \\\\n`;");
+      execFileSync("node", ["--input-type=module", "--check"], {
+        input: content,
+      });
+    });
+
+    it("throws on an invalid matcher regex", () => {
       expect(() =>
-        OpencodeHooks.fromRulesyncHooks({
-          outputRoot: testDir,
-          rulesyncHooks,
-          validate: false,
+        generate({
+          hooks: { preToolUse: [{ matcher: "[invalid", command: "echo x" }] },
         }),
-      ).toThrow("Invalid regex pattern in hook matcher");
+      ).toThrow("Invalid regex pattern in hook matcher: [invalid");
+    });
+  });
+
+  describe("generated plugin at runtime", () => {
+    it("blocks a tool call when a preToolUse command exits 2, with a sanitized reason", async () => {
+      const content = generate({
+        hooks: {
+          preToolUse: [{ matcher: "^shell$", command: "./guard.sh" }],
+          beforeShellExecution: [{ command: "echo before-shell" }],
+        },
+      });
+      const runtime = createFakeRuntime((command) =>
+        command.endsWith("./guard.sh") && command.includes("rm -rf")
+          ? { exitCode: 2, stdout: "", stderr: "no rm\u001b[31m here\n" }
+          : { exitCode: 0, stdout: "", stderr: "" },
+      );
+      vi.stubGlobal("Bun", runtime.bun);
+      const plugin = await loadPlugin(content, "block");
+      const dispose = await plugin.setup(runtime.ctx);
+      const before = runtime.hooks.get("tool:execute.before");
+      expect(before).toBeDefined();
+
+      await expect(
+        before?.({
+          tool: "shell",
+          sessionID: "s1",
+          id: "c1",
+          input: { command: "rm -rf /" },
+        }),
+      ).rejects.toThrow("no rm here");
+      const payload = JSON.parse(
+        runtime.commands[0]?.replace(/^echo /, "").replace(/ \| \.\/guard\.sh$/, "") ?? "",
+      );
+      expect(payload).toEqual({
+        hook_event_name: "PreToolUse",
+        session_id: "s1",
+        tool_use_id: "c1",
+        tool_name: "shell",
+        tool_input: { command: "rm -rf /" },
+        cwd: "/project",
+      });
+
+      await before?.({
+        tool: "shell",
+        sessionID: "s1",
+        id: "c2",
+        input: { command: "ls" },
+      });
+      expect(runtime.commands).toContain("echo before-shell");
+
+      await before?.({ tool: "read", sessionID: "s1", id: "c3", input: {} });
+      expect(runtime.commands.filter((command) => command === "echo before-shell")).toHaveLength(1);
+      await (dispose as () => Promise<void>)();
     });
 
-    it("should strip newline characters from matcher", () => {
-      const config = {
-        version: 1,
-        hooks: {
-          preToolUse: [{ type: "command", command: "lint.sh", matcher: "Write\n|Edit\r" }],
-        },
-      };
-      const rulesyncHooks = new RulesyncHooks({
-        outputRoot: testDir,
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: "hooks.json",
-        fileContent: JSON.stringify(config),
-        validate: false,
+    it("matches a V1 tool name against the renamed V2 tool", async () => {
+      const content = generate({
+        hooks: { preToolUse: [{ matcher: "^bash$", command: "./guard.sh" }] },
       });
+      const runtime = createFakeRuntime(() => ({ exitCode: 2, stdout: "", stderr: "blocked" }));
+      vi.stubGlobal("Bun", runtime.bun);
+      const plugin = await loadPlugin(content, "alias");
+      const dispose = await plugin.setup(runtime.ctx);
+      const before = runtime.hooks.get("tool:execute.before");
 
-      const opencodeHooks = OpencodeHooks.fromRulesyncHooks({
-        outputRoot: testDir,
-        rulesyncHooks,
-        validate: false,
-      });
-
-      const content = opencodeHooks.getFileContent();
-      expect(content).toContain('new RegExp("Write|Edit")');
-      // The matcher itself should not contain newline/CR (they were stripped)
-      expect(content).not.toMatch(/\/Write\n/);
-      expect(content).not.toMatch(/Edit\r/);
+      await expect(before?.({ tool: "shell", input: {} })).rejects.toThrow("blocked");
+      await before?.({ tool: "read", input: {} });
+      expect(runtime.commands).toHaveLength(1);
+      await (dispose as () => Promise<void>)();
     });
 
-    it("should strip NUL byte from matcher", () => {
-      const config = {
-        version: 1,
-        hooks: {
-          preToolUse: [{ type: "command", command: "lint.sh", matcher: "Write\0|Edit" }],
-        },
-      };
-      const rulesyncHooks = new RulesyncHooks({
-        outputRoot: testDir,
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: "hooks.json",
-        fileContent: JSON.stringify(config),
-        validate: false,
+    it("blocks a tool call on a JSON permissionDecision deny", async () => {
+      const content = generate({
+        hooks: { preToolUse: [{ command: "./guard.sh" }] },
       });
+      const runtime = createFakeRuntime(() => ({
+        exitCode: 0,
+        stdout: JSON.stringify({
+          hookSpecificOutput: {
+            permissionDecision: "deny",
+            permissionDecisionReason: "nope",
+          },
+        }),
+        stderr: "",
+      }));
+      vi.stubGlobal("Bun", runtime.bun);
+      const plugin = await loadPlugin(content, "deny");
+      const dispose = await plugin.setup(runtime.ctx);
 
-      const opencodeHooks = OpencodeHooks.fromRulesyncHooks({
-        outputRoot: testDir,
-        rulesyncHooks,
-        validate: false,
-      });
-
-      const content = opencodeHooks.getFileContent();
-      expect(content).toContain('new RegExp("Write|Edit")');
+      await expect(
+        runtime.hooks.get("tool:execute.before")?.({
+          tool: "write",
+          input: {},
+        }),
+      ).rejects.toThrow("nope");
+      await (dispose as () => Promise<void>)();
     });
 
-    it("should escape double quotes in matcher", () => {
-      const config = {
-        version: 1,
+    it("runs event-stream hooks and keeps the stream alive after a failing command", async () => {
+      const content = generate({
         hooks: {
-          preToolUse: [{ type: "command", command: "lint.sh", matcher: 'Write"||true||"' }],
+          sessionStart: [{ command: "exit 1" }, { command: "echo session-start" }],
+          stop: [{ command: "echo stop" }],
+          permissionDenied: [{ command: "echo denied" }],
         },
-      };
-      const rulesyncHooks = new RulesyncHooks({
-        outputRoot: testDir,
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: "hooks.json",
-        fileContent: JSON.stringify(config),
-        validate: false,
       });
+      const runtime = createFakeRuntime((command) =>
+        command === "exit 1"
+          ? { exitCode: 1, stdout: "", stderr: "" }
+          : { exitCode: 0, stdout: "", stderr: "" },
+      );
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      vi.stubGlobal("Bun", runtime.bun);
+      const plugin = await loadPlugin(content, "events");
+      const dispose = await plugin.setup(runtime.ctx);
 
-      const opencodeHooks = OpencodeHooks.fromRulesyncHooks({
-        outputRoot: testDir,
-        rulesyncHooks,
-        validate: false,
+      await runtime.emit({ type: "session.created", data: {} });
+      await runtime.emit({
+        type: "permission.replied",
+        data: { reply: "once" },
       });
-
-      const content = opencodeHooks.getFileContent();
-      // Double quotes should be escaped in the RegExp string
-      expect(content).toContain('new RegExp("Write\\"||true||\\"")');
-      // Should not contain unescaped double quotes that would break the JS string
-      expect(content).not.toContain('new RegExp("Write"');
-    });
-
-    it("should escape backslashes in matcher for JS string embedding", () => {
-      const config = {
-        version: 1,
-        hooks: {
-          preToolUse: [{ type: "command", command: "lint.sh", matcher: "\\bWrite\\b" }],
-        },
-      };
-      const rulesyncHooks = new RulesyncHooks({
-        outputRoot: testDir,
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: "hooks.json",
-        fileContent: JSON.stringify(config),
-        validate: false,
+      await runtime.emit({
+        type: "permission.replied",
+        data: { reply: "reject" },
       });
+      await runtime.emit({ type: "session.execution.succeeded", data: {} });
 
-      const opencodeHooks = OpencodeHooks.fromRulesyncHooks({
-        outputRoot: testDir,
-        rulesyncHooks,
-        validate: false,
-      });
-
-      const content = opencodeHooks.getFileContent();
-      // \b should be double-escaped for embedding in a JS double-quoted string
-      expect(content).toContain('new RegExp("\\\\bWrite\\\\b")');
-    });
-
-    it("should escape backticks in commands", () => {
-      const config = {
-        version: 1,
-        hooks: {
-          sessionStart: [{ type: "command", command: "echo `date`" }],
-        },
-      };
-      const rulesyncHooks = new RulesyncHooks({
-        outputRoot: testDir,
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: "hooks.json",
-        fileContent: JSON.stringify(config),
-        validate: false,
-      });
-
-      const opencodeHooks = OpencodeHooks.fromRulesyncHooks({
-        outputRoot: testDir,
-        rulesyncHooks,
-        validate: false,
-      });
-
-      const content = opencodeHooks.getFileContent();
-      // Backticks should be escaped in the template literal
-      expect(content).toContain("echo \\`date\\`");
+      expect(runtime.commands).toEqual([
+        "exit 1",
+        "echo session-start",
+        "echo denied",
+        "echo stop",
+      ]);
+      await (dispose as () => Promise<void>)();
     });
   });
 
@@ -807,7 +492,7 @@ describe("OpencodeHooks", () => {
         outputRoot: testDir,
         relativeDirPath: join(".opencode", "plugins"),
         relativeFilePath: "rulesync-hooks.js",
-        fileContent: "export const Plugin = async ({ $ }) => { return {} }",
+        fileContent: "export default { id: 'x', setup() {} }",
         validate: false,
       });
 
@@ -821,11 +506,7 @@ describe("OpencodeHooks", () => {
     it("should load from .opencode/plugins/rulesync-hooks.js", async () => {
       const pluginsDir = join(testDir, ".opencode", "plugins");
       await ensureDir(pluginsDir);
-      const content = [
-        "export const RulesyncHooksPlugin = async ({ $ }) => {",
-        "  return {}",
-        "}",
-      ].join("\n");
+      const content = 'export default { id: "rulesync-hooks", setup: async () => {} };\n';
       await writeFileContent(join(pluginsDir, "rulesync-hooks.js"), content);
 
       const opencodeHooks = await OpencodeHooks.fromFile({
@@ -838,7 +519,7 @@ describe("OpencodeHooks", () => {
   });
 
   describe("forDeletion", () => {
-    it("should return OpencodeHooks instance with empty content for deletion", () => {
+    it("should return an OpencodeHooks instance with empty content for deletion", () => {
       const hooks = OpencodeHooks.forDeletion({
         outputRoot: testDir,
         relativeDirPath: join(".opencode", "plugins"),
@@ -846,18 +527,6 @@ describe("OpencodeHooks", () => {
       });
       expect(hooks).toBeInstanceOf(OpencodeHooks);
       expect(hooks.getFileContent()).toBe("");
-    });
-  });
-
-  describe("isDeletable", () => {
-    it("should return true (plugin file is standalone and deletable)", () => {
-      const hooks = new OpencodeHooks({
-        outputRoot: testDir,
-        relativeDirPath: join(".opencode", "plugins"),
-        relativeFilePath: "rulesync-hooks.js",
-        fileContent: "",
-        validate: false,
-      });
       expect(hooks.isDeletable()).toBe(true);
     });
   });

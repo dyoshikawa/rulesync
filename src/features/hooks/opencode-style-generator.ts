@@ -122,9 +122,9 @@ const STDIN_PAYLOAD_EVENTS: Record<string, string> = {
  *   non-zero exit aborted the call. Keeping that preserves guards that block
  *   with `exit 1`, rather than silently failing them open.
  */
-const PRE_TOOL_USE_RESULT_HELPER = "__rulesyncEnforcePreToolUseResult";
+export const PRE_TOOL_USE_RESULT_HELPER = "__rulesyncEnforcePreToolUseResult";
 
-const PRE_TOOL_USE_RESULT_HELPER_LINES: readonly string[] = [
+export const PRE_TOOL_USE_RESULT_HELPER_LINES: readonly string[] = [
   ...buildBlockReasonSanitizerLines({ typed: false }),
   "",
   `const ${PRE_TOOL_USE_RESULT_HELPER} = (result) => {`,
@@ -156,11 +156,11 @@ const PRE_TOOL_USE_RESULT_HELPER_LINES: readonly string[] = [
   "};",
 ];
 
-function escapeForTemplateLiteral(command: string): string {
+export function escapeForTemplateLiteral(command: string): string {
   return command.replace(/\\/g, "\\\\").replace(/`/g, "\\`").replace(/\$\{/g, "\\${");
 }
 
-function validateAndSanitizeMatcher(matcher: string): string {
+export function validateAndSanitizeMatcher(matcher: string): string {
   let sanitized = matcher;
   for (const char of CONTROL_CHARS) {
     sanitized = sanitized.replaceAll(char, "");
@@ -405,7 +405,7 @@ function wrapInExportShape({
 export function generateOpencodeStylePluginCode(
   config: HooksConfig,
   supportedEvents: readonly string[],
-  toolConfigKey: "kilo" | "mimocode" | "opencode",
+  toolConfigKey: "kilo" | "mimocode" | "opencode" | "opencodev1",
   eventMap: Record<string, string>,
   // Export shape of the generated plugin module:
   // - "named" (default): `export const RulesyncHooksPlugin = async ({ $ }) => {...}`

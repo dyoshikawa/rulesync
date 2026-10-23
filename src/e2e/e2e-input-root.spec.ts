@@ -208,8 +208,10 @@ secrets/
     const outputPath = "opencode.jsonc";
     const generatedContent = await readFileContent(join(outputDir, outputPath));
     const parsed = JSON.parse(generatedContent);
-    expect(parsed.permission.bash["git *"]).toBe("allow");
-    expect(parsed.permission.bash["rm -rf"]).toBe("deny");
+    expect(parsed.permissions).toEqual([
+      { action: "shell", resource: "git *", effect: "allow" },
+      { action: "shell", resource: "rm -rf", effect: "deny" },
+    ]);
     expect(await fileExists(join(sourceDir, outputPath))).toBe(false);
   });
 
@@ -689,9 +691,16 @@ OVERLAY style check body.
     });
 
     const parsed = JSON.parse(await readFileContent(join(outputDir, "opencode.jsonc")));
-    expect(parsed.permission.bash["git *"]).toBe("deny");
-    expect(parsed.permission.bash["overlay-only"]).toBe("allow");
-    expect(parsed.permission.bash["base-only"]).toBeUndefined();
+    const shellRules = (parsed.permissions as Array<{ action: string; resource: string }>).filter(
+      (rule) => rule.action === "shell",
+    );
+    expect(shellRules).toContainEqual({ action: "shell", resource: "git *", effect: "deny" });
+    expect(shellRules).toContainEqual({
+      action: "shell",
+      resource: "overlay-only",
+      effect: "allow",
+    });
+    expect(shellRules.map((rule) => rule.resource)).not.toContain("base-only");
   });
 
   it("mcp: deep-merges `mcpServers` — later servers win, base-only servers survive", async () => {

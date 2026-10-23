@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MIMOCODE_LAYOUT } from "../constants/mimocode-paths.js";
+import { OPENCODEV1_LAYOUT } from "../constants/opencode-paths.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { writeFileContent } from "../utils/file.js";
 import {
@@ -188,7 +189,46 @@ describe("opencode-config", () => {
   });
 
   describe("getOpencodeAgentEntries", () => {
-    it("lowers V2 agents entries into the V1 agent shape", () => {
+    it("lowers V2 agents entries into the V1 agent shape for OpenCode V1", () => {
+      expect(
+        getOpencodeAgentEntries({
+          config: {
+            agents: {
+              reviewer: {
+                description: "Reviews code",
+                mode: "subagent",
+                system: "You review.",
+                disabled: true,
+                hidden: true,
+                color: "#ff0000",
+                steps: 5,
+                model: "anthropic/claude-sonnet#high",
+                request: { headers: { "x-a": "1" }, body: { reasoning: true } },
+                permissions: [{ action: "edit", resource: "*", effect: "deny" }],
+              },
+              planner: { model: { providerID: "openai", model: "gpt-5", variant: "low" } },
+            },
+          },
+          layout: OPENCODEV1_LAYOUT,
+        }),
+      ).toEqual({
+        reviewer: {
+          description: "Reviews code",
+          mode: "subagent",
+          prompt: "You review.",
+          disable: true,
+          hidden: true,
+          color: "#ff0000",
+          steps: 5,
+          model: "anthropic/claude-sonnet",
+          variant: "high",
+          options: { reasoning: true },
+        },
+        planner: { model: "openai/gpt-5", variant: "low" },
+      });
+    });
+
+    it("keeps the V2 permissions of agents entries for OpenCode V2", () => {
       expect(
         getOpencodeAgentEntries({
           config: {
@@ -221,6 +261,7 @@ describe("opencode-config", () => {
           model: "anthropic/claude-sonnet",
           variant: "high",
           options: { reasoning: true },
+          permissions: [{ action: "edit", resource: "*", effect: "deny" }],
         },
         planner: { model: "openai/gpt-5", variant: "low" },
       });

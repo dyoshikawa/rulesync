@@ -132,6 +132,7 @@ export const HAND_MAINTAINED_GITIGNORE_ENTRIES: ReadonlyArray<GitignoreEntryTag>
     entry: `**/${CLAUDECODE_DIR}/${CLAUDECODE_AGENT_MEMORY_LOCAL_DIR_NAME}/`,
   },
   { target: "opencode", feature: "general", entry: "**/.opencode/package-lock.json" },
+  { target: "opencodev1", feature: "general", entry: "**/.opencode/package-lock.json" },
   // Devin's personal MCP override (documented as gitignored; never emitted by
   // rulesync). https://docs.devin.ai/cli/extensibility/mcp/configuration
   { target: "devin", feature: "mcp", entry: "**/.devin/mcp_config.local.json" },

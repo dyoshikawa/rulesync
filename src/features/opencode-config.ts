@@ -319,7 +319,7 @@ function mergeOpencodeV2Entries({
  * Sets `target[key]` as an own, enumerable property. A plain assignment to a
  * key named `__proto__` would set the prototype instead.
  */
-function setOwnEntry(target: Record<string, unknown>, key: string, value: unknown): void {
+export function setOwnEntry(target: Record<string, unknown>, key: string, value: unknown): void {
   Object.defineProperty(target, key, {
     value,
     enumerable: true,
@@ -350,7 +350,15 @@ export function getOpencodeAgentEntries({
     config,
     legacyKey: "agent",
     pluralKey: "agents",
-    lower: lowerOpencodeV2Agent,
+    // OpenCode V2 itself reads an entry's `permissions`, so the V2 layout keeps
+    // them next to the lowered fields (its importer raises the rest back).
+    lower:
+      layout.configVersion === "v2"
+        ? (entry) => ({
+            ...lowerOpencodeV2Agent(entry),
+            ...(Array.isArray(entry.permissions) && { permissions: entry.permissions }),
+          })
+        : lowerOpencodeV2Agent,
   });
 }
 
@@ -753,6 +761,198 @@ export function lowerOpencodeV2Mcp(mcp: unknown, onDropped?: OpencodeV2DropRepor
 }
 
 /** Matches a string whose entire value is an OpenCode `{file:...}` reference. */
+/** One entry of OpenCode V2's ordered `permissions` array. */
+export type OpencodeV2PermissionRule = { action: string; resource: string; effect: string };
+
+/**
+ * OpenCode V1 permission keys that V2 renamed, as OpenCode V2's own V1 config
+ * compatibility pass translates them (`write`/`patch` fold into `edit`).
+ *
+ * @see https://opencode.ai/v2/docs/migrate-v1/
+ */
+const OPENCODE_V1_TO_V2_PERMISSION_ACTIONS: Record<string, string> = {
+  bash: "shell",
+  task: "subagent",
+  write: "edit",
+  patch: "edit",
+};
+
+export function toOpencodeV2PermissionAction(v1Key: string): string {
+  return Object.hasOwn(OPENCODE_V1_TO_V2_PERMISSION_ACTIONS, v1Key)
+    ? OPENCODE_V1_TO_V2_PERMISSION_ACTIONS[v1Key]!
+    : v1Key;
+}
+
+/**
+ * Flattens an OpenCode V1 `permission` map into OpenCode V2's ordered
+ * `permissions` array the way OpenCode V2 reads a V1 map itself: keys in
+ * object order, each key's patterns in order, a bare action applying to `*`.
+ * The generated rules therefore keep the V1 map's last-match-wins semantics.
+ */
+export function toOpencodeV2PermissionRules(
+  permission: Record<string, string | Record<string, string>>,
+): OpencodeV2PermissionRule[] {
+  return Object.entries(permission).flatMap(([key, value]) => {
+    const action = toOpencodeV2PermissionAction(key);
+    if (typeof value === "string") {
+      return [{ action, resource: "*", effect: value }];
+    }
+    return Object.entries(value).map(([resource, effect]) => ({ action, resource, effect }));
+  });
+}
+
+/**
+ * Agent fields only OpenCode V1 knows. OpenCode V2 reads an agent entry or
+ * Markdown frontmatter carrying any of them (`name` included) as a V1 entry
+ * and translates it, ignoring the V2 fields next to them, so an entry written
+ * for V2 must carry none of them.
+ */
+const OPENCODE_V1_ONLY_AGENT_KEYS = [
+  "name",
+  "prompt",
+  "disable",
+  "maxSteps",
+  "variant",
+  "temperature",
+  "top_p",
+  "options",
+  "tools",
+  "permission",
+] as const;
+
+const OPENCODE_V2_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
+
+/**
+ * The V1 `tools` toggles and `permission` of an agent as V2 permission rules:
+ * one rule per tool toggle (`write` / `patch` fold into `edit`), followed by
+ * the flattened `permission` map (a bare string applies to every action).
+ * Unlike a per-key merge, which would leave a `permission` value at its tool
+ * toggle's earlier position where a later broad rule could override it, this
+ * keeps every `permission` rule after the toggles, so the result is never
+ * looser than the `permission` map read on its own.
+ */
+function toOpencodeV2AgentPermissionRules({
+  tools,
+  permission,
+}: {
+  tools: unknown;
+  permission: unknown;
+}): OpencodeV2PermissionRule[] {
+  const toggleRules: OpencodeV2PermissionRule[] = isRecord(tools)
+    ? Object.entries(tools).flatMap(([tool, enabled]) =>
+        typeof enabled === "boolean"
+          ? [
+              {
+                action: toOpencodeV2PermissionAction(tool),
+                resource: "*",
+                effect: enabled ? "allow" : "deny",
+              },
+            ]
+          : [],
+      )
+    : [];
+  const permissionMap = typeof permission === "string" ? { "*": permission } : permission;
+  const flatPermission: Record<string, string | Record<string, string>> = {};
+  if (isRecord(permissionMap)) {
+    for (const [key, value] of Object.entries(permissionMap)) {
+      if (typeof value === "string") {
+        setOwnEntry(flatPermission, key, value);
+      } else if (isRecord(value)) {
+        const patterns: Record<string, string> = {};
+        for (const [pattern, effect] of Object.entries(value)) {
+          if (typeof effect === "string") setOwnEntry(patterns, pattern, effect);
+        }
+        setOwnEntry(flatPermission, key, patterns);
+      }
+    }
+  }
+  const permissionRules = toOpencodeV2PermissionRules(flatPermission);
+  return [...toggleRules, ...permissionRules];
+}
+
+/**
+ * Moves the scalar V1 agent fields of `legacy` into their V2 spelling on
+ * `raised` (see {@link raiseOpencodeAgentToV2}). A V2 field already present
+ * wins over its V1 spelling.
+ */
+function raiseOpencodeAgentScalarsToV2({
+  legacy,
+  raised,
+}: {
+  legacy: Record<string, unknown>;
+  raised: Record<string, unknown>;
+}): void {
+  if (typeof legacy.variant === "string" && legacy.variant !== "") {
+    if (typeof raised.model === "string" && !raised.model.includes("#")) {
+      raised.model = `${raised.model}#${legacy.variant}`;
+    }
+  }
+  if (typeof legacy.prompt === "string" && raised.system === undefined) {
+    raised.system = legacy.prompt;
+  }
+  if (typeof legacy.disable === "boolean" && raised.disabled === undefined) {
+    raised.disabled = legacy.disable;
+  }
+  if (legacy.maxSteps !== undefined && raised.steps === undefined) {
+    raised.steps = legacy.maxSteps;
+  }
+  if (typeof raised.color === "string" && !OPENCODE_V2_COLOR_PATTERN.test(raised.color)) {
+    delete raised.color;
+  }
+}
+
+/**
+ * Raises OpenCode V1 agent fields (an `opencode.json` agent entry or Markdown
+ * agent frontmatter) to the V2 spelling, mirroring OpenCode V2's own V1 agent
+ * translation: `prompt` → `system`, `disable` → `disabled`, `maxSteps` →
+ * `steps`, `variant` joined onto `model` as `provider/model#variant`,
+ * `temperature` / `top_p` / `options` under `request.body`, and `tools` /
+ * `permission` → a `permissions` array placed before any existing V2 rules.
+ * `name` is dropped (V2 takes the ID from the file name or the entry key), as
+ * is a `color` that is not a six-digit hex value (V2 accepts only those).
+ * Fields that are already V2, and fields V2 shares with V1, pass through.
+ *
+ * @see https://opencode.ai/v2/docs/agents/
+ * @see https://opencode.ai/v2/docs/migrate-v1/
+ */
+export function raiseOpencodeAgentToV2(fields: Record<string, unknown>): Record<string, unknown> {
+  const legacy: Record<string, unknown> = {};
+  const raised: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(fields)) {
+    const target = (OPENCODE_V1_ONLY_AGENT_KEYS as readonly string[]).includes(key)
+      ? legacy
+      : raised;
+    setOwnEntry(target, key, value);
+  }
+
+  raiseOpencodeAgentScalarsToV2({ legacy, raised });
+
+  const body: Record<string, unknown> = {
+    ...(isRecord(legacy.options) ? legacy.options : {}),
+    ...(legacy.temperature !== undefined && { temperature: legacy.temperature }),
+    ...(legacy.top_p !== undefined && { top_p: legacy.top_p }),
+  };
+  if (Object.keys(body).length > 0) {
+    const request = isRecord(raised.request) ? raised.request : {};
+    raised.request = {
+      ...request,
+      body: { ...body, ...(isRecord(request.body) ? request.body : {}) },
+    };
+  }
+
+  const rules = toOpencodeV2AgentPermissionRules({
+    tools: legacy.tools,
+    permission: legacy.permission,
+  });
+  if (rules.length > 0) {
+    raised.permissions = [
+      ...rules,
+      ...(Array.isArray(raised.permissions) ? raised.permissions : []),
+    ];
+  }
+  return raised;
+}
+
 const OPENCODE_FILE_TEMPLATE_PATTERN = /^\s*\{file:(.+?)\}\s*$/;
 
 /**
