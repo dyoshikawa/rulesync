@@ -37,6 +37,9 @@ vi.mock("../github-client.js", () => ({
     compareCommits(...args: any[]) {
       return mockClientInstance.compareCommits(...args);
     }
+    getReleaseByTag(...args: any[]) {
+      return mockClientInstance.getReleaseByTag(...args);
+    }
   },
   GitHubClientError: class GitHubClientError extends Error {
     statusCode?: number;
@@ -83,6 +86,13 @@ describe("installGh", () => {
       getFileContent: vi.fn(),
       getFileInfo: vi.fn(),
       compareCommits: vi.fn().mockResolvedValue("identical"),
+      getReleaseByTag: vi.fn().mockResolvedValue({
+        tag_name: "v1.0.0",
+        name: "v1.0.0",
+        prerelease: false,
+        draft: false,
+        assets: [],
+      }),
     };
   });
 
@@ -526,6 +536,117 @@ describe("installGh", () => {
       head: "v1.0.0",
     });
     expect(mockClientInstance.getFileContent).not.toHaveBeenCalled();
+  });
+
+  it("refuses a locked commit that a rewound ref no longer contains", async () => {
+    setupSingleSkill("s");
+    await installGh({ projectRoot: testDir, sources: [source({ source: "owner/repo" })], logger });
+
+    mockClientInstance.compareCommits.mockResolvedValue("behind");
+    const result = await installGh({
+      projectRoot: testDir,
+      sources: [source({ source: "owner/repo" })],
+      logger,
+    });
+
+    expect(result.failedSourceCount).toBe(1);
+    expect(logger.error).toHaveBeenCalledWith(expect.stringMatching(/\(behind\)/));
+  });
+
+  describe("does not let the lock vouch for its own pin", () => {
+    async function installThenEditLock(
+      edit: (installation: { resolved_ref: string; requested_ref?: string }) => void,
+      declaredRef?: string,
+    ): Promise<void> {
+      setupSingleSkill("s");
+      const sources = [
+        source({ source: "owner/repo", ...(declaredRef ? { ref: declaredRef } : {}) }),
+      ];
+      await installGh({ projectRoot: testDir, sources, logger });
+      const lock = await readGhLock(testDir);
+      const installation = lock?.installations[0];
+      if (!lock || !installation) {
+        throw new Error("expected a lock entry after the first install");
+      }
+      edit(installation);
+      await writeGhLock({ projectRoot: testDir, lock });
+      mockClientInstance.getFileContent.mockClear();
+      mockClientInstance.compareCommits.mockClear();
+    }
+
+    it.each([
+      { name: "a resolved_ref equal to the commit", resolvedRef: VALID_SHA },
+      { name: "a cross-repository fork:branch resolved_ref", resolvedRef: "attacker:main" },
+    ])("refuses $name that is not a release of the repository", async ({ resolvedRef }) => {
+      await installThenEditLock((installation) => {
+        installation.resolved_ref = resolvedRef;
+      });
+      mockClientInstance.getReleaseByTag.mockRejectedValue(makeNotFound());
+
+      const result = await installGh({
+        projectRoot: testDir,
+        sources: [source({ source: "owner/repo" })],
+        logger,
+      });
+
+      expect(result.failedSourceCount).toBe(1);
+      expect(logger.error).toHaveBeenCalledWith(
+        expect.stringMatching(/neither the default branch nor a release/),
+      );
+      expect(mockClientInstance.compareCommits).not.toHaveBeenCalled();
+      expect(mockClientInstance.getFileContent).not.toHaveBeenCalled();
+    });
+
+    it("refuses a resolved_ref that differs from the declared ref", async () => {
+      await installThenEditLock((installation) => {
+        installation.resolved_ref = VALID_SHA;
+      }, "main");
+
+      const result = await installGh({
+        projectRoot: testDir,
+        sources: [source({ source: "owner/repo", ref: "main" })],
+        logger,
+      });
+
+      expect(result.failedSourceCount).toBe(1);
+      expect(logger.error).toHaveBeenCalledWith(expect.stringMatching(/the declared ref is main/));
+      expect(mockClientInstance.compareCommits).not.toHaveBeenCalled();
+    });
+
+    it("checks a declared ref against the declared ref itself", async () => {
+      await installThenEditLock(() => {}, "main");
+
+      await installGh({
+        projectRoot: testDir,
+        sources: [source({ source: "owner/repo", ref: "main" })],
+        logger,
+      });
+
+      expect(mockClientInstance.compareCommits).toHaveBeenCalledWith({
+        owner: "owner",
+        repo: "repo",
+        base: VALID_SHA,
+        head: "main",
+      });
+    });
+  });
+
+  it("--frozen reports a ref dropped from the manifest as drift", async () => {
+    setupSingleSkill("s");
+    await installGh({
+      projectRoot: testDir,
+      sources: [source({ source: "owner/repo", ref: "v1.0.0" })],
+      logger,
+    });
+
+    await expect(
+      installGh({
+        projectRoot: testDir,
+        sources: [source({ source: "owner/repo" })],
+        options: { frozen: true },
+        logger,
+      }),
+    ).rejects.toThrow(/manifest ref does not match.*manifest=<none>, lock=v1\.0\.0/);
   });
 
   it("--frozen reports a ref added to the manifest as drift", async () => {

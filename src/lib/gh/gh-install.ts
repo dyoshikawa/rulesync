@@ -650,19 +650,52 @@ async function resolveLockedGhRef(params: {
       `rulesync-gh.lock.yaml pins ${sourceKey} (agent=${rs.agent}, scope=${rs.scope}) to more than one commit. Run 'rulesync install --mode gh --update' to re-resolve it.`,
     );
   }
-  // The locked commit must still be part of the locked ref's history in this
-  // very repository. That stops two things. A commit that disappeared
-  // upstream (a force-push, a deleted branch) would otherwise make the skill
-  // listing read the 404 as "no skills/ directory", install nothing and sweep
-  // the deployed files as stale. And GitHub serves commits of a whole fork
-  // network through the parent repository, so a lockfile edited to pin a
-  // commit that only exists in a fork would otherwise install the fork's
-  // bytes under the trusted source's name.
   const pinError = (detail: string, cause?: unknown): Error =>
     new Error(
       `rulesync-gh.lock.yaml pins ${sourceKey} to ${first.resolved_commit} (ref ${first.resolved_ref}), but ${detail}. Run 'rulesync install --mode gh --update' to re-resolve it.`,
       cause === undefined ? undefined : { cause },
     );
+  // The ref the locked commit is checked against must not come from the lock
+  // alone, since the lock is as easy to edit as the commit it pins: a
+  // `resolved_ref` equal to the commit, or a cross-repository `fork:branch`,
+  // would vouch for any commit of the fork network. So it is either the
+  // declared `ref`, which resolveGhRef records as is, or — without one — the
+  // repository's current default branch or one of its release tags, the only
+  // two refs resolveGhRef falls back to. Which of the two it is also decides
+  // the `ref` recorded in the deployed SKILL.md.
+  let usedTag: boolean;
+  if (rs.ref !== undefined) {
+    if (first.resolved_ref !== rs.ref) {
+      throw pinError(`the declared ref is ${rs.ref}`);
+    }
+    usedTag = false;
+  } else {
+    let defaultBranch: string;
+    try {
+      defaultBranch = await client.getDefaultBranch(rs.owner, rs.repo);
+    } catch (error) {
+      throw pinError(`the repository could not be read: ${formatError(error)}`, error);
+    }
+    usedTag = first.resolved_ref !== defaultBranch;
+    if (usedTag) {
+      try {
+        await client.getReleaseByTag({ owner: rs.owner, repo: rs.repo, tag: first.resolved_ref });
+      } catch (error) {
+        throw pinError(
+          `${first.resolved_ref} is neither the default branch nor a release of the repository: ${formatError(error)}`,
+          error,
+        );
+      }
+    }
+  }
+  // The locked commit must still be part of that ref's history in this very
+  // repository. That stops two things. A commit that disappeared upstream (a
+  // force-push, a deleted branch) would otherwise make the skill listing read
+  // the 404 as "no skills/ directory", install nothing and sweep the deployed
+  // files as stale. And GitHub serves commits of a whole fork network through
+  // the parent repository, so a lockfile edited to pin a commit that only
+  // exists in a fork would otherwise install the fork's bytes under the
+  // trusted source's name.
   let status: string;
   try {
     status = await client.compareCommits({
@@ -677,17 +710,6 @@ async function resolveLockedGhRef(params: {
   if (status !== "identical" && status !== "ahead") {
     throw pinError(`that commit is not in the ref's history (${status})`);
   }
-  // Recover whether the locked ref is a release tag, which decides the `ref`
-  // recorded in the deployed SKILL.md (see resolveGhRef): an explicit `ref`
-  // never counts as one, and without it the lock holds either the latest
-  // release's tag or the default branch the source fell back to. The lock
-  // does not record which, so the current default branch tells them apart;
-  // a default branch renamed since the lock was written is read as a tag,
-  // which changes the recorded provenance (and the content hash) once.
-  const usedTag =
-    rs.ref === undefined &&
-    first.resolved_ref !== first.resolved_commit &&
-    first.resolved_ref !== (await client.getDefaultBranch(rs.owner, rs.repo));
   logger.debug(
     `Using locked commit for ${sourceKey}: ref=${first.resolved_ref} sha=${first.resolved_commit}`,
   );
@@ -1009,6 +1031,8 @@ async function removeStaleFile(params: {
   const absolute = join(scopeRoot, relativePath);
   if (scope === "project") {
     try {
+      // A link as the stale file itself is left alone too: unlinking it would
+      // be safe, but it is not a file this install wrote.
       await assertNoSymlinkBelowRoot({ rootPath: scopeRoot, targetPath: absolute });
     } catch (error) {
       logger.warn(
