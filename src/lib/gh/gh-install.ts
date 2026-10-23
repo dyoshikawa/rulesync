@@ -678,13 +678,19 @@ async function resolveLockedGhRef(params: {
     }
     usedTag = first.resolved_ref !== defaultBranch;
     if (usedTag) {
+      let releaseTag: string;
       try {
-        await client.getReleaseByTag({ owner: rs.owner, repo: rs.repo, tag: first.resolved_ref });
+        releaseTag = (
+          await client.getReleaseByTag({ owner: rs.owner, repo: rs.repo, tag: first.resolved_ref })
+        ).tag_name;
       } catch (error) {
         throw pinError(
           `${first.resolved_ref} is neither the default branch nor a release of the repository: ${formatError(error)}`,
           error,
         );
+      }
+      if (releaseTag !== first.resolved_ref) {
+        throw pinError(`the repository's release for it is tagged ${releaseTag}`);
       }
     }
   }
