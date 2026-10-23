@@ -393,8 +393,8 @@ function untrustToolsWithRestrictions({
     Object.values(config.permission[category] ?? {}).some((action) => action !== "allow"),
   );
   if (allToolsRestricted) restrictedSurfaces.add("web");
-  else if (webRestricted) restrictedSurfaces.add("trust-all");
-  if (restrictedSurfaces.size === 0) return;
+  // A web restriction alone still has to drop the trust-all entries.
+  if (restrictedSurfaces.size === 0 && !webRestricted) return;
   const untrusted = [
     ...KIRO_TRUST_ALL_TOOL_NAMES,
     ...[...restrictedSurfaces].flatMap((surface) => KIRO_TRUSTED_TOOL_NAMES[surface] ?? []),

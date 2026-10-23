@@ -126,17 +126,65 @@ describe("RovodevPermissions", () => {
       expect(levels.open_files).toBe("allow");
     });
 
-    it("raises a category catch-all allow to a stricter all-tools catch-all", async () => {
+    it("keeps a per-tool allow over the tool-wide default, as Rovo Dev resolves it", async () => {
       const perms = await RovodevPermissions.fromRulesyncPermissions({
         outputRoot: testDir,
         rulesyncPermissions: rulesyncPermissions({
-          "*": { "*": "deny" },
-          edit: { "*": "allow" },
+          "*": { "*": "ask" },
+          read: { "*": "allow" },
         }),
         global: true,
       });
 
-      expect(toolLevelsOf(perms.getFileContent()).create_file).toBe("deny");
+      expect(toolPermissionsOf(perms.getFileContent()).default).toBe("ask");
+      expect(toolLevelsOf(perms.getFileContent()).open_files).toBe("allow");
+    });
+
+    it("round-trips a native ask default with allowed read tools unchanged", async () => {
+      const yaml = dump({
+        toolPermissions: {
+          default: "ask",
+          tools: {
+            open_files: "allow",
+            expand_code_chunks: "allow",
+            expand_folder: "allow",
+            grep: "allow",
+            getJiraIssue: "allow",
+            getConfluencePage: "allow",
+          },
+        },
+      });
+      const imported = new RovodevPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rovodev",
+        relativeFilePath: "config.yml",
+        fileContent: yaml,
+        global: true,
+      }).toRulesyncPermissions();
+
+      const perms = await RovodevPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: imported,
+        global: true,
+      });
+
+      const levels = toolLevelsOf(perms.getFileContent());
+      for (const key of ["open_files", "expand_code_chunks", "expand_folder", "grep"]) {
+        expect(levels[key]).toBe("allow");
+      }
+    });
+
+    it("writes deny for the grep key when the grep category denies everything", async () => {
+      const perms = await RovodevPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          read: { "*": "allow" },
+          grep: { "*": "deny" },
+        }),
+        global: true,
+      });
+
+      expect(toolLevelsOf(perms.getFileContent()).grep).toBe("deny");
     });
 
     it("downgrades shared tool keys when another category restricts a path on them", async () => {
