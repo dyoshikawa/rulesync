@@ -477,7 +477,11 @@ describe("E2E: permissions", () => {
 
     // OpenCode still sees the shared bash category.
     const opencode = JSON.parse(await readFileContent(join(testDir, "opencode.jsonc")));
-    expect(opencode.permission.bash["git *"]).toBe("allow");
+    expect(opencode.permissions).toContainEqual({
+      action: "shell",
+      resource: "git *",
+      effect: "allow",
+    });
   });
 
   it("should generate permissions from permissions.jsonc (preferred over permissions.json)", async () => {

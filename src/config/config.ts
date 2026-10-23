@@ -332,14 +332,25 @@ const LEGACY_TARGETS = ["augmentcode-legacy", "claudecode-legacy", "opencodev1"]
 /**
  * Expand the wildcard target (`*`) to every ordinary non-legacy tool target.
  * Legacy aliases and package-root targets are excluded because they must be
- * requested explicitly. Shared by `Config.getTargets()` and
- * `extractConfigFileTargets()` so the two never drift.
+ * requested explicitly. A target whose conflicting partner is listed
+ * explicitly next to `*` is left out too, so `["*", "opencodev1"]` means
+ * "everything, with OpenCode 1.x instead of OpenCode" rather than both.
+ * Shared by `Config.getTargets()` and `extractConfigFileTargets()` so the two
+ * never drift.
  */
-export function expandWildcardTargets(): ToolTarget[] {
+export function expandWildcardTargets({
+  explicitTargets = [],
+}: { explicitTargets?: readonly string[] } = {}): ToolTarget[] {
+  const displaced = new Set<string>();
+  for (const [target1, target2] of CONFLICTING_TARGET_PAIRS) {
+    if (explicitTargets.includes(target1)) displaced.add(target2);
+    if (explicitTargets.includes(target2)) displaced.add(target1);
+  }
   return ALL_TOOL_TARGETS.filter(
     (target) =>
       !LEGACY_TARGETS.includes(target as (typeof LEGACY_TARGETS)[number]) &&
-      !PACKAGING_TOOL_TARGETS.includes(target as (typeof PACKAGING_TOOL_TARGETS)[number]),
+      !PACKAGING_TOOL_TARGETS.includes(target as (typeof PACKAGING_TOOL_TARGETS)[number]) &&
+      !displaced.has(target),
   );
 }
 
@@ -752,7 +763,7 @@ export class Config {
     if (arrayTargets.includes("*")) {
       return [
         ...new Set([
-          ...expandWildcardTargets(),
+          ...expandWildcardTargets({ explicitTargets: arrayTargets }),
           ...arrayTargets.filter((target): target is ToolTarget => target !== "*"),
         ]),
       ];

@@ -94,6 +94,28 @@ function toOpencodePermission({
 }
 
 /**
+ * OpenCode V2 matches `webfetch` / `websearch` against the URL / query, so
+ * their pattern maps are kept as V2 rules; only an empty map still collapses
+ * (to `deny`, rather than emitting no rule and falling through to OpenCode's
+ * default allow). The other action-only keys match `*` only, so they collapse
+ * to a single action in V2 as in V1.
+ */
+const OPENCODE_V2_PATTERN_ACTION_KEYS = new Set(["webfetch", "websearch"]);
+
+function collapsesInOpencodeV2({
+  category,
+  value,
+}: {
+  category: string;
+  value: OpencodePermission;
+}): boolean {
+  if (typeof value === "string" || !OPENCODE_ACTION_ONLY_PERMISSION_KEYS.has(category)) {
+    return false;
+  }
+  return !OPENCODE_V2_PATTERN_ACTION_KEYS.has(category) || Object.keys(value).length === 0;
+}
+
+/**
  * Canonical rulesync permission categories that carry a cross-tool meaning (see
  * the "Supported tool categories" list in `docs/reference/file-formats.md`).
  * On import, any OpenCode category outside this set — plus MCP tool names — is
@@ -486,17 +508,10 @@ export class OpencodePermissions extends ToolPermissions {
       ...sharedPermission,
       ...overridePermission,
     })) {
-      // OpenCode V2 matches `webfetch` / `websearch` against the URL / query,
-      // so only V1 collapses those keys to a single action. An empty map of
-      // one of them would emit no rule in V2 and fall through to OpenCode's
-      // default allow, so it still becomes `deny`, as in V1.
-      permission[category] = !isV2
-        ? toOpencodePermission({ category, value, logger })
-        : typeof value !== "string" &&
-            Object.keys(value).length === 0 &&
-            OPENCODE_ACTION_ONLY_PERMISSION_KEYS.has(category)
-          ? "deny"
-          : value;
+      permission[category] =
+        isV2 && !collapsesInOpencodeV2({ category, value })
+          ? value
+          : toOpencodePermission({ category, value, logger });
     }
 
     // OpenCode V2 reads the V1 `permission` map too and applies it before the

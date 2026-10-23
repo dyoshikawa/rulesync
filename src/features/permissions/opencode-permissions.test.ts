@@ -505,11 +505,24 @@ describe("OpencodePermissions (OpenCode V2 permissions array)", () => {
     });
   });
 
-  it("denies an empty webfetch map instead of emitting no rule", async () => {
-    const instance = await generate({ permission: { webfetch: {}, read: {} } });
+  it("denies an empty webfetch map instead of emitting no rule, with a warning", async () => {
+    const logger = { warn: vi.fn() };
+    const instance = await generate({ permission: { webfetch: {}, read: {} } }, logger);
 
     expect(instance.getJson().permissions).toEqual([
       { action: "webfetch", resource: "*", effect: "deny" },
+    ]);
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("default allow"));
+  });
+
+  it("collapses action-only keys that match only * to a single action", async () => {
+    const instance = await generate({
+      permission: { todowrite: { foo: "allow" }, question: { "*": "deny" } },
+    });
+
+    expect(instance.getJson().permissions).toEqual([
+      { action: "todowrite", resource: "*", effect: "ask" },
+      { action: "question", resource: "*", effect: "deny" },
     ]);
   });
 

@@ -126,6 +126,13 @@ describe("Config", () => {
       expect(targets).toEqual(expectedTargets);
     });
 
+    it("should replace opencode with an explicit opencodev1 next to the wildcard", () => {
+      const targets = createConfig({ targets: ["*", "opencodev1"] }).getTargets();
+
+      expect(targets).toContain("opencodev1");
+      expect(targets).not.toContain("opencode");
+    });
+
     it("should return explicit targets when no wildcard", () => {
       const config = createConfig({ targets: ["cursor", "claudecode"] });
       const targets = config.getTargets();
