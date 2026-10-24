@@ -26,7 +26,7 @@ export async function initCommand(logger: Logger): Promise<void> {
     } else if (file.outsideProject) {
       skippedFiles.push(file.path);
       logger.warn(
-        `Skipped ${file.path}: it would be written through a symbolic link that leads outside the project.`,
+        `Skipped ${file.path}: it would be written through a symbolic link that leads outside the project or is dangling.`,
       );
     } else {
       skippedFiles.push(file.path);

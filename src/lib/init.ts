@@ -26,7 +26,7 @@ type InitFileResult = {
   path: string;
   /**
    * Set when the file was not created because writing it would have gone
-   * through a symbolic link that leads outside the project.
+   * through a symbolic link that leads outside the project or is dangling.
    */
   outsideProject?: true;
 };

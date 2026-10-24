@@ -184,7 +184,7 @@ describe("E2E: init", () => {
         });
 
         expect(`${stdout}${stderr}`).toContain(
-          `Skipped ${RULESYNC_HOOKS_RELATIVE_FILE_PATH}: it would be written through a symbolic link that leads outside the project.`,
+          `Skipped ${RULESYNC_HOOKS_RELATIVE_FILE_PATH}: it would be written through a symbolic link that leads outside the project or is dangling.`,
         );
         expect(await fileExists(outsideHooks)).toBe(false);
         expect(await fileExists(join(testDir, RULESYNC_CONFIG_RELATIVE_FILE_PATH))).toBe(true);
