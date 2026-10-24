@@ -1,5 +1,3 @@
-import { fileURLToPath } from "node:url";
-
 import { z } from "zod/mini";
 
 import { addCommand } from "../lib/add.js";
@@ -38,19 +36,39 @@ export type AddOptions = z.infer<typeof addOptionsSchema>;
  * The git transport clones any URL `git` accepts, a local `file:///` repository
  * included, so without this an agent (possibly steered by repository text)
  * could copy skill- and rule-shaped content from any repository the operator
- * can read into the project. The scheme is matched case-insensitively and the
- * decoded path is held to the same containment as the path options.
+ * can read into the project.
+ *
+ * The path is judged the way git reads it, not through a WHATWG `URL`: that
+ * parser drops a `?query` or `#fragment`, turns `\` into `/` and folds `..`
+ * segments, none of which git does, so `file:///project/x#/../../secret`
+ * would be judged as `/project/x` while git opens `/secret`. A URL with a
+ * host (`file://localhost/`), a `?`, a `#` or a `\` is refused outright, and
+ * the rest is percent-decoded (git decodes it too) and held to the same
+ * containment as the path options, which also rejects any `..` segment.
  */
 async function assertFileSourceWithinCwd(source: string): Promise<void> {
   const trimmed = source.trim();
   if (!/^file:/iu.test(trimmed)) {
     return;
   }
+  const rawPath = /^file:\/\/(\/.*)$/isu.exec(trimmed)?.[1];
+  if (rawPath === undefined || /[?#\\]/u.test(rawPath)) {
+    throw new Error(
+      `A file:// source must be a plain file:/// URL without a host, '?', '#' or '\\': ${trimmed}`,
+    );
+  }
   let path: string;
   try {
-    path = fileURLToPath(new URL(trimmed));
+    path = decodeURIComponent(rawPath);
   } catch (error) {
-    throw new Error(`source is not a valid file URL: ${trimmed}`, { cause: error });
+    throw new Error(`A file:// source has invalid percent-encoding: ${trimmed}`, { cause: error });
+  }
+  if (path.includes("\0")) {
+    throw new Error(`A file:// source must not contain a NUL character: ${trimmed}`);
+  }
+  // `file:///C:/repo` names `C:/repo` on Windows.
+  if (process.platform === "win32" && /^\/[a-z]:/iu.test(path)) {
+    path = path.slice(1);
   }
   await assertPathOptionWithinCwd({ path, label: "A file:// source" });
 }

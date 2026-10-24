@@ -1,11 +1,10 @@
-import { readdir } from "node:fs/promises";
 import { join } from "node:path";
 
 import {
   assertNoSymlinkBelowRoot,
+  assertTreeContainsNoSymlinks,
   fileExistsStrict,
   PathOutsideRootError,
-  SymlinkRefusedError,
 } from "../utils/file.js";
 import {
   getRulesyncSourceCandidates,
@@ -52,7 +51,7 @@ export async function assertNoSymlinkInFeatureTree({
   dirPath: string;
 }): Promise<void> {
   await assertNoSymlinkInFeaturePath({ featureDirPath, targetPath: dirPath });
-  await assertTreeHasNoSymlinks(dirPath);
+  await assertTreeContainsNoSymlinks(dirPath, { operation: "read" });
 }
 
 /**
@@ -85,16 +84,4 @@ export async function assertNoSymlinkInRulesyncSource({
  */
 export function isFeatureSymlinkRefusal(error: unknown): boolean {
   return error instanceof PathOutsideRootError;
-}
-
-async function assertTreeHasNoSymlinks(dirPath: string): Promise<void> {
-  for (const entry of await readdir(dirPath, { withFileTypes: true })) {
-    const entryPath = join(dirPath, entry.name);
-    if (entry.isSymbolicLink()) {
-      throw new SymlinkRefusedError(`Refusing to follow a symbolic link: ${entryPath}.`);
-    }
-    if (entry.isDirectory()) {
-      await assertTreeHasNoSymlinks(entryPath);
-    }
-  }
 }

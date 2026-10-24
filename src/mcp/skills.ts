@@ -308,32 +308,46 @@ async function putSkill({
       validate: true,
     });
 
-    // Ensure skill directory exists. Every write below is checked first, so a
-    // symbolic link a cloned repository planted in the skill is never written
-    // through, and `mkdir -p` never creates a directory through one.
     const skillsDir = join(process.cwd(), RULESYNC_SKILLS_RELATIVE_DIR_PATH);
     const skillDirPath = join(skillsDir, dirName);
-    await assertNoSymlinkInFeaturePath({ featureDirPath: skillsDir, targetPath: skillDirPath });
-    await ensureDir(skillDirPath);
-
-    // Write the SKILL.md file
     const skillFilePath = join(skillDirPath, SKILL_FILE_NAME);
-    const skillFileContent = stringifyFrontmatter(body, frontmatter);
-    await assertNoSymlinkInFeaturePath({ featureDirPath: skillsDir, targetPath: skillFilePath });
-    await writeFileContent(skillFilePath, skillFileContent);
-
-    // Write other files byte for byte so binary files are not corrupted
-    for (const file of aiDirFiles) {
+    const otherFileWrites = aiDirFiles.map((file) => {
       const fileName = file.relativeFilePathToDirPath;
       // Validate file path to prevent path traversal
       checkPathTraversal({
         relativePath: fileName,
         intendedRootDir: skillDirPath,
       });
-      const filePath = join(skillDirPath, fileName);
-      await assertNoSymlinkInFeaturePath({ featureDirPath: skillsDir, targetPath: filePath });
+      return { file, filePath: join(skillDirPath, fileName) };
+    });
+
+    // Refuse a symbolic link a cloned repository planted in the skill before
+    // anything is written, so a refusal never leaves a partial update behind.
+    // Each write is checked again right before it happens, and before its
+    // `mkdir -p`, which would otherwise create a directory through a link.
+    const assertWritable = async (targetPath: string) =>
+      await assertNoSymlinkInFeaturePath({ featureDirPath: skillsDir, targetPath });
+    for (const targetPath of [
+      skillDirPath,
+      skillFilePath,
+      ...otherFileWrites.map(({ filePath }) => filePath),
+    ]) {
+      await assertWritable(targetPath);
+    }
+
+    // Ensure skill directory exists
+    await assertWritable(skillDirPath);
+    await ensureDir(skillDirPath);
+
+    // Write the SKILL.md file
+    await assertWritable(skillFilePath);
+    await writeFileContent(skillFilePath, stringifyFrontmatter(body, frontmatter));
+
+    // Write other files byte for byte so binary files are not corrupted
+    for (const { file, filePath } of otherFileWrites) {
+      await assertWritable(filePath);
       // Ensure subdirectory exists if file has path separators
-      const fileDir = join(skillDirPath, dirname(fileName));
+      const fileDir = dirname(filePath);
       if (fileDir !== skillDirPath) {
         await ensureDir(fileDir);
       }

@@ -121,6 +121,29 @@ describe.skipIf(process.platform === "win32")("MCP feature symlink containment",
     });
   });
 
+  describe("rule", () => {
+    it("still follows a feature directory that is itself a symbolic link", async () => {
+      const sharedRules = join(testDir, "shared-rules");
+      await ensureDir(sharedRules);
+      await ensureDir(join(testDir, ".rulesync"));
+      await symlink(sharedRules, join(testDir, ".rulesync", "rules"), "dir");
+
+      await ruleTools.putRule.execute({
+        relativePathFromCwd: ".rulesync/rules/linked.md",
+        frontmatter: { targets: ["*"] },
+        body: "# Linked",
+      });
+
+      expect(await readFileContent(join(sharedRules, "linked.md"))).toContain("# Linked");
+      expect(JSON.parse(await ruleTools.listRules.execute()).rules).toHaveLength(1);
+      expect(
+        JSON.parse(
+          await ruleTools.getRule.execute({ relativePathFromCwd: ".rulesync/rules/linked.md" }),
+        ).body,
+      ).toContain("# Linked");
+    });
+  });
+
   describe("ignore", () => {
     it("refuses to get or put a symlinked .rulesync/.aiignore", async () => {
       await ensureDir(join(testDir, ".rulesync"));
@@ -239,6 +262,30 @@ description: shared skill
       expect(await readFileContent(outsideFile)).toBe(SENTINEL);
       expect(await fileExists(join(outsideDir, "SKILL.md"))).toBe(false);
       expect(await fileExists(join(outsideDir, "nested"))).toBe(false);
+    });
+
+    it("writes nothing when a later other file would be written through a link", async () => {
+      const outsideDir = join(testDir, "outside", "tool-config");
+      const skillDir = join(testDir, skillsDir, "partial");
+      await ensureDir(outsideDir);
+      await ensureDir(skillDir);
+      await symlink(outsideDir, join(skillDir, "refs"), "dir");
+
+      await expect(
+        skillTools.putSkill.execute({
+          relativeDirPathFromCwd: join(skillsDir, "partial"),
+          frontmatter: { name: "partial", description: "x", targets: ["*"] },
+          body: "# Partial",
+          otherFiles: [
+            { name: "first.md", body: "first" },
+            { name: "refs/second.md", body: "second" },
+          ],
+        }),
+      ).rejects.toThrow(SYMLINK_REFUSAL);
+
+      expect(await fileExists(join(skillDir, "SKILL.md"))).toBe(false);
+      expect(await fileExists(join(skillDir, "first.md"))).toBe(false);
+      expect(await fileExists(join(outsideDir, "second.md"))).toBe(false);
     });
 
     it("still follows a symlinked .rulesync directory", async () => {

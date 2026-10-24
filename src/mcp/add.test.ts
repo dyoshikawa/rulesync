@@ -1,3 +1,4 @@
+import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -72,6 +73,39 @@ describe("executeAdd", () => {
     expect(result.success).toBe(false);
     expect(result.error).toContain("A file:// source must stay inside the project directory");
     expect(await readFileContent(configPath)).toBe("{}\n");
+  });
+
+  it.each([
+    ["a fragment", (dir: string) => `${pathToFileURL(join(dir, "x")).href}#/../../secret`],
+    ["a query", (dir: string) => `${pathToFileURL(join(dir, "x")).href}?/../../secret`],
+    [
+      "a host",
+      (dir: string) => pathToFileURL(join(dir, "x")).href.replace("file://", "file://localhost"),
+    ],
+    [
+      "a backslash",
+      (dir: string) => `${pathToFileURL(join(dir, "x")).href}%5C/../../secret`.replace("%5C", "\\"),
+    ],
+  ])("rejects a file URL with %s even when it points inside the project", async (_, toSource) => {
+    await mkdir(join(testDir, "x#"), { recursive: true });
+    const configPath = join(testDir, "rulesync.jsonc");
+    await writeFileContent(configPath, "{}\n");
+
+    const result = await executeAdd({ source: toSource(testDir), transport: "git" });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("A file:// source must be a plain file:/// URL");
+    expect(await readFileContent(configPath)).toBe("{}\n");
+  });
+
+  it("judges a percent-encoded '..' segment the way git decodes it", async () => {
+    const result = await executeAdd({
+      source: `${pathToFileURL(join(testDir, "x")).href}/%2e%2e/%2e%2e/secret`,
+      transport: "git",
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("'..' segments are not allowed");
   });
 
   it("lets a file URL inside the project past the containment check", async () => {
