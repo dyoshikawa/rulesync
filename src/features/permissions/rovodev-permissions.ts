@@ -17,6 +17,7 @@ import {
 } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { honorAllToolsOnBash } from "./shell-command-categories.js";
+import { failSafeCatchAllAction } from "./single-action-collapse.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -623,6 +624,11 @@ function convertRulesyncToRovodevToolPermissions({
 }): RovodevToolPermissions {
   const toolPermissions: RovodevToolPermissions = {};
   const allowedExternalPaths: string[] = [];
+  // Tool keys some category restricts at a path they cannot express. `edit` and
+  // `write` share their keys, so a skipped `write` deny must also stop an
+  // `edit` catch-all allow from auto-approving those keys.
+  const restrictedToolKeys = new Set<RovodevToolPermissionKey>();
+  const deniedToolKeys = new Set<RovodevToolPermissionKey>();
 
   warnOnEditWriteConflict({ config, logger });
 
@@ -648,17 +654,42 @@ function convertRulesyncToRovodevToolPermissions({
       logger?.warn(
         `Rovo Dev permissions have no target for the "${category}" category. Skipping it.`,
       );
+      markSharedToolKeyRestriction({ category, rules, restrictedToolKeys, deniedToolKeys });
       continue;
+    }
+
+    // A catch-all `allow` beside a per-path `deny`/`ask` that cannot be
+    // expressed is downgraded to `ask`, so the restricted path still prompts
+    // instead of being auto-approved by the tool-wide level.
+    // The `*` catch-all is `toolPermissions.default`, which Rovo Dev's per-tool
+    // levels override natively (and import reads back that way), so only the
+    // narrower `*` restrictions are passed in: they downgrade the catch-all,
+    // while the default itself does not raise it.
+    const catchAll = failSafeCatchAllAction({
+      rules,
+      allToolsRules: narrowerAllToolsRules(config.permission[CATCH_ALL_PATTERN]),
+    });
+    if (catchAll.downgraded) {
+      logger?.warn(
+        `Rovo Dev: "${category}" allows "*", but a narrower deny or ask (in it or in the "*" ` +
+          `category) cannot be expressed by its per-tool levels, so ${toolKeys.join(", ")} are set to "ask" instead of ` +
+          `"allow" and will not be auto-approved.`,
+      );
+    }
+    if (catchAll.action !== undefined) {
+      toolPermissions.tools ??= {};
+      for (const toolKey of toolKeys) {
+        // `edit` and `write` write to the same keys, so fold rather than
+        // overwrite; with one category per key this just stores the action.
+        toolPermissions.tools[toolKey] = strictestAction(
+          toolPermissions.tools[toolKey],
+          catchAll.action,
+        );
+      }
     }
 
     for (const [pattern, action] of Object.entries(rules)) {
       if (pattern === CATCH_ALL_PATTERN) {
-        toolPermissions.tools ??= {};
-        for (const toolKey of toolKeys) {
-          // `edit` and `write` write to the same keys, so fold rather than
-          // overwrite; with one category per key this just stores `action`.
-          toolPermissions.tools[toolKey] = strictestAction(toolPermissions.tools[toolKey], action);
-        }
         continue;
       }
 
@@ -672,14 +703,101 @@ function convertRulesyncToRovodevToolPermissions({
       logger?.warn(
         `Rovo Dev cannot express per-path "${action}" for the "${category}" category (pattern "${pattern}"). Skipping it.`,
       );
+      for (const toolKey of toolKeys) {
+        restrictedToolKeys.add(toolKey);
+      }
     }
   }
+
+  downgradeRestrictedToolKeys({ toolPermissions, restrictedToolKeys, deniedToolKeys, logger });
 
   if (allowedExternalPaths.length > 0) {
     toolPermissions.allowedExternalPaths = [...new Set(allowedExternalPaths)].toSorted();
   }
 
   return toolPermissions;
+}
+
+/** The all-tools rules without their catch-all, which is `toolPermissions.default`. */
+function narrowerAllToolsRules(
+  rules: Record<string, PermissionAction> | undefined,
+): Record<string, PermissionAction> | undefined {
+  if (rules === undefined) {
+    return undefined;
+  }
+  return Object.fromEntries(
+    Object.entries(rules).filter(([pattern]) => pattern !== CATCH_ALL_PATTERN),
+  );
+}
+
+/**
+ * `read` writes the `grep` tool key while the `grep` category has no target of
+ * its own, so a skipped `grep` restriction must still stop a `read` allow from
+ * auto-approving searches.
+ */
+function markSharedToolKeyRestriction({
+  category,
+  rules,
+  restrictedToolKeys,
+  deniedToolKeys,
+}: {
+  category: string;
+  rules: Record<string, PermissionAction>;
+  restrictedToolKeys: Set<RovodevToolPermissionKey>;
+  deniedToolKeys: Set<RovodevToolPermissionKey>;
+}): void {
+  if (category !== "grep" || !Object.values(rules).some((action) => action !== "allow")) {
+    return;
+  }
+  restrictedToolKeys.add("grep");
+  // A catch-all deny covers every search, so the key can carry it as is.
+  if (rules[CATCH_ALL_PATTERN] === "deny") {
+    deniedToolKeys.add("grep");
+  }
+}
+
+/**
+ * Set every tool key left at `allow` — or unset under an `allow`
+ * `toolPermissions.default` — to `ask` when a category mapping onto it
+ * restricts a path the key cannot express. The per-category downgrade already
+ * covers a restriction in the same category; this catches the one from
+ * another category sharing the key (`edit: {"*": "allow"}` beside
+ * `write: {"secrets/**": "deny"}`).
+ */
+function downgradeRestrictedToolKeys({
+  toolPermissions,
+  restrictedToolKeys,
+  deniedToolKeys,
+  logger,
+}: {
+  toolPermissions: RovodevToolPermissions;
+  restrictedToolKeys: ReadonlySet<RovodevToolPermissionKey>;
+  deniedToolKeys: ReadonlySet<RovodevToolPermissionKey>;
+  logger?: Logger | undefined;
+}): void {
+  const downgraded: string[] = [];
+  for (const toolKey of restrictedToolKeys) {
+    // A key left unset falls back to `toolPermissions.default`, so an `allow`
+    // default would auto-approve the restricted path just the same.
+    const effective = toolPermissions.tools?.[toolKey] ?? toolPermissions.default;
+    const target: PermissionAction = deniedToolKeys.has(toolKey) ? "deny" : "ask";
+    if (effective === undefined || strictestAction(effective, target) !== effective) {
+      if (effective === undefined && target === "ask") {
+        // An unset key under an unset default keeps Rovo Dev's own `ask`.
+        continue;
+      }
+      toolPermissions.tools ??= {};
+      toolPermissions.tools[toolKey] = target;
+      downgraded.push(toolKey);
+    }
+  }
+  if (downgraded.length > 0) {
+    logger?.warn(
+      `Rovo Dev: ${downgraded.join(", ")} ${downgraded.length === 1 ? "is" : "are"} made stricter ` +
+        `than "allow" because a category mapping onto ${downgraded.length === 1 ? "it" : "them"} ` +
+        `restricts a path the per-tool level cannot express.`,
+    );
+  }
 }
 
 /**
@@ -721,10 +839,8 @@ function convertAllToolsRules({
   rules: Record<string, PermissionAction>;
   logger?: Logger | undefined;
 }): PermissionAction | undefined {
-  let toolWideDefault: PermissionAction | undefined;
-  for (const [pattern, action] of Object.entries(rules)) {
+  for (const pattern of Object.keys(rules)) {
     if (pattern === CATCH_ALL_PATTERN) {
-      toolWideDefault = action;
       continue;
     }
     logger?.warn(
@@ -732,7 +848,16 @@ function convertAllToolsRules({
         `pattern "${pattern}" in the "*" category. Skipping it.`,
     );
   }
-  return toolWideDefault;
+  // A catch-all `allow` beside a skipped `deny`/`ask` falls back to `ask`, so
+  // the input that rule restricts is not auto-approved by the tool-wide default.
+  const { action, downgraded } = failSafeCatchAllAction({ rules });
+  if (downgraded) {
+    logger?.warn(
+      `Rovo Dev: the "*" category allows "*" but restricts narrower patterns the tool-wide ` +
+        `default cannot express, so toolPermissions.default is set to "ask" instead of "allow".`,
+    );
+  }
+  return action;
 }
 
 function convertBashRules(rules: Record<string, PermissionAction>): RovodevBash | undefined {

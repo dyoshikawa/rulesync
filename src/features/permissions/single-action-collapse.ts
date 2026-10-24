@@ -45,3 +45,62 @@ export function collapseRulesToSingleAction({
 export function hasPatternSpecificRules(rules: Record<string, PermissionAction>): boolean {
   return Object.keys(rules).some((pattern) => pattern !== "*");
 }
+
+/**
+ * Whether a pattern map restricts (`deny` or `ask`) any input narrower than
+ * its `*` catch-all.
+ */
+function restrictsNarrowerPatterns(rules: Record<string, PermissionAction> | undefined): boolean {
+  return Object.entries(rules ?? {}).some(
+    ([pattern, action]) => pattern !== "*" && action !== "allow",
+  );
+}
+
+/**
+ * The action a tool that lists whole tools (no pattern matcher) can hold for a
+ * category's `*` catch-all once its pattern-level rules are dropped.
+ *
+ * A catch-all `allow` beside a narrower `deny` or `ask` would auto-approve the
+ * very input that rule restricts, so it is downgraded to `ask`: the tool then
+ * prompts for everything in the category, which is the closest the whole-tool
+ * surface gets without blocking the inputs the author allowed. A narrower
+ * restriction written under the all-tools `*` category (`allToolsRules`)
+ * covers every category too, so it downgrades the allow as well, and a
+ * stricter all-tools catch-all (`"*": {"*": "deny"}`) raises the category's
+ * catch-all to its own action. Otherwise a catch-all `ask` or `deny` already
+ * restricts at least as much and is kept. Returns
+ * `undefined` when the category has no catch-all, and `downgraded: true` when
+ * the catch-all was made stricter, so the caller can say so in its warning.
+ */
+export function failSafeCatchAllAction({
+  rules,
+  allToolsRules,
+}: {
+  rules: Record<string, PermissionAction>;
+  allToolsRules?: Record<string, PermissionAction> | undefined;
+}): {
+  action: PermissionAction | undefined;
+  downgraded: boolean;
+} {
+  const catchAll = Object.hasOwn(rules, "*") ? rules["*"] : undefined;
+  if (catchAll === undefined) {
+    return { action: undefined, downgraded: false };
+  }
+  // The all-tools catch-all covers this category's inputs too, and the
+  // stricter rule wins whatever its scope (`deny > ask > allow`).
+  const allToolsCatchAll =
+    allToolsRules !== undefined && Object.hasOwn(allToolsRules, "*")
+      ? allToolsRules["*"]
+      : undefined;
+  const raised =
+    allToolsCatchAll !== undefined &&
+    PERMISSION_ACTION_PRIORITY[allToolsCatchAll] > PERMISSION_ACTION_PRIORITY[catchAll]
+      ? allToolsCatchAll
+      : catchAll;
+  if (raised !== "allow") {
+    return { action: raised, downgraded: raised !== catchAll };
+  }
+  return restrictsNarrowerPatterns(rules) || restrictsNarrowerPatterns(allToolsRules)
+    ? { action: "ask", downgraded: true }
+    : { action: "allow", downgraded: false };
+}
