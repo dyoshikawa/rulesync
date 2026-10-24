@@ -4,8 +4,8 @@ import { z } from "zod/mini";
 
 import { AGENTSMD_SKILLS_DIR_PATH } from "../../constants/agentsmd-paths.js";
 import {
-  AMP_GLOBAL_DIR,
   AMP_SKILLS_GLOBAL_DIR,
+  AMP_SKILLS_NATIVE_GLOBAL_DIR,
   AMP_SKILLS_PROJECT_DIR,
 } from "../../constants/amp-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
@@ -44,7 +44,9 @@ export type AmpSkillParams = {
  *
  * Amp natively reads Agent Skills following the open standard: a directory with a
  * `SKILL.md` carrying `name`/`description` frontmatter, scoped to the project
- * (`.agents/skills/`) and user-wide (`~/.config/agents/skills/`).
+ * (`.agents/skills/`) and user-wide (`~/.config/agents/skills/`). Global import
+ * also reads `~/.agents/skills/` and `~/.config/amp/skills/`, in that order,
+ * without managing either discovery root on generation or deletion.
  * @see https://ampcode.com/docs/customize/skills
  */
 export class AmpSkill extends ToolSkill {
@@ -85,7 +87,7 @@ export class AmpSkill extends ToolSkill {
       // Amp reads these after the shared .config/agents root. Discover them
       // without taking ownership of their contents on generate --delete.
       ...(global && {
-        importOnlySkillRoots: [AGENTSMD_SKILLS_DIR_PATH, join(AMP_GLOBAL_DIR, "skills")],
+        importOnlySkillRoots: [AGENTSMD_SKILLS_DIR_PATH, AMP_SKILLS_NATIVE_GLOBAL_DIR],
       }),
     };
   }

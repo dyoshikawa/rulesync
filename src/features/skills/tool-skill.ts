@@ -1,7 +1,7 @@
 import { join } from "node:path";
 
 import { AGENTSMD_SKILLS_DIR_PATH } from "../../constants/agentsmd-paths.js";
-import { AMP_SKILLS_GLOBAL_DIR } from "../../constants/amp-paths.js";
+import { AMP_SKILLS_GLOBAL_DIR, AMP_SKILLS_NATIVE_GLOBAL_DIR } from "../../constants/amp-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { AiDir } from "../../types/ai-dir.js";
 import { stripControlCharacters } from "../../utils/control-characters.js";
@@ -50,12 +50,14 @@ export function toolSkillSearchRoots(paths: ToolSkillSettablePaths): string[] {
  * non-conformant — skills are the most likely to live here, so every tool that
  * scans one of these roots imports it leniently (skip-and-warn per skill), per
  * the Agent Skills client-implementation guide, while keeping fail-fast
- * behavior for its own native root.
+ * behavior for its own native root. Amp's read-only global discovery root
+ * `~/.config/amp/skills/` follows the same skip-and-warn rule.
  * https://agentskills.io/client-implementation/adding-skills-support
  */
 const AGENT_SKILLS_INTEROP_ROOTS: ReadonlySet<string> = new Set([
   toPosixPath(AGENTSMD_SKILLS_DIR_PATH),
   toPosixPath(AMP_SKILLS_GLOBAL_DIR),
+  toPosixPath(AMP_SKILLS_NATIVE_GLOBAL_DIR),
 ]);
 
 /**

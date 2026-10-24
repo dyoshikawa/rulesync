@@ -25,13 +25,16 @@ describe("AmpSkill", () => {
 
   describe("getSettablePaths", () => {
     it("uses .agents/skills in project mode", () => {
-      expect(AmpSkill.getSettablePaths().relativeDirPath).toBe(join(".agents", "skills"));
+      const expected = { relativeDirPath: join(".agents", "skills") };
+      expect(AmpSkill.getSettablePaths()).toEqual(expected);
+      expect(AmpSkill.getSettablePaths({ global: false })).toEqual(expected);
     });
 
     it("uses .config/agents/skills in global mode", () => {
-      expect(AmpSkill.getSettablePaths({ global: true }).relativeDirPath).toBe(
-        join(".config", "agents", "skills"),
-      );
+      expect(AmpSkill.getSettablePaths({ global: true })).toEqual({
+        relativeDirPath: join(".config", "agents", "skills"),
+        importOnlySkillRoots: [join(".agents", "skills"), join(".config", "amp", "skills")],
+      });
     });
   });
 
