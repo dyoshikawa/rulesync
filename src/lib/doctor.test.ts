@@ -881,12 +881,24 @@ describe("doctorCommand", () => {
     });
 
     it("skips the check in global mode", async () => {
-      await writeCodexConfig({ global: true });
-      await writeFileContent(join(testDir, "AGENTS.md"), "a".repeat(40_000));
+      // Global scope resolves the output root to the home directory, so give it
+      // a real one: without it the config fails to resolve and the check is
+      // skipped for the wrong reason.
+      const { testDir: homeDir, cleanup: cleanupHome } = await setupTestDirectory({ home: true });
+      vi.stubEnv("HOME_DIR", homeDir);
+      try {
+        await writeCodexConfig({ global: true });
+        await writeFileContent(join(testDir, "AGENTS.md"), "a".repeat(40_000));
+        await writeFileContent(join(homeDir, "AGENTS.md"), "a".repeat(40_000));
+        await writeFileContent(join(homeDir, ".codex", "AGENTS.md"), "a".repeat(40_000));
 
-      await doctorCommand(mockLogger, { strict: true });
+        await doctorCommand(mockLogger, { strict: true });
 
-      expect(mockLogger.warn).not.toHaveBeenCalled();
+        expect(mockLogger.warn).not.toHaveBeenCalled();
+      } finally {
+        vi.unstubAllEnvs();
+        await cleanupHome();
+      }
     });
 
     it("stays quiet when the files fit the budget", async () => {
