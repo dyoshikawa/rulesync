@@ -127,6 +127,89 @@ describe("SkillsProcessor", () => {
     });
   });
 
+  describe("Amp global skill discovery", () => {
+    it("imports the Amp-only root after the shared roots without managing it for deletion", async () => {
+      const home = await setupTestDirectory({ home: true });
+      try {
+        const roots = [
+          join(".config", "agents", "skills"),
+          join(".agents", "skills"),
+          join(".config", "amp", "skills"),
+        ];
+        for (const [index, base] of roots.entries()) {
+          await writeSkill({ testDir: home.testDir, base, dirName: `skill-${index}`, body: base });
+          await writeSkill({ testDir: home.testDir, base, dirName: "shared", body: base });
+        }
+        const processor = new SkillsProcessor({
+          logger: createMockLogger(),
+          outputRoot: home.testDir,
+          toolTarget: "amp",
+          global: true,
+        });
+
+        const skills = await processor.loadToolDirs();
+        expect(skills.map((skill) => skill.getDirName())).toEqual([
+          "shared",
+          "skill-0",
+          "skill-1",
+          "skill-2",
+        ]);
+        expect(skills.find((skill) => skill.getDirName() === "shared")?.getRelativeDirPath()).toBe(
+          roots[0],
+        );
+        expect(skills.find((skill) => skill.getDirName() === "skill-2")?.getMainFile()?.body).toBe(
+          roots[2],
+        );
+        const deletionCandidates = await processor.loadToolDirsToDelete();
+        expect(deletionCandidates).toHaveLength(2);
+        expect(deletionCandidates.every((skill) => skill.getRelativeDirPath() === roots[0])).toBe(
+          true,
+        );
+      } finally {
+        await home.cleanup();
+      }
+    });
+
+    it("imports Amp-only skills when the shared global roots are absent", async () => {
+      const home = await setupTestDirectory({ home: true });
+      try {
+        await writeSkill({
+          testDir: home.testDir,
+          base: join(".config", "amp", "skills"),
+          dirName: "native-only",
+          body: "Native skill",
+        });
+        const processor = new SkillsProcessor({
+          logger: createMockLogger(),
+          outputRoot: home.testDir,
+          toolTarget: "amp",
+          global: true,
+        });
+        const skills = await processor.loadToolDirs();
+        expect(skills.map((skill) => skill.getDirName())).toEqual(["native-only"]);
+        expect(skills[0]?.getMainFile()?.body).toBe("Native skill");
+        expect(await processor.loadToolDirsToDelete()).toEqual([]);
+      } finally {
+        await home.cleanup();
+      }
+    });
+
+    it("does not scan the Amp-only global root in project mode", async () => {
+      await writeSkill({
+        testDir,
+        base: join(".config", "amp", "skills"),
+        dirName: "global-only",
+        body: "Global",
+      });
+      const processor = new SkillsProcessor({
+        logger: createMockLogger(),
+        outputRoot: testDir,
+        toolTarget: "amp",
+      });
+      expect(await processor.loadToolDirs()).toEqual([]);
+    });
+  });
+
   describe("convertRulesyncDirsToToolDirs", () => {
     let processor: SkillsProcessor;
 

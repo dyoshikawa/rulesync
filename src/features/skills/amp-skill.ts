@@ -2,7 +2,12 @@ import { join } from "node:path";
 
 import { z } from "zod/mini";
 
-import { AMP_SKILLS_GLOBAL_DIR, AMP_SKILLS_PROJECT_DIR } from "../../constants/amp-paths.js";
+import { AGENTSMD_SKILLS_DIR_PATH } from "../../constants/agentsmd-paths.js";
+import {
+  AMP_GLOBAL_DIR,
+  AMP_SKILLS_GLOBAL_DIR,
+  AMP_SKILLS_PROJECT_DIR,
+} from "../../constants/amp-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
@@ -77,6 +82,11 @@ export class AmpSkill extends ToolSkill {
   static getSettablePaths({ global = false }: { global?: boolean } = {}): ToolSkillSettablePaths {
     return {
       relativeDirPath: global ? AMP_SKILLS_GLOBAL_DIR : AMP_SKILLS_PROJECT_DIR,
+      // Amp reads these after the shared .config/agents root. Discover them
+      // without taking ownership of their contents on generate --delete.
+      ...(global && {
+        importOnlySkillRoots: [AGENTSMD_SKILLS_DIR_PATH, join(AMP_GLOBAL_DIR, "skills")],
+      }),
     };
   }
 
