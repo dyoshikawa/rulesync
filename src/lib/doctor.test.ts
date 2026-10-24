@@ -797,4 +797,130 @@ describe("doctorCommand", () => {
     );
     expect(jsonLogger.warn).not.toHaveBeenCalled();
   });
+
+  describe("codexcli AGENTS.md size", () => {
+    const writeCodexConfig = async (extra: Record<string, unknown> = {}) => {
+      await writeFileContent(
+        join(testDir, "rulesync.jsonc"),
+        JSON.stringify({
+          $schema: RULESYNC_CONFIG_SCHEMA_URL,
+          targets: ["codexcli"],
+          features: ["rules"],
+          ...extra,
+        }),
+      );
+    };
+
+    it("warns when the root AGENTS.md exceeds the default budget, and fails with --strict", async () => {
+      await writeCodexConfig();
+      await writeFileContent(join(testDir, "AGENTS.md"), "a".repeat(40_000));
+
+      await doctorCommand(mockLogger, {});
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("codexcli/agents-md-size"),
+      );
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("is 40000 bytes, over the 32768-byte default limit"),
+      );
+
+      await expect(doctorCommand(mockLogger, { strict: true })).rejects.toThrow(CLIError);
+    });
+
+    it("reports the diagnostic against the root file with the remedy as the hint", async () => {
+      const jsonLogger = { ...createMockLogger(), jsonMode: true };
+      await writeCodexConfig();
+      await writeFileContent(join(testDir, "AGENTS.md"), "a".repeat(40_000));
+
+      await doctorCommand(jsonLogger, {});
+
+      expect(jsonLogger.captureData).toHaveBeenCalledWith("diagnostics", [
+        expect.objectContaining({
+          severity: "warning",
+          code: "codexcli/agents-md-size",
+          file: "AGENTS.md",
+          hint: expect.stringContaining("project_doc_max_bytes"),
+        }),
+      ]);
+    });
+
+    it("measures a nested AGENTS.md together with the root file on its chain", async () => {
+      await writeCodexConfig();
+      await writeFileContent(join(testDir, "AGENTS.md"), "a".repeat(20_000));
+      await writeFileContent(join(testDir, "packages", "app", "AGENTS.md"), "b".repeat(20_000));
+
+      await doctorCommand(mockLogger, {});
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("loaded while working in 'packages/app'"),
+      );
+    });
+
+    it("stays quiet when the files fit the budget", async () => {
+      await writeCodexConfig();
+      await writeFileContent(join(testDir, "AGENTS.md"), "a".repeat(1_000));
+
+      await doctorCommand(mockLogger, { strict: true });
+
+      expect(mockLogger.success).toHaveBeenCalledWith(expect.stringContaining("No problems found"));
+    });
+
+    it("uses project_doc_max_bytes from .codex/config.toml", async () => {
+      await writeCodexConfig();
+      await writeFileContent(join(testDir, "AGENTS.md"), "a".repeat(40_000));
+      await writeFileContent(
+        join(testDir, ".codex", "config.toml"),
+        "project_doc_max_bytes = 65536\n",
+      );
+
+      await doctorCommand(mockLogger, { strict: true });
+
+      expect(mockLogger.warn).not.toHaveBeenCalled();
+    });
+
+    it("warns that project docs are disabled when project_doc_max_bytes is 0", async () => {
+      await writeCodexConfig();
+      await writeFileContent(join(testDir, "AGENTS.md"), "a".repeat(10));
+      await writeFileContent(join(testDir, ".codex", "config.toml"), "project_doc_max_bytes = 0\n");
+
+      await doctorCommand(mockLogger, {});
+
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("codexcli/project-docs-disabled"),
+      );
+      expect(mockLogger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining("codexcli/agents-md-size"),
+      );
+    });
+
+    it("skips the check when codexcli is not a target", async () => {
+      await writeFileContent(
+        join(testDir, "rulesync.jsonc"),
+        JSON.stringify({
+          $schema: RULESYNC_CONFIG_SCHEMA_URL,
+          targets: ["agentsmd"],
+          features: ["rules"],
+        }),
+      );
+      await writeFileContent(join(testDir, "AGENTS.md"), "a".repeat(40_000));
+
+      await doctorCommand(mockLogger, { strict: true });
+
+      expect(mockLogger.warn).not.toHaveBeenCalled();
+    });
+
+    it("skips the check when codexcli does not generate rules", async () => {
+      await writeFileContent(
+        join(testDir, "rulesync.jsonc"),
+        JSON.stringify({
+          $schema: RULESYNC_CONFIG_SCHEMA_URL,
+          targets: { codexcli: ["mcp"] },
+        }),
+      );
+      await writeFileContent(join(testDir, "AGENTS.md"), "a".repeat(40_000));
+
+      await doctorCommand(mockLogger, { strict: true });
+
+      expect(mockLogger.warn).not.toHaveBeenCalled();
+    });
+  });
 });

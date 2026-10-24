@@ -3,6 +3,7 @@ import { dirname, join, relative } from "node:path";
 import { type ParseError, parse as parseJsonc, printParseErrorCode } from "jsonc-parser";
 
 import {
+  ConfigResolver,
   type InputRootConfig,
   mergeInputRootConfigs,
   resolveEffectiveInputRoots,
@@ -17,12 +18,17 @@ import {
   RULESYNC_CONFIG_SCHEMA_URL,
   RULESYNC_LOCAL_CONFIG_RELATIVE_FILE_PATH,
 } from "../constants/rulesync-paths.js";
+import {
+  findProjectInstructionBudgetFindings,
+  RulesProcessor,
+  toInstructionBudgetFile,
+} from "../features/rules/rules-processor.js";
 import { ALL_FEATURES, DEPRECATED_FEATURE_REPLACEMENTS } from "../types/features.js";
 import { CLIError, ErrorCodes } from "../types/json-output.js";
 import { ALL_TOOL_TARGETS } from "../types/tool-targets.js";
 import { stripControlCharacters } from "../utils/control-characters.js";
 import { directoryExists, fileExists, readFileContent, resolvePath } from "../utils/file.js";
-import type { Logger } from "../utils/logger.js";
+import { ConsoleLogger, type Logger } from "../utils/logger.js";
 import {
   DEFAULT_NPM_REGISTRY_URL,
   DEFAULT_NPM_TOKEN_ENV,
@@ -856,6 +862,73 @@ function readDoctorInputRootConfig(config: Record<string, unknown> | undefined):
   };
 }
 
+/**
+ * Check the Codex CLI `AGENTS.md` files on disk against `project_doc_max_bytes`
+ * with the same budget `generate` warns about (#3618), so `doctor --strict`
+ * can fail CI on a chain Codex would silently truncate.
+ *
+ * It measures the files that exist — the root `AGENTS.md` and the nested ones
+ * found by the import scan — rather than simulating generation, so run it
+ * after `generate`. Only runs when the resolved config targets `codexcli` with
+ * the `rules` feature in project scope; a config that does not resolve is
+ * already reported by the checks above, so this check is skipped then.
+ */
+async function checkCodexcliInstructionBudget({
+  configPath,
+  toDisplayPath,
+}: {
+  configPath: string | undefined;
+  toDisplayPath: (absolutePath: string) => string;
+}): Promise<DoctorDiagnostic[]> {
+  const budget = RulesProcessor.getFactory("codexcli")?.meta.projectInstructionBudget;
+  if (budget === undefined) return [];
+  const quietLogger = new ConsoleLogger({ silent: true });
+  let config;
+  try {
+    config = await ConfigResolver.resolve(
+      { ...(configPath === undefined ? {} : { configPath }), silent: true },
+      { logger: quietLogger },
+    );
+  } catch {
+    return [];
+  }
+  if (
+    config.getGlobal() ||
+    !config.getTargets().includes("codexcli") ||
+    !config.getFeatures("codexcli").includes("rules")
+  ) {
+    return [];
+  }
+
+  const diagnostics: DoctorDiagnostic[] = [];
+  for (const outputRoot of config.getOutputRoots("codexcli")) {
+    const toolRules = await new RulesProcessor({
+      outputRoot,
+      toolTarget: "codexcli",
+      logger: quietLogger,
+    }).loadToolFiles();
+    const findings = await findProjectInstructionBudgetFindings({
+      toolTarget: "codexcli",
+      budget,
+      outputRoot,
+      files: toolRules.map((rule) => toInstructionBudgetFile(rule, rule.getFileContent())),
+    });
+    for (const finding of findings) {
+      diagnostics.push({
+        severity: "warning",
+        code:
+          finding.kind === "disabled"
+            ? "codexcli/project-docs-disabled"
+            : "codexcli/agents-md-size",
+        file: toDisplayPath(join(outputRoot, finding.paths[0] ?? "AGENTS.md")),
+        message: finding.message,
+        ...(finding.remedy === undefined ? {} : { hint: finding.remedy }),
+      });
+    }
+  }
+  return diagnostics;
+}
+
 function reportDiagnostics({
   logger,
   diagnostics,
@@ -880,7 +953,8 @@ function reportDiagnostics({
 }
 
 /**
- * `rulesync doctor` — read-only diagnostics for the configuration files.
+ * `rulesync doctor` — read-only diagnostics for the configuration files (and,
+ * for Codex CLI, the size of the `AGENTS.md` files on disk).
  * Never writes; exits non-zero when errors (or, with --strict, warnings) are
  * found.
  */
@@ -940,6 +1014,14 @@ export async function doctorCommand(logger: Logger, options: DoctorOptions): Pro
       localFile: toDisplayPath(localConfigPath),
     })),
   );
+
+  // Generated-output checks need a config that resolves; skip them while the
+  // config itself has errors, which already fail the run.
+  if (!diagnostics.some((d) => d.severity === "error")) {
+    diagnostics.push(
+      ...(await checkCodexcliInstructionBudget({ configPath: options.config, toDisplayPath })),
+    );
+  }
 
   diagnostics.sort((a, b) => severityRank(a.severity) - severityRank(b.severity));
 

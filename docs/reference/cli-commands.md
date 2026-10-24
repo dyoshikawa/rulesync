@@ -756,7 +756,7 @@ rulesync convert --from cursor --to copilot,claudecode --dry-run
 
 ## Doctor Command
 
-The `doctor` command runs read-only diagnostics against the configuration files (`rulesync.jsonc` and `rulesync.local.jsonc`) and reports problems grouped by severity (`error` / `warning` / `info`). It never writes files, which makes it a safe first step when generation does not behave as expected, and a cheap CI guard.
+The `doctor` command runs read-only diagnostics against the configuration files (`rulesync.jsonc` and `rulesync.local.jsonc`), plus a size check of the generated Codex CLI `AGENTS.md` files, and reports problems grouped by severity (`error` / `warning` / `info`). It never writes files, which makes it a safe first step when generation does not behave as expected, and a cheap CI guard.
 
 It is especially useful for catching **silently ignored configuration**: the config schema is non-strict, so a misspelled key such as `"target"` instead of `"targets"` is normally swallowed without any error. `doctor` reports every unknown key with a "did you mean" suggestion.
 
@@ -774,6 +774,7 @@ It is especially useful for catching **silently ignored configuration**: the con
 - `inputRoot` or the first `inputRoots` entry pointing at a directory that does not exist. Later `inputRoots` entries are optional overlays and may be absent.
 - `inputRoot` or an `inputRoots` entry set to an empty string, which makes `generate` fail with `outputRoot cannot be an empty string` before it resolves any source tree.
 - Duplicate entries in `inputRoots` (warning; duplicates are ignored at generate time).
+- Codex CLI `AGENTS.md` size (warning, `codexcli/agents-md-size`): when the config targets `codexcli` with the `rules` feature in project scope, the root `AGENTS.md` and the nested ones on disk in each output root are measured against `project_doc_max_bytes`, with the same budget the `generate` warning uses (32,768 bytes, or the positive value set in the output root's `.codex/config.toml`). A value of `0` in that file is reported as `codexcli/project-docs-disabled` instead. The check reads the files already on disk, so run it after `generate`; it is skipped while the config itself has errors, and `~/.codex/config.toml` is not read.
 
 ### Options
 
