@@ -57,10 +57,7 @@ describe("executeAdd", () => {
 
   it.each([
     ["a file URL", (path: string) => pathToFileURL(path).href],
-    [
-      "an upper-case file URL",
-      (path: string) => pathToFileURL(path).href.replace("file:", "FILE:"),
-    ],
+    ["an upper-case file URL", (path: string) => `FILE://${pathToFileURL(path).pathname}`],
   ])("rejects %s git source outside the project and writes nothing", async (_, toSource) => {
     const configPath = join(testDir, "rulesync.jsonc");
     await writeFileContent(configPath, "{}\n");
@@ -78,14 +75,8 @@ describe("executeAdd", () => {
   it.each([
     ["a fragment", (dir: string) => `${pathToFileURL(join(dir, "x")).href}#/../../secret`],
     ["a query", (dir: string) => `${pathToFileURL(join(dir, "x")).href}?/../../secret`],
-    [
-      "a host",
-      (dir: string) => pathToFileURL(join(dir, "x")).href.replace("file://", "file://localhost"),
-    ],
-    [
-      "a backslash",
-      (dir: string) => `${pathToFileURL(join(dir, "x")).href}%5C/../../secret`.replace("%5C", "\\"),
-    ],
+    ["a host", (dir: string) => `file://localhost${pathToFileURL(join(dir, "x")).pathname}`],
+    ["a backslash", (dir: string) => `${pathToFileURL(join(dir, "x")).href}\\/../../secret`],
   ])("rejects a file URL with %s even when it points inside the project", async (_, toSource) => {
     await mkdir(join(testDir, "x#"), { recursive: true });
     const configPath = join(testDir, "rulesync.jsonc");
