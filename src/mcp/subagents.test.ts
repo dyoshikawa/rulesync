@@ -308,6 +308,41 @@ targets: ["*"]
       },
     );
 
+    it.skipIf(process.platform === "win32")(
+      "should reject get, put, and delete through a directory symlink that stays inside the subagents directory",
+      async () => {
+        const subagentsDir = join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH);
+        const realFile = join(subagentsDir, "review", "x.md");
+        await ensureDir(join(subagentsDir, "review"));
+        await writeFileContent(
+          realFile,
+          `---
+name: x
+targets: ["*"]
+---
+# Inside sentinel`,
+        );
+        await symlink("./review", join(subagentsDir, "alias"), "dir");
+        const aliasPath = ".rulesync/subagents/alias/x.md";
+
+        await expect(
+          subagentTools.getSubagent.execute({ relativePathFromCwd: aliasPath }),
+        ).rejects.toThrow(/symbolic link/i);
+        await expect(
+          subagentTools.putSubagent.execute({
+            relativePathFromCwd: aliasPath,
+            frontmatter: { name: "overwritten", targets: ["claudecode"] },
+            body: "# Overwritten",
+          }),
+        ).rejects.toThrow(/symbolic link/i);
+        await expect(
+          subagentTools.deleteSubagent.execute({ relativePathFromCwd: aliasPath }),
+        ).rejects.toThrow(/symbolic link/i);
+
+        expect(await readFileContent(realFile)).toContain("# Inside sentinel");
+      },
+    );
+
     it.skipIf(process.platform === "win32").each([
       { linkedPath: ".rulesync", targetSuffix: "subagents" },
       { linkedPath: join(".rulesync", "subagents"), targetSuffix: "" },

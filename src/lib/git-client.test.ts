@@ -183,6 +183,63 @@ describe("git-client", () => {
         GitClientError,
       );
     });
+
+    it("queries exact ref names instead of a suffix pattern", async () => {
+      mockExecFileAsync.mockResolvedValue({ stdout: `${SHA}\trefs/heads/main\n` });
+      await resolveRefToSha("https://example.com/repo.git", "main");
+      expect(mockExecFileAsync).toHaveBeenCalledWith(
+        "git",
+        [
+          "ls-remote",
+          "--",
+          "https://example.com/repo.git",
+          "refs/heads/main",
+          "refs/tags/main",
+          "refs/tags/main^{}",
+        ],
+        expect.anything(),
+      );
+    });
+
+    it("ignores a same-suffix branch and returns the peeled commit of an annotated tag", async () => {
+      const branchSha = "b".repeat(40);
+      const tagObjectSha = "c".repeat(40);
+      const tagCommitSha = "d".repeat(40);
+      // A real `ls-remote` only prints the requested names; a stray suffix match
+      // must still never win over the exact tag.
+      mockExecFileAsync.mockResolvedValue({
+        stdout: [
+          `${branchSha}\trefs/heads/feature/v1`,
+          `${tagObjectSha}\trefs/tags/v1`,
+          `${tagCommitSha}\trefs/tags/v1^{}`,
+          "",
+        ].join("\n"),
+      });
+      expect(await resolveRefToSha("https://example.com/repo.git", "v1")).toBe(tagCommitSha);
+    });
+
+    it("does not resolve a ref that only matches by suffix", async () => {
+      mockExecFileAsync.mockResolvedValue({ stdout: `${SHA}\trefs/heads/feature/v1\n` });
+      await expect(resolveRefToSha("https://example.com/repo.git", "v1")).rejects.toThrow(
+        /not found/,
+      );
+    });
+
+    it("refuses a branch and a tag of the same name pointing at different commits", async () => {
+      mockExecFileAsync.mockResolvedValue({
+        stdout: `${"b".repeat(40)}\trefs/heads/v1\n${"c".repeat(40)}\trefs/tags/v1\n`,
+      });
+      await expect(resolveRefToSha("https://example.com/repo.git", "v1")).rejects.toThrow(
+        /ambiguous/,
+      );
+    });
+
+    it("accepts a branch and a tag of the same name pointing at the same commit", async () => {
+      mockExecFileAsync.mockResolvedValue({
+        stdout: `${SHA}\trefs/heads/v1\n${SHA}\trefs/tags/v1\n`,
+      });
+      expect(await resolveRefToSha("https://example.com/repo.git", "v1")).toBe(SHA);
+    });
   });
 
   describe("resolveGitExcludePath", () => {

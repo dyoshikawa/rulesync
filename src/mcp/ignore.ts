@@ -5,9 +5,11 @@ import { z } from "zod/mini";
 import {
   RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
   RULESYNC_IGNORE_RELATIVE_FILE_PATH,
+  RULESYNC_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
 import { formatError } from "../utils/error.js";
 import { ensureDir, readFileContent, removeFile, writeFileContent } from "../utils/file.js";
+import { assertNoSymlinkInFeaturePath } from "./feature-symlinks.js";
 
 const maxIgnoreFileSizeBytes = 100 * 1024; // 100KB
 
@@ -21,6 +23,10 @@ async function getIgnoreFile(): Promise<{
   const ignoreFilePath = join(process.cwd(), RULESYNC_AIIGNORE_RELATIVE_FILE_PATH);
 
   try {
+    await assertNoSymlinkInFeaturePath({
+      featureDirPath: join(process.cwd(), RULESYNC_RELATIVE_DIR_PATH),
+      targetPath: ignoreFilePath,
+    });
     const content = await readFileContent(ignoreFilePath);
 
     return {
@@ -58,7 +64,11 @@ async function putIgnoreFile({ content }: { content: string }): Promise<{
     // Ensure parent directory exists (should be cwd, but just to be safe)
     await ensureDir(process.cwd());
 
-    // Write the file
+    // Write the file, never through a symbolic link a cloned repository planted
+    await assertNoSymlinkInFeaturePath({
+      featureDirPath: join(process.cwd(), RULESYNC_RELATIVE_DIR_PATH),
+      targetPath: ignoreFilePath,
+    });
     await writeFileContent(ignoreFilePath, content);
 
     return {
