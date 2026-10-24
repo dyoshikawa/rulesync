@@ -90,7 +90,7 @@
     "@octokit/request-error": "7.1.2",
     "@octokit/rest": "22.0.1",
     "@toon-format/toon": "4.4.0",
-    "chokidar": "5.0.0",
+    "chokidar": "6.0.0",
     "commander": "15.0.0",
     "es-toolkit": "1.52.0",
     "globby": "16.2.4",
