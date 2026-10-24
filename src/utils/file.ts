@@ -214,6 +214,43 @@ export async function assertNoSymlinkBelowRoot(params: {
 }
 
 /**
+ * Remove a stale file below `rootPath` without following any symbolic link.
+ * Every parent component between the root and the target must be a real
+ * directory (as {@link assertNoSymlinkBelowRoot} checks); a target that is
+ * itself a link is unlinked rather than followed, so the link goes and
+ * whatever it points at stays. A missing target is a no-op, and a directory
+ * is refused, since only files are ever recorded as deployed.
+ */
+export async function removeFileWithoutFollowingSymlinks(params: {
+  rootPath: string;
+  targetPath: string;
+}): Promise<void> {
+  const { rootPath, targetPath } = params;
+  const relativeTarget = relative(resolve(rootPath), resolve(targetPath));
+  if (relativeTarget === "" || pathEscapesRoot(relativeTarget)) {
+    throw new PathOutsideRootError(`Path is outside ${rootPath}: ${targetPath}.`);
+  }
+  const parentPath = dirname(resolve(targetPath));
+  if (parentPath !== resolve(rootPath)) {
+    await assertNoSymlinkBelowRoot({ rootPath, targetPath: parentPath });
+  }
+  let stats: Stats;
+  try {
+    stats = await lstat(targetPath);
+  } catch (error) {
+    if (isFileNotFoundError(error)) {
+      return;
+    }
+    throw error;
+  }
+  if (stats.isDirectory()) {
+    throw new Error(`Refusing to remove a directory: ${targetPath}.`);
+  }
+  // `rm` removes a link itself (it `lstat`s first), never what it points at.
+  await rm(targetPath, { force: true });
+}
+
+/**
  * Refuse a directory tree that holds a symbolic link anywhere inside it.
  * `operation` names what the caller is about to do, for the message.
  */
