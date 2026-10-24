@@ -282,7 +282,7 @@ The lockfile at `rulesync.lock` (at the project root) records the resolved commi
 
 To update locked refs, run `rulesync install --update`.
 
-A locked commit is only reused for the ref it was resolved from: when the `ref` a git or GitHub source declares (in `ref` or in the source string, such as `owner/repo@v2`) differs from the entry's `requestedRef`, a plain `rulesync install` resolves the source again, and `--frozen` fails instead. For the git transport, `ref` must name a branch or a tag exactly (`v1` never matches a branch such as `feature/v1`); an annotated tag resolves to the commit it points at, and a name that is both a branch and a tag pointing at different commits is refused as ambiguous.
+A locked commit is only reused for the ref it was resolved from: when the `ref` a git or GitHub source declares (in `ref` or in the source string, such as `owner/repo@v2`) differs from the entry's `requestedRef`, a plain `rulesync install` resolves the source again, and `--frozen` fails instead. An entry that records no `requestedRef` (for example one migrated from an older lockfile) keeps its locked commit and passes `--frozen`; the declared ref is recorded on it the next time the entry is written. Removing a source's `ref` altogether is not detected, because the `requestedRef` of a source without one is the default branch it resolved to: the locked commit stays in use until `rulesync install --update`. For the git transport, `ref` must name a branch or a tag exactly (`v1` never matches a branch such as `feature/v1`); an annotated tag resolves to the commit it points at, and a name that is both a branch and a tag pointing at different commits is refused as ambiguous.
 
 ### Checking for Outdated Sources
 

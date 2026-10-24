@@ -552,7 +552,11 @@ async function resolvePrefetchRef(params: {
   context: GithubPrefetchContext;
 }): Promise<string> {
   const { parsed, locked, context } = params;
-  if (locked && !context.updateSources && lockedRefMatchesDeclared(locked, parsed.ref)) {
+  if (
+    locked &&
+    !context.updateSources &&
+    lockedRefMatchesDeclared({ locked, declaredRef: parsed.ref })
+  ) {
     return locked.resolvedRef;
   }
   const { client, semaphore } = context;
@@ -1180,12 +1184,6 @@ function logGitClientHints(params: { error: GitClientError; logger: Logger }): v
 }
 
 /**
- * Frozen mode: validate the lockfiles cover every declared source. Throws with
- * remediation guidance listing any uncovered source keys. npm-transport
- * sources are checked against the npm lockfile; everything else against the
- * main sources lockfile.
- */
-/**
  * The ref a git or GitHub source declares in the manifest: its `ref` field,
  * else (GitHub transport) a ref written into the source string itself.
  * `undefined` when it declares none and installs the default branch.
@@ -1198,14 +1196,31 @@ function getDeclaredSourceRef(sourceEntry: SourceEntry): string | undefined {
 }
 
 /**
- * Whether a lock entry was written for the ref the manifest declares now. The
- * locked commit is only trusted for that ref: a declared ref that differs from
- * the locked `requestedRef` (including a lock entry that records none) is
- * resolved afresh, so neither a manifest edit nor a lockfile-only edit can
- * pin content under a ref the commit was never resolved from.
+ * Whether a lock entry was written for the ref the manifest declares now. A
+ * declared ref that differs from the locked `requestedRef` is resolved afresh
+ * (and fails `--frozen`), so editing the ref in the manifest cannot keep
+ * installing the commit resolved for the old one.
+ *
+ * An entry that records no `requestedRef` (a migrated legacy lock, or a
+ * hand-written one) still matches: it says nothing that contradicts the
+ * declared ref, and refusing it would gain nothing, since whoever can edit the
+ * lock can also write any `requestedRef`. The declared ref is recorded on it
+ * the next time the entry is written.
+ *
+ * A source that declares no ref also matches: its locked `requestedRef` is the
+ * default branch it resolved to, which cannot be told apart from a ref that
+ * was dropped from the manifest without asking the remote.
  */
-function lockedRefMatchesDeclared(locked: LockedSource, declaredRef: string | undefined): boolean {
-  return declaredRef === undefined || locked.requestedRef === declaredRef;
+function lockedRefMatchesDeclared(params: {
+  locked: LockedSource;
+  declaredRef: string | undefined;
+}): boolean {
+  const { locked, declaredRef } = params;
+  return (
+    declaredRef === undefined ||
+    locked.requestedRef === undefined ||
+    locked.requestedRef === declaredRef
+  );
 }
 
 /** The git and GitHub sources whose declared ref differs from the locked one. */
@@ -1219,7 +1234,7 @@ function describeDriftedSourceRefs(params: {
     if (source.transport === "npm" || hasEmptySelection(source)) continue;
     const locked = getLockedSource(lock, source.source);
     const declaredRef = getDeclaredSourceRef(source);
-    if (locked && !lockedRefMatchesDeclared(locked, declaredRef)) {
+    if (locked && !lockedRefMatchesDeclared({ locked, declaredRef })) {
       drifted.push(
         `${source.source} (declared=${declaredRef}, lock=${locked.requestedRef ?? "(none)"})`,
       );
@@ -1228,6 +1243,12 @@ function describeDriftedSourceRefs(params: {
   return drifted;
 }
 
+/**
+ * Frozen mode: validate the lockfiles cover every declared source. Throws with
+ * remediation guidance listing any uncovered source keys. npm-transport
+ * sources are checked against the npm lockfile; everything else against the
+ * main sources lockfile.
+ */
 function assertFrozenLockCoversSources(params: {
   lock: SourcesLock;
   npmLock: NpmSourcesLock;
@@ -2119,13 +2140,13 @@ export async function resolveGithubFetchRef(params: {
   logger: Logger;
 }): Promise<{ ref: string; resolvedSha: string; requestedRef: string | undefined }> {
   const { parsed, locked, updateSources, sourceKey, client, logger } = params;
-  if (locked && !updateSources && lockedRefMatchesDeclared(locked, parsed.ref)) {
+  if (locked && !updateSources && lockedRefMatchesDeclared({ locked, declaredRef: parsed.ref })) {
     // Use the locked SHA for deterministic fetching
     logger.debug(`Using locked ref for ${sourceKey}: ${locked.resolvedRef}`);
     return {
       ref: locked.resolvedRef,
       resolvedSha: locked.resolvedRef,
-      requestedRef: locked.requestedRef,
+      requestedRef: locked.requestedRef ?? parsed.ref,
     };
   }
   // Resolve the ref (or default branch) to a SHA
@@ -2487,9 +2508,13 @@ async function fetchRulesViaGit(params: {
   const lockedRuleNames = locked ? getLockedRuleNames(locked) : [];
   let resolvedRef: string;
   let requestedRef: string | undefined;
-  if (locked && !updateSources && lockedRefMatchesDeclared(locked, sourceEntry.ref)) {
+  if (
+    locked &&
+    !updateSources &&
+    lockedRefMatchesDeclared({ locked, declaredRef: sourceEntry.ref })
+  ) {
     resolvedRef = locked.resolvedRef;
-    requestedRef = locked.requestedRef;
+    requestedRef = locked.requestedRef ?? sourceEntry.ref;
     if (requestedRef) validateRef(requestedRef);
   } else {
     ({ requestedRef, resolvedSha: resolvedRef } = await resolveGitSourceRef(sourceEntry));
@@ -3118,9 +3143,13 @@ async function fetchSourceViaGit(params: {
 
   let resolvedSha: string;
   let requestedRef: string | undefined;
-  if (locked && !updateSources && lockedRefMatchesDeclared(locked, sourceEntry.ref)) {
+  if (
+    locked &&
+    !updateSources &&
+    lockedRefMatchesDeclared({ locked, declaredRef: sourceEntry.ref })
+  ) {
     resolvedSha = locked.resolvedRef;
-    requestedRef = locked.requestedRef;
+    requestedRef = locked.requestedRef ?? sourceEntry.ref;
     // Validate locked ref before passing to git commands
     if (requestedRef) {
       validateRef(requestedRef);

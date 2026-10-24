@@ -1012,10 +1012,18 @@ dependencies:
   it("refuses to remove stale files outside the apm deploy directories", async () => {
     await writeFileContent(join(testDir, ".git", "HEAD"), "ref: refs/heads/main\n");
     await writeFileContent(join(testDir, "notes.txt"), "untracked");
+    await writeFileContent(join(testDir, ".github/instructions-evil/x.md"), "lookalike");
+    await writeFileContent(join(testDir, ".github/skills-extra/y.md"), "lookalike");
     await writeFileContent(join(testDir, ".github/instructions/old.instructions.md"), "stale");
     await writeFileContent(
       getApmLockPath(testDir),
-      staleLockYaml([".git/HEAD", "notes.txt", ".github/instructions/old.instructions.md"]),
+      staleLockYaml([
+        ".git/HEAD",
+        "notes.txt",
+        ".github/instructions-evil/x.md",
+        ".github/skills-extra/y.md",
+        ".github/instructions/old.instructions.md",
+      ]),
     );
     await writeManifest(
       `dependencies:
@@ -1030,11 +1038,13 @@ dependencies:
 
     expect(await fileExists(join(testDir, ".git", "HEAD"))).toBe(true);
     expect(await fileExists(join(testDir, "notes.txt"))).toBe(true);
+    expect(await fileExists(join(testDir, ".github/instructions-evil/x.md"))).toBe(true);
+    expect(await fileExists(join(testDir, ".github/skills-extra/y.md"))).toBe(true);
     expect(await fileExists(join(testDir, ".github/instructions/old.instructions.md"))).toBe(false);
     const warnMessages = localLogger.warn.mock.calls.map((args) => String(args[0]));
     expect(
       warnMessages.filter((m) => m.includes("outside the apm deploy directories")),
-    ).toHaveLength(2);
+    ).toHaveLength(4);
   });
 
   it.skipIf(process.platform === "win32")(
@@ -1091,6 +1101,23 @@ dependencies:
     await expect(
       installApm({ projectRoot: testDir, logger, options: { frozen: true } }),
     ).rejects.toThrow(/not in the ref's history \(diverged\)/);
+  });
+
+  it("--frozen refuses a locked default branch that is no longer the default branch", async () => {
+    await writeManifest(
+      `dependencies:
+  apm:
+    - acme/security
+`,
+    );
+    mockClientInstance.listDirectory.mockResolvedValue([]);
+    await installApm({ projectRoot: testDir, logger });
+
+    mockClientInstance.getDefaultBranch.mockResolvedValue("trunk");
+    await expect(
+      installApm({ projectRoot: testDir, logger, options: { frozen: true } }),
+    ).rejects.toThrow(/\(ref main\), but the ref to install is trunk/);
+    expect(mockClientInstance.resolveRefToSha).toHaveBeenCalledTimes(1);
   });
 
   it("re-resolves a dependency whose declared ref no longer matches the lock", async () => {

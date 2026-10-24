@@ -280,8 +280,10 @@ function assertFrozenLockCoversManifest(params: {
 /**
  * Remove files that a previous install deployed but that are no longer part of
  * any current dependency's `deployed_files`. Each entry is path-traversal
- * hardened (shape check + `checkPathTraversal`) and offending rows are skipped
- * with a warn log rather than fatal.
+ * hardened (shape check + `checkPathTraversal`), must lie under one of the
+ * `APM_PRIMITIVES` deploy directories, and is removed without following a
+ * symbolic link (a stale entry that is itself a link is unlinked). Offending
+ * rows are skipped with a warn log rather than fatal.
  */
 async function removeStaleApmFiles(params: {
   existingLock: ApmLock;
@@ -469,7 +471,7 @@ async function resolveApmDependencyRef(params: {
   const { dep, locked, client, repoUrl, frozen, logger } = params;
   const declaredRef = dep.ref ?? (await client.getDefaultBranch(dep.owner, dep.repo));
   if (locked?.resolved_commit && locked.resolved_ref) {
-    const pinError = (detail: string, cause?: unknown): Error =>
+    const pinError = ({ detail, cause }: { detail: string; cause?: unknown }): Error =>
       new Error(
         `rulesync-apm.lock.yaml pins ${repoUrl} to ${locked.resolved_commit} (ref ${locked.resolved_ref}), but ${detail}. Run 'rulesync install --mode apm --update' to re-resolve it.`,
         cause === undefined ? undefined : { cause },
@@ -484,16 +486,19 @@ async function resolveApmDependencyRef(params: {
           head: declaredRef,
         });
       } catch (error) {
-        throw pinError(`it could not be checked against the ref: ${formatError(error)}`, error);
+        throw pinError({
+          detail: `it could not be checked against the ref: ${formatError(error)}`,
+          cause: error,
+        });
       }
       if (status !== "identical" && status !== "ahead") {
-        throw pinError(`that commit is not in the ref's history (${status})`);
+        throw pinError({ detail: `that commit is not in the ref's history (${status})` });
       }
       logger.debug(`Using locked commit for ${repoUrl}: ${locked.resolved_commit}`);
       return { resolvedRef: declaredRef, resolvedSha: locked.resolved_commit };
     }
     if (frozen) {
-      throw pinError(`the ref to install is ${declaredRef}`);
+      throw pinError({ detail: `the ref to install is ${declaredRef}` });
     }
     logger.debug(
       `Locked ref "${locked.resolved_ref}" for ${repoUrl} differs from "${declaredRef}"; re-resolving.`,
