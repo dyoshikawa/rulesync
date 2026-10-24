@@ -3458,7 +3458,7 @@ describe("resolveAndFetchSources", () => {
   });
 
   it("should keep the locked commit of an entry that records no requestedRef", async () => {
-    const { readLockFile } = await import("./sources-lock.js");
+    const { readLockFile, writeLockFile } = await import("./sources-lock.js");
     vi.mocked(readLockFile).mockResolvedValue({
       lockfileVersion: 1,
       sources: {
@@ -3468,13 +3468,39 @@ describe("resolveAndFetchSources", () => {
         },
       },
     });
-    mockClientInstance.listDirectory.mockResolvedValue([]);
+    // The curated skill is missing on disk, so it is fetched again at the
+    // locked commit and the entry is written back.
+    vi.mocked(directoryExists).mockResolvedValue(false);
+    mockClientInstance.listDirectory.mockImplementation(
+      async (_owner: string, _repo: string, path: string) => {
+        if (path === "skills") {
+          return [{ name: "my-skill", path: "skills/my-skill", type: "dir" }];
+        }
+        if (path === "skills/my-skill") {
+          return [{ name: "SKILL.md", path: "skills/my-skill/SKILL.md", type: "file", size: 100 }];
+        }
+        return [];
+      },
+    );
+    mockClientInstance.getFileContent.mockResolvedValue("skill content");
 
     await resolveAndFetchSources({
       logger,
       sources: [{ source: "org/repo", ref: "v2" }],
       projectRoot: testDir,
     });
+    expect(mockClientInstance.listDirectory).toHaveBeenCalledWith(
+      "org",
+      "repo",
+      "skills",
+      "locked-sha-123",
+    );
+    const writtenLock = vi.mocked(writeLockFile).mock.calls.at(-1)?.[0].lock;
+    expect(writtenLock?.sources["org/repo"]).toMatchObject({
+      resolvedRef: "locked-sha-123",
+      requestedRef: "v2",
+    });
+
     await resolveAndFetchSources({
       logger,
       sources: [{ source: "org/repo", ref: "v2" }],
