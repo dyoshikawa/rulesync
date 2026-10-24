@@ -1,9 +1,5 @@
-import { symlink } from "node:fs/promises";
-import { join } from "node:path";
-
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { RULESYNC_CONFIG_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";
 import { initCommand } from "../lib/init-command.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { executeInit } from "./init.js";
@@ -52,23 +48,5 @@ describe("executeInit", () => {
 
     expect(result.success).toBe(false);
     expect(result.error).toContain("EACCES");
-  });
-
-  it("refuses to run when a destination is a dangling link out of the project", async () => {
-    const outside = await setupTestDirectory();
-    try {
-      await symlink(
-        join(outside.testDir, "new-file"),
-        join(testDir, RULESYNC_CONFIG_RELATIVE_FILE_PATH),
-      );
-
-      const result = await executeInit();
-
-      expect(result.success).toBe(false);
-      expect(result.error).toContain("must stay inside the project directory");
-      expect(initCommand).not.toHaveBeenCalled();
-    } finally {
-      await outside.cleanup();
-    }
   });
 });

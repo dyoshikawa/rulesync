@@ -1,7 +1,5 @@
 import { initCommand } from "../lib/init-command.js";
-import { getInitWritePaths } from "../lib/init.js";
 import { type McpCommandResult, runCommandForMcp, stringifyResult } from "./command-runner.js";
-import { assertPathOptionWithinCwd } from "./path-options.js";
 
 /**
  * Execute the rulesync init command via MCP.
@@ -9,15 +7,13 @@ import { assertPathOptionWithinCwd } from "./path-options.js";
  * `result` carries the `created` and `skipped` file paths, and `seededFrom`
  * when the config file was seeded from a user-level config.
  *
- * Every path init may write is checked first, so a committed symbolic link
- * (dangling or not) cannot lead the write outside the project.
+ * `init` itself refuses to create a file through a committed symbolic link
+ * (dangling or not) that leads outside the project, so the check is shared
+ * with the CLI.
  */
 export async function executeInit(): Promise<McpCommandResult> {
   return await runCommandForMcp({
     run: async (logger) => {
-      for (const path of getInitWritePaths()) {
-        await assertPathOptionWithinCwd({ path, label: path });
-      }
       await initCommand(logger);
     },
   });
