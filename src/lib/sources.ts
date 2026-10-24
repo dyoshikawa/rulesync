@@ -552,7 +552,7 @@ async function resolvePrefetchRef(params: {
   context: GithubPrefetchContext;
 }): Promise<string> {
   const { parsed, locked, context } = params;
-  if (locked && !context.updateSources) {
+  if (locked && !context.updateSources && lockedRefMatchesDeclared(locked, parsed.ref)) {
     return locked.resolvedRef;
   }
   const { client, semaphore } = context;
@@ -1185,6 +1185,49 @@ function logGitClientHints(params: { error: GitClientError; logger: Logger }): v
  * sources are checked against the npm lockfile; everything else against the
  * main sources lockfile.
  */
+/**
+ * The ref a git or GitHub source declares in the manifest: its `ref` field,
+ * else (GitHub transport) a ref written into the source string itself.
+ * `undefined` when it declares none and installs the default branch.
+ */
+function getDeclaredSourceRef(sourceEntry: SourceEntry): string | undefined {
+  if (sourceEntry.ref !== undefined || sourceEntry.transport === "git") {
+    return sourceEntry.ref;
+  }
+  return parseSource(sourceEntry.source).ref;
+}
+
+/**
+ * Whether a lock entry was written for the ref the manifest declares now. The
+ * locked commit is only trusted for that ref: a declared ref that differs from
+ * the locked `requestedRef` (including a lock entry that records none) is
+ * resolved afresh, so neither a manifest edit nor a lockfile-only edit can
+ * pin content under a ref the commit was never resolved from.
+ */
+function lockedRefMatchesDeclared(locked: LockedSource, declaredRef: string | undefined): boolean {
+  return declaredRef === undefined || locked.requestedRef === declaredRef;
+}
+
+/** The git and GitHub sources whose declared ref differs from the locked one. */
+function describeDriftedSourceRefs(params: {
+  lock: SourcesLock;
+  sources: SourceEntry[];
+}): string[] {
+  const { lock, sources } = params;
+  const drifted: string[] = [];
+  for (const source of sources) {
+    if (source.transport === "npm" || hasEmptySelection(source)) continue;
+    const locked = getLockedSource(lock, source.source);
+    const declaredRef = getDeclaredSourceRef(source);
+    if (locked && !lockedRefMatchesDeclared(locked, declaredRef)) {
+      drifted.push(
+        `${source.source} (declared=${declaredRef}, lock=${locked.requestedRef ?? "(none)"})`,
+      );
+    }
+  }
+  return drifted;
+}
+
 function assertFrozenLockCoversSources(params: {
   lock: SourcesLock;
   npmLock: NpmSourcesLock;
@@ -1219,6 +1262,12 @@ function assertFrozenLockCoversSources(params: {
   if (missingKeys.length > 0) {
     throw new Error(
       `Frozen install failed: lockfile is missing entries or does not cover the declared selection for: ${missingKeys.join(", ")}. Run 'rulesync install' to update the lockfile.`,
+    );
+  }
+  const driftedRefs = describeDriftedSourceRefs({ lock, sources });
+  if (driftedRefs.length > 0) {
+    throw new Error(
+      `Frozen install failed: declared ref does not match the lockfile for: ${driftedRefs.join(", ")}. Run 'rulesync install' to update the lockfile.`,
     );
   }
 }
@@ -2070,7 +2119,7 @@ export async function resolveGithubFetchRef(params: {
   logger: Logger;
 }): Promise<{ ref: string; resolvedSha: string; requestedRef: string | undefined }> {
   const { parsed, locked, updateSources, sourceKey, client, logger } = params;
-  if (locked && !updateSources) {
+  if (locked && !updateSources && lockedRefMatchesDeclared(locked, parsed.ref)) {
     // Use the locked SHA for deterministic fetching
     logger.debug(`Using locked ref for ${sourceKey}: ${locked.resolvedRef}`);
     return {
@@ -2438,7 +2487,7 @@ async function fetchRulesViaGit(params: {
   const lockedRuleNames = locked ? getLockedRuleNames(locked) : [];
   let resolvedRef: string;
   let requestedRef: string | undefined;
-  if (locked && !updateSources) {
+  if (locked && !updateSources && lockedRefMatchesDeclared(locked, sourceEntry.ref)) {
     resolvedRef = locked.resolvedRef;
     requestedRef = locked.requestedRef;
     if (requestedRef) validateRef(requestedRef);
@@ -3069,7 +3118,7 @@ async function fetchSourceViaGit(params: {
 
   let resolvedSha: string;
   let requestedRef: string | undefined;
-  if (locked && !updateSources) {
+  if (locked && !updateSources && lockedRefMatchesDeclared(locked, sourceEntry.ref)) {
     resolvedSha = locked.resolvedRef;
     requestedRef = locked.requestedRef;
     // Validate locked ref before passing to git commands
