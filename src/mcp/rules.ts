@@ -18,6 +18,7 @@ import {
   writeFileContent,
 } from "../utils/file.js";
 import { ConsoleLogger, withFallbackLoggerTarget } from "../utils/logger.js";
+import { assertNoSymlinkInFeaturePath, isFeatureSymlinkRefusal } from "./feature-symlinks.js";
 
 const logger = new ConsoleLogger({ verbose: false, silent: true });
 
@@ -77,6 +78,11 @@ async function listRules(): Promise<
         await Promise.all(
           mdFiles.map(async (file) => {
             try {
+              // A linked rule file is not listed: `get` would refuse it.
+              await assertNoSymlinkInFeaturePath({
+                featureDirPath: rulesDir,
+                targetPath: join(rulesDir, file),
+              });
               // Read the rule file using RulesyncRule
               const rule = await RulesyncRule.fromFile({
                 relativeFilePath: file,
@@ -88,7 +94,11 @@ async function listRules(): Promise<
                 frontmatter: authoredFrontmatterOf({ rule }),
               };
             } catch (error) {
-              logger.error(`Failed to read rule file ${file}: ${formatError(error)}`);
+              if (isFeatureSymlinkRefusal(error)) {
+                logger.debug(`Skipping rule file ${file}: ${formatError(error)}`);
+              } else {
+                logger.error(`Failed to read rule file ${file}: ${formatError(error)}`);
+              }
               return null;
             }
           }),
@@ -119,8 +129,13 @@ async function getRule({ relativePathFromCwd }: { relativePathFromCwd: string })
   });
 
   const filename = basename(relativePathFromCwd);
+  const rulesDir = join(process.cwd(), RULESYNC_RULES_RELATIVE_DIR_PATH);
 
   try {
+    await assertNoSymlinkInFeaturePath({
+      featureDirPath: rulesDir,
+      targetPath: join(rulesDir, filename),
+    });
     const rule = await withoutConsoleWarnings({
       operation: async () =>
         await RulesyncRule.fromFile({
@@ -202,7 +217,11 @@ async function putRule({
     const rulesDir = join(process.cwd(), RULESYNC_RULES_RELATIVE_DIR_PATH);
     await ensureDir(rulesDir);
 
-    // Write the file
+    // Write the file, never through a symbolic link a cloned repository planted
+    await assertNoSymlinkInFeaturePath({
+      featureDirPath: rulesDir,
+      targetPath: rule.getFilePath(),
+    });
     await writeFileContent(rule.getFilePath(), rule.getFileContent());
 
     return {

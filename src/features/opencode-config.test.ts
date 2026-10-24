@@ -404,6 +404,22 @@ describe("opencode-config", () => {
         await resolveOpencodeFileTemplate({ value: "{file:./nope.txt}", configDir: testDir }),
       ).toBe("{file:./nope.txt}");
     });
+
+    it("preserves the literal value when the reference leaves containmentRoot", async () => {
+      await writeFileContent(join(testDir, "secret.txt"), "SECRET");
+      const projectDir = join(testDir, "project");
+      await writeFileContent(join(projectDir, "keep.txt"), "");
+      expect(
+        await resolveOpencodeFileTemplate({
+          value: "{file:../secret.txt}",
+          configDir: projectDir,
+          containmentRoot: projectDir,
+        }),
+      ).toBe("{file:../secret.txt}");
+      expect(
+        await resolveOpencodeFileTemplate({ value: "{file:../secret.txt}", configDir: projectDir }),
+      ).toBe("SECRET");
+    });
   });
 
   describe("raiseOpencodeServerToV2", () => {

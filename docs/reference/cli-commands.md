@@ -131,6 +131,8 @@ Because that budget is finite, the array carries the diagnostics a run has no ot
 
 `rulesync init` creates the `.rulesync/` directory with sample rule, MCP, subagent, skill, hooks and permissions files, plus a `rulesync.jsonc` configuration file. Existing files are never overwritten.
 
+`init` never creates a file through a symbolic link that leads outside the project (the current directory) or is dangling, so a cloned repository that commits `.rulesync -> ~/elsewhere` cannot make it write there. Such a sample file is skipped with a warning naming it, and the other files, `rulesync.jsonc` included, are still created. A file that already exists, or a symbolic link already occupying its path (dangling or not), counts as existing and is skipped without being written through. A `.rulesync` linked to a shared tree outside the project therefore keeps working: the samples it already has are kept, and the ones it lacks are reported rather than written there. A link that stays inside the project is written through.
+
 ### User-level defaults
 
 The generated `rulesync.jsonc` starts from `"targets": ["codexcli", "claudecode", "opencode"]` and `"features": ["rules", "mcp", "subagents", "skills", "hooks", "permissions"]`. To seed every new project with your own set instead, put a `rulesync.jsonc` in the user config directory: `$XDG_CONFIG_HOME/rulesync/rulesync.jsonc`, which is `~/.config/rulesync/rulesync.jsonc` when `XDG_CONFIG_HOME` is unset (a relative `XDG_CONFIG_HOME` is ignored, as the XDG specification requires).
@@ -422,6 +424,8 @@ You can route entries to `.gitattributes` instead by setting `gitignoreDestinati
 
 Set `gitignoreDestination` to `"gitexclude"` to write entries to Git's untracked, repository-local exclude file (`$GIT_COMMON_DIR/info/exclude`, usually `.git/info/exclude`) instead of a tracked file — for example from `rulesync.local.jsonc`. The path is resolved with `git rev-parse --git-path info/exclude`, so linked worktrees are supported, and the command fails with an error when the project is not inside a Git repository or is not at the repository root. Only the rulesync-fenced block in the exclude file is rewritten, and the file is untouched unless an entry is routed there. Because `.gitignore` takes precedence over the exclude file, an entry shared with a target still routed to `"gitignore"` also stays in `.gitignore`. See [Configuration](../guide/configuration.md#per-feature-options) for details.
 
+`gitignore` refuses to read or write `.gitignore` or `.gitattributes` when either is a symbolic link that leads outside the project (or a dangling link), so a cloned repository cannot make it append to a file elsewhere. A link that stays inside the project is written through. The `gitexclude` destination is located by Git and is not checked this way.
+
 > **No `rulesync.jsonc` in the project?** Entries for all supported tools are emitted. `gitignoreTargetsOnly` is only applied when a config file exists, so users without a config still get useful `.gitignore` coverage.
 
 > **`agentsmd` entries are always included.** Even when `gitignoreTargetsOnly` is `true` and `agentsmd` is not listed in `targets`, entries for `AGENTS.md` (and related paths) are appended automatically. Because `AGENTS.md` is a de facto standard file read by many AI tools regardless of the target set, its gitignore entries are emitted unconditionally to prevent accidental commits of generated rule files. To opt out of this behavior, pass an explicit `--targets` option that omits `agentsmd`.
@@ -571,6 +575,10 @@ rulesync fetch owner/repo@ref:path   # Both ref and path
 | `--skills <skills>`     | Comma-separated skill names to fetch (requires the skills feature)                                                                                                    | All skills                       |
 | `--interactive, -i`     | Interactively select skills to fetch via a checkbox prompt; nothing is selected initially, press `<a>` to select/deselect all (requires the skills feature and a TTY) | Disabled                         |
 | `--token <token>`       | Git provider token for private repositories                                                                                                                           | `GITHUB_TOKEN` or `GH_TOKEN` env |
+
+### Single-File Features
+
+`mcp`, `hooks` and `permissions` each have one source file that can be spelled several ways — the recommended `mcp.jsonc`, `hooks.jsonc` and `permissions.jsonc`, and the legacy `mcp.json` (plus the deprecated `.mcp.json`), `hooks.json` and `permissions.json` — and `generate` reads the first that exists, in that order. `fetch` follows the same precedence on both sides. From the remote, only the file `generate` would read is fetched, so a remote that ships both `hooks.jsonc` and `hooks.json` contributes only `hooks.jsonc`. Locally, it is written over the source already in effect: a remote `mcp.jsonc` fetched into a project that has only `.rulesync/mcp.json` replaces `mcp.json` rather than landing beside it and taking over, and with no local source it keeps its remote name. The remote content is written as it is, so a local `mcp.json` (or `hooks.json`, `permissions.json`) may end up holding JSONC — comments and trailing commas — which Rulesync reads without trouble, since every spelling is parsed as JSONC; other tools that read the file as strict JSON may not. Both the remote file left out and the change of destination are logged. `--conflict skip` therefore leaves the feature alone whenever any local spelling of its source exists.
 
 ### Executable Bits
 
@@ -756,7 +764,7 @@ rulesync convert --from cursor --to copilot,claudecode --dry-run
 
 ## Doctor Command
 
-The `doctor` command runs read-only diagnostics against the configuration files (`rulesync.jsonc` and `rulesync.local.jsonc`) and reports problems grouped by severity (`error` / `warning` / `info`). It never writes files, which makes it a safe first step when generation does not behave as expected, and a cheap CI guard.
+The `doctor` command runs read-only diagnostics against the configuration files (`rulesync.jsonc` and `rulesync.local.jsonc`), plus a size check of the Codex CLI `AGENTS.md` files on disk, and reports problems grouped by severity (`error` / `warning` / `info`). It never writes files, which makes it a safe first step when generation does not behave as expected, and a cheap CI guard.
 
 It is especially useful for catching **silently ignored configuration**: the config schema is non-strict, so a misspelled key such as `"target"` instead of `"targets"` is normally swallowed without any error. `doctor` reports every unknown key with a "did you mean" suggestion.
 
@@ -774,6 +782,7 @@ It is especially useful for catching **silently ignored configuration**: the con
 - `inputRoot` or the first `inputRoots` entry pointing at a directory that does not exist. Later `inputRoots` entries are optional overlays and may be absent.
 - `inputRoot` or an `inputRoots` entry set to an empty string, which makes `generate` fail with `outputRoot cannot be an empty string` before it resolves any source tree.
 - Duplicate entries in `inputRoots` (warning; duplicates are ignored at generate time).
+- Codex CLI `AGENTS.md` size (warning, `codexcli/agents-md-size`): when the config targets `codexcli` with the `rules` feature in project scope, the `AGENTS.md` files on disk in each output root are measured against `project_doc_max_bytes`, with the same budget and chain rules the `generate` warning uses (32,768 bytes, or the positive value set in the output root's `.codex/config.toml`). The files are found the way `import` finds them: the root `AGENTS.md` plus nested ones, hand-written files included, but not those inside hidden directories, `node_modules`, `__pycache__`, gitignored directories, top-level build or vendor directories (`dist`, `build`, `vendor` and the like), or reached through symlinks. A value of `0` in `.codex/config.toml` is reported as `codexcli/project-docs-disabled` instead. Doctor measures what is on disk rather than simulating generation, so run it after `generate`; it is skipped while the config itself has errors, and `~/.codex/config.toml` is not read.
 
 ### Options
 
@@ -898,4 +907,5 @@ GITHUB_TOKEN=$(gh auth token) rulesync release-notes owner/private-repo
 - A repository with no matching releases prints a warning and exits with code `0`.
 - Range queries walk at most 10 API pages (1,000 releases); tags older than that are reported as not found.
 - Date ranges scan the whole walked history rather than stopping at the first out-of-range release, because the API orders releases by creation date and a release published from a long-lived branch can appear out of publication order.
+- Tag names, release names and bodies are written by the remote repository, so control characters (escape sequences, carriage returns, bidirectional overrides and the like) are stripped from them before they are printed; line feeds and tabs in a body are kept. The `--json` output carries the values unchanged, JSON-escaped.
 - Default output is Markdown on standard output, so it can be piped to other tools. With the global `--json` flag, the releases are emitted as structured `data` instead and no Markdown is printed; failures use the standard error document with code `RELEASE_NOTES_FAILED`.

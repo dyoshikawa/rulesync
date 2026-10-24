@@ -25,13 +25,15 @@ import { RulesyncRule } from "../features/rules/rulesync-rule.js";
 import { RulesyncSkill } from "../features/skills/rulesync-skill.js";
 import { RulesyncSubagent } from "../features/subagents/rulesync-subagent.js";
 import {
+  assertPathResolvesInsideRoot,
   ensureDir,
   fileExists,
+  PathOutsideRootError,
   getHomeDirectory,
   readFileContent,
   writeFileContent,
 } from "../utils/file.js";
-import { getInitWritePaths, getUserConfigFilePath, init } from "./init.js";
+import { getUserConfigFilePath, init } from "./init.js";
 
 vi.mock("../utils/file.js");
 vi.mock("../features/hooks/rulesync-hooks.js");
@@ -51,6 +53,7 @@ const readGeneratedConfig = (): { features?: unknown; targets?: unknown } => {
 describe("init", () => {
   beforeEach(() => {
     vi.mocked(ensureDir).mockResolvedValue(undefined);
+    vi.mocked(assertPathResolvesInsideRoot).mockResolvedValue(undefined);
     vi.mocked(fileExists).mockResolvedValue(false);
     vi.mocked(writeFileContent).mockResolvedValue(undefined);
     vi.mocked(getHomeDirectory).mockReturnValue(join("/home", "tester"));
@@ -100,16 +103,25 @@ describe("init", () => {
     vi.unstubAllEnvs();
   });
 
-  describe("getInitWritePaths", () => {
-    it("lists the directory, the config file and every sample file init writes", async () => {
+  describe("symbolic links out of the project", () => {
+    it("skips only the sample whose write would leave the project", async () => {
+      const overviewPath = join(RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME);
+      vi.mocked(assertPathResolvesInsideRoot).mockImplementation(async ({ targetPath }) => {
+        if (targetPath === overviewPath) {
+          throw new PathOutsideRootError(`outside: ${targetPath}`);
+        }
+      });
+
       const result = await init();
 
-      const paths = getInitWritePaths();
-      expect(paths).toContain(RULESYNC_RELATIVE_DIR_PATH);
-      expect(paths).toContain(RULESYNC_CONFIG_RELATIVE_FILE_PATH);
-      for (const file of [...result.sampleFiles, result.configFile]) {
-        expect(paths).toContain(file.path);
-      }
+      expect(result.sampleFiles).toContainEqual({
+        created: false,
+        path: overviewPath,
+        outsideProject: true,
+      });
+      expect(writeFileContent).not.toHaveBeenCalledWith(overviewPath, expect.anything());
+      expect(result.configFile).toMatchObject({ created: true });
+      expect(result.sampleFiles.filter((file) => file.created).length).toBeGreaterThan(0);
     });
   });
 

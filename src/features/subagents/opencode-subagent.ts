@@ -8,6 +8,8 @@ import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
+import type { Logger } from "../../utils/logger.js";
+import { quoteValueForWarning } from "../../utils/quote-value.js";
 import {
   asOpencodeEntries,
   getOpencodeAgentEntries,
@@ -79,29 +81,46 @@ export type OpenCodeSubagentParams = Omit<OpenCodeStyleSubagentParams, "frontmat
  * @see https://opencode.ai/docs/agents/
  */
 async function resolveOpenCodeAgentPrompt({
+  name,
   prompt,
   configDir,
+  containmentRoot,
+  logger,
 }: {
+  name: string;
   prompt: unknown;
   configDir: string;
+  containmentRoot: string | undefined;
+  logger: Logger | undefined;
 }): Promise<string> {
   if (typeof prompt !== "string") {
     return "";
   }
-  return resolveOpencodeFileTemplate({ value: prompt, configDir });
+  return resolveOpencodeFileTemplate({
+    value: prompt,
+    configDir,
+    containmentRoot,
+    logger,
+    referrer: `OpenCode agent ${quoteValueForWarning(name)}`,
+  });
 }
 
 /**
  * Resolves the `prompt` of each inline agent entry of one config file against
  * that file's directory, so entries from several files can be merged without
- * losing where a `"{file:./path}"` reference points.
+ * losing where a `"{file:./path}"` reference points. `containmentRoot`, set at
+ * project scope, keeps a reference from reading a file outside the project.
  */
 async function resolveOpenCodeAgentPrompts({
   entries,
   configDir,
+  containmentRoot,
+  logger,
 }: {
   entries: Record<string, unknown> | null;
   configDir: string;
+  containmentRoot: string | undefined;
+  logger: Logger | undefined;
 }): Promise<Record<string, unknown> | null> {
   if (entries === null) {
     return null;
@@ -114,7 +133,13 @@ async function resolveOpenCodeAgentPrompts({
         ? rawEntry
         : {
             ...entry,
-            prompt: await resolveOpenCodeAgentPrompt({ prompt: entry.prompt, configDir }),
+            prompt: await resolveOpenCodeAgentPrompt({
+              name,
+              prompt: entry.prompt,
+              configDir,
+              containmentRoot,
+              logger,
+            }),
           };
     Object.defineProperty(resolved, name, {
       value,
@@ -270,7 +295,8 @@ export class OpenCodeSubagent extends OpenCodeStyleSubagent {
    * `getOpencodeAgentEntries` — (in addition to the Markdown files under
    * `.opencode/agents/`). Each entry's `prompt` becomes the subagent body
    * (a `"{file:./path}"` reference is resolved relative to the config file's
-   * location); the remaining fields (`description` / `mode` / `model` /
+   * location and, at project scope, only read when it resolves inside the
+   * project); the remaining fields (`description` / `mode` / `model` /
    * `tools` / `permission` / ...) map to the frontmatter.
    *
    * Import-only: invoked by the subagents processor when loading tool files for
@@ -281,9 +307,11 @@ export class OpenCodeSubagent extends OpenCodeStyleSubagent {
   static async loadAdditionalImportFiles({
     outputRoot = process.cwd(),
     global = false,
+    logger,
   }: {
     outputRoot?: string;
     global?: boolean;
+    logger?: Logger;
   } = {}): Promise<OpenCodeSubagent[]> {
     // Each file is lowered on its own and its `prompt` resolved against its
     // own directory before the files are merged, later files winning, as
@@ -294,6 +322,8 @@ export class OpenCodeSubagent extends OpenCodeStyleSubagent {
         resolveOpenCodeAgentPrompts({
           entries: getOpencodeAgentEntries({ config, layout: this.layout }),
           configDir,
+          containmentRoot: global ? undefined : outputRoot,
+          logger,
         }),
       ),
     );

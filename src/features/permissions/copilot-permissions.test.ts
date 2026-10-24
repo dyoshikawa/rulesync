@@ -67,7 +67,7 @@ describe("CopilotPermissions", () => {
   });
 
   describe("fromRulesyncPermissions", () => {
-    it("maps bash allow/deny onto chat.tools.terminal.autoApprove and omits ask", async () => {
+    it("maps bash allow onto true and deny/ask onto false in chat.tools.terminal.autoApprove", async () => {
       const rulesyncPermissions = createRulesyncPermissions({
         bash: { "git *": "allow", "rm *": "deny", "npm *": "ask" },
       });
@@ -78,9 +78,46 @@ describe("CopilotPermissions", () => {
       });
 
       const json = JSON.parse(permissions.getFileContent());
-      expect(json[AUTO_APPROVE_KEY]).toEqual({ "git *": true, "rm *": false });
-      // `ask` is represented by omitting the entry.
-      expect(json[AUTO_APPROVE_KEY]).not.toHaveProperty("npm *");
+      expect(json[AUTO_APPROVE_KEY]).toEqual({ "git *": true, "rm *": false, "npm *": false });
+    });
+
+    it("writes an ask beside a broader allow as false so the allow cannot auto-approve it", async () => {
+      const rulesyncPermissions = createRulesyncPermissions({
+        bash: { git: "allow", "git push": "ask" },
+        edit: { "**/*": "allow", "src/**": "ask" },
+        webfetch: { "*": "allow", "internal.example": "ask" },
+      });
+
+      const permissions = await CopilotPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      const json = JSON.parse(permissions.getFileContent());
+      expect(json[AUTO_APPROVE_KEY]).toEqual({ git: true, "git push": false });
+      expect(json[EDITS_KEY]).toEqual({ "**/*": true, "src/**": false });
+      expect(json[URLS_KEY]).toEqual({ "internal.example": false, "*": true });
+    });
+
+    it("orders false entries where VS Code lets them win: last for edits, first for urls", async () => {
+      const permissions = await CopilotPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          edit: { "src/**": "ask", "**/.env": "deny", "**/*": "allow" },
+          webfetch: { "*": "allow", "https://internal.example.com/*": "ask" },
+        }),
+      });
+
+      const json = JSON.parse(permissions.getFileContent());
+      expect(Object.entries(json[EDITS_KEY])).toEqual([
+        ["**/*", true],
+        ["src/**", false],
+        ["**/.env", false],
+      ]);
+      expect(Object.entries(json[URLS_KEY])).toEqual([
+        ["https://internal.example.com/*", false],
+        ["*", true],
+      ]);
     });
 
     it("maps bash, edit and webfetch and ignores categories VS Code cannot express", async () => {
@@ -138,10 +175,24 @@ describe("CopilotPermissions", () => {
 
       const permissions = await CopilotPermissions.fromRulesyncPermissions({
         outputRoot: testDir,
-        rulesyncPermissions: createRulesyncPermissions({ edit: { "src/**": "ask" } }),
+        rulesyncPermissions: createRulesyncPermissions({ edit: {} }),
       });
 
       expect(JSON.parse(permissions.getFileContent())).not.toHaveProperty(EDITS_KEY);
+    });
+
+    it("replaces a hand-written true with false for a stated ask", async () => {
+      await writeFileContent(
+        join(testDir, ".vscode", "settings.json"),
+        JSON.stringify({ [EDITS_KEY]: { "src/**": true } }),
+      );
+
+      const permissions = await CopilotPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({ edit: { "src/**": "ask" } }),
+      });
+
+      expect(JSON.parse(permissions.getFileContent())[EDITS_KEY]).toEqual({ "src/**": false });
     });
 
     it("imports all three maps back into their canonical categories", () => {
@@ -188,15 +239,14 @@ describe("CopilotPermissions", () => {
       expect(json[AUTO_APPROVE_KEY]).toEqual({ "git *": true });
     });
 
-    it("omits the managed key entirely when there is nothing to auto-approve", async () => {
+    it("omits the managed key entirely when the stated category has no rules", async () => {
       await writeFileContent(
         join(testDir, ".vscode", "settings.json"),
         JSON.stringify({ "editor.tabSize": 2 }),
       );
 
-      // Only `ask` rules — nothing to allow or deny.
       const rulesyncPermissions = createRulesyncPermissions({
-        bash: { "git *": "ask" },
+        bash: {},
       });
 
       const permissions = await CopilotPermissions.fromRulesyncPermissions({

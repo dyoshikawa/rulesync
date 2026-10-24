@@ -13,8 +13,11 @@ import {
 import { ChecksProcessor } from "../features/checks/checks-processor.js";
 import { CommandsProcessor } from "../features/commands/commands-processor.js";
 import { HooksProcessor } from "../features/hooks/hooks-processor.js";
+import { RulesyncHooks } from "../features/hooks/rulesync-hooks.js";
 import { IgnoreProcessor } from "../features/ignore/ignore-processor.js";
 import { McpProcessor } from "../features/mcp/mcp-processor.js";
+import { RulesyncMcp } from "../features/mcp/rulesync-mcp.js";
+import { RulesyncPermissions } from "../features/permissions/rulesync-permissions.js";
 import { RulesProcessor } from "../features/rules/rules-processor.js";
 import { SkillsProcessor } from "../features/skills/skills-processor.js";
 import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
@@ -56,6 +59,7 @@ import {
   writeFileContent,
 } from "../utils/file.js";
 import type { Logger } from "../utils/logger.js";
+import { getRulesyncSourceCandidates } from "../utils/rulesync-source-path.js";
 import { GitHubClient, GitHubClientError } from "./github-client.js";
 import {
   listDirectoryRecursive,
@@ -606,6 +610,78 @@ function validateSkillSelectionOptions(params: {
         "Use --skills <names> to select skills non-interactively.",
     );
   }
+}
+
+/**
+ * Source file names of the single-file features, in the order the loaders
+ * pick them (recommended `.jsonc` first, then the legacy spellings).
+ */
+const SINGLE_FILE_FEATURE_CANDIDATES: readonly (readonly string[])[] = [
+  RulesyncMcp.getSettablePaths(),
+  RulesyncHooks.getSettablePaths(),
+  RulesyncPermissions.getSettablePaths(),
+].map((paths) =>
+  getRulesyncSourceCandidates({ paths }).map((candidate) => candidate.relativeFilePath),
+);
+
+/**
+ * Map each single-file feature (mcp, hooks, permissions) onto the one local
+ * file its loader will actually read.
+ *
+ * A feature's source can live under several names, and the loader reads the
+ * first that exists. Writing each remote file under its own name would let a
+ * remote `hooks.jsonc` land next to a local `hooks.json` and silently take over
+ * from it — even under `--conflict skip`, whose existence check only looked at
+ * the remote's exact name. So per feature only the remote candidate the loader
+ * would choose is fetched, and it is written over the local candidate already
+ * in effect (under its remote name when there is none). The conflict check
+ * that follows then sees that existing file.
+ */
+async function resolveSingleFileFeatureDestinations(params: {
+  files: CollectedFile[];
+  outputBasePath: string;
+  logger: Logger;
+}): Promise<CollectedFile[]> {
+  const { files, outputBasePath, logger } = params;
+  const replacements = new Map<CollectedFile, string | null>();
+
+  for (const candidates of SINGLE_FILE_FEATURE_CANDIDATES) {
+    const remote = files.filter((file) => candidates.includes(file.relativePath));
+    const chosen = candidates
+      .map((name) => remote.find((file) => file.relativePath === name))
+      .find((file) => file !== undefined);
+    if (chosen === undefined) continue;
+
+    let destination = chosen.relativePath;
+    for (const name of candidates) {
+      if (await fileExists(join(outputBasePath, name))) {
+        destination = name;
+        break;
+      }
+    }
+
+    for (const file of remote) {
+      if (file !== chosen) {
+        logger.info(
+          `Not fetching ${quoteForLog(file.relativePath)}: ${quoteForLog(chosen.relativePath)} takes precedence.`,
+        );
+        replacements.set(file, null);
+      }
+    }
+    if (destination !== chosen.relativePath) {
+      logger.info(
+        `Writing remote ${quoteForLog(chosen.relativePath)} to ${quoteForLog(destination)}, the local source in effect.`,
+      );
+      replacements.set(chosen, destination);
+    }
+  }
+
+  return files.flatMap((file) => {
+    const replacement = replacements.get(file);
+    if (replacement === undefined) return [file];
+    if (replacement === null) return [];
+    return [{ ...file, relativePath: replacement }];
+  });
 }
 
 /**
@@ -1665,10 +1741,15 @@ export async function fetchFiles(params: FetchParams): Promise<FetchSummary> {
     logger,
   });
 
-  const filesToFetch = await applySkillSelection({
+  const selectedFiles = await applySkillSelection({
     files: collectedFiles,
     requestedSkills,
     interactive,
+    outputBasePath,
+    logger,
+  });
+  const filesToFetch = await resolveSingleFileFeatureDestinations({
+    files: selectedFiles,
     outputBasePath,
     logger,
   });

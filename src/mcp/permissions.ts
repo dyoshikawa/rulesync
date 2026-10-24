@@ -11,6 +11,7 @@ import {
   getRulesyncSourceCandidates,
   resolveRulesyncSourceWritePath,
 } from "../utils/rulesync-source-path.js";
+import { assertNoSymlinkInRulesyncSource } from "./feature-symlinks.js";
 
 const maxPermissionsSizeBytes = 1024 * 1024; // 1MB
 
@@ -22,6 +23,10 @@ async function getPermissionsFile(): Promise<{
   content: string;
 }> {
   try {
+    await assertNoSymlinkInRulesyncSource({
+      outputRoot: process.cwd(),
+      paths: RulesyncPermissions.getSettablePaths(),
+    });
     const rulesyncPermissions = await RulesyncPermissions.fromFile({
       validate: true,
     });

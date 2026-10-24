@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   collapseRulesToSingleAction,
+  failSafeCatchAllAction,
   hasPatternSpecificRules,
   PERMISSION_ACTION_PRIORITY,
 } from "./single-action-collapse.js";
@@ -51,5 +52,57 @@ describe("single-action-collapse", () => {
       expect(hasPatternSpecificRules({ "*": "allow", "site:example.com": "ask" })).toBe(true);
       expect(hasPatternSpecificRules({ "site:example.com": "allow" })).toBe(true);
     });
+  });
+});
+
+describe("failSafeCatchAllAction", () => {
+  it("downgrades a catch-all allow to ask when a narrower deny or ask exists", () => {
+    expect(failSafeCatchAllAction({ rules: { "*": "allow", "src/**": "deny" } })).toEqual({
+      action: "ask",
+      downgraded: true,
+    });
+    expect(failSafeCatchAllAction({ rules: { "*": "allow", "src/**": "ask" } })).toEqual({
+      action: "ask",
+      downgraded: true,
+    });
+  });
+
+  it("keeps a catch-all allow whose narrower rules only allow", () => {
+    expect(failSafeCatchAllAction({ rules: { "*": "allow", "src/**": "allow" } })).toEqual({
+      action: "allow",
+      downgraded: false,
+    });
+  });
+
+  it("keeps a restricting catch-all and reports a missing one as undefined", () => {
+    expect(failSafeCatchAllAction({ rules: { "*": "deny", "src/**": "allow" } })).toEqual({
+      action: "deny",
+      downgraded: false,
+    });
+    expect(failSafeCatchAllAction({ rules: { "src/**": "deny" } })).toEqual({
+      action: undefined,
+      downgraded: false,
+    });
+  });
+
+  it("downgrades a catch-all allow when the all-tools category restricts a narrower pattern", () => {
+    expect(
+      failSafeCatchAllAction({
+        rules: { "*": "allow" },
+        allToolsRules: { "*": "allow", "secrets/**": "deny" },
+      }),
+    ).toEqual({ action: "ask", downgraded: true });
+    expect(
+      failSafeCatchAllAction({ rules: { "*": "allow" }, allToolsRules: { "*": "allow" } }),
+    ).toEqual({ action: "allow", downgraded: false });
+  });
+
+  it("raises a category catch-all to a stricter all-tools catch-all", () => {
+    expect(
+      failSafeCatchAllAction({ rules: { "*": "allow" }, allToolsRules: { "*": "deny" } }),
+    ).toEqual({ action: "deny", downgraded: true });
+    expect(
+      failSafeCatchAllAction({ rules: { "*": "deny" }, allToolsRules: { "*": "ask" } }),
+    ).toEqual({ action: "deny", downgraded: false });
   });
 });

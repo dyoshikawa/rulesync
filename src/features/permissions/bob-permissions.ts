@@ -24,6 +24,7 @@ import {
   partitionCommandRules,
   SHELL_PERMISSION_CATEGORY,
   warnAboutUnwrittenCommandRules,
+  widenToPrefixGlob,
 } from "./shell-command-categories.js";
 import {
   ToolPermissions,
@@ -310,16 +311,6 @@ function warnAboutNewAutoApprovals({
       `${filePath}, Bob's user settings, so this applies to every project on this machine. ` +
       `Check it if .rulesync/permissions.jsonc arrived with a repository you cloned.`,
   );
-}
-
-/**
- * The widest glob a pattern stands for once Bob compares it as a command
- * prefix: `git` also covers `git push --force`. Used only to compare allows
- * against the restrictions, where widening can only withhold more allows,
- * never fail open.
- */
-function widenToPrefixGlob(pattern: string): string {
-  return pattern.endsWith("*") ? pattern : `${pattern}*`;
 }
 
 /**

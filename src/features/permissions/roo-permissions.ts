@@ -7,16 +7,22 @@ import {
   ROO_VSCODE_SETTINGS_FILE_NAME,
 } from "../../constants/roo-paths.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
-import type { PermissionAction } from "../../types/permissions.js";
+import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import { type Logger, warnWithFallback } from "../../utils/logger.js";
 import {
   applySharedConfigPatch,
   parseSharedConfig,
   sharedConfigFileKey,
 } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
-import { resolveShellCommandLists } from "./shell-command-categories.js";
+import {
+  collectShellCommandRules,
+  partitionCommandRules,
+  warnAboutUnwrittenCommandRules,
+  widenToPrefixGlob,
+} from "./shell-command-categories.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -33,6 +39,109 @@ import { buildVscodeCommandLists } from "./vscode-command-lists.js";
  * counterpart in the extension's contributions.
  */
 const COMMAND_CATEGORY = "bash";
+
+/**
+ * Split the canonical `bash` rules — plus the restricting rules of the
+ * all-tools `*` category, which cover shell commands too — into the two prefix
+ * lists. `ask` has no list of its own: the extension prompts for whatever it
+ * does not auto-approve, so an `ask` is honored by withholding every allow it
+ * overlaps, compared at prefix width so a bare `git` allow is withheld by a
+ * `git push` ask instead of auto-approving `git push`.
+ */
+function buildRooCommandLists({
+  permission,
+  toolLabel,
+  surfaceLabel,
+  logger,
+}: {
+  permission: PermissionsConfig["permission"];
+  toolLabel: string;
+  surfaceLabel: string;
+  logger?: Logger | undefined;
+}): { allowed: string[]; denied: string[] | undefined } {
+  const { rules, foreignRestrictingCategories, ignoredAllToolsAllowPatterns } =
+    collectShellCommandRules(permission);
+  const partition = partitionCommandRules({
+    rules,
+    writesAllToolsDeny: true,
+    normalizePattern: widenToPrefixGlob,
+  });
+  warnAboutUnwrittenCommandRules({
+    toolLabel,
+    surfaceLabel,
+    foreignRestrictingCategories,
+    shadowedAllowPatterns: partition.shadowedAllowPatterns,
+    unenforcedAllToolsDenyPatterns: partition.unenforcedAllToolsDenyPatterns,
+    unenforcedAllToolsAskPatterns: partition.unenforcedAllToolsAskPatterns,
+    ignoredAllToolsAllowPatterns,
+    intersectionBudgetExhausted: partition.intersectionBudgetExhausted,
+    logger,
+  });
+
+  const lists: Record<string, PermissionAction> = {};
+  for (const pattern of partition.allow) {
+    lists[pattern] = "allow";
+  }
+  for (const pattern of partition.deny) {
+    lists[pattern] = "deny";
+  }
+  const { allowed, denied } = buildVscodeCommandLists({ rules: lists, toolLabel, logger });
+  return {
+    allowed: withholdAllowsOutrankingDenies({ allowed, denied, toolLabel, logger }),
+    denied,
+  };
+}
+
+/**
+ * The extension resolves a command matching both lists by the longer match, so
+ * an allow entry that extends a denied prefix (`git push` allowed, `git`
+ * denied) auto-approves the commands it covers despite the deny — and so does
+ * any allow beside a bare `*` deny, the extension's wildcard. Canonically the
+ * deny wins whatever its width, so such an allow is withheld: the command then
+ * hits the deny. A bare `*` allow never outranks a literal deny, so it is kept.
+ */
+function withholdAllowsOutrankingDenies({
+  allowed,
+  denied,
+  toolLabel,
+  logger,
+}: {
+  allowed: string[];
+  denied: string[] | undefined;
+  toolLabel: string;
+  logger?: Logger | undefined;
+}): string[] {
+  if (denied === undefined) {
+    return allowed;
+  }
+  const withheld: string[] = [];
+  const kept = allowed.filter((allow) => {
+    // Compared lowercased, as the extension does. A bare `*` deny is the
+    // wildcard too, and any literal allow is a longer match than it.
+    const loweredAllow = allow.toLowerCase();
+    const outranks =
+      allow !== "*" &&
+      denied.some((deny) => {
+        const loweredDeny = deny.toLowerCase();
+        return (
+          loweredDeny !== loweredAllow && (deny === "*" || loweredAllow.startsWith(loweredDeny))
+        );
+      });
+    if (outranks) {
+      withheld.push(allow);
+    }
+    return !outranks;
+  });
+  if (withheld.length > 0) {
+    warnWithFallback(
+      logger,
+      `${toolLabel}: the allow rule(s) for ${withheld.join(", ")} extend a denied command ` +
+        `prefix, and a longer allowed match wins over a shorter denied one, so they were ` +
+        `withheld rather than auto-approve commands the deny covers.`,
+    );
+  }
+  return kept;
+}
 
 function asStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) {
@@ -186,16 +295,10 @@ export class RooPermissions extends ToolPermissions {
     const bashStated = permission[COMMAND_CATEGORY] !== undefined;
     const patch: Record<string, unknown> = {};
     if (bashStated) {
-      const { bash } = resolveShellCommandLists({
+      const { allowed, denied } = buildRooCommandLists({
         permission,
-        writesAllToolsDeny: true,
         toolLabel: this.getToolLabel(),
         surfaceLabel: `${this.getAllowedCommandsKey()}/${this.getDeniedCommandsKey()}`,
-        logger,
-      });
-      const { allowed, denied } = buildVscodeCommandLists({
-        rules: bash,
-        toolLabel: this.getToolLabel(),
         logger,
       });
       patch[this.getAllowedCommandsKey()] = allowed;

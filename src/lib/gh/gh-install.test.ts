@@ -996,6 +996,26 @@ describe("installGh", () => {
   );
 
   it.skipIf(process.platform === "win32")(
+    "unlinks a stale file that is itself a symbolic link without touching its target",
+    async () => {
+      await writeFileContent(join(testDir, "victim.md"), "victim\n");
+      await installWithExtraLockedFiles([".agents/skills/s/old.md"]);
+      const linkPath = join(testDir, ".agents/skills/s/old.md");
+      await symlink("../../../victim.md", linkPath);
+
+      await installGh({
+        projectRoot: testDir,
+        sources: [source({ source: "owner/repo" })],
+        options: { update: true },
+        logger,
+      });
+
+      await expect(lstat(linkPath)).rejects.toThrow(/ENOENT/);
+      expect(await readFileContent(join(testDir, "victim.md"))).toBe("victim\n");
+    },
+  );
+
+  it.skipIf(process.platform === "win32")(
     "reports a filesystem error during stale-file removal as it is",
     async () => {
       await installWithExtraLockedFiles([".agents/skills/s/plain/old.md"]);

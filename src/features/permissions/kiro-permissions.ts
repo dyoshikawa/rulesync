@@ -11,7 +11,11 @@ import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { isPlainObject } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
-import { honorAllToolsOnBash } from "./shell-command-categories.js";
+import {
+  createShadowingRestrictionsTest,
+  honorAllToolsOnBash,
+} from "./shell-command-categories.js";
+import { failSafeCatchAllAction } from "./single-action-collapse.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -193,32 +197,53 @@ function buildKiroPermissionsFromRulesync({
 
   // Path/command categories map to a `{ <allowKey>: [], <denyKey>: [] }` table
   // under a `toolsSettings` key. `edit` and `write` both fold into `write`.
-  const pathBuckets: Record<string, { allow: string[]; deny: string[] }> = {};
+  // Kiro has no ask list: whatever its allow lists do not cover prompts, so an
+  // `ask` is honored by withholding the allow entries it overlaps (collected in
+  // `ask` and applied after the loop).
+  const pathBuckets: Record<string, { allow: string[]; deny: string[]; ask: string[] }> = {};
   const pushPath = (key: string, action: PermissionAction, pattern: string): void => {
-    const bucket = (pathBuckets[key] ??= { allow: [], deny: [] });
-    (action === "allow" ? bucket.allow : bucket.deny).push(pattern);
+    const bucket = (pathBuckets[key] ??= { allow: [], deny: [], ask: [] });
+    bucket[action].push(pattern);
   };
   const shell = { allowedCommands: [] as string[], deniedCommands: [] as string[] };
+  const shellAsks: string[] = [];
 
   for (const [category, rules] of Object.entries(honorAllToolsOnBash(config.permission))) {
+    if (category === "webfetch" || category === "websearch") {
+      applyKiroWebPermission({
+        category,
+        rules,
+        allToolsRules: config.permission["*"],
+        nextAllowedTools,
+        logger,
+      });
+      continue;
+    }
     for (const [pattern, action] of Object.entries(rules)) {
-      if (action === "ask") {
-        logger?.warn(`Kiro permissions do not support "ask". Skipping ${category}:${pattern}`);
-        continue;
-      }
       if (category === "bash") {
-        (action === "allow" ? shell.allowedCommands : shell.deniedCommands).push(pattern);
+        if (action === "ask") {
+          shellAsks.push(pattern);
+        } else {
+          (action === "allow" ? shell.allowedCommands : shell.deniedCommands).push(pattern);
+        }
       } else if (category === "read" || category === "grep" || category === "glob") {
         pushPath(category, action, pattern);
       } else if (category === "edit" || category === "write") {
         pushPath("write", action, pattern);
-      } else if (category === "webfetch" || category === "websearch") {
-        applyKiroWebPermission({ category, pattern, action, nextAllowedTools, logger });
       } else {
         logger?.warn(`Kiro permissions do not support category: ${category}. Skipping.`);
       }
     }
   }
+
+  shell.allowedCommands = withholdAllowsCoveredByAsks({
+    surface: "toolsSettings.shell.allowedCommands",
+    allows: shell.allowedCommands,
+    asks: shellAsks,
+    logger,
+  });
+  withholdPathAllowsCoveredByRestrictions({ pathBuckets, config, logger });
+  untrustToolsWithRestrictions({ nextAllowedTools, shellAsks, pathBuckets, config, logger });
 
   // `shell`/`read`/`write` are always emitted (even empty) to match the prior
   // behavior; `grep`/`glob` are only emitted when they carry a rule so existing
@@ -318,26 +343,193 @@ function pathTable(bucket: { allow: string[]; deny: string[] } | undefined): {
   return { allowedPaths: bucket?.allow ?? [], deniedPaths: bucket?.deny ?? [] };
 }
 
+/**
+ * The `allowedTools` entries that trust a whole built-in tool, per canonical
+ * surface: the current names and the legacy aliases Kiro still accepts.
+ */
+const KIRO_TRUSTED_TOOL_NAMES: Readonly<Record<string, readonly string[]>> = {
+  shell: ["shell", "execute_bash"],
+  read: ["read", "fs_read"],
+  write: ["write", "fs_write"],
+  grep: ["grep"],
+  glob: ["glob"],
+  web: ["web_fetch", "web_search"],
+};
+const KIRO_TRUST_ALL_TOOL_NAMES = ["*", "@builtin"];
+
+/**
+ * An `allowedTools` entry carried over from the existing file trusts a whole
+ * tool, so the tool runs without prompting even for the inputs an `ask` (or an
+ * all-tools `*` restriction) was meant to stop at the prompt. Remove the
+ * entries that trust a surface carrying such a rule, and say so.
+ */
+function untrustToolsWithRestrictions({
+  nextAllowedTools,
+  shellAsks,
+  pathBuckets,
+  config,
+  logger,
+}: {
+  nextAllowedTools: Set<string>;
+  shellAsks: readonly string[];
+  pathBuckets: Record<string, { ask: string[] }>;
+  config: PermissionsConfig;
+  logger?: ToolPermissionsFromRulesyncPermissionsParams["logger"];
+}): void {
+  const allToolsRestricted = Object.entries(config.permission["*"] ?? {}).some(
+    ([, action]) => action !== "allow",
+  );
+  const restrictedSurfaces = new Set<string>();
+  if (shellAsks.length > 0 || allToolsRestricted) restrictedSurfaces.add("shell");
+  for (const surface of ["read", "write", "grep", "glob"]) {
+    if ((pathBuckets[surface]?.ask.length ?? 0) > 0 || allToolsRestricted) {
+      restrictedSurfaces.add(surface);
+    }
+  }
+  // `applyKiroWebPermission` already handles the `web_fetch`/`web_search`
+  // entries of a stated web category, but a trust-all entry covers them too;
+  // an all-tools restriction reaches them even when no web category is stated.
+  const webRestricted = ["webfetch", "websearch"].some((category) =>
+    Object.values(config.permission[category] ?? {}).some((action) => action !== "allow"),
+  );
+  if (allToolsRestricted) restrictedSurfaces.add("web");
+  // A web restriction alone still has to drop the trust-all entries.
+  if (restrictedSurfaces.size === 0 && !webRestricted) return;
+  const untrusted = [
+    ...KIRO_TRUST_ALL_TOOL_NAMES,
+    ...[...restrictedSurfaces].flatMap((surface) => KIRO_TRUSTED_TOOL_NAMES[surface] ?? []),
+  ].filter((toolName) => nextAllowedTools.delete(toolName));
+  if (untrusted.length > 0) {
+    logger?.warn(
+      `Kiro permissions: removed ${untrusted.join(", ")} from allowedTools, because trusting ` +
+        `the whole tool would auto-approve inputs that an ask rule (or a '*' category deny/ask) restricts.`,
+    );
+  }
+}
+
+/**
+ * Apply `withholdAllowsCoveredByAsks` to every path bucket. A narrower deny/ask
+ * under the all-tools `*` category covers paths too but has no path list here,
+ * so it withholds the path allows it overlaps the same way an ask does
+ * (`bash` already receives it through `honorAllToolsOnBash`).
+ */
+function withholdPathAllowsCoveredByRestrictions({
+  pathBuckets,
+  config,
+  logger,
+}: {
+  pathBuckets: Record<string, { allow: string[]; deny: string[]; ask: string[] }>;
+  config: PermissionsConfig;
+  logger?: ToolPermissionsFromRulesyncPermissionsParams["logger"];
+}): void {
+  // The all-tools catch-all is included: a `"*": "deny"` or `"ask"` there
+  // overlaps every path allow.
+  const allToolsRestrictions = Object.entries(config.permission["*"] ?? {})
+    .filter(([, action]) => action !== "allow")
+    .map(([pattern]) => pattern);
+  for (const [key, bucket] of Object.entries(pathBuckets)) {
+    bucket.allow = withholdAllowsCoveredByAsks({
+      surface: `toolsSettings.${key}.allowedPaths`,
+      allows: bucket.allow,
+      asks: bucket.ask,
+      allToolsRestrictions,
+      logger,
+    });
+  }
+}
+
+/**
+ * Kiro has no ask tier: an entry left out of an allow list prompts. An `ask`
+ * is therefore honored by withholding every allow entry it overlaps — the
+ * canonical order is `deny > ask > allow`, so an allow kept beside it (a `*`
+ * allow beside an ask on `git push *`) would auto-approve the very input the
+ * author wanted to be asked about.
+ */
+function withholdAllowsCoveredByAsks({
+  surface,
+  allows,
+  asks,
+  allToolsRestrictions = [],
+  logger,
+}: {
+  surface: string;
+  allows: string[];
+  asks: string[];
+  allToolsRestrictions?: string[];
+  logger?: ToolPermissionsFromRulesyncPermissionsParams["logger"];
+}): string[] {
+  if (asks.length === 0 && allToolsRestrictions.length === 0) {
+    return allows;
+  }
+  const shadowingRestrictions = createShadowingRestrictionsTest([
+    ...asks.map((pattern) => ({ pattern, fromAllToolsCategory: false })),
+    ...allToolsRestrictions.map((pattern) => ({ pattern, fromAllToolsCategory: true })),
+  ]);
+  const kept: string[] = [];
+  const withheld: string[] = [];
+  for (const allow of allows) {
+    (shadowingRestrictions(allow).length > 0 ? withheld : kept).push(allow);
+  }
+  if (asks.length > 0) {
+    logger?.warn(
+      `Kiro permissions do not support "ask", so ${asks.join(", ")} ${asks.length === 1 ? "is" : "are"} ` +
+        `not written to ${surface}; Kiro prompts for anything its allow list does not cover.`,
+    );
+  }
+  if (withheld.length > 0) {
+    logger?.warn(
+      `Kiro permissions: the allow rule(s) for ${withheld.join(", ")} were not written to ` +
+        `${surface} because an ask rule, or a deny/ask under the all-tools '*' category, ` +
+        `restricts the same inputs and the stricter rule wins.`,
+    );
+  }
+  return kept;
+}
+
+/**
+ * Kiro's web tools are switched on as a whole through `allowedTools`, so only
+ * a category's `*` catch-all is representable. A catch-all `allow` beside a
+ * narrower `deny`/`ask` would auto-approve the very URL or query that rule
+ * restricts, so the tool is then left out of `allowedTools` (Kiro prompts for
+ * it) — see `failSafeCatchAllAction`.
+ */
 function applyKiroWebPermission({
   category,
-  pattern,
-  action,
+  rules,
+  allToolsRules,
   nextAllowedTools,
   logger,
 }: {
   category: "webfetch" | "websearch";
-  pattern: string;
-  action: PermissionAction;
+  rules: Record<string, PermissionAction>;
+  allToolsRules: Record<string, PermissionAction> | undefined;
   nextAllowedTools: Set<string>;
   logger?: ToolPermissionsFromRulesyncPermissionsParams["logger"];
 }): void {
-  if (pattern !== "*") {
-    logger?.warn(
-      `Kiro ${category} supports only wildcard (*) via allowedTools. Skipping rule: ${pattern}`,
-    );
+  for (const [pattern, action] of Object.entries(rules)) {
+    if (pattern !== "*") {
+      logger?.warn(
+        `Kiro ${category} supports only wildcard (*) via allowedTools. Skipping ${action} rule: ${pattern}`,
+      );
+    }
+  }
+  const { action, downgraded } = failSafeCatchAllAction({ rules, allToolsRules });
+  const toolName = category === "webfetch" ? "web_fetch" : "web_search";
+  if (action === undefined) {
+    // No catch-all, but a narrower deny/ask still restricts this tool: an
+    // `allowedTools` entry carried over from the existing file would
+    // auto-approve it, so it is removed.
+    if (Object.values(rules).some((ruleAction) => ruleAction !== "allow")) {
+      nextAllowedTools.delete(toolName);
+    }
     return;
   }
-  const toolName = category === "webfetch" ? "web_fetch" : "web_search";
+  if (downgraded) {
+    logger?.warn(
+      `Kiro ${category} allows "*", but a narrower deny or ask (in it or in the "*" category) ` +
+        `cannot be expressed in allowedTools, so ${toolName} is left out of allowedTools and will not be auto-approved.`,
+    );
+  }
   if (action === "allow") {
     nextAllowedTools.add(toolName);
   } else {

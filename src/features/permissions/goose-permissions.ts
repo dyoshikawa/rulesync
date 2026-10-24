@@ -12,6 +12,7 @@ import { isRecord, isStringArray } from "../../utils/type-guards.js";
 import { loadYaml } from "../../utils/yaml.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { honorAllToolsOnBash } from "./shell-command-categories.js";
+import { failSafeCatchAllAction } from "./single-action-collapse.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -281,34 +282,48 @@ function convertRulesyncToGoosePermissionConfig({
           `Goose permission.yaml lists whole tool names, so the per-pattern "${action}" rule ` +
             `for "${category}" (pattern "${pattern}") cannot be expressed and was skipped.`,
         );
-        continue;
       }
-
-      const previous = assigned.get(toolName);
-      if (previous === action) {
-        continue;
-      }
-      if (previous !== undefined) {
-        const stricter = ACTION_RANK[action] > ACTION_RANK[previous] ? action : previous;
-        logger?.warn(
-          `Goose maps "${category}" onto the "${toolName}" tool, which already has a ` +
-            `conflicting permission ("${previous}"). Keeping the stricter "${stricter}" ` +
-            `(deny > ask > allow).`,
-        );
-        if (stricter === previous) {
-          continue;
-        }
-        // Remove the weaker assignment so the tool is not listed twice.
-        const previousList = lists[ACTION_TO_GOOSE_LIST[previous]];
-        const index = previousList.indexOf(toolName);
-        if (index !== -1) {
-          previousList.splice(index, 1);
-        }
-      }
-
-      lists[ACTION_TO_GOOSE_LIST[action]].push(toolName);
-      assigned.set(toolName, action);
     }
+
+    const { action, downgraded } = failSafeCatchAllAction({
+      rules,
+      allToolsRules: category === "*" ? undefined : config.permission["*"],
+    });
+    if (action === undefined) {
+      continue;
+    }
+    if (downgraded) {
+      logger?.warn(
+        `Goose: "${category}" allows "*", but a narrower deny or ask (in it or in the "*" ` +
+          `category) cannot be expressed in permission.yaml, so the "${toolName}" tool is listed under ` +
+          `ask_before instead of always_allow and will not be auto-approved.`,
+      );
+    }
+
+    const previous = assigned.get(toolName);
+    if (previous === action) {
+      continue;
+    }
+    if (previous !== undefined) {
+      const stricter = ACTION_RANK[action] > ACTION_RANK[previous] ? action : previous;
+      logger?.warn(
+        `Goose maps "${category}" onto the "${toolName}" tool, which already has a ` +
+          `conflicting permission ("${previous}"). Keeping the stricter "${stricter}" ` +
+          `(deny > ask > allow).`,
+      );
+      if (stricter === previous) {
+        continue;
+      }
+      // Remove the weaker assignment so the tool is not listed twice.
+      const previousList = lists[ACTION_TO_GOOSE_LIST[previous]];
+      const index = previousList.indexOf(toolName);
+      if (index !== -1) {
+        previousList.splice(index, 1);
+      }
+    }
+
+    lists[ACTION_TO_GOOSE_LIST[action]].push(toolName);
+    assigned.set(toolName, action);
   }
 
   for (const key of GOOSE_PERMISSION_LIST_KEYS) {

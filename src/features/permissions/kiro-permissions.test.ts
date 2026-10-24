@@ -383,4 +383,154 @@ describe("KiroPermissions", () => {
     expect(shell.allowedCommands).toEqual(["git *"]);
     expect(shell.deniedCommands).toEqual(["rm *"]);
   });
+
+  it("withholds allow entries that overlap an ask, since Kiro has no ask list", async () => {
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          bash: { "*": "allow", "npm *": "allow", "git push *": "ask" },
+          edit: { "*": "allow", "src/**": "ask" },
+          read: { "docs/**": "allow", "secrets/**": "ask" },
+        },
+      }),
+    });
+
+    const kiroPermissions = await KiroPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    const content = JSON.parse(kiroPermissions.getFileContent());
+    // `npm *` names no `git push` command, so it stays.
+    expect(content.toolsSettings.shell.allowedCommands).toEqual(["npm *"]);
+    expect(content.toolsSettings.write.allowedPaths).toEqual([]);
+    // `docs/**` and `secrets/**` share no path, so the allow stays.
+    expect(content.toolsSettings.read.allowedPaths).toEqual(["docs/**"]);
+  });
+
+  it("leaves web tools out of allowedTools when a narrower deny or ask is skipped", async () => {
+    await ensureDir(join(testDir, ".kiro", "agents"));
+    await writeFileContent(
+      join(testDir, ".kiro", "agents", "default.json"),
+      JSON.stringify({ allowedTools: ["web_fetch", "web_search"] }),
+    );
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          webfetch: { "*": "allow", "evil.example": "deny" },
+          websearch: { "*": "allow", "internal *": "ask" },
+        },
+      }),
+    });
+
+    const kiroPermissions = await KiroPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    const content = JSON.parse(kiroPermissions.getFileContent());
+    expect(content.allowedTools).toEqual([]);
+  });
+
+  it("removes a carried-over web tool when its category restricts a pattern without a catch-all", async () => {
+    await ensureDir(join(testDir, ".kiro", "agents"));
+    await writeFileContent(
+      join(testDir, ".kiro", "agents", "default.json"),
+      JSON.stringify({ allowedTools: ["web_fetch", "web_search"] }),
+    );
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: { webfetch: { "evil.example": "deny" } },
+      }),
+    });
+
+    const kiroPermissions = await KiroPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    expect(JSON.parse(kiroPermissions.getFileContent()).allowedTools).toEqual(["web_search"]);
+  });
+
+  it("withholds path and web allows overlapping an all-tools deny", async () => {
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: {
+          "*": { "secrets/**": "deny" },
+          read: { "*": "allow", "docs/**": "allow" },
+          webfetch: { "*": "allow" },
+        },
+      }),
+    });
+
+    const kiroPermissions = await KiroPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    const content = JSON.parse(kiroPermissions.getFileContent());
+    expect(content.toolsSettings.read.allowedPaths).toEqual(["docs/**"]);
+    expect(content.allowedTools).toEqual([]);
+  });
+
+  it("removes carried-over whole-tool trust entries that would auto-approve an ask", async () => {
+    await ensureDir(join(testDir, ".kiro", "agents"));
+    await writeFileContent(
+      join(testDir, ".kiro", "agents", "default.json"),
+      JSON.stringify({ allowedTools: ["*", "shell", "fs_read", "write", "use_aws"] }),
+    );
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: { bash: { "git push *": "ask" }, read: { "secrets/**": "ask" } },
+      }),
+    });
+
+    const kiroPermissions = await KiroPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    // `write` carries no ask, so its trust entry stays; so does the unrelated `use_aws`.
+    expect(JSON.parse(kiroPermissions.getFileContent()).allowedTools).toEqual(["use_aws", "write"]);
+  });
+
+  it("withholds path allows under an all-tools catch-all ask and untrusts grep/glob/web tools", async () => {
+    await ensureDir(join(testDir, ".kiro", "agents"));
+    await writeFileContent(
+      join(testDir, ".kiro", "agents", "default.json"),
+      JSON.stringify({ allowedTools: ["grep", "glob", "web_fetch", "use_aws"] }),
+    );
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: { "*": { "*": "ask" }, read: { "docs/**": "allow" } },
+      }),
+    });
+
+    const kiroPermissions = await KiroPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    const content = JSON.parse(kiroPermissions.getFileContent());
+    expect(content.toolsSettings.read.allowedPaths).toEqual([]);
+    expect(content.allowedTools).toEqual(["use_aws"]);
+  });
 });

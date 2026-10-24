@@ -66,6 +66,17 @@ describe("ZoocodePermissions", () => {
   });
 
   describe("fromRulesyncPermissions", () => {
+    it("withholds the allows that cover a bash ask under its own keys", async () => {
+      const permissions = await ZoocodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          bash: { "*": "allow", git: "allow", "git push": "ask" },
+        }),
+      });
+
+      expect(JSON.parse(permissions.getFileContent())).toEqual({ [ALLOWED_KEY]: [] });
+    });
+
     it("writes the zoo-code keys, not the archived lineage's roo-cline pair", async () => {
       const permissions = await ZoocodePermissions.fromRulesyncPermissions({
         outputRoot: testDir,
