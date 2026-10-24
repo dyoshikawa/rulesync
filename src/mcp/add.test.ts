@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -51,6 +52,36 @@ describe("executeAdd", () => {
 
     expect(result.success).toBe(false);
     expect(result.error).toContain("configPath must stay inside the project directory");
+  });
+
+  it.each([
+    ["a file URL", (path: string) => pathToFileURL(path).href],
+    [
+      "an upper-case file URL",
+      (path: string) => pathToFileURL(path).href.replace("file:", "FILE:"),
+    ],
+  ])("rejects %s git source outside the project and writes nothing", async (_, toSource) => {
+    const configPath = join(testDir, "rulesync.jsonc");
+    await writeFileContent(configPath, "{}\n");
+
+    const result = await executeAdd({
+      source: toSource(join(testDir, "..", "other-repo")),
+      transport: "git",
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain("A file:// source must stay inside the project directory");
+    expect(await readFileContent(configPath)).toBe("{}\n");
+  });
+
+  it("lets a file URL inside the project past the containment check", async () => {
+    const result = await executeAdd({
+      source: pathToFileURL(join(testDir, "local-repo")).href,
+      transport: "git",
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).not.toContain("must stay inside the project directory");
   });
 
   it("requires a source", async () => {

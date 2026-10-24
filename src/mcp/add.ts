@@ -1,3 +1,5 @@
+import { fileURLToPath } from "node:url";
+
 import { z } from "zod/mini";
 
 import { addCommand } from "../lib/add.js";
@@ -31,6 +33,29 @@ export const addOptionsSchema = z.object({
 export type AddOptions = z.infer<typeof addOptionsSchema>;
 
 /**
+ * Rejects a `file://` git source outside the project.
+ *
+ * The git transport clones any URL `git` accepts, a local `file:///` repository
+ * included, so without this an agent (possibly steered by repository text)
+ * could copy skill- and rule-shaped content from any repository the operator
+ * can read into the project. The scheme is matched case-insensitively and the
+ * decoded path is held to the same containment as the path options.
+ */
+async function assertFileSourceWithinCwd(source: string): Promise<void> {
+  const trimmed = source.trim();
+  if (!/^file:/iu.test(trimmed)) {
+    return;
+  }
+  let path: string;
+  try {
+    path = fileURLToPath(new URL(trimmed));
+  } catch (error) {
+    throw new Error(`source is not a valid file URL: ${trimmed}`, { cause: error });
+  }
+  await assertPathOptionWithinCwd({ path, label: "A file:// source" });
+}
+
+/**
  * Execute the rulesync add command via MCP: scaffold a feature file (when
  * `source` is a feature keyword such as `rule`) or declare and install a
  * source in rulesync.jsonc.
@@ -41,6 +66,7 @@ export async function executeAdd(options: AddOptions): Promise<McpCommandResult>
       if (!options.source) {
         throw new Error("source is required.");
       }
+      await assertFileSourceWithinCwd(options.source);
       if (options.configPath !== undefined) {
         await assertPathOptionWithinCwd({ path: options.configPath, label: "configPath" });
       }

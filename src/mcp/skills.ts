@@ -24,6 +24,11 @@ import {
 import { stringifyFrontmatter } from "../utils/frontmatter.js";
 import { ConsoleLogger } from "../utils/logger.js";
 import { resetRunWarningState } from "../utils/warned-once.js";
+import {
+  assertNoSymlinkInFeaturePath,
+  assertNoSymlinkInFeatureTree,
+  isFeatureSymlinkRefusal,
+} from "./feature-symlinks.js";
 
 const logger = new ConsoleLogger({ verbose: false, silent: true });
 
@@ -146,6 +151,11 @@ async function listSkills(): Promise<
     const skills = await Promise.all(
       dirNames.map(async (dirName) => {
         try {
+          // A skill holding a symbolic link is not listed: `get` would refuse it.
+          await assertNoSymlinkInFeatureTree({
+            featureDirPath: skillsDir,
+            dirPath: join(skillsDir, dirName),
+          });
           // Read the skill using RulesyncSkill
           const skill = await RulesyncSkill.fromDir({
             dirName,
@@ -158,6 +168,13 @@ async function listSkills(): Promise<
             frontmatter,
           };
         } catch (error) {
+          if (isFeatureSymlinkRefusal(error)) {
+            logger.debug(
+              `Skipping skill directory ${stripControlCharacters(dirName)}: ` +
+                stripControlCharacters(formatError(error)),
+            );
+            return null;
+          }
           // The name is stripped in both halves of the line: the error carries
           // the same name back, and a control character left in either can
           // erase the line and pass what follows off as rulesync's own output.
@@ -195,8 +212,15 @@ async function getSkill({ relativeDirPathFromCwd }: { relativeDirPathFromCwd: st
   });
 
   const dirName = extractDirName(relativeDirPathFromCwd);
+  const skillsDir = join(process.cwd(), RULESYNC_SKILLS_RELATIVE_DIR_PATH);
 
   try {
+    // Every file of the skill is returned to the caller, so none of them may
+    // be a symbolic link leading elsewhere.
+    await assertNoSymlinkInFeatureTree({
+      featureDirPath: skillsDir,
+      dirPath: join(skillsDir, dirName),
+    });
     const skill = await RulesyncSkill.fromDir({
       dirName,
     });
@@ -284,13 +308,18 @@ async function putSkill({
       validate: true,
     });
 
-    // Ensure skill directory exists
-    const skillDirPath = join(process.cwd(), RULESYNC_SKILLS_RELATIVE_DIR_PATH, dirName);
+    // Ensure skill directory exists. Every write below is checked first, so a
+    // symbolic link a cloned repository planted in the skill is never written
+    // through, and `mkdir -p` never creates a directory through one.
+    const skillsDir = join(process.cwd(), RULESYNC_SKILLS_RELATIVE_DIR_PATH);
+    const skillDirPath = join(skillsDir, dirName);
+    await assertNoSymlinkInFeaturePath({ featureDirPath: skillsDir, targetPath: skillDirPath });
     await ensureDir(skillDirPath);
 
     // Write the SKILL.md file
     const skillFilePath = join(skillDirPath, SKILL_FILE_NAME);
     const skillFileContent = stringifyFrontmatter(body, frontmatter);
+    await assertNoSymlinkInFeaturePath({ featureDirPath: skillsDir, targetPath: skillFilePath });
     await writeFileContent(skillFilePath, skillFileContent);
 
     // Write other files byte for byte so binary files are not corrupted
@@ -302,6 +331,7 @@ async function putSkill({
         intendedRootDir: skillDirPath,
       });
       const filePath = join(skillDirPath, fileName);
+      await assertNoSymlinkInFeaturePath({ featureDirPath: skillsDir, targetPath: filePath });
       // Ensure subdirectory exists if file has path separators
       const fileDir = join(skillDirPath, dirname(fileName));
       if (fileDir !== skillDirPath) {
