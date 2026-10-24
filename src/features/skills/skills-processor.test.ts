@@ -128,6 +128,34 @@ describe("SkillsProcessor", () => {
   });
 
   describe("Amp global skill discovery", () => {
+    it("skips malformed Amp-only global skills and imports the valid skills", async () => {
+      const home = await setupTestDirectory({ home: true });
+      try {
+        const base = join(".config", "amp", "skills");
+        await writeSkill({ testDir: home.testDir, base, dirName: "valid", body: "Valid skill" });
+        const badDir = join(home.testDir, base, "bad");
+        await ensureDir(badDir);
+        await writeFileContent(
+          join(badDir, "SKILL.md"),
+          "---\nname: bad\n---\nMissing description",
+        );
+        const logger = createMockLogger();
+        const processor = new SkillsProcessor({
+          logger,
+          outputRoot: home.testDir,
+          toolTarget: "amp",
+          global: true,
+        });
+
+        const skills = await processor.loadToolDirs();
+        expect(skills.map((skill) => skill.getDirName())).toEqual(["valid"]);
+        expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining(join(base, "bad")));
+        expect(await processor.loadToolDirsToDelete()).toEqual([]);
+      } finally {
+        await home.cleanup();
+      }
+    });
+
     it("imports the Amp-only root after the shared roots without managing it for deletion", async () => {
       const home = await setupTestDirectory({ home: true });
       try {

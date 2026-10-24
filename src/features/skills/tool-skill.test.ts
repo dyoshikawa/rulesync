@@ -14,6 +14,12 @@ describe("isAgentSkillsInteropRoot", () => {
   it("normalizes Windows separators before matching", () => {
     expect(isAgentSkillsInteropRoot(".agents\\skills")).toBe(true);
     expect(isAgentSkillsInteropRoot(".config\\agents\\skills")).toBe(true);
+    expect(isAgentSkillsInteropRoot(".config\\amp\\skills")).toBe(true);
+  });
+
+  it("matches Amp's read-only native global discovery root", () => {
+    expect(isAgentSkillsInteropRoot(".config/amp/skills")).toBe(true);
+    expect(isAgentSkillsInteropRoot("nested/.config/amp/skills")).toBe(false);
   });
 
   it("does not match tools' native roots or lookalike paths", () => {

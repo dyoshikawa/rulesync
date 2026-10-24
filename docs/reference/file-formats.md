@@ -1219,7 +1219,10 @@ musecode: # for Meta Muse Code-specific parameters (optional; project .agents/sk
 amp: # for Amp-specific parameters (optional; project .agents/skills/, global ~/.config/agents/skills/)
   # Global import also scans ~/.agents/skills/ then ~/.config/amp/skills/, in that order.
   # Both are read-only discovery roots: generation and --delete still manage only
-  # ~/.config/agents/skills/. Import does not evaluate Amp settings or custom skills paths.
+  # ~/.config/agents/skills/. Invalid skills in these roots are skipped with a warning.
+  # Rulesync deduplicates by directory name, while Amp uses frontmatter `name`.
+  # Import does not evaluate Amp settings (including amp.skills.disableGlobalAgentsSkills)
+  # or custom skills paths.
   # Amp reads the open Agent Skills standard and documents no frontmatter field beyond
   # `name`/`description`, so this section exists only to carry keys a hand-written SKILL.md adds:
   # they are imported into it and written back to the top level of the generated file instead of
