@@ -127,6 +127,7 @@ type ToolSubagentFactory = {
     loadAdditionalImportFiles?(params: {
       outputRoot: string;
       global: boolean;
+      logger?: Logger;
     }): Promise<ToolSubagent[]>;
     /**
      * Optional content-aware ownership filter for tools whose subagent files
@@ -1529,6 +1530,7 @@ export class SubagentsProcessor extends FeatureProcessor {
       const additionalSubagents = await factory.class.loadAdditionalImportFiles({
         outputRoot: this.outputRoot,
         global: this.global,
+        logger: this.logger,
       });
       toolSubagents.push(
         ...this.claimInlineSubagents({

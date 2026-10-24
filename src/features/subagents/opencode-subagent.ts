@@ -8,6 +8,8 @@ import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
+import type { Logger } from "../../utils/logger.js";
+import { quoteValueForWarning } from "../../utils/quote-value.js";
 import {
   asOpencodeEntries,
   getOpencodeAgentEntries,
@@ -79,18 +81,28 @@ export type OpenCodeSubagentParams = Omit<OpenCodeStyleSubagentParams, "frontmat
  * @see https://opencode.ai/docs/agents/
  */
 async function resolveOpenCodeAgentPrompt({
+  name,
   prompt,
   configDir,
   containmentRoot,
+  logger,
 }: {
+  name: string;
   prompt: unknown;
   configDir: string;
   containmentRoot: string | undefined;
+  logger: Logger | undefined;
 }): Promise<string> {
   if (typeof prompt !== "string") {
     return "";
   }
-  return resolveOpencodeFileTemplate({ value: prompt, configDir, containmentRoot });
+  return resolveOpencodeFileTemplate({
+    value: prompt,
+    configDir,
+    containmentRoot,
+    logger,
+    referrer: `OpenCode agent ${quoteValueForWarning(name)}`,
+  });
 }
 
 /**
@@ -103,10 +115,12 @@ async function resolveOpenCodeAgentPrompts({
   entries,
   configDir,
   containmentRoot,
+  logger,
 }: {
   entries: Record<string, unknown> | null;
   configDir: string;
   containmentRoot: string | undefined;
+  logger: Logger | undefined;
 }): Promise<Record<string, unknown> | null> {
   if (entries === null) {
     return null;
@@ -120,9 +134,11 @@ async function resolveOpenCodeAgentPrompts({
         : {
             ...entry,
             prompt: await resolveOpenCodeAgentPrompt({
+              name,
               prompt: entry.prompt,
               configDir,
               containmentRoot,
+              logger,
             }),
           };
     Object.defineProperty(resolved, name, {
@@ -291,9 +307,11 @@ export class OpenCodeSubagent extends OpenCodeStyleSubagent {
   static async loadAdditionalImportFiles({
     outputRoot = process.cwd(),
     global = false,
+    logger,
   }: {
     outputRoot?: string;
     global?: boolean;
+    logger?: Logger;
   } = {}): Promise<OpenCodeSubagent[]> {
     // Each file is lowered on its own and its `prompt` resolved against its
     // own directory before the files are merged, later files winning, as
@@ -305,6 +323,7 @@ export class OpenCodeSubagent extends OpenCodeStyleSubagent {
           entries: getOpencodeAgentEntries({ config, layout: this.layout }),
           configDir,
           containmentRoot: global ? undefined : outputRoot,
+          logger,
         }),
       ),
     );

@@ -131,7 +131,7 @@ Because that budget is finite, the array carries the diagnostics a run has no ot
 
 `rulesync init` creates the `.rulesync/` directory with sample rule, MCP, subagent, skill, hooks and permissions files, plus a `rulesync.jsonc` configuration file. Existing files are never overwritten.
 
-`init` refuses to create a file through a symbolic link that leads outside the project (the current directory), and checks every file it would create before writing any, so a cloned repository that commits `.rulesync -> ~/elsewhere` cannot make it write there. A file that already exists, or a symbolic link already occupying its path (dangling or not), counts as existing and is skipped without being written through. A `.rulesync` linked to a shared tree outside the project therefore keeps working as long as the sample files are already there, and a link that stays inside the project is written through.
+`init` never creates a file through a symbolic link (dangling or not) that leads outside the project (the current directory), so a cloned repository that commits `.rulesync -> ~/elsewhere` cannot make it write there. Such a sample file is skipped with a warning naming it, and the other files, `rulesync.jsonc` included, are still created. A file that already exists, or a symbolic link already occupying its path (dangling or not), counts as existing and is skipped without being written through. A `.rulesync` linked to a shared tree outside the project therefore keeps working: the samples it already has are kept, and the ones it lacks are reported rather than written there. A link that stays inside the project is written through.
 
 ### User-level defaults
 

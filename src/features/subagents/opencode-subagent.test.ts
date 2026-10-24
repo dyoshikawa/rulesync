@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { writeFileContent } from "../../utils/file.js";
 import { OpenCodeSubagent, OpenCodeSubagentFrontmatterSchema } from "./opencode-subagent.js";
@@ -543,13 +544,21 @@ Body content`,
       await writeFileContent(join(projectDir, "prompts", "placeholder.txt"), "");
       await symlink(join(testDir, "secret.txt"), join(projectDir, "prompts", "linked.txt"));
 
+      const logger = createMockLogger();
       const subagents = await OpenCodeSubagent.loadAdditionalImportFiles({
         outputRoot: projectDir,
+        logger,
       });
       const byName = new Map(subagents.map((agent) => [agent.getRelativeFilePath(), agent]));
 
       expect(byName.get("parent.md")?.getBody()).toBe("{file:../secret.txt}");
       expect(byName.get("linked.md")?.getBody()).toBe("{file:./prompts/linked.txt}");
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringMatching(/OpenCode agent "parent".*"\.\.\/secret\.txt" resolves outside/),
+      );
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringMatching(/OpenCode agent "linked".*"prompts\/linked\.txt" resolves outside/),
+      );
     });
 
     it("leaves {file:...} references unrestricted at global scope", async () => {

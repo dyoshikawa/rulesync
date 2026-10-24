@@ -1,8 +1,15 @@
+import { realpath } from "node:fs/promises";
 import { join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 
 import { OPENCODE_LAYOUT, type OpencodeLayout } from "../constants/opencode-paths.js";
-import { readFileContentOrNull, resolvedPathEscapesRoot, toPosixPath } from "../utils/file.js";
+import {
+  fileExists,
+  posixRelativePathEscapesRoot,
+  readFileContentOrNull,
+  resolvedRelativePath,
+  toPosixPath,
+} from "../utils/file.js";
 import type { Logger } from "../utils/logger.js";
 import { quoteValueForWarning } from "../utils/quote-value.js";
 import { isRecord, isStringArray } from "../utils/type-guards.js";
@@ -969,7 +976,8 @@ const OPENCODE_FILE_TEMPLATE_PATTERN = /^\s*\{file:(.+?)\}\s*$/;
  * checkout cannot copy an arbitrary file (credentials, say) into the project.
  * A `../` that stays inside the root (from `.opencode/opencode.json` up to the
  * project, say) is still followed. Global scope passes no root: a user config
- * may point anywhere the user chose.
+ * may point anywhere the user chose. A refused reference to a file that exists
+ * is reported through `logger`, naming `referrer` (the agent it belongs to).
  *
  * @see https://opencode.ai/docs/agents/
  */
@@ -977,10 +985,14 @@ export async function resolveOpencodeFileTemplate({
   value,
   configDir,
   containmentRoot,
+  logger,
+  referrer,
 }: {
   value: string;
   configDir: string;
   containmentRoot?: string;
+  logger?: Logger;
+  referrer?: string;
 }): Promise<string> {
   const match = OPENCODE_FILE_TEMPLATE_PATTERN.exec(value);
   if (!match) {
@@ -993,12 +1005,24 @@ export async function resolveOpencodeFileTemplate({
   }
 
   const targetPath = join(configDir, referencedPath);
-  if (
-    containmentRoot !== undefined &&
-    (await resolvedPathEscapesRoot({ rootPath: containmentRoot, targetPath }))
-  ) {
-    return value;
+  if (containmentRoot === undefined) {
+    return (await readFileContentOrNull(targetPath)) ?? value;
   }
 
-  return (await readFileContentOrNull(targetPath)) ?? value;
+  // The path that is read is the one that was checked: the real location,
+  // taken relative to the real root once, rather than the spelled path, which
+  // could be resolved differently between the check and the read.
+  const relativePath = await resolvedRelativePath({ rootPath: containmentRoot, targetPath });
+  if (posixRelativePathEscapesRoot(relativePath)) {
+    // A missing file needs no warning: it would be kept literally anyway.
+    if (await fileExists(targetPath)) {
+      logger?.warn(
+        `Kept the {file:...} prompt of ${referrer ?? "an OpenCode agent"} as literal text: ` +
+          `${quoteValueForWarning(referencedPath)} resolves outside the project, so it was not read.`,
+      );
+    }
+    return value;
+  }
+  const realRoot = await realpath(containmentRoot).catch(() => containmentRoot);
+  return (await readFileContentOrNull(join(realRoot, relativePath))) ?? value;
 }

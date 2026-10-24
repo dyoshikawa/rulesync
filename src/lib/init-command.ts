@@ -5,15 +5,14 @@ import {
   RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
-import { ensureDir } from "../utils/file.js";
 import type { Logger } from "../utils/logger.js";
 import { init } from "./init.js";
 
 export async function initCommand(logger: Logger): Promise<void> {
   logger.debug("Initializing rulesync...");
 
-  await ensureDir(RULESYNC_RELATIVE_DIR_PATH);
-
+  // `init` creates `.rulesync/` along with the first sample file it writes,
+  // after checking that the directory does not lead outside the project.
   const result = await init();
 
   // Log sample file results
@@ -24,6 +23,11 @@ export async function initCommand(logger: Logger): Promise<void> {
     if (file.created) {
       createdFiles.push(file.path);
       logger.success(`Created ${file.path}`);
+    } else if (file.outsideProject) {
+      skippedFiles.push(file.path);
+      logger.warn(
+        `Skipped ${file.path}: it would be written through a symbolic link that leads outside the project.`,
+      );
     } else {
       skippedFiles.push(file.path);
       logger.info(`Skipped ${file.path} (already exists)`);

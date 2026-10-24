@@ -25,8 +25,10 @@ import { RulesyncRule } from "../features/rules/rulesync-rule.js";
 import { RulesyncSkill } from "../features/skills/rulesync-skill.js";
 import { RulesyncSubagent } from "../features/subagents/rulesync-subagent.js";
 import {
+  assertPathResolvesInsideRoot,
   ensureDir,
   fileExists,
+  PathOutsideRootError,
   getHomeDirectory,
   readFileContent,
   writeFileContent,
@@ -51,6 +53,7 @@ const readGeneratedConfig = (): { features?: unknown; targets?: unknown } => {
 describe("init", () => {
   beforeEach(() => {
     vi.mocked(ensureDir).mockResolvedValue(undefined);
+    vi.mocked(assertPathResolvesInsideRoot).mockResolvedValue(undefined);
     vi.mocked(fileExists).mockResolvedValue(false);
     vi.mocked(writeFileContent).mockResolvedValue(undefined);
     vi.mocked(getHomeDirectory).mockReturnValue(join("/home", "tester"));
@@ -98,6 +101,28 @@ describe("init", () => {
   afterEach(() => {
     vi.clearAllMocks();
     vi.unstubAllEnvs();
+  });
+
+  describe("symbolic links out of the project", () => {
+    it("skips only the sample whose write would leave the project", async () => {
+      const overviewPath = join(RULESYNC_RULES_RELATIVE_DIR_PATH, RULESYNC_OVERVIEW_FILE_NAME);
+      vi.mocked(assertPathResolvesInsideRoot).mockImplementation(async ({ targetPath }) => {
+        if (targetPath === overviewPath) {
+          throw new PathOutsideRootError(`outside: ${targetPath}`);
+        }
+      });
+
+      const result = await init();
+
+      expect(result.sampleFiles).toContainEqual({
+        created: false,
+        path: overviewPath,
+        outsideProject: true,
+      });
+      expect(writeFileContent).not.toHaveBeenCalledWith(overviewPath, expect.anything());
+      expect(result.configFile).toMatchObject({ created: true });
+      expect(result.sampleFiles.filter((file) => file.created).length).toBeGreaterThan(0);
+    });
   });
 
   describe("return value", () => {

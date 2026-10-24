@@ -497,13 +497,6 @@ export const gitignoreCommand = async (
 ): Promise<void> => {
   const gitignorePath = join(process.cwd(), ".gitignore");
   const gitattributesPath = join(process.cwd(), ".gitattributes");
-  // Both project files are checked before either is read or written, so a
-  // committed symbolic link (dangling or not) cannot lead the write outside
-  // the project. A link that stays inside the project is written through. The
-  // `gitexclude` destination is Git's own `info/exclude`, located by Git.
-  for (const targetPath of [gitignorePath, gitattributesPath]) {
-    await assertPathResolvesInsideRoot({ rootPath: process.cwd(), targetPath });
-  }
   const config = await ConfigResolver.resolve(
     { verbose: options?.verbose, silent: options?.silent },
     { logger },
@@ -534,6 +527,14 @@ export const gitignoreCommand = async (
   // The exclude file is never looked up, read or written unless an entry is
   // routed there.
   const gitexcludePath = gitexcludeEntries.length > 0 ? await resolveGitExclude() : undefined;
+
+  // Both project files are checked before either is read or written, so a
+  // committed symbolic link (dangling or not) cannot lead the write outside
+  // the project. A link that stays inside the project is written through. The
+  // `gitexclude` destination is Git's own `info/exclude`, located by Git.
+  for (const targetPath of [gitignorePath, gitattributesPath]) {
+    await assertPathResolvesInsideRoot({ rootPath: process.cwd(), targetPath });
+  }
 
   const gitignoreResult = await updateRulesyncFile({
     filePath: gitignorePath,
