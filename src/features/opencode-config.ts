@@ -2,7 +2,7 @@ import { join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 
 import { OPENCODE_LAYOUT, type OpencodeLayout } from "../constants/opencode-paths.js";
-import { readFileContentOrNull, toPosixPath } from "../utils/file.js";
+import { readFileContentOrNull, resolvedPathEscapesRoot, toPosixPath } from "../utils/file.js";
 import type { Logger } from "../utils/logger.js";
 import { quoteValueForWarning } from "../utils/quote-value.js";
 import { isRecord, isStringArray } from "../utils/type-guards.js";
@@ -963,14 +963,24 @@ const OPENCODE_FILE_TEMPLATE_PATTERN = /^\s*\{file:(.+?)\}\s*$/;
  * the referenced file cannot be read the literal value is preserved (so the
  * reference is not silently lost).
  *
+ * When `containmentRoot` is given (project scope), a reference whose real
+ * location — every `..` segment and symbolic link resolved — lies outside it is
+ * not read and its literal value is preserved too, so importing an untrusted
+ * checkout cannot copy an arbitrary file (credentials, say) into the project.
+ * A `../` that stays inside the root (from `.opencode/opencode.json` up to the
+ * project, say) is still followed. Global scope passes no root: a user config
+ * may point anywhere the user chose.
+ *
  * @see https://opencode.ai/docs/agents/
  */
 export async function resolveOpencodeFileTemplate({
   value,
   configDir,
+  containmentRoot,
 }: {
   value: string;
   configDir: string;
+  containmentRoot?: string;
 }): Promise<string> {
   const match = OPENCODE_FILE_TEMPLATE_PATTERN.exec(value);
   if (!match) {
@@ -982,5 +992,13 @@ export async function resolveOpencodeFileTemplate({
     return value;
   }
 
-  return (await readFileContentOrNull(join(configDir, referencedPath))) ?? value;
+  const targetPath = join(configDir, referencedPath);
+  if (
+    containmentRoot !== undefined &&
+    (await resolvedPathEscapesRoot({ rootPath: containmentRoot, targetPath }))
+  ) {
+    return value;
+  }
+
+  return (await readFileContentOrNull(targetPath)) ?? value;
 }

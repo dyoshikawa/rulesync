@@ -1,3 +1,4 @@
+import { readdir, symlink } from "node:fs/promises";
 import { join } from "node:path";
 
 import * as smolToml from "smol-toml";
@@ -19,6 +20,7 @@ import {
   RULESYNC_XDG_CONFIG_HOME_DEFAULT_DIR_NAME,
 } from "../constants/rulesync-paths.js";
 import { RulesyncSkill } from "../features/skills/rulesync-skill.js";
+import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { fileExists, readFileContent, writeFileContent } from "../utils/file.js";
 import { parseJsonc } from "../utils/jsonc.js";
 import {
@@ -160,5 +162,66 @@ describe("E2E: init", () => {
     ).toBe("project-audit");
     expect(await fileExists(skillPath)).toBe(true);
     expect(await readFileContent(mcpPath)).toContain('"mcpServers"');
+  });
+
+  describe("symbolic links out of the project", () => {
+    it("should refuse to create sample files through a .rulesync linked outside the project", async () => {
+      const testDir = getTestDir();
+      const outside = await setupTestDirectory();
+      try {
+        await symlink(outside.testDir, join(testDir, ".rulesync"));
+
+        await expect(
+          execFileAsync(rulesyncCmd, [...rulesyncArgs, "init"], {
+            env: { ...process.env, HOME_DIR: getHomeDir(), NODE_ENV: "e2e" },
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("through a symbolic link"),
+        });
+        // Every write is checked first, so nothing is created on either side.
+        expect(await readdir(outside.testDir)).toEqual([]);
+        expect(await fileExists(join(testDir, RULESYNC_CONFIG_RELATIVE_FILE_PATH))).toBe(false);
+      } finally {
+        await outside.cleanup();
+      }
+    });
+
+    it("should only read a .rulesync linked outside the project whose files already exist", async () => {
+      const testDir = getTestDir();
+      const outside = await setupTestDirectory();
+      try {
+        // Populate the shared source tree the way a dotfiles checkout would be.
+        await execFileAsync(rulesyncCmd, [...rulesyncArgs, "init"], {
+          cwd: outside.testDir,
+          env: { ...process.env, HOME_DIR: getHomeDir() },
+        });
+        await symlink(join(outside.testDir, ".rulesync"), join(testDir, ".rulesync"));
+
+        await runInit();
+
+        expect(await fileExists(join(testDir, RULESYNC_CONFIG_RELATIVE_FILE_PATH))).toBe(true);
+      } finally {
+        await outside.cleanup();
+      }
+    });
+
+    it("should not create the target of a dangling rulesync.jsonc link", async () => {
+      const testDir = getTestDir();
+      const outside = await setupTestDirectory();
+      try {
+        const outsideFile = join(outside.testDir, "new-file");
+        await symlink(outsideFile, join(testDir, RULESYNC_CONFIG_RELATIVE_FILE_PATH));
+
+        const { stdout } = await execFileAsync(rulesyncCmd, [...rulesyncArgs, "init"], {
+          env: { ...process.env, HOME_DIR: getHomeDir(), NODE_ENV: "e2e" },
+        });
+
+        expect(stdout).toContain(`Skipped ${RULESYNC_CONFIG_RELATIVE_FILE_PATH}`);
+        expect(await fileExists(outsideFile)).toBe(false);
+        expect(await fileExists(join(testDir, RULESYNC_MCP_RELATIVE_FILE_PATH))).toBe(true);
+      } finally {
+        await outside.cleanup();
+      }
+    });
   });
 });

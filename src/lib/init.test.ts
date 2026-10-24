@@ -31,7 +31,7 @@ import {
   readFileContent,
   writeFileContent,
 } from "../utils/file.js";
-import { getInitWritePaths, getUserConfigFilePath, init } from "./init.js";
+import { getUserConfigFilePath, init } from "./init.js";
 
 vi.mock("../utils/file.js");
 vi.mock("../features/hooks/rulesync-hooks.js");
@@ -98,19 +98,6 @@ describe("init", () => {
   afterEach(() => {
     vi.clearAllMocks();
     vi.unstubAllEnvs();
-  });
-
-  describe("getInitWritePaths", () => {
-    it("lists the directory, the config file and every sample file init writes", async () => {
-      const result = await init();
-
-      const paths = getInitWritePaths();
-      expect(paths).toContain(RULESYNC_RELATIVE_DIR_PATH);
-      expect(paths).toContain(RULESYNC_CONFIG_RELATIVE_FILE_PATH);
-      for (const file of [...result.sampleFiles, result.configFile]) {
-        expect(paths).toContain(file.path);
-      }
-    });
   });
 
   describe("return value", () => {

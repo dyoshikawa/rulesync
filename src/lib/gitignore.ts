@@ -4,7 +4,12 @@ import { ConfigResolver } from "../config/config-resolver.js";
 import type { Feature, GitignoreDestination, RulesyncFeatures } from "../types/features.js";
 import type { ToolTarget } from "../types/tool-targets.js";
 import { formatError } from "../utils/error.js";
-import { fileExists, readFileContent, writeFileContent } from "../utils/file.js";
+import {
+  assertPathResolvesInsideRoot,
+  fileExists,
+  readFileContent,
+  writeFileContent,
+} from "../utils/file.js";
 import type { Logger } from "../utils/logger.js";
 import { resolveGitExcludePath } from "./git-client.js";
 import {
@@ -492,6 +497,13 @@ export const gitignoreCommand = async (
 ): Promise<void> => {
   const gitignorePath = join(process.cwd(), ".gitignore");
   const gitattributesPath = join(process.cwd(), ".gitattributes");
+  // Both project files are checked before either is read or written, so a
+  // committed symbolic link (dangling or not) cannot lead the write outside
+  // the project. A link that stays inside the project is written through. The
+  // `gitexclude` destination is Git's own `info/exclude`, located by Git.
+  for (const targetPath of [gitignorePath, gitattributesPath]) {
+    await assertPathResolvesInsideRoot({ rootPath: process.cwd(), targetPath });
+  }
   const config = await ConfigResolver.resolve(
     { verbose: options?.verbose, silent: options?.silent },
     { logger },

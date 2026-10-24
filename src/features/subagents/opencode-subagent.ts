@@ -81,27 +81,32 @@ export type OpenCodeSubagentParams = Omit<OpenCodeStyleSubagentParams, "frontmat
 async function resolveOpenCodeAgentPrompt({
   prompt,
   configDir,
+  containmentRoot,
 }: {
   prompt: unknown;
   configDir: string;
+  containmentRoot: string | undefined;
 }): Promise<string> {
   if (typeof prompt !== "string") {
     return "";
   }
-  return resolveOpencodeFileTemplate({ value: prompt, configDir });
+  return resolveOpencodeFileTemplate({ value: prompt, configDir, containmentRoot });
 }
 
 /**
  * Resolves the `prompt` of each inline agent entry of one config file against
  * that file's directory, so entries from several files can be merged without
- * losing where a `"{file:./path}"` reference points.
+ * losing where a `"{file:./path}"` reference points. `containmentRoot`, set at
+ * project scope, keeps a reference from reading a file outside the project.
  */
 async function resolveOpenCodeAgentPrompts({
   entries,
   configDir,
+  containmentRoot,
 }: {
   entries: Record<string, unknown> | null;
   configDir: string;
+  containmentRoot: string | undefined;
 }): Promise<Record<string, unknown> | null> {
   if (entries === null) {
     return null;
@@ -114,7 +119,11 @@ async function resolveOpenCodeAgentPrompts({
         ? rawEntry
         : {
             ...entry,
-            prompt: await resolveOpenCodeAgentPrompt({ prompt: entry.prompt, configDir }),
+            prompt: await resolveOpenCodeAgentPrompt({
+              prompt: entry.prompt,
+              configDir,
+              containmentRoot,
+            }),
           };
     Object.defineProperty(resolved, name, {
       value,
@@ -270,7 +279,8 @@ export class OpenCodeSubagent extends OpenCodeStyleSubagent {
    * `getOpencodeAgentEntries` — (in addition to the Markdown files under
    * `.opencode/agents/`). Each entry's `prompt` becomes the subagent body
    * (a `"{file:./path}"` reference is resolved relative to the config file's
-   * location); the remaining fields (`description` / `mode` / `model` /
+   * location and, at project scope, only read when it resolves inside the
+   * project); the remaining fields (`description` / `mode` / `model` /
    * `tools` / `permission` / ...) map to the frontmatter.
    *
    * Import-only: invoked by the subagents processor when loading tool files for
@@ -294,6 +304,7 @@ export class OpenCodeSubagent extends OpenCodeStyleSubagent {
         resolveOpenCodeAgentPrompts({
           entries: getOpencodeAgentEntries({ config, layout: this.layout }),
           configDir,
+          containmentRoot: global ? undefined : outputRoot,
         }),
       ),
     );

@@ -4,15 +4,16 @@ import { assertTargetsFeaturesExclusive, ConfigFile, ConfigFileSchema } from "..
 import {
   RULESYNC_CONFIG_RELATIVE_FILE_PATH,
   RULESYNC_CONFIG_SCHEMA_URL,
-  RULESYNC_RELATIVE_DIR_PATH,
   RULESYNC_USER_CONFIG_DIR_NAME,
   RULESYNC_XDG_CONFIG_HOME_DEFAULT_DIR_NAME,
 } from "../constants/rulesync-paths.js";
 import { formatError } from "../utils/error.js";
 import {
+  assertPathResolvesInsideRoot,
   ensureDir,
   fileExists,
   getHomeDirectory,
+  isSymlink,
   readFileContent,
   writeFileContent,
 } from "../utils/file.js";
@@ -48,8 +49,25 @@ const DEFAULT_CONFIG_TEMPLATE: Pick<ConfigFile, "targets" | "features"> = {
  * This is the core logic without CLI-specific logging.
  */
 export async function init(): Promise<InitResult> {
-  const sampleFiles = await createSampleFiles();
-  const configFile = await createConfigFile();
+  const samples = await planSampleFiles();
+  const configExists = await pathEntryExists(RULESYNC_CONFIG_RELATIVE_FILE_PATH);
+
+  // Every file this run creates is checked before anything is written, so a
+  // committed symbolic link (`.rulesync -> ~/elsewhere`, a dangling
+  // `rulesync.jsonc`) cannot lead a write outside the project, and a refusal
+  // leaves nothing half-created. A link that stays inside the project is
+  // written through, and a linked `.rulesync` whose files already exist is
+  // only read, so a source tree shared from a dotfiles checkout keeps working.
+  const writePaths = [
+    ...samples.filter((sample) => sample.existingPath === undefined).map((sample) => sample.path),
+    ...(configExists ? [] : [RULESYNC_CONFIG_RELATIVE_FILE_PATH]),
+  ];
+  for (const path of writePaths) {
+    await assertPathResolvesInsideRoot({ rootPath: process.cwd(), targetPath: path });
+  }
+
+  const sampleFiles = await createSampleFiles(samples);
+  const configFile = await createConfigFile(configExists);
 
   return {
     configFile,
@@ -119,10 +137,19 @@ async function loadUserConfigTemplate(): Promise<UserConfigTemplate | undefined>
   };
 }
 
-async function createConfigFile(): Promise<InitConfigFileResult> {
+/**
+ * Whether anything occupies `path`, a symbolic link included. A plain `stat`
+ * reads a dangling link as absent, and writing to it would then create the
+ * link's target, wherever that is.
+ */
+async function pathEntryExists(path: string): Promise<boolean> {
+  return (await fileExists(path)) || (await isSymlink(path));
+}
+
+async function createConfigFile(exists: boolean): Promise<InitConfigFileResult> {
   const path = RULESYNC_CONFIG_RELATIVE_FILE_PATH;
 
-  if (await fileExists(path)) {
+  if (exists) {
     return { created: false, path };
   }
 
@@ -166,51 +193,38 @@ function createSampleScaffolds() {
   ];
 }
 
-/**
- * Every path `init` may create, relative to the working directory: the
- * `.rulesync/` directory, the config file, and each sample file. Lets a caller
- * that must keep writes inside the project check them before `init` runs.
- */
-export function getInitWritePaths(): string[] {
-  return [
-    RULESYNC_RELATIVE_DIR_PATH,
-    RULESYNC_CONFIG_RELATIVE_FILE_PATH,
-    ...createSampleScaffolds().map((sample) => sample.relativeFilePath),
-  ];
+type SampleFilePlan = {
+  path: string;
+  content: string;
+  /** The candidate that already exists, when one does; nothing is written then. */
+  existingPath: string | undefined;
+};
+
+async function planSampleFiles(): Promise<SampleFilePlan[]> {
+  const plans: SampleFilePlan[] = [];
+  for (const sample of createSampleScaffolds()) {
+    let existingPath: string | undefined;
+    for (const candidatePath of sample.candidateRelativeFilePaths) {
+      if (await pathEntryExists(candidatePath)) {
+        existingPath = candidatePath;
+        break;
+      }
+    }
+    plans.push({ path: sample.relativeFilePath, content: sample.content, existingPath });
+  }
+  return plans;
 }
 
-async function createSampleFiles(): Promise<InitFileResult[]> {
-  const samples = createSampleScaffolds();
-
+async function createSampleFiles(samples: SampleFilePlan[]): Promise<InitFileResult[]> {
   const results: InitFileResult[] = [];
   for (const sample of samples) {
-    await ensureDir(dirname(sample.relativeFilePath));
-    results.push(
-      await writeIfNotExists({
-        path: sample.relativeFilePath,
-        candidatePaths: sample.candidateRelativeFilePaths,
-        content: sample.content,
-      }),
-    );
+    await ensureDir(dirname(sample.path));
+    if (sample.existingPath !== undefined) {
+      results.push({ created: false, path: sample.existingPath });
+      continue;
+    }
+    await writeFileContent(sample.path, sample.content);
+    results.push({ created: true, path: sample.path });
   }
   return results;
-}
-
-async function writeIfNotExists({
-  path,
-  candidatePaths,
-  content,
-}: {
-  path: string;
-  candidatePaths: string[];
-  content: string;
-}): Promise<InitFileResult> {
-  for (const candidatePath of candidatePaths) {
-    if (await fileExists(candidatePath)) {
-      return { created: false, path: candidatePath };
-    }
-  }
-
-  await writeFileContent(path, content);
-  return { created: true, path };
 }

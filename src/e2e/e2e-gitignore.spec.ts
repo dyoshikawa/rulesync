@@ -1,8 +1,10 @@
+import { symlink } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
 import { RULESYNC_CONFIG_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";
+import { setupTestDirectory } from "../test-utils/test-directories.js";
 import { fileExists, readFileContent, writeFileContent } from "../utils/file.js";
 import { execFileAsync, rulesyncArgs, rulesyncCmd, useTestDirectory } from "./e2e-helper.js";
 
@@ -212,6 +214,62 @@ describe("E2E: gitignore command", () => {
         ),
       });
       expect(await fileExists(join(testDir, ".gitignore"))).toBe(false);
+    });
+  });
+
+  describe("symbolic links out of the project", () => {
+    it("should refuse to write through a .gitignore linked outside the project", async () => {
+      const testDir = getTestDir();
+      const outside = await setupTestDirectory();
+      try {
+        const outsideFile = join(outside.testDir, "victim");
+        await writeFileContent(outsideFile, "original\n");
+        await symlink(outsideFile, join(testDir, ".gitignore"));
+
+        await expect(
+          execFileAsync(rulesyncCmd, [...rulesyncArgs, "gitignore", "--targets", "claudecode"], {
+            env: { ...process.env, NODE_ENV: "e2e" },
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("through a symbolic link"),
+        });
+        expect(await readFileContent(outsideFile)).toBe("original\n");
+      } finally {
+        await outside.cleanup();
+      }
+    });
+
+    it("should refuse a dangling .gitattributes link out of the project", async () => {
+      const testDir = getTestDir();
+      const outside = await setupTestDirectory();
+      try {
+        const outsideFile = join(outside.testDir, "new-file");
+        await symlink(outsideFile, join(testDir, ".gitattributes"));
+
+        await expect(
+          execFileAsync(rulesyncCmd, [...rulesyncArgs, "gitignore", "--targets", "claudecode"], {
+            env: { ...process.env, NODE_ENV: "e2e" },
+          }),
+        ).rejects.toMatchObject({
+          stderr: expect.stringContaining("dangling symbolic link"),
+        });
+        expect(await fileExists(outsideFile)).toBe(false);
+        expect(await fileExists(join(testDir, ".gitignore"))).toBe(false);
+      } finally {
+        await outside.cleanup();
+      }
+    });
+
+    it("should write through a .gitignore linked inside the project", async () => {
+      const testDir = getTestDir();
+      await writeFileContent(join(testDir, "shared", "gitignore"), "node_modules/\n");
+      await symlink(join("shared", "gitignore"), join(testDir, ".gitignore"));
+
+      await execFileAsync(rulesyncCmd, [...rulesyncArgs, "gitignore", "--targets", "claudecode"]);
+
+      const content = await readFileContent(join(testDir, "shared", "gitignore"));
+      expect(content).toContain("node_modules/");
+      expect(content).toContain("**/CLAUDE.md");
     });
   });
 });

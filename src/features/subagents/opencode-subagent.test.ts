@@ -1,3 +1,4 @@
+import { symlink } from "node:fs/promises";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -513,6 +514,58 @@ Body content`,
       const [subagent] = await OpenCodeSubagent.loadAdditionalImportFiles({ outputRoot: testDir });
 
       expect(subagent?.getBody()).toBe("{file:./missing.txt}");
+    });
+
+    it("follows a ../ {file:...} reference that stays inside the project", async () => {
+      await writeFileContent(join(testDir, "prompts", "agent.txt"), "Shared prompt");
+      await writeFileContent(
+        join(testDir, ".opencode", "opencode.json"),
+        JSON.stringify({ agent: { helper: { prompt: "{file:../prompts/agent.txt}" } } }),
+      );
+
+      const [subagent] = await OpenCodeSubagent.loadAdditionalImportFiles({ outputRoot: testDir });
+
+      expect(subagent?.getBody()).toBe("Shared prompt");
+    });
+
+    it("does not read a {file:...} reference that leaves the project at project scope", async () => {
+      const projectDir = join(testDir, "project");
+      await writeFileContent(join(testDir, "secret.txt"), "SECRET");
+      await writeFileContent(
+        join(projectDir, "opencode.json"),
+        JSON.stringify({
+          agent: {
+            parent: { prompt: "{file:../secret.txt}" },
+            linked: { prompt: "{file:./prompts/linked.txt}" },
+          },
+        }),
+      );
+      await writeFileContent(join(projectDir, "prompts", "placeholder.txt"), "");
+      await symlink(join(testDir, "secret.txt"), join(projectDir, "prompts", "linked.txt"));
+
+      const subagents = await OpenCodeSubagent.loadAdditionalImportFiles({
+        outputRoot: projectDir,
+      });
+      const byName = new Map(subagents.map((agent) => [agent.getRelativeFilePath(), agent]));
+
+      expect(byName.get("parent.md")?.getBody()).toBe("{file:../secret.txt}");
+      expect(byName.get("linked.md")?.getBody()).toBe("{file:./prompts/linked.txt}");
+    });
+
+    it("leaves {file:...} references unrestricted at global scope", async () => {
+      const homeDir = join(testDir, "home");
+      await writeFileContent(join(testDir, "shared-prompt.txt"), "Dotfiles prompt");
+      await writeFileContent(
+        join(homeDir, ".config", "opencode", "opencode.json"),
+        JSON.stringify({ agent: { helper: { prompt: "{file:../../../shared-prompt.txt}" } } }),
+      );
+
+      const [subagent] = await OpenCodeSubagent.loadAdditionalImportFiles({
+        outputRoot: homeDir,
+        global: true,
+      });
+
+      expect(subagent?.getBody()).toBe("Dotfiles prompt");
     });
 
     it("defaults the mode and round-trips into a RulesyncSubagent", async () => {

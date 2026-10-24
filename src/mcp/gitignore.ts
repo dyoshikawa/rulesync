@@ -4,14 +4,6 @@ import { gitignoreCommand } from "../lib/gitignore.js";
 import { resolveGitignoreTargets } from "../lib/resolve-gitignore-targets.js";
 import { type RulesyncFeatures } from "../types/features.js";
 import { type McpCommandResult, runCommandForMcp, stringifyResult } from "./command-runner.js";
-import { assertPathOptionWithinCwd } from "./path-options.js";
-
-/**
- * The project files gitignore writes. Checked before the run so a committed
- * symbolic link (dangling or not) cannot lead the write outside the project.
- * The `gitexclude` destination is Git's own `info/exclude`, located by Git.
- */
-const GITIGNORE_WRITE_PATHS = [".gitignore", ".gitattributes"];
 
 /**
  * Schema for gitignore options
@@ -28,13 +20,12 @@ export type GitignoreOptions = z.infer<typeof gitignoreOptionsSchema>;
 /**
  * Execute the rulesync gitignore command via MCP. Targets are resolved the same
  * way as on the CLI: explicit targets win, otherwise rulesync.jsonc decides.
+ * The command itself refuses to write `.gitignore` or `.gitattributes` through
+ * a symbolic link that leads outside the project, as it does on the CLI.
  */
 export async function executeGitignore(options: GitignoreOptions = {}): Promise<McpCommandResult> {
   return await runCommandForMcp({
     run: async (logger) => {
-      for (const path of GITIGNORE_WRITE_PATHS) {
-        await assertPathOptionWithinCwd({ path, label: path });
-      }
       const resolvedTargets = await resolveGitignoreTargets({ cliTargets: options.targets });
       await gitignoreCommand(logger, {
         targets: resolvedTargets ? [...resolvedTargets] : undefined,
