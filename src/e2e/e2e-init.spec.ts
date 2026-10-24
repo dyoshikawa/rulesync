@@ -1,5 +1,5 @@
 import { readdir, rm, symlink } from "node:fs/promises";
-import { join } from "node:path";
+import { join, normalize } from "node:path";
 
 import * as smolToml from "smol-toml";
 import { describe, expect, it } from "vitest";
@@ -184,7 +184,7 @@ describe("E2E: init", () => {
         });
 
         expect(`${stdout}${stderr}`).toContain(
-          `Skipped ${RULESYNC_HOOKS_RELATIVE_FILE_PATH}: it would be written through a symbolic link that leads outside the project or is dangling.`,
+          `Skipped ${normalize(RULESYNC_HOOKS_RELATIVE_FILE_PATH)}: it would be written through a symbolic link that leads outside the project or is dangling.`,
         );
         expect(await fileExists(outsideHooks)).toBe(false);
         expect(await fileExists(join(testDir, RULESYNC_CONFIG_RELATIVE_FILE_PATH))).toBe(true);
