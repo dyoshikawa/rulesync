@@ -28,6 +28,9 @@ vi.mock("../github-client.js", () => ({
     getFileContent(...args: any[]) {
       return mockClientInstance.getFileContent(...args);
     }
+    compareCommits(...args: any[]) {
+      return mockClientInstance.compareCommits(...args);
+    }
   },
   GitHubClientError: class GitHubClientError extends Error {
     statusCode?: number;
@@ -55,6 +58,7 @@ describe("installApm", () => {
       resolveRefToSha: vi.fn().mockResolvedValue(VALID_SHA),
       listDirectory: vi.fn(),
       getFileContent: vi.fn(),
+      compareCommits: vi.fn().mockResolvedValue("identical"),
     };
   });
 
@@ -1004,4 +1008,218 @@ dependencies:
     expect(await fileExists(join(testDir, "escape.md"))).toBe(false);
     expect(await fileExists(join(testDir, ".github/instructions/escape.md"))).toBe(false);
   });
+
+  it("refuses to remove stale files outside the apm deploy directories", async () => {
+    await writeFileContent(join(testDir, ".git", "HEAD"), "ref: refs/heads/main\n");
+    await writeFileContent(join(testDir, "notes.txt"), "untracked");
+    await writeFileContent(join(testDir, ".github/instructions-evil/x.md"), "lookalike");
+    await writeFileContent(join(testDir, ".github/skills-extra/y.md"), "lookalike");
+    await writeFileContent(join(testDir, ".github/instructions/old.instructions.md"), "stale");
+    await writeFileContent(
+      getApmLockPath(testDir),
+      staleLockYaml([
+        ".git/HEAD",
+        "notes.txt",
+        ".github/instructions-evil/x.md",
+        ".github/skills-extra/y.md",
+        ".github/instructions/old.instructions.md",
+      ]),
+    );
+    await writeManifest(
+      `dependencies:
+  apm:
+    - acme/security#v1.0.0
+`,
+    );
+    mockClientInstance.listDirectory.mockResolvedValue([]);
+
+    const localLogger = createMockLogger();
+    await installApm({ projectRoot: testDir, logger: localLogger, options: { update: true } });
+
+    expect(await fileExists(join(testDir, ".git", "HEAD"))).toBe(true);
+    expect(await fileExists(join(testDir, "notes.txt"))).toBe(true);
+    expect(await fileExists(join(testDir, ".github/instructions-evil/x.md"))).toBe(true);
+    expect(await fileExists(join(testDir, ".github/skills-extra/y.md"))).toBe(true);
+    expect(await fileExists(join(testDir, ".github/instructions/old.instructions.md"))).toBe(false);
+    const warnMessages = localLogger.warn.mock.calls.map((args) => String(args[0]));
+    expect(
+      warnMessages.filter((m) => m.includes("outside the apm deploy directories")),
+    ).toHaveLength(4);
+  });
+
+  it.skipIf(process.platform === "win32")(
+    "unlinks a stale file that is itself a symbolic link without touching its target",
+    async () => {
+      await writeFileContent(join(testDir, "kept.md"), "link target");
+      await mkdir(join(testDir, ".github", "instructions"), { recursive: true });
+      await symlink(
+        join("..", "..", "kept.md"),
+        join(testDir, ".github", "instructions", "old.instructions.md"),
+      );
+      await writeFileContent(
+        getApmLockPath(testDir),
+        staleLockYaml([".github/instructions/old.instructions.md"]),
+      );
+      await writeManifest(
+        `dependencies:
+  apm:
+    - acme/security#v1.0.0
+`,
+      );
+      mockClientInstance.listDirectory.mockResolvedValue([]);
+
+      await installApm({ projectRoot: testDir, logger, options: { update: true } });
+
+      expect(await readdir(join(testDir, ".github", "instructions"))).toEqual([]);
+      expect(await readFileContent(join(testDir, "kept.md"))).toBe("link target");
+    },
+  );
+
+  it("checks the locked commit against the declared ref's history", async () => {
+    await writeManifest(
+      `dependencies:
+  apm:
+    - acme/security#v1.0.0
+`,
+    );
+    mockClientInstance.listDirectory.mockResolvedValue([]);
+    await installApm({ projectRoot: testDir, logger });
+    const lockBefore = await readApmLock(testDir);
+
+    mockClientInstance.compareCommits.mockResolvedValue("diverged");
+    const result = await installApm({ projectRoot: testDir, logger });
+
+    expect(mockClientInstance.compareCommits).toHaveBeenLastCalledWith({
+      owner: "acme",
+      repo: "security",
+      base: VALID_SHA,
+      head: "v1.0.0",
+    });
+    expect(result.failedDependencyCount).toBe(1);
+    expect((await readApmLock(testDir))?.dependencies).toEqual(lockBefore?.dependencies);
+
+    await expect(
+      installApm({ projectRoot: testDir, logger, options: { frozen: true } }),
+    ).rejects.toThrow(/not in the ref's history \(diverged\)/);
+  });
+
+  it("--frozen refuses a locked default branch that is no longer the default branch", async () => {
+    await writeManifest(
+      `dependencies:
+  apm:
+    - acme/security
+`,
+    );
+    mockClientInstance.listDirectory.mockResolvedValue([]);
+    await installApm({ projectRoot: testDir, logger });
+
+    mockClientInstance.getDefaultBranch.mockResolvedValue("trunk");
+    await expect(
+      installApm({ projectRoot: testDir, logger, options: { frozen: true } }),
+    ).rejects.toThrow(/\(ref main\), but the ref to install is trunk/);
+    expect(mockClientInstance.resolveRefToSha).toHaveBeenCalledTimes(1);
+  });
+
+  it("re-resolves a dependency whose declared ref no longer matches the lock", async () => {
+    await writeManifest(
+      `dependencies:
+  apm:
+    - acme/security#v1.0.0
+`,
+    );
+    mockClientInstance.listDirectory.mockResolvedValue([]);
+    await installApm({ projectRoot: testDir, logger });
+
+    await writeManifest(
+      `dependencies:
+  apm:
+    - acme/security#v2.0.0
+`,
+    );
+    mockClientInstance.resolveRefToSha.mockResolvedValue(SECOND_SHA);
+    await installApm({ projectRoot: testDir, logger });
+
+    expect(mockClientInstance.resolveRefToSha).toHaveBeenLastCalledWith(
+      "acme",
+      "security",
+      "v2.0.0",
+    );
+    const lock = await readApmLock(testDir);
+    expect(lock?.dependencies[0]).toMatchObject({
+      resolved_commit: SECOND_SHA,
+      resolved_ref: "v2.0.0",
+    });
+  });
+
+  it.skipIf(process.platform === "win32")(
+    "--frozen checks every dependency's targets before writing any dependency",
+    async () => {
+      const projectRoot = join(testDir, "project");
+      const outsideDir = join(testDir, "outside");
+      await mkdir(join(projectRoot, ".github"), { recursive: true });
+      await mkdir(outsideDir, { recursive: true });
+      // Only the second dependency deploys skills, and their directory is a
+      // link: it must fail without the first dependency's file being written.
+      await symlink(outsideDir, join(projectRoot, ".github", "skills"));
+      const lockEntry = (
+        repo: string,
+        deployed: string,
+      ): string => `  - repo_url: https://github.com/acme/${repo}
+    resolved_commit: ${VALID_SHA}
+    resolved_ref: v1.0.0
+    depth: 1
+    package_type: apm_package
+    content_hash: "sha256:legacy"
+    deployed_files:
+      - ${deployed}
+`;
+      await writeFileContent(
+        getApmLockPath(projectRoot),
+        `lockfile_version: "1"
+generated_at: "2026-04-20T00:00:00Z"
+apm_version: "0.7.7"
+dependencies:
+${lockEntry("first", ".github/instructions/a.instructions.md")}${lockEntry("second", ".github/skills/s/SKILL.md")}`,
+      );
+      await writeFileContent(
+        getApmManifestPath(projectRoot),
+        `dependencies:
+  apm:
+    - acme/first#v1.0.0
+    - acme/second#v1.0.0
+`,
+      );
+      mockClientInstance.listDirectory.mockImplementation(
+        async (_owner: string, repo: string, path: string) => {
+          if (repo === "first" && path === ".apm/instructions") {
+            return [
+              {
+                name: "a.instructions.md",
+                path: ".apm/instructions/a.instructions.md",
+                type: "file",
+                size: 10,
+              },
+            ];
+          }
+          if (repo === "second" && path === ".apm/skills") {
+            return [{ name: "s", path: ".apm/skills/s", type: "dir", size: 0 }];
+          }
+          if (repo === "second" && path === ".apm/skills/s") {
+            return [{ name: "SKILL.md", path: ".apm/skills/s/SKILL.md", type: "file", size: 10 }];
+          }
+          return [];
+        },
+      );
+      mockClientInstance.getFileContent.mockResolvedValue("content");
+
+      await expect(installApm({ projectRoot, logger, options: { frozen: true } })).rejects.toThrow(
+        /symbolic link/,
+      );
+
+      expect(await readdir(outsideDir)).toEqual([]);
+      expect(await fileExists(join(projectRoot, ".github/instructions/a.instructions.md"))).toBe(
+        false,
+      );
+    },
+  );
 });

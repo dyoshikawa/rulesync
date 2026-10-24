@@ -124,7 +124,7 @@ describe("initCommand", () => {
       expect(ensureDir).toHaveBeenCalledWith(
         join(RULESYNC_SKILLS_RELATIVE_DIR_PATH, "project-context"),
       );
-      expect(ensureDir).toHaveBeenCalledTimes(7);
+      expect(ensureDir).toHaveBeenCalledTimes(6);
     });
 
     it("should call createSampleFiles", async () => {
@@ -242,13 +242,13 @@ describe("initCommand", () => {
   });
 
   describe("error handling", () => {
-    it("should handle ensureDir errors for main directory", async () => {
+    it("should handle ensureDir errors for the first sample directory", async () => {
       vi.mocked(ensureDir).mockRejectedValueOnce(new Error("Permission denied"));
 
       await expect(initCommand(mockLogger)).rejects.toThrow("Permission denied");
 
       expect(mockLogger.debug).toHaveBeenCalledWith("Initializing rulesync...");
-      expect(ensureDir).toHaveBeenCalledWith(RULESYNC_RELATIVE_DIR_PATH);
+      expect(ensureDir).toHaveBeenCalledWith(RULESYNC_RULES_RELATIVE_DIR_PATH);
       expect(mockLogger.success).not.toHaveBeenCalled();
     });
 
@@ -269,7 +269,7 @@ describe("initCommand", () => {
       await expect(initCommand(mockLogger)).rejects.toThrow("File system error");
 
       expect(mockLogger.debug).toHaveBeenCalledWith("Initializing rulesync...");
-      expect(ensureDir).toHaveBeenCalledWith(RULESYNC_RELATIVE_DIR_PATH);
+      expect(writeFileContent).not.toHaveBeenCalled();
     });
 
     it("should handle writeFileContent errors", async () => {
@@ -320,7 +320,6 @@ describe("initCommand", () => {
       await initCommand(mockLogger);
 
       expect(ensureDirCalls).toEqual([
-        RULESYNC_RELATIVE_DIR_PATH,
         RULESYNC_RULES_RELATIVE_DIR_PATH,
         RULESYNC_RELATIVE_DIR_PATH,
         RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,

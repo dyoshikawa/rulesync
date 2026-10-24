@@ -3371,6 +3371,220 @@ describe("resolveAndFetchSources", () => {
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("Integrity mismatch"));
   });
 
+  it("should re-resolve a GitHub source whose declared ref differs from the locked requestedRef", async () => {
+    const { readLockFile } = await import("./sources-lock.js");
+    vi.mocked(readLockFile).mockResolvedValue({
+      lockfileVersion: 1,
+      sources: {
+        "org/repo": {
+          resolvedRef: "locked-sha-123",
+          requestedRef: "main",
+          skills: { "my-skill": { integrity: "sha256-old-hash" } },
+        },
+      },
+    });
+    mockClientInstance.resolveRefToSha.mockResolvedValue("new-sha-456");
+    mockClientInstance.listDirectory.mockResolvedValue([]);
+
+    await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "org/repo", ref: "v2" }],
+      projectRoot: testDir,
+    });
+
+    expect(mockClientInstance.resolveRefToSha).toHaveBeenCalledWith("org", "repo", "v2");
+    expect(mockClientInstance.listDirectory).not.toHaveBeenCalledWith(
+      "org",
+      "repo",
+      expect.anything(),
+      "locked-sha-123",
+    );
+  });
+
+  it("should refuse under --frozen when the declared ref differs from the locked requestedRef", async () => {
+    const { readLockFile } = await import("./sources-lock.js");
+    vi.mocked(readLockFile).mockResolvedValue({
+      lockfileVersion: 1,
+      sources: {
+        "org/repo": {
+          resolvedRef: "locked-sha-123",
+          requestedRef: "main",
+          skills: { "my-skill": { integrity: "sha256-old-hash" } },
+        },
+      },
+    });
+
+    await expect(
+      resolveAndFetchSources({
+        logger,
+        sources: [{ source: "org/repo", ref: "v2" }],
+        projectRoot: testDir,
+        options: { frozen: true },
+      }),
+    ).rejects.toThrow(
+      /declared ref does not match the lockfile for: org\/repo \(declared=v2, lock=main\)/,
+    );
+    expect(mockClientInstance.resolveRefToSha).not.toHaveBeenCalled();
+  });
+
+  it("should re-resolve a git source whose declared ref differs from the locked requestedRef", async () => {
+    const { fetchSkillFiles, resolveRefToSha } = await import("./git-client.js");
+    const { readLockFile } = await import("./sources-lock.js");
+    const source = "https://example.com/team/assets.git";
+    const newSha = "a".repeat(40);
+    vi.mocked(readLockFile).mockResolvedValue({
+      lockfileVersion: 1,
+      sources: {
+        [source]: {
+          requestedRef: "main",
+          resolvedRef: "b".repeat(40),
+          skills: { shared: { integrity: "sha256-old-skill" } },
+        },
+      },
+    });
+    vi.mocked(resolveRefToSha).mockResolvedValue(newSha);
+    vi.mocked(fetchSkillFiles).mockResolvedValue([]);
+
+    await resolveAndFetchSources({
+      logger,
+      sources: [{ source, transport: "git", ref: "release" }],
+      projectRoot: testDir,
+    });
+
+    expect(resolveRefToSha).toHaveBeenCalledWith(source, "release");
+    expect(fetchSkillFiles).toHaveBeenCalledWith(
+      expect.objectContaining({ url: source, ref: "release", resolvedRef: newSha }),
+    );
+  });
+
+  it("should keep the locked commit of an entry that records no requestedRef", async () => {
+    const { readLockFile, writeLockFile } = await import("./sources-lock.js");
+    vi.mocked(readLockFile).mockResolvedValue({
+      lockfileVersion: 1,
+      sources: {
+        "org/repo": {
+          resolvedRef: "locked-sha-123",
+          skills: { "my-skill": { integrity: "sha256-old-hash" } },
+        },
+      },
+    });
+    // The curated skill is missing on disk, so it is fetched again at the
+    // locked commit and the entry is written back.
+    vi.mocked(directoryExists).mockResolvedValue(false);
+    mockClientInstance.listDirectory.mockImplementation(
+      async (_owner: string, _repo: string, path: string) => {
+        if (path === "skills") {
+          return [{ name: "my-skill", path: "skills/my-skill", type: "dir" }];
+        }
+        if (path === "skills/my-skill") {
+          return [{ name: "SKILL.md", path: "skills/my-skill/SKILL.md", type: "file", size: 100 }];
+        }
+        return [];
+      },
+    );
+    mockClientInstance.getFileContent.mockResolvedValue("skill content");
+
+    await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "org/repo", ref: "v2" }],
+      projectRoot: testDir,
+    });
+    expect(mockClientInstance.listDirectory).toHaveBeenCalledWith(
+      "org",
+      "repo",
+      "skills",
+      "locked-sha-123",
+    );
+    const writtenLock = vi.mocked(writeLockFile).mock.calls.at(-1)?.[0].lock;
+    expect(writtenLock?.sources["org/repo"]).toMatchObject({
+      resolvedRef: "locked-sha-123",
+      requestedRef: "v2",
+    });
+
+    await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "org/repo", ref: "v2" }],
+      projectRoot: testDir,
+      options: { frozen: true },
+    });
+
+    expect(mockClientInstance.resolveRefToSha).not.toHaveBeenCalled();
+  });
+
+  it("should keep the locked commit when the declared ref is dropped", async () => {
+    // Without a declared ref the locked requestedRef is the default branch it
+    // resolved to, which cannot be told from a dropped ref offline.
+    const { readLockFile } = await import("./sources-lock.js");
+    vi.mocked(readLockFile).mockResolvedValue({
+      lockfileVersion: 1,
+      sources: {
+        "org/repo": {
+          resolvedRef: "locked-sha-123",
+          requestedRef: "v1",
+          skills: { "my-skill": { integrity: "sha256-old-hash" } },
+        },
+      },
+    });
+    mockClientInstance.listDirectory.mockResolvedValue([]);
+
+    await resolveAndFetchSources({
+      logger,
+      sources: [{ source: "org/repo" }],
+      projectRoot: testDir,
+      options: { frozen: true },
+    });
+
+    expect(mockClientInstance.resolveRefToSha).not.toHaveBeenCalled();
+  });
+
+  it("should re-resolve git-transport rules whose declared ref differs from the locked requestedRef", async () => {
+    const { fetchSkillFiles, resolveRefToSha } = await import("./git-client.js");
+    const { readLockFile } = await import("./sources-lock.js");
+    const source = "https://example.com/team/rules.git";
+    const newSha = "a".repeat(40);
+    vi.mocked(readLockFile).mockResolvedValue({
+      lockfileVersion: 1,
+      sources: {
+        [source]: {
+          requestedRef: "main",
+          resolvedRef: "b".repeat(40),
+          skills: {},
+          rules: { "testing-guidelines": { integrity: computeRuleIntegrity("old rule") } },
+          ruleSelection: ["testing-guidelines"],
+          rulesPath: "exports/rules",
+          resolvedRuleNames: ["testing-guidelines"],
+        },
+      },
+    });
+    vi.mocked(resolveRefToSha).mockResolvedValue(newSha);
+    vi.mocked(fetchSkillFiles).mockResolvedValue([
+      {
+        relativePath: "testing-guidelines.md",
+        content: "---\ntargets: ['*']\n---\nUse Vitest.",
+        size: 50,
+      },
+    ]);
+
+    await resolveAndFetchSources({
+      logger,
+      sources: [
+        {
+          source,
+          transport: "git",
+          ref: "release",
+          rules: ["testing-guidelines"],
+          rulesPath: "exports/rules",
+        },
+      ],
+      projectRoot: testDir,
+    });
+
+    expect(resolveRefToSha).toHaveBeenCalledWith(source, "release");
+    expect(fetchSkillFiles).toHaveBeenCalledWith(
+      expect.objectContaining({ url: source, ref: "release", resolvedRef: newSha }),
+    );
+  });
+
   it("should refuse an integrity mismatch under --frozen without writing the skill", async () => {
     const { readLockFile } = await import("./sources-lock.js");
 

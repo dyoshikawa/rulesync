@@ -55,7 +55,7 @@ describe("executeGitignore", () => {
         const result = await executeGitignore({ targets: ["claudecode"] });
 
         expect(result.success).toBe(false);
-        expect(result.error).toContain("must stay inside the project directory");
+        expect(result.error).toContain("symbolic link");
         expect(await readFileContent(outsideFile)).toBe("original\n");
       } finally {
         await outside.cleanup();
@@ -71,7 +71,7 @@ describe("executeGitignore", () => {
       const result = await executeGitignore({ targets: ["claudecode"] });
 
       expect(result.success).toBe(false);
-      expect(result.error).toContain("must stay inside the project directory");
+      expect(result.error).toContain("symbolic link");
     } finally {
       await outside.cleanup();
     }

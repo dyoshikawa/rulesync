@@ -150,6 +150,8 @@ When `rulesync install` runs and `sources` is configured:
 
 When `--mode` is omitted, rulesync defaults to `rulesync` mode. If `apm.yml` is present and `sources` is also defined, you must pass `--mode apm` or `--mode rulesync` to disambiguate.
 
+In `--mode apm`, a plain install uses the commit recorded in `rulesync-apm.lock.yaml` only while the lock entry's ref is still the one `apm.yml` declares (or, without one, the repository's default branch), and only after checking that the commit is still in that ref's history in the dependency's repository; a commit that is gone upstream or only exists in a fork fails the dependency, and `--update` re-resolves it. A changed ref is resolved again (`--frozen` fails instead). Under `--frozen`, every dependency's files are checked before any of them is written. Stale files from a previous install are only removed from `.github/instructions/` and `.github/skills/`; any other path the lockfile names is left alone with a warning.
+
 ### `--mode gh` — gh-skill-install–compatible layout
 
 `--mode gh` reads the same `sources` array from `rulesync.jsonc` but writes each discovered skill into the agent-specific directory expected by `gh skill install`. Each source supports two extra fields:
@@ -215,7 +217,7 @@ A plain `rulesync install --mode gh` installs each source at the commit recorded
 
 At project scope, a deployed file is refused when any path component below the project root — the install directory, the skill directory, or the file itself — is a symbolic link, and the install fails with `Refusing to follow a symbolic link`. This stops a cloned repository from committing a link such as `.agents/skills/x/config -> ../../../.git/config` that would send the remote bytes into another file of the project. User scope is not checked, so a `~/.claude` linked into a dotfiles checkout keeps working.
 
-Files that a previous run deployed and the upstream no longer ships are removed again, but only from that skill's own install directory. Because `rulesync-gh.lock.yaml` is committed with the project, user-scope files are only cleaned up while the current config still installs the same source with the same agent at user scope; otherwise rulesync warns and leaves them for you to remove.
+Files that a previous run deployed and the upstream no longer ships are removed again, but only from that skill's own install directory. A stale file that is itself a symbolic link is removed as a link, without touching its target; a stale file reached through a linked directory is left alone with a warning. Because `rulesync-gh.lock.yaml` is committed with the project, user-scope files are only cleaned up while the current config still installs the same source with the same agent at user scope; otherwise rulesync warns and leaves them for you to remove.
 
 ## CLI Options
 
@@ -279,6 +281,8 @@ The lockfile at `rulesync.lock` (at the project root) records the resolved commi
 ```
 
 To update locked refs, run `rulesync install --update`.
+
+A locked commit is only reused for the ref it was resolved from: when the `ref` a git or GitHub source declares (in `ref` or in the source string, such as `owner/repo@v2`) differs from the entry's `requestedRef`, a plain `rulesync install` resolves the source again, and `--frozen` fails instead. For a source that declares a `ref`, an entry that records no `requestedRef` (for example one migrated from an older lockfile) keeps its locked commit and passes `--frozen`; the declared ref is recorded on it the next time the entry is written. Removing a source's `ref` altogether is not detected, because the `requestedRef` of a source without one is the default branch it resolved to: the locked commit stays in use until `rulesync install --update`. For the git transport, `ref` must name a branch or a tag exactly (`v1` never matches a branch such as `feature/v1`); an annotated tag resolves to the commit it points at, and a name that is both a branch and a tag pointing at different commits is refused as ambiguous.
 
 ### Checking for Outdated Sources
 

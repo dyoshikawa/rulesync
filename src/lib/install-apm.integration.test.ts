@@ -30,6 +30,9 @@ vi.mock("./github-client.js", () => ({
     getFileContent(...args: any[]) {
       return mockClientInstance.getFileContent(...args);
     }
+    compareCommits(...args: any[]) {
+      return mockClientInstance.compareCommits(...args);
+    }
   },
   GitHubClientError: class GitHubClientError extends Error {
     statusCode?: number;
@@ -57,6 +60,7 @@ describe("installCommand --mode apm (happy path)", () => {
       resolveRefToSha: vi.fn().mockResolvedValue(VALID_SHA),
       listDirectory: vi.fn(),
       getFileContent: vi.fn(),
+      compareCommits: vi.fn().mockResolvedValue("identical"),
     };
   });
 

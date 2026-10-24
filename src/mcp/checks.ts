@@ -17,6 +17,7 @@ import {
   writeFileContent,
 } from "../utils/file.js";
 import { ConsoleLogger } from "../utils/logger.js";
+import { assertNoSymlinkInFeaturePath, isFeatureSymlinkRefusal } from "./feature-symlinks.js";
 
 const logger = new ConsoleLogger({ verbose: false, silent: true });
 
@@ -41,6 +42,11 @@ async function listChecks(): Promise<
     const checks = await Promise.all(
       mdFiles.map(async (file) => {
         try {
+          // A linked check file is not listed: `get` would refuse it.
+          await assertNoSymlinkInFeaturePath({
+            featureDirPath: checksDir,
+            targetPath: join(checksDir, file),
+          });
           const check = await RulesyncCheck.fromFile({
             relativeFilePath: file,
             validate: true,
@@ -51,6 +57,10 @@ async function listChecks(): Promise<
             frontmatter: check.getFrontmatter(),
           };
         } catch (error) {
+          if (isFeatureSymlinkRefusal(error)) {
+            logger.debug(`Skipping check file ${file}: ${formatError(error)}`);
+            return null;
+          }
           logger.error(`Failed to read check file ${file}: ${formatError(error)}`);
           return null;
         }
@@ -81,8 +91,13 @@ async function getCheck({ relativePathFromCwd }: { relativePathFromCwd: string }
   });
 
   const filename = basename(relativePathFromCwd);
+  const checksDir = join(process.cwd(), RULESYNC_CHECKS_RELATIVE_DIR_PATH);
 
   try {
+    await assertNoSymlinkInFeaturePath({
+      featureDirPath: checksDir,
+      targetPath: join(checksDir, filename),
+    });
     const check = await RulesyncCheck.fromFile({
       relativeFilePath: filename,
       validate: true,
@@ -157,7 +172,11 @@ async function putCheck({
     const checksDir = join(process.cwd(), RULESYNC_CHECKS_RELATIVE_DIR_PATH);
     await ensureDir(checksDir);
 
-    // Write the file
+    // Write the file, never through a symbolic link a cloned repository planted
+    await assertNoSymlinkInFeaturePath({
+      featureDirPath: checksDir,
+      targetPath: check.getFilePath(),
+    });
     await writeFileContent(check.getFilePath(), check.getFileContent());
 
     return {

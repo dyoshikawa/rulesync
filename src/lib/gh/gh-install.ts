@@ -12,6 +12,7 @@ import {
   getHomeDirectory,
   PathOutsideRootError,
   removeFile,
+  removeFileWithoutFollowingSymlinks,
   toPosixPath,
   writeFileContent,
 } from "../../utils/file.js";
@@ -1037,9 +1038,9 @@ async function removeStaleFile(params: {
   const absolute = join(scopeRoot, relativePath);
   if (scope === "project") {
     try {
-      // A link as the stale file itself is left alone too: unlinking it would
-      // be safe, but it is not a file this install wrote.
-      await assertNoSymlinkBelowRoot({ rootPath: scopeRoot, targetPath: absolute });
+      // No parent component may be a link; a stale file that is itself a link
+      // is unlinked without following it.
+      await removeFileWithoutFollowingSymlinks({ rootPath: scopeRoot, targetPath: absolute });
     } catch (error) {
       logger.warn(
         error instanceof PathOutsideRootError
@@ -1048,8 +1049,9 @@ async function removeStaleFile(params: {
       );
       return;
     }
+  } else {
+    await removeFile(absolute);
   }
-  await removeFile(absolute);
   logger.debug(`Removed stale gh file: ${relativePath}`);
 }
 

@@ -131,6 +131,8 @@ Because that budget is finite, the array carries the diagnostics a run has no ot
 
 `rulesync init` creates the `.rulesync/` directory with sample rule, MCP, subagent, skill, hooks and permissions files, plus a `rulesync.jsonc` configuration file. Existing files are never overwritten.
 
+`init` never creates a file through a symbolic link that leads outside the project (the current directory) or is dangling, so a cloned repository that commits `.rulesync -> ~/elsewhere` cannot make it write there. Such a sample file is skipped with a warning naming it, and the other files, `rulesync.jsonc` included, are still created. A file that already exists, or a symbolic link already occupying its path (dangling or not), counts as existing and is skipped without being written through. A `.rulesync` linked to a shared tree outside the project therefore keeps working: the samples it already has are kept, and the ones it lacks are reported rather than written there. A link that stays inside the project is written through.
+
 ### User-level defaults
 
 The generated `rulesync.jsonc` starts from `"targets": ["codexcli", "claudecode", "opencode"]` and `"features": ["rules", "mcp", "subagents", "skills", "hooks", "permissions"]`. To seed every new project with your own set instead, put a `rulesync.jsonc` in the user config directory: `$XDG_CONFIG_HOME/rulesync/rulesync.jsonc`, which is `~/.config/rulesync/rulesync.jsonc` when `XDG_CONFIG_HOME` is unset (a relative `XDG_CONFIG_HOME` is ignored, as the XDG specification requires).
@@ -421,6 +423,8 @@ The `gitignore` command adds generated AI tool configuration files to `.gitignor
 You can route entries to `.gitattributes` instead by setting `gitignoreDestination` to `"gitattributes"` at root, tool, or tool × feature level. More specific settings take precedence.
 
 Set `gitignoreDestination` to `"gitexclude"` to write entries to Git's untracked, repository-local exclude file (`$GIT_COMMON_DIR/info/exclude`, usually `.git/info/exclude`) instead of a tracked file — for example from `rulesync.local.jsonc`. The path is resolved with `git rev-parse --git-path info/exclude`, so linked worktrees are supported, and the command fails with an error when the project is not inside a Git repository or is not at the repository root. Only the rulesync-fenced block in the exclude file is rewritten, and the file is untouched unless an entry is routed there. Because `.gitignore` takes precedence over the exclude file, an entry shared with a target still routed to `"gitignore"` also stays in `.gitignore`. See [Configuration](../guide/configuration.md#per-feature-options) for details.
+
+`gitignore` refuses to read or write `.gitignore` or `.gitattributes` when either is a symbolic link that leads outside the project (or a dangling link), so a cloned repository cannot make it append to a file elsewhere. A link that stays inside the project is written through. The `gitexclude` destination is located by Git and is not checked this way.
 
 > **No `rulesync.jsonc` in the project?** Entries for all supported tools are emitted. `gitignoreTargetsOnly` is only applied when a config file exists, so users without a config still get useful `.gitignore` coverage.
 
