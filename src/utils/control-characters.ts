@@ -60,6 +60,19 @@ export function stripControlCharactersKeepingLineFeeds(text: string): string {
 }
 
 /**
+ * Removes every control character from `text` except the line feed and the
+ * tab, for multi-line Markdown from a remote (a release body, say) whose
+ * paragraphs, lists and code blocks depend on both. Carriage returns still go,
+ * so CRLF text comes out as LF.
+ */
+export function stripControlCharactersKeepingLineFeedsAndTabs(text: string): string {
+  return text
+    .split("\n")
+    .map((line) => line.split("\t").map(stripControlCharacters).join("\t"))
+    .join("\n");
+}
+
+/**
  * Matches the characters that take no width of their own.
  *
  * `Default_Ignorable_Code_Point` is the Unicode property for exactly this — the

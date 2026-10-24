@@ -411,4 +411,25 @@ describe("formatReleaseNotesMarkdown", () => {
     expect(markdown).toContain("## v1.0.0\n");
     expect(markdown).not.toContain("v1.0.0 — v1.0.0");
   });
+
+  it("strips terminal control sequences from remote tag names, names and bodies", () => {
+    const markdown = formatReleaseNotesMarkdown({
+      owner: "owner",
+      repo: "repo",
+      releases: [
+        toReleaseNote(
+          createRelease({
+            tag_name: "v1.0.0\u001b[2K",
+            name: "Title\u001b]0;pwned\u0007",
+            body: "Line one\r\n\u001b]52;c;Y2xpcA==\u0007- item\n\tcode\u009b31m\u202e",
+          }),
+        ),
+      ],
+    });
+
+    expect(markdown).toContain("## v1.0.0[2K — Title]0;pwned\n");
+    expect(markdown).toContain("Line one\n]52;c;Y2xpcA==- item\n\tcode31m\n");
+    // oxlint-disable-next-line no-control-regex
+    expect(markdown).not.toMatch(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f\u202e]/);
+  });
 });
