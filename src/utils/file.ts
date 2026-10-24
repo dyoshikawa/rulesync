@@ -250,14 +250,23 @@ export async function removeFileWithoutFollowingSymlinks(params: {
   await rm(targetPath, { force: true });
 }
 
-export async function assertTreeContainsNoSymlinks(dirPath: string): Promise<void> {
+/**
+ * Refuse a directory tree that holds a symbolic link anywhere inside it.
+ * `operation` names what the caller is about to do, for the message.
+ */
+export async function assertTreeContainsNoSymlinks(
+  dirPath: string,
+  { operation = "write into" }: { operation?: "write into" | "read" } = {},
+): Promise<void> {
   for (const entry of await readdir(dirPath, { withFileTypes: true })) {
     const entryPath = join(dirPath, entry.name);
     if (entry.isSymbolicLink()) {
-      throw new Error(`Refusing to write into a tree containing a symbolic link: ${entryPath}.`);
+      throw new SymlinkRefusedError(
+        `Refusing to ${operation} a tree containing a symbolic link: ${entryPath}.`,
+      );
     }
     if (entry.isDirectory()) {
-      await assertTreeContainsNoSymlinks(entryPath);
+      await assertTreeContainsNoSymlinks(entryPath, { operation });
     }
   }
 }
