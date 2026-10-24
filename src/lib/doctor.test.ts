@@ -855,6 +855,40 @@ describe("doctorCommand", () => {
       );
     });
 
+    it("points a nested-chain finding at the nested file whose directory it names", async () => {
+      const jsonLogger = { ...createMockLogger(), jsonMode: true };
+      await writeCodexConfig();
+      await writeFileContent(join(testDir, "AGENTS.md"), "a".repeat(100));
+      await writeFileContent(join(testDir, "packages", "app", "AGENTS.md"), "b".repeat(40_000));
+
+      await doctorCommand(jsonLogger, {});
+
+      expect(jsonLogger.captureData).toHaveBeenCalledWith("diagnostics", [
+        expect.objectContaining({
+          code: "codexcli/agents-md-size",
+          file: join("packages", "app", "AGENTS.md"),
+          message: expect.stringContaining("The on-disk codexcli instruction files"),
+        }),
+      ]);
+    });
+
+    it("reports nothing when no AGENTS.md exists on disk", async () => {
+      await writeCodexConfig();
+
+      await doctorCommand(mockLogger, { strict: true });
+
+      expect(mockLogger.warn).not.toHaveBeenCalled();
+    });
+
+    it("skips the check in global mode", async () => {
+      await writeCodexConfig({ global: true });
+      await writeFileContent(join(testDir, "AGENTS.md"), "a".repeat(40_000));
+
+      await doctorCommand(mockLogger, { strict: true });
+
+      expect(mockLogger.warn).not.toHaveBeenCalled();
+    });
+
     it("stays quiet when the files fit the budget", async () => {
       await writeCodexConfig();
       await writeFileContent(join(testDir, "AGENTS.md"), "a".repeat(1_000));

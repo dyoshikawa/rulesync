@@ -912,6 +912,7 @@ async function checkCodexcliInstructionBudget({
       budget,
       outputRoot,
       files: toolRules.map((rule) => toInstructionBudgetFile(rule, rule.getFileContent())),
+      fileOrigin: "on-disk",
     });
     for (const finding of findings) {
       diagnostics.push({
@@ -920,7 +921,7 @@ async function checkCodexcliInstructionBudget({
           finding.kind === "disabled"
             ? "codexcli/project-docs-disabled"
             : "codexcli/agents-md-size",
-        file: toDisplayPath(join(outputRoot, finding.paths[0] ?? "AGENTS.md")),
+        file: toDisplayPath(join(outputRoot, finding.primaryPath)),
         message: finding.message,
         ...(finding.remedy === undefined ? {} : { hint: finding.remedy }),
       });

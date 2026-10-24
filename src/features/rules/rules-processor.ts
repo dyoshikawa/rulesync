@@ -534,11 +534,14 @@ export type InstructionBudgetFile = {
  * A budget problem found by {@link findProjectInstructionBudgetFindings}.
  * `kind: "disabled"` means the configured budget is `0`; `"over"` means a
  * chain exceeds the budget. `paths` lists the files involved (relative to the
- * output root), and `remedy`, when present, is the fix to suggest.
+ * output root), `primaryPath` the one to point at (the root file, or the
+ * deepest file of a nested chain), and `remedy`, when present, is the fix to
+ * suggest.
  */
 export type InstructionBudgetFinding = {
   kind: "disabled" | "over";
   paths: string[];
+  primaryPath: string;
   message: string;
   remedy?: string;
 };
@@ -587,11 +590,14 @@ export async function findProjectInstructionBudgetFindings({
   budget,
   outputRoot,
   files,
+  fileOrigin = "generated",
 }: {
   toolTarget: string;
   budget: ProjectInstructionBudget;
   outputRoot: string;
   files: InstructionBudgetFile[];
+  /** How the messages describe the files: `generated` ones, or ones `on disk`. */
+  fileOrigin?: "generated" | "on-disk";
 }): Promise<InstructionBudgetFinding[]> {
   if (files.length === 0) {
     return [];
@@ -604,7 +610,8 @@ export async function findProjectInstructionBudgetFindings({
       {
         kind: "disabled",
         paths,
-        message: `${budget.configuredSource ?? "The tool config"}${location} is set to 0, which disables ${toolTarget}'s project instruction files: the generated ${paths.join(", ")} will not be loaded. Remove the setting or set it to a positive byte count to load them.`,
+        primaryPath: paths[0] ?? "",
+        message: `${budget.configuredSource ?? "The tool config"}${location} is set to 0, which disables ${toolTarget}'s project instruction files: the ${fileOrigin} ${paths.join(", ")} will not be loaded. Remove the setting or set it to a positive byte count to load them.`,
       },
     ];
   }
@@ -632,7 +639,8 @@ export async function findProjectInstructionBudgetFindings({
       {
         kind: "over",
         paths,
-        message: `The generated ${toolTarget} root instruction file${location} (${paths.join(", ")}) is ${rootBytes} bytes, over the ${limitLabel}.`,
+        primaryPath: paths[0] ?? "",
+        message: `The ${fileOrigin} ${toolTarget} root instruction file${location} (${paths.join(", ")}) is ${rootBytes} bytes, over the ${limitLabel}.`,
         remedy,
       },
     ];
@@ -657,7 +665,8 @@ export async function findProjectInstructionBudgetFindings({
       findings.push({
         kind: "over",
         paths,
-        message: `The generated ${toolTarget} instruction files${location} loaded while working in '${file.dir}' (${paths.join(", ")}) total ${chainBytes} bytes, over the ${limitLabel} (as is every directory below it).`,
+        primaryPath: file.path,
+        message: `The ${fileOrigin} ${toolTarget} instruction files${location} loaded while working in '${file.dir}' (${paths.join(", ")}) total ${chainBytes} bytes, over the ${limitLabel} (as is every directory below it).`,
         remedy,
       });
     }
