@@ -732,7 +732,7 @@ function extractConfigFileTargets(
   if (targets.includes("*")) {
     return [
       ...new Set([
-        ...expandWildcardTargets(),
+        ...expandWildcardTargets({ explicitTargets: targets }),
         ...targets.filter((key): key is ToolTarget => key !== "*" && validTargets.has(key)),
       ]),
     ];

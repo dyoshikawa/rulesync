@@ -263,7 +263,8 @@ The current per-feature options are:
 | any          | `rules`  | `includeLocalRoot`     | `true` / `false` (when `false`, `localRoot` rules are skipped for this target)                                                   | `true`        |
 | `claudecode` | `rules`  | `includeRoot`          | `true` / `false` (when `false`, project `CLAUDE.md` and `CLAUDE.local.md` are skipped; leftovers are removed only with `delete`) | `true`        |
 | `claudecode` | `ignore` | `fileMode`             | `"shared"` (settings.json) / `"local"` (settings.local.json)                                                                     | `"shared"`    |
-| `opencode`   | `mcp`    | `configShape`          | `"v1"` (flat `mcp.<name>` map with `enabled`) / `"v2"` (OpenCode V2 `mcp.servers.<name>` envelope with `disabled`)               | `"v1"`        |
+| `opencode`   | `mcp`    | `configShape`          | `"v1"` (flat `mcp.<name>` map with `enabled`) / `"v2"` (OpenCode V2 `mcp.servers.<name>` envelope with `disabled`)               | `"v2"`        |
+| `opencodev1` | `mcp`    | `configShape`          | `"v1"` / `"v2"` (as for `opencode`; OpenCode 1.x reads both since v1.18.24)                                                      | `"v1"`        |
 | any          | any      | `gitignoreDestination` | `"gitignore"` / `"gitattributes"` / `"gitexclude"`                                                                               | `"gitignore"` |
 
 See [`docs/reference/file-formats.md`](../reference/file-formats.md#where-ignore-patterns-are-written-per-tool)

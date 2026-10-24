@@ -801,6 +801,52 @@ describe("HooksProcessor", () => {
       expect(toolFile?.getFileContent()).toContain("guard.sh");
     });
 
+    it("should emit the V2 plugin for opencode and keep the V1 plugin for opencodev1", async () => {
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          hooks: {
+            stop: [{ command: "stop.sh" }],
+            afterFileEdit: [{ command: "edited.sh" }],
+            postToolUseFailure: [{ command: "failed.sh", matcher: "shell" }],
+          },
+        }),
+        validate: false,
+      });
+
+      const v2Processor = new HooksProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "opencode",
+      });
+      const [v2File] = await v2Processor.convertRulesyncFilesToToolFiles([rulesyncHooks]);
+      const v2Content = v2File?.getFileContent() ?? "";
+      expect(v2Content).toContain("setup: async (ctx) => {");
+      expect(v2Content).toContain("stop.sh");
+      expect(v2Content).toContain("failed.sh");
+      // `file.edited` is a V1-only event OpenCode 2.x no longer publishes.
+      expect(v2Content).not.toContain("edited.sh");
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          "Skipped hook event(s) for opencode (not supported): afterFileEdit",
+        ),
+      );
+
+      const v1Processor = new HooksProcessor({
+        logger,
+        outputRoot: testDir,
+        toolTarget: "opencodev1",
+      });
+      const [v1File] = await v1Processor.convertRulesyncFilesToToolFiles([rulesyncHooks]);
+      const v1Content = v1File?.getFileContent() ?? "";
+      expect(v1Content).toContain("export const RulesyncHooksPlugin");
+      expect(v1Content).toContain("stop.sh");
+      expect(v1Content).toContain("edited.sh");
+      expect(v1Content).not.toContain("failed.sh");
+    });
+
     it("should warn and skip Amp matchers outside tool events", async () => {
       const rulesyncHooks = new RulesyncHooks({
         outputRoot: testDir,
@@ -905,6 +951,7 @@ describe("HooksProcessor", () => {
         "kilo",
         "mimocode",
         "opencode",
+        "opencodev1",
         "pi",
         "omp",
         "factorydroid",
@@ -955,6 +1002,7 @@ describe("HooksProcessor", () => {
         "kilo",
         "mimocode",
         "opencode",
+        "opencodev1",
         "pi",
         "omp",
         "factorydroid",

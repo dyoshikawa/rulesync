@@ -93,9 +93,10 @@ const OpencodeMcpRemoteServerSchema = z.looseObject({
 // allow-list to avoid leaking other tools' keys (e.g. `kiroAutoApprove`,
 // `alwaysAllow`, `trust`) into `opencode.json`.
 // `protocol` (`legacy` | `auto` | `2026-07-28`) and `codemode` are OpenCode V2
-// per-server keys (https://opencode.ai/v2/docs/mcp-servers/). This adapter
-// writes the V1 file shape (a flat `mcp` map) unless the `mcp` feature option
-// `configShape: "v2"` asks for the V2 `mcp.servers` envelope, so the two keys
+// per-server keys (https://opencode.ai/v2/docs/mcp-servers/). The OpenCode V2
+// target writes the `mcp.servers` envelope, while OpenCode V1 and MiMo Code
+// write the V1 file shape (a flat `mcp` map) unless the `mcp` feature option
+// `configShape` says otherwise, so the two keys
 // reach it only when a canonical server carries them — hand-authored in
 // `.rulesync/mcp.jsonc`, or imported from an `opencode.json` entry that has
 // them — and they are never emitted otherwise. V1's published schema does not
@@ -561,12 +562,14 @@ export class OpencodeMcp extends ToolMcp {
 
   /**
    * Reads the `configShape` option of the target's `mcp` feature options
-   * (`targets.opencode.mcp.configShape`). Only a layout that reads the V2
-   * spellings back can be given the V2 shape.
+   * (`targets.opencode.mcp.configShape`). It defaults to the layout's config
+   * version: the V2 envelope for OpenCode 2.x, the flat V1 map otherwise.
+   * Only a layout that reads the V2 spellings back can be given the V2 shape.
    */
   protected static resolveConfigShape(options?: FeatureOptions): OpencodeMcpConfigShape {
+    const defaultShape = this.layout.configVersion;
     if (!options) {
-      return "v1";
+      return defaultShape;
     }
     const parsed = OpencodeMcpFeatureOptionsSchema.safeParse(options);
     if (!parsed.success) {
@@ -574,7 +577,7 @@ export class OpencodeMcp extends ToolMcp {
         `Invalid options for the ${this.layout.toolTarget} mcp feature: \`configShape\` must be either "v1" or "v2".`,
       );
     }
-    const configShape = parsed.data.configShape ?? "v1";
+    const configShape = parsed.data.configShape ?? defaultShape;
     if (configShape === "v2" && !this.layout.readsV2ConfigSpellings) {
       throw new Error(
         `Invalid options for the ${this.layout.toolTarget} mcp feature: \`configShape: "v2"\` is supported only for OpenCode.`,

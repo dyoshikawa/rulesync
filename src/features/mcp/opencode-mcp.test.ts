@@ -11,6 +11,7 @@ import { ensureDir, writeFileContent } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { lowerOpencodeV2Mcp } from "../opencode-config.js";
 import { isOpencodeTransportServer, OpencodeMcp } from "./opencode-mcp.js";
+import { Opencodev1Mcp } from "./opencodev1-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 
 describe("OpencodeMcp", () => {
@@ -2789,7 +2790,7 @@ describe("OpencodeMcp", () => {
   });
 
   describe("servers OpenCode cannot express", () => {
-    it("should skip a server with no reachable transport instead of writing an empty command", async () => {
+    it("should skip a server with no reachable transport instead of writing an empty command (OpenCode V1)", async () => {
       // `{type: "local", command: []}` is a server OpenCode cannot start, and
       // this adapter throws reading it back — so the file one generate wrote
       // would break the next import. `toggled` is the shape a `{"enabled":
@@ -2810,7 +2811,7 @@ describe("OpencodeMcp", () => {
         }),
       });
 
-      const opencodeMcp = await OpencodeMcp.fromRulesyncMcp({
+      const opencodeMcp = await Opencodev1Mcp.fromRulesyncMcp({
         outputRoot: testDir,
         rulesyncMcp,
         logger: mockLogger,
@@ -2852,7 +2853,7 @@ describe("OpencodeMcp", () => {
     });
   });
   describe("legacy {enabled}-only entries", () => {
-    it("writes a toggle back so a disabled server is not switched on again", async () => {
+    it("writes a toggle back so a disabled server is not switched on again (OpenCode V1)", async () => {
       await writeFileContent(
         join(testDir, "opencode.json"),
         JSON.stringify({
@@ -2878,14 +2879,14 @@ describe("OpencodeMcp", () => {
       });
 
       const json = (
-        await OpencodeMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp })
+        await Opencodev1Mcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp })
       ).getJson() as { mcp?: Record<string, unknown> };
 
       expect(json.mcp?.["builtin-server"]).toEqual({ enabled: false });
       expect(json.mcp?.["local-one"]).toMatchObject({ type: "local" });
     });
 
-    it("keeps the toggle already on disk when the canonical server states no disabled", async () => {
+    it("keeps the toggle already on disk when the canonical server states no disabled (OpenCode V1)", async () => {
       await writeFileContent(
         join(testDir, "opencode.json"),
         JSON.stringify({ mcp: { "builtin-server": { enabled: false } } }),
@@ -2900,7 +2901,7 @@ describe("OpencodeMcp", () => {
       });
 
       const json = (
-        await OpencodeMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp })
+        await Opencodev1Mcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp })
       ).getJson() as { mcp?: Record<string, unknown> };
 
       // Writing `enabled: true` for a server that never asked to be enabled
@@ -3187,7 +3188,7 @@ describe("OpencodeMcp", () => {
       );
     });
 
-    it("should keep a toggle under the mcp.servers envelope on generate", async () => {
+    it("should keep a toggle under the mcp.servers envelope on generate (OpenCode V1)", async () => {
       await writeFileContent(
         join(testDir, "opencode.json"),
         JSON.stringify({ mcp: { servers: { shared: { enabled: false } } } }),
@@ -3198,7 +3199,7 @@ describe("OpencodeMcp", () => {
         fileContent: JSON.stringify({ mcpServers: { shared: {} } }),
       });
 
-      const opencodeMcp = await OpencodeMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+      const opencodeMcp = await Opencodev1Mcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
 
       expect(opencodeMcp.getJson().mcp).toEqual({ shared: { enabled: false } });
     });
@@ -3219,7 +3220,7 @@ describe("OpencodeMcp", () => {
       });
     });
 
-    it("should round-trip a V2-shaped opencode.json to the flat V1 shape, warning about what is lost", async () => {
+    it("should round-trip a V2-shaped opencode.json to the flat V1 shape, warning about what is lost (OpenCode V1)", async () => {
       await writeFileContent(
         join(testDir, "opencode.json"),
         JSON.stringify({
@@ -3239,8 +3240,8 @@ describe("OpencodeMcp", () => {
       );
       const mockLogger = { warn: vi.fn() } as unknown as Logger;
 
-      const imported = await OpencodeMcp.fromFile({ outputRoot: testDir });
-      const generated = await OpencodeMcp.fromRulesyncMcp({
+      const imported = await Opencodev1Mcp.fromFile({ outputRoot: testDir });
+      const generated = await Opencodev1Mcp.fromRulesyncMcp({
         outputRoot: testDir,
         rulesyncMcp: imported.toRulesyncMcp(),
         logger: mockLogger,
@@ -3395,7 +3396,7 @@ describe("OpencodeMcp", () => {
       },
     );
 
-    it("should quote the server name and dropped keys of a toggle written for a transport-less server", async () => {
+    it("should quote the server name and dropped keys of a toggle written for a transport-less server (OpenCode V1)", async () => {
       const mockLogger = { warn: vi.fn() } as unknown as Logger;
       const rulesyncMcp = new RulesyncMcp({
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
@@ -3405,7 +3406,7 @@ describe("OpencodeMcp", () => {
         }),
       });
 
-      await OpencodeMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp, logger: mockLogger });
+      await Opencodev1Mcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp, logger: mockLogger });
 
       expect(mockLogger.warn).toHaveBeenCalledTimes(1);
       const message = vi.mocked(mockLogger.warn).mock.calls[0]?.[0] ?? "";
@@ -3594,19 +3595,23 @@ describe("OpencodeMcp retraction (issue #2562)", () => {
       });
     });
 
-    it("should leave the V1 output unchanged without the option or with configShape v1", async () => {
+    it("should write the V1 flat map for OpenCode V1 by default and for OpenCode with configShape v1", async () => {
       const rulesyncMcp = makeRulesyncMcp({ fs: { type: "stdio", command: "fs" } });
       const expected = { mcp: { fs: { type: "local", command: ["fs"], enabled: true } } };
 
-      const withoutOption = await OpencodeMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+      const v1Default = await Opencodev1Mcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
       const withV1 = await OpencodeMcp.fromRulesyncMcp({
         outputRoot: testDir,
         rulesyncMcp,
         featureOptions: { configShape: "v1" },
       });
+      const v2Default = await OpencodeMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
 
-      expect(JSON.parse(withoutOption.getFileContent())).toEqual(expected);
+      expect(JSON.parse(v1Default.getFileContent())).toEqual(expected);
       expect(JSON.parse(withV1.getFileContent())).toEqual(expected);
+      expect(JSON.parse(v2Default.getFileContent())).toEqual({
+        mcp: { servers: { fs: { type: "local", command: ["fs"] } } },
+      });
     });
 
     it("should round-trip a V2-shaped opencode.json without changing its shape or warning", async () => {

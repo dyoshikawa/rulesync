@@ -50,6 +50,7 @@ import { MusecodeMcp } from "./musecode-mcp.js";
 import { OmpMcp } from "./omp-mcp.js";
 import { OpenclawMcp } from "./openclaw-mcp.js";
 import { OpencodeMcp } from "./opencode-mcp.js";
+import { Opencodev1Mcp } from "./opencodev1-mcp.js";
 import { PiMcp } from "./pi-mcp.js";
 import { PoolMcp } from "./pool-mcp.js";
 import { QoderMcp } from "./qoder-mcp.js";
@@ -734,6 +735,18 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
     "opencode",
     {
       class: OpencodeMcp,
+      meta: {
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsEnabledTools: true,
+        supportsDisabledTools: true,
+      },
+    },
+  ],
+  [
+    "opencodev1",
+    {
+      class: Opencodev1Mcp,
       meta: {
         supportsProject: true,
         supportsGlobal: true,

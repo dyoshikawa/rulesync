@@ -108,6 +108,40 @@ function assertHooksKeyedEvents({
   expect(serialized).not.toContain("$CLAUDE_PROJECT_DIR");
 }
 
+/**
+ * OpenCode-family targets that write a JavaScript plugin. OpenCode 2.x
+ * (`opencode`) emits a V2 `{ id, setup }` plugin reading lifecycle events from
+ * `ctx.event.subscribe()`; OpenCode 1.x (`opencodev1`) and its MiMo Code
+ * distribution keep the V1 `RulesyncHooksPlugin` module.
+ */
+const OPENCODE_PLUGIN_TARGETS: ReadonlySet<string> = new Set([
+  "opencode",
+  "opencodev1",
+  "mimocode",
+]);
+
+function assertOpencodePluginHooks({
+  target,
+  generatedContent,
+}: {
+  target: string;
+  generatedContent: string;
+}): void {
+  if (target === "opencode") {
+    expect(generatedContent).toContain("export default {");
+    expect(generatedContent).toContain("setup: async (ctx) => {");
+    expect(generatedContent).not.toContain("RulesyncHooksPlugin");
+    expect(generatedContent).toContain('"session.created"');
+    expect(generatedContent).toContain('"session.execution.succeeded"');
+  } else {
+    expect(generatedContent).toContain("export const RulesyncHooksPlugin");
+    expect(generatedContent).toContain('"session.created"');
+    expect(generatedContent).toContain('"session.idle"');
+  }
+  expect(generatedContent).toContain(".rulesync/hooks/session-start.sh");
+  expect(generatedContent).toContain(".rulesync/hooks/audit.sh");
+}
+
 function isPiExtensionTarget(target: string): target is "pi" | "omp" {
   return target === "pi" || target === "omp";
 }
@@ -154,6 +188,7 @@ const hooksGenerateTargets = [
   { target: "firebender", outputPath: join(".firebender", "hooks.json") },
   { target: "mimocode", outputPath: join(".mimocode", "plugins", "rulesync-hooks.js") },
   { target: "opencode", outputPath: join(".opencode", "plugins", "rulesync-hooks.js") },
+  { target: "opencodev1", outputPath: join(".opencode", "plugins", "rulesync-hooks.js") },
   { target: "kilo", outputPath: join(".kilo", "plugins", "rulesync-hooks.js") },
   { target: "pi", outputPath: join(".pi", "extensions", "rulesync-hooks.ts") },
   { target: "omp", outputPath: join(".omp", "extensions", "rulesync-hooks.ts") },
@@ -239,13 +274,8 @@ describe("E2E: hooks", () => {
       expect(generatedContent).toContain('amp.on("agent.end"');
       expect(generatedContent).toContain(".rulesync/hooks/session-start.sh");
       expect(generatedContent).toContain(".rulesync/hooks/audit.sh");
-    } else if (target === "opencode" || target === "mimocode") {
-      // OpenCode (and its MiMo Code distribution) generates a JavaScript plugin file, not JSON
-      expect(generatedContent).toContain("export const RulesyncHooksPlugin");
-      expect(generatedContent).toContain('"session.created"');
-      expect(generatedContent).toContain('"session.idle"');
-      expect(generatedContent).toContain(".rulesync/hooks/session-start.sh");
-      expect(generatedContent).toContain(".rulesync/hooks/audit.sh");
+    } else if (OPENCODE_PLUGIN_TARGETS.has(target)) {
+      assertOpencodePluginHooks({ target, generatedContent });
     } else if (target === "kilo") {
       // Kilo also emits a JavaScript plugin (.kilo/plugins/rulesync-hooks.js),
       // so assert the canonical command paths survive rather than parsing JSON.
@@ -875,6 +905,7 @@ describe("E2E: hooks", () => {
     { target: "firebender", orphanPath: join(".firebender", "hooks.json") },
     { target: "mimocode", orphanPath: join(".mimocode", "plugins", "rulesync-hooks.js") },
     { target: "opencode", orphanPath: join(".opencode", "plugins", "rulesync-hooks.js") },
+    { target: "opencodev1", orphanPath: join(".opencode", "plugins", "rulesync-hooks.js") },
     { target: "pi", orphanPath: join(".pi", "extensions", "rulesync-hooks.ts") },
     { target: "omp", orphanPath: join(".omp", "extensions", "rulesync-hooks.ts") },
     { target: "codexcli", orphanPath: join(".codex", "hooks.json") },
@@ -1256,6 +1287,10 @@ const hooksGlobalTargets = [
   },
   { target: "mimocode", outputPath: join(".config", "mimocode", "plugins", "rulesync-hooks.js") },
   { target: "opencode", outputPath: join(".config", "opencode", "plugins", "rulesync-hooks.js") },
+  {
+    target: "opencodev1",
+    outputPath: join(".config", "opencode", "plugins", "rulesync-hooks.js"),
+  },
   { target: "kilo", outputPath: join(".config", "kilo", "plugins", "rulesync-hooks.js") },
   { target: "pi", outputPath: join(".pi", "agent", "extensions", "rulesync-hooks.ts") },
   { target: "omp", outputPath: join(".omp", "agent", "extensions", "rulesync-hooks.ts") },
@@ -1344,10 +1379,8 @@ describe("E2E: hooks (global mode)", () => {
         expect(generatedContent).toContain('amp.on("agent.end"');
         expect(generatedContent).toContain(".rulesync/hooks/session-start.sh");
         expect(generatedContent).toContain(".rulesync/hooks/audit.sh");
-      } else if (target === "opencode" || target === "mimocode") {
-        expect(generatedContent).toContain("RulesyncHooksPlugin");
-        expect(generatedContent).toContain(".rulesync/hooks/session-start.sh");
-        expect(generatedContent).toContain(".rulesync/hooks/audit.sh");
+      } else if (OPENCODE_PLUGIN_TARGETS.has(target)) {
+        assertOpencodePluginHooks({ target, generatedContent });
       } else if (target === "cline") {
         expect(JSON.parse(generatedContent).events).toEqual(["TaskStart"]);
         expect(

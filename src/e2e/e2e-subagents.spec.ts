@@ -161,6 +161,10 @@ const subagentsGenerateTargets = [
     outputPath: join(".opencode", "agents", "planner.md"),
   },
   {
+    target: "opencodev1",
+    outputPath: join(".opencode", "agents", "planner.md"),
+  },
+  {
     target: "pool",
     outputPath: join(".poolside", "settings.yaml"),
   },
@@ -248,6 +252,7 @@ const subagentsGlobalTargets = [
   { target: "mimocode", outputPath: join(".config", "mimocode", "agents", "planner.md") },
   { target: "omp", outputPath: join(".omp", "agent", "agents", "planner.md") },
   { target: "opencode", outputPath: join(".config", "opencode", "agents", "planner.md") },
+  { target: "opencodev1", outputPath: join(".config", "opencode", "agents", "planner.md") },
   { target: "pool", outputPath: join(".config", "poolside", "settings.yaml") },
   { target: "rovodev", outputPath: join(".rovodev", "subagents", "planner.md") },
   { target: "takt", outputPath: join(".takt", "facets", "personas", "planner.md") },
@@ -396,6 +401,9 @@ You are a primary agent. You appear in the Tab rotation.
     expect(generatedContent).toContain("mode: primary");
     expect(generatedContent).not.toContain("mode: subagent");
     expect(generatedContent).toContain("A primary mode agent");
+    // OpenCode V2 agents carry no `name` and spell `tools` as `permissions`.
+    expect(generatedContent).not.toContain("name:");
+    expect(generatedContent).toContain("permissions:");
   });
 
   it("should default kilo.mode to 'all' when omitted in source", async () => {
@@ -815,6 +823,7 @@ describe("E2E: subagents (import)", () => {
     { target: "mimocode", sourcePath: join(".mimocode", "agents", "planner.md") },
     { target: "omp", sourcePath: join(".omp", "agents", "planner.md") },
     { target: "opencode", sourcePath: join(".opencode", "agents", "planner.md") },
+    { target: "opencodev1", sourcePath: join(".opencode", "agents", "planner.md") },
     { target: "deepagents", sourcePath: join(".deepagents", "agents", "planner", "AGENTS.md") },
     { target: "junie", sourcePath: join(".junie", "agents", "planner.md") },
     { target: "factorydroid", sourcePath: join(".factory", "droids", "planner.md") },

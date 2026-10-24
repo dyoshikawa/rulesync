@@ -218,6 +218,7 @@ describe("registry derivation", () => {
       // Memory of a `memory: local` subagent (issue #2664).
       "claudecode::general::**/.claude/agent-memory-local/",
       "opencode::general::**/.opencode/package-lock.json",
+      "opencodev1::general::**/.opencode/package-lock.json",
       "rovodev::general::**/.rovodev/.rulesync/",
       // Qwen Code's `/review` cache, reports and scratch worktrees, and its
       // fixed worktree root (issue #2668).

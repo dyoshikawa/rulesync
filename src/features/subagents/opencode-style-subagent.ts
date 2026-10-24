@@ -46,7 +46,10 @@ export abstract class OpenCodeStyleSubagent extends ToolSubagent {
     this.body = body;
   }
 
-  protected abstract getToolTarget(): Extract<ToolTarget, "opencode" | "kilo" | "mimocode">;
+  protected abstract getToolTarget(): Extract<
+    ToolTarget,
+    "opencode" | "opencodev1" | "kilo" | "mimocode"
+  >;
 
   getFrontmatter(): OpenCodeStyleSubagentFrontmatter {
     return this.frontmatter;
@@ -56,8 +59,16 @@ export abstract class OpenCodeStyleSubagent extends ToolSubagent {
     return this.body;
   }
 
+  /**
+   * The frontmatter whose fields `toRulesyncSubagent` carries into the
+   * rulesync tool section. Subclasses may respell it for their tool version.
+   */
+  protected getImportFrontmatter(): OpenCodeStyleSubagentFrontmatter {
+    return this.frontmatter;
+  }
+
   toRulesyncSubagent(): RulesyncSubagent {
-    const { description, mode, name, ...toolSection } = this.frontmatter;
+    const { description, mode, name, ...toolSection } = this.getImportFrontmatter();
     const rulesyncFrontmatter: RulesyncSubagentFrontmatter = {
       targets: ["*"] as const,
       name: name ?? basename(this.getRelativeFilePath(), ".md"),

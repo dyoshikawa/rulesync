@@ -457,6 +457,46 @@ export const OPENCODE_MATCHER_HOOK_EVENTS: readonly HookEvent[] = [
 ];
 
 /**
+ * Hook events supported by OpenCode V2 (OpenCode 2.x), bridged through a
+ * generated `{ id, setup }` plugin. Only canonical events with a faithful V2
+ * counterpart are listed — see `CANONICAL_TO_OPENCODE_V2_EVENT_NAMES`.
+ *
+ * Left out on purpose: `afterFileEdit` (`file.edited` is a V1-only legacy
+ * event that OpenCode 2.x no longer publishes), `fileChanged`, `notification`
+ * (no TUI toast event reaches plugins) and `userPromptExpansion` (the V2
+ * command domain exposes no hook).
+ *
+ * @see https://opencode.ai/v2/docs/build/plugins/
+ */
+export const OPENCODE_V2_HOOK_EVENTS: readonly HookEvent[] = [
+  "sessionStart",
+  "sessionDelete",
+  "preToolUse",
+  "postToolUse",
+  "postToolUseFailure",
+  "beforeShellExecution",
+  "afterShellExecution",
+  "beforeSubmitPrompt",
+  "preModelInvocation",
+  "preCompact",
+  "postCompact",
+  "stop",
+  "afterError",
+  "permissionRequest",
+  "permissionDenied",
+];
+
+/**
+ * OpenCode V2 events whose generated handler can honor a `matcher`: the tool
+ * hooks, tested against the tool name (`event.tool`).
+ */
+export const OPENCODE_V2_MATCHER_HOOK_EVENTS: readonly HookEvent[] = [
+  "preToolUse",
+  "postToolUse",
+  "postToolUseFailure",
+];
+
+/**
  * Hook events supported by Pi Coding Agent, bridged through a generated
  * TypeScript extension (Pi has no static hook config file; its extension API
  * exposes lifecycle events instead).
@@ -1864,6 +1904,7 @@ export const HooksConfigSchema = z.looseObject({
     }),
   ),
   opencode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  opencodev1: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   kilo: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   mimocode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   pi: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
@@ -2138,6 +2179,40 @@ export const CANONICAL_TO_OPENCODE_EVENT_NAMES: Record<string, string> = {
  */
 export const CANONICAL_TO_KILO_EVENT_NAMES: Record<string, string> =
   CANONICAL_TO_OPENCODE_EVENT_NAMES;
+
+/**
+ * Map canonical camelCase event names to OpenCode V2 plugin hook points, as
+ * `<domain>:<name>`:
+ * - `tool:` / `session:` — a `ctx.<domain>.hook(name, ...)` registration;
+ * - `event:` — a public event type delivered by `ctx.event.subscribe()`.
+ *
+ * The shell events reuse the tool hooks gated on the `shell` tool (V1 named it
+ * `bash`), and `postToolUse` / `postToolUseFailure` split `execute.after` by
+ * its `status`; see `opencode-v2-plugin-generator.ts`. `stop` maps to
+ * `session.execution.succeeded` because V2 deprecated `session.idle` and no
+ * longer publishes it.
+ *
+ * @see https://opencode.ai/v2/docs/build/plugins/
+ */
+export const CANONICAL_TO_OPENCODE_V2_EVENT_NAMES: Record<string, string> = {
+  sessionStart: "event:session.created",
+  sessionDelete: "event:session.deleted",
+  preToolUse: "tool:execute.before",
+  postToolUse: "tool:execute.after",
+  postToolUseFailure: "tool:execute.after",
+  beforeShellExecution: "tool:execute.before",
+  afterShellExecution: "tool:execute.after",
+  beforeSubmitPrompt: "session:prompt",
+  // Fires before every agent-loop model call (not compaction or title calls).
+  preModelInvocation: "session:context",
+  preCompact: "session:compaction",
+  postCompact: "event:session.compaction.ended",
+  stop: "event:session.execution.succeeded",
+  afterError: "event:session.execution.failed",
+  permissionRequest: "event:permission.asked",
+  // `permission.replied` fires for every reply; the handler gates on `reject`.
+  permissionDenied: "event:permission.replied",
+};
 
 /**
  * Map canonical camelCase event names to Pi Coding Agent extension event

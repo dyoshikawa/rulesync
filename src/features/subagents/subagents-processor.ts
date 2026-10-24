@@ -64,6 +64,7 @@ import { LettacodeSubagent } from "./lettacode-subagent.js";
 import { MimocodeSubagent } from "./mimocode-subagent.js";
 import { OmpSubagent } from "./omp-subagent.js";
 import { OpenCodeSubagent } from "./opencode-subagent.js";
+import { Opencodev1Subagent } from "./opencodev1-subagent.js";
 import { PoolSubagent } from "./pool-subagent.js";
 import { QoderSubagent } from "./qoder-subagent.js";
 import { QwencodeSubagent } from "./qwencode-subagent.js";
@@ -766,6 +767,18 @@ export const toolSubagentFactories = new Map<SubagentsProcessorToolTarget, ToolS
     "opencode",
     {
       class: OpenCodeSubagent,
+      meta: {
+        supportsProject: true,
+        supportsSimulated: false,
+        supportsGlobal: true,
+        filePattern: "*.md",
+      },
+    },
+  ],
+  [
+    "opencodev1",
+    {
+      class: Opencodev1Subagent,
       meta: {
         supportsProject: true,
         supportsSimulated: false,

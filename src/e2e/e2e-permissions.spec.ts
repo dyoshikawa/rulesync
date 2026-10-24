@@ -34,6 +34,7 @@ import {
 // green. Keep this list in sync with the actual `it`s by hand.
 const permissionsGenerateTargets = [
   "opencode",
+  "opencodev1",
   "mimocode",
   "omp",
   "pi",
@@ -76,6 +77,7 @@ const permissionsGlobalTargets = [
   "omp",
   "pi",
   "opencode",
+  "opencodev1",
   "mimocode",
   "codebuddy",
   "codewhale",
@@ -145,6 +147,7 @@ describe("E2E: permissions", () => {
     // opencode writes the `.jsonc` twin when neither file exists yet, so both
     // spellings must stay absent.
     { target: "opencode", relativePaths: [["opencode.json"], ["opencode.jsonc"]] },
+    { target: "opencodev1", relativePaths: [["opencode.json"], ["opencode.jsonc"]] },
     {
       target: "mimocode",
       relativePaths: [
@@ -381,6 +384,35 @@ describe("E2E: permissions", () => {
 
     await runGenerate({ target: "opencode", features: "permissions" });
 
+    // OpenCode V2 reads an ordered `permissions` array.
+    const content = JSON.parse(await readFileContent(join(testDir, "opencode.jsonc")));
+    expect(content.permission).toBeUndefined();
+    expect(content.permissions).toEqual([
+      { action: "shell", resource: "*", effect: "ask" },
+      { action: "shell", resource: "git *", effect: "allow" },
+      { action: "read", resource: ".env", effect: "deny" },
+    ]);
+  });
+
+  it("should generate opencodev1 permissions from .rulesync/permissions.jsonc", async () => {
+    const testDir = getTestDir();
+
+    await writeFileContent(
+      join(testDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          permission: {
+            bash: { "*": "ask", "git *": "allow" },
+            read: { ".env": "deny" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({ target: "opencodev1", features: "permissions" });
+
     const content = JSON.parse(await readFileContent(join(testDir, "opencode.jsonc")));
     expect(content.permission.bash["git *"]).toBe("allow");
     expect(content.permission.read[".env"]).toBe("deny");
@@ -445,7 +477,11 @@ describe("E2E: permissions", () => {
 
     // OpenCode still sees the shared bash category.
     const opencode = JSON.parse(await readFileContent(join(testDir, "opencode.jsonc")));
-    expect(opencode.permission.bash["git *"]).toBe("allow");
+    expect(opencode.permissions).toContainEqual({
+      action: "shell",
+      resource: "git *",
+      effect: "allow",
+    });
   });
 
   it("should generate permissions from permissions.jsonc (preferred over permissions.json)", async () => {
@@ -3349,6 +3385,41 @@ describe("E2E: permissions (global mode)", () => {
 
     await runGenerate({
       target: "opencode",
+      features: "permissions",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const generated = JSON.parse(
+      await readFileContent(join(homeDir, ".config", "opencode", "opencode.jsonc")),
+    );
+    expect(generated.permissions).toContainEqual({
+      action: "shell",
+      resource: "git status *",
+      effect: "allow",
+    });
+  });
+
+  it("should generate opencodev1 permissions in home directory with --global", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+
+    await writeFileContent(
+      join(projectDir, RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH),
+      JSON.stringify(
+        {
+          root: true,
+          permission: {
+            bash: { "*": "ask", "git status *": "allow" },
+          },
+        },
+        null,
+        2,
+      ),
+    );
+
+    await runGenerate({
+      target: "opencodev1",
       features: "permissions",
       global: true,
       env: { HOME_DIR: homeDir },

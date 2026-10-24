@@ -141,6 +141,7 @@ export const RulesyncMcpFileSchema = z.looseObject({
   omp: z.optional(toolScopedMcpSchema),
   openclaw: z.optional(toolScopedMcpSchema),
   opencode: z.optional(toolScopedMcpSchema),
+  opencodev1: z.optional(toolScopedMcpSchema),
   pi: z.optional(toolScopedMcpSchema),
   qoder: z.optional(toolScopedMcpSchema),
   qwencode: z.optional(qwencodeScopedMcpSchema),

@@ -6,9 +6,15 @@ import {
   type OpencodeLayout,
 } from "../../constants/opencode-paths.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
-import { CANONICAL_TO_OPENCODE_EVENT_NAMES, OPENCODE_HOOK_EVENTS } from "../../types/hooks.js";
+import {
+  CANONICAL_TO_OPENCODE_EVENT_NAMES,
+  CANONICAL_TO_OPENCODE_V2_EVENT_NAMES,
+  OPENCODE_HOOK_EVENTS,
+  OPENCODE_V2_HOOK_EVENTS,
+} from "../../types/hooks.js";
 import { readFileContent } from "../../utils/file.js";
 import { generateOpencodeStylePluginCode } from "./opencode-style-generator.js";
+import { generateOpencodeV2PluginCode } from "./opencode-v2-plugin-generator.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import {
   ToolHooks,
@@ -61,12 +67,22 @@ export class OpencodeHooks extends ToolHooks {
     global = false,
   }: ToolHooksFromRulesyncHooksParams & { global?: boolean }): OpencodeHooks {
     const config = rulesyncHooks.getJson();
-    const fileContent = generateOpencodeStylePluginCode(
-      config,
-      OPENCODE_HOOK_EVENTS,
-      this.layout.toolTarget,
-      CANONICAL_TO_OPENCODE_EVENT_NAMES,
-    );
+    // OpenCode 2.x only runs `{ id, setup }` plugins, while OpenCode 1.x and
+    // its forks keep the V1 `RulesyncHooksPlugin` module.
+    const fileContent =
+      this.layout.configVersion === "v2"
+        ? generateOpencodeV2PluginCode({
+            config,
+            supportedEvents: OPENCODE_V2_HOOK_EVENTS,
+            toolConfigKey: this.layout.toolTarget,
+            eventMap: CANONICAL_TO_OPENCODE_V2_EVENT_NAMES,
+          })
+        : generateOpencodeStylePluginCode(
+            config,
+            OPENCODE_HOOK_EVENTS,
+            this.layout.toolTarget,
+            CANONICAL_TO_OPENCODE_EVENT_NAMES,
+          );
     const paths = this.getSettablePaths({ global });
     return new this({
       outputRoot,

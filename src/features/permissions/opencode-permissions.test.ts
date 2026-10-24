@@ -111,7 +111,11 @@ describe("OpencodePermissions", () => {
 
     expect(instance.getRelativeFilePath()).toBe("opencode.json");
     expect(json.model).toBe("x");
-    expect(json.permission.bash["git *"]).toBe("allow");
+    expect(json.permissions).toEqual([
+      { action: "shell", resource: "*", effect: "ask" },
+      { action: "shell", resource: "git *", effect: "allow" },
+    ]);
+    expect(json.permission).toBeUndefined();
   });
 
   it("should import the top-level uniform string permission form (issue #2066)", async () => {
@@ -123,141 +127,6 @@ describe("OpencodePermissions", () => {
 
     const rulesync = instance.toRulesyncPermissions().getJson();
     expect(rulesync.permission).toEqual({ "*": { "*": "allow" } });
-  });
-
-  it("should merge the opencode override on top of the shared block (override wins per category)", async () => {
-    await writeFileContent(join(testDir, "opencode.json"), JSON.stringify({ model: "x" }));
-    const rulesyncPermissions = new RulesyncPermissions({
-      outputRoot: testDir,
-      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
-      fileContent: JSON.stringify({
-        permission: {
-          bash: { "*": "ask", "git *": "allow" },
-          webfetch: { "*": "ask" },
-        },
-        opencode: {
-          permission: {
-            external_directory: "deny",
-            webfetch: "allow",
-          },
-        },
-      }),
-    });
-
-    const instance = await OpencodePermissions.fromRulesyncPermissions({
-      outputRoot: testDir,
-      rulesyncPermissions,
-    });
-    const json = JSON.parse(instance.getFileContent());
-
-    // Shared block carried over untouched.
-    expect(json.permission.bash).toEqual({ "*": "ask", "git *": "allow" });
-    // OpenCode-only category emitted.
-    expect(json.permission.external_directory).toBe("deny");
-    // Override wins per category over the shared value.
-    expect(json.permission.webfetch).toBe("allow");
-  });
-
-  it("should emit action-only OpenCode permissions as strings (issue #2336)", async () => {
-    const rulesyncPermissions = new RulesyncPermissions({
-      outputRoot: testDir,
-      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
-      fileContent: JSON.stringify({
-        permission: {
-          webfetch: { "*": "allow" },
-          websearch: { "*": "ask" },
-          todowrite: { "*": "deny" },
-          question: { "*": "allow" },
-          doom_loop: { "*": "ask" },
-          bash: { "*": "ask", "git *": "allow" },
-        },
-      }),
-    });
-
-    const instance = await OpencodePermissions.fromRulesyncPermissions({
-      outputRoot: testDir,
-      rulesyncPermissions,
-    });
-    const permission = JSON.parse(instance.getFileContent()).permission;
-
-    expect(permission).toEqual({
-      webfetch: "allow",
-      websearch: "ask",
-      todowrite: "deny",
-      question: "allow",
-      doom_loop: "ask",
-      bash: { "*": "ask", "git *": "allow" },
-    });
-  });
-
-  it("should conservatively collapse unsupported patterns for action-only permissions", async () => {
-    const logger = { warn: vi.fn() } as any;
-    const rulesyncPermissions = new RulesyncPermissions({
-      outputRoot: testDir,
-      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
-      fileContent: JSON.stringify({
-        permission: {
-          webfetch: { "*": "allow", "https://private.example/**": "deny" },
-        },
-      }),
-    });
-
-    const instance = await OpencodePermissions.fromRulesyncPermissions({
-      outputRoot: testDir,
-      rulesyncPermissions,
-      logger,
-    });
-    const permission = JSON.parse(instance.getFileContent()).permission;
-
-    expect(permission.webfetch).toBe("deny");
-    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("deny > ask > allow"));
-  });
-
-  it("should not expand a pattern-only allow into blanket allow", async () => {
-    const logger = { warn: vi.fn() } as any;
-    const rulesyncPermissions = new RulesyncPermissions({
-      outputRoot: testDir,
-      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
-      fileContent: JSON.stringify({
-        permission: {
-          webfetch: { "https://trusted.example/**": "allow" },
-        },
-      }),
-    });
-
-    const instance = await OpencodePermissions.fromRulesyncPermissions({
-      outputRoot: testDir,
-      rulesyncPermissions,
-      logger,
-    });
-    const permission = JSON.parse(instance.getFileContent()).permission;
-
-    expect(permission.webfetch).toBe("ask");
-    expect(logger.warn).toHaveBeenCalled();
-  });
-
-  it("should collapse an empty action-only permission map to deny", async () => {
-    const logger = { warn: vi.fn() } as any;
-    const rulesyncPermissions = new RulesyncPermissions({
-      outputRoot: testDir,
-      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
-      fileContent: JSON.stringify({ permission: { websearch: {} } }),
-    });
-
-    const instance = await OpencodePermissions.fromRulesyncPermissions({
-      outputRoot: testDir,
-      rulesyncPermissions,
-      logger,
-    });
-    const permission = JSON.parse(instance.getFileContent()).permission;
-
-    expect(permission.websearch).toBe("deny");
-    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("default allow"));
   });
 
   it("should route OpenCode-only categories into the opencode override on import", async () => {
@@ -329,215 +198,6 @@ describe("OpencodePermissions", () => {
     expect(imported.validate().success).toBe(true);
   });
 
-  it("should translate the canonical `agent` category into OpenCode's `task` key on export (issue #2230)", async () => {
-    await writeFileContent(join(testDir, "opencode.json"), JSON.stringify({ model: "x" }));
-    const rulesyncPermissions = new RulesyncPermissions({
-      outputRoot: testDir,
-      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
-      fileContent: JSON.stringify({
-        permission: {
-          agent: { "*": "deny" },
-        },
-      }),
-    });
-
-    const instance = await OpencodePermissions.fromRulesyncPermissions({
-      outputRoot: testDir,
-      rulesyncPermissions,
-    });
-    const json = JSON.parse(instance.getFileContent());
-
-    // The canonical `agent` category is written under OpenCode's real `task`
-    // key, and never leaks the non-existent `agent` key into opencode.json.
-    expect(json.permission.task).toEqual({ "*": "deny" });
-    expect(json.permission.agent).toBeUndefined();
-  });
-
-  it("should fold the canonical `write` category into OpenCode's `edit` key on export", async () => {
-    const rulesyncPermissions = new RulesyncPermissions({
-      outputRoot: testDir,
-      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
-      fileContent: JSON.stringify({ permission: { write: { "*": "deny" } } }),
-    });
-
-    const instance = await OpencodePermissions.fromRulesyncPermissions({
-      outputRoot: testDir,
-      rulesyncPermissions,
-    });
-    const json = JSON.parse(instance.getFileContent());
-
-    // OpenCode's write tool asks for the `edit` permission; a `write` key is
-    // never consulted.
-    expect(json.permission.edit).toEqual({ "*": "deny" });
-    expect(json.permission.write).toBeUndefined();
-  });
-
-  it("should merge `write` into `edit` keeping the stricter action per pattern", async () => {
-    const logger = { warn: vi.fn() } as any;
-    const rulesyncPermissions = new RulesyncPermissions({
-      outputRoot: testDir,
-      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
-      fileContent: JSON.stringify({
-        permission: {
-          write: { "*": "ask", "*.env": "deny", "docs/**": "allow" },
-          edit: { "*": "allow", "*.env": "ask", "src/**": "allow" },
-        },
-      }),
-    });
-
-    const instance = await OpencodePermissions.fromRulesyncPermissions({
-      outputRoot: testDir,
-      rulesyncPermissions,
-      logger,
-    });
-    const json = JSON.parse(instance.getFileContent());
-
-    // OpenCode's last matching pattern wins, so the merged map is ordered
-    // allow, ask, deny to keep either side's stricter rules in effect.
-    expect(Object.entries(json.permission.edit)).toEqual([
-      ["docs/**", "allow"],
-      ["src/**", "allow"],
-      ["*", "ask"],
-      ["*.env", "deny"],
-    ]);
-    expect(json.permission.write).toBeUndefined();
-    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('OpenCode\'s "edit" key'));
-  });
-
-  it("should fail closed on an allow carve-out when merging differing maps", async () => {
-    const logger = { warn: vi.fn() } as any;
-    const rulesyncPermissions = new RulesyncPermissions({
-      outputRoot: testDir,
-      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
-      fileContent: JSON.stringify({
-        permission: {
-          edit: { "*": "deny", "src/**": "allow" },
-          write: { "*": "deny", "src/**": "allow", "tmp/**": "allow" },
-        },
-      }),
-    });
-
-    const instance = await OpencodePermissions.fromRulesyncPermissions({
-      outputRoot: testDir,
-      rulesyncPermissions,
-      logger,
-    });
-    const json = JSON.parse(instance.getFileContent());
-
-    // The trailing `*` deny shadows both carve-outs: stricter, never looser.
-    expect(Object.entries(json.permission.edit)).toEqual([
-      ["src/**", "allow"],
-      ["tmp/**", "allow"],
-      ["*", "deny"],
-    ]);
-    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("carve-out"));
-  });
-
-  it("should place the merged `edit` map at the canonical `edit` key's position", async () => {
-    const build = async (permission: Record<string, unknown>) => {
-      const rulesyncPermissions = new RulesyncPermissions({
-        outputRoot: testDir,
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
-        fileContent: JSON.stringify({ permission }),
-      });
-      const instance = await OpencodePermissions.fromRulesyncPermissions({
-        outputRoot: testDir,
-        rulesyncPermissions,
-      });
-      return JSON.parse(instance.getFileContent()).permission;
-    };
-
-    // Keys are evaluated in order with the last match winning, so a `*` key
-    // emitted after `edit` would override the edit deny.
-    const editLast = await build({
-      write: { "*": "ask" },
-      "*": { "*": "allow" },
-      edit: { "*": "deny" },
-    });
-    expect(Object.keys(editLast)).toEqual(["*", "edit"]);
-    expect(editLast.edit).toEqual({ "*": "deny" });
-
-    const editFirst = await build({
-      edit: { "*": "deny" },
-      "*": { "*": "allow" },
-      write: { "*": "ask" },
-    });
-    expect(Object.keys(editFirst)).toEqual(["edit", "*"]);
-    expect(editFirst.edit).toEqual({ "*": "deny" });
-  });
-
-  it("should keep identical `write` and `edit` maps in their original order", async () => {
-    const logger = { warn: vi.fn() } as any;
-    const rules = { "*": "deny", "src/**": "allow" };
-    const rulesyncPermissions = new RulesyncPermissions({
-      outputRoot: testDir,
-      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
-      fileContent: JSON.stringify({ permission: { edit: rules, write: rules } }),
-    });
-
-    const instance = await OpencodePermissions.fromRulesyncPermissions({
-      outputRoot: testDir,
-      rulesyncPermissions,
-      logger,
-    });
-    const json = JSON.parse(instance.getFileContent());
-
-    expect(Object.entries(json.permission.edit)).toEqual([
-      ["*", "deny"],
-      ["src/**", "allow"],
-    ]);
-    expect(logger.warn).not.toHaveBeenCalled();
-  });
-
-  it("should let the `opencode` override's `edit` win over a folded `write`", async () => {
-    const rulesyncPermissions = new RulesyncPermissions({
-      outputRoot: testDir,
-      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
-      fileContent: JSON.stringify({
-        permission: { write: { "*": "deny" } },
-        opencode: { permission: { edit: { "*": "ask" } } },
-      }),
-    });
-
-    const instance = await OpencodePermissions.fromRulesyncPermissions({
-      outputRoot: testDir,
-      rulesyncPermissions,
-    });
-    const json = JSON.parse(instance.getFileContent());
-
-    expect(json.permission.edit).toEqual({ "*": "ask" });
-  });
-
-  it("should skip the canonical `notebookedit` category with a warning", async () => {
-    const logger = { warn: vi.fn() } as any;
-    const rulesyncPermissions = new RulesyncPermissions({
-      outputRoot: testDir,
-      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
-      fileContent: JSON.stringify({
-        permission: { notebookedit: { "*": "deny" }, bash: { "*": "ask" } },
-      }),
-    });
-
-    const instance = await OpencodePermissions.fromRulesyncPermissions({
-      outputRoot: testDir,
-      rulesyncPermissions,
-      logger,
-    });
-    const json = JSON.parse(instance.getFileContent());
-
-    expect(json.permission.notebookedit).toBeUndefined();
-    expect(json.permission.bash).toEqual({ "*": "ask" });
-    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"notebookedit"'));
-  });
-
   it("should import OpenCode's `edit` key as the canonical `edit` only", async () => {
     await writeFileContent(
       join(testDir, "opencode.json"),
@@ -602,31 +262,6 @@ describe("OpencodePermissions", () => {
     expect(rulesync.opencode).toBeUndefined();
   });
 
-  it("should round-trip an opencode override stably (generate → import)", async () => {
-    await writeFileContent(join(testDir, "opencode.json"), JSON.stringify({}));
-    const rulesyncPermissions = new RulesyncPermissions({
-      outputRoot: testDir,
-      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
-      fileContent: JSON.stringify({
-        permission: { bash: { "git *": "allow" } },
-        opencode: { permission: { external_directory: "deny" } },
-      }),
-    });
-
-    const generated = await OpencodePermissions.fromRulesyncPermissions({
-      outputRoot: testDir,
-      rulesyncPermissions,
-    });
-    await writeFileContent(join(testDir, "opencode.json"), generated.getFileContent());
-
-    const imported = await OpencodePermissions.fromFile({ outputRoot: testDir });
-    const rulesync = imported.toRulesyncPermissions().getJson();
-
-    expect(rulesync.permission).toEqual({ bash: { "git *": "allow" } });
-    expect(rulesync.opencode?.permission).toEqual({ external_directory: "deny" });
-  });
-
   it("should support global mode file resolution", async () => {
     await ensureDir(join(testDir, ".config", "opencode"));
     await writeFileContent(
@@ -664,7 +299,10 @@ describe("OpencodePermissions", () => {
     });
 
     expect(generated.getFileContent()).toContain("// Which model this project talks to.");
-    expect(generated.getJson().permission).toEqual({ bash: { "git *": "allow" } });
+    expect(generated.getJson().permissions).toEqual([
+      { action: "shell", resource: "git *", effect: "allow" },
+    ]);
+    expect(generated.getJson().permission).toBeUndefined();
   });
 
   it("should treat an explicit null permission as an empty block", async () => {
@@ -688,5 +326,218 @@ describe("OpencodePermissions", () => {
     const instance = await OpencodePermissions.fromFile({ outputRoot: testDir });
 
     expect(instance.getJson().permission).toEqual({});
+  });
+});
+
+describe("OpencodePermissions (OpenCode V2 permissions array)", () => {
+  let testDir: string;
+  let cleanup: () => Promise<void>;
+
+  beforeEach(async () => {
+    ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
+  });
+
+  afterEach(async () => {
+    await cleanup();
+    vi.restoreAllMocks();
+  });
+
+  const generate = async (config: unknown, logger?: { warn: ReturnType<typeof vi.fn> }) => {
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: JSON.stringify(config),
+    });
+    return OpencodePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+      logger: logger as any,
+    });
+  };
+
+  it("renames V1 keys to V2 actions in category and pattern order", async () => {
+    const instance = await generate({
+      permission: {
+        "*": { "*": "ask" },
+        bash: { "*": "ask", "git push *": "deny" },
+        agent: { "*": "deny", reviewer: "allow" },
+        read: { "*.env": "deny" },
+      },
+    });
+
+    expect(instance.getJson().permissions).toEqual([
+      { action: "*", resource: "*", effect: "ask" },
+      { action: "shell", resource: "*", effect: "ask" },
+      { action: "shell", resource: "git push *", effect: "deny" },
+      { action: "subagent", resource: "*", effect: "deny" },
+      { action: "subagent", resource: "reviewer", effect: "allow" },
+      { action: "read", resource: "*.env", effect: "deny" },
+    ]);
+  });
+
+  it("keeps URL patterns on webfetch instead of collapsing them", async () => {
+    const logger = { warn: vi.fn() };
+    const instance = await generate(
+      { permission: { webfetch: { "*": "allow", "https://private.example/*": "deny" } } },
+      logger,
+    );
+
+    expect(instance.getJson().permissions).toEqual([
+      { action: "webfetch", resource: "*", effect: "allow" },
+      { action: "webfetch", resource: "https://private.example/*", effect: "deny" },
+    ]);
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
+  it("folds write into edit keeping the stricter action per pattern", async () => {
+    const instance = await generate({
+      permission: {
+        edit: { "*": "allow", "*.env": "deny" },
+        write: { "*": "ask" },
+      },
+    });
+
+    // Merged allow → ask → deny so neither rule set is loosened.
+    expect(instance.getJson().permissions).toEqual([
+      { action: "edit", resource: "*", effect: "ask" },
+      { action: "edit", resource: "*.env", effect: "deny" },
+    ]);
+  });
+
+  it("emits the opencode override block after mapping its keys, the override winning per key", async () => {
+    const instance = await generate({
+      permission: { bash: { "*": "ask" }, webfetch: { "*": "ask" } },
+      opencode: {
+        permission: { external_directory: "deny", webfetch: "allow", skill: { "*": "ask" } },
+      },
+    });
+
+    expect(instance.getJson().permissions).toEqual([
+      { action: "shell", resource: "*", effect: "ask" },
+      { action: "webfetch", resource: "*", effect: "allow" },
+      { action: "external_directory", resource: "*", effect: "deny" },
+      { action: "skill", resource: "*", effect: "ask" },
+    ]);
+  });
+
+  it("skips notebookedit with a warning", async () => {
+    const logger = { warn: vi.fn() };
+    const instance = await generate({ permission: { notebookedit: { "*": "deny" } } }, logger);
+
+    expect(instance.getJson().permissions).toEqual([]);
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"notebookedit"'));
+  });
+
+  it("retracts a V1 permission map and keeps unrelated keys", async () => {
+    await writeFileContent(
+      join(testDir, "opencode.json"),
+      JSON.stringify({ model: "x", permission: { bash: "deny" }, tools: { foo_bar: false } }),
+    );
+    const instance = await generate({ permission: { bash: { "*": "ask" } } });
+    const json = JSON.parse(instance.getFileContent());
+
+    expect(json.permission).toBeUndefined();
+    expect(json.model).toBe("x");
+    expect(json.tools).toEqual({ foo_bar: false });
+    expect(json.permissions).toEqual([{ action: "shell", resource: "*", effect: "ask" }]);
+  });
+
+  it("imports a V2 permissions array, mapping actions back to canonical categories", async () => {
+    await writeFileContent(
+      join(testDir, "opencode.json"),
+      JSON.stringify({
+        permissions: [
+          { action: "shell", resource: "*", effect: "ask" },
+          { action: "shell", resource: "git status *", effect: "allow" },
+          { action: "subagent", resource: "reviewer", effect: "deny" },
+          { action: "external_directory", resource: "*", effect: "deny" },
+          { action: "shell", resource: "*", effect: "deny" },
+        ],
+      }),
+    );
+
+    const rulesync = (await OpencodePermissions.fromFile({ outputRoot: testDir }))
+      .toRulesyncPermissions()
+      .getJson();
+
+    expect(rulesync.permission).toEqual({
+      bash: { "git status *": "allow", "*": "deny" },
+      agent: { reviewer: "deny" },
+    });
+    expect(rulesync.opencode?.permission).toEqual({ external_directory: { "*": "deny" } });
+  });
+
+  it("applies a V2 permissions array after the V1 map of the same file on import", async () => {
+    await writeFileContent(
+      join(testDir, "opencode.json"),
+      JSON.stringify({
+        permission: { bash: { "*": "allow", "rm *": "deny" } },
+        permissions: [{ action: "shell", resource: "*", effect: "ask" }],
+      }),
+    );
+
+    const rulesync = (await OpencodePermissions.fromFile({ outputRoot: testDir }))
+      .toRulesyncPermissions()
+      .getJson();
+
+    expect(rulesync.permission.bash).toEqual({ "rm *": "deny", "*": "ask" });
+  });
+
+  it("moves a key the V2 array touches after the V1-only keys on import", async () => {
+    await writeFileContent(
+      join(testDir, "opencode.json"),
+      JSON.stringify({
+        permission: { "*": "ask", edit: "deny" },
+        permissions: [{ action: "*", resource: "*", effect: "allow" }],
+      }),
+    );
+
+    const imported = await OpencodePermissions.fromFile({ outputRoot: testDir });
+
+    // OpenCode V2 evaluates [* ask, edit deny, * allow]: the trailing allow
+    // must stay after `edit` so edits are still allowed after a regenerate.
+    expect(Object.keys(imported.getJson().permission ?? {})).toEqual(["edit", "*"]);
+    expect(imported.toRulesyncPermissions().getJson().permission).toEqual({
+      edit: { "*": "deny" },
+      "*": { "*": "allow" },
+    });
+  });
+
+  it("denies an empty webfetch map instead of emitting no rule, with a warning", async () => {
+    const logger = { warn: vi.fn() };
+    const instance = await generate({ permission: { webfetch: {}, read: {} } }, logger);
+
+    expect(instance.getJson().permissions).toEqual([
+      { action: "webfetch", resource: "*", effect: "deny" },
+    ]);
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("default allow"));
+  });
+
+  it("collapses action-only keys that match only * to a single action", async () => {
+    const instance = await generate({
+      permission: { todowrite: { foo: "allow" }, question: { "*": "deny" } },
+    });
+
+    expect(instance.getJson().permissions).toEqual([
+      { action: "todowrite", resource: "*", effect: "ask" },
+      { action: "question", resource: "*", effect: "deny" },
+    ]);
+  });
+
+  it("round-trips generate → import", async () => {
+    const config = {
+      permission: { bash: { "*": "ask", "git *": "allow" }, agent: { "*": "deny" } },
+      opencode: { permission: { external_directory: { "*": "deny" } } },
+    };
+    const generated = await generate(config);
+    await writeFileContent(join(testDir, "opencode.json"), generated.getFileContent());
+
+    const rulesync = (await OpencodePermissions.fromFile({ outputRoot: testDir }))
+      .toRulesyncPermissions()
+      .getJson();
+
+    expect(rulesync).toEqual(config);
   });
 });

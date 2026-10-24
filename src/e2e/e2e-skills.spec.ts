@@ -253,6 +253,10 @@ const skillsGenerateTargets = [
     outputPath: join(".opencode", "skills", "test-skill", "SKILL.md"),
   },
   {
+    target: "opencodev1",
+    outputPath: join(".opencode", "skills", "test-skill", "SKILL.md"),
+  },
+  {
     target: "kiro-cli",
     outputPath: join(".kiro", "skills", "test-skill", "SKILL.md"),
   },
@@ -556,6 +560,7 @@ describe("E2E: skills (import)", () => {
     { target: "mimocode", sourcePath: join(".mimocode", "skill", "test-skill", "SKILL.md") },
     { target: "omp", sourcePath: join(".omp", "skills", "test-skill", "SKILL.md") },
     { target: "opencode", sourcePath: join(".opencode", "skill", "test-skill", "SKILL.md") },
+    { target: "opencodev1", sourcePath: join(".opencode", "skill", "test-skill", "SKILL.md") },
     { target: "deepagents", sourcePath: join(".deepagents", "skills", "test-skill", "SKILL.md") },
     { target: "cline", sourcePath: join(".cline", "skills", "test-skill", "SKILL.md") },
     { target: "codebuddy", sourcePath: join(".codebuddy", "skills", "test-skill", "SKILL.md") },
@@ -1208,6 +1213,10 @@ const skillsGlobalTargets = [
   { target: "omp", outputPath: join(".omp", "agent", "skills", "test-skill", "SKILL.md") },
   {
     target: "opencode",
+    outputPath: join(".config", "opencode", "skills", "test-skill", "SKILL.md"),
+  },
+  {
+    target: "opencodev1",
     outputPath: join(".config", "opencode", "skills", "test-skill", "SKILL.md"),
   },
   {

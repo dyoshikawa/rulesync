@@ -1989,7 +1989,8 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
     format: "jsonc",
     features: {
       mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp", "tools"] },
-      permissions: { kind: "replace-owned-keys", ownedKeys: ["permission"] },
+      // `permission` (OpenCode V1) and `permissions` (OpenCode V2).
+      permissions: { kind: "replace-owned-keys", ownedKeys: ["permission", "permissions"] },
       rules: { kind: "replace-owned-keys", ownedKeys: ["instructions"] },
     },
   },
@@ -1997,7 +1998,8 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
     format: "jsonc",
     features: {
       mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp", "tools"] },
-      permissions: { kind: "replace-owned-keys", ownedKeys: ["permission"] },
+      // `permission` (OpenCode V1) and `permissions` (OpenCode V2).
+      permissions: { kind: "replace-owned-keys", ownedKeys: ["permission", "permissions"] },
       // OpenCode reads `instructions` from the global config too; the rules
       // feature registers global non-root rules here (recomputed from the
       // existing list before being applied, like the project-scope entry).
