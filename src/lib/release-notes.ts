@@ -1,4 +1,5 @@
 import type { GitHubRelease } from "../types/fetch.js";
+import { stripControlCharacters } from "../utils/control-characters.js";
 import { parseSource } from "./source-parser.js";
 
 /** Number of releases printed when no filter option is given. */
@@ -395,12 +396,29 @@ function formatPublishedDate(publishedAt: string | null): string {
   if (publishedAt === null) {
     return "unpublished";
   }
-  return publishedAt.split("T")[0] ?? publishedAt;
+  return stripControlCharacters(publishedAt.split("T")[0] ?? publishedAt);
+}
+
+/**
+ * Strip the control characters from a multi-line release body while keeping
+ * its line feeds and tabs, which Markdown needs for paragraphs, lists and code
+ * blocks. Carriage returns go with the rest, so CRLF bodies come out as LF.
+ */
+function stripControlCharactersFromBody(body: string): string {
+  return body
+    .split("\n")
+    .map((line) => line.split("\t").map(stripControlCharacters).join("\t"))
+    .join("\n");
 }
 
 /**
  * Render releases as Markdown: one `##` heading per release with its metadata
- * line, followed by the release body verbatim.
+ * line, followed by the release body.
+ *
+ * Tag names, release names and bodies are written by whoever owns the remote
+ * repository and go straight to the terminal, so their control characters are
+ * stripped: an escape sequence in a release body must not be able to rewrite
+ * the screen or drive terminal features such as the title or the clipboard.
  */
 export function formatReleaseNotesMarkdown(params: {
   owner: string;
@@ -408,22 +426,27 @@ export function formatReleaseNotesMarkdown(params: {
   releases: ReleaseNote[];
 }): string {
   const { owner, repo, releases } = params;
-  const lines: string[] = [`# Release notes for ${owner}/${repo}`, ""];
+  const lines: string[] = [
+    `# Release notes for ${stripControlCharacters(owner)}/${stripControlCharacters(repo)}`,
+    "",
+  ];
 
   for (const release of releases) {
-    const title = release.name && release.name !== release.tagName ? release.name : null;
-    lines.push(`## ${release.tagName}${title === null ? "" : ` — ${title}`}`);
+    const tagName = stripControlCharacters(release.tagName);
+    const name = release.name === null ? null : stripControlCharacters(release.name);
+    const title = name && name !== tagName ? name : null;
+    lines.push(`## ${tagName}${title === null ? "" : ` — ${title}`}`);
     lines.push("");
     const metadata = [`Published: ${formatPublishedDate(release.publishedAt)}`];
     if (release.prerelease) {
       metadata.push("Prerelease");
     }
     if (release.url !== null) {
-      metadata.push(release.url);
+      metadata.push(stripControlCharacters(release.url));
     }
     lines.push(metadata.join(" | "));
     lines.push("");
-    const body = release.body?.trim() ?? "";
+    const body = stripControlCharactersFromBody(release.body ?? "").trim();
     lines.push(body === "" ? "_No release notes._" : body);
     lines.push("");
   }
