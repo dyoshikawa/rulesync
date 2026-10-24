@@ -773,6 +773,74 @@ describe("fetchFiles", () => {
       );
     });
 
+    it("writes a remote hooks.json over the local hooks.jsonc in effect", async () => {
+      await ensureDir(join(testDir, ".rulesync"));
+      await writeFileContent(join(testDir, ".rulesync", "hooks.jsonc"), "local hooks");
+      mockRootFiles(["hooks.json"]);
+
+      const summary = await fetchFiles({
+        logger,
+        source: "owner/repo",
+        options: { features: ["hooks"] },
+        outputRoot: testDir,
+      });
+
+      expect(summary.files).toEqual([{ relativePath: "hooks.jsonc", status: "overwritten" }]);
+      expect(await fileExists(join(testDir, ".rulesync", "hooks.json"))).toBe(false);
+      expect(await readFileContent(join(testDir, ".rulesync", "hooks.jsonc"))).toBe(
+        "remote hooks.json",
+      );
+    });
+
+    it("writes onto the local .jsonc when both local spellings exist", async () => {
+      await ensureDir(join(testDir, ".rulesync"));
+      await writeFileContent(join(testDir, ".rulesync", "permissions.jsonc"), "local jsonc");
+      await writeFileContent(join(testDir, ".rulesync", "permissions.json"), "local json");
+      mockRootFiles(["permissions.json"]);
+
+      const summary = await fetchFiles({
+        logger,
+        source: "owner/repo",
+        options: { features: ["permissions"] },
+        outputRoot: testDir,
+      });
+
+      expect(summary.files).toEqual([{ relativePath: "permissions.jsonc", status: "overwritten" }]);
+      expect(await readFileContent(join(testDir, ".rulesync", "permissions.jsonc"))).toBe(
+        "remote permissions.json",
+      );
+      expect(await readFileContent(join(testDir, ".rulesync", "permissions.json"))).toBe(
+        "local json",
+      );
+    });
+
+    it("treats a deprecated local .mcp.json as the source in effect", async () => {
+      await ensureDir(join(testDir, ".rulesync"));
+      await writeFileContent(join(testDir, ".rulesync", ".mcp.json"), "local mcp");
+      mockRootFiles(["mcp.jsonc"]);
+
+      const skipped = await fetchFiles({
+        logger,
+        source: "owner/repo",
+        options: { conflict: "skip", features: ["mcp"] },
+        outputRoot: testDir,
+      });
+      expect(skipped.files).toEqual([{ relativePath: ".mcp.json", status: "skipped" }]);
+      expect(await fileExists(join(testDir, ".rulesync", "mcp.jsonc"))).toBe(false);
+
+      const overwritten = await fetchFiles({
+        logger,
+        source: "owner/repo",
+        options: { features: ["mcp"] },
+        outputRoot: testDir,
+      });
+      expect(overwritten.files).toEqual([{ relativePath: ".mcp.json", status: "overwritten" }]);
+      expect(await fileExists(join(testDir, ".rulesync", "mcp.jsonc"))).toBe(false);
+      expect(await readFileContent(join(testDir, ".rulesync", ".mcp.json"))).toBe(
+        "remote mcp.jsonc",
+      );
+    });
+
     it("fetches only the remote candidate the loader would read", async () => {
       mockRootFiles(["permissions.json", "permissions.jsonc"]);
 

@@ -6,6 +6,7 @@ import {
   quoteForLog,
   stripControlCharacters,
   stripControlCharactersKeepingLineFeeds,
+  stripControlCharactersKeepingLineFeedsAndTabs,
   stripHiddenCharacters,
   stripInvisibleCharacters,
 } from "./control-characters.js";
@@ -202,6 +203,14 @@ describe("hasEnclosingMarkOutsideKeycap", () => {
     ["a keycap sequence beside a stray mark", "1\ufe0f\u20e3\u20dd"],
   ])("should report %s", (_label, name) => {
     expect(hasEnclosingMarkOutsideKeycap(name)).toBe(true);
+  });
+});
+
+describe("stripControlCharactersKeepingLineFeedsAndTabs", () => {
+  it("should keep line feeds and tabs and drop every other control character", () => {
+    expect(
+      stripControlCharactersKeepingLineFeedsAndTabs("a\r\n\tb\u001b]0;t\u0007\n\u009b31mc\u202e"),
+    ).toBe("a\n\tb]0;t\n31mc");
   });
 });
 

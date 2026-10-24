@@ -662,14 +662,14 @@ async function resolveSingleFileFeatureDestinations(params: {
 
     for (const file of remote) {
       if (file !== chosen) {
-        logger.debug(
+        logger.info(
           `Not fetching ${quoteForLog(file.relativePath)}: ${quoteForLog(chosen.relativePath)} takes precedence.`,
         );
         replacements.set(file, null);
       }
     }
     if (destination !== chosen.relativePath) {
-      logger.debug(
+      logger.info(
         `Writing remote ${quoteForLog(chosen.relativePath)} to ${quoteForLog(destination)}, the local source in effect.`,
       );
       replacements.set(chosen, destination);

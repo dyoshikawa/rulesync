@@ -1,5 +1,8 @@
 import type { GitHubRelease } from "../types/fetch.js";
-import { stripControlCharacters } from "../utils/control-characters.js";
+import {
+  stripControlCharacters,
+  stripControlCharactersKeepingLineFeedsAndTabs,
+} from "../utils/control-characters.js";
 import { parseSource } from "./source-parser.js";
 
 /** Number of releases printed when no filter option is given. */
@@ -400,18 +403,6 @@ function formatPublishedDate(publishedAt: string | null): string {
 }
 
 /**
- * Strip the control characters from a multi-line release body while keeping
- * its line feeds and tabs, which Markdown needs for paragraphs, lists and code
- * blocks. Carriage returns go with the rest, so CRLF bodies come out as LF.
- */
-function stripControlCharactersFromBody(body: string): string {
-  return body
-    .split("\n")
-    .map((line) => line.split("\t").map(stripControlCharacters).join("\t"))
-    .join("\n");
-}
-
-/**
  * Render releases as Markdown: one `##` heading per release with its metadata
  * line, followed by the release body.
  *
@@ -446,7 +437,7 @@ export function formatReleaseNotesMarkdown(params: {
     }
     lines.push(metadata.join(" | "));
     lines.push("");
-    const body = stripControlCharactersFromBody(release.body ?? "").trim();
+    const body = stripControlCharactersKeepingLineFeedsAndTabs(release.body ?? "").trim();
     lines.push(body === "" ? "_No release notes._" : body);
     lines.push("");
   }
