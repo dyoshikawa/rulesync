@@ -18,6 +18,7 @@ import {
 } from "../utils/file.js";
 import { stringifyFrontmatter } from "../utils/frontmatter.js";
 import { ConsoleLogger } from "../utils/logger.js";
+import { assertNoSymlinkInFeaturePath, isFeatureSymlinkRefusal } from "./feature-symlinks.js";
 
 const logger = new ConsoleLogger({ verbose: false, silent: true });
 
@@ -46,6 +47,11 @@ async function listCommands(): Promise<
             relativePath: file,
             intendedRootDir: commandsDir,
           });
+          // A linked command file is not listed: `get` would refuse it.
+          await assertNoSymlinkInFeaturePath({
+            featureDirPath: commandsDir,
+            targetPath: join(commandsDir, file),
+          });
 
           const command = await RulesyncCommand.fromFile({
             relativeFilePath: file,
@@ -58,6 +64,10 @@ async function listCommands(): Promise<
             frontmatter,
           };
         } catch (error) {
+          if (isFeatureSymlinkRefusal(error)) {
+            logger.debug(`Skipping command file ${file}: ${formatError(error)}`);
+            return null;
+          }
           logger.error(`Failed to read command file ${file}: ${formatError(error)}`);
           return null;
         }
@@ -88,8 +98,13 @@ async function getCommand({ relativePathFromCwd }: { relativePathFromCwd: string
   });
 
   const filename = basename(relativePathFromCwd);
+  const commandsDir = join(process.cwd(), RULESYNC_COMMANDS_RELATIVE_DIR_PATH);
 
   try {
+    await assertNoSymlinkInFeaturePath({
+      featureDirPath: commandsDir,
+      targetPath: join(commandsDir, filename),
+    });
     const command = await RulesyncCommand.fromFile({
       relativeFilePath: filename,
     });
@@ -167,7 +182,11 @@ async function putCommand({
     const commandsDir = join(process.cwd(), RULESYNC_COMMANDS_RELATIVE_DIR_PATH);
     await ensureDir(commandsDir);
 
-    // Write the file
+    // Write the file, never through a symbolic link a cloned repository planted
+    await assertNoSymlinkInFeaturePath({
+      featureDirPath: commandsDir,
+      targetPath: command.getFilePath(),
+    });
     await writeFileContent(command.getFilePath(), command.getFileContent());
 
     return {

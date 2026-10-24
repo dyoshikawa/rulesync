@@ -11,6 +11,7 @@ import {
   getRulesyncSourceCandidates,
   resolveRulesyncSourceWritePath,
 } from "../utils/rulesync-source-path.js";
+import { assertNoSymlinkInRulesyncSource } from "./feature-symlinks.js";
 
 const maxMcpSizeBytes = 1024 * 1024; // 1MB
 
@@ -22,6 +23,10 @@ async function getMcpFile(): Promise<{
   content: string;
 }> {
   try {
+    await assertNoSymlinkInRulesyncSource({
+      outputRoot: process.cwd(),
+      paths: RulesyncMcp.getSettablePaths(),
+    });
     const rulesyncMcp = await RulesyncMcp.fromFile({
       validate: true,
     });

@@ -10,7 +10,6 @@ import {
 } from "../features/subagents/rulesync-subagent.js";
 import { formatError } from "../utils/error.js";
 import {
-  assertWritablePathInsideRoot,
   checkPathTraversal,
   directoryExists,
   ensureDir,
@@ -20,6 +19,7 @@ import {
   writeFileContent,
 } from "../utils/file.js";
 import { ConsoleLogger } from "../utils/logger.js";
+import { assertNoSymlinkInFeaturePath, isFeatureSymlinkRefusal } from "./feature-symlinks.js";
 
 const logger = new ConsoleLogger({ verbose: false, silent: true });
 
@@ -79,13 +79,13 @@ async function listSubagents(): Promise<
         // below the subagents directory is not listed and then refused. The
         // skip is intended, so it is not reported as a read failure.
         try {
-          await assertWritablePathInsideRoot({
-            rootPath: subagentsDir,
+          await assertNoSymlinkInFeaturePath({
+            featureDirPath: subagentsDir,
             targetPath: join(subagentsDir, file),
           });
         } catch (error) {
           const message = formatError(error);
-          if (/symbolic link|must resolve inside the root/u.test(message)) {
+          if (isFeatureSymlinkRefusal(error)) {
             logger.debug(`Skipping subagent file ${file}: ${message}`);
           } else {
             logger.error(`Failed to read subagent file ${file}: ${message}`);
@@ -143,7 +143,7 @@ async function getSubagent({ relativePathFromCwd }: { relativePathFromCwd: strin
     // Only the part below the subagents directory is confined: `.rulesync`
     // or `.rulesync/subagents` may itself be a symlink (e.g. into a dotfiles
     // repository), which the CLI follows as well.
-    await assertWritablePathInsideRoot({ rootPath: subagentsDir, targetPath: fullPath });
+    await assertNoSymlinkInFeaturePath({ featureDirPath: subagentsDir, targetPath: fullPath });
     const subagent = await RulesyncSubagent.fromFile({
       relativeFilePath,
       validate: true,
@@ -216,9 +216,9 @@ async function putSubagent({
 
     // Ensure directory exists
     await ensureDir(subagentsDir);
-    await assertWritablePathInsideRoot({ rootPath: subagentsDir, targetPath: fullPath });
+    await assertNoSymlinkInFeaturePath({ featureDirPath: subagentsDir, targetPath: fullPath });
     await ensureDir(join(subagentsDir, dirname(relativeFilePath)));
-    await assertWritablePathInsideRoot({ rootPath: subagentsDir, targetPath: fullPath });
+    await assertNoSymlinkInFeaturePath({ featureDirPath: subagentsDir, targetPath: fullPath });
 
     // Write the file
     await writeFileContent(subagent.getFilePath(), subagent.getFileContent());
@@ -253,7 +253,7 @@ async function deleteSubagent({ relativePathFromCwd }: { relativePathFromCwd: st
     // Only the part below the subagents directory is confined: `.rulesync`
     // or `.rulesync/subagents` may itself be a symlink (e.g. into a dotfiles
     // repository), which the CLI follows as well.
-    await assertWritablePathInsideRoot({ rootPath: subagentsDir, targetPath: fullPath });
+    await assertNoSymlinkInFeaturePath({ featureDirPath: subagentsDir, targetPath: fullPath });
     await removeFile(fullPath);
 
     return {
