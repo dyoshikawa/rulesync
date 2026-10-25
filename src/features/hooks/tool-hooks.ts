@@ -134,14 +134,21 @@ export abstract class ToolHooks extends ToolFile {
     throw new Error("Please implement this method in the subclass.");
   }
 
-  static async getAuxiliaryFiles(_params: {
+  /**
+   * Extra files to write next to the hooks file. By default that is the
+   * ownership lock, which only an adapter that preserved unowned handlers
+   * records (see {@link getOwnershipLockFiles}).
+   */
+  static async getAuxiliaryFiles({
+    toolHooks,
+  }: {
     outputRoot?: string;
     global?: boolean;
     /** The instance just built, for adapters whose extra files derive from it. */
     toolHooks?: ToolHooks;
     logger?: Logger;
-  }): Promise<ToolFile[]> {
-    return [];
+  } = {}): Promise<ToolFile[]> {
+    return toolHooks instanceof this ? toolHooks.getOwnershipLockFiles() : [];
   }
 
   /**

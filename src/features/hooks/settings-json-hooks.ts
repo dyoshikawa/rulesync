@@ -2,7 +2,6 @@ import { join } from "node:path";
 
 import type { ValidationResult } from "../../types/ai-file.js";
 import type { HooksConfig } from "../../types/hooks.js";
-import type { ToolFile } from "../../types/tool-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
@@ -131,17 +130,6 @@ export abstract class SettingsJsonHooks extends ToolHooks {
       fileContent,
       validate,
     });
-  }
-
-  static override async getAuxiliaryFiles({
-    toolHooks,
-  }: {
-    outputRoot?: string;
-    global?: boolean;
-    toolHooks?: ToolHooks;
-    logger?: Logger;
-  } = {}): Promise<ToolFile[]> {
-    return toolHooks instanceof this ? toolHooks.getOwnershipLockFiles() : [];
   }
 
   static async fromRulesyncHooks({

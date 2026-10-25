@@ -8,9 +8,7 @@ import {
   CURSOR_TO_CANONICAL_EVENT_NAMES,
   CANONICAL_TO_CURSOR_EVENT_NAMES,
 } from "../../types/hooks.js";
-import type { ToolFile } from "../../types/tool-file.js";
 import { readFileContent, readFileContentOrNull } from "../../utils/file.js";
-import type { Logger } from "../../utils/logger.js";
 import { lookupOwn } from "../../utils/own-lookup.js";
 import { readPreviouslyOwnedHooks } from "./hooks-ownership-lock.js";
 import { mergeGeneratedHookLists } from "./preserve-unowned-hook-commands.js";
@@ -154,17 +152,6 @@ export class CursorHooks extends ToolHooks {
 
   static override supportsPreserveUnowned(): boolean {
     return true;
-  }
-
-  static override async getAuxiliaryFiles({
-    toolHooks,
-  }: {
-    outputRoot?: string;
-    global?: boolean;
-    toolHooks?: ToolHooks;
-    logger?: Logger;
-  } = {}): Promise<ToolFile[]> {
-    return toolHooks instanceof CursorHooks ? toolHooks.getOwnershipLockFiles() : [];
   }
 
   toRulesyncHooks(): RulesyncHooks {

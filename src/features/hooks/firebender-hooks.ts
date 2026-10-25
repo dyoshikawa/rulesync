@@ -4,9 +4,7 @@ import { FIREBENDER_DIR, FIREBENDER_HOOKS_FILE_NAME } from "../../constants/fire
 import type { ValidationResult } from "../../types/ai-file.js";
 import type { HooksConfig } from "../../types/hooks.js";
 import { FIREBENDER_HOOK_EVENTS } from "../../types/hooks.js";
-import type { ToolFile } from "../../types/tool-file.js";
 import { readFileContent, readFileContentOrNull } from "../../utils/file.js";
-import type { Logger } from "../../utils/logger.js";
 import { readPreviouslyOwnedHooks } from "./hooks-ownership-lock.js";
 import { mergeGeneratedHookLists } from "./preserve-unowned-hook-commands.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
@@ -136,17 +134,6 @@ export class FirebenderHooks extends ToolHooks {
 
   static override supportsPreserveUnowned(): boolean {
     return true;
-  }
-
-  static override async getAuxiliaryFiles({
-    toolHooks,
-  }: {
-    outputRoot?: string;
-    global?: boolean;
-    toolHooks?: ToolHooks;
-    logger?: Logger;
-  } = {}): Promise<ToolFile[]> {
-    return toolHooks instanceof FirebenderHooks ? toolHooks.getOwnershipLockFiles() : [];
   }
 
   toRulesyncHooks(): RulesyncHooks {

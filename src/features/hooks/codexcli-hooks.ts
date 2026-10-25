@@ -376,18 +376,18 @@ export class CodexcliHooks extends ToolHooks {
     return true;
   }
 
-  static override async getAuxiliaryFiles({
-    outputRoot = process.cwd(),
-    toolHooks,
-  }: {
-    outputRoot?: string;
-    global?: boolean;
-    toolHooks?: ToolHooks;
-    logger?: Logger;
-  } = {}): Promise<ToolFile[]> {
+  static override async getAuxiliaryFiles(
+    params: {
+      outputRoot?: string;
+      global?: boolean;
+      toolHooks?: ToolHooks;
+      logger?: Logger;
+    } = {},
+  ): Promise<ToolFile[]> {
+    const { outputRoot = process.cwd() } = params;
     return [
       await CodexcliConfigToml.fromOutputRoot({ outputRoot }),
-      ...(toolHooks instanceof CodexcliHooks ? toolHooks.getOwnershipLockFiles() : []),
+      ...(await super.getAuxiliaryFiles(params)),
     ];
   }
 }
