@@ -12,7 +12,7 @@ import type { ToolFile } from "../../types/tool-file.js";
 import { readFileContent, readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { lookupOwn } from "../../utils/own-lookup.js";
-import { HOOKS_OWNERSHIP_LOCK_FILE_NAME, parseHooksOwnershipLock } from "./hooks-ownership-lock.js";
+import { readPreviouslyOwnedHooks } from "./hooks-ownership-lock.js";
 import { mergeGeneratedHookLists } from "./preserve-unowned-hook-commands.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import { buildImportedHooksConfig } from "./tool-hooks-converter.js";
@@ -126,11 +126,7 @@ export class CursorHooks extends ToolHooks {
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const existingContent = (await readFileContentOrNull(filePath)) ?? "";
     const previouslyOwned = preserveUnowned
-      ? parseHooksOwnershipLock(
-          await readFileContentOrNull(
-            join(outputRoot, paths.relativeDirPath, HOOKS_OWNERSHIP_LOCK_FILE_NAME),
-          ),
-        )
+      ? await readPreviouslyOwnedHooks({ outputRoot, relativeDirPath: paths.relativeDirPath })
       : undefined;
     const merged = mergeGeneratedHookLists({
       existingContent,
