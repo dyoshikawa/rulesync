@@ -546,6 +546,8 @@ describe("E2E: hooks", () => {
     // Snake_case event types and the matcher mapped to `match`.
     expect(generatedContent).toContain('type = "pre_tool"');
     expect(generatedContent).toContain('type = "post_agent"');
+    // A canonical shell matcher also catches background commands.
+    expect(generatedContent).toContain('match = "re:bash|process_start"');
     expect(generatedContent).toContain(".rulesync/hooks/audit.sh");
     expect(generatedContent).toContain(".rulesync/hooks/session-start.sh");
 
