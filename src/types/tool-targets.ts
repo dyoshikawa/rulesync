@@ -72,3 +72,20 @@ export const isRulesyncConfigTargetsObject = (
 ): value is RulesyncConfigTargetsObject => {
   return !Array.isArray(value);
 };
+
+/**
+ * Whether a rulesync file's `targets` selects `toolTarget`: a missing list or
+ * a `*` entry selects every tool, otherwise the tool must be listed.
+ */
+export function isTargetedByTargets({
+  targets,
+  toolTarget,
+}: {
+  targets: readonly string[] | undefined;
+  toolTarget: ToolTarget;
+}): boolean {
+  if (!targets) {
+    return true;
+  }
+  return targets.includes("*") || targets.includes(toolTarget);
+}

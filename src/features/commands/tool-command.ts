@@ -1,6 +1,6 @@
 import { AiFile, AiFileFromFileParams, AiFileParams } from "../../types/ai-file.js";
 import type { ToolFile } from "../../types/tool-file.js";
-import type { ToolTarget } from "../../types/tool-targets.js";
+import { isTargetedByTargets, type ToolTarget } from "../../types/tool-targets.js";
 import type { Logger } from "../../utils/logger.js";
 import type { RulesyncCommand } from "./rulesync-command.js";
 
@@ -145,19 +145,6 @@ export abstract class ToolCommand extends AiFile {
     rulesyncCommand: RulesyncCommand;
     toolTarget: ToolTarget;
   }): boolean {
-    const targets = rulesyncCommand.getFrontmatter().targets;
-    if (!targets) {
-      return true;
-    }
-
-    if (targets.includes("*")) {
-      return true;
-    }
-
-    if (targets.includes(toolTarget)) {
-      return true;
-    }
-
-    return false;
+    return isTargetedByTargets({ targets: rulesyncCommand.getFrontmatter().targets, toolTarget });
   }
 }

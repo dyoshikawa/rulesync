@@ -7,7 +7,7 @@ import {
 } from "../../constants/rulesync-paths.js";
 import { AiFileFromFileParams, AiFileParams } from "../../types/ai-file.js";
 import { ToolFile } from "../../types/tool-file.js";
-import { ToolTarget } from "../../types/tool-targets.js";
+import { isTargetedByTargets, ToolTarget } from "../../types/tool-targets.js";
 import { toPosixPath } from "../../utils/file.js";
 import {
   NESTED_SCAN_EXCLUDED_DIRS_ANY_DEPTH,
@@ -472,20 +472,7 @@ export abstract class ToolRule extends ToolFile {
     rulesyncRule: RulesyncRule;
     toolTarget: ToolTarget;
   }): boolean {
-    const targets = rulesyncRule.getFrontmatter().targets;
-    if (!targets) {
-      return true;
-    }
-
-    if (targets.includes("*")) {
-      return true;
-    }
-
-    if (targets.includes(toolTarget)) {
-      return true;
-    }
-
-    return false;
+    return isTargetedByTargets({ targets: rulesyncRule.getFrontmatter().targets, toolTarget });
   }
 }
 
