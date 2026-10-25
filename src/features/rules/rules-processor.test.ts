@@ -419,9 +419,9 @@ describe("RulesProcessor", () => {
       expect(rootRule?.getFileContent()).not.toContain("Personal overrides");
     });
 
-    // `buildLocalRootFile` dispatches on the rule class and returns `null` for
-    // any class it has no branch for, which drops the file silently. That is how
-    // `zoocode` (fixed by `isClassOrSubclassOf`) and later `codebuddy` ended up
+    // `buildLocalRootFile` delegates to the rule class's static
+    // `buildLocalRootFile` hook and returns `null` for a class without one, which
+    // drops the file silently. That is how `zoocode` and later `codebuddy` ended up
     // declaring `separate-local-file` while emitting nothing. Declaring the mode
     // is the visible half; this asserts the invisible half actually happens.
     it.each(

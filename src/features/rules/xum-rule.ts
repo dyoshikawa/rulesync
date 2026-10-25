@@ -6,6 +6,7 @@ import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
   ToolRule,
+  ToolRuleBuildLocalRootFileParams,
   ToolRuleForDeletionParams,
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
@@ -80,6 +81,35 @@ export type XumRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> & {
  * @see https://xum.cdr.dev/agents/instruction-files
  */
 export class XumRule extends ToolRule {
+  /**
+   * Build this tool's separate personal local-root file (`localRootMode:
+   * "separate-local-file"`), for generation and import. See
+   * {@link ToolRuleBuildLocalRootFileParams}.
+   */
+  static buildLocalRootFile({
+    outputRoot,
+    fileName,
+    body,
+    relativeDirPath,
+    localRoot,
+  }: ToolRuleBuildLocalRootFileParams): ToolRule {
+    // Xum reads the personal local file from its tool directory
+    // (`.xum/AGENTS.local.md`), not the project root (project scope only).
+    return new XumRule({
+      outputRoot,
+      relativeDirPath: relativeDirPath ?? XUM_DIR,
+      relativeFilePath: fileName,
+      fileContent:
+        // Xum appends `AGENTS.local.md` to `AGENTS.md` as one document, so the
+        // generated overlay opens at a section boundary like a folded rule does
+        // (an imported file is read back as written).
+        !localRoot ? ensureXumSectionBoundary({ body, heading: "Local instructions" }) : body,
+      validate: true,
+      root: true,
+      localRoot,
+    });
+  }
+
   static getSettablePaths(
     _options: {
       global?: boolean;

@@ -21,6 +21,7 @@ import {
 import { RulesyncRule, RulesyncRuleFrontmatter } from "./rulesync-rule.js";
 import {
   ToolRule,
+  ToolRuleBuildLocalRootFileParams,
   ToolRuleForDeletionParams,
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
@@ -110,6 +111,35 @@ export type CodebuddyRuleSettablePathsGlobal = ToolRuleSettablePathsGlobal;
  * @see https://www.codebuddy.ai/docs/cli/codebuddy-dir
  */
 export class CodebuddyRule extends ToolRule {
+  /**
+   * Build this tool's separate personal local-root file (`localRootMode:
+   * "separate-local-file"`), for generation and import. See
+   * {@link ToolRuleBuildLocalRootFileParams}.
+   */
+  static buildLocalRootFile({
+    outputRoot,
+    global,
+    fileName,
+    body,
+    relativeDirPath,
+    localRoot,
+  }: ToolRuleBuildLocalRootFileParams): ToolRule {
+    // `CODEBUDDY.local.md` sits next to the project-root `CODEBUDDY.md` — the
+    // primary root, not the `.codebuddy/` alternative one — and is a plain
+    // memory file with no rule frontmatter.
+    const paths = CodebuddyRule.getSettablePaths({ global });
+    return new CodebuddyRule({
+      outputRoot,
+      relativeDirPath: relativeDirPath ?? paths.root.relativeDirPath,
+      relativeFilePath: fileName,
+      frontmatter: {},
+      body,
+      validate: true,
+      root: true,
+      localRoot,
+    });
+  }
+
   private readonly frontmatter: CodebuddyRuleFrontmatter;
   private readonly body: string;
 

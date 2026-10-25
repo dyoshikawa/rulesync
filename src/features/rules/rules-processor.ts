@@ -9,7 +9,7 @@ import { CRUSH_LOCAL_RULE_FILE_NAME } from "../../constants/crush-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { KIMI_CODE_PLUGIN_SYSTEM_PROMPT_MAX_BYTES } from "../../constants/plugin-paths.js";
 import { QODER_LOCAL_RULE_FILE_NAME } from "../../constants/qoder-paths.js";
-import { QWENCODE_DIR, QWENCODE_LOCAL_RULE_FILE_NAME } from "../../constants/qwencode-paths.js";
+import { QWENCODE_LOCAL_RULE_FILE_NAME } from "../../constants/qwencode-paths.js";
 import { REASONIX_LOCAL_RULE_FILE_NAME } from "../../constants/reasonix-paths.js";
 import {
   CURATED_RULES_FEATURE_SUBDIR,
@@ -17,7 +17,7 @@ import {
   RULESYNC_RULES_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
 import { WARP_LEGACY_RULE_FILE_NAME } from "../../constants/warp-paths.js";
-import { XUM_DIR, XUM_LOCAL_RULE_FILE_NAME } from "../../constants/xum-paths.js";
+import { XUM_LOCAL_RULE_FILE_NAME } from "../../constants/xum-paths.js";
 import {
   caseFoldIdentity,
   FeatureProcessor,
@@ -121,6 +121,7 @@ import { TabnineRule } from "./tabnine-rule.js";
 import { TaktRule } from "./takt-rule.js";
 import {
   ToolRule,
+  ToolRuleBuildLocalRootFileParams,
   ToolRuleExtraFixedFile,
   ToolRuleForDeletionParams,
   ToolRuleFromFileParams,
@@ -132,7 +133,7 @@ import {
 import { TraeRule } from "./trae-rule.js";
 import { VibeRule } from "./vibe-rule.js";
 import { WarpRule } from "./warp-rule.js";
-import { ensureXumSectionBoundary, XumRule } from "./xum-rule.js";
+import { XumRule } from "./xum-rule.js";
 import { ZcodeRule } from "./zcode-rule.js";
 import { ZedRule } from "./zed-rule.js";
 import { ZoocodeRule } from "./zoocode-rule.js";
@@ -352,19 +353,6 @@ type McpInstructionsRegistrar = {
   }): Promise<ToolFile | null>;
 };
 
-/**
- * Whether `candidate` is `base` itself or a class that extends it.
- *
- * Class-identity dispatch (`factory.class === Base`) is subclass-blind: a target
- * whose adapter merely narrows another one — `ZoocodeRule extends RooRule` — fails
- * a strict `===` and silently falls through. That is how `zoocode` ended up
- * declaring `localRootMode: "separate-local-file"` while never emitting
- * `AGENTS.local.md`, in both directions and without a warning.
- */
-function isClassOrSubclassOf({ candidate, base }: { candidate: object; base: object }): boolean {
-  return candidate === base || Object.prototype.isPrototypeOf.call(base, candidate);
-}
-
 type LocalRootMode = "separate-local-file" | "append-to-root";
 type RuleCollisionPolicy = "compose" | "fold" | "preserve";
 type RuleConversion = {
@@ -412,6 +400,12 @@ type ToolRuleFactory = {
      * See {@link RovodevRule.getLocalRootFileGlob}.
      */
     getLocalRootFileGlob?(params: { fileName: string }): string;
+    /**
+     * Build the tool's separate personal local-root file. Required for a tool
+     * whose `meta.localRootMode` is `separate-local-file`; a tool without it
+     * emits and imports no local file. See {@link ClaudecodeRule.buildLocalRootFile}.
+     */
+    buildLocalRootFile?(params: ToolRuleBuildLocalRootFileParams): ToolRule;
     /**
      * Extra fixed-path files this tool manages beyond the root and non-root
      * rules (e.g. Pi's `APPEND_SYSTEM.md` system-prompt file). The RulesProcessor
@@ -2712,161 +2706,16 @@ export class RulesProcessor extends FeatureProcessor {
     /** True when importing an existing local file back to a rulesync rule. */
     localRoot?: boolean;
   }): ToolRule | null {
-    if (isClassOrSubclassOf({ candidate: factory.class, base: ClaudecodeRule })) {
-      const paths = ClaudecodeRule.getSettablePaths({ global: this.global });
-      return new ClaudecodeRule({
+    return (
+      factory.class.buildLocalRootFile?.({
         outputRoot: this.outputRoot,
-        relativeDirPath: relativeDirPath ?? paths.root.relativeDirPath,
-        relativeFilePath: fileName,
-        frontmatter: {},
+        global: this.global,
+        fileName,
         body,
-        validate: true,
-        root: true,
+        relativeDirPath,
         localRoot,
-      });
-    }
-    if (isClassOrSubclassOf({ candidate: factory.class, base: ClaudecodeLegacyRule })) {
-      const paths = ClaudecodeLegacyRule.getSettablePaths({ global: this.global });
-      return new ClaudecodeLegacyRule({
-        outputRoot: this.outputRoot,
-        relativeDirPath: relativeDirPath ?? paths.root.relativeDirPath,
-        relativeFilePath: fileName,
-        fileContent: body,
-        validate: true,
-        root: true,
-        localRoot,
-      });
-    }
-    if (isClassOrSubclassOf({ candidate: factory.class, base: RovodevRule })) {
-      return new RovodevRule({
-        outputRoot: this.outputRoot,
-        relativeDirPath: relativeDirPath ?? ".",
-        relativeFilePath: fileName,
-        fileContent: body,
-        validate: true,
-        root: true,
-        localRoot,
-      });
-    }
-    if (isClassOrSubclassOf({ candidate: factory.class, base: RooRule })) {
-      return new RooRule({
-        outputRoot: this.outputRoot,
-        relativeDirPath: relativeDirPath ?? ".",
-        relativeFilePath: fileName,
-        fileContent: body,
-        validate: true,
-        root: true,
-        localRoot,
-      });
-    }
-    if (isClassOrSubclassOf({ candidate: factory.class, base: DevinRule })) {
-      // `AGENTS.local.md` sits next to the project-root `AGENTS.md` Devin reads,
-      // not under `.devin/`, and is plain markdown with no trigger frontmatter.
-      return new DevinRule({
-        outputRoot: this.outputRoot,
-        relativeDirPath: relativeDirPath ?? ".",
-        relativeFilePath: fileName,
-        frontmatter: {},
-        body,
-        validate: true,
-        root: true,
-        localRoot,
-      });
-    }
-    if (isClassOrSubclassOf({ candidate: factory.class, base: QoderRule })) {
-      // `AGENTS.local.md` sits next to the project-root `AGENTS.md` Qoder reads,
-      // not under `.qoder/`, and is plain markdown with no trigger frontmatter.
-      return new QoderRule({
-        outputRoot: this.outputRoot,
-        relativeDirPath: relativeDirPath ?? ".",
-        relativeFilePath: fileName,
-        frontmatter: {},
-        body,
-        validate: true,
-        root: true,
-        localRoot,
-      });
-    }
-    if (isClassOrSubclassOf({ candidate: factory.class, base: CodebuddyRule })) {
-      // `CODEBUDDY.local.md` sits next to the project-root `CODEBUDDY.md` — the
-      // primary root, not the `.codebuddy/` alternative one — and is a plain
-      // memory file with no rule frontmatter.
-      const paths = CodebuddyRule.getSettablePaths({ global: this.global });
-      return new CodebuddyRule({
-        outputRoot: this.outputRoot,
-        relativeDirPath: relativeDirPath ?? paths.root.relativeDirPath,
-        relativeFilePath: fileName,
-        frontmatter: {},
-        body,
-        validate: true,
-        root: true,
-        localRoot,
-      });
-    }
-    // Crush, Reasonix and DeepSeek Harness all read their `.local` file from
-    // the working directory root, next to the shared root file (`CRUSH.md` /
-    // `REASONIX.md` / `AGENTS.md`), as plain markdown; none has a tool
-    // directory to put it in.
-    const workingRootClass = [CrushRule, ReasonixRule, DshRule].find((base) =>
-      isClassOrSubclassOf({ candidate: factory.class, base }),
+      }) ?? null
     );
-    if (workingRootClass) {
-      return new workingRootClass({
-        outputRoot: this.outputRoot,
-        relativeDirPath: relativeDirPath ?? ".",
-        relativeFilePath: fileName,
-        fileContent: body,
-        validate: true,
-        root: true,
-        localRoot,
-      });
-    }
-    return this.buildToolDirLocalRootFile({ factory, fileName, body, relativeDirPath, localRoot });
-  }
-
-  /**
-   * Qwen Code and Xum read the personal local file from their tool directory
-   * (`.qwen/QWEN.local.md`, `.xum/AGENTS.local.md`), not the project root
-   * (project scope only; global handling never reaches here).
-   */
-  private buildToolDirLocalRootFile({
-    factory,
-    fileName,
-    body,
-    relativeDirPath,
-    localRoot,
-  }: {
-    factory: ToolRuleFactory;
-    fileName: string;
-    body: string;
-    relativeDirPath: string | undefined;
-    localRoot: boolean;
-  }): ToolRule | null {
-    const toolDirEntry = (
-      [
-        [QwencodeRule, QWENCODE_DIR],
-        [XumRule, XUM_DIR],
-      ] as const
-    ).find(([base]) => isClassOrSubclassOf({ candidate: factory.class, base }));
-    if (toolDirEntry) {
-      const [toolDirClass, toolDir] = toolDirEntry;
-      return new toolDirClass({
-        outputRoot: this.outputRoot,
-        relativeDirPath: relativeDirPath ?? toolDir,
-        relativeFilePath: fileName,
-        // Xum appends `AGENTS.local.md` to `AGENTS.md` as one document, so the
-        // generated overlay opens at a section boundary like a folded rule does
-        // (an imported file is read back as written).
-        fileContent:
-          toolDirClass === XumRule && !localRoot
-            ? ensureXumSectionBoundary({ body, heading: "Local instructions" })
-            : body,
-        validate: true,
-        root: true,
-        localRoot,
-      });
-    }
-    return null;
   }
 
   /**
