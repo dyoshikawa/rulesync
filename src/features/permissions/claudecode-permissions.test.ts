@@ -1027,6 +1027,53 @@ describe("ClaudecodePermissions", () => {
       );
     });
 
+    it.each([
+      ["axScreenReader", true],
+      ["sshHostCommands", [{ id: "dev-box", name: "Dev box", command: "acme-dev create" }]],
+    ])("drops the user/managed-only '%s' at project scope", async (key, value) => {
+      const mockLogger = createMockLogger();
+      const warnSpy = vi.spyOn(mockLogger, "warn");
+      const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: { bash: { "git *": "allow" } },
+            claudecode: { [key]: value },
+          }),
+        }),
+        logger: mockLogger,
+      });
+
+      expect(JSON.parse(instance.getFileContent())[key]).toBeUndefined();
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining(`'${key}' is not honored in the project-scoped`),
+      );
+    });
+
+    it("writes 'sshHostCommands' under --global with a trust-affecting warning", async () => {
+      const mockLogger = createMockLogger();
+      const warnSpy = vi.spyOn(mockLogger, "warn");
+      const entries = [{ id: "dev-box", name: "Dev box", command: "acme-dev create" }];
+      const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: { bash: { "git *": "allow" } },
+            claudecode: { sshHostCommands: entries },
+          }),
+        }),
+        global: true,
+        logger: mockLogger,
+      });
+
+      expect(JSON.parse(instance.getFileContent()).sshHostCommands).toEqual(entries);
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("'sshHostCommands' —"));
+    });
+
     it("writes `enableArtifact` at project scope, since every file can turn the tool off", async () => {
       const mockLogger = createMockLogger();
       const warnSpy = vi.spyOn(mockLogger, "warn");
@@ -1714,7 +1761,6 @@ describe("ClaudecodePermissions", () => {
       [{ allowUnsandboxedCommands: true }, "sandbox.allowUnsandboxedCommands"],
       [{ autoAllowBashIfSandboxed: true }, "sandbox.autoAllowBashIfSandboxed"],
       [{ enableWeakerNestedSandbox: true }, "sandbox.enableWeakerNestedSandbox"],
-      [{ allowNestedUserNamespaces: true }, "sandbox.allowNestedUserNamespaces"],
       [{ enableWeakerNetworkIsolation: true }, "sandbox.enableWeakerNetworkIsolation"],
       [{ ignoreViolations: { "*": ["/etc/hosts"] } }, "sandbox.ignoreViolations"],
       [{ network: { allowMachLookup: ["*"] } }, "sandbox.network.allowMachLookup"],
@@ -1808,6 +1854,69 @@ describe("ClaudecodePermissions", () => {
       );
       expect(warnSpy).toHaveBeenCalledWith(
         expect.stringContaining("'sandbox.allowAppleEvents' is only honored"),
+      );
+    });
+
+    it.each([true, "true"])(
+      "drops a project-scoped 'sandbox.allowNestedUserNamespaces: %o' and writes it under --global with a warning",
+      async (value) => {
+        const generate = async (global: boolean) => {
+          const mockLogger = createMockLogger();
+          const warnSpy = vi.spyOn(mockLogger, "warn");
+          const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+            outputRoot: testDir,
+            rulesyncPermissions: new RulesyncPermissions({
+              relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+              relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+              fileContent: JSON.stringify({
+                permission: { bash: { "git *": "allow" } },
+                claudecode: { sandbox: { enabled: true, allowNestedUserNamespaces: value } },
+              }),
+            }),
+            global,
+            logger: mockLogger,
+          });
+          return { content: JSON.parse(instance.getFileContent()), warnSpy };
+        };
+
+        const project = await generate(false);
+        expect(project.content.sandbox).toEqual({ enabled: true });
+        expect(project.warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining("'sandbox.allowNestedUserNamespaces' can only be turned on"),
+        );
+        expect(project.warnSpy).not.toHaveBeenCalledWith(
+          expect.stringContaining("'sandbox.allowNestedUserNamespaces' —"),
+        );
+
+        const global = await generate(true);
+        expect(global.content.sandbox.allowNestedUserNamespaces).toBe(value);
+        expect(global.warnSpy).toHaveBeenCalledWith(
+          expect.stringContaining("'sandbox.allowNestedUserNamespaces' —"),
+        );
+      },
+    );
+
+    it("keeps a project-scoped 'sandbox.allowNestedUserNamespaces: false', which every file honors", async () => {
+      const mockLogger = createMockLogger();
+      const warnSpy = vi.spyOn(mockLogger, "warn");
+      const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: { bash: { "git *": "allow" } },
+            claudecode: { sandbox: { allowNestedUserNamespaces: false } },
+          }),
+        }),
+        logger: mockLogger,
+      });
+
+      expect(JSON.parse(instance.getFileContent()).sandbox).toEqual({
+        allowNestedUserNamespaces: false,
+      });
+      expect(warnSpy).not.toHaveBeenCalledWith(
+        expect.stringContaining("'sandbox.allowNestedUserNamespaces'"),
       );
     });
 
@@ -2099,7 +2208,7 @@ describe("ClaudecodePermissions", () => {
         expect(messages.join("\n")).not.toContain("secret-token");
       });
 
-      it("drops the v2.1.290 dialog-timer, attachment and file-mention variables at project scope", async () => {
+      it("drops the dialog-timer, attachment, file-mention and screen reader variables at project scope", async () => {
         const mockLogger = createMockLogger();
         const warnSpy = vi.spyOn(mockLogger, "warn");
         const ignored = {
@@ -2108,6 +2217,8 @@ describe("ClaudecodePermissions", () => {
           CLAUDE_AFK_COUNTDOWN_MS: "5000",
           CLAUDE_CODE_DISABLE_ATTACHMENTS: "1",
           CLAUDE_CODE_DISABLE_FILE_MENTIONS: "1",
+          CLAUDE_AX_SCREEN_READER: "1",
+          CLAUDE_AX_STARTUP_QUIET_MS: "500",
         };
 
         const instance = await ClaudecodePermissions.fromRulesyncPermissions({
@@ -2202,6 +2313,8 @@ describe("ClaudecodePermissions", () => {
             rulesyncPermissions: envCase({
               CLAUDE_CODE_REMOTE: "1",
               CLAUDE_CODE_PROJECT_DIR_NAME: "repo",
+              CLAUDE_CODE_WARN_DISK_FREE_GIB: "5",
+              CLAUDE_CODE_WARN_MEMORY_FREE_GIB: "2",
               MY_VAR: "1",
             }),
             global,
@@ -2212,7 +2325,7 @@ describe("ClaudecodePermissions", () => {
           expect(content.env).toEqual({ MY_VAR: "1" });
           expect(warnSpy).toHaveBeenCalledWith(
             expect.stringContaining(
-              "'env.CLAUDE_CODE_REMOTE', 'env.CLAUDE_CODE_PROJECT_DIR_NAME' in every settings file",
+              "'env.CLAUDE_CODE_REMOTE', 'env.CLAUDE_CODE_PROJECT_DIR_NAME', 'env.CLAUDE_CODE_WARN_DISK_FREE_GIB', 'env.CLAUDE_CODE_WARN_MEMORY_FREE_GIB' in every settings file",
             ),
           );
         },
@@ -2460,7 +2573,6 @@ describe("ClaudecodePermissions", () => {
       ["disableSkillShellExecution", "disableSkillShellExecution", 0],
       ["sandbox.filesystem.allowRead", "sandbox", { filesystem: { allowRead: "/etc" } }],
       ["sandbox.enableWeakerNestedSandbox", "sandbox", { enableWeakerNestedSandbox: 1 }],
-      ["sandbox.allowNestedUserNamespaces", "sandbox", { allowNestedUserNamespaces: "true" }],
       ["sandbox.network.allowLocalBinding", "sandbox", { network: { allowLocalBinding: "yes" } }],
     ])("reports an off-type '%s' rather than passing it over", async (label, key, value) => {
       const mockLogger = createMockLogger();

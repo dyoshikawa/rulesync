@@ -137,6 +137,23 @@ const CLAUDECODE_GLOBAL_ONLY_SANDBOX_PATHS: readonly (readonly string[])[] = [
 ];
 
 /**
+ * `sandbox.*` paths whose loosening value Claude Code honors only above project
+ * scope, while it honors the restrictive value from every file — the
+ * value-level counterpart of {@link CLAUDECODE_GLOBAL_ONLY_SANDBOX_PATHS}.
+ * `allowNestedUserNamespaces` is `User or managed`: a `true` in a project
+ * `.claude/settings.json` is ignored ("a key which a repository can't turn on"),
+ * but a `false` counts from any file by settings precedence. So at project scope
+ * only a value other than `false` is dropped; a `false`, which can only narrow
+ * the sandbox, is still written.
+ *
+ * @see https://code.claude.com/docs/en/settings-reference#sandbox-allownestedusernamespaces
+ * @see https://code.claude.com/docs/en/sandboxing
+ */
+const CLAUDECODE_GLOBAL_ONLY_LOOSENING_SANDBOX_PATHS: readonly (readonly string[])[] = [
+  ["allowNestedUserNamespaces"],
+];
+
+/**
  * `sandbox.*` paths documented with a `Managed` scope: Claude Code reads them
  * only from the settings file an organization deploys. Neither file rulesync
  * writes is that file, so they are dropped in **both** scopes — the `sandbox`
@@ -342,10 +359,11 @@ const CLAUDECODE_TRUST_AFFECTING_SANDBOX_PATHS: readonly TrustAffectingSandboxPa
     widens: isNotFalse,
   },
   {
-    // Added in Claude Code v2.1.305 and not yet in the sandboxing docs; the
-    // release note says it lets sandboxed commands get around the sandbox's
-    // file protections.
-    // @see https://github.com/anthropics/claude-code/releases/tag/v2.1.305
+    // Added in Claude Code v2.1.305. A `true` is honored only above project
+    // scope (`CLAUDECODE_GLOBAL_ONLY_LOOSENING_SANDBOX_PATHS`), so at project
+    // scope this entry only ever sees the `false` that is kept, which does not
+    // widen; under `--global` a `true` is written with this warning.
+    // @see https://code.claude.com/docs/en/settings-reference#sandbox-allownestedusernamespaces
     path: ["allowNestedUserNamespaces"],
     reason:
       "lets sandboxed Linux commands create user namespaces, which gets around the sandbox's file protections",
@@ -457,6 +475,11 @@ const CLAUDECODE_TRUST_AFFECTING_SANDBOX_PATHS: readonly TrustAffectingSandboxPa
 type SandboxPathRefusal = {
   readonly paths: readonly (readonly string[])[];
   readonly warn: (args: { readonly label: string; readonly relativeFilePath: string }) => string;
+  /**
+   * When set, a path is dropped only if its value satisfies this predicate;
+   * otherwise every value is dropped.
+   */
+  readonly refuses?: (value: unknown) => boolean;
 };
 
 /** Paths that name an executable Claude Code runs. Refused in both scopes. */
@@ -485,6 +508,17 @@ const CLAUDECODE_GLOBAL_ONLY_SANDBOX_REFUSAL: SandboxPathRefusal = {
 };
 
 /**
+ * Paths whose loosening value Claude Code honors only above project scope.
+ * Refused at project scope for that value only.
+ */
+const CLAUDECODE_GLOBAL_ONLY_LOOSENING_SANDBOX_REFUSAL: SandboxPathRefusal = {
+  paths: CLAUDECODE_GLOBAL_ONLY_LOOSENING_SANDBOX_PATHS,
+  refuses: isNotFalse,
+  warn: ({ label, relativeFilePath }) =>
+    `Claude Code permissions: '${label}' can only be turned on from user/managed/--settings settings, so it is not written to the project-scoped ${relativeFilePath} (only a \`false\` is honored there). Author it in the global scope instead, and check that file for a stale value an earlier generate may have left there.`,
+};
+
+/**
  * Copy of the authored `sandbox` override with every path of every passed
  * refusal removed, warning once per dropped path. Only the override copy is
  * filtered — a value already hand-written in the target file is left untouched,
@@ -502,8 +536,13 @@ function stripSandboxPaths({
   logger?: Logger;
 }): Record<string, unknown> {
   const filtered = structuredClone(sandbox);
-  for (const { paths, warn } of refusals) {
+  for (const { paths, warn, refuses } of refusals) {
     for (const path of paths) {
+      if (refuses !== undefined) {
+        const leaf = path.at(-1);
+        const parent = resolveSandboxParent({ root: filtered, segments: path.slice(0, -1) });
+        if (leaf === undefined || parent === undefined || !refuses(parent[leaf])) continue;
+      }
       if (!deleteSandboxPath({ target: filtered, path })) continue;
       logger?.warn(warn({ label: `sandbox.${path.join(".")}`, relativeFilePath }));
     }
@@ -627,6 +666,9 @@ const CLAUDECODE_NON_PASSTHROUGH_OVERRIDE_KEYS: ReadonlySet<string> = new Set([
  * every file can turn the Artifact tool off, and none can turn it back on — so
  * a project file does honor it. `processWrapper` is also `User or managed`, but it is refused
  * in both scopes by `CLAUDECODE_COMMAND_EXECUTING_KEYS`, which runs first.
+ * `sshHostCommands` (Desktop runs each entry's `command` on your computer) is
+ * written under `--global` with a trust-affecting warning instead, since it only
+ * runs when you create or replace an SSH connection in Desktop.
  *
  * `autoContinueAtUsageLimit` is dropped at project scope for a stronger reason
  * than the others: when no user or managed file sets it, a project or local
@@ -640,6 +682,7 @@ const CLAUDECODE_USER_SCOPE_ONLY_KEYS: ReadonlySet<string> = new Set([
   "askUserQuestionTimeout",
   "autoContinueAtUsageLimit",
   "autoMode",
+  "axScreenReader",
   "bashEditDiffEnabled",
   "desktopSessionCleanupPeriodDays",
   "dialogExpiry",
@@ -653,6 +696,7 @@ const CLAUDECODE_USER_SCOPE_ONLY_KEYS: ReadonlySet<string> = new Set([
   "skipDangerousModePermissionPrompt",
   "spellcheck",
   "sshConfigs",
+  "sshHostCommands",
   "syncClaudeAiPlugins",
   "syncClaudeAiSkills",
   "useAutoModeDuringPlan",
@@ -857,6 +901,8 @@ const CLAUDECODE_TRUST_AFFECTING_KEYS: Readonly<Record<string, string>> = {
     "removes the confirmation shown before the mode that skips every permission check starts",
   skipWebFetchPreflight:
     "turns off the WebFetch domain safety check, so WebFetch retrieves any URL without consulting Anthropic's blocklist",
+  sshHostCommands:
+    "makes Claude Desktop run each entry's `command` on your computer and connect to the SSH host it prints",
 };
 
 /**
@@ -878,6 +924,7 @@ const CLAUDECODE_TRUST_KEY_WIDENING_VALUES: Readonly<Record<string, (value: unkn
     crossSessionInbound: (value) => value !== "hold" && value !== "refuse",
     disableSkillShellExecution: isNotTrue,
     modelOverrides: isNonEmptyMap,
+    sshHostCommands: isNonEmptyList,
     remoteControlAtStartup: isNotFalse,
     skipWebFetchPreflight: isNotFalse,
   };
@@ -936,6 +983,8 @@ const CLAUDECODE_ENV_IGNORED_IN_EVERY_FILE: ReadonlySet<string> = new Set([
   "CLAUDE_CODE_PROJECT_DIR_NAME",
   "CLAUDE_CODE_REMOTE",
   "CLAUDE_CODE_RESTRICTED",
+  "CLAUDE_CODE_WARN_DISK_FREE_GIB",
+  "CLAUDE_CODE_WARN_MEMORY_FREE_GIB",
 ]);
 
 /**
@@ -943,7 +992,7 @@ const CLAUDECODE_ENV_IGNORED_IN_EVERY_FILE: ReadonlySet<string> = new Set([
  * checked-out repository should not control them: where Claude Code stores its
  * own files, what session content it exports, where telemetry goes, how it
  * starts or syncs, the timers on an unanswered dialog, and whether it processes
- * attachments or expands `@` file mentions. Claude Code drops them there, so they are skipped at project scope and emitted only under `--global`.
+ * attachments or expands `@` file mentions, and the screen reader (`CLAUDE_AX_*`) variables. Claude Code drops them there, so they are skipped at project scope and emitted only under `--global`.
  *
  * Only the names the settings reference lists are covered; its directory and
  * Windows groups are introduced with "such as", so an unlisted member of those
@@ -1030,7 +1079,14 @@ const CLAUDECODE_ENV_PROJECT_HONORED_OFF_VALUES: Readonly<Record<string, Readonl
 };
 
 function isProjectIgnoredEnvVariable(name: string, value: unknown): boolean {
-  if (CLAUDECODE_ENV_PROJECT_IGNORED_NAMES.has(name) || name.startsWith("XDG_")) return true;
+  // `XDG_*` and `CLAUDE_AX_*` are documented as whole families.
+  if (
+    CLAUDECODE_ENV_PROJECT_IGNORED_NAMES.has(name) ||
+    name.startsWith("XDG_") ||
+    name.startsWith("CLAUDE_AX_")
+  ) {
+    return true;
+  }
   const upper = name.toUpperCase();
   if (CLAUDECODE_ENV_PROJECT_IGNORED_WINDOWS_NAMES.has(upper) || upper.startsWith("PROGRAMFILES")) {
     return true;
@@ -1387,7 +1443,12 @@ export class ClaudecodePermissions extends ToolPermissions {
         refusals: [
           CLAUDECODE_COMMAND_EXECUTING_SANDBOX_REFUSAL,
           CLAUDECODE_MANAGED_ONLY_SANDBOX_REFUSAL,
-          ...(global ? [] : [CLAUDECODE_GLOBAL_ONLY_SANDBOX_REFUSAL]),
+          ...(global
+            ? []
+            : [
+                CLAUDECODE_GLOBAL_ONLY_SANDBOX_REFUSAL,
+                CLAUDECODE_GLOBAL_ONLY_LOOSENING_SANDBOX_REFUSAL,
+              ]),
         ],
         relativeFilePath: paths.relativeFilePath,
         logger,
