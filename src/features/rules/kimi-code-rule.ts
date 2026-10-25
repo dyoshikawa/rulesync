@@ -137,10 +137,5 @@ export class KimiCodeRule extends ToolRule {
     });
   }
 
-  static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
-    return this.isTargetedByRulesyncRuleDefault({
-      rulesyncRule,
-      toolTarget: "kimi-code",
-    });
-  }
+  protected static override readonly toolTarget = "kimi-code";
 }

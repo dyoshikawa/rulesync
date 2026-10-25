@@ -477,10 +477,5 @@ export class TraeRule extends ToolRule {
     return this.body;
   }
 
-  static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
-    return this.isTargetedByRulesyncRuleDefault({
-      rulesyncRule,
-      toolTarget: "trae",
-    });
-  }
+  protected static override readonly toolTarget = "trae";
 }

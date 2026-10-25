@@ -123,10 +123,5 @@ export class HermesagentRule extends ToolRule {
     });
   }
 
-  static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
-    return this.isTargetedByRulesyncRuleDefault({
-      rulesyncRule,
-      toolTarget: "hermesagent",
-    });
-  }
+  protected static override readonly toolTarget = "hermesagent";
 }

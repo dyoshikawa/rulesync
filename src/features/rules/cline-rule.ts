@@ -327,12 +327,7 @@ export class ClineRule extends ToolRule {
     return this.body ?? this.getFileContent();
   }
 
-  static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
-    return this.isTargetedByRulesyncRuleDefault({
-      rulesyncRule,
-      toolTarget: "cline",
-    });
-  }
+  protected static override readonly toolTarget = "cline";
 
   static async fromFile({
     outputRoot = process.cwd(),

@@ -119,10 +119,5 @@ export class ZcodeRule extends ToolRule {
     });
   }
 
-  static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
-    return this.isTargetedByRulesyncRuleDefault({
-      rulesyncRule,
-      toolTarget: "zcode",
-    });
-  }
+  protected static override readonly toolTarget = "zcode";
 }

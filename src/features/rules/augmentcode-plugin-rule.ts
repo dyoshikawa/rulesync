@@ -1,6 +1,5 @@
 import { AUGMENTCODE_PLUGIN_RULES_DIR } from "../../constants/plugin-paths.js";
 import { AugmentcodeRule, type AugmentcodeRuleSettablePaths } from "./augmentcode-rule.js";
-import type { RulesyncRule } from "./rulesync-rule.js";
 
 /**
  * Rule inside an Auggie plugin bundle (`<plugin>/rules/<name>.md`). Auggie
@@ -10,12 +9,7 @@ import type { RulesyncRule } from "./rulesync-rule.js";
  * @see https://docs.augmentcode.com/cli/plugins
  */
 export class AugmentcodePluginRule extends AugmentcodeRule {
-  static override isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
-    return this.isTargetedByRulesyncRuleDefault({
-      rulesyncRule,
-      toolTarget: "augmentcode-plugin",
-    });
-  }
+  protected static override readonly toolTarget = "augmentcode-plugin";
 
   static override getSettablePaths(): AugmentcodeRuleSettablePaths {
     return {

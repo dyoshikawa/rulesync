@@ -413,10 +413,5 @@ export class AntigravityIdeRule extends ToolRule {
     });
   }
 
-  static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
-    return this.isTargetedByRulesyncRuleDefault({
-      rulesyncRule,
-      toolTarget: "antigravity-ide",
-    });
-  }
+  protected static override readonly toolTarget = "antigravity-ide";
 }

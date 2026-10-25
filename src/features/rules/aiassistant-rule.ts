@@ -412,10 +412,5 @@ export class AiassistantRule extends ToolRule {
     return { success: true, error: null };
   }
 
-  static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
-    return this.isTargetedByRulesyncRuleDefault({
-      rulesyncRule,
-      toolTarget: "aiassistant",
-    });
-  }
+  protected static override readonly toolTarget = "aiassistant";
 }

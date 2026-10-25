@@ -319,10 +319,5 @@ export class AntigravityCliRule extends ToolRule {
     });
   }
 
-  static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
-    return this.isTargetedByRulesyncRuleDefault({
-      rulesyncRule,
-      toolTarget: "antigravity-cli",
-    });
-  }
+  protected static override readonly toolTarget = "antigravity-cli";
 }

@@ -141,10 +141,5 @@ export class DeepagentsRule extends ToolRule {
     return { success: true, error: null };
   }
 
-  static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
-    return this.isTargetedByRulesyncRuleDefault({
-      rulesyncRule,
-      toolTarget: "deepagents",
-    });
-  }
+  protected static override readonly toolTarget = "deepagents";
 }

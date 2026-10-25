@@ -82,12 +82,7 @@ export class AugmentcodeLegacyRule extends ToolRule {
     return { success: true, error: null };
   }
 
-  static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
-    return this.isTargetedByRulesyncRuleDefault({
-      rulesyncRule,
-      toolTarget: "augmentcode-legacy",
-    });
-  }
+  protected static override readonly toolTarget = "augmentcode-legacy";
 
   static async fromFile({
     outputRoot = process.cwd(),

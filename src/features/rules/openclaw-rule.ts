@@ -122,10 +122,5 @@ export class OpenclawRule extends ToolRule {
     });
   }
 
-  static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
-    return this.isTargetedByRulesyncRuleDefault({
-      rulesyncRule,
-      toolTarget: "openclaw",
-    });
-  }
+  protected static override readonly toolTarget = "openclaw";
 }

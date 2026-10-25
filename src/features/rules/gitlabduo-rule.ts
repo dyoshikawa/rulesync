@@ -116,10 +116,5 @@ export class GitlabduoRule extends ToolRule {
     });
   }
 
-  static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
-    return this.isTargetedByRulesyncRuleDefault({
-      rulesyncRule,
-      toolTarget: "gitlabduo",
-    });
-  }
+  protected static override readonly toolTarget = "gitlabduo";
 }

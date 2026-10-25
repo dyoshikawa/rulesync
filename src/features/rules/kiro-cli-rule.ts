@@ -1,5 +1,4 @@
 import { KiroRule } from "./kiro-rule.js";
-import { RulesyncRule } from "./rulesync-rule.js";
 
 /**
  * Rule generator for the **Kiro CLI**.
@@ -9,10 +8,5 @@ import { RulesyncRule } from "./rulesync-rule.js";
  * targeting to the `kiro-cli` tool name.
  */
 export class KiroCliRule extends KiroRule {
-  static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
-    return this.isTargetedByRulesyncRuleDefault({
-      rulesyncRule,
-      toolTarget: "kiro-cli",
-    });
-  }
+  protected static override readonly toolTarget = "kiro-cli";
 }

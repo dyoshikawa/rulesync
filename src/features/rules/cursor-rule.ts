@@ -403,10 +403,5 @@ export class CursorRule extends ToolRule {
     return this.body;
   }
 
-  static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
-    return this.isTargetedByRulesyncRuleDefault({
-      rulesyncRule,
-      toolTarget: "cursor",
-    });
-  }
+  protected static override readonly toolTarget = "cursor";
 }

@@ -348,10 +348,5 @@ export class CopilotRule extends ToolRule {
     return this.body;
   }
 
-  static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
-    return this.isTargetedByRulesyncRuleDefault({
-      rulesyncRule,
-      toolTarget: "copilot",
-    });
-  }
+  protected static override readonly toolTarget = "copilot";
 }

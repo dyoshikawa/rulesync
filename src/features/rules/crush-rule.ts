@@ -150,10 +150,5 @@ export class CrushRule extends ToolRule {
     });
   }
 
-  static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
-    return this.isTargetedByRulesyncRuleDefault({
-      rulesyncRule,
-      toolTarget: "crush",
-    });
-  }
+  protected static override readonly toolTarget = "crush";
 }

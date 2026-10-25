@@ -535,10 +535,5 @@ export class QoderRule extends ToolRule {
     });
   }
 
-  static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
-    return this.isTargetedByRulesyncRuleDefault({
-      rulesyncRule,
-      toolTarget: "qoder",
-    });
-  }
+  protected static override readonly toolTarget = "qoder";
 }

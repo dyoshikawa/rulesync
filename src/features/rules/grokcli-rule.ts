@@ -144,10 +144,5 @@ export class GrokcliRule extends ToolRule {
     });
   }
 
-  static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
-    return this.isTargetedByRulesyncRuleDefault({
-      rulesyncRule,
-      toolTarget: "grokcli",
-    });
-  }
+  protected static override readonly toolTarget = "grokcli";
 }

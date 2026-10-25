@@ -179,10 +179,5 @@ export class CodewhaleRule extends ToolRule {
     });
   }
 
-  static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
-    return this.isTargetedByRulesyncRuleDefault({
-      rulesyncRule,
-      toolTarget: "codewhale",
-    });
-  }
+  protected static override readonly toolTarget = "codewhale";
 }

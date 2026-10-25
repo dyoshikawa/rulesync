@@ -6,6 +6,7 @@ import {
   KIRO_STEERING_DIR_NAME,
 } from "../../constants/kiro-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
+import { ToolTarget } from "../../types/tool-targets.js";
 import { readFileContent, toPosixPath } from "../../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
 import {
@@ -395,10 +396,5 @@ export class KiroRule extends ToolRule {
     });
   }
 
-  static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
-    return this.isTargetedByRulesyncRuleDefault({
-      rulesyncRule,
-      toolTarget: "kiro",
-    });
-  }
+  protected static override readonly toolTarget: ToolTarget = "kiro";
 }

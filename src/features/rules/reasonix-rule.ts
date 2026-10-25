@@ -199,10 +199,5 @@ export class ReasonixRule extends ToolRule {
     });
   }
 
-  static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
-    return this.isTargetedByRulesyncRuleDefault({
-      rulesyncRule,
-      toolTarget: "reasonix",
-    });
-  }
+  protected static override readonly toolTarget = "reasonix";
 }

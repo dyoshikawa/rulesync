@@ -344,12 +344,7 @@ export class QwencodeRule extends ToolRule {
     });
   }
 
-  static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
-    return this.isTargetedByRulesyncRuleDefault({
-      rulesyncRule,
-      toolTarget: "qwencode",
-    });
-  }
+  protected static override readonly toolTarget = "qwencode";
 
   /**
    * The personal local context file lives under `.qwen/`, not at the project

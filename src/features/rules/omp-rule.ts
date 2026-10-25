@@ -305,10 +305,5 @@ export class OmpRule extends ToolRule {
     return this.body;
   }
 
-  static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
-    return this.isTargetedByRulesyncRuleDefault({
-      rulesyncRule,
-      toolTarget: "omp",
-    });
-  }
+  protected static override readonly toolTarget = "omp";
 }

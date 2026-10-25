@@ -461,8 +461,19 @@ export abstract class ToolRule extends ToolFile {
     return this.globs;
   }
 
-  static isTargetedByRulesyncRule(_rulesyncRule: RulesyncRule): boolean {
-    throw new Error("Please implement this method in the subclass.");
+  /**
+   * The target a subclass is generated for. When it is set, the default
+   * `isTargetedByRulesyncRule` checks a rule's `targets` against it. Static
+   * fields are inherited, so a subclass that has a target of its own must
+   * declare it rather than rely on its parent's.
+   */
+  protected static readonly toolTarget: ToolTarget | undefined = undefined;
+
+  static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
+    if (this.toolTarget === undefined) {
+      throw new Error("Please implement this method in the subclass.");
+    }
+    return this.isTargetedByRulesyncRuleDefault({ rulesyncRule, toolTarget: this.toolTarget });
   }
 
   protected static isTargetedByRulesyncRuleDefault({

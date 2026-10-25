@@ -414,10 +414,5 @@ export class ContinueRule extends ToolRule {
     return this.body;
   }
 
-  static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
-    return this.isTargetedByRulesyncRuleDefault({
-      rulesyncRule,
-      toolTarget: "continue",
-    });
-  }
+  protected static override readonly toolTarget = "continue";
 }

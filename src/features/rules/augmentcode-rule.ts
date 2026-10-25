@@ -4,6 +4,7 @@ import { z } from "zod/mini";
 
 import { AUGMENTCODE_DIR } from "../../constants/augmentcode-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
+import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
@@ -244,10 +245,5 @@ export class AugmentcodeRule extends ToolRule {
     });
   }
 
-  static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
-    return this.isTargetedByRulesyncRuleDefault({
-      rulesyncRule,
-      toolTarget: "augmentcode",
-    });
-  }
+  protected static override readonly toolTarget: ToolTarget = "augmentcode";
 }

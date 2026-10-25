@@ -223,10 +223,5 @@ export class AmpRule extends ToolRule {
     });
   }
 
-  static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
-    return this.isTargetedByRulesyncRuleDefault({
-      rulesyncRule,
-      toolTarget: "amp",
-    });
-  }
+  protected static override readonly toolTarget = "amp";
 }

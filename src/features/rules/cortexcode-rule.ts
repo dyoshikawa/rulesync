@@ -111,10 +111,5 @@ export class CortexcodeRule extends ToolRule {
     });
   }
 
-  static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
-    return this.isTargetedByRulesyncRuleDefault({
-      rulesyncRule,
-      toolTarget: "cortexcode",
-    });
-  }
+  protected static override readonly toolTarget = "cortexcode";
 }

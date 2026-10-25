@@ -163,10 +163,5 @@ export class AgentsMdRule extends ToolRule {
     return { success: true, error: null };
   }
 
-  static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
-    return this.isTargetedByRulesyncRuleDefault({
-      rulesyncRule,
-      toolTarget: "agentsmd",
-    });
-  }
+  protected static override readonly toolTarget = "agentsmd";
 }

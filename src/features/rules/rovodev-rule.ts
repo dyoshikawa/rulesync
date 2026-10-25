@@ -294,12 +294,7 @@ export class RovodevRule extends ToolRule {
     return { success: true, error: null };
   }
 
-  static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
-    return this.isTargetedByRulesyncRuleDefault({
-      rulesyncRule,
-      toolTarget: "rovodev",
-    });
-  }
+  protected static override readonly toolTarget = "rovodev";
 
   /**
    * Root-mirror contract: rovodev mirrors its primary `.rovodev/AGENTS.md` root

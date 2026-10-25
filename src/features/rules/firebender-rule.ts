@@ -317,10 +317,5 @@ export class FirebenderRule extends ToolRule {
     });
   }
 
-  static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
-    return this.isTargetedByRulesyncRuleDefault({
-      rulesyncRule,
-      toolTarget: "firebender",
-    });
-  }
+  protected static override readonly toolTarget = "firebender";
 }

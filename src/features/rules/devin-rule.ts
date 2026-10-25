@@ -379,10 +379,5 @@ export class DevinRule extends ToolRule {
     });
   }
 
-  static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
-    return this.isTargetedByRulesyncRuleDefault({
-      rulesyncRule,
-      toolTarget: "devin",
-    });
-  }
+  protected static override readonly toolTarget = "devin";
 }

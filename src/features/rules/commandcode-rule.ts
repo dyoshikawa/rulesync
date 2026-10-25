@@ -117,10 +117,5 @@ export class CommandcodeRule extends ToolRule {
     });
   }
 
-  static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
-    return this.isTargetedByRulesyncRuleDefault({
-      rulesyncRule,
-      toolTarget: "commandcode",
-    });
-  }
+  protected static override readonly toolTarget = "commandcode";
 }

@@ -118,10 +118,5 @@ export class MusecodeRule extends ToolRule {
     });
   }
 
-  static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
-    return this.isTargetedByRulesyncRuleDefault({
-      rulesyncRule,
-      toolTarget: "musecode",
-    });
-  }
+  protected static override readonly toolTarget = "musecode";
 }

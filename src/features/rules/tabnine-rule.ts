@@ -153,10 +153,5 @@ export class TabnineRule extends ToolRule {
     });
   }
 
-  static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
-    return this.isTargetedByRulesyncRuleDefault({
-      rulesyncRule,
-      toolTarget: "tabnine",
-    });
-  }
+  protected static override readonly toolTarget = "tabnine";
 }
