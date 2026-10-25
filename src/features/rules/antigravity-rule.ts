@@ -1,8 +1,8 @@
 import { join } from "node:path";
 
 import { ANTIGRAVITY_IDE_AGENTS_DIR } from "../../constants/antigravity-ide-paths.js";
-import { toPosixPath } from "../../utils/file.js";
 import { nestedScanExclusionGlobs } from "./nested-scan-exclusions.js";
+import { extractRulesDirSubprojectPath } from "./rules-dir-subproject-path.js";
 import type { RulesyncRule } from "./rulesync-rule.js";
 import type { ToolRuleNestedFilePatterns } from "./tool-rule.js";
 import {
@@ -79,21 +79,7 @@ export function toAntigravityNestedRulesDirPath(subprojectPath: string): string 
 export function extractAntigravitySubprojectPath(
   relativeDirPath: string,
 ): { subprojectPath: string; innerDirPath: string } | undefined {
-  const segments = toPosixPath(relativeDirPath).split("/");
-  const index = segments.findIndex(
-    (segment, i) => segment === ANTIGRAVITY_IDE_AGENTS_DIR && segments[i + 1] === "rules",
-  );
-  if (index <= 0) {
-    return undefined;
-  }
-  const subprojectSegments = segments.slice(0, index);
-  if (subprojectSegments.some((segment) => segment === "" || segment.startsWith("."))) {
-    return undefined;
-  }
-  return {
-    subprojectPath: subprojectSegments.join("/"),
-    innerDirPath: segments.slice(index + 2).join("/"),
-  };
+  return extractRulesDirSubprojectPath({ relativeDirPath, toolDir: ANTIGRAVITY_IDE_AGENTS_DIR });
 }
 
 /**

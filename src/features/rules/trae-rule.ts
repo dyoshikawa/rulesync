@@ -8,7 +8,7 @@ import { TRAE_DIR } from "../../constants/trae-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { expandBraceAlternations, splitBraceAwareList } from "../../utils/brace-aware-list.js";
 import { formatError } from "../../utils/error.js";
-import { readFileContent, toPosixPath } from "../../utils/file.js";
+import { readFileContent } from "../../utils/file.js";
 import {
   findFrontmatterBlockBounds,
   parseFrontmatter,
@@ -17,6 +17,7 @@ import {
 import { warnWithFallback } from "../../utils/logger.js";
 import { CursorRule } from "./cursor-rule.js";
 import { nestedScanExclusionGlobs } from "./nested-scan-exclusions.js";
+import { extractRulesDirSubprojectPath } from "./rules-dir-subproject-path.js";
 import { RulesyncRule, RulesyncRuleFrontmatter } from "./rulesync-rule.js";
 import {
   ToolRule,
@@ -298,34 +299,10 @@ export class TraeRule extends ToolRule {
    * `undefined` for a rule in the project-root `.trae/rules/`.
    */
   private getSubprojectPath(): string | undefined {
-    return TraeRule.extractSubprojectPath(this.getRelativeDirPath())?.subprojectPath;
-  }
-
-  /**
-   * Splits a nested rule directory such as `packages/api/.trae/rules/sub` into
-   * the subproject (`packages/api`) and the folder inside its rules directory
-   * (`sub`). Returns `undefined` for the project-root `.trae/rules/`, for a
-   * path with no `.trae/rules` segment, and for one under a hidden directory —
-   * another tool's output or a worktree, not a subproject.
-   */
-  private static extractSubprojectPath(
-    relativeDirPath: string,
-  ): { subprojectPath: string; innerDirPath: string } | undefined {
-    const segments = toPosixPath(relativeDirPath).split("/");
-    const index = segments.findIndex(
-      (segment, i) => segment === TRAE_DIR && segments[i + 1] === "rules",
-    );
-    if (index <= 0) {
-      return undefined;
-    }
-    const subprojectSegments = segments.slice(0, index);
-    if (subprojectSegments.some((segment) => segment === "" || segment.startsWith("."))) {
-      return undefined;
-    }
-    return {
-      subprojectPath: subprojectSegments.join("/"),
-      innerDirPath: segments.slice(index + 2).join("/"),
-    };
+    return extractRulesDirSubprojectPath({
+      relativeDirPath: this.getRelativeDirPath(),
+      toolDir: TRAE_DIR,
+    })?.subprojectPath;
   }
 
   toRulesyncRule(): RulesyncRule {
@@ -385,7 +362,9 @@ export class TraeRule extends ToolRule {
     // plus its basename; it is re-split into the subproject's rules directory
     // and the path inside it, matching how the root `.trae/rules/` is read.
     const nested =
-      overrideDirPath === undefined ? undefined : TraeRule.extractSubprojectPath(overrideDirPath);
+      overrideDirPath === undefined
+        ? undefined
+        : extractRulesDirSubprojectPath({ relativeDirPath: overrideDirPath, toolDir: TRAE_DIR });
     const relativeDirPath = nested
       ? join(nested.subprojectPath, TRAE_DIR, "rules")
       : (overrideDirPath ?? this.getSettablePaths().nonRoot.relativeDirPath);
@@ -431,7 +410,7 @@ export class TraeRule extends ToolRule {
    * when files in that directory are read or mentioned. The shared nested scan
    * ignores every hidden directory, which would skip `.trae` itself, so only a
    * `.trae/rules/` below another hidden directory is ignored here
-   * (`extractSubprojectPath` rejects one again on import).
+   * (`extractRulesDirSubprojectPath` rejects one again on import).
    * Import-only, like every other nested scan: these files sit outside the
    * rulesync-owned root `.trae/rules/`, so `--delete` never sweeps them.
    * @see https://docs.trae.ai/ide/rules?_lang=en
