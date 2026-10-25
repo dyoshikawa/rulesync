@@ -4,7 +4,6 @@ import {
   AIASSISTANT_MCP_DIR_PATH,
   AIASSISTANT_MCP_FILE_NAME,
 } from "../../constants/aiassistant-paths.js";
-import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
@@ -93,10 +92,6 @@ export class AiassistantMcp extends ToolMcp {
 
   toRulesyncMcp(): RulesyncMcp {
     return this.toRulesyncMcpDefault();
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

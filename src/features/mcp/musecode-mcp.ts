@@ -5,7 +5,6 @@ import {
   MUSECODE_SETTINGS_FILE_NAME,
   MUSECODE_SETTINGS_SCHEMA_VERSION,
 } from "../../constants/musecode-paths.js";
-import { ValidationResult } from "../../types/ai-file.js";
 import { McpServers } from "../../types/mcp.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { type Logger, warnWithFallback } from "../../utils/logger.js";
@@ -475,10 +474,6 @@ export class MusecodeMcp extends ToolMcp {
     return this.toRulesyncMcpDefault({
       fileContent: JSON.stringify({ mcpServers: converted }, null, 2),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

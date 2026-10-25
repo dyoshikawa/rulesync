@@ -3,7 +3,7 @@ import {
   RULESYNC_MCP_SCHEMA_URL,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
-import { AiFileFromFileParams, AiFileParams } from "../../types/ai-file.js";
+import { AiFileFromFileParams, AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { FeatureOptions } from "../../types/features.js";
 import { ToolFile } from "../../types/tool-file.js";
 import type { Logger } from "../../utils/logger.js";
@@ -73,6 +73,10 @@ export abstract class ToolMcp extends ToolFile {
 
   static getSettablePaths(): ToolMcpSettablePaths {
     throw new Error("Please implement this method in the subclass.");
+  }
+
+  validate(): ValidationResult {
+    return { success: true, error: null };
   }
 
   abstract toRulesyncMcp(): RulesyncMcp;

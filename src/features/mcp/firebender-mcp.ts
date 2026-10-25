@@ -4,7 +4,6 @@ import {
   FIREBENDER_CONFIG_FILE_NAME,
   getFirebenderConfigDir,
 } from "../../constants/firebender-paths.js";
-import { ValidationResult } from "../../types/ai-file.js";
 import { isMcpServers, McpServers, McpServerSchema } from "../../types/mcp.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
@@ -219,10 +218,6 @@ export class FirebenderMcp extends ToolMcp {
     return this.toRulesyncMcpDefault({
       fileContent: JSON.stringify({ mcpServers }, null, 2),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   /**

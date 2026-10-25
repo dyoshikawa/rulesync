@@ -1,7 +1,6 @@
 import { join } from "node:path";
 
 import { CRUSH_MCP_KEY } from "../../constants/crush-paths.js";
-import { ValidationResult } from "../../types/ai-file.js";
 import { CrushChannelReplySchema, McpServers } from "../../types/mcp.js";
 import { type Logger } from "../../utils/logger.js";
 import { PROTOTYPE_POLLUTION_KEYS } from "../../utils/prototype-pollution.js";
@@ -483,10 +482,6 @@ export class CrushMcp extends ToolMcp {
     return this.toRulesyncMcpDefault({
       fileContent: JSON.stringify({ mcpServers: converted }, null, 2),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

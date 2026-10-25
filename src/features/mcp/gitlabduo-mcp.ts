@@ -1,7 +1,6 @@
 import { join } from "node:path";
 
 import { GITLABDUO_DIR, GITLABDUO_MCP_FILE_NAME } from "../../constants/gitlabduo-paths.js";
-import { ValidationResult } from "../../types/ai-file.js";
 import type { McpServers } from "../../types/mcp.js";
 import { readFileContent } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
@@ -245,10 +244,6 @@ export class GitlabduoMcp extends ToolMcp {
     return this.toRulesyncMcpDefault({
       fileContent: JSON.stringify({ ...others, mcpServers: servers }),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

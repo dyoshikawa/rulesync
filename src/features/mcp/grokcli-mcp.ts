@@ -3,7 +3,6 @@ import { join } from "node:path";
 import * as smolToml from "smol-toml";
 
 import { GROKCLI_DIR, GROKCLI_MCP_FILE_NAME } from "../../constants/grokcli-paths.js";
-import { ValidationResult } from "../../types/ai-file.js";
 import { McpServers } from "../../types/mcp.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { type Logger, warnWithFallback } from "../../utils/logger.js";
@@ -285,10 +284,6 @@ export class GrokcliMcp extends ToolMcp {
     return this.toRulesyncMcpDefault({
       fileContent: JSON.stringify({ mcpServers: converted }, null, 2),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   private static removeEmptyEntries(

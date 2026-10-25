@@ -4,7 +4,6 @@ import { join } from "node:path";
 import * as smolToml from "smol-toml";
 
 import { CODEXCLI_DIR, CODEXCLI_MCP_FILE_NAME } from "../../constants/codexcli-paths.js";
-import { ValidationResult } from "../../types/ai-file.js";
 import { isCodexcliToolConfig, isEnvVarEntryArray, McpServers } from "../../types/mcp.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
@@ -993,10 +992,6 @@ export class CodexcliMcp extends ToolMcp {
     return this.toRulesyncMcpDefault({
       fileContent: JSON.stringify({ mcpServers: converted }, null, 2),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   private static removeEmptyEntries(

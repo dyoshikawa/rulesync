@@ -5,7 +5,6 @@ import {
   QODER_PROJECT_MCP_FILE_NAME,
   QODER_SETTINGS_FILE_NAME,
 } from "../../constants/qoder-paths.js";
-import { ValidationResult } from "../../types/ai-file.js";
 import { isMcpServers, type McpServers } from "../../types/mcp.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
@@ -204,10 +203,6 @@ export class QoderMcp extends ToolMcp {
     return this.toRulesyncMcpDefault({
       fileContent: JSON.stringify({ mcpServers }, null, 2),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

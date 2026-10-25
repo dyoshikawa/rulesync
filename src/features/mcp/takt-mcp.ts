@@ -5,7 +5,6 @@ import {
   TAKT_DIR,
   TAKT_WORKFLOW_MCP_SERVERS_KEY,
 } from "../../constants/takt-paths.js";
-import type { ValidationResult } from "../../types/ai-file.js";
 import type { McpServer, McpServers } from "../../types/mcp.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { isRecord } from "../../utils/type-guards.js";
@@ -145,10 +144,6 @@ export class TaktMcp extends ToolMcp {
     return this.toRulesyncMcpDefault({
       fileContent: JSON.stringify({ mcpServers: {} }, null, 2),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

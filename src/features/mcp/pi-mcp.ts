@@ -1,7 +1,6 @@
 import { join } from "node:path";
 
 import { PI_AGENT_DIR_PATH, PI_DIR, PI_MCP_FILE_NAME } from "../../constants/pi-paths.js";
-import { ValidationResult } from "../../types/ai-file.js";
 import { isMcpServers, type McpServers } from "../../types/mcp.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
@@ -474,10 +473,6 @@ export class PiMcp extends ToolMcp {
         2,
       ),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

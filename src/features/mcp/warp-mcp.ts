@@ -1,7 +1,6 @@
 import { join } from "node:path";
 
 import { WARP_DIR, WARP_MCP_FILE_NAME } from "../../constants/warp-paths.js";
-import { ValidationResult } from "../../types/ai-file.js";
 import { isMcpServers } from "../../types/mcp.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
@@ -150,10 +149,6 @@ export class WarpMcp extends ToolMcp {
     return this.toRulesyncMcpDefault({
       fileContent: JSON.stringify({ mcpServers }, null, 2),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

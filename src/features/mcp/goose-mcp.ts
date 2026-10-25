@@ -6,7 +6,6 @@ import {
   GOOSE_PLUGIN_MCP_DIR_PATH,
   GOOSE_PLUGIN_MCP_FILE_NAME,
 } from "../../constants/goose-paths.js";
-import { ValidationResult } from "../../types/ai-file.js";
 import { McpServers } from "../../types/mcp.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
@@ -542,10 +541,6 @@ export class GooseMcp extends ToolMcp {
     return this.toRulesyncMcpDefault({
       fileContent: JSON.stringify({ mcpServers }, null, 2),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

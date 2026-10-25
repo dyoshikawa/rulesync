@@ -5,7 +5,6 @@ import {
   COMMANDCODE_GLOBAL_MCP_FILE_NAME,
   COMMANDCODE_PROJECT_MCP_FILE_NAME,
 } from "../../constants/commandcode-paths.js";
-import { ValidationResult } from "../../types/ai-file.js";
 import { isMcpServers, type McpServers } from "../../types/mcp.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
@@ -352,10 +351,6 @@ export class CommandcodeMcp extends ToolMcp {
     return this.toRulesyncMcpDefault({
       fileContent: JSON.stringify({ mcpServers }, null, 2),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

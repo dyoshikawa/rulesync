@@ -1,7 +1,6 @@
 import { join } from "node:path";
 
 import { CURSOR_DIR, CURSOR_MCP_FILE_NAME } from "../../constants/cursor-paths.js";
-import { ValidationResult } from "../../types/ai-file.js";
 import { isMcpServers } from "../../types/mcp.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
@@ -146,10 +145,6 @@ export class CursorMcp extends ToolMcp {
     return this.toRulesyncMcpDefault({
       fileContent: JSON.stringify(transformedJson, null, 2),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

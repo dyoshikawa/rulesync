@@ -1,7 +1,6 @@
 import { join } from "node:path";
 
 import { DEEPAGENTS_DIR, DEEPAGENTS_MCP_FILE_NAME } from "../../constants/deepagents-paths.js";
-import { ValidationResult } from "../../types/ai-file.js";
 import type { McpServers } from "../../types/mcp.js";
 import {
   getDeepagentsRelativeDirPath,
@@ -452,10 +451,6 @@ export class DeepagentsMcp extends ToolMcp {
       }),
       fileContent: JSON.stringify({ mcpServers }, null, 2),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

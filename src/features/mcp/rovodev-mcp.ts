@@ -1093,10 +1093,6 @@ export class RovodevMcp extends ToolMcp {
     });
   }
 
-  validate(): ValidationResult {
-    return { success: true, error: null };
-  }
-
   static forDeletion({
     outputRoot = process.cwd(),
     relativeDirPath,

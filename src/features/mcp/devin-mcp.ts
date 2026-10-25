@@ -6,7 +6,6 @@ import {
   DEVIN_GLOBAL_CONFIG_DIR_PATH,
   DEVIN_MCP_CONFIG_FILE_NAME,
 } from "../../constants/devin-paths.js";
-import { ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
@@ -182,10 +181,6 @@ export class DevinMcp extends ToolMcp {
     return this.toRulesyncMcpDefault({
       fileContent: JSON.stringify({ mcpServers: this.json.mcpServers ?? {} }, null, 2),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({
