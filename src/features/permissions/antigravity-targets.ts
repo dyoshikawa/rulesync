@@ -1,13 +1,16 @@
-import type { PermissionAction } from "../../types/permissions.js";
+import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { parseGlobPattern } from "../../utils/glob.js";
 import type { Logger } from "../../utils/logger.js";
 import {
   ANTIGRAVITY_COMMAND_ACTIONS as COMMAND_ACTIONS,
   BRACE_ALTERNATIVES,
   type CommandTargetResult as TargetResult,
+  importAntigravityCommandTarget,
   toAntigravityCommandLiteralPrefix,
   toAntigravityCommandTarget,
 } from "./antigravity-command-patterns.js";
+import { honorAllToolsOnBash } from "./shell-command-categories.js";
+import { parseToolPatternEntry } from "./tool-pattern-entry.js";
 
 /**
  * Build Antigravity `action(target)` permission entries from canonical rules,
@@ -285,4 +288,110 @@ export function buildAntigravityPermissionEntry({
   }
   warnHomeOrVariablePath({ action, target: result.target, rule, decision, logger, toolLabel });
   return result.target === "*" ? action : `${action}(${result.target})`;
+}
+
+/**
+ * Convert rulesync permissions config to Antigravity allow/ask/deny arrays,
+ * shared by the CLI and IDE generators; `toAction` maps a canonical category to
+ * the target's tool or action name.
+ */
+export function convertRulesyncToAntigravityPermissions({
+  config,
+  toAction,
+  toolLabel,
+  logger,
+}: {
+  config: PermissionsConfig;
+  toAction: (category: string) => string;
+  toolLabel: string;
+  logger: Logger;
+}): {
+  allow: string[];
+  ask: string[];
+  deny: string[];
+} {
+  const allow: string[] = [];
+  const ask: string[] = [];
+  const deny: string[] = [];
+
+  for (const [category, rules] of Object.entries(honorAllToolsOnBash(config.permission))) {
+    const action = toAction(category);
+    for (const [pattern, permissionAction] of Object.entries(rules)) {
+      const entry = buildAntigravityPermissionEntry({
+        action,
+        category,
+        pattern,
+        decision: permissionAction,
+        logger,
+        toolLabel,
+      });
+      if (entry === undefined) {
+        continue;
+      }
+      switch (permissionAction) {
+        case "allow":
+          allow.push(entry);
+          break;
+        case "ask":
+          ask.push(entry);
+          break;
+        case "deny":
+          deny.push(entry);
+          break;
+      }
+    }
+  }
+
+  // Two patterns can translate to the same entry (`npm run *` and
+  // `npm   run *`, or two denies widened to the same words), so drop repeats.
+  return { allow: [...new Set(allow)], ask: [...new Set(ask)], deny: [...new Set(deny)] };
+}
+
+/**
+ * Convert Antigravity allow/ask/deny arrays to rulesync permissions config,
+ * shared by the CLI and IDE adapters; `toCategory` maps the target's tool or
+ * action name back to a canonical category.
+ */
+export function convertAntigravityToRulesyncPermissions({
+  allow,
+  ask,
+  deny,
+  toCategory,
+  toolLabel,
+  logger,
+}: {
+  allow: string[];
+  ask: string[];
+  deny: string[];
+  toCategory: (action: string) => string;
+  toolLabel: string;
+  logger: Logger;
+}): PermissionsConfig {
+  const permission: Record<string, Record<string, PermissionAction>> = {};
+
+  const processEntries = (entries: string[], action: PermissionAction) => {
+    for (const entry of entries) {
+      const { toolName, pattern: target } = parseToolPatternEntry(entry);
+      const canonical = toCategory(toolName);
+      const pattern = COMMAND_ACTIONS.has(toolName)
+        ? importAntigravityCommandTarget({
+            target,
+            entry,
+            decision: action,
+            logger,
+            toolLabel,
+          })
+        : target;
+      if (!permission[canonical]) {
+        permission[canonical] = {};
+      }
+      permission[canonical][pattern] = action;
+    }
+  };
+
+  processEntries(allow, "allow");
+  processEntries(ask, "ask");
+  processEntries(deny, "deny");
+
+  return { permission };
 }
