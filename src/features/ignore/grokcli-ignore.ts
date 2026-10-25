@@ -16,6 +16,7 @@ import {
 } from "../shared/shared-config-gateway.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import {
+  parseIgnorePatterns,
   ToolIgnore,
   ToolIgnoreForDeletionParams,
   ToolIgnoreFromFileParams,
@@ -251,11 +252,7 @@ export class GrokcliIgnore extends ToolIgnore {
     rulesyncIgnore,
     global = false,
   }: ToolIgnoreFromRulesyncIgnoreParams): Promise<GrokcliIgnore> {
-    const patterns = rulesyncIgnore
-      .getFileContent()
-      .split(/\r?\n|\r/)
-      .map((line: string) => line.trim())
-      .filter((line) => line.length > 0 && !line.startsWith("#"));
+    const patterns = parseIgnorePatterns(rulesyncIgnore.getFileContent());
 
     const denyEntries: string[] = [];
     for (const pattern of patterns) {

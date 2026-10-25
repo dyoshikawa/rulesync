@@ -12,6 +12,7 @@ import {
 } from "../shared/shared-config-gateway.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import {
+  parseIgnorePatterns,
   ToolIgnore,
   ToolIgnoreForDeletionParams,
   ToolIgnoreFromFileParams,
@@ -78,11 +79,7 @@ export class FirebenderIgnore extends ToolIgnore {
     rulesyncIgnore,
     global = false,
   }: ToolIgnoreFromRulesyncIgnoreParams): Promise<FirebenderIgnore> {
-    const patterns = rulesyncIgnore
-      .getFileContent()
-      .split(/\r?\n|\r/)
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0 && !line.startsWith("#"));
+    const patterns = parseIgnorePatterns(rulesyncIgnore.getFileContent());
 
     const paths = this.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);

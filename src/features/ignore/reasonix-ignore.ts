@@ -26,6 +26,7 @@ import {
 } from "../shared/shared-config-gateway.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import {
+  parseIgnorePatterns,
   ToolIgnore,
   ToolIgnoreForDeletionParams,
   ToolIgnoreFromFileParams,
@@ -156,11 +157,7 @@ export class ReasonixIgnore extends ToolIgnore {
       global,
       logger,
     });
-    const patterns = rulesyncIgnore
-      .getFileContent()
-      .split(/\r?\n|\r/)
-      .map((line: string) => line.trim())
-      .filter((line) => line.length > 0 && !line.startsWith("#"));
+    const patterns = parseIgnorePatterns(rulesyncIgnore.getFileContent());
     const readDenies = patterns.map((pattern) =>
       buildReadDenyEntry(pattern, REASONIX_READ_TOOL_NAME),
     );

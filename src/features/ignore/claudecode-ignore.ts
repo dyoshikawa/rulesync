@@ -21,6 +21,7 @@ import {
 } from "../shared/shared-config-gateway.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import {
+  parseIgnorePatterns,
   ToolIgnore,
   ToolIgnoreForDeletionParams,
   ToolIgnoreFromFileParams,
@@ -146,12 +147,7 @@ export class ClaudecodeIgnore extends ToolIgnore {
     rulesyncIgnore,
     options,
   }: ToolIgnoreFromRulesyncIgnoreParams): Promise<ClaudecodeIgnore> {
-    const fileContent = rulesyncIgnore.getFileContent();
-
-    const patterns = fileContent
-      .split(/\r?\n|\r/)
-      .map((line: string) => line.trim())
-      .filter((line) => line.length > 0 && !line.startsWith("#"));
+    const patterns = parseIgnorePatterns(rulesyncIgnore.getFileContent());
     const deniedValues = patterns.map((pattern) => buildReadDenyEntry(pattern));
 
     const paths = this.getSettablePaths({ options });

@@ -11,6 +11,7 @@ import { fileExists, readFileContent } from "../../utils/file.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import {
+  parseIgnorePatterns,
   ToolIgnore,
   ToolIgnoreForDeletionParams,
   ToolIgnoreFromFileParams,
@@ -89,12 +90,7 @@ export class ZedIgnore extends ToolIgnore {
     rulesyncIgnore,
     global = false,
   }: ToolIgnoreFromRulesyncIgnoreParams): Promise<ZedIgnore> {
-    const fileContent = rulesyncIgnore.getFileContent();
-
-    const patterns = fileContent
-      .split(/\r?\n|\r/)
-      .map((line: string) => line.trim())
-      .filter((line) => line.length > 0 && !line.startsWith("#"));
+    const patterns = parseIgnorePatterns(rulesyncIgnore.getFileContent());
 
     const paths = this.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);

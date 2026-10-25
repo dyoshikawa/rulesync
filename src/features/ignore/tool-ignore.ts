@@ -11,6 +11,17 @@ import { RulesyncIgnore } from "./rulesync-ignore.js";
 export type ToolIgnoreParams = AiFileParams;
 
 /**
+ * Split ignore-file content into its patterns: one per line, trimmed, with
+ * blank lines and `#` comments dropped.
+ */
+export function parseIgnorePatterns(content: string): string[] {
+  return content
+    .split(/\r?\n|\r/)
+    .map((line: string) => line.trim())
+    .filter((line) => line.length > 0 && !line.startsWith("#"));
+}
+
+/**
  * Optional per-feature options forwarded from rulesync configuration
  * (e.g. `features.<target>.ignore = { ... }`). Each tool decides how to
  * interpret its own keys; unknown keys are ignored.
@@ -55,10 +66,7 @@ export abstract class ToolIgnore extends ToolFile {
       ...params,
       validate: true,
     });
-    this.patterns = this.fileContent
-      .split(/\r?\n|\r/)
-      .map((line: string) => line.trim())
-      .filter((line) => line.length > 0 && !line.startsWith("#"));
+    this.patterns = parseIgnorePatterns(this.fileContent);
 
     // Validate after setting patterns, if validation was requested
     if (params.validate) {
