@@ -1,7 +1,5 @@
-import { basename } from "node:path";
-
 import { RULESYNC_CHECKS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
-import { slugifyCheckName } from "./check-slug.js";
+import { checkStem, slugifyCheckName, uniqueCheckName } from "./check-slug.js";
 import { RulesyncCheck } from "./rulesync-check.js";
 
 /**
@@ -99,8 +97,7 @@ function toInstruction(rulesyncCheck: RulesyncCheck): string {
 }
 
 function renderCheckSection(rulesyncCheck: RulesyncCheck): string {
-  // basename, so a check in a subdirectory does not name itself `dir/name`.
-  const name = basename(rulesyncCheck.getRelativeFilePath(), ".md");
+  const name = checkStem(rulesyncCheck);
   const heading = `## ${name}`;
   const instruction = toInstruction(rulesyncCheck);
   const lines = [renderCheckMarker(name), heading];
@@ -167,13 +164,7 @@ export function splitCheckFile({
   return sections.map(({ name, content }) => {
     // Two markers can slugify the same; a suffix keeps the second from
     // overwriting the first.
-    let uniqueName = name;
-    let suffix = 2;
-    while (used.has(uniqueName)) {
-      uniqueName = `${name}-${suffix}`;
-      suffix += 1;
-    }
-    used.add(uniqueName);
+    const uniqueName = uniqueCheckName({ preferred: name, used });
 
     return new RulesyncCheck({
       outputRoot: ".",

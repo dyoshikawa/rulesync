@@ -1,4 +1,4 @@
-import { basename, join } from "node:path";
+import { join } from "node:path";
 
 import { z } from "zod/mini";
 
@@ -17,7 +17,7 @@ import {
   parseSharedConfig,
   TAKT_CONFIG_SHARED_FILE_KEY,
 } from "../shared/shared-config-gateway.js";
-import { slugifyCheckName } from "./check-slug.js";
+import { checkStem, parseCheckOverride, slugifyCheckName } from "./check-slug.js";
 import { RulesyncCheck } from "./rulesync-check.js";
 import {
   ToolCheck,
@@ -63,25 +63,6 @@ type TaktCheckOverride = z.infer<typeof TaktCheckOverrideSchema>;
 /** A `quality_gates` entry: an AI completion directive, or a command gate. */
 type TaktQualityGate = string | Record<string, unknown>;
 
-function parseOverride(raw: unknown, filePath: string, logger?: Logger): TaktCheckOverride {
-  if (raw === undefined) {
-    return {};
-  }
-  if (!isPlainObject(raw)) {
-    // An invalid block throws below; one of the wrong shape entirely would
-    // otherwise silently produce a string gate where a command was intended.
-    logger?.warn(`Ignoring the \`takt\` block in ${filePath}: expected a mapping.`);
-    return {};
-  }
-  const result = TaktCheckOverrideSchema.safeParse(raw);
-  if (!result.success) {
-    throw new Error(`Invalid \`takt\` block in ${filePath}: ${result.error.message}`, {
-      cause: result.error,
-    });
-  }
-  return result.data;
-}
-
 /**
  * Build the gate a single check contributes. A `command` in the `takt` block
  * makes it a command gate — Takt runs the command after the agent step and
@@ -94,7 +75,7 @@ function toQualityGate(rulesyncCheck: RulesyncCheck, override: TaktCheckOverride
       type: "command",
       // Takt's own logs identify a gate by `name`, so fall back to the check's
       // file stem rather than leaving it unnamed.
-      name: override.name ?? stemOf(rulesyncCheck),
+      name: override.name ?? checkStem(rulesyncCheck),
       command: override.command,
       ...(override.cwd !== undefined && { cwd: override.cwd }),
       ...(override.timeout_ms !== undefined && { timeout_ms: override.timeout_ms }),
@@ -104,12 +85,7 @@ function toQualityGate(rulesyncCheck: RulesyncCheck, override: TaktCheckOverride
   const description = rulesyncCheck.getFrontmatter().description?.trim();
   // A gate is one directive string. The body is the authored text; the
   // description is a summary, used only when there is no body to inject.
-  return body.length > 0 ? body : (description ?? stemOf(rulesyncCheck));
-}
-
-function stemOf(rulesyncCheck: RulesyncCheck): string {
-  // basename, so a check in a subdirectory does not name its gate `dir/name`.
-  return basename(rulesyncCheck.getRelativeFilePath(), ".md");
+  return body.length > 0 ? body : (description ?? checkStem(rulesyncCheck));
 }
 
 /**
@@ -375,11 +351,13 @@ export class TaktCheck extends ToolCheck {
     }
 
     const entries = rulesyncChecks.map((rulesyncCheck) => {
-      const override = parseOverride(
-        rulesyncCheck.getFrontmatter().takt,
-        join(RULESYNC_CHECKS_RELATIVE_DIR_PATH, rulesyncCheck.getRelativeFilePath()),
+      const override = parseCheckOverride({
+        raw: rulesyncCheck.getFrontmatter().takt,
+        filePath: join(RULESYNC_CHECKS_RELATIVE_DIR_PATH, rulesyncCheck.getRelativeFilePath()),
+        section: "takt",
+        schema: TaktCheckOverrideSchema,
         logger,
-      );
+      });
       return { gate: toQualityGate(rulesyncCheck, override), override };
     });
 
