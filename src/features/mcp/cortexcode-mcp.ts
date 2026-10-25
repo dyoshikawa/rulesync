@@ -16,6 +16,7 @@ import { parseMcpJsonObjectOrThrow } from "./mcp-json-config.js";
 import {
   declaresNoTransport,
   isRemoteMcpServer,
+  resolveHttpOrSseRemoteType,
   resolveLocalMcpCommand,
   resolveRemoteMcpUrl,
   warnAndSkipMcpServer,
@@ -53,28 +54,6 @@ function parseCortexcodeMcpConfig({
     label: "Cortex Code",
     parse: JSON.parse,
   });
-}
-
-/**
- * The remote transport Cortex Code reads a server as. Cortex Code documents
- * exactly three transports — `stdio`, `http` and `sse` — each spelled out in
- * an explicit `type` key. `http` is also the canonical rulesync spelling, and
- * a bare `url` defaults to it, streamable HTTP being the current MCP
- * transport. `streamable-http` is folded into `http`. A `ws(s)://` URL or any
- * other stated transport is something Cortex Code cannot reach, so
- * `undefined` tells the caller to skip the server.
- * @see https://docs.snowflake.com/en/user-guide/cortex-code/extensibility#transport-types
- */
-function asCortexcodeRemoteType(
-  stated: string | undefined,
-  url: string,
-): "http" | "sse" | undefined {
-  if (stated === "sse") return "sse";
-  if (stated === "http" || stated === "streamable-http") return "http";
-  if (stated === undefined) {
-    return /^wss?:\/\//i.test(url) ? undefined : "http";
-  }
-  return undefined;
 }
 
 /**
@@ -124,7 +103,15 @@ function convertToCortexcodeFormat(mcpServers: McpServers, logger?: Logger): Cor
         continue;
       }
       const stated = type ?? transport;
-      const remoteType = asCortexcodeRemoteType(stated, url);
+      // The remote transport Cortex Code reads a server as. Cortex Code documents
+      // exactly three transports — `stdio`, `http` and `sse` — each spelled out in
+      // an explicit `type` key. `http` is also the canonical rulesync spelling, and
+      // a bare `url` defaults to it, streamable HTTP being the current MCP
+      // transport. `streamable-http` is folded into `http`. A `ws(s)://` URL or any
+      // other stated transport is something Cortex Code cannot reach, so
+      // `undefined` tells the caller to skip the server.
+      // @see https://docs.snowflake.com/en/user-guide/cortex-code/extensibility#transport-types
+      const remoteType = resolveHttpOrSseRemoteType({ stated, url });
       if (remoteType === undefined) {
         warnAndSkipMcpServer({
           toolName: "Cortex Code",

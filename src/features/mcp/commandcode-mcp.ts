@@ -18,6 +18,7 @@ import { parseMcpJsonObjectOrThrow } from "./mcp-json-config.js";
 import {
   declaresNoTransport,
   isRemoteMcpServer,
+  resolveHttpOrSseRemoteType,
   resolveLocalMcpCommand,
   resolveRemoteMcpUrl,
   warnAndSkipMcpServer,
@@ -54,26 +55,6 @@ function parseCommandcodeMcpConfig({
     label: "Command Code",
     parse: parseJsonc,
   });
-}
-
-/**
- * The remote transport Command Code reads a server as. Its loader accepts
- * `http` (streamable HTTP) and `sse` for a `url` server; a bare `url` defaults
- * to `http`, and the canonical `streamable-http` spelling is folded into it.
- * A `ws(s)://` URL or any other stated transport has no Command Code
- * equivalent, so `undefined` tells the caller to skip the server.
- * @see https://commandcode.ai/docs/mcp
- */
-function asCommandcodeRemoteTransport(
-  stated: string | undefined,
-  url: string,
-): "http" | "sse" | undefined {
-  if (stated === "sse") return "sse";
-  if (stated === "http" || stated === "streamable-http") return "http";
-  if (stated === undefined) {
-    return /^wss?:\/\//i.test(url) ? undefined : "http";
-  }
-  return undefined;
 }
 
 /**
@@ -150,10 +131,16 @@ function convertRemoteServer({
     return undefined;
   }
   const stated = serverConfig.type ?? serverConfig.transport;
-  const transport = asCommandcodeRemoteTransport(
-    typeof stated === "string" ? stated : undefined,
+  // The remote transport Command Code reads a server as. Its loader accepts
+  // `http` (streamable HTTP) and `sse` for a `url` server; a bare `url` defaults
+  // to `http`, and the canonical `streamable-http` spelling is folded into it.
+  // A `ws(s)://` URL or any other stated transport has no Command Code
+  // equivalent, so `undefined` tells the caller to skip the server.
+  // @see https://commandcode.ai/docs/mcp
+  const transport = resolveHttpOrSseRemoteType({
+    stated: typeof stated === "string" ? stated : undefined,
     url,
-  );
+  });
   if (transport === undefined) {
     warnAndSkipMcpServer({
       toolName: "Command Code",
