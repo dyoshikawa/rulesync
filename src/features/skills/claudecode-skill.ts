@@ -23,6 +23,7 @@ import type { Logger } from "../../utils/logger.js";
 import {
   NESTED_SCAN_EXCLUDED_DIRS_ANY_DEPTH,
   NESTED_SCAN_EXCLUDED_ROOT_DIRS,
+  nestedScanExclusionGlobs,
 } from "../rules/nested-scan-exclusions.js";
 import { ClaudecodeArgumentHintSchema } from "../shared/claudecode-argument-hint.js";
 import {
@@ -480,11 +481,7 @@ export class ClaudecodeSkill extends ToolSkill {
       cwd: outputRoot,
       type: "dir",
       followSymbolicLinks: false,
-      ignore: [
-        `**/.*/**/${skillsDirPath}`,
-        ...NESTED_SCAN_EXCLUDED_DIRS_ANY_DEPTH.map((dir) => `**/${dir}/**`),
-        ...NESTED_SCAN_EXCLUDED_ROOT_DIRS.map((dir) => `${dir}/**`),
-      ],
+      ignore: [`**/.*/**/${skillsDirPath}`, ...nestedScanExclusionGlobs()],
     });
     // Honor the project's .gitignore like the nested AGENTS.md scan does: a
     // gitignored scratch checkout's skills are somebody else's project and
