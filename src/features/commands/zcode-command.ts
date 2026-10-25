@@ -29,7 +29,7 @@ import {
  * @see https://zcode.z.ai/en/docs/commands
  */
 // looseObject preserves unknown keys during parsing (like passthrough in Zod 3)
-export const ZcodeCommandFrontmatterSchema = z.looseObject({
+const ZcodeCommandFrontmatterSchema = z.looseObject({
   description: z.optional(z.string()),
   "argument-hint": z.optional(z.string()),
 });

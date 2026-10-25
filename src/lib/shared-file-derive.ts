@@ -67,7 +67,7 @@ const TARGETS_NOT_DERIVED: ReadonlySet<string> = new Set([
   "claudecode-legacy",
 ]);
 
-export const sharedFileKey = (path: SharedWritePath): string => {
+const sharedFileKey = (path: SharedWritePath): string => {
   const dir = path.relativeDirPath.replace(/\\/g, "/").replace(/\/$/, "");
   const file = path.relativeFilePath.replace(/\\/g, "/");
   return dir === "" || dir === "." ? file : `${dir}/${file}`;

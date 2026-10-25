@@ -32,7 +32,7 @@ import {
 // ignored upstream, so the schema stays loose and an imported file carrying
 // extra keys still parses.
 // @see https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/skill/skill-filesystem/README.md
-export const DshSkillFrontmatterSchema = z.looseObject({
+const DshSkillFrontmatterSchema = z.looseObject({
   // Upstream requires a kebab-case `name`; not enforced here, because the
   // canonical skill name is shared with every other target.
   name: z.string(),

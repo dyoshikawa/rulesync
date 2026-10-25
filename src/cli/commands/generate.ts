@@ -34,7 +34,7 @@ export type GenerateOptions = ConfigResolverResolveParams & {
  * error: a malformed source is an edit the user is about to correct, and the
  * watcher should stay up for that correction.
  */
-export class SourceLoadFailedError extends CLIError {
+class SourceLoadFailedError extends CLIError {
   constructor({
     message,
     features,

@@ -33,7 +33,7 @@ const XUM_DEFAULT_BASE_AGENT = "exec";
  *
  * @see https://xum.cdr.dev/agents
  */
-export const XumSubagentFrontmatterSchema = z.looseObject({
+const XumSubagentFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.optional(z.string()),
   base: z.optional(z.string()),

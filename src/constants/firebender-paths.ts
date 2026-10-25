@@ -24,7 +24,7 @@ export const FIREBENDER_DIR = ".firebender";
 export const FIREBENDER_CONFIG_FILE_NAME = "firebender.json";
 
 /** Project-scope directory of `firebender.json` (the project root). */
-export const FIREBENDER_PROJECT_CONFIG_DIR = ".";
+const FIREBENDER_PROJECT_CONFIG_DIR = ".";
 
 /** `.firebender/AGENTS.md`, the first file Firebender looks for in both scopes. */
 export const FIREBENDER_AGENTS_MD_FILE_NAME = "AGENTS.md";

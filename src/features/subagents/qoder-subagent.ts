@@ -24,7 +24,7 @@ import {
  *
  * @see https://docs.qoder.com/en/cli/04-extending-qoder-cli/subagent
  */
-export const QoderSubagentFrontmatterSchema = z.looseObject({
+const QoderSubagentFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.optional(z.string()),
   model: z.optional(z.string()),

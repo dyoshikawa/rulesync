@@ -19,7 +19,7 @@ import {
 } from "./tool-command.js";
 
 // looseObject preserves unknown keys during parsing (like passthrough in Zod 3)
-export const TraeCommandFrontmatterSchema = z.looseObject({
+const TraeCommandFrontmatterSchema = z.looseObject({
   // The command's purpose, shown next to it in the `/` menu.
   description: z.optional(z.string()),
   // The command's identifier. Trae's editor fills it with the file name stem

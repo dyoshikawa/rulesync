@@ -47,7 +47,7 @@ import {
 // so an imported file carrying extra keys still parses.
 // https://github.com/esengine/DeepSeek-Reasonix/blob/v2.31.0/internal/ext/skill/invocation_flags.go
 // https://github.com/esengine/DeepSeek-Reasonix/blob/v1.39.8/internal/skill/skill.go
-export const ReasonixSkillFrontmatterSchema = z.looseObject({
+const ReasonixSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
   invocation: z.optional(z.unknown()),

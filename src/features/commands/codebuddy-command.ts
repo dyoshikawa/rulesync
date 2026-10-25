@@ -28,7 +28,7 @@ import {
  * @see https://www.codebuddy.ai/docs/cli/slash-commands
  */
 // looseObject preserves unknown keys during parsing (like passthrough in Zod 3)
-export const CodebuddyCommandFrontmatterSchema = z.looseObject({
+const CodebuddyCommandFrontmatterSchema = z.looseObject({
   description: z.optional(z.string()),
   "argument-hint": z.optional(z.string()),
 });

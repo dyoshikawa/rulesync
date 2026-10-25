@@ -17,7 +17,7 @@ import {
 } from "./tool-command.js";
 
 // looseObject preserves unknown keys during parsing (like passthrough in Zod 3)
-export const QoderCommandFrontmatterSchema = z.looseObject({
+const QoderCommandFrontmatterSchema = z.looseObject({
   // Required by Qoder: shown in the TUI command list.
   description: z.optional(z.string()),
   // Display name in the TUI only; the invocation name always comes from the

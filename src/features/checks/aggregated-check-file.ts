@@ -98,7 +98,7 @@ function toInstruction(rulesyncCheck: RulesyncCheck): string {
   return rulesyncCheck.getFrontmatter().description?.trim() ?? "";
 }
 
-export function renderCheckSection(rulesyncCheck: RulesyncCheck): string {
+function renderCheckSection(rulesyncCheck: RulesyncCheck): string {
   // basename, so a check in a subdirectory does not name itself `dir/name`.
   const name = basename(rulesyncCheck.getRelativeFilePath(), ".md");
   const heading = `## ${name}`;

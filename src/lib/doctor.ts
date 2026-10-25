@@ -37,7 +37,7 @@ import {
   NPM_TRUSTED_REGISTRIES_ENV,
 } from "./npm-client.js";
 
-export type DoctorSeverity = "error" | "warning" | "info";
+type DoctorSeverity = "error" | "warning" | "info";
 
 /**
  * A single diagnostic produced by `rulesync doctor`. Checks stay small and

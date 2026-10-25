@@ -108,7 +108,7 @@ export const SourceEntrySchema = z
   );
 export type SourceEntry = z.infer<typeof SourceEntrySchema>;
 
-export const ConfigParamsSchema = z.object({
+const ConfigParamsSchema = z.object({
   outputRoots: z.union([
     z.array(z.string()),
     z.record(z.string(), z.union([z.string(), z.array(z.string())])),

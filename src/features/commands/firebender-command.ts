@@ -24,7 +24,7 @@ import {
  *
  * @see https://docs.firebender.com/api-reference/commands
  */
-export const FirebenderCommandFrontmatterSchema = z.looseObject({
+const FirebenderCommandFrontmatterSchema = z.looseObject({
   name: z.optional(z.string()),
   description: z.optional(z.string()),
   model: z.optional(z.string()),

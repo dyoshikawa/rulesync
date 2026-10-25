@@ -15,7 +15,7 @@ const EnvVarNameSchema = z
  * `source = "remote"` reads from the remote executor environment.
  * @see https://learn.chatgpt.com/docs/extend/mcp
  */
-export const EnvVarEntrySchema = z.union([
+const EnvVarEntrySchema = z.union([
   EnvVarNameSchema,
   // Strict, unlike the loose objects elsewhere in this file: upstream's
   // `McpServerEnvVar` denies unknown fields, so one stray key here
@@ -47,7 +47,7 @@ export function isEnvVarEntryArray(value: unknown): value is (string | { name: s
  * @see https://github.com/openai/codex/blob/rust-v0.161.0/codex-rs/config/src/mcp_types.rs
  * @see https://learn.chatgpt.com/docs/config-file/config-reference
  */
-export const CodexcliMcpToolConfigSchema = z.looseObject({
+const CodexcliMcpToolConfigSchema = z.looseObject({
   approval_mode: z.optional(z.enum(["auto", "prompt", "writes", "approve"])),
   output_token_limit: z.optional(z.int().check(z.positive())),
 });

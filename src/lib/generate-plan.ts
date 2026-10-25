@@ -11,7 +11,7 @@ import type { DeletedPath, KeyOperation } from "./orphan-sweep.js";
  * - 1: `file`/`directory` writes and deletes.
  * - 2: adds `kind: "key"`, a top-level key of a shared config file.
  */
-export const GENERATE_PLAN_VERSION = 2;
+const GENERATE_PLAN_VERSION = 2;
 
 type GeneratePlanOperationBase = {
   action: "write" | "delete";
@@ -20,7 +20,7 @@ type GeneratePlanOperationBase = {
   path: string;
 };
 
-export type GeneratePlanOperation =
+type GeneratePlanOperation =
   | (GeneratePlanOperationBase & { kind: "file" | "directory" })
   | (GeneratePlanOperationBase & {
       kind: "key";

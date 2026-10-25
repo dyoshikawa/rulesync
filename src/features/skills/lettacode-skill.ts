@@ -26,7 +26,7 @@ import {
 // upstream, so the schema stays loose and an imported file carrying extra keys
 // still parses.
 // @see https://docs.letta.com/configuration/skills/index.md
-export const LettacodeSkillFrontmatterSchema = z.looseObject({
+const LettacodeSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
   "disable-model-invocation": z.optional(z.boolean()),

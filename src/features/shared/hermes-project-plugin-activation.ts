@@ -18,7 +18,7 @@ import type { FeatureGenerateResult } from "../../utils/result.js";
 import { isPlainObject } from "../../utils/type-guards.js";
 import { parseSharedConfig, stringifySharedConfig } from "./shared-config-gateway.js";
 
-export const HERMES_PROJECT_PLUGIN_NAMES = [
+const HERMES_PROJECT_PLUGIN_NAMES = [
   "rulesync-ignore",
   "rulesync-subagents",
   "rulesync-checks",

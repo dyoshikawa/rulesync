@@ -23,7 +23,7 @@ import {
  * one.
  */
 // looseObject preserves unknown keys during parsing (like passthrough in Zod 3)
-export const KimiCodePluginCommandFrontmatterSchema = z.looseObject({
+const KimiCodePluginCommandFrontmatterSchema = z.looseObject({
   name: z.optional(z.string()),
   description: z.optional(z.string()),
 });

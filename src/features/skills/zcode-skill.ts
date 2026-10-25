@@ -33,7 +33,7 @@ import {
 // from — nor round-trip back into — a rulesync skill anyway. ZCode is not known
 // to validate them itself, so the strictness is rulesync's choice, not ZCode's.
 // @see https://zcode.z.ai/en/docs/plugin ("Skill SKILL.md Field Reference")
-export const ZcodeSkillFrontmatterSchema = z.looseObject({
+const ZcodeSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
   when_to_use: z.optional(z.string()),

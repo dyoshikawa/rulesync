@@ -27,7 +27,7 @@ import {
  * @see https://docs.continue.dev/customize/deep-dives/prompts
  */
 // looseObject preserves unknown keys during parsing (like passthrough in Zod 3)
-export const ContinueCommandFrontmatterSchema = z.looseObject({
+const ContinueCommandFrontmatterSchema = z.looseObject({
   name: z.optional(z.string()),
   description: z.optional(z.string()),
   invokable: z.optional(z.boolean()),

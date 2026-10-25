@@ -39,7 +39,7 @@ export type HookType = (typeof HOOK_TYPES)[number];
  * it executes the hook command. The prompt text is written back into JSON,
  * never embedded in generated code, so it is a plain string.
  */
-export const HookConfirmOptionSchema = z.looseObject({
+const HookConfirmOptionSchema = z.looseObject({
   id: z.string(),
   label: z.string(),
   run: z.boolean(),

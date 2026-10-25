@@ -34,7 +34,7 @@ import {
  *
  * @see https://goose-docs.ai/docs/guides/context-engineering/custom-agents/
  */
-export const GooseSubagentFrontmatterSchema = z.looseObject({
+const GooseSubagentFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.optional(z.string()),
   model: z.optional(z.string()),

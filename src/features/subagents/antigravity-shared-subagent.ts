@@ -37,7 +37,7 @@ import {
  *
  * @see https://antigravity.google/docs/subagents
  */
-export const AntigravitySubagentFrontmatterSchema = z.looseObject({
+const AntigravitySubagentFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string().check(z.minLength(1)),
   tools: z.optional(z.array(z.string())),

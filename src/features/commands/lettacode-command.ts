@@ -32,7 +32,7 @@ const LETTACODE_COMMAND_FRONTMATTER_KEYS = ["description", "argument-hint"] as c
 
 // looseObject preserves unknown keys during parsing (like passthrough in Zod 3),
 // so an imported command keeps fields Letta Code ignores.
-export const LettacodeCommandFrontmatterSchema = z.looseObject({
+const LettacodeCommandFrontmatterSchema = z.looseObject({
   description: z.optional(z.string()),
   "argument-hint": z.optional(z.string()),
 });

@@ -38,7 +38,7 @@ import {
  * @see https://docs.x.ai/build/features/skills-plugins-marketplaces
  */
 // looseObject preserves unknown keys during parsing (like passthrough in Zod 3)
-export const GrokcliCommandFrontmatterSchema = z.looseObject({
+const GrokcliCommandFrontmatterSchema = z.looseObject({
   description: z.optional(z.string()),
   "argument-hint": z.optional(z.string()),
   "user-invocable": z.optional(z.boolean()),

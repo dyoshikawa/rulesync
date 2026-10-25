@@ -27,7 +27,7 @@ import {
  * @see https://bob.ibm.com/docs/shell/features/slash-commands
  */
 // looseObject preserves unknown keys during parsing (like passthrough in Zod 3)
-export const BobCommandFrontmatterSchema = z.looseObject({
+const BobCommandFrontmatterSchema = z.looseObject({
   description: z.optional(z.string()),
   "argument-hint": z.optional(z.string()),
 });

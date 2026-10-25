@@ -15,7 +15,7 @@ const RELEASES_PER_PAGE = 100;
  * Upper bound on API pages walked for range queries, so a repository with a
  * very long release history cannot make the command loop unbounded.
  */
-export const MAX_RELEASE_PAGES = 10;
+const MAX_RELEASE_PAGES = 10;
 
 export type ReleaseNotesFilter =
   | { kind: "latest"; count: number }

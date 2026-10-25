@@ -31,7 +31,7 @@ type InitFileResult = {
   outsideProject?: true;
 };
 
-export type InitConfigFileResult = InitFileResult & {
+type InitConfigFileResult = InitFileResult & {
   /**
    * The user-level config file whose `targets` / `features` seeded the new
    * `rulesync.jsonc`, when one was found and the file was created.

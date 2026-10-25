@@ -47,7 +47,7 @@ const DEFAULT_POOL_AGENT_TYPE = "in_process";
  * @see https://docs.poolside.ai/subagents
  * @see https://docs.poolside.ai/settings-file-reference
  */
-export const PoolAgentSchema = z.looseObject({
+const PoolAgentSchema = z.looseObject({
   type: z.optional(z.enum(POOL_AGENT_TYPES)),
   description: z.optional(z.string()),
   instructions: z.optional(z.string()),

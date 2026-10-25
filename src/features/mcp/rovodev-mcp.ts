@@ -774,7 +774,7 @@ async function applyMcpConfigPointer({
  * ...), a `mcpConfigPath` the user aimed elsewhere, and disabled names for
  * servers rulesync does not manage all survive.
  */
-export class RovodevMcpConfigYaml extends ToolFile {
+class RovodevMcpConfigYaml extends ToolFile {
   override isDeletable(): boolean {
     // Shared with the permissions feature and the user's own settings; only
     // the `mcp` key is rulesync-managed here.

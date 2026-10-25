@@ -16,7 +16,7 @@ import { RulesyncCommand } from "./rulesync-command.js";
  * `antigravity.trigger` override, then a root-level `trigger`, then a
  * `trigger: /name` line in the body, then `/<filename>`.
  */
-export function resolveAntigravityCommandTrigger(rulesyncCommand: RulesyncCommand): string {
+function resolveAntigravityCommandTrigger(rulesyncCommand: RulesyncCommand): string {
   const rulesyncFrontmatter = rulesyncCommand.getFrontmatter();
   const antigravityConfig = isRecord(rulesyncFrontmatter.antigravity)
     ? rulesyncFrontmatter.antigravity

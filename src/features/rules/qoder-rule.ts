@@ -36,7 +36,7 @@ import {
  *
  * @see https://docs.qoder.com/en/cli/04-extending-qoder-cli/memory
  */
-export const QoderRuleFrontmatterSchema = z.looseObject({
+const QoderRuleFrontmatterSchema = z.looseObject({
   trigger: z.optional(z.string()),
   alwaysApply: z.optional(z.boolean()),
   description: z.optional(z.string()),

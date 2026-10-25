@@ -40,7 +40,7 @@ import {
  * @see https://github.com/Hmbown/Codewhale/blob/main/crates/tui/src/commands/user_registry.rs
  */
 // looseObject preserves unknown keys during parsing (like passthrough in Zod 3)
-export const CodewhaleCommandFrontmatterSchema = z.looseObject({
+const CodewhaleCommandFrontmatterSchema = z.looseObject({
   description: z.optional(z.string()),
 });
 

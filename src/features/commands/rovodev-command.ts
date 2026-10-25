@@ -291,7 +291,7 @@ async function lookupPromptDescription({
  * Never deleted by orphan cleanup: it is regenerated (not individually
  * discovered) alongside the per-prompt content files it references.
  */
-export class RovodevPromptsManifest extends ToolFile {
+class RovodevPromptsManifest extends ToolFile {
   override isDeletable(): boolean {
     return false;
   }
