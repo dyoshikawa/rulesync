@@ -1,22 +1,9 @@
-import { join } from "node:path";
-
 import { z } from "zod/mini";
 
-import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { TABNINE_AGENTS_DIR_PATH } from "../../constants/tabnine-paths.js";
-import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
-import { formatError } from "../../utils/error.js";
-import { readFileContent } from "../../utils/file.js";
-import {
-  parseFrontmatter,
-  stringifyFrontmatter,
-  validateFrontmatterSchema,
-} from "../../utils/frontmatter.js";
-import { RulesyncSubagent, RulesyncSubagentFrontmatter } from "./rulesync-subagent.js";
-import {
-  ToolSubagent,
-  ToolSubagentForDeletionParams,
-  ToolSubagentFromFileParams,
+import type { ToolTarget } from "../../types/tool-targets.js";
+import { FrontmatterMarkdownToolSubagent } from "./frontmatter-markdown-subagent.js";
+import type {
   ToolSubagentFromRulesyncSubagentParams,
   ToolSubagentSettablePaths,
 } from "./tool-subagent.js";
@@ -43,83 +30,34 @@ const TabnineSubagentFrontmatterSchema = z.looseObject({
 
 type TabnineSubagentFrontmatter = z.infer<typeof TabnineSubagentFrontmatterSchema>;
 
-type TabnineSubagentParams = {
-  frontmatter: TabnineSubagentFrontmatter;
-  body: string;
-} & Omit<AiFileParams, "fileContent"> & { fileContent?: string };
-
 /**
  * Tabnine CLI subagent: a Markdown file with YAML frontmatter under
  * `.tabnine/agent/agents/` (project) or `~/.tabnine/agent/agents/` (user).
  * Tabnine only loads these when `experimental.enableAgents` is `true` in its
  * settings; rulesync writes the files and leaves that flag to the user.
  */
-export class TabnineSubagent extends ToolSubagent {
-  private readonly frontmatter: TabnineSubagentFrontmatter;
-  private readonly body: string;
-
-  constructor({ frontmatter, body, fileContent, ...rest }: TabnineSubagentParams) {
-    if (rest.validate !== false) {
-      const result = TabnineSubagentFrontmatterSchema.safeParse(frontmatter);
-      if (!result.success) {
-        throw new Error(
-          `Invalid frontmatter in ${join(rest.relativeDirPath, rest.relativeFilePath)}: ${formatError(result.error)}`,
-        );
-      }
-    }
-
-    super({
-      ...rest,
-      fileContent: fileContent ?? stringifyFrontmatter(body, frontmatter),
-    });
-
-    this.frontmatter = frontmatter;
-    this.body = body;
-  }
-
+export class TabnineSubagent extends FrontmatterMarkdownToolSubagent<TabnineSubagentFrontmatter> {
   static getSettablePaths(_options: { global?: boolean } = {}): ToolSubagentSettablePaths {
     return {
       relativeDirPath: TABNINE_AGENTS_DIR_PATH,
     };
   }
 
-  getFrontmatter(): TabnineSubagentFrontmatter {
-    return this.frontmatter;
+  protected static override getToolTarget(): ToolTarget {
+    return "tabnine";
   }
 
-  getBody(): string {
-    return this.body;
+  protected static override getFrontmatterSchema() {
+    return TabnineSubagentFrontmatterSchema;
   }
 
-  toRulesyncSubagent(): RulesyncSubagent {
-    const { name, description, ...rest } = this.frontmatter;
-
-    const rulesyncFrontmatter: RulesyncSubagentFrontmatter = {
-      targets: ["*"] as const,
-      name,
-      description,
-      tabnine: {
-        ...rest,
-      },
-    };
-
-    return new RulesyncSubagent({
-      outputRoot: ".",
-      frontmatter: rulesyncFrontmatter,
-      body: this.body,
-      relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
-      relativeFilePath: this.getRelativeFilePath(),
-      validate: true,
-    });
-  }
-
-  static fromRulesyncSubagent({
-    outputRoot = process.cwd(),
+  protected static override toToolFrontmatter({
     rulesyncSubagent,
-    validate = true,
-    global = false,
     logger,
-  }: ToolSubagentFromRulesyncSubagentParams): ToolSubagent {
+  }: Pick<
+    ToolSubagentFromRulesyncSubagentParams,
+    "rulesyncSubagent" | "logger"
+  >): TabnineSubagentFrontmatter {
     const rulesyncFrontmatter = rulesyncSubagent.getFrontmatter();
     const tabnineSection = rulesyncFrontmatter.tabnine ?? {};
 
@@ -143,86 +81,6 @@ export class TabnineSubagent extends ToolSubagent {
       );
     }
     const tabnineSubagentFrontmatter = { ...merged, description } as TabnineSubagentFrontmatter;
-
-    const body = rulesyncSubagent.getBody();
-    const fileContent = stringifyFrontmatter(body, tabnineSubagentFrontmatter, {
-      avoidBlockScalars: true,
-    });
-    const paths = this.getSettablePaths({ global });
-
-    return new TabnineSubagent({
-      outputRoot,
-      frontmatter: tabnineSubagentFrontmatter,
-      body,
-      relativeDirPath: paths.relativeDirPath,
-      relativeFilePath: rulesyncSubagent.getRelativeFilePath(),
-      fileContent,
-      validate,
-      global,
-    });
-  }
-
-  validate(): ValidationResult {
-    if (!this.frontmatter) {
-      return { success: true, error: null };
-    }
-
-    return validateFrontmatterSchema({
-      schema: TabnineSubagentFrontmatterSchema,
-      frontmatter: this.frontmatter,
-      relativeDirPath: this.relativeDirPath,
-      relativeFilePath: this.relativeFilePath,
-    });
-  }
-
-  static isTargetedByRulesyncSubagent(rulesyncSubagent: RulesyncSubagent): boolean {
-    return this.isTargetedByRulesyncSubagentDefault({
-      rulesyncSubagent,
-      toolTarget: "tabnine",
-    });
-  }
-
-  static async fromFile({
-    outputRoot = process.cwd(),
-    relativeFilePath,
-    validate = true,
-    global = false,
-  }: ToolSubagentFromFileParams): Promise<TabnineSubagent> {
-    const paths = this.getSettablePaths({ global });
-    const filePath = join(outputRoot, paths.relativeDirPath, relativeFilePath);
-    const fileContent = await readFileContent(filePath);
-    const { frontmatter, body: content } = parseFrontmatter(fileContent, filePath);
-
-    const result = TabnineSubagentFrontmatterSchema.safeParse(frontmatter);
-    if (!result.success) {
-      throw new Error(`Invalid frontmatter in ${filePath}: ${formatError(result.error)}`);
-    }
-
-    return new TabnineSubagent({
-      outputRoot,
-      relativeDirPath: paths.relativeDirPath,
-      relativeFilePath,
-      frontmatter: result.data,
-      body: content.trim(),
-      fileContent,
-      validate,
-      global,
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolSubagentForDeletionParams): TabnineSubagent {
-    return new TabnineSubagent({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      frontmatter: { name: "", description: "" },
-      body: "",
-      fileContent: "",
-      validate: false,
-    });
+    return tabnineSubagentFrontmatter;
   }
 }

@@ -3,20 +3,9 @@ import { join } from "node:path";
 import { z } from "zod/mini";
 
 import { OMP_AGENTS_DIR_NAME, OMP_DIR, OMP_GLOBAL_DIR } from "../../constants/omp-paths.js";
-import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
-import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
-import { formatError } from "../../utils/error.js";
-import { readFileContent } from "../../utils/file.js";
-import {
-  parseFrontmatter,
-  stringifyFrontmatter,
-  validateFrontmatterSchema,
-} from "../../utils/frontmatter.js";
-import { RulesyncSubagent, RulesyncSubagentFrontmatter } from "./rulesync-subagent.js";
-import {
-  ToolSubagent,
-  ToolSubagentForDeletionParams,
-  ToolSubagentFromFileParams,
+import type { ToolTarget } from "../../types/tool-targets.js";
+import { FrontmatterMarkdownToolSubagent } from "./frontmatter-markdown-subagent.js";
+import type {
   ToolSubagentFromRulesyncSubagentParams,
   ToolSubagentSettablePaths,
 } from "./tool-subagent.js";
@@ -34,11 +23,6 @@ const OmpSubagentFrontmatterSchema = z.looseObject({
 
 type OmpSubagentFrontmatter = z.infer<typeof OmpSubagentFrontmatterSchema>;
 
-type OmpSubagentParams = {
-  frontmatter: OmpSubagentFrontmatter;
-  body: string;
-} & AiFileParams;
-
 /**
  * Subagent generator for oh-my-pi (`omp`): `.omp/agents/*.md` (project) and
  * `~/.omp/agent/agents/*.md` (global, default profile). Keys under the `omp:`
@@ -46,158 +30,36 @@ type OmpSubagentParams = {
  *
  * @see https://github.com/can1357/oh-my-pi/blob/main/docs/task-agent-discovery.md
  */
-export class OmpSubagent extends ToolSubagent {
-  private readonly frontmatter: OmpSubagentFrontmatter;
-  private readonly body: string;
-
-  constructor({ frontmatter, body, ...rest }: OmpSubagentParams) {
-    if (rest.validate !== false) {
-      const result = OmpSubagentFrontmatterSchema.safeParse(frontmatter);
-      if (!result.success) {
-        throw new Error(
-          `Invalid frontmatter in ${join(rest.relativeDirPath, rest.relativeFilePath)}: ${formatError(result.error)}`,
-        );
-      }
-    }
-
-    super({
-      ...rest,
-    });
-
-    this.frontmatter = frontmatter;
-    this.body = body;
-  }
-
+export class OmpSubagent extends FrontmatterMarkdownToolSubagent<OmpSubagentFrontmatter> {
   static getSettablePaths({ global }: { global?: boolean } = {}): ToolSubagentSettablePaths {
     return {
       relativeDirPath: join(global ? OMP_GLOBAL_DIR : OMP_DIR, OMP_AGENTS_DIR_NAME),
     };
   }
 
-  getFrontmatter(): OmpSubagentFrontmatter {
-    return this.frontmatter;
+  protected static override getToolTarget(): ToolTarget {
+    return "omp";
   }
 
-  getBody(): string {
-    return this.body;
+  protected static override getFrontmatterSchema() {
+    return OmpSubagentFrontmatterSchema;
   }
 
-  toRulesyncSubagent(): RulesyncSubagent {
-    const { name, description, ...rest } = this.frontmatter;
-
-    const rulesyncFrontmatter: RulesyncSubagentFrontmatter = {
-      targets: ["*"] as const,
-      name,
-      description,
-      omp: {
-        ...rest,
-      },
-    };
-
-    return new RulesyncSubagent({
-      outputRoot: ".", // RulesyncSubagent outputRoot is always the project root directory
-      frontmatter: rulesyncFrontmatter,
-      body: this.body,
-      relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
-      relativeFilePath: this.getRelativeFilePath(),
-      validate: true,
-    });
-  }
-
-  static fromRulesyncSubagent({
-    outputRoot = process.cwd(),
+  protected static override toToolFrontmatter({
     rulesyncSubagent,
-    validate = true,
-    global = false,
-  }: ToolSubagentFromRulesyncSubagentParams): ToolSubagent {
+  }: Pick<
+    ToolSubagentFromRulesyncSubagentParams,
+    "rulesyncSubagent" | "logger"
+  >): OmpSubagentFrontmatter {
     const rulesyncFrontmatter = rulesyncSubagent.getFrontmatter();
     const ompSection = rulesyncFrontmatter.omp ?? {};
 
-    const ompFrontmatter: OmpSubagentFrontmatter = {
+    return {
       name: rulesyncFrontmatter.name,
       // oh-my-pi ignores an agent without a description, so fall back to the
       // name rather than emit a file that is never loaded.
       description: rulesyncFrontmatter.description ?? rulesyncFrontmatter.name,
       ...ompSection,
     };
-
-    const body = rulesyncSubagent.getBody();
-    const fileContent = stringifyFrontmatter(body, ompFrontmatter, { avoidBlockScalars: true });
-    const paths = this.getSettablePaths({ global });
-
-    return new OmpSubagent({
-      outputRoot: outputRoot,
-      frontmatter: ompFrontmatter,
-      body,
-      relativeDirPath: paths.relativeDirPath,
-      relativeFilePath: rulesyncSubagent.getRelativeFilePath(),
-      fileContent,
-      validate,
-      global,
-    });
-  }
-
-  validate(): ValidationResult {
-    if (!this.frontmatter) {
-      return { success: true, error: null };
-    }
-
-    return validateFrontmatterSchema({
-      schema: OmpSubagentFrontmatterSchema,
-      frontmatter: this.frontmatter,
-      relativeDirPath: this.relativeDirPath,
-      relativeFilePath: this.relativeFilePath,
-    });
-  }
-
-  static isTargetedByRulesyncSubagent(rulesyncSubagent: RulesyncSubagent): boolean {
-    return this.isTargetedByRulesyncSubagentDefault({
-      rulesyncSubagent,
-      toolTarget: "omp",
-    });
-  }
-
-  static async fromFile({
-    outputRoot = process.cwd(),
-    relativeFilePath,
-    validate = true,
-    global = false,
-  }: ToolSubagentFromFileParams): Promise<OmpSubagent> {
-    const paths = this.getSettablePaths({ global });
-    const filePath = join(outputRoot, paths.relativeDirPath, relativeFilePath);
-    const fileContent = await readFileContent(filePath);
-    const { frontmatter, body: content } = parseFrontmatter(fileContent, filePath);
-
-    const result = OmpSubagentFrontmatterSchema.safeParse(frontmatter);
-    if (!result.success) {
-      throw new Error(`Invalid frontmatter in ${filePath}: ${formatError(result.error)}`);
-    }
-
-    return new OmpSubagent({
-      outputRoot: outputRoot,
-      relativeDirPath: paths.relativeDirPath,
-      relativeFilePath: relativeFilePath,
-      frontmatter: result.data,
-      body: content.trim(),
-      fileContent,
-      validate,
-      global,
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolSubagentForDeletionParams): OmpSubagent {
-    return new OmpSubagent({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      frontmatter: { name: "", description: "" },
-      body: "",
-      fileContent: "",
-      validate: false,
-    });
   }
 }
