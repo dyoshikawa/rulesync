@@ -1,7 +1,7 @@
 import { join } from "node:path";
 
 import { ZCODE_DIR, ZCODE_RULE_FILE_NAME } from "../../constants/zcode-paths.js";
-import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
@@ -11,10 +11,6 @@ import {
   ToolRuleFromRulesyncRuleParams,
   ToolRuleSettablePaths,
 } from "./tool-rule.js";
-
-export type ZcodeRuleParams = AiFileParams & {
-  root?: boolean;
-};
 
 /**
  * Rule generator for ZCode, Z.ai's Agentic Development Environment.
@@ -40,14 +36,6 @@ export type ZcodeRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> & {
 };
 
 export class ZcodeRule extends ToolRule {
-  constructor({ fileContent, root, ...rest }: ZcodeRuleParams) {
-    super({
-      ...rest,
-      fileContent,
-      root: root ?? false,
-    });
-  }
-
   static getSettablePaths({
     global = false,
   }: {

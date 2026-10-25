@@ -56,14 +56,6 @@ export type CrushRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> & {
 };
 
 export class CrushRule extends ToolRule {
-  constructor({ fileContent, root, ...rest }: CrushRuleParams) {
-    super({
-      ...rest,
-      fileContent,
-      root: root ?? false,
-    });
-  }
-
   static getSettablePaths({
     global = false,
   }: {

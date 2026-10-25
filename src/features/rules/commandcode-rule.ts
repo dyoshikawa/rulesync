@@ -1,7 +1,7 @@
 import { join } from "node:path";
 
 import { COMMANDCODE_DIR, COMMANDCODE_RULE_FILE_NAME } from "../../constants/commandcode-paths.js";
-import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
@@ -11,10 +11,6 @@ import {
   ToolRuleFromRulesyncRuleParams,
   ToolRuleSettablePaths,
 } from "./tool-rule.js";
-
-export type CommandcodeRuleParams = AiFileParams & {
-  root?: boolean;
-};
 
 /**
  * Rule generator for Command Code, the open-source terminal coding agent.
@@ -38,14 +34,6 @@ export type CommandcodeRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> &
 };
 
 export class CommandcodeRule extends ToolRule {
-  constructor({ fileContent, root, ...rest }: CommandcodeRuleParams) {
-    super({
-      ...rest,
-      fileContent,
-      root: root ?? false,
-    });
-  }
-
   static getSettablePaths({
     global = false,
   }: {

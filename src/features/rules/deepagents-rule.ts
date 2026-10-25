@@ -5,7 +5,7 @@ import {
   DEEPAGENTS_GLOBAL_DIR,
   DEEPAGENTS_RULE_FILE_NAME,
 } from "../../constants/deepagents-paths.js";
-import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import { ValidationResult } from "../../types/ai-file.js";
 import { getDeepagentsRelativeDirPath } from "../../utils/deepagents.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
@@ -16,10 +16,6 @@ import {
   ToolRuleFromRulesyncRuleParams,
   ToolRuleSettablePaths,
 } from "./tool-rule.js";
-
-export type DeepagentsRuleParams = AiFileParams & {
-  root?: boolean;
-};
 
 /**
  * deepagents (dcode) loads project context only from the fixed
@@ -41,14 +37,6 @@ export type DeepagentsRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> & 
 };
 
 export class DeepagentsRule extends ToolRule {
-  constructor({ fileContent, root, ...rest }: DeepagentsRuleParams) {
-    super({
-      ...rest,
-      fileContent,
-      root: root ?? false,
-    });
-  }
-
   static getSettablePaths({
     global = false,
   }: {

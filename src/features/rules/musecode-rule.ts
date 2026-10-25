@@ -1,7 +1,7 @@
 import { join } from "node:path";
 
 import { MUSECODE_RULE_FILE_NAME } from "../../constants/musecode-paths.js";
-import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
@@ -11,10 +11,6 @@ import {
   ToolRuleFromRulesyncRuleParams,
   ToolRuleSettablePaths,
 } from "./tool-rule.js";
-
-export type MusecodeRuleParams = AiFileParams & {
-  root?: boolean;
-};
 
 /**
  * Rule generator for Meta Muse Code.
@@ -42,14 +38,6 @@ export type MusecodeRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> & {
 };
 
 export class MusecodeRule extends ToolRule {
-  constructor({ fileContent, root, ...rest }: MusecodeRuleParams) {
-    super({
-      ...rest,
-      fileContent,
-      root: root ?? false,
-    });
-  }
-
   static getSettablePaths(
     _options: {
       global?: boolean;

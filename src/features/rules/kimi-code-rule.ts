@@ -5,7 +5,7 @@ import {
   RULESYNC_OVERVIEW_FILE_NAME,
   RULESYNC_RULES_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
-import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import {
   getKimiCodeRelativeDirPath,
@@ -19,10 +19,6 @@ import {
   type ToolRuleFromRulesyncRuleParams,
   type ToolRuleSettablePaths,
 } from "./tool-rule.js";
-
-type KimiCodeRuleParams = AiFileParams & {
-  root?: boolean;
-};
 
 export type KimiCodeRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> & {
   root: {
@@ -43,14 +39,6 @@ export type KimiCodeRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> & {
  * @see https://moonshotai.github.io/kimi-code/en/customization/agents.html
  */
 export class KimiCodeRule extends ToolRule {
-  constructor({ fileContent, root, ...rest }: KimiCodeRuleParams) {
-    super({
-      ...rest,
-      fileContent,
-      root: root ?? false,
-    });
-  }
-
   static getSettablePaths({
     global = false,
   }: { global?: boolean; excludeToolDir?: boolean } = {}): KimiCodeRuleSettablePaths {

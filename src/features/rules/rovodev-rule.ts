@@ -6,7 +6,7 @@ import {
   ROVODEV_RULE_FILE_NAME,
 } from "../../constants/rovodev-paths.js";
 import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
-import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContent, toPosixPath } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
@@ -17,11 +17,6 @@ import {
   ToolRuleSettablePaths,
   ToolRuleSettablePathsGlobal,
 } from "./tool-rule.js";
-
-export type RovodevRuleParams = AiFileParams & {
-  root?: boolean;
-  localRoot?: boolean;
-};
 
 /** Basenames reserved for project memory; not modular rules under `.rovodev/.rulesync/modular-rules/`. Lower-cased for case-insensitive comparison (macOS/Windows). */
 const DISALLOWED_ROVODEV_MODULAR_RULE_BASENAMES = new Set(["agents.md", "agents.local.md"]);
@@ -64,14 +59,6 @@ export class RovodevRule extends ToolRule {
       }
     }
     return true;
-  }
-
-  constructor({ fileContent, root, ...rest }: RovodevRuleParams) {
-    super({
-      ...rest,
-      fileContent,
-      root: root ?? false,
-    });
   }
 
   static getSettablePaths({

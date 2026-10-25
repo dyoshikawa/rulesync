@@ -1,7 +1,7 @@
 import { basename, extname, join } from "node:path";
 
 import { XUM_DIR, XUM_RULE_FILE_NAME } from "../../constants/xum-paths.js";
-import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
@@ -52,11 +52,6 @@ function xumRuleHeading(rulesyncRule: RulesyncRule): string {
   return fileName.slice(0, fileName.length - extname(fileName).length);
 }
 
-export type XumRuleParams = AiFileParams & {
-  root?: boolean;
-  localRoot?: boolean;
-};
-
 /**
  * Settable paths for Xum rules. Xum reads a single Xum-dedicated instruction
  * file per directory and has no rules directory, so there is no `nonRoot`
@@ -85,14 +80,6 @@ export type XumRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> & {
  * @see https://xum.cdr.dev/agents/instruction-files
  */
 export class XumRule extends ToolRule {
-  constructor({ fileContent, root, ...rest }: XumRuleParams) {
-    super({
-      ...rest,
-      fileContent,
-      root: root ?? false,
-    });
-  }
-
   static getSettablePaths(
     _options: {
       global?: boolean;

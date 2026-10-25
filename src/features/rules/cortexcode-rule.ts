@@ -1,7 +1,7 @@
 import { join } from "node:path";
 
 import { CORTEXCODE_RULE_FILE_NAME } from "../../constants/cortexcode-paths.js";
-import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
@@ -11,10 +11,6 @@ import {
   ToolRuleFromRulesyncRuleParams,
   ToolRuleSettablePaths,
 } from "./tool-rule.js";
-
-export type CortexcodeRuleParams = AiFileParams & {
-  root?: boolean;
-};
 
 /**
  * Rule generator for Snowflake Cortex Code.
@@ -37,14 +33,6 @@ export type CortexcodeRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> & 
 };
 
 export class CortexcodeRule extends ToolRule {
-  constructor({ fileContent, root, ...rest }: CortexcodeRuleParams) {
-    super({
-      ...rest,
-      fileContent,
-      root: root ?? false,
-    });
-  }
-
   static getSettablePaths(
     _options: {
       global?: boolean;

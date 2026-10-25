@@ -1,7 +1,7 @@
 import { join } from "node:path";
 
 import { GITLABDUO_DIR, GITLABDUO_RULE_FILE_NAME } from "../../constants/gitlabduo-paths.js";
-import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
@@ -11,10 +11,6 @@ import {
   ToolRuleFromRulesyncRuleParams,
   ToolRuleSettablePaths,
 } from "./tool-rule.js";
-
-export type GitlabduoRuleParams = AiFileParams & {
-  root?: boolean;
-};
 
 export type GitlabduoRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> & {
   root: {
@@ -36,14 +32,6 @@ export type GitlabduoRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> & {
  * @see https://docs.gitlab.com/user/duo_agent_platform/customize/custom_rules/
  */
 export class GitlabduoRule extends ToolRule {
-  constructor({ fileContent, root, ...rest }: GitlabduoRuleParams) {
-    super({
-      ...rest,
-      fileContent,
-      root: root ?? false,
-    });
-  }
-
   static getSettablePaths(
     _options: {
       global?: boolean;

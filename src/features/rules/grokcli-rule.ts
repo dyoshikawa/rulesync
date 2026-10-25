@@ -5,7 +5,7 @@ import {
   GROKCLI_RULE_FILE_NAME,
   GROKCLI_RULES_DIR_PATH,
 } from "../../constants/grokcli-paths.js";
-import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
@@ -15,10 +15,6 @@ import {
   ToolRuleFromRulesyncRuleParams,
   ToolRuleSettablePaths,
 } from "./tool-rule.js";
-
-export type GrokcliRuleParams = AiFileParams & {
-  root?: boolean;
-};
 
 /**
  * Rule generator for xAI Grok Build CLI.
@@ -48,14 +44,6 @@ export type GrokcliRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> & {
 };
 
 export class GrokcliRule extends ToolRule {
-  constructor({ fileContent, root, ...rest }: GrokcliRuleParams) {
-    super({
-      ...rest,
-      fileContent,
-      root: root ?? false,
-    });
-  }
-
   static getSettablePaths({
     global = false,
   }: {

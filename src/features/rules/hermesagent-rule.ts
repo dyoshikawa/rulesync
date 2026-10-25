@@ -1,7 +1,7 @@
 import { join } from "node:path";
 
 import { HERMESAGENT_RULE_FILE_NAME } from "../../constants/hermesagent-paths.js";
-import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
@@ -11,10 +11,6 @@ import {
   ToolRuleFromRulesyncRuleParams,
   ToolRuleSettablePaths,
 } from "./tool-rule.js";
-
-export type HermesagentRuleParams = AiFileParams & {
-  root?: boolean;
-};
 
 /**
  * Rule generator for Hermes Agent.
@@ -47,14 +43,6 @@ export type HermesagentRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> &
 };
 
 export class HermesagentRule extends ToolRule {
-  constructor({ fileContent, root, ...rest }: HermesagentRuleParams) {
-    super({
-      ...rest,
-      fileContent,
-      root: root ?? false,
-    });
-  }
-
   static getSettablePaths(): HermesagentRuleSettablePaths {
     // Project instructions live in the repository-root `.hermes.md`. Hermes has
     // no user-level rules file, so rules are project-scope only.

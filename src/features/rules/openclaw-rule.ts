@@ -4,7 +4,7 @@ import {
   OPENCLAW_RULE_FILE_NAME,
   OPENCLAW_WORKSPACE_DIR_PATH,
 } from "../../constants/openclaw-paths.js";
-import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
@@ -14,10 +14,6 @@ import {
   ToolRuleFromRulesyncRuleParams,
   ToolRuleSettablePaths,
 } from "./tool-rule.js";
-
-export type OpenclawRuleParams = AiFileParams & {
-  root?: boolean;
-};
 
 /**
  * Rule generator for OpenClaw, the always-on assistant gateway.
@@ -43,14 +39,6 @@ export type OpenclawRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> & {
 };
 
 export class OpenclawRule extends ToolRule {
-  constructor({ fileContent, root, ...rest }: OpenclawRuleParams) {
-    super({
-      ...rest,
-      fileContent,
-      root: root ?? false,
-    });
-  }
-
   static getSettablePaths({
     global = false,
   }: {

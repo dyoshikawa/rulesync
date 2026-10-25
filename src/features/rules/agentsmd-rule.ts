@@ -5,7 +5,7 @@ import {
   AGENTSMD_MEMORIES_DIR_PATH,
   AGENTSMD_RULE_FILE_NAME,
 } from "../../constants/agentsmd-paths.js";
-import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContent, toPosixPath } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
@@ -18,10 +18,6 @@ import {
   buildToolPath,
 } from "./tool-rule.js";
 
-export type AgentsMdRuleParams = AiFileParams & {
-  root?: boolean;
-};
-
 export type AgentsMdRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
   root: {
     relativeDirPath: string;
@@ -33,14 +29,6 @@ export type AgentsMdRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
 };
 
 export class AgentsMdRule extends ToolRule {
-  constructor({ fileContent, root, ...rest }: AgentsMdRuleParams) {
-    super({
-      ...rest,
-      fileContent,
-      root: root ?? false,
-    });
-  }
-
   static getSettablePaths(
     _options: {
       global?: boolean;
