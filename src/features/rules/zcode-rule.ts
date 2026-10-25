@@ -1,16 +1,6 @@
-import { join } from "node:path";
-
 import { ZCODE_DIR, ZCODE_RULE_FILE_NAME } from "../../constants/zcode-paths.js";
-import { ValidationResult } from "../../types/ai-file.js";
-import { readFileContent } from "../../utils/file.js";
-import { RulesyncRule } from "./rulesync-rule.js";
-import {
-  ToolRule,
-  ToolRuleForDeletionParams,
-  ToolRuleFromFileParams,
-  ToolRuleFromRulesyncRuleParams,
-  ToolRuleSettablePaths,
-} from "./tool-rule.js";
+import { SingleRootFileRule } from "./single-root-file-rule.js";
+import { ToolRuleSettablePaths } from "./tool-rule.js";
 
 /**
  * Rule generator for ZCode, Z.ai's Agentic Development Environment.
@@ -35,7 +25,7 @@ export type ZcodeRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> & {
   nonRoot?: undefined;
 };
 
-export class ZcodeRule extends ToolRule {
+export class ZcodeRule extends SingleRootFileRule {
   static getSettablePaths({
     global = false,
   }: {
@@ -53,70 +43,18 @@ export class ZcodeRule extends ToolRule {
     };
   }
 
-  static async fromFile({
-    outputRoot = process.cwd(),
-    relativeFilePath: _relativeFilePath,
-    validate = true,
-    global = false,
-  }: ToolRuleFromFileParams): Promise<ZcodeRule> {
-    const { root } = this.getSettablePaths({ global });
-    const relativePath = join(root.relativeDirPath, root.relativeFilePath);
-    const fileContent = await readFileContent(join(outputRoot, relativePath));
-
-    return new ZcodeRule({
-      outputRoot,
-      relativeDirPath: root.relativeDirPath,
-      relativeFilePath: root.relativeFilePath,
-      fileContent,
-      validate,
-      root: true,
-    });
-  }
-
-  static fromRulesyncRule({
-    outputRoot = process.cwd(),
-    rulesyncRule,
-    validate = true,
-    global = false,
-  }: ToolRuleFromRulesyncRuleParams): ZcodeRule {
-    const { root } = this.getSettablePaths({ global });
-    const isRoot = rulesyncRule.getFrontmatter().root ?? false;
-
-    return new ZcodeRule({
-      outputRoot,
-      relativeDirPath: root.relativeDirPath,
-      relativeFilePath: root.relativeFilePath,
-      fileContent: rulesyncRule.getBody(),
-      validate,
-      root: isRoot,
-    });
-  }
-
-  toRulesyncRule(): RulesyncRule {
-    return this.toRulesyncRuleDefault();
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
+  protected static override isRootFilePath({
     relativeDirPath,
     relativeFilePath,
-  }: ToolRuleForDeletionParams): ZcodeRule {
-    const isRoot =
+  }: {
+    relativeDirPath: string;
+    relativeFilePath: string;
+    global: boolean;
+  }): boolean {
+    return (
       relativeFilePath === ZCODE_RULE_FILE_NAME &&
-      (relativeDirPath === "." || relativeDirPath === ZCODE_DIR);
-
-    return new ZcodeRule({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: "",
-      validate: false,
-      root: isRoot,
-    });
+      (relativeDirPath === "." || relativeDirPath === ZCODE_DIR)
+    );
   }
 
   protected static override readonly toolTarget = "zcode";
