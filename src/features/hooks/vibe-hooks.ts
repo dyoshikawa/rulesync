@@ -52,6 +52,32 @@ const VIBE_TOOL_EVENTS: ReadonlySet<string> = new Set(["pre_tool", "post_tool"])
 const SUPPORTED_VIBE_EVENTS: ReadonlySet<string> = new Set(VIBE_HOOK_EVENTS);
 
 /**
+ * The `match` a canonical `Bash` matcher becomes. Vibe tests `match` against a
+ * tool's qualified name, its underscore form and its bare leaf, and "commands
+ * the agent starts in the background go through `process_start`, which
+ * `match = "bash"` does not catch" — so a verbatim `Bash` guard silently skips
+ * every background command. The upstream README's own example is this regex.
+ * @see https://github.com/mistralai/mistral-vibe/blob/v3.0.2/README.md
+ */
+const VIBE_SHELL_HOOK_MATCH = "re:bash|process_start";
+
+/** Translate a canonical tool matcher into Vibe's `match` value. */
+function toVibeHookMatch(matcher: unknown): string {
+  if (typeof matcher !== "string" || matcher === "") {
+    return "*";
+  }
+  return matcher.toLowerCase() === "bash" ? VIBE_SHELL_HOOK_MATCH : matcher;
+}
+
+/** Reverse {@link toVibeHookMatch}; `undefined` means "any tool". */
+function fromVibeHookMatch(match: unknown): string | undefined {
+  if (typeof match !== "string" || match === "" || match === "*") {
+    return undefined;
+  }
+  return match.toLowerCase() === VIBE_SHELL_HOOK_MATCH ? "Bash" : match;
+}
+
+/**
  * Build the flat `[[hooks]]` array for `.vibe/hooks.toml` from a canonical
  * hooks config. Vibe uses a flat array where each entry carries its own event
  * `type`, tool-name `match` glob/regex, and `command`. Only `type: "command"`
@@ -60,7 +86,7 @@ const SUPPORTED_VIBE_EVENTS: ReadonlySet<string> = new Set(VIBE_HOOK_EVENTS);
  * skipped any command containing a backslash; v2.25.5 restored shell
  * execution — "Hook commands using pipes, `&&`, redirects, globs or `$VAR`
  * now run through the shell" — and dropped the backslash skip.)
- * @see https://github.com/mistralai/mistral-vibe/blob/v2.25.8/vibe/core/hooks/config.py
+ * @see https://github.com/mistralai/mistral-vibe/blob/v3.0.2/README.md
  */
 function canonicalToVibeHooks({
   config,
@@ -102,9 +128,10 @@ function canonicalToVibeHooks({
         command: def.command,
       };
       // The tool-name `match` glob applies to tool hooks only; `post_agent`
-      // carries no matcher, so omit it there.
+      // carries no matcher, so omit it there. A canonical `Bash` matcher is
+      // widened to also catch background commands (`process_start`).
       if (isToolEvent) {
-        entry.match = typeof def.matcher === "string" && def.matcher !== "" ? def.matcher : "*";
+        entry.match = toVibeHookMatch(def.matcher);
       }
       if (typeof def.timeout === "number") {
         entry.timeout = def.timeout;
@@ -152,8 +179,9 @@ function vibeEntryToCanonicalDef(
   if (typeof entry.command === "string") {
     def.command = entry.command;
   }
-  if (typeof entry.match === "string" && entry.match !== "" && entry.match !== "*") {
-    def.matcher = entry.match;
+  const matcher = fromVibeHookMatch(entry.match);
+  if (matcher !== undefined) {
+    def.matcher = matcher;
   }
   if (typeof entry.timeout === "number") {
     def.timeout = entry.timeout;

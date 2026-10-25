@@ -25,7 +25,7 @@ describe("VibePluginHooks", () => {
       hooks: [
         expect.objectContaining({
           type: "pre_tool",
-          match: "bash",
+          match: "re:bash|process_start",
           command: "./scripts/check.sh",
         }),
       ],
@@ -33,7 +33,7 @@ describe("VibePluginHooks", () => {
 
     const imported = hooks.toRulesyncHooks().getJson();
     expect(imported.hooks.preToolUse).toEqual([
-      expect.objectContaining({ matcher: "bash", command: "./scripts/check.sh" }),
+      expect.objectContaining({ matcher: "Bash", command: "./scripts/check.sh" }),
     ]);
   });
 });

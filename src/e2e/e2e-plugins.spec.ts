@@ -456,6 +456,7 @@ Review the changes.
     const generatedHooks = await readFileContent(join(pluginRoot, "ai.mistral.vibe", "hooks.toml"));
     expect(generatedHooks).toContain('type = "pre_tool"');
     expect(generatedHooks).toContain('command = "./scripts/audit.sh"');
+    expect(generatedHooks).toContain('match = "re:bash|process_start"');
     expect(await fileExists(join(testDir, ".vibe", "config.toml"))).toBe(false);
 
     await removeDirectory(join(testDir, RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH));
@@ -476,7 +477,8 @@ Review the changes.
       docs: { command: "npx", args: ["-y", "docs-server"] },
     });
     expect(JSON.parse(await readFileContent(rulesyncHooksPath)).hooks.preToolUse).toEqual([
-      expect.objectContaining({ command: "./scripts/audit.sh", matcher: "bash" }),
+      // The widened shell matcher (`re:bash|process_start`) reads back as `Bash`.
+      expect.objectContaining({ command: "./scripts/audit.sh", matcher: "Bash" }),
     ]);
     expect(await fileExists(join(pluginRoot, "plugin.json"))).toBe(true);
   });
