@@ -499,6 +499,99 @@ describe("CopilotMcp", () => {
     });
   });
 
+  describe("environment variable references", () => {
+    it("should write canonical ${VAR} as ${env:VAR} in env and headers", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            local: {
+              command: "node",
+              args: ["server.js"],
+              env: { API_KEY: "${SERVICE_API_KEY}", URL: "https://${HOST}:${PORT}", DEBUG: "true" },
+            },
+            remote: {
+              type: "http",
+              url: "https://example.com/mcp",
+              headers: { Authorization: "Bearer ${SERVICE_API_KEY}" },
+            },
+          },
+        }),
+      });
+
+      const copilotMcp = await CopilotMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+      const servers = copilotMcp.getJson().servers;
+
+      expect(servers?.local?.env).toEqual({
+        API_KEY: "${env:SERVICE_API_KEY}",
+        URL: "https://${env:HOST}:${env:PORT}",
+        DEBUG: "true",
+      });
+      expect(servers?.remote?.headers).toEqual({
+        Authorization: "Bearer ${env:SERVICE_API_KEY}",
+      });
+    });
+
+    it("should leave ${env:VAR}, ${input:id} and ${VAR:-default} untouched when writing", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            local: {
+              command: "node",
+              env: { A: "${env:ALREADY}", B: "${input:api-key}", C: "${WITH:-fallback}" },
+            },
+          },
+        }),
+      });
+
+      const copilotMcp = await CopilotMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+
+      expect(copilotMcp.getJson().servers?.local?.env).toEqual({
+        A: "${env:ALREADY}",
+        B: "${input:api-key}",
+        C: "${WITH:-fallback}",
+      });
+    });
+
+    it("should map ${env:VAR} back to canonical ${VAR} on import", () => {
+      const copilotMcp = new CopilotMcp({
+        relativeDirPath: ".vscode",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          servers: {
+            local: {
+              command: "node",
+              env: { API_KEY: "${env:SERVICE_API_KEY}", PROMPTED: "${input:api-key}" },
+            },
+            remote: {
+              type: "http",
+              url: "https://example.com/mcp",
+              headers: { Authorization: "Bearer ${env:SERVICE_API_KEY}" },
+            },
+          },
+        }),
+      });
+
+      const json = copilotMcp.toRulesyncMcp().getJson() as {
+        mcpServers: Record<
+          string,
+          { env?: Record<string, string>; headers?: Record<string, string> }
+        >;
+      };
+
+      expect(json.mcpServers.local?.env).toEqual({
+        API_KEY: "${SERVICE_API_KEY}",
+        PROMPTED: "${input:api-key}",
+      });
+      expect(json.mcpServers.remote?.headers).toEqual({
+        Authorization: "Bearer ${SERVICE_API_KEY}",
+      });
+    });
+  });
+
   describe("validate", () => {
     it("should return successful validation result", () => {
       const jsonData = {
