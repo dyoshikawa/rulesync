@@ -523,6 +523,7 @@ describe("IgnoreProcessor", () => {
         "grokcli",
         "kilo",
         "kiro",
+        "kiro-cli",
         "kiro-ide",
         "reasonix",
         "zed",

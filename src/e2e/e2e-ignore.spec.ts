@@ -403,6 +403,8 @@ describe("E2E: ignore (global mode)", () => {
     // Kilo's global ignore file stays in the legacy `~/.kilocode/` tree.
     { target: "kilo", outputPath: join(KILO_LEGACY_GLOBAL_DIR, KILO_IGNORE_FILE_NAME) },
     { target: "kiro", outputPath: join(KIRO_SETTINGS_DIR_PATH, KIRO_GLOBAL_IGNORE_FILE_NAME) },
+    // Kiro CLI V3 reads the same user-level file as the IDE.
+    { target: "kiro-cli", outputPath: join(KIRO_SETTINGS_DIR_PATH, KIRO_GLOBAL_IGNORE_FILE_NAME) },
     { target: "kiro-ide", outputPath: join(KIRO_SETTINGS_DIR_PATH, KIRO_GLOBAL_IGNORE_FILE_NAME) },
     {
       target: "reasonix",
@@ -490,7 +492,7 @@ describe("E2E: ignore (global mode)", () => {
     );
   });
 
-  it("should not write the user-level kiroignore for kiro-cli, which only the IDE reads", async () => {
+  it("should write the shared user-level kiroignore once for kiro-cli and kiro-ide", async () => {
     const projectDir = getProjectDir();
     const homeDir = getHomeDir();
     await writeFileContent(
@@ -499,14 +501,15 @@ describe("E2E: ignore (global mode)", () => {
     );
 
     await runGenerate({
-      target: "kiro-cli",
+      target: "kiro-cli,kiro-ide",
       features: "ignore",
       global: true,
       env: { HOME_DIR: homeDir },
     });
 
-    expect(
-      await fileExists(join(homeDir, KIRO_SETTINGS_DIR_PATH, KIRO_GLOBAL_IGNORE_FILE_NAME)),
-    ).toBe(false);
+    const generatedContent = await readFileContent(
+      join(homeDir, KIRO_SETTINGS_DIR_PATH, KIRO_GLOBAL_IGNORE_FILE_NAME),
+    );
+    expect(generatedContent.match(/credentials\//g)).toHaveLength(1);
   });
 });
