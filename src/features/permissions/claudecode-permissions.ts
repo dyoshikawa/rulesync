@@ -538,11 +538,7 @@ function stripSandboxPaths({
   const filtered = structuredClone(sandbox);
   for (const { paths, warn, refuses } of refusals) {
     for (const path of paths) {
-      if (refuses !== undefined) {
-        const leaf = path.at(-1);
-        const parent = resolveSandboxParent({ root: filtered, segments: path.slice(0, -1) });
-        if (leaf === undefined || parent === undefined || !refuses(parent[leaf])) continue;
-      }
+      if (refuses !== undefined && !refuses(readSandboxPath({ sandbox: filtered, path }))) continue;
       if (!deleteSandboxPath({ target: filtered, path })) continue;
       logger?.warn(warn({ label: `sandbox.${path.join(".")}`, relativeFilePath }));
     }
@@ -664,11 +660,9 @@ const CLAUDECODE_NON_PASSTHROUGH_OVERRIDE_KEYS: ReadonlySet<string> = new Set([
  * top-level key documented as `User or managed` or `User, local, or managed`.
  * `enableArtifact` is deliberately absent: it is documented as `Any file` —
  * every file can turn the Artifact tool off, and none can turn it back on — so
- * a project file does honor it. `processWrapper` is also `User or managed`, but it is refused
- * in both scopes by `CLAUDECODE_COMMAND_EXECUTING_KEYS`, which runs first.
- * `sshHostCommands` (Desktop runs each entry's `command` on your computer) is
- * written under `--global` with a trust-affecting warning instead, since it only
- * runs when you create or replace an SSH connection in Desktop.
+ * a project file does honor it. `processWrapper` and `sshHostCommands` are also
+ * `User or managed`, but they are refused in both scopes by
+ * `CLAUDECODE_COMMAND_EXECUTING_KEYS`, which runs first.
  *
  * `autoContinueAtUsageLimit` is dropped at project scope for a stronger reason
  * than the others: when no user or managed file sets it, a project or local
@@ -696,7 +690,6 @@ const CLAUDECODE_USER_SCOPE_ONLY_KEYS: ReadonlySet<string> = new Set([
   "skipDangerousModePermissionPrompt",
   "spellcheck",
   "sshConfigs",
-  "sshHostCommands",
   "syncClaudeAiPlugins",
   "syncClaudeAiSkills",
   "useAutoModeDuringPlan",
@@ -849,6 +842,8 @@ const CLAUDECODE_COMMAND_EXECUTING_KEYS: Readonly<Record<string, string>> = {
   otelHeadersHelper: "runs the script it names to build OpenTelemetry headers",
   policyHelper: "runs the executable it names to compute the managed settings",
   processWrapper: "wraps every process Claude Code spawns",
+  sshHostCommands:
+    "makes Claude Desktop run each entry's `command` on your computer when you create or replace an SSH connection",
   statusLine: "runs its `command` on every status-line render",
   subagentStatusLine: "runs its `command` on every subagent status row",
 };
@@ -901,8 +896,6 @@ const CLAUDECODE_TRUST_AFFECTING_KEYS: Readonly<Record<string, string>> = {
     "removes the confirmation shown before the mode that skips every permission check starts",
   skipWebFetchPreflight:
     "turns off the WebFetch domain safety check, so WebFetch retrieves any URL without consulting Anthropic's blocklist",
-  sshHostCommands:
-    "makes Claude Desktop run each entry's `command` on your computer and connect to the SSH host it prints",
 };
 
 /**
@@ -924,7 +917,6 @@ const CLAUDECODE_TRUST_KEY_WIDENING_VALUES: Readonly<Record<string, (value: unkn
     crossSessionInbound: (value) => value !== "hold" && value !== "refuse",
     disableSkillShellExecution: isNotTrue,
     modelOverrides: isNonEmptyMap,
-    sshHostCommands: isNonEmptyList,
     remoteControlAtStartup: isNotFalse,
     skipWebFetchPreflight: isNotFalse,
   };
@@ -976,6 +968,7 @@ const CLAUDECODE_ENV_IGNORED_IN_EVERY_FILE: ReadonlySet<string> = new Set([
   "CLAUDE_CODE_ACCOUNT_UUID",
   "CLAUDE_CODE_DISABLE_DANGEROUS_RM_TIMEOUT",
   "CLAUDE_CODE_DISABLE_INLINE_SHELL_RM_PROMPT",
+  "CLAUDE_CODE_DISABLE_MOUNTED_DRIVE_RM_PROMPT",
   "CLAUDE_CODE_DISABLE_POWERSHELL_CMD_RM_DENY",
   "CLAUDE_CODE_DISABLE_SUBSTITUTION_RM_PROMPT",
   "CLAUDE_CODE_MESSAGING_SOCKET",
