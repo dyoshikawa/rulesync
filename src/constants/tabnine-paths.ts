@@ -19,7 +19,6 @@ export const TABNINE_AGENT_DIR_PATH = join(TABNINE_DIR, "agent");
 // @see https://docs.tabnine.com/main/getting-started/tabnine-cli/features/settings
 // @see https://docs.tabnine.com/main/getting-started/tabnine-agent/guidelines
 export const TABNINE_RULE_FILE_NAME = "TABNINE.md";
-export const TABNINE_GUIDELINES_DIR_PATH = join(TABNINE_DIR, "guidelines");
 
 // Ignore: a gitignore-syntax `.tabnineignore` at the project root, honored
 // while `context.fileFiltering.respectGeminiIgnore` is enabled (the default).
