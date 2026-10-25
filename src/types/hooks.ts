@@ -803,6 +803,14 @@ export const CODEXCLI_HOOK_EVENTS: readonly HookEvent[] = [
   "subagentStop",
   "preCompact",
   "postCompact",
+  // Codex's `PreModelRequest` / `PostModelRequest` (shipped in rust-v0.164.0,
+  // PR #55144) fire around every model request attempt, retries and subagent
+  // requests included. They are observation-only: hook output cannot block the
+  // request or change the model context. Codex ignores any `matcher` on them,
+  // as on `Stop` and `UserPromptSubmit`, so they are forwarded as authored.
+  // https://github.com/openai/codex/blob/rust-v0.164.0/codex-rs/hooks/src/events/common.rs
+  "preModelInvocation",
+  "postModelInvocation",
 ];
 
 /**
@@ -2402,6 +2410,8 @@ export const CANONICAL_TO_CODEXCLI_EVENT_NAMES: Record<string, string> = {
   subagentStop: "SubagentStop",
   preCompact: "PreCompact",
   postCompact: "PostCompact",
+  preModelInvocation: "PreModelRequest",
+  postModelInvocation: "PostModelRequest",
 };
 
 /**
