@@ -398,27 +398,149 @@ describe("VibePermissions", () => {
     expect(parsed.disabled_tools).toEqual(["edit", "other_tool"]);
   });
 
-  it("should map the agent category to Vibe's task tool in both directions", async () => {
-    // Vibe's subagent tool is `task`; emitting `agent` left the deny inert,
-    // so subagent spawning stayed enabled. Same rename OpenCode needed.
-    const rulesyncPermissions = new RulesyncPermissions({
-      outputRoot: testDir,
-      relativeDirPath: ".rulesync",
-      relativeFilePath: "permissions.json",
-      fileContent: JSON.stringify({ permission: { agent: { "*": "deny" } } }),
+  describe("agent category (enable_subagents)", () => {
+    const generate = async ({
+      permission,
+      existing,
+      logger,
+    }: {
+      permission: Record<string, Record<string, string>>;
+      existing?: string;
+      logger?: ReturnType<typeof createMockLogger>;
+    }) => {
+      if (existing !== undefined) {
+        await ensureDir(join(testDir, ".vibe"));
+        await writeFileContent(join(testDir, ".vibe", "config.toml"), existing);
+      }
+      return VibePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          outputRoot: testDir,
+          relativeDirPath: ".rulesync",
+          relativeFilePath: "permissions.json",
+          fileContent: JSON.stringify({ permission }),
+        }),
+        ...(logger !== undefined && { logger }),
+      });
+    };
+
+    it("should map a wildcard deny to enable_subagents = false in both directions", async () => {
+      // Vibe 3.x spawns subagents through `agents.spawn`, which no `[tools.*]`
+      // table governs; `enable_subagents = false` is the switch that does.
+      const vibePermissions = await generate({ permission: { agent: { "*": "deny" } } });
+      const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+
+      expect(parsed.enable_subagents).toBe(false);
+      expect(parsed.tools).toBeUndefined();
+      expect(parsed.disabled_tools).toBeUndefined();
+
+      const imported = JSON.parse(vibePermissions.toRulesyncPermissions().getFileContent());
+      expect(imported.permission.agent).toEqual({ "*": "deny" });
     });
 
-    const vibePermissions = await VibePermissions.fromRulesyncPermissions({
-      outputRoot: testDir,
-      rulesyncPermissions,
+    it("should remove enable_subagents for a wildcard allow", async () => {
+      const vibePermissions = await generate({
+        permission: { agent: { "*": "allow" } },
+        existing: "enable_subagents = false\n",
+      });
+      const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+
+      expect(parsed.enable_subagents).toBeUndefined();
     });
-    const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
 
-    expect(parsed.disabled_tools).toEqual(["task"]);
-    expect(parsed.tools.agent).toBeUndefined();
+    it("should warn that a wildcard ask cannot be expressed and leave subagents on", async () => {
+      const logger = createMockLogger();
+      const vibePermissions = await generate({
+        permission: { agent: { "*": "ask" } },
+        existing: "enable_subagents = false\n",
+        logger,
+      });
+      const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
 
-    const imported = JSON.parse(vibePermissions.toRulesyncPermissions().getFileContent());
-    expect(imported.permission.agent["*"]).toBe("deny");
+      expect(parsed.enable_subagents).toBeUndefined();
+      expect(
+        logger.warn.mock.calls.some(([message]) =>
+          String(message).includes("cannot prompt before spawning a subagent"),
+        ),
+      ).toBe(true);
+    });
+
+    it("should skip pattern rules with a warning and keep an existing switch", async () => {
+      const logger = createMockLogger();
+      const vibePermissions = await generate({
+        permission: { agent: { "explore*": "deny" } },
+        existing: "enable_subagents = false\n",
+        logger,
+      });
+      const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+
+      expect(parsed.enable_subagents).toBe(false);
+      expect(parsed.tools).toBeUndefined();
+      expect(
+        logger.warn.mock.calls.some(([message]) =>
+          String(message).includes("skipping 1 pattern rule(s) of the 'agent' category"),
+        ),
+      ).toBe(true);
+    });
+
+    it("should leave enable_subagents alone when no agent category is configured", async () => {
+      const vibePermissions = await generate({
+        permission: { bash: { "*": "allow" } },
+        existing: "enable_subagents = false\n",
+      });
+      const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+
+      expect(parsed.enable_subagents).toBe(false);
+    });
+
+    it("should remove the inert [tools.task] table and disabled_tools entry earlier versions wrote", async () => {
+      const logger = createMockLogger();
+      const vibePermissions = await generate({
+        permission: { agent: { "*": "deny" } },
+        existing: [
+          'disabled_tools = ["task", "custom_tool"]',
+          "",
+          "[tools.task]",
+          'permission = "never"',
+          "",
+        ].join("\n"),
+        logger,
+      });
+      const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+
+      expect(parsed.tools?.task).toBeUndefined();
+      expect(parsed.disabled_tools).toEqual(["custom_tool"]);
+      expect(parsed.enable_subagents).toBe(false);
+      expect(
+        logger.warn.mock.calls.some(([message]) => String(message).includes("[tools.task]")),
+      ).toBe(true);
+    });
+
+    it("should import enable_subagents = false as a deny even beside an allowing [tools.task]", () => {
+      const vibePermissions = new VibePermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".vibe",
+        relativeFilePath: "config.toml",
+        fileContent: ["enable_subagents = false", "", "[tools.task]", 'permission = "always"'].join(
+          "\n",
+        ),
+      });
+
+      const imported = JSON.parse(vibePermissions.toRulesyncPermissions().getFileContent());
+      expect(imported.permission.agent).toEqual({ "*": "deny" });
+    });
+
+    it("should still import a legacy [tools.task] table as the agent category", () => {
+      const vibePermissions = new VibePermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".vibe",
+        relativeFilePath: "config.toml",
+        fileContent: 'disabled_tools = ["task"]\n',
+      });
+
+      const imported = JSON.parse(vibePermissions.toRulesyncPermissions().getFileContent());
+      expect(imported.permission.agent).toEqual({ "*": "deny" });
+    });
   });
 
   it("should skip categories without a Vibe tool instead of emitting inert tables", async () => {
@@ -459,7 +581,13 @@ describe("VibePermissions", () => {
     ).toBe(true);
   });
 
-  it("should emit [tools.grep] for the grep category (a real Vibe builtin)", async () => {
+  it("should skip the grep category with a warning pointing at bash (Vibe 3.x has no grep tool)", async () => {
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      ['disabled_tools = ["grep"]', "", "[tools.grep]", 'permission = "never"', ""].join("\n"),
+    );
+    const logger = createMockLogger();
     const vibePermissions = await VibePermissions.fromRulesyncPermissions({
       outputRoot: testDir,
       rulesyncPermissions: new RulesyncPermissions({
@@ -468,11 +596,40 @@ describe("VibePermissions", () => {
         relativeFilePath: "permissions.json",
         fileContent: JSON.stringify({ permission: { grep: { "*": "deny" } } }),
       }),
+      logger,
+    });
+    const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+
+    // `[tools.grep]` has no effect on Vibe 3.x and triggers a config warning,
+    // so the stale table an earlier rulesync wrote is removed too.
+    expect(parsed.tools).toBeUndefined();
+    expect(parsed.disabled_tools).toBeUndefined();
+    expect(
+      logger.warn.mock.calls.some(([message]) => String(message).includes("Vibe has no grep tool")),
+    ).toBe(true);
+    expect(
+      logger.warn.mock.calls.some(([message]) => String(message).includes("[tools.grep]")),
+    ).toBe(true);
+  });
+
+  it("should leave a [tools.grep] table alone when the grep category is not configured", async () => {
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      ["[tools.grep]", 'permission = "never"', ""].join("\n"),
+    );
+    const vibePermissions = await VibePermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({ permission: { bash: { "*": "allow" } } }),
+      }),
     });
     const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
 
     expect(parsed.tools.grep.permission).toBe("never");
-    expect(parsed.disabled_tools).toEqual(["grep"]);
   });
 
   it("should fan the bash category out to the Windows managed shells", async () => {
