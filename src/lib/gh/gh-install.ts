@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { basename, join, posix } from "node:path";
 
 import { Semaphore } from "es-toolkit/promise";
@@ -19,6 +18,7 @@ import {
 import type { Logger } from "../../utils/logger.js";
 import { GitHubClient, GitHubClientError, logGitHubAuthHints } from "../github-client.js";
 import { listDirectoryRecursive, withSemaphore } from "../github-utils.js";
+import { computeInstallContentHash } from "../install-content-hash.js";
 import { parseSource } from "../source-parser.js";
 import { injectSourceMetadata } from "./gh-frontmatter.js";
 import {
@@ -570,7 +570,9 @@ async function installSource(params: {
           : 0,
     );
     const deployedFiles = deployed.map((d) => d.relativeToScopeRoot);
-    const contentHash = computeContentHash(deployed);
+    const contentHash = computeInstallContentHash(
+      deployed.map((d) => ({ path: d.relativeToScopeRoot, content: d.content })),
+    );
 
     assertFrozenSkillIntegrity({
       frozen,
@@ -1074,22 +1076,4 @@ function is404(error: unknown): boolean {
     return true;
   }
   return false;
-}
-
-/**
- * SHA-256 over a canonical, order-independent representation of the deployed
- * files. Identical algorithm to the apm-install hash so users familiar with
- * one mode can read the other.
- */
-function computeContentHash(
-  files: Array<{ relativeToScopeRoot: string; content: string }>,
-): string {
-  const hash = createHash("sha256");
-  for (const { relativeToScopeRoot, content } of files) {
-    hash.update(relativeToScopeRoot);
-    hash.update("\0");
-    hash.update(content);
-    hash.update("\0");
-  }
-  return `sha256:${hash.digest("hex")}`;
 }
