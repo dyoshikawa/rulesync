@@ -211,10 +211,9 @@ export class AugmentcodeSkill extends ToolSkill {
     dirName,
     global = false,
   }: ToolSkillForDeletionParams): AugmentcodeSkill {
-    const settablePaths = this.getSettablePaths({ global });
     return new AugmentcodeSkill({
       outputRoot,
-      relativeDirPath: relativeDirPath ?? settablePaths.relativeDirPath,
+      relativeDirPath,
       dirName,
       frontmatter: { name: "", description: "" },
       body: "",

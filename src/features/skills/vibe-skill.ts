@@ -313,10 +313,9 @@ export class VibeSkill extends ToolSkill {
     dirName,
     global = false,
   }: ToolSkillForDeletionParams): VibeSkill {
-    const settablePaths = this.getSettablePaths({ global });
     return new VibeSkill({
       outputRoot,
-      relativeDirPath: relativeDirPath ?? settablePaths.relativeDirPath,
+      relativeDirPath,
       dirName,
       frontmatter: { name: "", description: "" },
       body: "",

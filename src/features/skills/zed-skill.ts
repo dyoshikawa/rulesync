@@ -297,10 +297,9 @@ export class ZedSkill extends ToolSkill {
     dirName,
     global = false,
   }: ToolSkillForDeletionParams): ZedSkill {
-    const settablePaths = ZedSkill.getSettablePaths({ global });
     return new ZedSkill({
       outputRoot,
-      relativeDirPath: relativeDirPath ?? settablePaths.relativeDirPath,
+      relativeDirPath,
       dirName,
       frontmatter: { name: "", description: "" },
       body: "",

@@ -546,10 +546,9 @@ export class AgentsSkillsSkill extends ToolSkill {
     dirName,
     global = false,
   }: ToolSkillForDeletionParams): AgentsSkillsSkill {
-    const settablePaths = this.getSettablePaths({ global });
     return new this({
       outputRoot,
-      relativeDirPath: relativeDirPath ?? settablePaths.relativeDirPath,
+      relativeDirPath,
       dirName,
       frontmatter: { name: "", description: "" },
       body: "",

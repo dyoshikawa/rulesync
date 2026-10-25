@@ -198,10 +198,9 @@ export class GooseSkill extends ToolSkill {
     dirName,
     global = false,
   }: ToolSkillForDeletionParams): GooseSkill {
-    const settablePaths = GooseSkill.getSettablePaths({ global });
     return new GooseSkill({
       outputRoot,
-      relativeDirPath: relativeDirPath ?? settablePaths.relativeDirPath,
+      relativeDirPath,
       dirName,
       frontmatter: { name: "", description: "" },
       body: "",

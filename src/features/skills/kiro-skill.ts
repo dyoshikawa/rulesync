@@ -247,10 +247,9 @@ export class KiroSkill extends ToolSkill {
     dirName,
     global = false,
   }: ToolSkillForDeletionParams): KiroSkill {
-    const settablePaths = KiroSkill.getSettablePaths({ global });
     return new KiroSkill({
       outputRoot,
-      relativeDirPath: relativeDirPath ?? settablePaths.relativeDirPath,
+      relativeDirPath,
       dirName,
       frontmatter: { name: "", description: "" },
       body: "",

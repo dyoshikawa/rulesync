@@ -289,10 +289,9 @@ export class JunieSkill extends ToolSkill {
     dirName,
     global = false,
   }: ToolSkillForDeletionParams): JunieSkill {
-    const settablePaths = JunieSkill.getSettablePaths({ global });
     return new JunieSkill({
       outputRoot,
-      relativeDirPath: relativeDirPath ?? settablePaths.relativeDirPath,
+      relativeDirPath,
       dirName,
       frontmatter: { name: "", description: "" },
       body: "",

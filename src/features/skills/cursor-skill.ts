@@ -277,10 +277,9 @@ export class CursorSkill extends ToolSkill {
     dirName,
     global = false,
   }: ToolSkillForDeletionParams): CursorSkill {
-    const settablePaths = CursorSkill.getSettablePaths({ global });
     return new CursorSkill({
       outputRoot,
-      relativeDirPath: relativeDirPath ?? settablePaths.relativeDirPath,
+      relativeDirPath,
       dirName,
       frontmatter: { name: "", description: "" },
       body: "",

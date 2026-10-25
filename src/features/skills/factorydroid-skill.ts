@@ -374,10 +374,9 @@ export class FactorydroidSkill extends ToolSkill {
     dirName,
     global = false,
   }: ToolSkillForDeletionParams): FactorydroidSkill {
-    const settablePaths = FactorydroidSkill.getSettablePaths({ global });
     return new FactorydroidSkill({
       outputRoot,
-      relativeDirPath: relativeDirPath ?? settablePaths.relativeDirPath,
+      relativeDirPath,
       dirName,
       frontmatter: { name: "", description: "" },
       body: "",

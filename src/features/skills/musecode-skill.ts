@@ -241,10 +241,9 @@ export class MusecodeSkill extends ToolSkill {
     dirName,
     global = false,
   }: ToolSkillForDeletionParams): MusecodeSkill {
-    const settablePaths = MusecodeSkill.getSettablePaths({ global });
     return new MusecodeSkill({
       outputRoot,
-      relativeDirPath: relativeDirPath ?? settablePaths.relativeDirPath,
+      relativeDirPath,
       dirName,
       frontmatter: { name: "", description: "" },
       body: "",

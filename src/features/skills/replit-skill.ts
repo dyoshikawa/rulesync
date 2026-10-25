@@ -252,10 +252,9 @@ export class ReplitSkill extends ToolSkill {
     dirName,
     global = false,
   }: ToolSkillForDeletionParams): ReplitSkill {
-    const settablePaths = ReplitSkill.getSettablePaths({ global });
     return new ReplitSkill({
       outputRoot,
-      relativeDirPath: relativeDirPath ?? settablePaths.relativeDirPath,
+      relativeDirPath,
       dirName,
       frontmatter: { name: "", description: "" },
       body: "",

@@ -223,10 +223,9 @@ export class PoolSkill extends ToolSkill {
     dirName,
     global = false,
   }: ToolSkillForDeletionParams): PoolSkill {
-    const settablePaths = PoolSkill.getSettablePaths({ global });
     return new PoolSkill({
       outputRoot,
-      relativeDirPath: relativeDirPath ?? settablePaths.relativeDirPath,
+      relativeDirPath,
       dirName,
       frontmatter: { name: "", description: "" },
       body: "",

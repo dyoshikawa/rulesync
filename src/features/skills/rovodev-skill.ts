@@ -262,10 +262,9 @@ export class RovodevSkill extends ToolSkill {
     dirName,
     global = false,
   }: ToolSkillForDeletionParams): RovodevSkill {
-    const settablePaths = RovodevSkill.getSettablePaths({ global });
     return new RovodevSkill({
       outputRoot,
-      relativeDirPath: relativeDirPath ?? settablePaths.relativeDirPath,
+      relativeDirPath,
       dirName,
       frontmatter: { name: "", description: "" },
       body: "",

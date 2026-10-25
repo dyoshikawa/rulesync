@@ -262,10 +262,9 @@ export class CopilotSkill extends ToolSkill {
     dirName,
     global = false,
   }: ToolSkillForDeletionParams): CopilotSkill {
-    const settablePaths = CopilotSkill.getSettablePaths({ global });
     return new CopilotSkill({
       outputRoot,
-      relativeDirPath: relativeDirPath ?? settablePaths.relativeDirPath,
+      relativeDirPath,
       dirName,
       frontmatter: { name: "", description: "" },
       body: "",

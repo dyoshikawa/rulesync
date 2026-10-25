@@ -314,10 +314,9 @@ export class DevinSkill extends ToolSkill {
     dirName,
     global = false,
   }: ToolSkillForDeletionParams): DevinSkill {
-    const settablePaths = this.getSettablePaths({ global });
     return new this({
       outputRoot,
-      relativeDirPath: relativeDirPath ?? settablePaths.relativeDirPath,
+      relativeDirPath,
       dirName,
       frontmatter: { name: "", description: "" },
       body: "",

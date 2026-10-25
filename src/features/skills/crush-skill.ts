@@ -276,10 +276,9 @@ export class CrushSkill extends ToolSkill {
     dirName,
     global = false,
   }: ToolSkillForDeletionParams): CrushSkill {
-    const settablePaths = CrushSkill.getSettablePaths({ global });
     return new CrushSkill({
       outputRoot,
-      relativeDirPath: relativeDirPath ?? settablePaths.relativeDirPath,
+      relativeDirPath,
       dirName,
       frontmatter: { name: "", description: "" },
       body: "",

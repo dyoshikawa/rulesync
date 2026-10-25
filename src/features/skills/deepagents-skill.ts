@@ -259,10 +259,9 @@ export class DeepagentsSkill extends ToolSkill {
     dirName,
     global = false,
   }: ToolSkillForDeletionParams): DeepagentsSkill {
-    const settablePaths = DeepagentsSkill.getSettablePaths({ global });
     return new DeepagentsSkill({
       outputRoot,
-      relativeDirPath: relativeDirPath ?? settablePaths.relativeDirPath,
+      relativeDirPath,
       dirName,
       frontmatter: { name: "", description: "" },
       body: "",

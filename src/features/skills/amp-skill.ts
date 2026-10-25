@@ -210,10 +210,9 @@ export class AmpSkill extends ToolSkill {
     dirName,
     global = false,
   }: ToolSkillForDeletionParams): AmpSkill {
-    const settablePaths = AmpSkill.getSettablePaths({ global });
     return new AmpSkill({
       outputRoot,
-      relativeDirPath: relativeDirPath ?? settablePaths.relativeDirPath,
+      relativeDirPath,
       dirName,
       frontmatter: { name: "", description: "" },
       body: "",
