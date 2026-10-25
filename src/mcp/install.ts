@@ -4,7 +4,7 @@ import { ConfigResolver } from "../config/config-resolver.js";
 import { INSTALL_MODES, installCommand } from "../lib/install.js";
 import { CLIError, ErrorCodes } from "../types/json-output.js";
 import { type McpCommandResult, runCommandForMcp, stringifyResult } from "./command-runner.js";
-import { assertPathOptionWithinCwd } from "./path-options.js";
+import { assertOptionalPathOptionWithinCwd } from "./path-options.js";
 
 /**
  * Schema for install options
@@ -81,9 +81,7 @@ async function assertNoUserScopeSources({
 export async function executeInstall(options: InstallOptions = {}): Promise<McpCommandResult> {
   return await runCommandForMcp({
     run: async (logger) => {
-      if (options.configPath !== undefined) {
-        await assertPathOptionWithinCwd({ path: options.configPath, label: "configPath" });
-      }
+      await assertOptionalPathOptionWithinCwd({ path: options.configPath, label: "configPath" });
       if (options.mode === "gh") {
         await assertNoUserScopeSources({ configPath: options.configPath });
       }
