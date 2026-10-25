@@ -248,10 +248,6 @@ export class DeepagentsPermissions extends ToolPermissions {
     });
   }
 
-  override isDeletable(): boolean {
-    return false;
-  }
-
   /**
    * `config.toml` is dcode's file, not one rulesync owns: rulesync merges into
    * it when it exists but has no business bringing it into existence to hold

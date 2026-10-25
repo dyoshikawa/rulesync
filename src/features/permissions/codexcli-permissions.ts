@@ -142,10 +142,6 @@ export class CodexcliPermissions extends ToolPermissions {
     };
   }
 
-  override isDeletable(): boolean {
-    return false;
-  }
-
   static async fromFile({
     outputRoot = process.cwd(),
     validate = true,

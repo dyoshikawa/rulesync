@@ -242,10 +242,6 @@ export class KiroCapabilityPermissions extends ToolPermissions {
     super({ ...params, fileContent: params.fileContent ?? "" });
   }
 
-  override isDeletable(): boolean {
-    return false;
-  }
-
   override shouldSkipCreationWhenPayloadEmpty(): boolean {
     return true;
   }

@@ -119,10 +119,6 @@ export class AntigravityIdePermissions extends ToolPermissions {
     });
   }
 
-  override isDeletable(): boolean {
-    return false;
-  }
-
   static getSettablePaths(): ToolPermissionsSettablePaths {
     return {
       relativeDirPath: ANTIGRAVITY_IDE_PERMISSIONS_DIR,

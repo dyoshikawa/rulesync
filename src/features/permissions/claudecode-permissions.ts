@@ -1299,10 +1299,6 @@ export class ClaudecodePermissions extends ToolPermissions {
     });
   }
 
-  override isDeletable(): boolean {
-    return false;
-  }
-
   static getSettablePaths(): ToolPermissionsSettablePaths {
     return {
       relativeDirPath: CLAUDECODE_DIR,

@@ -435,10 +435,6 @@ export class TraePermissions extends ToolPermissions {
     });
   }
 
-  override isDeletable(): boolean {
-    return false;
-  }
-
   static getSettablePaths(_options: { global?: boolean } = {}): ToolPermissionsSettablePaths {
     return {
       relativeDirPath: TRAE_PERMISSION_DIR_PATH,

@@ -541,10 +541,6 @@ export class QoderPermissions extends ToolPermissions {
     });
   }
 
-  override isDeletable(): boolean {
-    return false;
-  }
-
   static getSettablePaths(_options: { global?: boolean } = {}): ToolPermissionsSettablePaths {
     // The same relative path is used for both scopes; the processor supplies
     // the home directory as outputRoot in global mode.

@@ -254,10 +254,6 @@ export class KiloPermissions extends ToolPermissions {
     return this.json;
   }
 
-  override isDeletable(): boolean {
-    return false;
-  }
-
   static getSettablePaths({
     global = false,
   }: { global?: boolean } = {}): ToolPermissionsSettablePaths {

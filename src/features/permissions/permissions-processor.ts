@@ -831,7 +831,7 @@ export class PermissionsProcessor extends FeatureProcessor {
           relativeFilePath: paths.relativeFilePath,
           global: this.global,
         });
-        const list = toolPermissions.isDeletable?.() !== false ? [toolPermissions] : [];
+        const list = toolPermissions.isDeletable() ? [toolPermissions] : [];
         return list;
       }
 

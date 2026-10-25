@@ -163,10 +163,6 @@ export class ContinuePermissions extends ToolPermissions {
     });
   }
 
-  override isDeletable(): boolean {
-    return false;
-  }
-
   /**
    * `permissions.yaml` is Continue's file: rulesync merges into it when it
    * exists but does not create one that holds three empty lists — an absent

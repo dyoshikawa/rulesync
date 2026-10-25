@@ -869,10 +869,6 @@ export class QwencodePermissions extends ToolPermissions {
     }
   }
 
-  override isDeletable(): boolean {
-    return false;
-  }
-
   static getSettablePaths(_options: { global?: boolean } = {}): ToolPermissionsSettablePaths {
     return {
       relativeDirPath: QWENCODE_DIR,

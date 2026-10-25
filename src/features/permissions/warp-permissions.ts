@@ -176,10 +176,6 @@ export class WarpPermissions extends ToolPermissions {
     });
   }
 
-  override isDeletable(): boolean {
-    return false;
-  }
-
   /**
    * `settings.toml` is Warp's file, not one rulesync owns: rulesync merges into
    * it when it exists but has no business bringing it into existence to hold

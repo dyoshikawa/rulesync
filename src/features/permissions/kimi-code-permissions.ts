@@ -370,10 +370,6 @@ export class KimiCodePermissions extends ToolPermissions {
     };
   }
 
-  override isDeletable(): boolean {
-    return false;
-  }
-
   /**
    * `config.toml` under both spellings its directory can take.
    * @see getKimiCodeSharedConfigWritePaths

@@ -363,10 +363,6 @@ export class GrokcliPermissions extends ToolPermissions {
     });
   }
 
-  override isDeletable(): boolean {
-    return false;
-  }
-
   static getSettablePaths(_options?: { global?: boolean }): ToolPermissionsSettablePaths {
     // Both project (./.grok/config.toml) and global (~/.grok/config.toml) use
     // the same relative path; the scope is resolved by the outputRoot passed to

@@ -180,10 +180,6 @@ export class AntigravityCliPermissions extends ToolPermissions {
     });
   }
 
-  override isDeletable(): boolean {
-    return false;
-  }
-
   static getSettablePaths(): ToolPermissionsSettablePaths {
     return {
       relativeDirPath: ANTIGRAVITY_CLI_PERMISSIONS_DIR_PATH,

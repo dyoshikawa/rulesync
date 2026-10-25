@@ -71,10 +71,6 @@ export class WarpcliPermissions extends ToolPermissions {
     });
   }
 
-  override isDeletable(): boolean {
-    return false;
-  }
-
   /**
    * The CLI's `settings.toml` holds every CLI setting, so rulesync merges into
    * it but never creates one just to hold an empty `default` profile.

@@ -165,10 +165,6 @@ export class CrushPermissions extends ToolPermissions {
     return this.json;
   }
 
-  override isDeletable(): boolean {
-    return false;
-  }
-
   /**
    * `crush.json` is Crush's file: rulesync merges into it when it exists but
    * does not create one that holds nothing of its own — an absent file and an

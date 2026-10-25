@@ -165,10 +165,6 @@ export class VibePermissions extends ToolPermissions {
     return this.toml;
   }
 
-  override isDeletable(): boolean {
-    return false;
-  }
-
   static getSettablePaths(_options: { global?: boolean } = {}): ToolPermissionsSettablePaths {
     return {
       relativeDirPath: ".vibe",
