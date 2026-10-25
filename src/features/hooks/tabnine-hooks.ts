@@ -13,7 +13,6 @@ import {
   TABNINE_HOOK_EVENTS,
   TABNINE_TO_CANONICAL_EVENT_NAMES,
 } from "../../types/hooks.js";
-import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { compact } from "../../utils/object.js";
@@ -352,15 +351,10 @@ export class TabnineHooks extends ToolHooks {
 
   toRulesyncHooks(): RulesyncHooks {
     const configPath = join(this.getRelativeDirPath(), this.getRelativeFilePath());
-    let settings: Record<string, unknown>;
-    try {
-      settings = parseTabnineSettings(this.getFileContent(), configPath);
-    } catch (error) {
-      throw new Error(
-        `Failed to parse Tabnine CLI hooks content in ${configPath}: ${formatError(error)}`,
-        { cause: error },
-      );
-    }
+    const settings: Record<string, unknown> = this.parseFileContentOrThrow({
+      displayName: "Tabnine CLI",
+      parse: (fileContent) => parseTabnineSettings(fileContent, configPath),
+    });
     const hooks = tabnineHooksToCanonical(settings.hooks);
     return this.toRulesyncHooksDefault({
       fileContent: JSON.stringify(

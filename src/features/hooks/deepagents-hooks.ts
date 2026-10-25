@@ -13,7 +13,6 @@ import {
   getDeepagentsRelativeDirPath,
   getDeepagentsRulesyncOutputRoot,
 } from "../../utils/deepagents.js";
-import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { lookupOwn } from "../../utils/own-lookup.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
@@ -245,15 +244,10 @@ export class DeepagentsHooks extends ToolHooks {
   }
 
   toRulesyncHooks(): RulesyncHooks {
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(this.getFileContent());
-    } catch (error) {
-      throw new Error(
-        `Failed to parse deepagents hooks content in ${join(this.getRelativeDirPath(), this.getRelativeFilePath())}: ${formatError(error)}`,
-        { cause: error },
-      );
-    }
+    const parsed: unknown = this.parseFileContentOrThrow({
+      displayName: "deepagents",
+      parse: (fileContent) => JSON.parse(fileContent),
+    });
 
     const rawHooks = isRecord(parsed) ? parsed.hooks : undefined;
     // The v2 document keys hooks by event name; the pre-v2 one held a flat

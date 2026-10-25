@@ -10,7 +10,6 @@ import {
   QWENCODE_TO_CANONICAL_EVENT_NAMES,
   CANONICAL_TO_QWENCODE_EVENT_NAMES,
 } from "../../types/hooks.js";
-import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { compact } from "../../utils/object.js";
@@ -412,17 +411,10 @@ export class QwencodeHooks extends ToolHooks {
   }
 
   toRulesyncHooks(): RulesyncHooks {
-    let settings: { hooks?: unknown; disableAllHooks?: unknown };
-    try {
-      settings = JSON.parse(this.getFileContent());
-    } catch (error) {
-      throw new Error(
-        `Failed to parse Qwen Code hooks content in ${join(this.getRelativeDirPath(), this.getRelativeFilePath())}: ${formatError(error)}`,
-        {
-          cause: error,
-        },
-      );
-    }
+    const settings: { hooks?: unknown; disableAllHooks?: unknown } = this.parseFileContentOrThrow({
+      displayName: "Qwen Code",
+      parse: (fileContent) => JSON.parse(fileContent),
+    });
     const hooks = qwencodeHooksToCanonical(settings.hooks);
     // Preserve the top-level `disableAllHooks` switch under the qwencode namespace.
     const canonical: HooksConfig = buildImportedHooksConfig({

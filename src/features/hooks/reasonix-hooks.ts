@@ -321,15 +321,10 @@ export class ReasonixHooks extends ToolHooks {
   }
 
   toRulesyncHooks(): RulesyncHooks {
-    let settings: { hooks?: unknown };
-    try {
-      settings = JSON.parse(this.getFileContent());
-    } catch (error) {
-      throw new Error(
-        `Failed to parse Reasonix hooks content in ${join(this.getRelativeDirPath(), this.getRelativeFilePath())}: ${formatError(error)}`,
-        { cause: error },
-      );
-    }
+    const settings: { hooks?: unknown } = this.parseFileContentOrThrow({
+      displayName: "Reasonix",
+      parse: (fileContent) => JSON.parse(fileContent),
+    });
     const hooks = reasonixHooksToCanonical(settings.hooks);
     return this.toRulesyncHooksDefault({
       fileContent: JSON.stringify(

@@ -396,15 +396,10 @@ export class CodewhaleHooks extends ToolHooks {
   }
 
   toRulesyncHooks(): RulesyncHooks {
-    let parsed: Record<string, unknown>;
-    try {
-      parsed = parseCodewhaleToml(this.getFileContent());
-    } catch (error) {
-      throw new Error(
-        `Failed to parse Codewhale hooks content in ${join(this.getRelativeDirPath(), this.getRelativeFilePath())}: ${formatError(error)}`,
-        { cause: error },
-      );
-    }
+    const parsed: Record<string, unknown> = this.parseFileContentOrThrow({
+      displayName: "Codewhale",
+      parse: (fileContent) => parseCodewhaleToml(fileContent),
+    });
     const rawHooks = this.global
       ? isPlainObject(parsed.hooks)
         ? parsed.hooks.hooks

@@ -329,17 +329,10 @@ export class CodexcliHooks extends ToolHooks {
   }
 
   toRulesyncHooks({ logger }: { logger?: Logger } = {}): RulesyncHooks {
-    let parsed: { hooks?: unknown };
-    try {
-      parsed = JSON.parse(this.getFileContent());
-    } catch (error) {
-      throw new Error(
-        `Failed to parse Codex CLI hooks content in ${join(this.getRelativeDirPath(), this.getRelativeFilePath())}: ${formatError(error)}`,
-        {
-          cause: error,
-        },
-      );
-    }
+    const parsed: { hooks?: unknown } = this.parseFileContentOrThrow({
+      displayName: "Codex CLI",
+      parse: (fileContent) => JSON.parse(fileContent),
+    });
     const hooks = toolHooksToCanonical({
       hooks: parsed.hooks,
       converterConfig: CODEXCLI_CONVERTER_CONFIG,

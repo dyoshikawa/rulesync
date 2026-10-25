@@ -13,7 +13,6 @@ import {
   FACTORYDROID_TO_CANONICAL_EVENT_NAMES,
   CANONICAL_TO_FACTORYDROID_EVENT_NAMES,
 } from "../../types/hooks.js";
-import { formatError } from "../../utils/error.js";
 import { readFactorydroidSettingsWithLocalOverlay } from "../../utils/factorydroid-settings.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
@@ -197,17 +196,10 @@ export class FactorydroidHooks extends ToolHooks {
   }
 
   toRulesyncHooks({ logger }: { logger?: Logger } = {}): RulesyncHooks {
-    let parsed: { hooks?: unknown };
-    try {
-      parsed = JSON.parse(this.getFileContent());
-    } catch (error) {
-      throw new Error(
-        `Failed to parse Factory Droid hooks content in ${join(this.getRelativeDirPath(), this.getRelativeFilePath())}: ${formatError(error)}`,
-        {
-          cause: error,
-        },
-      );
-    }
+    const parsed: { hooks?: unknown } = this.parseFileContentOrThrow({
+      displayName: "Factory Droid",
+      parse: (fileContent) => JSON.parse(fileContent),
+    });
     // Both shapes are read: a standalone `hooks.json` keyed by event name, and
     // the `hooks`-wrapped `settings.json` that `fromFile` falls back to. The
     // top level wins when it names an event, so a file carrying an event

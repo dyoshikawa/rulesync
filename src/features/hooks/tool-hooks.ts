@@ -1,9 +1,12 @@
+import { join } from "node:path";
+
 import {
   RULESYNC_HOOKS_FILE_NAME,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
 import type { AiFileFromFileParams, AiFileParams } from "../../types/ai-file.js";
 import { ToolFile } from "../../types/tool-file.js";
+import { formatError } from "../../utils/error.js";
 import type { Logger } from "../../utils/logger.js";
 import { buildHooksOwnershipLockFile, type OwnedHookRef } from "./hooks-ownership-lock.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
@@ -124,6 +127,27 @@ export abstract class ToolHooks extends ToolFile {
       relativeFilePath: RULESYNC_HOOKS_FILE_NAME,
       fileContent: fileContent ?? this.fileContent,
     });
+  }
+
+  /**
+   * Parse this file's content, rethrowing a failure with the tool's display
+   * name and the file path so an import names the file it could not read.
+   */
+  protected parseFileContentOrThrow<T>({
+    displayName,
+    parse,
+  }: {
+    displayName: string;
+    parse: (fileContent: string) => T;
+  }): T {
+    try {
+      return parse(this.getFileContent());
+    } catch (error) {
+      throw new Error(
+        `Failed to parse ${displayName} hooks content in ${join(this.getRelativeDirPath(), this.getRelativeFilePath())}: ${formatError(error)}`,
+        { cause: error },
+      );
+    }
   }
 
   static async fromFile(_params: ToolHooksFromFileParams): Promise<ToolHooks> {

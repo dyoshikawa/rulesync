@@ -22,7 +22,6 @@ import {
   HookDefinitionSchema,
 } from "../../types/hooks.js";
 import { ToolFile } from "../../types/tool-file.js";
-import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { compact } from "../../utils/object.js";
@@ -629,15 +628,10 @@ export class CopilotcliHooks extends ToolHooks {
   }
 
   toRulesyncHooks(options?: { logger?: Logger }): RulesyncHooks {
-    let parsed: { version?: number; hooks?: unknown };
-    try {
-      parsed = JSON.parse(this.getFileContent());
-    } catch (error) {
-      throw new Error(
-        `Failed to parse Copilot CLI hooks content in ${join(this.getRelativeDirPath(), this.getRelativeFilePath())}: ${formatError(error)}`,
-        { cause: error },
-      );
-    }
+    const parsed: { version?: number; hooks?: unknown } = this.parseFileContentOrThrow({
+      displayName: "Copilot CLI",
+      parse: (fileContent) => JSON.parse(fileContent),
+    });
     const hooks = copilotCliHooksToCanonical(parsed.hooks, options?.logger);
     return this.toRulesyncHooksDefault({
       fileContent: JSON.stringify(

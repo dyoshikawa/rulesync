@@ -15,7 +15,6 @@ import {
   parseAugmentcodeSettingsDocument,
   readAugmentcodeSettingsWithLocalOverlay,
 } from "../../utils/augmentcode-settings.js";
-import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
@@ -198,20 +197,14 @@ export class AugmentcodeHooks extends ToolHooks {
   }
 
   toRulesyncHooks({ logger }: { logger?: Logger } = {}): RulesyncHooks {
-    let settings: { hooks?: unknown };
-    try {
-      settings = parseAugmentcodeSettingsDocument({
-        fileContent: this.getFileContent(),
-        configPath: join(this.getRelativeDirPath(), this.getRelativeFilePath()),
-      });
-    } catch (error) {
-      throw new Error(
-        `Failed to parse AugmentCode hooks content in ${join(this.getRelativeDirPath(), this.getRelativeFilePath())}: ${formatError(error)}`,
-        {
-          cause: error,
-        },
-      );
-    }
+    const settings: { hooks?: unknown } = this.parseFileContentOrThrow({
+      displayName: "AugmentCode",
+      parse: (fileContent) =>
+        parseAugmentcodeSettingsDocument({
+          fileContent,
+          configPath: join(this.getRelativeDirPath(), this.getRelativeFilePath()),
+        }),
+    });
     const hooks = toolHooksToCanonical({
       logger,
       hooks: settings.hooks,

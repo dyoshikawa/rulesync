@@ -13,7 +13,6 @@ import {
   KIRO_TO_CANONICAL_EVENT_NAMES,
   safeString,
 } from "../../types/hooks.js";
-import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { lookupOwn } from "../../utils/own-lookup.js";
@@ -259,15 +258,10 @@ export class KiroHooks extends ToolHooks {
   }
 
   toRulesyncHooks(): RulesyncHooks {
-    let agentConfig: { hooks?: unknown };
-    try {
-      agentConfig = JSON.parse(this.getFileContent());
-    } catch (error) {
-      throw new Error(
-        `Failed to parse Kiro hooks content in ${join(this.getRelativeDirPath(), this.getRelativeFilePath())}: ${formatError(error)}`,
-        { cause: error },
-      );
-    }
+    const agentConfig: { hooks?: unknown } = this.parseFileContentOrThrow({
+      displayName: "Kiro",
+      parse: (fileContent) => JSON.parse(fileContent),
+    });
     const hooks = kiroHooksToCanonical(agentConfig.hooks);
     return this.toRulesyncHooksDefault({
       fileContent: JSON.stringify(

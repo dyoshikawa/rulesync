@@ -18,7 +18,6 @@ import {
   COPILOT_MATCHER_HOOK_EVENTS,
   HookDefinitionSchema,
 } from "../../types/hooks.js";
-import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { lookupOwn } from "../../utils/own-lookup.js";
@@ -316,17 +315,10 @@ export class CopilotHooks extends ToolHooks {
   }
 
   toRulesyncHooks(options?: { logger?: Logger }): RulesyncHooks {
-    let parsed: { version?: number; hooks?: unknown };
-    try {
-      parsed = JSON.parse(this.getFileContent());
-    } catch (error) {
-      throw new Error(
-        `Failed to parse Copilot hooks content in ${join(this.getRelativeDirPath(), this.getRelativeFilePath())}: ${formatError(error)}`,
-        {
-          cause: error,
-        },
-      );
-    }
+    const parsed: { version?: number; hooks?: unknown } = this.parseFileContentOrThrow({
+      displayName: "Copilot",
+      parse: (fileContent) => JSON.parse(fileContent),
+    });
     const hooks = copilotHooksToCanonical(parsed.hooks, options?.logger);
     return this.toRulesyncHooksDefault({
       fileContent: JSON.stringify(

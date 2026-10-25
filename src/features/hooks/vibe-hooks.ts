@@ -266,15 +266,10 @@ export class VibeHooks extends ToolHooks {
   }
 
   toRulesyncHooks(): RulesyncHooks {
-    let parsed: Record<string, unknown>;
-    try {
-      parsed = parseVibeToml(this.getFileContent());
-    } catch (error) {
-      throw new Error(
-        `Failed to parse Vibe hooks content in ${join(this.getRelativeDirPath(), this.getRelativeFilePath())}: ${formatError(error)}`,
-        { cause: error },
-      );
-    }
+    const parsed: Record<string, unknown> = this.parseFileContentOrThrow({
+      displayName: "Vibe",
+      parse: (fileContent) => parseVibeToml(fileContent),
+    });
     const hooks = vibeHooksToCanonical(parsed);
     return this.toRulesyncHooksDefault({
       fileContent: JSON.stringify(

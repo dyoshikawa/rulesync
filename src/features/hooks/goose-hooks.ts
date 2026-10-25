@@ -7,7 +7,6 @@ import {
   GOOSE_HOOK_EVENTS,
   GOOSE_TO_CANONICAL_EVENT_NAMES,
 } from "../../types/hooks.js";
-import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
@@ -130,17 +129,10 @@ export class GooseHooks extends ToolHooks {
   }
 
   toRulesyncHooks({ logger }: { logger?: Logger } = {}): RulesyncHooks {
-    let parsed: { hooks?: unknown };
-    try {
-      parsed = JSON.parse(this.getFileContent());
-    } catch (error) {
-      throw new Error(
-        `Failed to parse Goose hooks content in ${join(this.getRelativeDirPath(), this.getRelativeFilePath())}: ${formatError(error)}`,
-        {
-          cause: error,
-        },
-      );
-    }
+    const parsed: { hooks?: unknown } = this.parseFileContentOrThrow({
+      displayName: "Goose",
+      parse: (fileContent) => JSON.parse(fileContent),
+    });
     // Drop any event key Goose does not define (e.g. `SubagentStart`/
     // `SubagentStop` left in an old rulesync-generated file). Every real Goose
     // event maps 1:1 to a canonical event, so a key absent from

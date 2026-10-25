@@ -7,7 +7,6 @@ import {
   GROKCLI_HOOK_EVENTS,
   GROKCLI_TO_CANONICAL_EVENT_NAMES,
 } from "../../types/hooks.js";
-import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { isRecord } from "../../utils/type-guards.js";
@@ -165,15 +164,10 @@ export class GrokcliHooks extends ToolHooks {
   }
 
   toRulesyncHooks({ logger }: { logger?: Logger } = {}): RulesyncHooks {
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(this.getFileContent());
-    } catch (error) {
-      throw new Error(
-        `Failed to parse Grok hooks content in ${join(this.getRelativeDirPath(), this.getRelativeFilePath())}: ${formatError(error)}`,
-        { cause: error },
-      );
-    }
+    const parsed: unknown = this.parseFileContentOrThrow({
+      displayName: "Grok",
+      parse: (fileContent) => JSON.parse(fileContent),
+    });
     const events = isRecord(parsed) && isRecord(parsed.hooks) ? parsed.hooks : {};
     const hooks = toolHooksToCanonical({
       hooks: events,
