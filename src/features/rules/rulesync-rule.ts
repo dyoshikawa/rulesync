@@ -15,7 +15,11 @@ import {
 import { RulesyncTargetsSchema } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
-import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
+import {
+  parseFrontmatter,
+  stringifyFrontmatter,
+  validateFrontmatterSchema,
+} from "../../utils/frontmatter.js";
 import { getGlobsStaticPrefix } from "../../utils/glob-static-prefix.js";
 import { warnOnceWithFallback } from "../../utils/logger.js";
 
@@ -449,18 +453,12 @@ export class RulesyncRule extends RulesyncFile {
       return { success: true, error: null };
     }
 
-    const result = RulesyncRuleFrontmatterSchema.safeParse(this.frontmatter);
-
-    if (result.success) {
-      return { success: true, error: null };
-    } else {
-      return {
-        success: false,
-        error: new Error(
-          `Invalid frontmatter in ${join(this.relativeDirPath, this.relativeFilePath)}: ${formatError(result.error)}`,
-        ),
-      };
-    }
+    return validateFrontmatterSchema({
+      schema: RulesyncRuleFrontmatterSchema,
+      frontmatter: this.frontmatter,
+      relativeDirPath: this.relativeDirPath,
+      relativeFilePath: this.relativeFilePath,
+    });
   }
 
   static async fromFile({

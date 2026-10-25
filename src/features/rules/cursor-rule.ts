@@ -9,7 +9,11 @@ import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { RulesyncTargets } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
-import { findFrontmatterBlockBounds, parseFrontmatter } from "../../utils/frontmatter.js";
+import {
+  findFrontmatterBlockBounds,
+  parseFrontmatter,
+  validateFrontmatterSchema,
+} from "../../utils/frontmatter.js";
 import { RulesyncRule, RulesyncRuleFrontmatter } from "./rulesync-rule.js";
 import {
   ToolRule,
@@ -383,17 +387,12 @@ export class CursorRule extends ToolRule {
       return { success: true, error: null };
     }
 
-    const result = CursorRuleFrontmatterSchema.safeParse(this.frontmatter);
-    if (result.success) {
-      return { success: true, error: null };
-    } else {
-      return {
-        success: false,
-        error: new Error(
-          `Invalid frontmatter in ${join(this.relativeDirPath, this.relativeFilePath)}: ${formatError(result.error)}`,
-        ),
-      };
-    }
+    return validateFrontmatterSchema({
+      schema: CursorRuleFrontmatterSchema,
+      frontmatter: this.frontmatter,
+      relativeDirPath: this.relativeDirPath,
+      relativeFilePath: this.relativeFilePath,
+    });
   }
 
   getFrontmatter(): CursorRuleFrontmatter {

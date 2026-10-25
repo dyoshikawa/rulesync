@@ -11,7 +11,7 @@ import { ValidationResult } from "../../types/ai-file.js";
 import { expandBraceAlternations } from "../../utils/brace-aware-list.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
-import { stringifyFrontmatter } from "../../utils/frontmatter.js";
+import { stringifyFrontmatter, validateFrontmatterSchema } from "../../utils/frontmatter.js";
 import { CursorRule } from "./cursor-rule.js";
 import { RulesyncRule, RulesyncRuleFrontmatter } from "./rulesync-rule.js";
 import {
@@ -281,16 +281,13 @@ export class FirebenderRule extends ToolRule {
     if (this.isRoot() || !this.frontmatter) {
       return { success: true, error: null };
     }
-    const result = FirebenderRuleFrontmatterSchema.safeParse(this.frontmatter);
-    if (result.success) {
-      return { success: true, error: null };
-    }
-    return {
-      success: false,
-      error: new Error(
-        `Invalid frontmatter in ${join(this.relativeDirPath, this.relativeFilePath)}: ${formatError(result.error)}`,
-      ),
-    };
+
+    return validateFrontmatterSchema({
+      schema: FirebenderRuleFrontmatterSchema,
+      frontmatter: this.frontmatter,
+      relativeDirPath: this.relativeDirPath,
+      relativeFilePath: this.relativeFilePath,
+    });
   }
 
   getFrontmatter(): FirebenderRuleFrontmatter {
