@@ -13,7 +13,7 @@ import {
   getKimiCodeRulesyncOutputRoot,
 } from "../../utils/kimi-code.js";
 import { type Logger, warnWithFallback } from "../../utils/logger.js";
-import { isRecord } from "../../utils/type-guards.js";
+import { isRecord, isStringArray } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
   KIMI_CODE_CONFIG_SHARED_FILE_KEY,
@@ -153,14 +153,10 @@ function buildKimiCodeToolsSection(tools: unknown): Record<string, unknown> | un
   }
   const section = Object.fromEntries(
     Object.entries(tools).filter(([key, value]) =>
-      key === "enabled" || key === "disabled" ? isStringList(value) : true,
+      key === "enabled" || key === "disabled" ? isStringArray(value) : true,
     ),
   );
   return Object.keys(section).length > 0 ? section : undefined;
-}
-
-function isStringList(value: unknown): value is string[] {
-  return Array.isArray(value) && value.every((entry) => typeof entry === "string");
 }
 
 /**
@@ -172,7 +168,7 @@ function isStringList(value: unknown): value is string[] {
  */
 function warnAboutMistypedToolLists(section: Record<string, unknown>): void {
   for (const key of ["enabled", "disabled"] as const) {
-    if (key in section && !isStringList(section[key])) {
+    if (key in section && !isStringArray(section[key])) {
       warnWithFallback(
         undefined,
         `Kimi Code permissions: \`[tools] ${key}\` in ${KIMI_CODE_CONFIG_SHARED_FILE_KEY} is not a list of strings. It is left as written, but Kimi may reject the whole \`[tools]\` section — including entries rulesync generated.`,

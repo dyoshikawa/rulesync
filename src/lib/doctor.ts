@@ -29,6 +29,7 @@ import { ALL_TOOL_TARGETS } from "../types/tool-targets.js";
 import { stripControlCharacters } from "../utils/control-characters.js";
 import { directoryExists, fileExists, readFileContent, resolvePath } from "../utils/file.js";
 import { ConsoleLogger, type Logger } from "../utils/logger.js";
+import { isRecord } from "../utils/type-guards.js";
 import {
   DEFAULT_NPM_REGISTRY_URL,
   DEFAULT_NPM_TOKEN_ENV,
@@ -146,10 +147,6 @@ export function offsetToPosition({ content, offset }: { content: string; offset:
   return { line, column: end - lineStart + 1 };
 }
 
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 function checkTargetName({
   name,
   file,
@@ -227,7 +224,7 @@ function checkTargetsValue({
     }
     return diagnostics;
   }
-  if (isPlainObject(targets)) {
+  if (isRecord(targets)) {
     for (const [key, value] of Object.entries(targets)) {
       if (key === "*") {
         diagnostics.push({
@@ -296,7 +293,7 @@ function checkPerTargetFeaturesValue({
     }
     return diagnostics;
   }
-  if (isPlainObject(value)) {
+  if (isRecord(value)) {
     for (const key of Object.keys(value)) {
       if (key === "*" || (PER_FEATURE_EXTRA_KEYS as readonly string[]).includes(key)) continue;
       const diagnostic = checkFeatureName({
@@ -362,7 +359,7 @@ function checkConflictingTargets({
 }): DoctorDiagnostic[] {
   const has = (target: string): boolean => {
     if (Array.isArray(targets)) return targets.includes(target);
-    if (isPlainObject(targets)) return Object.prototype.hasOwnProperty.call(targets, target);
+    if (isRecord(targets)) return Object.prototype.hasOwnProperty.call(targets, target);
     return false;
   };
   const diagnostics: DoctorDiagnostic[] = [];
@@ -443,7 +440,7 @@ function checkTargetsFeaturesExclusivity({
   config: Record<string, unknown>;
   file: string;
 }): DoctorDiagnostic[] {
-  if (!isPlainObject(config.targets) || config.features === undefined) return [];
+  if (!isRecord(config.targets) || config.features === undefined) return [];
   return [
     {
       severity: "error",
@@ -467,7 +464,7 @@ function checkTokenEnvVars({
   if (!Array.isArray(config.sources)) return [];
   const diagnostics: DoctorDiagnostic[] = [];
   for (const source of config.sources) {
-    if (!isPlainObject(source)) continue;
+    if (!isRecord(source)) continue;
     const tokenEnv = source.tokenEnv;
     if (typeof tokenEnv !== "string" || tokenEnv.length === 0) continue;
     if (!isAllowedNpmTokenEnvName(tokenEnv)) {
@@ -575,7 +572,7 @@ export function collectConfigFileDiagnostics({
       };
     });
   }
-  if (!isPlainObject(parsed)) {
+  if (!isRecord(parsed)) {
     return [
       {
         severity: "error",
@@ -620,12 +617,12 @@ export function collectMergedConfigDiagnostics({
   // detected here on the post-merge (local ?? base) values.
   const mergedTargets = localConfig.targets ?? baseConfig.targets;
   const mergedFeatures = localConfig.features ?? baseConfig.features;
-  if (!isPlainObject(mergedTargets) || mergedFeatures === undefined) return [];
+  if (!isRecord(mergedTargets) || mergedFeatures === undefined) return [];
   // Skip when a single file already carries the conflict — the per-file check
   // reported it there.
   const conflictWithinOneFile =
-    (isPlainObject(baseConfig.targets) && baseConfig.features !== undefined) ||
-    (isPlainObject(localConfig.targets) && localConfig.features !== undefined);
+    (isRecord(baseConfig.targets) && baseConfig.features !== undefined) ||
+    (isRecord(localConfig.targets) && localConfig.features !== undefined);
   if (conflictWithinOneFile) return [];
   return [
     {
@@ -667,7 +664,7 @@ function parseConfigObjectForMerge(
   if (content === undefined) return undefined;
   const errors: ParseError[] = [];
   const parsed: unknown = parseJsonc(content, errors, { allowTrailingComma: true });
-  if (errors.length > 0 || !isPlainObject(parsed)) return undefined;
+  if (errors.length > 0 || !isRecord(parsed)) return undefined;
   return parsed;
 }
 

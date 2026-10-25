@@ -15,6 +15,7 @@ import {
 } from "../../utils/deepagents.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { lookupOwn } from "../../utils/own-lookup.js";
+import { isRecord } from "../../utils/type-guards.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import { buildImportedHooksConfig } from "./tool-hooks-converter.js";
 import {
@@ -43,10 +44,6 @@ type DeepagentsMatcherGroup = {
 type DeepagentsHooksFile = {
   hooks: Record<string, DeepagentsMatcherGroup[]>;
 };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
 /**
  * Convert the canonical hooks config to the deepagents Hooks v2 document.

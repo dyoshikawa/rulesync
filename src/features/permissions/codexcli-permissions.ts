@@ -20,6 +20,7 @@ import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { parseGlobPattern } from "../../utils/glob.js";
 import { type Logger, warnWithFallback } from "../../utils/logger.js";
+import { isRecord } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { bashRulesHonoringAllTools } from "./shell-command-categories.js";
@@ -1174,10 +1175,6 @@ function toMutableTable(value: unknown): UnknownTable {
   return { ...value };
 }
 
-function isPlainObject(value: unknown): value is UnknownTable {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-
 // Compute the `codexcli` override's contribution to the top-level config.toml
 // table, keyed by CODEXCLI_OVERRIDE_KEYS (override wins per key, with table
 // values shallow-merged against the existing file so unrelated sibling entries
@@ -1218,7 +1215,7 @@ function computeCodexcliOverridePatch({
     }
     const existingValue = existing[key];
     patch[key] =
-      isPlainObject(existingValue) && isPlainObject(value) ? { ...existingValue, ...value } : value;
+      isRecord(existingValue) && isRecord(value) ? { ...existingValue, ...value } : value;
   }
 
   fillCodexcliDefaults({ existing, patch, logger });

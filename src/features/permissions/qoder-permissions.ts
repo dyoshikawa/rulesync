@@ -8,7 +8,7 @@ import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
-import { isRecord, toStringArray } from "../../utils/type-guards.js";
+import { isRecord, isStringArray, toStringArray } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
   parseSharedConfig,
@@ -455,7 +455,7 @@ function isLiftableQoderValue(key: string, value: unknown): boolean {
     case "overrides":
       return isRecord(value) && Object.values(value).every(isRecord);
     default:
-      return Array.isArray(value) && value.every((entry) => typeof entry === "string");
+      return isStringArray(value);
   }
 }
 
