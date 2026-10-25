@@ -1,3 +1,7 @@
+import type { Feature } from "../../types/features.js";
+import { getHermesagentConfigSharedFileKey } from "../../utils/hermesagent.js";
+import { applySharedConfigPatch, parseSharedConfig } from "./shared-config-gateway.js";
+
 /**
  * Normalize a name into a Hermes Agent plugin slash command name.
  *
@@ -55,4 +59,79 @@ def _queue_user_message(ctx, message, kwargs, label):
         )
     return None
 `;
+}
+
+/**
+ * Rewrite Hermes `config.yaml` so `plugins.enabled` is `update(enabled)`,
+ * keeping every other `plugins` key as it is.
+ */
+function patchHermesEnabledPlugins({
+  currentContent,
+  global,
+  feature,
+  update,
+}: {
+  currentContent: string;
+  global: boolean;
+  feature: Feature;
+  update: (enabled: unknown[]) => unknown[];
+}): string {
+  const config = parseSharedConfig({ format: "yaml", fileContent: currentContent });
+  const plugins =
+    config.plugins && typeof config.plugins === "object"
+      ? (config.plugins as Record<string, unknown>)
+      : {};
+  const enabled = Array.isArray(plugins.enabled) ? plugins.enabled : [];
+
+  return applySharedConfigPatch({
+    fileKey: getHermesagentConfigSharedFileKey({ global }),
+    feature,
+    existingContent: currentContent,
+    patch: {
+      plugins: {
+        ...plugins,
+        enabled: update(enabled),
+      },
+    },
+  });
+}
+
+/** Add `pluginName` to Hermes' `plugins.enabled` (once). */
+export function getHermesPluginEnabledConfigContent({
+  currentContent,
+  global,
+  feature,
+  pluginName,
+}: {
+  currentContent: string;
+  global: boolean;
+  feature: Feature;
+  pluginName: string;
+}): string {
+  return patchHermesEnabledPlugins({
+    currentContent,
+    global,
+    feature,
+    update: (enabled) => Array.from(new Set([...enabled, pluginName])),
+  });
+}
+
+/** Remove `pluginName` from Hermes' `plugins.enabled`. */
+export function getHermesPluginDisabledConfigContent({
+  currentContent,
+  global,
+  feature,
+  pluginName,
+}: {
+  currentContent: string;
+  global: boolean;
+  feature: Feature;
+  pluginName: string;
+}): string {
+  return patchHermesEnabledPlugins({
+    currentContent,
+    global,
+    feature,
+    update: (enabled) => enabled.filter((plugin) => plugin !== pluginName),
+  });
 }

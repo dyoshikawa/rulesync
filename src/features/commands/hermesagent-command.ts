@@ -22,17 +22,17 @@ import { caseFoldIdentity } from "../../types/feature-processor.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { readFileContentOrNull, toPosixPath } from "../../utils/file.js";
 import {
-  getHermesagentConfigSharedFileKey,
   getHermesagentRelativeDirPath,
   getHermesagentRelativeFilePath,
   getHermesagentRulesyncOutputRoot,
   getHermesagentSharedConfigWritePaths,
 } from "../../utils/hermesagent.js";
 import {
+  getHermesPluginDisabledConfigContent,
+  getHermesPluginEnabledConfigContent,
   getHermesQueueUserMessagePython,
   hermesSlashName,
 } from "../shared/hermes-plugin-commands.js";
-import { applySharedConfigPatch, parseSharedConfig } from "../shared/shared-config-gateway.js";
 import { HermesagentSkill } from "../skills/hermesagent-skill.js";
 import { RulesyncSkill } from "../skills/rulesync-skill.js";
 import { listSkillDirNames } from "../skills/skills-utils.js";
@@ -130,23 +130,11 @@ function getEnabledPluginConfigContent({
   currentContent: string;
   global: boolean;
 }): string {
-  const config = parseSharedConfig({ format: "yaml", fileContent: currentContent });
-  const plugins =
-    config.plugins && typeof config.plugins === "object"
-      ? (config.plugins as Record<string, unknown>)
-      : {};
-  const enabled = Array.isArray(plugins.enabled) ? plugins.enabled : [];
-
-  return applySharedConfigPatch({
-    fileKey: getHermesagentConfigSharedFileKey({ global }),
+  return getHermesPluginEnabledConfigContent({
+    currentContent,
+    global,
     feature: "commands",
-    existingContent: currentContent,
-    patch: {
-      plugins: {
-        ...plugins,
-        enabled: Array.from(new Set([...enabled, "rulesync-commands"])),
-      },
-    },
+    pluginName: "rulesync-commands",
   });
 }
 
@@ -157,23 +145,11 @@ export function getDisabledHermesCommandsPluginConfigContent({
   currentContent: string;
   global: boolean;
 }): string {
-  const config = parseSharedConfig({ format: "yaml", fileContent: currentContent });
-  const plugins =
-    config.plugins && typeof config.plugins === "object"
-      ? (config.plugins as Record<string, unknown>)
-      : {};
-  const enabled = Array.isArray(plugins.enabled) ? plugins.enabled : [];
-
-  return applySharedConfigPatch({
-    fileKey: getHermesagentConfigSharedFileKey({ global }),
+  return getHermesPluginDisabledConfigContent({
+    currentContent,
+    global,
     feature: "commands",
-    existingContent: currentContent,
-    patch: {
-      plugins: {
-        ...plugins,
-        enabled: enabled.filter((plugin) => plugin !== "rulesync-commands"),
-      },
-    },
+    pluginName: "rulesync-commands",
   });
 }
 
