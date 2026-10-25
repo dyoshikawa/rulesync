@@ -1,31 +1,7 @@
-import { basename, dirname, join } from "node:path";
-
-import { SKILL_FILE_NAME } from "../../constants/general.js";
-import { RULESYNC_COMMANDS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { WARP_SKILLS_DIR_PATH } from "../../constants/warp-paths.js";
-import { type AiFileParams, ValidationResult } from "../../types/ai-file.js";
-import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
-import { commandSlug } from "./command-skill-ownership.js";
 import { RulesyncCommand } from "./rulesync-command.js";
-import {
-  ToolCommand,
-  type ToolCommandFromRulesyncCommandParams,
-  type ToolCommandSettablePaths,
-} from "./tool-command.js";
-
-type WarpCommandParams = AiFileParams & {
-  slug?: string;
-};
-
-function commandSkillContent(rulesyncCommand: RulesyncCommand): string {
-  const slug = commandSlug(rulesyncCommand.getRelativeFilePath());
-  const description = rulesyncCommand.getFrontmatter().description ?? `${slug} command`;
-
-  return stringifyFrontmatter(rulesyncCommand.getBody().trim(), {
-    name: slug,
-    description,
-  });
-}
+import { SkillBackedToolCommand } from "./skill-backed-command.js";
+import { type ToolCommandSettablePaths } from "./tool-command.js";
 
 /**
  * Represents a Warp slash command, emitted as a Warp Skill.
@@ -48,7 +24,7 @@ function commandSkillContent(rulesyncCommand: RulesyncCommand): string {
  * @see https://docs.warp.dev/agent-platform/capabilities/skills/
  * @see https://docs.warp.dev/agent-platform/capabilities/slash-commands/
  */
-export class WarpCommand extends ToolCommand {
+export class WarpCommand extends SkillBackedToolCommand {
   static override isTargetedByRulesyncCommand(rulesyncCommand: RulesyncCommand): boolean {
     return this.isTargetedByRulesyncCommandDefault({
       rulesyncCommand,
@@ -64,52 +40,5 @@ export class WarpCommand extends ToolCommand {
     return {
       relativeDirPath: WARP_SKILLS_DIR_PATH,
     };
-  }
-
-  constructor({ slug, ...params }: WarpCommandParams) {
-    super({
-      ...params,
-      ...(slug !== undefined && {
-        relativeDirPath: join(params.relativeDirPath, slug),
-        relativeFilePath: SKILL_FILE_NAME,
-      }),
-    });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
-  }
-
-  toRulesyncCommand(): RulesyncCommand {
-    const slug = basename(dirname(this.getRelativePathFromCwd()));
-    const { frontmatter, body } = parseFrontmatter(this.getFileContent(), this.getFilePath());
-    const description =
-      typeof frontmatter.description === "string" ? frontmatter.description : undefined;
-
-    return new RulesyncCommand({
-      relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
-      relativeFilePath: `${slug}.md`,
-      frontmatter: { description },
-      body: body.trimStart(),
-    });
-  }
-
-  static override fromRulesyncCommand({
-    outputRoot,
-    rulesyncCommand,
-    global = false,
-  }: ToolCommandFromRulesyncCommandParams): WarpCommand {
-    const paths = WarpCommand.getSettablePaths({ global });
-    return new WarpCommand({
-      outputRoot,
-      relativeDirPath: paths.relativeDirPath,
-      relativeFilePath: SKILL_FILE_NAME,
-      slug: commandSlug(rulesyncCommand.getRelativeFilePath()),
-      fileContent: commandSkillContent(rulesyncCommand),
-    });
-  }
-
-  getFileContent(): string {
-    return this.fileContent;
   }
 }

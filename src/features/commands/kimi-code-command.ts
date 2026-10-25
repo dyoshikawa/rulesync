@@ -1,22 +1,8 @@
-import { basename, dirname, join } from "node:path";
-
-import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { KIMI_CODE_SKILLS_DIR_NAME } from "../../constants/kimi-code-paths.js";
-import { RULESYNC_COMMANDS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
-import { type AiFileParams, ValidationResult } from "../../types/ai-file.js";
-import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
 import { getKimiCodeRelativeDirPath } from "../../utils/kimi-code.js";
-import { commandSlug } from "./command-skill-ownership.js";
-import { RulesyncCommand } from "./rulesync-command.js";
-import {
-  ToolCommand,
-  type ToolCommandFromRulesyncCommandParams,
-  type ToolCommandSettablePaths,
-} from "./tool-command.js";
-
-type KimiCodeCommandParams = AiFileParams & {
-  slug?: string;
-};
+import { RulesyncCommand, type RulesyncCommandFrontmatter } from "./rulesync-command.js";
+import { SkillBackedToolCommand } from "./skill-backed-command.js";
+import { type ToolCommandSettablePaths } from "./tool-command.js";
 
 /**
  * Kimi Code SKILL.md frontmatter keys a command may author through its
@@ -49,24 +35,6 @@ function pickKimiCodeSectionKeys(section: Record<string, unknown>): Record<strin
   return picked;
 }
 
-function commandSkillContent(rulesyncCommand: RulesyncCommand): string {
-  const slug = commandSlug(rulesyncCommand.getRelativeFilePath());
-  const frontmatter = rulesyncCommand.getFrontmatter();
-  // Kimi rejects a directory-form SKILL.md without a description, so a blank
-  // one falls back like a missing one.
-  const description = frontmatter.description?.trim() || `${slug} command`;
-
-  return stringifyFrontmatter(rulesyncCommand.getBody().trim(), {
-    name: slug,
-    description,
-    // A command is a user-invoked prompt, so keep the model from invoking the
-    // command-derived skill on its own unless the `kimi-code:` section says
-    // otherwise.
-    disableModelInvocation: true,
-    ...pickKimiCodeSectionKeys(frontmatter["kimi-code"] ?? {}),
-  });
-}
-
 /**
  * Represents a Kimi Code slash command, emitted as a Kimi Code Skill.
  *
@@ -88,7 +56,7 @@ function commandSkillContent(rulesyncCommand: RulesyncCommand): string {
  * @see https://moonshotai.github.io/kimi-code/en/customization/skills.html
  * @see https://moonshotai.github.io/kimi-code/en/reference/slash-commands.html
  */
-export class KimiCodeCommand extends ToolCommand {
+export class KimiCodeCommand extends SkillBackedToolCommand {
   static override isTargetedByRulesyncCommand(rulesyncCommand: RulesyncCommand): boolean {
     return this.isTargetedByRulesyncCommandDefault({
       rulesyncCommand,
@@ -105,50 +73,25 @@ export class KimiCodeCommand extends ToolCommand {
     };
   }
 
-  constructor({ slug, ...params }: KimiCodeCommandParams) {
-    super({
-      ...params,
-      ...(slug !== undefined && {
-        relativeDirPath: join(params.relativeDirPath, slug),
-        relativeFilePath: SKILL_FILE_NAME,
-      }),
-    });
-  }
+  protected static override getSkillFrontmatter({
+    slug,
+    frontmatter,
+  }: {
+    slug: string;
+    frontmatter: RulesyncCommandFrontmatter;
+  }): Record<string, unknown> {
+    // Kimi rejects a directory-form SKILL.md without a description, so a blank
+    // one falls back like a missing one.
+    const description = frontmatter.description?.trim() || `${slug} command`;
 
-  validate(): ValidationResult {
-    return { success: true, error: null };
-  }
-
-  toRulesyncCommand(): RulesyncCommand {
-    const slug = basename(dirname(this.getRelativePathFromCwd()));
-    const { frontmatter, body } = parseFrontmatter(this.getFileContent(), this.getFilePath());
-    const description =
-      typeof frontmatter.description === "string" ? frontmatter.description : undefined;
-
-    return new RulesyncCommand({
-      relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
-      relativeFilePath: `${slug}.md`,
-      frontmatter: { description },
-      body: body.trimStart(),
-    });
-  }
-
-  static override fromRulesyncCommand({
-    outputRoot,
-    rulesyncCommand,
-    global = false,
-  }: ToolCommandFromRulesyncCommandParams): KimiCodeCommand {
-    const paths = KimiCodeCommand.getSettablePaths({ global });
-    return new KimiCodeCommand({
-      outputRoot,
-      relativeDirPath: paths.relativeDirPath,
-      relativeFilePath: SKILL_FILE_NAME,
-      slug: commandSlug(rulesyncCommand.getRelativeFilePath()),
-      fileContent: commandSkillContent(rulesyncCommand),
-    });
-  }
-
-  getFileContent(): string {
-    return this.fileContent;
+    return {
+      name: slug,
+      description,
+      // A command is a user-invoked prompt, so keep the model from invoking the
+      // command-derived skill on its own unless the `kimi-code:` section says
+      // otherwise.
+      disableModelInvocation: true,
+      ...pickKimiCodeSectionKeys(frontmatter["kimi-code"] ?? {}),
+    };
   }
 }
