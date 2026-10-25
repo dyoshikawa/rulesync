@@ -38,6 +38,7 @@ import {
   type TrustAffectingSandboxPath,
   warnOnTrustAffectingEntries,
 } from "./sandbox-trust.js";
+import { buildToolPatternEntry, parseToolPatternEntry } from "./tool-pattern-entry.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -132,35 +133,6 @@ function isReasonixExactCommandEntry(entry: string): boolean {
   }
   const parenIndex = entry.indexOf("(");
   return parenIndex === -1 || eqIndex < parenIndex;
-}
-
-/**
- * Parse a Reasonix permission entry like "Bash(npm run *)" into tool name and pattern.
- * If no parentheses, returns the tool name with "*" as the pattern.
- */
-function parseReasonixPermissionEntry(entry: string): { toolName: string; pattern: string } {
-  const parenIndex = entry.indexOf("(");
-  if (parenIndex === -1) {
-    return { toolName: entry, pattern: "*" };
-  }
-  const toolName = entry.slice(0, parenIndex);
-  // Verify closing parenthesis exists at the end before extracting the pattern
-  if (!entry.endsWith(")")) {
-    return { toolName, pattern: "*" };
-  }
-  const pattern = entry.slice(parenIndex + 1, -1);
-  return { toolName, pattern: pattern || "*" };
-}
-
-/**
- * Build a Reasonix permission entry like "Bash(npm run *)".
- * If the pattern is "*", returns just the tool name.
- */
-function buildReasonixPermissionEntry(toolName: string, pattern: string): string {
-  if (pattern === "*") {
-    return toolName;
-  }
-  return `${toolName}(${pattern})`;
 }
 
 type ReasonixConfig = Record<string, unknown>;
@@ -719,7 +691,7 @@ export class ReasonixPermissions extends ToolPermissions {
     if (logger && managedToolNames.has(REASONIX_READ_TOOL_NAME)) {
       const readToolNames = new Set(reasonixToolNamesOf("read"));
       const droppedReadDenyEntries = toStringArray(existingPermissions.deny).filter((entry) => {
-        const { toolName } = parseReasonixPermissionEntry(entry);
+        const { toolName } = parseToolPatternEntry(entry);
         return readToolNames.has(toolName);
       });
       if (droppedReadDenyEntries.length > 0) {
@@ -992,7 +964,7 @@ function preserveExistingEntries({
     if (isReasonixExactCommandEntry(entry)) {
       return !rawOwnedEntries.has(entry);
     }
-    return !managedToolNames.has(parseReasonixPermissionEntry(entry).toolName);
+    return !managedToolNames.has(parseToolPatternEntry(entry).toolName);
   };
   const allow = toStringArray(existingPermissions.allow).filter(isPreserved);
   const ask = toStringArray(existingPermissions.ask).filter(isPreserved);
@@ -1040,7 +1012,7 @@ function convertRulesyncToReasonixPermissions(config: PermissionsConfig): {
   for (const [category, rules] of Object.entries(config.permission)) {
     const reasonixToolName = toReasonixToolName(category);
     for (const [pattern, action] of Object.entries(rules)) {
-      const entry = buildReasonixPermissionEntry(reasonixToolName, pattern);
+      const entry = buildToolPatternEntry({ toolName: reasonixToolName, pattern });
       switch (action) {
         case "allow":
           allow.push(entry);
@@ -1070,7 +1042,7 @@ function convertReasonixToRulesyncPermissions(params: {
 
   const processEntries = (entries: string[], action: PermissionAction) => {
     for (const entry of entries) {
-      const { toolName, pattern } = parseReasonixPermissionEntry(entry);
+      const { toolName, pattern } = parseToolPatternEntry(entry);
       const canonical = toCanonicalToolName(toolName);
       if (!permission[canonical]) {
         permission[canonical] = {};

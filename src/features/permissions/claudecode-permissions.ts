@@ -29,6 +29,7 @@ import {
   warnOnTrustAffectingEntries,
 } from "./sandbox-trust.js";
 import { ALL_TOOLS_PERMISSION_CATEGORY } from "./shell-command-categories.js";
+import { parseToolPatternEntry } from "./tool-pattern-entry.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -67,24 +68,6 @@ function toClaudeToolName(canonical: string): string {
 
 function toCanonicalToolName(claudeName: string): string {
   return CLAUDE_TO_CANONICAL_TOOL_NAMES[claudeName] ?? claudeName;
-}
-
-/**
- * Parse a Claude Code permission entry like "Bash(npm run *)" into tool name and pattern.
- * If no parentheses, returns the tool name with "*" as the pattern.
- */
-function parseClaudePermissionEntry(entry: string): { toolName: string; pattern: string } {
-  const parenIndex = entry.indexOf("(");
-  if (parenIndex === -1) {
-    return { toolName: entry, pattern: "*" };
-  }
-  const toolName = entry.slice(0, parenIndex);
-  // Verify closing parenthesis exists at the end before extracting the pattern
-  if (!entry.endsWith(")")) {
-    return { toolName, pattern: "*" };
-  }
-  const pattern = entry.slice(parenIndex + 1, -1);
-  return { toolName, pattern: pattern || "*" };
 }
 
 /**
@@ -1467,7 +1450,7 @@ export class ClaudecodePermissions extends ToolPermissions {
     const merged = applyPermissions({
       settings,
       managedToolNames,
-      toolNameOf: (entry) => parseClaudePermissionEntry(entry).toolName,
+      toolNameOf: (entry) => parseToolPatternEntry(entry).toolName,
       allow,
       ask,
       deny,
@@ -1664,7 +1647,7 @@ function convertClaudeToRulesyncPermissions(params: {
 
   const processEntries = (entries: string[], action: PermissionAction) => {
     for (const entry of entries) {
-      const { toolName, pattern } = parseClaudePermissionEntry(entry);
+      const { toolName, pattern } = parseToolPatternEntry(entry);
       const canonical = toCanonicalToolName(toolName);
       if (!permission[canonical]) {
         permission[canonical] = {};

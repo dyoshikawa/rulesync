@@ -16,6 +16,7 @@ import { fallbackLogger, type Logger, warnWithFallback } from "../../utils/logge
 import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
+import { buildToolPatternEntry } from "./tool-pattern-entry.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -107,13 +108,6 @@ function parseQwenPermissionEntry(
   }
   const pattern = entry.slice(parenIndex + 1, lastParenIndex);
   return { ok: true, toolName, pattern: pattern || "*" };
-}
-
-function buildQwenPermissionEntry(toolName: string, pattern: string): string {
-  if (pattern === "*") {
-    return toolName;
-  }
-  return `${toolName}(${pattern})`;
 }
 
 // The `tools`/`security` sub-keys that the `qwencode` override authors and that
@@ -1153,7 +1147,7 @@ function convertRulesyncToQwenPermissions(config: PermissionsConfig): {
   for (const [category, rules] of Object.entries(config.permission)) {
     const qwenToolName = toQwenToolName(category);
     for (const [pattern, action] of Object.entries(rules)) {
-      const entry = buildQwenPermissionEntry(qwenToolName, pattern);
+      const entry = buildToolPatternEntry({ toolName: qwenToolName, pattern });
       switch (action) {
         case "allow":
           allow.push(entry);

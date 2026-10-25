@@ -15,6 +15,7 @@ import type { Logger } from "../../utils/logger.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { honorAllToolsOnBash } from "./shell-command-categories.js";
+import { buildToolPatternEntry, parseToolPatternEntry } from "./tool-pattern-entry.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -128,34 +129,6 @@ function toCanonicalCategory(cursorType: string, pattern: string): string {
     return CURSOR_TYPE_TO_CANONICAL[cursorType] ?? cursorType.toLowerCase();
   }
   return CURSOR_TYPE_TO_CANONICAL[cursorType] ?? cursorType.toLowerCase();
-}
-
-/**
- * Parse a Cursor permission entry like "Shell(npm run *)" into its type and
- * pattern. Entries without parentheses are treated as wildcard patterns ("*").
- */
-function parseCursorPermissionEntry(entry: string): { type: string; pattern: string } {
-  const parenIndex = entry.indexOf("(");
-  if (parenIndex === -1) {
-    return { type: entry, pattern: "*" };
-  }
-  const type = entry.slice(0, parenIndex);
-  if (!entry.endsWith(")")) {
-    return { type, pattern: "*" };
-  }
-  const pattern = entry.slice(parenIndex + 1, -1);
-  return { type, pattern: pattern || "*" };
-}
-
-/**
- * Build a Cursor CLI permission entry like "Shell(npm run *)".
- * For wildcard patterns, returns just the type name.
- */
-function buildCursorPermissionEntry(type: string, pattern: string): string {
-  if (pattern === "*") {
-    return type;
-  }
-  return `${type}(${pattern})`;
 }
 
 type CursorCliConfig = {
@@ -433,12 +406,12 @@ export class CursorPermissions extends ToolPermissions {
       existingPermissions.allow,
       logger,
       "allow",
-    ).filter((entry) => !managedTypes.has(parseCursorPermissionEntry(entry).type));
+    ).filter((entry) => !managedTypes.has(parseToolPatternEntry(entry).toolName));
     const preservedDeny = asCursorPermissionEntryArray(
       existingPermissions.deny,
       logger,
       "deny",
-    ).filter((entry) => !managedTypes.has(parseCursorPermissionEntry(entry).type));
+    ).filter((entry) => !managedTypes.has(parseToolPatternEntry(entry).toolName));
 
     // Spread the existing `permissions` object so unknown keys (e.g. a future
     // `cwd` or other forward-compat fields a user has hand-edited) are
@@ -571,7 +544,7 @@ function convertRulesyncToCursorPermissions(
     const cursorType = toCursorType(category);
     for (const [pattern, action] of Object.entries(rules)) {
       const cursorPattern = toCursorPattern(category, pattern);
-      const entry = buildCursorPermissionEntry(cursorType, cursorPattern);
+      const entry = buildToolPatternEntry({ toolName: cursorType, pattern: cursorPattern });
       switch (action) {
         case "allow":
           allow.push(entry);
@@ -602,7 +575,7 @@ function convertCursorToRulesyncPermissions(params: {
 
   const processEntries = (entries: string[], action: PermissionAction) => {
     for (const entry of entries) {
-      const { type, pattern } = parseCursorPermissionEntry(entry);
+      const { toolName: type, pattern } = parseToolPatternEntry(entry);
       const canonical = toCanonicalCategory(type, pattern);
       if (!permission[canonical]) {
         permission[canonical] = {};

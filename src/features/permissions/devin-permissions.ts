@@ -33,6 +33,7 @@ import {
 } from "./sandbox-trust.js";
 import { honorAllToolsOnBash } from "./shell-command-categories.js";
 import { collapseRulesToSingleAction, hasPatternSpecificRules } from "./single-action-collapse.js";
+import { buildToolPatternEntry, parseToolPatternEntry } from "./tool-pattern-entry.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -98,34 +99,6 @@ type DevinPermissionsBlock = {
   ask?: string[];
   [key: string]: unknown;
 };
-
-/**
- * Parse a Devin permission entry like `Read(src/**)` into scope and pattern.
- * Bare entries (e.g. `Read`, or a whole-tool name like `exec`) yield `*`.
- */
-function parseDevinPermissionEntry(entry: string): { scope: string; pattern: string } {
-  const parenIndex = entry.indexOf("(");
-  if (parenIndex === -1) {
-    return { scope: entry, pattern: "*" };
-  }
-  const scope = entry.slice(0, parenIndex);
-  if (!entry.endsWith(")")) {
-    return { scope, pattern: "*" };
-  }
-  const pattern = entry.slice(parenIndex + 1, -1);
-  return { scope, pattern: pattern || "*" };
-}
-
-/**
- * Build a Devin permission entry like `Read(src/**)`. A `*` pattern collapses to
- * the bare scope (`Read`), matching the whole scope.
- */
-function buildDevinPermissionEntry(scope: string, pattern: string): string {
-  if (pattern === "*") {
-    return scope;
-  }
-  return `${scope}(${pattern})`;
-}
 
 function asDevinRecord(value: unknown): Record<string, unknown> {
   return isRecord(value) ? { ...value } : {};
@@ -321,7 +294,7 @@ export class DevinPermissions extends ToolPermissions {
       ? (settings.permissions as DevinPermissionsBlock)
       : {};
     const preserve = (entries: string[] | undefined): string[] =>
-      (entries ?? []).filter((entry) => !managedScopes.has(parseDevinPermissionEntry(entry).scope));
+      (entries ?? []).filter((entry) => !managedScopes.has(parseToolPatternEntry(entry).toolName));
 
     const mergedAllow = uniq([...preserve(existingPermissions.allow), ...allow].toSorted());
     const mergedAsk = uniq([...preserve(existingPermissions.ask), ...ask].toSorted());
@@ -652,7 +625,7 @@ function convertRulesyncToDevinPermissions({
       continue;
     }
     for (const [pattern, action] of Object.entries(rules)) {
-      push(buildDevinPermissionEntry(scope, pattern), action);
+      push(buildToolPatternEntry({ toolName: scope, pattern }), action);
     }
   }
 
@@ -673,7 +646,7 @@ function convertDevinToRulesyncPermissions(params: {
 
   const processEntries = (entries: string[], action: PermissionAction): void => {
     for (const entry of entries) {
-      const { scope, pattern } = parseDevinPermissionEntry(entry);
+      const { toolName: scope, pattern } = parseToolPatternEntry(entry);
       // `scope` and `pattern` come from the parsed Devin config. Skip raw
       // prototype-pollution keys before they reach `toCanonicalCategory` (which
       // would otherwise resolve `__proto__`/`constructor` to a non-string via the

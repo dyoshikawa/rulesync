@@ -14,6 +14,7 @@ import { isRecord, isStringArray } from "../../utils/type-guards.js";
 import { loadYaml } from "../../utils/yaml.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { ALL_TOOLS_PERMISSION_CATEGORY, honorAllToolsOnBash } from "./shell-command-categories.js";
+import { buildToolPatternEntry } from "./tool-pattern-entry.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -95,14 +96,6 @@ function toCanonicalToolName(continueName: string): string {
   return Object.hasOwn(CONTINUE_TO_CANONICAL_TOOL_NAMES, continueName)
     ? (CONTINUE_TO_CANONICAL_TOOL_NAMES[continueName] ?? continueName)
     : continueName;
-}
-
-/**
- * Build a permissions.yaml entry: the bare tool name for the catch-all, else
- * `Tool(pattern)`.
- */
-function buildContinuePermissionEntry(toolName: string, pattern: string): string {
-  return pattern === CATCH_ALL_PATTERN ? toolName : `${toolName}(${pattern})`;
 }
 
 /**
@@ -354,7 +347,7 @@ function convertRulesyncToContinuePermissions({
         );
         continue;
       }
-      const entry = buildContinuePermissionEntry(toolName, pattern);
+      const entry = buildToolPatternEntry({ toolName, pattern });
       const previous = actionByEntry.get(entry);
       if (previous !== undefined && previous !== action) {
         logger?.warn(

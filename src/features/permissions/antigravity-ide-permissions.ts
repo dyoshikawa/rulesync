@@ -18,6 +18,7 @@ import {
 import { buildAntigravityPermissionEntry } from "./antigravity-targets.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { honorAllToolsOnBash } from "./shell-command-categories.js";
+import { parseToolPatternEntry } from "./tool-pattern-entry.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -79,27 +80,6 @@ function toIdeAction(canonical: string): string {
 
 function toCanonicalCategory(ideAction: string): string {
   return IDE_ACTION_TO_CANONICAL[ideAction] ?? ideAction;
-}
-
-/**
- * Parse an Antigravity entry like "command(npm run)" into action and pattern.
- * The action is everything before the first "(" and the pattern is everything
- * up to the final ")", so patterns containing parentheses (e.g.
- * "command(npm run (build|test))") round-trip. Entries without parentheses use
- * the whole string as the action with pattern "*"; an entry that opens "(" but
- * does not end with ")" falls back to the bare action with pattern "*".
- */
-function parsePermissionEntry(entry: string): { action: string; pattern: string } {
-  const parenIndex = entry.indexOf("(");
-  if (parenIndex === -1) {
-    return { action: entry, pattern: "*" };
-  }
-  const action = entry.slice(0, parenIndex);
-  if (!entry.endsWith(")")) {
-    return { action, pattern: "*" };
-  }
-  const pattern = entry.slice(parenIndex + 1, -1);
-  return { action, pattern: pattern || "*" };
 }
 
 /**
@@ -171,7 +151,7 @@ export class AntigravityIdePermissions extends ToolPermissions {
 
     const existingPermissions = settings.permissions ?? {};
     const preserve = (entries: string[] | undefined): string[] =>
-      (entries ?? []).filter((entry) => !managedActions.has(parsePermissionEntry(entry).action));
+      (entries ?? []).filter((entry) => !managedActions.has(parseToolPatternEntry(entry).toolName));
 
     const mergedPermissions: Record<string, unknown> = { ...existingPermissions };
     const mergedAllow = uniq([...preserve(existingPermissions.allow), ...allow].toSorted());
@@ -297,7 +277,7 @@ function convertAntigravityIdeToRulesyncPermissions(params: {
 
   const processEntries = (entries: string[], action: PermissionAction) => {
     for (const entry of entries) {
-      const { action: ideAction, pattern: target } = parsePermissionEntry(entry);
+      const { toolName: ideAction, pattern: target } = parseToolPatternEntry(entry);
       const canonical = toCanonicalCategory(ideAction);
       const pattern = ANTIGRAVITY_COMMAND_ACTIONS.has(ideAction)
         ? importAntigravityCommandTarget({

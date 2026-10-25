@@ -24,6 +24,7 @@ import {
 import { buildAntigravityPermissionEntry } from "./antigravity-targets.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { honorAllToolsOnBash } from "./shell-command-categories.js";
+import { parseToolPatternEntry } from "./tool-pattern-entry.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -136,29 +137,6 @@ function toCanonicalToolName(cliName: string): string {
 }
 
 /**
- * Parse an Antigravity CLI permission entry like "command(npm run)" into tool
- * name and pattern. The tool name is everything before the first "(" and the
- * pattern is everything up to the final ")", so patterns that themselves
- * contain parentheses (e.g. "command(echo (a))") round-trip correctly — this
- * mirrors {@link ClaudecodePermissions}, which the CLI shares its format with.
- * If there are no parentheses, the whole entry is the tool name and the pattern
- * defaults to "*". An entry that opens a "(" but does not end with ")" is
- * treated as malformed and falls back to the bare tool name with pattern "*".
- */
-function parsePermissionEntry(entry: string): { toolName: string; pattern: string } {
-  const parenIndex = entry.indexOf("(");
-  if (parenIndex === -1) {
-    return { toolName: entry, pattern: "*" };
-  }
-  const toolName = entry.slice(0, parenIndex);
-  if (!entry.endsWith(")")) {
-    return { toolName, pattern: "*" };
-  }
-  const pattern = entry.slice(parenIndex + 1, -1);
-  return { toolName, pattern: pattern || "*" };
-}
-
-/**
  * Permissions generator for the Google Antigravity CLI (`agy`, Antigravity 2.0).
  *
  * Permissions are written to the global `~/.gemini/antigravity-cli/settings.json`
@@ -233,13 +211,13 @@ export class AntigravityCliPermissions extends ToolPermissions {
     // Preserve existing entries for tools NOT in the permissions config
     const existingPermissions = settings.permissions ?? {};
     const preservedAllow = (existingPermissions.allow ?? []).filter(
-      (entry) => !managedToolNames.has(parsePermissionEntry(entry).toolName),
+      (entry) => !managedToolNames.has(parseToolPatternEntry(entry).toolName),
     );
     const preservedAsk = (existingPermissions.ask ?? []).filter(
-      (entry) => !managedToolNames.has(parsePermissionEntry(entry).toolName),
+      (entry) => !managedToolNames.has(parseToolPatternEntry(entry).toolName),
     );
     const preservedDeny = (existingPermissions.deny ?? []).filter(
-      (entry) => !managedToolNames.has(parsePermissionEntry(entry).toolName),
+      (entry) => !managedToolNames.has(parseToolPatternEntry(entry).toolName),
     );
 
     const mergedPermissions: Record<string, unknown> = {
@@ -435,7 +413,7 @@ function convertAntigravityCliToRulesyncPermissions(params: {
 
   const processEntries = (entries: string[], action: PermissionAction) => {
     for (const entry of entries) {
-      const { toolName, pattern: target } = parsePermissionEntry(entry);
+      const { toolName, pattern: target } = parseToolPatternEntry(entry);
       const canonical = toCanonicalToolName(toolName);
       const pattern = ANTIGRAVITY_COMMAND_ACTIONS.has(toolName)
         ? importAntigravityCommandTarget({
