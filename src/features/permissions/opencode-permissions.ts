@@ -25,6 +25,11 @@ import {
   readOpencodeDotDirConfigLayers,
   warnOpencodeDotDirOverrides,
 } from "../opencode-config.js";
+import {
+  findOpencodeMcpToolKeyOwner,
+  opencodeMcpToolPermissionKey,
+  sanitizeOpencodeMcpNamePart,
+} from "../shared/opencode-family-mcp-tool-keys.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { honorAllToolsOnBash } from "./shell-command-categories.js";
@@ -178,26 +183,17 @@ const OPENCODE_UNSUPPORTED_PERMISSION_CATEGORIES = new Set(["notebookedit"]);
 const MCP_CANONICAL_PREFIX = "mcp__";
 
 /**
- * OpenCode's own MCP tool naming (`McpCatalog.toolName` in 1.x, the same rule
- * in 2.x): the server and tool names joined by `_`, every character other
- * than ASCII letters, digits, `_` and `-` replaced by `_`.
- *
- * @see https://opencode.ai/v2/docs/mcp-servers/
- * @see https://github.com/anomalyco/opencode/blob/v1.19.4/packages/opencode/src/mcp/catalog.ts
- */
-function sanitizeOpencodeMcpNamePart(value: string): string {
-  return value.replace(/[^a-zA-Z0-9_-]/g, "_");
-}
-
-/**
  * OpenCode permission keys (V1) and actions (V2) that are not MCP tools, so a
- * server whose name is a prefix of one (`external` vs. `external_directory`)
- * does not claim it on import.
+ * server whose name is a prefix of one (`external` vs. `external_directory`,
+ * `opencode` vs. `opencode_read_mcp_resource`) does not claim it on import.
  */
 const OPENCODE_BUILTIN_PERMISSION_KEYS: ReadonlySet<string> = new Set([
   "*",
   "read",
   "edit",
+  "write",
+  "patch",
+  "apply_patch",
   "glob",
   "grep",
   "list",
@@ -213,16 +209,16 @@ const OPENCODE_BUILTIN_PERMISSION_KEYS: ReadonlySet<string> = new Set([
   "lsp",
   "doom_loop",
   "skill",
+  "opencode_list_mcp_resources",
+  "opencode_read_mcp_resource",
 ]);
 
 /**
- * The OpenCode permission key of a canonical `mcp__<server>__<tool>` category:
- * `<server>_<tool>`, sanitized the way OpenCode names MCP tools, or
- * `<server>_*` for a whole-server `mcp__<server>` category. A `*` or `?` in
- * the tool part is kept as a wildcard (OpenCode matches permission keys and
- * V2 actions as wildcards). Returns `undefined` for a category that is not an
- * MCP tool name or whose server part is itself a wildcard, which has no
- * OpenCode key that matches only MCP tools.
+ * The OpenCode permission key of a canonical `mcp__<server>__<tool>` category
+ * (see {@link opencodeMcpToolPermissionKey}), or `<server>_*` for a
+ * whole-server `mcp__<server>` category. Returns `undefined` for a category
+ * that is not an MCP tool name or whose server part is itself a wildcard,
+ * which has no OpenCode key that matches only MCP tools.
  */
 function toOpencodeMcpPermissionKey(category: string): string | undefined {
   if (!category.startsWith(MCP_CANONICAL_PREFIX)) {
@@ -235,44 +231,38 @@ function toOpencodeMcpPermissionKey(category: string): string | undefined {
   if (server === "" || /[*?]/.test(server)) {
     return undefined;
   }
-  const toolKey = tool === "" ? "*" : tool.replace(/[^a-zA-Z0-9_\-*?]/g, "_");
-  return `${sanitizeOpencodeMcpNamePart(server)}_${toolKey}`;
+  return opencodeMcpToolPermissionKey(server, tool === "" ? "*" : tool);
 }
 
 /**
  * The canonical `mcp__<server>__<tool>` category an OpenCode permission key
  * names, for a key that starts with the sanitized name of one of
- * `serverNames` followed by `_` (the longest such prefix wins). `<server>_*`
- * becomes the whole-server `mcp__<server>`. Returns `undefined` for an
- * OpenCode built-in key or a key no listed server claims.
+ * `serverNames` followed by `_` (see {@link findOpencodeMcpToolKeyOwner}).
+ * `<server>_*` becomes the whole-server `mcp__<server>`. Servers whose
+ * sanitized names collide cannot be told apart, so they claim no key.
  */
 function fromOpencodeMcpPermissionKey(
   key: string,
   serverNames: readonly string[],
 ): string | undefined {
-  if (OPENCODE_BUILTIN_PERMISSION_KEYS.has(key)) {
+  const sanitizedCounts = new Map<string, number>();
+  for (const name of serverNames) {
+    const sanitized = sanitizeOpencodeMcpNamePart(name);
+    sanitizedCounts.set(sanitized, (sanitizedCounts.get(sanitized) ?? 0) + 1);
+  }
+  const owner = findOpencodeMcpToolKeyOwner({
+    key,
+    serverNames: serverNames.filter(
+      (name) => sanitizedCounts.get(sanitizeOpencodeMcpNamePart(name)) === 1,
+    ),
+    builtinKeys: OPENCODE_BUILTIN_PERMISSION_KEYS,
+  });
+  if (owner === undefined) {
     return undefined;
   }
-  let owner: { serverName: string; prefix: string } | undefined;
-  for (const serverName of serverNames) {
-    const prefix = `${sanitizeOpencodeMcpNamePart(serverName)}_`;
-    if (
-      key.length > prefix.length &&
-      key.startsWith(prefix) &&
-      (owner === undefined || prefix.length > owner.prefix.length)
-    ) {
-      owner = { serverName, prefix };
-    }
-  }
-  if (owner === undefined || /[^a-zA-Z0-9_-]/.test(owner.serverName)) {
-    // A server name OpenCode sanitizes cannot be told apart from the
-    // sanitized spelling of another name, so the key stays OpenCode-only.
-    return undefined;
-  }
-  const tool = key.slice(owner.prefix.length);
-  return tool === "*"
+  return owner.toolName === "*"
     ? `${MCP_CANONICAL_PREFIX}${owner.serverName}`
-    : `${MCP_CANONICAL_PREFIX}${owner.serverName}__${tool}`;
+    : `${MCP_CANONICAL_PREFIX}${owner.serverName}__${owner.toolName}`;
 }
 
 /** The MCP server names an OpenCode config declares (V1 flat map or V2 `mcp.servers`). */
@@ -692,7 +682,13 @@ export class OpencodePermissions extends ToolPermissions {
         fromOpencodeMcpPermissionKey(category, mcpServerNames) ??
         toCanonicalPermissionKey(category);
       if (isSharedPermissionCategory(canonicalCategory)) {
-        shared[canonicalCategory] = typeof value === "string" ? { "*": value } : value;
+        const patterns = typeof value === "string" ? { "*": value } : value;
+        // Two keys can name one canonical category: a verbatim
+        // `mcp__<server>__<tool>` key earlier rulesync versions wrote next to
+        // the `<server>_<tool>` key OpenCode reads. Keep the stricter rules.
+        shared[canonicalCategory] = Object.hasOwn(shared, canonicalCategory)
+          ? mergePatternRules(shared[canonicalCategory]!, patterns)
+          : patterns;
       } else {
         overrideOnly[category] = value;
       }
