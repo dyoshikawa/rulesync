@@ -7,7 +7,11 @@ import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { quoteForLog } from "../../utils/control-characters.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent, toPosixPath } from "../../utils/file.js";
-import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
+import {
+  parseFrontmatter,
+  stringifyFrontmatter,
+  validateFrontmatterSchema,
+} from "../../utils/frontmatter.js";
 import type { Logger } from "../../utils/logger.js";
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
 import {
@@ -148,16 +152,13 @@ export class TraeCommand extends ToolCommand {
     if (!this.frontmatter) {
       return { success: true, error: null };
     }
-    const result = TraeCommandFrontmatterSchema.safeParse(this.frontmatter);
-    if (result.success) {
-      return { success: true, error: null };
-    }
-    return {
-      success: false,
-      error: new Error(
-        `Invalid frontmatter in ${join(this.relativeDirPath, this.relativeFilePath)}: ${formatError(result.error)}`,
-      ),
-    };
+
+    return validateFrontmatterSchema({
+      schema: TraeCommandFrontmatterSchema,
+      frontmatter: this.frontmatter,
+      relativeDirPath: this.relativeDirPath,
+      relativeFilePath: this.relativeFilePath,
+    });
   }
 
   /**

@@ -1,6 +1,10 @@
+import { join } from "node:path";
+
 import matter from "gray-matter";
 import { dump } from "js-yaml";
+import type { z } from "zod/mini";
 
+import type { ValidationResult } from "../types/ai-file.js";
 import { type BoundedWalk, createBoundedWalk } from "./bounded-walk.js";
 import { stripControlCharacters } from "./control-characters.js";
 import { formatError } from "./error.js";
@@ -653,4 +657,35 @@ export function parseFrontmatterWithYamlRepair(
     );
     return result;
   }
+}
+
+/**
+ * Validate a parsed frontmatter object against a schema, reporting a failure as
+ * `Invalid frontmatter in <relativeDirPath>/<relativeFilePath>: <details>`.
+ *
+ * This is the shared body of the `validate()` methods of rule, command,
+ * subagent and check files. Callers that tolerate a missing frontmatter keep
+ * their own early return before calling it.
+ */
+export function validateFrontmatterSchema({
+  schema,
+  frontmatter,
+  relativeDirPath,
+  relativeFilePath,
+}: {
+  schema: z.ZodMiniType;
+  frontmatter: unknown;
+  relativeDirPath: string;
+  relativeFilePath: string;
+}): ValidationResult {
+  const result = schema.safeParse(frontmatter);
+  if (result.success) {
+    return { success: true, error: null };
+  }
+  return {
+    success: false,
+    error: new Error(
+      `Invalid frontmatter in ${join(relativeDirPath, relativeFilePath)}: ${formatError(result.error)}`,
+    ),
+  };
 }

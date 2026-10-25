@@ -1,4 +1,7 @@
+import { join } from "node:path";
+
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod/mini";
 
 import {
   findFrontmatterBlockBounds,
@@ -10,6 +13,7 @@ import {
   parseFrontmatter,
   parseFrontmatterWithYamlRepair,
   stringifyFrontmatter,
+  validateFrontmatterSchema,
 } from "./frontmatter.js";
 import { fallbackLogger } from "./logger.js";
 
@@ -1237,5 +1241,49 @@ Body.`;
 
       expect(parseFrontmatterWithYamlRepair(content)).toEqual(parseFrontmatter(content));
     });
+  });
+});
+
+describe("validateFrontmatterSchema", () => {
+  const schema = z.looseObject({ description: z.string() });
+
+  it("returns success when the frontmatter matches the schema", () => {
+    expect(
+      validateFrontmatterSchema({
+        schema,
+        frontmatter: { description: "ok", extra: 1 },
+        relativeDirPath: ".rulesync/commands",
+        relativeFilePath: "a.md",
+      }),
+    ).toEqual({ success: true, error: null });
+  });
+
+  it("returns an error naming the file when the frontmatter does not match", () => {
+    const result = validateFrontmatterSchema({
+      schema,
+      frontmatter: { description: 1 },
+      relativeDirPath: ".rulesync/commands",
+      relativeFilePath: "a.md",
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBeInstanceOf(Error);
+    expect(
+      result.error?.message.startsWith(
+        `Invalid frontmatter in ${join(".rulesync/commands", "a.md")}: `,
+      ),
+    ).toBe(true);
+    expect(result.error?.message).toContain("description");
+  });
+
+  it("validates an undefined frontmatter against the schema", () => {
+    const result = validateFrontmatterSchema({
+      schema,
+      frontmatter: undefined,
+      relativeDirPath: ".",
+      relativeFilePath: "a.md",
+    });
+
+    expect(result.success).toBe(false);
   });
 });
