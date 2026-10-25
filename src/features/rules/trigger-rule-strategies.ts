@@ -47,7 +47,7 @@ export function parseGlobsString(globs: string | string[] | undefined): string[]
  * @param globs - Array of glob patterns
  * @returns Comma-separated globs string, or undefined if empty
  */
-export function stringifyGlobs(globs: string[] | undefined): string | undefined {
+function stringifyGlobs(globs: string[] | undefined): string | undefined {
   if (!globs || globs.length === 0) {
     return undefined;
   }
@@ -87,7 +87,7 @@ export function normalizeStoredTriggerRule(
  * What a strategy exports back to the RulesyncRule frontmatter: the globs, the
  * description and the tool's own frontmatter under the tool's key.
  */
-export type TriggerRuleRulesyncData<K extends string> = {
+type TriggerRuleRulesyncData<K extends string> = {
   globs: string[];
   description?: string;
 } & Record<K, Record<string, unknown>>;
