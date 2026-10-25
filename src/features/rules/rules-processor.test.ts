@@ -24,8 +24,9 @@ import { JunieRule } from "./junie-rule.js";
 import { OpenCodeRule } from "./opencode-rule.js";
 import { PiRule } from "./pi-rule.js";
 import { RovodevRule } from "./rovodev-rule.js";
-import { RulesProcessor, type RulesProcessorToolTarget } from "./rules-processor.js";
+import { RulesProcessor } from "./rules-processor.js";
 import { RulesyncRule } from "./rulesync-rule.js";
+import { type RulesProcessorToolTarget } from "./tool-rule-factories.js";
 import { WarpRule } from "./warp-rule.js";
 
 const logger = createMockLogger();
