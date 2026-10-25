@@ -273,7 +273,6 @@ describe("CommandsProcessor", () => {
         outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
-        fileContent: "test content",
         frontmatter: {
           targets: ["claudecode"],
           description: "test description",
@@ -316,7 +315,6 @@ describe("CommandsProcessor", () => {
         outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
-        fileContent: "test content",
         frontmatter: {
           targets: ["claudecode"],
           description: "test description",
@@ -353,7 +351,6 @@ describe("CommandsProcessor", () => {
         outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
-        fileContent: "test content",
         frontmatter: {
           targets: ["roo"],
           description: "test description",
@@ -397,7 +394,6 @@ describe("CommandsProcessor", () => {
         outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
-        fileContent: "test content",
         frontmatter: {
           targets: ["cursor"],
           description: "test description",
@@ -432,7 +428,6 @@ describe("CommandsProcessor", () => {
         outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: join("pj", "test.md"),
-        fileContent: "test content",
         frontmatter: {
           targets: ["cursor"],
           description: "test description",
@@ -463,7 +458,6 @@ describe("CommandsProcessor", () => {
         outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: join("pj", "test.md"),
-        fileContent: "test content",
         frontmatter: {
           targets: ["claudecode"],
           description: "test description",
@@ -496,7 +490,6 @@ describe("CommandsProcessor", () => {
         outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: join("pj", "test.md"),
-        fileContent: "content from pj",
         frontmatter: {
           targets: ["cursor"],
           description: "pj command",
@@ -507,7 +500,6 @@ describe("CommandsProcessor", () => {
         outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: join("ops", "test.md"),
-        fileContent: "content from ops",
         frontmatter: {
           targets: ["cursor"],
           description: "ops command",
@@ -557,7 +549,6 @@ describe("CommandsProcessor", () => {
         outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: join("update", "confluence", "docs.md"),
-        fileContent: "test content",
         frontmatter: {
           targets: ["cursor"],
           description: "test description",
@@ -593,7 +584,6 @@ describe("CommandsProcessor", () => {
         outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: join("pj", "test.md"),
-        fileContent: "content from pj",
         frontmatter: {
           targets: ["cursor"],
           description: "pj command",
@@ -604,7 +594,6 @@ describe("CommandsProcessor", () => {
         outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: join("ops", "test.md"),
-        fileContent: "content from ops",
         frontmatter: {
           targets: ["cursor"],
           description: "ops command",
@@ -653,7 +642,6 @@ describe("CommandsProcessor", () => {
         outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: join("pj", "test.md"),
-        fileContent: "test content",
         frontmatter: {
           targets: ["claudecode"],
           description: "test description",
@@ -684,7 +672,6 @@ describe("CommandsProcessor", () => {
         outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test.md",
-        fileContent: "test content",
         frontmatter: {
           targets: ["claudecode"],
           description: "test description",
@@ -732,7 +719,6 @@ describe("CommandsProcessor", () => {
           outputRoot: testDir,
           relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
           relativeFilePath: join("nested", "goal.md"),
-          fileContent: "reserved",
           frontmatter: { targets: ["kilo"], description: "reserved" },
           body: "reserved",
         });
@@ -740,7 +726,6 @@ describe("CommandsProcessor", () => {
           outputRoot: testDir,
           relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
           relativeFilePath: "review.md",
-          fileContent: "allowed",
           frontmatter: { targets: ["kilo"], description: "allowed" },
           body: "allowed",
         });
@@ -872,7 +857,6 @@ describe("CommandsProcessor", () => {
           outputRoot: testDir,
           relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
           relativeFilePath: "test1.md",
-          fileContent: "content1",
           frontmatter: {
             targets: ["claudecode"],
             description: "test description 1",
@@ -883,7 +867,6 @@ describe("CommandsProcessor", () => {
           outputRoot: testDir,
           relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
           relativeFilePath: "test2.md",
-          fileContent: "content2",
           frontmatter: {
             targets: ["claudecode"],
             description: "test description 2",
@@ -926,7 +909,6 @@ describe("CommandsProcessor", () => {
         outputRoot: testDir,
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "test1.md",
-        fileContent: "content1",
         frontmatter: {
           targets: ["claudecode"],
           description: "test description",
@@ -961,7 +943,6 @@ describe("CommandsProcessor", () => {
           outputRoot: testDir,
           relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
           relativeFilePath: join("pj", "foo.md"),
-          fileContent: "content1",
           frontmatter: {
             targets: ["claudecode"],
             description: "subdirectory command",
@@ -972,7 +953,6 @@ describe("CommandsProcessor", () => {
           outputRoot: testDir,
           relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
           relativeFilePath: "bar.md",
-          fileContent: "content2",
           frontmatter: {
             targets: ["claudecode"],
             description: "flat command",

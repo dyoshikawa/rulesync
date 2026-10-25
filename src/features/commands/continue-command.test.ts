@@ -25,7 +25,6 @@ const buildRulesyncCommand = ({
     relativeFilePath,
     frontmatter: { targets: ["*"], description: "Review a change", ...frontmatter },
     body,
-    fileContent: "",
     validate: true,
   });
 

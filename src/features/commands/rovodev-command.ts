@@ -10,7 +10,6 @@ import {
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { readFileContent, readFileContentOrNull, toPosixPath } from "../../utils/file.js";
-import { stringifyFrontmatter } from "../../utils/frontmatter.js";
 import { isPlainObject, isRecord } from "../../utils/type-guards.js";
 import { loadYaml } from "../../utils/yaml.js";
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
@@ -98,15 +97,12 @@ export class RovodevCommand extends ToolCommand {
       targets: ["*"],
       description: this.description,
     };
-    const fileContent = stringifyFrontmatter(this.body, rulesyncFrontmatter);
-
     return new RulesyncCommand({
       outputRoot: ".", // RulesyncCommand outputRoot is always the project root directory
       frontmatter: rulesyncFrontmatter,
       body: this.body,
       relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
       relativeFilePath: this.getRelativeFilePath(),
-      fileContent,
       validate: true,
     });
   }

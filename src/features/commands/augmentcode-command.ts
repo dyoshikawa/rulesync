@@ -89,15 +89,12 @@ export class AugmentcodeCommand extends ToolCommand {
     };
 
     // Generate proper file content with Rulesync specific frontmatter
-    const fileContent = stringifyFrontmatter(this.body, rulesyncFrontmatter);
-
     return new RulesyncCommand({
       outputRoot: process.cwd(), // RulesyncCommand outputRoot is always the project root directory
       frontmatter: rulesyncFrontmatter,
       body: this.body,
       relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
       relativeFilePath: this.relativeFilePath,
-      fileContent,
       validate: true,
     });
   }

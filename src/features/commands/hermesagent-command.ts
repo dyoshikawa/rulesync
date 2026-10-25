@@ -463,7 +463,6 @@ export class HermesagentCommand extends ToolCommand {
       relativeFilePath: `${spec.slug}.md`,
       frontmatter: { description: spec.description },
       body: spec.prompt,
-      fileContent: "",
       outputRoot: getHermesagentRulesyncOutputRoot({
         nativeOutputRoot: this.outputRoot,
         global: this.global,

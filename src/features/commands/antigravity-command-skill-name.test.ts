@@ -19,7 +19,6 @@ const command = (relativeFilePath: string, frontmatter: Record<string, unknown> 
     relativeFilePath,
     frontmatter: { targets: ["*"], ...frontmatter } as never,
     body: "Body",
-    fileContent: "",
   });
 
 describe("resolveAntigravityCommandSkillName", () => {

@@ -39,7 +39,7 @@ export type RulesyncCommandFrontmatter = z.infer<typeof RulesyncCommandFrontmatt
 export type RulesyncCommandParams = {
   frontmatter: RulesyncCommandFrontmatterInput;
   body: string;
-} & RulesyncFileParams;
+} & Omit<RulesyncFileParams, "fileContent">;
 
 export type RulesyncCommandSettablePaths = {
   relativeDirPath: string;
@@ -93,7 +93,6 @@ export class RulesyncCommand extends RulesyncFile {
       relativeFilePath: newRelativeFilePath,
       frontmatter: this.getFrontmatter(),
       body: this.getBody(),
-      fileContent: this.getFileContent(),
     });
   }
 
@@ -150,7 +149,6 @@ export class RulesyncCommand extends RulesyncFile {
       relativeFilePath,
       frontmatter: result.data,
       body: content.trim(),
-      fileContent,
     });
   }
 }

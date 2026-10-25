@@ -28,7 +28,6 @@ const buildRulesyncCommand = (overrides?: {
       ...(overrides?.goose ? { goose: overrides.goose } : {}),
     },
     body: overrides?.body ?? "Run the deploy steps.",
-    fileContent: "",
   });
 
 describe("GooseCommand", () => {
@@ -78,7 +77,6 @@ describe("GooseCommand", () => {
           relativeFilePath: "review.md",
           frontmatter: { targets: ["goose"] },
           body: "Review the diff.",
-          fileContent: "",
         }),
       });
 

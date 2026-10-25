@@ -103,7 +103,6 @@ export class FirebenderCommand extends ToolCommand {
       body: this.body,
       relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
       relativeFilePath: this.relativeFilePath.replace(/\.mdc$/, ".md"),
-      fileContent: stringifyFrontmatter(this.body, rulesyncFrontmatter),
       validate: true,
     });
   }

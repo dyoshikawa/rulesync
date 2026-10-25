@@ -217,7 +217,6 @@ describe("ClaudecodeCommand", () => {
           description: "Sync test command",
         },
         body: "Sync command body",
-        fileContent: "",
       });
 
       const claudecodeCommand = ClaudecodeCommand.fromRulesyncCommand({
@@ -245,7 +244,6 @@ describe("ClaudecodeCommand", () => {
           description: "Global test command",
         },
         body: "Global command body",
-        fileContent: "",
       });
 
       const claudecodeCommand = ClaudecodeCommand.fromRulesyncCommand({
@@ -269,7 +267,6 @@ describe("ClaudecodeCommand", () => {
           description: "Local test command",
         },
         body: "Local command body",
-        fileContent: "",
       });
 
       const claudecodeCommand = ClaudecodeCommand.fromRulesyncCommand({
@@ -292,7 +289,6 @@ describe("ClaudecodeCommand", () => {
           description: "Test command",
         },
         body: "Test body",
-        fileContent: "",
       });
 
       const claudecodeCommand = ClaudecodeCommand.fromRulesyncCommand({
@@ -311,7 +307,6 @@ describe("ClaudecodeCommand", () => {
           description: "Test command",
         },
         body: "Test body",
-        fileContent: "",
         validate: false,
       });
 
@@ -858,7 +853,6 @@ Body`;
         relativeFilePath: "type-test.md",
         frontmatter: { targets: ["*"], description: "Type test" },
         body: "Body",
-        fileContent: "",
       });
 
       const params: ToolCommandFromRulesyncCommandParams = {
@@ -889,7 +883,6 @@ Body`;
           },
         },
         body: "Test body",
-        fileContent: "",
       });
 
       const claudecodeCommand = ClaudecodeCommand.fromRulesyncCommand({
@@ -952,7 +945,6 @@ Body`;
           },
         },
         body: "Body content",
-        fileContent: "",
       });
 
       const claudecode = ClaudecodeCommand.fromRulesyncCommand({
@@ -997,7 +989,6 @@ Body`;
           claudecode: {},
         },
         body: "Test body",
-        fileContent: "",
       });
 
       const claudecodeCommand = ClaudecodeCommand.fromRulesyncCommand({
@@ -1019,7 +1010,6 @@ Body`;
         relativeFilePath: "test.md",
         frontmatter: { targets: ["*"], description: "Test" },
         body: "Body",
-        fileContent: "",
       });
 
       const result = ClaudecodeCommand.isTargetedByRulesyncCommand(rulesyncCommand);
@@ -1032,7 +1022,6 @@ Body`;
         relativeFilePath: "test.md",
         frontmatter: { targets: ["claudecode"], description: "Test" },
         body: "Body",
-        fileContent: "",
       });
 
       const result = ClaudecodeCommand.isTargetedByRulesyncCommand(rulesyncCommand);
@@ -1045,7 +1034,6 @@ Body`;
         relativeFilePath: "test.md",
         frontmatter: { targets: ["cursor", "claudecode", "cline"], description: "Test" },
         body: "Body",
-        fileContent: "",
       });
 
       const result = ClaudecodeCommand.isTargetedByRulesyncCommand(rulesyncCommand);
@@ -1058,7 +1046,6 @@ Body`;
         relativeFilePath: "test.md",
         frontmatter: { targets: ["cursor"], description: "Test" },
         body: "Body",
-        fileContent: "",
       });
 
       const result = ClaudecodeCommand.isTargetedByRulesyncCommand(rulesyncCommand);
@@ -1071,7 +1058,6 @@ Body`;
         relativeFilePath: "test.md",
         frontmatter: { targets: undefined, description: "Test" } as any,
         body: "Body",
-        fileContent: "",
       });
 
       const result = ClaudecodeCommand.isTargetedByRulesyncCommand(rulesyncCommand);

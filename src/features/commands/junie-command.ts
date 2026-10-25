@@ -128,15 +128,12 @@ export class JunieCommand extends ToolCommand {
     };
 
     // Generate proper file content with Rulesync specific frontmatter
-    const fileContent = stringifyFrontmatter(translatedBody, rulesyncFrontmatter);
-
     return new RulesyncCommand({
       outputRoot: process.cwd(), // RulesyncCommand outputRoot is always the project root directory
       frontmatter: rulesyncFrontmatter,
       body: translatedBody,
       relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
       relativeFilePath: this.relativeFilePath,
-      fileContent,
       validate: true,
     });
   }

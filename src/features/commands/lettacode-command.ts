@@ -141,7 +141,6 @@ export class LettacodeCommand extends ToolCommand {
       body: this.body,
       relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
       relativeFilePath: this.relativeFilePath,
-      fileContent: stringifyFrontmatter(this.body, rulesyncFrontmatter),
       validate: true,
     });
   }

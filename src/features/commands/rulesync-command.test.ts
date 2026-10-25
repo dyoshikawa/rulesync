@@ -34,7 +34,6 @@ describe("RulesyncCommand", () => {
       relativeFilePath: "test-command.md",
       frontmatter: validFrontmatter,
       body: "This is the command body content",
-      fileContent: "", // This will be overridden by constructor
     };
   });
 

@@ -39,7 +39,6 @@ describe("AugmentcodePluginCommand", () => {
         },
       },
       body: "Review $ARGUMENTS.",
-      fileContent: "",
     });
 
   it("writes into commands/ and drops the fields Auggie ignores for plugin commands", () => {
@@ -76,7 +75,6 @@ describe("AugmentcodePluginCommand", () => {
           augmentcode: { model: "sonnet" },
         },
         body: "Review.",
-        fileContent: "",
       }),
       logger,
     });

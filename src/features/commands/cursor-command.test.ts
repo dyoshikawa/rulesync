@@ -212,7 +212,6 @@ describe("CursorCommand", () => {
           description: "Test description from rulesync",
         },
         body: "Test command content",
-        fileContent: "",
         validate: true,
       });
 
@@ -241,7 +240,6 @@ describe("CursorCommand", () => {
           description: "Complex command",
         },
         body: "Complex content",
-        fileContent: "",
         validate: true,
       });
 
@@ -264,7 +262,6 @@ describe("CursorCommand", () => {
           description: "",
         },
         body: "Test content",
-        fileContent: "",
         validate: true,
       });
 
@@ -289,7 +286,6 @@ describe("CursorCommand", () => {
           description: "Global test command",
         },
         body: "Global command body",
-        fileContent: "",
       });
 
       const cursorCommand = CursorCommand.fromRulesyncCommand({
@@ -313,7 +309,6 @@ describe("CursorCommand", () => {
           description: "Local test command",
         },
         body: "Local command body",
-        fileContent: "",
       });
 
       const cursorCommand = CursorCommand.fromRulesyncCommand({
@@ -340,7 +335,6 @@ describe("CursorCommand", () => {
           },
         },
         body: "Test body",
-        fileContent: "",
       });
 
       const cursorCommand = CursorCommand.fromRulesyncCommand({
@@ -366,7 +360,6 @@ describe("CursorCommand", () => {
           cursor: {},
         },
         body: "Test body",
-        fileContent: "",
       });
 
       const cursorCommand = CursorCommand.fromRulesyncCommand({
@@ -743,7 +736,6 @@ Local command body`,
         relativeFilePath: "test.md",
         frontmatter: { targets: ["*"], description: "Test" },
         body: "Body",
-        fileContent: "",
       });
 
       const result = CursorCommand.isTargetedByRulesyncCommand(rulesyncCommand);
@@ -757,7 +749,6 @@ Local command body`,
         relativeFilePath: "test.md",
         frontmatter: { targets: ["cursor"], description: "Test" },
         body: "Body",
-        fileContent: "",
       });
 
       const result = CursorCommand.isTargetedByRulesyncCommand(rulesyncCommand);
@@ -771,7 +762,6 @@ Local command body`,
         relativeFilePath: "test.md",
         frontmatter: { targets: ["claudecode", "cursor", "cline"], description: "Test" },
         body: "Body",
-        fileContent: "",
       });
 
       const result = CursorCommand.isTargetedByRulesyncCommand(rulesyncCommand);
@@ -785,7 +775,6 @@ Local command body`,
         relativeFilePath: "test.md",
         frontmatter: { targets: ["claudecode"], description: "Test" },
         body: "Body",
-        fileContent: "",
       });
 
       const result = CursorCommand.isTargetedByRulesyncCommand(rulesyncCommand);
@@ -799,7 +788,6 @@ Local command body`,
         relativeFilePath: "test.md",
         frontmatter: { targets: [], description: "Test" },
         body: "Body",
-        fileContent: "",
       });
 
       const result = CursorCommand.isTargetedByRulesyncCommand(rulesyncCommand);
@@ -813,7 +801,6 @@ Local command body`,
         relativeFilePath: "test.md",
         frontmatter: { targets: undefined as any, description: "Test" },
         body: "Body",
-        fileContent: "",
         validate: false,
       });
 
@@ -879,7 +866,6 @@ Local command body`,
           },
         },
         body: "Body content",
-        fileContent: "",
       });
 
       const cursor = CursorCommand.fromRulesyncCommand({
@@ -992,7 +978,6 @@ Local command body`,
           },
         },
         body: "Stable body",
-        fileContent: "",
       });
 
       // First round-trip
@@ -1038,7 +1023,6 @@ Body`,
         relativeFilePath: "type-test.md",
         frontmatter: { targets: ["*"], description: "Type test" },
         body: "Body",
-        fileContent: "",
       });
 
       const params: ToolCommandFromRulesyncCommandParams = {

@@ -251,7 +251,6 @@ Run !{git status} and report.
         relativeFilePath: "round-trip.md",
         frontmatter: { targets: ["*"], description: "Round trip" },
         body: originalBody,
-        fileContent: "",
         validate: true,
       });
 
@@ -276,7 +275,6 @@ Run !{git status} and report.
         relativeFilePath: "nested-round-trip.md",
         frontmatter: { targets: ["*"], description: "Nested" },
         body: originalBody,
-        fileContent: "",
         validate: true,
       });
 
@@ -323,7 +321,6 @@ Run !{git status} and report.
           description: "Test description from rulesync",
         },
         body: "Test prompt content",
-        fileContent: "", // Will be generated
         validate: true,
       });
 
@@ -353,7 +350,6 @@ Run !{git status} and report.
           description: "Complex command",
         },
         body: "Complex prompt",
-        fileContent: "",
         validate: true,
       });
 
@@ -373,7 +369,6 @@ Run !{git status} and report.
         relativeFilePath: "args.md",
         frontmatter: { targets: ["*"], description: "Args" },
         body: "Focus on $ARGUMENTS.",
-        fileContent: "",
         validate: true,
       });
 
@@ -394,7 +389,6 @@ Run !{git status} and report.
         relativeFilePath: "args-multi.md",
         frontmatter: { targets: ["*"], description: "Args multi" },
         body: "First: $ARGUMENTS. Second: $ARGUMENTS.",
-        fileContent: "",
         validate: true,
       });
 
@@ -414,7 +408,6 @@ Run !{git status} and report.
         relativeFilePath: "shell.md",
         frontmatter: { targets: ["*"], description: "Shell" },
         body: "Run !`git status` and report.",
-        fileContent: "",
         validate: true,
       });
 
@@ -434,7 +427,6 @@ Run !{git status} and report.
         relativeFilePath: "combined.md",
         frontmatter: { targets: ["*"], description: "Combined" },
         body: "Diff: !`git diff`\nFocus on $ARGUMENTS.",
-        fileContent: "",
         validate: true,
       });
 
@@ -457,7 +449,6 @@ Run !{git status} and report.
         relativeFilePath: "idempotent.md",
         frontmatter: { targets: ["*"], description: "Idempotent" },
         body: nativeBody,
-        fileContent: "",
         validate: true,
       });
 
@@ -477,7 +468,6 @@ Run !{git status} and report.
         relativeFilePath: "word-boundary-underscore.md",
         frontmatter: { targets: ["*"], description: "Word boundary" },
         body: "Use $ARGUMENTS_FOO here.",
-        fileContent: "",
         validate: true,
       });
 
@@ -497,7 +487,6 @@ Run !{git status} and report.
         relativeFilePath: "word-boundary-letter.md",
         frontmatter: { targets: ["*"], description: "Word boundary" },
         body: "Token $ARGUMENTSx remains.",
-        fileContent: "",
         validate: true,
       });
 
@@ -517,7 +506,6 @@ Run !{git status} and report.
         relativeFilePath: "word-boundary-hyphen.md",
         frontmatter: { targets: ["*"], description: "Word boundary" },
         body: "Token $ARGUMENTS-foo here.",
-        fileContent: "",
         validate: true,
       });
 
@@ -539,7 +527,6 @@ Run !{git status} and report.
         relativeFilePath: "nested.md",
         frontmatter: { targets: ["*"], description: "Nested" },
         body: "Run !`echo $ARGUMENTS` now.",
-        fileContent: "",
         validate: true,
       });
 
@@ -566,7 +553,6 @@ Run !{git status} and report.
           ),
         },
         body: "Body",
-        fileContent: "",
         validate: true,
       });
 
@@ -604,7 +590,6 @@ Run !{git status} and report.
           },
         },
         body: "Body containing $ARGUMENTS that should be ignored.",
-        fileContent: "",
         validate: true,
       });
 
@@ -732,7 +717,6 @@ Token {{args}}-foo and prefix{{args}} here.
           description: 'Title with "quoted" word',
         },
         body: "body",
-        fileContent: "",
         validate: true,
       });
 
@@ -759,7 +743,6 @@ Token {{args}}-foo and prefix{{args}} here.
           description: "Path C:\\foo\\bar",
         },
         body: "body",
-        fileContent: "",
         validate: true,
       });
 
@@ -785,7 +768,6 @@ Token {{args}}-foo and prefix{{args}} here.
           description: "Line 1\nLine 2",
         },
         body: "body",
-        fileContent: "",
         validate: true,
       });
 
@@ -810,7 +792,6 @@ Token {{args}}-foo and prefix{{args}} here.
         relativeFilePath: "triple-quote.md",
         frontmatter: { targets: ["*"], description: "Triple" },
         body: 'Body with """ inside it.',
-        fileContent: "",
         validate: true,
       });
 
@@ -839,7 +820,6 @@ Token {{args}}-foo and prefix{{args}} here.
           tabnine: { prompt: "Run !{echo `hello`}." },
         },
         body: "ignored",
-        fileContent: "",
         validate: true,
       });
 
@@ -871,7 +851,6 @@ Token {{args}}-foo and prefix{{args}} here.
         relativeFilePath: "edge.md",
         frontmatter: { targets: ["*"], description: "edge" },
         body,
-        fileContent: "",
         validate: true,
       });
       const tabnineCommand = TabnineCommand.fromRulesyncCommand({
@@ -1194,7 +1173,6 @@ ${longPrompt}
         relativeFilePath: "test.md",
         frontmatter: { targets: ["*"], description: "Test" },
         body: "Body",
-        fileContent: "",
       });
 
       const result = TabnineCommand.isTargetedByRulesyncCommand(rulesyncCommand);
@@ -1208,7 +1186,6 @@ ${longPrompt}
         relativeFilePath: "test.md",
         frontmatter: { targets: ["*"], description: "Test" },
         body: "Body",
-        fileContent: "",
       });
 
       const result = TabnineCommand.isTargetedByRulesyncCommand(rulesyncCommand);
@@ -1222,7 +1199,6 @@ ${longPrompt}
         relativeFilePath: "test.md",
         frontmatter: { targets: ["cursor", "tabnine", "cline"], description: "Test" },
         body: "Body",
-        fileContent: "",
       });
 
       const result = TabnineCommand.isTargetedByRulesyncCommand(rulesyncCommand);
@@ -1236,7 +1212,6 @@ ${longPrompt}
         relativeFilePath: "test.md",
         frontmatter: { targets: ["cursor"], description: "Test" },
         body: "Body",
-        fileContent: "",
       });
 
       const result = TabnineCommand.isTargetedByRulesyncCommand(rulesyncCommand);
@@ -1250,7 +1225,6 @@ ${longPrompt}
         relativeFilePath: "test.md",
         frontmatter: { targets: undefined, description: "Test" } as any,
         body: "Body",
-        fileContent: "",
       });
 
       const result = TabnineCommand.isTargetedByRulesyncCommand(rulesyncCommand);

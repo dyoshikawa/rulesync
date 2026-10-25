@@ -30,7 +30,6 @@ describe("KimiCodePluginCommand", () => {
       relativeFilePath,
       frontmatter: frontmatter as RulesyncCommand["frontmatter"],
       body: "Review pull request $ARGUMENTS.",
-      fileContent: "",
     });
 
   it("writes the description and body into the plugin's commands/ directory", () => {

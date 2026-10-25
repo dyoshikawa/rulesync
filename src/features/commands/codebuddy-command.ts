@@ -90,15 +90,12 @@ export class CodebuddyCommand extends ToolCommand {
       ...(Object.keys(restFields).length > 0 && { codebuddy: restFields }),
     };
 
-    const fileContent = stringifyFrontmatter(this.body, rulesyncFrontmatter);
-
     return new RulesyncCommand({
       outputRoot: ".", // RulesyncCommand outputRoot is always the project root directory
       frontmatter: rulesyncFrontmatter,
       body: this.body,
       relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
       relativeFilePath: this.relativeFilePath,
-      fileContent,
       validate: true,
     });
   }

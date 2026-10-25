@@ -219,7 +219,6 @@ describe("RooCommand", () => {
         relativeFilePath: "from-rulesync.md",
         frontmatter: rulesyncFrontmatter,
         body,
-        fileContent: stringifyFrontmatter(body, rulesyncFrontmatter),
       });
 
       const rooCommand = RooCommand.fromRulesyncCommand({
@@ -249,7 +248,6 @@ describe("RooCommand", () => {
           relativeFilePath: "test.md",
           frontmatter: { targets: ["roo" as const], description: "test" },
           body: "test body",
-          fileContent: "test content",
         });
 
         const rooCommand = RooCommand.fromRulesyncCommand({
@@ -269,7 +267,6 @@ describe("RooCommand", () => {
         relativeFilePath: "test.md",
         frontmatter: { targets: ["roo" as const], description: "test" },
         body: "test body",
-        fileContent: "test content",
       });
 
       const rooCommand = RooCommand.fromRulesyncCommand({
@@ -589,7 +586,6 @@ This file has invalid frontmatter`;
           },
         },
         body: "Test body",
-        fileContent: "",
       });
 
       const rooCommand = RooCommand.fromRulesyncCommand({
@@ -640,7 +636,6 @@ This file has invalid frontmatter`;
           },
         },
         body: "Body content",
-        fileContent: "",
       });
 
       const roo = RooCommand.fromRulesyncCommand({
@@ -680,7 +675,6 @@ This file has invalid frontmatter`;
         relativeFilePath: "test.md",
         frontmatter: { targets: ["*"], description: "Test" },
         body: "Body",
-        fileContent: "",
       });
 
       const result = RooCommand.isTargetedByRulesyncCommand(rulesyncCommand);
@@ -693,7 +687,6 @@ This file has invalid frontmatter`;
         relativeFilePath: "test.md",
         frontmatter: { targets: ["roo"], description: "Test" },
         body: "Body",
-        fileContent: "",
       });
 
       const result = RooCommand.isTargetedByRulesyncCommand(rulesyncCommand);
@@ -706,7 +699,6 @@ This file has invalid frontmatter`;
         relativeFilePath: "test.md",
         frontmatter: { targets: ["cursor", "roo", "cline"], description: "Test" },
         body: "Body",
-        fileContent: "",
       });
 
       const result = RooCommand.isTargetedByRulesyncCommand(rulesyncCommand);
@@ -719,7 +711,6 @@ This file has invalid frontmatter`;
         relativeFilePath: "test.md",
         frontmatter: { targets: ["cursor"], description: "Test" },
         body: "Body",
-        fileContent: "",
       });
 
       const result = RooCommand.isTargetedByRulesyncCommand(rulesyncCommand);
@@ -732,7 +723,6 @@ This file has invalid frontmatter`;
         relativeFilePath: "test.md",
         frontmatter: { targets: undefined, description: "Test" } as any,
         body: "Body",
-        fileContent: "",
       });
 
       const result = RooCommand.isTargetedByRulesyncCommand(rulesyncCommand);

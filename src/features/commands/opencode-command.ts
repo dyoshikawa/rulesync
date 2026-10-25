@@ -151,15 +151,12 @@ export class OpenCodeCommand extends ToolCommand {
       ...(Object.keys(restFields).length > 0 && { [toolTarget]: restFields }),
     };
 
-    const fileContent = stringifyFrontmatter(this.body, rulesyncFrontmatter);
-
     return new RulesyncCommand({
       outputRoot: process.cwd(),
       frontmatter: rulesyncFrontmatter,
       body: this.body,
       relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
       relativeFilePath: this.relativeFilePath,
-      fileContent,
       validate: true,
     });
   }

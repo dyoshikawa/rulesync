@@ -16,7 +16,6 @@ const buildNamed = (relativeFilePath: string) =>
     relativeFilePath,
     frontmatter: { targets: ["*"], description: "Test" },
     body: "Body",
-    fileContent: "",
   });
 
 const buildCommand = (targets: string[]) =>
@@ -28,7 +27,6 @@ const buildCommand = (targets: string[]) =>
       description: "Test",
     },
     body: "Body",
-    fileContent: "",
   });
 
 describe("AntigravityIdeCommand", () => {
@@ -207,7 +205,6 @@ describe("AntigravityIdeCommand", () => {
         relativeFilePath,
         frontmatter: { targets: ["antigravity-ide"], ...frontmatter } as never,
         body,
-        fileContent: stringifyFrontmatter(body, frontmatter),
       });
 
     it("should emit the command as a skill named after the antigravity section trigger", () => {

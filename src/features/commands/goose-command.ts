@@ -14,7 +14,6 @@ import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull, readFileContent, toPosixPath } from "../../utils/file.js";
-import { stringifyFrontmatter } from "../../utils/frontmatter.js";
 import { isRecord } from "../../utils/type-guards.js";
 import { loadYaml } from "../../utils/yaml.js";
 import {
@@ -315,15 +314,12 @@ export class GooseCommand extends ToolCommand {
     };
 
     const body = this.getBody();
-    const fileContent = stringifyFrontmatter(body, rulesyncFrontmatter);
-
     return new RulesyncCommand({
       outputRoot: process.cwd(),
       frontmatter: rulesyncFrontmatter,
       body,
       relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
       relativeFilePath: this.relativeFilePath.replace(/\.ya?ml$/, ".md"),
-      fileContent,
       validate: true,
     });
   }

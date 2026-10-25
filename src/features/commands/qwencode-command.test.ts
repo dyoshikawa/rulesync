@@ -125,7 +125,6 @@ describe("QwencodeCommand", () => {
           description: "Sync test command",
         },
         body: "Sync command body",
-        fileContent: "",
       });
 
       const qwencodeCommand = QwencodeCommand.fromRulesyncCommand({
@@ -162,7 +161,6 @@ describe("QwencodeCommand", () => {
           },
         },
         body: "Deploy.",
-        fileContent: "",
       });
 
       const qwencodeCommand = QwencodeCommand.fromRulesyncCommand({
@@ -197,7 +195,6 @@ describe("QwencodeCommand", () => {
           },
         },
         body: "Body",
-        fileContent: "",
       });
 
       const qwencodeCommand = QwencodeCommand.fromRulesyncCommand({
@@ -220,7 +217,6 @@ describe("QwencodeCommand", () => {
           description: "Global test command",
         },
         body: "Global command body",
-        fileContent: "",
       });
 
       const qwencodeCommand = QwencodeCommand.fromRulesyncCommand({
@@ -392,7 +388,6 @@ Subdirectory command body`;
         relativeFilePath: "test.md",
         frontmatter: { targets: ["*"], description: "Test" },
         body: "Body",
-        fileContent: "",
       });
 
       expect(QwencodeCommand.isTargetedByRulesyncCommand(rulesyncCommand)).toBe(true);
@@ -404,7 +399,6 @@ Subdirectory command body`;
         relativeFilePath: "test.md",
         frontmatter: { targets: ["qwencode"], description: "Test" },
         body: "Body",
-        fileContent: "",
       });
 
       expect(QwencodeCommand.isTargetedByRulesyncCommand(rulesyncCommand)).toBe(true);
@@ -416,7 +410,6 @@ Subdirectory command body`;
         relativeFilePath: "test.md",
         frontmatter: { targets: ["cursor"], description: "Test" },
         body: "Body",
-        fileContent: "",
       });
 
       expect(QwencodeCommand.isTargetedByRulesyncCommand(rulesyncCommand)).toBe(false);

@@ -91,15 +91,12 @@ export class ZcodeCommand extends ToolCommand {
       ...(Object.keys(restFields).length > 0 && { zcode: restFields }),
     };
 
-    const fileContent = stringifyFrontmatter(this.body, rulesyncFrontmatter);
-
     return new RulesyncCommand({
       outputRoot: ".", // RulesyncCommand outputRoot is always the project root directory
       frontmatter: rulesyncFrontmatter,
       body: this.body,
       relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
       relativeFilePath: this.relativeFilePath,
-      fileContent,
       validate: true,
     });
   }

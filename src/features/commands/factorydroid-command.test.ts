@@ -68,7 +68,6 @@ Body content`;
           description: "Test description from rulesync",
         },
         body: "Test command content",
-        fileContent: "",
         validate: true,
       });
 
@@ -101,7 +100,6 @@ Body content`;
           },
         },
         body: "Review $ARGUMENTS",
-        fileContent: "",
         validate: true,
       });
 
@@ -126,7 +124,6 @@ Body content`;
         relativeFilePath: "global.md",
         frontmatter: { targets: ["factorydroid"], description: "Global command" },
         body: "Global body",
-        fileContent: "",
         validate: true,
       });
 
@@ -263,7 +260,6 @@ Body content`;
         relativeFilePath: "test.md",
         frontmatter: { targets: ["*"], description: "Test" },
         body: "Body",
-        fileContent: "",
       });
 
       const result = FactorydroidCommand.isTargetedByRulesyncCommand(rulesyncCommand);
@@ -276,7 +272,6 @@ Body content`;
         relativeFilePath: "test.md",
         frontmatter: { targets: ["factorydroid"], description: "Test" },
         body: "Body",
-        fileContent: "",
       });
 
       const result = FactorydroidCommand.isTargetedByRulesyncCommand(rulesyncCommand);
@@ -289,7 +284,6 @@ Body content`;
         relativeFilePath: "test.md",
         frontmatter: { targets: ["cursor"], description: "Test" },
         body: "Body",
-        fileContent: "",
       });
 
       const result = FactorydroidCommand.isTargetedByRulesyncCommand(rulesyncCommand);

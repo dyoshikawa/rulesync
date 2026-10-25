@@ -61,7 +61,6 @@ export class TaktCommand extends ToolCommand {
       body: this.body,
       relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
       relativeFilePath: this.relativeFilePath,
-      fileContent: this.body,
       validate: true,
     });
   }

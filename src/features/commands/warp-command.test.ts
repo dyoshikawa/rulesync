@@ -24,7 +24,6 @@ describe("WarpCommand", () => {
         description: "Review the current changes",
       },
       body: "Review the diff carefully.",
-      fileContent: "",
     });
 
     it("should emit a SKILL.md under a per-command slug directory", () => {
@@ -47,7 +46,6 @@ describe("WarpCommand", () => {
         relativeFilePath: "deploy.md",
         frontmatter: {},
         body: "Deploy the app.",
-        fileContent: "",
       });
 
       const command = WarpCommand.fromRulesyncCommand({
@@ -96,7 +94,6 @@ describe("WarpCommand", () => {
         relativeFilePath: "review-pr.md",
         frontmatter: { targets: targets as ["*"] | undefined, description: "Review" },
         body: "Review.",
-        fileContent: "",
       });
 
       expect(WarpCommand.isTargetedByRulesyncCommand(rulesyncCommand)).toBe(expected);

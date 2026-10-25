@@ -6,7 +6,6 @@ import { CODEWHALE_COMMANDS_DIR_PATH } from "../../constants/codewhale-paths.js"
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
-import { stringifyFrontmatter } from "../../utils/frontmatter.js";
 import type { Logger } from "../../utils/logger.js";
 import { PROTOTYPE_POLLUTION_KEYS } from "../../utils/prototype-pollution.js";
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
@@ -369,15 +368,12 @@ export class CodewhaleCommand extends ToolCommand {
       ...(Object.keys(restFields).length > 0 && { codewhale: restFields }),
     };
 
-    const fileContent = stringifyFrontmatter(this.body, rulesyncFrontmatter);
-
     return new RulesyncCommand({
       outputRoot: ".", // RulesyncCommand outputRoot is always the project root directory
       frontmatter: rulesyncFrontmatter,
       body: this.body,
       relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
       relativeFilePath: this.relativeFilePath,
-      fileContent,
       validate: true,
     });
   }

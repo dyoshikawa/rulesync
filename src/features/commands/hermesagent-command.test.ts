@@ -31,7 +31,6 @@ function rulesyncCommand(path = ".rulesync/commands/review.md"): RulesyncCommand
     relativeFilePath: path,
     frontmatter: { description: "Review the current changes" },
     body: "Review the diff carefully.",
-    fileContent: "",
   });
 }
 

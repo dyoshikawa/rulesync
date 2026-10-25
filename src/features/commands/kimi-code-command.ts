@@ -130,7 +130,7 @@ export class KimiCodeCommand extends ToolCommand {
       relativeFilePath: `${slug}.md`,
       frontmatter: { description },
       body: body.trimStart(),
-    } as ConstructorParameters<typeof RulesyncCommand>[0]);
+    });
   }
 
   static override fromRulesyncCommand({

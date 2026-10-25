@@ -102,7 +102,6 @@ export class ClineCommand extends ToolCommand {
       body,
       relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
       relativeFilePath: this.relativeFilePath,
-      fileContent: stringifyFrontmatter(body, rulesyncFrontmatter),
       validate: true,
     });
   }

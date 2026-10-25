@@ -21,7 +21,6 @@ const buildCommand = (
     relativeFilePath,
     frontmatter: { targets, description: "Test", ...extra },
     body: "Body",
-    fileContent: "",
   });
 
 describe("CodebuddyCommand", () => {

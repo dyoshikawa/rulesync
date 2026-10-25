@@ -102,7 +102,6 @@ export class CopilotCommand extends ToolCommand {
       body: this.body,
       relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
       relativeFilePath,
-      fileContent: this.getFileContent(),
       validate: true,
     });
   }

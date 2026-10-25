@@ -36,7 +36,6 @@ describe("GitlabduoCommand", () => {
       relativeFilePath: "daily.md",
       frontmatter: { targets: ["gitlabduo"], description: "Prepare a daily report" },
       body: "Summarize my TODO items.",
-      fileContent: "",
     });
 
     const command = GitlabduoCommand.fromRulesyncCommand({
@@ -79,7 +78,6 @@ describe("GitlabduoCommand", () => {
         relativeFilePath: "a.md",
         frontmatter: { targets: targets as never },
         body: "",
-        fileContent: "",
       });
     expect(GitlabduoCommand.isTargetedByRulesyncCommand(make(["*"]))).toBe(true);
     expect(GitlabduoCommand.isTargetedByRulesyncCommand(make(["gitlabduo"]))).toBe(true);

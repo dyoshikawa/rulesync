@@ -226,7 +226,6 @@ Body content`;
           description: "Test description from rulesync",
         },
         body: "Test command content",
-        fileContent: "", // Will be generated
         validate: true,
       });
 
@@ -254,7 +253,6 @@ Body content`;
           description: "Complex command",
         },
         body: "Complex content",
-        fileContent: "",
         validate: true,
       });
 
@@ -276,7 +274,6 @@ Body content`;
           description: "",
         },
         body: "Test content",
-        fileContent: "",
         validate: true,
       });
 
@@ -610,7 +607,6 @@ Body content`;
           },
         },
         body: "Test body",
-        fileContent: "",
       });
 
       const copilotCommand = CopilotCommand.fromRulesyncCommand({
@@ -662,7 +658,6 @@ Body content`;
           },
         },
         body: "Body content",
-        fileContent: "",
       });
 
       const copilot = CopilotCommand.fromRulesyncCommand({
@@ -738,7 +733,6 @@ Body content`;
           copilot: { agent: "plan" },
         },
         body: "Body content",
-        fileContent: "",
       });
 
       const copilot = CopilotCommand.fromRulesyncCommand({ rulesyncCommand: original });
@@ -756,7 +750,6 @@ Body content`;
         relativeFilePath: "test.md",
         frontmatter: { targets: ["*"], description: "Test" },
         body: "Body",
-        fileContent: "",
       });
 
       const result = CopilotCommand.isTargetedByRulesyncCommand(rulesyncCommand);
@@ -769,7 +762,6 @@ Body content`;
         relativeFilePath: "test.md",
         frontmatter: { targets: ["copilot"], description: "Test" },
         body: "Body",
-        fileContent: "",
       });
 
       const result = CopilotCommand.isTargetedByRulesyncCommand(rulesyncCommand);
@@ -782,7 +774,6 @@ Body content`;
         relativeFilePath: "test.md",
         frontmatter: { targets: ["cursor", "copilot", "cline"], description: "Test" },
         body: "Body",
-        fileContent: "",
       });
 
       const result = CopilotCommand.isTargetedByRulesyncCommand(rulesyncCommand);
@@ -795,7 +786,6 @@ Body content`;
         relativeFilePath: "test.md",
         frontmatter: { targets: ["cursor"], description: "Test" },
         body: "Body",
-        fileContent: "",
       });
 
       const result = CopilotCommand.isTargetedByRulesyncCommand(rulesyncCommand);
@@ -808,7 +798,6 @@ Body content`;
         relativeFilePath: "test.md",
         frontmatter: { targets: undefined, description: "Test" } as any,
         body: "Body",
-        fileContent: "",
       });
 
       const result = CopilotCommand.isTargetedByRulesyncCommand(rulesyncCommand);

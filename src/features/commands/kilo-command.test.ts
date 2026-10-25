@@ -86,11 +86,6 @@ describe("KiloCommand", () => {
           kilo: { subtask: true },
         },
         body: "Analyze coverage details",
-        fileContent: stringifyFrontmatter("Analyze coverage details", {
-          targets: ["kilo"],
-          description: "Analyze coverage",
-          kilo: { subtask: true },
-        }),
       });
 
       const command = KiloCommand.fromRulesyncCommand({
@@ -200,7 +195,6 @@ describe("KiloCommand", () => {
         relativeFilePath,
         frontmatter: { targets: ["kilo"], description: "A command" },
         body: "Body",
-        fileContent: stringifyFrontmatter("Body", { targets: ["kilo"], description: "A command" }),
       });
 
     it.each([{ global: false }, { global: true }])(
