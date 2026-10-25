@@ -11,7 +11,7 @@ import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { type Logger, warnWithFallback } from "../../utils/logger.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
-import { isPlainObject } from "../../utils/type-guards.js";
+import { isPlainObject, toStringArray } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
   parseSharedConfig,
@@ -68,13 +68,6 @@ type BobOverrideApproval = NonNullable<BobPermissionsOverride["approval"]>;
 const EXECUTE_COMMAND_TOOL_ID = "execute_command";
 
 const SURFACE_LABEL = `${APPROVAL_KEY}.allowedExecutors[${EXECUTE_COMMAND_TOOL_ID}].approvedCommands/deniedCommands`;
-
-function asStringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  return value.filter((entry): entry is string => typeof entry === "string");
-}
 
 function isExecuteCommandEntry(entry: unknown): entry is Record<string, unknown> {
   return isPlainObject(entry) && entry.toolId === EXECUTE_COMMAND_TOOL_ID;
@@ -278,7 +271,7 @@ function warnAboutNewAutoApprovals({
   logger?: Logger | undefined;
 }): void {
   const existingApproval = isPlainObject(settings[APPROVAL_KEY]) ? settings[APPROVAL_KEY] : {};
-  const existingGroups = new Set(asStringArray(existingApproval.allowed_permissions));
+  const existingGroups = new Set(toStringArray(existingApproval.allowed_permissions));
   const existingOutside = new Set(
     (Array.isArray(existingApproval.permissionOptions) ? existingApproval.permissionOptions : [])
       .filter(isPlainObject)
@@ -582,12 +575,12 @@ export class BobPermissions extends ToolPermissions {
     const entry = executors.find(isExecuteCommandEntry);
 
     const rules: Record<string, PermissionAction> = {};
-    for (const pattern of asStringArray(entry?.approvedCommands)) {
+    for (const pattern of toStringArray(entry?.approvedCommands)) {
       rules[pattern] = "allow";
     }
     // Applied second: Bob's `deniedCommands` takes precedence over
     // `approvedCommands`, so a pattern in both lists imports as `deny`.
-    for (const pattern of asStringArray(entry?.deniedCommands)) {
+    for (const pattern of toStringArray(entry?.deniedCommands)) {
       rules[pattern] = "deny";
     }
 

@@ -7,7 +7,7 @@ import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
-import { isRecord } from "../../utils/type-guards.js";
+import { isRecord, toStringArray } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
   parseSharedConfig,
@@ -89,12 +89,6 @@ const LIST_TO_ACTION: Record<string, PermissionAction> = {
   alwaysAsk: "ask",
   deny: "deny",
 };
-
-function toStringList(value: unknown): string[] {
-  return Array.isArray(value)
-    ? value.filter((entry): entry is string => typeof entry === "string")
-    : [];
-}
 
 /**
  * Split a rule the way Letta Code's matcher does: `Tool(payload)` or a bare
@@ -268,7 +262,7 @@ function buildLettacodeRuleLists({
 
   const lists: Record<string, string[]> = {};
   for (const key of Object.keys(LIST_TO_ACTION)) {
-    lists[key] = toStringList(existingPermissions[key]).filter((rule) => {
+    lists[key] = toStringArray(existingPermissions[key]).filter((rule) => {
       const category = categoryOfRule(rule);
       return category === undefined || !managedCategories.has(category);
     });
@@ -391,7 +385,7 @@ export class LettacodePermissions extends ToolPermissions {
 
     const permission: Record<string, Record<string, PermissionAction>> = {};
     for (const [key, action] of Object.entries(LIST_TO_ACTION)) {
-      for (const rule of toStringList(permissions[key])) {
+      for (const rule of toStringArray(permissions[key])) {
         const parsed = fromLettacodeRule(rule);
         if (parsed === null || isPrototypePollutionKey(parsed.pattern)) {
           continue;

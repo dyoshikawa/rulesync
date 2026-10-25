@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { isRecord } from "./type-guards.js";
+import { isRecord, toStringArray } from "./type-guards.js";
 
 describe("isRecord", () => {
   it("should return true for plain objects", () => {
@@ -87,5 +87,29 @@ describe("isRecord", () => {
   it("should return true for Map and Set objects", () => {
     expect(isRecord(new Map())).toBe(true);
     expect(isRecord(new Set())).toBe(true);
+  });
+});
+
+describe("toStringArray", () => {
+  it("should keep only the string entries of an array, in order", () => {
+    expect(toStringArray(["a", 1, null, "b", undefined, { c: 1 }, ["d"], "e"])).toEqual([
+      "a",
+      "b",
+      "e",
+    ]);
+  });
+
+  it("should return an empty array for non-array values", () => {
+    expect(toStringArray(undefined)).toEqual([]);
+    expect(toStringArray(null)).toEqual([]);
+    expect(toStringArray("a")).toEqual([]);
+    expect(toStringArray({ 0: "a", length: 1 })).toEqual([]);
+  });
+
+  it("should return a new array rather than the input", () => {
+    const input = ["a", "b"];
+    const result = toStringArray(input);
+    expect(result).toEqual(["a", "b"]);
+    expect(result).not.toBe(input);
   });
 });

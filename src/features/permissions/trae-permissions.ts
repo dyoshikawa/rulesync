@@ -7,7 +7,7 @@ import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
-import { isRecord } from "../../utils/type-guards.js";
+import { isRecord, toStringArray } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
   parseSharedConfig,
@@ -45,12 +45,6 @@ const NETWORK_ACTIONS: readonly NetworkAction[] = ["allow", "deny"];
 
 function isPermissionAction(value: unknown): value is PermissionAction {
   return value === "allow" || value === "ask" || value === "deny";
-}
-
-function toStringList(value: unknown): string[] {
-  return Array.isArray(value)
-    ? value.filter((entry): entry is string => typeof entry === "string")
-    : [];
 }
 
 function escapeRegex(text: string): string {
@@ -535,7 +529,7 @@ export class TraePermissions extends ToolPermissions {
     }
     const network = readRecord(config, [RESOURCE_AUTHORIZATION_KEY, NETWORK_KEY]);
     for (const action of NETWORK_ACTIONS) {
-      for (const pattern of toStringList(network[action])) {
+      for (const pattern of toStringArray(network[action])) {
         if (pattern.trim() !== "") {
           put(WEBFETCH_CATEGORY, pattern, action);
         }

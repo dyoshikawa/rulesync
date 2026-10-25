@@ -18,11 +18,10 @@ import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull, toPosixPath } from "../../utils/file.js";
 import { type Logger, warnWithFallback } from "../../utils/logger.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
-import { isRecord } from "../../utils/type-guards.js";
+import { isRecord, toStringArray } from "../../utils/type-guards.js";
 import {
   REASONIX_LEGACY_READ_TOOL_NAME,
   REASONIX_READ_TOOL_NAME,
-  toReasonixStringArray as toStringArray,
   toReasonixTable as toPermissionsTable,
   warnIfReasonixNestedProjectConfigShadowed,
 } from "../shared/reasonix-config-table.js";

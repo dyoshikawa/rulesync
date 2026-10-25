@@ -13,6 +13,7 @@ import { shortenToWidth } from "../../utils/display-width.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { fallbackLogger, type Logger } from "../../utils/logger.js";
+import { toStringArray } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { honorAllToolsOnBash } from "./shell-command-categories.js";
@@ -2168,12 +2169,6 @@ function toVibeToolConfig(value: unknown): VibeToolConfig {
     return {};
   }
   return { ...(value as Record<string, unknown>) };
-}
-
-function toStringArray(value: unknown): string[] {
-  return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === "string")
-    : [];
 }
 
 function applyWildcardPermission({
