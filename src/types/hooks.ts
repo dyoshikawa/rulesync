@@ -192,6 +192,13 @@ export const HookDefinitionSchema = z.looseObject({
   // and wakes Claude on exit code 2 (it implies `async`).
   // https://code.claude.com/docs/en/hooks
   asyncRewake: z.optional(z.boolean()),
+  // Qoder command hooks paired with `asyncRewake`: `rewakeMessage` overrides
+  // the prefix of the system message injected when the hook exits with code 2,
+  // and `rewakeSummary` overrides the one-line summary shown to the user and
+  // the model (Qoder caps it at 300 characters).
+  // https://docs.qoder.com/en/cli/hooks
+  rewakeMessage: z.optional(safeString),
+  rewakeSummary: z.optional(safeString),
   // Claude Code: feed a blocking hook's rejection reason back to the model and
   // continue the turn instead of ending it. Added for `PostToolUse` in 2.1.139.
   // https://code.claude.com/docs/en/hooks
