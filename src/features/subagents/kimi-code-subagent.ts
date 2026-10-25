@@ -10,7 +10,11 @@ import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-p
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
 import { getHomeDirectory, readFileContent } from "../../utils/file.js";
-import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
+import {
+  parseFrontmatter,
+  stringifyFrontmatter,
+  validateFrontmatterSchema,
+} from "../../utils/frontmatter.js";
 import {
   getKimiCodeHome,
   getKimiCodeRelativeDirPath,
@@ -172,15 +176,12 @@ export class KimiCodeSubagent extends ToolSubagent {
   }
 
   validate(): ValidationResult {
-    const result = KimiCodeSubagentFrontmatterSchema.safeParse(this.frontmatter);
-    return result.success
-      ? { success: true, error: null }
-      : {
-          success: false,
-          error: new Error(
-            `Invalid frontmatter in ${join(this.relativeDirPath, this.relativeFilePath)}: ${formatError(result.error)}`,
-          ),
-        };
+    return validateFrontmatterSchema({
+      schema: KimiCodeSubagentFrontmatterSchema,
+      frontmatter: this.frontmatter,
+      relativeDirPath: this.relativeDirPath,
+      relativeFilePath: this.relativeFilePath,
+    });
   }
 
   static isTargetedByRulesyncSubagent(rulesyncSubagent: RulesyncSubagent): boolean {

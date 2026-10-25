@@ -10,7 +10,11 @@ import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-p
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
-import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
+import {
+  parseFrontmatter,
+  stringifyFrontmatter,
+  validateFrontmatterSchema,
+} from "../../utils/frontmatter.js";
 import { RulesyncSubagent, RulesyncSubagentFrontmatter } from "./rulesync-subagent.js";
 import {
   ToolSubagent,
@@ -225,16 +229,12 @@ export class CopilotcliSubagent extends ToolSubagent {
       return { success: true, error: null };
     }
 
-    const result = CopilotCliSubagentFrontmatterSchema.safeParse(this.frontmatter);
-    if (result.success) {
-      return { success: true, error: null };
-    }
-    return {
-      success: false,
-      error: new Error(
-        `Invalid frontmatter in ${join(this.relativeDirPath, this.relativeFilePath)}: ${formatError(result.error)}`,
-      ),
-    };
+    return validateFrontmatterSchema({
+      schema: CopilotCliSubagentFrontmatterSchema,
+      frontmatter: this.frontmatter,
+      relativeDirPath: this.relativeDirPath,
+      relativeFilePath: this.relativeFilePath,
+    });
   }
 
   static isTargetedByRulesyncSubagent(rulesyncSubagent: RulesyncSubagent): boolean {

@@ -7,7 +7,11 @@ import { ValidationResult } from "../../types/ai-file.js";
 import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
-import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
+import {
+  parseFrontmatter,
+  stringifyFrontmatter,
+  validateFrontmatterSchema,
+} from "../../utils/frontmatter.js";
 import type { Logger } from "../../utils/logger.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
 import {
@@ -207,17 +211,12 @@ export class OpenCodeSubagent extends OpenCodeStyleSubagent {
    * the constructor, not here), matching every sibling subagent.
    */
   validate(): ValidationResult {
-    const result = OpenCodeSubagentFrontmatterSchema.safeParse(this.frontmatter);
-    if (result.success) {
-      return { success: true, error: null };
-    }
-
-    return {
-      success: false,
-      error: new Error(
-        `Invalid frontmatter in ${join(this.relativeDirPath, this.relativeFilePath)}: ${formatError(result.error)}`,
-      ),
-    };
+    return validateFrontmatterSchema({
+      schema: OpenCodeSubagentFrontmatterSchema,
+      frontmatter: this.frontmatter,
+      relativeDirPath: this.relativeDirPath,
+      relativeFilePath: this.relativeFilePath,
+    });
   }
 
   static getSettablePaths({

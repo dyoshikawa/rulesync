@@ -18,7 +18,11 @@ import {
   toPosixPath,
   writablePathEscapesRoot,
 } from "../../utils/file.js";
-import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
+import {
+  parseFrontmatter,
+  stringifyFrontmatter,
+  validateFrontmatterSchema,
+} from "../../utils/frontmatter.js";
 import type { Logger } from "../../utils/logger.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
 import {
@@ -288,16 +292,13 @@ export class FirebenderSubagent extends ToolSubagent {
     if (!this.frontmatter) {
       return { success: true, error: null };
     }
-    const result = FirebenderSubagentFrontmatterSchema.safeParse(this.frontmatter);
-    if (result.success) {
-      return { success: true, error: null };
-    }
-    return {
-      success: false,
-      error: new Error(
-        `Invalid frontmatter in ${join(this.relativeDirPath, this.relativeFilePath)}: ${formatError(result.error)}`,
-      ),
-    };
+
+    return validateFrontmatterSchema({
+      schema: FirebenderSubagentFrontmatterSchema,
+      frontmatter: this.frontmatter,
+      relativeDirPath: this.relativeDirPath,
+      relativeFilePath: this.relativeFilePath,
+    });
   }
 
   static isTargetedByRulesyncSubagent(rulesyncSubagent: RulesyncSubagent): boolean {

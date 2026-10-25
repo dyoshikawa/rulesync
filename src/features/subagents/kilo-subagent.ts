@@ -7,7 +7,11 @@ import { ValidationResult } from "../../types/ai-file.js";
 import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
-import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
+import {
+  parseFrontmatter,
+  stringifyFrontmatter,
+  validateFrontmatterSchema,
+} from "../../utils/frontmatter.js";
 import { OpenCodeStyleSubagent, OpenCodeStyleSubagentParams } from "./opencode-style-subagent.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
 import {
@@ -90,17 +94,12 @@ export class KiloSubagent extends OpenCodeStyleSubagent {
    * happens in the constructor, not here.
    */
   validate(): ValidationResult {
-    const result = KiloSubagentFrontmatterSchema.safeParse(this.frontmatter);
-    if (result.success) {
-      return { success: true, error: null };
-    }
-
-    return {
-      success: false,
-      error: new Error(
-        `Invalid frontmatter in ${join(this.relativeDirPath, this.relativeFilePath)}: ${formatError(result.error)}`,
-      ),
-    };
+    return validateFrontmatterSchema({
+      schema: KiloSubagentFrontmatterSchema,
+      frontmatter: this.frontmatter,
+      relativeDirPath: this.relativeDirPath,
+      relativeFilePath: this.relativeFilePath,
+    });
   }
 
   static getSettablePaths({
