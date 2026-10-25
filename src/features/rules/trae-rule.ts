@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-import { dump, load } from "js-yaml";
+import { dump } from "js-yaml";
 import { z } from "zod/mini";
 
 import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
@@ -15,6 +15,7 @@ import {
   validateFrontmatterSchema,
 } from "../../utils/frontmatter.js";
 import { warnWithFallback } from "../../utils/logger.js";
+import { loadYaml } from "../../utils/yaml.js";
 import { CursorRule } from "./cursor-rule.js";
 import { nestedScanExclusionGlobs } from "./nested-scan-exclusions.js";
 import { extractRulesDirSubprojectPath } from "./rules-dir-subproject-path.js";
@@ -73,7 +74,7 @@ function isFlowListValue(value: string): boolean {
     return true;
   }
   try {
-    return Array.isArray(load(value));
+    return Array.isArray(loadYaml(value));
   } catch {
     return false;
   }
