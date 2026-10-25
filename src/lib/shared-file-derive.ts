@@ -1,3 +1,4 @@
+import { sharedConfigFileKey } from "../features/shared/shared-config-gateway.js";
 import type { Feature } from "../types/features.js";
 import { PROCESSOR_REGISTRY } from "../types/processor-registry.js";
 import type { ToolTarget } from "../types/tool-targets.js";
@@ -66,12 +67,6 @@ const TARGETS_NOT_DERIVED: ReadonlySet<string> = new Set([
   "augmentcode-legacy",
   "claudecode-legacy",
 ]);
-
-const sharedFileKey = (path: SharedWritePath): string => {
-  const dir = path.relativeDirPath.replace(/\\/g, "/").replace(/\/$/, "");
-  const file = path.relativeFilePath.replace(/\\/g, "/");
-  return dir === "" || dir === "." ? file : `${dir}/${file}`;
-};
 
 type FactoryClass = {
   getSettablePaths?: (options?: { global?: boolean }) => unknown;
@@ -168,7 +163,7 @@ export const deriveSharedFileWriters = ({
     for (const [tool, factory] of factories) {
       if (TARGETS_NOT_DERIVED.has(tool)) continue;
       for (const path of collectFactoryPaths(factory)) {
-        const key = sharedFileKey(path);
+        const key = sharedConfigFileKey(path);
         if (!pathByKey.has(key)) pathByKey.set(key, path);
         let features = byKey.get(key);
         if (!features) {

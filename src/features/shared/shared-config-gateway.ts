@@ -1216,9 +1216,10 @@ export const POOL_GLOBAL_SETTINGS_SHARED_FILE_KEY = ".config/poolside/settings.y
 
 /**
  * Build the `SHARED_CONFIG_OWNERSHIP` lookup key from a tool's settable paths.
- * Mirrors `sharedFileKey` in `src/lib/shared-file-derive.ts` (kept separate so
- * feature classes don't pull the processor registry through this module and
- * create an import cycle); the ownership lock-step test keeps the two aligned.
+ * `src/lib/shared-file-derive.ts` keys the registry-derived writers with this
+ * same function, so the ownership lock-step test compares like with like. It
+ * lives here rather than there so feature classes don't pull the processor
+ * registry through this module and create an import cycle.
  * Lets a tool whose file lives at a scope-dependent path (`.zed/settings.json`
  * vs `.config/zed/settings.json`) resolve its declaration from the settable
  * paths it already holds.
