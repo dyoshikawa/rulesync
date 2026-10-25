@@ -64,12 +64,7 @@ export class FirebenderIgnore extends ToolIgnore {
   }
 
   toRulesyncIgnore(): RulesyncIgnore {
-    return new RulesyncIgnore({
-      // The rulesync source always belongs to the project, even when the
-      // firebender.json it was imported from lives in the home directory.
-      outputRoot: ".",
-      relativeDirPath: RulesyncIgnore.getSettablePaths().recommended.relativeDirPath,
-      relativeFilePath: RulesyncIgnore.getSettablePaths().recommended.relativeFilePath,
+    return this.toRulesyncIgnoreDefault({
       fileContent: this.patterns.filter((pattern) => pattern.length > 0).join("\n"),
     });
   }

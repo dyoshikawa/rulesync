@@ -104,12 +104,21 @@ export abstract class ToolIgnore extends ToolFile {
 
   abstract toRulesyncIgnore(): RulesyncIgnore;
 
-  protected toRulesyncIgnoreDefault(): RulesyncIgnore {
+  /**
+   * The rulesync source always belongs to the project, even when the tool
+   * file it was imported from lives in the home directory, hence the fixed
+   * `outputRoot`. `fileContent` defaults to this file's raw content.
+   */
+  protected toRulesyncIgnoreDefault({
+    fileContent = this.fileContent,
+  }: {
+    fileContent?: string;
+  } = {}): RulesyncIgnore {
     return new RulesyncIgnore({
       outputRoot: ".",
       relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
       relativeFilePath: RULESYNC_AIIGNORE_FILE_NAME,
-      fileContent: this.fileContent,
+      fileContent,
     });
   }
 

@@ -75,14 +75,7 @@ export class ZedIgnore extends ToolIgnore {
     // Create the content in .rulesync/.aiignore format (one pattern per line)
     const fileContent = rulesyncPatterns.join("\n");
 
-    return new RulesyncIgnore({
-      // The rulesync source always belongs to the project, even when the
-      // settings.json it was imported from lives in the user config dir.
-      outputRoot: ".",
-      relativeDirPath: RulesyncIgnore.getSettablePaths().recommended.relativeDirPath,
-      relativeFilePath: RulesyncIgnore.getSettablePaths().recommended.relativeFilePath,
-      fileContent,
-    });
+    return this.toRulesyncIgnoreDefault({ fileContent });
   }
 
   static async fromRulesyncIgnore({

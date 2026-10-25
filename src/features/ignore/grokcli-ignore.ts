@@ -237,14 +237,7 @@ export class GrokcliIgnore extends ToolIgnore {
   toRulesyncIgnore(): RulesyncIgnore {
     const rulesyncPatterns = fromGrokcliDenyEntries(this.patterns);
 
-    return new RulesyncIgnore({
-      // The rulesync source always belongs to the project, even when the
-      // sandbox file it was imported from lives in the home directory.
-      outputRoot: ".",
-      relativeDirPath: RulesyncIgnore.getSettablePaths().recommended.relativeDirPath,
-      relativeFilePath: RulesyncIgnore.getSettablePaths().recommended.relativeFilePath,
-      fileContent: rulesyncPatterns.join("\n"),
-    });
+    return this.toRulesyncIgnoreDefault({ fileContent: rulesyncPatterns.join("\n") });
   }
 
   static async fromRulesyncIgnore({
