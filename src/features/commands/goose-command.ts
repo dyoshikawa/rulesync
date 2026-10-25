@@ -11,9 +11,15 @@ import {
 } from "../../constants/goose-paths.js";
 import type { SharedWritePath } from "../../lib/shared-file-derive.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import { refusesWriteOutsideRoot } from "../../types/feature-processor.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { formatError } from "../../utils/error.js";
-import { readFileContentOrNull, readFileContent, toPosixPath } from "../../utils/file.js";
+import {
+  readFileContentOrNull,
+  readFileContent,
+  toPosixPath,
+  writeFileContent,
+} from "../../utils/file.js";
 import { isRecord } from "../../utils/type-guards.js";
 import { loadYaml } from "../../utils/yaml.js";
 import {
@@ -24,6 +30,7 @@ import {
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
 import {
   ToolCommand,
+  ToolCommandAfterOrphanSweepParams,
   ToolCommandForDeletionParams,
   ToolCommandFromFileParams,
   ToolCommandFromRulesyncCommandParams,
@@ -322,6 +329,47 @@ export class GooseCommand extends ToolCommand {
       relativeFilePath: this.relativeFilePath.replace(/\.ya?ml$/, ".md"),
       validate: true,
     });
+  }
+
+  /**
+   * Drop the `slash_commands` registrations when no Goose recipe is generated
+   * any more. `GooseCommand.getAuxiliaryFiles` handles every other case, but it
+   * is not reached when the whole feature has no source files left (`--delete`
+   * removes the recipes there), which would strand `/name` on a deleted recipe.
+   */
+  static override async afterOrphanSweep({
+    outputRoot,
+    global,
+    dryRun,
+    logger,
+    generatedFiles,
+  }: ToolCommandAfterOrphanSweepParams): Promise<number> {
+    if (!global) return 0;
+    if (generatedFiles.some((file) => file instanceof GooseCommand)) return 0;
+
+    const configPath = join(outputRoot, GOOSE_GLOBAL_DIR, GOOSE_MCP_FILE_NAME);
+    if (
+      await refusesWriteOutsideRoot({
+        logger,
+        rootPath: outputRoot,
+        targetPath: configPath,
+      })
+    ) {
+      return 0;
+    }
+    const currentContent = await readFileContentOrNull(configPath);
+    // Rewriting a config that holds no managed registration would reformat the
+    // user's file (dropping their comments) for no gain.
+    if (currentContent === null || !hasManagedGooseSlashCommands(currentContent)) return 0;
+    const nextContent = getGooseSlashCommandsConfigContent({ currentContent, entries: [] });
+    if (nextContent === currentContent) return 0;
+
+    if (dryRun) {
+      logger.info(`[DRY RUN] Would write: ${configPath}`);
+    } else {
+      await writeFileContent(configPath, nextContent);
+    }
+    return 1;
   }
 
   static fromRulesyncCommand({

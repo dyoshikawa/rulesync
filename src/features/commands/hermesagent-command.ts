@@ -18,9 +18,9 @@ import {
 } from "../../constants/rulesync-paths.js";
 import type { SharedWritePath } from "../../lib/shared-file-derive.js";
 import { ValidationResult } from "../../types/ai-file.js";
-import { caseFoldIdentity } from "../../types/feature-processor.js";
+import { caseFoldIdentity, refusesWriteOutsideRoot } from "../../types/feature-processor.js";
 import { ToolFile } from "../../types/tool-file.js";
-import { readFileContentOrNull, toPosixPath } from "../../utils/file.js";
+import { readFileContentOrNull, toPosixPath, writeFileContent } from "../../utils/file.js";
 import {
   getHermesagentRelativeDirPath,
   getHermesagentRelativeFilePath,
@@ -39,6 +39,7 @@ import { listSkillDirNames } from "../skills/skills-utils.js";
 import { RulesyncCommand } from "./rulesync-command.js";
 import {
   ToolCommand,
+  type ToolCommandAfterOrphanSweepParams,
   type ToolCommandForDeletionParams,
   type ToolCommandFromFileParams,
   type ToolCommandFromRulesyncCommandParams,
@@ -367,6 +368,71 @@ export class HermesagentCommand extends ToolCommand {
       ),
     );
     return marker === "Generated and owned by RuleSync.\n";
+  }
+
+  /**
+   * Disable the commands plugin in the Hermes config once the sweep removed
+   * its ownership marker, so the plugin is not left enabled without the files
+   * rulesync generated for it.
+   */
+  static override async afterOrphanSweep({
+    outputRoot,
+    global,
+    dryRun,
+    logger,
+    existingFiles,
+    removedPaths,
+  }: ToolCommandAfterOrphanSweepParams): Promise<number> {
+    const ownershipPath = join(
+      outputRoot,
+      getHermesagentRelativeFilePath({
+        global,
+        relativeFilePath: HERMESAGENT_RULESYNC_COMMANDS_PLUGIN_OWNERSHIP_PATH,
+      }),
+    );
+    const ownershipMarker = existingFiles.find((file) => file.getFilePath() === ownershipPath);
+    // Decided after the base sweep, from what it actually removed (or would
+    // remove under `--check`): a marker it refused to delete — one reached
+    // through a link out of the root — stays in place, and disabling the
+    // plugin while its marker survives would leave the two out of step.
+    const shouldDisableHermesCommandsPlugin =
+      ownershipMarker !== undefined &&
+      removedPaths.some(
+        (removed) =>
+          removed.kind === "file" && removed.path === ownershipMarker.getRelativePathFromCwd(),
+      );
+
+    if (!shouldDisableHermesCommandsPlugin) return 0;
+    const configPath = join(
+      outputRoot,
+      getHermesagentRelativeFilePath({
+        global,
+        relativeFilePath: HERMESAGENT_CONFIG_FILE_PATH,
+      }),
+    );
+    if (
+      await refusesWriteOutsideRoot({
+        logger,
+        rootPath: outputRoot,
+        targetPath: configPath,
+      })
+    ) {
+      return 0;
+    }
+    const currentContent = await readFileContentOrNull(configPath);
+    if (currentContent === null) return 0;
+    const nextContent = getDisabledHermesCommandsPluginConfigContent({
+      currentContent,
+      global,
+    });
+    if (nextContent === currentContent) return 0;
+
+    if (dryRun) {
+      logger.info(`[DRY RUN] Would write: ${configPath}`);
+    } else {
+      await writeFileContent(configPath, nextContent);
+    }
+    return 1;
   }
 
   static override async fromFile({
