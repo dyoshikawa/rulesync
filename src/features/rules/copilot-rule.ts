@@ -5,6 +5,7 @@ import { z } from "zod/mini";
 import { COPILOT_DIR, COPILOT_RULE_FILE_NAME, GITHUB_DIR } from "../../constants/copilot-paths.js";
 import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
+import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent, toPosixPath } from "../../utils/file.js";
 import {
@@ -348,5 +349,5 @@ export class CopilotRule extends ToolRule {
     return this.body;
   }
 
-  protected static override readonly toolTarget = "copilot";
+  protected static override readonly toolTarget: ToolTarget = "copilot";
 }
