@@ -2,14 +2,14 @@ import { join } from "node:path";
 
 import { CODEWHALE_DIR, CODEWHALE_MCP_FILE_NAME } from "../../constants/codewhale-paths.js";
 import { isMcpServers, type McpServers } from "../../types/mcp.js";
-import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import {
   omitPrototypePollutionKeysDeep,
   PROTOTYPE_POLLUTION_KEYS,
 } from "../../utils/prototype-pollution.js";
-import { isPlainObject, isRecord } from "../../utils/type-guards.js";
+import { isRecord } from "../../utils/type-guards.js";
+import { parseMcpJsonObjectOrThrow } from "./mcp-json-config.js";
 import {
   declaresNoTransport,
   isRemoteMcpServer,
@@ -148,21 +148,12 @@ function parseCodewhaleMcpConfig({
   fileContent: string;
   relativePath: string;
 }): Record<string, unknown> {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(fileContent);
-  } catch (error) {
-    throw new Error(
-      `Failed to parse Codewhale MCP config at ${relativePath}: ${formatError(error)}`,
-      { cause: error },
-    );
-  }
-  if (!isPlainObject(parsed)) {
-    throw new Error(
-      `Failed to parse Codewhale MCP config at ${relativePath}: expected a JSON object at the root`,
-    );
-  }
-  return parsed;
+  return parseMcpJsonObjectOrThrow({
+    fileContent,
+    relativePath,
+    label: "Codewhale",
+    parse: JSON.parse,
+  });
 }
 
 /**

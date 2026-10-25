@@ -6,19 +6,19 @@ import {
   QODER_SETTINGS_FILE_NAME,
 } from "../../constants/qoder-paths.js";
 import { isMcpServers, type McpServers } from "../../types/mcp.js";
-import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import {
   omitPrototypePollutionKeys,
   PROTOTYPE_POLLUTION_KEYS,
 } from "../../utils/prototype-pollution.js";
-import { isPlainObject, isRecord } from "../../utils/type-guards.js";
+import { isRecord } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
   parseSharedConfig,
   sharedConfigFileKey,
   undefinedWhenEmpty,
 } from "../shared/shared-config-gateway.js";
+import { parseMcpJsonObjectOrThrow } from "./mcp-json-config.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -54,20 +54,12 @@ function parseQoderMcpConfig({
       invalidRootPolicy: "error",
     });
   }
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(fileContent || "{}");
-  } catch (error) {
-    throw new Error(`Failed to parse Qoder MCP config at ${relativePath}: ${formatError(error)}`, {
-      cause: error,
-    });
-  }
-  if (!isPlainObject(parsed)) {
-    throw new Error(
-      `Failed to parse Qoder MCP config at ${relativePath}: expected a JSON object at the root`,
-    );
-  }
-  return parsed;
+  return parseMcpJsonObjectOrThrow({
+    fileContent: fileContent || "{}",
+    relativePath,
+    label: "Qoder",
+    parse: JSON.parse,
+  });
 }
 
 /**

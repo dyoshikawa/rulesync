@@ -6,7 +6,6 @@ import {
   COMMANDCODE_PROJECT_MCP_FILE_NAME,
 } from "../../constants/commandcode-paths.js";
 import { isMcpServers, type McpServers } from "../../types/mcp.js";
-import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { parseJsonc } from "../../utils/jsonc.js";
 import type { Logger } from "../../utils/logger.js";
@@ -14,7 +13,8 @@ import {
   omitPrototypePollutionKeys,
   PROTOTYPE_POLLUTION_KEYS,
 } from "../../utils/prototype-pollution.js";
-import { isPlainObject, isRecord } from "../../utils/type-guards.js";
+import { isRecord } from "../../utils/type-guards.js";
+import { parseMcpJsonObjectOrThrow } from "./mcp-json-config.js";
 import {
   declaresNoTransport,
   isRemoteMcpServer,
@@ -48,23 +48,12 @@ function parseCommandcodeMcpConfig({
   fileContent: string;
   relativePath: string;
 }): Record<string, unknown> {
-  let parsed: unknown;
-  try {
-    parsed = parseJsonc(fileContent);
-  } catch (error) {
-    throw new Error(
-      `Failed to parse Command Code MCP config at ${relativePath}: ${formatError(error)}`,
-      {
-        cause: error,
-      },
-    );
-  }
-  if (!isPlainObject(parsed)) {
-    throw new Error(
-      `Failed to parse Command Code MCP config at ${relativePath}: expected a JSON object at the root`,
-    );
-  }
-  return parsed;
+  return parseMcpJsonObjectOrThrow({
+    fileContent,
+    relativePath,
+    label: "Command Code",
+    parse: parseJsonc,
+  });
 }
 
 /**
