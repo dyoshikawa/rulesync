@@ -16,10 +16,7 @@ import {
 } from "../../utils/frontmatter.js";
 import { warnWithFallback } from "../../utils/logger.js";
 import { CursorRule } from "./cursor-rule.js";
-import {
-  NESTED_SCAN_EXCLUDED_DIRS_ANY_DEPTH,
-  NESTED_SCAN_EXCLUDED_ROOT_DIRS,
-} from "./nested-scan-exclusions.js";
+import { nestedScanExclusionGlobs } from "./nested-scan-exclusions.js";
 import { RulesyncRule, RulesyncRuleFrontmatter } from "./rulesync-rule.js";
 import {
   ToolRule,
@@ -447,8 +444,7 @@ export class TraeRule extends ToolRule {
         // The project-root rules directory is read as the `nonRoot` one.
         `${rulesDirPath}/**`,
         `**/.*/**/${rulesDirPath}/**`,
-        ...NESTED_SCAN_EXCLUDED_DIRS_ANY_DEPTH.map((dir) => `**/${dir}/**`),
-        ...NESTED_SCAN_EXCLUDED_ROOT_DIRS.map((dir) => `${dir}/**`),
+        ...nestedScanExclusionGlobs(),
       ],
       // `rulesync gitignore` ignores `**/.trae/rules/`, so the gitignore filter
       // stops at `<dir>/.trae` instead of testing the rules directory itself.

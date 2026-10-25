@@ -2,10 +2,7 @@ import { join } from "node:path";
 
 import { ANTIGRAVITY_IDE_AGENTS_DIR } from "../../constants/antigravity-ide-paths.js";
 import { toPosixPath } from "../../utils/file.js";
-import {
-  NESTED_SCAN_EXCLUDED_DIRS_ANY_DEPTH,
-  NESTED_SCAN_EXCLUDED_ROOT_DIRS,
-} from "./nested-scan-exclusions.js";
+import { nestedScanExclusionGlobs } from "./nested-scan-exclusions.js";
 import type { RulesyncRule } from "./rulesync-rule.js";
 import type { ToolRuleNestedFilePatterns } from "./tool-rule.js";
 import {
@@ -116,8 +113,7 @@ export function getAntigravityNestedFilePatterns(): ToolRuleNestedFilePatterns {
       // The project-root rules directory is read as the `nonRoot` one.
       `${PROJECT_RULES_DIR}/**`,
       `**/.*/**/${PROJECT_RULES_DIR}/**`,
-      ...NESTED_SCAN_EXCLUDED_DIRS_ANY_DEPTH.map((dir) => `**/${dir}/**`),
-      ...NESTED_SCAN_EXCLUDED_ROOT_DIRS.map((dir) => `${dir}/**`),
+      ...nestedScanExclusionGlobs(),
     ],
     // `rulesync gitignore` ignores `**/.agents/rules/`, so the gitignore filter
     // stops at `<dir>/.agents` instead of testing the rules directory itself.

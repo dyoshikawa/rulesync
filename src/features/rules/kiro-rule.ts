@@ -9,10 +9,6 @@ import { ValidationResult } from "../../types/ai-file.js";
 import { ToolTarget } from "../../types/tool-targets.js";
 import { readFileContent, toPosixPath } from "../../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
-import {
-  NESTED_SCAN_EXCLUDED_DIRS_ANY_DEPTH,
-  NESTED_SCAN_EXCLUDED_ROOT_DIRS,
-} from "./nested-scan-exclusions.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
   ToolRule,
@@ -365,20 +361,12 @@ export class KiroRule extends ToolRule {
    * steering context alongside `.kiro/steering/`. Import-only, like every other
    * nested scan: these are hand-authored files outside a rulesync-owned
    * directory, so enumerating them for `--delete` would sweep away work rulesync
-   * never wrote.
+   * never wrote. The workspace-root file is another target's root rule, not a
+   * nested one, so it is left out.
    * @see https://kiro.dev/docs/steering/
    */
   static getNestedFilePatterns(): ToolRuleNestedFilePatterns {
-    return {
-      include: [`**/${KIRO_NESTED_STEERING_FILE_NAME}`],
-      ignore: [
-        // The workspace-root file is another target's root rule, not a nested one.
-        KIRO_NESTED_STEERING_FILE_NAME,
-        "**/.*/**",
-        ...NESTED_SCAN_EXCLUDED_DIRS_ANY_DEPTH.map((dir) => `**/${dir}/**`),
-        ...NESTED_SCAN_EXCLUDED_ROOT_DIRS.map((dir) => `${dir}/**`),
-      ],
-    };
+    return this.buildNestedFilePatterns({ fileName: KIRO_NESTED_STEERING_FILE_NAME });
   }
 
   static forDeletion({

@@ -9,10 +9,7 @@ import { AiFileFromFileParams, AiFileParams } from "../../types/ai-file.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { isTargetedByTargets, ToolTarget } from "../../types/tool-targets.js";
 import { toPosixPath } from "../../utils/file.js";
-import {
-  NESTED_SCAN_EXCLUDED_DIRS_ANY_DEPTH,
-  NESTED_SCAN_EXCLUDED_ROOT_DIRS,
-} from "./nested-scan-exclusions.js";
+import { nestedScanExclusionGlobs } from "./nested-scan-exclusions.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 
 export type ToolRuleParams = AiFileParams & {
@@ -322,8 +319,7 @@ export abstract class ToolRule extends ToolFile {
         // Enumerated separately as the root rule.
         fileName,
         "**/.*/**",
-        ...NESTED_SCAN_EXCLUDED_DIRS_ANY_DEPTH.map((dir) => `**/${dir}/**`),
-        ...NESTED_SCAN_EXCLUDED_ROOT_DIRS.map((dir) => `${dir}/**`),
+        ...nestedScanExclusionGlobs(),
       ],
     };
   }
