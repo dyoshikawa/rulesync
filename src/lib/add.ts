@@ -12,7 +12,12 @@ import {
 } from "jsonc-parser";
 
 import { ConfigResolver } from "../config/config-resolver.js";
-import { ConfigFileSchema, type SourceEntry, SourceEntrySchema } from "../config/config.js";
+import {
+  ConfigFileSchema,
+  getSourceTransport,
+  type SourceEntry,
+  SourceEntrySchema,
+} from "../config/config.js";
 import {
   RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH,
   RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH,
@@ -199,7 +204,7 @@ async function rollbackAdd({
 }
 
 function sourceIdentity(entry: SourceEntry): string {
-  const transport = entry.transport ?? "github";
+  const transport = getSourceTransport(entry);
   const normalizedSource =
     transport === "npm" ? normalizeNpmSourceKey(entry.source) : normalizeSourceKey(entry.source);
   const lockfileKind = transport === "npm" ? "npm" : "git";

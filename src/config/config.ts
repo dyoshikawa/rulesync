@@ -108,6 +108,13 @@ export const SourceEntrySchema = z
   );
 export type SourceEntry = z.infer<typeof SourceEntrySchema>;
 
+/** The transport a source entry is fetched with; an entry that names none uses `github`. */
+export function getSourceTransport(
+  entry: Pick<SourceEntry, "transport">,
+): NonNullable<SourceEntry["transport"]> {
+  return entry.transport ?? "github";
+}
+
 const ConfigParamsSchema = z.object({
   outputRoots: z.union([
     z.array(z.string()),
