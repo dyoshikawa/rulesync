@@ -181,7 +181,8 @@ export function isOpencodeTransportServer(
 
 /**
  * Convert OpenCode native format back to standard MCP format
- * - type: "local" -> "stdio", "remote" -> "sse"
+ * - type: "local" -> "stdio", "remote" -> "sse" (OpenCode 1.x, which falls back
+ *   to SSE) or "http" (OpenCode 2.x, which speaks Streamable HTTP only)
  * - command (array) -> command (first element) + args (rest)
  * - environment -> env
  * - enabled -> disabled (inverted)
@@ -210,11 +211,12 @@ const OPENCODE_KNOWN_SERVER_KEYS = new Set([
 
 function convertFromOpencodeFormat(
   opencodeMcp: Record<string, OpencodeMcpServer>,
-  tools?: Record<string, boolean>,
+  tools: Record<string, boolean> | undefined,
+  remoteType: "sse" | "http",
 ): McpServers {
   return {
     ...orphanMcpToolFiltersToRulesync(opencodeMcp, tools),
-    ...convertOpencodeServers(opencodeMcp, tools),
+    ...convertOpencodeServers(opencodeMcp, tools, remoteType),
   };
 }
 
@@ -239,7 +241,8 @@ function splitOpencodeServerTools(
 
 function convertOpencodeServers(
   opencodeMcp: Record<string, OpencodeMcpServer>,
-  tools?: Record<string, boolean>,
+  tools: Record<string, boolean> | undefined,
+  remoteType: "sse" | "http",
 ): McpServers {
   return Object.fromEntries(
     Object.entries(opencodeMcp).map(([serverName, serverConfig]) => {
@@ -272,7 +275,7 @@ function convertOpencodeServers(
             // Spread extras first so converter-derived fields below always win
             // on any key collision.
             ...extraFields,
-            type: "sse" as const,
+            type: remoteType,
             url: serverConfig.url,
             ...(serverConfig.enabled === false && { disabled: true }),
             ...(serverConfig.headers && { headers: serverConfig.headers }),
@@ -447,6 +450,33 @@ function convertServerToOpencodeFormat(
     ...(serverConfig.env && { environment: serverConfig.env }),
     ...(serverConfig.cwd && { cwd: serverConfig.cwd }),
   };
+}
+
+/**
+ * OpenCode 2.x connects a `remote` server over Streamable HTTP only (its MCP
+ * client has no SSE fallback, unlike OpenCode 1.x), so a server that speaks
+ * only the legacy SSE transport is written as `remote` but cannot connect.
+ *
+ * @see https://opencode.ai/v2/docs/mcp-servers/
+ */
+function warnAboutOpencodeV2SseServers({
+  mcpServers,
+  convertedMcp,
+  logger,
+}: {
+  mcpServers: McpServers;
+  convertedMcp: Record<string, OpencodeMcpServer>;
+  logger?: Logger;
+}): void {
+  for (const [serverName, serverConfig] of Object.entries(mcpServers)) {
+    const written = Object.hasOwn(convertedMcp, serverName) ? convertedMcp[serverName] : undefined;
+    const isSse = serverConfig.type === "sse" || serverConfig.transport === "sse";
+    if (isSse && written !== undefined && "type" in written && written.type === "remote") {
+      logger?.warn(
+        `OpenCode MCP: server "${serverName}" uses the SSE transport, but OpenCode 2.x connects remote servers over Streamable HTTP only. Point it at a Streamable HTTP endpoint, or target "opencodev1" (OpenCode 1.x falls back to SSE).`,
+      );
+    }
+  }
 }
 
 function convertToOpencodeFormat(
@@ -705,6 +735,9 @@ export class OpencodeMcp extends ToolMcp {
       configShape,
       logger,
     );
+    if (this.layout.configVersion === "v2") {
+      warnAboutOpencodeV2SseServers({ mcpServers: transformedServers, convertedMcp, logger });
+    }
     const generatedServers = undefinedWhenEmpty(convertedMcp);
     const generatedMcp =
       configShape === "v2"
@@ -902,7 +935,12 @@ export class OpencodeMcp extends ToolMcp {
   }
 
   toRulesyncMcp(): RulesyncMcp {
-    const convertedMcpServers = convertFromOpencodeFormat(this.json.mcp ?? {}, this.json.tools);
+    const convertedMcpServers = convertFromOpencodeFormat(
+      this.json.mcp ?? {},
+      this.json.tools,
+      // OpenCode 2.x connects a `remote` server over Streamable HTTP only.
+      (this.constructor as typeof OpencodeMcp).layout.configVersion === "v2" ? "http" : "sse",
+    );
     const transformedServers = convertEnvVarRefsFromToolFormat({
       mcpServers: convertedMcpServers,
       pattern: BRACE_ENV_VAR_PATTERN,

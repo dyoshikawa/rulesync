@@ -223,6 +223,41 @@ describe("OpenCodeSubagent", () => {
     });
   });
 
+  it("warns that OpenCode 2.x does not yet send request settings, and folds apply_patch into edit", () => {
+    const rulesyncSubagent = new RulesyncSubagent({
+      outputRoot: testDir,
+      relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+      relativeFilePath: "reviewer.md",
+      frontmatter: {
+        targets: ["*"],
+        name: "reviewer",
+        description: "Reviews",
+        opencode: { temperature: 0.2, tools: { apply_patch: false } },
+      },
+      body: "Review the diff",
+      validate: false,
+    });
+    const logger = createMockLogger();
+
+    const toolSubagent = OpenCodeSubagent.fromRulesyncSubagent({
+      rulesyncSubagent,
+      outputRoot: testDir,
+      relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+      logger,
+    }) as OpenCodeSubagent;
+
+    expect(toolSubagent.getFrontmatter()).toEqual({
+      description: "Reviews",
+      mode: "subagent",
+      request: { body: { temperature: 0.2 } },
+      permissions: [{ action: "edit", resource: "*", effect: "deny" }],
+    });
+    expect(logger.warn).toHaveBeenCalledTimes(1);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("does not yet send it with model requests"),
+    );
+  });
+
   it("keeps permission rules after tool toggles so a broad allow cannot override them", () => {
     const rulesyncSubagent = new RulesyncSubagent({
       outputRoot: testDir,

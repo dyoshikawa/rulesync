@@ -377,6 +377,14 @@ describe("OpencodePermissions (OpenCode V2 permissions array)", () => {
     ]);
   });
 
+  it("writes an opencode.permission.apply_patch key as the V2 edit action", async () => {
+    const instance = await generate({ opencode: { permission: { apply_patch: "deny" } } });
+
+    expect(instance.getJson().permissions).toEqual([
+      { action: "edit", resource: "*", effect: "deny" },
+    ]);
+  });
+
   it("keeps URL patterns on webfetch instead of collapsing them", async () => {
     const logger = { warn: vi.fn() };
     const instance = await generate(
@@ -539,5 +547,70 @@ describe("OpencodePermissions (OpenCode V2 permissions array)", () => {
       .getJson();
 
     expect(rulesync).toEqual(config);
+  });
+  it("writes canonical MCP categories as OpenCode's sanitized <server>_<tool> actions", async () => {
+    const logger = { warn: vi.fn() };
+    const instance = await generate(
+      {
+        permission: {
+          mcp__deepwiki__ask_question: { "*": "deny" },
+          "mcp__my.server__get-item": { "*": "ask" },
+          "mcp__github__get_*": { "*": "allow" },
+          mcp__context7: { "*": "deny" },
+          "mcp__*": { "*": "ask" },
+        },
+      },
+      logger,
+    );
+
+    expect(instance.getJson().permissions).toEqual([
+      { action: "deepwiki_ask_question", resource: "*", effect: "deny" },
+      { action: "my_server_get-item", resource: "*", effect: "ask" },
+      { action: "github_get_*", resource: "*", effect: "allow" },
+      { action: "context7_*", resource: "*", effect: "deny" },
+      { action: "mcp__*", resource: "*", effect: "ask" },
+    ]);
+    expect(logger.warn).toHaveBeenCalledTimes(1);
+    expect(logger.warn.mock.calls[0]?.[0]).toContain('"mcp__*"');
+  });
+
+  it("imports <server>_<tool> actions of declared MCP servers as canonical MCP categories", async () => {
+    await writeFileContent(
+      join(testDir, "opencode.json"),
+      JSON.stringify({
+        mcp: { servers: { github: { type: "remote", url: "https://example.com/mcp" } } },
+        permissions: [
+          { action: "github_get_issue", resource: "*", effect: "deny" },
+          { action: "github_*", resource: "*", effect: "ask" },
+          { action: "unknown_tool", resource: "*", effect: "deny" },
+        ],
+      }),
+    );
+
+    const rulesync = (await OpencodePermissions.fromFile({ outputRoot: testDir }))
+      .toRulesyncPermissions()
+      .getJson();
+
+    expect(rulesync.permission).toEqual({
+      mcp__github__get_issue: { "*": "deny" },
+      mcp__github: { "*": "ask" },
+    });
+    expect(rulesync.opencode?.permission).toEqual({ unknown_tool: { "*": "deny" } });
+  });
+
+  it("does not claim an OpenCode built-in key for an MCP server that prefixes it", async () => {
+    await writeFileContent(
+      join(testDir, "opencode.json"),
+      JSON.stringify({
+        mcp: { servers: { external: { type: "remote", url: "https://example.com/mcp" } } },
+        permissions: [{ action: "external_directory", resource: "*", effect: "deny" }],
+      }),
+    );
+
+    const rulesync = (await OpencodePermissions.fromFile({ outputRoot: testDir }))
+      .toRulesyncPermissions()
+      .getJson();
+
+    expect(rulesync.opencode?.permission).toEqual({ external_directory: { "*": "deny" } });
   });
 });

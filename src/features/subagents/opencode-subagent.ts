@@ -238,13 +238,15 @@ export class OpenCodeSubagent extends OpenCodeStyleSubagent {
     rulesyncSubagent,
     validate = true,
     global = false,
+    logger,
   }: ToolSubagentFromRulesyncSubagentParams): ToolSubagent {
     const rulesyncFrontmatter = rulesyncSubagent.getFrontmatter();
     const opencodeSection = rulesyncFrontmatter[this.layout.toolTarget] ?? {};
 
-    // OpenCode V2 reads frontmatter carrying any V1-only field (`name`
-    // included) as a V1 agent and ignores its V2 fields, so a V2 agent is
-    // written in the V2 spelling alone, its ID coming from the file name.
+    // OpenCode V2 reads frontmatter mixing V1-only fields (`name` included)
+    // and V2 fields as V2 and ignores the V1 fields (before v2.1.4 it read it
+    // as V1 and ignored the V2 fields), so a V2 agent is written in the V2
+    // spelling alone, its ID coming from the file name.
     const parseResult = OpenCodeSubagentFrontmatterSchema.safeParse(
       this.layout.configVersion === "v2"
         ? raiseOpencodeAgentToV2({
@@ -264,6 +266,13 @@ export class OpenCodeSubagent extends OpenCodeStyleSubagent {
       );
     }
     const opencodeFrontmatter: OpenCodeSubagentFrontmatter = parseResult.data;
+    if (this.layout.configVersion === "v2" && opencodeFrontmatter.request !== undefined) {
+      // https://opencode.ai/v2/docs/agents/: "The V2 session runner preserves
+      // these values but does not yet send them with model requests."
+      logger?.warn(
+        `OpenCode subagent "${rulesyncSubagent.getRelativeFilePath()}": OpenCode 2.x keeps "request" (where "temperature", "top_p" and "options" are written) but does not yet send it with model requests, so these settings have no effect. Set them on the provider, model or model variant instead.`,
+      );
+    }
 
     const body = rulesyncSubagent.getBody();
     const fileContent = stringifyFrontmatter(body, opencodeFrontmatter);

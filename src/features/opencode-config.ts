@@ -773,15 +773,18 @@ export type OpencodeV2PermissionRule = { action: string; resource: string; effec
 
 /**
  * OpenCode V1 permission keys that V2 renamed, as OpenCode V2's own V1 config
- * compatibility pass translates them (`write`/`patch` fold into `edit`).
+ * compatibility pass translates them (`write`/`patch`/`apply_patch` fold into
+ * `edit`; `apply_patch` since OpenCode v2.1.3).
  *
  * @see https://opencode.ai/v2/docs/migrate-v1/
+ * @see https://github.com/anomalyco/opencode/pull/57900
  */
 const OPENCODE_V1_TO_V2_PERMISSION_ACTIONS: Record<string, string> = {
   bash: "shell",
   task: "subagent",
   write: "edit",
   patch: "edit",
+  apply_patch: "edit",
 };
 
 export function toOpencodeV2PermissionAction(v1Key: string): string {
@@ -809,10 +812,14 @@ export function toOpencodeV2PermissionRules(
 }
 
 /**
- * Agent fields only OpenCode V1 knows. OpenCode V2 reads an agent entry or
- * Markdown frontmatter carrying any of them (`name` included) as a V1 entry
- * and translates it, ignoring the V2 fields next to them, so an entry written
- * for V2 must carry none of them.
+ * Agent fields only OpenCode V1 knows. Before OpenCode v2.1.4, V2 read an agent
+ * entry or Markdown frontmatter carrying any of them (`name` included) as a V1
+ * entry and ignored the V2 fields next to them; since v2.1.4 a file that also
+ * carries a V2 field (`permissions`, `request`, `system`, `disabled`) is read
+ * as V2 and these fields are ignored with a warning. Either way an entry
+ * written for V2 must carry none of them.
+ *
+ * @see https://github.com/anomalyco/opencode/pull/58218
  */
 const OPENCODE_V1_ONLY_AGENT_KEYS = [
   "name",
@@ -831,7 +838,7 @@ const OPENCODE_V2_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
 
 /**
  * The V1 `tools` toggles and `permission` of an agent as V2 permission rules:
- * one rule per tool toggle (`write` / `patch` fold into `edit`), followed by
+ * one rule per tool toggle (`write` / `patch` / `apply_patch` fold into `edit`), followed by
  * the flattened `permission` map (a bare string applies to every action).
  * Unlike a per-key merge, which would leave a `permission` value at its tool
  * toggle's earlier position where a later broad rule could override it, this
