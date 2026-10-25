@@ -1,9 +1,7 @@
 import { join } from "node:path";
 
 import { CONTINUE_MCP_DIR_PATH, CONTINUE_MCP_FILE_NAME } from "../../constants/continue-paths.js";
-import { ValidationResult } from "../../types/ai-file.js";
 import { isMcpServers, type McpServers } from "../../types/mcp.js";
-import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { parseJsonc } from "../../utils/jsonc.js";
 import type { Logger } from "../../utils/logger.js";
@@ -12,10 +10,12 @@ import {
   PROTOTYPE_POLLUTION_KEYS,
 } from "../../utils/prototype-pollution.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
-import { isPlainObject, isRecord } from "../../utils/type-guards.js";
+import { isRecord } from "../../utils/type-guards.js";
+import { parseMcpJsonObjectOrThrow } from "./mcp-json-config.js";
 import {
   declaresNoTransport,
   isRemoteMcpServer,
+  resolveHttpOrSseRemoteType,
   resolveLocalMcpCommand,
   resolveRemoteMcpUrl,
   warnAndSkipMcpServer,
@@ -45,41 +45,12 @@ function parseContinueMcpConfig({
   fileContent: string;
   relativePath: string;
 }): Record<string, unknown> {
-  let parsed: unknown;
-  try {
-    parsed = parseJsonc(fileContent);
-  } catch (error) {
-    throw new Error(
-      `Failed to parse Continue MCP config at ${relativePath}: ${formatError(error)}`,
-      {
-        cause: error,
-      },
-    );
-  }
-  if (!isPlainObject(parsed)) {
-    throw new Error(
-      `Failed to parse Continue MCP config at ${relativePath}: expected a JSON object at the root`,
-    );
-  }
-  return parsed;
-}
-
-/**
- * The remote transport Continue reads a server as. Continue's JSON schema
- * accepts `type: "sse"` or `type: "http"` (streamable HTTP) for a `url`
- * server; a bare `url` defaults to `http`, and the canonical
- * `streamable-http` spelling is folded into it. A `ws(s)://` URL or any other
- * stated transport has no Continue equivalent, so `undefined` tells the
- * caller to skip the server.
- * @see https://docs.continue.dev/customize/deep-dives/mcp
- */
-function asContinueRemoteType(stated: string | undefined, url: string): "http" | "sse" | undefined {
-  if (stated === "sse") return "sse";
-  if (stated === "http" || stated === "streamable-http") return "http";
-  if (stated === undefined) {
-    return /^wss?:\/\//i.test(url) ? undefined : "http";
-  }
-  return undefined;
+  return parseMcpJsonObjectOrThrow({
+    fileContent,
+    relativePath,
+    label: "Continue",
+    parse: parseJsonc,
+  });
 }
 
 /**
@@ -169,7 +140,17 @@ function convertRemoteServer({
     return undefined;
   }
   const stated = serverConfig.type ?? serverConfig.transport;
-  const remoteType = asContinueRemoteType(typeof stated === "string" ? stated : undefined, url);
+  // The remote transport Continue reads a server as. Continue's JSON schema
+  // accepts `type: "sse"` or `type: "http"` (streamable HTTP) for a `url`
+  // server; a bare `url` defaults to `http`, and the canonical
+  // `streamable-http` spelling is folded into it. A `ws(s)://` URL or any other
+  // stated transport has no Continue equivalent, so `undefined` tells the
+  // caller to skip the server.
+  // @see https://docs.continue.dev/customize/deep-dives/mcp
+  const remoteType = resolveHttpOrSseRemoteType({
+    stated: typeof stated === "string" ? stated : undefined,
+    url,
+  });
   if (remoteType === undefined) {
     warnAndSkipMcpServer({
       toolName: "Continue",
@@ -348,10 +329,6 @@ export class ContinueMcp extends ToolMcp {
     return this.toRulesyncMcpDefault({
       fileContent: JSON.stringify({ mcpServers }, null, 2),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

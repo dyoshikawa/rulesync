@@ -146,10 +146,5 @@ export class GooseRule extends ToolRule {
     });
   }
 
-  static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
-    return this.isTargetedByRulesyncRuleDefault({
-      rulesyncRule,
-      toolTarget: "goose",
-    });
-  }
+  protected static override readonly toolTarget = "goose";
 }

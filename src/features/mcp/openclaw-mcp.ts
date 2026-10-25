@@ -6,7 +6,6 @@ import {
   OPENCLAW_MCP_CONFIG_KEY,
   OPENCLAW_MCP_SERVERS_KEY,
 } from "../../constants/openclaw-paths.js";
-import { ValidationResult } from "../../types/ai-file.js";
 import { McpServers } from "../../types/mcp.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
@@ -485,10 +484,6 @@ export class OpenclawMcp extends ToolMcp {
         2,
       ),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

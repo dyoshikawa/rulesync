@@ -5,7 +5,7 @@ import {
   AMP_PLUGINS_GLOBAL_DIR,
   AMP_PLUGINS_PROJECT_DIR,
 } from "../../constants/amp-paths.js";
-import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { AiFileParams } from "../../types/ai-file.js";
 import {
   AMP_HOOK_EVENTS,
   AMP_OVERRIDE_ONLY_HOOK_EVENTS,
@@ -69,10 +69,6 @@ export class AmpHooks extends ToolHooks {
 
   toRulesyncHooks(): RulesyncHooks {
     throw new Error("Not implemented because generated Amp TypeScript plugins cannot be imported.");
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

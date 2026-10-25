@@ -4,9 +4,7 @@ import {
   AUGMENTCODE_PLUGIN_HOOKS_DIR,
   AUGMENTCODE_PLUGIN_HOOKS_FILE_NAME,
 } from "../../constants/plugin-paths.js";
-import type { ValidationResult } from "../../types/ai-file.js";
 import { parseAugmentcodeSettingsDocument } from "../../utils/augmentcode-settings.js";
-import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { AUGMENTCODE_CONVERTER_CONFIG } from "./augmentcode-hooks.js";
@@ -114,18 +112,14 @@ export class AugmentcodePluginHooks extends ToolHooks {
 
   toRulesyncHooks({ logger }: { logger?: Logger } = {}): RulesyncHooks {
     const configPath = join(this.getRelativeDirPath(), this.getRelativeFilePath());
-    let parsed: Record<string, unknown>;
-    try {
-      parsed = parseAugmentcodeSettingsDocument({
-        fileContent: this.getFileContent(),
-        configPath,
-      });
-    } catch (error) {
-      throw new Error(
-        `Failed to parse AugmentCode plugin hooks content in ${configPath}: ${formatError(error)}`,
-        { cause: error },
-      );
-    }
+    const parsed: Record<string, unknown> = this.parseFileContentOrThrow({
+      displayName: "AugmentCode plugin",
+      parse: (fileContent) =>
+        parseAugmentcodeSettingsDocument({
+          fileContent,
+          configPath,
+        }),
+    });
     const hooks = toolHooksToCanonical({
       logger,
       hooks: parsed.hooks,
@@ -138,10 +132,6 @@ export class AugmentcodePluginHooks extends ToolHooks {
         2,
       ),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

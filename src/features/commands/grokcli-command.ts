@@ -7,7 +7,11 @@ import { SKILLS_FEATURE_SUBDIR } from "../../constants/rulesync-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
-import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
+import {
+  parseFrontmatter,
+  stringifyFrontmatter,
+  validateFrontmatterSchema,
+} from "../../utils/frontmatter.js";
 import type { Logger } from "../../utils/logger.js";
 import { listSkillDirNames } from "../skills/skills-utils.js";
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
@@ -38,7 +42,7 @@ import {
  * @see https://docs.x.ai/build/features/skills-plugins-marketplaces
  */
 // looseObject preserves unknown keys during parsing (like passthrough in Zod 3)
-export const GrokcliCommandFrontmatterSchema = z.looseObject({
+const GrokcliCommandFrontmatterSchema = z.looseObject({
   description: z.optional(z.string()),
   "argument-hint": z.optional(z.string()),
   "user-invocable": z.optional(z.boolean()),
@@ -108,7 +112,6 @@ export class GrokcliCommand extends ToolCommand {
       body: this.body,
       relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
       relativeFilePath: this.relativeFilePath,
-      fileContent: stringifyFrontmatter(this.body, rulesyncFrontmatter),
       validate: true,
     });
   }
@@ -151,16 +154,12 @@ export class GrokcliCommand extends ToolCommand {
       return { success: true, error: null };
     }
 
-    const result = GrokcliCommandFrontmatterSchema.safeParse(this.frontmatter);
-    if (result.success) {
-      return { success: true, error: null };
-    }
-    return {
-      success: false,
-      error: new Error(
-        `Invalid frontmatter in ${join(this.relativeDirPath, this.relativeFilePath)}: ${formatError(result.error)}`,
-      ),
-    };
+    return validateFrontmatterSchema({
+      schema: GrokcliCommandFrontmatterSchema,
+      frontmatter: this.frontmatter,
+      relativeDirPath: this.relativeDirPath,
+      relativeFilePath: this.relativeFilePath,
+    });
   }
 
   static isTargetedByRulesyncCommand(rulesyncCommand: RulesyncCommand): boolean {

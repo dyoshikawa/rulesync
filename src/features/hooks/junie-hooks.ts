@@ -2,7 +2,6 @@ import { join } from "node:path";
 
 import { JUNIE_DIR, JUNIE_HOOKS_FILE_NAME } from "../../constants/junie-paths.js";
 import type { AiFileParams } from "../../types/ai-file.js";
-import type { ValidationResult } from "../../types/ai-file.js";
 import {
   CANONICAL_TO_JUNIE_EVENT_NAMES,
   JUNIE_HOOK_EVENTS,
@@ -130,17 +129,10 @@ export class JunieHooks extends ToolHooks {
   }
 
   toRulesyncHooks({ logger }: { logger?: Logger } = {}): RulesyncHooks {
-    let settings: { hooks?: unknown };
-    try {
-      settings = JSON.parse(this.getFileContent());
-    } catch (error) {
-      throw new Error(
-        `Failed to parse Junie hooks content in ${join(this.getRelativeDirPath(), this.getRelativeFilePath())}: ${formatError(error)}`,
-        {
-          cause: error,
-        },
-      );
-    }
+    const settings: { hooks?: unknown } = this.parseFileContentOrThrow({
+      displayName: "Junie",
+      parse: (fileContent) => JSON.parse(fileContent),
+    });
     const hooks = toolHooksToCanonical({
       hooks: settings.hooks,
       converterConfig: JUNIE_CONVERTER_CONFIG,
@@ -153,10 +145,6 @@ export class JunieHooks extends ToolHooks {
         2,
       ),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

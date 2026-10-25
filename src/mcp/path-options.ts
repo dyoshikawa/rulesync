@@ -46,6 +46,19 @@ export async function assertPathOptionWithinCwd({
   }
 }
 
+/** Applies {@link assertPathOptionWithinCwd} to an optional path, skipping it when absent. */
+export async function assertOptionalPathOptionWithinCwd({
+  path,
+  label,
+}: {
+  path: string | undefined;
+  label: string;
+}): Promise<void> {
+  if (path !== undefined) {
+    await assertPathOptionWithinCwd({ path, label });
+  }
+}
+
 /** Applies {@link assertPathOptionWithinCwd} to every entry of an optional list. */
 export async function assertPathOptionsWithinCwd({
   paths,

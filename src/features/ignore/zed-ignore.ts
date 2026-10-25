@@ -11,6 +11,7 @@ import { fileExists, readFileContent } from "../../utils/file.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import {
+  parseIgnorePatterns,
   ToolIgnore,
   ToolIgnoreForDeletionParams,
   ToolIgnoreFromFileParams,
@@ -74,14 +75,7 @@ export class ZedIgnore extends ToolIgnore {
     // Create the content in .rulesync/.aiignore format (one pattern per line)
     const fileContent = rulesyncPatterns.join("\n");
 
-    return new RulesyncIgnore({
-      // The rulesync source always belongs to the project, even when the
-      // settings.json it was imported from lives in the user config dir.
-      outputRoot: ".",
-      relativeDirPath: RulesyncIgnore.getSettablePaths().recommended.relativeDirPath,
-      relativeFilePath: RulesyncIgnore.getSettablePaths().recommended.relativeFilePath,
-      fileContent,
-    });
+    return this.toRulesyncIgnoreDefault({ fileContent });
   }
 
   static async fromRulesyncIgnore({
@@ -89,12 +83,7 @@ export class ZedIgnore extends ToolIgnore {
     rulesyncIgnore,
     global = false,
   }: ToolIgnoreFromRulesyncIgnoreParams): Promise<ZedIgnore> {
-    const fileContent = rulesyncIgnore.getFileContent();
-
-    const patterns = fileContent
-      .split(/\r?\n|\r/)
-      .map((line: string) => line.trim())
-      .filter((line) => line.length > 0 && !line.startsWith("#"));
+    const patterns = parseIgnorePatterns(rulesyncIgnore.getFileContent());
 
     const paths = this.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);

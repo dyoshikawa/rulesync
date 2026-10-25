@@ -5,13 +5,12 @@ import {
   ANTIGRAVITY_GLOBAL_CONFIG_DIR_PATH,
   ANTIGRAVITY_HOOKS_FILE_NAME,
 } from "../../constants/antigravity-paths.js";
-import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { AiFileParams } from "../../types/ai-file.js";
 import {
   ANTIGRAVITY_HOOK_EVENTS,
   ANTIGRAVITY_TO_CANONICAL_EVENT_NAMES,
   CANONICAL_TO_ANTIGRAVITY_EVENT_NAMES,
 } from "../../types/hooks.js";
-import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { lookupOwn } from "../../utils/own-lookup.js";
@@ -257,15 +256,10 @@ class AntigravityHooks extends ToolHooks {
   }
 
   toRulesyncHooks({ logger }: { logger?: Logger } = {}): RulesyncHooks {
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(this.getFileContent());
-    } catch (error) {
-      throw new Error(
-        `Failed to parse Antigravity hooks content in ${join(this.getRelativeDirPath(), this.getRelativeFilePath())}: ${formatError(error)}`,
-        { cause: error },
-      );
-    }
+    const parsed: unknown = this.parseFileContentOrThrow({
+      displayName: "Antigravity",
+      parse: (fileContent) => JSON.parse(fileContent),
+    });
     const hooks = toolHooksToCanonical({
       hooks: toMatcherGroupEventMap(flattenAntigravityHooks(parsed)),
       converterConfig: ANTIGRAVITY_CONVERTER_CONFIG,
@@ -275,10 +269,6 @@ class AntigravityHooks extends ToolHooks {
     return this.toRulesyncHooksDefault({
       fileContent: JSON.stringify(buildImportedHooksConfig({ hooks, overrideKey }), null, 2),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

@@ -586,7 +586,7 @@ export async function inspectInputRoots(inputRoots: readonly string[]): Promise<
   };
 }
 
-export type GenerationStepId =
+type GenerationStepId =
   | "ignore"
   | "mcp"
   | "commands"

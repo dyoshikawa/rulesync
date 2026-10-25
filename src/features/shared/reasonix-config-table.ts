@@ -14,18 +14,11 @@ import { isPlainObject } from "../../utils/type-guards.js";
  *
  * TOML is only structurally validated on parse, so a hand-edited config can
  * hold any type under `permissions` or inside `allow`/`ask`/`deny`. Both the
- * `permissions` and `ignore` adapters have to narrow the same two shapes
- * before merging, so the narrowing lives here once rather than being re-spelled
- * (and re-diverging) per feature.
+ * `permissions` and `ignore` adapters have to narrow the same shapes before
+ * merging (string arrays through `toStringArray` in `utils/type-guards.ts`),
+ * so the narrowing lives in one place rather than being re-spelled (and
+ * re-diverging) per feature.
  */
-
-/** Keep only the string entries of a TOML array; anything else becomes `[]`. */
-export function toReasonixStringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  return value.filter((entry): entry is string => typeof entry === "string");
-}
 
 /** Copy a TOML table; a non-table (scalar, array, missing) becomes `{}`. */
 export function toReasonixTable(value: unknown): Record<string, unknown> {

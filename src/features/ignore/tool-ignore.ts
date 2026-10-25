@@ -11,6 +11,17 @@ import { RulesyncIgnore } from "./rulesync-ignore.js";
 export type ToolIgnoreParams = AiFileParams;
 
 /**
+ * Split ignore-file content into its patterns: one per line, trimmed, with
+ * blank lines and `#` comments dropped.
+ */
+export function parseIgnorePatterns(content: string): string[] {
+  return content
+    .split(/\r?\n|\r/)
+    .map((line: string) => line.trim())
+    .filter((line) => line.length > 0 && !line.startsWith("#"));
+}
+
+/**
  * Optional per-feature options forwarded from rulesync configuration
  * (e.g. `features.<target>.ignore = { ... }`). Each tool decides how to
  * interpret its own keys; unknown keys are ignored.
@@ -55,10 +66,7 @@ export abstract class ToolIgnore extends ToolFile {
       ...params,
       validate: true,
     });
-    this.patterns = this.fileContent
-      .split(/\r?\n|\r/)
-      .map((line: string) => line.trim())
-      .filter((line) => line.length > 0 && !line.startsWith("#"));
+    this.patterns = parseIgnorePatterns(this.fileContent);
 
     // Validate after setting patterns, if validation was requested
     if (params.validate) {
@@ -96,12 +104,21 @@ export abstract class ToolIgnore extends ToolFile {
 
   abstract toRulesyncIgnore(): RulesyncIgnore;
 
-  protected toRulesyncIgnoreDefault(): RulesyncIgnore {
+  /**
+   * The rulesync source always belongs to the project, even when the tool
+   * file it was imported from lives in the home directory, hence the fixed
+   * `outputRoot`. `fileContent` defaults to this file's raw content.
+   */
+  protected toRulesyncIgnoreDefault({
+    fileContent = this.fileContent,
+  }: {
+    fileContent?: string;
+  } = {}): RulesyncIgnore {
     return new RulesyncIgnore({
       outputRoot: ".",
       relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
       relativeFilePath: RULESYNC_AIIGNORE_FILE_NAME,
-      fileContent: this.fileContent,
+      fileContent,
     });
   }
 

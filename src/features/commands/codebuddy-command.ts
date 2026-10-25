@@ -6,7 +6,11 @@ import { CODEBUDDY_COMMANDS_DIR_PATH } from "../../constants/codebuddy-paths.js"
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
-import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
+import {
+  parseFrontmatter,
+  stringifyFrontmatter,
+  validateFrontmatterSchema,
+} from "../../utils/frontmatter.js";
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
 import {
   ToolCommand,
@@ -28,7 +32,7 @@ import {
  * @see https://www.codebuddy.ai/docs/cli/slash-commands
  */
 // looseObject preserves unknown keys during parsing (like passthrough in Zod 3)
-export const CodebuddyCommandFrontmatterSchema = z.looseObject({
+const CodebuddyCommandFrontmatterSchema = z.looseObject({
   description: z.optional(z.string()),
   "argument-hint": z.optional(z.string()),
 });
@@ -90,15 +94,12 @@ export class CodebuddyCommand extends ToolCommand {
       ...(Object.keys(restFields).length > 0 && { codebuddy: restFields }),
     };
 
-    const fileContent = stringifyFrontmatter(this.body, rulesyncFrontmatter);
-
     return new RulesyncCommand({
       outputRoot: ".", // RulesyncCommand outputRoot is always the project root directory
       frontmatter: rulesyncFrontmatter,
       body: this.body,
       relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
       relativeFilePath: this.relativeFilePath,
-      fileContent,
       validate: true,
     });
   }
@@ -139,16 +140,12 @@ export class CodebuddyCommand extends ToolCommand {
       return { success: true, error: null };
     }
 
-    const result = CodebuddyCommandFrontmatterSchema.safeParse(this.frontmatter);
-    if (result.success) {
-      return { success: true, error: null };
-    }
-    return {
-      success: false,
-      error: new Error(
-        `Invalid frontmatter in ${join(this.relativeDirPath, this.relativeFilePath)}: ${formatError(result.error)}`,
-      ),
-    };
+    return validateFrontmatterSchema({
+      schema: CodebuddyCommandFrontmatterSchema,
+      frontmatter: this.frontmatter,
+      relativeDirPath: this.relativeDirPath,
+      relativeFilePath: this.relativeFilePath,
+    });
   }
 
   static isTargetedByRulesyncCommand(rulesyncCommand: RulesyncCommand): boolean {

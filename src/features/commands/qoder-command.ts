@@ -6,7 +6,11 @@ import { QODER_COMMANDS_DIR_PATH } from "../../constants/qoder-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
-import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
+import {
+  parseFrontmatter,
+  stringifyFrontmatter,
+  validateFrontmatterSchema,
+} from "../../utils/frontmatter.js";
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
 import {
   ToolCommand,
@@ -17,7 +21,7 @@ import {
 } from "./tool-command.js";
 
 // looseObject preserves unknown keys during parsing (like passthrough in Zod 3)
-export const QoderCommandFrontmatterSchema = z.looseObject({
+const QoderCommandFrontmatterSchema = z.looseObject({
   // Required by Qoder: shown in the TUI command list.
   description: z.optional(z.string()),
   // Display name in the TUI only; the invocation name always comes from the
@@ -99,7 +103,6 @@ export class QoderCommand extends ToolCommand {
       body: this.body,
       relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
       relativeFilePath: this.relativeFilePath,
-      fileContent: stringifyFrontmatter(this.body, rulesyncFrontmatter),
       validate: true,
     });
   }
@@ -131,16 +134,13 @@ export class QoderCommand extends ToolCommand {
     if (!this.frontmatter) {
       return { success: true, error: null };
     }
-    const result = QoderCommandFrontmatterSchema.safeParse(this.frontmatter);
-    if (result.success) {
-      return { success: true, error: null };
-    }
-    return {
-      success: false,
-      error: new Error(
-        `Invalid frontmatter in ${join(this.relativeDirPath, this.relativeFilePath)}: ${formatError(result.error)}`,
-      ),
-    };
+
+    return validateFrontmatterSchema({
+      schema: QoderCommandFrontmatterSchema,
+      frontmatter: this.frontmatter,
+      relativeDirPath: this.relativeDirPath,
+      relativeFilePath: this.relativeFilePath,
+    });
   }
 
   static isTargetedByRulesyncCommand(rulesyncCommand: RulesyncCommand): boolean {

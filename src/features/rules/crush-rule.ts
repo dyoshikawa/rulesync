@@ -56,14 +56,6 @@ export type CrushRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> & {
 };
 
 export class CrushRule extends ToolRule {
-  constructor({ fileContent, root, ...rest }: CrushRuleParams) {
-    super({
-      ...rest,
-      fileContent,
-      root: root ?? false,
-    });
-  }
-
   static getSettablePaths({
     global = false,
   }: {
@@ -158,10 +150,5 @@ export class CrushRule extends ToolRule {
     });
   }
 
-  static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
-    return this.isTargetedByRulesyncRuleDefault({
-      rulesyncRule,
-      toolTarget: "crush",
-    });
-  }
+  protected static override readonly toolTarget = "crush";
 }

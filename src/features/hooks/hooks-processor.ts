@@ -138,8 +138,7 @@ type ToolHooksFactory = {
       relativeDirPath: string;
       relativeFilePath: string;
     };
-    isDeletable?: (instance: ToolHooks) => boolean;
-    getAuxiliaryFiles?: (params: {
+    getAuxiliaryFiles: (params: {
       outputRoot?: string;
       global?: boolean;
       /** The instance just built, for adapters whose extra files derive from it. */
@@ -152,7 +151,7 @@ type ToolHooksFactory = {
      * config file there (Codex CLI's `config.toml`), which must never become a
      * deletion candidate.
      */
-    getDeletableAuxiliaryFiles?: (params: {
+    getDeletableAuxiliaryFiles: (params: {
       outputRoot?: string;
       global?: boolean;
     }) => ToolFile[] | Promise<ToolFile[]>;
@@ -1401,13 +1400,12 @@ export class HooksProcessor extends FeatureProcessor {
           relativeFilePath: paths.relativeFilePath,
           global: this.global,
         });
-        const auxiliaryFiles =
-          (await factory.class.getDeletableAuxiliaryFiles?.({
-            outputRoot: this.outputRoot,
-            global: this.global,
-          })) ?? [];
+        const auxiliaryFiles = await factory.class.getDeletableAuxiliaryFiles({
+          outputRoot: this.outputRoot,
+          global: this.global,
+        });
         const list = [
-          ...(toolHooks.isDeletable?.() !== false ? [toolHooks] : []),
+          ...(toolHooks.isDeletable() ? [toolHooks] : []),
           ...auxiliaryFiles.filter((file) => file.isDeletable()),
         ];
         this.logger.debug(
@@ -1509,15 +1507,13 @@ export class HooksProcessor extends FeatureProcessor {
     });
 
     const result: ToolFile[] = [toolHooks];
-    const auxiliaryFiles = await factory.class.getAuxiliaryFiles?.({
+    const auxiliaryFiles = await factory.class.getAuxiliaryFiles({
       outputRoot: this.outputRoot,
       global: this.global,
       toolHooks,
       logger: withToolTargetPrefix({ logger: this.logger, toolTarget: this.toolTarget }),
     });
-    if (auxiliaryFiles && auxiliaryFiles.length > 0) {
-      result.push(...auxiliaryFiles);
-    }
+    result.push(...auxiliaryFiles);
 
     return result;
   }

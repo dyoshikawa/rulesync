@@ -1,4 +1,4 @@
-import { basename, join } from "node:path";
+import { join } from "node:path";
 
 import { dump } from "js-yaml";
 import { z } from "zod/mini";
@@ -11,10 +11,9 @@ import { RULESYNC_CHECKS_RELATIVE_DIR_PATH } from "../../constants/rulesync-path
 import type { ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
 import { fileExists, readFileContentOrNull } from "../../utils/file.js";
-import type { Logger } from "../../utils/logger.js";
 import { isPlainObject } from "../../utils/type-guards.js";
 import { loadYaml } from "../../utils/yaml.js";
-import { slugifyCheckName } from "./check-slug.js";
+import { checkStem, parseCheckOverride, slugifyCheckName, uniqueCheckName } from "./check-slug.js";
 import { RulesyncCheck } from "./rulesync-check.js";
 import {
   ToolCheck,
@@ -34,41 +33,8 @@ const GitlabduoCheckOverrideSchema = z.looseObject({
   name: z.optional(z.string().check(z.minLength(1))),
   fileFilters: z.optional(z.array(z.string().check(z.minLength(1)))),
 });
-type GitlabduoCheckOverride = z.infer<typeof GitlabduoCheckOverrideSchema>;
 
 type GitlabduoInstruction = { name: string; fileFilters?: string[]; instructions: string };
-
-function parseOverride(raw: unknown, filePath: string, logger?: Logger): GitlabduoCheckOverride {
-  if (raw === undefined) {
-    return {};
-  }
-  if (!isPlainObject(raw)) {
-    logger?.warn(`Ignoring the \`gitlabduo\` block in ${filePath}: expected a mapping.`);
-    return {};
-  }
-  const result = GitlabduoCheckOverrideSchema.safeParse(raw);
-  if (!result.success) {
-    throw new Error(`Invalid \`gitlabduo\` block in ${filePath}: ${result.error.message}`, {
-      cause: result.error,
-    });
-  }
-  return result.data;
-}
-
-function stemOf(rulesyncCheck: RulesyncCheck): string {
-  return basename(rulesyncCheck.getRelativeFilePath(), ".md");
-}
-
-function uniqueName(preferred: string, used: Set<string>): string {
-  let name = preferred;
-  let suffix = 2;
-  while (used.has(name)) {
-    name = `${preferred}-${suffix}`;
-    suffix += 1;
-  }
-  used.add(name);
-  return name;
-}
 
 /**
  * The check body is the instruction text GitLab Duo acts on; the frontmatter
@@ -80,7 +46,7 @@ function toInstructionText(rulesyncCheck: RulesyncCheck): string {
   if (body.length > 0) {
     return body;
   }
-  return rulesyncCheck.getFrontmatter().description?.trim() || stemOf(rulesyncCheck);
+  return rulesyncCheck.getFrontmatter().description?.trim() || checkStem(rulesyncCheck);
 }
 
 function parseInstructionsFile(fileContent: string, filePath: string): Record<string, unknown> {
@@ -197,13 +163,18 @@ export class GitlabduoCheck extends ToolCheck {
 
     const usedNames = new Set<string>();
     const generated: GitlabduoInstruction[] = rulesyncChecks.map((rulesyncCheck) => {
-      const override = parseOverride(
-        rulesyncCheck.getFrontmatter().gitlabduo,
-        join(RULESYNC_CHECKS_RELATIVE_DIR_PATH, rulesyncCheck.getRelativeFilePath()),
+      const override = parseCheckOverride({
+        raw: rulesyncCheck.getFrontmatter().gitlabduo,
+        filePath: join(RULESYNC_CHECKS_RELATIVE_DIR_PATH, rulesyncCheck.getRelativeFilePath()),
+        section: "gitlabduo",
+        schema: GitlabduoCheckOverrideSchema,
         logger,
-      );
+      });
       return {
-        name: uniqueName(override.name ?? stemOf(rulesyncCheck), usedNames),
+        name: uniqueCheckName({
+          preferred: override.name ?? checkStem(rulesyncCheck),
+          used: usedNames,
+        }),
         ...(override.fileFilters &&
           override.fileFilters.length > 0 && { fileFilters: override.fileFilters }),
         instructions: toInstructionText(rulesyncCheck),
@@ -297,7 +268,10 @@ export class GitlabduoCheck extends ToolCheck {
     for (const raw of rawInstructions) {
       const instruction = readInstruction(raw);
       if (!instruction) continue;
-      const fileName = uniqueName(slugifyCheckName(instruction.name) || "check", usedFileNames);
+      const fileName = uniqueCheckName({
+        preferred: slugifyCheckName(instruction.name) || "check",
+        used: usedFileNames,
+      });
       checks.push(
         new RulesyncCheck({
           outputRoot: ".",

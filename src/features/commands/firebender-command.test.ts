@@ -29,7 +29,6 @@ describe("FirebenderCommand", () => {
       relativeFilePath: "review-diff.md",
       frontmatter: { targets: ["*"], ...frontmatter },
       body: "Review the current git diff.",
-      fileContent: "",
     });
 
   it("should use .firebender/commands in both scopes", () => {

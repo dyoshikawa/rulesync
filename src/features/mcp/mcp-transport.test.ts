@@ -6,6 +6,7 @@ import {
   isRemoteMcpServer,
   orphanMcpToolFiltersToRulesync,
   resolveLocalMcpCommand,
+  resolveHttpOrSseRemoteType,
   resolveRemoteMcpUrl,
   warnAndSkipMcpServer,
 } from "./mcp-transport.js";
@@ -58,6 +59,21 @@ describe("resolveRemoteMcpUrl", () => {
     expect(resolveRemoteMcpUrl({ url: "" })).toBeUndefined();
     expect(resolveRemoteMcpUrl({ url: "", httpUrl: "" })).toBeUndefined();
     expect(resolveRemoteMcpUrl({})).toBeUndefined();
+  });
+});
+
+describe("resolveHttpOrSseRemoteType", () => {
+  it.each([
+    ["sse", "https://example.com/mcp", "sse"],
+    ["http", "https://example.com/mcp", "http"],
+    ["streamable-http", "https://example.com/mcp", "http"],
+    [undefined, "https://example.com/mcp", "http"],
+    [undefined, "wss://example.com/mcp", undefined],
+    [undefined, "WS://example.com/mcp", undefined],
+    ["ws", "https://example.com/mcp", undefined],
+    ["stdio", "https://example.com/mcp", undefined],
+  ] as const)("maps stated %s with url %s to %s", (stated, url, expected) => {
+    expect(resolveHttpOrSseRemoteType({ stated, url })).toBe(expected);
   });
 });
 

@@ -4,13 +4,12 @@ import {
   COMMANDCODE_DIR,
   COMMANDCODE_SETTINGS_FILE_NAME,
 } from "../../constants/commandcode-paths.js";
-import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { AiFileParams } from "../../types/ai-file.js";
 import {
   CANONICAL_TO_COMMANDCODE_EVENT_NAMES,
   COMMANDCODE_HOOK_EVENTS,
   COMMANDCODE_TO_CANONICAL_EVENT_NAMES,
 } from "../../types/hooks.js";
-import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import {
@@ -166,17 +165,10 @@ export class CommandcodeHooks extends ToolHooks {
 
   toRulesyncHooks({ logger }: { logger?: Logger } = {}): RulesyncHooks {
     const configPath = join(this.getRelativeDirPath(), this.getRelativeFilePath());
-    let settings: Record<string, unknown>;
-    try {
-      settings = parseCommandcodeSettings(this.getFileContent(), configPath);
-    } catch (error) {
-      throw new Error(
-        `Failed to parse Command Code hooks content in ${configPath}: ${formatError(error)}`,
-        {
-          cause: error,
-        },
-      );
-    }
+    const settings: Record<string, unknown> = this.parseFileContentOrThrow({
+      displayName: "Command Code",
+      parse: (fileContent) => parseCommandcodeSettings(fileContent, configPath),
+    });
     const hooks = toolHooksToCanonical({
       logger,
       hooks: settings.hooks,
@@ -189,10 +181,6 @@ export class CommandcodeHooks extends ToolHooks {
         2,
       ),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({
