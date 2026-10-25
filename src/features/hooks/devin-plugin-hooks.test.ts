@@ -42,6 +42,29 @@ describe("DevinPluginHooks", () => {
     expect(JSON.parse(hooks.getFileContent())).not.toHaveProperty("hooks");
   });
 
+  it("writes the canonical failClosed as fail_closed", async () => {
+    const rulesyncHooks = new RulesyncHooks({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "hooks.json",
+      fileContent: JSON.stringify({
+        version: 1,
+        hooks: { preToolUse: [{ matcher: "exec", command: "./guard.sh", failClosed: true }] },
+      }),
+    });
+
+    const hooks = await DevinPluginHooks.fromRulesyncHooks({ outputRoot: testDir, rulesyncHooks });
+
+    expect(JSON.parse(hooks.getFileContent())).toEqual({
+      PreToolUse: [
+        {
+          matcher: "exec",
+          hooks: [{ type: "command", command: "./guard.sh", fail_closed: true }],
+        },
+      ],
+    });
+  });
+
   it("keeps the trigger matcher of a preCompact hook under PreCompact", async () => {
     const rulesyncHooks = new RulesyncHooks({
       outputRoot: testDir,

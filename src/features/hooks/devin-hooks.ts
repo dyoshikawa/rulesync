@@ -59,6 +59,13 @@ const DEVIN_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   projectDirVar: "",
   supportedHookTypes: new Set(["command", "prompt"]),
   noMatcherEvents: DEVIN_NO_MATCHER_EVENTS,
+  // Devin CLI v3000.11.205+ reads a per-hook `fail_closed: true`, which blocks
+  // the action a hook guards when the hook itself fails to run instead of going
+  // ahead without it — the canonical `failClosed` semantics. Only the changelog
+  // documents the flag so far, and it names no event restriction, so it is
+  // carried on every hook entry.
+  // https://docs.devin.ai/cli/changelog/stable
+  booleanPassthroughFields: [{ canonical: "failClosed", tool: "fail_closed" }],
 };
 
 /**
