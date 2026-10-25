@@ -187,6 +187,65 @@ function copyHermesCostFields({
   return copied;
 }
 
+// Words Hermes's bool-like parser (`tools/mcp_tool_common.py`) reads as on/off.
+const HERMES_TRUE_WORDS = new Set(["true", "1", "yes", "on"]);
+const HERMES_FALSE_WORDS = new Set(["false", "0", "no", "off"]);
+
+/**
+ * Mirrors Hermes's bool-like config parser: a boolean as is, a number as `!== 0`, and
+ * a string in the on/off word sets (trimmed, case-insensitive). Returns
+ * `undefined` for anything else, which Hermes would replace with the default.
+ * Needed because Hermes loads `config.yaml` as YAML 1.1 (unquoted `yes`/`on`
+ * are booleans there) while Rulesync's YAML 1.2 parser yields strings.
+ */
+function parseHermesBoolLike(value: unknown): boolean | undefined {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value !== 0;
+  if (typeof value === "string") {
+    const lowered = value.trim().toLowerCase();
+    if (HERMES_TRUE_WORDS.has(lowered)) return true;
+    if (HERMES_FALSE_WORDS.has(lowered)) return false;
+  }
+  return undefined;
+}
+
+// Per-server toggles Hermes reads with its bool-like parser: `events` (v0.22.5,
+// the experimental webhook-mode MCP events client, which registers
+// `list_event_types`, `subscribe_event` and `unsubscribe_event` for the
+// server; `tools/mcp_tool_events.py`), `lazy` (v0.21, defer the connection
+// until a tool of the server is first used) and
+// `supports_parallel_tool_calls` (`tools/mcp_tool_discovery.py`). All default
+// off.
+const HERMES_BOOL_LIKE_KEYS = ["supports_parallel_tool_calls", "lazy", "events"] as const;
+
+/**
+ * Copies the {@link HERMES_BOOL_LIKE_KEYS} toggles, normalized to booleans the
+ * way Hermes reads them, so a hand-written `events: yes` or `lazy: 1` is not
+ * turned off on regenerate. A value Hermes cannot read as on/off is dropped
+ * with a warning instead of vanishing quietly.
+ */
+function copyHermesBoolLikeFields(
+  source: Record<string, unknown>,
+  target: Record<string, unknown>,
+  logger?: Logger,
+): boolean {
+  let copied = false;
+  for (const key of HERMES_BOOL_LIKE_KEYS) {
+    const raw = source[key];
+    if (raw === undefined) continue;
+    const value = parseHermesBoolLike(raw);
+    if (value === undefined) {
+      logger?.warn(
+        `Hermes MCP: dropping ${key} ${describeHermesValue(raw)}; Hermes expects a boolean (true/false, yes/no, on/off or 1/0).`,
+      );
+      continue;
+    }
+    target[key] = value;
+    copied = true;
+  }
+  return copied;
+}
+
 // Per-server mappings Hermes reads as a whole; see `copyHermesAdvancedFields`.
 const HERMES_OPAQUE_MAPPING_KEYS = [
   "sampling",
@@ -200,7 +259,8 @@ const HERMES_OPAQUE_MAPPING_KEYS = [
  * alias — `auth` (`oauth` for OAuth 2.1/PKCE), mTLS `client_cert` (string PEM
  * path, or `[cert, key]`/`[cert, key, password]` list) and `client_key`,
  * `connect_timeout` (seconds), `supports_parallel_tool_calls`, `protocol`,
- * `lazy`, `keepalive_interval`, `elicitation`, `trust`, `identity_header`, and
+ * `lazy`, `events` (see {@link copyHermesBoolLikeFields}), `keepalive_interval`,
+ * `elicitation`, `trust`, `identity_header`, and
  * the cost keys (see {@link copyHermesCostFields}) —
  * verbatim from `source` to `target`. Field names are identical on both sides
  * (the canonical `McpServerSchema` is a `looseObject`), so this serves export
@@ -228,10 +288,7 @@ function copyHermesAdvancedFields(
     target.connect_timeout = source.connect_timeout;
     copied = true;
   }
-  if (typeof source.supports_parallel_tool_calls === "boolean") {
-    target.supports_parallel_tool_calls = source.supports_parallel_tool_calls;
-    copied = true;
-  }
+  if (copyHermesBoolLikeFields(source, target, logger)) copied = true;
   const oauth = copyHermesOauth(source.oauth);
   if (oauth) {
     target.oauth = oauth;
@@ -248,12 +305,6 @@ function copyHermesAdvancedFields(
   // not turned back into the default on regenerate.
   if (typeof source.protocol === "string") {
     target.protocol = source.protocol;
-    copied = true;
-  }
-  // Defer the connection until a tool of the server is first used (v0.21;
-  // default off, read as a boolean-ish value in `tools/mcp_tool_discovery.py`).
-  if (typeof source.lazy === "boolean") {
-    target.lazy = source.lazy;
     copied = true;
   }
   // TLS verification: `true`/`false` or a PEM CA-bundle path. Landed in the
