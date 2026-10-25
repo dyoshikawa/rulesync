@@ -7,7 +7,7 @@ import {
   FACTORYDROID_SETTINGS_FILE_NAME,
 } from "../../constants/factorydroid-paths.js";
 import { FACTORYDROID_OVERRIDE_KEYS } from "../../constants/factorydroid-settings-keys.js";
-import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { AiFileParams } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFactorydroidSettingsWithLocalOverlay } from "../../utils/factorydroid-settings.js";
@@ -213,10 +213,6 @@ export class FactorydroidPermissions extends ToolPermissions {
     return this.toRulesyncPermissionsDefault({
       fileContent: JSON.stringify(result, null, 2),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

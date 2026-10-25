@@ -6,7 +6,7 @@ import {
   ANTIGRAVITY_CLI_PERMISSIONS_DIR_PATH,
   ANTIGRAVITY_CLI_PERMISSIONS_FILE_NAME,
 } from "../../constants/antigravity-cli-paths.js";
-import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { AiFileParams } from "../../types/ai-file.js";
 import {
   ANTIGRAVITY_CLI_AGENT_MODES,
   ANTIGRAVITY_CLI_ARTIFACT_REVIEW_POLICIES,
@@ -358,10 +358,6 @@ export class AntigravityCliPermissions extends ToolPermissions {
     return this.toRulesyncPermissionsDefault({
       fileContent: JSON.stringify(result, null, 2),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

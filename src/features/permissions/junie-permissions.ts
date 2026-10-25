@@ -1,7 +1,7 @@
 import { join } from "node:path";
 
 import { JUNIE_DIR, JUNIE_PERMISSIONS_FILE_NAME } from "../../constants/junie-paths.js";
-import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { AiFileParams } from "../../types/ai-file.js";
 import {
   type PermissionAction,
   PermissionActionSchema,
@@ -350,10 +350,6 @@ export class JuniePermissions extends ToolPermissions {
     return this.toRulesyncPermissionsDefault({
       fileContent: JSON.stringify(result, null, 2),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

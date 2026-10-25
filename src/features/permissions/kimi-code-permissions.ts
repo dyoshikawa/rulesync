@@ -2,7 +2,7 @@ import { join } from "node:path";
 
 import { KIMI_CODE_CONFIG_FILE_NAME } from "../../constants/kimi-code-paths.js";
 import type { SharedWritePath } from "../../lib/shared-file-derive.js";
-import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { AiFileParams } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
@@ -368,10 +368,6 @@ export class KimiCodePermissions extends ToolPermissions {
       relativeDirPath: getKimiCodeRelativeDirPath({ global }),
       relativeFilePath: KIMI_CODE_CONFIG_FILE_NAME,
     };
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   override isDeletable(): boolean {

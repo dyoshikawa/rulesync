@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { dump } from "js-yaml";
 
 import { CONTINUE_DIR, CONTINUE_PERMISSIONS_FILE_NAME } from "../../constants/continue-paths.js";
-import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { AiFileParams } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
@@ -275,10 +275,6 @@ export class ContinuePermissions extends ToolPermissions {
     return this.toRulesyncPermissionsDefault({
       fileContent: JSON.stringify(rulesyncConfig, null, 2),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

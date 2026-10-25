@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { dump } from "js-yaml";
 
 import { GOOSE_GLOBAL_DIR, GOOSE_PERMISSIONS_FILE_NAME } from "../../constants/goose-paths.js";
-import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { AiFileParams } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
@@ -232,10 +232,6 @@ export class GoosePermissions extends ToolPermissions {
     return this.toRulesyncPermissionsDefault({
       fileContent: JSON.stringify(rulesyncConfig, null, 2),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

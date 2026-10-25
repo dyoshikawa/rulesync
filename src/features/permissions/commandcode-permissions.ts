@@ -6,7 +6,7 @@ import {
   COMMANDCODE_DIR,
   COMMANDCODE_SETTINGS_FILE_NAME,
 } from "../../constants/commandcode-paths.js";
-import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { AiFileParams } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
@@ -828,10 +828,6 @@ export class CommandcodePermissions extends ToolPermissions {
     return this.toRulesyncPermissionsDefault({
       fileContent: JSON.stringify({ permission: parseCommandcodeRuleLists(permissions) }, null, 2),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

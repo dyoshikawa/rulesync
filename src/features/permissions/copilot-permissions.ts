@@ -6,7 +6,7 @@ import {
   COPILOT_MCP_DIR,
   COPILOT_VSCODE_SETTINGS_FILE_NAME,
 } from "../../constants/copilot-paths.js";
-import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { AiFileParams } from "../../types/ai-file.js";
 import {
   COPILOT_DEFAULT_PERMISSION_MODES,
   type CopilotDefaultPermissionMode,
@@ -505,10 +505,6 @@ export class CopilotPermissions extends ToolPermissions {
         2,
       ),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

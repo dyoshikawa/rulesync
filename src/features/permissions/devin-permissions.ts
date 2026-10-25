@@ -8,7 +8,7 @@ import {
   DEVIN_DIR,
   DEVIN_GLOBAL_CONFIG_DIR_PATH,
 } from "../../constants/devin-paths.js";
-import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { AiFileParams } from "../../types/ai-file.js";
 import {
   DEVIN_PLUGIN_GOVERNANCE_SCHEMAS,
   type PermissionAction,
@@ -488,10 +488,6 @@ export class DevinPermissions extends ToolPermissions {
     return this.toRulesyncPermissionsDefault({
       fileContent: JSON.stringify(result, null, 2),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

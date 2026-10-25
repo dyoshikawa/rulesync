@@ -1,7 +1,7 @@
 import { join } from "node:path";
 
 import { BOB_GLOBAL_SETTINGS_DIR_PATH, BOB_SETTINGS_FILE_NAME } from "../../constants/bob-paths.js";
-import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { AiFileParams } from "../../types/ai-file.js";
 import type {
   BobPermissionsOverride,
   PermissionAction,
@@ -604,10 +604,6 @@ export class BobPermissions extends ToolPermissions {
         2,
       ),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

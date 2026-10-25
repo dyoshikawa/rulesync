@@ -4,7 +4,7 @@ import { uniq } from "es-toolkit";
 import * as smolToml from "smol-toml";
 
 import { GROKCLI_CONFIG_FILE_NAME, GROKCLI_DIR } from "../../constants/grokcli-paths.js";
-import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { AiFileParams } from "../../types/ai-file.js";
 import {
   PermissionActionSchema,
   type PermissionAction,
@@ -498,10 +498,6 @@ export class GrokcliPermissions extends ToolPermissions {
     return this.toRulesyncPermissionsDefault({
       fileContent: JSON.stringify(rulesyncConfig, null, 2),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

@@ -4,7 +4,7 @@ import { uniq } from "es-toolkit";
 import * as smolToml from "smol-toml";
 
 import { DEEPAGENTS_CONFIG_FILE_NAME, DEEPAGENTS_DIR } from "../../constants/deepagents-paths.js";
-import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { AiFileParams } from "../../types/ai-file.js";
 import type {
   DeepagentsPermissionsOverride,
   PermissionAction,
@@ -444,10 +444,6 @@ export class DeepagentsPermissions extends ToolPermissions {
       sourcePath: this.getRelativePathFromCwd(),
       fileContent: JSON.stringify(result, null, 2),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

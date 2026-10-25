@@ -339,10 +339,6 @@ export class CodexcliPermissions extends ToolPermissions {
     });
   }
 
-  validate(): ValidationResult {
-    return { success: true, error: null };
-  }
-
   static forDeletion({
     outputRoot = process.cwd(),
     relativeDirPath,

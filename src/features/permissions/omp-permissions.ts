@@ -1,7 +1,7 @@
 import { join } from "node:path";
 
 import { OMP_CONFIG_FILE_NAME, OMP_DIR, OMP_GLOBAL_DIR } from "../../constants/omp-paths.js";
-import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { AiFileParams } from "../../types/ai-file.js";
 import {
   OMP_APPROVAL_MODES,
   type OmpApprovalMode,
@@ -247,10 +247,6 @@ export class OmpPermissions extends ToolPermissions {
     return this.toRulesyncPermissionsDefault({
       fileContent: JSON.stringify(convertOmpToRulesync(config), null, 2),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

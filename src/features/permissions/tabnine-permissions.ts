@@ -6,7 +6,7 @@ import {
   TABNINE_AGENT_DIR_PATH,
   TABNINE_SETTINGS_FILE_NAME,
 } from "../../constants/tabnine-paths.js";
-import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { AiFileParams } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
@@ -1019,10 +1019,6 @@ export class TabninePermissions extends ToolPermissions {
         { cause: error },
       );
     }
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

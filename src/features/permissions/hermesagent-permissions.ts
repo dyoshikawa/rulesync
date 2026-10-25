@@ -5,7 +5,7 @@ import {
   HERMESAGENT_GLOBAL_DIR,
 } from "../../constants/hermesagent-paths.js";
 import type { SharedWritePath } from "../../lib/shared-file-derive.js";
-import { type AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { AiFileParams } from "../../types/ai-file.js";
 import {
   type PermissionAction,
   type PermissionsConfig,
@@ -245,10 +245,6 @@ export class HermesagentPermissions extends ToolPermissions {
       ...params,
       ...HermesagentPermissions.getSettablePaths({ global: params.global }),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   override isDeletable(): boolean {

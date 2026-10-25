@@ -5,7 +5,7 @@ import {
   COPILOTCLI_PROJECT_SETTINGS_DIR_PATH,
   COPILOTCLI_SETTINGS_FILE_NAME,
 } from "../../constants/copilot-paths.js";
-import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { AiFileParams } from "../../types/ai-file.js";
 import type { PermissionAction } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
@@ -222,10 +222,6 @@ export class CopilotcliPermissions extends ToolPermissions {
         { cause: error },
       );
     }
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({
