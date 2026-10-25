@@ -59,7 +59,7 @@ export type DoctorDiagnostic = {
 };
 
 export type DoctorOptions = {
-  config?: string;
+  configPath?: string;
   strict?: boolean;
   verbose?: boolean;
   silent?: boolean;
@@ -961,7 +961,7 @@ function reportDiagnostics({
  */
 export async function doctorCommand(logger: Logger, options: DoctorOptions): Promise<void> {
   const cwd = process.cwd();
-  const configPath = options.config ?? RULESYNC_CONFIG_RELATIVE_FILE_PATH;
+  const configPath = options.configPath ?? RULESYNC_CONFIG_RELATIVE_FILE_PATH;
   const validatedConfigPath = resolvePath(configPath, cwd);
   const localConfigPath = join(
     dirname(validatedConfigPath),
@@ -1020,7 +1020,7 @@ export async function doctorCommand(logger: Logger, options: DoctorOptions): Pro
   // config itself has errors, which already fail the run.
   if (!diagnostics.some((d) => d.severity === "error")) {
     diagnostics.push(
-      ...(await checkCodexcliInstructionBudget({ configPath: options.config, toDisplayPath })),
+      ...(await checkCodexcliInstructionBudget({ configPath: options.configPath, toDisplayPath })),
     );
   }
 

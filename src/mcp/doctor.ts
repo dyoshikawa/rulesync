@@ -30,7 +30,7 @@ export async function executeDoctor(options: DoctorOptions = {}): Promise<McpCom
         await assertPathOptionWithinCwd({ path: options.configPath, label: "configPath" });
       }
       await doctorCommand(logger, {
-        config: options.configPath,
+        configPath: options.configPath,
         strict: options.strict,
         verbose: false,
         silent: true,
