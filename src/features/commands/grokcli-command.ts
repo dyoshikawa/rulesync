@@ -4,24 +4,15 @@ import { z } from "zod/mini";
 
 import { GROKCLI_COMMANDS_DIR_PATH } from "../../constants/grokcli-paths.js";
 import { SKILLS_FEATURE_SUBDIR } from "../../constants/rulesync-paths.js";
-import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
-import { formatError } from "../../utils/error.js";
-import { readFileContent } from "../../utils/file.js";
-import {
-  parseFrontmatter,
-  stringifyFrontmatter,
-  validateFrontmatterSchema,
-} from "../../utils/frontmatter.js";
+import type { ToolTarget } from "../../types/tool-targets.js";
 import type { Logger } from "../../utils/logger.js";
 import { listSkillDirNames } from "../skills/skills-utils.js";
-import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
 import {
-  ToolCommand,
-  ToolCommandForDeletionParams,
-  ToolCommandFromFileParams,
-  ToolCommandFromRulesyncCommandParams,
-  ToolCommandSettablePaths,
-} from "./tool-command.js";
+  FrontmatterMarkdownToolCommand,
+  type FrontmatterMarkdownToolCommandParams,
+} from "./frontmatter-markdown-command.js";
+import type { RulesyncCommand } from "./rulesync-command.js";
+import type { ToolCommandSettablePaths } from "./tool-command.js";
 
 /**
  * Grok CLI custom slash commands are Markdown files under `.grok/commands/`
@@ -51,35 +42,9 @@ const GrokcliCommandFrontmatterSchema = z.looseObject({
 
 export type GrokcliCommandFrontmatter = z.infer<typeof GrokcliCommandFrontmatterSchema>;
 
-export type GrokcliCommandParams = {
-  frontmatter: GrokcliCommandFrontmatter;
-  body: string;
-} & Omit<AiFileParams, "fileContent">;
+export type GrokcliCommandParams = FrontmatterMarkdownToolCommandParams<GrokcliCommandFrontmatter>;
 
-export class GrokcliCommand extends ToolCommand {
-  private readonly frontmatter: GrokcliCommandFrontmatter;
-  private readonly body: string;
-
-  constructor({ frontmatter, body, ...rest }: GrokcliCommandParams) {
-    // Validate frontmatter before calling super to avoid validation order issues
-    if (rest.validate) {
-      const result = GrokcliCommandFrontmatterSchema.safeParse(frontmatter);
-      if (!result.success) {
-        throw new Error(
-          `Invalid frontmatter in ${join(rest.relativeDirPath, rest.relativeFilePath)}: ${formatError(result.error)}`,
-        );
-      }
-    }
-
-    super({
-      ...rest,
-      fileContent: stringifyFrontmatter(body, frontmatter),
-    });
-
-    this.frontmatter = frontmatter;
-    this.body = body;
-  }
-
+export class GrokcliCommand extends FrontmatterMarkdownToolCommand<GrokcliCommandFrontmatter> {
   static getSettablePaths(_options: { global?: boolean } = {}): ToolCommandSettablePaths {
     // Both scopes use the same relative dir; the processor supplies the home
     // directory as outputRoot in global mode.
@@ -88,85 +53,17 @@ export class GrokcliCommand extends ToolCommand {
     };
   }
 
-  getBody(): string {
-    return this.body;
+  // `user-invocable` / `disable-model-invocation` are read from the `grokcli`
+  // section only, not from a shared root key the way `GrokcliSkill` reads
+  // them: the canonical command frontmatter has no root-level equivalent (it
+  // carries `targets` and `description` and nothing else), so this matches
+  // how every other commands adapter handles its tool-only keys.
+  protected static override getToolTarget(): ToolTarget {
+    return "grokcli";
   }
 
-  getFrontmatter(): Record<string, unknown> {
-    return this.frontmatter;
-  }
-
-  toRulesyncCommand(): RulesyncCommand {
-    const { description, ...restFields } = this.frontmatter;
-
-    const rulesyncFrontmatter: RulesyncCommandFrontmatter = {
-      targets: ["*"],
-      description,
-      // Preserve the Grok-only fields in the grokcli section
-      ...(Object.keys(restFields).length > 0 && { grokcli: restFields }),
-    };
-
-    return new RulesyncCommand({
-      outputRoot: ".", // RulesyncCommand outputRoot is always the project root directory
-      frontmatter: rulesyncFrontmatter,
-      body: this.body,
-      relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
-      relativeFilePath: this.relativeFilePath,
-      validate: true,
-    });
-  }
-
-  static fromRulesyncCommand({
-    outputRoot = process.cwd(),
-    rulesyncCommand,
-    validate = true,
-    global = false,
-  }: ToolCommandFromRulesyncCommandParams): GrokcliCommand {
-    const rulesyncFrontmatter = rulesyncCommand.getFrontmatter();
-
-    // `user-invocable` / `disable-model-invocation` are read from the `grokcli`
-    // section only, not from a shared root key the way `GrokcliSkill` reads
-    // them: the canonical command frontmatter has no root-level equivalent (it
-    // carries `targets` and `description` and nothing else), so this matches
-    // how every other commands adapter handles its tool-only keys.
-    const grokcliFields = rulesyncFrontmatter.grokcli ?? {};
-
-    const grokcliFrontmatter: GrokcliCommandFrontmatter = {
-      description: rulesyncFrontmatter.description,
-      ...grokcliFields,
-    };
-
-    const paths = this.getSettablePaths({ global });
-
-    return new GrokcliCommand({
-      outputRoot,
-      frontmatter: grokcliFrontmatter,
-      body: rulesyncCommand.getBody(),
-      relativeDirPath: paths.relativeDirPath,
-      relativeFilePath: rulesyncCommand.getRelativeFilePath(),
-      validate,
-    });
-  }
-
-  validate(): ValidationResult {
-    // Check if frontmatter is set (may be undefined during construction)
-    if (!this.frontmatter) {
-      return { success: true, error: null };
-    }
-
-    return validateFrontmatterSchema({
-      schema: GrokcliCommandFrontmatterSchema,
-      frontmatter: this.frontmatter,
-      relativeDirPath: this.relativeDirPath,
-      relativeFilePath: this.relativeFilePath,
-    });
-  }
-
-  static isTargetedByRulesyncCommand(rulesyncCommand: RulesyncCommand): boolean {
-    return this.isTargetedByRulesyncCommandDefault({
-      rulesyncCommand,
-      toolTarget: "grokcli",
-    });
+  protected static override getFrontmatterSchema() {
+    return GrokcliCommandFrontmatterSchema;
   }
 
   /**
@@ -212,46 +109,5 @@ export class GrokcliCommand extends ToolCommand {
           `Rename either side to make both invocable.`,
       );
     }
-  }
-
-  static async fromFile({
-    outputRoot = process.cwd(),
-    relativeFilePath,
-    validate = true,
-    global = false,
-  }: ToolCommandFromFileParams): Promise<GrokcliCommand> {
-    const paths = this.getSettablePaths({ global });
-    const filePath = join(outputRoot, paths.relativeDirPath, relativeFilePath);
-    const fileContent = await readFileContent(filePath);
-    const { frontmatter, body: content } = parseFrontmatter(fileContent, filePath);
-
-    const result = GrokcliCommandFrontmatterSchema.safeParse(frontmatter);
-    if (!result.success) {
-      throw new Error(`Invalid frontmatter in ${filePath}: ${formatError(result.error)}`);
-    }
-
-    return new GrokcliCommand({
-      outputRoot,
-      relativeDirPath: paths.relativeDirPath,
-      relativeFilePath,
-      frontmatter: result.data,
-      body: content.trim(),
-      validate,
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolCommandForDeletionParams): GrokcliCommand {
-    return new GrokcliCommand({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      frontmatter: { description: "" },
-      body: "",
-      validate: false,
-    });
   }
 }
