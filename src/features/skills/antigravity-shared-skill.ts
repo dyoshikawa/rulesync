@@ -117,10 +117,6 @@ export class AntigravitySharedSkill extends ToolSkill {
     return result;
   }
 
-  getBody(): string {
-    return this.mainFile?.body ?? "";
-  }
-
   validate(): ValidationResult {
     if (this.mainFile === undefined) {
       return {

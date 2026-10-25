@@ -306,10 +306,6 @@ export class CodexCliSkill extends ToolSkill {
     return result;
   }
 
-  getBody(): string {
-    return this.mainFile?.body ?? "";
-  }
-
   validate(): ValidationResult {
     if (!this.mainFile) {
       return {

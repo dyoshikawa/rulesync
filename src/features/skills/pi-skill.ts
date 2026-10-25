@@ -112,10 +112,6 @@ export class PiSkill extends ToolSkill {
     return PiSkillFrontmatterSchema.parse(this.requireMainFileFrontmatter());
   }
 
-  getBody(): string {
-    return this.mainFile?.body ?? "";
-  }
-
   validate(): ValidationResult {
     if (!this.mainFile) {
       return {

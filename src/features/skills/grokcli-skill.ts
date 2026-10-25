@@ -134,10 +134,6 @@ export class GrokcliSkill extends ToolSkill {
     return GrokcliSkillFrontmatterSchema.parse(this.requireMainFileFrontmatter());
   }
 
-  getBody(): string {
-    return this.mainFile?.body ?? "";
-  }
-
   validate(): ValidationResult {
     if (this.mainFile === undefined) {
       return {

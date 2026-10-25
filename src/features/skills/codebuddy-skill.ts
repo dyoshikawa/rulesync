@@ -105,10 +105,6 @@ export class CodebuddySkill extends ToolSkill {
     return CodebuddySkillFrontmatterSchema.parse(this.requireMainFileFrontmatter());
   }
 
-  getBody(): string {
-    return this.mainFile?.body ?? "";
-  }
-
   validate(): ValidationResult {
     if (!this.mainFile) {
       return {

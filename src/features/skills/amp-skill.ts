@@ -94,10 +94,6 @@ export class AmpSkill extends ToolSkill {
     return AmpSkillFrontmatterSchema.parse(this.requireMainFileFrontmatter());
   }
 
-  getBody(): string {
-    return this.mainFile?.body ?? "";
-  }
-
   validate(): ValidationResult {
     if (!this.mainFile) {
       return {

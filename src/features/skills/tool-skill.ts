@@ -302,6 +302,11 @@ export abstract class ToolSkill extends AiDir {
     };
   }
 
+  /** The SKILL.md body, or an empty string when the main file is missing. */
+  getBody(): string {
+    return this.mainFile?.body ?? "";
+  }
+
   protected requireMainFileFrontmatter(): Record<string, unknown> {
     if (!this.mainFile?.frontmatter) {
       throw new Error(`Frontmatter is not defined in ${join(this.relativeDirPath, this.dirName)}`);

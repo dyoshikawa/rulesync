@@ -117,10 +117,6 @@ export class DshSkill extends ToolSkill {
     return DshSkillFrontmatterSchema.parse(this.requireMainFileFrontmatter());
   }
 
-  getBody(): string {
-    return this.mainFile?.body ?? "";
-  }
-
   validate(): ValidationResult {
     if (this.mainFile === undefined) {
       return {

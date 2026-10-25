@@ -122,10 +122,6 @@ export class ReasonixSkill extends ToolSkill {
     return ReasonixSkillFrontmatterSchema.parse(this.requireMainFileFrontmatter());
   }
 
-  getBody(): string {
-    return this.mainFile?.body ?? "";
-  }
-
   validate(): ValidationResult {
     if (this.mainFile === undefined) {
       return {

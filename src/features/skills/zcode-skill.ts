@@ -127,10 +127,6 @@ export class ZcodeSkill extends ToolSkill {
     return ZcodeSkillFrontmatterSchema.parse(this.requireMainFileFrontmatter());
   }
 
-  getBody(): string {
-    return this.mainFile?.body ?? "";
-  }
-
   validate(): ValidationResult {
     if (this.mainFile === undefined) {
       return {

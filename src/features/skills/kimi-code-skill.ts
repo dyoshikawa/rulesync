@@ -131,10 +131,6 @@ export class KimiCodeSkill extends ToolSkill {
     return KimiCodeSkillFrontmatterSchema.parse(this.requireMainFileFrontmatter());
   }
 
-  getBody(): string {
-    return this.mainFile?.body ?? "";
-  }
-
   override getImportIdentity(): string {
     return this.getFrontmatter().name.toLowerCase();
   }

@@ -121,10 +121,6 @@ export class CrushSkill extends ToolSkill {
     return CrushSkillFrontmatterSchema.parse(this.requireMainFileFrontmatter());
   }
 
-  getBody(): string {
-    return this.mainFile?.body ?? "";
-  }
-
   validate(): ValidationResult {
     if (!this.mainFile) {
       return {
