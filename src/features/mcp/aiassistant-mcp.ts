@@ -15,6 +15,11 @@ import {
   ToolMcpSettablePaths,
 } from "./tool-mcp.js";
 
+/**
+ * JetBrains AI Assistant's `mcp.json`. Its statics build `new this(...)` so
+ * `JunieMcp`, the same format at another path, only overrides
+ * `getSettablePaths`.
+ */
 export class AiassistantMcp extends ToolMcp {
   private readonly json: Record<string, unknown>;
 
@@ -52,7 +57,7 @@ export class AiassistantMcp extends ToolMcp {
       join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
     );
 
-    return new AiassistantMcp({
+    return new this({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
@@ -80,7 +85,7 @@ export class AiassistantMcp extends ToolMcp {
       2,
     );
 
-    return new AiassistantMcp({
+    return new this({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
@@ -100,7 +105,7 @@ export class AiassistantMcp extends ToolMcp {
     relativeFilePath,
     global = false,
   }: ToolMcpForDeletionParams): AiassistantMcp {
-    return new AiassistantMcp({
+    return new this({
       outputRoot,
       relativeDirPath,
       relativeFilePath,
