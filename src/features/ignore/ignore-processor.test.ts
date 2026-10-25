@@ -448,32 +448,6 @@ describe("IgnoreProcessor", () => {
     });
   });
 
-  describe("writeToolIgnoresFromRulesyncIgnores", () => {
-    it("should convert and write tool ignores from rulesync ignores", async () => {
-      const mockRulesyncIgnore = Object.create(RulesyncIgnore.prototype);
-      Object.assign(mockRulesyncIgnore, {
-        outputRoot: testDir,
-        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
-        relativeFilePath: RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
-        fileContent: "*.log\nnode_modules/",
-        getFileContent: () => "*.log\nnode_modules/",
-      });
-
-      const processor = new IgnoreProcessor({ logger, outputRoot: testDir, toolTarget: "cursor" });
-
-      // Mock the writeAiFiles method
-      const writeAiFilesSpy = vi.spyOn(processor as any, "writeAiFiles");
-      writeAiFilesSpy.mockResolvedValue(undefined);
-
-      await processor.writeToolIgnoresFromRulesyncIgnores([mockRulesyncIgnore]);
-
-      expect(writeAiFilesSpy).toHaveBeenCalledTimes(1);
-      expect(writeAiFilesSpy).toHaveBeenCalledWith(
-        expect.arrayContaining([expect.any(ToolIgnore)]),
-      );
-    });
-  });
-
   describe("getToolTargets", () => {
     it("should return all supported tool targets", () => {
       const toolTargets = IgnoreProcessor.getToolTargets();
