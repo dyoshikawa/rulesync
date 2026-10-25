@@ -1,16 +1,6 @@
-import { join } from "node:path";
-
 import { LETTACODE_DIR, LETTACODE_IGNORE_FILE_NAME } from "../../constants/lettacode-paths.js";
-import { readFileContent } from "../../utils/file.js";
-import { RulesyncIgnore } from "./rulesync-ignore.js";
-import type {
-  ToolIgnoreForDeletionParams,
-  ToolIgnoreFromFileParams,
-  ToolIgnoreFromRulesyncIgnoreParams,
-  ToolIgnoreSettablePaths,
-  ToolIgnoreSettablePathsParams,
-} from "./tool-ignore.js";
-import { ToolIgnore } from "./tool-ignore.js";
+import { PlainToolIgnore } from "./plain-tool-ignore.js";
+import type { ToolIgnoreSettablePaths, ToolIgnoreSettablePathsParams } from "./tool-ignore.js";
 
 /**
  * Letta Code ignore file implementation.
@@ -22,65 +12,12 @@ import { ToolIgnore } from "./tool-ignore.js";
  *
  * @see https://docs.letta.com/reference/settings/index.md
  */
-export class LettacodeIgnore extends ToolIgnore {
+export class LettacodeIgnore extends PlainToolIgnore {
   static getSettablePaths(_params: ToolIgnoreSettablePathsParams = {}): ToolIgnoreSettablePaths {
     // Project scope only; the processor never asks for global paths.
     return {
       relativeDirPath: LETTACODE_DIR,
       relativeFilePath: LETTACODE_IGNORE_FILE_NAME,
     };
-  }
-
-  toRulesyncIgnore(): RulesyncIgnore {
-    return this.toRulesyncIgnoreDefault();
-  }
-
-  static fromRulesyncIgnore({
-    outputRoot = process.cwd(),
-    rulesyncIgnore,
-    global = false,
-  }: ToolIgnoreFromRulesyncIgnoreParams): LettacodeIgnore {
-    const paths = this.getSettablePaths({ global });
-    return new LettacodeIgnore({
-      outputRoot,
-      relativeDirPath: paths.relativeDirPath,
-      relativeFilePath: paths.relativeFilePath,
-      fileContent: rulesyncIgnore.getFileContent(),
-      global,
-    });
-  }
-
-  static async fromFile({
-    outputRoot = process.cwd(),
-    validate = true,
-    global = false,
-  }: ToolIgnoreFromFileParams): Promise<LettacodeIgnore> {
-    const { relativeDirPath, relativeFilePath } = this.getSettablePaths({ global });
-    const fileContent = await readFileContent(join(outputRoot, relativeDirPath, relativeFilePath));
-
-    return new LettacodeIgnore({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent,
-      validate,
-      global,
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-    global = false,
-  }: ToolIgnoreForDeletionParams): LettacodeIgnore {
-    return new LettacodeIgnore({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: "",
-      validate: false,
-      global,
-    });
   }
 }

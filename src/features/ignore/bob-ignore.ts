@@ -1,15 +1,6 @@
-import { join } from "node:path";
-
 import { BOB_IGNORE_FILE_NAME } from "../../constants/bob-paths.js";
-import { readFileContent } from "../../utils/file.js";
-import { RulesyncIgnore } from "./rulesync-ignore.js";
-import {
-  ToolIgnore,
-  ToolIgnoreForDeletionParams,
-  ToolIgnoreFromFileParams,
-  ToolIgnoreFromRulesyncIgnoreParams,
-  ToolIgnoreSettablePaths,
-} from "./tool-ignore.js";
+import { PlainToolIgnore } from "./plain-tool-ignore.js";
+import { ToolIgnoreSettablePaths } from "./tool-ignore.js";
 
 /**
  * BobIgnore represents the `.bobignore` file of IBM Bob.
@@ -21,60 +12,11 @@ import {
  *
  * @see https://bob.ibm.com/docs/ide/configuration/bobignore
  */
-export class BobIgnore extends ToolIgnore {
+export class BobIgnore extends PlainToolIgnore {
   static getSettablePaths(): ToolIgnoreSettablePaths {
     return {
       relativeDirPath: ".",
       relativeFilePath: BOB_IGNORE_FILE_NAME,
     };
-  }
-
-  toRulesyncIgnore(): RulesyncIgnore {
-    return this.toRulesyncIgnoreDefault();
-  }
-
-  static fromRulesyncIgnore({
-    outputRoot = process.cwd(),
-    rulesyncIgnore,
-  }: ToolIgnoreFromRulesyncIgnoreParams): BobIgnore {
-    const paths = this.getSettablePaths();
-    return new BobIgnore({
-      outputRoot,
-      relativeDirPath: paths.relativeDirPath,
-      relativeFilePath: paths.relativeFilePath,
-      fileContent: rulesyncIgnore.getFileContent(),
-    });
-  }
-
-  static async fromFile({
-    outputRoot = process.cwd(),
-    validate = true,
-  }: ToolIgnoreFromFileParams): Promise<BobIgnore> {
-    const paths = this.getSettablePaths();
-    const fileContent = await readFileContent(
-      join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
-    );
-
-    return new BobIgnore({
-      outputRoot,
-      relativeDirPath: paths.relativeDirPath,
-      relativeFilePath: paths.relativeFilePath,
-      fileContent,
-      validate,
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolIgnoreForDeletionParams): BobIgnore {
-    return new BobIgnore({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: "",
-      validate: false,
-    });
   }
 }

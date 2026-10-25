@@ -1,15 +1,6 @@
-import { join } from "node:path";
-
 import { AUGMENTCODE_IGNORE_FILE_NAME } from "../../constants/augmentcode-paths.js";
-import { readFileContent } from "../../utils/file.js";
-import { RulesyncIgnore } from "./rulesync-ignore.js";
-import {
-  ToolIgnore,
-  ToolIgnoreForDeletionParams,
-  ToolIgnoreFromFileParams,
-  ToolIgnoreFromRulesyncIgnoreParams,
-  ToolIgnoreSettablePaths,
-} from "./tool-ignore.js";
+import { PlainToolIgnore } from "./plain-tool-ignore.js";
+import { ToolIgnoreSettablePaths } from "./tool-ignore.js";
 
 /**
  * AugmentCode Ignore implementation
@@ -30,73 +21,11 @@ import {
  * - Supports wildcards (*, ?, **)
  * - Leading ! negates patterns (re-includes files)
  */
-export class AugmentcodeIgnore extends ToolIgnore {
+export class AugmentcodeIgnore extends PlainToolIgnore {
   static getSettablePaths(): ToolIgnoreSettablePaths {
     return {
       relativeDirPath: ".",
       relativeFilePath: AUGMENTCODE_IGNORE_FILE_NAME,
     };
-  }
-
-  /**
-   * Convert to RulesyncIgnore format
-   */
-  toRulesyncIgnore(): RulesyncIgnore {
-    return this.toRulesyncIgnoreDefault();
-  }
-
-  /**
-   * Create AugmentcodeIgnore from RulesyncIgnore
-   * Supports conversion from unified rulesync format to AugmentCode specific format
-   */
-  static fromRulesyncIgnore({
-    outputRoot = process.cwd(),
-    rulesyncIgnore,
-  }: ToolIgnoreFromRulesyncIgnoreParams): AugmentcodeIgnore {
-    return new AugmentcodeIgnore({
-      outputRoot,
-      relativeDirPath: this.getSettablePaths().relativeDirPath,
-      relativeFilePath: this.getSettablePaths().relativeFilePath,
-      fileContent: rulesyncIgnore.getFileContent(),
-    });
-  }
-
-  /**
-   * Create AugmentcodeIgnore from file path
-   * Reads and parses .augmentignore file
-   */
-  static async fromFile({
-    outputRoot = process.cwd(),
-    validate = true,
-  }: ToolIgnoreFromFileParams): Promise<AugmentcodeIgnore> {
-    const fileContent = await readFileContent(
-      join(
-        outputRoot,
-        this.getSettablePaths().relativeDirPath,
-        this.getSettablePaths().relativeFilePath,
-      ),
-    );
-
-    return new AugmentcodeIgnore({
-      outputRoot,
-      relativeDirPath: this.getSettablePaths().relativeDirPath,
-      relativeFilePath: this.getSettablePaths().relativeFilePath,
-      fileContent,
-      validate,
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolIgnoreForDeletionParams): AugmentcodeIgnore {
-    return new AugmentcodeIgnore({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: "",
-      validate: false,
-    });
   }
 }

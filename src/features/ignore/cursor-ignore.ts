@@ -1,16 +1,8 @@
-import { join } from "node:path";
-
 import { CURSOR_IGNORE_FILE_NAME } from "../../constants/cursor-paths.js";
 import { RULESYNC_AIIGNORE_RELATIVE_FILE_PATH } from "../../constants/rulesync-paths.js";
-import { readFileContent } from "../../utils/file.js";
+import { PlainToolIgnore } from "./plain-tool-ignore.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
-import {
-  ToolIgnore,
-  ToolIgnoreForDeletionParams,
-  ToolIgnoreFromFileParams,
-  ToolIgnoreFromRulesyncIgnoreParams,
-  ToolIgnoreSettablePaths,
-} from "./tool-ignore.js";
+import { ToolIgnoreSettablePaths } from "./tool-ignore.js";
 
 /**
  * Cursor ignore adapter.
@@ -30,7 +22,7 @@ import {
  *
  * @see https://cursor.com/docs/reference/ignore-file
  */
-export class CursorIgnore extends ToolIgnore {
+export class CursorIgnore extends PlainToolIgnore {
   static getSettablePaths(): ToolIgnoreSettablePaths {
     return {
       relativeDirPath: ".",
@@ -44,55 +36,6 @@ export class CursorIgnore extends ToolIgnore {
       relativeDirPath: ".",
       relativeFilePath: RULESYNC_AIIGNORE_RELATIVE_FILE_PATH,
       fileContent: this.fileContent,
-    });
-  }
-
-  static fromRulesyncIgnore({
-    outputRoot = process.cwd(),
-    rulesyncIgnore,
-  }: ToolIgnoreFromRulesyncIgnoreParams): CursorIgnore {
-    const body = rulesyncIgnore.getFileContent();
-
-    return new CursorIgnore({
-      outputRoot,
-      relativeDirPath: this.getSettablePaths().relativeDirPath,
-      relativeFilePath: this.getSettablePaths().relativeFilePath,
-      fileContent: body,
-    });
-  }
-
-  static async fromFile({
-    outputRoot = process.cwd(),
-    validate = true,
-  }: ToolIgnoreFromFileParams): Promise<CursorIgnore> {
-    const fileContent = await readFileContent(
-      join(
-        outputRoot,
-        this.getSettablePaths().relativeDirPath,
-        this.getSettablePaths().relativeFilePath,
-      ),
-    );
-
-    return new CursorIgnore({
-      outputRoot,
-      relativeDirPath: this.getSettablePaths().relativeDirPath,
-      relativeFilePath: this.getSettablePaths().relativeFilePath,
-      fileContent,
-      validate,
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolIgnoreForDeletionParams): CursorIgnore {
-    return new CursorIgnore({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: "",
-      validate: false,
     });
   }
 }
