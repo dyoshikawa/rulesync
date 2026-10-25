@@ -1,10 +1,13 @@
 import { join } from "node:path";
 
+import { z } from "zod/mini";
+
 import { AGENTSMD_SKILLS_DIR_PATH } from "../../constants/agentsmd-paths.js";
 import { AMP_SKILLS_GLOBAL_DIR } from "../../constants/amp-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
-import { AiDir } from "../../types/ai-dir.js";
+import { AiDir, ValidationResult } from "../../types/ai-dir.js";
 import { stripControlCharacters } from "../../utils/control-characters.js";
+import { formatError } from "../../utils/error.js";
 import { fileExists, readFileContent, toPosixPath } from "../../utils/file.js";
 import { parseFrontmatterWithYamlRepair } from "../../utils/frontmatter.js";
 import { type Logger, warnOnceWithFallback } from "../../utils/logger.js";
@@ -305,6 +308,62 @@ export abstract class ToolSkill extends AiDir {
   /** The SKILL.md body, or an empty string when the main file is missing. */
   getBody(): string {
     return this.mainFile?.body ?? "";
+  }
+
+  /**
+   * The common `validate()` body: the SKILL.md main file must exist and its
+   * frontmatter must satisfy the tool's schema.
+   */
+  protected validateMainFileFrontmatter(schema: z.ZodMiniType): ValidationResult {
+    const result = this.safeParseMainFileFrontmatter(schema);
+    return result.success ? { success: true, error: null } : result;
+  }
+
+  /**
+   * Like `validateMainFileFrontmatter`, and additionally requires the
+   * frontmatter `name` to match the skill directory name.
+   */
+  protected validateMainFileFrontmatterAndDirName(
+    schema: z.ZodMiniType<{ name: string }>,
+  ): ValidationResult {
+    const result = this.safeParseMainFileFrontmatter(schema);
+    if (!result.success) {
+      return result;
+    }
+
+    if (result.data.name !== this.getDirName()) {
+      return {
+        success: false,
+        error: new Error(
+          `${this.getDirPath()}: frontmatter name (${result.data.name}) must match directory name (${this.getDirName()})`,
+        ),
+      };
+    }
+
+    return { success: true, error: null };
+  }
+
+  private safeParseMainFileFrontmatter<T>(
+    schema: z.ZodMiniType<T>,
+  ): { success: true; data: T } | { success: false; error: Error } {
+    if (!this.mainFile) {
+      return {
+        success: false,
+        error: new Error(`${this.getDirPath()}: ${SKILL_FILE_NAME} file does not exist`),
+      };
+    }
+
+    const result = schema.safeParse(this.mainFile.frontmatter);
+    if (!result.success) {
+      return {
+        success: false,
+        error: new Error(
+          `Invalid frontmatter in ${this.getDirPath()}: ${formatError(result.error)}`,
+        ),
+      };
+    }
+
+    return { success: true, data: result.data };
   }
 
   protected requireMainFileFrontmatter(): Record<string, unknown> {

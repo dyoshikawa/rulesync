@@ -136,21 +136,7 @@ export class KimiCodeSkill extends ToolSkill {
   }
 
   validate(): ValidationResult {
-    if (!this.mainFile) {
-      return {
-        success: false,
-        error: new Error(`${this.getDirPath()}: ${SKILL_FILE_NAME} file does not exist`),
-      };
-    }
-    const result = KimiCodeSkillFrontmatterSchema.safeParse(this.mainFile.frontmatter);
-    return result.success
-      ? { success: true, error: null }
-      : {
-          success: false,
-          error: new Error(
-            `Invalid frontmatter in ${this.getDirPath()}: ${formatError(result.error)}`,
-          ),
-        };
+    return this.validateMainFileFrontmatter(KimiCodeSkillFrontmatterSchema);
   }
 
   /**
