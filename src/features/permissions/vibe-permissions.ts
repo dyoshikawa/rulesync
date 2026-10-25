@@ -36,6 +36,7 @@ type VibeToolConfig = Record<string, unknown> & {
 type VibeConfig = Record<string, unknown> & {
   enabled_tools?: string[];
   disabled_tools?: string[];
+  enable_subagents?: unknown;
   tools?: Record<string, VibeToolConfig>;
 };
 
@@ -48,11 +49,19 @@ const moduleLogger: Logger = fallbackLogger;
 /**
  * Vibe's builtin tool names are the snake_case of each tool class
  * (`BaseTool.get_name()`): `Edit` → `edit`, `WebFetch` → `web_fetch`,
- * `WebSearch` → `web_search`, alongside `read_file`, `write_file`, `bash` and
- * `grep`. `edit` and `write_file` are distinct tools — `write_file` has been
+ * `WebSearch` → `web_search`, alongside `read_file`, `write_file` and `bash`.
+ * `edit` and `write_file` are distinct tools — `write_file` has been
  * create-only since v2.14.0 — so the canonical `edit` and `write` categories
- * must not collapse onto one name. Vibe's subagent tool is `task`, the same
- * rename OpenCode needed.
+ * must not collapse onto one name.
+ *
+ * `grep` and `agent` have no table here: since v3.0.0 every session runs on
+ * the Unified Harness, which reads `[tools.*]` only for its Rust builtins
+ * (`RUST_BUILTIN_TOOL_SOURCES`). There is no grep tool any more — searching
+ * goes through the shell — and subagents are spawned by the built-in
+ * `agents.spawn` tool, which the `enable_subagents` switch governs instead of
+ * a `[tools.task]` table. See {@link VIBE_RETIRED_TOOL_TABLES}.
+ * @see https://github.com/mistralai/mistral-vibe/blob/v3.0.2/vibe/app_server/_unified_permissions.py
+ * @see https://github.com/mistralai/mistral-vibe/blob/v3.0.2/vibe/app_server/_ignored_tool_settings.py
  */
 const CANONICAL_TO_VIBE_TOOL_NAMES: Record<string, string> = {
   bash: "bash",
@@ -61,9 +70,24 @@ const CANONICAL_TO_VIBE_TOOL_NAMES: Record<string, string> = {
   write: "write_file",
   webfetch: "web_fetch",
   websearch: "web_search",
+};
+
+/**
+ * The tables earlier rulesync versions wrote for canonical categories that
+ * Vibe 3.x no longer reads: `[tools.grep]` (Vibe warns that it "has no
+ * effect") and `[tools.task]` for the subagent tool v3.0.0 renamed to
+ * `agents.*`. A regenerate that configures the category removes them — and
+ * the matching `disabled_tools` entry — instead of leaving an inert table.
+ * Import still reads them (see {@link VIBE_TO_CANONICAL_TOOL_NAMES}), so a
+ * Vibe 2.x config is lifted into the canonical categories rather than lost.
+ */
+const VIBE_RETIRED_TOOL_TABLES: Readonly<Record<string, string>> = {
   grep: "grep",
   agent: "task",
 };
+
+/** The canonical category Vibe's `enable_subagents` switch expresses. */
+const VIBE_SUBAGENT_CATEGORY = "agent";
 
 const VIBE_TO_CANONICAL_TOOL_NAMES: Record<string, string> = {
   bash: "bash",
@@ -269,17 +293,20 @@ export class VibePermissions extends ToolPermissions {
       enabledTools,
       disabledTools,
     });
+    retireLegacyToolTables({ permission, tools, disabledTools, logger });
+    const enableSubagentsPatch = resolveEnableSubagentsPatch({
+      rules: permission[VIBE_SUBAGENT_CATEGORY],
+      logger,
+    });
 
-    for (const [category, rules] of Object.entries(permission)) {
+    // The `agent` category was translated to `enable_subagents` above.
+    const tableCategories = Object.entries(permission).filter(
+      ([category]) => category !== VIBE_SUBAGENT_CATEGORY,
+    );
+    for (const [category, rules] of tableCategories) {
       const vibeToolNames = resolveNames(category);
       if (vibeToolNames === undefined) {
-        const ruleCount = Object.keys(rules).length;
-        if (ruleCount > 0) {
-          logger?.warn(
-            `Vibe has no tool table for the '${category}' category; skipping ${ruleCount} ` +
-              `rule(s) instead of emitting an inert [tools.${category}] table.`,
-          );
-        }
+        warnOnUnmappedCategory({ category, rules, logger });
         continue;
       }
       warnOnUnreachableToolName({ category, vibeToolNames, warned: warnedUnreachable, logger });
@@ -344,6 +371,7 @@ export class VibePermissions extends ToolPermissions {
           tools: Object.keys(tools).length > 0 ? tools : undefined,
           enabled_tools: resolveEnabledToolsPatch({ vibeOverride, enabledTools }),
           disabled_tools: disabledTools.size > 0 ? [...disabledTools].toSorted() : undefined,
+          ...enableSubagentsPatch,
         },
         filePath,
       }),
@@ -385,7 +413,7 @@ export class VibePermissions extends ToolPermissions {
     const disablesToolName = createVibeDisabledToolMatcher(disabledToolEntries);
     // The categories a switched-off table lands in, remembered so the deny can be
     // re-asserted once every table has been read. Two Vibe tools can share one
-    // category — `task` and `agent`, `read_file` and a bare `read` MCP table —
+    // category — a legacy `task` table and an `agent` one, `read_file` and a bare `read` MCP table —
     // and only one of them need be switched off, so whichever table came later
     // in the file would otherwise decide the category's base permission. That
     // made the import depend on the order the tables happen to sit in, and in
@@ -445,6 +473,12 @@ export class VibePermissions extends ToolPermissions {
 
     for (const category of silencedCategories) {
       ensurePermission(permission, category)["*"] = "deny";
+    }
+
+    // `enable_subagents = false` takes subagents away from the agent outright,
+    // so it wins over whatever a legacy `[tools.task]` table said.
+    if (this.toml.enable_subagents === false) {
+      ensurePermission(permission, VIBE_SUBAGENT_CATEGORY)["*"] = "deny";
     }
 
     warnOnUnresolvableDisabledTools({ entries: disabledToolEntries, tools: this.toml.tools });
@@ -535,6 +569,116 @@ function clearStaleToolFilters({
     }
   }
   return removedEnabledTools;
+}
+
+/**
+ * Remove the tables (and `disabled_tools` entries) earlier rulesync versions
+ * wrote for the categories in {@link VIBE_RETIRED_TOOL_TABLES}, once the
+ * author configures that category again. They are inert on Vibe 3.x, and
+ * `[tools.grep]` makes every session open with a config warning.
+ */
+function retireLegacyToolTables({
+  permission,
+  tools,
+  disabledTools,
+  logger,
+}: {
+  permission: PermissionsConfig["permission"];
+  tools: Record<string, VibeToolConfig>;
+  disabledTools: Set<string>;
+  logger?: Logger;
+}): void {
+  const removed: string[] = [];
+  for (const [category, legacyToolName] of Object.entries(VIBE_RETIRED_TOOL_TABLES)) {
+    if (!Object.hasOwn(permission, category)) {
+      continue;
+    }
+    if (Object.hasOwn(tools, legacyToolName)) {
+      delete tools[legacyToolName];
+      removed.push(`[tools.${legacyToolName}]`);
+    }
+    if (disabledTools.delete(legacyToolName)) {
+      removed.push(`disabled_tools entry '${legacyToolName}'`);
+    }
+  }
+  if (removed.length > 0) {
+    logger?.warn(
+      `Removed ${removed.join(", ")} from the Vibe config: Vibe 3.x no longer reads ` +
+        `[tools.grep] or the former 'task' subagent tool, so those entries had no effect.`,
+    );
+  }
+}
+
+/**
+ * Report the rules of a category that has no Vibe tool table. `grep` gets its
+ * own message: Vibe 3.x has no grep tool — "the agent searches through the
+ * shell", so `rg` and `grep` follow `[tools.bash]` — and the author needs to
+ * know where the restriction has to be written instead.
+ * @see https://github.com/mistralai/mistral-vibe/blob/v3.0.2/vibe/app_server/_ignored_tool_settings.py
+ */
+function warnOnUnmappedCategory({
+  category,
+  rules,
+  logger,
+}: {
+  category: string;
+  rules: Record<string, PermissionAction>;
+  logger?: Logger;
+}): void {
+  const ruleCount = Object.keys(rules).length;
+  if (ruleCount === 0) {
+    return;
+  }
+  if (category === "grep") {
+    logger?.warn(
+      `Vibe has no grep tool (searching goes through the shell, so 'rg' and 'grep' follow ` +
+        `[tools.bash]); skipping ${ruleCount} 'grep' rule(s). Author a 'bash' rule such as ` +
+        `"grep *" or "rg *" to restrict searching on Vibe.`,
+    );
+    return;
+  }
+  logger?.warn(
+    `Vibe has no tool table for the '${category}' category; skipping ${ruleCount} ` +
+      `rule(s) instead of emitting an inert [tools.${category}] table.`,
+  );
+}
+
+/**
+ * Translate the canonical `agent` category into Vibe's `enable_subagents`
+ * switch (v2.26.1+), the only subagent control the Unified Harness reads. A
+ * `*` deny writes `enable_subagents = false`; a `*` allow or ask removes the
+ * key, leaving subagents on. Without a `*` rule the key is left as the file
+ * has it. Pattern rules have no Vibe equivalent and are skipped with a warning.
+ * @see https://github.com/mistralai/mistral-vibe/blob/v3.0.2/README.md
+ */
+function resolveEnableSubagentsPatch({
+  rules,
+  logger,
+}: {
+  rules: Record<string, PermissionAction> | undefined;
+  logger?: Logger;
+}): { enable_subagents?: false | undefined } {
+  if (rules === undefined) {
+    return {};
+  }
+  const patternCount = Object.keys(rules).filter((pattern) => pattern !== "*").length;
+  if (patternCount > 0) {
+    logger?.warn(
+      `Vibe can only switch subagents on or off as a whole (enable_subagents); skipping ` +
+        `${patternCount} pattern rule(s) of the '${VIBE_SUBAGENT_CATEGORY}' category.`,
+    );
+  }
+  const action = rules["*"];
+  if (action === undefined) {
+    return {};
+  }
+  if (action === "ask") {
+    logger?.warn(
+      `Vibe cannot prompt before spawning a subagent; the '${VIBE_SUBAGENT_CATEGORY}' ` +
+        `category's "*": "ask" leaves subagents enabled.`,
+    );
+  }
+  return { enable_subagents: action === "deny" ? false : undefined };
 }
 
 /**
@@ -982,9 +1126,10 @@ function expressesVibePermission(rules: Record<string, PermissionAction>): boole
  * {@link VIBE_SHELL_ALIAS_TOOL_NAMES}). A canonical category *without* one
  * (`glob`, `notebookedit`) resolves to `undefined`: Vibe has no such tool, so a
  * `deny` authored there would look applied while being silently inert — the
- * dangerous direction. Unlike `agent` → `task` there is no correct name to
- * rename to, so the caller skips it with a warning (the grokcli adapter's
- * pattern).
+ * dangerous direction. There is no correct name to rename to, so the caller
+ * skips it with a warning (the grokcli adapter's pattern). `grep` is in the
+ * same position since Vibe 3.x, and `agent` goes to `enable_subagents`
+ * instead of a table.
  *
  * A canonical MCP category (`mcp__<server>__<tool>`) is translated to Vibe's own
  * published MCP name, `<server>_<tool>` — see {@link toVibeMcpToolName}. Every
