@@ -465,6 +465,59 @@ describe("RooMcp", () => {
       expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("oauth.authServerMetadataUrl"));
     });
 
+    it("should drop a redirectUri or resource that is not a URL, with a warning", () => {
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+      const servers = generate({
+        remote: {
+          type: "http",
+          url: "https://example.com/mcp",
+          oauth: { clientId: "abc", redirectUri: "not a url", resource: "my-api" },
+        },
+      });
+
+      expect(servers.remote.oauth).toEqual({ clientId: "abc" });
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("oauth.redirectUri"));
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("oauth.resource"));
+    });
+
+    it('should keep resource "auto" and a URL resource', () => {
+      const servers = generate({
+        auto: {
+          type: "http",
+          url: "https://a.example.com/mcp",
+          oauth: { clientId: "a", resource: "auto" },
+        },
+        url: {
+          type: "http",
+          url: "https://b.example.com/mcp",
+          oauth: { clientId: "b", resource: "https://b.example.com" },
+        },
+      });
+
+      expect(servers.auto.oauth).toEqual({ clientId: "a", resource: "auto" });
+      expect(servers.url.oauth).toEqual({ clientId: "b", resource: "https://b.example.com" });
+    });
+
+    it("should join a canonical scopes list into scope unless scope is set", () => {
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+      const servers = generate({
+        joined: {
+          type: "http",
+          url: "https://a.example.com/mcp",
+          oauth: { clientId: "a", scopes: ["read", "write"] },
+        },
+        explicit: {
+          type: "http",
+          url: "https://b.example.com/mcp",
+          oauth: { clientId: "b", scope: "admin", scopes: ["read"] },
+        },
+      });
+
+      expect(servers.joined.oauth).toEqual({ clientId: "a", scope: "read write" });
+      expect(servers.explicit.oauth).toEqual({ clientId: "b", scope: "admin" });
+      expect(warnSpy).not.toHaveBeenCalled();
+    });
+
     it("should drop the oauth block when clientId is missing", () => {
       const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
       const servers = generate({
@@ -534,6 +587,21 @@ describe("RooMcp", () => {
         clientId: "abc",
         redirectUri: "http://127.0.0.1:8080/auth",
         resource: "auto",
+      });
+    });
+
+    it("should keep a localhost redirectUri as written", () => {
+      const servers = importServers({
+        remote: {
+          type: "streamable-http",
+          url: "https://example.com/mcp",
+          oauth: { clientId: "abc", redirectUri: "http://localhost:8080/callback" },
+        },
+      });
+
+      expect(servers.remote.oauth).toEqual({
+        clientId: "abc",
+        redirectUri: "http://localhost:8080/callback",
       });
     });
 

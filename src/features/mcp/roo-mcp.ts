@@ -6,6 +6,7 @@ import { isMcpServers, type McpServers } from "../../types/mcp.js";
 import { readFileContent } from "../../utils/file.js";
 import { warnWithFallback } from "../../utils/logger.js";
 import { PROTOTYPE_POLLUTION_KEYS } from "../../utils/prototype-pollution.js";
+import { isPlainObject, isStringArray } from "../../utils/type-guards.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -27,17 +28,31 @@ const MAX_PORT = 65535;
 /** Keys of Zoo Code's streamable-http `oauth` object, passed through as written. */
 const ZOO_OAUTH_PASSTHROUGH_KEYS = new Set(["clientId", "scope", "redirectUri", "resource"]);
 
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 function isValidPort(value: unknown): value is number {
   return Number.isInteger(value) && Number(value) >= 1 && Number(value) <= MAX_PORT;
 }
 
+function isUrl(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  try {
+    new URL(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Whether a value fits the Zoo Code `oauth` key it is written to: `scope` and
+ * `clientId` are strings, `redirectUri` a URL, and `resource` `"auto"`,
+ * `false` or a URL. A value that fails here would fail the whole file.
+ */
 function isValidZooOauthValue(key: string, value: unknown): boolean {
   if (key === "resource") {
-    return value === false || typeof value === "string";
+    return value === false || value === "auto" || isUrl(value);
+  }
+  if (key === "redirectUri") {
+    return isUrl(value);
   }
   return typeof value === "string";
 }
@@ -53,9 +68,10 @@ function isValidZooOauthValue(key: string, value: unknown): boolean {
  * - `clientId` is required and must not be empty.
  * - `callbackPort` becomes `redirectUri: "http://127.0.0.1:<port>/callback"`,
  *   the loopback callback Zoo Code listens on (an explicit `redirectUri` wins).
- * - `scope`, `redirectUri` and `resource` pass through; any other key (e.g.
- *   Claude Code's `authServerMetadataUrl`) is dropped, since Zoo Code would
- *   strip it anyway.
+ * - `scope`, `redirectUri` and `resource` pass through when their values fit
+ *   Zoo Code's schema; a canonical `scopes` list is joined into `scope` when
+ *   no `scope` is given. Any other key (e.g. Claude Code's
+ *   `authServerMetadataUrl`) is dropped, since Zoo Code would strip it anyway.
  *
  * @see https://github.com/Zoo-Code-Org/Zoo-Code/pull/2129
  */
@@ -90,6 +106,9 @@ function convertOauthToRoo(
       }
       continue;
     }
+    if (key === "scopes" && isStringArray(value)) {
+      continue;
+    }
     if (!ZOO_OAUTH_PASSTHROUGH_KEYS.has(key)) {
       warnWithFallback(
         undefined,
@@ -106,6 +125,10 @@ function convertOauthToRoo(
     }
     result[key] = value;
   }
+  const scopes = oauth["scopes"];
+  if (!Object.hasOwn(result, "scope") && isStringArray(scopes) && scopes.length > 0) {
+    result["scope"] = scopes.join(" ");
+  }
   const callbackPort = oauth["callbackPort"];
   if (!Object.hasOwn(result, "redirectUri") && isValidPort(callbackPort)) {
     result["redirectUri"] = `http://127.0.0.1:${callbackPort}/callback`;
@@ -115,9 +138,11 @@ function convertOauthToRoo(
 
 /**
  * Reverse of the `callbackPort` mapping in {@link convertOauthToRoo}: a
- * loopback `redirectUri` of the form `http://127.0.0.1:<port>/callback` (or
- * `localhost`) is read back as the canonical `callbackPort`. Any other
- * `redirectUri` is kept as written.
+ * loopback `redirectUri` of exactly the form generate writes,
+ * `http://127.0.0.1:<port>/callback`, is read back as the canonical
+ * `callbackPort`. Any other `redirectUri` — including a `localhost` one, which
+ * Zoo Code sends verbatim and an OAuth client may be registered with — is kept
+ * as written, so a round trip never changes the redirect URI.
  */
 function convertOauthFromRoo(oauth: Record<string, unknown>): Record<string, unknown> {
   const result: Record<string, unknown> = {};
@@ -129,7 +154,7 @@ function convertOauthFromRoo(oauth: Record<string, unknown>): Record<string, unk
   if (typeof redirectUri !== "string" || Object.hasOwn(result, "callbackPort")) {
     return result;
   }
-  const match = /^http:\/\/(?:127\.0\.0\.1|localhost):(\d+)\/callback$/.exec(redirectUri);
+  const match = /^http:\/\/127\.0\.0\.1:(\d+)\/callback$/.exec(redirectUri);
   const port = match ? Number(match[1]) : undefined;
   if (isValidPort(port)) {
     delete result["redirectUri"];
@@ -158,8 +183,8 @@ function convertToRooFormat(mcpServers: McpServers): RooMcpServers {
         converted.transport = "streamable-http";
       }
       if (converted.oauth !== undefined) {
-        // Zoo Code picks the schema from `type` alone (a `url` without it is
-        // read as sse), so `transport` does not make a server streamable-http.
+        // Zoo Code reads `type`, not `transport`, and requires an explicit
+        // `type` for url servers, so only `type: "streamable-http"` counts.
         if (converted.type === "streamable-http") {
           const oauth = convertOauthToRoo(converted.oauth, serverName);
           if (oauth === undefined) {
