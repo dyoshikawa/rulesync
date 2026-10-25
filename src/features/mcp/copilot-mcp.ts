@@ -6,6 +6,10 @@ import { McpServers } from "../../types/mcp.js";
 import { readFileContent, readFileContentOrNull } from "../../utils/file.js";
 import { parseJsonc } from "../../utils/jsonc.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
+import {
+  convertEnvVarRefsFromToolFormat,
+  convertEnvVarRefsToToolFormat,
+} from "./mcp-env-var-format.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -31,8 +35,38 @@ type CopilotMcpConfig = {
   [key: string]: unknown;
 };
 
+/**
+ * VS Code's `.vscode/mcp.json` resolves environment variables only through its
+ * `${env:NAME}` variable syntax; the bare `${NAME}` form is documented for the
+ * portable `.mcp.json` / `~/.copilot/mcp-config.json` files only. Variable
+ * names exclude `:`, matching the canonical pattern.
+ *
+ * @see https://code.visualstudio.com/docs/agents/reference/mcp-configuration
+ */
+const COPILOT_ENV_VAR_PATTERN = /\$\{env:([^}:]+)\}/g;
+
 function convertFromCopilotFormat(copilotConfig: CopilotMcpConfig): McpServers {
-  return copilotConfig.servers ?? {};
+  return convertEnvVarRefsFromToolFormat({
+    mcpServers: copilotConfig.servers ?? {},
+    pattern: COPILOT_ENV_VAR_PATTERN,
+  });
+}
+
+/** Canonical `${VAR:-default}`, which `.vscode/mcp.json` cannot express. */
+const DEFAULT_VALUE_ENV_VAR_PATTERN = /\$\{[^}:]+:-[^}]*\}/;
+
+function findServersWithDefaultValueEnvVarRefs(mcpServers: McpServers): string[] {
+  const hasRef = (record: Record<string, string> | undefined): boolean =>
+    Object.values(record ?? {}).some(
+      (value) => typeof value === "string" && DEFAULT_VALUE_ENV_VAR_PATTERN.test(value),
+    );
+  return Object.entries(mcpServers)
+    .filter(([, config]) => hasRef(config.env) || hasRef(config.headers))
+    .map(([name]) => name);
+}
+
+function convertToCopilotFormat(mcpServers: McpServers): McpServers {
+  return convertEnvVarRefsToToolFormat({ mcpServers, replacement: "${env:$1}" });
 }
 
 export class CopilotMcp extends ToolMcp {
@@ -89,6 +123,13 @@ export class CopilotMcp extends ToolMcp {
     // Read without initializing so this stays side-effect-free under
     // `--dry-run`/`--check`; the actual write happens later in `writeAiFiles`.
     const existingContent = (await readFileContentOrNull(filePath)) ?? "{}";
+    const mcpServers = rulesyncMcp.getMcpServers();
+    const serversWithDefaults = findServersWithDefaultValueEnvVarRefs(mcpServers);
+    if (serversWithDefaults.length > 0) {
+      logger?.warn(
+        `${filePath}: \${VAR:-default} env var references have no .vscode/mcp.json equivalent and are written as-is (servers: ${serversWithDefaults.join(", ")})`,
+      );
+    }
 
     return new CopilotMcp({
       outputRoot,
@@ -102,7 +143,7 @@ export class CopilotMcp extends ToolMcp {
         fileKey: sharedConfigFileKey(paths),
         feature: "mcp",
         existingContent,
-        patch: { servers: rulesyncMcp.getMcpServers() },
+        patch: { servers: convertToCopilotFormat(mcpServers) },
         filePath,
         logger,
       }),
