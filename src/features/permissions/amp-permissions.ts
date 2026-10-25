@@ -17,6 +17,7 @@ import { isPlainObject } from "../../utils/type-guards.js";
 import { parseAmpSettings } from "../shared/amp-settings.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
+import { isStricterAction } from "./single-action-collapse.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -573,11 +574,6 @@ function convertAmpToRulesync({
   disable: string[];
   permissions: AmpPermissionEntry[];
 }): PermissionsConfig {
-  const actionPriority: Record<PermissionAction, number> = {
-    deny: 2,
-    ask: 1,
-    allow: 0,
-  };
   const permission: Record<string, Record<string, PermissionAction>> = {};
 
   const assign = (tool: string, pattern: string, action: PermissionAction): void => {
@@ -585,7 +581,7 @@ function convertAmpToRulesync({
     if (isPrototypePollutionKey(pattern)) return;
     const bucket = (permission[tool] ??= {});
     const existing = bucket[pattern];
-    if (existing === undefined || actionPriority[action] > actionPriority[existing]) {
+    if (isStricterAction({ action, existing })) {
       bucket[pattern] = action;
     }
   };

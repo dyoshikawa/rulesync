@@ -16,6 +16,7 @@ import {
 } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { ALL_TOOLS_PERMISSION_CATEGORY, honorAllToolsOnBash } from "./shell-command-categories.js";
+import { isStricterAction } from "./single-action-collapse.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -125,8 +126,6 @@ const QODER_PATH_RULE_ALIASES: Record<string, string> = {
 };
 
 const ACTIONS: readonly PermissionAction[] = ["allow", "ask", "deny"];
-
-const ACTION_RANK: Record<PermissionAction, number> = { allow: 0, ask: 1, deny: 2 };
 
 function toStringList(value: unknown): string[] {
   return Array.isArray(value)
@@ -270,7 +269,7 @@ function buildQoderRuleLists({
         continue;
       }
       const existing = ranked.get(rule);
-      if (existing === undefined || ACTION_RANK[action] > ACTION_RANK[existing]) {
+      if (isStricterAction({ action, existing })) {
         ranked.set(rule, action);
       }
     }
@@ -652,7 +651,7 @@ export class QoderPermissions extends ToolPermissions {
         const existing = rules[parsed.pattern];
         // Qoder checks `deny` before `ask` and `ask` before `allow`, so the
         // stricter action wins when a rule appears in more than one list.
-        if (existing === undefined || ACTION_RANK[action] > ACTION_RANK[existing]) {
+        if (isStricterAction({ action, existing })) {
           rules[parsed.pattern] = action;
         }
       }

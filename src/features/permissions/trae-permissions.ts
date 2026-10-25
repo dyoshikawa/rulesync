@@ -15,6 +15,7 @@ import {
 } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { honorAllToolsOnBash } from "./shell-command-categories.js";
+import { isStricterAction } from "./single-action-collapse.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -38,8 +39,6 @@ const MCP_SEPARATOR = "__";
 const CATCH_ALL_PATTERN = "*";
 const REGEX_PREFIX = "r/";
 const REGEX_SUFFIX = "/";
-
-const ACTION_RANK: Record<PermissionAction, number> = { allow: 0, ask: 1, deny: 2 };
 
 type NetworkAction = "allow" | "deny";
 const NETWORK_ACTIONS: readonly NetworkAction[] = ["allow", "deny"];
@@ -187,7 +186,7 @@ function setRanked(
   action: PermissionAction,
 ): void {
   const existing = ranked.get(key);
-  if (existing === undefined || ACTION_RANK[action] > ACTION_RANK[existing]) {
+  if (isStricterAction({ action, existing })) {
     ranked.set(key, action);
   }
 }
@@ -515,7 +514,7 @@ export class TraePermissions extends ToolPermissions {
       }
       const rules = (permission[category] ??= {});
       const existing = rules[pattern];
-      if (existing === undefined || ACTION_RANK[action] > ACTION_RANK[existing]) {
+      if (isStricterAction({ action, existing })) {
         rules[pattern] = action;
       }
     };

@@ -26,6 +26,7 @@ import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { bashRulesHonoringAllTools } from "./shell-command-categories.js";
+import { isStricterAction } from "./single-action-collapse.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -1022,11 +1023,6 @@ function convertAugmentToRulesyncPermissions({
   // always use the catch-all `*` pattern on the import side), pick the most restrictive action
   // rather than letting the last entry silently overwrite earlier ones.
   // Precedence: deny > ask > allow.
-  const actionPriority: Record<PermissionAction, number> = {
-    deny: 2,
-    ask: 1,
-    allow: 0,
-  };
   // Reserved keys that would mutate `Object.prototype` (or the `Object`
   // constructor) if used as a bracket-assignment key. A hand-crafted
   // settings.json could set `toolName` — or a `shellInputRegex` that converts
@@ -1123,7 +1119,7 @@ function convertAugmentToRulesyncPermissions({
       permission[canonical] = bucket;
     }
     const existing = lookupOwn({ record: bucket, key: pattern });
-    if (existing === undefined || actionPriority[action] > actionPriority[existing]) {
+    if (isStricterAction({ action, existing })) {
       bucket[pattern] = action;
     }
   }

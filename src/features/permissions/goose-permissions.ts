@@ -12,7 +12,7 @@ import { isRecord, isStringArray } from "../../utils/type-guards.js";
 import { loadYaml } from "../../utils/yaml.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { honorAllToolsOnBash } from "./shell-command-categories.js";
-import { failSafeCatchAllAction } from "./single-action-collapse.js";
+import { PERMISSION_ACTION_PRIORITY, failSafeCatchAllAction } from "./single-action-collapse.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -62,10 +62,6 @@ const ACTION_TO_GOOSE_LIST: Record<PermissionAction, GoosePermissionListKey> = {
   ask: "ask_before",
   deny: "never_allow",
 };
-
-// When two categories map onto the same Goose tool, the stricter action wins
-// (deny > ask > allow), matching import, where `never_allow` is applied last.
-const ACTION_RANK: Record<PermissionAction, number> = { allow: 0, ask: 1, deny: 2 };
 
 const GOOSE_LIST_TO_ACTION: Record<GoosePermissionListKey, PermissionAction> = {
   always_allow: "allow",
@@ -297,7 +293,13 @@ function convertRulesyncToGoosePermissionConfig({
       continue;
     }
     if (previous !== undefined) {
-      const stricter = ACTION_RANK[action] > ACTION_RANK[previous] ? action : previous;
+      // When two categories map onto the same Goose tool, the stricter action
+      // wins (deny > ask > allow), matching import, where `never_allow` is
+      // applied last.
+      const stricter =
+        PERMISSION_ACTION_PRIORITY[action] > PERMISSION_ACTION_PRIORITY[previous]
+          ? action
+          : previous;
       logger?.warn(
         `Goose maps "${category}" onto the "${toolName}" tool, which already has a ` +
           `conflicting permission ("${previous}"). Keeping the stricter "${stricter}" ` +

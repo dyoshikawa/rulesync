@@ -12,6 +12,24 @@ export const PERMISSION_ACTION_PRIORITY: Record<PermissionAction, number> = {
 };
 
 /**
+ * Whether `action` should replace `existing` when two canonical rules collapse
+ * onto one entry: an empty slot always takes it, otherwise only a strictly
+ * stricter action (deny > ask > allow) does.
+ */
+export function isStricterAction({
+  action,
+  existing,
+}: {
+  action: PermissionAction;
+  existing: PermissionAction | undefined;
+}): boolean {
+  return (
+    existing === undefined ||
+    PERMISSION_ACTION_PRIORITY[action] > PERMISSION_ACTION_PRIORITY[existing]
+  );
+}
+
+/**
  * Collapse a pattern map to the single action a tool can hold for a scope
  * that has no pattern matcher, using deny > ask > allow precedence.
  *

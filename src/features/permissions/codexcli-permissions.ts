@@ -23,6 +23,7 @@ import { type Logger, warnWithFallback } from "../../utils/logger.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { bashRulesHonoringAllTools } from "./shell-command-categories.js";
+import { isStricterAction } from "./single-action-collapse.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -975,12 +976,6 @@ function addFilesystemRule({
   mergeIntoWorkspaceRootTable({ workspaceRootFilesystem, pattern, access });
 }
 
-const PERMISSION_ACTION_RESTRICTIVENESS: Record<PermissionAction, number> = {
-  deny: 2,
-  ask: 1,
-  allow: 0,
-};
-
 // Rewrite workspace-relative canonical patterns into the `:workspace_roots`
 // subpath form Codex accepts BEFORE the read/edit/write categories are
 // merged, so rules that differ only by a leading `./` (e.g. `read: "src/**"`
@@ -1014,12 +1009,9 @@ function normalizeWorkspaceRelativeCategoryRules({
         );
         continue;
       }
-      const existing = normalized[key];
-      normalized[key] =
-        existing === undefined ||
-        PERMISSION_ACTION_RESTRICTIVENESS[action] > PERMISSION_ACTION_RESTRICTIVENESS[existing]
-          ? action
-          : existing;
+      if (isStricterAction({ action, existing: normalized[key] })) {
+        normalized[key] = action;
+      }
     }
     result[category] = normalized;
   }
@@ -1507,10 +1499,7 @@ function collapseWriteSideRules(
   for (const category of ["edit", "write"] as const) {
     for (const [pattern, action] of Object.entries(categoryRules[category] ?? {})) {
       const existing = writeSideRules[pattern];
-      if (
-        existing === undefined ||
-        PERMISSION_ACTION_RESTRICTIVENESS[action] > PERMISSION_ACTION_RESTRICTIVENESS[existing]
-      ) {
+      if (isStricterAction({ action, existing })) {
         writeSideRules[pattern] = action;
       }
     }
