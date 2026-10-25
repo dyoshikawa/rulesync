@@ -1,7 +1,7 @@
 import { join } from "node:path";
 
 import { DEEPAGENTS_DIR, DEEPAGENTS_HOOKS_FILE_NAME } from "../../constants/deepagents-paths.js";
-import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { AiFileParams } from "../../types/ai-file.js";
 import type { HookDefinition, HooksConfig } from "../../types/hooks.js";
 import {
   CANONICAL_TO_DEEPAGENTS_EVENT_NAMES,
@@ -269,10 +269,6 @@ export class DeepagentsHooks extends ToolHooks {
         2,
       ),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

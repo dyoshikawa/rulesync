@@ -6,7 +6,7 @@ import {
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
 import type { SharedWritePath } from "../../lib/shared-file-derive.js";
-import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { AiFileParams } from "../../types/ai-file.js";
 import {
   CANONICAL_TO_KIMI_CODE_EVENT_NAMES,
   KIMI_CODE_HOOK_EVENTS,
@@ -233,10 +233,6 @@ export class KimiCodeHooks extends ToolHooks {
       relativeDirPath: getKimiCodeRelativeDirPath({ global }),
       relativeFilePath: KIMI_CODE_CONFIG_FILE_NAME,
     };
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   override isDeletable(): boolean {

@@ -1,7 +1,6 @@
 import { join } from "node:path";
 
 import { FIREBENDER_DIR, FIREBENDER_HOOKS_FILE_NAME } from "../../constants/firebender-paths.js";
-import type { ValidationResult } from "../../types/ai-file.js";
 import type { HooksConfig } from "../../types/hooks.js";
 import { FIREBENDER_HOOK_EVENTS } from "../../types/hooks.js";
 import { readFileContent, readFileContentOrNull } from "../../utils/file.js";
@@ -151,10 +150,6 @@ export class FirebenderHooks extends ToolHooks {
         2,
       ),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

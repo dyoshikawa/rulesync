@@ -5,7 +5,7 @@ import {
   ANTIGRAVITY_GLOBAL_CONFIG_DIR_PATH,
   ANTIGRAVITY_HOOKS_FILE_NAME,
 } from "../../constants/antigravity-paths.js";
-import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { AiFileParams } from "../../types/ai-file.js";
 import {
   ANTIGRAVITY_HOOK_EVENTS,
   ANTIGRAVITY_TO_CANONICAL_EVENT_NAMES,
@@ -269,10 +269,6 @@ class AntigravityHooks extends ToolHooks {
     return this.toRulesyncHooksDefault({
       fileContent: JSON.stringify(buildImportedHooksConfig({ hooks, overrideKey }), null, 2),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

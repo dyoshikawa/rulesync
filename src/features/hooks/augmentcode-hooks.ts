@@ -5,7 +5,6 @@ import {
   AUGMENTCODE_SETTINGS_FILE_NAME,
 } from "../../constants/augmentcode-paths.js";
 import type { AiFileParams } from "../../types/ai-file.js";
-import type { ValidationResult } from "../../types/ai-file.js";
 import {
   AUGMENTCODE_HOOK_EVENTS,
   AUGMENTCODE_TO_CANONICAL_EVENT_NAMES,
@@ -217,10 +216,6 @@ export class AugmentcodeHooks extends ToolHooks {
         2,
       ),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

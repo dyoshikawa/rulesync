@@ -1,7 +1,6 @@
 import { join } from "node:path";
 
 import { CURSOR_DIR, CURSOR_HOOKS_FILE_NAME } from "../../constants/cursor-paths.js";
-import type { ValidationResult } from "../../types/ai-file.js";
 import type { HooksConfig } from "../../types/hooks.js";
 import {
   CURSOR_HOOK_EVENTS,
@@ -176,10 +175,6 @@ export class CursorHooks extends ToolHooks {
         2,
       ),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

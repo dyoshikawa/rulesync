@@ -5,7 +5,7 @@ import {
   OMP_GLOBAL_EXTENSIONS_DIR_PATH,
   OMP_HOOKS_FILE_NAME,
 } from "../../constants/omp-paths.js";
-import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { AiFileParams } from "../../types/ai-file.js";
 import { CANONICAL_TO_OMP_EVENT_NAMES, OMP_HOOK_EVENTS } from "../../types/hooks.js";
 import { readFileContent } from "../../utils/file.js";
 import { generatePiExtensionCode, OMP_EXTENSION_DIALECT } from "./pi-extension-generator.js";
@@ -87,10 +87,6 @@ export class OmpHooks extends ToolHooks {
     throw new Error(
       "Not implemented because oh-my-pi hooks are generated as a TypeScript extension file.",
     );
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

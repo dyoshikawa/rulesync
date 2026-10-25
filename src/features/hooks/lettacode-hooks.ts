@@ -1,7 +1,7 @@
 import { join } from "node:path";
 
 import { LETTACODE_DIR, LETTACODE_SETTINGS_FILE_NAME } from "../../constants/lettacode-paths.js";
-import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { AiFileParams } from "../../types/ai-file.js";
 import {
   CANONICAL_TO_LETTACODE_EVENT_NAMES,
   LETTACODE_HOOK_EVENTS,
@@ -243,10 +243,6 @@ export class LettacodeHooks extends ToolHooks {
         2,
       ),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

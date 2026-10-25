@@ -6,7 +6,7 @@ import {
   TABNINE_AGENT_DIR_PATH,
   TABNINE_SETTINGS_FILE_NAME,
 } from "../../constants/tabnine-paths.js";
-import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { AiFileParams } from "../../types/ai-file.js";
 import type { HooksConfig } from "../../types/hooks.js";
 import {
   CANONICAL_TO_TABNINE_EVENT_NAMES,
@@ -363,10 +363,6 @@ export class TabnineHooks extends ToolHooks {
         2,
       ),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

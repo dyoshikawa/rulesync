@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { z } from "zod/mini";
 
 import { KIRO_IDE_HOOKS_DIR_PATH, KIRO_IDE_HOOKS_FILE_NAME } from "../../constants/kiro-paths.js";
-import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { AiFileParams } from "../../types/ai-file.js";
 import type { HookConfirm, HookDefinition, HooksConfig } from "../../types/hooks.js";
 import {
   CANONICAL_TO_KIRO_IDE_EVENT_NAMES,
@@ -322,10 +322,6 @@ export class KiroIdeHooks extends ToolHooks {
         2,
       ),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

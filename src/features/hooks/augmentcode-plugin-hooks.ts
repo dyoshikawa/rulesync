@@ -4,7 +4,6 @@ import {
   AUGMENTCODE_PLUGIN_HOOKS_DIR,
   AUGMENTCODE_PLUGIN_HOOKS_FILE_NAME,
 } from "../../constants/plugin-paths.js";
-import type { ValidationResult } from "../../types/ai-file.js";
 import { parseAugmentcodeSettingsDocument } from "../../utils/augmentcode-settings.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
@@ -133,10 +132,6 @@ export class AugmentcodePluginHooks extends ToolHooks {
         2,
       ),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

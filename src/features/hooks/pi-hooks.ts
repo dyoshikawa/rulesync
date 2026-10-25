@@ -5,7 +5,7 @@ import {
   PI_EXTENSIONS_DIR_PATH,
   PI_HOOKS_FILE_NAME,
 } from "../../constants/pi-paths.js";
-import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { AiFileParams } from "../../types/ai-file.js";
 import { CANONICAL_TO_PI_EVENT_NAMES, PI_HOOK_EVENTS } from "../../types/hooks.js";
 import { readFileContent } from "../../utils/file.js";
 import { generatePiExtensionCode } from "./pi-extension-generator.js";
@@ -86,10 +86,6 @@ export class PiHooks extends ToolHooks {
     throw new Error(
       "Not implemented because Pi hooks are generated as a TypeScript extension file.",
     );
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

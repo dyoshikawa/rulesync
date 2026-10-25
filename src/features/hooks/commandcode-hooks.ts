@@ -4,7 +4,7 @@ import {
   COMMANDCODE_DIR,
   COMMANDCODE_SETTINGS_FILE_NAME,
 } from "../../constants/commandcode-paths.js";
-import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { AiFileParams } from "../../types/ai-file.js";
 import {
   CANONICAL_TO_COMMANDCODE_EVENT_NAMES,
   COMMANDCODE_HOOK_EVENTS,
@@ -181,10 +181,6 @@ export class CommandcodeHooks extends ToolHooks {
         2,
       ),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

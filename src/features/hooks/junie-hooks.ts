@@ -2,7 +2,6 @@ import { join } from "node:path";
 
 import { JUNIE_DIR, JUNIE_HOOKS_FILE_NAME } from "../../constants/junie-paths.js";
 import type { AiFileParams } from "../../types/ai-file.js";
-import type { ValidationResult } from "../../types/ai-file.js";
 import {
   CANONICAL_TO_JUNIE_EVENT_NAMES,
   JUNIE_HOOK_EVENTS,
@@ -146,10 +145,6 @@ export class JunieHooks extends ToolHooks {
         2,
       ),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

@@ -7,7 +7,6 @@ import {
   FACTORYDROID_SETTINGS_FILE_NAME,
 } from "../../constants/factorydroid-paths.js";
 import type { AiFileParams } from "../../types/ai-file.js";
-import type { ValidationResult } from "../../types/ai-file.js";
 import {
   FACTORYDROID_HOOK_EVENTS,
   FACTORYDROID_TO_CANONICAL_EVENT_NAMES,
@@ -216,10 +215,6 @@ export class FactorydroidHooks extends ToolHooks {
         2,
       ),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

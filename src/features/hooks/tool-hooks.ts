@@ -4,7 +4,7 @@ import {
   RULESYNC_HOOKS_FILE_NAME,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
-import type { AiFileFromFileParams, AiFileParams } from "../../types/ai-file.js";
+import type { AiFileFromFileParams, AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { formatError } from "../../utils/error.js";
 import type { Logger } from "../../utils/logger.js";
@@ -79,6 +79,11 @@ export abstract class ToolHooks extends ToolFile {
         throw result.error;
       }
     }
+  }
+
+  /** Hooks files carry no schema of their own to check; adapters that do override this. */
+  validate(): ValidationResult {
+    return { success: true, error: null };
   }
 
   /**

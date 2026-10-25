@@ -3,7 +3,6 @@ import { join } from "node:path";
 import { z } from "zod/mini";
 
 import { QWENCODE_DIR, QWENCODE_SETTINGS_FILE_NAME } from "../../constants/qwencode-paths.js";
-import type { ValidationResult } from "../../types/ai-file.js";
 import type { HooksConfig } from "../../types/hooks.js";
 import {
   QWENCODE_HOOK_EVENTS,
@@ -427,10 +426,6 @@ export class QwencodeHooks extends ToolHooks {
     return this.toRulesyncHooksDefault({
       fileContent: JSON.stringify(canonical, null, 2),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

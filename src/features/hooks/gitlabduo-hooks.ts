@@ -2,7 +2,6 @@ import { join } from "node:path";
 
 import { GITLABDUO_DIR, GITLABDUO_HOOKS_FILE_NAME } from "../../constants/gitlabduo-paths.js";
 import type { AiFileParams } from "../../types/ai-file.js";
-import type { ValidationResult } from "../../types/ai-file.js";
 import {
   CANONICAL_TO_GITLABDUO_EVENT_NAMES,
   GITLABDUO_HOOK_EVENTS,
@@ -123,10 +122,6 @@ export class GitlabduoHooks extends ToolHooks {
         2,
       ),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

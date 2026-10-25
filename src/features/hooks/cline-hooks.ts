@@ -257,10 +257,6 @@ export class ClineHooks extends ToolHooks {
     );
   }
 
-  validate(): ValidationResult {
-    return { success: true, error: null };
-  }
-
   static forDeletion({
     outputRoot = process.cwd(),
     relativeDirPath,

@@ -1,7 +1,7 @@
 import { join } from "node:path";
 
 import { CRUSH_HOOKS_KEY } from "../../constants/crush-paths.js";
-import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { AiFileParams } from "../../types/ai-file.js";
 import {
   CANONICAL_TO_CRUSH_EVENT_NAMES,
   CRUSH_HOOK_EVENTS,
@@ -306,10 +306,6 @@ export class CrushHooks extends ToolHooks {
         2,
       ),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

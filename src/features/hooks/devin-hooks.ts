@@ -6,7 +6,7 @@ import {
   DEVIN_GLOBAL_CONFIG_DIR_PATH,
   DEVIN_HOOKS_V1_FILE_NAME,
 } from "../../constants/devin-paths.js";
-import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { AiFileParams } from "../../types/ai-file.js";
 import {
   CANONICAL_TO_DEVIN_EVENT_NAMES,
   DEVIN_HOOK_EVENTS,
@@ -200,10 +200,6 @@ export class DevinHooks extends ToolHooks {
         2,
       ),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

@@ -5,7 +5,7 @@ import {
   OPENCODE_LAYOUT,
   type OpencodeLayout,
 } from "../../constants/opencode-paths.js";
-import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { AiFileParams } from "../../types/ai-file.js";
 import {
   CANONICAL_TO_OPENCODE_EVENT_NAMES,
   CANONICAL_TO_OPENCODE_V2_EVENT_NAMES,
@@ -95,10 +95,6 @@ export class OpencodeHooks extends ToolHooks {
 
   toRulesyncHooks(): RulesyncHooks {
     throw new Error("Not implemented because OpenCode hooks are generated as a plugin file.");
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

@@ -1,7 +1,7 @@
 import { join } from "node:path";
 
 import { GROKCLI_HOOKS_DIR_PATH, GROKCLI_HOOKS_FILE_NAME } from "../../constants/grokcli-paths.js";
-import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { AiFileParams } from "../../types/ai-file.js";
 import {
   CANONICAL_TO_GROKCLI_EVENT_NAMES,
   GROKCLI_HOOK_EVENTS,
@@ -181,10 +181,6 @@ export class GrokcliHooks extends ToolHooks {
         2,
       ),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

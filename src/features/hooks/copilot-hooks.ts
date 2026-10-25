@@ -9,7 +9,6 @@ import {
   COPILOT_HOOKS_FILE_NAME,
 } from "../../constants/copilot-paths.js";
 import type { AiFileParams } from "../../types/ai-file.js";
-import type { ValidationResult } from "../../types/ai-file.js";
 import type { HooksConfig } from "../../types/hooks.js";
 import {
   COPILOT_TO_CANONICAL_EVENT_NAMES,
@@ -327,10 +326,6 @@ export class CopilotHooks extends ToolHooks {
         2,
       ),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

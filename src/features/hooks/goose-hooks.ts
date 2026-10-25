@@ -1,7 +1,7 @@
 import { join } from "node:path";
 
 import { GOOSE_HOOKS_DIR_PATH, GOOSE_HOOKS_FILE_NAME } from "../../constants/goose-paths.js";
-import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { AiFileParams } from "../../types/ai-file.js";
 import {
   CANONICAL_TO_GOOSE_EVENT_NAMES,
   GOOSE_HOOK_EVENTS,
@@ -159,10 +159,6 @@ export class GooseHooks extends ToolHooks {
         2,
       ),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({
