@@ -10,7 +10,6 @@ import {
 } from "../../constants/reasonix-paths.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
-import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
 import { parseFrontmatterWithYamlRepair } from "../../utils/frontmatter.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
@@ -237,19 +236,16 @@ export class ReasonixSkill extends ToolSkill {
       getSettablePaths: ReasonixSkill.getSettablePaths,
     });
 
-    const result = ReasonixSkillFrontmatterSchema.safeParse(loaded.frontmatter);
-    if (!result.success) {
-      const skillDirPath = join(loaded.outputRoot, loaded.relativeDirPath, loaded.dirName);
-      throw new Error(
-        `Invalid frontmatter in ${join(skillDirPath, SKILL_FILE_NAME)}: ${formatError(result.error)}`,
-      );
-    }
+    const frontmatter = this.parseLoadedFrontmatter({
+      schema: ReasonixSkillFrontmatterSchema,
+      loaded,
+    });
 
     return new ReasonixSkill({
       outputRoot: loaded.outputRoot,
       relativeDirPath: loaded.relativeDirPath,
       dirName: loaded.dirName,
-      frontmatter: result.data,
+      frontmatter,
       body: loaded.body,
       otherFiles: loaded.otherFiles,
       validate: true,

@@ -366,6 +366,27 @@ export abstract class ToolSkill extends AiDir {
     return { success: true, data: result.data };
   }
 
+  /**
+   * Parse the frontmatter returned by `loadSkillDirContent` against the
+   * tool's schema, throwing with the SKILL.md path when it does not match.
+   */
+  protected static parseLoadedFrontmatter<T>({
+    schema,
+    loaded,
+  }: {
+    schema: z.ZodMiniType<T>;
+    loaded: LoadedSkillDirContent;
+  }): T {
+    const result = schema.safeParse(loaded.frontmatter);
+    if (!result.success) {
+      const skillDirPath = join(loaded.outputRoot, loaded.relativeDirPath, loaded.dirName);
+      throw new Error(
+        `Invalid frontmatter in ${join(skillDirPath, SKILL_FILE_NAME)}: ${formatError(result.error)}`,
+      );
+    }
+    return result.data;
+  }
+
   protected requireMainFileFrontmatter(): Record<string, unknown> {
     if (!this.mainFile?.frontmatter) {
       throw new Error(`Frontmatter is not defined in ${join(this.relativeDirPath, this.dirName)}`);

@@ -7,7 +7,6 @@ import { POOL_GLOBAL_SKILLS_DIR_PATH, POOL_SKILLS_DIR_PATH } from "../../constan
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { quoteForLog, stripControlCharacters } from "../../utils/control-characters.js";
-import { formatError } from "../../utils/error.js";
 import { toPosixPath } from "../../utils/file.js";
 import { warnWithFallback } from "../../utils/logger.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
@@ -176,19 +175,13 @@ export class PoolSkill extends ToolSkill {
       getSettablePaths: PoolSkill.getSettablePaths,
     });
 
-    const result = PoolSkillFrontmatterSchema.safeParse(loaded.frontmatter);
-    if (!result.success) {
-      const skillDirPath = join(loaded.outputRoot, loaded.relativeDirPath, loaded.dirName);
-      throw new Error(
-        `Invalid frontmatter in ${join(skillDirPath, SKILL_FILE_NAME)}: ${formatError(result.error)}`,
-      );
-    }
+    const frontmatter = this.parseLoadedFrontmatter({ schema: PoolSkillFrontmatterSchema, loaded });
 
     return new PoolSkill({
       outputRoot: loaded.outputRoot,
       relativeDirPath: loaded.relativeDirPath,
       dirName: loaded.dirName,
-      frontmatter: result.data,
+      frontmatter,
       body: loaded.body,
       otherFiles: loaded.otherFiles,
       validate: true,

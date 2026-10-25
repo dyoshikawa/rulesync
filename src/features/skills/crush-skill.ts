@@ -1,12 +1,9 @@
-import { join } from "node:path";
-
 import { z } from "zod/mini";
 
 import { CRUSH_SKILLS_GLOBAL_DIR, CRUSH_SKILLS_PROJECT_DIR } from "../../constants/crush-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
-import { formatError } from "../../utils/error.js";
 import { toCompatibilityString, toStringMetadata } from "./agentsskills-skill.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import {
@@ -229,19 +226,16 @@ export class CrushSkill extends ToolSkill {
       getSettablePaths: CrushSkill.getSettablePaths,
     });
 
-    const result = CrushSkillFrontmatterSchema.safeParse(loaded.frontmatter);
-    if (!result.success) {
-      const skillDirPath = join(loaded.outputRoot, loaded.relativeDirPath, loaded.dirName);
-      throw new Error(
-        `Invalid frontmatter in ${join(skillDirPath, SKILL_FILE_NAME)}: ${formatError(result.error)}`,
-      );
-    }
+    const frontmatter = this.parseLoadedFrontmatter({
+      schema: CrushSkillFrontmatterSchema,
+      loaded,
+    });
 
     return new CrushSkill({
       outputRoot: loaded.outputRoot,
       relativeDirPath: loaded.relativeDirPath,
       dirName: loaded.dirName,
-      frontmatter: result.data,
+      frontmatter,
       body: loaded.body,
       otherFiles: loaded.otherFiles,
       validate: true,

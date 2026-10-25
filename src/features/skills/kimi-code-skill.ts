@@ -248,15 +248,13 @@ export class KimiCodeSkill extends ToolSkill {
       ...params,
       getSettablePaths: (options) => this.getSettablePaths(options),
     });
-    const result = KimiCodeSkillFrontmatterSchema.safeParse(loaded.frontmatter);
-    if (!result.success) {
-      throw new Error(
-        `Invalid frontmatter in ${join(loaded.outputRoot, loaded.relativeDirPath, loaded.dirName, SKILL_FILE_NAME)}: ${formatError(result.error)}`,
-      );
-    }
+    const frontmatter = this.parseLoadedFrontmatter({
+      schema: KimiCodeSkillFrontmatterSchema,
+      loaded,
+    });
     return new this({
       ...loaded,
-      frontmatter: result.data,
+      frontmatter,
       validate: true,
     });
   }

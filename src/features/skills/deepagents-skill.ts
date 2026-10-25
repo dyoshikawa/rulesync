@@ -1,5 +1,3 @@
-import { join } from "node:path";
-
 import { z } from "zod/mini";
 
 import {
@@ -13,7 +11,6 @@ import {
   getDeepagentsRelativeDirPath,
   getDeepagentsRulesyncOutputRoot,
 } from "../../utils/deepagents.js";
-import { formatError } from "../../utils/error.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import { resolveCompatibility, resolveLicense, resolveMetadata } from "./skills-utils.js";
 import {
@@ -212,19 +209,16 @@ export class DeepagentsSkill extends ToolSkill {
       getSettablePaths: DeepagentsSkill.getSettablePaths,
     });
 
-    const result = DeepagentsSkillFrontmatterSchema.safeParse(loaded.frontmatter);
-    if (!result.success) {
-      const skillDirPath = join(loaded.outputRoot, loaded.relativeDirPath, loaded.dirName);
-      throw new Error(
-        `Invalid frontmatter in ${join(skillDirPath, SKILL_FILE_NAME)}: ${formatError(result.error)}`,
-      );
-    }
+    const frontmatter = this.parseLoadedFrontmatter({
+      schema: DeepagentsSkillFrontmatterSchema,
+      loaded,
+    });
 
     return new DeepagentsSkill({
       outputRoot: loaded.outputRoot,
       relativeDirPath: loaded.relativeDirPath,
       dirName: loaded.dirName,
-      frontmatter: result.data,
+      frontmatter,
       body: loaded.body,
       otherFiles: loaded.otherFiles,
       validate: true,

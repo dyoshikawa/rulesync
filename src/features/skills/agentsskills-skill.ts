@@ -6,7 +6,6 @@ import { AGENTSMD_SKILLS_DIR_PATH } from "../../constants/agentsmd-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
-import { formatError } from "../../utils/error.js";
 import { type Logger } from "../../utils/logger.js";
 import {
   RulesyncSkill,
@@ -499,19 +498,16 @@ export class AgentsSkillsSkill extends ToolSkill {
       getSettablePaths: (options) => this.getSettablePaths(options),
     });
 
-    const result = AgentsSkillsSkillFrontmatterSchema.safeParse(loaded.frontmatter);
-    if (!result.success) {
-      const skillDirPath = join(loaded.outputRoot, loaded.relativeDirPath, loaded.dirName);
-      throw new Error(
-        `Invalid frontmatter in ${join(skillDirPath, SKILL_FILE_NAME)}: ${formatError(result.error)}`,
-      );
-    }
+    const frontmatter = this.parseLoadedFrontmatter({
+      schema: AgentsSkillsSkillFrontmatterSchema,
+      loaded,
+    });
 
     return new this({
       outputRoot: loaded.outputRoot,
       relativeDirPath: loaded.relativeDirPath,
       dirName: loaded.dirName,
-      frontmatter: result.data,
+      frontmatter,
       body: loaded.body,
       otherFiles: loaded.otherFiles,
       validate: true,
