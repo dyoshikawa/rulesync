@@ -40,7 +40,7 @@ import {
  *
  * @see https://docs.augmentcode.com/cli/plugins
  */
-const AUGMENTCODE_PLUGIN_CONVERTER_CONFIG: ToolHooksConverterConfig = {
+export const AUGMENTCODE_PLUGIN_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   ...AUGMENTCODE_CONVERTER_CONFIG,
   projectDirVar: "$AUGMENT_PLUGIN_ROOT",
   prefixDotRelativeCommandsOnly: true,

@@ -47,7 +47,7 @@ const COMMANDCODE_NO_MATCHER_EVENTS: ReadonlySet<string> = new Set(["stop", "ses
 // commands, so dot-relative scripts are anchored to it the way Claude Code
 // anchors them to `$CLAUDE_PROJECT_DIR`. `timeout` is in seconds (canonical
 // unit). Only `command` hooks exist.
-const COMMANDCODE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
+export const COMMANDCODE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   supportedEvents: COMMANDCODE_HOOK_EVENTS,
   canonicalToToolEventNames: CANONICAL_TO_COMMANDCODE_EVENT_NAMES,
   toolToCanonicalEventNames: COMMANDCODE_TO_CANONICAL_EVENT_NAMES,

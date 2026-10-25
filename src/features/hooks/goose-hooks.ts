@@ -24,7 +24,7 @@ import {
   type ToolHooksSettablePaths,
 } from "./tool-hooks.js";
 
-const GOOSE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
+export const GOOSE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   supportedEvents: GOOSE_HOOK_EVENTS,
   canonicalToToolEventNames: CANONICAL_TO_GOOSE_EVENT_NAMES,
   toolToCanonicalEventNames: GOOSE_TO_CANONICAL_EVENT_NAMES,

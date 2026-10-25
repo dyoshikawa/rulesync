@@ -31,7 +31,7 @@ import {
 // capability. See https://junie.jetbrains.com/docs/junie-cli-hooks.html
 const JUNIE_NO_MATCHER_EVENTS: ReadonlySet<string> = new Set(["beforeSubmitPrompt", "stop"]);
 
-const JUNIE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
+export const JUNIE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   supportedEvents: JUNIE_HOOK_EVENTS,
   canonicalToToolEventNames: CANONICAL_TO_JUNIE_EVENT_NAMES,
   toolToCanonicalEventNames: JUNIE_TO_CANONICAL_EVENT_NAMES,

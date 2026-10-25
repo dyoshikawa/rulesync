@@ -31,7 +31,7 @@ import {
 // Hook processes get `DUO_PROJECT_DIR`, so `./`-relative script paths are
 // anchored to it (bare executables such as `npx ...` are left intact).
 // https://docs.gitlab.com/user/gitlab_duo_cli/customize/
-const GITLABDUO_CONVERTER_CONFIG: ToolHooksConverterConfig = {
+export const GITLABDUO_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   supportedEvents: GITLABDUO_HOOK_EVENTS,
   canonicalToToolEventNames: CANONICAL_TO_GITLABDUO_EVENT_NAMES,
   toolToCanonicalEventNames: GITLABDUO_TO_CANONICAL_EVENT_NAMES,

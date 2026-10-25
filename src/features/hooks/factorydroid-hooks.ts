@@ -47,7 +47,7 @@ function declaresHooksKey(fileContent: string): boolean {
   return isRecord(parsed) && isRecord(parsed["hooks"]);
 }
 
-const FACTORYDROID_CONVERTER_CONFIG: ToolHooksConverterConfig = {
+export const FACTORYDROID_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   supportedEvents: FACTORYDROID_HOOK_EVENTS,
   canonicalToToolEventNames: CANONICAL_TO_FACTORYDROID_EVENT_NAMES,
   toolToCanonicalEventNames: FACTORYDROID_TO_CANONICAL_EVENT_NAMES,
