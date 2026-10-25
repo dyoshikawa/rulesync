@@ -187,6 +187,30 @@ function copyHermesCostFields({
   return copied;
 }
 
+/**
+ * Copies the per-server `events` toggle of the experimental webhook-mode MCP
+ * events client (v0.22.5; default off, read as a boolean-ish value in
+ * `tools/mcp_tool_events.py`), which registers `list_event_types`,
+ * `subscribe_event` and `unsubscribe_event` for the server. Dropping it on
+ * regenerate would silently turn off the server's event subscriptions, so a
+ * non-boolean value is named in a warning instead of vanishing quietly.
+ */
+function copyHermesEventsField(
+  source: Record<string, unknown>,
+  target: Record<string, unknown>,
+  logger?: Logger,
+): boolean {
+  if (source.events === undefined) return false;
+  if (typeof source.events === "boolean") {
+    target.events = source.events;
+    return true;
+  }
+  logger?.warn(
+    `Hermes MCP: dropping events ${describeHermesValue(source.events)}; Hermes expects a boolean.`,
+  );
+  return false;
+}
+
 // Per-server mappings Hermes reads as a whole; see `copyHermesAdvancedFields`.
 const HERMES_OPAQUE_MAPPING_KEYS = [
   "sampling",
@@ -200,7 +224,8 @@ const HERMES_OPAQUE_MAPPING_KEYS = [
  * alias — `auth` (`oauth` for OAuth 2.1/PKCE), mTLS `client_cert` (string PEM
  * path, or `[cert, key]`/`[cert, key, password]` list) and `client_key`,
  * `connect_timeout` (seconds), `supports_parallel_tool_calls`, `protocol`,
- * `lazy`, `keepalive_interval`, `elicitation`, `trust`, `identity_header`, and
+ * `lazy`, `events` (see {@link copyHermesEventsField}), `keepalive_interval`,
+ * `elicitation`, `trust`, `identity_header`, and
  * the cost keys (see {@link copyHermesCostFields}) —
  * verbatim from `source` to `target`. Field names are identical on both sides
  * (the canonical `McpServerSchema` is a `looseObject`), so this serves export
@@ -256,6 +281,7 @@ function copyHermesAdvancedFields(
     target.lazy = source.lazy;
     copied = true;
   }
+  if (copyHermesEventsField(source, target, logger)) copied = true;
   // TLS verification: `true`/`false` or a PEM CA-bundle path. Landed in the
   // same upstream mTLS PR as `client_cert`/`client_key` but was missed when
   // those were added, so a hand-written value was destroyed on regenerate.

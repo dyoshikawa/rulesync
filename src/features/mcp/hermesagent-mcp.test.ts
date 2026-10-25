@@ -600,6 +600,64 @@ describe("HermesagentMcp", () => {
       ).toHaveLength(2);
     });
 
+    it("writes and imports the v0.22.5 events key (issue #2414)", async () => {
+      const mcp = await HermesagentMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        global: true,
+        rulesyncMcp: new RulesyncMcp({
+          relativeDirPath: ".rulesync",
+          relativeFilePath: ".mcp.json",
+          fileContent: JSON.stringify({
+            mcpServers: {
+              watcher: { url: "https://mcp.example.com/mcp", events: true, lazy: true },
+              quiet: { command: "quiet-mcp", events: false },
+            },
+          }),
+        }),
+      });
+      const servers = getMcpServers(mcp.getFileContent());
+
+      expect(servers.watcher?.events).toBe(true);
+      expect(servers.watcher?.lazy).toBe(true);
+      expect(servers.quiet?.events).toBe(false);
+
+      const imported = JSON.parse(
+        new HermesagentMcp({
+          outputRoot: testDir,
+          relativeDirPath: HERMES_DIR,
+          relativeFilePath: HERMES_FILE,
+          validate: false,
+          fileContent: mcp.getFileContent(),
+          global: true,
+        })
+          .toRulesyncMcp()
+          .getFileContent(),
+      );
+      // Hermes-only keys ride the tool-scoped override block.
+      expect(imported.hermesagent.mcpServers.watcher.events).toBe(true);
+      expect(imported.hermesagent.mcpServers.quiet.events).toBe(false);
+      expect(imported.mcpServers.watcher).not.toHaveProperty("events");
+    });
+
+    it("drops a non-boolean events value on generate, with a warning (issue #2414)", async () => {
+      const logger = createMockLogger();
+      const mcp = await HermesagentMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        global: true,
+        logger,
+        rulesyncMcp: new RulesyncMcp({
+          relativeDirPath: ".rulesync",
+          relativeFilePath: ".mcp.json",
+          fileContent: JSON.stringify({
+            mcpServers: { watcher: { command: "watcher-mcp", events: "yes" } },
+          }),
+        }),
+      });
+
+      expect(getMcpServers(mcp.getFileContent()).watcher).not.toHaveProperty("events");
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('events "yes"'));
+    });
+
     it("strips nested prototype-pollution keys from tool_costs (issue #2414)", async () => {
       const mcp = await HermesagentMcp.fromRulesyncMcp({
         outputRoot: testDir,
