@@ -6,6 +6,7 @@ import {
   RULESYNC_MCP_SCHEMA_URL,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { parseJsonc } from "../../utils/jsonc.js";
@@ -554,6 +555,45 @@ describe("CopilotMcp", () => {
         B: "${input:api-key}",
         C: "${WITH:-fallback}",
       });
+    });
+
+    it("should warn about ${VAR:-default} references when writing", async () => {
+      const logger = createMockLogger();
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            withDefault: { command: "node", env: { LEVEL: "${LOG_LEVEL:-info}" } },
+            plain: { command: "node", env: { KEY: "${KEY}" } },
+          },
+        }),
+      });
+
+      await CopilotMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp, logger });
+
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("withDefault"));
+      expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("plain"));
+    });
+
+    it("should import number and null env values without throwing", () => {
+      // VS Code documents env values as strings, numbers, or null.
+      const copilotMcp = new CopilotMcp({
+        relativeDirPath: ".vscode",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          servers: {
+            local: { command: "node", env: { PORT: 8080, UNSET: null, KEY: "${env:KEY}" } },
+          },
+        }),
+      });
+
+      const json = copilotMcp.toRulesyncMcp().getJson() as {
+        mcpServers: Record<string, { env?: Record<string, unknown> }>;
+      };
+
+      expect(json.mcpServers.local?.env).toEqual({ PORT: 8080, UNSET: null, KEY: "${KEY}" });
     });
 
     it("should map ${env:VAR} back to canonical ${VAR} on import", () => {

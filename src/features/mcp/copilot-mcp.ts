@@ -52,6 +52,19 @@ function convertFromCopilotFormat(copilotConfig: CopilotMcpConfig): McpServers {
   });
 }
 
+/** Canonical `${VAR:-default}`, which `.vscode/mcp.json` cannot express. */
+const DEFAULT_VALUE_ENV_VAR_PATTERN = /\$\{[^}:]+:-[^}]*\}/;
+
+function findServersWithDefaultValueEnvVarRefs(mcpServers: McpServers): string[] {
+  const hasRef = (record: Record<string, string> | undefined): boolean =>
+    Object.values(record ?? {}).some(
+      (value) => typeof value === "string" && DEFAULT_VALUE_ENV_VAR_PATTERN.test(value),
+    );
+  return Object.entries(mcpServers)
+    .filter(([, config]) => hasRef(config.env) || hasRef(config.headers))
+    .map(([name]) => name);
+}
+
 function convertToCopilotFormat(mcpServers: McpServers): McpServers {
   return convertEnvVarRefsToToolFormat({ mcpServers, replacement: "${env:$1}" });
 }
@@ -110,6 +123,13 @@ export class CopilotMcp extends ToolMcp {
     // Read without initializing so this stays side-effect-free under
     // `--dry-run`/`--check`; the actual write happens later in `writeAiFiles`.
     const existingContent = (await readFileContentOrNull(filePath)) ?? "{}";
+    const mcpServers = rulesyncMcp.getMcpServers();
+    const serversWithDefaults = findServersWithDefaultValueEnvVarRefs(mcpServers);
+    if (serversWithDefaults.length > 0) {
+      logger?.warn(
+        `${filePath}: \${VAR:-default} env var references have no .vscode/mcp.json equivalent and are written as-is (servers: ${serversWithDefaults.join(", ")})`,
+      );
+    }
 
     return new CopilotMcp({
       outputRoot,
@@ -123,7 +143,7 @@ export class CopilotMcp extends ToolMcp {
         fileKey: sharedConfigFileKey(paths),
         feature: "mcp",
         existingContent,
-        patch: { servers: convertToCopilotFormat(rulesyncMcp.getMcpServers()) },
+        patch: { servers: convertToCopilotFormat(mcpServers) },
         filePath,
         logger,
       }),
