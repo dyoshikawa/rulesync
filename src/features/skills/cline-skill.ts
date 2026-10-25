@@ -37,6 +37,8 @@ export type ClineSkillParams = {
 /**
  * Represents a Cline Code skill directory.
  * Skills are stored under .cline/skills/ directories with SKILL.md files.
+ * Cline also reads `.claude/skills/` (owned by the claudecode target); on a
+ * same-name skill the `.claude/skills/` copy wins in Cline.
  */
 export class ClineSkill extends ToolSkill {
   constructor({
