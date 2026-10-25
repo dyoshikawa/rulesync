@@ -2797,6 +2797,102 @@ callbackPort = 3118
       );
     });
 
+    it("keeps oauth.token_endpoint_auth_method on an ema_auth server with a client secret", async () => {
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            corp: {
+              type: "http",
+              url: "https://mcp.example.com/mcp",
+              auth: "ema_auth",
+              oauth: {
+                client_id: "client",
+                client_secret: "secret",
+                token_endpoint_auth_method: "client_secret_post",
+              },
+            },
+          },
+        }),
+      });
+
+      const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: false,
+      });
+
+      const corp = (codexcliMcp.getToml().mcp_servers as any).corp;
+      expect(corp.auth).toBe("ema_auth");
+      expect(corp.oauth).toEqual({
+        client_id: "client",
+        client_secret: "secret",
+        token_endpoint_auth_method: "client_secret_post",
+      });
+      expect(warnSpy).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      [
+        "has an unknown value",
+        { auth: "ema_auth" },
+        { client_id: "client", client_secret: "secret", token_endpoint_auth_method: "none" },
+        "Dropping malformed 'oauth.token_endpoint_auth_method'",
+      ],
+      [
+        "has no client secret",
+        { auth: "ema_auth" },
+        { client_id: "client", token_endpoint_auth_method: "client_secret_basic" },
+        "Codex requires a client_secret alongside it",
+      ],
+      [
+        "loses its blank client secret",
+        { auth: "ema_auth" },
+        {
+          client_id: "client",
+          client_secret: " ",
+          token_endpoint_auth_method: "client_secret_post",
+        },
+        "Codex requires a client_secret alongside it",
+      ],
+      [
+        "is on a server without ema_auth",
+        {},
+        {
+          client_id: "client",
+          client_secret: "secret",
+          token_endpoint_auth_method: "client_secret_post",
+        },
+        'Codex requires auth = "ema_auth" on the server',
+      ],
+    ])(
+      "drops an oauth.token_endpoint_auth_method that %s",
+      async (_label, serverFields, oauth, message) => {
+        const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+        const rulesyncMcp = new RulesyncMcp({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: ".mcp.json",
+          fileContent: JSON.stringify({
+            mcpServers: {
+              corp: { type: "http", url: "https://mcp.example.com/mcp", ...serverFields, oauth },
+            },
+          }),
+        });
+
+        const codexcliMcp = await CodexcliMcp.fromRulesyncMcp({
+          outputRoot: testDir,
+          rulesyncMcp,
+          global: false,
+        });
+
+        const written = (codexcliMcp.getToml().mcp_servers as any).corp.oauth;
+        expect(written?.token_endpoint_auth_method).toBeUndefined();
+        expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining(message));
+      },
+    );
+
     it.each([
       ["a non-integer", 3118.5],
       ["a negative", -1],

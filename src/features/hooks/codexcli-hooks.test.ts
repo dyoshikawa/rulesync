@@ -364,6 +364,36 @@ describe("CodexcliHooks", () => {
       expect(parsed.hooks.StopCancelled).toBeUndefined();
     });
 
+    it("should convert preModelInvocation/postModelInvocation to PreModelRequest/PostModelRequest", async () => {
+      const rulesyncHooks = new RulesyncHooks(
+        createMockAiFileParams({
+          fileContent: JSON.stringify({
+            hooks: {
+              preModelInvocation: [{ command: "./scripts/before-model.sh" }],
+              postModelInvocation: [{ command: "./scripts/after-model.sh", timeout: 5 }],
+            },
+          }),
+        }),
+      );
+
+      const codexHooks = await CodexcliHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: true,
+      });
+
+      const parsed = JSON.parse(codexHooks.getFileContent());
+      expect(parsed.hooks.PreModelRequest[0].hooks[0]).toEqual({
+        type: "command",
+        command: "./scripts/before-model.sh",
+      });
+      expect(parsed.hooks.PostModelRequest[0].hooks[0]).toEqual({
+        type: "command",
+        command: "./scripts/after-model.sh",
+        timeout: 5,
+      });
+    });
+
     it("should not prefix commands with a project dir variable", async () => {
       const rulesyncHooks = new RulesyncHooks(
         createMockAiFileParams({
@@ -1014,6 +1044,32 @@ describe("CodexcliHooks", () => {
         timeout: 2,
       });
       expect(parsed.hooks.stop).toBeUndefined();
+    });
+
+    it("should convert PreModelRequest/PostModelRequest to canonical preModelInvocation/postModelInvocation", () => {
+      const codexHooks = new CodexcliHooks(
+        createMockAiFileParams({
+          relativeDirPath: ".codex",
+          relativeFilePath: "hooks.json",
+          fileContent: JSON.stringify({
+            hooks: {
+              PreModelRequest: [{ hooks: [{ command: "./scripts/before-model.sh" }] }],
+              PostModelRequest: [{ hooks: [{ command: "./scripts/after-model.sh" }] }],
+            },
+          }),
+        }),
+      );
+
+      const parsed = codexHooks.toRulesyncHooks().getJson();
+
+      expect(parsed.hooks.preModelInvocation?.[0]).toEqual({
+        type: "command",
+        command: "./scripts/before-model.sh",
+      });
+      expect(parsed.hooks.postModelInvocation?.[0]).toEqual({
+        type: "command",
+        command: "./scripts/after-model.sh",
+      });
     });
 
     it("should import mcp_tool hooks", () => {
