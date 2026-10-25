@@ -17,8 +17,6 @@ import {
   STRATEGIES,
   extractAntigravitySubprojectPath,
   getAntigravityNestedFilePatterns,
-  normalizeStoredAntigravity,
-  parseGlobsString,
   resolveAntigravityNonRootFile,
   resolveAntigravitySubprojectPath,
   toAntigravityNestedRulesDirPath,
@@ -36,6 +34,7 @@ import {
   ToolRuleSettablePathsGlobal,
   buildToolPath,
 } from "./tool-rule.js";
+import { normalizeStoredTriggerRule, parseGlobsString } from "./trigger-rule-strategies.js";
 
 export type AntigravityCliRuleSettablePaths = ToolRuleSettablePaths & {
   root: {
@@ -188,7 +187,7 @@ export class AntigravityCliRule extends ToolRule {
       throw new Error(`No strategy found for trigger: ${storedTrigger}`);
     }
     const frontmatter = strategy.generateFrontmatter(
-      normalizeStoredAntigravity(storedAntigravity),
+      normalizeStoredTriggerRule(storedAntigravity),
       rulesyncFrontmatter,
     );
 

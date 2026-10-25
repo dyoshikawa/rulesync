@@ -18,8 +18,6 @@ import {
   STRATEGIES,
   extractAntigravitySubprojectPath,
   getAntigravityNestedFilePatterns,
-  normalizeStoredAntigravity,
-  parseGlobsString,
   resolveAntigravityNonRootFile,
   resolveAntigravitySubprojectPath,
   toAntigravityNestedRulesDirPath,
@@ -35,6 +33,7 @@ import {
   ToolRuleParams,
   buildToolPath,
 } from "./tool-rule.js";
+import { normalizeStoredTriggerRule, parseGlobsString } from "./trigger-rule-strategies.js";
 
 /**
  * Parameters for creating an AntigravityIdeRule instance.
@@ -280,7 +279,7 @@ export class AntigravityIdeRule extends ToolRule {
     const rulesyncFrontmatter = rulesyncRule.getFrontmatter();
 
     const storedAntigravity = rulesyncFrontmatter.antigravity;
-    const normalized = normalizeStoredAntigravity(storedAntigravity);
+    const normalized = normalizeStoredTriggerRule(storedAntigravity);
     const storedTrigger = storedAntigravity?.trigger;
 
     const strategy = STRATEGIES.find((s) => s.canHandle(storedTrigger));

@@ -1,7 +1,5 @@
 import { join } from "node:path";
 
-import { z } from "zod/mini";
-
 import {
   DEVIN_DIR,
   DEVIN_GLOBAL_AGENTS_FILE_NAME,
@@ -22,6 +20,13 @@ import {
   ToolRuleSettablePathsGlobal,
   buildToolPath,
 } from "./tool-rule.js";
+import {
+  TriggerRuleFrontmatter,
+  TriggerRuleFrontmatterSchema,
+  createTriggerStrategies,
+  normalizeStoredTriggerRule,
+  parseGlobsString,
+} from "./trigger-rule-strategies.js";
 
 /**
  * Frontmatter schema for Devin project rules.
@@ -37,21 +42,9 @@ import {
  *
  * @see https://docs.devin.ai/desktop/cascade/memories
  */
-export const DevinRuleFrontmatterSchema = z.looseObject({
-  trigger: z.optional(
-    z.union([
-      z.literal("always_on"),
-      z.literal("glob"),
-      z.literal("manual"),
-      z.literal("model_decision"),
-      z.string(), // accepts any string for forward compatibility
-    ]),
-  ),
-  globs: z.optional(z.string()),
-  description: z.optional(z.string()),
-});
+export const DevinRuleFrontmatterSchema = TriggerRuleFrontmatterSchema;
 
-export type DevinRuleFrontmatter = z.infer<typeof DevinRuleFrontmatterSchema>;
+export type DevinRuleFrontmatter = TriggerRuleFrontmatter;
 
 /**
  * Parameters for creating a DevinRule instance.
@@ -72,214 +65,11 @@ export type DevinRuleSettablePaths = ToolRuleSettablePaths & {
   };
 };
 
-// --- Helper Functions for Globs Conversion ---
-
 /**
- * Converts a comma-separated globs string or array to an array of globs.
- * @param globs - Comma-separated globs string (e.g., "*.ts,*.js") or array of globs
- * @returns Array of glob patterns
+ * Trigger strategies for converting between RulesyncRule and DevinRule, which
+ * stores its config under the `devin` key.
  */
-function parseGlobsString(globs: string | string[] | undefined): string[] {
-  if (!globs) {
-    return [];
-  }
-  if (Array.isArray(globs)) {
-    return globs;
-  }
-  if (globs.trim() === "") {
-    return [];
-  }
-  return globs.split(",").map((g) => g.trim());
-}
-
-/**
- * Converts an array of globs to a comma-separated string.
- * @param globs - Array of glob patterns
- * @returns Comma-separated globs string, or undefined if empty
- */
-function stringifyGlobs(globs: string[] | undefined): string | undefined {
-  if (!globs || globs.length === 0) {
-    return undefined;
-  }
-  return globs.join(",");
-}
-
-/**
- * Devin configuration as it may be stored in the RulesyncRule `devin`
- * frontmatter block. `globs` may be stored as an array there but is normalized
- * to a comma-separated string for the Devin rule file.
- */
-type StoredDevin =
-  | (Omit<DevinRuleFrontmatter, "globs"> & { globs?: string | string[] })
-  | undefined;
-
-/**
- * Normalizes a StoredDevin value to DevinRuleFrontmatter format by
- * converting globs from array to string if needed.
- */
-function normalizeStoredDevin(stored: StoredDevin): DevinRuleFrontmatter | undefined {
-  if (!stored) {
-    return undefined;
-  }
-  const { globs, ...rest } = stored;
-  return {
-    ...rest,
-    globs: Array.isArray(globs) ? stringifyGlobs(globs) : globs,
-  };
-}
-
-// --- Strategy Pattern for Frontmatter Conversion ---
-
-/**
- * Strategy interface for handling different trigger types during conversion
- * between RulesyncRule and DevinRule.
- */
-type TriggerStrategy = {
-  canHandle(trigger: string | undefined): boolean;
-  generateFrontmatter(
-    normalized: DevinRuleFrontmatter | undefined,
-    rulesyncFrontmatter: { description?: string; globs?: string[] },
-  ): DevinRuleFrontmatter;
-  exportRulesyncData(frontmatter: DevinRuleFrontmatter): {
-    globs: string[];
-    description?: string;
-    devin: Record<string, unknown>;
-  };
-};
-
-const globStrategy: TriggerStrategy = {
-  canHandle: (trigger) => trigger === "glob",
-  generateFrontmatter: (normalized, rulesyncFrontmatter) => {
-    const effectiveGlobsArray = normalized?.globs
-      ? parseGlobsString(normalized.globs)
-      : (rulesyncFrontmatter.globs ?? []);
-    return {
-      ...normalized,
-      trigger: "glob",
-      globs: stringifyGlobs(effectiveGlobsArray),
-    };
-  },
-  exportRulesyncData: ({ description, ...frontmatter }) => ({
-    globs: parseGlobsString(frontmatter.globs),
-    description,
-    devin: frontmatter,
-  }),
-};
-
-const manualStrategy: TriggerStrategy = {
-  canHandle: (trigger) => trigger === "manual",
-  generateFrontmatter: (normalized) => ({
-    ...normalized,
-    trigger: "manual",
-  }),
-  exportRulesyncData: ({ description, ...frontmatter }) => ({
-    globs: [],
-    description,
-    devin: frontmatter,
-  }),
-};
-
-const alwaysOnStrategy: TriggerStrategy = {
-  canHandle: (trigger) => trigger === "always_on",
-  generateFrontmatter: (normalized) => ({
-    ...normalized,
-    trigger: "always_on",
-  }),
-  exportRulesyncData: ({ description, ...frontmatter }) => ({
-    globs: ["**/*"],
-    description,
-    devin: frontmatter,
-  }),
-};
-
-const modelDecisionStrategy: TriggerStrategy = {
-  canHandle: (trigger) => trigger === "model_decision",
-  generateFrontmatter: (normalized, rulesyncFrontmatter) => ({
-    ...normalized,
-    trigger: "model_decision",
-    description: rulesyncFrontmatter.description,
-  }),
-  exportRulesyncData: ({ description, ...frontmatter }) => ({
-    globs: [],
-    description,
-    devin: frontmatter,
-  }),
-};
-
-/**
- * Handles unknown/custom triggers by passing them through (relaxed schema).
- * This strategy matches ANY defined trigger that isn't handled by specific
- * strategies. It MUST come after the specific strategies in the STRATEGIES array.
- */
-const unknownStrategy: TriggerStrategy = {
-  canHandle: (trigger) => trigger !== undefined,
-  generateFrontmatter: (normalized) => {
-    const trigger = typeof normalized?.trigger === "string" ? normalized.trigger : "manual";
-    return {
-      ...normalized,
-      trigger,
-    };
-  },
-  exportRulesyncData: ({ description, ...frontmatter }) => ({
-    globs: frontmatter.globs ? parseGlobsString(frontmatter.globs) : ["**/*"],
-    description,
-    devin: frontmatter,
-  }),
-};
-
-/**
- * Fallback strategy when no specific trigger is stored in Devin config.
- * Infers the appropriate trigger based on glob patterns:
- * - Specific globs (not wildcards) → glob trigger
- * - No globs or wildcard globs → always_on trigger
- * It MUST be last in the STRATEGIES array as it handles undefined triggers.
- */
-const inferenceStrategy: TriggerStrategy = {
-  canHandle: (trigger) => trigger === undefined,
-  generateFrontmatter: (normalized, rulesyncFrontmatter) => {
-    const effectiveGlobsArray = normalized?.globs
-      ? parseGlobsString(normalized.globs)
-      : (rulesyncFrontmatter.globs ?? []);
-    if (
-      effectiveGlobsArray.length > 0 &&
-      !effectiveGlobsArray.includes("**/*") &&
-      !effectiveGlobsArray.includes("*")
-    ) {
-      return {
-        ...normalized,
-        trigger: "glob",
-        globs: stringifyGlobs(effectiveGlobsArray),
-      };
-    }
-    return {
-      ...normalized,
-      trigger: "always_on",
-    };
-  },
-  exportRulesyncData: ({ description, ...frontmatter }) => ({
-    globs: frontmatter.globs ? parseGlobsString(frontmatter.globs) : ["**/*"],
-    description,
-    devin: frontmatter,
-  }),
-};
-
-/**
- * Array of trigger strategies in priority order.
- * CRITICAL: Order matters! Strategies are checked sequentially with Array.find():
- * 1. Specific trigger strategies (glob, manual, always_on, model_decision)
- * 2. unknownStrategy - matches ANY defined trigger (must come before inference)
- * 3. inferenceStrategy - matches undefined triggers (must be last)
- *
- * DO NOT reorder without understanding the matching logic.
- */
-const STRATEGIES: TriggerStrategy[] = [
-  globStrategy,
-  manualStrategy,
-  alwaysOnStrategy,
-  modelDecisionStrategy,
-  unknownStrategy,
-  inferenceStrategy,
-];
+const STRATEGIES = createTriggerStrategies("devin");
 
 // ---------------------------------------------
 
@@ -488,7 +278,7 @@ export class DevinRule extends ToolRule {
     }
 
     const storedDevin = rulesyncFrontmatter.devin;
-    const normalized = normalizeStoredDevin(storedDevin);
+    const normalized = normalizeStoredTriggerRule(storedDevin);
     const storedTrigger = storedDevin?.trigger;
 
     const strategy = STRATEGIES.find((s) => s.canHandle(storedTrigger));
