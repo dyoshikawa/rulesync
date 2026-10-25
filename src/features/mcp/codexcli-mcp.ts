@@ -142,11 +142,14 @@ function isValidRenamedArray(key: string, value: unknown): boolean {
  * The keys of Codex's `McpServerOAuthConfig`. Anything else in a server's
  * `oauth` table is reported as an ignored setting at startup since Codex
  * 0.155.0, and is never read.
- * @see https://github.com/openai/codex/blob/rust-v0.161.0/codex-rs/config/src/mcp_types.rs
+ * @see https://github.com/openai/codex/blob/rust-v0.164.0/codex-rs/config/src/mcp_types.rs
  */
 const CODEX_OAUTH_KEYS = new Set([
   "client_id",
   "client_secret",
+  // Added in rust-v0.164.0 (PR #56001) for confidential enterprise-managed
+  // (`auth = "ema_auth"`) clients.
+  "token_endpoint_auth_method",
   "callback_url",
   "callback_port",
   "authorization_server_issuer",
@@ -165,15 +168,36 @@ const CODEX_TO_RULESYNC_OAUTH_KEY_MAP: Record<string, string> = Object.fromEntri
 const MAX_PORT = 65535;
 
 /**
+ * The values of Codex's `McpEmaTokenEndpointAuthMethod`.
+ * @see https://github.com/openai/codex/blob/rust-v0.164.0/codex-rs/config/src/mcp_ema.rs
+ */
+const CODEX_TOKEN_ENDPOINT_AUTH_METHODS: ReadonlySet<unknown> = new Set([
+  "client_secret_basic",
+  "client_secret_post",
+]);
+
+/**
  * Whether a value fits the Codex `oauth` key it is written to. Codex reads
- * `callback_port` as a `u16` and every other key as a string, and a value of
- * the wrong type fails the whole `config.toml`, not just the one server.
+ * `callback_port` as a `u16`, `token_endpoint_auth_method` as an enum and
+ * every other key as a string, and a value of the wrong type fails the whole
+ * `config.toml`, not just the one server.
  */
 function isValidCodexOauthValue(codexKey: string, value: unknown): boolean {
   if (codexKey === "callback_port") {
     return Number.isInteger(value) && Number(value) >= 0 && Number(value) <= MAX_PORT;
   }
+  if (codexKey === "token_endpoint_auth_method") {
+    return CODEX_TOKEN_ENDPOINT_AUTH_METHODS.has(value);
+  }
   return typeof value === "string";
+}
+
+function describeExpectedOauthValue(codexKey: string): string {
+  if (codexKey === "callback_port") return "a port number";
+  if (codexKey === "token_endpoint_auth_method") {
+    return '"client_secret_basic" or "client_secret_post"';
+  }
+  return "a string";
 }
 
 /**
@@ -188,10 +212,15 @@ function isValidCodexOauthValue(codexKey: string, value: unknown): boolean {
  * `authServerMetadataUrl` — is dropped with a warning, since Codex would only
  * warn about it at startup.
  */
-function mapOauthToCodex(
-  oauth: Record<string, unknown>,
-  serverName: string,
-): Record<string, unknown> {
+function mapOauthToCodex({
+  oauth,
+  serverName,
+  serverAuth,
+}: {
+  oauth: Record<string, unknown>;
+  serverName: string;
+  serverAuth: unknown;
+}): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(oauth)) {
     if (PROTOTYPE_POLLUTION_KEYS.has(key)) continue;
@@ -211,13 +240,14 @@ function mapOauthToCodex(
     if (!isValidCodexOauthValue(codexKey, value)) {
       warnWithFallback(
         undefined,
-        `[CodexCliMcp] Dropping malformed 'oauth.${key}' from MCP server "${serverName}": expected ${codexKey === "callback_port" ? "a port number" : "a string"}, got ${typeof value}`,
+        `[CodexCliMcp] Dropping malformed 'oauth.${key}' from MCP server "${serverName}": expected ${describeExpectedOauthValue(codexKey)}, got ${typeof value === "string" ? JSON.stringify(value) : typeof value}`,
       );
       continue;
     }
     result[codexKey] = value;
   }
   dropUnusableClientSecret(result, serverName);
+  dropUnusableTokenEndpointAuthMethod({ oauth: result, serverName, serverAuth });
   return result;
 }
 
@@ -243,6 +273,37 @@ function dropUnusableClientSecret(oauth: Record<string, unknown>, serverName: st
   warnWithFallback(
     undefined,
     `[CodexCliMcp] Dropping 'oauth.client_secret' from MCP server "${serverName}": ${reason}.`,
+  );
+}
+
+/**
+ * Codex rejects `oauth.token_endpoint_auth_method` unless the server sets
+ * `auth = "ema_auth"` and the oauth table keeps a `client_secret`, and either
+ * error fails the whole `config.toml`. Checked after
+ * {@link dropUnusableClientSecret}, which may have removed the secret.
+ * @see https://github.com/openai/codex/blob/rust-v0.164.0/codex-rs/config/src/mcp_types.rs
+ */
+function dropUnusableTokenEndpointAuthMethod({
+  oauth,
+  serverName,
+  serverAuth,
+}: {
+  oauth: Record<string, unknown>;
+  serverName: string;
+  serverAuth: unknown;
+}): void {
+  if (!Object.hasOwn(oauth, "token_endpoint_auth_method")) return;
+  const reason =
+    serverAuth !== "ema_auth"
+      ? 'Codex requires auth = "ema_auth" on the server'
+      : !Object.hasOwn(oauth, "client_secret")
+        ? "Codex requires a client_secret alongside it"
+        : undefined;
+  if (reason === undefined) return;
+  delete oauth["token_endpoint_auth_method"];
+  warnWithFallback(
+    undefined,
+    `[CodexCliMcp] Dropping 'oauth.token_endpoint_auth_method' from MCP server "${serverName}": ${reason}.`,
   );
 }
 
@@ -751,7 +812,11 @@ function convertToCodexFormat(mcpServers: Record<string, unknown>): Record<strin
           converted["enabled"] = false;
         }
       } else if (key === "oauth" && isRecord(value)) {
-        converted[key] = mapOauthToCodex(value, name);
+        converted[key] = mapOauthToCodex({
+          oauth: value,
+          serverName: name,
+          serverAuth: normalized["auth"],
+        });
       } else if (Object.hasOwn(RULESYNC_TO_CODEX_FIELD_MAP, key)) {
         const mappedKey = RULESYNC_TO_CODEX_FIELD_MAP[key];
         if (mappedKey) {
