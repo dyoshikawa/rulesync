@@ -108,6 +108,34 @@ describe("FactorydroidMcp", () => {
 
       expect(factorydroidMcp.getJson()).toEqual({ mcpServers: {} });
     });
+
+    it("should write the enabledTools and disabledTools filters unchanged", () => {
+      // Droid reads both per-server filters: https://docs.factory.com/harness/mcp
+      const filteredConfig = {
+        mcpServers: {
+          filtered: {
+            command: "server",
+            enabledTools: ["read", "search"],
+            disabledTools: ["write"],
+          },
+        },
+      };
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "rulesync.mcp.json",
+        fileContent: JSON.stringify(filteredConfig),
+        validate: true,
+      });
+
+      const factorydroidMcp = FactorydroidMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        validate: true,
+      });
+
+      expect(factorydroidMcp.getJson()).toEqual(filteredConfig);
+    });
   });
 
   describe("fromFile", () => {
@@ -152,6 +180,27 @@ describe("FactorydroidMcp", () => {
         $schema: RULESYNC_MCP_SCHEMA_URL,
         ...validMcpConfig,
       });
+    });
+
+    it("should import the enabledTools and disabledTools filters", () => {
+      const filteredConfig = {
+        mcpServers: {
+          filtered: {
+            command: "server",
+            enabledTools: ["read"],
+            disabledTools: ["write"],
+          },
+        },
+      };
+      const mcp = new FactorydroidMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".factory",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify(filteredConfig),
+        validate: true,
+      });
+
+      expect(mcp.toRulesyncMcp().getMcpServers()).toEqual(filteredConfig.mcpServers);
     });
   });
 
