@@ -6,13 +6,12 @@ import {
   DEVIN_GLOBAL_CONFIG_DIR_PATH,
   DEVIN_HOOKS_V1_FILE_NAME,
 } from "../../constants/devin-paths.js";
-import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { AiFileParams } from "../../types/ai-file.js";
 import {
   CANONICAL_TO_DEVIN_EVENT_NAMES,
   DEVIN_HOOK_EVENTS,
   DEVIN_TO_CANONICAL_EVENT_NAMES,
 } from "../../types/hooks.js";
-import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { isRecord } from "../../utils/type-guards.js";
@@ -50,7 +49,7 @@ const DEVIN_NO_MATCHER_EVENTS: ReadonlySet<string> = new Set([
   "postCompact",
 ]);
 
-const DEVIN_CONVERTER_CONFIG: ToolHooksConverterConfig = {
+export const DEVIN_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   supportedEvents: DEVIN_HOOK_EVENTS,
   canonicalToToolEventNames: CANONICAL_TO_DEVIN_EVENT_NAMES,
   toolToCanonicalEventNames: DEVIN_TO_CANONICAL_EVENT_NAMES,
@@ -59,6 +58,13 @@ const DEVIN_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   projectDirVar: "",
   supportedHookTypes: new Set(["command", "prompt"]),
   noMatcherEvents: DEVIN_NO_MATCHER_EVENTS,
+  // Devin CLI v3000.11.205+ reads a per-hook `fail_closed: true`, which blocks
+  // the action a hook guards when the hook itself fails to run instead of going
+  // ahead without it — the canonical `failClosed` semantics. Only the changelog
+  // documents the flag so far, and it names no event restriction, so it is
+  // carried on every hook entry.
+  // https://docs.devin.ai/cli/changelog/stable
+  booleanPassthroughFields: [{ canonical: "failClosed", tool: "fail_closed" }],
 };
 
 /**
@@ -175,15 +181,10 @@ export class DevinHooks extends ToolHooks {
   }
 
   toRulesyncHooks({ logger }: { logger?: Logger } = {}): RulesyncHooks {
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(this.getFileContent());
-    } catch (error) {
-      throw new Error(
-        `Failed to parse Devin hooks content in ${join(this.getRelativeDirPath(), this.getRelativeFilePath())}: ${formatError(error)}`,
-        { cause: error },
-      );
-    }
+    const parsed: unknown = this.parseFileContentOrThrow({
+      displayName: "Devin",
+      parse: (fileContent) => JSON.parse(fileContent),
+    });
 
     // In config.json the hooks live under the `hooks` key; in the standalone
     // hooks.v1.json the event map is the entire file.
@@ -206,10 +207,6 @@ export class DevinHooks extends ToolHooks {
         2,
       ),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

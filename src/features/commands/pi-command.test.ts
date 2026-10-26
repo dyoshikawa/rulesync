@@ -200,7 +200,6 @@ Body`,
           description: "Desc",
         },
         body: "Body",
-        fileContent: "",
       });
 
       const command = PiCommand.fromRulesyncCommand({
@@ -226,7 +225,6 @@ Body`,
           },
         },
         body: "Body",
-        fileContent: "",
       });
 
       const command = PiCommand.fromRulesyncCommand({
@@ -250,7 +248,6 @@ Body`,
           description: "Desc",
         },
         body: "Body",
-        fileContent: "",
       });
 
       const command = PiCommand.fromRulesyncCommand({
@@ -371,7 +368,6 @@ Body`,
         relativeFilePath: "test.md",
         frontmatter: { targets: ["pi"], description: "D" },
         body: "Body",
-        fileContent: "",
       });
 
       expect(PiCommand.isTargetedByRulesyncCommand(rulesyncCommand)).toBe(true);
@@ -383,7 +379,6 @@ Body`,
         relativeFilePath: "test.md",
         frontmatter: { targets: ["*"], description: "D" },
         body: "Body",
-        fileContent: "",
       });
 
       expect(PiCommand.isTargetedByRulesyncCommand(rulesyncCommand)).toBe(true);
@@ -395,7 +390,6 @@ Body`,
         relativeFilePath: "test.md",
         frontmatter: { targets: ["cursor"], description: "D" },
         body: "Body",
-        fileContent: "",
       });
 
       expect(PiCommand.isTargetedByRulesyncCommand(rulesyncCommand)).toBe(false);

@@ -13,6 +13,7 @@ import { warnWithFallback } from "../../utils/logger.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
   ToolRule,
+  ToolRuleBuildLocalRootFileParams,
   ToolRuleForDeletionParams,
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
@@ -47,6 +48,29 @@ export type RooRuleSettablePathsGlobal = ToolRuleSettablePathsGlobal;
  *   @see https://roocodeinc.github.io/Roo-Code/features/custom-instructions
  */
 export class RooRule extends ToolRule {
+  /**
+   * Build this tool's separate personal local-root file (`localRootMode:
+   * "separate-local-file"`), for generation and import. See
+   * {@link ToolRuleBuildLocalRootFileParams}.
+   */
+  static buildLocalRootFile({
+    outputRoot,
+    fileName,
+    body,
+    relativeDirPath,
+    localRoot,
+  }: ToolRuleBuildLocalRootFileParams): ToolRule {
+    return new RooRule({
+      outputRoot,
+      relativeDirPath: relativeDirPath ?? ".",
+      relativeFilePath: fileName,
+      fileContent: body,
+      validate: true,
+      root: true,
+      localRoot,
+    });
+  }
+
   static getSettablePaths({
     global,
     excludeToolDir,

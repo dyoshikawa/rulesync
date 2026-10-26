@@ -59,11 +59,11 @@ export function parseScaffoldFeatureKeyword(value: string): ScaffoldFeature | un
   return FEATURE_KEYWORDS.get(value.toLowerCase());
 }
 
-export function isNamedScaffoldFeature(feature: ScaffoldFeature): boolean {
+function isNamedScaffoldFeature(feature: ScaffoldFeature): boolean {
   return NAMED_FEATURES.has(feature);
 }
 
-export function normalizeScaffoldName({
+function normalizeScaffoldName({
   feature,
   name,
 }: {

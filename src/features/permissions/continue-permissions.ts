@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { dump } from "js-yaml";
 
 import { CONTINUE_DIR, CONTINUE_PERMISSIONS_FILE_NAME } from "../../constants/continue-paths.js";
-import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { AiFileParams } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
@@ -14,6 +14,7 @@ import { isRecord, isStringArray } from "../../utils/type-guards.js";
 import { loadYaml } from "../../utils/yaml.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { ALL_TOOLS_PERMISSION_CATEGORY, honorAllToolsOnBash } from "./shell-command-categories.js";
+import { buildToolPatternEntry } from "./tool-pattern-entry.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -98,14 +99,6 @@ function toCanonicalToolName(continueName: string): string {
 }
 
 /**
- * Build a permissions.yaml entry: the bare tool name for the catch-all, else
- * `Tool(pattern)`.
- */
-function buildContinuePermissionEntry(toolName: string, pattern: string): string {
-  return pattern === CATCH_ALL_PATTERN ? toolName : `${toolName}(${pattern})`;
-}
-
-/**
  * Split a permissions.yaml entry into its tool name and argument pattern, or
  * `undefined` for an entry outside the loader's grammar.
  */
@@ -161,10 +154,6 @@ export class ContinuePermissions extends ToolPermissions {
       ...params,
       fileContent: params.fileContent ?? "",
     });
-  }
-
-  override isDeletable(): boolean {
-    return false;
   }
 
   /**
@@ -277,10 +266,6 @@ export class ContinuePermissions extends ToolPermissions {
     });
   }
 
-  validate(): ValidationResult {
-    return { success: true, error: null };
-  }
-
   static forDeletion({
     outputRoot = process.cwd(),
     relativeDirPath,
@@ -362,7 +347,7 @@ function convertRulesyncToContinuePermissions({
         );
         continue;
       }
-      const entry = buildContinuePermissionEntry(toolName, pattern);
+      const entry = buildToolPatternEntry({ toolName, pattern });
       const previous = actionByEntry.get(entry);
       if (previous !== undefined && previous !== action) {
         logger?.warn(

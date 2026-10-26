@@ -1,4 +1,4 @@
-import type { SourceEntry } from "../config/config.js";
+import { getSourceTransport, type SourceEntry } from "../config/config.js";
 import type { ParsedSource } from "../types/fetch.js";
 import { formatError } from "../utils/error.js";
 import type { Logger } from "../utils/logger.js";
@@ -16,7 +16,7 @@ import { parseSource } from "./source-parser.js";
 import { getLockedSource, readLockFile } from "./sources-lock.js";
 import { resolveGitSourceRef, resolveGithubFetchRef, resolveNpmFetchVersion } from "./sources.js";
 
-export type OutdatedSourceStatus = "up-to-date" | "outdated" | "not-locked" | "failed";
+type OutdatedSourceStatus = "up-to-date" | "outdated" | "not-locked" | "failed";
 
 export type OutdatedSourceReport = {
   source: string;
@@ -52,7 +52,7 @@ export async function checkOutdatedSources(params: {
 
   const reports: OutdatedSourceReport[] = [];
   for (const sourceEntry of sources) {
-    const transport = sourceEntry.transport ?? "github";
+    const transport = getSourceTransport(sourceEntry);
     const lockedRef =
       transport === "npm"
         ? getNpmLockedSource(npmLock, sourceEntry.source)?.resolvedVersion
@@ -91,7 +91,7 @@ async function resolveLatestRef(params: {
   logger: Logger;
 }): Promise<{ requestedRef: string; latestRef: string }> {
   const { sourceEntry, client, logger } = params;
-  const transport = sourceEntry.transport ?? "github";
+  const transport = getSourceTransport(sourceEntry);
 
   if (transport === "npm") {
     const packageName = sourceEntry.source;

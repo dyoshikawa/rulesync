@@ -1,13 +1,13 @@
 import { join } from "node:path";
 
 import { TRAE_PERMISSION_DIR_PATH, TRAE_PERMISSION_FILE_NAME } from "../../constants/trae-paths.js";
-import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { AiFileParams } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
-import { isRecord } from "../../utils/type-guards.js";
+import { isRecord, toStringArray } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
   parseSharedConfig,
@@ -15,6 +15,7 @@ import {
 } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { honorAllToolsOnBash } from "./shell-command-categories.js";
+import { isStricterAction } from "./single-action-collapse.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -39,19 +40,11 @@ const CATCH_ALL_PATTERN = "*";
 const REGEX_PREFIX = "r/";
 const REGEX_SUFFIX = "/";
 
-const ACTION_RANK: Record<PermissionAction, number> = { allow: 0, ask: 1, deny: 2 };
-
 type NetworkAction = "allow" | "deny";
 const NETWORK_ACTIONS: readonly NetworkAction[] = ["allow", "deny"];
 
 function isPermissionAction(value: unknown): value is PermissionAction {
   return value === "allow" || value === "ask" || value === "deny";
-}
-
-function toStringList(value: unknown): string[] {
-  return Array.isArray(value)
-    ? value.filter((entry): entry is string => typeof entry === "string")
-    : [];
 }
 
 function escapeRegex(text: string): string {
@@ -187,7 +180,7 @@ function setRanked(
   action: PermissionAction,
 ): void {
   const existing = ranked.get(key);
-  if (existing === undefined || ACTION_RANK[action] > ACTION_RANK[existing]) {
+  if (isStricterAction({ action, existing })) {
     ranked.set(key, action);
   }
 }
@@ -435,10 +428,6 @@ export class TraePermissions extends ToolPermissions {
     });
   }
 
-  override isDeletable(): boolean {
-    return false;
-  }
-
   static getSettablePaths(_options: { global?: boolean } = {}): ToolPermissionsSettablePaths {
     return {
       relativeDirPath: TRAE_PERMISSION_DIR_PATH,
@@ -519,7 +508,7 @@ export class TraePermissions extends ToolPermissions {
       }
       const rules = (permission[category] ??= {});
       const existing = rules[pattern];
-      if (existing === undefined || ACTION_RANK[action] > ACTION_RANK[existing]) {
+      if (isStricterAction({ action, existing })) {
         rules[pattern] = action;
       }
     };
@@ -540,7 +529,7 @@ export class TraePermissions extends ToolPermissions {
     }
     const network = readRecord(config, [RESOURCE_AUTHORIZATION_KEY, NETWORK_KEY]);
     for (const action of NETWORK_ACTIONS) {
-      for (const pattern of toStringList(network[action])) {
+      for (const pattern of toStringArray(network[action])) {
         if (pattern.trim() !== "") {
           put(WEBFETCH_CATEGORY, pattern, action);
         }
@@ -550,10 +539,6 @@ export class TraePermissions extends ToolPermissions {
     return this.toRulesyncPermissionsDefault({
       fileContent: JSON.stringify({ permission }, null, 2),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

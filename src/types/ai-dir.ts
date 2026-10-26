@@ -405,15 +405,15 @@ async function resolvesThroughSystemPseudoPath(
  * of the walk is a bound applied to an array that already grew without one.
  */
 export const MAX_CARRIED_DEPTH = 12;
-export const MAX_CARRIED_FILES = 10_000;
-export const MAX_CARRIED_DIRECTORIES = 10_000;
+const MAX_CARRIED_FILES = 10_000;
+const MAX_CARRIED_DIRECTORIES = 10_000;
 /**
  * The bounds above limit what is *carried*; this one limits what is *looked at*.
  * A directory holding nothing but a few hundred thousand links to itself carries
  * no files and occupies no depth, and would still cost a `stat` apiece.
  */
-export const MAX_CARRIED_ENTRIES_EXAMINED = 200_000;
-export const MAX_CARRIED_BYTES = 100 * 1024 * 1024;
+const MAX_CARRIED_ENTRIES_EXAMINED = 200_000;
+const MAX_CARRIED_BYTES = 100 * 1024 * 1024;
 
 /** How many `realpath` calls the carried-file filter keeps in flight. */
 const CARRIED_REALPATH_CONCURRENCY = 32;

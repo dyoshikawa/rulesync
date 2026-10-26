@@ -119,10 +119,6 @@ export class TaktSkill extends ToolSkill {
     return toPosixPath(this.relativeDirPath);
   }
 
-  getBody(): string {
-    return this.mainFile?.body ?? "";
-  }
-
   getFileName(): string {
     return this.fileName;
   }

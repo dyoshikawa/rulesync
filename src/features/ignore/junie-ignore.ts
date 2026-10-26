@@ -1,72 +1,12 @@
-import { join } from "node:path";
-
 import { JUNIE_IGNORE_FILE_NAME } from "../../constants/junie-paths.js";
-import { readFileContent } from "../../utils/file.js";
-import { RulesyncIgnore } from "./rulesync-ignore.js";
-import {
-  ToolIgnore,
-  ToolIgnoreForDeletionParams,
-  ToolIgnoreFromFileParams,
-  ToolIgnoreFromRulesyncIgnoreParams,
-  ToolIgnoreSettablePaths,
-} from "./tool-ignore.js";
+import { PlainToolIgnore } from "./plain-tool-ignore.js";
+import { ToolIgnoreSettablePaths } from "./tool-ignore.js";
 
-export class JunieIgnore extends ToolIgnore {
+export class JunieIgnore extends PlainToolIgnore {
   static getSettablePaths(): ToolIgnoreSettablePaths {
     return {
       relativeDirPath: ".",
       relativeFilePath: JUNIE_IGNORE_FILE_NAME,
     };
-  }
-
-  toRulesyncIgnore(): RulesyncIgnore {
-    return this.toRulesyncIgnoreDefault();
-  }
-
-  static fromRulesyncIgnore({
-    outputRoot = process.cwd(),
-    rulesyncIgnore,
-  }: ToolIgnoreFromRulesyncIgnoreParams): JunieIgnore {
-    return new JunieIgnore({
-      outputRoot,
-      relativeDirPath: this.getSettablePaths().relativeDirPath,
-      relativeFilePath: this.getSettablePaths().relativeFilePath,
-      fileContent: rulesyncIgnore.getFileContent(),
-    });
-  }
-
-  static async fromFile({
-    outputRoot = process.cwd(),
-    validate = true,
-  }: ToolIgnoreFromFileParams): Promise<JunieIgnore> {
-    const fileContent = await readFileContent(
-      join(
-        outputRoot,
-        this.getSettablePaths().relativeDirPath,
-        this.getSettablePaths().relativeFilePath,
-      ),
-    );
-
-    return new JunieIgnore({
-      outputRoot,
-      relativeDirPath: this.getSettablePaths().relativeDirPath,
-      relativeFilePath: this.getSettablePaths().relativeFilePath,
-      fileContent,
-      validate,
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolIgnoreForDeletionParams): JunieIgnore {
-    return new JunieIgnore({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: "",
-      validate: false,
-    });
   }
 }

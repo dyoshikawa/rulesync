@@ -2,11 +2,6 @@ import { basename, dirname, join, relative } from "node:path";
 
 import { z } from "zod/mini";
 
-import { GOOSE_GLOBAL_DIR, GOOSE_MCP_FILE_NAME } from "../../constants/goose-paths.js";
-import {
-  HERMESAGENT_CONFIG_FILE_PATH,
-  HERMESAGENT_RULESYNC_COMMANDS_PLUGIN_OWNERSHIP_PATH,
-} from "../../constants/hermesagent-paths.js";
 import {
   COMMANDS_FEATURE_SUBDIR,
   RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
@@ -16,7 +11,6 @@ import {
   ClaimedIdentities,
   FeatureProcessor,
   mergeByCaseInsensitiveIdentity,
-  refusesWriteOutsideRoot,
 } from "../../types/feature-processor.js";
 import type { FlattenedCommandNaming } from "../../types/features.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
@@ -29,11 +23,8 @@ import {
   checkPathTraversal,
   directoryExistsStrict,
   findFilesByGlobs,
-  readFileContentOrNull,
   toPosixPath,
-  writeFileContent,
 } from "../../utils/file.js";
-import { getHermesagentRelativeFilePath } from "../../utils/hermesagent.js";
 import type { Logger } from "../../utils/logger.js";
 import { AgentsmdCommand } from "./agentsmd-command.js";
 import { AntigravityCliCommand } from "./antigravity-cli-command.js";
@@ -55,16 +46,9 @@ import { DevinCommand } from "./devin-command.js";
 import { FactorydroidCommand } from "./factorydroid-command.js";
 import { FirebenderCommand } from "./firebender-command.js";
 import { GitlabduoCommand } from "./gitlabduo-command.js";
-import {
-  getGooseSlashCommandsConfigContent,
-  GooseCommand,
-  hasManagedGooseSlashCommands,
-} from "./goose-command.js";
+import { GooseCommand } from "./goose-command.js";
 import { GrokcliCommand } from "./grokcli-command.js";
-import {
-  getDisabledHermesCommandsPluginConfigContent,
-  HermesagentCommand,
-} from "./hermesagent-command.js";
+import { HermesagentCommand } from "./hermesagent-command.js";
 import { JunieCommand } from "./junie-command.js";
 import { KiloCommand } from "./kilo-command.js";
 import { KimiCodeCommand } from "./kimi-code-command.js";
@@ -88,6 +72,7 @@ import { TabnineCommand } from "./tabnine-command.js";
 import { TaktCommand } from "./takt-command.js";
 import {
   ToolCommand,
+  ToolCommandAfterOrphanSweepParams,
   ToolCommandForDeletionParams,
   ToolCommandFromFileParams,
   ToolCommandFromRulesyncCommandParams,
@@ -132,6 +117,8 @@ type ToolCommandFactory = {
       global?: boolean;
       forDeletion?: boolean;
     }): Promise<ToolFile[]> | ToolFile[];
+    /** See {@link ToolCommand.afterOrphanSweep}. */
+    afterOrphanSweep?(params: ToolCommandAfterOrphanSweepParams): Promise<number>;
     canDeleteAuxiliaryFiles?(params: {
       outputRoot: string;
       global?: boolean;
@@ -1385,101 +1372,20 @@ export class CommandsProcessor extends FeatureProcessor {
     existingFiles: AiFile[],
     generatedFiles: AiFile[],
   ): Promise<number> {
-    const ownershipPath = join(
-      this.outputRoot,
-      getHermesagentRelativeFilePath({
-        global: this.global,
-        relativeFilePath: HERMESAGENT_RULESYNC_COMMANDS_PLUGIN_OWNERSHIP_PATH,
-      }),
-    );
-    const ownershipMarker =
-      this.toolTarget === "hermesagent"
-        ? existingFiles.find((file) => file.getFilePath() === ownershipPath)
-        : undefined;
     const removedBefore = this.getRemovedPaths().length;
-    let changedCount = await super.removeOrphanAiFiles(existingFiles, generatedFiles);
-    // Decided after the base sweep, from what it actually removed (or would
-    // remove under `--check`): a marker it refused to delete — one reached
-    // through a link out of the root — stays in place, and disabling the
-    // plugin while its marker survives would leave the two out of step.
-    const shouldDisableHermesCommandsPlugin =
-      ownershipMarker !== undefined &&
-      this.getRemovedPaths()
-        .slice(removedBefore)
-        .some(
-          (removed) =>
-            removed.kind === "file" && removed.path === ownershipMarker.getRelativePathFromCwd(),
-        );
-
-    changedCount += await this.retractGooseSlashCommands(generatedFiles);
-
-    if (!shouldDisableHermesCommandsPlugin) return changedCount;
-    const configPath = join(
-      this.outputRoot,
-      getHermesagentRelativeFilePath({
+    const changedCount = await super.removeOrphanAiFiles(existingFiles, generatedFiles);
+    const factory = this.getFactory(this.toolTarget);
+    const auxiliaryChangedCount =
+      (await factory.class.afterOrphanSweep?.({
+        outputRoot: this.outputRoot,
         global: this.global,
-        relativeFilePath: HERMESAGENT_CONFIG_FILE_PATH,
-      }),
-    );
-    if (
-      await refusesWriteOutsideRoot({
+        dryRun: this.dryRun,
         logger: this.logger,
-        rootPath: this.outputRoot,
-        targetPath: configPath,
-      })
-    ) {
-      return changedCount;
-    }
-    const currentContent = await readFileContentOrNull(configPath);
-    if (currentContent === null) return changedCount;
-    const nextContent = getDisabledHermesCommandsPluginConfigContent({
-      currentContent,
-      global: this.global,
-    });
-    if (nextContent === currentContent) return changedCount;
-
-    if (this.dryRun) {
-      this.logger.info(`[DRY RUN] Would write: ${configPath}`);
-    } else {
-      await writeFileContent(configPath, nextContent);
-    }
-    changedCount++;
-    return changedCount;
-  }
-
-  /**
-   * Drop the `slash_commands` registrations when no Goose recipe is generated
-   * any more. `GooseCommand.getAuxiliaryFiles` handles every other case, but it
-   * is not reached when the whole feature has no source files left (`--delete`
-   * removes the recipes there), which would strand `/name` on a deleted recipe.
-   */
-  private async retractGooseSlashCommands(generatedFiles: AiFile[]): Promise<number> {
-    if (this.toolTarget !== "goose" || !this.global) return 0;
-    if (generatedFiles.some((file) => file instanceof GooseCommand)) return 0;
-
-    const configPath = join(this.outputRoot, GOOSE_GLOBAL_DIR, GOOSE_MCP_FILE_NAME);
-    if (
-      await refusesWriteOutsideRoot({
-        logger: this.logger,
-        rootPath: this.outputRoot,
-        targetPath: configPath,
-      })
-    ) {
-      return 0;
-    }
-    const currentContent = await readFileContentOrNull(configPath);
-    // Rewriting a config that holds no managed registration would reformat the
-    // user's file (dropping their comments) for no gain.
-    if (currentContent === null || !hasManagedGooseSlashCommands(currentContent)) return 0;
-    const nextContent = getGooseSlashCommandsConfigContent({ currentContent, entries: [] });
-    if (nextContent === currentContent) return 0;
-
-    if (this.dryRun) {
-      this.logger.info(`[DRY RUN] Would write: ${configPath}`);
-    } else {
-      await writeFileContent(configPath, nextContent);
-    }
-    return 1;
+        existingFiles,
+        generatedFiles,
+        removedPaths: this.getRemovedPaths().slice(removedBefore),
+      })) ?? 0;
+    return changedCount + auxiliaryChangedCount;
   }
 
   /**

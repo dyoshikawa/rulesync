@@ -72,7 +72,6 @@ Step 1`;
         relativeFilePath: "prompt.md",
         frontmatter: { targets: ["commandcode"], description: "" },
         body: validContent,
-        fileContent: validContent,
         validate: true,
       });
 
@@ -154,7 +153,6 @@ Step 1`;
         relativeFilePath: "prompt.md",
         frontmatter: { targets: ["commandcode"], description: "" },
         body: validContent,
-        fileContent: validContent,
         validate: true,
       });
 
@@ -168,7 +166,6 @@ Step 1`;
         relativeFilePath: "prompt.md",
         frontmatter: { targets: ["cursor"], description: "" },
         body: validContent,
-        fileContent: validContent,
         validate: true,
       });
 

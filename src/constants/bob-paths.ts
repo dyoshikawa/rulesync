@@ -17,7 +17,6 @@ export const BOB_DIR = ".bob";
 // @see https://bob.ibm.com/docs/ide/configuration/rules
 // @see https://bob.ibm.com/docs/shell/configuration/configuring
 export const BOB_RULE_FILE_NAME = "AGENTS.md";
-export const BOB_RULES_DIR_PATH = join(BOB_DIR, "rules");
 
 // Ignore: a gitignore-syntax `.bobignore` at the workspace root only.
 // @see https://bob.ibm.com/docs/ide/configuration/bobignore

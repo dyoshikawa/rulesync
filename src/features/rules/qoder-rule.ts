@@ -13,11 +13,16 @@ import { ValidationResult } from "../../types/ai-file.js";
 import { splitBraceAwareList } from "../../utils/brace-aware-list.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
-import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
+import {
+  parseFrontmatter,
+  stringifyFrontmatter,
+  validateFrontmatterSchema,
+} from "../../utils/frontmatter.js";
 import { warnWithFallback } from "../../utils/logger.js";
 import { RulesyncRule, RulesyncRuleFrontmatter } from "./rulesync-rule.js";
 import {
   ToolRule,
+  ToolRuleBuildLocalRootFileParams,
   ToolRuleExtraFixedFile,
   ToolRuleForDeletionParams,
   ToolRuleFromFileParams,
@@ -36,7 +41,7 @@ import {
  *
  * @see https://docs.qoder.com/en/cli/04-extending-qoder-cli/memory
  */
-export const QoderRuleFrontmatterSchema = z.looseObject({
+const QoderRuleFrontmatterSchema = z.looseObject({
   trigger: z.optional(z.string()),
   alwaysApply: z.optional(z.boolean()),
   description: z.optional(z.string()),
@@ -140,6 +145,32 @@ function resolveTrigger(frontmatter: QoderRuleFrontmatter): string {
  * @see https://docs.qoder.com/cli/output-styles
  */
 export class QoderRule extends ToolRule {
+  /**
+   * Build this tool's separate personal local-root file (`localRootMode:
+   * "separate-local-file"`), for generation and import. See
+   * {@link ToolRuleBuildLocalRootFileParams}.
+   */
+  static buildLocalRootFile({
+    outputRoot,
+    fileName,
+    body,
+    relativeDirPath,
+    localRoot,
+  }: ToolRuleBuildLocalRootFileParams): ToolRule {
+    // `AGENTS.local.md` sits next to the project-root `AGENTS.md` Qoder reads,
+    // not under `.qoder/`, and is plain markdown with no trigger frontmatter.
+    return new QoderRule({
+      outputRoot,
+      relativeDirPath: relativeDirPath ?? ".",
+      relativeFilePath: fileName,
+      frontmatter: {},
+      body,
+      validate: true,
+      root: true,
+      localRoot,
+    });
+  }
+
   private readonly frontmatter: QoderRuleFrontmatter;
   private readonly body: string;
   private readonly outputStyle: boolean;
@@ -493,16 +524,13 @@ export class QoderRule extends ToolRule {
     if (!this.frontmatter) {
       return { success: true, error: null };
     }
-    const result = QoderRuleFrontmatterSchema.safeParse(this.frontmatter);
-    if (result.success) {
-      return { success: true, error: null };
-    }
-    return {
-      success: false,
-      error: new Error(
-        `Invalid frontmatter in ${join(this.relativeDirPath, this.relativeFilePath)}: ${formatError(result.error)}`,
-      ),
-    };
+
+    return validateFrontmatterSchema({
+      schema: QoderRuleFrontmatterSchema,
+      frontmatter: this.frontmatter,
+      relativeDirPath: this.relativeDirPath,
+      relativeFilePath: this.relativeFilePath,
+    });
   }
 
   getFrontmatter(): QoderRuleFrontmatter {
@@ -534,10 +562,5 @@ export class QoderRule extends ToolRule {
     });
   }
 
-  static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
-    return this.isTargetedByRulesyncRuleDefault({
-      rulesyncRule,
-      toolTarget: "qoder",
-    });
-  }
+  protected static override readonly toolTarget = "qoder";
 }

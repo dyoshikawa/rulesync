@@ -172,10 +172,5 @@ export class KiloRule extends ToolRule {
     });
   }
 
-  static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
-    return this.isTargetedByRulesyncRuleDefault({
-      rulesyncRule,
-      toolTarget: "kilo",
-    });
-  }
+  protected static override readonly toolTarget = "kilo";
 }

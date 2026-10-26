@@ -129,7 +129,7 @@ const UNREADABLE_CONTAINER_REASON =
  * an unreadable path name the container rather than the leaf, because the leaf
  * is not what the file actually holds.
  */
-export function findUnreadableContainer({
+function findUnreadableContainer({
   sandbox,
   path,
 }: {

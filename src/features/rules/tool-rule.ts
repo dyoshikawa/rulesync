@@ -7,12 +7,9 @@ import {
 } from "../../constants/rulesync-paths.js";
 import { AiFileFromFileParams, AiFileParams } from "../../types/ai-file.js";
 import { ToolFile } from "../../types/tool-file.js";
-import { ToolTarget } from "../../types/tool-targets.js";
+import { isTargetedByTargets, ToolTarget } from "../../types/tool-targets.js";
 import { toPosixPath } from "../../utils/file.js";
-import {
-  NESTED_SCAN_EXCLUDED_DIRS_ANY_DEPTH,
-  NESTED_SCAN_EXCLUDED_ROOT_DIRS,
-} from "./nested-scan-exclusions.js";
+import { nestedScanExclusionGlobs } from "./nested-scan-exclusions.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 
 export type ToolRuleParams = AiFileParams & {
@@ -42,6 +39,22 @@ export type ToolRuleForDeletionParams = {
   relativeDirPath: string;
   relativeFilePath: string;
   global?: boolean;
+};
+
+/**
+ * Parameters of the optional static `buildLocalRootFile` hook, implemented by
+ * the tools whose `localRootMode` is `separate-local-file` and consumed by the
+ * RulesProcessor for both generation and import of the personal local file.
+ */
+export type ToolRuleBuildLocalRootFileParams = {
+  outputRoot: string;
+  global: boolean;
+  fileName: string;
+  body: string;
+  /** Where the file was found on import; defaults to the generation path. */
+  relativeDirPath: string | undefined;
+  /** True when importing an existing local file back to a rulesync rule. */
+  localRoot: boolean;
 };
 
 /**
@@ -322,8 +335,7 @@ export abstract class ToolRule extends ToolFile {
         // Enumerated separately as the root rule.
         fileName,
         "**/.*/**",
-        ...NESTED_SCAN_EXCLUDED_DIRS_ANY_DEPTH.map((dir) => `**/${dir}/**`),
-        ...NESTED_SCAN_EXCLUDED_ROOT_DIRS.map((dir) => `${dir}/**`),
+        ...nestedScanExclusionGlobs(),
       ],
     };
   }
@@ -461,8 +473,19 @@ export abstract class ToolRule extends ToolFile {
     return this.globs;
   }
 
-  static isTargetedByRulesyncRule(_rulesyncRule: RulesyncRule): boolean {
-    throw new Error("Please implement this method in the subclass.");
+  /**
+   * The target a subclass is generated for. When it is set, the default
+   * `isTargetedByRulesyncRule` checks a rule's `targets` against it. Static
+   * fields are inherited, so a subclass that has a target of its own must
+   * declare it rather than rely on its parent's.
+   */
+  protected static readonly toolTarget: ToolTarget | undefined = undefined;
+
+  static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
+    if (this.toolTarget === undefined) {
+      throw new Error("Please implement this method in the subclass.");
+    }
+    return this.isTargetedByRulesyncRuleDefault({ rulesyncRule, toolTarget: this.toolTarget });
   }
 
   protected static isTargetedByRulesyncRuleDefault({
@@ -472,20 +495,7 @@ export abstract class ToolRule extends ToolFile {
     rulesyncRule: RulesyncRule;
     toolTarget: ToolTarget;
   }): boolean {
-    const targets = rulesyncRule.getFrontmatter().targets;
-    if (!targets) {
-      return true;
-    }
-
-    if (targets.includes("*")) {
-      return true;
-    }
-
-    if (targets.includes(toolTarget)) {
-      return true;
-    }
-
-    return false;
+    return isTargetedByTargets({ targets: rulesyncRule.getFrontmatter().targets, toolTarget });
   }
 }
 

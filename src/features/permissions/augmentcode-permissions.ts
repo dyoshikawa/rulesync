@@ -22,10 +22,12 @@ import { readFileContentOrNull } from "../../utils/file.js";
 import { globToAnchoredRegexSource } from "../../utils/glob.js";
 import { fallbackLogger, type Logger } from "../../utils/logger.js";
 import { lookupOwn } from "../../utils/own-lookup.js";
+import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { bashRulesHonoringAllTools } from "./shell-command-categories.js";
+import { isStricterAction } from "./single-action-collapse.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -341,10 +343,6 @@ export class AugmentcodePermissions extends ToolPermissions {
         throw result.error;
       }
     }
-  }
-
-  override isDeletable(): boolean {
-    return false;
   }
 
   static getSettablePaths(_options: { global?: boolean } = {}): ToolPermissionsSettablePaths {
@@ -1026,17 +1024,11 @@ function convertAugmentToRulesyncPermissions({
   // always use the catch-all `*` pattern on the import side), pick the most restrictive action
   // rather than letting the last entry silently overwrite earlier ones.
   // Precedence: deny > ask > allow.
-  const actionPriority: Record<PermissionAction, number> = {
-    deny: 2,
-    ask: 1,
-    allow: 0,
-  };
-  // Reserved keys that would mutate `Object.prototype` (or the `Object`
-  // constructor) if used as a bracket-assignment key. A hand-crafted
-  // settings.json could set `toolName` — or a `shellInputRegex` that converts
-  // to such a glob — to one of these, so they are rejected defensively before
-  // they are ever used as a map key.
-  const forbiddenMapKeys = new Set(["__proto__", "prototype", "constructor"]);
+  // A hand-crafted settings.json could set `toolName` — or a `shellInputRegex`
+  // that converts to such a glob — to a key that would mutate
+  // `Object.prototype` (or the `Object` constructor) if used as a
+  // bracket-assignment key, so prototype-pollution keys are rejected
+  // defensively before they are ever used as a map key.
   const permission: Record<string, Record<string, PermissionAction>> = {};
 
   for (const entry of entries) {
@@ -1056,7 +1048,7 @@ function convertAugmentToRulesyncPermissions({
 
     const legacyToolName = toLegacyAugmentToolName(entry.toolName);
     const canonical = toCanonicalToolName(entry.toolName);
-    if (forbiddenMapKeys.has(canonical)) {
+    if (isPrototypePollutionKey(canonical)) {
       logger?.warn(
         `AugmentCode permissions: skipping entry for tool '${entry.toolName}' because it maps ` +
           `to the reserved object key '${canonical}', which cannot be used as a permission key.`,
@@ -1112,7 +1104,7 @@ function convertAugmentToRulesyncPermissions({
       pattern = "*";
     }
 
-    if (forbiddenMapKeys.has(pattern)) {
+    if (isPrototypePollutionKey(pattern)) {
       logger?.warn(
         `AugmentCode permissions: skipping entry for tool '${entry.toolName}' because its ` +
           `pattern resolves to the reserved object key '${pattern}'.`,
@@ -1127,7 +1119,7 @@ function convertAugmentToRulesyncPermissions({
       permission[canonical] = bucket;
     }
     const existing = lookupOwn({ record: bucket, key: pattern });
-    if (existing === undefined || actionPriority[action] > actionPriority[existing]) {
+    if (isStricterAction({ action, existing })) {
       bucket[pattern] = action;
     }
   }

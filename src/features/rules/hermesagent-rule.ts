@@ -1,20 +1,6 @@
-import { join } from "node:path";
-
 import { HERMESAGENT_RULE_FILE_NAME } from "../../constants/hermesagent-paths.js";
-import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
-import { readFileContent } from "../../utils/file.js";
-import { RulesyncRule } from "./rulesync-rule.js";
-import {
-  ToolRule,
-  ToolRuleForDeletionParams,
-  ToolRuleFromFileParams,
-  ToolRuleFromRulesyncRuleParams,
-  ToolRuleSettablePaths,
-} from "./tool-rule.js";
-
-export type HermesagentRuleParams = AiFileParams & {
-  root?: boolean;
-};
+import { SingleRootFileRule } from "./single-root-file-rule.js";
+import { ToolRuleSettablePaths } from "./tool-rule.js";
 
 /**
  * Rule generator for Hermes Agent.
@@ -46,15 +32,7 @@ export type HermesagentRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> &
   nonRoot?: undefined;
 };
 
-export class HermesagentRule extends ToolRule {
-  constructor({ fileContent, root, ...rest }: HermesagentRuleParams) {
-    super({
-      ...rest,
-      fileContent,
-      root: root ?? false,
-    });
-  }
-
+export class HermesagentRule extends SingleRootFileRule {
   static getSettablePaths(): HermesagentRuleSettablePaths {
     // Project instructions live in the repository-root `.hermes.md`. Hermes has
     // no user-level rules file, so rules are project-scope only.
@@ -66,79 +44,5 @@ export class HermesagentRule extends ToolRule {
     };
   }
 
-  static async fromFile({
-    outputRoot = process.cwd(),
-    // Hermes reads rules only from the root `.hermes.md`, so the incoming
-    // `relativeFilePath` is ignored and the root file is read.
-    relativeFilePath: _relativeFilePath,
-    validate = true,
-  }: ToolRuleFromFileParams): Promise<HermesagentRule> {
-    const { root } = this.getSettablePaths();
-    const relativePath = join(root.relativeDirPath, root.relativeFilePath);
-    const fileContent = await readFileContent(join(outputRoot, relativePath));
-
-    return new HermesagentRule({
-      outputRoot,
-      relativeDirPath: root.relativeDirPath,
-      relativeFilePath: root.relativeFilePath,
-      fileContent,
-      validate,
-      root: true,
-    });
-  }
-
-  static fromRulesyncRule({
-    outputRoot = process.cwd(),
-    rulesyncRule,
-    validate = true,
-  }: ToolRuleFromRulesyncRuleParams): HermesagentRule {
-    const { root } = this.getSettablePaths();
-    const isRoot = rulesyncRule.getFrontmatter().root ?? false;
-
-    // Both root and non-root rules target the single root `.hermes.md`; the
-    // RulesProcessor folds the non-root bodies (`root: false`) into the root
-    // rule and drops the redundant non-root instances before writing.
-    return new HermesagentRule({
-      outputRoot,
-      relativeDirPath: root.relativeDirPath,
-      relativeFilePath: root.relativeFilePath,
-      fileContent: rulesyncRule.getBody(),
-      validate,
-      root: isRoot,
-    });
-  }
-
-  toRulesyncRule(): RulesyncRule {
-    return this.toRulesyncRuleDefault();
-  }
-
-  validate(): ValidationResult {
-    // Hermes Agent rules are always valid since they don't have complex frontmatter.
-    return { success: true, error: null };
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolRuleForDeletionParams): HermesagentRule {
-    // The Hermes root file is always `.hermes.md` at the project root (`.`).
-    const isRoot = relativeFilePath === HERMESAGENT_RULE_FILE_NAME && relativeDirPath === ".";
-
-    return new HermesagentRule({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: "",
-      validate: false,
-      root: isRoot,
-    });
-  }
-
-  static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
-    return this.isTargetedByRulesyncRuleDefault({
-      rulesyncRule,
-      toolTarget: "hermesagent",
-    });
-  }
+  protected static override readonly toolTarget = "hermesagent";
 }

@@ -23,7 +23,7 @@ export type TarFixtureEntry = {
   mode?: string;
 };
 
-export function buildTarHeader(params: {
+function buildTarHeader(params: {
   name: string;
   size: number;
   typeflag: string;
