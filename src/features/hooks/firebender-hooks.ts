@@ -1,13 +1,10 @@
 import { join } from "node:path";
 
 import { FIREBENDER_DIR, FIREBENDER_HOOKS_FILE_NAME } from "../../constants/firebender-paths.js";
-import type { ValidationResult } from "../../types/ai-file.js";
 import type { HooksConfig } from "../../types/hooks.js";
 import { FIREBENDER_HOOK_EVENTS } from "../../types/hooks.js";
-import type { ToolFile } from "../../types/tool-file.js";
 import { readFileContent, readFileContentOrNull } from "../../utils/file.js";
-import type { Logger } from "../../utils/logger.js";
-import { HOOKS_OWNERSHIP_LOCK_FILE_NAME, parseHooksOwnershipLock } from "./hooks-ownership-lock.js";
+import { readPreviouslyOwnedHooks } from "./hooks-ownership-lock.js";
 import { mergeGeneratedHookLists } from "./preserve-unowned-hook-commands.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import { buildImportedHooksConfig } from "./tool-hooks-converter.js";
@@ -109,11 +106,7 @@ export class FirebenderHooks extends ToolHooks {
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const existingContent = (await readFileContentOrNull(filePath)) ?? "";
     const previouslyOwned = preserveUnowned
-      ? parseHooksOwnershipLock(
-          await readFileContentOrNull(
-            join(outputRoot, paths.relativeDirPath, HOOKS_OWNERSHIP_LOCK_FILE_NAME),
-          ),
-        )
+      ? await readPreviouslyOwnedHooks({ outputRoot, relativeDirPath: paths.relativeDirPath })
       : undefined;
     const merged = mergeGeneratedHookLists({
       existingContent,
@@ -142,17 +135,6 @@ export class FirebenderHooks extends ToolHooks {
     return true;
   }
 
-  static override async getAuxiliaryFiles({
-    toolHooks,
-  }: {
-    outputRoot?: string;
-    global?: boolean;
-    toolHooks?: ToolHooks;
-    logger?: Logger;
-  } = {}): Promise<ToolFile[]> {
-    return toolHooks instanceof FirebenderHooks ? toolHooks.getOwnershipLockFiles() : [];
-  }
-
   toRulesyncHooks(): RulesyncHooks {
     const parsed: { version?: number; hooks?: HooksConfig["hooks"] } = JSON.parse(
       this.getFileContent(),
@@ -168,10 +150,6 @@ export class FirebenderHooks extends ToolHooks {
         2,
       ),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

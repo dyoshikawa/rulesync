@@ -10,7 +10,6 @@ import {
 } from "../../constants/reasonix-paths.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
-import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
 import { parseFrontmatterWithYamlRepair } from "../../utils/frontmatter.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
@@ -47,7 +46,7 @@ import {
 // so an imported file carrying extra keys still parses.
 // https://github.com/esengine/DeepSeek-Reasonix/blob/v2.31.0/internal/ext/skill/invocation_flags.go
 // https://github.com/esengine/DeepSeek-Reasonix/blob/v1.39.8/internal/skill/skill.go
-export const ReasonixSkillFrontmatterSchema = z.looseObject({
+const ReasonixSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
   invocation: z.optional(z.unknown()),
@@ -122,28 +121,8 @@ export class ReasonixSkill extends ToolSkill {
     return ReasonixSkillFrontmatterSchema.parse(this.requireMainFileFrontmatter());
   }
 
-  getBody(): string {
-    return this.mainFile?.body ?? "";
-  }
-
   validate(): ValidationResult {
-    if (this.mainFile === undefined) {
-      return {
-        success: false,
-        error: new Error(`${this.getDirPath()}: ${SKILL_FILE_NAME} file does not exist`),
-      };
-    }
-    const result = ReasonixSkillFrontmatterSchema.safeParse(this.mainFile.frontmatter);
-    if (!result.success) {
-      return {
-        success: false,
-        error: new Error(
-          `Invalid frontmatter in ${this.getDirPath()}: ${formatError(result.error)}`,
-        ),
-      };
-    }
-
-    return { success: true, error: null };
+    return this.validateMainFileFrontmatter(ReasonixSkillFrontmatterSchema);
   }
 
   toRulesyncSkill(): RulesyncSkill {
@@ -257,19 +236,16 @@ export class ReasonixSkill extends ToolSkill {
       getSettablePaths: ReasonixSkill.getSettablePaths,
     });
 
-    const result = ReasonixSkillFrontmatterSchema.safeParse(loaded.frontmatter);
-    if (!result.success) {
-      const skillDirPath = join(loaded.outputRoot, loaded.relativeDirPath, loaded.dirName);
-      throw new Error(
-        `Invalid frontmatter in ${join(skillDirPath, SKILL_FILE_NAME)}: ${formatError(result.error)}`,
-      );
-    }
+    const frontmatter = this.parseLoadedFrontmatter({
+      schema: ReasonixSkillFrontmatterSchema,
+      loaded,
+    });
 
     return new ReasonixSkill({
       outputRoot: loaded.outputRoot,
       relativeDirPath: loaded.relativeDirPath,
       dirName: loaded.dirName,
-      frontmatter: result.data,
+      frontmatter,
       body: loaded.body,
       otherFiles: loaded.otherFiles,
       validate: true,

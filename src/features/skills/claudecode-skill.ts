@@ -10,7 +10,6 @@ import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { quoteForLog } from "../../utils/control-characters.js";
-import { formatError } from "../../utils/error.js";
 import {
   directoryExists,
   filterOutPathsInGitIgnoredDirectories,
@@ -24,6 +23,7 @@ import type { Logger } from "../../utils/logger.js";
 import {
   NESTED_SCAN_EXCLUDED_DIRS_ANY_DEPTH,
   NESTED_SCAN_EXCLUDED_ROOT_DIRS,
+  nestedScanExclusionGlobs,
 } from "../rules/nested-scan-exclusions.js";
 import { ClaudecodeArgumentHintSchema } from "../shared/claudecode-argument-hint.js";
 import {
@@ -481,11 +481,7 @@ export class ClaudecodeSkill extends ToolSkill {
       cwd: outputRoot,
       type: "dir",
       followSymbolicLinks: false,
-      ignore: [
-        `**/.*/**/${skillsDirPath}`,
-        ...NESTED_SCAN_EXCLUDED_DIRS_ANY_DEPTH.map((dir) => `**/${dir}/**`),
-        ...NESTED_SCAN_EXCLUDED_ROOT_DIRS.map((dir) => `${dir}/**`),
-      ],
+      ignore: [`**/.*/**/${skillsDirPath}`, ...nestedScanExclusionGlobs()],
     });
     // Honor the project's .gitignore like the nested AGENTS.md scan does: a
     // gitignored scratch checkout's skills are somebody else's project and
@@ -560,28 +556,8 @@ export class ClaudecodeSkill extends ToolSkill {
     return result;
   }
 
-  getBody(): string {
-    return this.mainFile?.body ?? "";
-  }
-
   validate(): ValidationResult {
-    if (this.mainFile === undefined) {
-      return {
-        success: false,
-        error: new Error(`${this.getDirPath()}: ${SKILL_FILE_NAME} file does not exist`),
-      };
-    }
-    const result = ClaudecodeSkillFrontmatterSchema.safeParse(this.mainFile.frontmatter);
-    if (!result.success) {
-      return {
-        success: false,
-        error: new Error(
-          `Invalid frontmatter in ${this.getDirPath()}: ${formatError(result.error)}`,
-        ),
-      };
-    }
-
-    return { success: true, error: null };
+    return this.validateMainFileFrontmatter(ClaudecodeSkillFrontmatterSchema);
   }
 
   toRulesyncSkill(): RulesyncSkill {
@@ -676,19 +652,16 @@ export class ClaudecodeSkill extends ToolSkill {
       getSettablePaths: (options) => this.getSettablePaths(options),
     });
 
-    const result = ClaudecodeSkillFrontmatterSchema.safeParse(loaded.frontmatter);
-    if (!result.success) {
-      const skillDirPath = join(loaded.outputRoot, loaded.relativeDirPath, loaded.dirName);
-      throw new Error(
-        `Invalid frontmatter in ${join(skillDirPath, SKILL_FILE_NAME)}: ${formatError(result.error)}`,
-      );
-    }
+    const frontmatter = this.parseLoadedFrontmatter({
+      schema: ClaudecodeSkillFrontmatterSchema,
+      loaded,
+    });
 
     return new this({
       outputRoot: loaded.outputRoot,
       relativeDirPath: loaded.relativeDirPath,
       dirName: loaded.dirName,
-      frontmatter: result.data,
+      frontmatter,
       body: loaded.body,
       otherFiles: loaded.otherFiles,
       validate: true,

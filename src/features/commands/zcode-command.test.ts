@@ -15,7 +15,6 @@ const buildCommand = (targets: RulesyncTargets): RulesyncCommand =>
     relativeFilePath: "test.md",
     frontmatter: { targets, description: "Test" },
     body: "Body",
-    fileContent: "",
   });
 
 describe("ZcodeCommand", () => {
@@ -153,7 +152,6 @@ describe("ZcodeCommand", () => {
           zcode: { "argument-hint": "[branch]" },
         },
         body: "Review body",
-        fileContent: "",
         validate: false,
       });
 
@@ -175,7 +173,6 @@ describe("ZcodeCommand", () => {
         relativeFilePath: "review.md",
         frontmatter: { targets: ["*"], description: "Review the diff" },
         body: "Review body",
-        fileContent: "",
         validate: false,
       });
 

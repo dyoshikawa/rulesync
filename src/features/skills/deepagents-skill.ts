@@ -1,5 +1,3 @@
-import { join } from "node:path";
-
 import { z } from "zod/mini";
 
 import {
@@ -13,7 +11,6 @@ import {
   getDeepagentsRelativeDirPath,
   getDeepagentsRulesyncOutputRoot,
 } from "../../utils/deepagents.js";
-import { formatError } from "../../utils/error.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import { resolveCompatibility, resolveLicense, resolveMetadata } from "./skills-utils.js";
 import {
@@ -108,29 +105,8 @@ export class DeepagentsSkill extends ToolSkill {
     return result;
   }
 
-  getBody(): string {
-    return this.mainFile?.body ?? "";
-  }
-
   validate(): ValidationResult {
-    if (!this.mainFile) {
-      return {
-        success: false,
-        error: new Error(`${this.getDirPath()}: ${SKILL_FILE_NAME} file does not exist`),
-      };
-    }
-
-    const result = DeepagentsSkillFrontmatterSchema.safeParse(this.mainFile.frontmatter);
-    if (!result.success) {
-      return {
-        success: false,
-        error: new Error(
-          `Invalid frontmatter in ${this.getDirPath()}: ${formatError(result.error)}`,
-        ),
-      };
-    }
-
-    return { success: true, error: null };
+    return this.validateMainFileFrontmatter(DeepagentsSkillFrontmatterSchema);
   }
 
   toRulesyncSkill(): RulesyncSkill {
@@ -233,19 +209,16 @@ export class DeepagentsSkill extends ToolSkill {
       getSettablePaths: DeepagentsSkill.getSettablePaths,
     });
 
-    const result = DeepagentsSkillFrontmatterSchema.safeParse(loaded.frontmatter);
-    if (!result.success) {
-      const skillDirPath = join(loaded.outputRoot, loaded.relativeDirPath, loaded.dirName);
-      throw new Error(
-        `Invalid frontmatter in ${join(skillDirPath, SKILL_FILE_NAME)}: ${formatError(result.error)}`,
-      );
-    }
+    const frontmatter = this.parseLoadedFrontmatter({
+      schema: DeepagentsSkillFrontmatterSchema,
+      loaded,
+    });
 
     return new DeepagentsSkill({
       outputRoot: loaded.outputRoot,
       relativeDirPath: loaded.relativeDirPath,
       dirName: loaded.dirName,
-      frontmatter: result.data,
+      frontmatter,
       body: loaded.body,
       otherFiles: loaded.otherFiles,
       validate: true,
@@ -259,10 +232,9 @@ export class DeepagentsSkill extends ToolSkill {
     dirName,
     global = false,
   }: ToolSkillForDeletionParams): DeepagentsSkill {
-    const settablePaths = DeepagentsSkill.getSettablePaths({ global });
     return new DeepagentsSkill({
       outputRoot,
-      relativeDirPath: relativeDirPath ?? settablePaths.relativeDirPath,
+      relativeDirPath,
       dirName,
       frontmatter: { name: "", description: "" },
       body: "",

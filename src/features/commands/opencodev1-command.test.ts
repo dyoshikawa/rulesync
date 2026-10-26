@@ -5,7 +5,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RULESYNC_COMMANDS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
-import { stringifyFrontmatter } from "../../utils/frontmatter.js";
 import { OpenCodeCommandFrontmatterSchema } from "./opencode-command.js";
 import { Opencodev1Command } from "./opencodev1-command.js";
 import { RulesyncCommand, type RulesyncCommandFrontmatter } from "./rulesync-command.js";
@@ -105,11 +104,6 @@ describe("Opencodev1Command", () => {
           opencodev1: { subtask: true },
         },
         body: "Analyze coverage details",
-        fileContent: stringifyFrontmatter("Analyze coverage details", {
-          targets: ["opencode"],
-          description: "Analyze coverage",
-          opencodev1: { subtask: true },
-        }),
       });
 
       const command = Opencodev1Command.fromRulesyncCommand({
@@ -134,7 +128,6 @@ describe("Opencodev1Command", () => {
         relativeFilePath: "custom.md",
         frontmatter,
         body: "Analyze coverage details",
-        fileContent: stringifyFrontmatter("Analyze coverage details", frontmatter),
       });
 
       const command = Opencodev1Command.fromRulesyncCommand({

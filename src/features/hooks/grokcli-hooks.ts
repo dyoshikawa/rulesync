@@ -1,13 +1,12 @@
 import { join } from "node:path";
 
 import { GROKCLI_HOOKS_DIR_PATH, GROKCLI_HOOKS_FILE_NAME } from "../../constants/grokcli-paths.js";
-import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { AiFileParams } from "../../types/ai-file.js";
 import {
   CANONICAL_TO_GROKCLI_EVENT_NAMES,
   GROKCLI_HOOK_EVENTS,
   GROKCLI_TO_CANONICAL_EVENT_NAMES,
 } from "../../types/hooks.js";
-import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { isRecord } from "../../utils/type-guards.js";
@@ -49,7 +48,7 @@ import {
  */
 const GROKCLI_NO_MATCHER_EVENTS: ReadonlySet<string> = new Set(["stop", "beforeSubmitPrompt"]);
 
-const GROKCLI_CONVERTER_CONFIG: ToolHooksConverterConfig = {
+export const GROKCLI_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   supportedEvents: GROKCLI_HOOK_EVENTS,
   canonicalToToolEventNames: CANONICAL_TO_GROKCLI_EVENT_NAMES,
   toolToCanonicalEventNames: GROKCLI_TO_CANONICAL_EVENT_NAMES,
@@ -165,15 +164,10 @@ export class GrokcliHooks extends ToolHooks {
   }
 
   toRulesyncHooks({ logger }: { logger?: Logger } = {}): RulesyncHooks {
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(this.getFileContent());
-    } catch (error) {
-      throw new Error(
-        `Failed to parse Grok hooks content in ${join(this.getRelativeDirPath(), this.getRelativeFilePath())}: ${formatError(error)}`,
-        { cause: error },
-      );
-    }
+    const parsed: unknown = this.parseFileContentOrThrow({
+      displayName: "Grok",
+      parse: (fileContent) => JSON.parse(fileContent),
+    });
     const events = isRecord(parsed) && isRecord(parsed.hooks) ? parsed.hooks : {};
     const hooks = toolHooksToCanonical({
       hooks: events,
@@ -187,10 +181,6 @@ export class GrokcliHooks extends ToolHooks {
         2,
       ),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

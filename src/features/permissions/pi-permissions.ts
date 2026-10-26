@@ -1,7 +1,7 @@
 import { join } from "node:path";
 
 import { PI_AGENT_DIR_PATH, PI_DIR, PI_SETTINGS_FILE_NAME } from "../../constants/pi-paths.js";
-import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { AiFileParams } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import {
@@ -144,10 +144,6 @@ export class PiPermissions extends ToolPermissions {
         { cause: error },
       );
     }
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

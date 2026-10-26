@@ -4,7 +4,6 @@ import {
   FACTORYDROID_DIR,
   FACTORYDROID_MCP_FILE_NAME,
 } from "../../constants/factorydroid-paths.js";
-import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
@@ -84,10 +83,6 @@ export class FactorydroidMcp extends ToolMcp {
 
   toRulesyncMcp(): RulesyncMcp {
     return this.toRulesyncMcpDefault();
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

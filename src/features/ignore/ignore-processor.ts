@@ -181,11 +181,6 @@ export class IgnoreProcessor extends FeatureProcessor {
     this.global = global;
   }
 
-  async writeToolIgnoresFromRulesyncIgnores(rulesyncIgnores: RulesyncIgnore[]): Promise<void> {
-    const toolIgnores = await this.convertRulesyncFilesToToolFiles(rulesyncIgnores);
-    await this.writeAiFiles(toolIgnores);
-  }
-
   /**
    * Implementation of abstract method from FeatureProcessor
    *

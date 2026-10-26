@@ -30,3 +30,14 @@ export const NESTED_SCAN_EXCLUDED_ROOT_DIRS = [
   "temp",
   "venv",
 ];
+
+/**
+ * The ignore globs for both exclusion lists, in the order the nested scans list
+ * them: the any-depth dependency trees, then the root-only directories.
+ */
+export function nestedScanExclusionGlobs(): string[] {
+  return [
+    ...NESTED_SCAN_EXCLUDED_DIRS_ANY_DEPTH.map((dir) => `**/${dir}/**`),
+    ...NESTED_SCAN_EXCLUDED_ROOT_DIRS.map((dir) => `${dir}/**`),
+  ];
+}

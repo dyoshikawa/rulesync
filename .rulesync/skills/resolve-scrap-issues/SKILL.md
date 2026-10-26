@@ -75,7 +75,7 @@ If no issue is **Action needed**, skip to Step 7.
 
 ### 6a. Plan the change
 
-For all actionable issues, decide the concrete edits, grounded in the Step 4 findings. Follow `.claude/rules/feature-change-guidelines.md` where applicable (e.g., `rules-processor.ts` conventions, frontmatter precedence, `gitignore.ts`, scope support, README/docs sync, and preserving the Tool × Feature happy-path tests).
+For all actionable issues, decide the concrete edits, grounded in the Step 4 findings. Follow `.claude/rules/feature-change-guidelines.md` where applicable (e.g., `tool-rule-factories.ts` conventions, frontmatter precedence, `gitignore.ts`, scope support, README/docs sync, and preserving the Tool × Feature happy-path tests).
 
 ### 6b. Branch
 

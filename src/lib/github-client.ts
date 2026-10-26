@@ -24,7 +24,7 @@ import type { Logger } from "../utils/logger.js";
  * nothing about the ones it left out.
  * https://docs.github.com/en/rest/repos/contents#get-repository-content
  */
-export const GITHUB_CONTENTS_DIRECTORY_LIMIT = 1000;
+const GITHUB_CONTENTS_DIRECTORY_LIMIT = 1000;
 
 /**
  * Error class for GitHub API errors

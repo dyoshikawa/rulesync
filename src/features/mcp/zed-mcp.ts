@@ -7,7 +7,6 @@ import {
   ZED_SETTINGS_FILE_NAME,
 } from "../../constants/zed-paths.js";
 import type { SharedWritePath } from "../../lib/shared-file-derive.js";
-import { ValidationResult } from "../../types/ai-file.js";
 import { isMcpServers, McpServers, McpServerSchema } from "../../types/mcp.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
@@ -292,10 +291,6 @@ export class ZedMcp extends ToolMcp {
         2,
       ),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   /**

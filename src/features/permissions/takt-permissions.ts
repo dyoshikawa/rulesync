@@ -5,7 +5,7 @@ import {
   TAKT_DIR,
   TAKT_RUNTIME_CONFIG_FILE_NAME,
 } from "../../constants/takt-paths.js";
-import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { AiFileParams } from "../../types/ai-file.js";
 import type { PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { getHomeDirectory, readFileContentOrNull } from "../../utils/file.js";
@@ -430,10 +430,6 @@ export class TaktPermissions extends ToolPermissions {
     return this.toRulesyncPermissionsDefault({
       fileContent: JSON.stringify(result, null, 2),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

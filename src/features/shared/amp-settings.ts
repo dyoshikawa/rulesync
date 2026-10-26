@@ -1,4 +1,8 @@
+import { join } from "node:path";
+
+import { AMP_SETTINGS_FILE_NAME, AMP_SETTINGS_JSONC_FILE_NAME } from "../../constants/amp-paths.js";
 import { formatError } from "../../utils/error.js";
+import { readFileContentOrNull } from "../../utils/file.js";
 import { parseJsonc } from "../../utils/jsonc.js";
 import { isPlainObject } from "../../utils/type-guards.js";
 
@@ -50,4 +54,26 @@ export function parseAmpSettings({
   }
 
   return parsed;
+}
+
+/**
+ * Probe `<jsonDir>/settings.jsonc` first, falling back to `settings.json`, so
+ * an existing user file is read-modified-written in place instead of a fresh
+ * `.json` sibling being created next to a hand-authored `.jsonc`. Defaults to
+ * `settings.json` when neither file exists: Amp's canonically documented
+ * settings file (`.amp/settings.json`), shared by the MCP and permissions
+ * adapters, so generating both on a clean repo writes a single settings file.
+ */
+export async function resolveAmpSettingsFile(
+  jsonDir: string,
+): Promise<{ fileContent: string | null; relativeFilePath: string }> {
+  const jsoncContent = await readFileContentOrNull(join(jsonDir, AMP_SETTINGS_JSONC_FILE_NAME));
+  if (jsoncContent !== null) {
+    return { fileContent: jsoncContent, relativeFilePath: AMP_SETTINGS_JSONC_FILE_NAME };
+  }
+  const jsonContent = await readFileContentOrNull(join(jsonDir, AMP_SETTINGS_FILE_NAME));
+  if (jsonContent !== null) {
+    return { fileContent: jsonContent, relativeFilePath: AMP_SETTINGS_FILE_NAME };
+  }
+  return { fileContent: null, relativeFilePath: AMP_SETTINGS_FILE_NAME };
 }
