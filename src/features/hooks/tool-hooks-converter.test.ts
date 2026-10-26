@@ -217,6 +217,66 @@ describe("toolHooksToCanonical", () => {
 });
 
 describe("canonicalToToolHooks", () => {
+  describe("string passthrough length warnings", () => {
+    const converterConfig: ToolHooksConverterConfig = {
+      ...BASE_CONFIG,
+      supportedHookTypes: new Set(["command", "prompt"]),
+      stringPassthroughFields: [
+        { canonical: "rewakeSummary", tool: "summary", commandOnly: true, maxLength: 3 },
+      ],
+    };
+
+    it("warns about raw length by default without truncating the emitted value", () => {
+      const { hook, logger } = emitHook({
+        definition: { command: "run.sh", rewakeSummary: "  x  " },
+        converterConfig,
+      });
+
+      expect(hook?.summary).toBe("  x  ");
+      expect(logger.warn).toHaveBeenCalledExactlyOnceWith(
+        expect.stringContaining('caps "summary" at 3 characters'),
+      );
+    });
+
+    it.each([
+      { value: "  x  ", warns: false },
+      { value: " x   y ", warns: false },
+      { value: " xx   y ", warns: true },
+    ])("can measure collapsed whitespace without changing output: %j", ({ value, warns }) => {
+      const { hook, logger } = emitHook({
+        definition: { command: "run.sh", rewakeSummary: value },
+        converterConfig: {
+          ...converterConfig,
+          stringPassthroughFields: [
+            {
+              canonical: "rewakeSummary",
+              tool: "summary",
+              maxLength: 3,
+              collapseWhitespaceForLength: true,
+            },
+          ],
+        },
+      });
+
+      expect(hook?.summary).toBe(value);
+      expect(logger.warn).toHaveBeenCalledTimes(warns ? 1 : 0);
+    });
+
+    it.each([
+      { type: "prompt", prompt: "Review this", rewakeSummary: "long summary" },
+      { command: "run.sh", rewakeSummary: 12345 },
+    ])("does not report length for a dropped or invalid field: %j", (definition) => {
+      const { hook, logger } = emitHook({
+        definition: definition as HooksConfig["hooks"][string][number],
+        converterConfig,
+      });
+
+      expect(hook).not.toHaveProperty("summary");
+      expect(logger.warn).toHaveBeenCalledOnce();
+      expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("will shorten it"));
+    });
+  });
+
   describe.each(COMMAND_ONLY_KINDS)(
     "$kind passthrough fields registered as commandOnly",
     ({ converterConfig, tool, canonical, value }) => {

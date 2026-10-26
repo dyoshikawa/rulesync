@@ -213,6 +213,39 @@ describe("QoderHooks", () => {
       expect(warnSpy).not.toHaveBeenCalled();
     });
 
+    it.each([299, 300, 301])(
+      "should measure rewakeSummary after collapsing whitespace (%i characters)",
+      async (length) => {
+        const summary = `  ${"x".repeat(length - 2)}${" \t".repeat(200)}y   `;
+        const rulesyncHooks = buildRulesyncHooks(testDir, {
+          version: 1,
+          hooks: {
+            stop: [
+              { type: "command", command: "check.sh", asyncRewake: true, rewakeSummary: summary },
+            ],
+          },
+        });
+        const logger = createMockLogger();
+        const qoderHooks = await QoderHooks.fromRulesyncHooks({
+          outputRoot: testDir,
+          rulesyncHooks,
+          validate: false,
+          logger,
+        });
+
+        expect(JSON.parse(qoderHooks.getFileContent()).hooks.Stop[0].hooks[0].rewakeSummary).toBe(
+          summary,
+        );
+        if (length > 300) {
+          expect(logger.warn).toHaveBeenCalledExactlyOnceWith(
+            expect.stringContaining(`is ${length} characters long`),
+          );
+        } else {
+          expect(logger.warn).not.toHaveBeenCalled();
+        }
+      },
+    );
+
     it("should drop rewakeMessage and rewakeSummary from non-command hooks", async () => {
       const rulesyncHooks = buildRulesyncHooks(testDir, {
         version: 1,
