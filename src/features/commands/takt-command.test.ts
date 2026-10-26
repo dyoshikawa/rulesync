@@ -38,7 +38,6 @@ describe("TaktCommand", () => {
         relativeFilePath: "review.md",
         frontmatter: { targets: ["*"], description: "Review PR" },
         body: "Run review steps.",
-        fileContent: "",
       });
 
       const cmd = TaktCommand.fromRulesyncCommand({ outputRoot: testDir, rulesyncCommand });
@@ -57,7 +56,6 @@ describe("TaktCommand", () => {
           ...({ takt: { name: "short" } } as Record<string, unknown>),
         },
         body: "body",
-        fileContent: "",
       });
       const cmd = TaktCommand.fromRulesyncCommand({ outputRoot: testDir, rulesyncCommand });
       expect(cmd.getRelativeFilePath()).toBe("short.md");
@@ -74,7 +72,6 @@ describe("TaktCommand", () => {
           ...({ takt: { name: "../escape" } } as Record<string, unknown>),
         },
         body: "x",
-        fileContent: "",
       });
       expect(() =>
         TaktCommand.fromRulesyncCommand({ outputRoot: testDir, rulesyncCommand }),
@@ -115,7 +112,6 @@ describe("TaktCommand", () => {
         relativeFilePath: "x.md",
         frontmatter: { targets: [...targets] },
         body: "y",
-        fileContent: "",
       });
       expect(TaktCommand.isTargetedByRulesyncCommand(r)).toBe(expected);
     });

@@ -207,6 +207,20 @@ describe("CursorMcp", () => {
       expect(exported.mcpServers["remote-server"].headers.Authorization).toBe("Bearer ${API_KEY}");
       expect(exported.mcpServers["remote-server"].headers["X-Static"]).toBe("plain-value");
     });
+
+    it("should not throw on non-string env values when importing (toRulesyncMcp)", () => {
+      const cursorMcp = new CursorMcp({
+        relativeDirPath: ".cursor",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { local: { command: "node", env: { PORT: 8080, UNSET: null } } },
+        }),
+      });
+
+      const exported = JSON.parse(cursorMcp.toRulesyncMcp().getFileContent());
+
+      expect(exported.mcpServers.local.env).toEqual({ PORT: 8080, UNSET: null });
+    });
   });
 
   describe("getSettablePaths", () => {

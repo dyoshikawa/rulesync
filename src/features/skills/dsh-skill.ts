@@ -1,12 +1,9 @@
-import { join } from "node:path";
-
 import { z } from "zod/mini";
 
 import { DSH_SKILLS_DIR_PATH } from "../../constants/dsh-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
-import { formatError } from "../../utils/error.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import {
   resolveDisableModelInvocation,
@@ -32,7 +29,7 @@ import {
 // ignored upstream, so the schema stays loose and an imported file carrying
 // extra keys still parses.
 // @see https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/skill/skill-filesystem/README.md
-export const DshSkillFrontmatterSchema = z.looseObject({
+const DshSkillFrontmatterSchema = z.looseObject({
   // Upstream requires a kebab-case `name`; not enforced here, because the
   // canonical skill name is shared with every other target.
   name: z.string(),
@@ -117,28 +114,8 @@ export class DshSkill extends ToolSkill {
     return DshSkillFrontmatterSchema.parse(this.requireMainFileFrontmatter());
   }
 
-  getBody(): string {
-    return this.mainFile?.body ?? "";
-  }
-
   validate(): ValidationResult {
-    if (this.mainFile === undefined) {
-      return {
-        success: false,
-        error: new Error(`${this.getDirPath()}: ${SKILL_FILE_NAME} file does not exist`),
-      };
-    }
-    const result = DshSkillFrontmatterSchema.safeParse(this.mainFile.frontmatter);
-    if (!result.success) {
-      return {
-        success: false,
-        error: new Error(
-          `Invalid frontmatter in ${this.getDirPath()}: ${formatError(result.error)}`,
-        ),
-      };
-    }
-
-    return { success: true, error: null };
+    return this.validateMainFileFrontmatter(DshSkillFrontmatterSchema);
   }
 
   toRulesyncSkill(): RulesyncSkill {
@@ -235,19 +212,13 @@ export class DshSkill extends ToolSkill {
       getSettablePaths: DshSkill.getSettablePaths,
     });
 
-    const result = DshSkillFrontmatterSchema.safeParse(loaded.frontmatter);
-    if (!result.success) {
-      const skillDirPath = join(loaded.outputRoot, loaded.relativeDirPath, loaded.dirName);
-      throw new Error(
-        `Invalid frontmatter in ${join(skillDirPath, SKILL_FILE_NAME)}: ${formatError(result.error)}`,
-      );
-    }
+    const frontmatter = this.parseLoadedFrontmatter({ schema: DshSkillFrontmatterSchema, loaded });
 
     return new DshSkill({
       outputRoot: loaded.outputRoot,
       relativeDirPath: loaded.relativeDirPath,
       dirName: loaded.dirName,
-      frontmatter: result.data,
+      frontmatter,
       body: loaded.body,
       otherFiles: loaded.otherFiles,
       validate: true,

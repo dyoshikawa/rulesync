@@ -508,11 +508,6 @@ export const rulesyncTool = {
 
       assertSupported({ feature: parsed.feature, operation: parsed.operation });
 
-      const executor = featureExecutors[parsed.feature];
-      if (!executor) {
-        throw new Error(`Unknown feature: ${parsed.feature}`);
-      }
-
-      return await executor(parsed);
+      return await featureExecutors[parsed.feature](parsed);
     }),
 } as const;

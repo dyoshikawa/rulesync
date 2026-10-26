@@ -1,11 +1,12 @@
 import { basename, extname, join } from "node:path";
 
 import { XUM_DIR, XUM_RULE_FILE_NAME } from "../../constants/xum-paths.js";
-import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
   ToolRule,
+  ToolRuleBuildLocalRootFileParams,
   ToolRuleForDeletionParams,
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
@@ -52,11 +53,6 @@ function xumRuleHeading(rulesyncRule: RulesyncRule): string {
   return fileName.slice(0, fileName.length - extname(fileName).length);
 }
 
-export type XumRuleParams = AiFileParams & {
-  root?: boolean;
-  localRoot?: boolean;
-};
-
 /**
  * Settable paths for Xum rules. Xum reads a single Xum-dedicated instruction
  * file per directory and has no rules directory, so there is no `nonRoot`
@@ -85,11 +81,32 @@ export type XumRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> & {
  * @see https://xum.cdr.dev/agents/instruction-files
  */
 export class XumRule extends ToolRule {
-  constructor({ fileContent, root, ...rest }: XumRuleParams) {
-    super({
-      ...rest,
-      fileContent,
-      root: root ?? false,
+  /**
+   * Build this tool's separate personal local-root file (`localRootMode:
+   * "separate-local-file"`), for generation and import. See
+   * {@link ToolRuleBuildLocalRootFileParams}.
+   */
+  static buildLocalRootFile({
+    outputRoot,
+    fileName,
+    body,
+    relativeDirPath,
+    localRoot,
+  }: ToolRuleBuildLocalRootFileParams): ToolRule {
+    // Xum reads the personal local file from its tool directory
+    // (`.xum/AGENTS.local.md`), not the project root (project scope only).
+    return new XumRule({
+      outputRoot,
+      relativeDirPath: relativeDirPath ?? XUM_DIR,
+      relativeFilePath: fileName,
+      fileContent:
+        // Xum appends `AGENTS.local.md` to `AGENTS.md` as one document, so the
+        // generated overlay opens at a section boundary like a folded rule does
+        // (an imported file is read back as written).
+        !localRoot ? ensureXumSectionBoundary({ body, heading: "Local instructions" }) : body,
+      validate: true,
+      root: true,
+      localRoot,
     });
   }
 
@@ -180,10 +197,5 @@ export class XumRule extends ToolRule {
     });
   }
 
-  static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
-    return this.isTargetedByRulesyncRuleDefault({
-      rulesyncRule,
-      toolTarget: "xum",
-    });
-  }
+  protected static override readonly toolTarget = "xum";
 }

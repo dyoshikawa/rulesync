@@ -2,13 +2,11 @@ import { join } from "node:path";
 
 import { GITLABDUO_DIR, GITLABDUO_HOOKS_FILE_NAME } from "../../constants/gitlabduo-paths.js";
 import type { AiFileParams } from "../../types/ai-file.js";
-import type { ValidationResult } from "../../types/ai-file.js";
 import {
   CANONICAL_TO_GITLABDUO_EVENT_NAMES,
   GITLABDUO_HOOK_EVENTS,
   GITLABDUO_TO_CANONICAL_EVENT_NAMES,
 } from "../../types/hooks.js";
-import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
@@ -33,7 +31,7 @@ import {
 // Hook processes get `DUO_PROJECT_DIR`, so `./`-relative script paths are
 // anchored to it (bare executables such as `npx ...` are left intact).
 // https://docs.gitlab.com/user/gitlab_duo_cli/customize/
-const GITLABDUO_CONVERTER_CONFIG: ToolHooksConverterConfig = {
+export const GITLABDUO_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   supportedEvents: GITLABDUO_HOOK_EVENTS,
   canonicalToToolEventNames: CANONICAL_TO_GITLABDUO_EVENT_NAMES,
   toolToCanonicalEventNames: GITLABDUO_TO_CANONICAL_EVENT_NAMES,
@@ -108,17 +106,10 @@ export class GitlabduoHooks extends ToolHooks {
   }
 
   toRulesyncHooks({ logger }: { logger?: Logger } = {}): RulesyncHooks {
-    let settings: { hooks?: unknown };
-    try {
-      settings = JSON.parse(this.getFileContent());
-    } catch (error) {
-      throw new Error(
-        `Failed to parse GitLab Duo CLI hooks content in ${join(this.getRelativeDirPath(), this.getRelativeFilePath())}: ${formatError(error)}`,
-        {
-          cause: error,
-        },
-      );
-    }
+    const settings: { hooks?: unknown } = this.parseFileContentOrThrow({
+      displayName: "GitLab Duo CLI",
+      parse: (fileContent) => JSON.parse(fileContent),
+    });
     const hooks = toolHooksToCanonical({
       hooks: settings.hooks,
       converterConfig: GITLABDUO_CONVERTER_CONFIG,
@@ -131,10 +122,6 @@ export class GitlabduoHooks extends ToolHooks {
         2,
       ),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

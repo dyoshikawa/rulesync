@@ -264,7 +264,7 @@ const defaultGetFactory: GetFactory = (target) => {
 // Derive tool target arrays from factory metadata
 const allToolTargetKeys = [...toolCheckFactories.keys()];
 
-export const checksProcessorToolTargets: ToolTarget[] = allToolTargetKeys.filter((target) => {
+const checksProcessorToolTargets: ToolTarget[] = allToolTargetKeys.filter((target) => {
   const factory = toolCheckFactories.get(target);
   return factory?.meta.supportsProject !== false;
 });

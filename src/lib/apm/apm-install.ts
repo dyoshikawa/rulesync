@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { join, posix } from "node:path";
 
 import { Semaphore } from "es-toolkit/promise";
@@ -17,6 +16,7 @@ import {
 import type { Logger } from "../../utils/logger.js";
 import { GitHubClient, GitHubClientError, logGitHubAuthHints } from "../github-client.js";
 import { listDirectoryRecursive, withSemaphore } from "../github-utils.js";
+import { computeInstallContentHash } from "../install-content-hash.js";
 import {
   type ApmLock,
   type ApmLockDependency,
@@ -404,7 +404,7 @@ async function installDependency(params: {
 
   deployed.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
   const deployedFiles = deployed.map((d) => d.path);
-  const contentHash = computeContentHash(deployed);
+  const contentHash = computeInstallContentHash(deployed);
 
   assertFrozenContentHashMatches({ frozen, locked, contentHash, repoUrl, logger });
 
@@ -634,22 +634,6 @@ function assertFrozenContentHashMatches(params: {
       );
     }
   }
-}
-
-/**
- * SHA-256 over a canonical, order-independent representation of the deployed
- * files. Written into `content_hash` so that `--frozen` installs can refuse
- * to trust tampered output.
- */
-function computeContentHash(files: Array<{ path: string; content: string }>): string {
-  const hash = createHash("sha256");
-  for (const { path, content } of files) {
-    hash.update(path);
-    hash.update("\0");
-    hash.update(content);
-    hash.update("\0");
-  }
-  return `sha256:${hash.digest("hex")}`;
 }
 
 async function listPrimitiveFiles(params: {

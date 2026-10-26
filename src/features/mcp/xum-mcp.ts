@@ -1,7 +1,6 @@
 import { join } from "node:path";
 
 import { XUM_DIR, XUM_MCP_FILE_NAME } from "../../constants/xum-paths.js";
-import { ValidationResult } from "../../types/ai-file.js";
 import type { McpServer, McpServers } from "../../types/mcp.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { type Logger, warnWithFallback } from "../../utils/logger.js";
@@ -480,10 +479,6 @@ export class XumMcp extends ToolMcp {
     return this.toRulesyncMcpDefault({
       fileContent: JSON.stringify({ mcpServers }, null, 2),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

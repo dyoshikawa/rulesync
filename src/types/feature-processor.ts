@@ -1,8 +1,7 @@
 import { dirname, join } from "node:path";
 
-import { RULESYNC_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import { diffSharedConfigOwnedKeys } from "../features/shared/shared-config-gateway.js";
-import type { DeletedPath, KeyOperation } from "../lib/orphan-sweep.js";
+import type { KeyOperation } from "../lib/orphan-sweep.js";
 import { fileContentIsEmptyPayload, fileContentsEquivalent } from "../utils/content-equivalence.js";
 import { quoteForLog, stripControlCharacters } from "../utils/control-characters.js";
 import {
@@ -25,52 +24,6 @@ import { ToolFile } from "./tool-file.js";
 import { ToolTarget } from "./tool-targets.js";
 
 export abstract class FeatureProcessor extends RulesyncSourceConsumer {
-  protected readonly outputRoot: string;
-  /**
-   * Ordered, non-empty list of rulesync source-tree directories. Each entry
-   * is a source tree itself — the directory that directly contains feature
-   * subdirectories (`rules/`, `commands/`, …) and single-file features
-   * (`mcp.jsonc`, `hooks.jsonc`, …). Later entries take precedence in
-   * per-feature merges. Defaults to `[join(process.cwd(), ".rulesync")]`.
-   *
-   * The singular user-facing alias (`inputRoot` in `rulesync.jsonc` / the
-   * `--input-root` CLI flag / `GenerateOptions.inputRoot`) is deprecated
-   * and collapsed into `[join(inputRoot, ".rulesync")]` before it ever
-   * reaches a processor — every internal consumer only ever sees the
-   * plural form, with the source tree already resolved.
-   */
-  protected readonly inputRoots: readonly [string, ...string[]];
-  protected readonly dryRun: boolean;
-  protected readonly logger: Logger;
-  /**
-   * Paths the orphan sweep deleted (or, under `--dry-run`, would delete),
-   * relative to the output root like the paths `writeAiFiles` reports.
-   */
-  private readonly removedPaths: DeletedPath[] = [];
-  constructor({
-    outputRoot = process.cwd(),
-    inputRoots,
-    dryRun = false,
-    logger,
-  }: {
-    outputRoot?: string;
-    inputRoots?: readonly [string, ...string[]] | readonly string[];
-    dryRun?: boolean;
-    logger: Logger;
-  }) {
-    super();
-
-    this.outputRoot = outputRoot;
-
-    this.inputRoots =
-      inputRoots !== undefined && inputRoots.length > 0
-        ? [inputRoots[0]!, ...inputRoots.slice(1)]
-        : [join(process.cwd(), RULESYNC_RELATIVE_DIR_PATH)];
-
-    this.dryRun = dryRun;
-    this.logger = logger;
-  }
-
   abstract loadRulesyncFiles(): Promise<RulesyncFile[]>;
 
   abstract loadToolFiles(params?: { forDeletion?: boolean }): Promise<ToolFile[]>;
@@ -252,14 +205,6 @@ export abstract class FeatureProcessor extends RulesyncSourceConsumer {
     }
 
     return removedCount;
-  }
-
-  /**
-   * The paths {@link removeOrphanAiFiles} deleted, or would have deleted under
-   * `--dry-run`, so a preview and the run it previews report the same list.
-   */
-  getRemovedPaths(): readonly DeletedPath[] {
-    return this.removedPaths;
   }
 }
 

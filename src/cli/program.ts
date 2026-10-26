@@ -40,6 +40,17 @@ function wrapCommand(
   return _wrapCommand({ name, errorCode, handler, getVersion });
 }
 
+/**
+ * Commander stores `-c, --config <path>` as `config`, but the commands read
+ * `configPath`; this renames the key so no command sees `config`.
+ */
+function withConfigPath<T extends { config?: string }>(
+  options: T,
+): Omit<T, "config"> & { configPath: string | undefined } {
+  const { config, ...rest } = options;
+  return { ...rest, configPath: config };
+}
+
 export function createProgram(): Command {
   const program = new Command();
 
@@ -118,13 +129,12 @@ export function createProgram(): Command {
     .action(
       wrapCommand("add", "ADD_FAILED", async (logger, options, _globalOpts, positionalArgs) => {
         const source = positionalArgs[0] as string;
-        const addOptions = options as Omit<AddCommandOptions, "source" | "configPath"> & {
-          config?: string;
-        };
+        const addOptions = withConfigPath(
+          options as Omit<AddCommandOptions, "source" | "configPath"> & { config?: string },
+        );
         await addCommand(logger, {
           ...addOptions,
           source,
-          configPath: addOptions.config,
         });
       }),
     );
@@ -268,17 +278,37 @@ export function createProgram(): Command {
     .option("-s, --silent", "Suppress all output")
     .action(
       wrapCommand("install", "INSTALL_FAILED", async (logger, options) => {
-        const rawMode = (options as { mode?: string }).mode;
+        const {
+          mode: rawMode,
+          update,
+          frozen,
+          outdated,
+          token,
+          configPath,
+          verbose,
+          silent,
+        } = withConfigPath(
+          options as {
+            mode?: string;
+            update?: boolean;
+            frozen?: boolean;
+            outdated?: boolean;
+            token?: string;
+            config?: string;
+            verbose?: boolean;
+            silent?: boolean;
+          },
+        );
         const mode = parseInstallMode(rawMode);
         await installCommand(logger, {
           mode,
-          update: (options as { update?: boolean }).update,
-          frozen: (options as { frozen?: boolean }).frozen,
-          outdated: (options as { outdated?: boolean }).outdated,
-          token: (options as { token?: string }).token,
-          configPath: (options as { config?: string }).config,
-          verbose: (options as { verbose?: boolean }).verbose,
-          silent: (options as { silent?: boolean }).silent,
+          update,
+          frozen,
+          outdated,
+          token,
+          configPath,
+          verbose,
+          silent,
         });
       }),
     );
@@ -339,12 +369,10 @@ export function createProgram(): Command {
     )
     .action(
       wrapCommand("generate", "GENERATION_FAILED", async (logger, options) => {
-        // Commander stores `-c, --config <path>` as `config`, but the resolver
-        // reads `configPath`; map it explicitly like `add` and `install` do.
-        const { config, ...generateOptions } = options as Omit<GenerateOptions, "configPath"> & {
-          config?: string;
-        };
-        await generateCommand(logger, { ...generateOptions, configPath: config });
+        await generateCommand(
+          logger,
+          withConfigPath(options as Omit<GenerateOptions, "configPath"> & { config?: string }),
+        );
       }),
     );
 
@@ -359,7 +387,10 @@ export function createProgram(): Command {
     .option("-s, --silent", "Suppress all output")
     .action(
       wrapCommand("doctor", "DOCTOR_FAILED", async (logger, options) => {
-        await doctorCommand(logger, options as DoctorOptions);
+        await doctorCommand(
+          logger,
+          withConfigPath(options as Omit<DoctorOptions, "configPath"> & { config?: string }),
+        );
       }),
     );
 

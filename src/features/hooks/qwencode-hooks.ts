@@ -3,21 +3,18 @@ import { join } from "node:path";
 import { z } from "zod/mini";
 
 import { QWENCODE_DIR, QWENCODE_SETTINGS_FILE_NAME } from "../../constants/qwencode-paths.js";
-import type { ValidationResult } from "../../types/ai-file.js";
 import type { HooksConfig } from "../../types/hooks.js";
 import {
   QWENCODE_HOOK_EVENTS,
   QWENCODE_TO_CANONICAL_EVENT_NAMES,
   CANONICAL_TO_QWENCODE_EVENT_NAMES,
 } from "../../types/hooks.js";
-import type { ToolFile } from "../../types/tool-file.js";
-import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { compact } from "../../utils/object.js";
 import { lookupOwn } from "../../utils/own-lookup.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
-import { HOOKS_OWNERSHIP_LOCK_FILE_NAME, parseHooksOwnershipLock } from "./hooks-ownership-lock.js";
+import { readPreviouslyOwnedHooks } from "./hooks-ownership-lock.js";
 import { mergeGeneratedHookLists } from "./preserve-unowned-hook-commands.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import { buildImportedHooksConfig } from "./tool-hooks-converter.js";
@@ -370,11 +367,7 @@ export class QwencodeHooks extends ToolHooks {
     const existingContent = (await readFileContentOrNull(filePath)) ?? JSON.stringify({}, null, 2);
     const config = rulesyncHooks.getJson();
     const previouslyOwned = preserveUnowned
-      ? parseHooksOwnershipLock(
-          await readFileContentOrNull(
-            join(outputRoot, paths.relativeDirPath, HOOKS_OWNERSHIP_LOCK_FILE_NAME),
-          ),
-        )
+      ? await readPreviouslyOwnedHooks({ outputRoot, relativeDirPath: paths.relativeDirPath })
       : undefined;
     // A preserved third-party group keeps its own `sequential` flag: the
     // helper folds it into a generated group only when every group-level key
@@ -416,29 +409,11 @@ export class QwencodeHooks extends ToolHooks {
     return true;
   }
 
-  static override async getAuxiliaryFiles({
-    toolHooks,
-  }: {
-    outputRoot?: string;
-    global?: boolean;
-    toolHooks?: ToolHooks;
-    logger?: Logger;
-  } = {}): Promise<ToolFile[]> {
-    return toolHooks instanceof QwencodeHooks ? toolHooks.getOwnershipLockFiles() : [];
-  }
-
   toRulesyncHooks(): RulesyncHooks {
-    let settings: { hooks?: unknown; disableAllHooks?: unknown };
-    try {
-      settings = JSON.parse(this.getFileContent());
-    } catch (error) {
-      throw new Error(
-        `Failed to parse Qwen Code hooks content in ${join(this.getRelativeDirPath(), this.getRelativeFilePath())}: ${formatError(error)}`,
-        {
-          cause: error,
-        },
-      );
-    }
+    const settings: { hooks?: unknown; disableAllHooks?: unknown } = this.parseFileContentOrThrow({
+      displayName: "Qwen Code",
+      parse: (fileContent) => JSON.parse(fileContent),
+    });
     const hooks = qwencodeHooksToCanonical(settings.hooks);
     // Preserve the top-level `disableAllHooks` switch under the qwencode namespace.
     const canonical: HooksConfig = buildImportedHooksConfig({
@@ -451,10 +426,6 @@ export class QwencodeHooks extends ToolHooks {
     return this.toRulesyncHooksDefault({
       fileContent: JSON.stringify(canonical, null, 2),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

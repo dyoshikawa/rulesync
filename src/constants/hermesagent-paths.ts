@@ -82,7 +82,7 @@ export const HERMESAGENT_RULESYNC_SUBAGENTS_PLUGIN_INIT_PATH = join(
   "__init__.py",
 );
 
-export const HERMESAGENT_PROJECT_PLUGINS_DIR_PATH = join(".hermes", "plugins");
+const HERMESAGENT_PROJECT_PLUGINS_DIR_PATH = join(".hermes", "plugins");
 export const HERMESAGENT_IGNORE_PLUGIN_DIR_PATH = join(
   HERMESAGENT_PROJECT_PLUGINS_DIR_PATH,
   "rulesync-ignore",

@@ -1011,6 +1011,34 @@ describe("ToolRule", () => {
   });
 
   describe("isTargetedByRulesyncRule", () => {
+    it("should check targets against the declared toolTarget, which subclasses inherit", () => {
+      class NoTargetRule extends ToolRule {
+        toRulesyncRule(): RulesyncRule {
+          return this.toRulesyncRuleDefault();
+        }
+        validate(): ValidationResult {
+          return { success: true, error: null };
+        }
+      }
+      class CursorTargetRule extends NoTargetRule {
+        protected static override readonly toolTarget = "cursor";
+      }
+      class InheritingRule extends CursorTargetRule {}
+      const rulesyncRule = new RulesyncRule({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "test.md",
+        frontmatter: { targets: ["cursor"] },
+        body: "Test content",
+      });
+
+      expect(CursorTargetRule.isTargetedByRulesyncRule(rulesyncRule)).toBe(true);
+      expect(InheritingRule.isTargetedByRulesyncRule(rulesyncRule)).toBe(true);
+      expect(() => NoTargetRule.isTargetedByRulesyncRule(rulesyncRule)).toThrow(
+        "Please implement this method in the subclass.",
+      );
+    });
+
     it("should return true for rules targeting claudecode", () => {
       const rulesyncRule = new RulesyncRule({
         outputRoot: testDir,

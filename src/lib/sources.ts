@@ -2,7 +2,7 @@ import { basename, join, posix, resolve, sep } from "node:path";
 
 import { Semaphore } from "es-toolkit/promise";
 
-import type { SourceEntry } from "../config/config.js";
+import { getSourceTransport, type SourceEntry } from "../config/config.js";
 import { SKILL_FILE_NAME } from "../constants/general.js";
 import {
   CURATED_RULES_FEATURE_SUBDIR,
@@ -470,7 +470,7 @@ async function prefetchGithubSources(params: {
 
 /** Whether the prefetch lists and downloads this source through the GitHub API. */
 function isListedThroughGithubApi(sourceEntry: SourceEntry): boolean {
-  if ((sourceEntry.transport ?? "github") !== "github") {
+  if (getSourceTransport(sourceEntry) !== "github") {
     return false;
   }
   try {
@@ -484,7 +484,7 @@ function isListedThroughGithubApi(sourceEntry: SourceEntry): boolean {
 
 /** Whether this is a GitLab source, which the serial pass does not support yet. */
 function isGitlabSource(sourceEntry: SourceEntry): boolean {
-  if ((sourceEntry.transport ?? "github") !== "github") {
+  if (getSourceTransport(sourceEntry) !== "github") {
     return false;
   }
   try {
@@ -882,7 +882,7 @@ export async function getInstalledSourceSkillNames({
   const curatedDir = join(projectRoot, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
   const skillNames = new Set<string>();
   for (const source of sources) {
-    const npmTransport = (source.transport ?? "github") === "npm";
+    const npmTransport = getSourceTransport(source) === "npm";
     const entry = npmTransport
       ? getNpmLockedSource(npmLock, source.source)
       : getLockedSource(lock, source.source);
@@ -927,7 +927,7 @@ export async function getInstalledSourceRuleNames({
     if (getSourceFilters(source).rules === undefined) {
       continue;
     }
-    const npmTransport = (source.transport ?? "github") === "npm";
+    const npmTransport = getSourceTransport(source) === "npm";
     const entry = npmTransport
       ? getNpmLockedSource(npmLock, source.source)
       : getLockedSource(lock, source.source);
@@ -1021,7 +1021,7 @@ async function fetchSingleSource(params: {
 }> {
   const { sourceEntry, lock, npmLock } = params;
   assertNonEmptySelections(sourceEntry);
-  if ((sourceEntry.transport ?? "github") === "npm") {
+  if (getSourceTransport(sourceEntry) === "npm") {
     const result = await fetchSourceViaNpm({
       sourceEntry,
       projectRoot: params.projectRoot,
@@ -1265,7 +1265,7 @@ function assertFrozenLockCoversSources(params: {
       continue;
     }
     const locked =
-      (source.transport ?? "github") === "npm"
+      getSourceTransport(source) === "npm"
         ? getNpmLockedSource(npmLock, source.source)
         : getLockedSource(lock, source.source);
     const filters = getSourceFilters(source);
@@ -1330,7 +1330,7 @@ async function fetchSourceByTransport(params: {
     frozen,
     logger,
   } = params;
-  const transport = sourceEntry.transport ?? "github";
+  const transport = getSourceTransport(sourceEntry);
   if (transport === "git") {
     return fetchSourceViaGit({
       sourceEntry,
@@ -1367,9 +1367,7 @@ function pruneStaleLockEntries(params: {
 }): SourcesLock {
   const { lock, sources, logger } = params;
   const sourceKeys = new Set(
-    sources
-      .filter((s) => (s.transport ?? "github") !== "npm")
-      .map((s) => normalizeSourceKey(s.source)),
+    sources.filter((s) => getSourceTransport(s) !== "npm").map((s) => normalizeSourceKey(s.source)),
   );
   const prunedSources: typeof lock.sources = {};
   for (const [key, value] of Object.entries(lock.sources)) {
@@ -1394,7 +1392,7 @@ function pruneStaleNpmLockEntries(params: {
   const { npmLock, sources, logger } = params;
   const sourceKeys = new Set(
     sources
-      .filter((s) => (s.transport ?? "github") === "npm")
+      .filter((s) => getSourceTransport(s) === "npm")
       .map((s) => normalizeNpmSourceKey(s.source)),
   );
   const prunedSources: typeof npmLock.sources = {};
@@ -1418,12 +1416,12 @@ async function cleanUnlistedSourceArtifacts(params: {
   const { projectRoot, lock, npmLock, sources, logger } = params;
   const activeGitKeys = new Set(
     sources
-      .filter((source) => (source.transport ?? "github") !== "npm")
+      .filter((source) => getSourceTransport(source) !== "npm")
       .map((source) => normalizeSourceKey(source.source)),
   );
   const activeNpmKeys = new Set(
     sources
-      .filter((source) => (source.transport ?? "github") === "npm")
+      .filter((source) => getSourceTransport(source) === "npm")
       .map((source) => normalizeNpmSourceKey(source.source)),
   );
   const activeEntries = [
@@ -2274,9 +2272,7 @@ async function canReuseLockedSkills(params: {
  */
 function resolveSkillsSourcePath(sourceEntry: SourceEntry): string {
   const embeddedPath =
-    (sourceEntry.transport ?? "github") === "github"
-      ? parseSource(sourceEntry.source).path
-      : undefined;
+    getSourceTransport(sourceEntry) === "github" ? parseSource(sourceEntry.source).path : undefined;
   return sourceEntry.path ?? embeddedPath ?? "skills";
 }
 
@@ -2341,7 +2337,7 @@ async function fetchRulesByTransport(params: {
   frozen: boolean;
   logger: Logger;
 }): Promise<{ ruleCount: number; fetchedRuleNames: string[]; updatedLock: SourcesLock }> {
-  if ((params.sourceEntry.transport ?? "github") === "git") {
+  if (getSourceTransport(params.sourceEntry) === "git") {
     return fetchRulesViaGit(params);
   }
   return fetchRulesViaGithub(params);

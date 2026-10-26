@@ -2,27 +2,18 @@ import { join } from "node:path";
 
 import { REASONIX_GLOBAL_DIR, REASONIX_RULE_FILE_NAME } from "../../constants/reasonix-paths.js";
 import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
-import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
   ToolRule,
+  ToolRuleBuildLocalRootFileParams,
   ToolRuleForDeletionParams,
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
   ToolRuleNestedFilePatterns,
   ToolRuleSettablePaths,
 } from "./tool-rule.js";
-
-export type ReasonixRuleParams = AiFileParams & {
-  root?: boolean;
-  /**
-   * Set when the file is `REASONIX.local.md` rather than the shared
-   * `REASONIX.md`, so the import flow maps it back to a canonical
-   * `localRoot: true` rule instead of overwriting the shared root rule.
-   */
-  localRoot?: boolean;
-};
 
 /**
  * Rule generator for DeepSeek-Reasonix.
@@ -46,11 +37,28 @@ export type ReasonixRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> & {
 };
 
 export class ReasonixRule extends ToolRule {
-  constructor({ fileContent, root, ...rest }: ReasonixRuleParams) {
-    super({
-      ...rest,
-      fileContent,
-      root: root ?? false,
+  /**
+   * Build this tool's separate personal local-root file (`localRootMode:
+   * "separate-local-file"`), for generation and import. See
+   * {@link ToolRuleBuildLocalRootFileParams}.
+   */
+  static buildLocalRootFile({
+    outputRoot,
+    fileName,
+    body,
+    relativeDirPath,
+    localRoot,
+  }: ToolRuleBuildLocalRootFileParams): ToolRule {
+    // Read from the working directory root, next to the shared root file (`REASONIX.md`), as
+    // plain markdown; there is no tool directory to put it in.
+    return new ReasonixRule({
+      outputRoot,
+      relativeDirPath: relativeDirPath ?? ".",
+      relativeFilePath: fileName,
+      fileContent: body,
+      validate: true,
+      root: true,
+      localRoot,
     });
   }
 
@@ -217,10 +225,5 @@ export class ReasonixRule extends ToolRule {
     });
   }
 
-  static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
-    return this.isTargetedByRulesyncRuleDefault({
-      rulesyncRule,
-      toolTarget: "reasonix",
-    });
-  }
+  protected static override readonly toolTarget = "reasonix";
 }

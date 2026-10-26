@@ -23,7 +23,7 @@ import {
  * separators.
  * @see vibe/core/prompts/__init__.py
  */
-export const VIBE_PROMPTS_DIR_PATH = join(".vibe", "prompts");
+const VIBE_PROMPTS_DIR_PATH = join(".vibe", "prompts");
 
 type VibeSubagentsFromRulesyncSubagentsParams = {
   rulesyncSubagents: RulesyncSubagent[];
