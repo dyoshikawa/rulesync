@@ -37,7 +37,7 @@ import {
   type ToolHooksSettablePaths,
 } from "./tool-hooks.js";
 
-const CODEXCLI_CONVERTER_CONFIG: ToolHooksConverterConfig = {
+export const CODEXCLI_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   supportedEvents: CODEXCLI_HOOK_EVENTS,
   canonicalToToolEventNames: CANONICAL_TO_CODEXCLI_EVENT_NAMES,
   toolToCanonicalEventNames: CODEXCLI_TO_CANONICAL_EVENT_NAMES,

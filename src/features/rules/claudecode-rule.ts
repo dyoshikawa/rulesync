@@ -21,6 +21,7 @@ import { ClaudecodeLanguageSettings } from "./claudecode-language-settings.js";
 import { RulesyncRule, RulesyncRuleFrontmatter } from "./rulesync-rule.js";
 import {
   ToolRule,
+  ToolRuleBuildLocalRootFileParams,
   ToolRuleForDeletionParams,
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
@@ -74,6 +75,32 @@ export type ClaudecodeRuleSettablePathsGlobal = ToolRuleSettablePathsGlobal;
  * @see https://code.claude.com/docs/en/memory#modular-rules-with-clauderules
  */
 export class ClaudecodeRule extends ToolRule {
+  /**
+   * Build this tool's separate personal local-root file (`localRootMode:
+   * "separate-local-file"`), for generation and import. See
+   * {@link ToolRuleBuildLocalRootFileParams}.
+   */
+  static buildLocalRootFile({
+    outputRoot,
+    global,
+    fileName,
+    body,
+    relativeDirPath,
+    localRoot,
+  }: ToolRuleBuildLocalRootFileParams): ToolRule {
+    const paths = ClaudecodeRule.getSettablePaths({ global });
+    return new ClaudecodeRule({
+      outputRoot,
+      relativeDirPath: relativeDirPath ?? paths.root.relativeDirPath,
+      relativeFilePath: fileName,
+      frontmatter: {},
+      body,
+      validate: true,
+      root: true,
+      localRoot,
+    });
+  }
+
   private readonly frontmatter: ClaudecodeRuleFrontmatter;
   private readonly body: string;
 

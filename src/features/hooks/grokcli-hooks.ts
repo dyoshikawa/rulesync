@@ -48,7 +48,7 @@ import {
  */
 const GROKCLI_NO_MATCHER_EVENTS: ReadonlySet<string> = new Set(["stop", "beforeSubmitPrompt"]);
 
-const GROKCLI_CONVERTER_CONFIG: ToolHooksConverterConfig = {
+export const GROKCLI_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   supportedEvents: GROKCLI_HOOK_EVENTS,
   canonicalToToolEventNames: CANONICAL_TO_GROKCLI_EVENT_NAMES,
   toolToCanonicalEventNames: GROKCLI_TO_CANONICAL_EVENT_NAMES,

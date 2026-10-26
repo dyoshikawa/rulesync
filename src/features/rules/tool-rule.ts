@@ -42,6 +42,22 @@ export type ToolRuleForDeletionParams = {
 };
 
 /**
+ * Parameters of the optional static `buildLocalRootFile` hook, implemented by
+ * the tools whose `localRootMode` is `separate-local-file` and consumed by the
+ * RulesProcessor for both generation and import of the personal local file.
+ */
+export type ToolRuleBuildLocalRootFileParams = {
+  outputRoot: string;
+  global: boolean;
+  fileName: string;
+  body: string;
+  /** Where the file was found on import; defaults to the generation path. */
+  relativeDirPath: string | undefined;
+  /** True when importing an existing local file back to a rulesync rule. */
+  localRoot: boolean;
+};
+
+/**
  * A fixed-path file (or a file-name glob within one directory) a tool manages
  * beyond its root/non-root rules (e.g. Pi's `APPEND_SYSTEM.md`). Returned by
  * the optional static `getExtraFixedFiles` hook, consumed by the

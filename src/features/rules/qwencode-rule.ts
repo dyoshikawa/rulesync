@@ -11,6 +11,7 @@ import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
   ToolRule,
+  ToolRuleBuildLocalRootFileParams,
   ToolRuleForDeletionParams,
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
@@ -104,6 +105,31 @@ function normalizePaths(paths: string[] | string | undefined): string[] {
  * non-root surface; each rule is emitted to exactly one location.
  */
 export class QwencodeRule extends ToolRule {
+  /**
+   * Build this tool's separate personal local-root file (`localRootMode:
+   * "separate-local-file"`), for generation and import. See
+   * {@link ToolRuleBuildLocalRootFileParams}.
+   */
+  static buildLocalRootFile({
+    outputRoot,
+    fileName,
+    body,
+    relativeDirPath,
+    localRoot,
+  }: ToolRuleBuildLocalRootFileParams): ToolRule {
+    // Qwen Code reads the personal local file from its tool directory
+    // (`.qwen/QWEN.local.md`), not the project root (project scope only).
+    return new QwencodeRule({
+      outputRoot,
+      relativeDirPath: relativeDirPath ?? QWENCODE_DIR,
+      relativeFilePath: fileName,
+      fileContent: body,
+      validate: true,
+      root: true,
+      localRoot,
+    });
+  }
+
   private readonly frontmatter: QwencodeRuleFrontmatter | undefined;
   private readonly body: string | undefined;
 

@@ -22,6 +22,7 @@ import { warnWithFallback } from "../../utils/logger.js";
 import { RulesyncRule, RulesyncRuleFrontmatter } from "./rulesync-rule.js";
 import {
   ToolRule,
+  ToolRuleBuildLocalRootFileParams,
   ToolRuleExtraFixedFile,
   ToolRuleForDeletionParams,
   ToolRuleFromFileParams,
@@ -144,6 +145,32 @@ function resolveTrigger(frontmatter: QoderRuleFrontmatter): string {
  * @see https://docs.qoder.com/cli/output-styles
  */
 export class QoderRule extends ToolRule {
+  /**
+   * Build this tool's separate personal local-root file (`localRootMode:
+   * "separate-local-file"`), for generation and import. See
+   * {@link ToolRuleBuildLocalRootFileParams}.
+   */
+  static buildLocalRootFile({
+    outputRoot,
+    fileName,
+    body,
+    relativeDirPath,
+    localRoot,
+  }: ToolRuleBuildLocalRootFileParams): ToolRule {
+    // `AGENTS.local.md` sits next to the project-root `AGENTS.md` Qoder reads,
+    // not under `.qoder/`, and is plain markdown with no trigger frontmatter.
+    return new QoderRule({
+      outputRoot,
+      relativeDirPath: relativeDirPath ?? ".",
+      relativeFilePath: fileName,
+      frontmatter: {},
+      body,
+      validate: true,
+      root: true,
+      localRoot,
+    });
+  }
+
   private readonly frontmatter: QoderRuleFrontmatter;
   private readonly body: string;
   private readonly outputStyle: boolean;

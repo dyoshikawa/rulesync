@@ -1,24 +1,13 @@
-import { join } from "node:path";
-
 import { z } from "zod/mini";
 
 import { FACTORYDROID_COMMANDS_DIR_PATH } from "../../constants/factorydroid-paths.js";
-import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
-import { formatError } from "../../utils/error.js";
-import { readFileContent } from "../../utils/file.js";
+import type { ToolTarget } from "../../types/tool-targets.js";
 import {
-  parseFrontmatter,
-  stringifyFrontmatter,
-  validateFrontmatterSchema,
-} from "../../utils/frontmatter.js";
-import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
-import {
-  ToolCommand,
-  ToolCommandForDeletionParams,
-  ToolCommandFromFileParams,
-  ToolCommandFromRulesyncCommandParams,
-  ToolCommandSettablePaths,
-} from "./tool-command.js";
+  FrontmatterMarkdownToolCommand,
+  type FrontmatterMarkdownToolCommandParams,
+} from "./frontmatter-markdown-command.js";
+import type { RulesyncCommandFrontmatter } from "./rulesync-command.js";
+import type { ToolCommandSettablePaths } from "./tool-command.js";
 
 // looseObject preserves unknown keys during parsing (like passthrough in Zod 3).
 // Factory Droid custom slash commands are native Markdown files with frontmatter.
@@ -39,35 +28,10 @@ const FACTORYDROID_UNSUPPORTED_COMMAND_FIELDS = ["allowed-tools"] as const;
 
 export type FactorydroidCommandFrontmatter = z.infer<typeof FactorydroidCommandFrontmatterSchema>;
 
-export type FactorydroidCommandParams = {
-  frontmatter: FactorydroidCommandFrontmatter;
-  body: string;
-} & Omit<AiFileParams, "fileContent">;
+export type FactorydroidCommandParams =
+  FrontmatterMarkdownToolCommandParams<FactorydroidCommandFrontmatter>;
 
-export class FactorydroidCommand extends ToolCommand {
-  private readonly frontmatter: FactorydroidCommandFrontmatter;
-  private readonly body: string;
-
-  constructor({ frontmatter, body, ...rest }: FactorydroidCommandParams) {
-    // Validate frontmatter before calling super to avoid validation order issues
-    if (rest.validate) {
-      const result = FactorydroidCommandFrontmatterSchema.safeParse(frontmatter);
-      if (!result.success) {
-        throw new Error(
-          `Invalid frontmatter in ${join(rest.relativeDirPath, rest.relativeFilePath)}: ${formatError(result.error)}`,
-        );
-      }
-    }
-
-    super({
-      ...rest,
-      fileContent: stringifyFrontmatter(body, frontmatter),
-    });
-
-    this.frontmatter = frontmatter;
-    this.body = body;
-  }
-
+export class FactorydroidCommand extends FrontmatterMarkdownToolCommand<FactorydroidCommandFrontmatter> {
   static getSettablePaths(_options: { global?: boolean } = {}): ToolCommandSettablePaths {
     // Factory Droid commands use the same relative path for both project and global modes.
     // The actual location differs based on outputRoot:
@@ -78,15 +42,25 @@ export class FactorydroidCommand extends ToolCommand {
     };
   }
 
-  getBody(): string {
-    return this.body;
+  protected static override getToolTarget(): ToolTarget {
+    return "factorydroid";
   }
 
-  getFrontmatter(): Record<string, unknown> {
-    return this.frontmatter;
+  protected static override getFrontmatterSchema() {
+    return FactorydroidCommandFrontmatterSchema;
   }
 
-  toRulesyncCommand(): RulesyncCommand {
+  protected static override toToolFrontmatter(
+    rulesyncFrontmatter: RulesyncCommandFrontmatter,
+  ): FactorydroidCommandFrontmatter {
+    const factorydroidFrontmatter = super.toToolFrontmatter(rulesyncFrontmatter);
+    for (const field of FACTORYDROID_UNSUPPORTED_COMMAND_FIELDS) {
+      delete factorydroidFrontmatter[field];
+    }
+    return factorydroidFrontmatter;
+  }
+
+  protected override toRulesyncFrontmatter(): RulesyncCommandFrontmatter {
     const { description, ...restFields } = this.frontmatter;
     // Symmetric with generation: a field Droid does not honor is not lifted
     // into the override either, so a round trip does not reintroduce it.
@@ -94,117 +68,12 @@ export class FactorydroidCommand extends ToolCommand {
       delete restFields[field];
     }
 
-    const rulesyncFrontmatter: RulesyncCommandFrontmatter = {
+    return {
       targets: ["*"],
       description,
       // Preserve the remaining extra fields (e.g. argument-hint) in the
       // factorydroid section.
       ...(Object.keys(restFields).length > 0 && { factorydroid: restFields }),
     };
-
-    // Generate proper file content with Rulesync specific frontmatter
-    return new RulesyncCommand({
-      outputRoot: ".", // RulesyncCommand outputRoot is always the project root directory
-      frontmatter: rulesyncFrontmatter,
-      body: this.body,
-      relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
-      relativeFilePath: this.relativeFilePath,
-      validate: true,
-    });
-  }
-
-  static fromRulesyncCommand({
-    outputRoot = process.cwd(),
-    rulesyncCommand,
-    validate = true,
-    global = false,
-  }: ToolCommandFromRulesyncCommandParams): FactorydroidCommand {
-    const rulesyncFrontmatter = rulesyncCommand.getFrontmatter();
-
-    // Merge factorydroid-specific fields from rulesync frontmatter
-    const factorydroidFields = rulesyncFrontmatter.factorydroid ?? {};
-
-    const factorydroidFrontmatter: FactorydroidCommandFrontmatter = {
-      description: rulesyncFrontmatter.description,
-      ...factorydroidFields,
-    };
-    for (const field of FACTORYDROID_UNSUPPORTED_COMMAND_FIELDS) {
-      delete factorydroidFrontmatter[field];
-    }
-
-    const body = rulesyncCommand.getBody();
-
-    const paths = this.getSettablePaths({ global });
-
-    return new FactorydroidCommand({
-      outputRoot: outputRoot,
-      frontmatter: factorydroidFrontmatter,
-      body,
-      relativeDirPath: paths.relativeDirPath,
-      relativeFilePath: rulesyncCommand.getRelativeFilePath(),
-      validate,
-    });
-  }
-
-  validate(): ValidationResult {
-    // Check if frontmatter is set (may be undefined during construction)
-    if (!this.frontmatter) {
-      return { success: true, error: null };
-    }
-
-    return validateFrontmatterSchema({
-      schema: FactorydroidCommandFrontmatterSchema,
-      frontmatter: this.frontmatter,
-      relativeDirPath: this.relativeDirPath,
-      relativeFilePath: this.relativeFilePath,
-    });
-  }
-
-  static isTargetedByRulesyncCommand(rulesyncCommand: RulesyncCommand): boolean {
-    return this.isTargetedByRulesyncCommandDefault({
-      rulesyncCommand,
-      toolTarget: "factorydroid",
-    });
-  }
-
-  static async fromFile({
-    outputRoot = process.cwd(),
-    relativeFilePath,
-    validate = true,
-    global = false,
-  }: ToolCommandFromFileParams): Promise<FactorydroidCommand> {
-    const paths = this.getSettablePaths({ global });
-    const filePath = join(outputRoot, paths.relativeDirPath, relativeFilePath);
-    const fileContent = await readFileContent(filePath);
-    const { frontmatter, body: content } = parseFrontmatter(fileContent, filePath);
-
-    const result = FactorydroidCommandFrontmatterSchema.safeParse(frontmatter);
-    if (!result.success) {
-      throw new Error(`Invalid frontmatter in ${filePath}: ${formatError(result.error)}`);
-    }
-
-    return new FactorydroidCommand({
-      outputRoot: outputRoot,
-      relativeDirPath: paths.relativeDirPath,
-      relativeFilePath,
-      frontmatter: result.data,
-      body: content.trim(),
-      validate,
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolCommandForDeletionParams): FactorydroidCommand {
-    return new FactorydroidCommand({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      frontmatter: { description: "" },
-      body: "",
-      validate: false,
-    });
   }
 }

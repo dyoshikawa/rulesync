@@ -49,7 +49,7 @@ const LETTACODE_NO_MATCHER_EVENTS: ReadonlySet<string> = new Set([
 // verbatim. `timeout` is in milliseconds (default 60000), so the
 // canonical seconds are converted both ways. Only `command` hooks are emitted:
 // Letta's `prompt` hooks exist on a subset of events only.
-const LETTACODE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
+export const LETTACODE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   supportedEvents: LETTACODE_HOOK_EVENTS,
   canonicalToToolEventNames: CANONICAL_TO_LETTACODE_EVENT_NAMES,
   toolToCanonicalEventNames: LETTACODE_TO_CANONICAL_EVENT_NAMES,

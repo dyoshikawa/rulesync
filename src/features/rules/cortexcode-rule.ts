@@ -1,16 +1,6 @@
-import { join } from "node:path";
-
 import { CORTEXCODE_RULE_FILE_NAME } from "../../constants/cortexcode-paths.js";
-import { ValidationResult } from "../../types/ai-file.js";
-import { readFileContent } from "../../utils/file.js";
-import { RulesyncRule } from "./rulesync-rule.js";
-import {
-  ToolRule,
-  ToolRuleForDeletionParams,
-  ToolRuleFromFileParams,
-  ToolRuleFromRulesyncRuleParams,
-  ToolRuleSettablePaths,
-} from "./tool-rule.js";
+import { SingleRootFileRule } from "./single-root-file-rule.js";
+import { ToolRuleSettablePaths } from "./tool-rule.js";
 
 /**
  * Rule generator for Snowflake Cortex Code.
@@ -32,7 +22,7 @@ export type CortexcodeRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> & 
   nonRoot?: undefined;
 };
 
-export class CortexcodeRule extends ToolRule {
+export class CortexcodeRule extends SingleRootFileRule {
   static getSettablePaths(
     _options: {
       global?: boolean;
@@ -45,70 +35,6 @@ export class CortexcodeRule extends ToolRule {
         relativeFilePath: CORTEXCODE_RULE_FILE_NAME,
       },
     };
-  }
-
-  static async fromFile({
-    outputRoot = process.cwd(),
-    relativeFilePath: _relativeFilePath,
-    validate = true,
-    global = false,
-  }: ToolRuleFromFileParams): Promise<CortexcodeRule> {
-    const { root } = this.getSettablePaths({ global });
-    const relativePath = join(root.relativeDirPath, root.relativeFilePath);
-    const fileContent = await readFileContent(join(outputRoot, relativePath));
-
-    return new CortexcodeRule({
-      outputRoot,
-      relativeDirPath: root.relativeDirPath,
-      relativeFilePath: root.relativeFilePath,
-      fileContent,
-      validate,
-      root: true,
-    });
-  }
-
-  static fromRulesyncRule({
-    outputRoot = process.cwd(),
-    rulesyncRule,
-    validate = true,
-    global = false,
-  }: ToolRuleFromRulesyncRuleParams): CortexcodeRule {
-    const { root } = this.getSettablePaths({ global });
-    const isRoot = rulesyncRule.getFrontmatter().root ?? false;
-
-    return new CortexcodeRule({
-      outputRoot,
-      relativeDirPath: root.relativeDirPath,
-      relativeFilePath: root.relativeFilePath,
-      fileContent: rulesyncRule.getBody(),
-      validate,
-      root: isRoot,
-    });
-  }
-
-  toRulesyncRule(): RulesyncRule {
-    return this.toRulesyncRuleDefault();
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolRuleForDeletionParams): CortexcodeRule {
-    const isRoot = relativeFilePath === CORTEXCODE_RULE_FILE_NAME && relativeDirPath === ".";
-
-    return new CortexcodeRule({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: "",
-      validate: false,
-      root: isRoot,
-    });
   }
 
   protected static override readonly toolTarget = "cortexcode";

@@ -1,16 +1,6 @@
-import { join } from "node:path";
-
 import { COMMANDCODE_DIR, COMMANDCODE_RULE_FILE_NAME } from "../../constants/commandcode-paths.js";
-import { ValidationResult } from "../../types/ai-file.js";
-import { readFileContent } from "../../utils/file.js";
-import { RulesyncRule } from "./rulesync-rule.js";
-import {
-  ToolRule,
-  ToolRuleForDeletionParams,
-  ToolRuleFromFileParams,
-  ToolRuleFromRulesyncRuleParams,
-  ToolRuleSettablePaths,
-} from "./tool-rule.js";
+import { SingleRootFileRule } from "./single-root-file-rule.js";
+import { ToolRuleSettablePaths } from "./tool-rule.js";
 
 /**
  * Rule generator for Command Code, the open-source terminal coding agent.
@@ -33,7 +23,7 @@ export type CommandcodeRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> &
   nonRoot?: undefined;
 };
 
-export class CommandcodeRule extends ToolRule {
+export class CommandcodeRule extends SingleRootFileRule {
   static getSettablePaths({
     global = false,
   }: {
@@ -51,70 +41,18 @@ export class CommandcodeRule extends ToolRule {
     };
   }
 
-  static async fromFile({
-    outputRoot = process.cwd(),
-    relativeFilePath: _relativeFilePath,
-    validate = true,
-    global = false,
-  }: ToolRuleFromFileParams): Promise<CommandcodeRule> {
-    const { root } = this.getSettablePaths({ global });
-    const relativePath = join(root.relativeDirPath, root.relativeFilePath);
-    const fileContent = await readFileContent(join(outputRoot, relativePath));
-
-    return new CommandcodeRule({
-      outputRoot,
-      relativeDirPath: root.relativeDirPath,
-      relativeFilePath: root.relativeFilePath,
-      fileContent,
-      validate,
-      root: true,
-    });
-  }
-
-  static fromRulesyncRule({
-    outputRoot = process.cwd(),
-    rulesyncRule,
-    validate = true,
-    global = false,
-  }: ToolRuleFromRulesyncRuleParams): CommandcodeRule {
-    const { root } = this.getSettablePaths({ global });
-    const isRoot = rulesyncRule.getFrontmatter().root ?? false;
-
-    return new CommandcodeRule({
-      outputRoot,
-      relativeDirPath: root.relativeDirPath,
-      relativeFilePath: root.relativeFilePath,
-      fileContent: rulesyncRule.getBody(),
-      validate,
-      root: isRoot,
-    });
-  }
-
-  toRulesyncRule(): RulesyncRule {
-    return this.toRulesyncRuleDefault();
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
+  protected static override isRootFilePath({
     relativeDirPath,
     relativeFilePath,
-  }: ToolRuleForDeletionParams): CommandcodeRule {
-    const isRoot =
+  }: {
+    relativeDirPath: string;
+    relativeFilePath: string;
+    global: boolean;
+  }): boolean {
+    return (
       relativeFilePath === COMMANDCODE_RULE_FILE_NAME &&
-      (relativeDirPath === "." || relativeDirPath === COMMANDCODE_DIR);
-
-    return new CommandcodeRule({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: "",
-      validate: false,
-      root: isRoot,
-    });
+      (relativeDirPath === "." || relativeDirPath === COMMANDCODE_DIR)
+    );
   }
 
   protected static override readonly toolTarget = "commandcode";

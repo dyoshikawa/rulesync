@@ -11,6 +11,7 @@ import { readFileContent, toPosixPath } from "../../utils/file.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
   ToolRule,
+  ToolRuleBuildLocalRootFileParams,
   ToolRuleForDeletionParams,
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
@@ -42,6 +43,29 @@ export type RovodevRuleSettablePaths = ToolRuleSettablePaths & {
  * @see https://developer.atlassian.com/platform/rovodev-cli/
  */
 export class RovodevRule extends ToolRule {
+  /**
+   * Build this tool's separate personal local-root file (`localRootMode:
+   * "separate-local-file"`), for generation and import. See
+   * {@link ToolRuleBuildLocalRootFileParams}.
+   */
+  static buildLocalRootFile({
+    outputRoot,
+    fileName,
+    body,
+    relativeDirPath,
+    localRoot,
+  }: ToolRuleBuildLocalRootFileParams): ToolRule {
+    return new RovodevRule({
+      outputRoot,
+      relativeDirPath: relativeDirPath ?? ".",
+      relativeFilePath: fileName,
+      fileContent: body,
+      validate: true,
+      root: true,
+      localRoot,
+    });
+  }
+
   /**
    * Whether `relativePath` (posix-style path relative to modular-rules root) may be imported as a modular rule.
    * Rejects memory filenames that belong at repo root or under `.rovodev/AGENTS.md`.

@@ -63,7 +63,7 @@ const ANTIGRAVITY_FLAT_HANDLER_EVENTS: ReadonlySet<string> = new Set(
  * {@link toAntigravityEventMap}). `projectDirVar` is empty because Antigravity
  * does not document a project-directory variable for commands.
  */
-const ANTIGRAVITY_CONVERTER_CONFIG: ToolHooksConverterConfig = {
+export const ANTIGRAVITY_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   supportedEvents: ANTIGRAVITY_HOOK_EVENTS,
   canonicalToToolEventNames: CANONICAL_TO_ANTIGRAVITY_EVENT_NAMES,
   toolToCanonicalEventNames: ANTIGRAVITY_TO_CANONICAL_EVENT_NAMES,

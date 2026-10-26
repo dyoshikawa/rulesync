@@ -1,24 +1,11 @@
-import { join } from "node:path";
-
 import { z } from "zod/mini";
 
 import { COMMANDCODE_AGENTS_DIR_PATH } from "../../constants/commandcode-paths.js";
-import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
-import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
-import { formatError } from "../../utils/error.js";
-import { readFileContent } from "../../utils/file.js";
-import {
-  parseFrontmatter,
-  stringifyFrontmatter,
-  validateFrontmatterSchema,
-} from "../../utils/frontmatter.js";
+import type { ToolTarget } from "../../types/tool-targets.js";
 import type { Logger } from "../../utils/logger.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
-import { RulesyncSubagent, RulesyncSubagentFrontmatter } from "./rulesync-subagent.js";
-import {
-  ToolSubagent,
-  ToolSubagentForDeletionParams,
-  ToolSubagentFromFileParams,
+import { FrontmatterMarkdownToolSubagent } from "./frontmatter-markdown-subagent.js";
+import type {
   ToolSubagentFromRulesyncSubagentParams,
   ToolSubagentSettablePaths,
 } from "./tool-subagent.js";
@@ -91,11 +78,6 @@ function warnAboutReservedAgentName({
   );
 }
 
-type CommandcodeSubagentParams = {
-  frontmatter: CommandcodeSubagentFrontmatter;
-  body: string;
-} & Omit<AiFileParams, "fileContent"> & { fileContent?: string };
-
 /**
  * Command Code custom agent: a Markdown file with YAML frontmatter under
  * `.commandcode/agents/` (project) or `~/.commandcode/agents/` (user); the
@@ -103,29 +85,7 @@ type CommandcodeSubagentParams = {
  *
  * @see https://commandcode.ai/docs/custom-agents
  */
-export class CommandcodeSubagent extends ToolSubagent {
-  private readonly frontmatter: CommandcodeSubagentFrontmatter;
-  private readonly body: string;
-
-  constructor({ frontmatter, body, fileContent, ...rest }: CommandcodeSubagentParams) {
-    if (rest.validate !== false) {
-      const result = CommandcodeSubagentFrontmatterSchema.safeParse(frontmatter);
-      if (!result.success) {
-        throw new Error(
-          `Invalid frontmatter in ${join(rest.relativeDirPath, rest.relativeFilePath)}: ${formatError(result.error)}`,
-        );
-      }
-    }
-
-    super({
-      ...rest,
-      fileContent: fileContent ?? stringifyFrontmatter(body, frontmatter),
-    });
-
-    this.frontmatter = frontmatter;
-    this.body = body;
-  }
-
+export class CommandcodeSubagent extends FrontmatterMarkdownToolSubagent<CommandcodeSubagentFrontmatter> {
   static getSettablePaths(_options: { global?: boolean } = {}): ToolSubagentSettablePaths {
     // Both scopes share the same relative path; the home-directory root is
     // applied by the generate pipeline in global mode.
@@ -134,136 +94,27 @@ export class CommandcodeSubagent extends ToolSubagent {
     };
   }
 
-  getFrontmatter(): CommandcodeSubagentFrontmatter {
-    return this.frontmatter;
+  protected static override getToolTarget(): ToolTarget {
+    return "commandcode";
   }
 
-  getBody(): string {
-    return this.body;
+  protected static override getFrontmatterSchema() {
+    return CommandcodeSubagentFrontmatterSchema;
   }
 
-  toRulesyncSubagent(): RulesyncSubagent {
-    const { name, description, ...rest } = this.frontmatter;
-
-    const rulesyncFrontmatter: RulesyncSubagentFrontmatter = {
-      targets: ["*"] as const,
-      name,
-      description,
-      commandcode: {
-        ...rest,
-      },
-    };
-
-    return new RulesyncSubagent({
-      outputRoot: ".",
-      frontmatter: rulesyncFrontmatter,
-      body: this.body,
-      relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
-      relativeFilePath: this.getRelativeFilePath(),
-      validate: true,
-    });
-  }
-
-  static fromRulesyncSubagent({
-    outputRoot = process.cwd(),
+  protected static override toToolFrontmatter({
     rulesyncSubagent,
-    validate = true,
-    global = false,
     logger,
-  }: ToolSubagentFromRulesyncSubagentParams): ToolSubagent {
-    const rulesyncFrontmatter = rulesyncSubagent.getFrontmatter();
-    const commandcodeSection = rulesyncFrontmatter.commandcode ?? {};
-
-    const commandcodeSubagentFrontmatter: CommandcodeSubagentFrontmatter = {
-      name: rulesyncFrontmatter.name,
-      description: rulesyncFrontmatter.description,
-      ...commandcodeSection,
-    };
+  }: Pick<
+    ToolSubagentFromRulesyncSubagentParams,
+    "rulesyncSubagent" | "logger"
+  >): CommandcodeSubagentFrontmatter {
+    const commandcodeSubagentFrontmatter = super.toToolFrontmatter({ rulesyncSubagent, logger });
     warnAboutReservedAgentName({
       name: commandcodeSubagentFrontmatter.name,
       relativeFilePath: rulesyncSubagent.getRelativeFilePath(),
       logger,
     });
-
-    const body = rulesyncSubagent.getBody();
-    const fileContent = stringifyFrontmatter(body, commandcodeSubagentFrontmatter, {
-      avoidBlockScalars: true,
-    });
-    const paths = this.getSettablePaths({ global });
-
-    return new CommandcodeSubagent({
-      outputRoot,
-      frontmatter: commandcodeSubagentFrontmatter,
-      body,
-      relativeDirPath: paths.relativeDirPath,
-      relativeFilePath: rulesyncSubagent.getRelativeFilePath(),
-      fileContent,
-      validate,
-      global,
-    });
-  }
-
-  validate(): ValidationResult {
-    if (!this.frontmatter) {
-      return { success: true, error: null };
-    }
-
-    return validateFrontmatterSchema({
-      schema: CommandcodeSubagentFrontmatterSchema,
-      frontmatter: this.frontmatter,
-      relativeDirPath: this.relativeDirPath,
-      relativeFilePath: this.relativeFilePath,
-    });
-  }
-
-  static isTargetedByRulesyncSubagent(rulesyncSubagent: RulesyncSubagent): boolean {
-    return this.isTargetedByRulesyncSubagentDefault({
-      rulesyncSubagent,
-      toolTarget: "commandcode",
-    });
-  }
-
-  static async fromFile({
-    outputRoot = process.cwd(),
-    relativeFilePath,
-    validate = true,
-    global = false,
-  }: ToolSubagentFromFileParams): Promise<CommandcodeSubagent> {
-    const paths = this.getSettablePaths({ global });
-    const filePath = join(outputRoot, paths.relativeDirPath, relativeFilePath);
-    const fileContent = await readFileContent(filePath);
-    const { frontmatter, body: content } = parseFrontmatter(fileContent, filePath);
-
-    const result = CommandcodeSubagentFrontmatterSchema.safeParse(frontmatter);
-    if (!result.success) {
-      throw new Error(`Invalid frontmatter in ${filePath}: ${formatError(result.error)}`);
-    }
-
-    return new CommandcodeSubagent({
-      outputRoot,
-      relativeDirPath: paths.relativeDirPath,
-      relativeFilePath,
-      frontmatter: result.data,
-      body: content.trim(),
-      fileContent,
-      validate,
-      global,
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolSubagentForDeletionParams): CommandcodeSubagent {
-    return new CommandcodeSubagent({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      frontmatter: { name: "", description: "" },
-      body: "",
-      fileContent: "",
-      validate: false,
-    });
+    return commandcodeSubagentFrontmatter;
   }
 }

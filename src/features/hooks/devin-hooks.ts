@@ -49,7 +49,7 @@ const DEVIN_NO_MATCHER_EVENTS: ReadonlySet<string> = new Set([
   "postCompact",
 ]);
 
-const DEVIN_CONVERTER_CONFIG: ToolHooksConverterConfig = {
+export const DEVIN_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   supportedEvents: DEVIN_HOOK_EVENTS,
   canonicalToToolEventNames: CANONICAL_TO_DEVIN_EVENT_NAMES,
   toolToCanonicalEventNames: DEVIN_TO_CANONICAL_EVENT_NAMES,

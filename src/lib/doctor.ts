@@ -20,9 +20,9 @@ import {
 } from "../constants/rulesync-paths.js";
 import {
   findProjectInstructionBudgetFindings,
-  RulesProcessor,
   toInstructionBudgetFile,
-} from "../features/rules/rules-processor.js";
+} from "../features/rules/instruction-budget.js";
+import { RulesProcessor } from "../features/rules/rules-processor.js";
 import { ALL_FEATURES, DEPRECATED_FEATURE_REPLACEMENTS } from "../types/features.js";
 import { CLIError, ErrorCodes } from "../types/json-output.js";
 import { ALL_TOOL_TARGETS } from "../types/tool-targets.js";
