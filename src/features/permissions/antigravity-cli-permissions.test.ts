@@ -767,6 +767,37 @@ describe("AntigravityCliPermissions", () => {
       expect(json["antigravity-cli"]).toEqual({ agentMode: "accept-edits" });
     });
 
+    it("authors and round-trips agentMode: auto (issue #2666)", async () => {
+      const rulesyncPermissions = new RulesyncPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({
+          permission: {},
+          "antigravity-cli": { agentMode: "auto", enableTerminalSandbox: true },
+        }),
+      });
+
+      const permissions = await AntigravityCliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions,
+      });
+
+      const settings = JSON.parse(permissions.getFileContent()) as SettingsJson & {
+        agentMode?: string;
+      };
+      expect(settings.agentMode).toBe("auto");
+
+      const dir = join(testDir, ".gemini", "antigravity-cli");
+      await ensureDir(dir);
+      await writeFileContent(join(dir, "settings.json"), permissions.getFileContent());
+      const loaded = await AntigravityCliPermissions.fromFile({ outputRoot: testDir });
+      const json = loaded.toRulesyncPermissions().getJson() as {
+        "antigravity-cli"?: Record<string, unknown>;
+      };
+      expect(json["antigravity-cli"]).toEqual({ agentMode: "auto", enableTerminalSandbox: true });
+    });
+
     it("drops an agentMode value outside the documented enum on import", async () => {
       const dir = join(testDir, ".gemini", "antigravity-cli");
       await ensureDir(dir);

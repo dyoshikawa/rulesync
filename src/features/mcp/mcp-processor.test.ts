@@ -1220,9 +1220,9 @@ describe("McpProcessor", () => {
       expect(logger.warn).not.toHaveBeenCalled();
     });
 
-    it("should preserve disabledTools but strip enabledTools for Factory Droid", async () => {
-      // Droid documents a per-server `disabledTools` exclusion list and no
-      // allowlist, so only `enabledTools` may be stripped.
+    it("should not strip enabledTools and disabledTools for Factory Droid", async () => {
+      // Droid documents both a per-server `enabledTools` allowlist and a
+      // `disabledTools` exclusion list (https://docs.factory.com/harness/mcp).
       const rulesyncMcp = new RulesyncMcp({
         outputRoot: testDir,
         relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
@@ -1240,7 +1240,7 @@ describe("McpProcessor", () => {
 
       await processor.convertRulesyncFilesToToolFiles([rulesyncMcp]);
 
-      expect(rulesyncMcp.stripMcpServerFields).toHaveBeenCalledWith(["enabledTools"]);
+      expect(rulesyncMcp.stripMcpServerFields).toHaveBeenCalledWith([]);
     });
   });
 
