@@ -23,6 +23,7 @@ import {
   formatPackagingTargetGlobalMessage,
   isPackagingToolTarget,
 } from "../utils/plugin-root.js";
+import type { FeatureCounts } from "../utils/result.js";
 import {
   resolveRulesyncSourceWritePath,
   type RulesyncSourceSettablePaths,
@@ -63,17 +64,7 @@ async function applyRulesyncSourcePath<T extends RulesyncFile>({
   );
 }
 
-export type ImportResult = {
-  rulesCount: number;
-  ignoreCount: number;
-  mcpCount: number;
-  commandsCount: number;
-  subagentsCount: number;
-  skillsCount: number;
-  hooksCount: number;
-  permissionsCount: number;
-  checksCount: number;
-};
+export type ImportResult = FeatureCounts;
 
 function getToolOutputRoot({ config, tool }: { config: Config; tool: ToolTarget }): string {
   return resolveToolOutputRoot({
