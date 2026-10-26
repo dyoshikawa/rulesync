@@ -92,6 +92,34 @@ describe("DevinHooks", () => {
       ]);
     });
 
+    it("should write the canonical failClosed as fail_closed", async () => {
+      const rulesyncHooks = makeRulesyncHooks({
+        version: 1,
+        hooks: {
+          preToolUse: [
+            { matcher: "exec", command: "./guard.sh", failClosed: true },
+            { matcher: "exec", command: "./audit.sh", failClosed: false },
+          ],
+        },
+      });
+
+      const devinHooks = await DevinHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+      });
+
+      expect(JSON.parse(devinHooks.getFileContent()).PreToolUse).toEqual([
+        {
+          matcher: "exec",
+          hooks: [
+            { type: "command", command: "./guard.sh", fail_closed: true },
+            { type: "command", command: "./audit.sh", fail_closed: false },
+          ],
+        },
+      ]);
+    });
+
     it("should drop canonical events without a Devin equivalent", async () => {
       const config = {
         version: 1,
@@ -225,6 +253,35 @@ describe("DevinHooks", () => {
         { type: "command", command: "tool.sh", matcher: "exec" },
       ]);
       expect(parsed.hooks.stop).toEqual([{ type: "command", command: "stop.sh" }]);
+    });
+
+    it("should import fail_closed as the canonical failClosed", () => {
+      const fileContent = JSON.stringify({
+        PreToolUse: [
+          {
+            matcher: "exec",
+            hooks: [
+              { type: "command", command: "guard.sh", fail_closed: true },
+              { type: "prompt", prompt: "Allow?", fail_closed: false },
+              { type: "command", command: "bad.sh", fail_closed: "yes" },
+            ],
+          },
+        ],
+      });
+      const devinHooks = new DevinHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".devin",
+        relativeFilePath: "hooks.v1.json",
+        fileContent,
+        validate: false,
+      });
+
+      const parsed = JSON.parse(devinHooks.toRulesyncHooks().getFileContent());
+      expect(parsed.hooks.preToolUse).toEqual([
+        { type: "command", command: "guard.sh", matcher: "exec", failClosed: true },
+        { type: "prompt", prompt: "Allow?", matcher: "exec", failClosed: false },
+        { type: "command", command: "bad.sh", matcher: "exec" },
+      ]);
     });
 
     it("should read hooks from under the hooks key for a global config.json", () => {

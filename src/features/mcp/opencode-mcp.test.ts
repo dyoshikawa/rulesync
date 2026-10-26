@@ -464,6 +464,29 @@ describe("OpencodeMcp", () => {
       );
     });
 
+    it("should warn that OpenCode 2.x cannot connect an SSE server, but not OpenCode 1.x", async () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            legacy: { type: "sse", url: "https://example.com/sse" },
+            modern: { type: "http", url: "https://example.com/mcp" },
+          },
+        }),
+      });
+      const v2Logger = { warn: vi.fn() } as unknown as Logger;
+      await OpencodeMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp, logger: v2Logger });
+      expect(v2Logger.warn).toHaveBeenCalledTimes(1);
+      expect(v2Logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('server "legacy" uses the SSE transport'),
+      );
+
+      const v1Logger = { warn: vi.fn() } as unknown as Logger;
+      await Opencodev1Mcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp, logger: v1Logger });
+      expect(v1Logger.warn).not.toHaveBeenCalled();
+    });
+
     it("should create instance from RulesyncMcp with default parameters", async () => {
       const jsonData = {
         mcpServers: {
@@ -1384,7 +1407,7 @@ describe("OpencodeMcp", () => {
       expect((exportedJson as any).version).toBeUndefined();
     });
 
-    it("should convert remote type to sse", () => {
+    it("should convert remote type to http for OpenCode 2.x and sse for OpenCode 1.x", () => {
       const jsonData = {
         mcp: {
           "remote-server": {
@@ -1405,11 +1428,12 @@ describe("OpencodeMcp", () => {
 
       const rulesyncMcp = opencodeMcp.toRulesyncMcp();
 
+      // OpenCode 2.x connects a remote server over Streamable HTTP only.
       expect(JSON.parse(rulesyncMcp.getFileContent())).toEqual({
         $schema: RULESYNC_MCP_SCHEMA_URL,
         mcpServers: {
           "remote-server": {
-            type: "sse",
+            type: "http",
             url: "https://example.com/mcp",
             headers: {
               Authorization: "Bearer token",
@@ -1417,6 +1441,16 @@ describe("OpencodeMcp", () => {
           },
         },
       });
+
+      // OpenCode 1.x falls back to SSE, so its remote server stays `sse`.
+      const v1Mcp = new Opencodev1Mcp({
+        relativeDirPath: ".",
+        relativeFilePath: "opencode.json",
+        fileContent: JSON.stringify(jsonData),
+      });
+      expect(
+        JSON.parse(v1Mcp.toRulesyncMcp().getFileContent()).mcpServers["remote-server"].type,
+      ).toBe("sse");
     });
 
     it("should convert disabled servers (enabled: false -> disabled: true)", () => {
@@ -1699,7 +1733,7 @@ describe("OpencodeMcp", () => {
         $schema: RULESYNC_MCP_SCHEMA_URL,
         mcpServers: {
           "remote-server": {
-            type: "sse",
+            type: "http",
             url: "https://example.com/mcp",
             enabledTools: ["fetch"],
             disabledTools: ["search"],
@@ -3124,7 +3158,7 @@ describe("OpencodeMcp", () => {
           timeout: 8000,
           disabledTools: ["write"],
         },
-        docs: { type: "sse", url: "https://example.com/mcp" },
+        docs: { type: "http", url: "https://example.com/mcp" },
       });
     });
 
