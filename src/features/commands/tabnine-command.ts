@@ -7,7 +7,6 @@ import { TABNINE_COMMANDS_DIR_PATH } from "../../constants/tabnine-paths.js";
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
-import { stringifyFrontmatter } from "../../utils/frontmatter.js";
 import { omitPrototypePollutionKeys } from "../../utils/prototype-pollution.js";
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
 import {
@@ -143,8 +142,6 @@ export class TabnineCommand extends ToolCommand {
     // `universalBody` source string, so they stay in sync — `body` is the
     // raw markdown content while `fileContent` is the same content wrapped
     // with YAML frontmatter for on-disk serialization.
-    const fileContent = stringifyFrontmatter(universalBody, rulesyncFrontmatter);
-
     return new RulesyncCommand({
       outputRoot: process.cwd(), // RulesyncCommand outputRoot is always the project root directory
       frontmatter: rulesyncFrontmatter,
@@ -152,7 +149,6 @@ export class TabnineCommand extends ToolCommand {
       relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
       // `.rulesync/commands/` holds Markdown, so `ns/name.toml` becomes `ns/name.md`.
       relativeFilePath: this.relativeFilePath.replace(/\.toml$/, ".md"),
-      fileContent,
       validate: true,
     });
   }

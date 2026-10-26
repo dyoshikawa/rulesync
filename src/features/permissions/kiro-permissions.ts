@@ -3,12 +3,11 @@ import { join } from "node:path";
 import { z } from "zod/mini";
 
 import { KIRO_AGENTS_DIR_PATH, KIRO_HOOKS_FILE_NAME } from "../../constants/kiro-paths.js";
-import type { ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
-import { isPlainObject } from "../../utils/type-guards.js";
+import { isPlainObject, toStringArray } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
@@ -52,10 +51,6 @@ export class KiroPermissions extends ToolPermissions {
       relativeDirPath: KIRO_AGENTS_DIR_PATH,
       relativeFilePath: KIRO_HOOKS_FILE_NAME,
     };
-  }
-
-  override isDeletable(): boolean {
-    return false;
   }
 
   static async fromFile({
@@ -162,10 +157,6 @@ export class KiroPermissions extends ToolPermissions {
     return this.toRulesyncPermissionsDefault({
       fileContent: JSON.stringify(result, null, 2),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({
@@ -574,12 +565,6 @@ function extractKiroOverride(
   return { toolsSettings: overrideToolsSettings };
 }
 
-function asStringArray(value: unknown): string[] {
-  return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === "string")
-    : [];
-}
-
 /**
  * Build a canonical `{ pattern: action }` map from a Kiro tool settings record's
  * allow/deny string arrays (e.g. `allowedPaths`/`deniedPaths` or
@@ -591,7 +576,7 @@ function rulesFromArrays(
   denyKey: string,
 ): Record<string, PermissionAction> {
   const rules: Record<string, PermissionAction> = {};
-  for (const pattern of asStringArray(settings[allowKey])) rules[pattern] = "allow";
-  for (const pattern of asStringArray(settings[denyKey])) rules[pattern] = "deny";
+  for (const pattern of toStringArray(settings[allowKey])) rules[pattern] = "allow";
+  for (const pattern of toStringArray(settings[denyKey])) rules[pattern] = "deny";
   return rules;
 }

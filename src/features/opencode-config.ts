@@ -500,7 +500,7 @@ const OPENCODE_V2_UNSUPPORTED_OAUTH_KEYS: ReadonlySet<string> = new Set([
  * entry shadowed by a different flat entry of the same name, or a `disabled`
  * contradicting the server's own `enabled`.
  */
-export type OpencodeV2DropReason = "unsupported" | "conflict";
+type OpencodeV2DropReason = "unsupported" | "conflict";
 
 /**
  * Called with the dotted path (e.g. `mcp.servers.fs.timeout`) of a V2 value
@@ -784,7 +784,7 @@ const OPENCODE_V1_TO_V2_PERMISSION_ACTIONS: Record<string, string> = {
   patch: "edit",
 };
 
-export function toOpencodeV2PermissionAction(v1Key: string): string {
+function toOpencodeV2PermissionAction(v1Key: string): string {
   return Object.hasOwn(OPENCODE_V1_TO_V2_PERMISSION_ACTIONS, v1Key)
     ? OPENCODE_V1_TO_V2_PERMISSION_ACTIONS[v1Key]!
     : v1Key;

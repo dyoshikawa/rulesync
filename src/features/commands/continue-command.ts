@@ -6,7 +6,11 @@ import { CONTINUE_PROMPTS_DIR_PATH } from "../../constants/continue-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
-import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
+import {
+  parseFrontmatter,
+  stringifyFrontmatter,
+  validateFrontmatterSchema,
+} from "../../utils/frontmatter.js";
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
 import {
   ToolCommand,
@@ -27,7 +31,7 @@ import {
  * @see https://docs.continue.dev/customize/deep-dives/prompts
  */
 // looseObject preserves unknown keys during parsing (like passthrough in Zod 3)
-export const ContinueCommandFrontmatterSchema = z.looseObject({
+const ContinueCommandFrontmatterSchema = z.looseObject({
   name: z.optional(z.string()),
   description: z.optional(z.string()),
   invokable: z.optional(z.boolean()),
@@ -101,15 +105,12 @@ export class ContinueCommand extends ToolCommand {
       ...(Object.keys(continueFields).length > 0 && { continue: continueFields }),
     };
 
-    const fileContent = stringifyFrontmatter(this.body, rulesyncFrontmatter);
-
     return new RulesyncCommand({
       outputRoot: ".", // RulesyncCommand outputRoot is always the project root directory
       frontmatter: rulesyncFrontmatter,
       body: this.body,
       relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
       relativeFilePath: this.relativeFilePath,
-      fileContent,
       validate: true,
     });
   }
@@ -151,16 +152,12 @@ export class ContinueCommand extends ToolCommand {
       return { success: true, error: null };
     }
 
-    const result = ContinueCommandFrontmatterSchema.safeParse(this.frontmatter);
-    if (result.success) {
-      return { success: true, error: null };
-    }
-    return {
-      success: false,
-      error: new Error(
-        `Invalid frontmatter in ${join(this.relativeDirPath, this.relativeFilePath)}: ${formatError(result.error)}`,
-      ),
-    };
+    return validateFrontmatterSchema({
+      schema: ContinueCommandFrontmatterSchema,
+      frontmatter: this.frontmatter,
+      relativeDirPath: this.relativeDirPath,
+      relativeFilePath: this.relativeFilePath,
+    });
   }
 
   static isTargetedByRulesyncCommand(rulesyncCommand: RulesyncCommand): boolean {

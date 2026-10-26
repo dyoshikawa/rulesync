@@ -14,7 +14,7 @@ import type { Logger } from "../../utils/logger.js";
 import { compact } from "../../utils/object.js";
 import { lookupOwn } from "../../utils/own-lookup.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
-import { isPlainObject } from "../../utils/type-guards.js";
+import { isPlainObject, isStringArray } from "../../utils/type-guards.js";
 import { anchorDotPaths, importProjectDirVariable } from "./hook-command-paths.js";
 
 type ToolMatcherEntry = {
@@ -1369,10 +1369,6 @@ function resolveImportedHookType({
 function isStringRecord(value: unknown): value is Record<string, string> {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
   return Object.values(value).every((v) => typeof v === "string");
-}
-
-function isStringArray(value: unknown): value is string[] {
-  return Array.isArray(value) && value.every((v) => typeof v === "string");
 }
 
 /** Compare object values without letting key order decide the answer. */

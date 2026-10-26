@@ -1,13 +1,13 @@
 import { join } from "node:path";
 
 import { LETTACODE_DIR, LETTACODE_SETTINGS_FILE_NAME } from "../../constants/lettacode-paths.js";
-import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { AiFileParams } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
-import { isRecord } from "../../utils/type-guards.js";
+import { isRecord, toStringArray } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
   parseSharedConfig,
@@ -15,6 +15,7 @@ import {
 } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { honorAllToolsOnBash } from "./shell-command-categories.js";
+import { isStricterAction } from "./single-action-collapse.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -88,14 +89,6 @@ const LIST_TO_ACTION: Record<string, PermissionAction> = {
   alwaysAsk: "ask",
   deny: "deny",
 };
-
-const ACTION_RANK: Record<PermissionAction, number> = { allow: 0, ask: 1, deny: 2 };
-
-function toStringList(value: unknown): string[] {
-  return Array.isArray(value)
-    ? value.filter((entry): entry is string => typeof entry === "string")
-    : [];
-}
 
 /**
  * Split a rule the way Letta Code's matcher does: `Tool(payload)` or a bare
@@ -261,7 +254,7 @@ function buildLettacodeRuleLists({
         continue;
       }
       const existing = ranked.get(rule);
-      if (existing === undefined || ACTION_RANK[action] > ACTION_RANK[existing]) {
+      if (isStricterAction({ action, existing })) {
         ranked.set(rule, action);
       }
     }
@@ -269,7 +262,7 @@ function buildLettacodeRuleLists({
 
   const lists: Record<string, string[]> = {};
   for (const key of Object.keys(LIST_TO_ACTION)) {
-    lists[key] = toStringList(existingPermissions[key]).filter((rule) => {
+    lists[key] = toStringArray(existingPermissions[key]).filter((rule) => {
       const category = categoryOfRule(rule);
       return category === undefined || !managedCategories.has(category);
     });
@@ -303,10 +296,6 @@ export class LettacodePermissions extends ToolPermissions {
       ...params,
       fileContent: params.fileContent ?? "{}",
     });
-  }
-
-  override isDeletable(): boolean {
-    return false;
   }
 
   static getSettablePaths(_options: { global?: boolean } = {}): ToolPermissionsSettablePaths {
@@ -396,7 +385,7 @@ export class LettacodePermissions extends ToolPermissions {
 
     const permission: Record<string, Record<string, PermissionAction>> = {};
     for (const [key, action] of Object.entries(LIST_TO_ACTION)) {
-      for (const rule of toStringList(permissions[key])) {
+      for (const rule of toStringArray(permissions[key])) {
         const parsed = fromLettacodeRule(rule);
         if (parsed === null || isPrototypePollutionKey(parsed.pattern)) {
           continue;
@@ -405,7 +394,7 @@ export class LettacodePermissions extends ToolPermissions {
         const existing = rules[parsed.pattern];
         // Letta Code checks `deny` before every other list, so the stricter
         // action wins when a rule appears in more than one list.
-        if (existing === undefined || ACTION_RANK[action] > ACTION_RANK[existing]) {
+        if (isStricterAction({ action, existing })) {
           rules[parsed.pattern] = action;
         }
       }
@@ -413,10 +402,6 @@ export class LettacodePermissions extends ToolPermissions {
     return this.toRulesyncPermissionsDefault({
       fileContent: JSON.stringify({ permission }, null, 2),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

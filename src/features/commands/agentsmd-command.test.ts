@@ -186,7 +186,6 @@ Body content`;
           description: "Test description from rulesync",
         },
         body: "Test command content",
-        fileContent: "", // Will be generated
         validate: true,
       });
 
@@ -215,7 +214,6 @@ Body content`;
           description: "Complex command",
         },
         body: "Complex content",
-        fileContent: "",
         validate: true,
       });
 
@@ -238,7 +236,6 @@ Body content`;
           description: "",
         },
         body: "Test content",
-        fileContent: "",
         validate: true,
       });
 
@@ -508,7 +505,6 @@ Body content`;
         relativeFilePath: "test.md",
         frontmatter: { targets: ["*"], description: "Test" },
         body: "Body",
-        fileContent: "",
       });
 
       const result = AgentsmdCommand.isTargetedByRulesyncCommand(rulesyncCommand);
@@ -521,7 +517,6 @@ Body content`;
         relativeFilePath: "test.md",
         frontmatter: { targets: ["agentsmd"], description: "Test" },
         body: "Body",
-        fileContent: "",
       });
 
       const result = AgentsmdCommand.isTargetedByRulesyncCommand(rulesyncCommand);
@@ -534,7 +529,6 @@ Body content`;
         relativeFilePath: "test.md",
         frontmatter: { targets: ["cursor", "agentsmd", "cline"], description: "Test" },
         body: "Body",
-        fileContent: "",
       });
 
       const result = AgentsmdCommand.isTargetedByRulesyncCommand(rulesyncCommand);
@@ -547,7 +541,6 @@ Body content`;
         relativeFilePath: "test.md",
         frontmatter: { targets: ["cursor"], description: "Test" },
         body: "Body",
-        fileContent: "",
       });
 
       const result = AgentsmdCommand.isTargetedByRulesyncCommand(rulesyncCommand);
@@ -560,7 +553,6 @@ Body content`;
         relativeFilePath: "test.md",
         frontmatter: { targets: undefined, description: "Test" } as any,
         body: "Body",
-        fileContent: "",
       });
 
       const result = AgentsmdCommand.isTargetedByRulesyncCommand(rulesyncCommand);

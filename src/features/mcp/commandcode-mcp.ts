@@ -5,9 +5,7 @@ import {
   COMMANDCODE_GLOBAL_MCP_FILE_NAME,
   COMMANDCODE_PROJECT_MCP_FILE_NAME,
 } from "../../constants/commandcode-paths.js";
-import { ValidationResult } from "../../types/ai-file.js";
 import { isMcpServers, type McpServers } from "../../types/mcp.js";
-import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { parseJsonc } from "../../utils/jsonc.js";
 import type { Logger } from "../../utils/logger.js";
@@ -15,10 +13,12 @@ import {
   omitPrototypePollutionKeys,
   PROTOTYPE_POLLUTION_KEYS,
 } from "../../utils/prototype-pollution.js";
-import { isPlainObject, isRecord } from "../../utils/type-guards.js";
+import { isRecord } from "../../utils/type-guards.js";
+import { parseMcpJsonObjectOrThrow } from "./mcp-json-config.js";
 import {
   declaresNoTransport,
   isRemoteMcpServer,
+  resolveHttpOrSseRemoteType,
   resolveLocalMcpCommand,
   resolveRemoteMcpUrl,
   warnAndSkipMcpServer,
@@ -49,43 +49,12 @@ function parseCommandcodeMcpConfig({
   fileContent: string;
   relativePath: string;
 }): Record<string, unknown> {
-  let parsed: unknown;
-  try {
-    parsed = parseJsonc(fileContent);
-  } catch (error) {
-    throw new Error(
-      `Failed to parse Command Code MCP config at ${relativePath}: ${formatError(error)}`,
-      {
-        cause: error,
-      },
-    );
-  }
-  if (!isPlainObject(parsed)) {
-    throw new Error(
-      `Failed to parse Command Code MCP config at ${relativePath}: expected a JSON object at the root`,
-    );
-  }
-  return parsed;
-}
-
-/**
- * The remote transport Command Code reads a server as. Its loader accepts
- * `http` (streamable HTTP) and `sse` for a `url` server; a bare `url` defaults
- * to `http`, and the canonical `streamable-http` spelling is folded into it.
- * A `ws(s)://` URL or any other stated transport has no Command Code
- * equivalent, so `undefined` tells the caller to skip the server.
- * @see https://commandcode.ai/docs/mcp
- */
-function asCommandcodeRemoteTransport(
-  stated: string | undefined,
-  url: string,
-): "http" | "sse" | undefined {
-  if (stated === "sse") return "sse";
-  if (stated === "http" || stated === "streamable-http") return "http";
-  if (stated === undefined) {
-    return /^wss?:\/\//i.test(url) ? undefined : "http";
-  }
-  return undefined;
+  return parseMcpJsonObjectOrThrow({
+    fileContent,
+    relativePath,
+    label: "Command Code",
+    parse: parseJsonc,
+  });
 }
 
 /**
@@ -162,10 +131,16 @@ function convertRemoteServer({
     return undefined;
   }
   const stated = serverConfig.type ?? serverConfig.transport;
-  const transport = asCommandcodeRemoteTransport(
-    typeof stated === "string" ? stated : undefined,
+  // The remote transport Command Code reads a server as. Its loader accepts
+  // `http` (streamable HTTP) and `sse` for a `url` server; a bare `url` defaults
+  // to `http`, and the canonical `streamable-http` spelling is folded into it.
+  // A `ws(s)://` URL or any other stated transport has no Command Code
+  // equivalent, so `undefined` tells the caller to skip the server.
+  // @see https://commandcode.ai/docs/mcp
+  const transport = resolveHttpOrSseRemoteType({
+    stated: typeof stated === "string" ? stated : undefined,
     url,
-  );
+  });
   if (transport === undefined) {
     warnAndSkipMcpServer({
       toolName: "Command Code",
@@ -352,10 +327,6 @@ export class CommandcodeMcp extends ToolMcp {
     return this.toRulesyncMcpDefault({
       fileContent: JSON.stringify({ mcpServers }, null, 2),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

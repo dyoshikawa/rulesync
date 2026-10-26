@@ -1,7 +1,6 @@
 import { join } from "node:path";
 
 import { CRUSH_MCP_KEY } from "../../constants/crush-paths.js";
-import { ValidationResult } from "../../types/ai-file.js";
 import { CrushChannelReplySchema, McpServers } from "../../types/mcp.js";
 import { type Logger } from "../../utils/logger.js";
 import { PROTOTYPE_POLLUTION_KEYS } from "../../utils/prototype-pollution.js";
@@ -21,6 +20,7 @@ import {
 import {
   declaresNoTransport,
   isRemoteMcpServer,
+  resolveHttpOrSseRemoteType,
   resolveLocalMcpCommand,
   resolveRemoteMcpUrl,
   warnAndSkipMcpServer,
@@ -162,21 +162,6 @@ function copyCrushOnlyKeys({
 }
 
 /**
- * The remote transports Crush's `MCPType` enum accepts, spelled the way it
- * reads them. `streamable-http` is the canonical rulesync name for what Crush
- * calls `http`; a WebSocket server has no Crush transport and is left to the
- * caller to reject.
- */
-function asCrushRemoteType(stated: string | undefined, url: string): "http" | "sse" | undefined {
-  if (stated === "sse") return "sse";
-  if (stated === "http" || stated === "streamable-http") return "http";
-  if (stated === undefined) {
-    return /^wss?:\/\//i.test(url) ? undefined : "http";
-  }
-  return undefined;
-}
-
-/**
  * The transport half of a remote server (`type`, `url`, `headers`), or null
  * when Crush could not reach it and the server was skipped with a warning.
  */
@@ -200,7 +185,11 @@ function convertRemoteTransport({
     return null;
   }
   const stated = config.type ?? config.transport;
-  const type = asCrushRemoteType(stated, url);
+  // The remote transports Crush's `MCPType` enum accepts, spelled the way it
+  // reads them. `streamable-http` is the canonical rulesync name for what Crush
+  // calls `http`; a WebSocket server has no Crush transport and is left to the
+  // caller to reject.
+  const type = resolveHttpOrSseRemoteType({ stated, url });
   if (type === undefined) {
     // Rewriting a WebSocket server as `http` would hand Crush a server it
     // cannot connect to, so it is skipped out loud instead.
@@ -483,10 +472,6 @@ export class CrushMcp extends ToolMcp {
     return this.toRulesyncMcpDefault({
       fileContent: JSON.stringify({ mcpServers: converted }, null, 2),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

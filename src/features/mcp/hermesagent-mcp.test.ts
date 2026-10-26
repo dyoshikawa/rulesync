@@ -600,6 +600,115 @@ describe("HermesagentMcp", () => {
       ).toHaveLength(2);
     });
 
+    it("writes and imports the v0.22.5 events key (issue #2414)", async () => {
+      const mcp = await HermesagentMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        global: true,
+        rulesyncMcp: new RulesyncMcp({
+          relativeDirPath: ".rulesync",
+          relativeFilePath: ".mcp.json",
+          fileContent: JSON.stringify({
+            mcpServers: {
+              watcher: { url: "https://mcp.example.com/mcp", events: true, lazy: true },
+              quiet: { command: "quiet-mcp", events: false },
+            },
+          }),
+        }),
+      });
+      const servers = getMcpServers(mcp.getFileContent());
+
+      expect(servers.watcher?.events).toBe(true);
+      expect(servers.watcher?.lazy).toBe(true);
+      expect(servers.quiet?.events).toBe(false);
+
+      const imported = JSON.parse(
+        new HermesagentMcp({
+          outputRoot: testDir,
+          relativeDirPath: HERMES_DIR,
+          relativeFilePath: HERMES_FILE,
+          validate: false,
+          fileContent: mcp.getFileContent(),
+          global: true,
+        })
+          .toRulesyncMcp()
+          .getFileContent(),
+      );
+      // Hermes-only keys ride the tool-scoped override block.
+      expect(imported.hermesagent.mcpServers.watcher.events).toBe(true);
+      expect(imported.hermesagent.mcpServers.quiet.events).toBe(false);
+      expect(imported.mcpServers.watcher).not.toHaveProperty("events");
+    });
+
+    it("normalizes boolean-like events/lazy values the way Hermes reads them (issue #2414)", async () => {
+      const dir = join(testDir, HERMES_DIR);
+      await ensureDir(dir);
+      await writeFileContent(
+        join(dir, HERMES_FILE),
+        [
+          "mcp_servers:",
+          "  watcher:",
+          "    command: watcher-mcp",
+          "    events: yes",
+          "    lazy: 1",
+          "    supports_parallel_tool_calls: ' On '",
+          "  quiet:",
+          "    command: quiet-mcp",
+          "    events: off",
+          "    lazy: 0",
+          "",
+        ].join("\n"),
+      );
+
+      const canonical = (
+        await HermesagentMcp.fromFile({ outputRoot: testDir, global: true })
+      ).toRulesyncMcp();
+      const overrides = JSON.parse(canonical.getFileContent()).hermesagent.mcpServers;
+
+      expect(overrides.watcher).toMatchObject({
+        events: true,
+        lazy: true,
+        supports_parallel_tool_calls: true,
+      });
+      expect(overrides.quiet).toMatchObject({ events: false, lazy: false });
+
+      const regenerated = await HermesagentMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp: new RulesyncMcp({
+          relativeDirPath: ".rulesync",
+          relativeFilePath: ".mcp.json",
+          fileContent: canonical.getFileContent(),
+        }).forTarget({ toolTarget: "hermesagent" }),
+        global: true,
+      });
+      const servers = getMcpServers(regenerated.getFileContent());
+
+      expect(servers.watcher?.events).toBe(true);
+      expect(servers.watcher?.lazy).toBe(true);
+      expect(servers.quiet?.events).toBe(false);
+    });
+
+    it("drops an events value Hermes cannot read as on/off, with a warning (issue #2414)", async () => {
+      const logger = createMockLogger();
+      const mcp = await HermesagentMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        global: true,
+        logger,
+        rulesyncMcp: new RulesyncMcp({
+          relativeDirPath: ".rulesync",
+          relativeFilePath: ".mcp.json",
+          fileContent: JSON.stringify({
+            mcpServers: { watcher: { command: "watcher-mcp", events: "maybe", lazy: { on: 1 } } },
+          }),
+        }),
+      });
+      const server = getMcpServers(mcp.getFileContent()).watcher;
+
+      expect(server).not.toHaveProperty("events");
+      expect(server).not.toHaveProperty("lazy");
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('events "maybe"'));
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("dropping lazy"));
+    });
+
     it("strips nested prototype-pollution keys from tool_costs (issue #2414)", async () => {
       const mcp = await HermesagentMcp.fromRulesyncMcp({
         outputRoot: testDir,

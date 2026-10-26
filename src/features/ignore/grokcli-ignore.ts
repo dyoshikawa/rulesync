@@ -16,6 +16,7 @@ import {
 } from "../shared/shared-config-gateway.js";
 import { RulesyncIgnore } from "./rulesync-ignore.js";
 import {
+  parseIgnorePatterns,
   ToolIgnore,
   ToolIgnoreForDeletionParams,
   ToolIgnoreFromFileParams,
@@ -236,14 +237,7 @@ export class GrokcliIgnore extends ToolIgnore {
   toRulesyncIgnore(): RulesyncIgnore {
     const rulesyncPatterns = fromGrokcliDenyEntries(this.patterns);
 
-    return new RulesyncIgnore({
-      // The rulesync source always belongs to the project, even when the
-      // sandbox file it was imported from lives in the home directory.
-      outputRoot: ".",
-      relativeDirPath: RulesyncIgnore.getSettablePaths().recommended.relativeDirPath,
-      relativeFilePath: RulesyncIgnore.getSettablePaths().recommended.relativeFilePath,
-      fileContent: rulesyncPatterns.join("\n"),
-    });
+    return this.toRulesyncIgnoreDefault({ fileContent: rulesyncPatterns.join("\n") });
   }
 
   static async fromRulesyncIgnore({
@@ -251,11 +245,7 @@ export class GrokcliIgnore extends ToolIgnore {
     rulesyncIgnore,
     global = false,
   }: ToolIgnoreFromRulesyncIgnoreParams): Promise<GrokcliIgnore> {
-    const patterns = rulesyncIgnore
-      .getFileContent()
-      .split(/\r?\n|\r/)
-      .map((line: string) => line.trim())
-      .filter((line) => line.length > 0 && !line.startsWith("#"));
+    const patterns = parseIgnorePatterns(rulesyncIgnore.getFileContent());
 
     const denyEntries: string[] = [];
     for (const pattern of patterns) {

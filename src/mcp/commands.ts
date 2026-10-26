@@ -16,7 +16,6 @@ import {
   removeFile,
   writeFileContent,
 } from "../utils/file.js";
-import { stringifyFrontmatter } from "../utils/frontmatter.js";
 import { ConsoleLogger } from "../utils/logger.js";
 import { assertNoSymlinkInFeaturePath, isFeatureSymlinkRefusal } from "./feature-symlinks.js";
 
@@ -167,14 +166,12 @@ async function putCommand({
     }
 
     // Create a new RulesyncCommand instance
-    const fileContent = stringifyFrontmatter(body, frontmatter);
     const command = new RulesyncCommand({
       outputRoot: process.cwd(),
       relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
       relativeFilePath: filename,
       frontmatter,
       body,
-      fileContent,
       validate: true,
     });
 

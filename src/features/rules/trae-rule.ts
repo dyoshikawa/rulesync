@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-import { dump, load } from "js-yaml";
+import { dump } from "js-yaml";
 import { z } from "zod/mini";
 
 import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
@@ -8,14 +8,17 @@ import { TRAE_DIR } from "../../constants/trae-paths.js";
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { expandBraceAlternations, splitBraceAwareList } from "../../utils/brace-aware-list.js";
 import { formatError } from "../../utils/error.js";
-import { readFileContent, toPosixPath } from "../../utils/file.js";
-import { findFrontmatterBlockBounds, parseFrontmatter } from "../../utils/frontmatter.js";
-import { warnWithFallback } from "../../utils/logger.js";
-import { CursorRule } from "./cursor-rule.js";
+import { readFileContent } from "../../utils/file.js";
 import {
-  NESTED_SCAN_EXCLUDED_DIRS_ANY_DEPTH,
-  NESTED_SCAN_EXCLUDED_ROOT_DIRS,
-} from "./nested-scan-exclusions.js";
+  findFrontmatterBlockBounds,
+  parseFrontmatter,
+  validateFrontmatterSchema,
+} from "../../utils/frontmatter.js";
+import { warnWithFallback } from "../../utils/logger.js";
+import { loadYaml } from "../../utils/yaml.js";
+import { CursorRule } from "./cursor-rule.js";
+import { nestedScanExclusionGlobs } from "./nested-scan-exclusions.js";
+import { extractRulesDirSubprojectPath } from "./rules-dir-subproject-path.js";
 import { RulesyncRule, RulesyncRuleFrontmatter } from "./rulesync-rule.js";
 import {
   ToolRule,
@@ -71,7 +74,7 @@ function isFlowListValue(value: string): boolean {
     return true;
   }
   try {
-    return Array.isArray(load(value));
+    return Array.isArray(loadYaml(value));
   } catch {
     return false;
   }
@@ -297,34 +300,10 @@ export class TraeRule extends ToolRule {
    * `undefined` for a rule in the project-root `.trae/rules/`.
    */
   private getSubprojectPath(): string | undefined {
-    return TraeRule.extractSubprojectPath(this.getRelativeDirPath())?.subprojectPath;
-  }
-
-  /**
-   * Splits a nested rule directory such as `packages/api/.trae/rules/sub` into
-   * the subproject (`packages/api`) and the folder inside its rules directory
-   * (`sub`). Returns `undefined` for the project-root `.trae/rules/`, for a
-   * path with no `.trae/rules` segment, and for one under a hidden directory —
-   * another tool's output or a worktree, not a subproject.
-   */
-  private static extractSubprojectPath(
-    relativeDirPath: string,
-  ): { subprojectPath: string; innerDirPath: string } | undefined {
-    const segments = toPosixPath(relativeDirPath).split("/");
-    const index = segments.findIndex(
-      (segment, i) => segment === TRAE_DIR && segments[i + 1] === "rules",
-    );
-    if (index <= 0) {
-      return undefined;
-    }
-    const subprojectSegments = segments.slice(0, index);
-    if (subprojectSegments.some((segment) => segment === "" || segment.startsWith("."))) {
-      return undefined;
-    }
-    return {
-      subprojectPath: subprojectSegments.join("/"),
-      innerDirPath: segments.slice(index + 2).join("/"),
-    };
+    return extractRulesDirSubprojectPath({
+      relativeDirPath: this.getRelativeDirPath(),
+      toolDir: TRAE_DIR,
+    })?.subprojectPath;
   }
 
   toRulesyncRule(): RulesyncRule {
@@ -384,7 +363,9 @@ export class TraeRule extends ToolRule {
     // plus its basename; it is re-split into the subproject's rules directory
     // and the path inside it, matching how the root `.trae/rules/` is read.
     const nested =
-      overrideDirPath === undefined ? undefined : TraeRule.extractSubprojectPath(overrideDirPath);
+      overrideDirPath === undefined
+        ? undefined
+        : extractRulesDirSubprojectPath({ relativeDirPath: overrideDirPath, toolDir: TRAE_DIR });
     const relativeDirPath = nested
       ? join(nested.subprojectPath, TRAE_DIR, "rules")
       : (overrideDirPath ?? this.getSettablePaths().nonRoot.relativeDirPath);
@@ -430,7 +411,7 @@ export class TraeRule extends ToolRule {
    * when files in that directory are read or mentioned. The shared nested scan
    * ignores every hidden directory, which would skip `.trae` itself, so only a
    * `.trae/rules/` below another hidden directory is ignored here
-   * (`extractSubprojectPath` rejects one again on import).
+   * (`extractRulesDirSubprojectPath` rejects one again on import).
    * Import-only, like every other nested scan: these files sit outside the
    * rulesync-owned root `.trae/rules/`, so `--delete` never sweeps them.
    * @see https://docs.trae.ai/ide/rules?_lang=en
@@ -443,8 +424,7 @@ export class TraeRule extends ToolRule {
         // The project-root rules directory is read as the `nonRoot` one.
         `${rulesDirPath}/**`,
         `**/.*/**/${rulesDirPath}/**`,
-        ...NESTED_SCAN_EXCLUDED_DIRS_ANY_DEPTH.map((dir) => `**/${dir}/**`),
-        ...NESTED_SCAN_EXCLUDED_ROOT_DIRS.map((dir) => `${dir}/**`),
+        ...nestedScanExclusionGlobs(),
       ],
       // `rulesync gitignore` ignores `**/.trae/rules/`, so the gitignore filter
       // stops at `<dir>/.trae` instead of testing the rules directory itself.
@@ -456,16 +436,13 @@ export class TraeRule extends ToolRule {
     if (!this.frontmatter) {
       return { success: true, error: null };
     }
-    const result = TraeRuleFrontmatterSchema.safeParse(this.frontmatter);
-    if (result.success) {
-      return { success: true, error: null };
-    }
-    return {
-      success: false,
-      error: new Error(
-        `Invalid frontmatter in ${join(this.relativeDirPath, this.relativeFilePath)}: ${formatError(result.error)}`,
-      ),
-    };
+
+    return validateFrontmatterSchema({
+      schema: TraeRuleFrontmatterSchema,
+      frontmatter: this.frontmatter,
+      relativeDirPath: this.relativeDirPath,
+      relativeFilePath: this.relativeFilePath,
+    });
   }
 
   getFrontmatter(): TraeRuleFrontmatter {
@@ -476,10 +453,5 @@ export class TraeRule extends ToolRule {
     return this.body;
   }
 
-  static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
-    return this.isTargetedByRulesyncRuleDefault({
-      rulesyncRule,
-      toolTarget: "trae",
-    });
-  }
+  protected static override readonly toolTarget = "trae";
 }

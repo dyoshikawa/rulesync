@@ -48,6 +48,28 @@ export function resolveRemoteMcpUrl(serverConfig: McpServerConfig): string | und
 }
 
 /**
+ * The remote transport a tool that accepts `http` (streamable HTTP) and `sse`
+ * reads a `url` server as. The canonical `streamable-http` spelling is folded
+ * into `http`, and a server stating no transport defaults to `http` unless its
+ * URL is `ws://`/`wss://`. A WebSocket URL or any other stated transport has
+ * no equivalent there, so `undefined` tells the caller to skip the server.
+ */
+export function resolveHttpOrSseRemoteType({
+  stated,
+  url,
+}: {
+  stated: string | undefined;
+  url: string;
+}): "http" | "sse" | undefined {
+  if (stated === "sse") return "sse";
+  if (stated === "http" || stated === "streamable-http") return "http";
+  if (stated === undefined) {
+    return /^wss?:\/\//i.test(url) ? undefined : "http";
+  }
+  return undefined;
+}
+
+/**
  * The `command` array a `local` server is spawned with, `args` merged in. An
  * entry carrying `args` but no `command` comes back empty rather than with
  * `args[0]` promoted to its program: every adapter writes element 0 back out

@@ -4,7 +4,7 @@ import { uniq } from "es-toolkit";
 import * as smolToml from "smol-toml";
 
 import { WARP_PERMISSIONS_FILE_NAME, warpcliConfigDir } from "../../constants/warp-paths.js";
-import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { AiFileParams } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { isRecord, isStringArray } from "../../utils/type-guards.js";
@@ -69,10 +69,6 @@ export class WarpcliPermissions extends ToolPermissions {
       ...params,
       fileContent: params.fileContent ?? "",
     });
-  }
-
-  override isDeletable(): boolean {
-    return false;
   }
 
   /**
@@ -234,10 +230,6 @@ export class WarpcliPermissions extends ToolPermissions {
     return this.toRulesyncPermissionsDefault({
       fileContent: JSON.stringify(result, null, 2),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

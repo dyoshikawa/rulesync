@@ -29,7 +29,7 @@ import { RulesProcessor } from "../features/rules/rules-processor.js";
 import {
   RulesProcessorToolTargetSchema,
   toolRuleFactories,
-} from "../features/rules/rules-processor.js";
+} from "../features/rules/tool-rule-factories.js";
 import { SkillsProcessor } from "../features/skills/skills-processor.js";
 import {
   SkillsProcessorToolTargetSchema,

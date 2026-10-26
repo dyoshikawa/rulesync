@@ -7,7 +7,6 @@ export const CODEXCLI_AGENTS_DIR_PATH = join(CODEXCLI_DIR, "agents");
 export const CODEXCLI_SKILLS_DIR_PATH = join(".agents", "skills");
 export const CODEXCLI_HOOKS_FILE_NAME = "hooks.json";
 export const CODEXCLI_MCP_FILE_NAME = "config.toml";
-export const CODEXCLI_RULE_FILE_NAME = "AGENTS.md";
 // Codex CLI's default `project_doc_max_bytes`: the combined byte budget for the
 // project `AGENTS.md` files on one root-to-cwd chain (32 KiB).
 // https://github.com/openai/codex/blob/main/codex-rs/config/defaults.toml
