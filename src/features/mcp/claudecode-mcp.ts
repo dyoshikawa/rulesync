@@ -5,7 +5,6 @@ import {
   CLAUDECODE_GLOBAL_MCP_FILE_NAME,
   CLAUDECODE_MCP_FILE_NAME,
 } from "../../constants/claudecode-paths.js";
-import { ValidationResult } from "../../types/ai-file.js";
 import { fileExists, readFileContent, readFileContentOrNull } from "../../utils/file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
@@ -158,10 +157,6 @@ export class ClaudecodeMcp extends ToolMcp {
     return this.toRulesyncMcpDefault({
       fileContent: JSON.stringify({ mcpServers: this.json.mcpServers ?? {} }, null, 2),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

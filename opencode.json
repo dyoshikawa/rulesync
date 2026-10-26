@@ -33,20 +33,20 @@
     }
   },
   "mcp": {
-    "deepwiki": {
-      "type": "remote",
-      "url": "https://mcp.deepwiki.com/mcp",
-      "enabled": true
-    },
-    "rulesync": {
-      "type": "local",
-      "command": [
-        "pnpm",
-        "dev",
-        "mcp"
-      ],
-      "enabled": true,
-      "environment": {}
+    "servers": {
+      "deepwiki": {
+        "type": "remote",
+        "url": "https://mcp.deepwiki.com/mcp"
+      },
+      "rulesync": {
+        "type": "local",
+        "command": [
+          "pnpm",
+          "dev",
+          "mcp"
+        ],
+        "environment": {}
+      }
     }
   },
   "share": "disabled",

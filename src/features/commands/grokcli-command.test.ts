@@ -16,7 +16,6 @@ import { RulesyncCommand } from "./rulesync-command.js";
 
 const commandNamed = (name: string): RulesyncCommand =>
   new RulesyncCommand({
-    fileContent: "",
     relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
     relativeFilePath: `${name}.md`,
     frontmatter: { targets: ["*"], description: "d" },
@@ -96,7 +95,6 @@ describe("GrokcliCommand", () => {
   describe("fromRulesyncCommand", () => {
     it("should map description and the grokcli section", () => {
       const rulesyncCommand = new RulesyncCommand({
-        fileContent: "",
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "review.md",
         frontmatter: {
@@ -129,7 +127,6 @@ describe("GrokcliCommand", () => {
 
     it("should flatten a nested command onto its basename", () => {
       const rulesyncCommand = new RulesyncCommand({
-        fileContent: "",
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: join("git", "commit.md"),
         frontmatter: { targets: ["*"], description: "d" },
@@ -149,7 +146,6 @@ describe("GrokcliCommand", () => {
 
     it("should use the same relative dir in global scope", () => {
       const rulesyncCommand = new RulesyncCommand({
-        fileContent: "",
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "review.md",
         frontmatter: { targets: ["*"], description: "d" },
@@ -167,7 +163,6 @@ describe("GrokcliCommand", () => {
 
     it("should let the grokcli section override the shared description", () => {
       const rulesyncCommand = new RulesyncCommand({
-        fileContent: "",
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "review.md",
         frontmatter: {
@@ -190,14 +185,12 @@ describe("GrokcliCommand", () => {
   describe("isTargetedByRulesyncCommand", () => {
     it("should respect the targets list", () => {
       const targeted = new RulesyncCommand({
-        fileContent: "",
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "a.md",
         frontmatter: { targets: ["grokcli"], description: "d" },
         body: "b",
       });
       const notTargeted = new RulesyncCommand({
-        fileContent: "",
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "b.md",
         frontmatter: { targets: ["claudecode"], description: "d" },
@@ -205,7 +198,6 @@ describe("GrokcliCommand", () => {
       });
 
       const wildcard = new RulesyncCommand({
-        fileContent: "",
         relativeDirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
         relativeFilePath: "c.md",
         frontmatter: { targets: ["*"], description: "d" },

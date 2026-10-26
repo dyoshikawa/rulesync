@@ -33,7 +33,6 @@ describe("LettacodeCommand", () => {
       relativeFilePath,
       frontmatter,
       body: "Review $ARGUMENTS and focus on $1.",
-      fileContent: "",
     });
 
   describe("getSettablePaths", () => {

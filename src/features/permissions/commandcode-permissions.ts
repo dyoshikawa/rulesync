@@ -6,7 +6,7 @@ import {
   COMMANDCODE_DIR,
   COMMANDCODE_SETTINGS_FILE_NAME,
 } from "../../constants/commandcode-paths.js";
-import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { AiFileParams } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
@@ -20,6 +20,7 @@ import {
 } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { ALL_TOOLS_PERMISSION_CATEGORY, honorAllToolsOnBash } from "./shell-command-categories.js";
+import { isStricterAction } from "./single-action-collapse.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -86,21 +87,6 @@ const COMMANDCODE_TOOL_TO_CATEGORY: Record<string, string> = {
   web_fetch: "webfetch",
   web_search: "websearch",
 };
-
-// Command Code's documented precedence: deny wins, then ask, then allow. Used
-// when two canonical rules collapse onto one entry.
-const ACTION_RANK: Record<PermissionAction, number> = { allow: 0, ask: 1, deny: 2 };
-
-/** Whether `action` outranks `existing` (deny > ask > allow). */
-function isStricterAction({
-  action,
-  existing,
-}: {
-  action: PermissionAction;
-  existing: PermissionAction | undefined;
-}): boolean {
-  return existing === undefined || ACTION_RANK[action] > ACTION_RANK[existing];
-}
 
 /**
  * Why a padded `Shell( * )` cannot stand in for the bare `Shell` in `allow`:
@@ -828,10 +814,6 @@ export class CommandcodePermissions extends ToolPermissions {
     return this.toRulesyncPermissionsDefault({
       fileContent: JSON.stringify({ permission: parseCommandcodeRuleLists(permissions) }, null, 2),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

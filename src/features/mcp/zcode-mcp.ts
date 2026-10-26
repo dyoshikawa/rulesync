@@ -7,7 +7,6 @@ import {
   ZCODE_MCP_CONFIG_KEY,
   ZCODE_MCP_SERVERS_KEY,
 } from "../../constants/zcode-paths.js";
-import { ValidationResult } from "../../types/ai-file.js";
 import { McpServers } from "../../types/mcp.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { type Logger } from "../../utils/logger.js";
@@ -21,6 +20,7 @@ import {
 import {
   declaresNoTransport,
   isRemoteMcpServer,
+  resolveHttpOrSseRemoteType,
   resolveLocalMcpCommand,
   resolveRemoteMcpUrl,
   warnAndSkipMcpServer,
@@ -48,28 +48,6 @@ function parseZcodeConfig(fileContent: string, filePath?: string): Record<string
     filePath,
     invalidRootPolicy: "error",
   });
-}
-
-/**
- * The remote transports ZCode's config is taken to accept, spelled the way it
- * writes them. ZCode's own MCP page documents remote servers only through its
- * UI ("Service URL" plus optional headers) and shows a JSON example for stdio
- * servers alone, so the `http`/`sse` spelling below is inferred from the JSON
- * Z.ai documents for the other MCP clients it supports rather than read off a
- * ZCode example. `streamable-http` is the canonical rulesync name for what
- * those configs call `http`; everything else is left to the caller to reject.
- *
- * @see https://zcode.z.ai/en/docs/mcp-services
- */
-function asZcodeRemoteType(stated: string | undefined, url: string): "http" | "sse" | undefined {
-  if (stated === "sse") return "sse";
-  if (stated === "http" || stated === "streamable-http") return "http";
-  if (stated === undefined) {
-    // With no transport stated, a `ws://`/`wss://` URL is not something ZCode
-    // can reach; every other URL is HTTP, its default remote transport.
-    return /^wss?:\/\//i.test(url) ? undefined : "http";
-  }
-  return undefined;
 }
 
 /**
@@ -321,7 +299,16 @@ export function convertToZcodeFormat({
         continue;
       }
       const stated = config.type ?? config.transport;
-      const type = asZcodeRemoteType(stated, url);
+      // The remote transports ZCode's config is taken to accept, spelled the way it
+      // writes them. ZCode's own MCP page documents remote servers only through its
+      // UI ("Service URL" plus optional headers) and shows a JSON example for stdio
+      // servers alone, so the `http`/`sse` spelling below is inferred from the JSON
+      // Z.ai documents for the other MCP clients it supports rather than read off a
+      // ZCode example. `streamable-http` is the canonical rulesync name for what
+      // those configs call `http`; everything else is left to the caller to reject.
+      //
+      // @see https://zcode.z.ai/en/docs/mcp-services
+      const type = resolveHttpOrSseRemoteType({ stated, url });
       if (type === undefined) {
         // Rewriting a WebSocket server as `http` would hand ZCode a server it
         // cannot connect to, so it is skipped out loud instead (the
@@ -563,10 +550,6 @@ export class ZcodeMcp extends ToolMcp {
     return this.toRulesyncMcpDefault({
       fileContent: JSON.stringify({ mcpServers: converted }, null, 2),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

@@ -6,7 +6,7 @@ import {
 } from "../../constants/gitlabduo-paths.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
-import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
+import { parseFrontmatter } from "../../utils/frontmatter.js";
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
 import { SimulatedCommand, SimulatedCommandFrontmatterSchema } from "./simulated-command.js";
 import {
@@ -91,7 +91,6 @@ export class GitlabduoCommand extends SimulatedCommand {
       body: this.getBody(),
       relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
       relativeFilePath: this.relativeFilePath,
-      fileContent: stringifyFrontmatter(this.getBody(), rulesyncFrontmatter),
       validate: true,
     });
   }

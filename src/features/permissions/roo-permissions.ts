@@ -6,11 +6,12 @@ import {
   ROO_VSCODE_SETTINGS_DIR,
   ROO_VSCODE_SETTINGS_FILE_NAME,
 } from "../../constants/roo-paths.js";
-import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { AiFileParams } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { type Logger, warnWithFallback } from "../../utils/logger.js";
+import { toStringArray } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
   parseSharedConfig,
@@ -141,13 +142,6 @@ function withholdAllowsOutrankingDenies({
     );
   }
   return kept;
-}
-
-function asStringArray(value: unknown): string[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  return value.filter((entry): entry is string => typeof entry === "string");
 }
 
 export type RooPermissionsParams = AiFileParams & {
@@ -344,14 +338,14 @@ export class RooPermissions extends ToolPermissions {
     }
 
     const rules: Record<string, PermissionAction> = {};
-    for (const pattern of asStringArray(settings[constructor.getAllowedCommandsKey()])) {
+    for (const pattern of toStringArray(settings[constructor.getAllowedCommandsKey()])) {
       rules[pattern] = "allow";
     }
     // Applied second so a pattern listed in both lists imports as `deny`,
     // matching the extension's own precedence: with identical prefixes the
     // denied match is not shorter than the allowed one, and auto-approval
     // requires a strictly longer allowed match.
-    for (const pattern of asStringArray(settings[constructor.getDeniedCommandsKey()])) {
+    for (const pattern of toStringArray(settings[constructor.getDeniedCommandsKey()])) {
       rules[pattern] = "deny";
     }
 
@@ -363,10 +357,6 @@ export class RooPermissions extends ToolPermissions {
     return this.toRulesyncPermissionsDefault({
       fileContent: JSON.stringify({ permission }, null, 2),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

@@ -4,7 +4,7 @@ import { isDeepStrictEqual } from "node:util";
 import { dump } from "js-yaml";
 
 import { KIRO_PERMISSIONS_FILE_NAME, KIRO_SETTINGS_DIR_PATH } from "../../constants/kiro-paths.js";
-import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { AiFileParams } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
@@ -14,6 +14,7 @@ import { loadYaml } from "../../utils/yaml.js";
 import { KiroPermissions } from "./kiro-permissions.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { honorAllToolsOnBash } from "./shell-command-categories.js";
+import { isStricterAction } from "./single-action-collapse.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -49,8 +50,6 @@ const KIRO_CAPABILITY_TO_CANONICAL: Record<KiroCapability, string> = {
 type KiroCapability = "shell" | "fs_read" | "fs_write" | "web_fetch" | "web_search";
 
 const MANAGED_CAPABILITIES = new Set<string>(Object.keys(KIRO_CAPABILITY_TO_CANONICAL));
-
-const ACTION_RANK: Record<PermissionAction, number> = { allow: 0, ask: 1, deny: 2 };
 
 type KiroCapabilityRule = {
   capability: KiroCapability;
@@ -242,10 +241,6 @@ export class KiroCapabilityPermissions extends ToolPermissions {
     super({ ...params, fileContent: params.fileContent ?? "" });
   }
 
-  override isDeletable(): boolean {
-    return false;
-  }
-
   override shouldSkipCreationWhenPayloadEmpty(): boolean {
     return true;
   }
@@ -356,7 +351,7 @@ export class KiroCapabilityPermissions extends ToolPermissions {
       for (const pattern of patterns) {
         const previous = categoryRules[pattern];
         // Kiro resolves overlapping rules deny > ask > allow; keep the stricter.
-        if (previous === undefined || ACTION_RANK[rule.effect] > ACTION_RANK[previous]) {
+        if (isStricterAction({ action: rule.effect, existing: previous })) {
           categoryRules[pattern] = rule.effect;
         }
       }
@@ -365,10 +360,6 @@ export class KiroCapabilityPermissions extends ToolPermissions {
     return this.toRulesyncPermissionsDefault({
       fileContent: JSON.stringify({ permission }, null, 2),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

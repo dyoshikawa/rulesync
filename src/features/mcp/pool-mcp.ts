@@ -6,7 +6,6 @@ import {
   POOL_MCP_SERVERS_KEY,
   POOL_SETTINGS_FILE_NAME,
 } from "../../constants/pool-paths.js";
-import { ValidationResult } from "../../types/ai-file.js";
 import { McpServers } from "../../types/mcp.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { type Logger, warnWithFallback } from "../../utils/logger.js";
@@ -22,6 +21,7 @@ import {
 import {
   declaresNoTransport,
   isRemoteMcpServer,
+  resolveHttpOrSseRemoteType,
   resolveLocalMcpCommand,
   resolveRemoteMcpUrl,
   warnAndSkipMcpServer,
@@ -49,24 +49,6 @@ function parsePoolSettings(fileContent: string, filePath?: string): Record<strin
     filePath,
     invalidRootPolicy: "error",
   });
-}
-
-/**
- * The remote transports Pool's `transport.type` accepts. `streamable-http` is
- * the canonical rulesync name for what Pool calls `http`; everything else is
- * left to the caller to reject.
- *
- * @see https://docs.poolside.ai/mcp-servers
- */
-function asPoolRemoteType(stated: string | undefined, url: string): "http" | "sse" | undefined {
-  if (stated === "sse") return "sse";
-  if (stated === "http" || stated === "streamable-http") return "http";
-  if (stated === undefined) {
-    // With no transport stated, a `ws://`/`wss://` URL is not something Pool
-    // can reach; every other URL is HTTP, its default remote transport.
-    return /^wss?:\/\//i.test(url) ? undefined : "http";
-  }
-  return undefined;
 }
 
 /**
@@ -170,7 +152,12 @@ function toPoolTransport(
     });
   }
   const stated = config.type ?? config.transport;
-  const type = asPoolRemoteType(stated, url);
+  // The remote transports Pool's `transport.type` accepts. `streamable-http` is
+  // the canonical rulesync name for what Pool calls `http`; everything else is
+  // left to the caller to reject.
+  //
+  // @see https://docs.poolside.ai/mcp-servers
+  const type = resolveHttpOrSseRemoteType({ stated, url });
   if (type === undefined) {
     // Rewriting a WebSocket server as `http` would hand Pool a server it
     // cannot connect to, so it is skipped out loud instead.
@@ -461,10 +448,6 @@ export class PoolMcp extends ToolMcp {
     return this.toRulesyncMcpDefault({
       fileContent: JSON.stringify({ mcpServers: converted }, null, 2),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

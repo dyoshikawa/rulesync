@@ -4,19 +4,19 @@ import {
   CORTEXCODE_GLOBAL_DIR_PATH,
   CORTEXCODE_MCP_FILE_NAME,
 } from "../../constants/cortexcode-paths.js";
-import { ValidationResult } from "../../types/ai-file.js";
 import { isMcpServers, type McpServers } from "../../types/mcp.js";
-import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import {
   omitPrototypePollutionKeysDeep,
   PROTOTYPE_POLLUTION_KEYS,
 } from "../../utils/prototype-pollution.js";
-import { isPlainObject, isRecord } from "../../utils/type-guards.js";
+import { isRecord } from "../../utils/type-guards.js";
+import { parseMcpJsonObjectOrThrow } from "./mcp-json-config.js";
 import {
   declaresNoTransport,
   isRemoteMcpServer,
+  resolveHttpOrSseRemoteType,
   resolveLocalMcpCommand,
   resolveRemoteMcpUrl,
   warnAndSkipMcpServer,
@@ -48,43 +48,12 @@ function parseCortexcodeMcpConfig({
   fileContent: string;
   relativePath: string;
 }): Record<string, unknown> {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(fileContent);
-  } catch (error) {
-    throw new Error(
-      `Failed to parse Cortex Code MCP config at ${relativePath}: ${formatError(error)}`,
-      { cause: error },
-    );
-  }
-  if (!isPlainObject(parsed)) {
-    throw new Error(
-      `Failed to parse Cortex Code MCP config at ${relativePath}: expected a JSON object at the root`,
-    );
-  }
-  return parsed;
-}
-
-/**
- * The remote transport Cortex Code reads a server as. Cortex Code documents
- * exactly three transports — `stdio`, `http` and `sse` — each spelled out in
- * an explicit `type` key. `http` is also the canonical rulesync spelling, and
- * a bare `url` defaults to it, streamable HTTP being the current MCP
- * transport. `streamable-http` is folded into `http`. A `ws(s)://` URL or any
- * other stated transport is something Cortex Code cannot reach, so
- * `undefined` tells the caller to skip the server.
- * @see https://docs.snowflake.com/en/user-guide/cortex-code/extensibility#transport-types
- */
-function asCortexcodeRemoteType(
-  stated: string | undefined,
-  url: string,
-): "http" | "sse" | undefined {
-  if (stated === "sse") return "sse";
-  if (stated === "http" || stated === "streamable-http") return "http";
-  if (stated === undefined) {
-    return /^wss?:\/\//i.test(url) ? undefined : "http";
-  }
-  return undefined;
+  return parseMcpJsonObjectOrThrow({
+    fileContent,
+    relativePath,
+    label: "Cortex Code",
+    parse: JSON.parse,
+  });
 }
 
 /**
@@ -134,7 +103,15 @@ function convertToCortexcodeFormat(mcpServers: McpServers, logger?: Logger): Cor
         continue;
       }
       const stated = type ?? transport;
-      const remoteType = asCortexcodeRemoteType(stated, url);
+      // The remote transport Cortex Code reads a server as. Cortex Code documents
+      // exactly three transports — `stdio`, `http` and `sse` — each spelled out in
+      // an explicit `type` key. `http` is also the canonical rulesync spelling, and
+      // a bare `url` defaults to it, streamable HTTP being the current MCP
+      // transport. `streamable-http` is folded into `http`. A `ws(s)://` URL or any
+      // other stated transport is something Cortex Code cannot reach, so
+      // `undefined` tells the caller to skip the server.
+      // @see https://docs.snowflake.com/en/user-guide/cortex-code/extensibility#transport-types
+      const remoteType = resolveHttpOrSseRemoteType({ stated, url });
       if (remoteType === undefined) {
         warnAndSkipMcpServer({
           toolName: "Cortex Code",
@@ -306,10 +283,6 @@ export class CortexcodeMcp extends ToolMcp {
     return this.toRulesyncMcpDefault({
       fileContent: JSON.stringify({ mcpServers }, null, 2),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

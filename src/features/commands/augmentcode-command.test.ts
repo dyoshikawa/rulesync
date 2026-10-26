@@ -177,7 +177,6 @@ describe("AugmentcodeCommand", () => {
         outputRoot: testDir,
         relativeDirPath: ".rulesync/commands",
         relativeFilePath: "test-command.md",
-        fileContent: "",
         frontmatter: {
           targets: ["augmentcode"],
           description: "Test description",
@@ -201,7 +200,6 @@ describe("AugmentcodeCommand", () => {
         outputRoot: testDir,
         relativeDirPath: ".rulesync/commands",
         relativeFilePath: "test-command.md",
-        fileContent: "",
         frontmatter: {
           targets: ["augmentcode"],
           description: "Test description",
@@ -265,7 +263,6 @@ describe("AugmentcodeCommand", () => {
         outputRoot: testDir,
         relativeDirPath: ".rulesync/commands",
         relativeFilePath: "test.md",
-        fileContent: "",
         frontmatter: { targets: ["*"], description: "Test" },
         body: "Body",
       });
@@ -278,7 +275,6 @@ describe("AugmentcodeCommand", () => {
         outputRoot: testDir,
         relativeDirPath: ".rulesync/commands",
         relativeFilePath: "test.md",
-        fileContent: "",
         frontmatter: { targets: ["augmentcode"], description: "Test" },
         body: "Body",
       });
@@ -291,7 +287,6 @@ describe("AugmentcodeCommand", () => {
         outputRoot: testDir,
         relativeDirPath: ".rulesync/commands",
         relativeFilePath: "test.md",
-        fileContent: "",
         frontmatter: { targets: ["cursor"], description: "Test" },
         body: "Body",
       });
@@ -389,7 +384,6 @@ describe("AugmentcodeCommand .agents/commands import root", () => {
         relativeFilePath: join("git", "commit.md"),
         frontmatter: { targets: ["*"], description: "Commit" },
         body: "Commit it.",
-        fileContent: "",
       }),
     });
 

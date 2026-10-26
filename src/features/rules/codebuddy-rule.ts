@@ -13,10 +13,15 @@ import type { RulesyncTargets } from "../../types/tool-targets.js";
 import { splitBraceAwareList } from "../../utils/brace-aware-list.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
-import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
+import {
+  parseFrontmatter,
+  stringifyFrontmatter,
+  validateFrontmatterSchema,
+} from "../../utils/frontmatter.js";
 import { RulesyncRule, RulesyncRuleFrontmatter } from "./rulesync-rule.js";
 import {
   ToolRule,
+  ToolRuleBuildLocalRootFileParams,
   ToolRuleForDeletionParams,
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
@@ -106,6 +111,35 @@ export type CodebuddyRuleSettablePathsGlobal = ToolRuleSettablePathsGlobal;
  * @see https://www.codebuddy.ai/docs/cli/codebuddy-dir
  */
 export class CodebuddyRule extends ToolRule {
+  /**
+   * Build this tool's separate personal local-root file (`localRootMode:
+   * "separate-local-file"`), for generation and import. See
+   * {@link ToolRuleBuildLocalRootFileParams}.
+   */
+  static buildLocalRootFile({
+    outputRoot,
+    global,
+    fileName,
+    body,
+    relativeDirPath,
+    localRoot,
+  }: ToolRuleBuildLocalRootFileParams): ToolRule {
+    // `CODEBUDDY.local.md` sits next to the project-root `CODEBUDDY.md` — the
+    // primary root, not the `.codebuddy/` alternative one — and is a plain
+    // memory file with no rule frontmatter.
+    const paths = CodebuddyRule.getSettablePaths({ global });
+    return new CodebuddyRule({
+      outputRoot,
+      relativeDirPath: relativeDirPath ?? paths.root.relativeDirPath,
+      relativeFilePath: fileName,
+      frontmatter: {},
+      body,
+      validate: true,
+      root: true,
+      localRoot,
+    });
+  }
+
   private readonly frontmatter: CodebuddyRuleFrontmatter;
   private readonly body: string;
 
@@ -432,17 +466,12 @@ export class CodebuddyRule extends ToolRule {
       return { success: true, error: null };
     }
 
-    const result = CodebuddyRuleFrontmatterSchema.safeParse(this.frontmatter);
-    if (result.success) {
-      return { success: true, error: null };
-    } else {
-      return {
-        success: false,
-        error: new Error(
-          `Invalid frontmatter in ${join(this.relativeDirPath, this.relativeFilePath)}: ${formatError(result.error)}`,
-        ),
-      };
-    }
+    return validateFrontmatterSchema({
+      schema: CodebuddyRuleFrontmatterSchema,
+      frontmatter: this.frontmatter,
+      relativeDirPath: this.relativeDirPath,
+      relativeFilePath: this.relativeFilePath,
+    });
   }
 
   getFrontmatter(): CodebuddyRuleFrontmatter {
@@ -453,10 +482,5 @@ export class CodebuddyRule extends ToolRule {
     return this.body;
   }
 
-  static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
-    return this.isTargetedByRulesyncRuleDefault({
-      rulesyncRule,
-      toolTarget: "codebuddy",
-    });
-  }
+  protected static override readonly toolTarget = "codebuddy";
 }

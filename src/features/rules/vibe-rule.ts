@@ -1,6 +1,6 @@
 import { NestedAgentsmdRule, NestedAgentsmdRuleFamily } from "./nested-agentsmd-rule.js";
 
-export const VIBE_GLOBAL_DIR = ".vibe";
+const VIBE_GLOBAL_DIR = ".vibe";
 
 /**
  * Mistral Vibe rules.

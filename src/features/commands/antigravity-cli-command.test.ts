@@ -17,7 +17,6 @@ const buildCommand = (targets: string[]) =>
       description: "Test",
     },
     body: "Body",
-    fileContent: "",
   });
 
 describe("AntigravityCliCommand", () => {
@@ -109,7 +108,6 @@ describe("AntigravityCliCommand", () => {
         relativeFilePath: "original-file.md",
         frontmatter: rulesyncFrontmatter,
         body,
-        fileContent: stringifyFrontmatter(body, rulesyncFrontmatter),
       });
 
       const antigravityCommand = AntigravityCliCommand.fromRulesyncCommand({
@@ -140,7 +138,6 @@ describe("AntigravityCliCommand", () => {
         relativeFilePath: "global-workflow.md",
         frontmatter: rulesyncFrontmatter,
         body,
-        fileContent: stringifyFrontmatter(body, rulesyncFrontmatter),
       });
 
       const antigravityCommand = AntigravityCliCommand.fromRulesyncCommand({
@@ -169,7 +166,6 @@ describe("AntigravityCliCommand", () => {
         relativeFilePath: "evil.md",
         frontmatter: rulesyncFrontmatter,
         body: "Malicious payload",
-        fileContent: stringifyFrontmatter("Malicious payload", rulesyncFrontmatter),
       });
 
       const antigravityCommand = AntigravityCliCommand.fromRulesyncCommand({

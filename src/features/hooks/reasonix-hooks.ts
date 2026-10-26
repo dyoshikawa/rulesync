@@ -1,7 +1,7 @@
 import { join } from "node:path";
 
 import { REASONIX_DIR, REASONIX_SETTINGS_FILE_NAME } from "../../constants/reasonix-paths.js";
-import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { AiFileParams } from "../../types/ai-file.js";
 import {
   CANONICAL_TO_REASONIX_EVENT_NAMES,
   type HookDefinition,
@@ -321,15 +321,10 @@ export class ReasonixHooks extends ToolHooks {
   }
 
   toRulesyncHooks(): RulesyncHooks {
-    let settings: { hooks?: unknown };
-    try {
-      settings = JSON.parse(this.getFileContent());
-    } catch (error) {
-      throw new Error(
-        `Failed to parse Reasonix hooks content in ${join(this.getRelativeDirPath(), this.getRelativeFilePath())}: ${formatError(error)}`,
-        { cause: error },
-      );
-    }
+    const settings: { hooks?: unknown } = this.parseFileContentOrThrow({
+      displayName: "Reasonix",
+      parse: (fileContent) => JSON.parse(fileContent),
+    });
     const hooks = reasonixHooksToCanonical(settings.hooks);
     return this.toRulesyncHooksDefault({
       fileContent: JSON.stringify(
@@ -338,10 +333,6 @@ export class ReasonixHooks extends ToolHooks {
         2,
       ),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

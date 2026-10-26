@@ -10,7 +10,11 @@ import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { quoteForLog, stripControlCharacters } from "../../utils/control-characters.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
-import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
+import {
+  parseFrontmatter,
+  stringifyFrontmatter,
+  validateFrontmatterSchema,
+} from "../../utils/frontmatter.js";
 import { type Logger, warnWithFallback } from "../../utils/logger.js";
 import { isRecord } from "../../utils/type-guards.js";
 import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
@@ -32,7 +36,7 @@ const LETTACODE_COMMAND_FRONTMATTER_KEYS = ["description", "argument-hint"] as c
 
 // looseObject preserves unknown keys during parsing (like passthrough in Zod 3),
 // so an imported command keeps fields Letta Code ignores.
-export const LettacodeCommandFrontmatterSchema = z.looseObject({
+const LettacodeCommandFrontmatterSchema = z.looseObject({
   description: z.optional(z.string()),
   "argument-hint": z.optional(z.string()),
 });
@@ -141,7 +145,6 @@ export class LettacodeCommand extends ToolCommand {
       body: this.body,
       relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
       relativeFilePath: this.relativeFilePath,
-      fileContent: stringifyFrontmatter(this.body, rulesyncFrontmatter),
       validate: true,
     });
   }
@@ -185,16 +188,12 @@ export class LettacodeCommand extends ToolCommand {
       return { success: true, error: null };
     }
 
-    const result = LettacodeCommandFrontmatterSchema.safeParse(this.frontmatter);
-    if (result.success) {
-      return { success: true, error: null };
-    }
-    return {
-      success: false,
-      error: new Error(
-        `Invalid frontmatter in ${join(this.relativeDirPath, this.relativeFilePath)}: ${formatError(result.error)}`,
-      ),
-    };
+    return validateFrontmatterSchema({
+      schema: LettacodeCommandFrontmatterSchema,
+      frontmatter: this.frontmatter,
+      relativeDirPath: this.relativeDirPath,
+      relativeFilePath: this.relativeFilePath,
+    });
   }
 
   /**

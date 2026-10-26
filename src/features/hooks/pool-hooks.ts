@@ -6,7 +6,7 @@ import {
   POOL_HOOKS_KEY,
   POOL_SETTINGS_FILE_NAME,
 } from "../../constants/pool-paths.js";
-import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { AiFileParams } from "../../types/ai-file.js";
 import {
   CANONICAL_TO_POOL_EVENT_NAMES,
   type HookDefinition,
@@ -366,10 +366,6 @@ export class PoolHooks extends ToolHooks {
         2,
       ),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

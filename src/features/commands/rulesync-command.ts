@@ -12,7 +12,11 @@ import {
 import { RulesyncTargetsSchema, ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
-import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
+import {
+  parseFrontmatter,
+  stringifyFrontmatter,
+  validateFrontmatterSchema,
+} from "../../utils/frontmatter.js";
 
 // looseObject preserves unknown keys during parsing (like passthrough in Zod 3)
 // Tool-specific sections (e.g., claudecode:, copilot:) are preserved as additional keys
@@ -39,7 +43,7 @@ export type RulesyncCommandFrontmatter = z.infer<typeof RulesyncCommandFrontmatt
 export type RulesyncCommandParams = {
   frontmatter: RulesyncCommandFrontmatterInput;
   body: string;
-} & RulesyncFileParams;
+} & Omit<RulesyncFileParams, "fileContent">;
 
 export type RulesyncCommandSettablePaths = {
   relativeDirPath: string;
@@ -93,7 +97,6 @@ export class RulesyncCommand extends RulesyncFile {
       relativeFilePath: newRelativeFilePath,
       frontmatter: this.getFrontmatter(),
       body: this.getBody(),
-      fileContent: this.getFileContent(),
     });
   }
 
@@ -103,18 +106,12 @@ export class RulesyncCommand extends RulesyncFile {
       return { success: true, error: null };
     }
 
-    const result = RulesyncCommandFrontmatterSchema.safeParse(this.frontmatter);
-
-    if (result.success) {
-      return { success: true, error: null };
-    } else {
-      return {
-        success: false,
-        error: new Error(
-          `Invalid frontmatter in ${join(this.relativeDirPath, this.relativeFilePath)}: ${formatError(result.error)}`,
-        ),
-      };
-    }
+    return validateFrontmatterSchema({
+      schema: RulesyncCommandFrontmatterSchema,
+      frontmatter: this.frontmatter,
+      relativeDirPath: this.relativeDirPath,
+      relativeFilePath: this.relativeFilePath,
+    });
   }
 
   static async fromFile({
@@ -150,7 +147,6 @@ export class RulesyncCommand extends RulesyncFile {
       relativeFilePath,
       frontmatter: result.data,
       body: content.trim(),
-      fileContent,
     });
   }
 }
