@@ -464,41 +464,6 @@ export function resolvePath(relativePath: string, outputRoot?: string): string {
 }
 
 /**
- * Creates a path resolver function bound to a specific base directory
- */
-export function createPathResolver(outputRoot?: string) {
-  return (relativePath: string) => resolvePath(relativePath, outputRoot);
-}
-
-/**
- * Safely reads a JSON file with error handling and optional default value
- */
-export async function readJsonFile<T = unknown>(filepath: string, defaultValue?: T): Promise<T> {
-  try {
-    const content = await readFileContent(filepath);
-    const parsed: T = JSON.parse(content);
-    return parsed;
-  } catch (error) {
-    if (defaultValue !== undefined) {
-      return defaultValue;
-    }
-    throw error;
-  }
-}
-
-/**
- * Writes an object to a JSON file with proper formatting
- */
-export async function writeJsonFile(
-  filepath: string,
-  data: unknown,
-  indent: number = 2,
-): Promise<void> {
-  const content = JSON.stringify(data, null, indent);
-  await writeFileContent(filepath, content);
-}
-
-/**
  * Checks if a directory exists and is actually a directory
  */
 export async function directoryExists(dirPath: string): Promise<boolean> {
@@ -830,15 +795,6 @@ export async function isSymlink(filepath: string): Promise<boolean> {
 export async function listDirectoryEntryNames(dir: string): Promise<string[]> {
   try {
     return await readdir(dir);
-  } catch {
-    return [];
-  }
-}
-
-export async function findFiles(dir: string, extension: string = ".md"): Promise<string[]> {
-  try {
-    const files = await readdir(dir);
-    return files.filter((file) => file.endsWith(extension)).map((file) => join(dir, file));
   } catch {
     return [];
   }
@@ -1628,11 +1584,6 @@ async function deduplicateRelativePathsByFileIdentity({
   return [...candidatesByFile.entries()]
     .map(([identity, candidates]) => relative(dirPath, chooseRepresentative(candidates, identity)))
     .toSorted();
-}
-
-export async function findRuleFiles(aiRulesDir: string): Promise<string[]> {
-  const rulesDir = join(aiRulesDir, "rules");
-  return findFiles(rulesDir, ".md");
 }
 
 export async function removeDirectory(dirPath: string): Promise<void> {

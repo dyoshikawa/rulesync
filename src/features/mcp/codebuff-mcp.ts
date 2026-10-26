@@ -1,7 +1,6 @@
 import { join } from "node:path";
 
 import { CODEBUFF_AGENTS_DIR, CODEBUFF_MCP_FILE_NAME } from "../../constants/codebuff-paths.js";
-import { ValidationResult } from "../../types/ai-file.js";
 import type { McpServers } from "../../types/mcp.js";
 import { readFileContent } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
@@ -295,10 +294,6 @@ export class CodebuffMcp extends ToolMcp {
     return this.toRulesyncMcpDefault({
       fileContent: JSON.stringify({ mcpServers }, null, 2),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

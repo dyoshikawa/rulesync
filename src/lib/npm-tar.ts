@@ -19,9 +19,9 @@ import { gunzipSync } from "node:zlib";
 const BLOCK_SIZE = 512;
 
 /** Maximum number of files extracted from a single package tarball. */
-export const MAX_TAR_FILES = 10_000;
+const MAX_TAR_FILES = 10_000;
 /** Maximum total extracted bytes from a single package tarball (100 MB). */
-export const MAX_TAR_TOTAL_BYTES = 100 * 1024 * 1024;
+const MAX_TAR_TOTAL_BYTES = 100 * 1024 * 1024;
 
 export class NpmTarError extends Error {
   constructor(message: string, cause?: unknown) {

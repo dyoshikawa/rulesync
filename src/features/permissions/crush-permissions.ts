@@ -6,7 +6,7 @@ import {
   CRUSH_OPTIONS_KEY,
   CRUSH_PERMISSIONS_KEY,
 } from "../../constants/crush-paths.js";
-import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { AiFileParams } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import type { Logger } from "../../utils/logger.js";
 import { lookupOwn } from "../../utils/own-lookup.js";
@@ -165,10 +165,6 @@ export class CrushPermissions extends ToolPermissions {
     return this.json;
   }
 
-  override isDeletable(): boolean {
-    return false;
-  }
-
   /**
    * `crush.json` is Crush's file: rulesync merges into it when it exists but
    * does not create one that holds nothing of its own — an absent file and an
@@ -297,10 +293,6 @@ export class CrushPermissions extends ToolPermissions {
     return this.toRulesyncPermissionsDefault({
       fileContent: JSON.stringify(rulesyncConfig, null, 2),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

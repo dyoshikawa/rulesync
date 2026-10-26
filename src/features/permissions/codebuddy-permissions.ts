@@ -1,13 +1,13 @@
 import { join } from "node:path";
 
 import { CODEBUDDY_DIR, CODEBUDDY_SETTINGS_FILE_NAME } from "../../constants/codebuddy-paths.js";
-import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { AiFileParams } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
-import { isRecord } from "../../utils/type-guards.js";
+import { isRecord, toStringArray } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
   parseSharedConfig,
@@ -61,12 +61,6 @@ const CATEGORY_TO_CODEBUDDY_TOOL: Record<string, string> = {
 const CODEBUDDY_TOOL_TO_CATEGORY: Record<string, string> = Object.fromEntries(
   Object.entries(CATEGORY_TO_CODEBUDDY_TOOL).map(([category, tool]) => [tool, category]),
 );
-
-function toStringList(value: unknown): string[] {
-  return Array.isArray(value)
-    ? value.filter((entry): entry is string => typeof entry === "string")
-    : [];
-}
 
 /**
  * Split a rule into its tool half and specifier: `Tool(specifier)` or a bare
@@ -221,7 +215,7 @@ function buildCodebuddyRuleLists({
 
   const lists: Record<PermissionAction, string[]> = { allow: [], ask: [], deny: [] };
   for (const list of CODEBUDDY_RULE_LISTS) {
-    lists[list] = toStringList(existingPermissions[list]).filter((rule) => {
+    lists[list] = toStringArray(existingPermissions[list]).filter((rule) => {
       const category = categoryOfRule(rule);
       return category === undefined || !managedCategories.has(category);
     });
@@ -257,10 +251,6 @@ export class CodebuddyPermissions extends ToolPermissions {
       ...params,
       fileContent: params.fileContent ?? "{}",
     });
-  }
-
-  override isDeletable(): boolean {
-    return false;
   }
 
   static getSettablePaths(_options: { global?: boolean } = {}): ToolPermissionsSettablePaths {
@@ -350,7 +340,7 @@ export class CodebuddyPermissions extends ToolPermissions {
 
     const permission: Record<string, Record<string, PermissionAction>> = {};
     for (const action of CODEBUDDY_RULE_LISTS) {
-      for (const rule of toStringList(permissions[action])) {
+      for (const rule of toStringArray(permissions[action])) {
         const parsed = parseCodebuddyRule(rule);
         if (
           parsed === null ||
@@ -374,10 +364,6 @@ export class CodebuddyPermissions extends ToolPermissions {
     return this.toRulesyncPermissionsDefault({
       fileContent: JSON.stringify({ permission }, null, 2),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

@@ -24,13 +24,10 @@ export const FIREBENDER_DIR = ".firebender";
 export const FIREBENDER_CONFIG_FILE_NAME = "firebender.json";
 
 /** Project-scope directory of `firebender.json` (the project root). */
-export const FIREBENDER_PROJECT_CONFIG_DIR = ".";
+const FIREBENDER_PROJECT_CONFIG_DIR = ".";
 
 /** `.firebender/AGENTS.md`, the first file Firebender looks for in both scopes. */
 export const FIREBENDER_AGENTS_MD_FILE_NAME = "AGENTS.md";
-
-/** Rules: `.firebender/rules/*.mdc` (project) and `~/.firebender/rules/*.mdc` (global). */
-export const FIREBENDER_RULES_DIR_PATH = join(FIREBENDER_DIR, "rules");
 
 /** Commands: `.firebender/commands/*.mdc` (project) and `~/.firebender/commands/*.mdc` (global). */
 export const FIREBENDER_COMMANDS_DIR_PATH = join(FIREBENDER_DIR, "commands");

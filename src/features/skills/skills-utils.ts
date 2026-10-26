@@ -31,7 +31,7 @@ export const SKILL_DESCRIPTION_MAX_LENGTH = 1024;
 // "Lowercase letters, numbers, and hyphens only", with no leading/trailing
 // hyphen and no consecutive hyphens — all four rules expressed as alphanumeric
 // runs joined by single hyphens.
-export const SKILL_NAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const SKILL_NAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 /**
  * Check a skill `name` against the length and character rules, phrased for the

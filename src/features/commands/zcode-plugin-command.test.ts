@@ -29,7 +29,6 @@ describe("ZcodePluginCommand", () => {
       relativeFilePath: "review.md",
       frontmatter: { targets, description: "Review the changes" },
       body: "Review $ARGUMENTS.",
-      fileContent: "",
     });
 
   it("writes into the plugin's commands/ directory, while zcode keeps .zcode/commands/", () => {

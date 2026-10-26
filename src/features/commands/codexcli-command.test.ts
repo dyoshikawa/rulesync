@@ -159,7 +159,6 @@ It can be multiline.`;
           description: "Test description from rulesync",
         },
         body: "Test command content",
-        fileContent: "", // Will be generated
         validate: true,
       });
 
@@ -186,7 +185,6 @@ It can be multiline.`;
           description: "Complex command",
         },
         body: "Complex content",
-        fileContent: "",
         validate: true,
       });
 
@@ -211,7 +209,6 @@ It can be multiline.`;
           codexcli: { "argument-hint": "[range]" },
         },
         body: "Body content",
-        fileContent: "",
         validate: true,
       });
 
@@ -240,7 +237,6 @@ It can be multiline.`;
           description: "",
         },
         body: "",
-        fileContent: "",
         validate: true,
       });
 
@@ -339,7 +335,6 @@ Review body.`,
         relativeFilePath: "test.md",
         frontmatter: { targets: ["*"], description: "Test" },
         body: "Body",
-        fileContent: "",
       });
 
       const result = CodexcliCommand.isTargetedByRulesyncCommand(rulesyncCommand);
@@ -352,7 +347,6 @@ Review body.`,
         relativeFilePath: "test.md",
         frontmatter: { targets: ["codexcli"], description: "Test" },
         body: "Body",
-        fileContent: "",
       });
 
       const result = CodexcliCommand.isTargetedByRulesyncCommand(rulesyncCommand);
@@ -365,7 +359,6 @@ Review body.`,
         relativeFilePath: "test.md",
         frontmatter: { targets: ["cursor", "codexcli", "claudecode"], description: "Test" },
         body: "Body",
-        fileContent: "",
       });
 
       const result = CodexcliCommand.isTargetedByRulesyncCommand(rulesyncCommand);
@@ -378,7 +371,6 @@ Review body.`,
         relativeFilePath: "test.md",
         frontmatter: { targets: ["cursor"], description: "Test" },
         body: "Body",
-        fileContent: "",
       });
 
       const result = CodexcliCommand.isTargetedByRulesyncCommand(rulesyncCommand);
@@ -391,7 +383,6 @@ Review body.`,
         relativeFilePath: "test.md",
         frontmatter: { targets: undefined, description: "Test" } as any,
         body: "Body",
-        fileContent: "",
       });
 
       const result = CodexcliCommand.isTargetedByRulesyncCommand(rulesyncCommand);

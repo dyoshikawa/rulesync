@@ -8,7 +8,7 @@ import type { ToolCheckSettablePaths } from "./tool-check.js";
 // Goose's `CheckFrontmatter` is Amp's field set plus `model` and `turn-limit`
 // (`Option<usize>`, so a non-negative integer).
 // @see https://github.com/aaif-goose/goose/blob/main/crates/goose/src/checks/mod.rs
-export const GooseCheckFrontmatterSchema = z.extend(AmpCheckFrontmatterSchema, {
+const GooseCheckFrontmatterSchema = z.extend(AmpCheckFrontmatterSchema, {
   model: z.optional(z.string()),
   "turn-limit": z.optional(z.int().check(z.nonnegative())),
 });

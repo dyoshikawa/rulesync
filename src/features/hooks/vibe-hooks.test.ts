@@ -76,7 +76,8 @@ describe("VibeHooks", () => {
 
       const byType = Object.fromEntries(parsed.hooks.map((h) => [h.type, h]));
       expect(byType.pre_tool).toBeDefined();
-      expect(byType.pre_tool.match).toBe("bash");
+      // A canonical shell matcher also catches background commands (`process_start`).
+      expect(byType.pre_tool.match).toBe("re:bash|process_start");
       expect(byType.pre_tool.command).toBe("uv run python ./guard-bash");
       expect(byType.pre_tool.timeout).toBe(30);
       expect(byType.pre_tool.name).toBe("deny-rm-rf");
@@ -88,6 +89,55 @@ describe("VibeHooks", () => {
       expect(byType.post_agent).toBeDefined();
       // `match` applies to tool hooks only; post_agent carries no matcher.
       expect(byType.post_agent.match).toBeUndefined();
+    });
+
+    it.each(["Bash", "bash", "BASH"])(
+      "should widen the canonical %s matcher to catch background commands",
+      async (matcher) => {
+        const rulesyncHooks = new RulesyncHooks(
+          createMockAiFileParams({
+            fileContent: JSON.stringify({
+              hooks: { preToolUse: [{ command: "./guard", matcher }] },
+            }),
+          }),
+        );
+
+        const vibeHooks = await VibeHooks.fromRulesyncHooks({
+          outputRoot: testDir,
+          rulesyncHooks,
+        });
+
+        const parsed = smolToml.parse(vibeHooks.getFileContent()) as {
+          hooks: Array<Record<string, unknown>>;
+        };
+        expect(parsed.hooks[0]?.match).toBe("re:bash|process_start");
+        expect(vibeHooks.toRulesyncHooks().getJson().hooks.preToolUse?.[0]?.matcher).toBe("Bash");
+      },
+    );
+
+    it("should keep any other matcher verbatim, including a broader shell regex", async () => {
+      const rulesyncHooks = new RulesyncHooks(
+        createMockAiFileParams({
+          fileContent: JSON.stringify({
+            hooks: {
+              preToolUse: [
+                { command: "./a", matcher: "bash*" },
+                { command: "./b", matcher: "re:bash|process_start|git_bash" },
+              ],
+            },
+          }),
+        }),
+      );
+
+      const vibeHooks = await VibeHooks.fromRulesyncHooks({ outputRoot: testDir, rulesyncHooks });
+
+      const parsed = smolToml.parse(vibeHooks.getFileContent()) as {
+        hooks: Array<Record<string, unknown>>;
+      };
+      expect(parsed.hooks.map((hook) => hook.match)).toEqual([
+        "bash*",
+        "re:bash|process_start|git_bash",
+      ]);
     });
 
     it("should drop unsupported events and non-command hook types", async () => {
