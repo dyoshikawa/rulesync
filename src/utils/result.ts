@@ -28,9 +28,10 @@ export type FeatureGenerateResult = WriteResult & {
 };
 
 /**
- * Common count fields shared by ImportResult and GenerateResult
+ * The number of files each feature touched: the whole result of an import or
+ * a convert, and the count fields of a generate.
  */
-export type CountableResult = {
+export type FeatureCounts = {
   rulesCount: number;
   ignoreCount: number;
   mcpCount: number;
@@ -40,6 +41,12 @@ export type CountableResult = {
   hooksCount: number;
   permissionsCount: number;
   checksCount: number;
+};
+
+/**
+ * Common count fields shared by ImportResult and GenerateResult
+ */
+export type CountableResult = FeatureCounts & {
   activationCount?: number;
   pluginManifestCount?: number;
 };
