@@ -1195,9 +1195,12 @@ export const ANTIGRAVITY_CLI_ARTIFACT_REVIEW_POLICIES = [
 /**
  * The baseline execution modes the CLI persists as `agentMode`. Shared with the
  * import filter for the same reason as {@link ANTIGRAVITY_CLI_TOOL_PERMISSIONS}.
+ * `auto` (Preview) requires the terminal sandbox (`enableTerminalSandbox`), is
+ * not offered to business or enterprise accounts, and falls back to `default`
+ * when unavailable.
  * @see https://antigravity.google/docs/cli/modes
  */
-export const ANTIGRAVITY_CLI_AGENT_MODES = ["default", "accept-edits", "plan"] as const;
+export const ANTIGRAVITY_CLI_AGENT_MODES = ["default", "accept-edits", "plan", "auto"] as const;
 
 /**
  * Tool-scoped override block for the Google Antigravity CLI. Antigravity's CLI
@@ -1210,8 +1213,8 @@ export const ANTIGRAVITY_CLI_AGENT_MODES = ["default", "accept-edits", "plan"] a
  * (default) / `agent-decides` / `always-proceed`) and `allowNonWorkspaceAccess`
  * (a boolean, off by default, letting the agent read or write files outside the
  * active workspace roots), and `agentMode` (the baseline execution mode a session
- * starts in — `default` / `accept-edits` / `plan`). Antigravity applies the allow/deny
- * lists as per-rule exceptions to the preset at runtime, so rulesync only
+ * starts in — `default` / `accept-edits` / `plan` / `auto`). Antigravity applies
+ * the allow/deny lists as per-rule exceptions to the preset at runtime, so rulesync only
  * authors these keys verbatim — no precedence modeling is needed on our side.
  * Fields placed here are merged onto the top level of
  * `~/.gemini/antigravity-cli/settings.json` (global-only) and emitted only for
