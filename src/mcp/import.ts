@@ -8,7 +8,7 @@ import { type RulesyncTargets, type ToolTarget } from "../types/tool-targets.js"
 import { formatError } from "../utils/error.js";
 import { WarningCollectingLogger, withFallbackLoggerTarget } from "../utils/logger.js";
 import { calculateTotalCount } from "../utils/result.js";
-import { assertPathOptionWithinCwd } from "./path-options.js";
+import { assertOptionalPathOptionWithinCwd } from "./path-options.js";
 import { type McpResultCounts, type McpWarnings, warningsField } from "./types.js";
 
 /**
@@ -74,9 +74,7 @@ export async function executeImport(options: ImportOptions): Promise<McpImportRe
           return { success: false, error: targetResult.error };
         }
 
-        if (options.outputRoot !== undefined) {
-          await assertPathOptionWithinCwd({ path: options.outputRoot, label: "outputRoot" });
-        }
+        await assertOptionalPathOptionWithinCwd({ path: options.outputRoot, label: "outputRoot" });
 
         // Resolve config with MCP parameters taking precedence
         // ConfigResolver handles: CLI options > rulesync.local.jsonc > rulesync.jsonc > defaults

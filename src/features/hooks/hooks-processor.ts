@@ -8,38 +8,22 @@ import { FeatureProcessor } from "../../types/feature-processor.js";
 import {
   AMP_HOOK_EVENTS,
   AMP_OVERRIDE_ONLY_HOOK_EVENTS,
-  ANTIGRAVITY_HOOK_EVENTS,
-  AUGMENTCODE_HOOK_EVENTS,
-  BOB_HOOK_EVENTS,
-  CLAUDE_HOOK_EVENTS,
-  CODEBUDDY_HOOK_EVENTS,
   CODEBUDDY_MATCHER_HOOK_EVENTS,
-  CODEXCLI_HOOK_EVENTS,
   CODEWHALE_HOOK_EVENTS,
   CODEWHALE_MATCHER_HOOK_EVENTS,
-  COMMANDCODE_HOOK_EVENTS,
   COPILOT_HOOK_EVENTS,
   COPILOT_MATCHER_HOOK_EVENTS,
   COPILOTCLI_HOOK_EVENTS,
-  CONTINUE_HOOK_EVENTS,
-  CORTEXCODE_HOOK_EVENTS,
   CURSOR_HOOK_EVENTS,
   DEEPAGENTS_HOOK_EVENTS,
-  DEVIN_HOOK_EVENTS,
-  FACTORYDROID_HOOK_EVENTS,
   FIREBENDER_HOOK_EVENTS,
   CLINE_HOOK_EVENTS,
   CRUSH_HOOK_EVENTS,
-  GOOSE_HOOK_EVENTS,
-  GROKCLI_HOOK_EVENTS,
   HERMESAGENT_HOOK_EVENTS,
-  GITLABDUO_HOOK_EVENTS,
-  JUNIE_HOOK_EVENTS,
   KILO_HOOK_EVENTS,
   KIMI_CODE_HOOK_EVENTS,
   KIRO_HOOK_EVENTS,
   KIRO_IDE_HOOK_EVENTS,
-  LETTACODE_HOOK_EVENTS,
   OPENCODE_HOOK_EVENTS,
   OPENCODE_MATCHER_HOOK_EVENTS,
   OPENCODE_V2_HOOK_EVENTS,
@@ -47,12 +31,10 @@ import {
   OMP_HOOK_EVENTS,
   PI_HOOK_EVENTS,
   POOL_HOOK_EVENTS,
-  QODER_HOOK_EVENTS,
   QWENCODE_HOOK_EVENTS,
   REASONIX_HOOK_EVENTS,
   TABNINE_HOOK_EVENTS,
   VIBE_HOOK_EVENTS,
-  ZCODE_HOOK_EVENTS,
   type HookDefinition,
   type HookEvent,
   type HooksConfig,
@@ -67,18 +49,25 @@ import { isFileNotFoundError } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { getRulesyncSourceCandidates } from "../../utils/rulesync-source-path.js";
 import { AmpHooks } from "./amp-hooks.js";
-import { AntigravityCliHooks, AntigravityIdeHooks } from "./antigravity-hooks.js";
+import {
+  ANTIGRAVITY_CONVERTER_CONFIG,
+  AntigravityCliHooks,
+  AntigravityIdeHooks,
+} from "./antigravity-hooks.js";
 import { AntigravityPluginHooks } from "./antigravity-plugin-hooks.js";
-import { AugmentcodeHooks } from "./augmentcode-hooks.js";
-import { AugmentcodePluginHooks } from "./augmentcode-plugin-hooks.js";
+import { AUGMENTCODE_CONVERTER_CONFIG, AugmentcodeHooks } from "./augmentcode-hooks.js";
+import {
+  AUGMENTCODE_PLUGIN_CONVERTER_CONFIG,
+  AugmentcodePluginHooks,
+} from "./augmentcode-plugin-hooks.js";
 import { BobHooks } from "./bob-hooks.js";
 import { ClaudecodeHooks } from "./claudecode-hooks.js";
 import { ClaudecodePluginHooks } from "./claudecode-plugin-hooks.js";
 import { ClineHooks } from "./cline-hooks.js";
 import { CodebuddyHooks } from "./codebuddy-hooks.js";
 import { CodewhaleHooks } from "./codewhale-hooks.js";
-import { CodexcliHooks } from "./codexcli-hooks.js";
-import { CommandcodeHooks } from "./commandcode-hooks.js";
+import { CODEXCLI_CONVERTER_CONFIG, CodexcliHooks } from "./codexcli-hooks.js";
+import { COMMANDCODE_CONVERTER_CONFIG, CommandcodeHooks } from "./commandcode-hooks.js";
 import { ContinueHooks } from "./continue-hooks.js";
 import { CopilotHooks } from "./copilot-hooks.js";
 import { CopilotcliHooks } from "./copilotcli-hooks.js";
@@ -86,21 +75,21 @@ import { CortexcodeHooks } from "./cortexcode-hooks.js";
 import { CrushHooks } from "./crush-hooks.js";
 import { CursorHooks } from "./cursor-hooks.js";
 import { DeepagentsHooks } from "./deepagents-hooks.js";
-import { DevinHooks } from "./devin-hooks.js";
+import { DEVIN_CONVERTER_CONFIG, DevinHooks } from "./devin-hooks.js";
 import { DevinPluginHooks } from "./devin-plugin-hooks.js";
-import { FactorydroidHooks } from "./factorydroid-hooks.js";
+import { FACTORYDROID_CONVERTER_CONFIG, FactorydroidHooks } from "./factorydroid-hooks.js";
 import { FirebenderHooks } from "./firebender-hooks.js";
-import { GitlabduoHooks } from "./gitlabduo-hooks.js";
-import { GooseHooks } from "./goose-hooks.js";
-import { GrokcliHooks } from "./grokcli-hooks.js";
+import { GITLABDUO_CONVERTER_CONFIG, GitlabduoHooks } from "./gitlabduo-hooks.js";
+import { GOOSE_CONVERTER_CONFIG, GooseHooks } from "./goose-hooks.js";
+import { GROKCLI_CONVERTER_CONFIG, GrokcliHooks } from "./grokcli-hooks.js";
 import { HermesagentHooks } from "./hermesagent-hooks.js";
-import { JunieHooks } from "./junie-hooks.js";
+import { JUNIE_CONVERTER_CONFIG, JunieHooks } from "./junie-hooks.js";
 import { KiloHooks } from "./kilo-hooks.js";
 import { KimiCodeHooks } from "./kimi-code-hooks.js";
 import { KiroCliHooks } from "./kiro-cli-hooks.js";
 import { KiroHooks } from "./kiro-hooks.js";
 import { KIRO_HOOKS_OVERRIDE_KEY, KiroIdeHooks } from "./kiro-ide-hooks.js";
-import { LettacodeHooks } from "./lettacode-hooks.js";
+import { LETTACODE_CONVERTER_CONFIG, LettacodeHooks } from "./lettacode-hooks.js";
 import { MimocodeHooks } from "./mimocode-hooks.js";
 import { OmpHooks } from "./omp-hooks.js";
 import { OpencodeHooks } from "./opencode-hooks.js";
@@ -112,6 +101,7 @@ import { QwencodeHooks } from "./qwencode-hooks.js";
 import { ReasonixHooks } from "./reasonix-hooks.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
 import { TabnineHooks } from "./tabnine-hooks.js";
+import type { ToolHooksConverterConfig } from "./tool-hooks-converter.js";
 import type {
   ToolHooksForDeletionParams,
   ToolHooksFromFileParams,
@@ -120,8 +110,8 @@ import type {
 import { ToolHooks } from "./tool-hooks.js";
 import { VibeHooks } from "./vibe-hooks.js";
 import { VibePluginHooks } from "./vibe-plugin-hooks.js";
-import { ZcodeHooks } from "./zcode-hooks.js";
-import { ZcodePluginHooks } from "./zcode-plugin-hooks.js";
+import { ZCODE_CONVERTER_CONFIG, ZcodeHooks } from "./zcode-hooks.js";
+import { ZCODE_PLUGIN_CONVERTER_CONFIG, ZcodePluginHooks } from "./zcode-plugin-hooks.js";
 
 export type HooksProcessorToolTarget = (typeof hooksProcessorToolTargetTuple)[number];
 
@@ -138,8 +128,7 @@ type ToolHooksFactory = {
       relativeDirPath: string;
       relativeFilePath: string;
     };
-    isDeletable?: (instance: ToolHooks) => boolean;
-    getAuxiliaryFiles?: (params: {
+    getAuxiliaryFiles: (params: {
       outputRoot?: string;
       global?: boolean;
       /** The instance just built, for adapters whose extra files derive from it. */
@@ -152,7 +141,7 @@ type ToolHooksFactory = {
      * config file there (Codex CLI's `config.toml`), which must never become a
      * deletion candidate.
      */
-    getDeletableAuxiliaryFiles?: (params: {
+    getDeletableAuxiliaryFiles: (params: {
       outputRoot?: string;
       global?: boolean;
     }) => ToolFile[] | Promise<ToolFile[]>;
@@ -326,6 +315,24 @@ function emittedEventsWithHook(params: {
     .map(([event]) => event);
 }
 
+/**
+ * The capabilities an adapter built on the shared hooks converter already
+ * declares in its converter config: the events it emits and the hook types it
+ * keeps. Reading them from there keeps the processor's skip warnings in step
+ * with what the converter actually writes.
+ */
+function converterCapabilities(
+  config: ToolHooksConverterConfig,
+): Pick<ToolHooksFactory, "supportedEvents" | "supportedHookTypes"> {
+  if (!config.supportedHookTypes) {
+    throw new Error("Hooks converter config must declare its supportedHookTypes");
+  }
+  return {
+    supportedEvents: config.supportedEvents,
+    supportedHookTypes: [...config.supportedHookTypes],
+  };
+}
+
 export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFactory>([
   [
     "amp",
@@ -355,8 +362,7 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
         supportsGlobal: true,
         supportsImport: true,
       },
-      supportedEvents: ANTIGRAVITY_HOOK_EVENTS,
-      supportedHookTypes: ["command"],
+      ...converterCapabilities(ANTIGRAVITY_CONVERTER_CONFIG),
       supportsMatcher: true,
     },
   ],
@@ -369,8 +375,7 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
         supportsGlobal: true,
         supportsImport: true,
       },
-      supportedEvents: ANTIGRAVITY_HOOK_EVENTS,
-      supportedHookTypes: ["command"],
+      ...converterCapabilities(ANTIGRAVITY_CONVERTER_CONFIG),
       supportsMatcher: true,
     },
   ],
@@ -383,8 +388,7 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
         supportsGlobal: false,
         supportsImport: true,
       },
-      supportedEvents: ANTIGRAVITY_HOOK_EVENTS,
-      supportedHookTypes: ["command"],
+      ...converterCapabilities(ANTIGRAVITY_CONVERTER_CONFIG),
       supportsMatcher: true,
       // The adapter only emits its own native events; unknown override-block
       // keys are dropped, so report them.
@@ -433,10 +437,7 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
         supportsGlobal: true,
         supportsImport: true,
       },
-      supportedEvents: CLAUDE_HOOK_EVENTS,
-      // All five documented handler types are emitted faithfully with their
-      // type-specific payload fields. https://code.claude.com/docs/en/hooks
-      supportedHookTypes: ["command", "prompt", "http", "mcp_tool", "agent"],
+      ...converterCapabilities(ClaudecodeHooks.getConverterConfig()),
       supportsMatcher: true,
     },
   ],
@@ -449,8 +450,7 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
         supportsGlobal: false,
         supportsImport: true,
       },
-      supportedEvents: CLAUDE_HOOK_EVENTS,
-      supportedHookTypes: ["command", "prompt", "http", "mcp_tool", "agent"],
+      ...converterCapabilities(ClaudecodePluginHooks.getConverterConfig()),
       supportsMatcher: true,
       // The adapter only emits its own native events; unknown override-block
       // keys are dropped, so report them.
@@ -475,8 +475,7 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
         supportsGlobal: true,
         supportsImport: true,
       },
-      supportedEvents: CODEBUDDY_HOOK_EVENTS,
-      supportedHookTypes: ["command", "http", "prompt", "agent"],
+      ...converterCapabilities(CodebuddyHooks.getConverterConfig()),
       supportsMatcher: true,
       matcherEvents: CODEBUDDY_MATCHER_HOOK_EVENTS,
     },
@@ -514,8 +513,7 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
         supportsGlobal: true,
         supportsImport: true,
       },
-      supportedEvents: CODEXCLI_HOOK_EVENTS,
-      supportedHookTypes: ["command", "mcp_tool"],
+      ...converterCapabilities(CODEXCLI_CONVERTER_CONFIG),
       supportsMatcher: true,
     },
   ],
@@ -534,8 +532,7 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
         supportsGlobal: true,
         supportsImport: true,
       },
-      supportedEvents: COMMANDCODE_HOOK_EVENTS,
-      supportedHookTypes: ["command"],
+      ...converterCapabilities(COMMANDCODE_CONVERTER_CONFIG),
       supportsMatcher: true,
       matcherEvents: ["preToolUse", "postToolUse"],
     },
@@ -710,10 +707,7 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
         supportsGlobal: true,
         supportsImport: true,
       },
-      supportedEvents: FACTORYDROID_HOOK_EVENTS,
-      // Droid's hooks reference states "Currently only \"command\" is
-      // supported" — a prompt-type entry in hooks.json is inert.
-      supportedHookTypes: ["command"],
+      ...converterCapabilities(FACTORYDROID_CONVERTER_CONFIG),
       supportsMatcher: true,
     },
   ],
@@ -752,8 +746,7 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
         supportsGlobal: true,
         supportsImport: true,
       },
-      supportedEvents: GOOSE_HOOK_EVENTS,
-      supportedHookTypes: ["command"],
+      ...converterCapabilities(GOOSE_CONVERTER_CONFIG),
       supportsMatcher: true,
     },
   ],
@@ -880,8 +873,7 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
         supportsGlobal: true,
         supportsImport: true,
       },
-      supportedEvents: LETTACODE_HOOK_EVENTS,
-      supportedHookTypes: ["command"],
+      ...converterCapabilities(LETTACODE_CONVERTER_CONFIG),
       supportsMatcher: true,
       matcherEvents: ["preToolUse", "postToolUse", "postToolUseFailure", "permissionRequest"],
     },
@@ -899,8 +891,7 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
         supportsGlobal: true,
         supportsImport: true,
       },
-      supportedEvents: DEVIN_HOOK_EVENTS,
-      supportedHookTypes: ["command", "prompt"],
+      ...converterCapabilities(DEVIN_CONVERTER_CONFIG),
       supportsMatcher: true,
     },
   ],
@@ -911,8 +902,7 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       // https://docs.devin.ai/cli/extensibility/plugins/overview
       class: DevinPluginHooks,
       meta: { supportsProject: true, supportsGlobal: false, supportsImport: true },
-      supportedEvents: DEVIN_HOOK_EVENTS,
-      supportedHookTypes: ["command", "prompt"],
+      ...converterCapabilities(DEVIN_CONVERTER_CONFIG),
       supportsMatcher: true,
     },
   ],
@@ -928,8 +918,7 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
         supportsGlobal: true,
         supportsImport: true,
       },
-      supportedEvents: AUGMENTCODE_HOOK_EVENTS,
-      supportedHookTypes: ["command"],
+      ...converterCapabilities(AUGMENTCODE_CONVERTER_CONFIG),
       supportsMatcher: true,
     },
   ],
@@ -944,8 +933,7 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
         supportsGlobal: false,
         supportsImport: true,
       },
-      supportedEvents: AUGMENTCODE_HOOK_EVENTS,
-      supportedHookTypes: ["command"],
+      ...converterCapabilities(AUGMENTCODE_PLUGIN_CONVERTER_CONFIG),
       supportsMatcher: true,
     },
   ],
@@ -964,8 +952,7 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
         supportsGlobal: true,
         supportsImport: true,
       },
-      supportedEvents: BOB_HOOK_EVENTS,
-      supportedHookTypes: ["command", "http"],
+      ...converterCapabilities(BobHooks.getConverterConfig()),
       supportsMatcher: true,
       matcherEvents: ["preToolUse", "postToolUse"],
     },
@@ -986,8 +973,7 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
         supportsGlobal: true,
         supportsImport: true,
       },
-      supportedEvents: CONTINUE_HOOK_EVENTS,
-      supportedHookTypes: ["command", "http", "prompt", "agent"],
+      ...converterCapabilities(ContinueHooks.getConverterConfig()),
       supportsMatcher: true,
       matcherEvents: [
         "preToolUse",
@@ -1019,8 +1005,7 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
         supportsGlobal: true,
         supportsImport: true,
       },
-      supportedEvents: CORTEXCODE_HOOK_EVENTS,
-      supportedHookTypes: ["command", "prompt"],
+      ...converterCapabilities(CortexcodeHooks.getConverterConfig()),
       supportsMatcher: true,
       matcherEvents: [
         "preToolUse",
@@ -1047,8 +1032,7 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
         supportsGlobal: true,
         supportsImport: true,
       },
-      supportedEvents: JUNIE_HOOK_EVENTS,
-      supportedHookTypes: ["command"],
+      ...converterCapabilities(JUNIE_CONVERTER_CONFIG),
       supportsMatcher: true,
     },
   ],
@@ -1065,8 +1049,7 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
         supportsGlobal: true,
         supportsImport: true,
       },
-      supportedEvents: GITLABDUO_HOOK_EVENTS,
-      supportedHookTypes: ["command"],
+      ...converterCapabilities(GITLABDUO_CONVERTER_CONFIG),
       supportsMatcher: true,
     },
   ],
@@ -1159,8 +1142,7 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
         supportsGlobal: true,
         supportsImport: true,
       },
-      supportedEvents: QODER_HOOK_EVENTS,
-      supportedHookTypes: ["command", "http", "prompt", "agent"],
+      ...converterCapabilities(QoderHooks.getConverterConfig()),
       supportsMatcher: true,
       matcherEvents: [
         "sessionStart",
@@ -1244,10 +1226,7 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
         supportsGlobal: true,
         supportsImport: true,
       },
-      supportedEvents: GROKCLI_HOOK_EVENTS,
-      // Grok's `HookHandlerType` is `command | http`, and the shared converter
-      // round-trips both, so neither is reported as skipped.
-      supportedHookTypes: ["command", "http"],
+      ...converterCapabilities(GROKCLI_CONVERTER_CONFIG),
       // Tool-name events honor `matcher`; the adapter drops it (with a warning)
       // on the matcher-less lifecycle events.
       supportsMatcher: true,
@@ -1279,8 +1258,7 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       // hooks run once the user trusts them in ZCode.
       class: ZcodeHooks,
       meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
-      supportedEvents: ZCODE_HOOK_EVENTS,
-      supportedHookTypes: ["command"],
+      ...converterCapabilities(ZCODE_CONVERTER_CONFIG),
       supportsMatcher: true,
     },
   ],
@@ -1291,8 +1269,7 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       // https://zcode.z.ai/en/docs/plugin
       class: ZcodePluginHooks,
       meta: { supportsProject: true, supportsGlobal: false, supportsImport: true },
-      supportedEvents: ZCODE_HOOK_EVENTS,
-      supportedHookTypes: ["command"],
+      ...converterCapabilities(ZCODE_PLUGIN_CONVERTER_CONFIG),
       supportsMatcher: true,
     },
   ],
@@ -1401,13 +1378,12 @@ export class HooksProcessor extends FeatureProcessor {
           relativeFilePath: paths.relativeFilePath,
           global: this.global,
         });
-        const auxiliaryFiles =
-          (await factory.class.getDeletableAuxiliaryFiles?.({
-            outputRoot: this.outputRoot,
-            global: this.global,
-          })) ?? [];
+        const auxiliaryFiles = await factory.class.getDeletableAuxiliaryFiles({
+          outputRoot: this.outputRoot,
+          global: this.global,
+        });
         const list = [
-          ...(toolHooks.isDeletable?.() !== false ? [toolHooks] : []),
+          ...(toolHooks.isDeletable() ? [toolHooks] : []),
           ...auxiliaryFiles.filter((file) => file.isDeletable()),
         ];
         this.logger.debug(
@@ -1509,15 +1485,13 @@ export class HooksProcessor extends FeatureProcessor {
     });
 
     const result: ToolFile[] = [toolHooks];
-    const auxiliaryFiles = await factory.class.getAuxiliaryFiles?.({
+    const auxiliaryFiles = await factory.class.getAuxiliaryFiles({
       outputRoot: this.outputRoot,
       global: this.global,
       toolHooks,
       logger: withToolTargetPrefix({ logger: this.logger, toolTarget: this.toolTarget }),
     });
-    if (auxiliaryFiles && auxiliaryFiles.length > 0) {
-      result.push(...auxiliaryFiles);
-    }
+    result.push(...auxiliaryFiles);
 
     return result;
   }

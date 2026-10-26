@@ -47,7 +47,6 @@ export class CommandcodeCommand extends ToolCommand {
       body: this.getFileContent(),
       relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
       relativeFilePath: this.relativeFilePath,
-      fileContent: this.getFileContent(),
       validate: true,
     });
   }

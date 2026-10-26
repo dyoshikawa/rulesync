@@ -4,7 +4,7 @@ import { uniq } from "es-toolkit";
 import * as smolToml from "smol-toml";
 
 import { GROKCLI_CONFIG_FILE_NAME, GROKCLI_DIR } from "../../constants/grokcli-paths.js";
-import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { AiFileParams } from "../../types/ai-file.js";
 import {
   PermissionActionSchema,
   type PermissionAction,
@@ -17,6 +17,7 @@ import { isRecord, isStringArray } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { ALL_TOOLS_PERMISSION_CATEGORY, honorAllToolsOnBash } from "./shell-command-categories.js";
+import { isStricterAction, PERMISSION_ACTION_PRIORITY } from "./single-action-collapse.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -363,10 +364,6 @@ export class GrokcliPermissions extends ToolPermissions {
     });
   }
 
-  override isDeletable(): boolean {
-    return false;
-  }
-
   static getSettablePaths(_options?: { global?: boolean }): ToolPermissionsSettablePaths {
     // Both project (./.grok/config.toml) and global (~/.grok/config.toml) use
     // the same relative path; the scope is resolved by the outputRoot passed to
@@ -500,10 +497,6 @@ export class GrokcliPermissions extends ToolPermissions {
     });
   }
 
-  validate(): ValidationResult {
-    return { success: true, error: null };
-  }
-
   static forDeletion({
     outputRoot = process.cwd(),
     relativeDirPath,
@@ -520,12 +513,6 @@ export class GrokcliPermissions extends ToolPermissions {
     });
   }
 }
-
-// Grok's documented evaluation precedence, `deny > ask > allow`. Used to
-// resolve the case where two canonical rules collapse onto the same Grok entry
-// (e.g. `edit` and `write` both map to `Edit`): the strictest action wins, so
-// only one non-contradictory entry is emitted.
-const ACTION_RANK: Record<PermissionAction, number> = { allow: 0, ask: 1, deny: 2 };
 
 /**
  * Collect user-authored entries from an existing `[permission]` array whose
@@ -580,7 +567,7 @@ function buildGrokPermissionArrays(
             `('${existing}' and '${action}'); keeping the stricter one (deny > ask > allow).`,
         );
       }
-      if (existing === undefined || ACTION_RANK[action] > ACTION_RANK[existing]) {
+      if (isStricterAction({ action, existing })) {
         ranked.set(entry, action);
       }
     }
@@ -626,7 +613,12 @@ function warnRemovedAllToolsRestrictions({
       (entry) => parseGrokEntry(entry)?.category === ALL_TOOLS_PERMISSION_CATEGORY,
     );
     if (!hadAllTools) continue;
-    if (generated !== undefined && ACTION_RANK[generated] >= ACTION_RANK[action]) continue;
+    if (
+      generated !== undefined &&
+      PERMISSION_ACTION_PRIORITY[generated] >= PERMISSION_ACTION_PRIORITY[action]
+    ) {
+      continue;
+    }
     logger.warn(
       `Grok CLI permissions: removing the existing bare '*' entry from the '${action}' array — ` +
         `Rulesync now manages it through the all-tools '*' category, and the canonical config ` +
@@ -655,7 +647,8 @@ function warnEntriesShadowedByAllTools({
   const shadowed = [...ranked]
     .filter(
       ([entry, action]) =>
-        entry !== GROK_ALL_TOOLS_ENTRY && ACTION_RANK[action] < ACTION_RANK[allTools],
+        entry !== GROK_ALL_TOOLS_ENTRY &&
+        PERMISSION_ACTION_PRIORITY[action] < PERMISSION_ACTION_PRIORITY[allTools],
     )
     .map(([entry]) => entry)
     .toSorted();
@@ -710,7 +703,7 @@ function parseGrokPermissionArrays(
     const existing = bucket[pattern];
     // Strictest wins across both forms (deny > ask > allow), independent of the
     // order the two sources are read in.
-    if (existing === undefined || ACTION_RANK[action] > ACTION_RANK[existing]) {
+    if (isStricterAction({ action, existing })) {
       bucket[pattern] = action;
     }
   };

@@ -109,7 +109,7 @@ export type PiExtensionDialect = {
   promptCancelLine: string;
 };
 
-export const PI_EXTENSION_DIALECT: PiExtensionDialect = {
+const PI_EXTENSION_DIALECT: PiExtensionDialect = {
   overrideKey: "pi",
   typesPackage: "@earendil-works/pi-coding-agent",
   promptPassLine: 'return { action: "continue" };',

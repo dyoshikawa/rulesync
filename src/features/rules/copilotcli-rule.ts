@@ -1,6 +1,5 @@
 import { ToolTarget } from "../../types/tool-targets.js";
 import { CopilotRule } from "./copilot-rule.js";
-import { RulesyncRule } from "./rulesync-rule.js";
 import {
   ToolRuleForDeletionParams,
   ToolRuleFromFileParams,
@@ -8,6 +7,8 @@ import {
 } from "./tool-rule.js";
 
 export class CopilotcliRule extends CopilotRule {
+  protected static override readonly toolTarget: ToolTarget = "copilotcli";
+
   private static fromCopilotRule(copilotRule: CopilotRule, validate = true): CopilotcliRule {
     return new CopilotcliRule({
       outputRoot: copilotRule.getOutputRoot(),
@@ -36,12 +37,5 @@ export class CopilotcliRule extends CopilotRule {
 
   static override forDeletion(params: ToolRuleForDeletionParams): CopilotcliRule {
     return this.fromCopilotRule(CopilotRule.forDeletion(params), false);
-  }
-
-  static override isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
-    return this.isTargetedByRulesyncRuleDefault({
-      rulesyncRule,
-      toolTarget: "copilotcli" satisfies ToolTarget,
-    });
   }
 }

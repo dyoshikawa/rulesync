@@ -4,7 +4,11 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { setupTestDirectory } from "../test-utils/test-directories.js";
-import { assertPathOptionsWithinCwd, assertPathOptionWithinCwd } from "./path-options.js";
+import {
+  assertOptionalPathOptionWithinCwd,
+  assertPathOptionsWithinCwd,
+  assertPathOptionWithinCwd,
+} from "./path-options.js";
 
 describe("assertPathOptionWithinCwd", () => {
   let testDir: string;
@@ -141,6 +145,15 @@ describe("assertPathOptionWithinCwd", () => {
     ).rejects.toThrow("inputRoots must stay inside the project directory");
     await expect(
       assertPathOptionsWithinCwd({ paths: undefined, label: "inputRoots" }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("checks an optional path only when it is given", async () => {
+    await expect(
+      assertOptionalPathOptionWithinCwd({ path: "../bad", label: "configPath" }),
+    ).rejects.toThrow("configPath must stay inside the project directory");
+    await expect(
+      assertOptionalPathOptionWithinCwd({ path: undefined, label: "configPath" }),
     ).resolves.toBeUndefined();
   });
 });

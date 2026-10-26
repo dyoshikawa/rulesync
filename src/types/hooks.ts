@@ -39,7 +39,7 @@ export type HookType = (typeof HOOK_TYPES)[number];
  * it executes the hook command. The prompt text is written back into JSON,
  * never embedded in generated code, so it is a plain string.
  */
-export const HookConfirmOptionSchema = z.looseObject({
+const HookConfirmOptionSchema = z.looseObject({
   id: z.string(),
   label: z.string(),
   run: z.boolean(),
@@ -192,6 +192,13 @@ export const HookDefinitionSchema = z.looseObject({
   // and wakes Claude on exit code 2 (it implies `async`).
   // https://code.claude.com/docs/en/hooks
   asyncRewake: z.optional(z.boolean()),
+  // Qoder command hooks paired with `asyncRewake`: `rewakeMessage` overrides
+  // the prefix of the system message injected when the hook exits with code 2,
+  // and `rewakeSummary` overrides the one-line summary shown to the user and
+  // the model (Qoder caps it at 300 characters).
+  // https://docs.qoder.com/en/cli/hooks
+  rewakeMessage: z.optional(safeString),
+  rewakeSummary: z.optional(safeString),
   // Claude Code: feed a blocking hook's rejection reason back to the model and
   // continue the turn instead of ending it. Added for `PostToolUse` in 2.1.139.
   // https://code.claude.com/docs/en/hooks
@@ -988,6 +995,14 @@ export const POOL_HOOK_EVENTS: readonly HookEvent[] = [
   "stop",
 ];
 
+/**
+ * Invert a canonical-to-tool event name map into the tool-to-canonical map
+ * the importers read.
+ */
+function invertEventNames(map: Readonly<Record<string, string>>): Record<string, string> {
+  return Object.fromEntries(Object.entries(map).map(([canonical, tool]) => [tool, canonical]));
+}
+
 export const CANONICAL_TO_POOL_EVENT_NAMES: Record<string, string> = {
   preToolUse: "PreToolUse",
   postToolUse: "PostToolUse",
@@ -997,8 +1012,8 @@ export const CANONICAL_TO_POOL_EVENT_NAMES: Record<string, string> = {
   stop: "Stop",
 };
 
-export const POOL_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
-  Object.entries(CANONICAL_TO_POOL_EVENT_NAMES).map(([k, v]) => [v, k]),
+export const POOL_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+  CANONICAL_TO_POOL_EVENT_NAMES,
 );
 
 /**
@@ -1241,11 +1256,8 @@ export const KIMI_CODE_NATIVE_HOOK_EVENTS = [
   "SessionHeartbeat",
 ] as const;
 
-export const KIMI_CODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
-  Object.entries(CANONICAL_TO_KIMI_CODE_EVENT_NAMES).map(([canonical, kimiCode]) => [
-    kimiCode,
-    canonical,
-  ]),
+export const KIMI_CODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+  CANONICAL_TO_KIMI_CODE_EVENT_NAMES,
 );
 
 /**
@@ -1292,8 +1304,8 @@ export const CANONICAL_TO_ZCODE_EVENT_NAMES: Record<string, string> = {
   stop: "Stop",
 };
 
-export const ZCODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
-  Object.entries(CANONICAL_TO_ZCODE_EVENT_NAMES).map(([k, v]) => [v, k]),
+export const ZCODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+  CANONICAL_TO_ZCODE_EVENT_NAMES,
 );
 
 /**
@@ -1329,8 +1341,8 @@ export const CANONICAL_TO_BOB_EVENT_NAMES: Record<string, string> = {
   stop: "Stop",
 };
 
-export const BOB_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
-  Object.entries(CANONICAL_TO_BOB_EVENT_NAMES).map(([k, v]) => [v, k]),
+export const BOB_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+  CANONICAL_TO_BOB_EVENT_NAMES,
 );
 
 /**
@@ -1373,8 +1385,8 @@ export const CANONICAL_TO_TABNINE_EVENT_NAMES: Record<string, string> = {
   notification: "Notification",
 };
 
-export const TABNINE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
-  Object.entries(CANONICAL_TO_TABNINE_EVENT_NAMES).map(([k, v]) => [v, k]),
+export const TABNINE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+  CANONICAL_TO_TABNINE_EVENT_NAMES,
 );
 
 /**
@@ -1417,8 +1429,8 @@ export const CANONICAL_TO_CORTEXCODE_EVENT_NAMES: Record<string, string> = {
   setup: "Setup",
 };
 
-export const CORTEXCODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
-  Object.entries(CANONICAL_TO_CORTEXCODE_EVENT_NAMES).map(([k, v]) => [v, k]),
+export const CORTEXCODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+  CANONICAL_TO_CORTEXCODE_EVENT_NAMES,
 );
 
 /**
@@ -1526,8 +1538,8 @@ export const CANONICAL_TO_CODEBUDDY_EVENT_NAMES: Record<string, string> = {
   userPromptExpansion: "UserPromptExpansion",
 };
 
-export const CODEBUDDY_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
-  Object.entries(CANONICAL_TO_CODEBUDDY_EVENT_NAMES).map(([k, v]) => [v, k]),
+export const CODEBUDDY_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+  CANONICAL_TO_CODEBUDDY_EVENT_NAMES,
 );
 
 /**
@@ -1604,8 +1616,8 @@ export const CANONICAL_TO_QODER_EVENT_NAMES: Record<string, string> = {
   setup: "Setup",
 };
 
-export const QODER_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
-  Object.entries(CANONICAL_TO_QODER_EVENT_NAMES).map(([k, v]) => [v, k]),
+export const QODER_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+  CANONICAL_TO_QODER_EVENT_NAMES,
 );
 
 /**
@@ -1633,8 +1645,8 @@ export const CANONICAL_TO_COMMANDCODE_EVENT_NAMES: Record<string, string> = {
   sessionStart: "SessionStart",
 };
 
-export const COMMANDCODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
-  Object.entries(CANONICAL_TO_COMMANDCODE_EVENT_NAMES).map(([k, v]) => [v, k]),
+export const COMMANDCODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+  CANONICAL_TO_COMMANDCODE_EVENT_NAMES,
 );
 
 /**
@@ -1677,8 +1689,8 @@ export const CANONICAL_TO_LETTACODE_EVENT_NAMES: Record<string, string> = {
   preCompact: "PreCompact",
 };
 
-export const LETTACODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
-  Object.entries(CANONICAL_TO_LETTACODE_EVENT_NAMES).map(([k, v]) => [v, k]),
+export const LETTACODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+  CANONICAL_TO_LETTACODE_EVENT_NAMES,
 );
 
 /**
@@ -1735,8 +1747,8 @@ export const CANONICAL_TO_CONTINUE_EVENT_NAMES: Record<string, string> = {
   worktreeRemove: "WorktreeRemove",
 };
 
-export const CONTINUE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
-  Object.entries(CANONICAL_TO_CONTINUE_EVENT_NAMES).map(([k, v]) => [v, k]),
+export const CONTINUE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+  CANONICAL_TO_CONTINUE_EVENT_NAMES,
 );
 
 /**
@@ -1862,8 +1874,8 @@ export const CANONICAL_TO_HERMESAGENT_EVENT_NAMES: Record<string, string> = {
 /**
  * Map Hermes Agent's native `VALID_HOOKS` keys back to canonical camelCase.
  */
-export const HERMESAGENT_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
-  Object.entries(CANONICAL_TO_HERMESAGENT_EVENT_NAMES).map(([k, v]) => [v, k]),
+export const HERMESAGENT_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+  CANONICAL_TO_HERMESAGENT_EVENT_NAMES,
 );
 
 const hooksRecordSchema = z.record(z.string(), z.array(HookDefinitionSchema));
@@ -2007,8 +2019,8 @@ export const CANONICAL_TO_CLAUDE_EVENT_NAMES: Record<string, string> = {
 /**
  * Map Claude PascalCase event names to canonical camelCase.
  */
-export const CLAUDE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
-  Object.entries(CANONICAL_TO_CLAUDE_EVENT_NAMES).map(([k, v]) => [v, k]),
+export const CLAUDE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+  CANONICAL_TO_CLAUDE_EVENT_NAMES,
 );
 
 /**
@@ -2041,7 +2053,7 @@ export const CANONICAL_TO_DEVIN_EVENT_NAMES: Record<string, string> = {
  * (CLI v3000.11.92) is accepted on import as an alias of `PostCompaction`.
  */
 export const DEVIN_TO_CANONICAL_EVENT_NAMES: Record<string, string> = {
-  ...Object.fromEntries(Object.entries(CANONICAL_TO_DEVIN_EVENT_NAMES).map(([k, v]) => [v, k])),
+  ...invertEventNames(CANONICAL_TO_DEVIN_EVENT_NAMES),
   PostCompact: "postCompact",
 };
 
@@ -2062,8 +2074,8 @@ export const CANONICAL_TO_AUGMENTCODE_EVENT_NAMES: Record<string, string> = {
 /**
  * Map AugmentCode PascalCase event names to canonical camelCase.
  */
-export const AUGMENTCODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
-  Object.entries(CANONICAL_TO_AUGMENTCODE_EVENT_NAMES).map(([k, v]) => [v, k]),
+export const AUGMENTCODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+  CANONICAL_TO_AUGMENTCODE_EVENT_NAMES,
 );
 
 /**
@@ -2083,8 +2095,8 @@ export const CANONICAL_TO_ANTIGRAVITY_EVENT_NAMES: Record<string, string> = {
 /**
  * Map Antigravity PascalCase event names to canonical camelCase.
  */
-export const ANTIGRAVITY_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
-  Object.entries(CANONICAL_TO_ANTIGRAVITY_EVENT_NAMES).map(([k, v]) => [v, k]),
+export const ANTIGRAVITY_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+  CANONICAL_TO_ANTIGRAVITY_EVENT_NAMES,
 );
 
 /**
@@ -2118,8 +2130,8 @@ export const CANONICAL_TO_CURSOR_EVENT_NAMES: Record<string, string> = {
 /**
  * Map Cursor camelCase event names to canonical camelCase.
  */
-export const CURSOR_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
-  Object.entries(CANONICAL_TO_CURSOR_EVENT_NAMES).map(([k, v]) => [v, k]),
+export const CURSOR_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+  CANONICAL_TO_CURSOR_EVENT_NAMES,
 );
 
 /**
@@ -2140,8 +2152,8 @@ export const CANONICAL_TO_FACTORYDROID_EVENT_NAMES: Record<string, string> = {
 /**
  * Map Factory Droid PascalCase event names to canonical camelCase.
  */
-export const FACTORYDROID_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
-  Object.entries(CANONICAL_TO_FACTORYDROID_EVENT_NAMES).map(([k, v]) => [v, k]),
+export const FACTORYDROID_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+  CANONICAL_TO_FACTORYDROID_EVENT_NAMES,
 );
 
 /**
@@ -2358,8 +2370,8 @@ export const CANONICAL_TO_COPILOT_EVENT_NAMES: Record<string, string> = {
 /**
  * Map Copilot camelCase event names to canonical camelCase.
  */
-export const COPILOT_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
-  Object.entries(CANONICAL_TO_COPILOT_EVENT_NAMES).map(([k, v]) => [v, k]),
+export const COPILOT_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+  CANONICAL_TO_COPILOT_EVENT_NAMES,
 );
 
 /**
@@ -2390,8 +2402,8 @@ export const CANONICAL_TO_COPILOTCLI_EVENT_NAMES: Record<string, string> = {
 };
 
 /** Map GitHub Copilot CLI event names back to canonical camelCase. */
-export const COPILOTCLI_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
-  Object.entries(CANONICAL_TO_COPILOTCLI_EVENT_NAMES).map(([k, v]) => [v, k]),
+export const COPILOTCLI_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+  CANONICAL_TO_COPILOTCLI_EVENT_NAMES,
 );
 
 /**
@@ -2417,8 +2429,8 @@ export const CANONICAL_TO_CODEXCLI_EVENT_NAMES: Record<string, string> = {
 /**
  * Map Codex CLI PascalCase event names to canonical camelCase.
  */
-export const CODEXCLI_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
-  Object.entries(CANONICAL_TO_CODEXCLI_EVENT_NAMES).map(([k, v]) => [v, k]),
+export const CODEXCLI_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+  CANONICAL_TO_CODEXCLI_EVENT_NAMES,
 );
 
 /**
@@ -2441,8 +2453,8 @@ export const CANONICAL_TO_GOOSE_EVENT_NAMES: Record<string, string> = {
 /**
  * Map Goose PascalCase event names to canonical camelCase.
  */
-export const GOOSE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
-  Object.entries(CANONICAL_TO_GOOSE_EVENT_NAMES).map(([k, v]) => [v, k]),
+export const GOOSE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+  CANONICAL_TO_GOOSE_EVENT_NAMES,
 );
 
 /**
@@ -2480,8 +2492,8 @@ export const CANONICAL_TO_DEEPAGENTS_EVENT_NAMES: Record<string, string> = {
 /**
  * Map deepagents-cli `HookEvent` values to canonical camelCase.
  */
-export const DEEPAGENTS_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
-  Object.entries(CANONICAL_TO_DEEPAGENTS_EVENT_NAMES).map(([k, v]) => [v, k]),
+export const DEEPAGENTS_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+  CANONICAL_TO_DEEPAGENTS_EVENT_NAMES,
 );
 
 /**
@@ -2564,8 +2576,8 @@ export const KIRO_LEGACY_TO_KIRO_IDE_TRIGGER_NAMES: Record<string, string> = {
 /**
  * Map Kiro CLI camelCase event names to canonical camelCase.
  */
-export const KIRO_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
-  Object.entries(CANONICAL_TO_KIRO_EVENT_NAMES).map(([k, v]) => [v, k]),
+export const KIRO_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+  CANONICAL_TO_KIRO_EVENT_NAMES,
 );
 
 /**
@@ -2587,8 +2599,8 @@ export const CANONICAL_TO_KIRO_IDE_EVENT_NAMES: Record<string, string> = {
 /**
  * Map Kiro IDE PascalCase trigger names to canonical camelCase.
  */
-export const KIRO_IDE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
-  Object.entries(CANONICAL_TO_KIRO_IDE_EVENT_NAMES).map(([k, v]) => [v, k]),
+export const KIRO_IDE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+  CANONICAL_TO_KIRO_IDE_EVENT_NAMES,
 );
 
 /**
@@ -2603,8 +2615,8 @@ export const CANONICAL_TO_GITLABDUO_EVENT_NAMES: Record<string, string> = {
 /**
  * Map GitLab Duo CLI PascalCase event names to canonical camelCase.
  */
-export const GITLABDUO_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
-  Object.entries(CANONICAL_TO_GITLABDUO_EVENT_NAMES).map(([k, v]) => [v, k]),
+export const GITLABDUO_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+  CANONICAL_TO_GITLABDUO_EVENT_NAMES,
 );
 
 /**
@@ -2624,8 +2636,8 @@ export const CANONICAL_TO_JUNIE_EVENT_NAMES: Record<string, string> = {
 /**
  * Map Junie PascalCase event names to canonical camelCase.
  */
-export const JUNIE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
-  Object.entries(CANONICAL_TO_JUNIE_EVENT_NAMES).map(([k, v]) => [v, k]),
+export const JUNIE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+  CANONICAL_TO_JUNIE_EVENT_NAMES,
 );
 
 /**
@@ -2656,7 +2668,7 @@ export const CANONICAL_TO_VIBE_EVENT_NAMES: Record<string, string> = {
  * into a tool override block and lose the event.
  */
 export const VIBE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = {
-  ...Object.fromEntries(Object.entries(CANONICAL_TO_VIBE_EVENT_NAMES).map(([k, v]) => [v, k])),
+  ...invertEventNames(CANONICAL_TO_VIBE_EVENT_NAMES),
   before_tool: "preToolUse",
   after_tool: "postToolUse",
   post_agent_turn: "stop",
@@ -2684,8 +2696,8 @@ export const CANONICAL_TO_CODEWHALE_EVENT_NAMES: Record<string, string> = {
 };
 
 /** Map Codewhale snake_case event names to canonical camelCase. */
-export const CODEWHALE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
-  Object.entries(CANONICAL_TO_CODEWHALE_EVENT_NAMES).map(([k, v]) => [v, k]),
+export const CODEWHALE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+  CANONICAL_TO_CODEWHALE_EVENT_NAMES,
 );
 
 /**
@@ -2697,8 +2709,8 @@ export const CANONICAL_TO_CRUSH_EVENT_NAMES: Record<string, string> = {
   preToolUse: "PreToolUse",
 };
 
-export const CRUSH_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
-  Object.entries(CANONICAL_TO_CRUSH_EVENT_NAMES).map(([k, v]) => [v, k]),
+export const CRUSH_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+  CANONICAL_TO_CRUSH_EVENT_NAMES,
 );
 
 /**
@@ -2736,8 +2748,8 @@ export const CANONICAL_TO_QWENCODE_EVENT_NAMES: Record<string, string> = {
 /**
  * Map Qwen Code PascalCase event names to canonical camelCase.
  */
-export const QWENCODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
-  Object.entries(CANONICAL_TO_QWENCODE_EVENT_NAMES).map(([k, v]) => [v, k]),
+export const QWENCODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+  CANONICAL_TO_QWENCODE_EVENT_NAMES,
 );
 
 /**
@@ -2765,8 +2777,8 @@ export const CANONICAL_TO_REASONIX_EVENT_NAMES: Record<string, string> = {
 /**
  * Map Reasonix PascalCase event names to canonical camelCase.
  */
-export const REASONIX_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
-  Object.entries(CANONICAL_TO_REASONIX_EVENT_NAMES).map(([k, v]) => [v, k]),
+export const REASONIX_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+  CANONICAL_TO_REASONIX_EVENT_NAMES,
 );
 
 /**
@@ -2796,6 +2808,6 @@ export const CANONICAL_TO_GROKCLI_EVENT_NAMES: Record<string, string> = {
 /**
  * Map Grok CLI PascalCase event names to canonical camelCase.
  */
-export const GROKCLI_TO_CANONICAL_EVENT_NAMES: Record<string, string> = Object.fromEntries(
-  Object.entries(CANONICAL_TO_GROKCLI_EVENT_NAMES).map(([k, v]) => [v, k]),
+export const GROKCLI_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+  CANONICAL_TO_GROKCLI_EVENT_NAMES,
 );

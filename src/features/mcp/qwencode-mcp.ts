@@ -5,7 +5,6 @@ import {
   QWENCODE_PROJECT_MCP_FILE_NAME,
   QWENCODE_SETTINGS_FILE_NAME,
 } from "../../constants/qwencode-paths.js";
-import { ValidationResult } from "../../types/ai-file.js";
 import { McpServers } from "../../types/mcp.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
@@ -259,10 +258,6 @@ export class QwencodeMcp extends ToolMcp {
         2,
       ),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   /**

@@ -1,6 +1,7 @@
+import type { DeletedPath } from "../../lib/orphan-sweep.js";
 import { AiFile, AiFileFromFileParams, AiFileParams } from "../../types/ai-file.js";
 import type { ToolFile } from "../../types/tool-file.js";
-import type { ToolTarget } from "../../types/tool-targets.js";
+import { isTargetedByTargets, type ToolTarget } from "../../types/tool-targets.js";
 import type { Logger } from "../../utils/logger.js";
 import type { RulesyncCommand } from "./rulesync-command.js";
 
@@ -17,6 +18,17 @@ export type ToolCommandFromFileParams = AiFileFromFileParams;
 
 export type ToolCommandSettablePaths = {
   relativeDirPath: string;
+};
+
+export type ToolCommandAfterOrphanSweepParams = {
+  outputRoot: string;
+  global: boolean;
+  dryRun: boolean;
+  logger: Logger;
+  existingFiles: AiFile[];
+  generatedFiles: AiFile[];
+  /** What this sweep removed, or would remove under `--check`. */
+  removedPaths: readonly DeletedPath[];
 };
 
 export type ToolCommandForDeletionParams = {
@@ -93,6 +105,18 @@ export abstract class ToolCommand extends AiFile {
   }
 
   /**
+   * Optional hook run once the processor has swept this target's orphaned
+   * command files, for shared config outside them that must follow the sweep
+   * (e.g. Goose's `slash_commands` registrations, Hermes Agent's commands
+   * plugin switch). Returns the number of files it changed (or would change
+   * under `--dry-run`). Most tools don't need this and inherit the no-op
+   * default.
+   */
+  static async afterOrphanSweep(_params: ToolCommandAfterOrphanSweepParams): Promise<number> {
+    return 0;
+  }
+
+  /**
    * Convert a RulesyncCommand to the tool-specific command format.
    *
    * This method should:
@@ -145,19 +169,6 @@ export abstract class ToolCommand extends AiFile {
     rulesyncCommand: RulesyncCommand;
     toolTarget: ToolTarget;
   }): boolean {
-    const targets = rulesyncCommand.getFrontmatter().targets;
-    if (!targets) {
-      return true;
-    }
-
-    if (targets.includes("*")) {
-      return true;
-    }
-
-    if (targets.includes(toolTarget)) {
-      return true;
-    }
-
-    return false;
+    return isTargetedByTargets({ targets: rulesyncCommand.getFrontmatter().targets, toolTarget });
   }
 }

@@ -1,20 +1,6 @@
-import { join } from "node:path";
-
 import { MUSECODE_RULE_FILE_NAME } from "../../constants/musecode-paths.js";
-import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
-import { readFileContent } from "../../utils/file.js";
-import { RulesyncRule } from "./rulesync-rule.js";
-import {
-  ToolRule,
-  ToolRuleForDeletionParams,
-  ToolRuleFromFileParams,
-  ToolRuleFromRulesyncRuleParams,
-  ToolRuleSettablePaths,
-} from "./tool-rule.js";
-
-export type MusecodeRuleParams = AiFileParams & {
-  root?: boolean;
-};
+import { SingleRootFileRule } from "./single-root-file-rule.js";
+import { ToolRuleSettablePaths } from "./tool-rule.js";
 
 /**
  * Rule generator for Meta Muse Code.
@@ -41,15 +27,7 @@ export type MusecodeRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> & {
   nonRoot?: undefined;
 };
 
-export class MusecodeRule extends ToolRule {
-  constructor({ fileContent, root, ...rest }: MusecodeRuleParams) {
-    super({
-      ...rest,
-      fileContent,
-      root: root ?? false,
-    });
-  }
-
+export class MusecodeRule extends SingleRootFileRule {
   static getSettablePaths(
     _options: {
       global?: boolean;
@@ -66,74 +44,5 @@ export class MusecodeRule extends ToolRule {
     };
   }
 
-  static async fromFile({
-    outputRoot = process.cwd(),
-    relativeFilePath: _relativeFilePath,
-    validate = true,
-    global = false,
-  }: ToolRuleFromFileParams): Promise<MusecodeRule> {
-    const { root } = this.getSettablePaths({ global });
-    const relativePath = join(root.relativeDirPath, root.relativeFilePath);
-    const fileContent = await readFileContent(join(outputRoot, relativePath));
-
-    return new MusecodeRule({
-      outputRoot,
-      relativeDirPath: root.relativeDirPath,
-      relativeFilePath: root.relativeFilePath,
-      fileContent,
-      validate,
-      root: true,
-    });
-  }
-
-  static fromRulesyncRule({
-    outputRoot = process.cwd(),
-    rulesyncRule,
-    validate = true,
-    global = false,
-  }: ToolRuleFromRulesyncRuleParams): MusecodeRule {
-    const { root } = this.getSettablePaths({ global });
-    const isRoot = rulesyncRule.getFrontmatter().root ?? false;
-
-    return new MusecodeRule({
-      outputRoot,
-      relativeDirPath: root.relativeDirPath,
-      relativeFilePath: root.relativeFilePath,
-      fileContent: rulesyncRule.getBody(),
-      validate,
-      root: isRoot,
-    });
-  }
-
-  toRulesyncRule(): RulesyncRule {
-    return this.toRulesyncRuleDefault();
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolRuleForDeletionParams): MusecodeRule {
-    const isRoot = relativeFilePath === MUSECODE_RULE_FILE_NAME && relativeDirPath === ".";
-
-    return new MusecodeRule({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: "",
-      validate: false,
-      root: isRoot,
-    });
-  }
-
-  static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
-    return this.isTargetedByRulesyncRuleDefault({
-      rulesyncRule,
-      toolTarget: "musecode",
-    });
-  }
+  protected static override readonly toolTarget = "musecode";
 }

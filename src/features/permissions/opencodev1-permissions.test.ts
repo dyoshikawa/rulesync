@@ -689,4 +689,30 @@ describe("Opencodev1Permissions", () => {
 
     expect(instance.getJson().permission).toEqual({});
   });
+  it("writes canonical MCP categories as OpenCode's <server>_<tool> keys and imports them back", async () => {
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+      fileContent: JSON.stringify({
+        permission: { mcp__deepwiki__ask_question: { "*": "deny" } },
+      }),
+    });
+    await writeFileContent(
+      join(testDir, "opencode.json"),
+      JSON.stringify({ mcp: { deepwiki: { type: "remote", url: "https://example.com/mcp" } } }),
+    );
+
+    const generated = await Opencodev1Permissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+    expect(generated.getJson().permission).toEqual({ deepwiki_ask_question: { "*": "deny" } });
+
+    await writeFileContent(join(testDir, "opencode.json"), generated.getFileContent());
+    const rulesync = (await Opencodev1Permissions.fromFile({ outputRoot: testDir }))
+      .toRulesyncPermissions()
+      .getJson();
+    expect(rulesync).toEqual({ permission: { mcp__deepwiki__ask_question: { "*": "deny" } } });
+  });
 });

@@ -7,7 +7,11 @@ import { ValidationResult } from "../../types/ai-file.js";
 import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
-import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
+import {
+  parseFrontmatter,
+  stringifyFrontmatter,
+  validateFrontmatterSchema,
+} from "../../utils/frontmatter.js";
 import type { Logger } from "../../utils/logger.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
 import {
@@ -207,17 +211,12 @@ export class OpenCodeSubagent extends OpenCodeStyleSubagent {
    * the constructor, not here), matching every sibling subagent.
    */
   validate(): ValidationResult {
-    const result = OpenCodeSubagentFrontmatterSchema.safeParse(this.frontmatter);
-    if (result.success) {
-      return { success: true, error: null };
-    }
-
-    return {
-      success: false,
-      error: new Error(
-        `Invalid frontmatter in ${join(this.relativeDirPath, this.relativeFilePath)}: ${formatError(result.error)}`,
-      ),
-    };
+    return validateFrontmatterSchema({
+      schema: OpenCodeSubagentFrontmatterSchema,
+      frontmatter: this.frontmatter,
+      relativeDirPath: this.relativeDirPath,
+      relativeFilePath: this.relativeFilePath,
+    });
   }
 
   static getSettablePaths({
@@ -238,13 +237,15 @@ export class OpenCodeSubagent extends OpenCodeStyleSubagent {
     rulesyncSubagent,
     validate = true,
     global = false,
+    logger,
   }: ToolSubagentFromRulesyncSubagentParams): ToolSubagent {
     const rulesyncFrontmatter = rulesyncSubagent.getFrontmatter();
     const opencodeSection = rulesyncFrontmatter[this.layout.toolTarget] ?? {};
 
-    // OpenCode V2 reads frontmatter carrying any V1-only field (`name`
-    // included) as a V1 agent and ignores its V2 fields, so a V2 agent is
-    // written in the V2 spelling alone, its ID coming from the file name.
+    // OpenCode V2 reads frontmatter mixing V1-only fields (`name` included)
+    // and V2 fields as V2 and ignores the V1 fields (before v2.1.4 it read it
+    // as V1 and ignored the V2 fields), so a V2 agent is written in the V2
+    // spelling alone, its ID coming from the file name.
     const parseResult = OpenCodeSubagentFrontmatterSchema.safeParse(
       this.layout.configVersion === "v2"
         ? raiseOpencodeAgentToV2({
@@ -264,6 +265,13 @@ export class OpenCodeSubagent extends OpenCodeStyleSubagent {
       );
     }
     const opencodeFrontmatter: OpenCodeSubagentFrontmatter = parseResult.data;
+    if (this.layout.configVersion === "v2" && opencodeFrontmatter.request !== undefined) {
+      // https://opencode.ai/v2/docs/agents/: "The V2 session runner preserves
+      // these values but does not yet send them with model requests."
+      logger?.warn(
+        `OpenCode subagent "${rulesyncSubagent.getRelativeFilePath()}": OpenCode 2.x keeps "request" (where "temperature", "top_p" and "options" are written) but does not yet send it with model requests, so these settings have no effect. Set them on the provider, model or model variant instead.`,
+      );
+    }
 
     const body = rulesyncSubagent.getBody();
     const fileContent = stringifyFrontmatter(body, opencodeFrontmatter);

@@ -22,7 +22,6 @@ const buildCommand = (
     relativeFilePath: "test.md",
     frontmatter: { targets, description: "Test", ...extra },
     body,
-    fileContent: "",
   });
 
 describe("CodewhaleCommand", () => {

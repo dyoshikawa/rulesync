@@ -7,6 +7,5 @@ export const KIMI_CODE_CONFIG_FILE_NAME = "config.toml";
 export const KIMI_CODE_SKILLS_DIR_NAME = "skills";
 export const KIMI_CODE_AGENTS_DIR_NAME = "agents";
 export const KIMI_CODE_SKILLS_DIR_PATH = join(KIMI_CODE_DIR, KIMI_CODE_SKILLS_DIR_NAME);
-export const KIMI_CODE_AGENTS_DIR_PATH = join(KIMI_CODE_DIR, KIMI_CODE_AGENTS_DIR_NAME);
 export const KIMI_CODE_SHARED_SKILLS_DIR_PATH = join(".agents", "skills");
 export const KIMI_CODE_SHARED_AGENTS_DIR_PATH = join(".agents", "agents");

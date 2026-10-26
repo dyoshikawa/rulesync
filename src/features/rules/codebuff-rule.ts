@@ -109,10 +109,5 @@ export class CodebuffRule extends ToolRule {
     });
   }
 
-  static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
-    return this.isTargetedByRulesyncRuleDefault({
-      rulesyncRule,
-      toolTarget: "codebuff",
-    });
-  }
+  protected static override readonly toolTarget = "codebuff";
 }

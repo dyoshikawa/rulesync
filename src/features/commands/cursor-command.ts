@@ -1,20 +1,14 @@
-import { join } from "node:path";
-
 import { z } from "zod/mini";
 
 import { CURSOR_COMMANDS_DIR_PATH } from "../../constants/cursor-paths.js";
-import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
-import { formatError } from "../../utils/error.js";
-import { readFileContent } from "../../utils/file.js";
-import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
-import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
+import type { ToolTarget } from "../../types/tool-targets.js";
+import { stringifyFrontmatter } from "../../utils/frontmatter.js";
 import {
-  ToolCommand,
-  ToolCommandForDeletionParams,
-  ToolCommandFromFileParams,
-  ToolCommandFromRulesyncCommandParams,
-  ToolCommandSettablePaths,
-} from "./tool-command.js";
+  FrontmatterMarkdownToolCommand,
+  type FrontmatterMarkdownToolCommandParams,
+} from "./frontmatter-markdown-command.js";
+import type { RulesyncCommandFrontmatter } from "./rulesync-command.js";
+import type { ToolCommandSettablePaths } from "./tool-command.js";
 
 // looseObject preserves unknown keys during parsing (like passthrough in Zod 3)
 export const CursorCommandFrontmatterSchema = z.looseObject({
@@ -33,170 +27,46 @@ export const CursorCommandFrontmatterSchema = z.looseObject({
 
 export type CursorCommandFrontmatter = z.infer<typeof CursorCommandFrontmatterSchema>;
 
-export type CursorCommandParams = {
-  frontmatter: CursorCommandFrontmatter;
-  body: string;
-} & Omit<AiFileParams, "fileContent">;
+export type CursorCommandParams = FrontmatterMarkdownToolCommandParams<CursorCommandFrontmatter>;
 
-export class CursorCommand extends ToolCommand {
-  private readonly frontmatter: CursorCommandFrontmatter;
-  private readonly body: string;
-
-  constructor({ frontmatter, body, ...rest }: CursorCommandParams) {
-    // Validate frontmatter before calling super to avoid validation order issues
-    if (rest.validate) {
-      const result = CursorCommandFrontmatterSchema.safeParse(frontmatter);
-      if (!result.success) {
-        throw new Error(
-          `Invalid frontmatter in ${join(rest.relativeDirPath, rest.relativeFilePath)}: ${formatError(result.error)}`,
-        );
-      }
-    }
-
-    super({
-      ...rest,
-      fileContent: stringifyFrontmatter(body, frontmatter, { avoidBlockScalars: true }),
-    });
-
-    this.frontmatter = frontmatter;
-    this.body = body;
-  }
-
+export class CursorCommand extends FrontmatterMarkdownToolCommand<CursorCommandFrontmatter> {
   static getSettablePaths(_options: { global?: boolean } = {}): ToolCommandSettablePaths {
     return {
       relativeDirPath: CURSOR_COMMANDS_DIR_PATH,
     };
   }
 
-  getBody(): string {
-    return this.body;
+  protected static override getToolTarget(): ToolTarget {
+    return "cursor";
   }
 
-  getFrontmatter(): Record<string, unknown> {
-    return this.frontmatter;
+  protected static override getFrontmatterSchema() {
+    return CursorCommandFrontmatterSchema;
   }
 
-  toRulesyncCommand(): RulesyncCommand {
-    const { description, ...restFields } = this.frontmatter;
-
-    const rulesyncFrontmatter: RulesyncCommandFrontmatter = {
-      targets: ["*"],
-      description,
-      // Preserve extra fields in cursor section
-      ...(Object.keys(restFields).length > 0 && { cursor: restFields }),
-    };
-
-    // Generate proper file content with Rulesync specific frontmatter
-    const fileContent = stringifyFrontmatter(this.body, rulesyncFrontmatter);
-
-    return new RulesyncCommand({
-      outputRoot: ".", // RulesyncCommand outputRoot is always the project root directory
-      frontmatter: rulesyncFrontmatter,
-      body: this.body,
-      relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
-      relativeFilePath: this.relativeFilePath,
-      fileContent,
-      validate: true,
-    });
+  protected static override stringifyFileContent({
+    body,
+    frontmatter,
+  }: {
+    body: string;
+    frontmatter: Record<string, unknown>;
+  }): string {
+    return stringifyFrontmatter(body, frontmatter, { avoidBlockScalars: true });
   }
 
-  static fromRulesyncCommand({
-    outputRoot = process.cwd(),
-    rulesyncCommand,
-    validate = true,
-    global = false,
-  }: ToolCommandFromRulesyncCommandParams): CursorCommand {
-    const rulesyncFrontmatter = rulesyncCommand.getFrontmatter();
-
+  protected static override toToolFrontmatter(
+    rulesyncFrontmatter: RulesyncCommandFrontmatter,
+  ): CursorCommandFrontmatter {
     // Merge cursor-specific fields from rulesync frontmatter
     const cursorFields = rulesyncFrontmatter.cursor ?? {};
 
-    const cursorFrontmatter: CursorCommandFrontmatter = {
+    return {
       ...(rulesyncFrontmatter.description && { description: rulesyncFrontmatter.description }),
       ...cursorFields,
     };
-
-    // Generate proper file content with Cursor specific frontmatter
-    const body = rulesyncCommand.getBody();
-
-    const paths = this.getSettablePaths({ global });
-
-    return new CursorCommand({
-      outputRoot: outputRoot,
-      frontmatter: cursorFrontmatter,
-      body,
-      relativeDirPath: paths.relativeDirPath,
-      relativeFilePath: rulesyncCommand.getRelativeFilePath(),
-      validate,
-    });
   }
 
-  validate(): ValidationResult {
-    // Check if frontmatter is set (may be undefined during construction)
-    if (!this.frontmatter) {
-      return { success: true, error: null };
-    }
-
-    const result = CursorCommandFrontmatterSchema.safeParse(this.frontmatter);
-    if (result.success) {
-      return { success: true, error: null };
-    } else {
-      return {
-        success: false,
-        error: new Error(
-          `Invalid frontmatter in ${join(this.relativeDirPath, this.relativeFilePath)}: ${formatError(result.error)}`,
-        ),
-      };
-    }
-  }
-
-  static isTargetedByRulesyncCommand(rulesyncCommand: RulesyncCommand): boolean {
-    return this.isTargetedByRulesyncCommandDefault({
-      rulesyncCommand,
-      toolTarget: "cursor",
-    });
-  }
-
-  static async fromFile({
-    outputRoot = process.cwd(),
-    relativeFilePath,
-    validate = true,
-    global = false,
-  }: ToolCommandFromFileParams): Promise<CursorCommand> {
-    const paths = this.getSettablePaths({ global });
-    const filePath = join(outputRoot, paths.relativeDirPath, relativeFilePath);
-
-    const fileContent = await readFileContent(filePath);
-    const { frontmatter, body: content } = parseFrontmatter(fileContent, filePath);
-
-    // Validate using CursorCommandFrontmatterSchema (soft — allows unknown fields)
-    const result = CursorCommandFrontmatterSchema.safeParse(frontmatter);
-    if (!result.success) {
-      throw new Error(`Invalid frontmatter in ${filePath}: ${formatError(result.error)}`);
-    }
-
-    return new CursorCommand({
-      outputRoot: outputRoot,
-      relativeDirPath: paths.relativeDirPath,
-      relativeFilePath,
-      frontmatter: result.data,
-      body: content.trim(),
-      validate,
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolCommandForDeletionParams): CursorCommand {
-    return new CursorCommand({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      frontmatter: {},
-      body: "",
-      validate: false,
-    });
+  protected static override getDeletionFrontmatter(): CursorCommandFrontmatter {
+    return {};
   }
 }

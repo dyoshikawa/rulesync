@@ -5,7 +5,6 @@ import {
   ANTIGRAVITY_GEMINI_DIR,
   ANTIGRAVITY_MCP_FILE_NAME,
 } from "../../constants/antigravity-paths.js";
-import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { parseJsonc } from "../../utils/jsonc.js";
 import { isPlainObject } from "../../utils/type-guards.js";
@@ -206,10 +205,6 @@ export class AntigravityMcp extends ToolMcp {
         2,
       ),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

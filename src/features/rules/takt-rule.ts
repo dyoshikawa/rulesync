@@ -191,10 +191,5 @@ export class TaktRule extends ToolRule {
     return { success: true, error: null };
   }
 
-  static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
-    return this.isTargetedByRulesyncRuleDefault({
-      rulesyncRule,
-      toolTarget: "takt",
-    });
-  }
+  protected static override readonly toolTarget = "takt";
 }

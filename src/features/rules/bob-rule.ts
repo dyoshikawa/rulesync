@@ -147,10 +147,5 @@ export class BobRule extends ToolRule {
     });
   }
 
-  static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
-    return this.isTargetedByRulesyncRuleDefault({
-      rulesyncRule,
-      toolTarget: "bob",
-    });
-  }
+  protected static override readonly toolTarget = "bob";
 }

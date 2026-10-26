@@ -13,16 +13,15 @@ import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-p
 import type { SharedWritePath } from "../../lib/shared-file-derive.js";
 import { type ValidationResult } from "../../types/ai-file.js";
 import {
-  getHermesagentConfigSharedFileKey,
   getHermesagentRelativeDirPath,
   getHermesagentRulesyncOutputRoot,
   getHermesagentSharedConfigWritePaths,
 } from "../../utils/hermesagent.js";
 import {
+  getHermesPluginEnabledConfigContent,
   getHermesQueueUserMessagePython,
   hermesSlashName,
 } from "../shared/hermes-plugin-commands.js";
-import { applySharedConfigPatch, parseSharedConfig } from "../shared/shared-config-gateway.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
 import {
   ToolSubagent,
@@ -158,23 +157,11 @@ function getEnabledPluginConfigContent({
   currentContent: string;
   global: boolean;
 }): string {
-  const config = parseSharedConfig({ format: "yaml", fileContent: currentContent });
-  const plugins =
-    config.plugins && typeof config.plugins === "object"
-      ? (config.plugins as Record<string, unknown>)
-      : {};
-  const enabled = Array.isArray(plugins.enabled) ? plugins.enabled : [];
-
-  return applySharedConfigPatch({
-    fileKey: getHermesagentConfigSharedFileKey({ global }),
+  return getHermesPluginEnabledConfigContent({
+    currentContent,
+    global,
     feature: "subagents",
-    existingContent: currentContent,
-    patch: {
-      plugins: {
-        ...plugins,
-        enabled: Array.from(new Set([...enabled, "rulesync-subagents"])),
-      },
-    },
+    pluginName: "rulesync-subagents",
   });
 }
 

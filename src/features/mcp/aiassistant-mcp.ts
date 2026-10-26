@@ -4,7 +4,6 @@ import {
   AIASSISTANT_MCP_DIR_PATH,
   AIASSISTANT_MCP_FILE_NAME,
 } from "../../constants/aiassistant-paths.js";
-import { ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
@@ -16,6 +15,11 @@ import {
   ToolMcpSettablePaths,
 } from "./tool-mcp.js";
 
+/**
+ * JetBrains AI Assistant's `mcp.json`. Its statics build `new this(...)` so
+ * `JunieMcp`, the same format at another path, only overrides
+ * `getSettablePaths`.
+ */
 export class AiassistantMcp extends ToolMcp {
   private readonly json: Record<string, unknown>;
 
@@ -53,7 +57,7 @@ export class AiassistantMcp extends ToolMcp {
       join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
     );
 
-    return new AiassistantMcp({
+    return new this({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
@@ -81,7 +85,7 @@ export class AiassistantMcp extends ToolMcp {
       2,
     );
 
-    return new AiassistantMcp({
+    return new this({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath: paths.relativeFilePath,
@@ -95,17 +99,13 @@ export class AiassistantMcp extends ToolMcp {
     return this.toRulesyncMcpDefault();
   }
 
-  validate(): ValidationResult {
-    return { success: true, error: null };
-  }
-
   static forDeletion({
     outputRoot = process.cwd(),
     relativeDirPath,
     relativeFilePath,
     global = false,
   }: ToolMcpForDeletionParams): AiassistantMcp {
-    return new AiassistantMcp({
+    return new this({
       outputRoot,
       relativeDirPath,
       relativeFilePath,
