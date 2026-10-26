@@ -122,7 +122,7 @@ async function runRulesyncInstall(logger: Logger, options: InstallCommandOptions
 }
 
 /** Exit code of `install --outdated` when a source could not be resolved. */
-export const OUTDATED_RESOLUTION_FAILED_EXIT_CODE = 2;
+const OUTDATED_RESOLUTION_FAILED_EXIT_CODE = 2;
 
 async function runOutdatedCheck(logger: Logger, options: InstallCommandOptions): Promise<void> {
   const config = await ConfigResolver.resolve(

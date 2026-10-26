@@ -23,8 +23,15 @@ function convertRecordValues({
   pattern: RegExp;
   replacement: string;
 }): Record<string, string> {
+  // Values are typed as strings, but tool files are read without schema
+  // validation and some tools document other value types (VS Code's
+  // `mcp.json` allows numbers and `null` in `env`), so only strings are
+  // rewritten and anything else passes through unchanged.
   return Object.fromEntries(
-    Object.entries(record).map(([k, v]) => [k, v.replace(pattern, replacement)]),
+    Object.entries(record).map(([k, v]) => [
+      k,
+      typeof v === "string" ? v.replace(pattern, replacement) : v,
+    ]),
   );
 }
 
@@ -110,7 +117,9 @@ export function convertEnvVarRefsToToolFormat({
 export function findServersWithEnvVarRefs(mcpServers: McpServers): string[] {
   // `search` ignores `lastIndex`, so the shared global pattern stays stateless.
   const hasRef = (record: Record<string, string> | undefined): boolean =>
-    Object.values(record ?? {}).some((value) => value.search(CANONICAL_ENV_VAR_PATTERN) !== -1);
+    Object.values(record ?? {}).some(
+      (value) => typeof value === "string" && value.search(CANONICAL_ENV_VAR_PATTERN) !== -1,
+    );
   return Object.entries(mcpServers)
     .filter(([, config]) => hasRef(config.env) || hasRef(config.headers))
     .map(([name]) => name);

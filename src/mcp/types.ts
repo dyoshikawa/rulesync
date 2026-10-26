@@ -3,23 +3,13 @@
  */
 
 import { type WarningCollectingLogger } from "../utils/logger.js";
+import type { CountableResult } from "../utils/result.js";
 
 /**
  * Common result counts for file operations
  * Used by both generate and import operations
  */
-export type McpResultCounts = {
-  rulesCount: number;
-  ignoreCount: number;
-  mcpCount: number;
-  commandsCount: number;
-  subagentsCount: number;
-  skillsCount: number;
-  hooksCount: number;
-  permissionsCount: number;
-  checksCount: number;
-  activationCount?: number;
-  pluginManifestCount?: number;
+export type McpResultCounts = CountableResult & {
   totalCount: number;
 };
 

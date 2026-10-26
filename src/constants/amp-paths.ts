@@ -5,6 +5,7 @@ export const AMP_GLOBAL_DIR = join(".config", "amp");
 export const AMP_AGENTS_DIR = ".agents";
 export const AMP_SKILLS_PROJECT_DIR = join(AMP_AGENTS_DIR, "skills");
 export const AMP_SKILLS_GLOBAL_DIR = join(".config", "agents", "skills");
+export const AMP_SKILLS_NATIVE_GLOBAL_DIR = join(AMP_GLOBAL_DIR, "skills");
 export const AMP_CHECKS_PROJECT_DIR = join(AMP_AGENTS_DIR, "checks");
 export const AMP_CHECKS_GLOBAL_DIR = join(AMP_GLOBAL_DIR, "checks");
 export const AMP_PLUGINS_PROJECT_DIR = join(AMP_DIR, "plugins");

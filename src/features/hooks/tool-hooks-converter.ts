@@ -14,7 +14,7 @@ import type { Logger } from "../../utils/logger.js";
 import { compact } from "../../utils/object.js";
 import { lookupOwn } from "../../utils/own-lookup.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
-import { isPlainObject } from "../../utils/type-guards.js";
+import { isPlainObject, isStringArray } from "../../utils/type-guards.js";
 import { anchorDotPaths, importProjectDirVariable } from "./hook-command-paths.js";
 
 type ToolMatcherEntry = {
@@ -134,10 +134,22 @@ export type ToolHooksConverterConfig = {
    * for tool-specific opaque strings such as Claude Code's `if` condition.
    */
   stringPassthroughFields?: ReadonlyArray<{
-    readonly canonical: "if" | "statusMessage" | "commandWindows" | "shell";
+    readonly canonical:
+      | "if"
+      | "statusMessage"
+      | "commandWindows"
+      | "shell"
+      | "rewakeMessage"
+      | "rewakeSummary";
     readonly tool: string;
     /** Emit only on `command` hooks, for a field the tool documents there only. */
     readonly commandOnly?: boolean;
+    /**
+     * The length the tool caps the value at (Qoder truncates `rewakeSummary`
+     * to 300 characters). A longer value is still emitted, with a warning that
+     * the tool will shorten it.
+     */
+    readonly maxLength?: number;
   }>;
   /**
    * Per-hook string-array fields to carry through the round-trip. Only arrays
@@ -464,6 +476,7 @@ type PassthroughFieldSpec = {
   readonly canonical: string;
   readonly tool: string;
   readonly commandOnly?: boolean;
+  readonly maxLength?: number;
 };
 
 /**
@@ -516,7 +529,7 @@ function emitPassthroughFields<TValue>({
   isValid: PassthroughValidator;
   warn?: (message: string) => void;
 }): Record<string, TValue> {
-  for (const { canonical, tool, commandOnly } of fields) {
+  for (const { canonical, tool, commandOnly, maxLength } of fields) {
     const value = def[canonical];
     if (value === undefined) {
       continue;
@@ -535,6 +548,13 @@ function emitPassthroughFields<TValue>({
       warn?.(
         `Dropping "${canonical}" from a "${hookType}" hook on "${eventName}": ` +
           `${quoteValueForWarning(value)} is not a value this tool can express as "${tool}".`,
+      );
+      continue;
+    }
+    if (maxLength !== undefined && typeof value === "string" && value.length > maxLength) {
+      warn?.(
+        `"${canonical}" on a "${hookType}" hook on "${eventName}" is ${value.length} characters long; ` +
+          `this tool caps "${tool}" at ${maxLength} characters and will shorten it.`,
       );
     }
   }
@@ -1369,10 +1389,6 @@ function resolveImportedHookType({
 function isStringRecord(value: unknown): value is Record<string, string> {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
   return Object.values(value).every((v) => typeof v === "string");
-}
-
-function isStringArray(value: unknown): value is string[] {
-  return Array.isArray(value) && value.every((v) => typeof v === "string");
 }
 
 /** Compare object values without letting key order decide the answer. */

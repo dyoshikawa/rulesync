@@ -324,10 +324,5 @@ export class PiRule extends ToolRule {
     });
   }
 
-  static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
-    return this.isTargetedByRulesyncRuleDefault({
-      rulesyncRule,
-      toolTarget: "pi",
-    });
-  }
+  protected static override readonly toolTarget = "pi";
 }

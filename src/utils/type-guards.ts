@@ -29,3 +29,13 @@ export function isPlainObject(value: unknown): value is Record<string, unknown> 
 export function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === "string");
 }
+
+/**
+ * Keep only the string entries of an array; a non-array becomes `[]`. For
+ * narrowing hand-edited config values that may hold any type.
+ */
+export function toStringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((entry): entry is string => typeof entry === "string")
+    : [];
+}

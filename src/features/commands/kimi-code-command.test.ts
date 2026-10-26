@@ -36,7 +36,6 @@ describe("KimiCodeCommand", () => {
         description: "Review the current changes",
       },
       body: "Review $ARGUMENTS carefully.",
-      fileContent: "",
     });
 
     it("should emit a manual-only SKILL.md under a per-command slug directory", () => {
@@ -63,7 +62,6 @@ describe("KimiCodeCommand", () => {
         relativeFilePath: "deploy.md",
         frontmatter: {},
         body: "Deploy the app.",
-        fileContent: "",
       });
 
       const command = KimiCodeCommand.fromRulesyncCommand({
@@ -82,7 +80,6 @@ describe("KimiCodeCommand", () => {
         relativeFilePath: "deploy.md",
         frontmatter: { description: "   " },
         body: "Deploy the app.",
-        fileContent: "",
       });
 
       const command = KimiCodeCommand.fromRulesyncCommand({
@@ -107,7 +104,6 @@ describe("KimiCodeCommand", () => {
           },
         },
         body: "Commit.",
-        fileContent: "",
       });
 
       const { frontmatter } = parseFrontmatter(
@@ -134,7 +130,6 @@ describe("KimiCodeCommand", () => {
           "kimi-code": { whenToUse: "canonical", when_to_use: "alias" },
         },
         body: "Commit.",
-        fileContent: "",
       });
 
       const { frontmatter } = parseFrontmatter(
@@ -162,7 +157,6 @@ describe("KimiCodeCommand", () => {
           },
         },
         body: "Commit with $message.",
-        fileContent: "",
       });
 
       const { frontmatter } = parseFrontmatter(
@@ -219,7 +213,6 @@ describe("KimiCodeCommand", () => {
         relativeFilePath: "review-pr.md",
         frontmatter: { targets: targets as ["*"] | undefined, description: "Review" },
         body: "Review.",
-        fileContent: "",
       });
 
       expect(KimiCodeCommand.isTargetedByRulesyncCommand(rulesyncCommand)).toBe(expected);

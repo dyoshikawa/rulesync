@@ -10,8 +10,8 @@ import type { OpencodeLayout } from "./opencode-paths.js";
  *
  * @see https://github.com/XiaomiMiMo/MiMo-Code#configuration
  */
-export const MIMOCODE_DIR = ".mimocode";
-export const MIMOCODE_GLOBAL_DIR = join(".config", "mimocode");
+const MIMOCODE_DIR = ".mimocode";
+const MIMOCODE_GLOBAL_DIR = join(".config", "mimocode");
 
 export const MIMOCODE_LAYOUT: OpencodeLayout = {
   toolTarget: "mimocode",

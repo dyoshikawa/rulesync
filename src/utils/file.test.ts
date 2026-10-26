@@ -3,10 +3,7 @@ import { join, relative, resolve } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import {
-  RULESYNC_RELATIVE_DIR_PATH,
-  RULESYNC_RULES_RELATIVE_DIR_PATH,
-} from "../constants/rulesync-paths.js";
+import { RULESYNC_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import {
   addTrailingNewline,
@@ -17,16 +14,13 @@ import {
   assertPathResolvesInsideRoot,
   assertWritablePathInsideRoot,
   checkPathTraversal,
-  createPathResolver,
   directoryExists,
   directoryExistsStrict,
   ensureDir,
   fileExists,
   fileExistsStrict,
   filterOutPathsInGitIgnoredDirectories,
-  findFiles,
   findFilesByGlobs,
-  findRuleFiles,
   getFileSizeAndExecutableBit,
   getHomeDirectory,
   isFileNotFoundError,
@@ -40,7 +34,6 @@ import {
   posixRelativePathEscapesRoot,
   readFileBufferOrNull,
   readFileContent,
-  readJsonFile,
   relativeWriteLanding,
   removeDirectory,
   removeFile,
@@ -58,7 +51,6 @@ import {
   validateOutputRoot,
   writeFileBuffer,
   writeFileContent,
-  writeJsonFile,
 } from "./file.js";
 
 describe("file utilities", () => {
@@ -554,90 +546,6 @@ describe("file utilities", () => {
     });
   });
 
-  describe("createPathResolver", () => {
-    it("should create a resolver function bound to outputRoot", () => {
-      const resolver = createPathResolver(testDir);
-      const resolved = resolver("subdir/file.txt");
-      expect(resolved).toBe(resolve(testDir, "subdir/file.txt"));
-    });
-
-    it("should work without outputRoot", () => {
-      const resolver = createPathResolver();
-      const path = "some/path";
-      expect(resolver(path)).toBe(path);
-    });
-  });
-
-  describe("JSON file operations", () => {
-    let testJsonPath: string;
-    const testData = { name: "test", value: 42, nested: { array: [1, 2, 3] } };
-
-    beforeEach(() => {
-      testJsonPath = join(testDir, "test.json");
-    });
-
-    describe("writeJsonFile", () => {
-      it("should write JSON file with default formatting", async () => {
-        await writeJsonFile(testJsonPath, testData);
-
-        const content = await readFileContent(testJsonPath);
-        expect(content).toContain('"name": "test"');
-        expect(JSON.parse(content)).toEqual(testData);
-      });
-
-      it("should write JSON file with custom indentation", async () => {
-        await writeJsonFile(testJsonPath, testData, 4);
-
-        const content = await readFileContent(testJsonPath);
-        expect(content).toContain('    "name": "test"');
-      });
-    });
-
-    describe("readJsonFile", () => {
-      beforeEach(async () => {
-        await writeJsonFile(testJsonPath, testData);
-      });
-
-      it("should read and parse JSON file correctly", async () => {
-        const result = await readJsonFile(testJsonPath);
-        expect(result).toEqual(testData);
-      });
-
-      it("should return typed result", async () => {
-        type TestType = {
-          name: string;
-          value: number;
-        };
-
-        const result = await readJsonFile<TestType>(testJsonPath);
-        expect(result.name).toBe("test");
-        expect(result.value).toBe(42);
-      });
-
-      it("should return default value when file doesn't exist", async () => {
-        const defaultValue = { default: true };
-        const result = await readJsonFile("nonexistent.json", defaultValue);
-        expect(result).toEqual(defaultValue);
-      });
-
-      it("should throw error when file doesn't exist and no default provided", async () => {
-        await expect(readJsonFile("nonexistent.json")).rejects.toThrow();
-      });
-
-      it("should throw error for invalid JSON", async () => {
-        await writeFileContent(testJsonPath, "invalid json content");
-        await expect(readJsonFile(testJsonPath)).rejects.toThrow();
-      });
-
-      it("should return default for invalid JSON when default provided", async () => {
-        await writeFileContent(testJsonPath, "invalid json content");
-        const defaultValue = { error: "fallback" };
-        const result = await readJsonFile(testJsonPath, defaultValue);
-        expect(result).toEqual(defaultValue);
-      });
-    });
-  });
-
   describe("directoryExists", () => {
     it("should return true for existing directory", async () => {
       expect(await directoryExists(testDir)).toBe(true);
@@ -830,34 +738,6 @@ describe("file utilities", () => {
 
       it("should return empty array for non-existent directory", async () => {
         const files = await listDirectoryEntryNames(join(testDir, "nonexistent"));
-        expect(files).toEqual([]);
-      });
-    });
-
-    describe("findFiles", () => {
-      beforeEach(async () => {
-        await writeFileContent(join(testDir, "file1.md"), "content1");
-        await writeFileContent(join(testDir, "file2.txt"), "content2");
-        await writeFileContent(join(testDir, "file3.md"), "content3");
-      });
-
-      it("should find files with default extension (.md)", async () => {
-        const files = await findFiles(testDir);
-
-        expect(files).toHaveLength(2);
-        expect(files).toContain(join(testDir, "file1.md"));
-        expect(files).toContain(join(testDir, "file3.md"));
-      });
-
-      it("should find files with custom extension", async () => {
-        const files = await findFiles(testDir, ".txt");
-
-        expect(files).toHaveLength(1);
-        expect(files).toContain(join(testDir, "file2.txt"));
-      });
-
-      it("should return empty array for non-existent directory", async () => {
-        const files = await findFiles(join(testDir, "nonexistent"));
         expect(files).toEqual([]);
       });
     });
@@ -2047,40 +1927,6 @@ describe("file utilities", () => {
           expect(results).toEqual([realFile]);
         });
       });
-    });
-  });
-
-  describe("findRuleFiles", () => {
-    it("should only return files from the rules directory", async () => {
-      const aiRulesDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
-      const rulesDir = join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH);
-
-      await writeFileContent(join(aiRulesDir, "common.md"), "legacy content");
-      await writeFileContent(join(rulesDir, "common.md"), "new content");
-      await writeFileContent(join(rulesDir, "new-only.md"), "new only");
-
-      const ruleFiles = await findRuleFiles(aiRulesDir);
-
-      expect(ruleFiles).toEqual([join(rulesDir, "common.md"), join(rulesDir, "new-only.md")]);
-    });
-
-    it("should handle missing directories gracefully", async () => {
-      const aiRulesDir = join(testDir, "nonexistent");
-      const ruleFiles = await findRuleFiles(aiRulesDir);
-      expect(ruleFiles).toEqual([]);
-    });
-
-    it("should return only new location files when legacy is empty", async () => {
-      const aiRulesDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
-      const rulesDir = join(testDir, RULESYNC_RULES_RELATIVE_DIR_PATH);
-
-      await writeFileContent(join(rulesDir, "rule1.md"), "content1");
-      await writeFileContent(join(rulesDir, "rule2.md"), "content2");
-
-      const ruleFiles = await findRuleFiles(aiRulesDir);
-
-      expect(ruleFiles).toHaveLength(2);
-      expect(ruleFiles.every((f) => f.includes("/rules/"))).toBe(true);
     });
   });
 

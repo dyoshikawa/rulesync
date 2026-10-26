@@ -48,7 +48,7 @@ const VIBE_PLUGIN_AGENT_FILE_STEM_PATTERN = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
 
 const VIBE_PLUGIN_AGENT_DESCRIPTION_MAX_LENGTH = 300;
 
-export const VibePluginAgentTomlSchema = z.looseObject({
+const VibePluginAgentTomlSchema = z.looseObject({
   schema_version: z.literal(1),
   agent_type: z.literal("subagent"),
   display_name: z.optional(z.string()),

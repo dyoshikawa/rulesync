@@ -5,7 +5,6 @@ import { z } from "zod/mini";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
-import { formatError } from "../../utils/error.js";
 import type { Logger } from "../../utils/logger.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
 import {
@@ -189,29 +188,8 @@ export class VibeSkill extends ToolSkill {
     return VibeSkillFrontmatterSchema.parse(this.requireMainFileFrontmatter());
   }
 
-  getBody(): string {
-    return this.mainFile?.body ?? "";
-  }
-
   validate(): ValidationResult {
-    if (!this.mainFile) {
-      return {
-        success: false,
-        error: new Error(`${this.getDirPath()}: ${SKILL_FILE_NAME} file does not exist`),
-      };
-    }
-
-    const result = VibeSkillFrontmatterSchema.safeParse(this.mainFile.frontmatter);
-    if (!result.success) {
-      return {
-        success: false,
-        error: new Error(
-          `Invalid frontmatter in ${this.getDirPath()}: ${formatError(result.error)}`,
-        ),
-      };
-    }
-
-    return { success: true, error: null };
+    return this.validateMainFileFrontmatter(VibeSkillFrontmatterSchema);
   }
 
   toRulesyncSkill(): RulesyncSkill {
@@ -287,19 +265,13 @@ export class VibeSkill extends ToolSkill {
       getSettablePaths: (options) => this.getSettablePaths(options),
     });
 
-    const result = VibeSkillFrontmatterSchema.safeParse(loaded.frontmatter);
-    if (!result.success) {
-      const skillDirPath = join(loaded.outputRoot, loaded.relativeDirPath, loaded.dirName);
-      throw new Error(
-        `Invalid frontmatter in ${join(skillDirPath, SKILL_FILE_NAME)}: ${formatError(result.error)}`,
-      );
-    }
+    const frontmatter = this.parseLoadedFrontmatter({ schema: VibeSkillFrontmatterSchema, loaded });
 
     return new VibeSkill({
       outputRoot: loaded.outputRoot,
       relativeDirPath: loaded.relativeDirPath,
       dirName: loaded.dirName,
-      frontmatter: result.data,
+      frontmatter,
       body: loaded.body,
       otherFiles: loaded.otherFiles,
       validate: true,
@@ -313,10 +285,9 @@ export class VibeSkill extends ToolSkill {
     dirName,
     global = false,
   }: ToolSkillForDeletionParams): VibeSkill {
-    const settablePaths = this.getSettablePaths({ global });
     return new VibeSkill({
       outputRoot,
-      relativeDirPath: relativeDirPath ?? settablePaths.relativeDirPath,
+      relativeDirPath,
       dirName,
       frontmatter: { name: "", description: "" },
       body: "",

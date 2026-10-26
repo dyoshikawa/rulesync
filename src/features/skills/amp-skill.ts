@@ -1,12 +1,14 @@
-import { join } from "node:path";
-
 import { z } from "zod/mini";
 
-import { AMP_SKILLS_GLOBAL_DIR, AMP_SKILLS_PROJECT_DIR } from "../../constants/amp-paths.js";
+import { AGENTSMD_SKILLS_DIR_PATH } from "../../constants/agentsmd-paths.js";
+import {
+  AMP_SKILLS_GLOBAL_DIR,
+  AMP_SKILLS_NATIVE_GLOBAL_DIR,
+  AMP_SKILLS_PROJECT_DIR,
+} from "../../constants/amp-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
-import { formatError } from "../../utils/error.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import {
   ToolSkill,
@@ -39,7 +41,9 @@ export type AmpSkillParams = {
  *
  * Amp natively reads Agent Skills following the open standard: a directory with a
  * `SKILL.md` carrying `name`/`description` frontmatter, scoped to the project
- * (`.agents/skills/`) and user-wide (`~/.config/agents/skills/`).
+ * (`.agents/skills/`) and user-wide (`~/.config/agents/skills/`). Global import
+ * also reads `~/.agents/skills/` and `~/.config/amp/skills/`, in that order,
+ * without managing either discovery root on generation or deletion.
  * @see https://ampcode.com/docs/customize/skills
  */
 export class AmpSkill extends ToolSkill {
@@ -77,6 +81,11 @@ export class AmpSkill extends ToolSkill {
   static getSettablePaths({ global = false }: { global?: boolean } = {}): ToolSkillSettablePaths {
     return {
       relativeDirPath: global ? AMP_SKILLS_GLOBAL_DIR : AMP_SKILLS_PROJECT_DIR,
+      // Amp reads these after the shared .config/agents root. Discover them
+      // without taking ownership of their contents on generate --delete.
+      ...(global && {
+        importOnlySkillRoots: [AGENTSMD_SKILLS_DIR_PATH, AMP_SKILLS_NATIVE_GLOBAL_DIR],
+      }),
     };
   }
 
@@ -84,29 +93,8 @@ export class AmpSkill extends ToolSkill {
     return AmpSkillFrontmatterSchema.parse(this.requireMainFileFrontmatter());
   }
 
-  getBody(): string {
-    return this.mainFile?.body ?? "";
-  }
-
   validate(): ValidationResult {
-    if (!this.mainFile) {
-      return {
-        success: false,
-        error: new Error(`${this.getDirPath()}: ${SKILL_FILE_NAME} file does not exist`),
-      };
-    }
-
-    const result = AmpSkillFrontmatterSchema.safeParse(this.mainFile.frontmatter);
-    if (!result.success) {
-      return {
-        success: false,
-        error: new Error(
-          `Invalid frontmatter in ${this.getDirPath()}: ${formatError(result.error)}`,
-        ),
-      };
-    }
-
-    return { success: true, error: null };
+    return this.validateMainFileFrontmatter(AmpSkillFrontmatterSchema);
   }
 
   toRulesyncSkill(): RulesyncSkill {
@@ -174,19 +162,13 @@ export class AmpSkill extends ToolSkill {
       getSettablePaths: AmpSkill.getSettablePaths,
     });
 
-    const result = AmpSkillFrontmatterSchema.safeParse(loaded.frontmatter);
-    if (!result.success) {
-      const skillDirPath = join(loaded.outputRoot, loaded.relativeDirPath, loaded.dirName);
-      throw new Error(
-        `Invalid frontmatter in ${join(skillDirPath, SKILL_FILE_NAME)}: ${formatError(result.error)}`,
-      );
-    }
+    const frontmatter = this.parseLoadedFrontmatter({ schema: AmpSkillFrontmatterSchema, loaded });
 
     return new AmpSkill({
       outputRoot: loaded.outputRoot,
       relativeDirPath: loaded.relativeDirPath,
       dirName: loaded.dirName,
-      frontmatter: result.data,
+      frontmatter,
       body: loaded.body,
       otherFiles: loaded.otherFiles,
       validate: true,
@@ -200,10 +182,9 @@ export class AmpSkill extends ToolSkill {
     dirName,
     global = false,
   }: ToolSkillForDeletionParams): AmpSkill {
-    const settablePaths = AmpSkill.getSettablePaths({ global });
     return new AmpSkill({
       outputRoot,
-      relativeDirPath: relativeDirPath ?? settablePaths.relativeDirPath,
+      relativeDirPath,
       dirName,
       frontmatter: { name: "", description: "" },
       body: "",

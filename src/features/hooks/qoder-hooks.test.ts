@@ -127,6 +127,8 @@ describe("QoderHooks", () => {
               once: true,
               async: true,
               asyncRewake: true,
+              rewakeMessage: "Lint failed:",
+              rewakeSummary: "Lint errors found",
               args: ["--fix"],
               env: { FOO: "bar" },
             },
@@ -150,9 +152,96 @@ describe("QoderHooks", () => {
         once: true,
         async: true,
         asyncRewake: true,
+        rewakeMessage: "Lint failed:",
+        rewakeSummary: "Lint errors found",
         args: ["--fix"],
         env: { FOO: "bar" },
       });
+    });
+
+    it("should warn when rewakeSummary exceeds Qoder's 300-character cap but still emit it", async () => {
+      const summary = "x".repeat(301);
+      const rulesyncHooks = buildRulesyncHooks(testDir, {
+        version: 1,
+        hooks: {
+          stop: [
+            { type: "command", command: "check.sh", asyncRewake: true, rewakeSummary: summary },
+          ],
+        },
+      });
+
+      const logger = createMockLogger();
+      const warnSpy = vi.spyOn(logger, "warn");
+      const qoderHooks = await QoderHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+        logger,
+      });
+
+      const parsed = JSON.parse(qoderHooks.getFileContent());
+      expect(parsed.hooks.Stop[0].hooks[0].rewakeSummary).toBe(summary);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('caps "rewakeSummary" at 300 characters'),
+      );
+    });
+
+    it("should not warn when rewakeSummary is exactly 300 characters", async () => {
+      const rulesyncHooks = buildRulesyncHooks(testDir, {
+        version: 1,
+        hooks: {
+          stop: [
+            {
+              type: "command",
+              command: "check.sh",
+              asyncRewake: true,
+              rewakeSummary: "x".repeat(300),
+            },
+          ],
+        },
+      });
+
+      const logger = createMockLogger();
+      const warnSpy = vi.spyOn(logger, "warn");
+      await QoderHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+        logger,
+      });
+
+      expect(warnSpy).not.toHaveBeenCalled();
+    });
+
+    it("should drop rewakeMessage and rewakeSummary from non-command hooks", async () => {
+      const rulesyncHooks = buildRulesyncHooks(testDir, {
+        version: 1,
+        hooks: {
+          stop: [
+            {
+              type: "prompt",
+              prompt: "Done?",
+              rewakeMessage: "Prefix:",
+              rewakeSummary: "Summary",
+            },
+          ],
+        },
+      });
+
+      const logger = createMockLogger();
+      const warnSpy = vi.spyOn(logger, "warn");
+      const qoderHooks = await QoderHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+        logger,
+      });
+
+      const hook = JSON.parse(qoderHooks.getFileContent()).hooks.Stop[0].hooks[0];
+      expect(hook).not.toHaveProperty("rewakeMessage");
+      expect(hook).not.toHaveProperty("rewakeSummary");
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Dropping "rewakeMessage"'));
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('Dropping "rewakeSummary"'));
     });
 
     it("should anchor dot-relative commands to $QODER_PROJECT_DIR", async () => {
@@ -358,6 +447,41 @@ describe("QoderHooks", () => {
       });
       // Sibling settings keys must not leak into the canonical model.
       expect((json as Record<string, unknown>).model).toBeUndefined();
+    });
+
+    it("should round-trip rewakeMessage and rewakeSummary on command hooks", () => {
+      const qoderHooks = new QoderHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".qoder",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          hooks: {
+            Stop: [
+              {
+                hooks: [
+                  {
+                    type: "command",
+                    command: "check.sh",
+                    asyncRewake: true,
+                    rewakeMessage: "Check failed:",
+                    rewakeSummary: "Checks found issues",
+                  },
+                ],
+              },
+            ],
+          },
+        }),
+        validate: false,
+      });
+
+      const json = qoderHooks.toRulesyncHooks().getJson();
+
+      expect(json.hooks.stop?.[0]).toMatchObject({
+        command: "check.sh",
+        asyncRewake: true,
+        rewakeMessage: "Check failed:",
+        rewakeSummary: "Checks found issues",
+      });
     });
   });
 });

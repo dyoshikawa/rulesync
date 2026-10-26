@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { z } from "zod/mini";
 
 import { KIRO_IDE_HOOKS_DIR_PATH, KIRO_IDE_HOOKS_FILE_NAME } from "../../constants/kiro-paths.js";
-import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { AiFileParams } from "../../types/ai-file.js";
 import type { HookConfirm, HookDefinition, HooksConfig } from "../../types/hooks.js";
 import {
   CANONICAL_TO_KIRO_IDE_EVENT_NAMES,
@@ -13,7 +13,6 @@ import {
   KIRO_LEGACY_TO_KIRO_IDE_TRIGGER_NAMES,
   safeString,
 } from "../../types/hooks.js";
-import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { lookupOwn } from "../../utils/own-lookup.js";
 import {
@@ -311,15 +310,10 @@ export class KiroIdeHooks extends ToolHooks {
   }
 
   toRulesyncHooks(): RulesyncHooks {
-    let parsed: z.infer<typeof KiroIdeHooksFileSchema>;
-    try {
-      parsed = KiroIdeHooksFileSchema.parse(JSON.parse(this.getFileContent()));
-    } catch (error) {
-      throw new Error(
-        `Failed to parse Kiro IDE hooks content in ${join(this.getRelativeDirPath(), this.getRelativeFilePath())}: ${formatError(error)}`,
-        { cause: error },
-      );
-    }
+    const parsed: z.infer<typeof KiroIdeHooksFileSchema> = this.parseFileContentOrThrow({
+      displayName: "Kiro IDE",
+      parse: (fileContent) => KiroIdeHooksFileSchema.parse(JSON.parse(fileContent)),
+    });
     const hooks = kiroIdeHooksToCanonical(parsed.hooks ?? []);
     return this.toRulesyncHooksDefault({
       fileContent: JSON.stringify(
@@ -328,10 +322,6 @@ export class KiroIdeHooks extends ToolHooks {
         2,
       ),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

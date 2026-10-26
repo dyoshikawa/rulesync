@@ -7,7 +7,7 @@ import {
   ZCODE_HOOKS_CONFIG_KEY,
   ZCODE_HOOKS_EVENTS_KEY,
 } from "../../constants/zcode-paths.js";
-import { type AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { AiFileParams } from "../../types/ai-file.js";
 import {
   CANONICAL_TO_ZCODE_EVENT_NAMES,
   ZCODE_HOOK_EVENTS,
@@ -267,10 +267,6 @@ export class ZcodeHooks extends ToolHooks {
         2,
       ),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

@@ -2,13 +2,13 @@
 import { join } from "node:path";
 
 import { QODER_DIR, QODER_SETTINGS_FILE_NAME } from "../../constants/qoder-paths.js";
-import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { AiFileParams } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
-import { isRecord } from "../../utils/type-guards.js";
+import { isRecord, isStringArray, toStringArray } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
   parseSharedConfig,
@@ -16,6 +16,7 @@ import {
 } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { ALL_TOOLS_PERMISSION_CATEGORY, honorAllToolsOnBash } from "./shell-command-categories.js";
+import { isStricterAction } from "./single-action-collapse.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -125,14 +126,6 @@ const QODER_PATH_RULE_ALIASES: Record<string, string> = {
 };
 
 const ACTIONS: readonly PermissionAction[] = ["allow", "ask", "deny"];
-
-const ACTION_RANK: Record<PermissionAction, number> = { allow: 0, ask: 1, deny: 2 };
-
-function toStringList(value: unknown): string[] {
-  return Array.isArray(value)
-    ? value.filter((entry): entry is string => typeof entry === "string")
-    : [];
-}
 
 /**
  * Split a rule into `Tool(payload)` or a bare `Tool`. A rule that opens a
@@ -270,7 +263,7 @@ function buildQoderRuleLists({
         continue;
       }
       const existing = ranked.get(rule);
-      if (existing === undefined || ACTION_RANK[action] > ACTION_RANK[existing]) {
+      if (isStricterAction({ action, existing })) {
         ranked.set(rule, action);
       }
     }
@@ -278,7 +271,7 @@ function buildQoderRuleLists({
 
   const lists = {} as Record<PermissionAction, string[]>;
   for (const action of ACTIONS) {
-    lists[action] = toStringList(existingPermissions[action]).filter((rule) => {
+    lists[action] = toStringArray(existingPermissions[action]).filter((rule) => {
       if (ranked.has(rule)) {
         return false;
       }
@@ -351,14 +344,14 @@ function announcePermissiveQoderSettings({
       `Qoder permissions: qoder.mcp.enableAllProjectMcpServers = true was written to ${where}, so Qoder starts every project-level MCP server without asking for approval.`,
     );
   }
-  const enabledServers = toStringList(mcp.enabledProjectMcpServers);
+  const enabledServers = toStringArray(mcp.enabledProjectMcpServers);
   if (enabledServers.length > 0) {
     logger?.warn(
       `Qoder permissions: qoder.mcp.enabledProjectMcpServers was written to ${where}, so Qoder starts the project-level MCP servers ${enabledServers.map((name) => JSON.stringify(name)).join(", ")} without asking for approval.`,
     );
   }
   const autoMode = isRecord(patch[QODER_AUTO_MODE_KEY]) ? patch[QODER_AUTO_MODE_KEY] : {};
-  if (toStringList(autoMode.allow).length > 0) {
+  if (toStringArray(autoMode.allow).length > 0) {
     logger?.warn(
       `Qoder permissions: qoder.autoMode.allow was written to ${where}, so Qoder's Auto-mode classifier leans toward approving the actions it describes.`,
     );
@@ -432,7 +425,7 @@ function buildQoderOverridePatch({
 
   const excludes = override[QODER_AGENTS_MD_EXCLUDES_KEY];
   if (Array.isArray(excludes)) {
-    patch[QODER_AGENTS_MD_EXCLUDES_KEY] = toStringList(excludes);
+    patch[QODER_AGENTS_MD_EXCLUDES_KEY] = toStringArray(excludes);
   }
   // Announce what the override authored, not what the file already held.
   announcePermissiveQoderSettings({
@@ -462,7 +455,7 @@ function isLiftableQoderValue(key: string, value: unknown): boolean {
     case "overrides":
       return isRecord(value) && Object.values(value).every(isRecord);
     default:
-      return Array.isArray(value) && value.every((entry) => typeof entry === "string");
+      return isStringArray(value);
   }
 }
 
@@ -539,10 +532,6 @@ export class QoderPermissions extends ToolPermissions {
       ...params,
       fileContent: params.fileContent ?? "{}",
     });
-  }
-
-  override isDeletable(): boolean {
-    return false;
   }
 
   static getSettablePaths(_options: { global?: boolean } = {}): ToolPermissionsSettablePaths {
@@ -643,7 +632,7 @@ export class QoderPermissions extends ToolPermissions {
 
     const permission: Record<string, Record<string, PermissionAction>> = {};
     for (const action of ACTIONS) {
-      for (const rule of toStringList(permissions[action])) {
+      for (const rule of toStringArray(permissions[action])) {
         const parsed = fromQoderRule(rule);
         if (
           parsed === null ||
@@ -656,7 +645,7 @@ export class QoderPermissions extends ToolPermissions {
         const existing = rules[parsed.pattern];
         // Qoder checks `deny` before `ask` and `ask` before `allow`, so the
         // stricter action wins when a rule appears in more than one list.
-        if (existing === undefined || ACTION_RANK[action] > ACTION_RANK[existing]) {
+        if (isStricterAction({ action, existing })) {
           rules[parsed.pattern] = action;
         }
       }
@@ -673,10 +662,6 @@ export class QoderPermissions extends ToolPermissions {
         2,
       ),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

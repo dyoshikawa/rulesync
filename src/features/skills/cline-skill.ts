@@ -6,7 +6,6 @@ import { CLINE_SKILLS_DIR_PATH } from "../../constants/cline-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
-import { formatError } from "../../utils/error.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import {
   ToolSkill,
@@ -37,6 +36,8 @@ export type ClineSkillParams = {
 /**
  * Represents a Cline Code skill directory.
  * Skills are stored under .cline/skills/ directories with SKILL.md files.
+ * Cline also scans roots owned by other targets; a same-name skill in a later
+ * root (`.claude/skills/`, `.agents/skills/`, user scope) wins in Cline.
  */
 export class ClineSkill extends ToolSkill {
   constructor({
@@ -85,38 +86,8 @@ export class ClineSkill extends ToolSkill {
     return result;
   }
 
-  getBody(): string {
-    return this.mainFile?.body ?? "";
-  }
-
   validate(): ValidationResult {
-    if (!this.mainFile) {
-      return {
-        success: false,
-        error: new Error(`${this.getDirPath()}: ${SKILL_FILE_NAME} file does not exist`),
-      };
-    }
-
-    const result = ClineSkillFrontmatterSchema.safeParse(this.mainFile.frontmatter);
-    if (!result.success) {
-      return {
-        success: false,
-        error: new Error(
-          `Invalid frontmatter in ${this.getDirPath()}: ${formatError(result.error)}`,
-        ),
-      };
-    }
-
-    if (result.data.name !== this.getDirName()) {
-      return {
-        success: false,
-        error: new Error(
-          `${this.getDirPath()}: frontmatter name (${result.data.name}) must match directory name (${this.getDirName()})`,
-        ),
-      };
-    }
-
-    return { success: true, error: null };
+    return this.validateMainFileFrontmatterAndDirName(ClineSkillFrontmatterSchema);
   }
 
   toRulesyncSkill(): RulesyncSkill {
@@ -190,15 +161,12 @@ export class ClineSkill extends ToolSkill {
       getSettablePaths: ClineSkill.getSettablePaths,
     });
 
-    const result = ClineSkillFrontmatterSchema.safeParse(loaded.frontmatter);
-    if (!result.success) {
-      const skillDirPath = join(loaded.outputRoot, loaded.relativeDirPath, loaded.dirName);
-      throw new Error(
-        `Invalid frontmatter in ${join(skillDirPath, SKILL_FILE_NAME)}: ${formatError(result.error)}`,
-      );
-    }
+    const frontmatter = this.parseLoadedFrontmatter({
+      schema: ClineSkillFrontmatterSchema,
+      loaded,
+    });
 
-    if (result.data.name !== loaded.dirName) {
+    if (frontmatter.name !== loaded.dirName) {
       const skillFilePath = join(
         loaded.outputRoot,
         loaded.relativeDirPath,
@@ -206,7 +174,7 @@ export class ClineSkill extends ToolSkill {
         SKILL_FILE_NAME,
       );
       throw new Error(
-        `Frontmatter name (${result.data.name}) must match directory name (${loaded.dirName}) in ${skillFilePath}`,
+        `Frontmatter name (${frontmatter.name}) must match directory name (${loaded.dirName}) in ${skillFilePath}`,
       );
     }
 
@@ -214,7 +182,7 @@ export class ClineSkill extends ToolSkill {
       outputRoot: loaded.outputRoot,
       relativeDirPath: loaded.relativeDirPath,
       dirName: loaded.dirName,
-      frontmatter: result.data,
+      frontmatter,
       body: loaded.body,
       otherFiles: loaded.otherFiles,
       validate: true,

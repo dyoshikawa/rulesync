@@ -137,7 +137,6 @@ Step 1`;
         relativeFilePath: "workflow.md",
         frontmatter: { targets: ["cline"], description: "" },
         body: validContent,
-        fileContent: validContent,
         validate: true,
       });
 
@@ -216,7 +215,6 @@ Step 1`;
           relativeFilePath: "deploy.md",
           frontmatter: { targets: ["*"], cline: { disabled: "yes", name: "ship", extra: 1 } },
           body: "Deploy steps",
-          fileContent: "",
         }),
       });
 
@@ -261,7 +259,6 @@ Step 1`;
         relativeFilePath: "workflow.md",
         frontmatter: { targets: ["cline"], description: "" },
         body: validContent,
-        fileContent: validContent,
         validate: true,
       });
 
@@ -275,7 +272,6 @@ Step 1`;
         relativeFilePath: "workflow.md",
         frontmatter: { targets: ["cursor"], description: "" },
         body: validContent,
-        fileContent: validContent,
         validate: true,
       });
 

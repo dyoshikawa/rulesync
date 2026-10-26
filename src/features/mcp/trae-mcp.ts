@@ -1,7 +1,6 @@
 import { join } from "node:path";
 
 import { TRAE_DIR, TRAE_MCP_FILE_NAME } from "../../constants/trae-paths.js";
-import { ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent, readFileContentOrNull } from "../../utils/file.js";
 import { warnWithFallback } from "../../utils/logger.js";
@@ -133,10 +132,6 @@ export class TraeMcp extends ToolMcp {
 
   toRulesyncMcp(): RulesyncMcp {
     return this.toRulesyncMcpDefault();
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({
