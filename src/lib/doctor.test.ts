@@ -753,7 +753,7 @@ describe("doctorCommand", () => {
     );
 
     await expect(
-      doctorCommand(mockLogger, { config: join("nested", "custom.jsonc") }),
+      doctorCommand(mockLogger, { configPath: join("nested", "custom.jsonc") }),
     ).rejects.toThrow(CLIError);
     expect(mockLogger.error).toHaveBeenCalledWith(expect.stringContaining("config/unknown-key"));
   });

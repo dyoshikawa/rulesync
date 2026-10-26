@@ -1,6 +1,6 @@
 import { AiFileFromFileParams, AiFileParams } from "../../types/ai-file.js";
 import { ToolFile } from "../../types/tool-file.js";
-import { ToolTarget } from "../../types/tool-targets.js";
+import { isTargetedByTargets, ToolTarget } from "../../types/tool-targets.js";
 import type { Logger } from "../../utils/logger.js";
 import { RulesyncCheck } from "./rulesync-check.js";
 
@@ -100,20 +100,7 @@ export abstract class ToolCheck extends ToolFile {
     rulesyncCheck: RulesyncCheck;
     toolTarget: ToolTarget;
   }): boolean {
-    const targets = rulesyncCheck.getFrontmatter().targets;
-    if (!targets) {
-      return true;
-    }
-
-    if (targets.includes("*")) {
-      return true;
-    }
-
-    if (targets.includes(toolTarget)) {
-      return true;
-    }
-
-    return false;
+    return isTargetedByTargets({ targets: rulesyncCheck.getFrontmatter().targets, toolTarget });
   }
 
   protected static filterToolSpecificSection(

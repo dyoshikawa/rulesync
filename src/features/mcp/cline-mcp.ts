@@ -1,7 +1,6 @@
 import { join } from "node:path";
 
 import { CLINE_MCP_DIR_PATH, CLINE_MCP_FILE_NAME } from "../../constants/cline-paths.js";
-import { ValidationResult } from "../../types/ai-file.js";
 import { isMcpServers } from "../../types/mcp.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
@@ -148,10 +147,6 @@ export class ClineMcp extends ToolMcp {
     return this.toRulesyncMcpDefault({
       fileContent: JSON.stringify({ mcpServers }, null, 2),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

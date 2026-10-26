@@ -12,9 +12,9 @@ export const WARP_WIN32_DIR = join("AppData", "Local", "warp", "Warp", "config")
 // subdirectory of the app's config dir elsewhere (`tui_config_local_dir` in
 // the Warp repository's `crates/warp_core/src/paths.rs`).
 // @see https://docs.warp.dev/agents/cli/configuration/
-export const WARPCLI_DIR = ".warp_cli";
-export const WARPCLI_LINUX_DIR = join(WARP_LINUX_DIR, "cli");
-export const WARPCLI_WIN32_DIR = join(WARP_WIN32_DIR, "cli");
+const WARPCLI_DIR = ".warp_cli";
+const WARPCLI_LINUX_DIR = join(WARP_LINUX_DIR, "cli");
+const WARPCLI_WIN32_DIR = join(WARP_WIN32_DIR, "cli");
 
 /**
  * The Warp Agent CLI's config root, relative to the home directory (the

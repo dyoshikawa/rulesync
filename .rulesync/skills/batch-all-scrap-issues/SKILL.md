@@ -146,7 +146,7 @@ Do not close an issue without leaving this reasoning comment.
    pull, then create a dedicated branch for this issue (e.g.
    `resolve-scrap-issue-<n>-<short-topic>`).
 2. Implement the fix, following `.claude/rules/feature-change-guidelines.md`
-   where applicable (`rules-processor.ts` conventions, frontmatter precedence,
+   where applicable (`tool-rule-factories.ts` conventions, frontmatter precedence,
    `gitignore.ts`, scope support, README/`docs/**` sync, and preserving the
    Tool × Feature happy-path tests). Regenerate config files when needed
    (e.g. `pnpm dev gitignore`).

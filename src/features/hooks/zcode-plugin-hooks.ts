@@ -4,7 +4,6 @@ import {
   ZCODE_PLUGIN_HOOKS_DIR,
   ZCODE_PLUGIN_HOOKS_FILE_NAME,
 } from "../../constants/plugin-paths.js";
-import type { ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
@@ -32,7 +31,7 @@ import { stripProcessHooks, ZCODE_CONVERTER_CONFIG } from "./zcode-hooks.js";
  * consumer's project as its working directory, where a `./`-relative script
  * shipped in the plugin does not exist.
  */
-const ZCODE_PLUGIN_CONVERTER_CONFIG: ToolHooksConverterConfig = {
+export const ZCODE_PLUGIN_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   ...ZCODE_CONVERTER_CONFIG,
   projectDirVar: "$ZCODE_PLUGIN_ROOT",
   prefixDotRelativeCommandsOnly: true,
@@ -133,10 +132,6 @@ export class ZcodePluginHooks extends ToolHooks {
         2,
       ),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

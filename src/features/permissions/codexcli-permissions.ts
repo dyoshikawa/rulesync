@@ -20,9 +20,11 @@ import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { parseGlobPattern } from "../../utils/glob.js";
 import { type Logger, warnWithFallback } from "../../utils/logger.js";
+import { isRecord } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { bashRulesHonoringAllTools } from "./shell-command-categories.js";
+import { isStricterAction } from "./single-action-collapse.js";
 import {
   ToolPermissions,
   type ToolPermissionsForDeletionParams,
@@ -140,10 +142,6 @@ export class CodexcliPermissions extends ToolPermissions {
       relativeDirPath: CODEXCLI_DIR,
       relativeFilePath: CODEXCLI_MCP_FILE_NAME,
     };
-  }
-
-  override isDeletable(): boolean {
-    return false;
   }
 
   static async fromFile({
@@ -337,10 +335,6 @@ export class CodexcliPermissions extends ToolPermissions {
     return this.toRulesyncPermissionsDefault({
       fileContent: JSON.stringify(result, null, 2),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({
@@ -983,12 +977,6 @@ function addFilesystemRule({
   mergeIntoWorkspaceRootTable({ workspaceRootFilesystem, pattern, access });
 }
 
-const PERMISSION_ACTION_RESTRICTIVENESS: Record<PermissionAction, number> = {
-  deny: 2,
-  ask: 1,
-  allow: 0,
-};
-
 // Rewrite workspace-relative canonical patterns into the `:workspace_roots`
 // subpath form Codex accepts BEFORE the read/edit/write categories are
 // merged, so rules that differ only by a leading `./` (e.g. `read: "src/**"`
@@ -1022,12 +1010,9 @@ function normalizeWorkspaceRelativeCategoryRules({
         );
         continue;
       }
-      const existing = normalized[key];
-      normalized[key] =
-        existing === undefined ||
-        PERMISSION_ACTION_RESTRICTIVENESS[action] > PERMISSION_ACTION_RESTRICTIVENESS[existing]
-          ? action
-          : existing;
+      if (isStricterAction({ action, existing: normalized[key] })) {
+        normalized[key] = action;
+      }
     }
     result[category] = normalized;
   }
@@ -1190,10 +1175,6 @@ function toMutableTable(value: unknown): UnknownTable {
   return { ...value };
 }
 
-function isPlainObject(value: unknown): value is UnknownTable {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
-
 // Compute the `codexcli` override's contribution to the top-level config.toml
 // table, keyed by CODEXCLI_OVERRIDE_KEYS (override wins per key, with table
 // values shallow-merged against the existing file so unrelated sibling entries
@@ -1234,7 +1215,7 @@ function computeCodexcliOverridePatch({
     }
     const existingValue = existing[key];
     patch[key] =
-      isPlainObject(existingValue) && isPlainObject(value) ? { ...existingValue, ...value } : value;
+      isRecord(existingValue) && isRecord(value) ? { ...existingValue, ...value } : value;
   }
 
   fillCodexcliDefaults({ existing, patch, logger });
@@ -1515,10 +1496,7 @@ function collapseWriteSideRules(
   for (const category of ["edit", "write"] as const) {
     for (const [pattern, action] of Object.entries(categoryRules[category] ?? {})) {
       const existing = writeSideRules[pattern];
-      if (
-        existing === undefined ||
-        PERMISSION_ACTION_RESTRICTIVENESS[action] > PERMISSION_ACTION_RESTRICTIVENESS[existing]
-      ) {
+      if (isStricterAction({ action, existing })) {
         writeSideRules[pattern] = action;
       }
     }

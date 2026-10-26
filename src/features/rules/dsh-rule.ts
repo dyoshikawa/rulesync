@@ -1,5 +1,6 @@
 import { DSH_DIR } from "../../constants/dsh-paths.js";
 import { NestedAgentsmdRule, NestedAgentsmdRuleFamily } from "./nested-agentsmd-rule.js";
+import { ToolRule, ToolRuleBuildLocalRootFileParams } from "./tool-rule.js";
 
 /**
  * DeepSeek Harness (`dsh`) rules.
@@ -18,6 +19,31 @@ import { NestedAgentsmdRule, NestedAgentsmdRuleFamily } from "./nested-agentsmd-
  * @see https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/context/agent-instructions/README.md
  */
 export class DshRule extends NestedAgentsmdRule {
+  /**
+   * Build this tool's separate personal local-root file (`localRootMode:
+   * "separate-local-file"`), for generation and import. See
+   * {@link ToolRuleBuildLocalRootFileParams}.
+   */
+  static buildLocalRootFile({
+    outputRoot,
+    fileName,
+    body,
+    relativeDirPath,
+    localRoot,
+  }: ToolRuleBuildLocalRootFileParams): ToolRule {
+    // Read from the working directory root, next to the shared root file (`AGENTS.md`), as
+    // plain markdown; there is no tool directory to put it in.
+    return new DshRule({
+      outputRoot,
+      relativeDirPath: relativeDirPath ?? ".",
+      relativeFilePath: fileName,
+      fileContent: body,
+      validate: true,
+      root: true,
+      localRoot,
+    });
+  }
+
   protected static getFamily(): NestedAgentsmdRuleFamily {
     return { globalDir: DSH_DIR, toolTarget: "dsh" };
   }

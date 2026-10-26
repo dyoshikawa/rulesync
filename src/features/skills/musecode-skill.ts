@@ -1,5 +1,3 @@
-import { join } from "node:path";
-
 import { z } from "zod/mini";
 
 import { SKILL_FILE_NAME } from "../../constants/general.js";
@@ -9,7 +7,6 @@ import {
 } from "../../constants/musecode-paths.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
-import { formatError } from "../../utils/error.js";
 import { toSpecConformantAgentSkillFields } from "./agentsskills-skill.js";
 import {
   RulesyncSkill,
@@ -132,29 +129,8 @@ export class MusecodeSkill extends ToolSkill {
     return MusecodeSkillFrontmatterSchema.parse(this.requireMainFileFrontmatter());
   }
 
-  getBody(): string {
-    return this.mainFile?.body ?? "";
-  }
-
   validate(): ValidationResult {
-    if (!this.mainFile) {
-      return {
-        success: false,
-        error: new Error(`${this.getDirPath()}: ${SKILL_FILE_NAME} file does not exist`),
-      };
-    }
-
-    const result = MusecodeSkillFrontmatterSchema.safeParse(this.mainFile.frontmatter);
-    if (!result.success) {
-      return {
-        success: false,
-        error: new Error(
-          `Invalid frontmatter in ${this.getDirPath()}: ${formatError(result.error)}`,
-        ),
-      };
-    }
-
-    return { success: true, error: null };
+    return this.validateMainFileFrontmatter(MusecodeSkillFrontmatterSchema);
   }
 
   toRulesyncSkill(): RulesyncSkill {
@@ -215,19 +191,16 @@ export class MusecodeSkill extends ToolSkill {
       getSettablePaths: MusecodeSkill.getSettablePaths,
     });
 
-    const result = MusecodeSkillFrontmatterSchema.safeParse(loaded.frontmatter);
-    if (!result.success) {
-      const skillDirPath = join(loaded.outputRoot, loaded.relativeDirPath, loaded.dirName);
-      throw new Error(
-        `Invalid frontmatter in ${join(skillDirPath, SKILL_FILE_NAME)}: ${formatError(result.error)}`,
-      );
-    }
+    const frontmatter = this.parseLoadedFrontmatter({
+      schema: MusecodeSkillFrontmatterSchema,
+      loaded,
+    });
 
     return new MusecodeSkill({
       outputRoot: loaded.outputRoot,
       relativeDirPath: loaded.relativeDirPath,
       dirName: loaded.dirName,
-      frontmatter: result.data,
+      frontmatter,
       body: loaded.body,
       otherFiles: loaded.otherFiles,
       validate: true,
@@ -241,10 +214,9 @@ export class MusecodeSkill extends ToolSkill {
     dirName,
     global = false,
   }: ToolSkillForDeletionParams): MusecodeSkill {
-    const settablePaths = MusecodeSkill.getSettablePaths({ global });
     return new MusecodeSkill({
       outputRoot,
-      relativeDirPath: relativeDirPath ?? settablePaths.relativeDirPath,
+      relativeDirPath,
       dirName,
       frontmatter: { name: "", description: "" },
       body: "",

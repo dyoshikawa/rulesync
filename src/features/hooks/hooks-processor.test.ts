@@ -6,6 +6,55 @@ import { RULESYNC_HOOKS_RELATIVE_FILE_PATH } from "../../constants/rulesync-path
 import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
+import {
+  AMP_HOOK_EVENTS,
+  AMP_OVERRIDE_ONLY_HOOK_EVENTS,
+  ANTIGRAVITY_HOOK_EVENTS,
+  AUGMENTCODE_HOOK_EVENTS,
+  BOB_HOOK_EVENTS,
+  CLAUDE_HOOK_EVENTS,
+  CLINE_HOOK_EVENTS,
+  CODEBUDDY_HOOK_EVENTS,
+  CODEBUDDY_MATCHER_HOOK_EVENTS,
+  CODEWHALE_HOOK_EVENTS,
+  CODEWHALE_MATCHER_HOOK_EVENTS,
+  CODEXCLI_HOOK_EVENTS,
+  COMMANDCODE_HOOK_EVENTS,
+  CONTINUE_HOOK_EVENTS,
+  COPILOTCLI_HOOK_EVENTS,
+  COPILOT_HOOK_EVENTS,
+  COPILOT_MATCHER_HOOK_EVENTS,
+  CORTEXCODE_HOOK_EVENTS,
+  CRUSH_HOOK_EVENTS,
+  CURSOR_HOOK_EVENTS,
+  DEEPAGENTS_HOOK_EVENTS,
+  DEVIN_HOOK_EVENTS,
+  FACTORYDROID_HOOK_EVENTS,
+  FIREBENDER_HOOK_EVENTS,
+  GITLABDUO_HOOK_EVENTS,
+  GOOSE_HOOK_EVENTS,
+  GROKCLI_HOOK_EVENTS,
+  HERMESAGENT_HOOK_EVENTS,
+  JUNIE_HOOK_EVENTS,
+  KILO_HOOK_EVENTS,
+  KIMI_CODE_HOOK_EVENTS,
+  KIRO_HOOK_EVENTS,
+  KIRO_IDE_HOOK_EVENTS,
+  LETTACODE_HOOK_EVENTS,
+  OMP_HOOK_EVENTS,
+  OPENCODE_HOOK_EVENTS,
+  OPENCODE_MATCHER_HOOK_EVENTS,
+  OPENCODE_V2_HOOK_EVENTS,
+  OPENCODE_V2_MATCHER_HOOK_EVENTS,
+  PI_HOOK_EVENTS,
+  POOL_HOOK_EVENTS,
+  QODER_HOOK_EVENTS,
+  QWENCODE_HOOK_EVENTS,
+  REASONIX_HOOK_EVENTS,
+  TABNINE_HOOK_EVENTS,
+  VIBE_HOOK_EVENTS,
+  ZCODE_HOOK_EVENTS,
+} from "../../types/hooks.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { ClaudecodeHooks } from "./claudecode-hooks.js";
 import { CodexcliConfigToml, CodexcliHooks } from "./codexcli-hooks.js";
@@ -1238,5 +1287,543 @@ describe("HooksProcessor logger plumbing", () => {
     expect(mockLogger.warn).toHaveBeenCalledWith(
       expect.stringContaining(`For claudecode: Dropping "shell" from a "prompt" hook`),
     );
+  });
+});
+
+describe("toolHooksFactories capability table", () => {
+  // Pins every capability the processor reads (events, hook types, matcher
+  // support, override-block handling, scope/import support) so a refactor of
+  // where these values come from cannot change any of them.
+  const expected = new Map<string, Record<string, unknown>>([
+    [
+      "amp",
+      {
+        meta: { supportsProject: true, supportsGlobal: true, supportsImport: false },
+        supportedEvents: AMP_HOOK_EVENTS,
+        supportedHookTypes: ["command"],
+        supportsMatcher: true,
+        matcherEvents: ["preToolUse", "postToolUse"],
+        dropsUnknownOverrideEvents: true,
+        overrideOnlyEvents: AMP_OVERRIDE_ONLY_HOOK_EVENTS,
+      },
+    ],
+    [
+      "antigravity-cli",
+      {
+        meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
+        supportedEvents: ANTIGRAVITY_HOOK_EVENTS,
+        supportedHookTypes: ["command"],
+        supportsMatcher: true,
+      },
+    ],
+    [
+      "antigravity-ide",
+      {
+        meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
+        supportedEvents: ANTIGRAVITY_HOOK_EVENTS,
+        supportedHookTypes: ["command"],
+        supportsMatcher: true,
+      },
+    ],
+    [
+      "antigravity-plugin",
+      {
+        meta: { supportsProject: true, supportsGlobal: false, supportsImport: true },
+        supportedEvents: ANTIGRAVITY_HOOK_EVENTS,
+        supportedHookTypes: ["command"],
+        supportsMatcher: true,
+        dropsUnknownOverrideEvents: true,
+      },
+    ],
+    [
+      "cursor",
+      {
+        meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
+        supportedEvents: CURSOR_HOOK_EVENTS,
+        supportedHookTypes: ["command", "prompt"],
+        supportsMatcher: true,
+      },
+    ],
+    [
+      "firebender",
+      {
+        meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
+        supportedEvents: FIREBENDER_HOOK_EVENTS,
+        supportedHookTypes: ["command"],
+        supportsMatcher: true,
+      },
+    ],
+    [
+      "claudecode",
+      {
+        meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
+        supportedEvents: CLAUDE_HOOK_EVENTS,
+        supportedHookTypes: ["command", "prompt", "http", "mcp_tool", "agent"],
+        supportsMatcher: true,
+      },
+    ],
+    [
+      "claudecode-plugin",
+      {
+        meta: { supportsProject: true, supportsGlobal: false, supportsImport: true },
+        supportedEvents: CLAUDE_HOOK_EVENTS,
+        supportedHookTypes: ["command", "prompt", "http", "mcp_tool", "agent"],
+        supportsMatcher: true,
+        dropsUnknownOverrideEvents: true,
+      },
+    ],
+    [
+      "codebuddy",
+      {
+        meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
+        supportedEvents: CODEBUDDY_HOOK_EVENTS,
+        supportedHookTypes: ["command", "http", "prompt", "agent"],
+        supportsMatcher: true,
+        matcherEvents: CODEBUDDY_MATCHER_HOOK_EVENTS,
+      },
+    ],
+    [
+      "codewhale",
+      {
+        meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
+        supportedEvents: CODEWHALE_HOOK_EVENTS,
+        supportedHookTypes: ["command"],
+        supportsMatcher: true,
+        matcherEvents: CODEWHALE_MATCHER_HOOK_EVENTS,
+      },
+    ],
+    [
+      "codexcli",
+      {
+        meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
+        supportedEvents: CODEXCLI_HOOK_EVENTS,
+        supportedHookTypes: ["command", "mcp_tool"],
+        supportsMatcher: true,
+      },
+    ],
+    [
+      "commandcode",
+      {
+        meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
+        supportedEvents: COMMANDCODE_HOOK_EVENTS,
+        supportedHookTypes: ["command"],
+        supportsMatcher: true,
+        matcherEvents: ["preToolUse", "postToolUse"],
+      },
+    ],
+    [
+      "copilot",
+      {
+        meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
+        supportedEvents: COPILOT_HOOK_EVENTS,
+        supportedHookTypes: ["command"],
+        supportsMatcher: true,
+        matcherEvents: COPILOT_MATCHER_HOOK_EVENTS,
+      },
+    ],
+    [
+      "copilotcli",
+      {
+        meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
+        supportedEvents: COPILOTCLI_HOOK_EVENTS,
+        supportedHookTypes: ["command", "prompt", "http"],
+        supportsMatcher: true,
+      },
+    ],
+    [
+      "kilo",
+      {
+        meta: { supportsProject: true, supportsGlobal: true, supportsImport: false },
+        supportedEvents: KILO_HOOK_EVENTS,
+        supportedHookTypes: ["command"],
+        supportsMatcher: true,
+        matcherEvents: OPENCODE_MATCHER_HOOK_EVENTS,
+        dropsUnknownOverrideEvents: true,
+      },
+    ],
+    [
+      "mimocode",
+      {
+        meta: { supportsProject: true, supportsGlobal: true, supportsImport: false },
+        supportedEvents: OPENCODE_HOOK_EVENTS,
+        supportedHookTypes: ["command"],
+        supportsMatcher: true,
+        matcherEvents: OPENCODE_MATCHER_HOOK_EVENTS,
+        dropsUnknownOverrideEvents: true,
+      },
+    ],
+    [
+      "opencode",
+      {
+        meta: { supportsProject: true, supportsGlobal: true, supportsImport: false },
+        supportedEvents: OPENCODE_V2_HOOK_EVENTS,
+        supportedHookTypes: ["command"],
+        supportsMatcher: true,
+        matcherEvents: OPENCODE_V2_MATCHER_HOOK_EVENTS,
+        dropsUnknownOverrideEvents: true,
+      },
+    ],
+    [
+      "opencodev1",
+      {
+        meta: { supportsProject: true, supportsGlobal: true, supportsImport: false },
+        supportedEvents: OPENCODE_HOOK_EVENTS,
+        supportedHookTypes: ["command"],
+        supportsMatcher: true,
+        matcherEvents: OPENCODE_MATCHER_HOOK_EVENTS,
+        dropsUnknownOverrideEvents: true,
+      },
+    ],
+    [
+      "pi",
+      {
+        meta: { supportsProject: true, supportsGlobal: true, supportsImport: false },
+        supportedEvents: PI_HOOK_EVENTS,
+        supportedHookTypes: ["command"],
+        supportsMatcher: true,
+        dropsUnknownOverrideEvents: true,
+      },
+    ],
+    [
+      "omp",
+      {
+        meta: { supportsProject: true, supportsGlobal: true, supportsImport: false },
+        supportedEvents: OMP_HOOK_EVENTS,
+        supportedHookTypes: ["command"],
+        supportsMatcher: true,
+        dropsUnknownOverrideEvents: true,
+      },
+    ],
+    [
+      "factorydroid",
+      {
+        meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
+        supportedEvents: FACTORYDROID_HOOK_EVENTS,
+        supportedHookTypes: ["command"],
+        supportsMatcher: true,
+      },
+    ],
+    [
+      "cline",
+      {
+        meta: { supportsProject: true, supportsGlobal: true, supportsImport: false },
+        supportedEvents: CLINE_HOOK_EVENTS,
+        supportedHookTypes: ["command"],
+        supportsMatcher: false,
+        dropsUnknownOverrideEvents: true,
+      },
+    ],
+    [
+      "goose",
+      {
+        meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
+        supportedEvents: GOOSE_HOOK_EVENTS,
+        supportedHookTypes: ["command"],
+        supportsMatcher: true,
+      },
+    ],
+    [
+      "hermesagent",
+      {
+        meta: { supportsProject: false, supportsGlobal: true, supportsImport: true },
+        supportedEvents: HERMESAGENT_HOOK_EVENTS,
+        supportedHookTypes: ["command"],
+        supportsMatcher: true,
+      },
+    ],
+    [
+      "kimi-code",
+      {
+        meta: { supportsProject: false, supportsGlobal: true, supportsImport: true },
+        supportedEvents: KIMI_CODE_HOOK_EVENTS,
+        supportedHookTypes: ["command"],
+        supportsMatcher: true,
+      },
+    ],
+    [
+      "deepagents",
+      {
+        meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
+        supportedEvents: DEEPAGENTS_HOOK_EVENTS,
+        supportedHookTypes: ["command"],
+        supportsMatcher: true,
+        dropsUnknownOverrideEvents: true,
+      },
+    ],
+    [
+      "kiro",
+      {
+        meta: { supportsProject: true, supportsGlobal: false, supportsImport: true },
+        supportedEvents: KIRO_HOOK_EVENTS,
+        supportedHookTypes: ["command"],
+        supportsMatcher: true,
+      },
+    ],
+    [
+      "kiro-cli",
+      {
+        meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
+        supportedEvents: KIRO_IDE_HOOK_EVENTS,
+        supportedHookTypes: ["command", "prompt"],
+        supportsMatcher: true,
+      },
+    ],
+    [
+      "kiro-ide",
+      {
+        meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
+        supportedEvents: KIRO_IDE_HOOK_EVENTS,
+        supportedHookTypes: ["command", "prompt"],
+        supportsMatcher: true,
+      },
+    ],
+    [
+      "lettacode",
+      {
+        meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
+        supportedEvents: LETTACODE_HOOK_EVENTS,
+        supportedHookTypes: ["command"],
+        supportsMatcher: true,
+        matcherEvents: ["preToolUse", "postToolUse", "postToolUseFailure", "permissionRequest"],
+      },
+    ],
+    [
+      "devin",
+      {
+        meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
+        supportedEvents: DEVIN_HOOK_EVENTS,
+        supportedHookTypes: ["command", "prompt"],
+        supportsMatcher: true,
+      },
+    ],
+    [
+      "devin-plugin",
+      {
+        meta: { supportsProject: true, supportsGlobal: false, supportsImport: true },
+        supportedEvents: DEVIN_HOOK_EVENTS,
+        supportedHookTypes: ["command", "prompt"],
+        supportsMatcher: true,
+      },
+    ],
+    [
+      "augmentcode",
+      {
+        meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
+        supportedEvents: AUGMENTCODE_HOOK_EVENTS,
+        supportedHookTypes: ["command"],
+        supportsMatcher: true,
+      },
+    ],
+    [
+      "augmentcode-plugin",
+      {
+        meta: { supportsProject: true, supportsGlobal: false, supportsImport: true },
+        supportedEvents: AUGMENTCODE_HOOK_EVENTS,
+        supportedHookTypes: ["command"],
+        supportsMatcher: true,
+      },
+    ],
+    [
+      "bob",
+      {
+        meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
+        supportedEvents: BOB_HOOK_EVENTS,
+        supportedHookTypes: ["command", "http"],
+        supportsMatcher: true,
+        matcherEvents: ["preToolUse", "postToolUse"],
+      },
+    ],
+    [
+      "continue",
+      {
+        meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
+        supportedEvents: CONTINUE_HOOK_EVENTS,
+        supportedHookTypes: ["command", "http", "prompt", "agent"],
+        supportsMatcher: true,
+        matcherEvents: [
+          "preToolUse",
+          "postToolUse",
+          "postToolUseFailure",
+          "permissionRequest",
+          "sessionStart",
+          "sessionEnd",
+          "notification",
+          "subagentStart",
+          "subagentStop",
+          "preCompact",
+          "configChange",
+        ],
+      },
+    ],
+    [
+      "cortexcode",
+      {
+        meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
+        supportedEvents: CORTEXCODE_HOOK_EVENTS,
+        supportedHookTypes: ["command", "prompt"],
+        supportsMatcher: true,
+        matcherEvents: [
+          "preToolUse",
+          "postToolUse",
+          "permissionRequest",
+          "sessionStart",
+          "sessionEnd",
+          "preCompact",
+          "subagentStop",
+          "notification",
+          "setup",
+        ],
+      },
+    ],
+    [
+      "junie",
+      {
+        meta: { supportsProject: false, supportsGlobal: true, supportsImport: true },
+        supportedEvents: JUNIE_HOOK_EVENTS,
+        supportedHookTypes: ["command"],
+        supportsMatcher: true,
+      },
+    ],
+    [
+      "gitlabduo",
+      {
+        meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
+        supportedEvents: GITLABDUO_HOOK_EVENTS,
+        supportedHookTypes: ["command"],
+        supportsMatcher: true,
+      },
+    ],
+    [
+      "tabnine",
+      {
+        meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
+        supportedEvents: TABNINE_HOOK_EVENTS,
+        supportedHookTypes: ["command"],
+        supportsMatcher: true,
+      },
+    ],
+    [
+      "vibe",
+      {
+        meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
+        supportedEvents: VIBE_HOOK_EVENTS,
+        supportedHookTypes: ["command"],
+        supportsMatcher: true,
+        dropsUnknownOverrideEvents: true,
+      },
+    ],
+    [
+      "vibe-plugin",
+      {
+        meta: { supportsProject: true, supportsGlobal: false, supportsImport: true },
+        supportedEvents: VIBE_HOOK_EVENTS,
+        supportedHookTypes: ["command"],
+        supportsMatcher: true,
+        dropsUnknownOverrideEvents: true,
+      },
+    ],
+    [
+      "pool",
+      {
+        meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
+        supportedEvents: POOL_HOOK_EVENTS,
+        supportedHookTypes: ["command"],
+        supportsMatcher: true,
+      },
+    ],
+    [
+      "qoder",
+      {
+        meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
+        supportedEvents: QODER_HOOK_EVENTS,
+        supportedHookTypes: ["command", "http", "prompt", "agent"],
+        supportsMatcher: true,
+        matcherEvents: [
+          "sessionStart",
+          "sessionEnd",
+          "preToolUse",
+          "postToolUse",
+          "postToolUseFailure",
+          "stopFailure",
+          "subagentStart",
+          "subagentStop",
+          "preCompact",
+          "postCompact",
+          "notification",
+          "configChange",
+          "instructionsLoaded",
+          "fileChanged",
+          "elicitation",
+          "elicitationResult",
+          "permissionRequest",
+          "permissionDenied",
+          "setup",
+        ],
+      },
+    ],
+    [
+      "qwencode",
+      {
+        meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
+        supportedEvents: QWENCODE_HOOK_EVENTS,
+        supportedHookTypes: ["command", "prompt", "http", "function"],
+        supportsMatcher: true,
+      },
+    ],
+    [
+      "reasonix",
+      {
+        meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
+        supportedEvents: REASONIX_HOOK_EVENTS,
+        supportedHookTypes: ["command"],
+        supportsMatcher: true,
+        dropsUnknownOverrideEvents: true,
+      },
+    ],
+    [
+      "grokcli",
+      {
+        meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
+        supportedEvents: GROKCLI_HOOK_EVENTS,
+        supportedHookTypes: ["command", "http"],
+        supportsMatcher: true,
+      },
+    ],
+    [
+      "crush",
+      {
+        meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
+        supportedEvents: CRUSH_HOOK_EVENTS,
+        supportedHookTypes: ["command"],
+        supportsMatcher: true,
+      },
+    ],
+    [
+      "zcode",
+      {
+        meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
+        supportedEvents: ZCODE_HOOK_EVENTS,
+        supportedHookTypes: ["command"],
+        supportsMatcher: true,
+      },
+    ],
+    [
+      "zcode-plugin",
+      {
+        meta: { supportsProject: true, supportsGlobal: false, supportsImport: true },
+        supportedEvents: ZCODE_HOOK_EVENTS,
+        supportedHookTypes: ["command"],
+        supportsMatcher: true,
+      },
+    ],
+  ]);
+
+  it("lists the targets in the same order", () => {
+    expect([...toolHooksFactories.keys()]).toEqual([...expected.keys()]);
+  });
+
+  it.each([...expected.entries()])("pins the capabilities of %s", (target, capabilities) => {
+    const { class: _class, ...actual } = toolHooksFactories.get(target as never)!;
+    expect(actual).toStrictEqual(capabilities);
   });
 });

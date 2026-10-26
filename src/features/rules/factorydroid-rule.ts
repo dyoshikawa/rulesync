@@ -525,10 +525,5 @@ export class FactorydroidRule extends ToolRule {
     return { success: true, error: null };
   }
 
-  static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
-    return this.isTargetedByRulesyncRuleDefault({
-      rulesyncRule,
-      toolTarget: "factorydroid",
-    });
-  }
+  protected static override readonly toolTarget = "factorydroid";
 }

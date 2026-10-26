@@ -20,7 +20,7 @@ export const AIASSISTANT_SKILLS_DIR_PATH = AGENTSMD_SKILLS_DIR_PATH;
 // as the registry keys `llm.mcp.client.project.mcp.json.path` and
 // `llm.mcp.client.global.mcp.json.path`, both defaulting to
 // `.ai/mcp/mcp.json` (verified in builds 262.10315.x and 263.4732.x).
-export const AIASSISTANT_MCP_DIR = ".ai";
-export const AIASSISTANT_MCP_SUB_DIR = "mcp";
+const AIASSISTANT_MCP_DIR = ".ai";
+const AIASSISTANT_MCP_SUB_DIR = "mcp";
 export const AIASSISTANT_MCP_DIR_PATH = join(AIASSISTANT_MCP_DIR, AIASSISTANT_MCP_SUB_DIR);
 export const AIASSISTANT_MCP_FILE_NAME = "mcp.json";

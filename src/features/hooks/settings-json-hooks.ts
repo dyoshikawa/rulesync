@@ -1,8 +1,6 @@
 import { join } from "node:path";
 
-import type { ValidationResult } from "../../types/ai-file.js";
 import type { HooksConfig } from "../../types/hooks.js";
-import type { ToolFile } from "../../types/tool-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
@@ -13,7 +11,7 @@ import {
   parseSharedConfig,
   sharedConfigFileKey,
 } from "../shared/shared-config-gateway.js";
-import { HOOKS_OWNERSHIP_LOCK_FILE_NAME, parseHooksOwnershipLock } from "./hooks-ownership-lock.js";
+import { readPreviouslyOwnedHooks } from "./hooks-ownership-lock.js";
 import { mergeGeneratedHookLists } from "./preserve-unowned-hook-commands.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import type { ToolHooksConverterConfig } from "./tool-hooks-converter.js";
@@ -133,17 +131,6 @@ export abstract class SettingsJsonHooks extends ToolHooks {
     });
   }
 
-  static override async getAuxiliaryFiles({
-    toolHooks,
-  }: {
-    outputRoot?: string;
-    global?: boolean;
-    toolHooks?: ToolHooks;
-    logger?: Logger;
-  } = {}): Promise<ToolFile[]> {
-    return toolHooks instanceof this ? toolHooks.getOwnershipLockFiles() : [];
-  }
-
   static async fromRulesyncHooks({
     outputRoot = process.cwd(),
     rulesyncHooks,
@@ -168,11 +155,7 @@ export abstract class SettingsJsonHooks extends ToolHooks {
     });
     const preserving = preserveUnowned && this.supportsPreserveUnowned();
     const previouslyOwned = preserving
-      ? parseHooksOwnershipLock(
-          await readFileContentOrNull(
-            join(outputRoot, paths.relativeDirPath, HOOKS_OWNERSHIP_LOCK_FILE_NAME),
-          ),
-        )
+      ? await readPreviouslyOwnedHooks({ outputRoot, relativeDirPath: paths.relativeDirPath })
       : undefined;
     const merged = mergeGeneratedHookLists({
       existingContent,
@@ -234,10 +217,6 @@ export abstract class SettingsJsonHooks extends ToolHooks {
         2,
       ),
     });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   static forDeletion({

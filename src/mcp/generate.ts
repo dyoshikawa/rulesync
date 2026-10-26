@@ -19,7 +19,11 @@ import { formatError } from "../utils/error.js";
 import { WarningCollectingLogger, withFallbackLoggerTarget } from "../utils/logger.js";
 import { calculateTotalCount } from "../utils/result.js";
 import { truncateText } from "../utils/truncate.js";
-import { assertPathOptionsWithinCwd, assertPathOptionWithinCwd } from "./path-options.js";
+import {
+  assertOptionalPathOptionWithinCwd,
+  assertPathOptionsWithinCwd,
+  assertPathOptionWithinCwd,
+} from "./path-options.js";
 import { type McpResultCounts, type McpWarnings, warningsField } from "./types.js";
 
 /**
@@ -272,9 +276,7 @@ export async function executeGenerate(options: GenerateOptions = {}): Promise<Mc
 async function assertGeneratePathOptionsWithinCwd(options: GenerateOptions): Promise<void> {
   await assertPathOptionsWithinCwd({ paths: options.outputRoots, label: "outputRoots" });
   await assertPathOptionsWithinCwd({ paths: options.inputRoots, label: "inputRoots" });
-  if (options.inputRoot !== undefined) {
-    await assertPathOptionWithinCwd({ path: options.inputRoot, label: "inputRoot" });
-  }
+  await assertOptionalPathOptionWithinCwd({ path: options.inputRoot, label: "inputRoot" });
   if (options.configPath !== undefined) {
     // The resolver reads `configPath` relative to `inputRoot` when one is
     // given, so judge the path it will actually read.

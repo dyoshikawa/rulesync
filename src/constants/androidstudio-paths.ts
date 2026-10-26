@@ -16,5 +16,5 @@ export const ANDROIDSTUDIO_IGNORE_FILE_NAME = ".aiexclude";
 // Android Studio (Quail 1 and later) loads Agent Skills from
 // `.android-studio/skills/` at the project root or in the home directory.
 // @see https://developer.android.com/studio/gemini/skills
-export const ANDROIDSTUDIO_DIR = ".android-studio";
+const ANDROIDSTUDIO_DIR = ".android-studio";
 export const ANDROIDSTUDIO_SKILLS_DIR_PATH = join(ANDROIDSTUDIO_DIR, "skills");

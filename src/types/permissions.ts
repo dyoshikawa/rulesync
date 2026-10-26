@@ -1402,7 +1402,7 @@ export const CODEX_EXTENDABLE_BASELINE_PROFILES = [":read-only", ":workspace"] a
  * `[permissions.rulesync]` profile entirely (there is no sandbox for
  * filesystem/network rules to refine in that mode).
  */
-export const CODEX_BASE_PERMISSION_PROFILES = [
+const CODEX_BASE_PERMISSION_PROFILES = [
   ...CODEX_EXTENDABLE_BASELINE_PROFILES,
   ":danger-full-access",
 ] as const;

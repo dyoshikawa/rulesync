@@ -36,7 +36,7 @@ const CONTINUE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   projectDirVar: "$CONTINUE_PROJECT_DIR",
   prefixDotRelativeCommandsOnly: true,
   noMatcherEvents: CONTINUE_NO_MATCHER_EVENTS,
-  supportedHookTypes: new Set(["command", "prompt", "http", "agent"]),
+  supportedHookTypes: new Set(["command", "http", "prompt", "agent"]),
   emitsPromptModel: true,
   stringPassthroughFields: [{ canonical: "statusMessage", tool: "statusMessage" }],
   booleanPassthroughFields: [

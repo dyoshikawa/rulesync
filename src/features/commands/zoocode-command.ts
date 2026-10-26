@@ -1,4 +1,3 @@
-import { stringifyFrontmatter } from "../../utils/frontmatter.js";
 import { RooCommand } from "./roo-command.js";
 import { RulesyncCommand } from "./rulesync-command.js";
 
@@ -28,7 +27,6 @@ export class ZoocodeCommand extends RooCommand {
       relativeFilePath: command.getRelativeFilePath(),
       frontmatter,
       body: command.getBody(),
-      fileContent: stringifyFrontmatter(command.getBody(), frontmatter),
       validate: true,
     });
   }

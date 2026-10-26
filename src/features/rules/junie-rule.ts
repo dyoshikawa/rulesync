@@ -255,10 +255,5 @@ export class JunieRule extends ToolRule {
     });
   }
 
-  static isTargetedByRulesyncRule(rulesyncRule: RulesyncRule): boolean {
-    return this.isTargetedByRulesyncRuleDefault({
-      rulesyncRule,
-      toolTarget: "junie",
-    });
-  }
+  protected static override readonly toolTarget = "junie";
 }

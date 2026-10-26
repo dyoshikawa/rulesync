@@ -114,9 +114,8 @@ export async function convertFromTool(params: {
 
 async function runFeatureConvert<TProcessor, TSourceItem, TRulesyncItem>(
   ctx: ConvertContext,
-  strategy: ConvertStrategy<TProcessor, TSourceItem, TRulesyncItem> | null,
+  strategy: ConvertStrategy<TProcessor, TSourceItem, TRulesyncItem>,
 ): Promise<number> {
-  if (!strategy) return 0;
   const { config, fromTool, toTools, logger } = ctx;
   const {
     feature,

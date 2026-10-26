@@ -144,7 +144,7 @@ export type WatchHandle = {
 /**
  * How often a watcher whose directory disappeared polls for its return.
  */
-export const DEFAULT_WATCH_REARM_INTERVAL_MS = 500;
+const DEFAULT_WATCH_REARM_INTERVAL_MS = 500;
 
 /**
  * Identity of the directory behind the path, or undefined when it is missing,

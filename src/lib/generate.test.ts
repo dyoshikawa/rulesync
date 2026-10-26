@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { intersection } from "es-toolkit";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ChecksProcessor } from "../features/checks/checks-processor.js";
 import { CommandsProcessor } from "../features/commands/commands-processor.js";
 import { HooksProcessor } from "../features/hooks/hooks-processor.js";
 import { IgnoreProcessor } from "../features/ignore/ignore-processor.js";
@@ -46,6 +47,7 @@ const createMockSkillsProcessor = () => ({
   writeAiDirs: vi.fn().mockResolvedValue({ count: 0, paths: [] }),
 });
 
+vi.mock("../features/checks/checks-processor.js");
 vi.mock("../features/rules/rules-processor.js");
 vi.mock("../features/ignore/ignore-processor.js");
 vi.mock("../features/mcp/mcp-processor.js");
@@ -324,6 +326,7 @@ describe("generate", () => {
     vi.mocked(HooksProcessor.getToolTargets).mockReturnValue(["claudecode"]);
     vi.mocked(SkillsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
     vi.mocked(PermissionsProcessor.getToolTargets).mockReturnValue(["claudecode"]);
+    vi.mocked(ChecksProcessor.getToolTargets).mockReturnValue(["claudecode"]);
 
     const createMockProcessor = () => ({
       loadToolFiles: vi.fn().mockResolvedValue([]),
@@ -357,6 +360,9 @@ describe("generate", () => {
     });
     vi.mocked(PermissionsProcessor).mockImplementation(function () {
       return createMockProcessor() as unknown as PermissionsProcessor;
+    });
+    vi.mocked(ChecksProcessor).mockImplementation(function () {
+      return createMockProcessor() as unknown as ChecksProcessor;
     });
     vi.mocked(SkillsProcessor).mockImplementation(function () {
       return createMockSkillsProcessor() as unknown as SkillsProcessor;
@@ -941,6 +947,113 @@ describe("generate", () => {
         includeSimulated: true,
       });
     });
+  });
+
+  describe("single-file features sharing one generation loop", () => {
+    // Pins what each of these features does per target and output root, so the
+    // loop they share can be changed without the features drifting apart.
+    const cases = [
+      {
+        feature: "mcp",
+        processorClass: McpProcessor,
+        extraOptions: (toolTarget: string) => ({ featureOptions: { marker: `${toolTarget}/mcp` } }),
+      },
+      {
+        feature: "commands",
+        processorClass: CommandsProcessor,
+        extraOptions: () => ({ flattenedCommandNaming: "basename" }),
+      },
+      {
+        feature: "subagents",
+        processorClass: SubagentsProcessor,
+        extraOptions: () => ({ deleteOrphans: true }),
+      },
+      {
+        feature: "hooks",
+        processorClass: HooksProcessor,
+        extraOptions: () => ({ preserveUnownedHooks: false }),
+      },
+      {
+        feature: "checks",
+        processorClass: ChecksProcessor,
+        extraOptions: () => ({}),
+      },
+    ] as const;
+
+    it.each(cases)(
+      "should build, write, collect and sweep $feature per target and output root",
+      async ({ feature, processorClass, extraOptions }) => {
+        const supported = ["claudecode", "cursor"] as const;
+        mockConfig.getTargets.mockReturnValue([...supported, "codexcli"]);
+        mockConfig.getConfigFileTargets.mockReturnValue([...supported, "codexcli"]);
+        mockConfig.getOutputRoots.mockReturnValue(["/a", "/b"]);
+        mockConfig.getFeatures.mockReturnValue([feature]);
+        mockConfig.getFeatureOptions.mockImplementation((toolTarget: string, name: string) => ({
+          marker: `${toolTarget}/${name}`,
+        }));
+        mockConfig.getDelete.mockReturnValue(true);
+        vi.mocked(processorClass.getToolTargets).mockReturnValue([...supported]);
+
+        const created: Array<{
+          removeOrphanAiFiles: ReturnType<typeof vi.fn>;
+          toolFiles: ReturnType<typeof createMockAiFile>[];
+        }> = [];
+        vi.mocked(processorClass).mockImplementation(function (args: {
+          toolTarget: string;
+          outputRoot: string;
+        }) {
+          const label = `${args.toolTarget}:${args.outputRoot}`;
+          const toolFiles = [createMockAiFile(`${args.outputRoot}/${args.toolTarget}`, label)];
+          const removeOrphanAiFiles = vi.fn().mockResolvedValue(0);
+          created.push({ removeOrphanAiFiles, toolFiles });
+          return {
+            loadToolFiles: vi.fn().mockResolvedValue([]),
+            removeOrphanAiFiles,
+            ...mockProcessorBase(),
+            loadRulesyncFiles: vi.fn().mockResolvedValue([{ file: "test" }]),
+            convertRulesyncFilesToToolFiles: vi.fn().mockResolvedValue(toolFiles),
+            writeAiFiles: vi.fn().mockResolvedValue({ count: 1, paths: [label] }),
+          } as never;
+        } as never);
+
+        const mockLogger = createMockLogger();
+        const result = await generate({ logger: mockLogger, config: mockConfig as never });
+
+        const resultRecord = result as unknown as Record<string, unknown>;
+        expect(resultRecord[`${feature}Count`]).toBe(4);
+        expect(resultRecord[`${feature}Paths`]).toEqual([
+          "claudecode:/a",
+          "claudecode:/b",
+          "cursor:/a",
+          "cursor:/b",
+        ]);
+        expect(result.hasDiff).toBe(true);
+        expect(result.sourceLoadFailed).toBe(false);
+
+        expect(vi.mocked(processorClass).mock.calls.map(([args]) => args)).toEqual(
+          supported.flatMap((toolTarget) =>
+            ["/a", "/b"].map((outputRoot) => ({
+              outputRoot,
+              inputRoots: [process.cwd()],
+              toolTarget,
+              global: false,
+              dryRun: false,
+              logger: mockLogger,
+              ...extraOptions(toolTarget),
+            })),
+          ),
+        );
+
+        expect(created).toHaveLength(4);
+        for (const { removeOrphanAiFiles, toolFiles } of created) {
+          expect(removeOrphanAiFiles).toHaveBeenCalledWith([], toolFiles);
+        }
+
+        expect(mockLogger.warn).toHaveBeenCalledWith(
+          `Target 'codexcli' does not support the feature '${feature}'. Skipping.`,
+        );
+      },
+    );
   });
 
   describe("shared output directories", () => {

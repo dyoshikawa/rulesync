@@ -1,6 +1,6 @@
 import { AiFileFromFileParams, AiFileParams } from "../../types/ai-file.js";
 import { ToolFile } from "../../types/tool-file.js";
-import { ToolTarget } from "../../types/tool-targets.js";
+import { isTargetedByTargets, ToolTarget } from "../../types/tool-targets.js";
 import type { Logger } from "../../utils/logger.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
 
@@ -100,20 +100,7 @@ export abstract class ToolSubagent extends ToolFile {
     rulesyncSubagent: RulesyncSubagent;
     toolTarget: ToolTarget;
   }): boolean {
-    const targets = rulesyncSubagent.getFrontmatter().targets;
-    if (!targets) {
-      return true;
-    }
-
-    if (targets.includes("*")) {
-      return true;
-    }
-
-    if (targets.includes(toolTarget)) {
-      return true;
-    }
-
-    return false;
+    return isTargetedByTargets({ targets: rulesyncSubagent.getFrontmatter().targets, toolTarget });
   }
 
   protected static filterToolSpecificSection(
