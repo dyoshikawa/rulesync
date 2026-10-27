@@ -1087,8 +1087,10 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       },
       supportedEvents: VIBE_HOOK_EVENTS,
       supportedHookTypes: ["command"],
-      // All three Vibe events (before_tool/after_tool/post_agent_turn) accept a
-      // `match` tool-name matcher (fnmatch glob or `re:` regex).
+      // Every Vibe event accepts a `match` (fnmatch glob or `re:` regex): a
+      // tool name on pre_tool/post_tool, an agent name on post_agent (v3.0.3+;
+      // the adapter writes `main` for `stop` and the matcher for
+      // `subagentStop`).
       supportsMatcher: true,
       // The adapter only emits its own native events; unknown override-block
       // keys are dropped, so report them.
