@@ -999,6 +999,64 @@ describe("ReasonixMcp", () => {
       );
     });
 
+    // Reasonix v2.53.0 reads a project-declared `load` as `deferred`
+    // (`PluginEntry.DeclaredMCPLoad`), so a project `always` is still written
+    // (older v2 builds honor it) but named in a warning.
+    it.each([["always"], [" ALWAYS "]])(
+      "should warn that a project load of %j is ignored by Reasonix 2.53.0+ but still write it",
+      async (load) => {
+        const logger = createMockLogger();
+        const rulesyncMcp = new RulesyncMcp({
+          outputRoot: testDir,
+          relativeDirPath: ".rulesync",
+          relativeFilePath: "mcp.json",
+          fileContent: JSON.stringify({
+            mcpServers: { remote: { type: "http", url: "https://example.com/mcp", load } },
+          }),
+        });
+
+        const reasonixMcp = await ReasonixMcp.fromRulesyncMcp({
+          outputRoot: testDir,
+          rulesyncMcp,
+          logger,
+        });
+        const parsed = smolToml.parse(reasonixMcp.getFileContent()) as any;
+
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining('"remote" sets "load" to "always" in the project reasonix.toml'),
+        );
+        expect(parsed.plugins[0].load).toBe(load);
+      },
+    );
+
+    it.each([
+      ["a global always", { load: "always" }, true],
+      ["a project deferred", { load: "deferred" }, false],
+      ["a disabled project always", { load: "always", disabled: true }, false],
+    ])("should not warn about load for %s", async (_label, fields, global) => {
+      const logger = createMockLogger();
+      const rulesyncMcp = new RulesyncMcp({
+        outputRoot: testDir,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { remote: { type: "http", url: "https://example.com/mcp", ...fields } },
+        }),
+      });
+
+      const reasonixMcp = await ReasonixMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global,
+        logger,
+      });
+
+      expect((smolToml.parse(reasonixMcp.getFileContent()) as any).plugins[0].load).toBe(
+        fields.load,
+      );
+      expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining('sets "load"'));
+    });
+
     it.each([
       ["load", 1],
       ["oauth_allow_missing_pkce_metadata", "true"],

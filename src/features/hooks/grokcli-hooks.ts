@@ -68,6 +68,20 @@ export const GROKCLI_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   // and it is merged into the spawned command's environment — so it is emitted
   // on `command` hooks only, matching how Qwen Code gates the same field.
   recordPassthroughFields: [{ canonical: "env", tool: "env", commandOnly: true }],
+  // Since Grok 1.0.71 a handler with `"failClosed": true` blocks when its run
+  // fails (timeout, crash, spawn failure, unreadable reply) instead of failing
+  // open. Grok's hooks guide: "Only `PreToolUse` and `UserPromptSubmit`
+  // support it; on any other event the field is ignored with a logged
+  // warning", so it is emitted on those two events only. Older Grok versions
+  // ignore the unknown key. The field sits on the handler and is not limited
+  // to `command` handlers.
+  booleanPassthroughFields: [
+    {
+      canonical: "failClosed",
+      tool: "failClosed",
+      events: new Set(["preToolUse", "beforeSubmitPrompt"]),
+    },
+  ],
   // Command hooks: the exec form. Since Grok 1.0.63 a present `args` array
   // (`[]` included) makes `command` one program spawned with these arguments
   // and no shell. Grok 1.0.49–1.0.62 skip a handler carrying `args` with a

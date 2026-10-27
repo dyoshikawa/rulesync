@@ -69,6 +69,12 @@ export type ToolHooksConverterConfig = {
     readonly tool: string;
     /** Emit only on `command` hooks, for a field the tool documents there only. */
     readonly commandOnly?: boolean;
+    /**
+     * Canonical events the tool honours the field on; unrestricted when absent.
+     * On any other event the field is dropped in both directions, with a
+     * warning for a value that would have changed what the hook does.
+     */
+    readonly events?: ReadonlySet<string>;
   }>;
   /**
    * Per-hook boolean fields a tool spells as a keyword rather than a boolean
@@ -497,7 +503,24 @@ type PassthroughFieldSpec = {
   readonly maxLength?: number;
   readonly collapseWhitespaceForLength?: boolean;
   readonly onlyWithFlag?: "asyncRewake";
+  readonly events?: ReadonlySet<string>;
 };
+
+/** Whether a field restricted to some events applies on this one. */
+function isEventApplicable({
+  events,
+  eventName,
+}: {
+  events: ReadonlySet<string> | undefined;
+  eventName: string;
+}): boolean {
+  return events === undefined || events.has(eventName);
+}
+
+/** Quote and comma-join a set of names (events, hook types) for a warning. */
+function describeEvents(names: ReadonlySet<string>): string {
+  return [...names].map((name) => `"${name}"`).join(", ");
+}
 
 /**
  * Whether a field registered for `command` hooks only applies to this hook.
@@ -556,6 +579,7 @@ function emitPassthroughFields<TValue>({
     maxLength,
     collapseWhitespaceForLength,
     onlyWithFlag,
+    events,
   } of fields) {
     const value = def[canonical];
     if (value === undefined) {
@@ -566,6 +590,17 @@ function emitPassthroughFields<TValue>({
         `Dropping "${canonical}" from a "${hookType}" hook on "${eventName}": this tool documents ` +
           `"${tool}" on "command" hooks only, so it is not generated.`,
       );
+      continue;
+    }
+    if (events !== undefined && !isEventApplicable({ events, eventName })) {
+      // A `false` there is the tool's own default, so omitting it changes
+      // nothing and needs no warning.
+      if (value !== false) {
+        warn?.(
+          `Dropping "${canonical}" from a "${hookType}" hook on "${eventName}": this tool honours ` +
+            `"${tool}" on ${describeEvents(events)} only, so it is not generated.`,
+        );
+      }
       continue;
     }
     if (!isValid({ value, canonical })) {
@@ -600,8 +635,9 @@ function emitPassthroughFields<TValue>({
   return Object.fromEntries(
     fields
       .filter(
-        ({ canonical, commandOnly }) =>
+        ({ canonical, commandOnly, events }) =>
           isFieldApplicable({ commandOnly, hookType }) &&
+          isEventApplicable({ events, eventName }) &&
           isValid({ value: def[canonical], canonical }),
       )
       .map(({ canonical, tool }) => [tool, def[canonical] as TValue]),
@@ -618,6 +654,7 @@ function emitPassthroughFields<TValue>({
 function importPassthroughFields<TValue>({
   h,
   hookType,
+  eventName,
   fields,
   isValid,
   describeInvalid,
@@ -625,13 +662,17 @@ function importPassthroughFields<TValue>({
 }: {
   h: Record<string, unknown>;
   hookType: HookType;
+  eventName: string;
   fields: readonly PassthroughFieldSpec[];
   isValid: PassthroughValidator;
   describeInvalid?: (args: { tool: string; canonical: string; value: unknown }) => string;
   warn?: (message: string) => void;
 }): Record<string, TValue> {
-  const applicable = fields.filter(({ commandOnly }) =>
+  const typeApplicable = fields.filter(({ commandOnly }) =>
     isFieldApplicable({ commandOnly, hookType }),
+  );
+  const applicable = typeApplicable.filter(({ events }) =>
+    isEventApplicable({ events, eventName }),
   );
   const skipped = fields.filter(({ commandOnly }) => !isFieldApplicable({ commandOnly, hookType }));
   // Warned rather than dropped silently, for the callers that thread a logger
@@ -642,6 +683,20 @@ function importPassthroughFields<TValue>({
       warn?.(
         `Dropping "${tool}" from an imported "${hookType}" hook: this tool documents it on ` +
           `"command" hooks only, so it is not imported.`,
+      );
+    }
+  }
+  for (const { tool, events } of typeApplicable) {
+    if (
+      events !== undefined &&
+      !isEventApplicable({ events, eventName }) &&
+      h[tool] !== undefined &&
+      // A `false` there is the tool's own default, matching the emit side.
+      h[tool] !== false
+    ) {
+      warn?.(
+        `Dropping "${tool}" from an imported "${hookType}" hook on "${eventName}": this tool honours ` +
+          `it on ${describeEvents(events)} only, so it is not imported.`,
       );
     }
   }
@@ -951,14 +1006,14 @@ function isKeywordFieldApplicable({
   if (hookTypes !== undefined && !hookTypes.has(hookType)) {
     warn?.(
       `Dropping "${field}" from a "${hookType}" hook on "${eventName}": this tool documents ` +
-        `"${tool}" on ${[...hookTypes].map((type) => `"${type}"`).join(", ")} hooks only, so it is not ${direction}.`,
+        `"${tool}" on ${describeEvents(hookTypes)} hooks only, so it is not ${direction}.`,
     );
     return false;
   }
   if (events !== undefined && !events.has(eventName)) {
     warn?.(
       `Dropping "${field}" from a "${hookType}" hook on "${eventName}": this tool honours ` +
-        `"${tool}" on ${[...events].map((event) => `"${event}"`).join(", ")} only, so it is not ${direction}.`,
+        `"${tool}" on ${describeEvents(events)} only, so it is not ${direction}.`,
     );
     return false;
   }
@@ -1585,6 +1640,7 @@ function importAllPassthroughFields({
     ...importPassthroughFields<boolean>({
       h,
       hookType,
+      eventName,
       fields: converterConfig.booleanPassthroughFields ?? [],
       isValid: isBooleanValue,
       warn,
@@ -1599,6 +1655,7 @@ function importAllPassthroughFields({
     ...importPassthroughFields<number>({
       h,
       hookType,
+      eventName,
       fields: converterConfig.numberPassthroughFields ?? [],
       // Stricter than the emit side: a value the canonical schema narrows
       // further (an integer, a non-negative one) must not be imported only to
@@ -1610,6 +1667,7 @@ function importAllPassthroughFields({
     ...importPassthroughFields<string>({
       h,
       hookType,
+      eventName,
       fields: converterConfig.stringPassthroughFields ?? [],
       // Stricter than the emit side: a hand-written settings file can hold a
       // string the canonical field rejects (an off-enum `shell`, a control
@@ -1621,6 +1679,7 @@ function importAllPassthroughFields({
     ...importPassthroughFields<string[]>({
       h,
       hookType,
+      eventName,
       fields: converterConfig.arrayPassthroughFields ?? [],
       // Stricter than the emit side: control characters cannot ride from an
       // existing tool config into a canonical field guarded by `safeString`.
@@ -1631,6 +1690,7 @@ function importAllPassthroughFields({
     ...importPassthroughFields<Record<string, string>>({
       h,
       hookType,
+      eventName,
       fields: converterConfig.recordPassthroughFields ?? [],
       isValid: isEmittableRecord,
       describeInvalid: describeInvalidRecord,
@@ -1639,6 +1699,7 @@ function importAllPassthroughFields({
     ...importPassthroughFields<Record<string, unknown>>({
       h,
       hookType,
+      eventName,
       fields: converterConfig.objectPassthroughFields ?? [],
       // Stricter than the emit side: the canonical field declares the keys the
       // object must carry, and a hand-written tool config need not.

@@ -2103,7 +2103,7 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
     },
   },
   // Mistral Vibe config: mcp
-  // owns `mcp_servers`; permissions owns `tools`/`enabled_tools`/`disabled_tools`/`enable_subagents`.
+  // owns `mcp_servers`; permissions owns `tools`/`enabled_tools`/`disabled_tools`/`enable_subagents`/`outside_workdir`.
   // `tools` is recomputed from the existing file (unmanaged tool entries and
   // sensitive-pattern overrides preserved) before being applied.
   [VIBE_CONFIG_SHARED_FILE_KEY]: {
@@ -2112,7 +2112,13 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
       mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp_servers"] },
       permissions: {
         kind: "replace-owned-keys",
-        ownedKeys: ["tools", "enabled_tools", "disabled_tools", "enable_subagents"],
+        ownedKeys: [
+          "tools",
+          "enabled_tools",
+          "disabled_tools",
+          "enable_subagents",
+          "outside_workdir",
+        ],
       },
     },
   },

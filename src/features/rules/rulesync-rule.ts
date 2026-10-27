@@ -71,6 +71,19 @@ export const RulesyncRuleFrontmatterSchema = z.object({
       description: z.optional(z.string()),
     }),
   ),
+  cline: z.optional(
+    z.looseObject({
+      // Cline's own on/off toggle for a non-root rule. Since Cline v4.1.26
+      // switching a rule off in the UI writes `disabled: true` into the rule
+      // file, and Cline treats `enabled: false` the same way. Both must be
+      // booleans: Cline rejects the whole rule file otherwise. Any other key in
+      // this section is written into the rule's frontmatter verbatim, except
+      // `paths` / `alwaysApply` / `description`, which come from the canonical
+      // `globs` and `description`.
+      disabled: z.optional(z.boolean()),
+      enabled: z.optional(z.boolean()),
+    }),
+  ),
   continue: z.optional(
     z.looseObject({
       // Forces the rule on (`true`) or makes it depend on `globs` / `regex`
