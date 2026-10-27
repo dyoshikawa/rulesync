@@ -787,6 +787,20 @@ describe("GrokcliHooks failClosed (issue #2498)", () => {
     ]);
   });
 
+  it("drops an off-event failClosed: false on import without a warning", () => {
+    const logger = createMockLogger();
+    const imported = fromToolFile({
+      hooks: {
+        PostToolUse: [{ hooks: [{ type: "command", command: "./post.sh", failClosed: false }] }],
+      },
+    })
+      .toRulesyncHooks({ logger })
+      .getJson().hooks;
+
+    expect(imported.postToolUse).toEqual([{ type: "command", command: "./post.sh" }]);
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
   it("drops failClosed on import from events Grok ignores it on, and non-boolean values", () => {
     const logger = createMockLogger();
     const imported = fromToolFile({

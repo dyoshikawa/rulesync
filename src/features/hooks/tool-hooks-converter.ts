@@ -517,8 +517,9 @@ function isEventApplicable({
   return events === undefined || events.has(eventName);
 }
 
-function describeEvents(events: ReadonlySet<string>): string {
-  return [...events].map((event) => `"${event}"`).join(", ");
+/** Quote and comma-join a set of names (events, hook types) for a warning. */
+function describeEvents(names: ReadonlySet<string>): string {
+  return [...names].map((name) => `"${name}"`).join(", ");
 }
 
 /**
@@ -689,7 +690,9 @@ function importPassthroughFields<TValue>({
     if (
       events !== undefined &&
       !isEventApplicable({ events, eventName }) &&
-      h[tool] !== undefined
+      h[tool] !== undefined &&
+      // A `false` there is the tool's own default, matching the emit side.
+      h[tool] !== false
     ) {
       warn?.(
         `Dropping "${tool}" from an imported "${hookType}" hook on "${eventName}": this tool honours ` +
@@ -1003,14 +1006,14 @@ function isKeywordFieldApplicable({
   if (hookTypes !== undefined && !hookTypes.has(hookType)) {
     warn?.(
       `Dropping "${field}" from a "${hookType}" hook on "${eventName}": this tool documents ` +
-        `"${tool}" on ${[...hookTypes].map((type) => `"${type}"`).join(", ")} hooks only, so it is not ${direction}.`,
+        `"${tool}" on ${describeEvents(hookTypes)} hooks only, so it is not ${direction}.`,
     );
     return false;
   }
   if (events !== undefined && !events.has(eventName)) {
     warn?.(
       `Dropping "${field}" from a "${hookType}" hook on "${eventName}": this tool honours ` +
-        `"${tool}" on ${[...events].map((event) => `"${event}"`).join(", ")} only, so it is not ${direction}.`,
+        `"${tool}" on ${describeEvents(events)} only, so it is not ${direction}.`,
     );
     return false;
   }
