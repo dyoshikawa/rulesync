@@ -870,6 +870,19 @@ globs: ["packages/api/**/*"]
       expect(result.success).toBe(true);
     });
 
+    it("should accept a cline section and keep its unknown keys", () => {
+      const result = RulesyncRuleFrontmatterSchema.safeParse({
+        cline: { disabled: true, enabled: false, name: "my-rule" },
+      });
+      expect(result.success).toBe(true);
+      expect(result.data?.cline).toEqual({ disabled: true, enabled: false, name: "my-rule" });
+    });
+
+    it("should reject a non-boolean cline.enabled", () => {
+      const result = RulesyncRuleFrontmatterSchema.safeParse({ cline: { enabled: "no" } });
+      expect(result.success).toBe(false);
+    });
+
     it("should validate complete valid frontmatter", () => {
       const frontmatter = {
         root: true,
