@@ -6,7 +6,7 @@
 | ------------- | ----------------------------------------------------- | -------------------------------------------------------------------------- |
 | index         | `https://kiro.dev/docs/`                              | Kiro IDE documentation index                                               |
 | `rules`       | `https://kiro.dev/docs/steering/`                     | `.kiro/steering`, global `~/.kiro/steering`, AGENTS.md steering directives |
-| `ignore`      | `https://kiro.dev/docs/editor/kiroignore/`            | `.kiroignore` (project), global `~/.kiro/settings/kiroignore` (`--global`) |
+| `ignore`      | `https://kiro.dev/docs/kiroignore/`                   | `.kiroignore` (project), global `~/.kiro/settings/kiroignore` (`--global`) |
 | `mcp`         | `https://kiro.dev/docs/mcp/`                          | MCP server configuration and prompt/resource mentions                      |
 | `commands`    | `https://kiro.dev/docs/chat/slash-commands/`          | Slash commands for hooks, steering files, and skill commands               |
 | `subagents`   | `https://kiro.dev/docs/cli/reference/slash-commands/` | `/agent` command, `.kiro/agents`, `~/.kiro/agents`                         |
