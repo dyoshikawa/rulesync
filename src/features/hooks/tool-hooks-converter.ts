@@ -150,6 +150,8 @@ export type ToolHooksConverterConfig = {
      * the tool will shorten it.
      */
     readonly maxLength?: number;
+    /** Measure the cap after collapsing and trimming whitespace; emit the original value. */
+    readonly collapseWhitespaceForLength?: boolean;
   }>;
   /**
    * Per-hook string-array fields to carry through the round-trip. Only arrays
@@ -477,6 +479,7 @@ type PassthroughFieldSpec = {
   readonly tool: string;
   readonly commandOnly?: boolean;
   readonly maxLength?: number;
+  readonly collapseWhitespaceForLength?: boolean;
 };
 
 /**
@@ -529,7 +532,7 @@ function emitPassthroughFields<TValue>({
   isValid: PassthroughValidator;
   warn?: (message: string) => void;
 }): Record<string, TValue> {
-  for (const { canonical, tool, commandOnly, maxLength } of fields) {
+  for (const { canonical, tool, commandOnly, maxLength, collapseWhitespaceForLength } of fields) {
     const value = def[canonical];
     if (value === undefined) {
       continue;
@@ -551,11 +554,16 @@ function emitPassthroughFields<TValue>({
       );
       continue;
     }
-    if (maxLength !== undefined && typeof value === "string" && value.length > maxLength) {
-      warn?.(
-        `"${canonical}" on a "${hookType}" hook on "${eventName}" is ${value.length} characters long; ` +
-          `this tool caps "${tool}" at ${maxLength} characters and will shorten it.`,
-      );
+    if (maxLength !== undefined && typeof value === "string") {
+      const length = collapseWhitespaceForLength
+        ? value.replace(/\s+/g, " ").trim().length
+        : value.length;
+      if (length > maxLength) {
+        warn?.(
+          `"${canonical}" on a "${hookType}" hook on "${eventName}" is ${length} characters long; ` +
+            `this tool caps "${tool}" at ${maxLength} characters and will shorten it.`,
+        );
+      }
     }
   }
   return Object.fromEntries(

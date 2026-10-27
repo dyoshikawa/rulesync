@@ -45,7 +45,13 @@ const QODER_CONVERTER_CONFIG: ToolHooksConverterConfig = {
     // Command hooks with `asyncRewake`: the prefix of the injected system
     // message and the one-line summary, which Qoder caps at 300 characters.
     { canonical: "rewakeMessage", tool: "rewakeMessage", commandOnly: true },
-    { canonical: "rewakeSummary", tool: "rewakeSummary", commandOnly: true, maxLength: 300 },
+    {
+      canonical: "rewakeSummary",
+      tool: "rewakeSummary",
+      commandOnly: true,
+      maxLength: 300,
+      collapseWhitespaceForLength: true,
+    },
   ],
   booleanPassthroughFields: [
     { canonical: "once", tool: "once" },
