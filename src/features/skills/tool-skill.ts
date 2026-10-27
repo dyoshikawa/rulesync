@@ -47,17 +47,24 @@ export function toolSkillSearchRoots(paths: ToolSkillSettablePaths): string[] {
 }
 
 /**
- * The Agent Skills interoperability roots: project `.agents/skills/`, global
- * `~/.agents/skills/` (same relative path, home output root), and Amp's global
- * equivalent `~/.config/agents/skills/`. Foreign-authored — potentially
- * non-conformant — skills are the most likely to live here, so every tool that
- * scans one of these roots imports it leniently (skip-and-warn per skill), per
- * the Agent Skills client-implementation guide, while keeping fail-fast
- * behavior for its own native root. Amp's read-only global discovery root
- * `~/.config/amp/skills/` follows the same skip-and-warn rule.
- * https://agentskills.io/client-implementation/adding-skills-support
+ * Skill roots that every tool scanning them imports leniently (skip-and-warn
+ * per skill) instead of failing fast, regardless of the tool's own
+ * `lenientImport` flag.
+ *
+ * - The Agent Skills interoperability roots: project `.agents/skills/`, global
+ *   `~/.agents/skills/` (same relative path, home output root), and Amp's
+ *   global equivalent `~/.config/agents/skills/`. Foreign-authored —
+ *   potentially non-conformant — skills are the most likely to live here, so
+ *   they are imported leniently per the Agent Skills client-implementation
+ *   guide, while each tool keeps fail-fast behavior for its own native root.
+ *   https://agentskills.io/client-implementation/adding-skills-support
+ * - Amp's read-only global discovery root `~/.config/amp/skills/`, which is not
+ *   an interop root but follows the same skip-and-warn rule.
+ *
+ * Other import-only roots (e.g. GitLab Duo's legacy skills root, Kimi Code's
+ * shared root) are not listed here and stay fail-fast.
  */
-const AGENT_SKILLS_INTEROP_ROOTS: ReadonlySet<string> = new Set([
+const LENIENT_IMPORT_SKILL_ROOTS: ReadonlySet<string> = new Set([
   toPosixPath(AGENTSMD_SKILLS_DIR_PATH),
   toPosixPath(AMP_SKILLS_GLOBAL_DIR),
   toPosixPath(AMP_SKILLS_NATIVE_GLOBAL_DIR),
@@ -99,8 +106,8 @@ export function warnOnEmptyLoadedDescription({
   );
 }
 
-export function isAgentSkillsInteropRoot(relativeDirPath: string): boolean {
-  return AGENT_SKILLS_INTEROP_ROOTS.has(toPosixPath(relativeDirPath));
+export function isLenientImportSkillRoot(relativeDirPath: string): boolean {
+  return LENIENT_IMPORT_SKILL_ROOTS.has(toPosixPath(relativeDirPath));
 }
 
 /** Ordered import roots: managed roots first, followed by read-only discovery roots. */

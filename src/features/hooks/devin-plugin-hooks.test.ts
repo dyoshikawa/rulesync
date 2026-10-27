@@ -105,4 +105,28 @@ describe("DevinPluginHooks", () => {
       expect.objectContaining({ matcher: "exec", command: "./scripts/check.sh" }),
     ]);
   });
+
+  it("imports fail_closed from hooks.json as the canonical failClosed", async () => {
+    await writeFileContent(
+      join(testDir, "hooks.json"),
+      JSON.stringify({
+        PreToolUse: [
+          {
+            matcher: "exec",
+            hooks: [{ type: "command", command: "./scripts/guard.sh", fail_closed: true }],
+          },
+        ],
+      }),
+    );
+
+    const hooks = await DevinPluginHooks.fromFile({ outputRoot: testDir });
+
+    expect(hooks.toRulesyncHooks().getJson().hooks.preToolUse).toEqual([
+      expect.objectContaining({
+        matcher: "exec",
+        command: "./scripts/guard.sh",
+        failClosed: true,
+      }),
+    ]);
+  });
 });

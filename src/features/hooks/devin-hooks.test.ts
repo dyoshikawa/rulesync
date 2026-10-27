@@ -326,6 +326,49 @@ describe("DevinHooks", () => {
       expect(parsed.hooks).toEqual(config.hooks);
     });
 
+    it("should round-trip fail_closed through the global config.json", async () => {
+      const dir = join(testDir, ".config", "devin");
+      await ensureDir(dir);
+      await writeFileContent(
+        join(dir, "config.json"),
+        JSON.stringify({ mcpServers: { a: { command: "x" } } }),
+      );
+      const config = {
+        version: 1,
+        hooks: {
+          preToolUse: [
+            { type: "command", command: "./guard.sh", matcher: "exec", failClosed: true },
+            { type: "command", command: "./audit.sh", matcher: "exec", failClosed: false },
+          ],
+        },
+      };
+
+      const generated = await DevinHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks: makeRulesyncHooks(config),
+        validate: false,
+        global: true,
+      });
+      expect(JSON.parse(generated.getFileContent()).hooks.PreToolUse).toEqual([
+        {
+          matcher: "exec",
+          hooks: [
+            { type: "command", command: "./guard.sh", fail_closed: true },
+            { type: "command", command: "./audit.sh", fail_closed: false },
+          ],
+        },
+      ]);
+      await writeFileContent(
+        join(testDir, generated.getRelativeDirPath(), generated.getRelativeFilePath()),
+        generated.getFileContent(),
+      );
+
+      const imported = await DevinHooks.fromFile({ outputRoot: testDir, global: true });
+
+      expect(imported.getRelativeFilePath()).toBe("config.json");
+      expect(imported.toRulesyncHooks().getJson().hooks).toEqual(config.hooks);
+    });
+
     it("should round-trip the postCompact event via the PostCompaction key", async () => {
       const config = {
         version: 1,

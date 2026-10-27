@@ -6,33 +6,33 @@ import { AmpSkill } from "./amp-skill.js";
 import { ClaudecodeSkill } from "./claudecode-skill.js";
 import { ClineSkill } from "./cline-skill.js";
 import { KimiCodeSkill } from "./kimi-code-skill.js";
-import { isAgentSkillsInteropRoot, ToolSkill } from "./tool-skill.js";
+import { isLenientImportSkillRoot, ToolSkill } from "./tool-skill.js";
 
-describe("isAgentSkillsInteropRoot", () => {
+describe("isLenientImportSkillRoot", () => {
   it("matches the project/global .agents/skills root", () => {
-    expect(isAgentSkillsInteropRoot(".agents/skills")).toBe(true);
+    expect(isLenientImportSkillRoot(".agents/skills")).toBe(true);
   });
 
   it("matches Amp's global .config/agents/skills root", () => {
-    expect(isAgentSkillsInteropRoot(".config/agents/skills")).toBe(true);
+    expect(isLenientImportSkillRoot(".config/agents/skills")).toBe(true);
   });
 
   it("normalizes Windows separators before matching", () => {
-    expect(isAgentSkillsInteropRoot(".agents\\skills")).toBe(true);
-    expect(isAgentSkillsInteropRoot(".config\\agents\\skills")).toBe(true);
-    expect(isAgentSkillsInteropRoot(".config\\amp\\skills")).toBe(true);
+    expect(isLenientImportSkillRoot(".agents\\skills")).toBe(true);
+    expect(isLenientImportSkillRoot(".config\\agents\\skills")).toBe(true);
+    expect(isLenientImportSkillRoot(".config\\amp\\skills")).toBe(true);
   });
 
   it("matches Amp's read-only native global discovery root", () => {
-    expect(isAgentSkillsInteropRoot(".config/amp/skills")).toBe(true);
-    expect(isAgentSkillsInteropRoot("nested/.config/amp/skills")).toBe(false);
+    expect(isLenientImportSkillRoot(".config/amp/skills")).toBe(true);
+    expect(isLenientImportSkillRoot("nested/.config/amp/skills")).toBe(false);
   });
 
   it("does not match tools' native roots or lookalike paths", () => {
-    expect(isAgentSkillsInteropRoot(".rovodev/skills")).toBe(false);
-    expect(isAgentSkillsInteropRoot(".deepagents/skills")).toBe(false);
-    expect(isAgentSkillsInteropRoot("agents/skills")).toBe(false);
-    expect(isAgentSkillsInteropRoot("nested/.agents/skills")).toBe(false);
+    expect(isLenientImportSkillRoot(".rovodev/skills")).toBe(false);
+    expect(isLenientImportSkillRoot(".deepagents/skills")).toBe(false);
+    expect(isLenientImportSkillRoot("agents/skills")).toBe(false);
+    expect(isLenientImportSkillRoot("nested/.agents/skills")).toBe(false);
   });
 });
 
