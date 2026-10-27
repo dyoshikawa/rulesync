@@ -234,7 +234,7 @@ describe("canonicalToToolHooks", () => {
 
       expect(hook?.summary).toBe("  x  ");
       expect(logger.warn).toHaveBeenCalledExactlyOnceWith(
-        expect.stringContaining('caps "summary" at 3 characters'),
+        expect.stringContaining('is 5 characters long; this tool caps "summary" at 3 characters'),
       );
     });
 
@@ -259,7 +259,32 @@ describe("canonicalToToolHooks", () => {
       });
 
       expect(hook?.summary).toBe(value);
-      expect(logger.warn).toHaveBeenCalledTimes(warns ? 1 : 0);
+      if (warns) {
+        expect(logger.warn).toHaveBeenCalledExactlyOnceWith(
+          expect.stringContaining("is 4 characters long after collapsing whitespace;"),
+        );
+      } else {
+        expect(logger.warn).not.toHaveBeenCalled();
+      }
+    });
+
+    it("collapses Unicode whitespace too, as JavaScript's \\s does", () => {
+      const { logger } = emitHook({
+        definition: { command: "run.sh", rewakeSummary: "x\u00a0\u3000\u00a0y" },
+        converterConfig: {
+          ...converterConfig,
+          stringPassthroughFields: [
+            {
+              canonical: "rewakeSummary",
+              tool: "summary",
+              maxLength: 3,
+              collapseWhitespaceForLength: true,
+            },
+          ],
+        },
+      });
+
+      expect(logger.warn).not.toHaveBeenCalled();
     });
 
     it.each([
