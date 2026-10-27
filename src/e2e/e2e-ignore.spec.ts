@@ -472,25 +472,28 @@ describe("E2E: ignore (global mode)", () => {
     expect(imported).toContain("*.pem");
   });
 
-  it("should import the Kiro IDE user-level ignore file", async () => {
-    const projectDir = getProjectDir();
-    const homeDir = getHomeDir();
-    await writeFileContent(
-      join(homeDir, KIRO_SETTINGS_DIR_PATH, KIRO_GLOBAL_IGNORE_FILE_NAME),
-      "private/\n",
-    );
+  it.each(["kiro-cli", "kiro-ide"])(
+    "should import the user-level kiroignore for %s",
+    async (target) => {
+      const projectDir = getProjectDir();
+      const homeDir = getHomeDir();
+      await writeFileContent(
+        join(homeDir, KIRO_SETTINGS_DIR_PATH, KIRO_GLOBAL_IGNORE_FILE_NAME),
+        "private/\n",
+      );
 
-    await runImport({
-      target: "kiro-ide",
-      features: "ignore",
-      global: true,
-      env: { HOME_DIR: homeDir },
-    });
+      await runImport({
+        target,
+        features: "ignore",
+        global: true,
+        env: { HOME_DIR: homeDir },
+      });
 
-    expect(await readFileContent(join(projectDir, RULESYNC_AIIGNORE_RELATIVE_FILE_PATH))).toContain(
-      "private/",
-    );
-  });
+      expect(
+        await readFileContent(join(projectDir, RULESYNC_AIIGNORE_RELATIVE_FILE_PATH)),
+      ).toContain("private/");
+    },
+  );
 
   it("should write the shared user-level kiroignore once for kiro-cli and kiro-ide", async () => {
     const projectDir = getProjectDir();
@@ -500,13 +503,18 @@ describe("E2E: ignore (global mode)", () => {
       "credentials/\n",
     );
 
-    await runGenerate({
+    const { stdout } = await runGenerate({
       target: "kiro-cli,kiro-ide",
       features: "ignore",
       global: true,
-      env: { HOME_DIR: homeDir },
+      // Lift the test-env log suppression so the write summary is printed.
+      env: { HOME_DIR: homeDir, NODE_ENV: "e2e" },
     });
 
+    // Each write replaces the whole file, so its content cannot reveal a
+    // second write; the reported write count does.
+    expect(stdout).toContain("Written 1 ignore file\n");
+    expect(stdout).toContain("Written 1 file(s) total (1 ignore files)");
     const generatedContent = await readFileContent(
       join(homeDir, KIRO_SETTINGS_DIR_PATH, KIRO_GLOBAL_IGNORE_FILE_NAME),
     );
