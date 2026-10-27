@@ -38,6 +38,7 @@ type VibeConfig = Record<string, unknown> & {
   enabled_tools?: string[];
   disabled_tools?: string[];
   enable_subagents?: unknown;
+  outside_workdir?: unknown;
   tools?: Record<string, VibeToolConfig>;
 };
 
@@ -75,9 +76,11 @@ const CANONICAL_TO_VIBE_TOOL_NAMES: Record<string, string> = {
 
 /**
  * The tables earlier rulesync versions wrote for canonical categories that
- * Vibe 3.x no longer reads: `[tools.grep]` (Vibe warns that it "has no
- * effect") and `[tools.task]` for the subagent tool v3.0.0 renamed to
- * `agents.*`. A regenerate that configures the category removes them — and
+ * Vibe 3.x does not read: `[tools.grep]` (Vibe warns that it "has no
+ * effect"), `[tools.task]` for the subagent tool v3.0.0 renamed to
+ * `agents.*`, and `[tools.external_directory]` — Vibe has no such tool, and
+ * its unused-settings check skips unknown tool names as custom/MCP tools, so
+ * that deny was silently inert. A regenerate that configures the category removes them — and
  * the matching `disabled_tools` entry — instead of leaving an inert table.
  * Import still reads them (see {@link VIBE_TO_CANONICAL_TOOL_NAMES}), so a
  * Vibe 2.x config is lifted into the canonical categories rather than lost.
@@ -85,10 +88,22 @@ const CANONICAL_TO_VIBE_TOOL_NAMES: Record<string, string> = {
 const VIBE_RETIRED_TOOL_TABLES: Readonly<Record<string, string>> = {
   grep: "grep",
   agent: "task",
+  external_directory: "external_directory",
 };
 
 /** The canonical category Vibe's `enable_subagents` switch expresses. */
 const VIBE_SUBAGENT_CATEGORY = "agent";
+
+/** The canonical category Vibe's top-level `outside_workdir` setting expresses. */
+const VIBE_OUTSIDE_WORKDIR_CATEGORY = "external_directory";
+
+/**
+ * The values of Vibe's `outside_workdir` (v3.0.3+). There is no allow value:
+ * access outside the working directory is granted per path through a tool's
+ * `allowlist` (`vibe-path:...`) or `--add-dir`.
+ * @see https://github.com/mistralai/mistral-vibe/blob/v3.0.3/README.md
+ */
+const VIBE_OUTSIDE_WORKDIR_VALUES: ReadonlySet<string> = new Set(["ask", "deny"]);
 
 const VIBE_TO_CANONICAL_TOOL_NAMES: Record<string, string> = {
   bash: "bash",
@@ -173,6 +188,7 @@ const CANONICAL_PERMISSION_CATEGORIES = new Set([
   "glob",
   "notebookedit",
   "agent",
+  "external_directory",
 ]);
 
 export class VibePermissions extends ToolPermissions {
@@ -295,10 +311,16 @@ export class VibePermissions extends ToolPermissions {
       rules: permission[VIBE_SUBAGENT_CATEGORY],
       logger,
     });
+    const outsideWorkdirPatch = resolveOutsideWorkdirPatch({
+      rules: permission[VIBE_OUTSIDE_WORKDIR_CATEGORY],
+      logger,
+    });
 
-    // The `agent` category was translated to `enable_subagents` above.
+    // The `agent` category was translated to `enable_subagents` and the
+    // `external_directory` category to `outside_workdir` above.
     const tableCategories = Object.entries(permission).filter(
-      ([category]) => category !== VIBE_SUBAGENT_CATEGORY,
+      ([category]) =>
+        category !== VIBE_SUBAGENT_CATEGORY && category !== VIBE_OUTSIDE_WORKDIR_CATEGORY,
     );
     for (const [category, rules] of tableCategories) {
       const vibeToolNames = resolveNames(category);
@@ -369,6 +391,7 @@ export class VibePermissions extends ToolPermissions {
           enabled_tools: resolveEnabledToolsPatch({ vibeOverride, enabledTools }),
           disabled_tools: disabledTools.size > 0 ? [...disabledTools].toSorted() : undefined,
           ...enableSubagentsPatch,
+          ...outsideWorkdirPatch,
         },
         filePath,
       }),
@@ -476,6 +499,15 @@ export class VibePermissions extends ToolPermissions {
     // so it wins over whatever a legacy `[tools.task]` table said.
     if (this.toml.enable_subagents === false) {
       ensurePermission(permission, VIBE_SUBAGENT_CATEGORY)["*"] = "deny";
+    }
+
+    // The top-level `outside_workdir` is the native form of the canonical
+    // `external_directory` category, so it wins over a legacy
+    // `[tools.external_directory]` table an earlier rulesync wrote.
+    const outsideWorkdir = this.toml.outside_workdir;
+    if (typeof outsideWorkdir === "string" && VIBE_OUTSIDE_WORKDIR_VALUES.has(outsideWorkdir)) {
+      ensurePermission(permission, VIBE_OUTSIDE_WORKDIR_CATEGORY)["*"] =
+        outsideWorkdir === "deny" ? "deny" : "ask";
     }
 
     warnOnUnresolvableDisabledTools({ entries: disabledToolEntries, tools: this.toml.tools });
@@ -600,8 +632,10 @@ function retireLegacyToolTables({
   }
   if (removed.length > 0) {
     logger?.warn(
-      `Removed ${removed.join(", ")} from the Vibe config: Vibe 3.x no longer reads ` +
-        `[tools.grep] or the former 'task' subagent tool, so those entries had no effect.`,
+      `Removed ${removed.join(", ")} from the Vibe config: Vibe 3.x does not read ` +
+        `[tools.grep], the former 'task' subagent tool or an 'external_directory' tool ` +
+        `(the 'external_directory' category is written to outside_workdir instead), so those ` +
+        `entries had no effect.`,
     );
   }
 }
@@ -676,6 +710,51 @@ function resolveEnableSubagentsPatch({
     );
   }
   return { enable_subagents: action === "deny" ? false : undefined };
+}
+
+/**
+ * Translate the canonical `external_directory` category into Vibe's top-level
+ * `outside_workdir` setting (v3.0.3+), which decides whether a file or shell
+ * tool call reaching outside the working directory prompts (`"ask"`, the
+ * default) or is refused with a tool error (`"deny"`). A `*` deny or ask writes
+ * that value; a `*` allow has no Vibe value, so it is warned about and the key
+ * is removed, leaving Vibe's default prompt. Without a `*` rule the key is left
+ * as the file has it. Pattern rules are skipped with a warning: path grants go
+ * in a tool's `allowlist` (`vibe-path:...`) instead.
+ * @see https://github.com/mistralai/mistral-vibe/blob/v3.0.3/README.md
+ * @see https://github.com/mistralai/mistral-vibe/blob/v3.0.3/vibe/app_server/_unified_permissions.py
+ */
+function resolveOutsideWorkdirPatch({
+  rules,
+  logger,
+}: {
+  rules: Record<string, PermissionAction> | undefined;
+  logger?: Logger;
+}): { outside_workdir?: "ask" | "deny" | undefined } {
+  if (rules === undefined) {
+    return {};
+  }
+  const patternCount = Object.keys(rules).filter((pattern) => pattern !== "*").length;
+  if (patternCount > 0) {
+    logger?.warn(
+      `Vibe's outside_workdir applies to every path outside the working directory; skipping ` +
+        `${patternCount} pattern rule(s) of the '${VIBE_OUTSIDE_WORKDIR_CATEGORY}' category. ` +
+        `Grant a path through a tool's allowlist ("vibe-path:...") in the Vibe config instead.`,
+    );
+  }
+  const action = rules["*"];
+  if (action === undefined) {
+    return {};
+  }
+  if (action === "allow") {
+    logger?.warn(
+      `Vibe's outside_workdir only takes "ask" or "deny"; the ` +
+        `'${VIBE_OUTSIDE_WORKDIR_CATEGORY}' category's "*": "allow" leaves Vibe's default, ` +
+        `which prompts before reaching outside the working directory.`,
+    );
+    return { outside_workdir: undefined };
+  }
+  return { outside_workdir: action };
 }
 
 /**

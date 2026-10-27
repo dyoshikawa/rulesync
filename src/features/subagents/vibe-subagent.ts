@@ -7,6 +7,7 @@ import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-p
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent, readFileContentOrNull } from "../../utils/file.js";
+import type { Logger } from "../../utils/logger.js";
 import { RulesyncSubagent, RulesyncSubagentFrontmatter } from "./rulesync-subagent.js";
 import {
   ToolSubagent,
@@ -29,7 +30,24 @@ type VibeSubagentsFromRulesyncSubagentsParams = {
   rulesyncSubagents: RulesyncSubagent[];
   outputRoot?: string;
   global?: boolean;
+  logger?: Logger;
 };
+
+/**
+ * The agent name Vibe reserves for `post_agent` hook matching (v3.0.3+).
+ * `AgentProfile.from_toml` refuses a file whose stem matches it case-insensitively, so an
+ * agent written as `main.toml` would never load.
+ * @see https://github.com/mistralai/mistral-vibe/blob/v3.0.3/vibe/core/agents/models.py
+ */
+const VIBE_RESERVED_AGENT_NAME = "main";
+
+function isReservedVibeAgentFileName(relativeFilePath: string): boolean {
+  return (
+    basename(relativeFilePath)
+      .replace(/\.(md|toml)$/, "")
+      .toLowerCase() === VIBE_RESERVED_AGENT_NAME
+  );
+}
 
 /**
  * Vibe resolves a `system_prompt_id` by file name, and
@@ -207,13 +225,26 @@ export class VibeSubagent extends ToolSubagent {
    * evaluates the property during validation, so an unresolvable
    * `system_prompt_id` raises and `AgentRegistry._try_load` drops the agent
    * with a warning.
+   *
+   * A subagent named `main` is skipped with a warning: Vibe reserves that name
+   * for hook matching and does not load an agent file called `main.toml`.
    */
   static fromRulesyncSubagents({
     rulesyncSubagents,
     outputRoot = process.cwd(),
     global = false,
+    logger,
   }: VibeSubagentsFromRulesyncSubagentsParams): VibeSubagent[] {
     return rulesyncSubagents.flatMap((rulesyncSubagent) => {
+      const sourcePath = rulesyncSubagent.getRelativeFilePath();
+      if (isReservedVibeAgentFileName(sourcePath)) {
+        logger?.warn(
+          `Skipping Vibe subagent ${sourcePath}: Vibe reserves the agent name ` +
+            `'${VIBE_RESERVED_AGENT_NAME}' for hook matching and does not load an agent file ` +
+            `named '${VIBE_RESERVED_AGENT_NAME}'. Rename the subagent file.`,
+        );
+        return [];
+      }
       const agentFile = VibeSubagent.fromRulesyncSubagent({
         outputRoot,
         relativeDirPath: VibeSubagent.getSettablePaths({ global }).relativeDirPath,
