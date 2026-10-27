@@ -246,4 +246,176 @@ describe("CodebuddyPermissions", () => {
       expect(importFrom(testDir, settings)).toEqual(config);
     });
   });
+
+  describe("codebuddy override", () => {
+    async function generateWithOverride(
+      codebuddy: Record<string, unknown>,
+      { global = false, logger = createMockLogger() } = {},
+    ): Promise<Record<string, unknown>> {
+      const permissions = await CodebuddyPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: ".rulesync",
+          relativeFilePath: "permissions.json",
+          fileContent: JSON.stringify({ permission: { bash: { ls: "allow" } }, codebuddy }),
+          validate: true,
+        }),
+        global,
+        logger,
+      });
+      return JSON.parse(permissions.getFileContent());
+    }
+
+    function importOverride(settings: unknown, { global = false } = {}) {
+      return new CodebuddyPermissions({
+        outputRoot: testDir,
+        relativeDirPath: SETTINGS_DIR,
+        relativeFilePath: SETTINGS_FILE,
+        fileContent: JSON.stringify(settings),
+        global,
+      })
+        .toRulesyncPermissions()
+        .getJson().codebuddy;
+    }
+
+    it("writes autoReview and autoMode in global mode only", async () => {
+      const autoReview = { policy: "# Security Policy", extraPolicy: "Allow dev releases" };
+      const autoMode = { allow: ["running tests"], hard_deny: ["force pushing"] };
+
+      const logger = createMockLogger();
+      const project = await generateWithOverride({ autoReview, autoMode }, { logger });
+      expect(project).toEqual({ permissions: { allow: ["Bash(ls)"] } });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("skipping codebuddy.autoReview in project mode"),
+      );
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("skipping codebuddy.autoMode in project mode"),
+      );
+
+      const globalLogger = createMockLogger();
+      const user = await generateWithOverride(
+        { autoReview, autoMode },
+        { global: true, logger: globalLogger },
+      );
+      expect(user).toEqual({ permissions: { allow: ["Bash(ls)"] }, autoReview, autoMode });
+      for (const key of [
+        "codebuddy.autoReview.policy",
+        "codebuddy.autoReview.extraPolicy",
+        "codebuddy.autoMode.allow",
+      ]) {
+        expect(globalLogger.warn).toHaveBeenCalledWith(
+          expect.stringContaining(`${key} was written`),
+        );
+      }
+    });
+
+    it("merges each group per key, keeps other keys and skips unmodeled ones", async () => {
+      await writeSettings(testDir, {
+        model: "gpt-5",
+        autoReview: { extraPolicy: "old", custom: true },
+        autoMode: { soft_deny: ["deleting files"] },
+        memory: { enabled: true },
+      });
+      const logger = createMockLogger();
+
+      const settings = await generateWithOverride(
+        {
+          autoReview: { extraPolicy: "new", unknownKey: "x" },
+          autoMode: { environment: ["pnpm monorepo"] },
+          memory: { parentDiscovery: false },
+        },
+        { global: true, logger },
+      );
+
+      expect(settings).toEqual({
+        model: "gpt-5",
+        autoReview: { extraPolicy: "new", custom: true },
+        autoMode: { soft_deny: ["deleting files"], environment: ["pnpm monorepo"] },
+        memory: { enabled: true, parentDiscovery: false },
+        permissions: { allow: ["Bash(ls)"] },
+      });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("skipping codebuddy.autoReview.unknownKey"),
+      );
+    });
+
+    it("skips a group whose existing value is not an object", async () => {
+      await writeSettings(testDir, { memory: true });
+      const logger = createMockLogger();
+
+      const settings = await generateWithOverride(
+        { memory: { parentDiscovery: false } },
+        { logger },
+      );
+
+      expect(settings).toEqual({ memory: true, permissions: { allow: ["Bash(ls)"] } });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("skipping codebuddy.memory — memory in"),
+      );
+    });
+
+    it("does not announce review settings it skipped in project mode", async () => {
+      const logger = createMockLogger();
+
+      await generateWithOverride(
+        { autoReview: { policy: "p", extraPolicy: "e" }, autoMode: { allow: ["a"] } },
+        { logger },
+      );
+
+      for (const key of [
+        "codebuddy.autoReview.policy",
+        "codebuddy.autoReview.extraPolicy",
+        "codebuddy.autoMode.allow",
+      ]) {
+        expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining(`${key} was written`));
+      }
+    });
+
+    it("writes memory.parentDiscovery in project mode too", async () => {
+      const settings = await generateWithOverride({ memory: { parentDiscovery: false } });
+
+      expect(settings).toEqual({
+        permissions: { allow: ["Bash(ls)"] },
+        memory: { parentDiscovery: false },
+      });
+    });
+
+    it("leaves the groups untouched when the override does not author them", async () => {
+      await writeSettings(testDir, { autoReview: { policy: "hand-written" } });
+
+      const settings = await generateWithOverride({}, { global: true });
+
+      expect(settings).toEqual({
+        autoReview: { policy: "hand-written" },
+        permissions: { allow: ["Bash(ls)"] },
+      });
+    });
+
+    it("imports autoReview and autoMode from the user file only", () => {
+      const settings = {
+        autoReview: { policy: "p", extraPolicy: "e", other: 1 },
+        autoMode: { allow: ["a"], hard_deny: ["d"], soft_deny: "not-an-array" },
+        memory: { parentDiscovery: false, enabled: true },
+      };
+
+      expect(importOverride(settings, { global: true })).toEqual({
+        autoReview: { policy: "p", extraPolicy: "e" },
+        autoMode: { allow: ["a"], hard_deny: ["d"] },
+        memory: { parentDiscovery: false },
+      });
+      expect(importOverride(settings)).toEqual({ memory: { parentDiscovery: false } });
+      expect(importOverride({ model: "gpt-5" }, { global: true })).toBeUndefined();
+    });
+
+    it("round-trips through global generate and import", async () => {
+      const codebuddy = {
+        autoReview: { extraPolicy: "Allow dev namespace releases" },
+        autoMode: { environment: ["Trusted domain: staging.example.com"] },
+        memory: { parentDiscovery: false },
+      };
+      const settings = await generateWithOverride(codebuddy, { global: true });
+
+      expect(importOverride(settings, { global: true })).toEqual(codebuddy);
+    });
+  });
 });
