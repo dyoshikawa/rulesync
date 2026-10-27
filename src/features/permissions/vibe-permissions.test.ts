@@ -543,6 +543,154 @@ describe("VibePermissions", () => {
     });
   });
 
+  describe("external_directory category (outside_workdir)", () => {
+    const generate = async ({
+      permission,
+      existing,
+      logger,
+    }: {
+      permission: Record<string, Record<string, string>>;
+      existing?: string;
+      logger?: ReturnType<typeof createMockLogger>;
+    }) => {
+      if (existing !== undefined) {
+        await ensureDir(join(testDir, ".vibe"));
+        await writeFileContent(join(testDir, ".vibe", "config.toml"), existing);
+      }
+      return VibePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          outputRoot: testDir,
+          relativeDirPath: ".rulesync",
+          relativeFilePath: "permissions.json",
+          fileContent: JSON.stringify({ permission }),
+        }),
+        ...(logger !== undefined && { logger }),
+      });
+    };
+
+    it.each(["deny", "ask"])(
+      "should map a wildcard %s to outside_workdir in both directions",
+      async (action) => {
+        // Vibe has no `external_directory` tool, so a `[tools.external_directory]`
+        // table would be inert; the top-level `outside_workdir` is the native switch.
+        const vibePermissions = await generate({
+          permission: { external_directory: { "*": action } },
+        });
+        const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+
+        expect(parsed.outside_workdir).toBe(action);
+        expect(parsed.tools).toBeUndefined();
+        expect(parsed.disabled_tools).toBeUndefined();
+
+        const imported = JSON.parse(vibePermissions.toRulesyncPermissions().getFileContent());
+        expect(imported.permission.external_directory).toEqual({ "*": action });
+      },
+    );
+
+    it("should warn on a wildcard allow and remove outside_workdir", async () => {
+      const logger = createMockLogger();
+      const vibePermissions = await generate({
+        permission: { external_directory: { "*": "allow" } },
+        existing: 'outside_workdir = "deny"\n',
+        logger,
+      });
+      const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+
+      expect(parsed.outside_workdir).toBeUndefined();
+      expect(parsed.tools).toBeUndefined();
+      expect(
+        logger.warn.mock.calls.some(([message]) =>
+          String(message).includes('outside_workdir only takes "ask" or "deny"'),
+        ),
+      ).toBe(true);
+    });
+
+    it("should skip pattern rules with a warning and keep an existing setting", async () => {
+      const logger = createMockLogger();
+      const vibePermissions = await generate({
+        permission: { external_directory: { "/tmp/**": "allow" } },
+        existing: 'outside_workdir = "deny"\n',
+        logger,
+      });
+      const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+
+      expect(parsed.outside_workdir).toBe("deny");
+      expect(parsed.tools).toBeUndefined();
+      expect(
+        logger.warn.mock.calls.some(([message]) =>
+          String(message).includes(
+            "skipping 1 pattern rule(s) of the 'external_directory' category",
+          ),
+        ),
+      ).toBe(true);
+    });
+
+    it("should leave outside_workdir alone when the category is not configured", async () => {
+      const vibePermissions = await generate({
+        permission: { bash: { "*": "allow" } },
+        existing: 'outside_workdir = "deny"\n',
+      });
+      const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+
+      expect(parsed.outside_workdir).toBe("deny");
+    });
+
+    it("should remove the inert [tools.external_directory] table and disabled_tools entry earlier versions wrote", async () => {
+      const logger = createMockLogger();
+      const vibePermissions = await generate({
+        permission: { external_directory: { "*": "deny" } },
+        existing: [
+          'disabled_tools = ["custom_tool", "external_directory"]',
+          "",
+          "[tools.external_directory]",
+          'permission = "never"',
+          "",
+        ].join("\n"),
+        logger,
+      });
+      const parsed = smolToml.parse(vibePermissions.getFileContent()) as any;
+
+      expect(parsed.tools?.external_directory).toBeUndefined();
+      expect(parsed.disabled_tools).toEqual(["custom_tool"]);
+      expect(parsed.outside_workdir).toBe("deny");
+      expect(
+        logger.warn.mock.calls.some(([message]) =>
+          String(message).includes("[tools.external_directory]"),
+        ),
+      ).toBe(true);
+    });
+
+    it("should import outside_workdir over a legacy [tools.external_directory] table", () => {
+      const vibePermissions = new VibePermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".vibe",
+        relativeFilePath: "config.toml",
+        fileContent: [
+          'outside_workdir = "deny"',
+          "",
+          "[tools.external_directory]",
+          'permission = "always"',
+        ].join("\n"),
+      });
+
+      const imported = JSON.parse(vibePermissions.toRulesyncPermissions().getFileContent());
+      expect(imported.permission.external_directory).toEqual({ "*": "deny" });
+    });
+
+    it("should ignore an outside_workdir value Vibe does not define on import", () => {
+      const vibePermissions = new VibePermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".vibe",
+        relativeFilePath: "config.toml",
+        fileContent: 'outside_workdir = "allow"\n',
+      });
+
+      const imported = JSON.parse(vibePermissions.toRulesyncPermissions().getFileContent());
+      expect(imported.permission.external_directory).toBeUndefined();
+    });
+  });
+
   it("should skip categories without a Vibe tool instead of emitting inert tables", async () => {
     const logger = createMockLogger();
     const rulesyncPermissions = new RulesyncPermissions({

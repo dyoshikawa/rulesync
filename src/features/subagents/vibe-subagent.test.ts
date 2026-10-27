@@ -4,6 +4,7 @@ import * as smolToml from "smol-toml";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { RulesyncSubagent } from "./rulesync-subagent.js";
@@ -97,6 +98,37 @@ describe("VibeSubagent", () => {
     const agentFile = files.find((file) => !file.isPromptFile());
     expect((smolToml.parse(agentFile?.getBody() ?? "") as any).system_prompt_id).toBe("research");
   });
+
+  it.each(["main.md", "Main.md", "MAIN.md"])(
+    "should skip a subagent file named %s with a warning, since Vibe reserves main",
+    (relativeFilePath) => {
+      const reserved = new RulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath,
+        frontmatter: { targets: ["vibe"], name: "Main", description: "Reserved" },
+        body: "Do things.",
+      });
+      const kept = new RulesyncSubagent({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+        relativeFilePath: "mainframe.md",
+        frontmatter: { targets: ["vibe"], name: "Mainframe", description: "Not reserved" },
+        body: "",
+      });
+      const logger = createMockLogger();
+
+      const files = VibeSubagent.fromRulesyncSubagents({
+        outputRoot: testDir,
+        rulesyncSubagents: [reserved, kept],
+        logger,
+      });
+
+      expect(files.map((file) => file.getRelativeFilePath())).toEqual(["mainframe.toml"]);
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("reserves the agent name"));
+    },
+  );
 
   it("should emit no prompt file for a subagent with an empty body", () => {
     const rulesyncSubagent = new RulesyncSubagent({
