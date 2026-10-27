@@ -678,3 +678,132 @@ describe("GrokcliHooks args and if (issue #2498)", () => {
     ]);
   });
 });
+
+describe("GrokcliHooks failClosed (issue #2498)", () => {
+  let testDir: string;
+  let cleanup: () => Promise<void>;
+
+  beforeEach(async () => {
+    ({ testDir, cleanup } = await setupTestDirectory());
+    vi.spyOn(process, "cwd").mockReturnValue(testDir);
+  });
+
+  afterEach(async () => {
+    await cleanup();
+    vi.restoreAllMocks();
+  });
+
+  const fromCanonical = (config: unknown, logger = createMockLogger()) =>
+    GrokcliHooks.fromRulesyncHooks({
+      outputRoot: testDir,
+      rulesyncHooks: new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify(config),
+        validate: false,
+      }),
+      logger,
+    });
+
+  const fromToolFile = (config: unknown) =>
+    new GrokcliHooks({
+      outputRoot: testDir,
+      relativeDirPath: join(".grok", "hooks"),
+      relativeFilePath: "rulesync.json",
+      fileContent: JSON.stringify(config),
+    });
+
+  it("emits failClosed as a boolean on PreToolUse and UserPromptSubmit handlers", async () => {
+    // Grok 1.0.71+: only PreToolUse and UserPromptSubmit honour `failClosed`.
+    const logger = createMockLogger();
+    const hooks = await fromCanonical(
+      {
+        version: 1,
+        hooks: {
+          preToolUse: [
+            { type: "command", matcher: "Bash", command: "./guard.sh", failClosed: true },
+            { type: "http", matcher: "Bash", url: "https://example.com/hook", failClosed: true },
+            { type: "command", matcher: "Bash", command: "./audit.sh", failClosed: false },
+          ],
+          beforeSubmitPrompt: [{ type: "command", command: "./prompt.sh", failClosed: true }],
+        },
+      },
+      logger,
+    );
+
+    const written = JSON.parse(hooks.getFileContent()).hooks;
+    expect(written.PreToolUse[0].hooks).toEqual([
+      { type: "command", command: "./guard.sh", failClosed: true },
+      { type: "http", url: "https://example.com/hook", failClosed: true },
+      { type: "command", command: "./audit.sh", failClosed: false },
+    ]);
+    expect(written.UserPromptSubmit[0].hooks).toEqual([
+      { type: "command", command: "./prompt.sh", failClosed: true },
+    ]);
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
+  it("drops failClosed with a warning on events Grok ignores it on", async () => {
+    const logger = createMockLogger();
+    const hooks = await fromCanonical(
+      {
+        version: 1,
+        hooks: {
+          postToolUse: [{ type: "command", command: "./post.sh", failClosed: true }],
+          stop: [{ type: "command", command: "./stop.sh", failClosed: false }],
+        },
+      },
+      logger,
+    );
+
+    const written = JSON.parse(hooks.getFileContent()).hooks;
+    expect(written.PostToolUse[0].hooks).toEqual([{ type: "command", command: "./post.sh" }]);
+    expect(written.Stop[0].hooks).toEqual([{ type: "command", command: "./stop.sh" }]);
+    // A `false` is Grok's default, so only the `true` is worth a warning.
+    expect(logger.warn).toHaveBeenCalledTimes(1);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('Dropping "failClosed" from a "command" hook on "postToolUse"'),
+    );
+  });
+
+  it("round-trips failClosed through generate and import", async () => {
+    const hooks = await fromCanonical({
+      version: 1,
+      hooks: {
+        preToolUse: [{ type: "command", matcher: "Bash", command: "./guard.sh", failClosed: true }],
+        beforeSubmitPrompt: [{ type: "command", command: "./prompt.sh", failClosed: false }],
+      },
+    });
+
+    const imported = fromToolFile(JSON.parse(hooks.getFileContent()))
+      .toRulesyncHooks()
+      .getJson().hooks;
+    expect(imported.preToolUse).toEqual([
+      { type: "command", matcher: "Bash", command: "./guard.sh", failClosed: true },
+    ]);
+    expect(imported.beforeSubmitPrompt).toEqual([
+      { type: "command", command: "./prompt.sh", failClosed: false },
+    ]);
+  });
+
+  it("drops failClosed on import from events Grok ignores it on, and non-boolean values", () => {
+    const logger = createMockLogger();
+    const imported = fromToolFile({
+      hooks: {
+        PostToolUse: [{ hooks: [{ type: "command", command: "./post.sh", failClosed: true }] }],
+        PreToolUse: [{ hooks: [{ type: "command", command: "./guard.sh", failClosed: "yes" }] }],
+      },
+    })
+      .toRulesyncHooks({ logger })
+      .getJson().hooks;
+
+    expect(imported.postToolUse).toEqual([{ type: "command", command: "./post.sh" }]);
+    expect(imported.preToolUse).toEqual([{ type: "command", command: "./guard.sh" }]);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining(
+        'Dropping "failClosed" from an imported "command" hook on "postToolUse"',
+      ),
+    );
+  });
+});
