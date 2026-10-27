@@ -9,6 +9,7 @@ import { ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContent } from "../../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
+import { warnWithFallback } from "../../utils/logger.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
   ToolRule,
@@ -30,11 +31,17 @@ import {
  * - `alwaysApply: true`: force the rule to always load (equivalent to a file
  *   with no frontmatter at all).
  * - `description`: label surfaced in the rule toggle UI.
+ * - `disabled: true` (or `enabled: false`): the rule is switched off. Since
+ *   Cline v4.1.26 (cline/cline#14605) the rule toggle writes this flag into the
+ *   rule file itself instead of keeping it only in extension state.
  *
  * Rules without frontmatter are always active. Uses `z.looseObject()` so
- * forward-compatible fields added upstream are preserved on round-trip.
+ * forward-compatible fields added upstream are preserved on round-trip: every
+ * key other than `paths` / `alwaysApply` / `description` is carried in the
+ * rulesync `cline:` section.
  *
  * @see https://docs.cline.bot/customization/cline-rules
+ * @see https://github.com/cline/cline/blob/main/sdk/packages/core/src/extensions/config/user-instruction-config-loader.ts
  */
 export const ClineRuleFrontmatterSchema = z.looseObject({
   paths: z.optional(z.union([z.array(z.string()), z.string()])),
@@ -43,6 +50,50 @@ export const ClineRuleFrontmatterSchema = z.looseObject({
 });
 
 export type ClineRuleFrontmatter = z.infer<typeof ClineRuleFrontmatterSchema>;
+
+// The rule frontmatter fields Cline type-checks besides the canonical ones. A
+// value of the wrong type makes Cline reject the whole rule file ("Frontmatter
+// field 'disabled' must be a boolean."), and would fail the rulesync `cline:`
+// schema, so such a value is dropped with a warning on import.
+const CLINE_RULE_FIELD_TYPES: Record<string, "boolean"> = {
+  disabled: "boolean",
+  enabled: "boolean",
+};
+
+/**
+ * Splits a Cline rule frontmatter into the keys that have canonical rulesync
+ * homes (`paths` / `alwaysApply` / `description`) and the rest, which are
+ * lifted into the rulesync `cline:` section.
+ */
+function extractClineSection({
+  frontmatter,
+  relativeFilePath,
+}: {
+  frontmatter: ClineRuleFrontmatter | undefined;
+  relativeFilePath: string;
+}): Record<string, unknown> {
+  const {
+    paths: _paths,
+    alwaysApply: _alwaysApply,
+    description: _description,
+    ...rest
+  } = frontmatter ?? {};
+  return Object.fromEntries(
+    Object.entries(rest).filter(([key, value]) => {
+      const expected = Object.hasOwn(CLINE_RULE_FIELD_TYPES, key)
+        ? CLINE_RULE_FIELD_TYPES[key]
+        : undefined;
+      if (expected === undefined || value === undefined || typeof value === expected) {
+        return true;
+      }
+      warnWithFallback(
+        undefined,
+        `Cline rules: dropping ${key} from ${relativeFilePath}: Cline rejects the whole rule unless it is a ${expected}.`,
+      );
+      return false;
+    }),
+  );
+}
 
 /**
  * Parameters for creating a non-root ClineRule (`.clinerules/*.md`).
@@ -195,6 +246,13 @@ export class ClineRule extends ToolRule {
 
     const globs =
       this.frontmatter?.alwaysApply === true ? ["**/*"] : normalizePaths(this.frontmatter?.paths);
+    // Keys beyond the canonical ones — notably `disabled: true`, which Cline's
+    // rule toggle writes — are lifted into `cline:` so they survive a
+    // regenerate.
+    const cline = extractClineSection({
+      frontmatter: this.frontmatter,
+      relativeFilePath: this.getRelativeFilePath(),
+    });
 
     return new RulesyncRule({
       outputRoot: process.cwd(),
@@ -205,6 +263,7 @@ export class ClineRule extends ToolRule {
         targets: ["*"],
         description: this.frontmatter?.description,
         globs,
+        ...(Object.keys(cline).length > 0 && { cline }),
       },
       body: this.body ?? this.getFileContent(),
     });
@@ -272,7 +331,9 @@ export class ClineRule extends ToolRule {
    * universal match-everything globs mean "always", so they map to
    * `alwaysApply: true` instead of a `paths` list; specific globs become
    * conditional `paths`; an empty globs list leaves the rule always-active with
-   * no `paths`/`alwaysApply`.
+   * no `paths`/`alwaysApply`. Every key of the rulesync `cline:` section
+   * (e.g. `disabled: true`) is written into the frontmatter too; the canonical
+   * `paths` / `alwaysApply` / `description` win over same-named keys there.
    */
   private static buildNonRootRule({
     outputRoot,
@@ -288,12 +349,19 @@ export class ClineRule extends ToolRule {
     const rulesyncFrontmatter = rulesyncRule.getFrontmatter();
     const globs = normalizePaths(rulesyncFrontmatter.globs);
     const isUniversal = globs.length > 0 && globs.every((glob) => glob === "**/*" || glob === "*");
+    const {
+      paths: _paths,
+      alwaysApply: _alwaysApply,
+      description: _description,
+      ...clineSection
+    } = rulesyncFrontmatter.cline ?? {};
     const frontmatter: ClineRuleFrontmatter = {
       paths: globs.length > 0 && !isUniversal ? globs : undefined,
       alwaysApply: isUniversal ? true : undefined,
       // Omit empty descriptions so they do not leave a bare `description: ''`
       // line in the emitted frontmatter.
       description: rulesyncFrontmatter.description || undefined,
+      ...clineSection,
     };
 
     return new ClineRule({

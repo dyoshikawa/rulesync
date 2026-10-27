@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
+import { fallbackLogger } from "../../utils/logger.js";
 import { ClineRule, ClineRuleFrontmatterSchema } from "./cline-rule.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 
@@ -596,6 +597,185 @@ alwaysApply: true
 
       expect(clineRule.getRelativeFilePath()).toBe(relativeFilePath);
       expect(clineRule.getFileContent()).toBe(testFileContent);
+    });
+  });
+
+  describe("cline section (disabled toggle round-trip, issue #2405)", () => {
+    it("should write cline.disabled into a rule without globs", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: ".rulesync/rules",
+        relativeFilePath: "off.md",
+        frontmatter: { root: false, targets: ["*"], cline: { disabled: true } },
+        body: "# Off",
+      });
+
+      const clineRule = ClineRule.fromRulesyncRule({ rulesyncRule });
+
+      expect(clineRule.getFileContent()).toBe("---\ndisabled: true\n---\n# Off\n");
+    });
+
+    it("should write cline keys next to the canonical paths and description", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: ".rulesync/rules",
+        relativeFilePath: "ts.md",
+        frontmatter: {
+          root: false,
+          targets: ["*"],
+          description: "TS rules",
+          globs: ["src/**/*.ts"],
+          cline: { disabled: true, name: "ts-rules" },
+        },
+        body: "# TS",
+      });
+
+      const frontmatter = (
+        ClineRule.fromRulesyncRule({ rulesyncRule }) as ClineRule
+      ).getFrontmatter();
+
+      expect(frontmatter).toEqual({
+        paths: ["src/**/*.ts"],
+        alwaysApply: undefined,
+        description: "TS rules",
+        disabled: true,
+        name: "ts-rules",
+      });
+    });
+
+    it("should let the canonical paths, alwaysApply and description win over cline keys", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: ".rulesync/rules",
+        relativeFilePath: "canonical.md",
+        frontmatter: {
+          root: false,
+          targets: ["*"],
+          description: "Canonical",
+          globs: ["src/**"],
+          cline: {
+            disabled: false,
+            paths: ["other/**"],
+            alwaysApply: true,
+            description: "Overridden",
+          },
+        },
+        body: "# Canonical",
+      });
+
+      const frontmatter = (
+        ClineRule.fromRulesyncRule({ rulesyncRule }) as ClineRule
+      ).getFrontmatter();
+
+      expect(frontmatter?.paths).toEqual(["src/**"]);
+      expect(frontmatter?.alwaysApply).toBeUndefined();
+      expect(frontmatter?.description).toBe("Canonical");
+      expect(frontmatter?.disabled).toBe(false);
+    });
+
+    it("should write cline.disabled into a global non-root rule", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: ".rulesync/rules",
+        relativeFilePath: "global-off.md",
+        frontmatter: { root: false, targets: ["*"], cline: { disabled: true } },
+        body: "# Global Off",
+      });
+
+      const clineRule = ClineRule.fromRulesyncRule({ rulesyncRule, global: true });
+
+      expect(clineRule.getFileContent()).toContain("disabled: true");
+    });
+
+    it("should reject a non-boolean cline.disabled in the rulesync frontmatter", () => {
+      expect(
+        () =>
+          new RulesyncRule({
+            relativeDirPath: ".rulesync/rules",
+            relativeFilePath: "bad.md",
+            frontmatter: {
+              root: false,
+              targets: ["*"],
+              // @ts-expect-error -- deliberately invalid type
+              cline: { disabled: "yes" },
+            },
+            body: "# Bad",
+          }),
+      ).toThrow();
+    });
+
+    it("should lift disabled and other non-canonical keys into cline on import", async () => {
+      const clinerulesDir = join(testDir, ".clinerules");
+      await ensureDir(clinerulesDir);
+      await writeFileContent(
+        join(clinerulesDir, "toggled.md"),
+        "---\npaths:\n  - src/**\ndescription: Toggled\ndisabled: true\nname: my-rule\n---\n# Toggled",
+      );
+
+      const clineRule = await ClineRule.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "toggled.md",
+      });
+      const rulesyncFrontmatter = clineRule.toRulesyncRule().getFrontmatter();
+
+      expect(rulesyncFrontmatter.globs).toEqual(["src/**"]);
+      expect(rulesyncFrontmatter.description).toBe("Toggled");
+      expect(rulesyncFrontmatter.cline).toEqual({ disabled: true, name: "my-rule" });
+    });
+
+    it("should not add a cline section when the rule has only canonical keys", async () => {
+      const clinerulesDir = join(testDir, ".clinerules");
+      await ensureDir(clinerulesDir);
+      await writeFileContent(
+        join(clinerulesDir, "plain-fm.md"),
+        "---\ndescription: Plain\nalwaysApply: true\n---\n# Plain",
+      );
+
+      const clineRule = await ClineRule.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "plain-fm.md",
+      });
+
+      expect(clineRule.toRulesyncRule().getFrontmatter().cline).toBeUndefined();
+    });
+
+    it("should drop a non-boolean disabled with a warning on import", async () => {
+      const clinerulesDir = join(testDir, ".clinerules");
+      await ensureDir(clinerulesDir);
+      await writeFileContent(
+        join(clinerulesDir, "bad-toggle.md"),
+        "---\ndisabled: [true]\nenabled: false\n---\n# Bad Toggle",
+      );
+
+      const clineRule = await ClineRule.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "bad-toggle.md",
+      });
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
+      const rulesyncFrontmatter = clineRule.toRulesyncRule().getFrontmatter();
+
+      expect(rulesyncFrontmatter.cline).toEqual({ enabled: false });
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("dropping disabled"));
+    });
+
+    it("should round-trip a disabled rule through import and generate", async () => {
+      const clinerulesDir = join(testDir, ".clinerules");
+      await ensureDir(clinerulesDir);
+      const original = "---\npaths:\n  - src/**\ndisabled: true\n---\n# Round Trip";
+      await writeFileContent(join(clinerulesDir, "round-trip.md"), original);
+
+      const imported = await ClineRule.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "round-trip.md",
+      });
+      const regenerated = ClineRule.fromRulesyncRule({
+        rulesyncRule: imported.toRulesyncRule(),
+      }) as ClineRule;
+
+      expect(regenerated.getFrontmatter()).toEqual({
+        paths: ["src/**"],
+        alwaysApply: undefined,
+        description: undefined,
+        disabled: true,
+      });
+      expect(regenerated.getBody()).toBe("# Round Trip");
     });
   });
 
