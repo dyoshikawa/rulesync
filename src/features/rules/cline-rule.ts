@@ -60,6 +60,21 @@ const CLINE_RULE_FIELD_TYPES: Record<string, "boolean"> = {
   enabled: "boolean",
 };
 
+// Cline rule frontmatter keys with canonical rulesync homes (`globs` and
+// `description`); they are never carried in the `cline:` section.
+const CANONICAL_CLINE_RULE_KEYS = ["paths", "alwaysApply", "description"] as const;
+
+/** Returns a copy of `record` without the canonical `paths` / `alwaysApply` / `description` keys. */
+function omitCanonicalClineRuleKeys(
+  record: Record<string, unknown> | undefined,
+): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(record ?? {}).filter(
+      ([key]) => !(CANONICAL_CLINE_RULE_KEYS as readonly string[]).includes(key),
+    ),
+  );
+}
+
 /**
  * Splits a Cline rule frontmatter into the keys that have canonical rulesync
  * homes (`paths` / `alwaysApply` / `description`) and the rest, which are
@@ -72,14 +87,8 @@ function extractClineSection({
   frontmatter: ClineRuleFrontmatter | undefined;
   relativeFilePath: string;
 }): Record<string, unknown> {
-  const {
-    paths: _paths,
-    alwaysApply: _alwaysApply,
-    description: _description,
-    ...rest
-  } = frontmatter ?? {};
   return Object.fromEntries(
-    Object.entries(rest).filter(([key, value]) => {
+    Object.entries(omitCanonicalClineRuleKeys(frontmatter)).filter(([key, value]) => {
       const expected = Object.hasOwn(CLINE_RULE_FIELD_TYPES, key)
         ? CLINE_RULE_FIELD_TYPES[key]
         : undefined;
@@ -349,12 +358,16 @@ export class ClineRule extends ToolRule {
     const rulesyncFrontmatter = rulesyncRule.getFrontmatter();
     const globs = normalizePaths(rulesyncFrontmatter.globs);
     const isUniversal = globs.length > 0 && globs.every((glob) => glob === "**/*" || glob === "*");
-    const {
-      paths: _paths,
-      alwaysApply: _alwaysApply,
-      description: _description,
-      ...clineSection
-    } = rulesyncFrontmatter.cline ?? {};
+    const rawClineSection = rulesyncFrontmatter.cline ?? {};
+    for (const key of CANONICAL_CLINE_RULE_KEYS) {
+      if (Object.hasOwn(rawClineSection, key)) {
+        warnWithFallback(
+          undefined,
+          `Cline rules: ignoring cline.${key} in ${rulesyncRule.getRelativeFilePath()}: set the canonical ${key === "description" ? "description" : "globs"} instead.`,
+        );
+      }
+    }
+    const clineSection = omitCanonicalClineRuleKeys(rawClineSection);
     const frontmatter: ClineRuleFrontmatter = {
       paths: globs.length > 0 && !isUniversal ? globs : undefined,
       alwaysApply: isUniversal ? true : undefined,

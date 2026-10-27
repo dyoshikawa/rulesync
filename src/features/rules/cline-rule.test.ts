@@ -659,6 +659,7 @@ alwaysApply: true
         },
         body: "# Canonical",
       });
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
 
       const frontmatter = (
         ClineRule.fromRulesyncRule({ rulesyncRule }) as ClineRule
@@ -668,7 +669,49 @@ alwaysApply: true
       expect(frontmatter?.alwaysApply).toBeUndefined();
       expect(frontmatter?.description).toBe("Canonical");
       expect(frontmatter?.disabled).toBe(false);
+      expect(warnSpy).toHaveBeenCalledTimes(3);
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("cline.paths"));
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("set the canonical globs"));
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("cline.description in canonical.md: set the canonical description"),
+      );
     });
+
+    it("should not warn for a cline section without canonical keys", () => {
+      const rulesyncRule = new RulesyncRule({
+        relativeDirPath: ".rulesync/rules",
+        relativeFilePath: "quiet.md",
+        frontmatter: { root: false, targets: ["*"], cline: { disabled: true } },
+        body: "# Quiet",
+      });
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
+      ClineRule.fromRulesyncRule({ rulesyncRule });
+
+      expect(warnSpy).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      { global: false, dir: "." },
+      { global: true, dir: ".agents" },
+    ])(
+      "should write a root rule with cline.disabled as plain AGENTS.md (global: $global)",
+      ({ global, dir }) => {
+        const rulesyncRule = new RulesyncRule({
+          relativeDirPath: ".rulesync/rules",
+          relativeFilePath: "overview.md",
+          frontmatter: { root: true, targets: ["*"], cline: { disabled: true } },
+          body: "# Overview",
+        });
+
+        const clineRule = ClineRule.fromRulesyncRule({ rulesyncRule, global });
+
+        expect(clineRule.getRelativeDirPath()).toBe(dir);
+        expect(clineRule.getRelativeFilePath()).toBe("AGENTS.md");
+        expect(clineRule.getFileContent()).toBe("# Overview");
+        expect(clineRule.getFileContent()).not.toContain("disabled");
+      },
+    );
 
     it("should write cline.disabled into a global non-root rule", () => {
       const rulesyncRule = new RulesyncRule({
