@@ -69,16 +69,25 @@ describe("QwencodeSkill", () => {
   });
 
   describe("getSettablePaths", () => {
-    it("should return default paths without alternative roots", () => {
+    it("should expose .qwen/skills plus the shared .agents/skills import-only root", () => {
+      // Qwen Code also loads skills from `<projectRoot>/.agents/skills/`; it
+      // must be `importOnlySkillRoots` (read, never written or pruned), not an
+      // `alternativeSkillRoots` entry that deletion would also scan.
       const paths = QwencodeSkill.getSettablePaths();
-      expect(paths.relativeDirPath).toBe(join(".qwen", "skills"));
-      expect(paths.alternativeSkillRoots).toBeUndefined();
+      expect(paths).toEqual({
+        relativeDirPath: join(".qwen", "skills"),
+        importOnlySkillRoots: [join(".agents", "skills")],
+      });
     });
 
     it("should return same paths for global mode", () => {
+      // `~/.qwen/skills/` and `~/.agents/skills/`: same relative paths, only the
+      // resolved outputRoot differs.
       const paths = QwencodeSkill.getSettablePaths({ global: true });
-      expect(paths.relativeDirPath).toBe(join(".qwen", "skills"));
-      expect(paths.alternativeSkillRoots).toBeUndefined();
+      expect(paths).toEqual({
+        relativeDirPath: join(".qwen", "skills"),
+        importOnlySkillRoots: [join(".agents", "skills")],
+      });
     });
   });
 
@@ -434,6 +443,28 @@ describe("QwencodeSkill", () => {
   });
 
   describe("fromDir", () => {
+    it("should load a skill from the shared .agents/skills import root", async () => {
+      const skillDir = join(testDir, ".agents", "skills", "shared-skill");
+      await ensureDir(skillDir);
+      await writeFileContent(
+        join(skillDir, SKILL_FILE_NAME),
+        `---\nname: shared-skill\ndescription: Discovered from .agents/skills\n---\n\nShared body.`,
+      );
+
+      const skill = await QwencodeSkill.fromDir({
+        outputRoot: testDir,
+        relativeDirPath: join(".agents", "skills"),
+        dirName: "shared-skill",
+      });
+
+      expect(skill.getRelativeDirPath()).toBe(join(".agents", "skills"));
+      expect(skill.getFrontmatter()).toEqual({
+        name: "shared-skill",
+        description: "Discovered from .agents/skills",
+      });
+      expect(skill.getBody()).toBe("Shared body.");
+    });
+
     it("should load skill from directory", async () => {
       const skillDir = join(testDir, ".qwen", "skills", "test-skill");
       await ensureDir(skillDir);

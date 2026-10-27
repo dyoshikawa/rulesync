@@ -1,5 +1,6 @@
 import { z } from "zod/mini";
 
+import { AGENTSMD_SKILLS_DIR_PATH } from "../../constants/agentsmd-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { QWENCODE_SKILLS_DIR_PATH } from "../../constants/qwencode-paths.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
@@ -117,8 +118,20 @@ export class QwencodeSkill extends ToolSkill {
   }: {
     global?: boolean;
   } = {}): ToolSkillSettablePaths {
+    // Qwen Code reads project skills from `.qwen/skills/` and user skills from
+    // `~/.qwen/skills/`; both share the relative path, with only the output
+    // base differing. It also discovers the cross-tool Agent Skills root at
+    // `<projectRoot>/.agents/skills/` and `~/.agents/skills/`
+    // (`SKILL_PROVIDER_CONFIG_DIRS = ['.qwen', '.agents']`). That root is
+    // import-only: rulesync never writes there for this target, so a skill
+    // another tool put in the shared tree must not become an orphan deletion
+    // candidate — least of all under the user's home directory. When the same
+    // skill name exists in both roots, the Qwen-specific root wins, matching
+    // Qwen Code's own "first directory wins" fold.
+    // @see https://qwenlm.github.io/qwen-code-docs/en/users/features/skills/
     return {
       relativeDirPath: QWENCODE_SKILLS_DIR_PATH,
+      importOnlySkillRoots: [AGENTSMD_SKILLS_DIR_PATH],
     };
   }
 
