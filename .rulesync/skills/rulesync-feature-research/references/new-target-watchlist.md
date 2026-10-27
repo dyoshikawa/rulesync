@@ -25,9 +25,11 @@ latest re-check section.
 | MiniMax Code (`MiniMax-AI/minimax-code`)      | 2026-10-13 | The official docs pin a project `.minimax/` layout for MCP / agents / commands / hooks; today they document only `AGENTS.md`, `.agents/skills` / `.claude/skills` (covered), `~/.minimax/config.yaml` (`permissionMode`), a global `~/.minimax/mcp.json` and a `.minimax-plugin/plugin.json` plugin package, with `@minimax-ai/code` at ~6.6k npm downloads/week and 2,091 stars                                                                                                |
 | Prime Agent (`PrimeIntellect-ai/prime-agent`) | 2026-10-13 | Official docs for a project `.prime/agent/` layout (MCP / skills / subagents) appear; today stable v0.10.1 (2026-10-21, 22,319 stars) ships but the README no longer documents the layout and there is no Prime Agent docs page; it reads `AGENTS.md` / `CLAUDE.md`, and its skills are Python packages rather than `SKILL.md` bundles                                                                                                                                          |
 | Claurst (`Kuberwastaken/claurst`)             | 2026-10-22 | A release passes ~10k asset downloads or a package channel ~2k/week, and the project `.claurst/` layout (commands / agents) is documented beyond settings and skills; today 10,327 stars, v0.2.0 (beta, 2026-10-14) at 614 asset downloads, v0.1.7 at 5,804 and npm `claurst` at ~26/week, with a Claude-Code-shaped `.claurst/settings.json[c]` (`mcp_servers`, `hooks`, `permissionRules`), `.claurst/skills`, browse-only `.claurst/agents/` and `~/.claurst/`               |
-| Kode CLI (`shareAI-lab/Kode-CLI`)             | 2026-10-22 | npm `@shareai-lab/kode` reaches ~2k downloads/week or a new npm release ships; retire on the next pass otherwise. Today 5,237 stars, ~21 downloads/week, npm 2.2.1 (2026-06-05), no GitHub releases; the README already documents a native tree (`.kode/settings.json`, `.kode/agents/`, `.kode/skills/`, `.kode-plugin/`, `~/.kode.json`) beside `AGENTS.md` and `.mcp.json`                                                                                                   |
 | Kiro Crew (`kirodotdev/KiroCrew`)             | 2026-10-25 | Kiro Crew gains a project-level surface of its own, or `kiro-cli` output stops reaching it; today it runs on `kiro-cli` and reads `.kiro/steering`, `.kiro/skills`, `.kiro/agents` and `~/.kiro/settings/mcp.json` (covered by `kiro-cli`), and its own files are global-only (`~/.kiro/crew/{config.json,hooks.json,skills/}`); 4,572 stars, v0.9.0 (2026-10-16)                                                                                                               |
 | Kimchi (`getkimchi/kimchi`)                   | 2026-10-25 | A project `.kimchi/` layout for MCP / skills / prompts is documented, or stars reach ~5k or a release passes ~5k asset downloads; today it is a Pi-SDK CLI whose config is global (`~/.config/kimchi/harness/{AGENTS.md,mcp.json,settings.json,hooks/bash/}`), with only project `.kimchi/hooks/bash/` (own protocol, off until enabled) and `.kimchi/tags.json`; 2,276 stars, v1.21.0 (2026-10-23) at ~800 asset downloads                                                     |
+| JetBrains ThinkRail (`JetBrains/thinkrail`)   | 2026-10-27 | ThinkRail documents a project config surface of its own (e.g. a `.thinkrail/` tree), or stops delegating to pi; today it is an incubator IDE (v0.3.0 nightlies, 3,467 stars) that reads the user's pi config (`~/.pi/agent`, pi `mcp.json`) and portable Agent Skills (covered by `pi` / `agentsskills`), while its own state lives in global `~/.thinkrail`                                                                                                                    |
+| Databricks Genie Code                         | 2026-10-27 | A local CLI/IDE surface reads Genie Code config from a developer's repo, or Databricks documents `.assistant/` as a Git-folder convention with instructions/MCP beside skills; today skills live in the Databricks workspace filesystem (`Workspace/.assistant/skills/`, `/Users/{username}/.assistant/skills/`), not a local project                                                                                                                                           |
+| Kun (`KunAgent/Kun`)                          | 2026-10-27 | Official docs pin a file-based project layout (rules / MCP / skills paths); today it is a GUI+TUI workbench (6,322 stars, v0.4.3 2026-10-27, PolyForm NC licence) whose MCP / skills / extensions are managed from the sidebar UI                                                                                                                                                                                                                                               |
 
 ## Zoo Code CLI — `apps/cli` in the Zoo-Code repo
 
@@ -222,8 +224,6 @@ Sources for the rows added on 2026-10-22 by the discovery pass. Remove a
 candidate's bullet here when its table row is promoted or retired.
 
 - Claurst: `https://github.com/Kuberwastaken/claurst`.
-- Kode CLI: `https://github.com/shareAI-lab/Kode-CLI`,
-  `https://www.npmjs.com/package/@shareai-lab/kode`.
 
 ## Re-check on 2026-10-25
 
@@ -272,8 +272,45 @@ candidate's bullet here when its table row is promoted or retired.
   `https://github.com/kirodotdev/KiroCrew/blob/main/src/kiro_crew/docs/skills.md`.
 - Kimchi: `https://github.com/getkimchi/kimchi`.
 
+## Re-check on 2026-10-27
+
+Every row above was re-checked on 2026-10-27 and left as is unless noted:
+
+- Kode CLI: retired — npm still 2.2.1 (2026-06-05), 18 downloads/week, no new
+  release since the 2026-10-25 retirement warning. Row and source bullet
+  removed.
+- ForgeCode: unmet — 151 downloads/week, 7,635 stars.
+- Baidu Comate / Zulu: unmet — ~375 downloads/week.
+- fx: unmet — 3,607 stars.
+- Nanocoder: unmet — 2,535 stars, ~840 downloads/week.
+- Open Interpreter: unmet — `rust-v0.0.56` 20,347 asset downloads,
+  `rust-v0.0.55` 8,953, `rust-v0.0.54` 1,087.
+- MiniMax Code: unmet — 0.7.0 (2026-10-26), ~9.0k downloads/week, 2,109
+  stars; still no project `.minimax/` surface.
+- Prime Agent: unmet — 22,383 stars, still no docs page.
+- Claurst: unmet — v0.2.1 (2026-10-26), v0.2.0 at 678 asset downloads, npm
+  ~17/week, 10,330 stars.
+- Kiro Crew: unmet — v0.10.0 (2026-10-25), 4,590 stars; the opt-in built-in
+  KAS engine still reads `.kiro/`.
+- Kimchi: unmet — v1.21.4 (2026-10-27), v1.21.2 at 592 asset downloads.
+- Zoo Code CLI, Verdent, Warp Factories, Zencoder: unmet — unchanged.
+
+## Watchlist candidates recorded on 2026-10-27
+
+- JetBrains ThinkRail: `https://github.com/JetBrains/thinkrail`.
+- Databricks Genie Code:
+  `https://docs.databricks.com/aws/en/genie-code/skills`.
+- Kun: `https://github.com/KunAgent/Kun`,
+  `https://www.kun-agent.com/llms.txt`.
+
 ## Promoted entries
 
+- **Qoder CN** (formerly Tongyi Lingma) — `.lingma/` tree (rules, commands,
+  agents, skills, `settings.json` hooks) for the Qoder CN IDE and VS Code /
+  JetBrains plugins, plus `~/.qoder-cn/` for Qoder CLI CN and the desktop app.
+  Proposed as #3674 on 2026-10-27 directly from the discovery pass (follows
+  open question 2 of #2949). Do not re-add it — track the proposal on that
+  issue.
 - **JetBrains Air** — `.air/mcp.json` (project MCP) and
   `.air/review/review-prompt.md` (agentic-review prompt) on top of the covered
   `AGENTS.md` / `CLAUDE.md` / `.claude` / `.junie` / `.agents/skills`. Proposed
