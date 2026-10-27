@@ -87,9 +87,97 @@ describe("VibeHooks", () => {
       expect(byType.post_tool.match).toBe("re:^serena_.*$");
 
       expect(byType.post_agent).toBeDefined();
-      // `match` applies to tool hooks only; post_agent carries no matcher.
-      expect(byType.post_agent.match).toBeUndefined();
+      // Canonical `stop` is main-agent-only; a bare post_agent would also run
+      // after every subagent (Vibe v3.0.2+).
+      expect(byType.post_agent.match).toBe("main");
     });
+
+    it("should scope canonical stop to the main agent even when it carries a matcher", async () => {
+      const rulesyncHooks = new RulesyncHooks(
+        createMockAiFileParams({
+          fileContent: JSON.stringify({
+            hooks: { stop: [{ command: "./check", matcher: "reviewer" }] },
+          }),
+        }),
+      );
+
+      const vibeHooks = await VibeHooks.fromRulesyncHooks({ outputRoot: testDir, rulesyncHooks });
+
+      const parsed = smolToml.parse(vibeHooks.getFileContent()) as {
+        hooks: Array<Record<string, unknown>>;
+      };
+      expect(parsed.hooks).toEqual([
+        { name: "post_agent-0", type: "post_agent", match: "main", command: "./check" },
+      ]);
+    });
+
+    it("should write subagentStop as post_agent matched on the subagent name", async () => {
+      const rulesyncHooks = new RulesyncHooks(
+        createMockAiFileParams({
+          fileContent: JSON.stringify({
+            hooks: {
+              stop: [{ command: "./main-check" }],
+              subagentStop: [
+                { command: "make check", matcher: "reviewer", name: "after-reviewer" },
+                { command: "./unnamed", matcher: "explorer" },
+              ],
+            },
+          }),
+        }),
+      );
+      const logger = createMockLogger();
+
+      const vibeHooks = await VibeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        logger,
+      });
+
+      const parsed = smolToml.parse(vibeHooks.getFileContent()) as {
+        hooks: Array<Record<string, unknown>>;
+      };
+      expect(parsed.hooks).toEqual([
+        { name: "post_agent-0", type: "post_agent", match: "main", command: "./main-check" },
+        { name: "after-reviewer", type: "post_agent", match: "reviewer", command: "make check" },
+        // Numbered after the stop entry, so the two generated names stay distinct.
+        { name: "post_agent-2", type: "post_agent", match: "explorer", command: "./unnamed" },
+      ]);
+      expect(logger.warn).not.toHaveBeenCalled();
+
+      const imported = vibeHooks.toRulesyncHooks().getJson().hooks;
+      expect(imported.stop).toEqual([
+        { type: "command", command: "./main-check", name: "post_agent-0" },
+      ]);
+      expect(imported.subagentStop).toEqual([
+        { type: "command", command: "make check", matcher: "reviewer", name: "after-reviewer" },
+        { type: "command", command: "./unnamed", matcher: "explorer", name: "post_agent-2" },
+      ]);
+    });
+
+    it.each([undefined, "", "*", "main", "MAIN"])(
+      "should skip a subagentStop hook with matcher %s and warn",
+      async (matcher) => {
+        const rulesyncHooks = new RulesyncHooks(
+          createMockAiFileParams({
+            fileContent: JSON.stringify({
+              hooks: { subagentStop: [{ command: "./check", matcher }] },
+            }),
+          }),
+        );
+        const logger = createMockLogger();
+
+        const vibeHooks = await VibeHooks.fromRulesyncHooks({
+          outputRoot: testDir,
+          rulesyncHooks,
+          logger,
+        });
+
+        const parsed = smolToml.parse(vibeHooks.getFileContent()) as { hooks?: unknown[] };
+        expect(parsed.hooks ?? []).toEqual([]);
+        expect(logger.warn).toHaveBeenCalledTimes(1);
+        expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("subagentStop"));
+      },
+    );
 
     it.each(["Bash", "bash", "BASH"])(
       "should widen the canonical %s matcher to catch background commands",
@@ -316,6 +404,74 @@ describe("VibeHooks", () => {
       });
       expect(parsed.hooks.stop?.[0]?.matcher).toBeUndefined();
     });
+
+    it("should import post_agent by its agent match: main or none as stop, others as subagentStop", () => {
+      const fileContent = smolToml.stringify({
+        hooks: [
+          { name: "a", type: "post_agent", command: "./a" },
+          { name: "b", type: "post_agent", match: "main", command: "./b" },
+          { name: "c", type: "post_agent", match: "reviewer", command: "./c" },
+        ],
+      });
+      const vibeHooks = new VibeHooks(
+        createMockAiFileParams({
+          relativeDirPath: ".vibe",
+          relativeFilePath: "hooks.toml",
+          fileContent,
+        }),
+      );
+
+      const parsed = vibeHooks.toRulesyncHooks().getJson();
+      expect(parsed.hooks.stop).toEqual([
+        { type: "command", command: "./a", name: "a" },
+        { type: "command", command: "./b", name: "b" },
+      ]);
+      expect(parsed.hooks.subagentStop).toEqual([
+        { type: "command", command: "./c", matcher: "reviewer", name: "c" },
+      ]);
+      expect(parsed.vibe).toBeUndefined();
+    });
+
+    it.each(["re:review.*", "review*"])(
+      "should keep subagentStop hooks in the vibe override when a post_agent match is the pattern %s",
+      async (pattern) => {
+        const fileContent = smolToml.stringify({
+          hooks: [
+            { name: "a", type: "post_agent", match: "main", command: "./a" },
+            { name: "c", type: "post_agent", match: "reviewer", command: "./c" },
+            { name: "d", type: "post_agent", match: pattern, command: "./d" },
+          ],
+        });
+        const vibeHooks = new VibeHooks(
+          createMockAiFileParams({
+            relativeDirPath: ".vibe",
+            relativeFilePath: "hooks.toml",
+            fileContent,
+          }),
+        );
+        const logger = createMockLogger();
+
+        const imported = vibeHooks.toRulesyncHooks({ logger });
+        const parsed = imported.getJson();
+        expect(parsed.hooks.stop).toEqual([{ type: "command", command: "./a", name: "a" }]);
+        expect(parsed.hooks.subagentStop).toBeUndefined();
+        expect(parsed.vibe?.hooks?.subagentStop).toEqual([
+          { type: "command", command: "./c", matcher: "reviewer", name: "c" },
+          { type: "command", command: "./d", matcher: pattern, name: "d" },
+        ]);
+        expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("vibe override"));
+
+        // The override regenerates the same entries.
+        const regenerated = await VibeHooks.fromRulesyncHooks({
+          outputRoot: testDir,
+          rulesyncHooks: imported,
+        });
+        const toml = smolToml.parse(regenerated.getFileContent()) as {
+          hooks: Array<Record<string, unknown>>;
+        };
+        expect(toml.hooks.map((hook) => hook.match)).toEqual(["main", "reviewer", pattern]);
+      },
+    );
 
     it("should read the pre-2.21.0 event spellings and emit the renamed ones", () => {
       const fileContent = smolToml.stringify({
