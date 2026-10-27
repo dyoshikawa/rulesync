@@ -907,3 +907,56 @@ describe("hookTypeNames (a tool spelling of a canonical hook type, #3074)", () =
     expect(definition).toEqual({ type: "command", command: "./run.sh" });
   });
 });
+
+describe("booleanPassthroughFields events restriction", () => {
+  const configWithEvents = (events: ReadonlySet<string>): ToolHooksConverterConfig => ({
+    ...BASE_CONFIG,
+    booleanPassthroughFields: [{ canonical: "failClosed", tool: "failClosed", events }],
+  });
+
+  it("emits and imports the field on a listed event", () => {
+    const config = configWithEvents(new Set(["preToolUse"]));
+    const emitted = emitHook({
+      definition: { type: "command", command: "./guard.sh", failClosed: true },
+      converterConfig: config,
+    });
+    expect(emitted.hook).toMatchObject({ failClosed: true });
+    expect(emitted.logger.warn).not.toHaveBeenCalled();
+
+    const imported = importHook({
+      hook: { type: "command", command: "./guard.sh", failClosed: true },
+      converterConfig: config,
+    });
+    expect(imported.definition).toMatchObject({ failClosed: true });
+    expect(imported.logger.warn).not.toHaveBeenCalled();
+  });
+
+  it("drops the field on an unlisted event, warning only for a non-default value", () => {
+    const config = configWithEvents(new Set(["stop"]));
+    for (const value of [true, false]) {
+      const emitted = emitHook({
+        definition: { type: "command", command: "./guard.sh", failClosed: value },
+        converterConfig: config,
+      });
+      expect(emitted.hook).not.toHaveProperty("failClosed");
+
+      const imported = importHook({
+        hook: { type: "command", command: "./guard.sh", failClosed: value },
+        converterConfig: config,
+      });
+      expect(imported.definition).not.toHaveProperty("failClosed");
+
+      if (value) {
+        expect(emitted.logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining('this tool honours "failClosed" on "stop" only'),
+        );
+        expect(imported.logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining('this tool honours it on "stop" only'),
+        );
+      } else {
+        expect(emitted.logger.warn).not.toHaveBeenCalled();
+        expect(imported.logger.warn).not.toHaveBeenCalled();
+      }
+    }
+  });
+});
