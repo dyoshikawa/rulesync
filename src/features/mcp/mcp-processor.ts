@@ -496,7 +496,9 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
         // Droid documents both per-server filters: `enabledTools` ("When the
         // list is non-empty, only these tools are loaded") and `disabledTools`
         // ("Excluded tools are never loaded into context"); a tool named in both
-        // stays excluded. The adapter passes both through unchanged.
+        // stays excluded. The adapter passes both through unchanged, except
+        // that it skips a server with an empty `enabledTools` (see
+        // `FactorydroidMcp`).
         // https://docs.factory.com/harness/mcp
         supportsEnabledTools: true,
         supportsDisabledTools: true,

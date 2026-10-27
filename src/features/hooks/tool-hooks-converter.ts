@@ -147,11 +147,27 @@ export type ToolHooksConverterConfig = {
     /**
      * The length the tool caps the value at (Qoder truncates `rewakeSummary`
      * to 300 characters). A longer value is still emitted, with a warning that
-     * the tool will shorten it.
+     * the tool will shorten it. The raw string length is measured by default;
+     * with {@link collapseWhitespaceForLength} set, the normalized length is
+     * measured instead.
      */
     readonly maxLength?: number;
-    /** Measure the cap after collapsing and trimming whitespace; emit the original value. */
+    /**
+     * Measure {@link maxLength} after collapsing every whitespace run to one
+     * space and trimming, the way the tool normalizes the value before capping
+     * it; the original value is still emitted. Whitespace is JavaScript's `\s`
+     * (Unicode whitespace included), matching Qoder CLI's own
+     * `value.replace(/\s+/g, " ").trim().slice(0, 300)` for `rewakeSummary`.
+     */
     readonly collapseWhitespaceForLength?: boolean;
+    /**
+     * A boolean command-hook flag the tool reads the field only alongside
+     * (Qoder's `rewakeMessage` / `rewakeSummary` apply to `asyncRewake` hooks
+     * only). A value on a hook without the flag set to `true` is still
+     * emitted, with a warning that the tool will ignore it. The flag is read
+     * from the canonical definition, so it must share the canonical name.
+     */
+    readonly onlyWithFlag?: "asyncRewake";
   }>;
   /**
    * Per-hook string-array fields to carry through the round-trip. Only arrays
@@ -480,6 +496,7 @@ type PassthroughFieldSpec = {
   readonly commandOnly?: boolean;
   readonly maxLength?: number;
   readonly collapseWhitespaceForLength?: boolean;
+  readonly onlyWithFlag?: "asyncRewake";
 };
 
 /**
@@ -532,7 +549,14 @@ function emitPassthroughFields<TValue>({
   isValid: PassthroughValidator;
   warn?: (message: string) => void;
 }): Record<string, TValue> {
-  for (const { canonical, tool, commandOnly, maxLength, collapseWhitespaceForLength } of fields) {
+  for (const {
+    canonical,
+    tool,
+    commandOnly,
+    maxLength,
+    collapseWhitespaceForLength,
+    onlyWithFlag,
+  } of fields) {
     const value = def[canonical];
     if (value === undefined) {
       continue;
@@ -554,13 +578,20 @@ function emitPassthroughFields<TValue>({
       );
       continue;
     }
+    if (onlyWithFlag !== undefined && def[onlyWithFlag] !== true) {
+      warn?.(
+        `"${canonical}" on a "${hookType}" hook on "${eventName}" has no effect without ` +
+          `"${onlyWithFlag}": true; this tool reads "${tool}" only on "${onlyWithFlag}" hooks.`,
+      );
+    }
     if (maxLength !== undefined && typeof value === "string") {
       const length = collapseWhitespaceForLength
         ? value.replace(/\s+/g, " ").trim().length
         : value.length;
       if (length > maxLength) {
+        const measured = collapseWhitespaceForLength ? " after collapsing whitespace" : "";
         warn?.(
-          `"${canonical}" on a "${hookType}" hook on "${eventName}" is ${length} characters long; ` +
+          `"${canonical}" on a "${hookType}" hook on "${eventName}" is ${length} characters long${measured}; ` +
             `this tool caps "${tool}" at ${maxLength} characters and will shorten it.`,
         );
       }
