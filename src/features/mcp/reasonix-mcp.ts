@@ -95,7 +95,12 @@ type ReasonixPlugin = Record<string, unknown> & {
 // `oauth_allow_missing_pkce_metadata`, both passthrough, and `disabled_tools`,
 // a per-server denylist of raw tool names that deep-maps to canonical
 // `disabledTools`. The v1 line ignores unknown keys, so writing them is harmless
-// there.
+// there. Since v2.53.0 (`internal/contract/config/mcp_load.go`,
+// `PluginEntry.DeclaredMCPLoad`) a `load` declared by a project-scoped entry is
+// read as `deferred`, even in a trusted folder: only the user config (the
+// entry's own `load` or `[tools.mcp_load]`) can make a server always-loaded. A
+// project `load = "always"` is still written — it is harmless on v2.53.0+ and
+// older v2 builds honor it — but generate warns that it no longer takes effect.
 // The passthrough fields with a fixed type are also value-checked on the way
 // out (`invalidPassthroughFieldReason`): Reasonix decodes `reasonix.toml` with
 // BurntSushi/toml into a `string` / `*bool` / `bool` / `int` / `map[string]int`,
@@ -121,6 +126,13 @@ const REASONIX_PLUGIN_FIELDS = [
   "load",
   "oauth_allow_missing_pkce_metadata",
 ] as const;
+
+/**
+ * The `load` mode that puts a server's tools in the provider schema. Reasonix
+ * compares it case-insensitively after trimming (`normalizeMCPLoad`).
+ * @see https://github.com/esengine/DeepSeek-Reasonix/blob/studio-v2.53.0/internal/contract/config/mcp_load.go
+ */
+const REASONIX_MCP_LOAD_ALWAYS = "always";
 
 /** The `[[plugins]]` key that canonical `disabledTools` is written to and read from. */
 const REASONIX_DISABLED_TOOLS_KEY = "disabled_tools";
@@ -449,6 +461,18 @@ function writePassthroughFields({
           (global
             ? ""
             : ` Reasonix honours it only from the user config, not a project reasonix.toml.`),
+      );
+    }
+    if (
+      field === "load" &&
+      !global &&
+      typeof value === "string" &&
+      value.trim().toLowerCase() === REASONIX_MCP_LOAD_ALWAYS
+    ) {
+      logger?.warn(
+        `Reasonix MCP: "${name}" sets "load" to "always" in the project reasonix.toml. ` +
+          `Reasonix 2.53.0 and later ignore a project-declared load mode and defer the ` +
+          `server; set it in the user config (the server's "load" or [tools.mcp_load]) instead.`,
       );
     }
     plugin[field] = value;
