@@ -43,7 +43,15 @@ curl -fsSL https://github.com/dyoshikawa/rulesync/releases/latest/download/insta
 Options:
 
 - Install specific version: `curl -fsSL https://github.com/dyoshikawa/rulesync/releases/latest/download/install.sh | bash -s -- v6.4.0`
-- Custom directory: `RULESYNC_HOME=~/.local curl -fsSL https://github.com/dyoshikawa/rulesync/releases/latest/download/install.sh | bash`
+- Custom directory: `curl -fsSL https://github.com/dyoshikawa/rulesync/releases/latest/download/install.sh | RULESYNC_HOME=~/.local bash`
+
+**Uninstall:**
+
+```bash
+curl -fsSL https://github.com/dyoshikawa/rulesync/releases/latest/download/uninstall.sh | bash
+```
+
+It removes only the binary installed by `install.sh` (`~/.rulesync/bin/rulesync`), then deletes `~/.rulesync/bin` and `~/.rulesync` if they are left empty. If you installed to a custom directory, pass the same `RULESYNC_HOME`: `curl -fsSL https://github.com/dyoshikawa/rulesync/releases/latest/download/uninstall.sh | RULESYNC_HOME=~/.local bash`. The script does not edit your shell configuration, so remove the PATH entry you added yourself.
 
 ::: details Manual installation (requires sudo)
 

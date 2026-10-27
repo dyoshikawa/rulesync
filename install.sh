@@ -17,7 +17,7 @@
 #   curl -fsSL https://github.com/dyoshikawa/rulesync/releases/latest/download/install.sh | bash -s -- v6.4.0
 #
 #   # Install to custom directory
-#   RULESYNC_HOME=~/.local curl -fsSL https://github.com/dyoshikawa/rulesync/releases/latest/download/install.sh | bash
+#   curl -fsSL https://github.com/dyoshikawa/rulesync/releases/latest/download/install.sh | RULESYNC_HOME=~/.local bash
 
 set -euo pipefail
 
@@ -236,11 +236,15 @@ print_path_instructions() {
 # Print uninstall instructions
 print_uninstall_instructions() {
     echo ""
-    info "To uninstall rulesync:"
-    printf '%b\n' "  ${YELLOW}rm -f $BIN_DIR/rulesync${NC}"
+    info "To uninstall rulesync, run:"
+    if [ -n "${RULESYNC_HOME:-}" ]; then
+        printf '%b\n' "  ${YELLOW}curl -fsSL https://github.com/$GITHUB_REPO/releases/latest/download/uninstall.sh | RULESYNC_HOME=$INSTALL_DIR bash${NC}"
+    else
+        printf '%b\n' "  ${YELLOW}curl -fsSL https://github.com/$GITHUB_REPO/releases/latest/download/uninstall.sh | bash${NC}"
+    fi
     echo ""
-    echo "  If you no longer need the installation directory:"
-    printf '%b\n' "  ${YELLOW}rm -rf $INSTALL_DIR${NC}"
+    echo "  Or remove it by hand:"
+    printf '%b\n' "  ${YELLOW}rm -f $BIN_DIR/rulesync${NC}"
     echo ""
     echo "  And remove the PATH entry from your shell configuration file."
 }
