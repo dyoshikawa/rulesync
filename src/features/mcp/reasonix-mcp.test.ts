@@ -1029,31 +1029,31 @@ describe("ReasonixMcp", () => {
       },
     );
 
-    it("should not warn about load in the global config or for a deferred project load", async () => {
+    it.each([
+      ["a global always", { load: "always" }, true],
+      ["a project deferred", { load: "deferred" }, false],
+      ["a disabled project always", { load: "always", disabled: true }, false],
+    ])("should not warn about load for %s", async (_label, fields, global) => {
       const logger = createMockLogger();
-      const makeRulesyncMcp = (load: string) =>
-        new RulesyncMcp({
-          outputRoot: testDir,
-          relativeDirPath: ".rulesync",
-          relativeFilePath: "mcp.json",
-          fileContent: JSON.stringify({
-            mcpServers: { remote: { type: "http", url: "https://example.com/mcp", load } },
-          }),
-        });
-
-      const globalMcp = await ReasonixMcp.fromRulesyncMcp({
+      const rulesyncMcp = new RulesyncMcp({
         outputRoot: testDir,
-        rulesyncMcp: makeRulesyncMcp("always"),
-        global: true,
-        logger,
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { remote: { type: "http", url: "https://example.com/mcp", ...fields } },
+        }),
       });
-      await ReasonixMcp.fromRulesyncMcp({
+
+      const reasonixMcp = await ReasonixMcp.fromRulesyncMcp({
         outputRoot: testDir,
-        rulesyncMcp: makeRulesyncMcp("deferred"),
+        rulesyncMcp,
+        global,
         logger,
       });
 
-      expect((smolToml.parse(globalMcp.getFileContent()) as any).plugins[0].load).toBe("always");
+      expect((smolToml.parse(reasonixMcp.getFileContent()) as any).plugins[0].load).toBe(
+        fields.load,
+      );
       expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining('sets "load"'));
     });
 

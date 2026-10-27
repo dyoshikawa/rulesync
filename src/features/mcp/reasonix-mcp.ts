@@ -373,7 +373,9 @@ function hasExpectedType(value: unknown, expected: ReasonixPluginFieldType): boo
  * `concurrency` string decodes fine but is ignored in favor of the server-name
  * default, so it is dropped too rather than written as a setting that does
  * nothing. An unknown `load` string is read as `deferred`, the default, so it
- * passes through as authored.
+ * passes through as authored. A project `load = "always"` also passes through,
+ * but is warned about in `writePassthroughFields`: see the v2.53.0 note on
+ * `REASONIX_PLUGIN_FIELDS`.
  * @see https://github.com/esengine/DeepSeek-Reasonix/blob/v2.31.0/internal/contract/config/plugin_entry.go
  */
 function invalidPassthroughFieldReason(field: string, value: unknown): string | undefined {
@@ -466,6 +468,7 @@ function writePassthroughFields({
     if (
       field === "load" &&
       !global &&
+      server.disabled !== true &&
       typeof value === "string" &&
       value.trim().toLowerCase() === REASONIX_MCP_LOAD_ALWAYS
     ) {
