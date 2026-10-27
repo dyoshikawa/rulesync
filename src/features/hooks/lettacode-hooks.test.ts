@@ -216,6 +216,25 @@ describe("LettacodeHooks", () => {
       expect(logger.warn).not.toHaveBeenCalledWith(LETTACODE_HOOKS_DEPRECATION_WARNING);
     });
 
+    it("should not warn about the deprecation for an empty hooks config that keeps hooks.disabled", async () => {
+      await ensureDir(join(testDir, SETTINGS_DIR));
+      await writeFileContent(
+        join(testDir, SETTINGS_DIR, "settings.json"),
+        JSON.stringify({ hooks: { disabled: true } }),
+      );
+      const logger = createMockLogger();
+
+      const hooks = await LettacodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks: buildRulesyncHooks(testDir, { version: 1, hooks: {} }),
+        validate: false,
+        logger,
+      });
+
+      expect(JSON.parse(hooks.getFileContent()).hooks).toEqual({ disabled: true });
+      expect(logger.warn).not.toHaveBeenCalledWith(LETTACODE_HOOKS_DEPRECATION_WARNING);
+    });
+
     it("should write global hooks to the home directory's .letta/settings.json", async () => {
       const hooks = await LettacodeHooks.fromRulesyncHooks({
         outputRoot: testDir,
@@ -269,6 +288,23 @@ describe("LettacodeHooks", () => {
         preToolUse: [{ type: "command", command: "pre.sh", matcher: "Bash", timeout: 3 }],
         beforeSubmitPrompt: [{ type: "command", command: "prompt.sh" }],
       });
+    });
+
+    it("should not warn about the deprecation when importing existing command hooks", async () => {
+      await ensureDir(join(testDir, SETTINGS_DIR));
+      await writeFileContent(
+        join(testDir, SETTINGS_DIR, "settings.json"),
+        JSON.stringify({
+          hooks: { Stop: [{ hooks: [{ type: "command", command: "stop.sh" }] }] },
+        }),
+      );
+      const logger = createMockLogger();
+
+      const hooks = await LettacodeHooks.fromFile({ outputRoot: testDir });
+      const json = hooks.toRulesyncHooks({ logger }).getJson();
+
+      expect(json.hooks).toEqual({ stop: [{ type: "command", command: "stop.sh" }] });
+      expect(logger.warn).not.toHaveBeenCalledWith(LETTACODE_HOOKS_DEPRECATION_WARNING);
     });
   });
 
