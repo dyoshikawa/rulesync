@@ -1790,13 +1790,20 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
   // place and an unparseable root is refused rather than replaced. Hooks own
   // the `hooks` key; permissions own the `permissions` key, and the adapter
   // re-spreads the sibling keys of that object (`defaultMode`,
-  // `additionalDirectories`, ...).
+  // `additionalDirectories`, ...), plus the top-level groups the `codebuddy`
+  // override authors (`autoReview`, `autoMode`, `memory`), re-spread by the
+  // adapter so their other keys are kept. Each is only in the patch when
+  // authored, so a value the user set by hand survives an unrelated
+  // regeneration.
   ".codebuddy/settings.json": {
     format: "json",
     invalidRootPolicy: "error",
     features: {
       hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
-      permissions: { kind: "replace-owned-keys", ownedKeys: ["permissions"] },
+      permissions: {
+        kind: "replace-owned-keys",
+        ownedKeys: ["permissions", "autoReview", "autoMode", "memory"],
+      },
     },
   },
   // Command Code settings: the project file (`.commandcode/settings.json`) and

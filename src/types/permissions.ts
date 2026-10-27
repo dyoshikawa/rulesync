@@ -750,6 +750,58 @@ const QoderPermissionsOverrideSchema = z.looseObject({
 export type QoderPermissionsOverride = z.infer<typeof QoderPermissionsOverrideSchema>;
 
 /**
+ * Tool-scoped override block for CodeBuddy Code. The shared `permission` block
+ * continues to drive `permissions.allow`/`ask`/`deny` of
+ * `.codebuddy/settings.json` (project) / `~/.codebuddy/settings.json` (global).
+ *
+ * The other documented settings with no canonical category are authored here
+ * and merged into the same file, key by key, over what the file already
+ * holds:
+ *
+ * - `autoReview` (`policy` replaces the built-in security policy of the `auto`
+ *   permission mode, `extraPolicy` is appended to it) and the legacy
+ *   `autoMode` rules (`environment` / `allow` / `soft_deny` / `hard_deny`).
+ *   CodeBuddy reads both from the user and project-local settings only, never
+ *   from the shared project file, so they are written by `--global` generate
+ *   alone.
+ * - `memory.parentDiscovery`: whether project instruction files
+ *   (`CODEBUDDY.md` / `AGENTS.md`) are also discovered in parent directories.
+ *
+ * Only the keys listed here are written; any other key of these groups is
+ * skipped with a warning. Removing a key from the override leaves the
+ * previously written value in place.
+ *
+ * @see https://www.codebuddy.ai/docs/cli/settings
+ * @see https://www.codebuddy.ai/docs/cli/memory
+ * @example
+ * { "autoReview": { "extraPolicy": "Allow dev namespace releases" },
+ *   "memory": { "parentDiscovery": false } }
+ */
+const CodebuddyPermissionsOverrideSchema = z.looseObject({
+  permission: z.optional(ToolScopedPermissionSchema),
+  autoReview: z.optional(
+    z.looseObject({
+      policy: z.optional(z.string()),
+      extraPolicy: z.optional(z.string()),
+    }),
+  ),
+  autoMode: z.optional(
+    z.looseObject({
+      environment: z.optional(z.array(z.string())),
+      allow: z.optional(z.array(z.string())),
+      soft_deny: z.optional(z.array(z.string())),
+      hard_deny: z.optional(z.array(z.string())),
+    }),
+  ),
+  memory: z.optional(
+    z.looseObject({
+      parentDiscovery: z.optional(z.boolean()),
+    }),
+  ),
+});
+export type CodebuddyPermissionsOverride = z.infer<typeof CodebuddyPermissionsOverrideSchema>;
+
+/**
  * One native Factory Droid permission rule. `match.prefix` positions are either
  * a single token or a non-empty list of alternative tokens.
  *
@@ -1685,7 +1737,7 @@ export const PermissionsConfigSchema = z.looseObject({
   "antigravity-ide": z.optional(CanonicalPermissionsOverrideSchema),
   continue: z.optional(CanonicalPermissionsOverrideSchema),
   copilot: z.optional(CopilotPermissionsOverrideSchema),
-  codebuddy: z.optional(CanonicalPermissionsOverrideSchema),
+  codebuddy: z.optional(CodebuddyPermissionsOverrideSchema),
   commandcode: z.optional(CanonicalPermissionsOverrideSchema),
   lettacode: z.optional(CanonicalPermissionsOverrideSchema),
   copilotcli: z.optional(CanonicalPermissionsOverrideSchema),

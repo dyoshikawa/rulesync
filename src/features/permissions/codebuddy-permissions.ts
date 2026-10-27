@@ -7,7 +7,7 @@ import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
-import { isRecord, toStringArray } from "../../utils/type-guards.js";
+import { isRecord, isStringArray, toStringArray } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
   parseSharedConfig,
@@ -26,6 +26,46 @@ import {
 
 /** Top-level key of `.codebuddy/settings.json` that rulesync owns. */
 const CODEBUDDY_PERMISSIONS_KEY = "permissions";
+
+/**
+ * The top-level settings groups the `codebuddy` override may author, each with
+ * the only keys of that group rulesync writes and imports. A group's other
+ * keys are kept as the file has them; an override key not listed here is
+ * skipped with a warning.
+ *
+ * - `autoReview`: the `auto` permission mode's review policy (`policy`
+ *   replaces the built-in security policy, `extraPolicy` is appended to it).
+ * - `autoMode`: the legacy natural-language `auto` rules, still read as
+ *   additional policy.
+ * - `memory.parentDiscovery`: whether `CODEBUDDY.md` / `AGENTS.md` are also
+ *   discovered in parent directories of the launch directory.
+ *
+ * @see https://www.codebuddy.ai/docs/cli/settings
+ * @see https://www.codebuddy.ai/docs/cli/memory
+ */
+const CODEBUDDY_OVERRIDE_GROUP_KEYS = {
+  autoReview: ["policy", "extraPolicy"],
+  autoMode: ["environment", "allow", "soft_deny", "hard_deny"],
+  memory: ["parentDiscovery"],
+} as const satisfies Record<string, readonly string[]>;
+
+type CodebuddyOverrideGroup = keyof typeof CODEBUDDY_OVERRIDE_GROUP_KEYS;
+
+const CODEBUDDY_OVERRIDE_GROUPS = Object.keys(
+  CODEBUDDY_OVERRIDE_GROUP_KEYS,
+) as CodebuddyOverrideGroup[];
+
+/**
+ * Groups CodeBuddy reads from the user and project-local settings only: the
+ * shared project `.codebuddy/settings.json` is not read for them, so a checked-in
+ * repository cannot relax the review of its own actions. They are written and
+ * imported in global mode alone.
+ * @see https://www.codebuddy.ai/docs/cli/settings
+ */
+const CODEBUDDY_USER_ONLY_GROUPS: ReadonlySet<CodebuddyOverrideGroup> = new Set([
+  "autoReview",
+  "autoMode",
+]);
 
 /** The rule lists under `permissions`, one per canonical action. */
 const CODEBUDDY_RULE_LISTS: readonly PermissionAction[] = ["allow", "ask", "deny"];
@@ -230,6 +270,144 @@ function buildCodebuddyRuleLists({
 }
 
 /**
+ * Whether a settings value has the shape the `codebuddy` override schema
+ * accepts for that key, so an off-spec value is left in the file instead of
+ * being written or making the imported permissions file fail validation.
+ */
+function isLiftableCodebuddyValue(key: string, value: unknown): boolean {
+  switch (key) {
+    case "policy":
+    case "extraPolicy":
+      return typeof value === "string";
+    case "parentDiscovery":
+      return typeof value === "boolean";
+    default:
+      return isStringArray(value);
+  }
+}
+
+/** Name every written override setting that can make the `auto` review more lenient. */
+function announceCodebuddyReviewSettings({
+  picked,
+  group,
+  where,
+  logger,
+}: {
+  picked: Record<string, unknown>;
+  group: CodebuddyOverrideGroup;
+  where: string;
+  logger?: Logger;
+}): void {
+  if (group === "autoReview" && typeof picked.policy === "string") {
+    logger?.warn(
+      `CodeBuddy permissions: codebuddy.autoReview.policy was written to ${where}, so it replaces CodeBuddy's built-in security policy for the 'auto' permission mode.`,
+    );
+  }
+  if (group === "autoReview" && typeof picked.extraPolicy === "string") {
+    logger?.warn(
+      `CodeBuddy permissions: codebuddy.autoReview.extraPolicy was written to ${where}, so it is appended to the security policy CodeBuddy's 'auto' permission mode reviews actions against.`,
+    );
+  }
+  if (group === "autoMode" && toStringArray(picked.allow).length > 0) {
+    logger?.warn(
+      `CodeBuddy permissions: codebuddy.autoMode.allow was written to ${where}, so CodeBuddy's 'auto' permission mode leans toward approving the actions it describes.`,
+    );
+  }
+}
+
+/**
+ * The top-level keys the `codebuddy` override contributes to the settings
+ * patch, besides `permissions`. Each group is the existing group with the
+ * authored keys laid over it; a group is only in the patch when authored, so
+ * a hand-set value survives an unrelated regeneration.
+ */
+function buildCodebuddyOverridePatch({
+  override,
+  existing,
+  global,
+  where,
+  logger,
+}: {
+  override: Record<string, unknown> | undefined;
+  existing: Record<string, unknown>;
+  global: boolean;
+  where: string;
+  logger?: Logger;
+}): Record<string, unknown> {
+  const patch: Record<string, unknown> = {};
+  if (override === undefined) {
+    return patch;
+  }
+  for (const group of CODEBUDDY_OVERRIDE_GROUPS) {
+    const authored = override[group];
+    if (!isRecord(authored)) {
+      continue;
+    }
+    if (CODEBUDDY_USER_ONLY_GROUPS.has(group) && !global) {
+      logger?.warn(
+        `CodeBuddy permissions: skipping codebuddy.${group} in project mode — CodeBuddy does not read ${group} from the shared project .codebuddy/settings.json. Run 'rulesync generate --global' to write it to ~/.codebuddy/settings.json.`,
+      );
+      continue;
+    }
+    const allowedKeys: readonly string[] = CODEBUDDY_OVERRIDE_GROUP_KEYS[group];
+    const picked: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(authored)) {
+      if (isPrototypePollutionKey(key) || value === undefined) {
+        continue;
+      }
+      if (!allowedKeys.includes(key)) {
+        logger?.warn(
+          `CodeBuddy permissions: skipping codebuddy.${group}.${key} — Rulesync writes only ${allowedKeys.map((k) => `${group}.${k}`).join(", ")} from the codebuddy override; set other keys in ${where} by hand.`,
+        );
+        continue;
+      }
+      picked[key] = value;
+    }
+    if (Object.keys(picked).length === 0) {
+      continue;
+    }
+    const existingGroup = isRecord(existing[group]) ? existing[group] : {};
+    patch[group] = { ...existingGroup, ...picked };
+    announceCodebuddyReviewSettings({ picked, group, where, logger });
+  }
+  return patch;
+}
+
+/**
+ * Lift the settings the `codebuddy` override authors back out of a settings
+ * file. `autoReview` and `autoMode` are lifted only from the user file, the
+ * one of the two rulesync manages that CodeBuddy reads them from.
+ */
+function liftCodebuddyOverride({
+  settings,
+  global,
+}: {
+  settings: Record<string, unknown>;
+  global: boolean;
+}): Record<string, unknown> {
+  const lifted: Record<string, unknown> = {};
+  for (const group of CODEBUDDY_OVERRIDE_GROUPS) {
+    if (CODEBUDDY_USER_ONLY_GROUPS.has(group) && !global) {
+      continue;
+    }
+    const existingGroup = settings[group];
+    if (!isRecord(existingGroup)) {
+      continue;
+    }
+    const picked: Record<string, unknown> = {};
+    for (const key of CODEBUDDY_OVERRIDE_GROUP_KEYS[group]) {
+      if (Object.hasOwn(existingGroup, key) && isLiftableCodebuddyValue(key, existingGroup[key])) {
+        picked[key] = existingGroup[key];
+      }
+    }
+    if (Object.keys(picked).length > 0) {
+      lifted[group] = picked;
+    }
+  }
+  return lifted;
+}
+
+/**
  * CodeBuddy Code permissions.
  *
  * Rules live under the `permissions` key of `.codebuddy/settings.json`
@@ -240,7 +418,10 @@ function buildCodebuddyRuleLists({
  * writes go through the shared-config gateway, the sibling keys of the rule
  * lists (`defaultMode`, `additionalDirectories`, `trustedDirectories`, ...)
  * are kept, and the file is never deleted. The gitignored
- * `.codebuddy/settings.local.json` layer is left to CodeBuddy.
+ * `.codebuddy/settings.local.json` layer is left to CodeBuddy. The
+ * `codebuddy` override's other settings (`autoReview`, `autoMode`,
+ * `memory.parentDiscovery`) go through `buildCodebuddyOverridePatch` /
+ * `liftCodebuddyOverride`.
  *
  * @see https://www.codebuddy.ai/docs/cli/permissions
  * @see https://www.codebuddy.ai/docs/cli/settings
@@ -296,11 +477,8 @@ export class CodebuddyPermissions extends ToolPermissions {
       ? existing[CODEBUDDY_PERMISSIONS_KEY]
       : {};
 
-    const lists = buildCodebuddyRuleLists({
-      config: rulesyncPermissions.getJson(),
-      existingPermissions,
-      logger,
-    });
+    const config = rulesyncPermissions.getJson();
+    const lists = buildCodebuddyRuleLists({ config, existingPermissions, logger });
     const permissions: Record<string, unknown> = { ...existingPermissions };
     for (const list of CODEBUDDY_RULE_LISTS) {
       if (lists[list].length > 0) {
@@ -321,6 +499,13 @@ export class CodebuddyPermissions extends ToolPermissions {
         patch: {
           [CODEBUDDY_PERMISSIONS_KEY]:
             Object.keys(permissions).length > 0 ? permissions : undefined,
+          ...buildCodebuddyOverridePatch({
+            override: config.codebuddy,
+            existing,
+            global,
+            where: `${join(paths.relativeDirPath, paths.relativeFilePath)}${global ? " in the home directory" : ""}`,
+            logger,
+          }),
         },
         filePath,
       }),
@@ -361,8 +546,13 @@ export class CodebuddyPermissions extends ToolPermissions {
         }
       }
     }
+    const codebuddy = liftCodebuddyOverride({ settings, global: this.global });
     return this.toRulesyncPermissionsDefault({
-      fileContent: JSON.stringify({ permission }, null, 2),
+      fileContent: JSON.stringify(
+        { permission, ...(Object.keys(codebuddy).length > 0 && { codebuddy }) },
+        null,
+        2,
+      ),
     });
   }
 
