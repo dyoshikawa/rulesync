@@ -98,7 +98,7 @@ import {
   ToolSkillFromFlatFileParams,
   ToolSkillFromRulesyncSkillParams,
   ToolSkillSettablePaths,
-  isAgentSkillsInteropRoot,
+  isLenientImportSkillRoot,
   toolSkillImportRoots,
   toolSkillSearchRoots,
 } from "./tool-skill.js";
@@ -216,9 +216,10 @@ type ToolSkillFactory = {
      * reason (unparseable YAML, invalid frontmatter, unreadable files) — is
      * warned about and skipped instead of aborting the whole import run.
      * Covers both directory-form skills and `fromFlatFile` loaders.
-     * Independent of this flag, the Agent Skills interop roots
-     * (`.agents/skills/` and equivalents — see
-     * {@link isAgentSkillsInteropRoot}) are always imported leniently.
+     * Independent of this flag, the lenient import roots (the Agent Skills
+     * interop roots such as `.agents/skills/`, and Amp's
+     * `~/.config/amp/skills/` — see {@link isLenientImportSkillRoot}) are
+     * always imported leniently.
      */
     lenientImport?: boolean;
   };
@@ -1193,7 +1194,7 @@ export class SkillsProcessor extends DirFeatureProcessor {
       const relativeDirPath = typeof root === "string" ? root : root.relativeDirPath;
       const isConfiguredRoot = configuredRootPaths.has(relativeDirPath);
       // A root the tool's own config points at is arbitrary user territory,
-      // the Agent Skills interop roots hold foreign-authored skills, and tools
+      // the lenient import roots hold foreign-authored skills, and tools
       // flagged `lenientImport` follow a lenient-validation rule for every root
       // (the Agent Skills guide's prescription, or the tool's own loader keeping
       // the other skills when one is broken, as Claude Code does) — in all three cases
@@ -1202,7 +1203,7 @@ export class SkillsProcessor extends DirFeatureProcessor {
       const isLenientRoot =
         isConfiguredRoot ||
         factory.meta.lenientImport === true ||
-        isAgentSkillsInteropRoot(relativeDirPath);
+        isLenientImportSkillRoot(relativeDirPath);
       const skillsDirPath = join(rootOutputRoot, relativeDirPath);
       if (!(await directoryExists(skillsDirPath))) {
         continue;

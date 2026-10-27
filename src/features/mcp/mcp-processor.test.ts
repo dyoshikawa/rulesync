@@ -1229,11 +1229,17 @@ describe("McpProcessor", () => {
         relativeFilePath: ".mcp.json",
         fileContent: JSON.stringify({ mcpServers: {} }),
       });
+      vi.mocked(rulesyncMcp.getJson).mockReturnValue({
+        mcpServers: {
+          filtered: { command: "server", enabledTools: ["read"], disabledTools: ["write"] },
+        },
+      } as any);
 
       vi.spyOn(FactorydroidMcp, "fromRulesyncMcp").mockResolvedValue({} as FactorydroidMcp);
 
+      const logger = createMockLogger();
       const processor = new McpProcessor({
-        logger: createMockLogger(),
+        logger,
         outputRoot: testDir,
         toolTarget: "factorydroid",
       });
@@ -1241,6 +1247,7 @@ describe("McpProcessor", () => {
       await processor.convertRulesyncFilesToToolFiles([rulesyncMcp]);
 
       expect(rulesyncMcp.stripMcpServerFields).toHaveBeenCalledWith([]);
+      expect(logger.warn).not.toHaveBeenCalled();
     });
   });
 
