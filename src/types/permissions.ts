@@ -199,11 +199,14 @@ export type OmpApprovalMode = (typeof OMP_APPROVAL_MODES)[number];
 
 /**
  * Tool-scoped override block for oh-my-pi (`omp`). `approvalMode` writes the
- * `tools.approvalMode` key of `config.yml`, which has no canonical category.
+ * `tools.approvalMode` key of `config.yml`, and `restrictedFolders` the
+ * `tools.restrictedFolders` list (folders where every action prompts in every
+ * approval mode, `yolo` included); neither has a canonical category.
  */
 const OmpPermissionsOverrideSchema = z.looseObject({
   permission: z.optional(ToolScopedPermissionSchema),
   approvalMode: z.optional(z.enum(OMP_APPROVAL_MODES)),
+  restrictedFolders: z.optional(z.array(z.string())),
 });
 export type OmpPermissionsOverride = z.infer<typeof OmpPermissionsOverrideSchema>;
 
