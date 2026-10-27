@@ -6,7 +6,7 @@ import { RULESYNC_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
-import { LettacodeHooks } from "./lettacode-hooks.js";
+import { LETTACODE_HOOKS_DEPRECATION_WARNING, LettacodeHooks } from "./lettacode-hooks.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
 
 const buildRulesyncHooks = (testDir: string, config: Record<string, unknown>): RulesyncHooks =>
@@ -167,8 +167,53 @@ describe("LettacodeHooks", () => {
         logger,
       });
 
-      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledTimes(2);
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("(events: Stop)"));
+      expect(logger.warn).toHaveBeenCalledWith(LETTACODE_HOOKS_DEPRECATION_WARNING);
+    });
+
+    it("should warn once per run that Letta Code settings hooks are deprecated", async () => {
+      const logger = createMockLogger();
+      const rulesyncHooks = buildRulesyncHooks(testDir, {
+        version: 1,
+        hooks: { stop: [{ type: "command", command: "stop.sh" }] },
+      });
+
+      await LettacodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+        logger,
+      });
+      await LettacodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+        global: true,
+        logger,
+      });
+
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledWith(LETTACODE_HOOKS_DEPRECATION_WARNING);
+      expect(LETTACODE_HOOKS_DEPRECATION_WARNING).toContain(
+        "https://docs.letta.com/reference/deprecated/hooks",
+      );
+    });
+
+    it("should not warn about the deprecation when no hook is written for Letta Code", async () => {
+      const logger = createMockLogger();
+
+      await LettacodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks: buildRulesyncHooks(testDir, {
+          version: 1,
+          hooks: { stop: [{ type: "prompt", prompt: "Is the task done?" }] },
+        }),
+        validate: false,
+        logger,
+      });
+
+      expect(logger.warn).not.toHaveBeenCalledWith(LETTACODE_HOOKS_DEPRECATION_WARNING);
     });
 
     it("should write global hooks to the home directory's .letta/settings.json", async () => {
