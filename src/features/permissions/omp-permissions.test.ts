@@ -415,6 +415,104 @@ describe("OmpPermissions", () => {
     expect(importMode("exec").omp).toBeUndefined();
   });
 
+  it.each([false, true])(
+    "should write the omp.restrictedFolders override to tools.restrictedFolders (global: %s)",
+    async (global) => {
+      const dir = global ? join(".omp", "agent") : ".omp";
+      await writeFileContent(
+        join(testDir, dir, "config.yml"),
+        [
+          "tools:",
+          "  approvalMode: write",
+          "  maxTimeout: 30",
+          "  restrictedFolders:",
+          "    - ~/old",
+          "",
+        ].join("\n"),
+      );
+
+      const permissions = await OmpPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        global,
+        rulesyncPermissions: rulesyncPermissionsFrom({
+          permission: { read: { "*": "allow" } },
+          omp: { restrictedFolders: ["~/secrets", "C:/work/payments"] },
+        }).forTarget({ toolTarget: "omp" }),
+      });
+
+      expect(permissions.getRelativeDirPath()).toBe(dir);
+      expect(loadYaml(permissions.getFileContent())).toEqual({
+        tools: {
+          approvalMode: "write",
+          maxTimeout: 30,
+          restrictedFolders: ["~/secrets", "C:/work/payments"],
+          approval: { read: "allow" },
+        },
+      });
+    },
+  );
+
+  it("should write an authored empty omp.restrictedFolders list", async () => {
+    await writeFileContent(
+      join(testDir, ".omp", "config.yml"),
+      ["tools:", "  restrictedFolders:", "    - ~/secrets", ""].join("\n"),
+    );
+
+    const permissions = await OmpPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: rulesyncPermissionsFrom({
+        permission: {},
+        omp: { restrictedFolders: [] },
+      }).forTarget({ toolTarget: "omp" }),
+    });
+
+    expect(loadYaml(permissions.getFileContent())).toEqual({ tools: { restrictedFolders: [] } });
+  });
+
+  it("should keep an existing tools.restrictedFolders when the override is not authored", async () => {
+    await writeFileContent(
+      join(testDir, ".omp", "config.yml"),
+      ["tools:", "  restrictedFolders:", "    - ~/secrets", ""].join("\n"),
+    );
+
+    const permissions = await OmpPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions: rulesyncPermissionsFrom({ permission: { read: { "*": "allow" } } }),
+    });
+
+    expect(loadYaml(permissions.getFileContent())).toEqual({
+      tools: { restrictedFolders: ["~/secrets"], approval: { read: "allow" } },
+    });
+  });
+
+  it("should import tools.restrictedFolders into the omp override", () => {
+    const importFolders = (lines: string[]) =>
+      new OmpPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".omp",
+        relativeFilePath: "config.yml",
+        fileContent: ["tools:", "  approvalMode: always-ask", ...lines, ""].join("\n"),
+      })
+        .toRulesyncPermissions()
+        .getJson();
+
+    expect(
+      importFolders(["  restrictedFolders:", "    - ~/secrets", "    - 42", "    - ./vault"]).omp,
+    ).toEqual({ approvalMode: "always-ask", restrictedFolders: ["~/secrets", "./vault"] });
+    expect(importFolders(["  restrictedFolders: []"]).omp).toEqual({
+      approvalMode: "always-ask",
+      restrictedFolders: [],
+    });
+    // Not a list: oh-my-pi ignores it, so nothing is imported.
+    expect(importFolders(["  restrictedFolders: ~/secrets"]).omp).toEqual({
+      approvalMode: "always-ask",
+    });
+    // No string entry survives: nothing is imported rather than an empty list.
+    expect(importFolders(["  restrictedFolders:", "    - 42"]).omp).toEqual({
+      approvalMode: "always-ask",
+    });
+  });
+
   it("should refuse to rewrite a config.yml whose root is not a mapping", async () => {
     await writeFileContent(join(testDir, ".omp", "config.yml"), "- not a mapping\n");
 

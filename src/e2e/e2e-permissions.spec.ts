@@ -1506,6 +1506,7 @@ web_search_request = true
             read: { "*": "allow" },
             agent: { "*": "ask" },
           },
+          omp: { restrictedFolders: ["~/secrets"] },
         },
         null,
         2,
@@ -1517,7 +1518,11 @@ web_search_request = true
     const parsed = load(await readFileContent(join(testDir, ".omp", "config.yml")));
     expect(parsed).toEqual({
       theme: { dark: "titanium" },
-      tools: { approvalMode: "write", approval: { read: "allow", task: "prompt" } },
+      tools: {
+        approvalMode: "write",
+        restrictedFolders: ["~/secrets"],
+        approval: { read: "allow", task: "prompt" },
+      },
       bash: {
         patterns: [
           { match: "rm -rf *", approval: "deny" },
@@ -1536,7 +1541,7 @@ web_search_request = true
       read: { "*": "allow" },
       agent: { "*": "ask" },
     });
-    expect(imported.omp).toEqual({ approvalMode: "write" });
+    expect(imported.omp).toEqual({ approvalMode: "write", restrictedFolders: ["~/secrets"] });
   });
 
   it("should generate pi permissions into .pi/settings.json and preserve unrelated keys", async () => {

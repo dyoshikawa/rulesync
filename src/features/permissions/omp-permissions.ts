@@ -5,6 +5,7 @@ import type { AiFileParams } from "../../types/ai-file.js";
 import {
   OMP_APPROVAL_MODES,
   type OmpApprovalMode,
+  type OmpPermissionsOverride,
   type PermissionAction,
   type PermissionsConfig,
 } from "../../types/permissions.js";
@@ -46,6 +47,10 @@ const CATCH_ALL_PATTERN = "*";
 // The `tools` key holding oh-my-pi's approval mode, authored through the
 // `omp.approvalMode` override.
 const APPROVAL_MODE_KEY = "approvalMode";
+
+// The `tools` key holding oh-my-pi's restricted folders (v18.13.1+), authored
+// through the `omp.restrictedFolders` override.
+const RESTRICTED_FOLDERS_KEY = "restrictedFolders";
 
 const ACTION_TO_OMP_APPROVAL: Record<PermissionAction, OmpApproval> = {
   allow: "allow",
@@ -102,9 +107,9 @@ const MANAGED_OMP_TOOLS: ReadonlySet<string> = new Set([
  *
  * - `tools.approval.<tool>: allow | prompt | deny` is a per-tool policy honored
  *   in every approval mode. A category's catch-all `*` rule maps here
- *   (`ask` → `prompt`). oh-my-pi has no per-path matcher, so a non-bash category
- *   with pattern-specific rules collapses to one action (deny > ask > allow, with
- *   an implicit `ask` when there is no catch-all) and a warning.
+ *   (`ask` → `prompt`). `tools.approval` has no per-path matcher, so a non-bash
+ *   category with pattern-specific rules collapses to one action (deny > ask >
+ *   allow, with an implicit `ask` when there is no catch-all) and a warning.
  * - `bash.patterns: [{ match, approval }]` is an ordered, first-match-wins list
  *   of command globs (only `*` is a wildcard). Every `bash` rule except a
  *   catch-all `allow` is written there, ordered deny → prompt → allow so that
@@ -121,12 +126,15 @@ const MANAGED_OMP_TOOLS: ReadonlySet<string> = new Set([
  *
  * The `omp.approvalMode` override writes `tools.approvalMode` (`always-ask`,
  * `always-ask-cached`, `write` or `yolo`); without it the key is left as it is in the file, and on
- * import a recognized value is read back into the override.
+ * import a recognized value is read back into the override. Likewise the
+ * `omp.restrictedFolders` override writes `tools.restrictedFolders` (folders
+ * where every action prompts in every approval mode, `yolo` included), is left
+ * alone when absent, and is read back on import.
  *
  * `config.yml` carries every other oh-my-pi setting, so only `tools.approval`
  * (the keys rulesync manages), `bash.patterns` and an authored
- * `tools.approvalMode` are rewritten; sibling keys such as `bash.enabled` are
- * kept, and the file is never deleted.
+ * `tools.approvalMode` or `tools.restrictedFolders` are rewritten; sibling
+ * keys such as `bash.enabled` are kept, and the file is never deleted.
  *
  * @see https://github.com/can1357/oh-my-pi/blob/main/docs/settings.md
  * @see https://github.com/can1357/oh-my-pi/blob/main/docs/approval-mode.md
@@ -187,6 +195,7 @@ export class OmpPermissions extends ToolPermissions {
     const config = rulesyncPermissions.getJson();
     const { approval, patterns, floor } = convertRulesyncToOmp({ config, logger });
     const approvalMode = config.omp?.approvalMode;
+    const restrictedFolders = config.omp?.restrictedFolders;
 
     const existingTools = isRecord(existing.tools) ? existing.tools : {};
     // A kept key is still raised to the all-tools floor, so a hand-written
@@ -202,6 +211,9 @@ export class OmpPermissions extends ToolPermissions {
     const toolsSiblings = withoutKey(existingTools, "approval");
     if (approvalMode !== undefined) {
       toolsSiblings[APPROVAL_MODE_KEY] = approvalMode;
+    }
+    if (restrictedFolders !== undefined) {
+      toolsSiblings[RESTRICTED_FOLDERS_KEY] = restrictedFolders;
     }
     const nextTools =
       Object.keys(nextApproval).length > 0
@@ -593,12 +605,30 @@ function convertOmpToRulesync(config: Record<string, unknown>): PermissionsConfi
   }
 
   const approvalMode = tools[APPROVAL_MODE_KEY];
-  return {
-    permission,
+  const restrictedFolders = importRestrictedFolders(tools[RESTRICTED_FOLDERS_KEY]);
+  const omp: OmpPermissionsOverride = {
     // oh-my-pi matches the mode exactly and falls back to `yolo` otherwise, so
     // only a value it honors is carried into the override.
-    ...(isOmpApprovalMode(approvalMode) && { omp: { approvalMode } }),
+    ...(isOmpApprovalMode(approvalMode) && { approvalMode }),
+    ...(restrictedFolders !== undefined && { restrictedFolders }),
   };
+  return {
+    permission,
+    ...(Object.keys(omp).length > 0 && { omp }),
+  };
+}
+
+/**
+ * `tools.restrictedFolders` as the override list: its string entries, or
+ * `undefined` when it is unset or no entry survives (so a list of non-strings
+ * is not imported as `[]` and then rewritten as an empty list).
+ */
+function importRestrictedFolders(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+  const folders = value.filter((entry): entry is string => typeof entry === "string");
+  return folders.length === 0 && value.length > 0 ? undefined : folders;
 }
 
 function isOmpApprovalMode(value: unknown): value is OmpApprovalMode {
