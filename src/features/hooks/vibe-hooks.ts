@@ -296,6 +296,39 @@ function vibeHooksToCanonical(parsed: unknown): HooksConfig["hooks"] {
   return canonical;
 }
 
+/** Vibe reads a `match` with a `re:` prefix or glob metacharacters as a pattern. */
+const VIBE_PATTERN_MATCH = /^re:|[*?[]/;
+
+/**
+ * Move the imported `subagentStop` hooks into the `vibe` override when any of
+ * them matches agents by a regex or glob rather than by a literal name. Such a
+ * pattern can also select the main agent (a main session answers to its mode
+ * name, e.g. `accept-edits`), and other tools would read it as their own
+ * matcher syntax, so it is kept Vibe-only. The override replaces the shared
+ * list for its event, so the whole list moves to keep every entry on Vibe.
+ */
+function takeVibeOnlySubagentStop({
+  hooks,
+  logger,
+}: {
+  hooks: HooksConfig["hooks"];
+  logger?: Logger;
+}): HookDefinition[] | undefined {
+  const defs = lookupOwn({ record: hooks, key: "subagentStop" });
+  if (
+    defs === undefined ||
+    !defs.some((def) => typeof def.matcher === "string" && VIBE_PATTERN_MATCH.test(def.matcher))
+  ) {
+    return undefined;
+  }
+  delete hooks.subagentStop;
+  logger?.warn(
+    "Vibe hooks: a post_agent hook matches agents by a pattern, so its subagentStop hooks are " +
+      "imported into the vibe override instead of the shared hooks.",
+  );
+  return defs;
+}
+
 function parseVibeToml(fileContent: string): Record<string, unknown> {
   const parsed = smolToml.parse(fileContent || smolToml.stringify({}));
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
@@ -368,18 +401,23 @@ export class VibeHooks extends ToolHooks {
     });
   }
 
-  toRulesyncHooks(): RulesyncHooks {
+  toRulesyncHooks(options: { logger?: Logger } = {}): RulesyncHooks {
     const parsed: Record<string, unknown> = this.parseFileContentOrThrow({
       displayName: "Vibe",
       parse: (fileContent) => parseVibeToml(fileContent),
     });
     const hooks = vibeHooksToCanonical(parsed);
+    const vibeOnlySubagentStop = takeVibeOnlySubagentStop({ hooks, logger: options.logger });
+    const config = buildImportedHooksConfig({ hooks, overrideKey: "vibe" });
+    if (vibeOnlySubagentStop !== undefined) {
+      const override = (config.vibe ?? {}) as { hooks?: HooksConfig["hooks"] };
+      config.vibe = {
+        ...override,
+        hooks: { ...override.hooks, subagentStop: vibeOnlySubagentStop },
+      };
+    }
     return this.toRulesyncHooksDefault({
-      fileContent: JSON.stringify(
-        buildImportedHooksConfig({ hooks, overrideKey: "vibe" }),
-        null,
-        2,
-      ),
+      fileContent: JSON.stringify(config, null, 2),
     });
   }
 

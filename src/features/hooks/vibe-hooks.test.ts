@@ -411,7 +411,6 @@ describe("VibeHooks", () => {
           { name: "a", type: "post_agent", command: "./a" },
           { name: "b", type: "post_agent", match: "main", command: "./b" },
           { name: "c", type: "post_agent", match: "reviewer", command: "./c" },
-          { name: "d", type: "post_agent", match: "re:review.*", command: "./d" },
         ],
       });
       const vibeHooks = new VibeHooks(
@@ -429,9 +428,50 @@ describe("VibeHooks", () => {
       ]);
       expect(parsed.hooks.subagentStop).toEqual([
         { type: "command", command: "./c", matcher: "reviewer", name: "c" },
-        { type: "command", command: "./d", matcher: "re:review.*", name: "d" },
       ]);
+      expect(parsed.vibe).toBeUndefined();
     });
+
+    it.each(["re:review.*", "review*"])(
+      "should keep subagentStop hooks in the vibe override when a post_agent match is the pattern %s",
+      async (pattern) => {
+        const fileContent = smolToml.stringify({
+          hooks: [
+            { name: "a", type: "post_agent", match: "main", command: "./a" },
+            { name: "c", type: "post_agent", match: "reviewer", command: "./c" },
+            { name: "d", type: "post_agent", match: pattern, command: "./d" },
+          ],
+        });
+        const vibeHooks = new VibeHooks(
+          createMockAiFileParams({
+            relativeDirPath: ".vibe",
+            relativeFilePath: "hooks.toml",
+            fileContent,
+          }),
+        );
+        const logger = createMockLogger();
+
+        const imported = vibeHooks.toRulesyncHooks({ logger });
+        const parsed = imported.getJson();
+        expect(parsed.hooks.stop).toEqual([{ type: "command", command: "./a", name: "a" }]);
+        expect(parsed.hooks.subagentStop).toBeUndefined();
+        expect(parsed.vibe?.hooks?.subagentStop).toEqual([
+          { type: "command", command: "./c", matcher: "reviewer", name: "c" },
+          { type: "command", command: "./d", matcher: pattern, name: "d" },
+        ]);
+        expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("vibe override"));
+
+        // The override regenerates the same entries.
+        const regenerated = await VibeHooks.fromRulesyncHooks({
+          outputRoot: testDir,
+          rulesyncHooks: imported,
+        });
+        const toml = smolToml.parse(regenerated.getFileContent()) as {
+          hooks: Array<Record<string, unknown>>;
+        };
+        expect(toml.hooks.map((hook) => hook.match)).toEqual(["main", "reviewer", pattern]);
+      },
+    );
 
     it("should read the pre-2.21.0 event spellings and emit the renamed ones", () => {
       const fileContent = smolToml.stringify({
