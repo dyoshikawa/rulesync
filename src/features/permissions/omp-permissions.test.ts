@@ -507,6 +507,10 @@ describe("OmpPermissions", () => {
     expect(importFolders(["  restrictedFolders: ~/secrets"]).omp).toEqual({
       approvalMode: "always-ask",
     });
+    // No string entry survives: nothing is imported rather than an empty list.
+    expect(importFolders(["  restrictedFolders:", "    - 42"]).omp).toEqual({
+      approvalMode: "always-ask",
+    });
   });
 
   it("should refuse to rewrite a config.yml whose root is not a mapping", async () => {

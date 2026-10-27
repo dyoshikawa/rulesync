@@ -133,8 +133,8 @@ const MANAGED_OMP_TOOLS: ReadonlySet<string> = new Set([
  *
  * `config.yml` carries every other oh-my-pi setting, so only `tools.approval`
  * (the keys rulesync manages), `bash.patterns` and an authored
- * `tools.approvalMode` or `tools.restrictedFolders` are rewritten; sibling keys such as `bash.enabled` are
- * kept, and the file is never deleted.
+ * `tools.approvalMode` or `tools.restrictedFolders` are rewritten; sibling
+ * keys such as `bash.enabled` are kept, and the file is never deleted.
  *
  * @see https://github.com/can1357/oh-my-pi/blob/main/docs/settings.md
  * @see https://github.com/can1357/oh-my-pi/blob/main/docs/approval-mode.md
@@ -618,12 +618,17 @@ function convertOmpToRulesync(config: Record<string, unknown>): PermissionsConfi
   };
 }
 
-/** `tools.restrictedFolders` as the override list: its string entries, or `undefined` when unset. */
+/**
+ * `tools.restrictedFolders` as the override list: its string entries, or
+ * `undefined` when it is unset or no entry survives (so a list of non-strings
+ * is not imported as `[]` and then rewritten as an empty list).
+ */
 function importRestrictedFolders(value: unknown): string[] | undefined {
   if (!Array.isArray(value)) {
     return undefined;
   }
-  return value.filter((entry): entry is string => typeof entry === "string");
+  const folders = value.filter((entry): entry is string => typeof entry === "string");
+  return folders.length === 0 && value.length > 0 ? undefined : folders;
 }
 
 function isOmpApprovalMode(value: unknown): value is OmpApprovalMode {

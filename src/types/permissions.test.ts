@@ -54,6 +54,13 @@ describe("RulesyncPermissionsFileSchema tool-scoped override enums", () => {
       );
       expect(result.success).toBe(false);
     });
+
+    it("should reject a list with a non-string entry", () => {
+      const result = RulesyncPermissionsFileSchema.safeParse(
+        withOverride({ omp: { restrictedFolders: ["~/a", 42] } }),
+      );
+      expect(result.success).toBe(false);
+    });
   });
 
   describe("warp.agent_mode_coding_permissions", () => {
