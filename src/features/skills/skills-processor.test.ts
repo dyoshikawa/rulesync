@@ -149,7 +149,12 @@ describe("SkillsProcessor", () => {
 
         const skills = await processor.loadToolDirs();
         expect(skills.map((skill) => skill.getDirName())).toEqual(["valid"]);
-        expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining(join(base, "bad")));
+        // Match the path by its segments, not `join(base, "bad")`: the quoted
+        // path may carry escaped or POSIX separators depending on the platform.
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringMatching(/^Skipping ".*amp[\\/]+skills[\\/]+bad": /),
+        );
+        expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("Invalid frontmatter"));
         expect(await processor.loadToolDirsToDelete()).toEqual([]);
       } finally {
         await home.cleanup();
