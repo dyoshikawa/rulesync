@@ -100,14 +100,16 @@ function splitUrlRules(rules: Record<string, PermissionAction>): {
  * (union — a repository may add entries, never remove them) but NOT
  * `allowedUrls`, so an allow rule is only enforceable at user scope. At project
  * scope allow rules are therefore dropped with a warning rather than written to
- * a key the CLI ignores. The `copilotcli.defaultPermissionMode` override
- * (`manual` | `assisted` | `allow-all`) writes the user-scope
- * `defaultPermissionMode` key in global mode only; in project mode it is
- * skipped with a warning for the same reason. It is patched only when
- * authored, so a mode the user picked through `/settings` otherwise survives.
- * (v1.0.79 additionally warns on startup about unknown
+ * a key the CLI ignores. (v1.0.79 additionally warns on startup about unknown
  * top-level keys in the user `settings.json`, so only documented keys are ever
  * emitted there either.)
+ *
+ * The `copilotcli.defaultPermissionMode` override (`manual` | `assisted` |
+ * `allow-all`) writes the user-scope `defaultPermissionMode` key in global mode
+ * only; in project mode it is skipped with a warning, since the repository
+ * settings file does not accept it. It is patched only when authored, so a mode
+ * the user picked through `/settings` otherwise survives. Writing `allow-all`
+ * warns, because it makes new sessions skip every approval prompt.
  *
  * @see https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-config-dir-reference
  * @see https://github.com/github/copilot-cli/blob/main/changelog.md
@@ -192,6 +194,11 @@ export class CopilotcliPermissions extends ToolPermissions {
     if (defaultPermissionMode !== undefined) {
       if (global) {
         patch[DEFAULT_PERMISSION_MODE_KEY] = defaultPermissionMode;
+        if (defaultPermissionMode === "allow-all") {
+          logger?.warn(
+            `Copilot CLI permissions: writing "${DEFAULT_PERMISSION_MODE_KEY}": "allow-all" to ${join(paths.relativeDirPath, paths.relativeFilePath)} — new interactive sessions will start with every tool, path and URL approved without prompting (equivalent to \`--allow-all\`). Deny rules and enterprise policy still apply.`,
+          );
+        }
       } else {
         logger?.warn(
           `Copilot CLI permissions: skipping "copilotcli.${DEFAULT_PERMISSION_MODE_KEY}" at project scope — ${join(paths.relativeDirPath, paths.relativeFilePath)} does not accept "${DEFAULT_PERMISSION_MODE_KEY}" (it is a user setting). Author it in global scope (\`--global\`) instead.`,

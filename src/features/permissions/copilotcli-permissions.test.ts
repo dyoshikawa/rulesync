@@ -232,7 +232,7 @@ describe("CopilotcliPermissions", () => {
   });
 
   describe("defaultPermissionMode override", () => {
-    it.each(["manual", "assisted", "allow-all"])(
+    it.each(["manual", "assisted"])(
       "writes defaultPermissionMode %s at global scope and keeps unrelated keys",
       async (mode) => {
         await writeSettings({
@@ -260,6 +260,24 @@ describe("CopilotcliPermissions", () => {
         expect(logger.warn).not.toHaveBeenCalled();
       },
     );
+
+    it("warns when writing allow-all at global scope", async () => {
+      const logger = createMockLogger();
+
+      const permissions = await CopilotcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        global: true,
+        logger,
+        rulesyncPermissions: createRulesyncPermissionsFromJson({
+          permission: {},
+          copilotcli: { defaultPermissionMode: "allow-all" },
+        }).forTarget({ toolTarget: "copilotcli" }),
+      });
+
+      expect(JSON.parse(permissions.getFileContent()).defaultPermissionMode).toBe("allow-all");
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"allow-all"'));
+    });
 
     it("leaves a hand-set defaultPermissionMode untouched when the override does not author it", async () => {
       await writeSettings({
