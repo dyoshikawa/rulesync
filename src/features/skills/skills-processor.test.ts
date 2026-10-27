@@ -21,6 +21,7 @@ import {
 import { AgentsSkillsSkill } from "./agentsskills-skill.js";
 import { ClaudecodeSkill } from "./claudecode-skill.js";
 import { JunieSkill } from "./junie-skill.js";
+import { QwencodeSkill } from "./qwencode-skill.js";
 import { RovodevSkill } from "./rovodev-skill.js";
 import { RulesyncSkill } from "./rulesync-skill.js";
 import {
@@ -1202,6 +1203,47 @@ Skill body`,
         ]),
       );
       expect(byName.get("dup-skill")).toEqual([join(".junie", "skills"), "from-junie"]);
+      expect(byName.get("shared-only")).toEqual([join(".agents", "skills"), "from-agents"]);
+    });
+
+    it("should prefer .qwen/skills over the import-only .agents/skills for the same skill name", async () => {
+      // qwencode declares `.agents/skills` under `importOnlySkillRoots`. Qwen
+      // Code documents that the `.qwen/skills/` copy wins a name clash, and the
+      // shared tree only fills in names the Qwen-specific root does not cover.
+      const processor = new SkillsProcessor({
+        logger: createMockLogger(),
+        outputRoot: testDir,
+        toolTarget: "qwencode",
+      });
+      await writeSkill({
+        testDir,
+        base: join(".qwen", "skills"),
+        dirName: "dup-skill",
+        body: "from-qwen",
+      });
+      await writeSkill({
+        testDir,
+        base: join(".agents", "skills"),
+        dirName: "dup-skill",
+        body: "from-agents",
+      });
+      await writeSkill({
+        testDir,
+        base: join(".agents", "skills"),
+        dirName: "shared-only",
+        body: "from-agents",
+      });
+
+      const toolDirs = await processor.loadToolDirs();
+
+      expect(toolDirs).toHaveLength(2);
+      const byName = new Map(
+        toolDirs.map((toolDir) => [
+          toolDir.getDirName(),
+          [(toolDir as QwencodeSkill).getRelativeDirPath(), (toolDir as QwencodeSkill).getBody()],
+        ]),
+      );
+      expect(byName.get("dup-skill")).toEqual([join(".qwen", "skills"), "from-qwen"]);
       expect(byName.get("shared-only")).toEqual([join(".agents", "skills"), "from-agents"]);
     });
 
@@ -2837,6 +2879,27 @@ Content that would fail parsing`;
       const dirsToDelete = await processor.loadToolDirsToDelete();
 
       expect(dirsToDelete.map((d) => d.getRelativeDirPath())).toEqual([join(".warp", "skills")]);
+      expect(dirsToDelete.map((d) => d.getDirName())).toEqual(["own-skill"]);
+    });
+    it("should never list the import-only .agents/skills root for qwencode deletion", async () => {
+      // Like warp, qwencode reads the shared `.agents/skills/` tree (and
+      // `~/.agents/skills/` in global mode) but `--delete` must only ever prune
+      // `.qwen/skills/`.
+      const processor = new SkillsProcessor({
+        logger: createMockLogger(),
+        outputRoot: testDir,
+        toolTarget: "qwencode",
+      });
+      const qwenDir = join(testDir, ".qwen", "skills", "own-skill");
+      const sharedDir = join(testDir, ".agents", "skills", "foreign-skill");
+      await ensureDir(qwenDir);
+      await ensureDir(sharedDir);
+      await writeFileContent(join(qwenDir, "SKILL.md"), "x");
+      await writeFileContent(join(sharedDir, "SKILL.md"), "y");
+
+      const dirsToDelete = await processor.loadToolDirsToDelete();
+
+      expect(dirsToDelete.map((d) => d.getRelativeDirPath())).toEqual([join(".qwen", "skills")]);
       expect(dirsToDelete.map((d) => d.getDirName())).toEqual(["own-skill"]);
     });
   });
