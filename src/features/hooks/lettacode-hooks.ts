@@ -8,7 +8,7 @@ import {
   LETTACODE_TO_CANONICAL_EVENT_NAMES,
 } from "../../types/hooks.js";
 import { readFileContentOrNull } from "../../utils/file.js";
-import type { Logger } from "../../utils/logger.js";
+import { type Logger, warnOnceWithFallback } from "../../utils/logger.js";
 import {
   applySharedConfigPatch,
   parseSharedConfig,
@@ -58,6 +58,18 @@ export const LETTACODE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   supportedHookTypes: new Set(["command"]),
   timeoutUnit: "milliseconds",
 };
+
+/**
+ * Letta Code documents settings-file hooks as deprecated in favor of Mods
+ * (https://docs.letta.com/reference/deprecated/hooks) but still ships the
+ * loader, so rulesync keeps emitting them and tells the user once per run.
+ * Mods are not modeled: they are JS/TS code modules loaded only from
+ * `~/.letta/mods/` or an agent's memory directory, with no declarative or
+ * project-local form a canonical hook could be translated into.
+ */
+export const LETTACODE_HOOKS_DEPRECATION_WARNING =
+  "Letta Code documents settings.json hooks as deprecated in favor of Mods and may remove them in a future release; " +
+  "rulesync still writes them while Letta Code loads them. See https://docs.letta.com/reference/deprecated/hooks";
 
 /**
  * Letta Code keeps a boolean `disabled` switch beside the event arrays inside
@@ -137,6 +149,11 @@ function parseLettacodeSettings(fileContent: string, filePath?: string): Record<
  * and UI preferences, ...), so generation merges the `hooks` key into the
  * existing file (see `SHARED_CONFIG_OWNERSHIP`) instead of overwriting it.
  *
+ * Letta Code marks this surface deprecated in favor of Mods (see
+ * `LETTACODE_HOOKS_DEPRECATION_WARNING`); generation warns once per run when it
+ * writes any hook.
+ *
+ * @see https://docs.letta.com/reference/deprecated/hooks
  * @see https://github.com/letta-ai/letta-code/blob/main/src/hooks/types.ts
  * @see https://github.com/letta-ai/letta-code/blob/main/src/hooks/loader.ts
  */
@@ -208,6 +225,9 @@ export class LettacodeHooks extends ToolHooks {
       converterConfig: LETTACODE_CONVERTER_CONFIG,
       logger,
     });
+    if (Object.keys(hooks).length > 0) {
+      warnOnceWithFallback(logger, LETTACODE_HOOKS_DEPRECATION_WARNING);
+    }
     const fileContent = applySharedConfigPatch({
       fileKey: sharedConfigFileKey(paths),
       feature: "hooks",

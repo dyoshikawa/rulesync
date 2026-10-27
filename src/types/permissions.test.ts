@@ -40,6 +40,29 @@ describe("RulesyncPermissionsFileSchema tool-scoped override enums", () => {
     });
   });
 
+  describe("omp.restrictedFolders", () => {
+    it("should accept a list of folders", () => {
+      const result = RulesyncPermissionsFileSchema.safeParse(
+        withOverride({ omp: { restrictedFolders: ["~/secrets", "C:/work/payments"] } }),
+      );
+      expect(result.success).toBe(true);
+    });
+
+    it("should reject a non-list value", () => {
+      const result = RulesyncPermissionsFileSchema.safeParse(
+        withOverride({ omp: { restrictedFolders: "~/secrets" } }),
+      );
+      expect(result.success).toBe(false);
+    });
+
+    it("should reject a list with a non-string entry", () => {
+      const result = RulesyncPermissionsFileSchema.safeParse(
+        withOverride({ omp: { restrictedFolders: ["~/a", 42] } }),
+      );
+      expect(result.success).toBe(false);
+    });
+  });
+
   describe("warp.agent_mode_coding_permissions", () => {
     it.each(["always_ask_before_reading", "always_allow_reading", "allow_reading_specific_files"])(
       "should accept %s",

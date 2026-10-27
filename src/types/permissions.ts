@@ -186,6 +186,32 @@ const CopilotPermissionsOverrideSchema = z.looseObject({
 export type CopilotPermissionsOverride = z.infer<typeof CopilotPermissionsOverrideSchema>;
 
 /**
+ * The permission mode the GitHub Copilot CLI starts new interactive sessions
+ * in (`defaultPermissionMode` of `~/.copilot/settings.json`): `manual` prompts
+ * for every request not already allowed, `assisted` lets a model review
+ * eligible requests (Assisted Permissions, non-experimental since v1.0.104),
+ * and `allow-all` is equivalent to `--allow-all`. These are the CLI's own
+ * values and differ from the VS Code `copilot` target's
+ * {@link COPILOT_DEFAULT_PERMISSION_MODES}.
+ *
+ * @see https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-config-dir-reference
+ */
+export const COPILOTCLI_DEFAULT_PERMISSION_MODES = ["manual", "assisted", "allow-all"] as const;
+export type CopilotcliDefaultPermissionMode = (typeof COPILOTCLI_DEFAULT_PERMISSION_MODES)[number];
+
+/**
+ * Tool-scoped override block for the GitHub Copilot CLI.
+ * `defaultPermissionMode` writes the user-scope `defaultPermissionMode` key of
+ * `~/.copilot/settings.json`; it has no canonical category, and the repository
+ * settings file does not accept it.
+ */
+const CopilotcliPermissionsOverrideSchema = z.looseObject({
+  permission: z.optional(ToolScopedPermissionSchema),
+  defaultPermissionMode: z.optional(z.enum(COPILOTCLI_DEFAULT_PERMISSION_MODES)),
+});
+export type CopilotcliPermissionsOverride = z.infer<typeof CopilotcliPermissionsOverrideSchema>;
+
+/**
  * oh-my-pi's `tools.approvalMode` values: the tool tiers it auto-approves
  * before prompting. `always-ask` auto-approves only read-only tools,
  * `always-ask-cached` (Ask and remember) also prompts before file reads and
@@ -199,11 +225,14 @@ export type OmpApprovalMode = (typeof OMP_APPROVAL_MODES)[number];
 
 /**
  * Tool-scoped override block for oh-my-pi (`omp`). `approvalMode` writes the
- * `tools.approvalMode` key of `config.yml`, which has no canonical category.
+ * `tools.approvalMode` key of `config.yml`, and `restrictedFolders` the
+ * `tools.restrictedFolders` list (folders where every action prompts in every
+ * approval mode, `yolo` included); neither has a canonical category.
  */
 const OmpPermissionsOverrideSchema = z.looseObject({
   permission: z.optional(ToolScopedPermissionSchema),
   approvalMode: z.optional(z.enum(OMP_APPROVAL_MODES)),
+  restrictedFolders: z.optional(z.array(z.string())),
 });
 export type OmpPermissionsOverride = z.infer<typeof OmpPermissionsOverrideSchema>;
 
@@ -1732,6 +1761,7 @@ export const PermissionsConfigSchema = z.looseObject({
   zed: z.optional(ZedPermissionsOverrideSchema),
   devin: z.optional(DevinPermissionsOverrideSchema),
   qoder: z.optional(QoderPermissionsOverrideSchema),
+  copilotcli: z.optional(CopilotcliPermissionsOverrideSchema),
   // Tools without tool-specific override keys still accept the canonical
   // tool-scoped `permission` block (see ToolScopedPermissionSchema).
   "antigravity-ide": z.optional(CanonicalPermissionsOverrideSchema),
@@ -1740,7 +1770,6 @@ export const PermissionsConfigSchema = z.looseObject({
   codebuddy: z.optional(CodebuddyPermissionsOverrideSchema),
   commandcode: z.optional(CanonicalPermissionsOverrideSchema),
   lettacode: z.optional(CanonicalPermissionsOverrideSchema),
-  copilotcli: z.optional(CanonicalPermissionsOverrideSchema),
   crush: z.optional(CanonicalPermissionsOverrideSchema),
   goose: z.optional(CanonicalPermissionsOverrideSchema),
   omp: z.optional(OmpPermissionsOverrideSchema),
