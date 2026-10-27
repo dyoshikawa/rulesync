@@ -366,8 +366,14 @@ function buildCodebuddyOverridePatch({
     if (Object.keys(picked).length === 0) {
       continue;
     }
-    const existingGroup = isRecord(existing[group]) ? existing[group] : {};
-    patch[group] = { ...existingGroup, ...picked };
+    const existingValue = existing[group];
+    if (existingValue !== undefined && !isRecord(existingValue)) {
+      logger?.warn(
+        `CodeBuddy permissions: skipping codebuddy.${group} — ${group} in ${where} is not an object, so Rulesync leaves it as it is. Fix it by hand to let Rulesync write ${group}.`,
+      );
+      continue;
+    }
+    patch[group] = { ...existingValue, ...picked };
     announceCodebuddyReviewSettings({ picked, group, where, logger });
   }
   return patch;

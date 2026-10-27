@@ -303,7 +303,9 @@ describe("CodebuddyPermissions", () => {
         "codebuddy.autoReview.extraPolicy",
         "codebuddy.autoMode.allow",
       ]) {
-        expect(globalLogger.warn).toHaveBeenCalledWith(expect.stringContaining(key));
+        expect(globalLogger.warn).toHaveBeenCalledWith(
+          expect.stringContaining(`${key} was written`),
+        );
       }
     });
 
@@ -335,6 +337,38 @@ describe("CodebuddyPermissions", () => {
       expect(logger.warn).toHaveBeenCalledWith(
         expect.stringContaining("skipping codebuddy.autoReview.unknownKey"),
       );
+    });
+
+    it("skips a group whose existing value is not an object", async () => {
+      await writeSettings(testDir, { memory: true });
+      const logger = createMockLogger();
+
+      const settings = await generateWithOverride(
+        { memory: { parentDiscovery: false } },
+        { logger },
+      );
+
+      expect(settings).toEqual({ memory: true, permissions: { allow: ["Bash(ls)"] } });
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("skipping codebuddy.memory — memory in"),
+      );
+    });
+
+    it("does not announce review settings it skipped in project mode", async () => {
+      const logger = createMockLogger();
+
+      await generateWithOverride(
+        { autoReview: { policy: "p", extraPolicy: "e" }, autoMode: { allow: ["a"] } },
+        { logger },
+      );
+
+      for (const key of [
+        "codebuddy.autoReview.policy",
+        "codebuddy.autoReview.extraPolicy",
+        "codebuddy.autoMode.allow",
+      ]) {
+        expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining(`${key} was written`));
+      }
     });
 
     it("writes memory.parentDiscovery in project mode too", async () => {
