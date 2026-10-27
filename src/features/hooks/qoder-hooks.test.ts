@@ -238,8 +238,58 @@ describe("QoderHooks", () => {
         );
         if (length > 300) {
           expect(logger.warn).toHaveBeenCalledExactlyOnceWith(
-            expect.stringContaining(`is ${length} characters long`),
+            expect.stringContaining(
+              `is ${length} characters long after collapsing whitespace; ` +
+                'this tool caps "rewakeSummary" at 300 characters',
+            ),
           );
+        } else {
+          expect(logger.warn).not.toHaveBeenCalled();
+        }
+      },
+    );
+
+    it.each([
+      { asyncRewake: undefined, warns: true },
+      { asyncRewake: false, warns: true },
+      { asyncRewake: true, warns: false },
+    ])(
+      "should warn about rewakeMessage and rewakeSummary without asyncRewake but still emit them (asyncRewake: $asyncRewake)",
+      async ({ asyncRewake, warns }) => {
+        const rulesyncHooks = buildRulesyncHooks(testDir, {
+          version: 1,
+          hooks: {
+            stop: [
+              {
+                type: "command",
+                command: "check.sh",
+                ...(asyncRewake === undefined ? {} : { asyncRewake }),
+                rewakeMessage: "Check failed:",
+                rewakeSummary: "Checks found issues",
+              },
+            ],
+          },
+        });
+        const logger = createMockLogger();
+        const qoderHooks = await QoderHooks.fromRulesyncHooks({
+          outputRoot: testDir,
+          rulesyncHooks,
+          validate: false,
+          logger,
+        });
+
+        const hook = JSON.parse(qoderHooks.getFileContent()).hooks.Stop[0].hooks[0];
+        expect(hook.rewakeMessage).toBe("Check failed:");
+        expect(hook.rewakeSummary).toBe("Checks found issues");
+        if (warns) {
+          expect(logger.warn).toHaveBeenCalledTimes(2);
+          for (const field of ["rewakeMessage", "rewakeSummary"]) {
+            expect(logger.warn).toHaveBeenCalledWith(
+              expect.stringContaining(
+                `"${field}" on a "command" hook on "stop" has no effect without "asyncRewake": true`,
+              ),
+            );
+          }
         } else {
           expect(logger.warn).not.toHaveBeenCalled();
         }
