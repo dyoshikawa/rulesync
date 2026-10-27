@@ -1556,14 +1556,19 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
   },
   // Copilot CLI user settings (`~/.copilot/settings.json`): the same file the
   // CLI writes its own preferences into, so only the two URL lists, the
-  // `disableAllHooks` switch and `disabledMcpServers` are owned.
+  // `defaultPermissionMode` startup mode (patched only when the `copilotcli`
+  // override authors it), the `disableAllHooks` switch and
+  // `disabledMcpServers` are owned.
   ".copilot/settings.json": {
     format: "json",
     invalidRootPolicy: "error",
     features: {
       hooks: { kind: "replace-owned-keys", ownedKeys: ["disableAllHooks"] },
       mcp: { kind: "replace-owned-keys", ownedKeys: ["disabledMcpServers"] },
-      permissions: { kind: "replace-owned-keys", ownedKeys: ["allowedUrls", "deniedUrls"] },
+      permissions: {
+        kind: "replace-owned-keys",
+        ownedKeys: ["allowedUrls", "deniedUrls", "defaultPermissionMode"],
+      },
     },
   },
   // VS Code workspace settings (`.vscode/settings.json`): a general-purpose

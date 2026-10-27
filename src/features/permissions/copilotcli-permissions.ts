@@ -6,7 +6,11 @@ import {
   COPILOTCLI_SETTINGS_FILE_NAME,
 } from "../../constants/copilot-paths.js";
 import type { AiFileParams } from "../../types/ai-file.js";
-import type { PermissionAction } from "../../types/permissions.js";
+import {
+  COPILOTCLI_DEFAULT_PERMISSION_MODES,
+  type CopilotcliDefaultPermissionMode,
+  type PermissionAction,
+} from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import {
@@ -35,6 +39,20 @@ const WEBFETCH_CATEGORY = "webfetch";
 /** `~/.copilot/settings.json` and `.github/copilot/settings.json` keys. */
 const ALLOWED_URLS_KEY = "allowedUrls";
 const DENIED_URLS_KEY = "deniedUrls";
+
+/**
+ * `~/.copilot/settings.json` only: the startup permission mode for new
+ * interactive sessions, authored through the `copilotcli.defaultPermissionMode`
+ * override. It is a user setting — the repository settings file does not list
+ * it among its repo-overridable keys.
+ */
+const DEFAULT_PERMISSION_MODE_KEY = "defaultPermissionMode";
+
+function isCopilotcliDefaultPermissionMode(
+  value: unknown,
+): value is CopilotcliDefaultPermissionMode {
+  return COPILOTCLI_DEFAULT_PERMISSION_MODES.some((mode) => mode === value);
+}
 
 function toUrlList(value: unknown): string[] {
   if (!Array.isArray(value)) {
@@ -82,7 +100,12 @@ function splitUrlRules(rules: Record<string, PermissionAction>): {
  * (union — a repository may add entries, never remove them) but NOT
  * `allowedUrls`, so an allow rule is only enforceable at user scope. At project
  * scope allow rules are therefore dropped with a warning rather than written to
- * a key the CLI ignores. (v1.0.79 additionally warns on startup about unknown
+ * a key the CLI ignores. The `copilotcli.defaultPermissionMode` override
+ * (`manual` | `assisted` | `allow-all`) writes the user-scope
+ * `defaultPermissionMode` key in global mode only; in project mode it is
+ * skipped with a warning for the same reason. It is patched only when
+ * authored, so a mode the user picked through `/settings` otherwise survives.
+ * (v1.0.79 additionally warns on startup about unknown
  * top-level keys in the user `settings.json`, so only documented keys are ever
  * emitted there either.)
  *
@@ -165,6 +188,17 @@ export class CopilotcliPermissions extends ToolPermissions {
       }
     }
 
+    const defaultPermissionMode = config.copilotcli?.defaultPermissionMode;
+    if (defaultPermissionMode !== undefined) {
+      if (global) {
+        patch[DEFAULT_PERMISSION_MODE_KEY] = defaultPermissionMode;
+      } else {
+        logger?.warn(
+          `Copilot CLI permissions: skipping "copilotcli.${DEFAULT_PERMISSION_MODE_KEY}" at project scope — ${join(paths.relativeDirPath, paths.relativeFilePath)} does not accept "${DEFAULT_PERMISSION_MODE_KEY}" (it is a user setting). Author it in global scope (\`--global\`) instead.`,
+        );
+      }
+    }
+
     return new CopilotcliPermissions({
       outputRoot,
       relativeDirPath: paths.relativeDirPath,
@@ -199,8 +233,20 @@ export class CopilotcliPermissions extends ToolPermissions {
     }
 
     const permission = Object.keys(rules).length > 0 ? { [WEBFETCH_CATEGORY]: rules } : {};
+    // Only a user-scope mode the CLI honors is carried into the override; a
+    // project-scope value is not read upstream.
+    const defaultPermissionMode = this.global ? settings[DEFAULT_PERMISSION_MODE_KEY] : undefined;
     return this.toRulesyncPermissionsDefault({
-      fileContent: JSON.stringify({ permission }, null, 2),
+      fileContent: JSON.stringify(
+        {
+          permission,
+          ...(isCopilotcliDefaultPermissionMode(defaultPermissionMode) && {
+            copilotcli: { defaultPermissionMode },
+          }),
+        },
+        null,
+        2,
+      ),
     });
   }
 

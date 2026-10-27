@@ -21,6 +21,15 @@ function createRulesyncPermissions(permission: Record<string, Record<string, str
   });
 }
 
+function createRulesyncPermissionsFromJson(json: Record<string, unknown>) {
+  return new RulesyncPermissions({
+    relativeDirPath: ".rulesync",
+    relativeFilePath: "permissions.json",
+    fileContent: JSON.stringify(json),
+    validate: true,
+  });
+}
+
 async function writeSettings({
   testDir,
   relativeDirPath,
@@ -219,6 +228,151 @@ describe("CopilotcliPermissions", () => {
       const json = JSON.parse(permissions.getFileContent());
       // The tool-scoped category replaces the shared one wholesale.
       expect(json.deniedUrls).toEqual(["https://cli.example.com/*"]);
+    });
+  });
+
+  describe("defaultPermissionMode override", () => {
+    it.each(["manual", "assisted", "allow-all"])(
+      "writes defaultPermissionMode %s at global scope and keeps unrelated keys",
+      async (mode) => {
+        await writeSettings({
+          testDir,
+          relativeDirPath: GLOBAL_DIR,
+          settings: { model: "claude-sonnet-4.5", deniedUrls: ["https://keep.example.com/*"] },
+        });
+        const logger = createMockLogger();
+
+        const permissions = await CopilotcliPermissions.fromRulesyncPermissions({
+          outputRoot: testDir,
+          global: true,
+          logger,
+          rulesyncPermissions: createRulesyncPermissionsFromJson({
+            permission: {},
+            copilotcli: { defaultPermissionMode: mode },
+          }).forTarget({ toolTarget: "copilotcli" }),
+        });
+
+        const json = JSON.parse(permissions.getFileContent());
+        expect(json.defaultPermissionMode).toBe(mode);
+        expect(json.model).toBe("claude-sonnet-4.5");
+        // No webfetch category stated, so the URL list stays as the user left it.
+        expect(json.deniedUrls).toEqual(["https://keep.example.com/*"]);
+        expect(logger.warn).not.toHaveBeenCalled();
+      },
+    );
+
+    it("leaves a hand-set defaultPermissionMode untouched when the override does not author it", async () => {
+      await writeSettings({
+        testDir,
+        relativeDirPath: GLOBAL_DIR,
+        settings: { defaultPermissionMode: "assisted" },
+      });
+
+      const permissions = await CopilotcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        global: true,
+        rulesyncPermissions: createRulesyncPermissions({
+          webfetch: { "https://evil.example.com/*": "deny" },
+        }),
+      });
+
+      const json = JSON.parse(permissions.getFileContent());
+      expect(json.defaultPermissionMode).toBe("assisted");
+      expect(json.deniedUrls).toEqual(["https://evil.example.com/*"]);
+    });
+
+    it("skips defaultPermissionMode at project scope with a warning", async () => {
+      const logger = createMockLogger();
+
+      const permissions = await CopilotcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        logger,
+        rulesyncPermissions: createRulesyncPermissionsFromJson({
+          permission: { webfetch: { "https://evil.example.com/*": "deny" } },
+          copilotcli: { defaultPermissionMode: "assisted" },
+        }).forTarget({ toolTarget: "copilotcli" }),
+      });
+
+      const json = JSON.parse(permissions.getFileContent());
+      expect(json).not.toHaveProperty("defaultPermissionMode");
+      expect(json.deniedUrls).toEqual(["https://evil.example.com/*"]);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("defaultPermissionMode"));
+    });
+
+    it("rejects a mode outside the Copilot CLI enum", () => {
+      expect(() =>
+        createRulesyncPermissionsFromJson({
+          permission: {},
+          // The VS Code `copilot` target's value, not a Copilot CLI mode.
+          copilotcli: { defaultPermissionMode: "autopilot" },
+        }),
+      ).toThrow();
+    });
+
+    it("imports a user-scope defaultPermissionMode into the copilotcli override", async () => {
+      await writeSettings({
+        testDir,
+        relativeDirPath: GLOBAL_DIR,
+        settings: { defaultPermissionMode: "assisted", model: "claude-sonnet-4.5" },
+      });
+
+      const permissions = await CopilotcliPermissions.fromFile({
+        outputRoot: testDir,
+        global: true,
+      });
+      const json = JSON.parse(permissions.toRulesyncPermissions().getFileContent());
+
+      expect(json.copilotcli).toEqual({ defaultPermissionMode: "assisted" });
+      expect(json.permission).toEqual({});
+    });
+
+    it("ignores an unknown user-scope mode and a project-scope mode on import", async () => {
+      await writeSettings({
+        testDir,
+        relativeDirPath: GLOBAL_DIR,
+        settings: { defaultPermissionMode: "bogus" },
+      });
+      await writeSettings({
+        testDir,
+        relativeDirPath: PROJECT_DIR,
+        settings: { defaultPermissionMode: "assisted" },
+      });
+
+      const globalJson = JSON.parse(
+        (await CopilotcliPermissions.fromFile({ outputRoot: testDir, global: true }))
+          .toRulesyncPermissions()
+          .getFileContent(),
+      );
+      const projectJson = JSON.parse(
+        (await CopilotcliPermissions.fromFile({ outputRoot: testDir }))
+          .toRulesyncPermissions()
+          .getFileContent(),
+      );
+
+      expect(globalJson).not.toHaveProperty("copilotcli");
+      expect(projectJson).not.toHaveProperty("copilotcli");
+    });
+
+    it("round-trips a global-scope defaultPermissionMode", async () => {
+      const generated = await CopilotcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        global: true,
+        rulesyncPermissions: createRulesyncPermissionsFromJson({
+          permission: { webfetch: { "https://docs.example.com/*": "allow" } },
+          copilotcli: { defaultPermissionMode: "manual" },
+        }).forTarget({ toolTarget: "copilotcli" }),
+      });
+      await writeSettings({
+        testDir,
+        relativeDirPath: GLOBAL_DIR,
+        settings: JSON.parse(generated.getFileContent()),
+      });
+
+      const reloaded = await CopilotcliPermissions.fromFile({ outputRoot: testDir, global: true });
+      const json = JSON.parse(reloaded.toRulesyncPermissions().getFileContent());
+
+      expect(json.permission.webfetch).toEqual({ "https://docs.example.com/*": "allow" });
+      expect(json.copilotcli).toEqual({ defaultPermissionMode: "manual" });
     });
   });
 
