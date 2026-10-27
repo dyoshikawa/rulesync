@@ -35,7 +35,7 @@ type VibeSubagentsFromRulesyncSubagentsParams = {
 
 /**
  * The agent name Vibe reserves for `post_agent` hook matching (v3.0.3+).
- * `AgentProfile.from_toml` refuses a file whose stem casefolds to it, so an
+ * `AgentProfile.from_toml` refuses a file whose stem matches it case-insensitively, so an
  * agent written as `main.toml` would never load.
  * @see https://github.com/mistralai/mistral-vibe/blob/v3.0.3/vibe/core/agents/models.py
  */
