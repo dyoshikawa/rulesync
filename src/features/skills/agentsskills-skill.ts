@@ -6,6 +6,7 @@ import { AGENTSMD_SKILLS_DIR_PATH } from "../../constants/agentsmd-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
+import { toPosixPath } from "../../utils/file.js";
 import { type Logger } from "../../utils/logger.js";
 import {
   RulesyncSkill,
@@ -40,6 +41,10 @@ const AgentsSkillsSkillFrontmatterSchema = z.looseObject({
   compatibility: z.optional(z.union([z.string(), z.looseObject({})])),
   metadata: z.optional(z.looseObject({})),
   "allowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
+  // Not part of the Agent Skills spec, but honored by several clients that read
+  // `.agents/skills/` (e.g. pi). Emitted only on explicit opt-in; see
+  // `toAgentsSkillsInvocationField`.
+  "disable-model-invocation": z.optional(z.boolean()),
 });
 
 export type AgentsSkillsSkillFrontmatter = z.infer<typeof AgentsSkillsSkillFrontmatterSchema>;
@@ -226,6 +231,42 @@ export function toSpecConformantAgentSkillFields(
   };
 }
 
+/**
+ * The opt-in `disable-model-invocation` flag of the `agentsskills` block.
+ *
+ * The key is not part of the Agent Skills specification, so `skills-ref
+ * validate` rejects a `SKILL.md` that carries it, but several clients reading
+ * `.agents/skills/` (e.g. pi) honor it. To keep the default output
+ * spec-conformant, only an explicit `agentsskills.disable-model-invocation`
+ * value is written; the root-level rulesync flag is deliberately not inherited.
+ *
+ * Kept apart from {@link toSpecConformantAgentSkillFields} because that helper
+ * is shared with writers of other tools' own locations, which have their own
+ * sections for tool-specific keys. Only writers of the shared `.agents/skills/`
+ * root (see {@link isSharedAgentSkillsRoot}) — the native target, GitLab Duo's
+ * project scope and the simulated `agentsmd` — spread this, so they all emit
+ * the same frontmatter for that file.
+ */
+export function toAgentsSkillsInvocationField(
+  section: RulesyncSkillFrontmatter["agentsskills"] | undefined,
+): { "disable-model-invocation"?: boolean } {
+  const value = section?.["disable-model-invocation"];
+  return value === undefined ? {} : { "disable-model-invocation": value };
+}
+
+/**
+ * Whether a skill directory lives in the cross-client `.agents/skills/` root
+ * (project, or `~/.agents/skills/` in global scope). The
+ * `agentsskills.disable-model-invocation` opt-in exists for the clients that
+ * read that root, so it is written and imported only there — not by the
+ * subclasses that reuse this class for a tool's own location (Trae, Qoder, Xum,
+ * …), where the key would otherwise leak into the `agentsskills` section on
+ * import and from there into every `.agents/skills/` output.
+ */
+export function isSharedAgentSkillsRoot(relativeDirPath: string): boolean {
+  return toPosixPath(relativeDirPath) === toPosixPath(AGENTSMD_SKILLS_DIR_PATH);
+}
+
 /** The `SKILL.md` a diagnostic should point at, in the scope it is written to. */
 function agentSkillFilePath({
   outputRoot,
@@ -400,6 +441,12 @@ export class AgentsSkillsSkill extends ToolSkill {
       ...(frontmatter.metadata !== undefined && { metadata: frontmatter.metadata }),
       ...(allowedTools !== undefined &&
         allowedTools.length > 0 && { "allowed-tools": allowedTools }),
+      // Back to the opt-in section key generate reads it from (not the root
+      // flag), so generate → import → generate is stable for this target.
+      ...(isSharedAgentSkillsRoot(this.getRelativeDirPath()) &&
+        frontmatter["disable-model-invocation"] !== undefined && {
+          "disable-model-invocation": frontmatter["disable-model-invocation"],
+        }),
     };
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
       name: frontmatter.name,
@@ -435,6 +482,8 @@ export class AgentsSkillsSkill extends ToolSkill {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
       ...toSpecConformantAgentSkillFields(resolveAgentsSkillsSection(rulesyncFrontmatter)),
+      ...(isSharedAgentSkillsRoot(settablePaths.relativeDirPath) &&
+        toAgentsSkillsInvocationField(rulesyncFrontmatter.agentsskills)),
     };
 
     AgentsSkillsSkill.reportSpecViolations({
