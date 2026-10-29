@@ -82,9 +82,12 @@ import {
   computeSkillIntegrity,
   getLockedRuleNames,
   getLockedSkillNames,
+  getLockKeyRepository,
   getLockedSource,
-  normalizeSourceKey,
+  normalizeLockKey,
   readLockFile,
+  renameLockedSource,
+  resolveSourceLockKeys,
   setLockedSource,
   writeLockFile,
 } from "./sources-lock.js";
@@ -188,6 +191,10 @@ export async function resolveAndFetchSources(params: {
   // tarball integrity instead of a git commit SHA.
   let lock: SourcesLock = await readLockFile({ projectRoot, logger });
   let npmLock: NpmSourcesLock = await readNpmLockFile({ projectRoot, logger });
+  // Several entries may declare the same repository (e.g. different `path`s);
+  // each gets its own lock entry under the key resolved here.
+  const lockKeys = resolveSourceLockKeys(sources);
+  lock = migrateSourceLockKeys({ lock, sources, lockKeys, logger });
 
   // Frozen mode: validate lockfiles cover all declared sources.
   // Missing curated skills are fetched using locked refs.
@@ -206,8 +213,8 @@ export async function resolveAndFetchSources(params: {
   const localRuleNames = await getLocalRuleNames(projectRoot);
 
   if (!preserveUnlistedLockEntries && !frozen) {
-    await cleanUnlistedSourceArtifacts({ projectRoot, lock, npmLock, sources, logger });
-    lock = pruneStaleLockEntries({ lock, sources, logger });
+    await cleanUnlistedSourceArtifacts({ projectRoot, lock, npmLock, sources, lockKeys, logger });
+    lock = pruneStaleLockEntries({ lock, sources, lockKeys, logger });
     npmLock = pruneStaleNpmLockEntries({ npmLock, sources, logger });
   }
 
@@ -222,6 +229,7 @@ export async function resolveAndFetchSources(params: {
   // order, so the result is the same as a fully serial run.
   await prefetchGithubSources({
     sources,
+    lockKeys,
     client,
     projectRoot,
     lock,
@@ -234,7 +242,7 @@ export async function resolveAndFetchSources(params: {
     logger,
   });
 
-  for (const sourceEntry of sources) {
+  for (const [index, sourceEntry] of sources.entries()) {
     try {
       const result = await runWithDirectoryRollback({
         directoryPaths: [
@@ -244,6 +252,7 @@ export async function resolveAndFetchSources(params: {
         action: () =>
           fetchSingleSource({
             sourceEntry,
+            lockKey: lockKeys[index] ?? normalizeLockKey(sourceEntry.source),
             client,
             projectRoot,
             lock,
@@ -393,6 +402,7 @@ function createClaimSlot(params: {
  */
 async function prefetchGithubSources(params: {
   sources: SourceEntry[];
+  lockKeys: string[];
   client: GitHubClient;
   projectRoot: string;
   lock: SourcesLock;
@@ -404,7 +414,7 @@ async function prefetchGithubSources(params: {
   frozen: boolean;
   logger: Logger;
 }): Promise<void> {
-  const { sources, lock, logger, ...rest } = params;
+  const { sources, lockKeys, lock, logger, ...rest } = params;
   const context: GithubPrefetchContext = {
     ...rest,
     semaphore: new Semaphore(FETCH_CONCURRENCY_LIMIT),
@@ -413,9 +423,14 @@ async function prefetchGithubSources(params: {
   // listed through the GitHub API are prefetched; the others claim up front
   // whatever their selection may take.
   const items = sources
-    .filter((sourceEntry) => !hasEmptySelection(sourceEntry))
-    .map((sourceEntry) => ({
+    .map((sourceEntry, index) => ({
       sourceEntry,
+      lockKey: lockKeys[index] ?? normalizeLockKey(sourceEntry.source),
+    }))
+    .filter(({ sourceEntry }) => !hasEmptySelection(sourceEntry))
+    .map(({ sourceEntry, lockKey }) => ({
+      sourceEntry,
+      lockKey,
       listedThroughApi: isListedThroughGithubApi(sourceEntry),
       skills: createNameClaim(),
       rules: createNameClaim(),
@@ -441,6 +456,7 @@ async function prefetchGithubSources(params: {
       try {
         await prefetchGithubSource({
           sourceEntry: item.sourceEntry,
+          lockKey: item.lockKey,
           lock,
           context,
           skillClaim: createClaimSlot({
@@ -508,18 +524,19 @@ function getSelectionClaim(params: {
 
 async function prefetchGithubSource(params: {
   sourceEntry: SourceEntry;
+  lockKey: string;
   lock: SourcesLock;
   context: GithubPrefetchContext;
   skillClaim: ClaimSlot;
   ruleClaim: ClaimSlot;
 }): Promise<void> {
-  const { sourceEntry, lock, context, skillClaim, ruleClaim } = params;
+  const { sourceEntry, lockKey, lock, context, skillClaim, ruleClaim } = params;
   const parsedFromSource = parseSource(sourceEntry.source);
   const parsed: ParsedSource = {
     ...parsedFromSource,
     ref: sourceEntry.ref ?? parsedFromSource.ref,
   };
-  const locked = getLockedSource(lock, sourceEntry.source);
+  const locked = getLockedSource(lock, lockKey);
   const ref = await resolvePrefetchRef({ parsed, locked, context });
   const filters = getSourceFilters(sourceEntry);
   // Settled rather than all: a failure on one side must not return while the
@@ -877,15 +894,21 @@ export async function getInstalledSourceSkillNames({
   projectRoot: string;
   logger: Logger;
 }): Promise<string[]> {
-  const lock = await readLockFile({ projectRoot, logger });
   const npmLock = await readNpmLockFile({ projectRoot, logger });
   const curatedDir = join(projectRoot, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
   const skillNames = new Set<string>();
-  for (const source of sources) {
+  const lockKeys = resolveSourceLockKeys(sources);
+  const lock = migrateSourceLockKeys({
+    lock: await readLockFile({ projectRoot, logger }),
+    sources,
+    lockKeys,
+    logger,
+  });
+  for (const [index, source] of sources.entries()) {
     const npmTransport = getSourceTransport(source) === "npm";
     const entry = npmTransport
       ? getNpmLockedSource(npmLock, source.source)
-      : getLockedSource(lock, source.source);
+      : getLockedSource(lock, lockKeys[index] ?? source.source);
     const lockedSkillNames = entry
       ? npmTransport
         ? getNpmLockedSkillNames(entry as NpmLockedSource)
@@ -919,18 +942,24 @@ export async function getInstalledSourceRuleNames({
   projectRoot: string;
   logger: Logger;
 }): Promise<string[]> {
-  const lock = await readLockFile({ projectRoot, logger });
   const npmLock = await readNpmLockFile({ projectRoot, logger });
   const curatedDir = join(projectRoot, RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH);
   const ruleNames = new Set<string>();
-  for (const source of sources) {
+  const lockKeys = resolveSourceLockKeys(sources);
+  const lock = migrateSourceLockKeys({
+    lock: await readLockFile({ projectRoot, logger }),
+    sources,
+    lockKeys,
+    logger,
+  });
+  for (const [index, source] of sources.entries()) {
     if (getSourceFilters(source).rules === undefined) {
       continue;
     }
     const npmTransport = getSourceTransport(source) === "npm";
     const entry = npmTransport
       ? getNpmLockedSource(npmLock, source.source)
-      : getLockedSource(lock, source.source);
+      : getLockedSource(lock, lockKeys[index] ?? source.source);
     const lockedRuleNames = entry
       ? npmTransport
         ? getNpmLockedRuleNames(entry as NpmLockedSource)
@@ -949,6 +978,96 @@ export async function getInstalledSourceRuleNames({
     lockedRuleNames.forEach((ruleName) => ruleNames.add(ruleName));
   }
   return [...ruleNames];
+}
+
+/**
+ * Carry lock entries over to the keys {@link resolveSourceLockKeys} gives the
+ * declared sources now (immutable — returns a fresh lock object).
+ *
+ * A source's key changes without its location changing when a second entry
+ * for its repository is declared (bare key to qualified key), when all but
+ * one are removed (qualified to bare), or when entries are reordered. Without
+ * this, the entry under the old key would be pruned and its artifacts removed,
+ * and the source would be resolved afresh, moving it to a newer commit without
+ * `--update` and failing `--frozen`.
+ *
+ * A source whose key has no entry takes over an entry of the same repository
+ * that no declared source's key claims, when that entry was recorded for this
+ * source's location (see {@link lockedLocationMatches}): it locked the same
+ * kinds of artifacts from the same `skillsPath` / `rulesPath`, and its
+ * `requestedRef` matches the declared ref.
+ * The entry moves as a whole, so its commit and integrity hashes are reused
+ * exactly as they would have been under the old key.
+ */
+export function migrateSourceLockKeys(params: {
+  lock: SourcesLock;
+  sources: SourceEntry[];
+  lockKeys: string[];
+  logger: Logger;
+}): SourcesLock {
+  const { sources, lockKeys, logger } = params;
+  let lock = params.lock;
+  const claimedKeys = new Set(
+    sources.flatMap((source, index) =>
+      getSourceTransport(source) === "npm"
+        ? []
+        : [normalizeLockKey(lockKeys[index] ?? source.source)],
+    ),
+  );
+  for (const [index, source] of sources.entries()) {
+    const lockKey = lockKeys[index];
+    if (
+      lockKey === undefined ||
+      getSourceTransport(source) === "npm" ||
+      hasEmptySelection(source) ||
+      getLockedSource(lock, lockKey) !== undefined
+    ) {
+      continue;
+    }
+    const repository = getLockKeyRepository(lockKey);
+    const candidate = Object.entries(lock.sources).find(
+      ([key, entry]) =>
+        !claimedKeys.has(normalizeLockKey(key)) &&
+        getLockKeyRepository(key) === repository &&
+        lockedLocationMatches({ locked: entry, sourceEntry: source }),
+    );
+    if (candidate === undefined) {
+      continue;
+    }
+    const [fromKey] = candidate;
+    logger.debug(`Moved lockfile entry "${fromKey}" to "${lockKey}".`);
+    lock = renameLockedSource({ lock, fromKey, toKey: lockKey });
+  }
+  return lock;
+}
+
+/**
+ * Whether a lock entry was recorded for the location a source declares: it
+ * locked the same kinds of artifacts the source takes (skills, rules or
+ * both), each from the path the source declares, for the declared ref. An
+ * entry locking both kinds is never taken over by a source taking only one of
+ * them, so a source declared earlier cannot claim another source's entry
+ * merely because one of their paths agrees.
+ */
+function lockedLocationMatches(params: {
+  locked: LockedSource;
+  sourceEntry: SourceEntry;
+}): boolean {
+  const { locked, sourceEntry } = params;
+  const filters = getSourceFilters(sourceEntry);
+  const skillsMatch =
+    filters.skills === undefined
+      ? locked.skillsPath === undefined
+      : locked.skillsPath === resolveSkillsPath(sourceEntry);
+  const rulesMatch =
+    filters.rules === undefined
+      ? locked.rulesPath === undefined
+      : locked.rulesPath === resolveRulesPath(sourceEntry);
+  return (
+    skillsMatch &&
+    rulesMatch &&
+    lockedRefMatchesDeclared({ locked, declaredRef: getDeclaredSourceRef(sourceEntry) })
+  );
 }
 
 function getEmptySelections(sourceEntry: SourceEntry): {
@@ -1000,6 +1119,7 @@ function assertNonEmptySelections(sourceEntry: SourceEntry): void {
  */
 async function fetchSingleSource(params: {
   sourceEntry: SourceEntry;
+  lockKey: string;
   client: GitHubClient;
   projectRoot: string;
   lock: SourcesLock;
@@ -1019,7 +1139,7 @@ async function fetchSingleSource(params: {
   lock: SourcesLock;
   npmLock: NpmSourcesLock;
 }> {
-  const { sourceEntry, lock, npmLock } = params;
+  const { sourceEntry, lockKey, lock, npmLock } = params;
   assertNonEmptySelections(sourceEntry);
   if (getSourceTransport(sourceEntry) === "npm") {
     const result = await fetchSourceViaNpm({
@@ -1050,6 +1170,7 @@ async function fetchSingleSource(params: {
   if (filters.skills !== undefined) {
     const result = await fetchSourceByTransport({
       sourceEntry: { ...sourceEntry, skills: filters.skills },
+      lockKey,
       client: params.client,
       projectRoot: params.projectRoot,
       lock: updatedLock,
@@ -1069,6 +1190,7 @@ async function fetchSingleSource(params: {
   if (filters.rules !== undefined) {
     const result = await fetchRulesByTransport({
       sourceEntry: { ...sourceEntry, rules: filters.rules },
+      lockKey,
       client: params.client,
       projectRoot: params.projectRoot,
       lock: updatedLock,
@@ -1087,7 +1209,7 @@ async function fetchSingleSource(params: {
   } else {
     updatedLock = await clearUndeclaredRules({
       lock: updatedLock,
-      sourceEntry,
+      lockKey,
       projectRoot: params.projectRoot,
       alreadyFetchedRuleNames: params.alreadyFetchedRuleNames,
       logger: params.logger,
@@ -1105,13 +1227,13 @@ async function fetchSingleSource(params: {
 
 async function clearUndeclaredRules(params: {
   lock: SourcesLock;
-  sourceEntry: SourceEntry;
+  lockKey: string;
   projectRoot: string;
   alreadyFetchedRuleNames: Set<string>;
   logger: Logger;
 }): Promise<SourcesLock> {
-  const { lock, sourceEntry, projectRoot, alreadyFetchedRuleNames, logger } = params;
-  const locked = getLockedSource(lock, sourceEntry.source);
+  const { lock, lockKey, projectRoot, alreadyFetchedRuleNames, logger } = params;
+  const locked = getLockedSource(lock, lockKey);
   if (locked?.rules === undefined) {
     return lock;
   }
@@ -1121,7 +1243,7 @@ async function clearUndeclaredRules(params: {
     protectedRuleNames: alreadyFetchedRuleNames,
     logger,
   });
-  return setLockedSource(lock, sourceEntry.source, {
+  return setLockedSource(lock, lockKey, {
     ...locked,
     rules: undefined,
     ruleSelection: undefined,
@@ -1229,10 +1351,11 @@ function describeDriftedSourceRefs(params: {
   sources: SourceEntry[];
 }): string[] {
   const { lock, sources } = params;
+  const lockKeys = resolveSourceLockKeys(sources);
   const drifted: string[] = [];
-  for (const source of sources) {
+  for (const [index, source] of sources.entries()) {
     if (source.transport === "npm" || hasEmptySelection(source)) continue;
-    const locked = getLockedSource(lock, source.source);
+    const locked = getLockedSource(lock, lockKeys[index] ?? source.source);
     const declaredRef = getDeclaredSourceRef(source);
     if (locked && !lockedRefMatchesDeclared({ locked, declaredRef })) {
       drifted.push(
@@ -1255,9 +1378,10 @@ function assertFrozenLockCoversSources(params: {
   sources: SourceEntry[];
 }): void {
   const { lock, npmLock, sources } = params;
+  const lockKeys = resolveSourceLockKeys(sources);
   const missingKeys: string[] = [];
 
-  for (const source of sources) {
+  for (const [index, source] of sources.entries()) {
     // An empty `skills` / `rules` list is rejected per source by
     // `assertNonEmptySelections` with a hint on how to fix it. Leave it to
     // that check rather than reporting a less helpful lockfile mismatch.
@@ -1267,7 +1391,7 @@ function assertFrozenLockCoversSources(params: {
     const locked =
       getSourceTransport(source) === "npm"
         ? getNpmLockedSource(npmLock, source.source)
-        : getLockedSource(lock, source.source);
+        : getLockedSource(lock, lockKeys[index] ?? source.source);
     const filters = getSourceFilters(source);
     const skillsCovered =
       filters.skills === undefined ||
@@ -1310,6 +1434,7 @@ function validateFrozenLockCoverage(params: {
  */
 async function fetchSourceByTransport(params: {
   sourceEntry: SourceEntry;
+  lockKey: string;
   client: GitHubClient;
   projectRoot: string;
   lock: SourcesLock;
@@ -1321,6 +1446,7 @@ async function fetchSourceByTransport(params: {
 }): Promise<{ skillCount: number; fetchedSkillNames: string[]; updatedLock: SourcesLock }> {
   const {
     sourceEntry,
+    lockKey,
     client,
     projectRoot,
     lock,
@@ -1334,6 +1460,7 @@ async function fetchSourceByTransport(params: {
   if (transport === "git") {
     return fetchSourceViaGit({
       sourceEntry,
+      lockKey,
       projectRoot,
       lock,
       localSkillNames,
@@ -1345,6 +1472,7 @@ async function fetchSourceByTransport(params: {
   }
   return fetchSource({
     sourceEntry,
+    lockKey,
     client,
     projectRoot,
     lock,
@@ -1363,15 +1491,14 @@ async function fetchSourceByTransport(params: {
 function pruneStaleLockEntries(params: {
   lock: SourcesLock;
   sources: SourceEntry[];
+  lockKeys: string[];
   logger: Logger;
 }): SourcesLock {
-  const { lock, sources, logger } = params;
-  const sourceKeys = new Set(
-    sources.filter((s) => getSourceTransport(s) !== "npm").map((s) => normalizeSourceKey(s.source)),
-  );
+  const { lock, sources, lockKeys, logger } = params;
+  const sourceKeys = getActiveGitLockKeys({ sources, lockKeys });
   const prunedSources: typeof lock.sources = {};
   for (const [key, value] of Object.entries(lock.sources)) {
-    if (sourceKeys.has(normalizeSourceKey(key))) {
+    if (sourceKeys.has(normalizeLockKey(key))) {
       prunedSources[key] = value;
     } else {
       logger.debug(`Pruned stale lockfile entry: ${key}`);
@@ -1406,19 +1533,28 @@ function pruneStaleNpmLockEntries(params: {
   return { lockfileVersion: npmLock.lockfileVersion, sources: prunedSources };
 }
 
+/** The normalized lock keys of the declared git and GitHub sources. */
+function getActiveGitLockKeys(params: { sources: SourceEntry[]; lockKeys: string[] }): Set<string> {
+  const { sources, lockKeys } = params;
+  return new Set(
+    sources.flatMap((source, index) =>
+      getSourceTransport(source) === "npm"
+        ? []
+        : [normalizeLockKey(lockKeys[index] ?? source.source)],
+    ),
+  );
+}
+
 async function cleanUnlistedSourceArtifacts(params: {
   projectRoot: string;
   lock: SourcesLock;
   npmLock: NpmSourcesLock;
   sources: SourceEntry[];
+  lockKeys: string[];
   logger: Logger;
 }): Promise<void> {
-  const { projectRoot, lock, npmLock, sources, logger } = params;
-  const activeGitKeys = new Set(
-    sources
-      .filter((source) => getSourceTransport(source) !== "npm")
-      .map((source) => normalizeSourceKey(source.source)),
-  );
+  const { projectRoot, lock, npmLock, sources, lockKeys, logger } = params;
+  const activeGitKeys = getActiveGitLockKeys({ sources, lockKeys });
   const activeNpmKeys = new Set(
     sources
       .filter((source) => getSourceTransport(source) === "npm")
@@ -1426,7 +1562,7 @@ async function cleanUnlistedSourceArtifacts(params: {
   );
   const activeEntries = [
     ...Object.entries(lock.sources)
-      .filter(([key]) => activeGitKeys.has(normalizeSourceKey(key)))
+      .filter(([key]) => activeGitKeys.has(normalizeLockKey(key)))
       .map(([, entry]) => entry),
     ...Object.entries(npmLock.sources)
       .filter(([key]) => activeNpmKeys.has(normalizeNpmSourceKey(key)))
@@ -1438,7 +1574,7 @@ async function cleanUnlistedSourceArtifacts(params: {
   );
   const staleEntries = [
     ...Object.entries(lock.sources)
-      .filter(([key]) => !activeGitKeys.has(normalizeSourceKey(key)))
+      .filter(([key]) => !activeGitKeys.has(normalizeLockKey(key)))
       .map(([, entry]) => entry),
     ...Object.entries(npmLock.sources)
       .filter(([key]) => !activeNpmKeys.has(normalizeNpmSourceKey(key)))
@@ -1929,6 +2065,7 @@ function assertMatchingSkillsFound({
  */
 function buildLockUpdate(params: {
   lock: SourcesLock;
+  lockKey: string;
   sourceKey: string;
   fetchedSkills: Record<string, LockedSkill>;
   locked: LockedSource | undefined;
@@ -1941,6 +2078,7 @@ function buildLockUpdate(params: {
 }): { updatedLock: SourcesLock; fetchedNames: string[] } {
   const {
     lock,
+    lockKey,
     sourceKey,
     fetchedSkills,
     locked,
@@ -1959,7 +2097,7 @@ function buildLockUpdate(params: {
     remoteSkillNames,
   });
 
-  const updatedLock = setLockedSource(lock, sourceKey, {
+  const updatedLock = setLockedSource(lock, lockKey, {
     requestedRef,
     resolvedRef: resolvedSha,
     resolvedAt: new Date().toISOString(),
@@ -1981,6 +2119,7 @@ function buildLockUpdate(params: {
 
 function buildRuleLockUpdate(params: {
   lock: SourcesLock;
+  lockKey: string;
   sourceKey: string;
   fetchedRules: Record<string, LockedRule>;
   locked: LockedSource | undefined;
@@ -1993,6 +2132,7 @@ function buildRuleLockUpdate(params: {
 }): { updatedLock: SourcesLock; fetchedNames: string[] } {
   const {
     lock,
+    lockKey,
     sourceKey,
     fetchedRules,
     locked,
@@ -2004,7 +2144,7 @@ function buildRuleLockUpdate(params: {
     logger,
   } = params;
   const fetchedNames = Object.keys(fetchedRules);
-  const updatedLock = setLockedSource(lock, sourceKey, {
+  const updatedLock = setLockedSource(lock, lockKey, {
     requestedRef,
     resolvedRef,
     resolvedAt: new Date().toISOString(),
@@ -2327,6 +2467,7 @@ function assertMatchingRulesFound(params: { ruleNames: string[]; source: string 
 
 async function fetchRulesByTransport(params: {
   sourceEntry: SourceEntry;
+  lockKey: string;
   client: GitHubClient;
   projectRoot: string;
   lock: SourcesLock;
@@ -2345,6 +2486,7 @@ async function fetchRulesByTransport(params: {
 
 async function fetchRulesViaGithub(params: {
   sourceEntry: SourceEntry;
+  lockKey: string;
   client: GitHubClient;
   projectRoot: string;
   lock: SourcesLock;
@@ -2357,6 +2499,7 @@ async function fetchRulesViaGithub(params: {
 }): Promise<{ ruleCount: number; fetchedRuleNames: string[]; updatedLock: SourcesLock }> {
   const {
     sourceEntry,
+    lockKey,
     client,
     projectRoot,
     lock,
@@ -2376,7 +2519,7 @@ async function fetchRulesViaGithub(params: {
     throw new Error(`GitLab sources are not yet supported: "${sourceEntry.source}".`);
   }
   const sourceKey = sourceEntry.source;
-  const locked = getLockedSource(lock, sourceKey);
+  const locked = getLockedSource(lock, lockKey);
   const lockedRuleNames = locked ? getLockedRuleNames(locked) : [];
   const { ref, resolvedSha, requestedRef } = await resolveGithubFetchRef({
     parsed,
@@ -2460,6 +2603,7 @@ async function fetchRulesViaGithub(params: {
   });
   const result = buildRuleLockUpdate({
     lock,
+    lockKey,
     sourceKey,
     fetchedRules,
     locked,
@@ -2479,6 +2623,7 @@ async function fetchRulesViaGithub(params: {
 
 async function fetchRulesViaGit(params: {
   sourceEntry: SourceEntry;
+  lockKey: string;
   projectRoot: string;
   lock: SourcesLock;
   localRuleNames: Set<string>;
@@ -2490,6 +2635,7 @@ async function fetchRulesViaGit(params: {
 }): Promise<{ ruleCount: number; fetchedRuleNames: string[]; updatedLock: SourcesLock }> {
   const {
     sourceEntry,
+    lockKey,
     projectRoot,
     lock,
     localRuleNames,
@@ -2500,7 +2646,7 @@ async function fetchRulesViaGit(params: {
     logger,
   } = params;
   const sourceKey = sourceEntry.source;
-  const locked = getLockedSource(lock, sourceKey);
+  const locked = getLockedSource(lock, lockKey);
   const lockedRuleNames = locked ? getLockedRuleNames(locked) : [];
   let resolvedRef: string;
   let requestedRef: string | undefined;
@@ -2576,6 +2722,7 @@ async function fetchRulesViaGit(params: {
   });
   const result = buildRuleLockUpdate({
     lock,
+    lockKey,
     sourceKey,
     fetchedRules,
     locked,
@@ -2934,6 +3081,7 @@ async function discoverGithubSkillDirs(params: {
  */
 async function fetchSource(params: {
   sourceEntry: SourceEntry;
+  lockKey: string;
   client: GitHubClient;
   projectRoot: string;
   lock: SourcesLock;
@@ -2949,6 +3097,7 @@ async function fetchSource(params: {
 }> {
   const {
     sourceEntry,
+    lockKey,
     client,
     projectRoot,
     localSkillNames,
@@ -2970,7 +3119,7 @@ async function fetchSource(params: {
   }
 
   const sourceKey = sourceEntry.source;
-  const locked = getLockedSource(lock, sourceKey);
+  const locked = getLockedSource(lock, lockKey);
   const lockedSkillNames = locked ? getLockedSkillNames(locked) : [];
 
   // Resolve the ref to a commit SHA
@@ -3092,6 +3241,7 @@ async function fetchSource(params: {
 
   const result = buildLockUpdate({
     lock,
+    lockKey,
     sourceKey,
     fetchedSkills,
     locked,
@@ -3115,6 +3265,7 @@ async function fetchSource(params: {
  */
 async function fetchSourceViaGit(params: {
   sourceEntry: SourceEntry;
+  lockKey: string;
   projectRoot: string;
   lock: SourcesLock;
   localSkillNames: Set<string>;
@@ -3125,6 +3276,7 @@ async function fetchSourceViaGit(params: {
 }): Promise<{ skillCount: number; fetchedSkillNames: string[]; updatedLock: SourcesLock }> {
   const {
     sourceEntry,
+    lockKey,
     projectRoot,
     localSkillNames,
     alreadyFetchedSkillNames,
@@ -3134,7 +3286,7 @@ async function fetchSourceViaGit(params: {
   } = params;
   const { lock } = params;
   const url = sourceEntry.source;
-  const locked = getLockedSource(lock, url);
+  const locked = getLockedSource(lock, lockKey);
   const lockedSkillNames = locked ? getLockedSkillNames(locked) : [];
 
   let resolvedSha: string;
@@ -3234,6 +3386,7 @@ async function fetchSourceViaGit(params: {
 
   const result = buildLockUpdate({
     lock,
+    lockKey,
     sourceKey: url,
     fetchedSkills,
     locked,

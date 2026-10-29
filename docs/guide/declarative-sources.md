@@ -282,6 +282,35 @@ The lockfile at `rulesync.lock` (at the project root) records the resolved commi
 
 To update locked refs, run `rulesync install --update`.
 
+### Several Entries From One Repository
+
+A repository can be declared more than once, for example a "plugin marketplace" repository whose teams publish skills under their own directories:
+
+```jsonc
+{
+  "sources": [
+    {
+      "source": "https://github.com/org/plugin-marketplace.git",
+      "transport": "git",
+      "ref": "main",
+      "path": "plugins/team-a/skills",
+      "skills": ["skill-a1", "skill-a2"],
+    },
+    {
+      "source": "https://github.com/org/plugin-marketplace.git",
+      "transport": "git",
+      "ref": "main",
+      "path": "plugins/team-b/skills",
+      "skills": ["skill-b1"],
+    },
+  ],
+}
+```
+
+A repository declared once is locked under its plain key (`org/plugin-marketplace`). When several entries resolve to the same repository (however its URL is spelled), each of them is locked under its own key, qualified by the `path`, `rulesPath` and `ref` it declares, such as `org/plugin-marketplace#path=plugins/team-a/skills&ref=main` (the first entry that declares none of those fields keeps the plain key). Entries that declare the same location are told apart by their order (`...&entry=2`). Each entry therefore keeps its own resolved commit, selection and integrity hashes, a plain install reuses every entry's cached skills and rules, `--frozen` checks every entry, and an entry only removes the skills and rules it installed itself. The usual name precedence still applies across the entries: when two of them provide a skill or rule with the same name, the one declared first is used.
+
+A source's key can change while its location does not: adding a second entry for a repository moves the existing entry from the plain key to a qualified one, and removing all but one moves the remaining entry back to the plain key. The lock entry is then carried over to the new key when it locked the same kinds of artifacts (skills, rules or both) as the source takes, from the same `path` and `rulesPath`, for the same `ref`, so the source stays at its locked commit, its curated skills and rules are reused rather than fetched again, and `--frozen` keeps passing; the next plain install writes the lockfile under the new key. An entry recorded for another location, or one written before `skillsPath` was recorded, is not carried over, and the source is resolved and fetched again. Because entries declaring the same location are told apart only by their order, reordering them swaps their lock entries: the next plain install fetches each of them again at its locked commit. `rulesync add` does not add a second entry for a repository that is already declared; edit `rulesync.jsonc` and run `rulesync install` instead.
+
 A locked commit is only reused for the ref it was resolved from: when the `ref` a git or GitHub source declares (in `ref` or in the source string, such as `owner/repo@v2`) differs from the entry's `requestedRef`, a plain `rulesync install` resolves the source again, and `--frozen` fails instead. For a source that declares a `ref`, an entry that records no `requestedRef` (for example one migrated from an older lockfile) keeps its locked commit and passes `--frozen`; the declared ref is recorded on it the next time the entry is written. Removing a source's `ref` altogether is not detected, because the `requestedRef` of a source without one is the default branch it resolved to: the locked commit stays in use until `rulesync install --update`. For the git transport, `ref` must name a branch or a tag exactly (`v1` never matches a branch such as `feature/v1`); an annotated tag resolves to the commit it points at, and a name that is both a branch and a tag pointing at different commits is refused as ambiguous.
 
 ### Checking for Outdated Sources

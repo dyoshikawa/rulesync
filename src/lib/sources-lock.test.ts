@@ -13,9 +13,13 @@ import {
   createEmptyLock,
   getLockedRuleNames,
   getLockedSkillNames,
+  getLockKeyRepository,
   getLockedSource,
+  normalizeLockKey,
   normalizeSourceKey,
   readLockFile,
+  renameLockedSource,
+  resolveSourceLockKeys,
   setLockedSource,
   writeLockFile,
 } from "./sources-lock.js";
@@ -240,6 +244,92 @@ describe("sources-lock", () => {
 
     it("should strip gitlab: prefix", () => {
       expect(normalizeSourceKey("gitlab:org/repo")).toBe("org/repo");
+    });
+  });
+
+  describe("resolveSourceLockKeys", () => {
+    it("should keep the bare key for a repository declared once", () => {
+      expect(
+        resolveSourceLockKeys([
+          { source: "https://github.com/Org/Repo.git", path: "plugins/a/skills", ref: "main" },
+          { source: "org/other" },
+        ]),
+      ).toEqual(["org/repo", "org/other"]);
+    });
+
+    it("should qualify each entry of a repository declared several times by its location", () => {
+      expect(
+        resolveSourceLockKeys([
+          {
+            source: "https://github.com/org/repo.git",
+            ref: "main",
+            path: "plugins/team-a/skills/",
+          },
+          { source: "org/repo", ref: "main", path: "plugins/team-b/skills" },
+          { source: "org/repo", rules: ["*"], rulesPath: "exports/rules" },
+          { source: "org/repo", skills: ["x"] },
+        ]),
+      ).toEqual([
+        "org/repo#path=plugins/team-a/skills&ref=main",
+        "org/repo#path=plugins/team-b/skills&ref=main",
+        "org/repo#rulesPath=exports/rules",
+        "org/repo",
+      ]);
+    });
+
+    it("should tell apart entries declaring the same location by their order", () => {
+      expect(
+        resolveSourceLockKeys([
+          { source: "org/repo", path: "skills", skills: ["a"] },
+          { source: "org/repo", path: "skills", skills: ["b"] },
+          { source: "org/repo", skills: ["c"] },
+          { source: "org/repo", skills: ["d"] },
+        ]),
+      ).toEqual([
+        "org/repo#path=skills",
+        "org/repo#path=skills&entry=2",
+        "org/repo",
+        "org/repo#entry=2",
+      ]);
+    });
+
+    it("should leave npm sources out of the repository grouping", () => {
+      expect(
+        resolveSourceLockKeys([
+          { source: "org/repo", transport: "npm" },
+          { source: "org/repo", path: "skills" },
+        ]),
+      ).toEqual(["org/repo", "org/repo"]);
+    });
+
+    it("should keep a qualifier verbatim while normalizing the repository part", () => {
+      expect(normalizeLockKey("https://github.com/Org/Repo.git#path=Plugins/A")).toBe(
+        "org/repo#path=Plugins/A",
+      );
+      expect(normalizeLockKey("https://github.com/Org/Repo.git")).toBe("org/repo");
+    });
+
+    it("should move an entry between a bare and a qualified key of its repository", () => {
+      const entry = { resolvedRef: "a", skills: {} };
+      const lock = setLockedSource(createEmptyLock(), "https://github.com/Org/Repo", entry);
+
+      const moved = renameLockedSource({ lock, fromKey: "org/repo", toKey: "org/repo#path=x" });
+
+      expect(moved.sources).toEqual({ "org/repo#path=x": entry });
+      expect(renameLockedSource({ lock, fromKey: "org/missing", toKey: "org/x" })).toBe(lock);
+      expect(getLockKeyRepository("https://github.com/Org/Repo.git#path=X")).toBe("org/repo");
+    });
+
+    it("should look up and set qualified entries independently of the bare entry", () => {
+      const entry = (resolvedRef: string) => ({ resolvedRef, skills: {} });
+      let lock = setLockedSource(createEmptyLock(), "org/repo", entry("bare"));
+      lock = setLockedSource(lock, "org/repo#path=a", entry("a"));
+      lock = setLockedSource(lock, "org/repo#path=b", entry("b"));
+
+      expect(Object.keys(lock.sources)).toEqual(["org/repo", "org/repo#path=a", "org/repo#path=b"]);
+      expect(getLockedSource(lock, "https://github.com/org/repo#path=a")?.resolvedRef).toBe("a");
+      expect(getLockedSource(lock, "org/repo")?.resolvedRef).toBe("bare");
+      expect(getLockedSource(lock, "org/repo#path=A")).toBeUndefined();
     });
   });
 
