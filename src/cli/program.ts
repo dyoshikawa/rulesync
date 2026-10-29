@@ -24,7 +24,7 @@ import { mcpCommand } from "./commands/mcp.js";
 import { updateCommand, UpdateCommandOptions } from "./commands/update.js";
 import { wrapCommand as _wrapCommand } from "./wrap-command.js";
 
-const getVersion = () => "43.2.0";
+const getVersion = () => "43.3.0";
 const FEATURES_HELP = `${ALL_FEATURES.join(",")}; ignore is deprecated, use permissions`;
 
 function wrapCommand(
