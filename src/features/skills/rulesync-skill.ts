@@ -408,6 +408,9 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
       compatibility: z.optional(z.union([z.string(), z.looseObject({})])),
       metadata: z.optional(z.looseObject({})),
       "allowed-tools": z.optional(z.union([z.string(), z.array(z.string())])),
+      // Opt-in: not part of the Agent Skills spec (`skills-ref validate`
+      // rejects it), but honored by clients reading `.agents/skills/`.
+      "disable-model-invocation": z.optional(z.boolean()),
     }),
   ),
   hermesagent: z.optional(z.looseObject({})),
@@ -739,6 +742,7 @@ export type RulesyncSkillFrontmatterInput = {
     compatibility?: string | Record<string, unknown>;
     metadata?: Record<string, unknown>;
     "allowed-tools"?: string | string[];
+    "disable-model-invocation"?: boolean;
   };
   hermesagent?: Record<string, unknown>;
   vibe?: {

@@ -232,6 +232,31 @@ This is the body of the agentsmd skill.`;
       });
     });
 
+    it("should emit the opted-in agentsskills disable-model-invocation exactly as the native writer does", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "test-skill",
+        frontmatter: {
+          name: "test-skill",
+          description: "Test skill description",
+          agentsskills: { "disable-model-invocation": true },
+        },
+        body: "Test body content",
+        validate: true,
+      });
+
+      const agentsmdSkill = AgentsmdSkill.fromRulesyncSkill({ rulesyncSkill });
+      const agentsSkillsSkill = AgentsSkillsSkill.fromRulesyncSkill({ rulesyncSkill });
+
+      expect(agentsmdSkill.getFrontmatter()).toEqual(agentsSkillsSkill.getFrontmatter());
+      expect(agentsmdSkill.getFrontmatter()).toEqual({
+        name: "test-skill",
+        description: "Test skill description",
+        "disable-model-invocation": true,
+      });
+    });
+
     it("should emit root-level license/compatibility/metadata exactly as the native writer does", () => {
       const rulesyncSkill = new RulesyncSkill({
         outputRoot: testDir,

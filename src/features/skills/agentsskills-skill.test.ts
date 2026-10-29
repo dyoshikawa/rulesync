@@ -1589,6 +1589,80 @@ Body.`;
       expect(logger.warn).not.toHaveBeenCalled();
     });
 
+    it("should not inherit the root-level disable-model-invocation flag by default", () => {
+      const logger = createMockLogger();
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "manual-skill",
+        frontmatter: {
+          name: "manual-skill",
+          description: "A manual-only skill",
+          "disable-model-invocation": true,
+        },
+        body: "Body",
+        validate: true,
+      });
+
+      const skill = AgentsSkillsSkill.fromRulesyncSkill({ rulesyncSkill, logger });
+
+      expect(skill.getFrontmatter()).toEqual({
+        name: "manual-skill",
+        description: "A manual-only skill",
+      });
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it.each([true, false])(
+      "should write an opted-in agentsskills disable-model-invocation (%s) without a warning, in both scopes",
+      (value) => {
+        for (const global of [false, true]) {
+          const logger = createMockLogger();
+          const rulesyncSkill = new RulesyncSkill({
+            outputRoot: testDir,
+            relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+            dirName: "manual-skill",
+            frontmatter: {
+              name: "manual-skill",
+              description: "A manual-only skill",
+              agentsskills: { "disable-model-invocation": value },
+            },
+            body: "Body",
+            validate: true,
+          });
+
+          const skill = AgentsSkillsSkill.fromRulesyncSkill({ rulesyncSkill, logger, global });
+
+          expect(skill.getFrontmatter()).toEqual({
+            name: "manual-skill",
+            description: "A manual-only skill",
+            "disable-model-invocation": value,
+          });
+          expect(logger.warn).not.toHaveBeenCalled();
+        }
+      },
+    );
+
+    it("should let the agentsskills opt-in win over the root-level flag", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "manual-skill",
+        frontmatter: {
+          name: "manual-skill",
+          description: "A manual-only skill",
+          "disable-model-invocation": true,
+          agentsskills: { "disable-model-invocation": false },
+        },
+        body: "Body",
+        validate: true,
+      });
+
+      const skill = AgentsSkillsSkill.fromRulesyncSkill({ rulesyncSkill });
+
+      expect(skill.getFrontmatter()["disable-model-invocation"]).toBe(false);
+    });
+
     it("should normalize root-level compatibility/metadata exactly like the agentsskills section", () => {
       // A root-authored value must reach the file in the spec's scalar forms,
       // not bypass the coercion the section value goes through.
@@ -1746,6 +1820,34 @@ Body.`;
         targets: ["*"],
       });
       expect(rulesyncSkill.getBody()).toBe("Test body");
+    });
+
+    it("should round-trip disable-model-invocation through the agentsskills section", () => {
+      const source = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "manual-skill",
+        frontmatter: {
+          name: "manual-skill",
+          description: "A manual-only skill",
+          agentsskills: { "disable-model-invocation": true },
+        },
+        body: "Body",
+        validate: true,
+      });
+
+      const generated = AgentsSkillsSkill.fromRulesyncSkill({ rulesyncSkill: source });
+      const imported = generated.toRulesyncSkill();
+
+      expect(imported.getFrontmatter()).toEqual({
+        name: "manual-skill",
+        description: "A manual-only skill",
+        targets: ["*"],
+        agentsskills: { "disable-model-invocation": true },
+      });
+      expect(
+        AgentsSkillsSkill.fromRulesyncSkill({ rulesyncSkill: imported }).getFrontmatter(),
+      ).toEqual(generated.getFrontmatter());
     });
   });
 
