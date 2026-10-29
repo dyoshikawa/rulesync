@@ -241,15 +241,29 @@ export function toSpecConformantAgentSkillFields(
  *
  * Kept apart from {@link toSpecConformantAgentSkillFields} because that helper
  * is shared with writers of other tools' own locations, which have their own
- * sections for tool-specific keys. Every writer of the `.agents/skills/` file —
- * the native target, its Agent Skills-standard subclasses and the simulated
- * `agentsmd` — spreads this so they all emit the same frontmatter.
+ * sections for tool-specific keys. Only writers of the shared `.agents/skills/`
+ * root (see {@link isSharedAgentSkillsRoot}) — the native target, GitLab Duo's
+ * project scope and the simulated `agentsmd` — spread this, so they all emit
+ * the same frontmatter for that file.
  */
 export function toAgentsSkillsInvocationField(
   section: RulesyncSkillFrontmatter["agentsskills"] | undefined,
 ): { "disable-model-invocation"?: boolean } {
   const value = section?.["disable-model-invocation"];
   return value === undefined ? {} : { "disable-model-invocation": value };
+}
+
+/**
+ * Whether a skill directory lives in the cross-client `.agents/skills/` root
+ * (project, or `~/.agents/skills/` in global scope). The
+ * `agentsskills.disable-model-invocation` opt-in exists for the clients that
+ * read that root, so it is written and imported only there — not by the
+ * subclasses that reuse this class for a tool's own location (Trae, Qoder, Xum,
+ * …), where the key would otherwise leak into the `agentsskills` section on
+ * import and from there into every `.agents/skills/` output.
+ */
+export function isSharedAgentSkillsRoot(relativeDirPath: string): boolean {
+  return relativeDirPath === AGENTSMD_SKILLS_DIR_PATH;
 }
 
 /** The `SKILL.md` a diagnostic should point at, in the scope it is written to. */
@@ -428,9 +442,10 @@ export class AgentsSkillsSkill extends ToolSkill {
         allowedTools.length > 0 && { "allowed-tools": allowedTools }),
       // Back to the opt-in section key generate reads it from (not the root
       // flag), so generate → import → generate is stable for this target.
-      ...(frontmatter["disable-model-invocation"] !== undefined && {
-        "disable-model-invocation": frontmatter["disable-model-invocation"],
-      }),
+      ...(isSharedAgentSkillsRoot(this.getRelativeDirPath()) &&
+        frontmatter["disable-model-invocation"] !== undefined && {
+          "disable-model-invocation": frontmatter["disable-model-invocation"],
+        }),
     };
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
       name: frontmatter.name,
@@ -466,7 +481,8 @@ export class AgentsSkillsSkill extends ToolSkill {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
       ...toSpecConformantAgentSkillFields(resolveAgentsSkillsSection(rulesyncFrontmatter)),
-      ...toAgentsSkillsInvocationField(rulesyncFrontmatter.agentsskills),
+      ...(isSharedAgentSkillsRoot(settablePaths.relativeDirPath) &&
+        toAgentsSkillsInvocationField(rulesyncFrontmatter.agentsskills)),
     };
 
     AgentsSkillsSkill.reportSpecViolations({

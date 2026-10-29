@@ -12,7 +12,11 @@ import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { fallbackLogger } from "../../utils/logger.js";
 import { hasIncompleteCarriedFiles, resetRunWarningState } from "../../utils/warned-once.js";
 import { AgentsSkillsSkill } from "./agentsskills-skill.js";
+import { CodexCliSkill } from "./codexcli-skill.js";
+import { GitlabduoSkill } from "./gitlabduo-skill.js";
+import { QoderSkill } from "./qoder-skill.js";
 import { RulesyncSkill } from "./rulesync-skill.js";
+import { TraeSkill } from "./trae-skill.js";
 
 describe("AgentsSkillsSkill", () => {
   let testDir: string;
@@ -1643,6 +1647,35 @@ Body.`;
       },
     );
 
+    it("should write the opt-in only to the shared .agents/skills root, not to a tool's own location", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "manual-skill",
+        frontmatter: {
+          name: "manual-skill",
+          description: "A manual-only skill",
+          agentsskills: { "disable-model-invocation": true },
+        },
+        body: "Body",
+        validate: true,
+      });
+
+      // GitLab Duo's project skills live in `.agents/skills/` itself.
+      expect(
+        GitlabduoSkill.fromRulesyncSkill({ rulesyncSkill }).getFrontmatter()[
+          "disable-model-invocation"
+        ],
+      ).toBe(true);
+      for (const skill of [
+        GitlabduoSkill.fromRulesyncSkill({ rulesyncSkill, global: true }),
+        TraeSkill.fromRulesyncSkill({ rulesyncSkill }),
+        QoderSkill.fromRulesyncSkill({ rulesyncSkill }),
+      ]) {
+        expect(skill.getFrontmatter()).not.toHaveProperty("disable-model-invocation");
+      }
+    });
+
     it("should let the agentsskills opt-in win over the root-level flag", () => {
       const rulesyncSkill = new RulesyncSkill({
         outputRoot: testDir,
@@ -1848,6 +1881,32 @@ Body.`;
       expect(
         AgentsSkillsSkill.fromRulesyncSkill({ rulesyncSkill: imported }).getFrontmatter(),
       ).toEqual(generated.getFrontmatter());
+    });
+  });
+
+  describe("codexcli import interaction", () => {
+    it("should not emit a flag that the codexcli importer lifted to the root", () => {
+      // `codexcli` reads the same `.agents/skills/` file but lifts the key to the
+      // root-level flag, which the agentsskills writer deliberately ignores.
+      const codexSkill = new CodexCliSkill({
+        outputRoot: testDir,
+        dirName: "manual-skill",
+        frontmatter: {
+          name: "manual-skill",
+          description: "A manual-only skill",
+          "disable-model-invocation": true,
+        },
+        body: "Body",
+        validate: true,
+      });
+
+      const imported = codexSkill.toRulesyncSkill();
+      expect(imported.getFrontmatter()["disable-model-invocation"]).toBe(true);
+      expect(imported.getFrontmatter()).not.toHaveProperty("agentsskills");
+
+      expect(
+        AgentsSkillsSkill.fromRulesyncSkill({ rulesyncSkill: imported }).getFrontmatter(),
+      ).not.toHaveProperty("disable-model-invocation");
     });
   });
 
