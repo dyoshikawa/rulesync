@@ -10,6 +10,7 @@ import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { ensureDir, writeFileContent } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { lowerOpencodeV2Mcp } from "../opencode-config.js";
+import { MimocodeMcp } from "./mimocode-mcp.js";
 import { isOpencodeTransportServer, OpencodeMcp } from "./opencode-mcp.js";
 import { Opencodev1Mcp } from "./opencodev1-mcp.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
@@ -26,6 +27,70 @@ describe("OpencodeMcp", () => {
   afterEach(async () => {
     await cleanup();
     vi.restoreAllMocks();
+  });
+
+  it.each(
+    [OpencodeMcp, Opencodev1Mcp, MimocodeMcp].flatMap((Mcp) =>
+      [false, true].map((global) => ({ name: Mcp.name, Mcp, global })),
+    ),
+  )(
+    "$name should generate and import sanitized MCP tool keys (global=$global)",
+    async ({ Mcp, global }) => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            "my.server": {
+              command: "node",
+              enabledTools: ["read.file"],
+              disabledTools: ["delete.*", "remove_?"],
+            },
+          },
+        }),
+      });
+      const generated = await Mcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp, global });
+
+      expect(generated.getJson().tools).toEqual({
+        my_server_read_file: true,
+        "my_server_delete_*": false,
+        "my_server_remove_?": false,
+      });
+      const imported = generated.toRulesyncMcp().getJson();
+      expect(imported.mcpServers["my.server"]).toMatchObject({
+        enabledTools: ["read_file"],
+        disabledTools: ["delete_*", "remove_?"],
+      });
+      expect(imported).not.toHaveProperty("opencode");
+      expect(imported).not.toHaveProperty("mimocode");
+    },
+  );
+
+  it("should assign sanitized tool keys to the longest server prefix and accept legacy raw keys", () => {
+    const mcp = new OpencodeMcp({
+      relativeDirPath: ".",
+      relativeFilePath: "opencode.json",
+      fileContent: JSON.stringify({
+        mcp: {
+          my: { type: "local", command: ["node"] },
+          "my.server": { type: "local", command: ["node"] },
+        },
+        tools: {
+          my_server_delete: false,
+          "my.server_read.file": true,
+          orphan_delete: false,
+        },
+      }),
+    });
+    const imported = mcp.toRulesyncMcp().getJson();
+    expect(imported.mcpServers.my).not.toHaveProperty("disabledTools");
+    expect(imported.mcpServers["my.server"]).toMatchObject({
+      enabledTools: ["read.file"],
+      disabledTools: ["delete"],
+    });
+    expect(imported).toHaveProperty("opencode", {
+      mcpServers: { orphan: { disabledTools: ["delete"] } },
+    });
   });
 
   describe("getSettablePaths", () => {
