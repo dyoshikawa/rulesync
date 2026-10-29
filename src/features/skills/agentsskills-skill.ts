@@ -6,6 +6,7 @@ import { AGENTSMD_SKILLS_DIR_PATH } from "../../constants/agentsmd-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
+import { toPosixPath } from "../../utils/file.js";
 import { type Logger } from "../../utils/logger.js";
 import {
   RulesyncSkill,
@@ -263,7 +264,7 @@ export function toAgentsSkillsInvocationField(
  * import and from there into every `.agents/skills/` output.
  */
 export function isSharedAgentSkillsRoot(relativeDirPath: string): boolean {
-  return relativeDirPath === AGENTSMD_SKILLS_DIR_PATH;
+  return toPosixPath(relativeDirPath) === toPosixPath(AGENTSMD_SKILLS_DIR_PATH);
 }
 
 /** The `SKILL.md` a diagnostic should point at, in the scope it is written to. */
