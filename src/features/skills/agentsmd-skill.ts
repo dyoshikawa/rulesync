@@ -2,6 +2,7 @@ import { AGENTSMD_SKILLS_DIR_PATH } from "../../constants/agentsmd-paths.js";
 import {
   AgentsSkillsSkill,
   resolveAgentsSkillsSection,
+  toAgentsSkillsInvocationField,
   toSpecConformantAgentSkillFields,
 } from "./agentsskills-skill.js";
 import { RulesyncSkill } from "./rulesync-skill.js";
@@ -53,6 +54,7 @@ export class AgentsmdSkill extends SimulatedSkill {
       ...toSpecConformantAgentSkillFields(
         resolveAgentsSkillsSection(params.rulesyncSkill.getFrontmatter()),
       ),
+      ...toAgentsSkillsInvocationField(params.rulesyncSkill.getFrontmatter().agentsskills),
     };
 
     // Same file, same diagnostics: generating for this target alone must report

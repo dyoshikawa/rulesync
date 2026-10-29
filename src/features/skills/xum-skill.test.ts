@@ -200,4 +200,19 @@ describe("XumSkill", () => {
     const skill = await XumSkill.fromDir({ outputRoot: testDir, dirName: "api-doc-generator" });
     expect(skill.toRulesyncSkill().getFrontmatter()).not.toHaveProperty("xum");
   });
+
+  it("should keep an imported disable-model-invocation out of the agentsskills section", async () => {
+    const skillDir = join(testDir, ".xum", "skills", "manual-skill");
+    await mkdir(skillDir, { recursive: true });
+    await writeFile(
+      join(skillDir, "SKILL.md"),
+      "---\nname: manual-skill\ndescription: A manual-only skill\ndisable-model-invocation: true\n---\nBody\n",
+    );
+
+    const skill = await XumSkill.fromDir({ outputRoot: testDir, dirName: "manual-skill" });
+    const rulesyncFrontmatter = skill.toRulesyncSkill().getFrontmatter();
+
+    expect(rulesyncFrontmatter).not.toHaveProperty("agentsskills");
+    expect(rulesyncFrontmatter.xum).toEqual({ "disable-model-invocation": true });
+  });
 });
