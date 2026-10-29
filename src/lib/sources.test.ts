@@ -785,6 +785,69 @@ describe("resolveAndFetchSources", () => {
       ]);
     });
 
+    it("should not let an earlier rules-only entry take over an entry that also locked skills", async () => {
+      const { readLockFile, writeLockFile } = await import("./sources-lock.js");
+      const curatedDir = join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
+      const lockedSha = "a".repeat(40);
+      existsInMemory();
+      // Team A was declared alone, taking skills and rules.
+      vi.mocked(readLockFile).mockResolvedValue({
+        lockfileVersion: 1,
+        sources: {
+          "org/plugin-marketplace": {
+            ...lockedTeamEntry({ curatedDir, team: "team-a", resolvedRef: lockedSha }),
+            rules: { "shared-rule": { integrity: "sha256-x" } },
+            ruleSelection: ["shared-rule"],
+            rulesPath: "rules",
+            resolvedRuleNames: ["shared-rule"],
+          },
+        },
+      });
+      mockMarketplace({ "plugins/team-a/skills": ["skill-a1"] });
+      const listSkills = mockClientInstance.listDirectory.getMockImplementation();
+      mockClientInstance.listDirectory.mockImplementation(
+        async (owner: string, repo: string, path: string) =>
+          path === "rules"
+            ? ["shared-rule", "other-rule"].map((name) => ({
+                name: `${name}.md`,
+                path: `rules/${name}.md`,
+                type: "file",
+                size: 10,
+              }))
+            : listSkills(owner, repo, path),
+      );
+      mockClientInstance.resolveRefToSha.mockResolvedValue("b".repeat(40));
+
+      // A rules-only entry of the same repository is declared before it.
+      const result = await resolveAndFetchSources({
+        logger,
+        sources: [
+          { source: marketplace, ref: "main", rules: ["other-rule"] },
+          { ...teamA, skills: ["skill-a1"], rules: ["shared-rule"] },
+        ],
+        projectRoot: testDir,
+      });
+
+      expect(result.failedSourceCount).toBe(0);
+      expect(mockClientInstance.listDirectory).not.toHaveBeenCalledWith(
+        "org",
+        "plugin-marketplace",
+        "plugins/team-a/skills",
+        expect.anything(),
+      );
+      expect(removeDirectory).not.toHaveBeenCalledWith(join(curatedDir, "skill-a1"));
+      const writtenLock = vi.mocked(writeLockFile).mock.calls.at(-1)![0].lock;
+      expect(writtenLock.sources[keyA]).toMatchObject({
+        resolvedRef: lockedSha,
+        skills: { "skill-a1": expect.anything() },
+      });
+      expect(writtenLock.sources["org/plugin-marketplace#ref=main"]).toMatchObject({
+        resolvedRef: "b".repeat(40),
+        skills: {},
+        rules: { "other-rule": expect.anything() },
+      });
+    });
+
     it("should not carry over an entry recorded for another location", async () => {
       const { readLockFile, writeLockFile } = await import("./sources-lock.js");
       const curatedDir = join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);

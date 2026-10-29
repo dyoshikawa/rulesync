@@ -993,9 +993,9 @@ export async function getInstalledSourceRuleNames({
  *
  * A source whose key has no entry takes over an entry of the same repository
  * that no declared source's key claims, when that entry was recorded for this
- * source's location: its recorded `skillsPath` (for a source taking skills) or
- * `rulesPath` (for a source taking rules) matches, no recorded path
- * contradicts the source's, and its `requestedRef` matches the declared ref.
+ * source's location (see {@link lockedLocationMatches}): it locked the same
+ * kinds of artifacts from the same `skillsPath` / `rulesPath`, and its
+ * `requestedRef` matches the declared ref.
  * The entry moves as a whole, so its commit and integrity hashes are reused
  * exactly as they would have been under the old key.
  */
@@ -1041,29 +1041,31 @@ export function migrateSourceLockKeys(params: {
   return lock;
 }
 
-/** Whether a lock entry was recorded for the location a source declares. */
+/**
+ * Whether a lock entry was recorded for the location a source declares: it
+ * locked the same kinds of artifacts the source takes (skills, rules or
+ * both), each from the path the source declares, for the declared ref. An
+ * entry locking both kinds is never taken over by a source taking only one of
+ * them, so a source declared earlier cannot claim another source's entry
+ * merely because one of their paths agrees.
+ */
 function lockedLocationMatches(params: {
   locked: LockedSource;
   sourceEntry: SourceEntry;
 }): boolean {
   const { locked, sourceEntry } = params;
   const filters = getSourceFilters(sourceEntry);
-  const skillsPathMatches =
-    filters.skills !== undefined && locked.skillsPath === resolveSkillsPath(sourceEntry);
-  const rulesPathMatches =
-    filters.rules !== undefined && locked.rulesPath === resolveRulesPath(sourceEntry);
-  const skillsPathContradicts =
-    filters.skills !== undefined &&
-    locked.skillsPath !== undefined &&
-    locked.skillsPath !== resolveSkillsPath(sourceEntry);
-  const rulesPathContradicts =
-    filters.rules !== undefined &&
-    locked.rulesPath !== undefined &&
-    locked.rulesPath !== resolveRulesPath(sourceEntry);
+  const skillsMatch =
+    filters.skills === undefined
+      ? locked.skillsPath === undefined
+      : locked.skillsPath === resolveSkillsPath(sourceEntry);
+  const rulesMatch =
+    filters.rules === undefined
+      ? locked.rulesPath === undefined
+      : locked.rulesPath === resolveRulesPath(sourceEntry);
   return (
-    (skillsPathMatches || rulesPathMatches) &&
-    !skillsPathContradicts &&
-    !rulesPathContradicts &&
+    skillsMatch &&
+    rulesMatch &&
     lockedRefMatchesDeclared({ locked, declaredRef: getDeclaredSourceRef(sourceEntry) })
   );
 }
