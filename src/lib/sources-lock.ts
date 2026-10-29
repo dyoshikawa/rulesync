@@ -1,8 +1,9 @@
 import { createHash } from "node:crypto";
-import { join } from "node:path";
+import { join, posix } from "node:path";
 
 import { optional, refine, z } from "zod/mini";
 
+import { getSourceTransport, type SourceEntry } from "../config/config.js";
 import { RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";
 import { fileExists, readFileContent, writeFileContent } from "../utils/file.js";
 import type { Logger } from "../utils/logger.js";
@@ -233,13 +234,107 @@ export function normalizeSourceKey(source: string): string {
 }
 
 /**
- * Get the locked entry for a source key, if it exists.
+ * Separates the repository part of a lock key from the qualifier that tells
+ * apart several declared entries of the same repository.
  */
-export function getLockedSource(lock: SourcesLock, sourceKey: string): LockedSource | undefined {
-  const normalized = normalizeSourceKey(sourceKey);
+const LOCK_KEY_QUALIFIER_SEPARATOR = "#";
+
+/**
+ * Normalize a lock key for comparison. The repository part is normalized with
+ * {@link normalizeSourceKey}; a qualifier (see {@link resolveSourceLockKeys})
+ * is kept verbatim, since paths and refs are case-sensitive. A key without a
+ * qualifier normalizes exactly as before qualifiers existed.
+ */
+export function normalizeLockKey(key: string): string {
+  const separatorIndex = key.indexOf(LOCK_KEY_QUALIFIER_SEPARATOR);
+  if (separatorIndex === -1) {
+    return normalizeSourceKey(key);
+  }
+  return normalizeSourceKey(key.slice(0, separatorIndex)) + key.slice(separatorIndex);
+}
+
+function encodeLockKeyQualifierValue(value: string): string {
+  return encodeURIComponent(value).replace(/%2F/gi, "/");
+}
+
+function normalizeLockKeyDirPath(dirPath: string): string {
+  return posix.normalize(dirPath.replace(/\\/g, "/")).replace(/\/+$/, "");
+}
+
+/**
+ * The location fields of a declared entry that tell it apart from other
+ * entries of the same repository, as a lock key qualifier (empty when the
+ * entry declares none of them).
+ */
+function buildLockKeyQualifier(sourceEntry: SourceEntry): string {
+  const parts: string[] = [];
+  if (sourceEntry.path !== undefined) {
+    parts.push(`path=${encodeLockKeyQualifierValue(normalizeLockKeyDirPath(sourceEntry.path))}`);
+  }
+  if (sourceEntry.rulesPath !== undefined) {
+    parts.push(
+      `rulesPath=${encodeLockKeyQualifierValue(normalizeLockKeyDirPath(sourceEntry.rulesPath))}`,
+    );
+  }
+  if (sourceEntry.ref !== undefined) {
+    parts.push(`ref=${encodeLockKeyQualifierValue(sourceEntry.ref)}`);
+  }
+  return parts.join("&");
+}
+
+/**
+ * The key each declared source's lock entry is stored under, index-aligned
+ * with `sources`.
+ *
+ * A repository declared once keeps the bare {@link normalizeSourceKey} key,
+ * so lockfiles written before multiple entries per repository were supported
+ * stay valid unchanged. Only when several git/GitHub entries normalize to the
+ * same repository does each of them get a qualified key
+ * (`owner/repo#path=plugins/team-a/skills&ref=main`) built from its `path`,
+ * `rulesPath` and `ref`, so each entry keeps its own lock entry, its own
+ * curated-artifact cleanup and its own `--frozen` check. An entry declaring
+ * none of those fields keeps the bare key, and entries declaring the same
+ * location are told apart by their order (`entry=2`, `entry=3`, ...).
+ *
+ * npm-transport sources are locked in a separate lockfile by package name;
+ * their key here is unused and left bare.
+ */
+export function resolveSourceLockKeys(sources: SourceEntry[]): string[] {
+  const bareKeys = sources.map((sourceEntry) => normalizeSourceKey(sourceEntry.source));
+  const repositoryCounts = new Map<string, number>();
+  sources.forEach((sourceEntry, index) => {
+    if (getSourceTransport(sourceEntry) === "npm") return;
+    const bareKey = bareKeys[index] ?? "";
+    repositoryCounts.set(bareKey, (repositoryCounts.get(bareKey) ?? 0) + 1);
+  });
+  const qualifierCounts = new Map<string, number>();
+  return sources.map((sourceEntry, index) => {
+    const bareKey = bareKeys[index] ?? "";
+    if (getSourceTransport(sourceEntry) === "npm" || (repositoryCounts.get(bareKey) ?? 0) < 2) {
+      return bareKey;
+    }
+    const qualifier = buildLockKeyQualifier(sourceEntry);
+    const base =
+      qualifier === "" ? bareKey : `${bareKey}${LOCK_KEY_QUALIFIER_SEPARATOR}${qualifier}`;
+    const occurrence = (qualifierCounts.get(base) ?? 0) + 1;
+    qualifierCounts.set(base, occurrence);
+    if (occurrence === 1) {
+      return base;
+    }
+    const joiner = qualifier === "" ? LOCK_KEY_QUALIFIER_SEPARATOR : "&";
+    return `${base}${joiner}entry=${occurrence}`;
+  });
+}
+
+/**
+ * Get the locked entry for a lock key (see {@link resolveSourceLockKeys}),
+ * if it exists.
+ */
+export function getLockedSource(lock: SourcesLock, lockKey: string): LockedSource | undefined {
+  const normalized = normalizeLockKey(lockKey);
   // Look up by normalized key
   for (const [key, value] of Object.entries(lock.sources)) {
-    if (normalizeSourceKey(key) === normalized) {
+    if (normalizeLockKey(key) === normalized) {
       return value;
     }
   }
@@ -247,18 +342,18 @@ export function getLockedSource(lock: SourcesLock, sourceKey: string): LockedSou
 }
 
 /**
- * Set (or update) a locked entry for a source key.
+ * Set (or update) a locked entry for a lock key.
  */
 export function setLockedSource(
   lock: SourcesLock,
-  sourceKey: string,
+  lockKey: string,
   entry: LockedSource,
 ): SourcesLock {
-  const normalized = normalizeSourceKey(sourceKey);
+  const normalized = normalizeLockKey(lockKey);
   // Remove any existing entries with the same normalized key
   const filteredSources: Record<string, LockedSource> = {};
   for (const [key, value] of Object.entries(lock.sources)) {
-    if (normalizeSourceKey(key) !== normalized) {
+    if (normalizeLockKey(key) !== normalized) {
       filteredSources[key] = value;
     }
   }
