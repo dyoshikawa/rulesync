@@ -680,6 +680,142 @@ describe("resolveAndFetchSources", () => {
     const keyA = "org/plugin-marketplace#path=plugins/team-a/skills&ref=main";
     const keyB = "org/plugin-marketplace#path=plugins/team-b/skills&ref=main";
 
+    /** A lock entry for one team's skills, as an earlier install recorded it. */
+    function lockedTeamEntry(params: { curatedDir: string; team: string; resolvedRef: string }) {
+      const { curatedDir, team, resolvedRef } = params;
+      const name = `skill-${team.at(-1)}1`;
+      return {
+        requestedRef: "main",
+        resolvedRef,
+        skills: { [name]: { integrity: seedCuratedSkill({ curatedDir, name }) } },
+        skillSelection: [name],
+        skillsPath: `plugins/${team}/skills`,
+      };
+    }
+
+    it("should carry a bare-key entry over when a second entry for its repository is added", async () => {
+      const { readLockFile, writeLockFile } = await import("./sources-lock.js");
+      const curatedDir = join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
+      const lockedSha = "a".repeat(40);
+      existsInMemory();
+      vi.mocked(readLockFile).mockResolvedValue({
+        lockfileVersion: 1,
+        sources: {
+          "org/plugin-marketplace": lockedTeamEntry({
+            curatedDir,
+            team: "team-a",
+            resolvedRef: lockedSha,
+          }),
+        },
+      });
+      mockMarketplace({
+        "plugins/team-a/skills": ["skill-a1"],
+        "plugins/team-b/skills": ["skill-b1"],
+      });
+      mockClientInstance.resolveRefToSha.mockResolvedValue("b".repeat(40));
+      const sources = [
+        { ...teamA, skills: ["skill-a1"] },
+        { ...teamB, skills: ["skill-b1"] },
+      ];
+
+      // The new entry is not locked yet, so a frozen install still fails...
+      await expect(
+        resolveAndFetchSources({
+          logger,
+          sources,
+          projectRoot: testDir,
+          options: { frozen: true },
+        }),
+      ).rejects.toThrow(`Frozen install failed`);
+
+      // ...and a plain install keeps the existing entry at its locked commit.
+      const result = await resolveAndFetchSources({ logger, sources, projectRoot: testDir });
+      expect(result.failedSourceCount).toBe(0);
+      expect(result.fetchedSkillCount).toBe(1);
+      expect(mockClientInstance.listDirectory).not.toHaveBeenCalledWith(
+        "org",
+        "plugin-marketplace",
+        "plugins/team-a/skills",
+        expect.anything(),
+      );
+      expect(removeDirectory).not.toHaveBeenCalledWith(join(curatedDir, "skill-a1"));
+      const writtenLock = vi.mocked(writeLockFile).mock.calls.at(-1)![0].lock;
+      expect(Object.keys(writtenLock.sources).toSorted()).toEqual([keyA, keyB]);
+      expect(writtenLock.sources[keyA]!.resolvedRef).toBe(lockedSha);
+      expect(Object.keys(writtenLock.sources[keyA]!.skills)).toEqual(["skill-a1"]);
+    });
+
+    it("should carry the remaining entry over to the bare key when the other is removed", async () => {
+      const { readLockFile, writeLockFile } = await import("./sources-lock.js");
+      const curatedDir = join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
+      const lockedSha = "a".repeat(40);
+      existsInMemory();
+      vi.mocked(readLockFile).mockResolvedValue({
+        lockfileVersion: 1,
+        sources: {
+          [keyB]: lockedTeamEntry({ curatedDir, team: "team-b", resolvedRef: "c".repeat(40) }),
+          [keyA]: lockedTeamEntry({ curatedDir, team: "team-a", resolvedRef: lockedSha }),
+        },
+      });
+      mockClientInstance.resolveRefToSha.mockResolvedValue("b".repeat(40));
+      const sources = [{ ...teamA, skills: ["skill-a1"] }];
+
+      const frozen = await resolveAndFetchSources({
+        logger,
+        sources,
+        projectRoot: testDir,
+        options: { frozen: true },
+      });
+      expect(frozen.failedSourceCount).toBe(0);
+      expect(frozen.fetchedSkillCount).toBe(0);
+      expect(writeLockFile).not.toHaveBeenCalled();
+
+      const plain = await resolveAndFetchSources({ logger, sources, projectRoot: testDir });
+      expect(plain.failedSourceCount).toBe(0);
+      expect(plain.fetchedSkillCount).toBe(0);
+      expect(mockClientInstance.listDirectory).not.toHaveBeenCalled();
+      expect(mockClientInstance.resolveRefToSha).not.toHaveBeenCalled();
+      expect(removeDirectory).toHaveBeenCalledWith(join(curatedDir, "skill-b1"));
+      expect(removeDirectory).not.toHaveBeenCalledWith(join(curatedDir, "skill-a1"));
+      const writtenLock = vi.mocked(writeLockFile).mock.calls.at(-1)![0].lock;
+      expect(Object.keys(writtenLock.sources)).toEqual(["org/plugin-marketplace"]);
+      expect(writtenLock.sources["org/plugin-marketplace"]!.resolvedRef).toBe(lockedSha);
+      expect(Object.keys(writtenLock.sources["org/plugin-marketplace"]!.skills)).toEqual([
+        "skill-a1",
+      ]);
+    });
+
+    it("should not carry over an entry recorded for another location", async () => {
+      const { readLockFile, writeLockFile } = await import("./sources-lock.js");
+      const curatedDir = join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
+      existsInMemory();
+      vi.mocked(readLockFile).mockResolvedValue({
+        lockfileVersion: 1,
+        sources: {
+          [keyB]: lockedTeamEntry({ curatedDir, team: "team-b", resolvedRef: "c".repeat(40) }),
+        },
+      });
+      mockMarketplace({ "plugins/team-a/skills": ["skill-a1"] });
+      const sources = [{ ...teamA, skills: ["skill-a1"] }];
+
+      await expect(
+        resolveAndFetchSources({
+          logger,
+          sources,
+          projectRoot: testDir,
+          options: { frozen: true },
+        }),
+      ).rejects.toThrow("Frozen install failed");
+
+      const result = await resolveAndFetchSources({ logger, sources, projectRoot: testDir });
+      expect(result.fetchedSkillCount).toBe(1);
+      const writtenLock = vi.mocked(writeLockFile).mock.calls.at(-1)![0].lock;
+      expect(Object.keys(writtenLock.sources)).toEqual(["org/plugin-marketplace"]);
+      expect(writtenLock.sources["org/plugin-marketplace"]!.skillsPath).toBe(
+        "plugins/team-a/skills",
+      );
+    });
+
     it("should keep every entry's skills across repeated installs without re-fetching", async () => {
       const { readLockFile, writeLockFile } = await import("./sources-lock.js");
       const curatedDir = join(testDir, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);

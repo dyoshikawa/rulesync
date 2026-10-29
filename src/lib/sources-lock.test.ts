@@ -13,10 +13,12 @@ import {
   createEmptyLock,
   getLockedRuleNames,
   getLockedSkillNames,
+  getLockKeyRepository,
   getLockedSource,
   normalizeLockKey,
   normalizeSourceKey,
   readLockFile,
+  renameLockedSource,
   resolveSourceLockKeys,
   setLockedSource,
   writeLockFile,
@@ -305,6 +307,17 @@ describe("sources-lock", () => {
         "org/repo#path=Plugins/A",
       );
       expect(normalizeLockKey("https://github.com/Org/Repo.git")).toBe("org/repo");
+    });
+
+    it("should move an entry between a bare and a qualified key of its repository", () => {
+      const entry = { resolvedRef: "a", skills: {} };
+      const lock = setLockedSource(createEmptyLock(), "https://github.com/Org/Repo", entry);
+
+      const moved = renameLockedSource({ lock, fromKey: "org/repo", toKey: "org/repo#path=x" });
+
+      expect(moved.sources).toEqual({ "org/repo#path=x": entry });
+      expect(renameLockedSource({ lock, fromKey: "org/missing", toKey: "org/x" })).toBe(lock);
+      expect(getLockKeyRepository("https://github.com/Org/Repo.git#path=X")).toBe("org/repo");
     });
 
     it("should look up and set qualified entries independently of the bare entry", () => {

@@ -82,9 +82,11 @@ import {
   computeSkillIntegrity,
   getLockedRuleNames,
   getLockedSkillNames,
+  getLockKeyRepository,
   getLockedSource,
   normalizeLockKey,
   readLockFile,
+  renameLockedSource,
   resolveSourceLockKeys,
   setLockedSource,
   writeLockFile,
@@ -192,6 +194,7 @@ export async function resolveAndFetchSources(params: {
   // Several entries may declare the same repository (e.g. different `path`s);
   // each gets its own lock entry under the key resolved here.
   const lockKeys = resolveSourceLockKeys(sources);
+  lock = migrateSourceLockKeys({ lock, sources, lockKeys, logger });
 
   // Frozen mode: validate lockfiles cover all declared sources.
   // Missing curated skills are fetched using locked refs.
@@ -891,11 +894,16 @@ export async function getInstalledSourceSkillNames({
   projectRoot: string;
   logger: Logger;
 }): Promise<string[]> {
-  const lock = await readLockFile({ projectRoot, logger });
   const npmLock = await readNpmLockFile({ projectRoot, logger });
   const curatedDir = join(projectRoot, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
   const skillNames = new Set<string>();
   const lockKeys = resolveSourceLockKeys(sources);
+  const lock = migrateSourceLockKeys({
+    lock: await readLockFile({ projectRoot, logger }),
+    sources,
+    lockKeys,
+    logger,
+  });
   for (const [index, source] of sources.entries()) {
     const npmTransport = getSourceTransport(source) === "npm";
     const entry = npmTransport
@@ -934,11 +942,16 @@ export async function getInstalledSourceRuleNames({
   projectRoot: string;
   logger: Logger;
 }): Promise<string[]> {
-  const lock = await readLockFile({ projectRoot, logger });
   const npmLock = await readNpmLockFile({ projectRoot, logger });
   const curatedDir = join(projectRoot, RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH);
   const ruleNames = new Set<string>();
   const lockKeys = resolveSourceLockKeys(sources);
+  const lock = migrateSourceLockKeys({
+    lock: await readLockFile({ projectRoot, logger }),
+    sources,
+    lockKeys,
+    logger,
+  });
   for (const [index, source] of sources.entries()) {
     if (getSourceFilters(source).rules === undefined) {
       continue;
@@ -965,6 +978,94 @@ export async function getInstalledSourceRuleNames({
     lockedRuleNames.forEach((ruleName) => ruleNames.add(ruleName));
   }
   return [...ruleNames];
+}
+
+/**
+ * Carry lock entries over to the keys {@link resolveSourceLockKeys} gives the
+ * declared sources now (immutable — returns a fresh lock object).
+ *
+ * A source's key changes without its location changing when a second entry
+ * for its repository is declared (bare key to qualified key), when all but
+ * one are removed (qualified to bare), or when entries are reordered. Without
+ * this, the entry under the old key would be pruned and its artifacts removed,
+ * and the source would be resolved afresh, moving it to a newer commit without
+ * `--update` and failing `--frozen`.
+ *
+ * A source whose key has no entry takes over an entry of the same repository
+ * that no declared source's key claims, when that entry was recorded for this
+ * source's location: its recorded `skillsPath` (for a source taking skills) or
+ * `rulesPath` (for a source taking rules) matches, no recorded path
+ * contradicts the source's, and its `requestedRef` matches the declared ref.
+ * The entry moves as a whole, so its commit and integrity hashes are reused
+ * exactly as they would have been under the old key.
+ */
+export function migrateSourceLockKeys(params: {
+  lock: SourcesLock;
+  sources: SourceEntry[];
+  lockKeys: string[];
+  logger: Logger;
+}): SourcesLock {
+  const { sources, lockKeys, logger } = params;
+  let lock = params.lock;
+  const claimedKeys = new Set(
+    sources.flatMap((source, index) =>
+      getSourceTransport(source) === "npm"
+        ? []
+        : [normalizeLockKey(lockKeys[index] ?? source.source)],
+    ),
+  );
+  for (const [index, source] of sources.entries()) {
+    const lockKey = lockKeys[index];
+    if (
+      lockKey === undefined ||
+      getSourceTransport(source) === "npm" ||
+      hasEmptySelection(source) ||
+      getLockedSource(lock, lockKey) !== undefined
+    ) {
+      continue;
+    }
+    const repository = getLockKeyRepository(lockKey);
+    const candidate = Object.entries(lock.sources).find(
+      ([key, entry]) =>
+        !claimedKeys.has(normalizeLockKey(key)) &&
+        getLockKeyRepository(key) === repository &&
+        lockedLocationMatches({ locked: entry, sourceEntry: source }),
+    );
+    if (candidate === undefined) {
+      continue;
+    }
+    const [fromKey] = candidate;
+    logger.debug(`Moved lockfile entry "${fromKey}" to "${lockKey}".`);
+    lock = renameLockedSource({ lock, fromKey, toKey: lockKey });
+  }
+  return lock;
+}
+
+/** Whether a lock entry was recorded for the location a source declares. */
+function lockedLocationMatches(params: {
+  locked: LockedSource;
+  sourceEntry: SourceEntry;
+}): boolean {
+  const { locked, sourceEntry } = params;
+  const filters = getSourceFilters(sourceEntry);
+  const skillsPathMatches =
+    filters.skills !== undefined && locked.skillsPath === resolveSkillsPath(sourceEntry);
+  const rulesPathMatches =
+    filters.rules !== undefined && locked.rulesPath === resolveRulesPath(sourceEntry);
+  const skillsPathContradicts =
+    filters.skills !== undefined &&
+    locked.skillsPath !== undefined &&
+    locked.skillsPath !== resolveSkillsPath(sourceEntry);
+  const rulesPathContradicts =
+    filters.rules !== undefined &&
+    locked.rulesPath !== undefined &&
+    locked.rulesPath !== resolveRulesPath(sourceEntry);
+  return (
+    (skillsPathMatches || rulesPathMatches) &&
+    !skillsPathContradicts &&
+    !rulesPathContradicts &&
+    lockedRefMatchesDeclared({ locked, declaredRef: getDeclaredSourceRef(sourceEntry) })
+  );
 }
 
 function getEmptySelections(sourceEntry: SourceEntry): {

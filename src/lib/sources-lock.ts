@@ -253,6 +253,12 @@ export function normalizeLockKey(key: string): string {
   return normalizeSourceKey(key.slice(0, separatorIndex)) + key.slice(separatorIndex);
 }
 
+/** The normalized repository part of a lock key, without its qualifier. */
+export function getLockKeyRepository(key: string): string {
+  const separatorIndex = key.indexOf(LOCK_KEY_QUALIFIER_SEPARATOR);
+  return normalizeSourceKey(separatorIndex === -1 ? key : key.slice(0, separatorIndex));
+}
+
 function encodeLockKeyQualifierValue(value: string): string {
   return encodeURIComponent(value).replace(/%2F/gi, "/");
 }
@@ -324,6 +330,34 @@ export function resolveSourceLockKeys(sources: SourceEntry[]): string[] {
     const joiner = qualifier === "" ? LOCK_KEY_QUALIFIER_SEPARATOR : "&";
     return `${base}${joiner}entry=${occurrence}`;
   });
+}
+
+/**
+ * Move a lock entry to another key, keeping its position-independent content
+ * unchanged (immutable — returns a fresh lock object).
+ */
+export function renameLockedSource(params: {
+  lock: SourcesLock;
+  fromKey: string;
+  toKey: string;
+}): SourcesLock {
+  const { lock, fromKey, toKey } = params;
+  const entry = getLockedSource(lock, fromKey);
+  if (entry === undefined) {
+    return lock;
+  }
+  const normalizedFrom = normalizeLockKey(fromKey);
+  const remaining: Record<string, LockedSource> = {};
+  for (const [key, value] of Object.entries(lock.sources)) {
+    if (normalizeLockKey(key) !== normalizedFrom) {
+      remaining[key] = value;
+    }
+  }
+  return setLockedSource(
+    { lockfileVersion: lock.lockfileVersion, sources: remaining },
+    toKey,
+    entry,
+  );
 }
 
 /**

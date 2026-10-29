@@ -14,7 +14,12 @@ import {
 import { getNpmLockedSource, readNpmLockFile } from "./npm-sources-lock.js";
 import { parseSource } from "./source-parser.js";
 import { getLockedSource, readLockFile, resolveSourceLockKeys } from "./sources-lock.js";
-import { resolveGitSourceRef, resolveGithubFetchRef, resolveNpmFetchVersion } from "./sources.js";
+import {
+  migrateSourceLockKeys,
+  resolveGitSourceRef,
+  resolveGithubFetchRef,
+  resolveNpmFetchVersion,
+} from "./sources.js";
 
 type OutdatedSourceStatus = "up-to-date" | "outdated" | "not-locked" | "failed";
 
@@ -46,11 +51,16 @@ export async function checkOutdatedSources(params: {
   logger: Logger;
 }): Promise<OutdatedSourceReport[]> {
   const { sources, projectRoot, logger } = params;
-  const lock = await readLockFile({ projectRoot, logger });
   const npmLock = await readNpmLockFile({ projectRoot, logger });
   const client = new GitHubClient({ token: GitHubClient.resolveToken(params.token) });
 
   const lockKeys = resolveSourceLockKeys(sources);
+  const lock = migrateSourceLockKeys({
+    lock: await readLockFile({ projectRoot, logger }),
+    sources,
+    lockKeys,
+    logger,
+  });
 
   const reports: OutdatedSourceReport[] = [];
   for (const [index, sourceEntry] of sources.entries()) {
