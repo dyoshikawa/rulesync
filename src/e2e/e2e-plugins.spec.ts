@@ -187,8 +187,10 @@ Review changes before submission.
       deleteFiles: true,
     });
 
+    // The directory name is normalized to the lowercase kebab-case form
+    // `agy plugin validate --strict` requires.
     expect(JSON.parse(await readFileContent(join(pluginRoot, "plugin.json")))).toEqual({
-      name: "review_plugin-2",
+      name: "review-plugin-2",
     });
     expect(await readFileContent(join(pluginRoot, "rules", "review.md"))).toContain(
       "Review changes before submission.",

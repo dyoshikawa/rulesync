@@ -47,8 +47,9 @@ export type AntigravitySharedSkillParams = {
  * {@link AntigravitySharedSkill.getToolTarget}.
  *
  * Frontmatter beyond `name`/`description` (e.g. `disable-slash-command`,
- * `metadata`) comes from the rulesync section named after that target, with the
- * root-level `user-invocable` / `metadata` as defaults. On the shared project
+ * `disable-model-invocation`, `metadata`) comes from the rulesync section named
+ * after that target, with the root-level `user-invocable` /
+ * `disable-model-invocation` / `metadata` as defaults. On the shared project
  * `.agents/skills/` tree both targets merge the `antigravity-ide` and
  * `antigravity-cli` sections so their output never diverges.
  */
@@ -177,6 +178,14 @@ export class AntigravitySharedSkill extends ToolSkill {
         : rulesyncFrontmatter["user-invocable"] === false
           ? true
           : undefined;
+    // `disable-model-invocation: true` keeps the skill out of automatic model
+    // invocation so it runs only via `/<name>` (Antigravity "Build plugins"
+    // skill frontmatter); the root-level flag is the default, a section value wins.
+    const sectionDisableModelInvocation = sectionFields["disable-model-invocation"];
+    const disableModelInvocation =
+      typeof sectionDisableModelInvocation === "boolean"
+        ? sectionDisableModelInvocation
+        : rulesyncFrontmatter["disable-model-invocation"];
     const metadata = resolveMetadata({
       rootFrontmatter: rulesyncFrontmatter,
       section: sectionFields,
@@ -189,6 +198,9 @@ export class AntigravitySharedSkill extends ToolSkill {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
       ...(disableSlashCommand !== undefined && { "disable-slash-command": disableSlashCommand }),
+      ...(disableModelInvocation !== undefined && {
+        "disable-model-invocation": disableModelInvocation,
+      }),
       ...(metadata !== undefined && { metadata }),
     };
 
