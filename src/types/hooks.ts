@@ -1026,11 +1026,28 @@ export const POOL_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEvent
 /**
  * Hook events supported by Crush.
  *
- * Crush's `hooks` config block currently fires a single event, `PreToolUse`
- * (Claude Code-compatible payload; `matcher` is a regex on the tool name).
- * @see https://github.com/charmbracelet/crush/blob/main/docs/hooks/README.md
+ * Crush v0.99.0 fires 13 events under its `hooks` config block (Claude
+ * Code-compatible payload; `matcher` is a regex on the tool name and is only
+ * accepted on tool events). Twelve of them have a canonical counterpart;
+ * `PermissionResult` has none and is authored under the `crush.hooks`
+ * override.
+ * @see https://github.com/charmbracelet/crush/blob/v0.99.0/docs/hooks/README.md
+ * @see https://github.com/charmbracelet/crush/blob/v0.99.0/internal/hooks/events.go
  */
-export const CRUSH_HOOK_EVENTS: readonly HookEvent[] = ["preToolUse"];
+export const CRUSH_HOOK_EVENTS: readonly HookEvent[] = [
+  "preToolUse",
+  "postToolUse",
+  "postToolUseFailure",
+  "permissionRequest",
+  "sessionStart",
+  "sessionEnd",
+  "beforeSubmitPrompt",
+  "stop",
+  "stopFailure",
+  "stopCancelled",
+  "preCompact",
+  "postCompact",
+];
 
 /**
  * Hook events supported by JetBrains Junie CLI.
@@ -1321,9 +1338,10 @@ export const ZCODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEven
  * Bob reads `hooks` from `.bob/settings.json` (project) and
  * `~/.bob/settings/settings.json` (user) in the Claude-Code shape and fires
  * seven events: SessionStart, UserPromptSubmit, PreToolUse, PostToolUse,
- * PreCompact, PostCompact (both added by Bob Shell 2.0.3) and Stop. Handlers
- * are `command` or `https` hooks, and `matcher` (a regex over the tool name)
- * applies to the two tool events.
+ * PreCompact, PostCompact and Stop (Bob IDE and Bob Shell list the same
+ * seven). Handlers are `command` or `http` hooks. `matcher` is a regex matched
+ * against the tool name on PreToolUse / PostToolUse, `source` on SessionStart
+ * and `trigger` on PreCompact / PostCompact; the other events ignore it.
  *
  * @see https://bob.ibm.com/docs/shell/configuration/lifecycle-hooks
  * @see https://bob.ibm.com/docs/ide/configuration/lifecycle-hooks
@@ -2714,12 +2732,39 @@ export const CODEWHALE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invert
 
 /**
  * Canonical -> Crush event names. Crush spells its events the Claude Code
- * way (`PreToolUse`).
- * @see https://github.com/charmbracelet/crush/blob/main/docs/hooks/README.md
+ * way (`PreToolUse`), but names the turn events `TurnStart` (Claude Code's
+ * `UserPromptSubmit`) and `TurnEnd` (Claude Code's `Stop`), and the
+ * user-cancelled turn `Interrupt`.
+ * @see https://github.com/charmbracelet/crush/blob/v0.99.0/docs/hooks/README.md
  */
 export const CANONICAL_TO_CRUSH_EVENT_NAMES: Record<string, string> = {
   preToolUse: "PreToolUse",
+  postToolUse: "PostToolUse",
+  postToolUseFailure: "PostToolUseFailure",
+  permissionRequest: "PermissionRequest",
+  sessionStart: "SessionStart",
+  sessionEnd: "SessionEnd",
+  beforeSubmitPrompt: "TurnStart",
+  stop: "TurnEnd",
+  stopFailure: "StopFailure",
+  stopCancelled: "Interrupt",
+  preCompact: "PreCompact",
+  postCompact: "PostCompact",
 };
+
+/**
+ * Crush events that carry a tool call, the only ones whose hooks may set a
+ * `matcher` (Crush's `EventHasTool`). A matcher on any other event makes
+ * Crush reject the whole config at load time.
+ * @see https://github.com/charmbracelet/crush/blob/v0.99.0/internal/config/hooks.go
+ */
+export const CRUSH_TOOL_EVENTS: readonly string[] = [
+  "PreToolUse",
+  "PostToolUse",
+  "PostToolUseFailure",
+  "PermissionRequest",
+  "PermissionResult",
+];
 
 export const CRUSH_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
   CANONICAL_TO_CRUSH_EVENT_NAMES,

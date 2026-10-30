@@ -6,6 +6,7 @@ import {
   CANONICAL_TO_CRUSH_EVENT_NAMES,
   CRUSH_HOOK_EVENTS,
   CRUSH_TO_CANONICAL_EVENT_NAMES,
+  CRUSH_TOOL_EVENTS,
   type HookDefinition,
   type HooksConfig,
 } from "../../types/hooks.js";
@@ -34,7 +35,7 @@ import {
 
 /**
  * One entry of a `hooks.<Event>` array in `crush.json`.
- * @see https://github.com/charmbracelet/crush/blob/main/internal/config/config.go
+ * @see https://github.com/charmbracelet/crush/blob/v0.99.0/internal/hooks/config.go
  */
 type CrushHookEntry = {
   name?: string;
@@ -62,15 +63,47 @@ function normalizeCrushEventName(event: string): string {
   return event.replaceAll("_", "").toLowerCase();
 }
 
+/** Crush tool events, by normalized spelling, on which a `matcher` is valid. */
+const NORMALIZED_CRUSH_TOOL_EVENTS: ReadonlySet<string> = new Set(
+  CRUSH_TOOL_EVENTS.map((event) => normalizeCrushEventName(event)),
+);
+
+/**
+ * Resolve a `crush.hooks` override key to the canonical event it names, or
+ * null when it names no canonical event. The key may be spelled the canonical
+ * way (`stop`) or in any spelling Crush accepts for the event (`TurnEnd`,
+ * `turn_end`), so an override an earlier import filed under a Crush name still
+ * lands on the same event as the shared hooks.
+ */
+function resolveOverrideCanonicalEvent(key: string): string | null {
+  if (lookupOwn({ record: CANONICAL_TO_CRUSH_EVENT_NAMES, key }) !== undefined) {
+    return key;
+  }
+  return (
+    lookupOwn({
+      record: NORMALIZED_CRUSH_TO_CANONICAL_EVENT_NAMES,
+      key: normalizeCrushEventName(key),
+    }) ?? null
+  );
+}
+
 /**
  * Build the `hooks` block of `crush.json` from a canonical hooks config.
  * Crush keys a flat array of `{name, matcher, command, timeout}` entries by
  * event name; `matcher` is a regex tested against the (lower-case) Crush tool
  * name and `timeout` is in seconds. Only `type: "command"` canonical hooks are
  * emitted, since a Crush hook is a shell command. A shared canonical event
- * Crush does not fire is skipped (the HooksProcessor reports it), while an
- * event under the `crush.hooks` override — such as one an import filed there
- * — is written verbatim so it round-trips.
+ * Crush does not fire is skipped (the HooksProcessor reports it).
+ *
+ * Every `crush.hooks` override key is resolved to its event first, whatever
+ * spelling it uses: the override replaces the shared entries of that event
+ * (as for every other tool's override), and override keys that name the same
+ * event are concatenated in order, the way Crush itself merges them. A key
+ * that names no canonical event — such as `PermissionResult`, or one an
+ * import filed there — is written verbatim so it round-trips; keys of that
+ * kind that Crush reads as the same event are concatenated under the first
+ * spelling. A `matcher` is only written on a tool event: Crush rejects the
+ * whole config when one appears anywhere else.
  */
 function canonicalToCrushHooks({
   config,
@@ -81,23 +114,47 @@ function canonicalToCrushHooks({
   toolOverride: HooksConfig["hooks"] | undefined;
   logger?: Logger;
 }): Record<string, CrushHookEntry[]> {
-  const sharedHooks: HooksConfig["hooks"] = {};
+  // Output Crush event name -> definitions, in insertion order.
+  const shared = new Map<string, HookDefinition[]>();
   for (const [event, defs] of Object.entries(config.hooks)) {
-    if (SUPPORTED_CRUSH_EVENTS.has(event)) {
-      sharedHooks[event] = defs;
+    const crushEvent = SUPPORTED_CRUSH_EVENTS.has(event)
+      ? lookupOwn({ record: CANONICAL_TO_CRUSH_EVENT_NAMES, key: event })
+      : undefined;
+    if (crushEvent !== undefined) {
+      shared.set(crushEvent, defs);
     }
   }
-  const effective: HooksConfig["hooks"] = { ...sharedHooks, ...toolOverride };
 
-  const hooks: Record<string, CrushHookEntry[]> = {};
-  for (const [event, defs] of Object.entries(effective)) {
-    if (isPrototypePollutionKey(event)) {
+  const override = new Map<string, HookDefinition[]>();
+  // Normalized spelling -> first spelling seen, for keys with no canonical event.
+  const verbatimSpellings = new Map<string, string>();
+  for (const [key, defs] of Object.entries(toolOverride ?? {})) {
+    if (isPrototypePollutionKey(key) || !Array.isArray(defs)) {
       continue;
     }
-    const crushEvent = lookupOwn({ record: CANONICAL_TO_CRUSH_EVENT_NAMES, key: event }) ?? event;
+    const canonical = resolveOverrideCanonicalEvent(key);
+    let crushEvent: string;
+    if (canonical !== null) {
+      crushEvent = lookupOwn({ record: CANONICAL_TO_CRUSH_EVENT_NAMES, key: canonical }) ?? key;
+    } else {
+      const normalized = normalizeCrushEventName(key);
+      crushEvent = verbatimSpellings.get(normalized) ?? key;
+      verbatimSpellings.set(normalized, crushEvent);
+    }
+    override.set(crushEvent, [...(override.get(crushEvent) ?? []), ...defs]);
+  }
+
+  const effective = new Map<string, HookDefinition[]>(shared);
+  for (const [crushEvent, defs] of override) {
+    effective.set(crushEvent, defs);
+  }
+
+  const hooks: Record<string, CrushHookEntry[]> = {};
+  for (const [crushEvent, defs] of effective) {
+    const allowsMatcher = NORMALIZED_CRUSH_TOOL_EVENTS.has(normalizeCrushEventName(crushEvent));
     const entries: CrushHookEntry[] = [];
     for (const def of defs) {
-      const entry = canonicalDefToCrushEntry({ def, event, logger });
+      const entry = canonicalDefToCrushEntry({ def, event: crushEvent, allowsMatcher, logger });
       if (entry !== null) {
         entries.push(entry);
       }
@@ -114,10 +171,12 @@ function canonicalToCrushHooks({
 function canonicalDefToCrushEntry({
   def,
   event,
+  allowsMatcher,
   logger,
 }: {
   def: HookDefinition;
   event: string;
+  allowsMatcher: boolean;
   logger?: Logger;
 }): CrushHookEntry | null {
   if ((def.type ?? "command") !== "command") {
@@ -138,7 +197,16 @@ function canonicalDefToCrushEntry({
   // An omitted matcher fires on every tool, and so does `*`; Crush reads
   // the matcher as a regex, where `*` alone would not compile.
   if (typeof def.matcher === "string" && def.matcher !== "" && def.matcher !== "*") {
-    entry.matcher = def.matcher;
+    if (allowsMatcher) {
+      entry.matcher = def.matcher;
+    } else {
+      // Crush fails to load the whole config on a matcher outside a tool
+      // event ("matcher is only supported on tool events").
+      logger?.warn(
+        `matcher ${quoteValueForWarning(def.matcher)} on "${event}" hook will be ignored — ` +
+          `Crush only accepts a matcher on tool events.`,
+      );
+    }
   }
   if (typeof def.timeout === "number") {
     // Crush's `timeout` is an integer number of seconds; a fractional
@@ -208,12 +276,13 @@ function crushHooksToCanonical(hooksBlock: unknown): HooksConfig["hooks"] {
  * `<project>/crush.json` (or an existing `.crush.json`; Crush merges the pair,
  * lists concatenated) at project scope and `~/.config/crush/crush.json` at
  * user scope — as
- * `hooks.<Event>: [{name?, matcher?, command, timeout?}]`. Only `PreToolUse`
- * fires today. The `hooks` key is owned outright; every other top-level key
+ * `hooks.<Event>: [{name?, matcher?, command, timeout?}]`. `matcher` is only
+ * valid on tool events (`PreToolUse`, `PostToolUse`, `PostToolUseFailure`,
+ * `PermissionRequest`, `PermissionResult`). The `hooks` key is owned outright; every other top-level key
  * of the file is preserved and the file is never deleted.
  *
- * @see https://github.com/charmbracelet/crush/blob/main/docs/hooks/README.md
- * @see https://github.com/charmbracelet/crush/blob/main/internal/config/config.go
+ * @see https://github.com/charmbracelet/crush/blob/v0.99.0/docs/hooks/README.md
+ * @see https://github.com/charmbracelet/crush/blob/v0.99.0/internal/config/hooks.go
  */
 export class CrushHooks extends ToolHooks {
   private readonly json: Record<string, unknown>;

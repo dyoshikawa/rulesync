@@ -352,6 +352,49 @@ describe("ZcodeHooks", () => {
       );
     });
 
+    it("should emit failClosed as onError: deny on foreground PreToolUse hooks only", async () => {
+      // ZCode 3.17.1+: `onError: "deny"` blocks the tool call when a PreToolUse
+      // hook fails; `"allow"` is the default and other events ignore the field.
+      const logger = createMockLogger();
+      const rulesyncHooks = new RulesyncHooks({
+        outputRoot: testDir,
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          version: 1,
+          hooks: {
+            preToolUse: [
+              { type: "command", command: "guard.sh", failClosed: true },
+              { type: "command", command: "audit.sh", failClosed: false },
+              { type: "command", command: "bg.sh", async: true, failClosed: true },
+            ],
+            postToolUse: [{ type: "command", command: "post.sh", failClosed: true }],
+          },
+        }),
+        validate: false,
+      });
+
+      const zcodeHooks = await ZcodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+        logger,
+      });
+
+      const events = JSON.parse(zcodeHooks.getFileContent()).hooks.events;
+      expect(events.PreToolUse[0].hooks).toEqual([
+        { type: "command", command: "guard.sh", onError: "deny" },
+        { type: "command", command: "audit.sh" },
+        { type: "command", command: "bg.sh", async: true },
+      ]);
+      expect(events.PostToolUse[0].hooks).toEqual([{ type: "command", command: "post.sh" }]);
+      expect(logger.warn).toHaveBeenCalledTimes(2);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('Dropping "failClosed" from a "command" hook on "postToolUse"'),
+      );
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('sets "async"'));
+    });
+
     it("should emit events from the zcode override block verbatim", async () => {
       await ensureDir(join(testDir, ".zcode"));
       await writeFileContent(join(testDir, ".zcode", "config.json"), JSON.stringify({}));
@@ -718,6 +761,43 @@ describe("ZcodeHooks", () => {
       expect(hook.async).toBe(true);
       expect(hook.shell).toBe("bash");
       expect(hook.statusMessage).toBe("Formatting");
+    });
+
+    it("should import onError back into failClosed and drop what ZCode would not read", () => {
+      const logger = createMockLogger();
+      const zcodeHooks = new ZcodeHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".zcode",
+        relativeFilePath: "config.json",
+        fileContent: JSON.stringify({
+          hooks: {
+            events: {
+              PreToolUse: [
+                {
+                  hooks: [
+                    { type: "command", command: "deny.sh", onError: "deny" },
+                    { type: "command", command: "allow.sh", onError: "allow" },
+                    { type: "command", command: "typo.sh", onError: "block" },
+                    { type: "command", command: "bg.sh", async: true, onError: "deny" },
+                  ],
+                },
+              ],
+              PostToolUse: [{ hooks: [{ type: "command", command: "post.sh", onError: "deny" }] }],
+            },
+          },
+        }),
+        validate: false,
+      });
+
+      const hooks = zcodeHooks.toRulesyncHooks({ logger }).getJson().hooks;
+      expect(hooks.preToolUse).toEqual([
+        { type: "command", command: "deny.sh", failClosed: true },
+        { type: "command", command: "allow.sh", failClosed: false },
+        { type: "command", command: "typo.sh" },
+        { type: "command", command: "bg.sh", async: true },
+      ]);
+      expect(hooks.postToolUse).toEqual([{ type: "command", command: "post.sh" }]);
+      expect(logger.warn).toHaveBeenCalledTimes(3);
     });
   });
 

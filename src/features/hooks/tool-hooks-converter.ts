@@ -42,14 +42,12 @@ export type ToolHooksConverterConfig = {
   projectDirVar: string;
   supportedHookTypes?: ReadonlySet<HookType>;
   /**
-   * Tool-side spellings of the canonical hook `type` values, for a tool that
-   * names a handler type differently (e.g. Bob's `https` for the canonical
-   * `http`). A type without an entry is emitted under its canonical name. On
-   * import the mapping is applied in reverse, and the tool spelling of one
-   * canonical type shadows a same-named canonical type: Bob has no `http`
-   * handler, so an `http` in its file is not one either.
+   * Extra tool-side `type` spellings accepted on import only, each mapped to
+   * the canonical hook type it denotes (e.g. Bob's former `https` for the
+   * canonical `http`). Generation never emits them, so a file written under an
+   * older spelling still imports without losing its payload.
    */
-  hookTypeNames?: Readonly<Partial<Record<HookType, string>>>;
+  importedHookTypeAliases?: Readonly<Record<string, HookType>>;
   passthroughFields?: ReadonlyArray<"name" | "description">;
   /**
    * Per-hook boolean fields to carry through the round-trip, each mapping a
@@ -275,6 +273,22 @@ export type ToolHooksConverterConfig = {
    */
   wildcardMatcherMeansAll?: boolean;
   /**
+   * Rewrites the tool names inside a `matcher` for a tool whose runtime tool
+   * names differ from the canonical (Claude Code) spelling. `toTool` runs on
+   * generate, after the `wildcardMatcherMeansAll` normalization and only on
+   * events that keep their matcher, and may warn about names it cannot
+   * translate; `toCanonical` runs on import. Hooks whose matchers translate to
+   * the same tool matcher share one group.
+   */
+  matcherTranslation?: {
+    toTool: (args: {
+      matcher: string;
+      eventName: string;
+      warn: (message: string) => void;
+    }) => string;
+    toCanonical: (matcher: string) => string;
+  };
+  /**
    * The unit of the tool's per-hook `timeout` field. The canonical `timeout` is
    * seconds (docs/reference/file-formats.md), so `"milliseconds"` multiplies by
    * 1000 on generate and divides on import; the default forwards the value
@@ -349,21 +363,40 @@ function buildEffectiveHooks({
  */
 function groupDefinitionsByMatcher({
   definitions,
+  eventName,
   converterConfig,
+  warn,
 }: {
   definitions: HooksConfig["hooks"][string];
+  eventName: string;
   converterConfig: ToolHooksConverterConfig;
+  warn: (message: string) => void;
 }): Map<string, { matcher: string; defs: HooksConfig["hooks"][string] }> {
   const subdividingFields = (converterConfig.groupPassthroughFields ?? []).filter(
     ({ subdividesGroup }) => subdividesGroup,
   );
   const byMatcher = new Map<string, { matcher: string; defs: HooksConfig["hooks"][string] }>();
+  // Translated once per distinct matcher, so hooks sharing one do not repeat
+  // its warning.
+  const translatedMatchers = new Map<string, string>();
   for (const def of definitions) {
     const rawMatcher = def.matcher ?? "";
     // Normalized here rather than at emission so a `"*"` group and an
     // already-matcher-less group collapse into one entry instead of producing
     // two indistinguishable entries for the same event.
-    const matcher = converterConfig.wildcardMatcherMeansAll && rawMatcher === "*" ? "" : rawMatcher;
+    const normalizedMatcher =
+      converterConfig.wildcardMatcherMeansAll && rawMatcher === "*" ? "" : rawMatcher;
+    // Translated before keying, so `Bash` and an override's `bash` share a
+    // group. A matcher-less event drops the matcher anyway (with its own
+    // warning), so it is not translated there.
+    const translation = converterConfig.matcherTranslation;
+    let matcher = normalizedMatcher;
+    if (translation && normalizedMatcher && !converterConfig.noMatcherEvents?.has(eventName)) {
+      matcher =
+        translatedMatchers.get(normalizedMatcher) ??
+        translation.toTool({ matcher: normalizedMatcher, eventName, warn });
+      translatedMatchers.set(normalizedMatcher, matcher);
+    }
     const key = [
       matcher,
       // A value the tool cannot express is never emitted, so keying on it would
@@ -1282,7 +1315,7 @@ function buildToolHooks({
       // fields below always win: a misconfigured `tool` name (e.g. mapping onto
       // "type"/"command") can never silently shadow them.
       ...emitAllPassthroughFields({ def, hookType, eventName, converterConfig, warn }),
-      type: converterConfig.hookTypeNames?.[hookType] ?? hookType,
+      type: hookType,
       ...(command !== undefined && command !== null && { command }),
       ...(def.timeout !== undefined &&
         def.timeout !== null && {
@@ -1349,7 +1382,12 @@ export function canonicalToToolHooks({
   for (const [eventName, definitions] of Object.entries(effectiveHooks)) {
     const toolEventName =
       lookupOwn({ record: converterConfig.canonicalToToolEventNames, key: eventName }) ?? eventName;
-    const byMatcher = groupDefinitionsByMatcher({ definitions, converterConfig });
+    const byMatcher = groupDefinitionsByMatcher({
+      definitions,
+      eventName,
+      converterConfig,
+      warn,
+    });
     const entries: unknown[] = [];
     const isNoMatcherEvent = converterConfig.noMatcherEvents?.has(eventName) ?? false;
     for (const { matcher: matcherKey, defs } of byMatcher.values()) {
@@ -1455,10 +1493,10 @@ function isImportedHookType(value: unknown): value is HookType {
 }
 
 /**
- * The canonical hook type a tool-side `type` value denotes: the tool's own
- * spelling from {@link ToolHooksConverterConfig.hookTypeNames} when it has
- * one, otherwise the value itself when it is a canonical type, and `command`
- * for anything else (the same coercion as before the renames existed).
+ * The canonical hook type a tool-side `type` value denotes: the canonical type
+ * an {@link ToolHooksConverterConfig.importedHookTypeAliases} entry maps it to
+ * when it has one, otherwise the value itself when it is a canonical type, and
+ * `command` for anything else.
  */
 function resolveImportedHookType({
   value,
@@ -1467,15 +1505,10 @@ function resolveImportedHookType({
   value: unknown;
   converterConfig: ToolHooksConverterConfig;
 }): HookType {
-  const names = converterConfig.hookTypeNames;
-  if (names !== undefined && typeof value === "string") {
-    for (const [canonical, tool] of Object.entries(names)) {
-      if (tool === value) return canonical as HookType;
-    }
-    // A tool spelling shadows the canonical name it replaces: when the tool
-    // calls the canonical `http` handler `https`, a bare `http` in its file
-    // is not a handler the tool has.
-    if (Object.hasOwn(names, value)) return "command";
+  const aliases = converterConfig.importedHookTypeAliases;
+  if (aliases !== undefined && typeof value === "string") {
+    const aliased = lookupOwn({ record: aliases, key: value });
+    if (aliased !== undefined) return aliased;
   }
   return isImportedHookType(value) ? value : "command";
 }
@@ -1752,7 +1785,10 @@ function toolHookToCanonical({
     canonical: "description",
     warn,
   });
-  const matcher = rawEntry.matcher;
+  const matcher =
+    typeof rawEntry.matcher === "string" && converterConfig.matcherTranslation
+      ? converterConfig.matcherTranslation.toCanonical(rawEntry.matcher)
+      : rawEntry.matcher;
   return {
     type: hookType,
     ...(command !== undefined && command !== null && { command }),
