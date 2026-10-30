@@ -1338,9 +1338,10 @@ export const ZCODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEven
  * Bob reads `hooks` from `.bob/settings.json` (project) and
  * `~/.bob/settings/settings.json` (user) in the Claude-Code shape and fires
  * seven events: SessionStart, UserPromptSubmit, PreToolUse, PostToolUse,
- * PreCompact, PostCompact (both added by Bob Shell 2.0.3) and Stop. Handlers
- * are `command` or `https` hooks, and `matcher` (a regex over the tool name)
- * applies to the two tool events.
+ * PreCompact, PostCompact and Stop (Bob IDE and Bob Shell list the same
+ * seven). Handlers are `command` or `http` hooks. `matcher` is a regex matched
+ * against the tool name on PreToolUse / PostToolUse, `source` on SessionStart
+ * and `trigger` on PreCompact / PostCompact; the other events ignore it.
  *
  * @see https://bob.ibm.com/docs/shell/configuration/lifecycle-hooks
  * @see https://bob.ibm.com/docs/ide/configuration/lifecycle-hooks
