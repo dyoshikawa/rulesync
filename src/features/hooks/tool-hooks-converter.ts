@@ -42,15 +42,6 @@ export type ToolHooksConverterConfig = {
   projectDirVar: string;
   supportedHookTypes?: ReadonlySet<HookType>;
   /**
-   * Tool-side spellings of the canonical hook `type` values, for a tool that
-   * names a handler type differently (e.g. `https` for the canonical `http`).
-   * A type without an entry is emitted under its canonical name. On import
-   * the mapping is applied in reverse, and the tool spelling of one canonical
-   * type shadows a same-named canonical type: a tool that calls its webhook
-   * `https` has no `http` handler, so an `http` in its file is not one either.
-   */
-  hookTypeNames?: Readonly<Partial<Record<HookType, string>>>;
-  /**
    * Extra tool-side `type` spellings accepted on import only, each mapped to
    * the canonical hook type it denotes (e.g. Bob's former `https` for the
    * canonical `http`). Generation never emits them, so a file written under an
@@ -1289,7 +1280,7 @@ function buildToolHooks({
       // fields below always win: a misconfigured `tool` name (e.g. mapping onto
       // "type"/"command") can never silently shadow them.
       ...emitAllPassthroughFields({ def, hookType, eventName, converterConfig, warn }),
-      type: converterConfig.hookTypeNames?.[hookType] ?? hookType,
+      type: hookType,
       ...(command !== undefined && command !== null && { command }),
       ...(def.timeout !== undefined &&
         def.timeout !== null && {
@@ -1462,10 +1453,10 @@ function isImportedHookType(value: unknown): value is HookType {
 }
 
 /**
- * The canonical hook type a tool-side `type` value denotes: the tool's own
- * spelling from {@link ToolHooksConverterConfig.hookTypeNames} when it has
- * one, otherwise the value itself when it is a canonical type, and `command`
- * for anything else (the same coercion as before the renames existed).
+ * The canonical hook type a tool-side `type` value denotes: the canonical type
+ * an {@link ToolHooksConverterConfig.importedHookTypeAliases} entry maps it to
+ * when it has one, otherwise the value itself when it is a canonical type, and
+ * `command` for anything else.
  */
 function resolveImportedHookType({
   value,
@@ -1478,16 +1469,6 @@ function resolveImportedHookType({
   if (aliases !== undefined && typeof value === "string") {
     const aliased = lookupOwn({ record: aliases, key: value });
     if (aliased !== undefined) return aliased;
-  }
-  const names = converterConfig.hookTypeNames;
-  if (names !== undefined && typeof value === "string") {
-    for (const [canonical, tool] of Object.entries(names)) {
-      if (tool === value) return canonical as HookType;
-    }
-    // A tool spelling shadows the canonical name it replaces: when the tool
-    // calls the canonical `http` handler `https`, a bare `http` in its file
-    // is not a handler the tool has.
-    if (Object.hasOwn(names, value)) return "command";
   }
   return isImportedHookType(value) ? value : "command";
 }
