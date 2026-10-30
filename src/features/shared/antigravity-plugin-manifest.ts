@@ -56,6 +56,9 @@ export async function ensureAntigravityPluginManifests({
   logger: Logger;
 }): Promise<FeatureGenerateResult> {
   const paths: string[] = [];
+  // Output root of each name written in this run, so two roots that normalize
+  // to the same name (`My_Plugin` and `my-plugin`) are reported.
+  const writtenNames = new Map<string, string>();
 
   for (const outputRoot of outputRoots) {
     const filePath = join(outputRoot, ANTIGRAVITY_PLUGIN_MANIFEST_FILE_NAME);
@@ -75,8 +78,9 @@ export async function ensureAntigravityPluginManifests({
       warnOnceWithFallback(
         logger,
         `Cannot derive an Antigravity plugin name from the directory ${quoteForLog(dirName)}: it must ` +
-          `match ${ANTIGRAVITY_PLUGIN_NAME_PATTERN.source}. Create ${quoteForLog(filePath)} by hand ` +
-          `with a valid "name".`,
+          `contain only letters, digits, "-" and "_", and at least one letter or digit, so that it ` +
+          `normalizes to ${ANTIGRAVITY_PLUGIN_STRICT_NAME_PATTERN.source}. Create ` +
+          `${quoteForLog(filePath)} by hand with a valid "name".`,
       );
       continue;
     }
@@ -87,6 +91,19 @@ export async function ensureAntigravityPluginManifests({
           `which \`agy plugin validate --strict\` and the Marketplace reject, so ` +
           `${quoteForLog(filePath)} names the plugin ${quoteForLog(name)}.`,
       );
+    }
+
+    const previousRoot = writtenNames.get(name);
+    if (previousRoot !== undefined) {
+      warnOnceWithFallback(
+        logger,
+        `The Antigravity plugin manifests ${quoteForLog(filePath)} and ` +
+          `${quoteForLog(join(previousRoot, ANTIGRAVITY_PLUGIN_MANIFEST_FILE_NAME))} both name the ` +
+          `plugin ${quoteForLog(name)}, so the plugins collide in Antigravity. Rename one of the ` +
+          `directories or set a distinct "name" by hand.`,
+      );
+    } else {
+      writtenNames.set(name, outputRoot);
     }
 
     const content = addTrailingNewline(JSON.stringify({ name }, null, 2));

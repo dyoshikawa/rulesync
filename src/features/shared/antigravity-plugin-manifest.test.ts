@@ -218,8 +218,30 @@ describe("ensureAntigravityPluginManifests", () => {
       expect(result.count).toBe(0);
       expect(await fileExists(join(pluginRoot, "plugin.json"))).toBe(false);
       expect(logger.warn).toHaveBeenCalledWith(
-        expect.stringContaining("Cannot derive an Antigravity plugin name"),
+        expect.stringContaining("at least one letter or digit"),
       );
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("warns when two output roots normalize to the same plugin name", async () => {
+    const { testDir, cleanup } = await setupTestDirectory();
+    try {
+      const upperRoot = join(testDir, "a", "My_Plugin");
+      const lowerRoot = join(testDir, "b", "my-plugin");
+      await ensureDir(upperRoot);
+      await ensureDir(lowerRoot);
+      const logger = createMockLogger();
+
+      const result = await ensureAntigravityPluginManifests({
+        outputRoots: [upperRoot, lowerRoot],
+        dryRun: false,
+        logger,
+      });
+
+      expect(result.count).toBe(2);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("collide"));
     } finally {
       await cleanup();
     }

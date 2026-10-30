@@ -320,6 +320,33 @@ Missing description field.`;
         ],
       ).toBe(true);
     });
+
+    it("should let a section disable-model-invocation: false override the root true", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "manual",
+        frontmatter: {
+          name: "manual",
+          description: "Manual skill",
+          targets: ["*"],
+          "disable-model-invocation": true,
+          "antigravity-ide": { "disable-model-invocation": false },
+        },
+        body: "Body",
+        validate: true,
+      });
+
+      expect(
+        AntigravityIdeSkill.fromRulesyncSkill({ rulesyncSkill }).getFrontmatter()[
+          "disable-model-invocation"
+        ],
+      ).toBe(false);
+      expect(
+        AntigravityPluginSkill.fromRulesyncSkill({ rulesyncSkill }).getFrontmatter()[
+          "disable-model-invocation"
+        ],
+      ).toBe(false);
+    });
   });
 
   describe("isTargetedByRulesyncSkill", () => {
