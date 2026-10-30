@@ -275,12 +275,6 @@ async function readKimiCodeConfig({
 }
 
 /**
- * Read the `[mcp]` defaults back out of the shared user `config.toml` so a
- * generate → import round trip keeps them. Absent or unparseable content yields
- * no defaults rather than failing the import: this file belongs to three
- * features plus the user.
- */
-/**
  * Kimi's reconnect delays are millisecond counts, so only a non-negative safe
  * integer is passed through. Anything else (a negative, a fraction, a string)
  * is dropped with a warning rather than written into, or lifted out of, the
@@ -308,6 +302,12 @@ function toKimiCodeReconnectDelay({
   return undefined;
 }
 
+/**
+ * Read the `[mcp]` defaults back out of the shared user `config.toml` so a
+ * generate → import round trip keeps them. Absent or unparseable content yields
+ * no defaults rather than failing the import: this file belongs to three
+ * features plus the user.
+ */
 async function readKimiCodeMcpDefaults({
   outputRoot,
   logger,
