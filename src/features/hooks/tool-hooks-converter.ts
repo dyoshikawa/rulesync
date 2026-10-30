@@ -43,13 +43,20 @@ export type ToolHooksConverterConfig = {
   supportedHookTypes?: ReadonlySet<HookType>;
   /**
    * Tool-side spellings of the canonical hook `type` values, for a tool that
-   * names a handler type differently (e.g. Bob's `https` for the canonical
-   * `http`). A type without an entry is emitted under its canonical name. On
-   * import the mapping is applied in reverse, and the tool spelling of one
-   * canonical type shadows a same-named canonical type: Bob has no `http`
-   * handler, so an `http` in its file is not one either.
+   * names a handler type differently (e.g. `https` for the canonical `http`).
+   * A type without an entry is emitted under its canonical name. On import
+   * the mapping is applied in reverse, and the tool spelling of one canonical
+   * type shadows a same-named canonical type: a tool that calls its webhook
+   * `https` has no `http` handler, so an `http` in its file is not one either.
    */
   hookTypeNames?: Readonly<Partial<Record<HookType, string>>>;
+  /**
+   * Extra tool-side `type` spellings accepted on import only, each mapped to
+   * the canonical hook type it denotes (e.g. Bob's former `https` for the
+   * canonical `http`). Generation never emits them, so a file written under an
+   * older spelling still imports without losing its payload.
+   */
+  importedHookTypeAliases?: Readonly<Record<string, HookType>>;
   passthroughFields?: ReadonlyArray<"name" | "description">;
   /**
    * Per-hook boolean fields to carry through the round-trip, each mapping a
@@ -1467,6 +1474,11 @@ function resolveImportedHookType({
   value: unknown;
   converterConfig: ToolHooksConverterConfig;
 }): HookType {
+  const aliases = converterConfig.importedHookTypeAliases;
+  if (aliases !== undefined && typeof value === "string") {
+    const aliased = lookupOwn({ record: aliases, key: value });
+    if (aliased !== undefined) return aliased;
+  }
   const names = converterConfig.hookTypeNames;
   if (names !== undefined && typeof value === "string") {
     for (const [canonical, tool] of Object.entries(names)) {

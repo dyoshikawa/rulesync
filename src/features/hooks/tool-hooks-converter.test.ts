@@ -908,6 +908,41 @@ describe("hookTypeNames (a tool spelling of a canonical hook type, #3074)", () =
   });
 });
 
+describe("importedHookTypeAliases (import-only tool spellings, #3074)", () => {
+  const ALIAS_CONFIG: ToolHooksConverterConfig = {
+    ...BASE_CONFIG,
+    supportedHookTypes: new Set(["command", "http"]),
+    importedHookTypeAliases: { https: "http" },
+  };
+
+  it("imports an aliased spelling as the canonical type with its payload", () => {
+    const { definition } = importHook({
+      hook: { type: "https", url: "https://example.com/hook", timeout: 3 },
+      converterConfig: ALIAS_CONFIG,
+    });
+
+    expect(definition).toEqual({ type: "http", url: "https://example.com/hook", timeout: 3 });
+  });
+
+  it("still imports the canonical spelling", () => {
+    const { definition } = importHook({
+      hook: { type: "http", url: "https://example.com/hook" },
+      converterConfig: ALIAS_CONFIG,
+    });
+
+    expect(definition).toEqual({ type: "http", url: "https://example.com/hook" });
+  });
+
+  it("never emits the alias", () => {
+    const { hook } = emitHook({
+      definition: { type: "http", url: "https://example.com/hook" },
+      converterConfig: ALIAS_CONFIG,
+    });
+
+    expect(hook).toEqual({ type: "http", url: "https://example.com/hook" });
+  });
+});
+
 describe("booleanPassthroughFields events restriction", () => {
   const configWithEvents = (events: ReadonlySet<string>): ToolHooksConverterConfig => ({
     ...BASE_CONFIG,
