@@ -830,9 +830,8 @@ describe("installGh", () => {
           throw makeNotFound();
         },
       );
-      mockClientInstance.getFileInfo.mockImplementation(
-        async (_o: string, _r: string, p: string) =>
-          p === "skills/s/SKILL.md" ? { name: "SKILL.md", path: p, type: "file", size: 10 } : null,
+      mockClientInstance.getFileInfo.mockImplementation(async (_o: string, _r: string, p: string) =>
+        p === "skills/s/SKILL.md" ? { name: "SKILL.md", path: p, type: "file", size: 10 } : null,
       );
       mockClientInstance.getFileContent.mockResolvedValue("planted\n");
       const gitConfig = join(testDir, ".git", "config");
@@ -890,9 +889,8 @@ describe("installGh", () => {
           throw makeNotFound();
         },
       );
-      mockClientInstance.getFileInfo.mockImplementation(
-        async (_o: string, _r: string, p: string) =>
-          p === "skills/s/SKILL.md" ? { name: "SKILL.md", path: p, type: "file", size: 10 } : null,
+      mockClientInstance.getFileInfo.mockImplementation(async (_o: string, _r: string, p: string) =>
+        p === "skills/s/SKILL.md" ? { name: "SKILL.md", path: p, type: "file", size: 10 } : null,
       );
       mockClientInstance.getFileContent.mockImplementation(
         async (_o: string, _r: string, p: string) => `content of ${p}\n`,
