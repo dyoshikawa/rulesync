@@ -12,26 +12,21 @@ import { SettingsJsonHooks, type SettingsJsonHooksSpec } from "./settings-json-h
 import type { ToolHooksConverterConfig } from "./tool-hooks-converter.js";
 import type { ToolHooksSettablePaths } from "./tool-hooks.js";
 
-// Bob honours `matcher` (a regex over the tool name) only on the two tool
-// events; SessionStart / UserPromptSubmit / PreCompact / PostCompact / Stop
-// carry none.
+// Bob honours `matcher` (a regex) on PreToolUse / PostToolUse (tool name),
+// SessionStart (`source`: startup | resume | compact) and PreCompact /
+// PostCompact (`trigger`: manual | auto); UserPromptSubmit and Stop ignore it.
 // https://bob.ibm.com/docs/shell/configuration/lifecycle-hooks
-const BOB_NO_MATCHER_EVENTS: ReadonlySet<string> = new Set([
-  "sessionStart",
-  "beforeSubmitPrompt",
-  "preCompact",
-  "postCompact",
-  "stop",
-]);
+// https://bob.ibm.com/docs/ide/configuration/lifecycle-hooks
+const BOB_NO_MATCHER_EVENTS: ReadonlySet<string> = new Set(["beforeSubmitPrompt", "stop"]);
 
 // `projectDirVar` is empty: Bob documents no inline project-directory
 // substitution for hook commands, so commands are emitted verbatim.
-// `wildcardMatcherMeansAll`: Bob compiles `matcher` as a regex over the tool
-// name and treats an omitted matcher as match-all, so the canonical catch-all
-// `"*"` (not a valid regex) is emitted as no matcher instead of verbatim.
-// `hookTypeNames`: Bob Shell 2.0.3 spells the webhook handler `https` (its
-// `url` + `timeout` payload is the canonical `http` hook's), so the canonical
-// type is renamed on generate and back on import.
+// `wildcardMatcherMeansAll`: Bob compiles `matcher` as a regex and treats an
+// omitted matcher as match-all, so the canonical catch-all `"*"` (not a valid
+// regex) is emitted as no matcher instead of verbatim.
+// `importedHookTypeAliases`: Bob's webhook handler is `type: "http"` (both
+// lifecycle-hooks pages); Bob Shell 2.0.3 documented it as `https`, which
+// earlier rulesync releases wrote, so that spelling still imports as `http`.
 const BOB_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   supportedEvents: BOB_HOOK_EVENTS,
   canonicalToToolEventNames: CANONICAL_TO_BOB_EVENT_NAMES,
@@ -39,7 +34,7 @@ const BOB_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   projectDirVar: "",
   noMatcherEvents: BOB_NO_MATCHER_EVENTS,
   supportedHookTypes: new Set(["command", "http"]),
-  hookTypeNames: { http: "https" },
+  importedHookTypeAliases: { https: "http" },
   wildcardMatcherMeansAll: true,
 };
 
@@ -57,7 +52,7 @@ const BOB_SPEC: SettingsJsonHooksSpec = {
  * `~/.bob/settings/settings.json` (user scope) — in the Claude-Code shape:
  * `{ "<Event>": [{ "matcher"?: "<regex>", "hooks": [{ "type": "command",
  * "command": "...", "timeout"?: <seconds> }] }] }`, where a handler may
- * instead be `{ "type": "https", "url": "...", "timeout"?: <seconds> }`. The
+ * instead be `{ "type": "http", "url": "https://...", "timeout"?: <seconds> }`. The
  * file also holds settings rulesync does not own, so generation merges the
  * `hooks` key into it (see `SHARED_CONFIG_OWNERSHIP`) instead of overwriting
  * the file.
