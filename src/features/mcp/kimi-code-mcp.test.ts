@@ -61,6 +61,22 @@ describe("KimiCodeMcp global config defaults", () => {
       expect(files[0]!.getFileContent()).not.toContain("timeout_ms");
     });
 
+    it("should emit the reconnect delays when they are authored", async () => {
+      const files = await KimiCodeMcp.getAuxiliaryFiles({
+        outputRoot: testDir,
+        global: true,
+        rulesyncMcp: rulesyncMcp({
+          mcpServers: {},
+          "kimi-code": { reconnectInitialDelayMs: 2000, reconnectMaxDelayMs: 60000 },
+        }),
+      });
+
+      expect(files).toHaveLength(1);
+      expect(files[0]!.getFileContent()).toContain("reconnect_initial_delay_ms = 2000");
+      expect(files[0]!.getFileContent()).toContain("reconnect_max_delay_ms = 60000");
+      expect(files[0]!.getFileContent()).not.toContain("timeout_ms");
+    });
+
     it("should emit nothing at project scope, where config.toml has no counterpart", async () => {
       expect(
         await KimiCodeMcp.getAuxiliaryFiles({
@@ -85,6 +101,10 @@ describe("KimiCodeMcp global config defaults", () => {
       {
         name: "a non-boolean defaultDeferred",
         json: { mcpServers: {}, "kimi-code": { defaultDeferred: "true" } },
+      },
+      {
+        name: "non-numeric reconnect delays",
+        json: { mcpServers: {}, "kimi-code": { reconnectMaxDelayMs: "60000" } },
       },
     ])("should emit nothing for $name", async ({ json }) => {
       expect(
@@ -126,7 +146,7 @@ describe("KimiCodeMcp global config defaults", () => {
       // partial override must not delete anything else in the section.
       await writeFileContent(
         join(testDir, ...CONFIG_PATH),
-        'my_unmanaged = "keep"\n\n[mcp]\nstartup_timeout_ms = 1000\ntool_timeout_ms = 2000\ndefault_deferred = true\nsome_future_key = "x"\n',
+        'my_unmanaged = "keep"\n\n[mcp]\nstartup_timeout_ms = 1000\ntool_timeout_ms = 2000\ndefault_deferred = true\nreconnect_max_delay_ms = 60000\nsome_future_key = "x"\n',
       );
 
       const file = await emit({ defaults: { startupTimeoutMs: 45000 }, outputRoot: testDir });
@@ -134,6 +154,7 @@ describe("KimiCodeMcp global config defaults", () => {
       expect(file!.getFileContent()).toContain("startup_timeout_ms = 45000");
       expect(file!.getFileContent()).toContain("tool_timeout_ms = 2000");
       expect(file!.getFileContent()).toContain("default_deferred = true");
+      expect(file!.getFileContent()).toContain("reconnect_max_delay_ms = 60000");
       expect(file!.getFileContent()).toContain('some_future_key = "x"');
       expect(file!.getFileContent()).toContain('my_unmanaged = "keep"');
     });
@@ -319,7 +340,7 @@ describe("KimiCodeMcp global config defaults", () => {
     it("should read the defaults back for the round trip", async () => {
       await writeFileContent(
         join(testDir, ...CONFIG_PATH),
-        "[mcp]\nstartup_timeout_ms = 45000\ntool_timeout_ms = 90000\ndefault_deferred = true\n",
+        "[mcp]\nstartup_timeout_ms = 45000\ntool_timeout_ms = 90000\ndefault_deferred = true\nreconnect_initial_delay_ms = 2000\nreconnect_max_delay_ms = 60000\n",
       );
       await writeFileContent(join(testDir, ".kimi-code", "mcp.json"), '{"mcpServers":{}}');
 
@@ -331,6 +352,8 @@ describe("KimiCodeMcp global config defaults", () => {
         startupTimeoutMs: 45000,
         toolTimeoutMs: 90000,
         defaultDeferred: true,
+        reconnectInitialDelayMs: 2000,
+        reconnectMaxDelayMs: 60000,
       });
     });
 
@@ -339,6 +362,10 @@ describe("KimiCodeMcp global config defaults", () => {
       { name: "unparseable TOML", content: "this is not = = toml" },
       { name: "a non-table mcp key", content: 'mcp = "nope"\n' },
       { name: "a non-boolean default_deferred", content: '[mcp]\ndefault_deferred = "yes"\n' },
+      {
+        name: "a non-numeric reconnect delay",
+        content: '[mcp]\nreconnect_initial_delay_ms = "5000"\n',
+      },
     ])("should import without defaults for $name", async ({ content }) => {
       if (content !== undefined) {
         await writeFileContent(join(testDir, ...CONFIG_PATH), content);

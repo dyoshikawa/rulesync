@@ -219,6 +219,16 @@ export type KimiCodeMcpDefaults = {
    * @see https://moonshotai.github.io/kimi-code/en/customization/mcp.html
    */
   defaultDeferred?: boolean;
+  /**
+   * `[mcp] reconnect_initial_delay_ms` / `reconnect_max_delay_ms` (Kimi Code
+   * 2.4.0): the first delay and the cap of the exponential backoff with which
+   * Kimi automatically reconnects a workspace-level MCP server that failed to
+   * connect or dropped unexpectedly. Kimi's defaults are 5000 and 300000.
+   * @see https://github.com/MoonshotAI/kimi-code/pull/4283
+   * @see https://moonshotai.github.io/kimi-code/en/configuration/config-files.html#mcp
+   */
+  reconnectInitialDelayMs?: number;
+  reconnectMaxDelayMs?: number;
 };
 
 type KimiCodeMcpExtraParams = {
@@ -289,13 +299,19 @@ async function readKimiCodeMcpDefaults({
     ...(typeof config.mcp.default_deferred === "boolean" && {
       defaultDeferred: config.mcp.default_deferred,
     }),
+    ...(typeof config.mcp.reconnect_initial_delay_ms === "number" && {
+      reconnectInitialDelayMs: config.mcp.reconnect_initial_delay_ms,
+    }),
+    ...(typeof config.mcp.reconnect_max_delay_ms === "number" && {
+      reconnectMaxDelayMs: config.mcp.reconnect_max_delay_ms,
+    }),
   };
 }
 
 /**
  * Kimi's `[mcp]` section in the shared user config sets the default connect and
- * per-tool-call timeouts, and whether tools load on demand, for *every* MCP
- * server, including ones rulesync did not write. Per-server values in
+ * per-tool-call timeouts, whether tools load on demand, and the automatic
+ * reconnect backoff for *every* MCP server, including ones rulesync did not write. Per-server values in
  * `mcp.json` still take precedence; this only moves the default.
  *
  * Written as an auxiliary file so it goes through the normal write phase and
@@ -349,6 +365,12 @@ export class KimiCodeMcpConfigToml extends ToolFile {
           }),
           ...(defaults.defaultDeferred !== undefined && {
             default_deferred: defaults.defaultDeferred,
+          }),
+          ...(defaults.reconnectInitialDelayMs !== undefined && {
+            reconnect_initial_delay_ms: defaults.reconnectInitialDelayMs,
+          }),
+          ...(defaults.reconnectMaxDelayMs !== undefined && {
+            reconnect_max_delay_ms: defaults.reconnectMaxDelayMs,
           }),
         },
       },
@@ -502,10 +524,16 @@ export class KimiCodeMcp extends ToolMcp {
     const toolTimeoutMs = typeof block.toolTimeoutMs === "number" ? block.toolTimeoutMs : undefined;
     const defaultDeferred =
       typeof block.defaultDeferred === "boolean" ? block.defaultDeferred : undefined;
+    const reconnectInitialDelayMs =
+      typeof block.reconnectInitialDelayMs === "number" ? block.reconnectInitialDelayMs : undefined;
+    const reconnectMaxDelayMs =
+      typeof block.reconnectMaxDelayMs === "number" ? block.reconnectMaxDelayMs : undefined;
     if (
       startupTimeoutMs === undefined &&
       toolTimeoutMs === undefined &&
-      defaultDeferred === undefined
+      defaultDeferred === undefined &&
+      reconnectInitialDelayMs === undefined &&
+      reconnectMaxDelayMs === undefined
     ) {
       return [];
     }
@@ -525,7 +553,13 @@ export class KimiCodeMcp extends ToolMcp {
     return [
       KimiCodeMcpConfigToml.fromDefaults({
         outputRoot,
-        defaults: { startupTimeoutMs, toolTimeoutMs, defaultDeferred },
+        defaults: {
+          startupTimeoutMs,
+          toolTimeoutMs,
+          defaultDeferred,
+          reconnectInitialDelayMs,
+          reconnectMaxDelayMs,
+        },
         existing,
       }),
     ];
