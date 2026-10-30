@@ -418,6 +418,38 @@ describe("RulesyncMcp", () => {
       expect(result.error).toBeNull();
     });
 
+    it("should accept non-negative integer Kimi Code reconnect delays", () => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: basename(RULESYNC_MCP_RELATIVE_FILE_PATH),
+        fileContent: JSON.stringify({
+          mcpServers: {},
+          "kimi-code": { reconnectInitialDelayMs: 0, reconnectMaxDelayMs: 300000 },
+        }),
+        validate: false,
+      });
+
+      expect(rulesyncMcp.validate()).toEqual({ success: true, error: null });
+    });
+
+    it.each([
+      { name: "a negative", value: -1 },
+      { name: "a fractional", value: 1.5 },
+      { name: "a string", value: "5000" },
+    ])("should reject $name Kimi Code reconnect delay", ({ value }) => {
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: basename(RULESYNC_MCP_RELATIVE_FILE_PATH),
+        fileContent: JSON.stringify({
+          mcpServers: {},
+          "kimi-code": { reconnectMaxDelayMs: value },
+        }),
+        validate: false,
+      });
+
+      expect(rulesyncMcp.validate().success).toBe(false);
+    });
+
     it("should validate an AI Assistant tool-scoped block", () => {
       const rulesyncMcp = makeInstance({
         mcpServers: { shared: { command: "node" } },
