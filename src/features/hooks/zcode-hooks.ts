@@ -127,6 +127,22 @@ export const ZCODE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
     { canonical: "statusMessage", tool: "statusMessage" },
     { canonical: "shell", tool: "shell", commandOnly: true },
   ],
+  // ZCode 3.17.1+ spells the canonical `failClosed` as a per-hook
+  // `onError: "allow" | "deny"`. Only `"deny"` changes behavior: a failed
+  // (not cancelled) PreToolUse hook then blocks the tool call. `"allow"` is the
+  // default, so `false` is omitted; on any other event, and on a background
+  // `async` hook, ZCode never consults the field, so a `true` there is dropped
+  // with a warning.
+  keywordPassthroughFields: [
+    {
+      canonical: "failClosed",
+      tool: "onError",
+      trueValue: "deny",
+      falseValue: "allow",
+      events: new Set(["preToolUse"]),
+      ignoredWhenFlags: ["async"],
+    },
+  ],
   // A `*` matcher is an explicit match-all in ZCode, equivalent to an omitted
   // matcher, so a canonical `*` exports as no matcher.
   wildcardMatcherMeansAll: true,
