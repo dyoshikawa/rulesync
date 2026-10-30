@@ -59,7 +59,10 @@ function createFakeRuntime(resultFor: (command: string) => ShellResult) {
     tool: domain("tool"),
     session: domain("session"),
     event: {
-      subscribe: ({ signal }: { signal: AbortSignal }) => ({
+      // Delivers every emitted event regardless of `types`, like an older
+      // OpenCode 2.x that ignores the option.
+      subscribe: ({ signal, types }: { signal: AbortSignal; types?: string[] }) => ({
+        types,
         async *[Symbol.asyncIterator]() {
           while (!signal.aborted) {
             const next = pendingEvents.shift();
@@ -85,10 +88,18 @@ function createFakeRuntime(resultFor: (command: string) => ShellResult) {
     },
   };
 
+  const subscribe = ctx.event.subscribe;
+  const subscribedTypes: Array<string[] | undefined> = [];
+  ctx.event.subscribe = (options) => {
+    subscribedTypes.push(options.types);
+    return subscribe(options);
+  };
+
   return {
     ctx,
     bun,
     commands,
+    subscribedTypes,
     hooks,
     emit: async (event: Record<string, unknown>) => {
       pendingEvents.push(event);
@@ -214,7 +225,14 @@ describe("OpencodeHooks (OpenCode V2)", () => {
       ]) {
         expect(content).toContain(`(event.type === "${eventType}")`);
       }
-      expect(content).toContain("ctx.event.subscribe({ signal: __rulesyncEvents.signal })");
+      expect(content).toContain(
+        [
+          "for await (const event of ctx.event.subscribe({",
+          '        types: ["session.created", "session.deleted", "session.compaction.ended", "session.execution.succeeded", "session.execution.failed", "permission.asked", "permission.replied"],',
+          "        signal: __rulesyncEvents.signal,",
+          "      })) {",
+        ].join("\n"),
+      );
       expect(content).toContain("__rulesyncEvents.abort();");
       execFileSync("node", ["--input-type=module", "--check"], {
         input: content,
@@ -464,6 +482,9 @@ describe("OpencodeHooks (OpenCode V2)", () => {
       vi.stubGlobal("Bun", runtime.bun);
       const plugin = await loadPlugin(content, "events");
       const dispose = await plugin.setup(runtime.ctx);
+      expect(runtime.subscribedTypes).toEqual([
+        ["session.created", "session.execution.succeeded", "permission.replied"],
+      ]);
 
       await runtime.emit({ type: "session.created", data: {} });
       await runtime.emit({
