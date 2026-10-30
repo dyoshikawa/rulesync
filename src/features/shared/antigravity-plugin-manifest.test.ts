@@ -246,4 +246,50 @@ describe("ensureAntigravityPluginManifests", () => {
       await cleanup();
     }
   });
+
+  it("warns when a derived name collides with an existing manifest's name", async () => {
+    const { testDir, cleanup } = await setupTestDirectory();
+    try {
+      const existingRoot = join(testDir, "hand-written");
+      const derivedRoot = join(testDir, "review-tools");
+      const existing = '{ "name": "review-tools" }';
+      await writeFileContent(join(existingRoot, ".antigravity-plugin", "plugin.json"), existing);
+      await ensureDir(derivedRoot);
+      const logger = createMockLogger();
+
+      const result = await ensureAntigravityPluginManifests({
+        outputRoots: [existingRoot, derivedRoot],
+        dryRun: false,
+        logger,
+      });
+
+      expect(result.count).toBe(1);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("collide"));
+      expect(await readFileContent(join(existingRoot, ".antigravity-plugin", "plugin.json"))).toBe(
+        existing,
+      );
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("does not warn for an existing manifest that cannot be parsed", async () => {
+    const { testDir, cleanup } = await setupTestDirectory();
+    try {
+      const existingRoot = join(testDir, "broken");
+      await writeFileContent(join(existingRoot, "plugin.json"), "{ not json");
+      const logger = createMockLogger();
+
+      const result = await ensureAntigravityPluginManifests({
+        outputRoots: [existingRoot],
+        dryRun: false,
+        logger,
+      });
+
+      expect(result.count).toBe(0);
+      expect(logger.warn).not.toHaveBeenCalled();
+    } finally {
+      await cleanup();
+    }
+  });
 });

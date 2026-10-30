@@ -6,10 +6,16 @@ import {
 } from "../../constants/plugin-paths.js";
 import { refusesWriteOutsideRoot } from "../../types/feature-processor.js";
 import { quoteForLog, stripControlCharacters } from "../../utils/control-characters.js";
-import { addTrailingNewline, fileExists, writeFileContent } from "../../utils/file.js";
+import {
+  addTrailingNewline,
+  fileExists,
+  readFileContent,
+  writeFileContent,
+} from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { warnOnceWithFallback } from "../../utils/logger.js";
 import type { FeatureGenerateResult } from "../../utils/result.js";
+import { isRecord } from "../../utils/type-guards.js";
 
 // The `name` pattern from Antigravity's hosted plugin manifest schema, which the
 // loader still applies.
@@ -42,7 +48,8 @@ function toStrictAntigravityPluginName(name: string): string {
  * name and normalized to the lowercase kebab-case form `agy plugin validate
  * --strict` and the Marketplace require; the other manifest fields (such as
  * `description`, `version` or `author`) have no rulesync source. An existing
- * manifest is never read or rewritten: it may carry hand-authored fields. A
+ * manifest is never rewritten: it may carry hand-authored fields. Its `name` is
+ * read only to report a collision with another output root's name. A
  * manifest kept in one of the manifest folders counts as present too, so no
  * root stub is written next to it.
  */
@@ -56,13 +63,32 @@ export async function ensureAntigravityPluginManifests({
   logger: Logger;
 }): Promise<FeatureGenerateResult> {
   const paths: string[] = [];
-  // Output root of each name written in this run, so two roots that normalize
-  // to the same name (`My_Plugin` and `my-plugin`) are reported.
-  const writtenNames = new Map<string, string>();
+  // Manifest path of each plugin name seen in this run (written or already on
+  // disk), so two roots with the same name (`My_Plugin` and `my-plugin`, or a
+  // hand-written `name` matching a derived one) are reported.
+  const seenNames = new Map<string, string>();
+  const noteName = (name: string, manifestPath: string): void => {
+    const previousPath = seenNames.get(name);
+    if (previousPath === undefined) {
+      seenNames.set(name, manifestPath);
+      return;
+    }
+    warnOnceWithFallback(
+      logger,
+      `The Antigravity plugin manifests ${quoteForLog(manifestPath)} and ` +
+        `${quoteForLog(previousPath)} both name the plugin ${quoteForLog(name)}, so the plugins ` +
+        `collide in Antigravity. Rename one of the directories or set a distinct "name" by hand.`,
+    );
+  };
 
   for (const outputRoot of outputRoots) {
     const filePath = join(outputRoot, ANTIGRAVITY_PLUGIN_MANIFEST_FILE_NAME);
-    if (await hasAntigravityPluginManifest(outputRoot)) {
+    const existingManifestPath = await findAntigravityPluginManifest(outputRoot);
+    if (existingManifestPath !== undefined) {
+      const existingName = await readManifestName(existingManifestPath);
+      if (existingName !== undefined) {
+        noteName(existingName, existingManifestPath);
+      }
       continue;
     }
     if (await refusesWriteOutsideRoot({ logger, rootPath: outputRoot, targetPath: filePath })) {
@@ -93,18 +119,7 @@ export async function ensureAntigravityPluginManifests({
       );
     }
 
-    const previousRoot = writtenNames.get(name);
-    if (previousRoot !== undefined) {
-      warnOnceWithFallback(
-        logger,
-        `The Antigravity plugin manifests ${quoteForLog(filePath)} and ` +
-          `${quoteForLog(join(previousRoot, ANTIGRAVITY_PLUGIN_MANIFEST_FILE_NAME))} both name the ` +
-          `plugin ${quoteForLog(name)}, so the plugins collide in Antigravity. Rename one of the ` +
-          `directories or set a distinct "name" by hand.`,
-      );
-    } else {
-      writtenNames.set(name, outputRoot);
-    }
+    noteName(name, filePath);
 
     const content = addTrailingNewline(JSON.stringify({ name }, null, 2));
     if (dryRun) {
@@ -120,7 +135,7 @@ export async function ensureAntigravityPluginManifests({
   return { count: paths.length, paths, hasDiff: paths.length > 0, sourceLoadFailed: false };
 }
 
-async function hasAntigravityPluginManifest(outputRoot: string): Promise<boolean> {
+async function findAntigravityPluginManifest(outputRoot: string): Promise<string | undefined> {
   const candidates = [
     join(outputRoot, ANTIGRAVITY_PLUGIN_MANIFEST_FILE_NAME),
     ...ANTIGRAVITY_PLUGIN_MANIFEST_FOLDERS.map((folder) =>
@@ -129,8 +144,18 @@ async function hasAntigravityPluginManifest(outputRoot: string): Promise<boolean
   ];
   for (const candidate of candidates) {
     if (await fileExists(candidate)) {
-      return true;
+      return candidate;
     }
   }
-  return false;
+  return undefined;
+}
+
+/** The manifest's string `name`, or `undefined` when it is unreadable or absent. */
+async function readManifestName(manifestPath: string): Promise<string | undefined> {
+  try {
+    const parsed: unknown = JSON.parse(await readFileContent(manifestPath));
+    return isRecord(parsed) && typeof parsed.name === "string" ? parsed.name : undefined;
+  } catch {
+    return undefined;
+  }
 }
