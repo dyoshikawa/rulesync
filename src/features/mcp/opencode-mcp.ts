@@ -23,6 +23,10 @@ import {
   warnOpencodeDotDirOverrides,
 } from "../opencode-config.js";
 import {
+  findOpencodeMcpToolKeyOwner,
+  opencodeMcpToolPermissionKey,
+} from "../shared/opencode-family-mcp-tool-keys.js";
+import {
   applySharedConfigPatch,
   sharedConfigFileKey,
   undefinedWhenEmpty,
@@ -214,27 +218,46 @@ function convertFromOpencodeFormat(
   tools: Record<string, boolean> | undefined,
   remoteType: "sse" | "http",
 ): McpServers {
+  const serverNames = Object.keys(opencodeMcp);
+  const orphanTools = Object.fromEntries(
+    Object.entries(tools ?? {}).filter(([key]) => !findOpencodeToolOwner({ key, serverNames })),
+  );
   return {
-    ...orphanMcpToolFiltersToRulesync(opencodeMcp, tools),
+    ...orphanMcpToolFiltersToRulesync(opencodeMcp, orphanTools),
     ...convertOpencodeServers(opencodeMcp, tools, remoteType),
   };
+}
+
+/** Recognize both OpenCode's sanitized names and keys older rulesync versions wrote. */
+function findOpencodeToolOwner({
+  key,
+  serverNames,
+}: {
+  key: string;
+  serverNames: readonly string[];
+}) {
+  return findOpencodeMcpToolKeyOwner({
+    key,
+    serverNames,
+    builtinKeys: new Set<string>(),
+    acceptRawPrefix: true,
+  });
 }
 
 /** Split the shared top-level `tools` map into this server's own two lists. */
 function splitOpencodeServerTools(
   serverName: string,
+  serverNames: readonly string[],
   tools: Record<string, boolean> | undefined,
 ): { enabledTools: string[]; disabledTools: string[] } {
   const enabledTools: string[] = [];
   const disabledTools: string[] = [];
-  const prefix = `${serverName}_`;
-
   for (const [toolName, enabled] of Object.entries(tools ?? {})) {
-    if (!toolName.startsWith(prefix)) {
+    const owner = findOpencodeToolOwner({ key: toolName, serverNames });
+    if (owner?.serverName !== serverName) {
       continue;
     }
-    const toolSuffix = toolName.slice(prefix.length);
-    (enabled ? enabledTools : disabledTools).push(toolSuffix);
+    (enabled ? enabledTools : disabledTools).push(owner.toolName);
   }
   return { enabledTools, disabledTools };
 }
@@ -251,7 +274,11 @@ function convertOpencodeServers(
         Object.entries(serverConfig).filter(([key]) => !OPENCODE_KNOWN_SERVER_KEYS.has(key)),
       );
 
-      const { enabledTools, disabledTools } = splitOpencodeServerTools(serverName, tools);
+      const { enabledTools, disabledTools } = splitOpencodeServerTools(
+        serverName,
+        Object.keys(opencodeMcp),
+        tools,
+      );
 
       if (!isOpencodeTransportServer(serverConfig)) {
         // A toggle entry names a server another config layer defines, so there
@@ -506,12 +533,12 @@ function convertToOpencodeFormat(
         // filter turning off a dangerous tool is not this entry's to take away.
         if (serverConfig.enabledTools) {
           for (const tool of serverConfig.enabledTools) {
-            tools[`${serverName}_${tool}`] = true;
+            tools[opencodeMcpToolPermissionKey(serverName, tool)] = true;
           }
         }
         if (serverConfig.disabledTools) {
           for (const tool of serverConfig.disabledTools) {
-            tools[`${serverName}_${tool}`] = false;
+            tools[opencodeMcpToolPermissionKey(serverName, tool)] = false;
           }
         }
         return converted === null ? null : ([serverName, converted] as const);
