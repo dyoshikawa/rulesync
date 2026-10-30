@@ -275,6 +275,22 @@ export type ToolHooksConverterConfig = {
    */
   wildcardMatcherMeansAll?: boolean;
   /**
+   * Rewrites the tool names inside a `matcher` for a tool whose runtime tool
+   * names differ from the canonical (Claude Code) spelling. `toTool` runs on
+   * generate, after the `wildcardMatcherMeansAll` normalization and only on
+   * events that keep their matcher, and may warn about names it cannot
+   * translate; `toCanonical` runs on import. Hooks whose matchers translate to
+   * the same tool matcher share one group.
+   */
+  matcherTranslation?: {
+    toTool: (args: {
+      matcher: string;
+      eventName: string;
+      warn: (message: string) => void;
+    }) => string;
+    toCanonical: (matcher: string) => string;
+  };
+  /**
    * The unit of the tool's per-hook `timeout` field. The canonical `timeout` is
    * seconds (docs/reference/file-formats.md), so `"milliseconds"` multiplies by
    * 1000 on generate and divides on import; the default forwards the value
@@ -349,10 +365,14 @@ function buildEffectiveHooks({
  */
 function groupDefinitionsByMatcher({
   definitions,
+  eventName,
   converterConfig,
+  warn,
 }: {
   definitions: HooksConfig["hooks"][string];
+  eventName: string;
   converterConfig: ToolHooksConverterConfig;
+  warn: (message: string) => void;
 }): Map<string, { matcher: string; defs: HooksConfig["hooks"][string] }> {
   const subdividingFields = (converterConfig.groupPassthroughFields ?? []).filter(
     ({ subdividesGroup }) => subdividesGroup,
@@ -363,7 +383,16 @@ function groupDefinitionsByMatcher({
     // Normalized here rather than at emission so a `"*"` group and an
     // already-matcher-less group collapse into one entry instead of producing
     // two indistinguishable entries for the same event.
-    const matcher = converterConfig.wildcardMatcherMeansAll && rawMatcher === "*" ? "" : rawMatcher;
+    const normalizedMatcher =
+      converterConfig.wildcardMatcherMeansAll && rawMatcher === "*" ? "" : rawMatcher;
+    // Translated before keying, so `Bash` and an override's `bash` share a
+    // group. A matcher-less event drops the matcher anyway (with its own
+    // warning), so it is not translated there.
+    const translation = converterConfig.matcherTranslation;
+    const matcher =
+      translation && normalizedMatcher && !converterConfig.noMatcherEvents?.has(eventName)
+        ? translation.toTool({ matcher: normalizedMatcher, eventName, warn })
+        : normalizedMatcher;
     const key = [
       matcher,
       // A value the tool cannot express is never emitted, so keying on it would
@@ -1349,7 +1378,12 @@ export function canonicalToToolHooks({
   for (const [eventName, definitions] of Object.entries(effectiveHooks)) {
     const toolEventName =
       lookupOwn({ record: converterConfig.canonicalToToolEventNames, key: eventName }) ?? eventName;
-    const byMatcher = groupDefinitionsByMatcher({ definitions, converterConfig });
+    const byMatcher = groupDefinitionsByMatcher({
+      definitions,
+      eventName,
+      converterConfig,
+      warn,
+    });
     const entries: unknown[] = [];
     const isNoMatcherEvent = converterConfig.noMatcherEvents?.has(eventName) ?? false;
     for (const { matcher: matcherKey, defs } of byMatcher.values()) {
@@ -1752,7 +1786,10 @@ function toolHookToCanonical({
     canonical: "description",
     warn,
   });
-  const matcher = rawEntry.matcher;
+  const matcher =
+    typeof rawEntry.matcher === "string" && converterConfig.matcherTranslation
+      ? converterConfig.matcherTranslation.toCanonical(rawEntry.matcher)
+      : rawEntry.matcher;
   return {
     type: hookType,
     ...(command !== undefined && command !== null && { command }),

@@ -9,6 +9,7 @@ import {
   CORTEXCODE_HOOK_EVENTS,
   CORTEXCODE_TO_CANONICAL_EVENT_NAMES,
 } from "../../types/hooks.js";
+import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { SettingsJsonHooks, type SettingsJsonHooksSpec } from "./settings-json-hooks.js";
 import type { ToolHooksConverterConfig } from "./tool-hooks-converter.js";
 import type { ToolHooksSettablePaths } from "./tool-hooks.js";
@@ -18,6 +19,65 @@ import type { ToolHooksSettablePaths } from "./tool-hooks.js";
 // occurrence and carry none.
 // https://docs.snowflake.com/en/user-guide/cortex-code/extensibility
 const CORTEXCODE_NO_MATCHER_EVENTS: ReadonlySet<string> = new Set(["beforeSubmitPrompt", "stop"]);
+
+// Cortex Code matches `matcher` case-sensitively against the runtime tool ID,
+// and its built-in IDs are lowercase ("`bash` matches and `Bash` doesn't"),
+// while canonical matchers use Claude Code's capitalized names. The tools page
+// documents the lowercase IDs of these six; other built-ins (WebFetch,
+// NotebookEdit, ...) have no documented ID, so they are left as written.
+// https://docs.snowflake.com/en/user-guide/cortex-code/extensibility#hooks
+// https://docs.snowflake.com/en/user-guide/cortex-code/tools
+const CANONICAL_TO_CORTEXCODE_TOOL_NAMES: Readonly<Record<string, string>> = {
+  Bash: "bash",
+  Read: "read",
+  Write: "write",
+  Edit: "edit",
+  Grep: "grep",
+  Glob: "glob",
+};
+const CORTEXCODE_TO_CANONICAL_TOOL_NAMES: Readonly<Record<string, string>> = Object.fromEntries(
+  Object.entries(CANONICAL_TO_CORTEXCODE_TOOL_NAMES).map(([canonical, tool]) => [tool, canonical]),
+);
+
+// A whole name inside the regex: not part of a longer identifier (so
+// `mcp__srv__Read` is untouched) and not an escape such as `\S`.
+const MATCHER_NAME_PATTERN = /(?<![\\\w])[A-Za-z_]\w*(?!\w)/g;
+
+function replaceMatcherNames(matcher: string, names: Readonly<Record<string, string>>): string {
+  return matcher.replace(
+    MATCHER_NAME_PATTERN,
+    (name) => (Object.hasOwn(names, name) ? names[name] : undefined) ?? name,
+  );
+}
+
+export function canonicalToCortexcodeMatcher({
+  matcher,
+  eventName,
+  warn,
+}: {
+  matcher: string;
+  eventName: string;
+  warn: (message: string) => void;
+}): string {
+  const translated = replaceMatcherNames(matcher, CANONICAL_TO_CORTEXCODE_TOOL_NAMES);
+  const unmatched = [...translated.matchAll(MATCHER_NAME_PATTERN)]
+    .map(([name]) => name)
+    .filter((name) => /^[A-Z]/.test(name));
+  if (unmatched.length > 0) {
+    warn(
+      `Cortex Code matches hook matchers case-sensitively against lowercase runtime tool names, ` +
+        `and ${[...new Set(unmatched)].map((name) => quoteValueForWarning(name)).join(", ")} in the ` +
+        `"${eventName}" matcher ${quoteValueForWarning(matcher)} has no documented Cortex Code ` +
+        `equivalent, so it is written as-is and will likely never match. Use the Cortex Code ` +
+        `tool name under the "cortexcode.hooks" override instead.`,
+    );
+  }
+  return translated;
+}
+
+export function cortexcodeToCanonicalMatcher(matcher: string): string {
+  return replaceMatcherNames(matcher, CORTEXCODE_TO_CANONICAL_TOOL_NAMES);
+}
 
 // `$CORTEX_PROJECT_DIR` is the documented project-root variable for hook
 // commands, so dot-relative scripts are anchored to it the way Claude Code
@@ -42,6 +102,10 @@ const CORTEXCODE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
     { canonical: "statusMessage", tool: "statusMessage", commandOnly: true },
   ],
   objectPassthroughFields: [{ canonical: "source", tool: "source", commandOnly: true }],
+  matcherTranslation: {
+    toTool: canonicalToCortexcodeMatcher,
+    toCanonical: cortexcodeToCanonicalMatcher,
+  },
 };
 
 const CORTEXCODE_SPEC: SettingsJsonHooksSpec = {

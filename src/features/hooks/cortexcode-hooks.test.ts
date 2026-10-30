@@ -232,6 +232,70 @@ describe("CortexcodeHooks", () => {
       ]);
     });
 
+    it("should translate canonical tool names in matchers to Cortex Code's lowercase names", async () => {
+      const rulesyncHooks = buildRulesyncHooks(testDir, {
+        version: 1,
+        hooks: {
+          preToolUse: [
+            { command: "shell.sh", matcher: "Bash" },
+            { command: "edits.sh", matcher: "Write|Edit" },
+            { command: "search.sh", matcher: "^(Read|Grep|Glob)$" },
+            { command: "mcp.sh", matcher: "mcp__srv__Read" },
+            { command: "lower.sh", matcher: "bash" },
+          ],
+        },
+      });
+
+      const logger = createMockLogger();
+      const warnSpy = vi.spyOn(logger, "warn");
+      const hooks = await CortexcodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+        logger,
+      });
+
+      const parsed = JSON.parse(hooks.getFileContent());
+      const groups = parsed.hooks.PreToolUse as Array<{
+        matcher?: string;
+        hooks: Array<{ command: string }>;
+      }>;
+      expect(groups.map((g) => g.matcher)).toEqual([
+        "bash",
+        "write|edit",
+        "^(read|grep|glob)$",
+        "mcp__srv__Read",
+      ]);
+      // `Bash` and `bash` translate to the same matcher, so they share a group.
+      expect(groups[0]?.hooks.map((h) => h.command)).toEqual(["shell.sh", "lower.sh"]);
+      expect(warnSpy).not.toHaveBeenCalled();
+    });
+
+    it("should warn about capitalized tool names with no Cortex Code equivalent", async () => {
+      const rulesyncHooks = buildRulesyncHooks(testDir, {
+        version: 1,
+        hooks: {
+          preToolUse: [{ command: "web.sh", matcher: "Bash|WebFetch|\\S+" }],
+        },
+      });
+
+      const logger = createMockLogger();
+      const warnSpy = vi.spyOn(logger, "warn");
+      const hooks = await CortexcodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+        logger,
+      });
+
+      const parsed = JSON.parse(hooks.getFileContent());
+      expect(parsed.hooks.PreToolUse[0].matcher).toBe("bash|WebFetch|\\S+");
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('"WebFetch" in the "preToolUse"'),
+      );
+    });
+
     it("should anchor dot-relative commands to $CORTEX_PROJECT_DIR", async () => {
       const rulesyncHooks = buildRulesyncHooks(testDir, {
         version: 1,
@@ -462,7 +526,7 @@ describe("CortexcodeHooks", () => {
       expect(json.hooks.sessionStart?.[0]?.command).toBe("session-start.sh");
       expect(json.hooks.preToolUse?.[0]).toMatchObject({
         command: "pre.sh",
-        matcher: "bash",
+        matcher: "Bash",
         timeout: 10,
         enabled: true,
         statusMessage: "Checking",
@@ -522,6 +586,31 @@ describe("CortexcodeHooks", () => {
       );
     });
 
+    it("should map Cortex Code's lowercase tool names in matchers back to canonical names", () => {
+      const hooks = new CortexcodeHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".cortex",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          hooks: {
+            PreToolUse: [
+              { matcher: "edit|write", hooks: [{ type: "command", command: "a.sh" }] },
+              { matcher: "mcp__.*", hooks: [{ type: "command", command: "b.sh" }] },
+              { matcher: "sql_execute", hooks: [{ type: "command", command: "c.sh" }] },
+            ],
+          },
+        }),
+        validate: false,
+      });
+
+      const json = hooks.toRulesyncHooks().getJson();
+      expect(json.hooks.preToolUse?.map((def) => def.matcher)).toEqual([
+        "Edit|Write",
+        "mcp__.*",
+        "sql_execute",
+      ]);
+    });
+
     it("should tolerate a settings file without a hooks key", () => {
       const hooks = new CortexcodeHooks({
         outputRoot: testDir,
@@ -551,8 +640,8 @@ describe("CortexcodeHooks", () => {
         version: 1,
         hooks: {
           preToolUse: [
-            { type: "command", command: "pre.sh", matcher: "edit|write", timeout: 5 },
-            { type: "prompt", prompt: "Safe?", matcher: "bash" },
+            { type: "command", command: "pre.sh", matcher: "Edit|Write", timeout: 5 },
+            { type: "prompt", prompt: "Safe?", matcher: "Bash" },
           ],
           stop: [{ type: "command", command: "stop.sh", enabled: false }],
           sessionStart: [
@@ -574,13 +663,13 @@ describe("CortexcodeHooks", () => {
 
       expect(json.hooks.preToolUse?.[0]).toMatchObject({
         command: "pre.sh",
-        matcher: "edit|write",
+        matcher: "Edit|Write",
         timeout: 5,
       });
       expect(json.hooks.preToolUse?.[1]).toMatchObject({
         type: "prompt",
         prompt: "Safe?",
-        matcher: "bash",
+        matcher: "Bash",
       });
       expect(json.hooks.stop?.[0]).toMatchObject({ command: "stop.sh", enabled: false });
       expect(json.hooks.sessionStart?.[0]).toMatchObject({
