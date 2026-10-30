@@ -2321,6 +2321,7 @@ describe("ClaudecodePermissions", () => {
               CLAUDE_CODE_WARN_DISK_FREE_GIB: "5",
               CLAUDE_CODE_WARN_MEMORY_FREE_GIB: "2",
               CLAUDE_CODE_DISABLE_MOUNTED_DRIVE_RM_PROMPT: "1",
+              CLAUDE_CODE_EVEN_MORE_DANGEROUSLY_SKIP_PERMISSIONS: "1",
               MY_VAR: "1",
             }),
             global,
@@ -2331,7 +2332,7 @@ describe("ClaudecodePermissions", () => {
           expect(content.env).toEqual({ MY_VAR: "1" });
           expect(warnSpy).toHaveBeenCalledWith(
             expect.stringContaining(
-              "'env.CLAUDE_CODE_REMOTE', 'env.CLAUDE_CODE_PROJECT_DIR_NAME', 'env.CLAUDE_CODE_WARN_DISK_FREE_GIB', 'env.CLAUDE_CODE_WARN_MEMORY_FREE_GIB', 'env.CLAUDE_CODE_DISABLE_MOUNTED_DRIVE_RM_PROMPT' in every settings file",
+              "'env.CLAUDE_CODE_REMOTE', 'env.CLAUDE_CODE_PROJECT_DIR_NAME', 'env.CLAUDE_CODE_WARN_DISK_FREE_GIB', 'env.CLAUDE_CODE_WARN_MEMORY_FREE_GIB', 'env.CLAUDE_CODE_DISABLE_MOUNTED_DRIVE_RM_PROMPT', 'env.CLAUDE_CODE_EVEN_MORE_DANGEROUSLY_SKIP_PERMISSIONS' in every settings file",
             ),
           );
         },

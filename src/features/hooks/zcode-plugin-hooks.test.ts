@@ -65,6 +65,23 @@ describe("ZcodePluginHooks", () => {
     });
   });
 
+  it("maps failClosed to onError in both directions", async () => {
+    const pluginHooks = await ZcodePluginHooks.fromRulesyncHooks({
+      outputRoot: ".",
+      rulesyncHooks: buildRulesyncHooks({
+        preToolUse: [{ type: "command", command: "guard.sh", failClosed: true }],
+      }),
+    });
+
+    const content = JSON.parse(pluginHooks.getFileContent());
+    expect(content.hooks.PreToolUse[0].hooks).toEqual([
+      { type: "command", command: "guard.sh", onError: "deny" },
+    ]);
+    expect(buildPluginHooks(content).toRulesyncHooks().getJson().hooks).toEqual({
+      preToolUse: [{ type: "command", command: "guard.sh", failClosed: true }],
+    });
+  });
+
   it("skips process hooks on import with a warning", () => {
     const logger = createMockLogger();
 

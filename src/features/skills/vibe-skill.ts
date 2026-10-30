@@ -55,16 +55,17 @@ export type VibeSkillParams = {
 };
 
 /**
- * Skill names Vibe's built-in skills occupy. `SkillManager` treats them as
- * reserved: a project or user skill whose frontmatter `name` matches one is
- * skipped at load time with only a debug log ("Skipping skill '<name>' ...
- * because builtin skill names are reserved"), so a generated skill by that
- * name is silently never offered. That is the legacy backend, still the
- * default; the unified harness constructs the manager with
- * `include_builtins=False` because its built-ins arrive as skills of the
- * shipped `vibe` plugin under namespaced names, so it reserves nothing.
- * @see https://github.com/mistralai/mistral-vibe/blob/v2.25.3/vibe/core/skills/builtins/__init__.py
- * @see https://github.com/mistralai/mistral-vibe/blob/v2.25.3/vibe/core/skills/manager.py
+ * Skill names Vibe's built-in skills occupy. Before v3.0.4, `SkillManager`
+ * treats them as reserved: a project or user skill whose frontmatter `name`
+ * matches one is skipped at load time with only a debug log ("Skipping skill
+ * '<name>' ... because builtin skill names are reserved"), so a generated
+ * skill by that name is silently never offered. v3.0.4 removed
+ * `_reserved_builtins` and that skip ("A user skill named vibe or
+ * skill-creator is no longer silently skipped"), so the warning below is
+ * scoped to older Vibe releases.
+ * @see https://github.com/mistralai/mistral-vibe/blob/v3.0.3/vibe/core/skills/manager.py
+ * @see https://github.com/mistralai/mistral-vibe/blob/v3.0.4/vibe/core/skills/manager.py
+ * @see https://github.com/mistralai/mistral-vibe/blob/v3.0.4/CHANGELOG.md
  */
 const VIBE_RESERVED_SKILL_NAMES: ReadonlySet<string> = new Set(["vibe", "skill-creator"]);
 
@@ -111,7 +112,8 @@ function buildVibeFrontmatter(rulesyncFrontmatter: RulesyncSkillFrontmatter): Vi
 /**
  * The skill is still generated under the reserved name — the name is the
  * user's to change, and a rename here would make it diverge from the other
- * targets — but Vibe would drop it without a visible word, so say so now.
+ * targets — but Vibe before v3.0.4 would drop it without a visible word, so
+ * say so now.
  */
 function warnAboutReservedSkillName({
   name,
@@ -124,9 +126,9 @@ function warnAboutReservedSkillName({
     return;
   }
   logger?.warn(
-    `Vibe skills: the skill name ${quoteValueForWarning(name)} is reserved for a Vibe built-in ` +
-      `skill, so Vibe skips a project or user skill by that name when it loads skills. ` +
-      `Rename the skill for it to be available in Vibe.`,
+    `Vibe skills: the skill name ${quoteValueForWarning(name)} matches a Vibe built-in skill. ` +
+      `Vibe before v3.0.4 skips a project or user skill by that name when it loads skills; ` +
+      `upgrade Vibe to v3.0.4 or later, or rename the skill, for it to be available.`,
   );
 }
 
