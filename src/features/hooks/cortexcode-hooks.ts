@@ -39,14 +39,19 @@ const CORTEXCODE_TO_CANONICAL_TOOL_NAMES: Readonly<Record<string, string>> = Obj
   Object.entries(CANONICAL_TO_CORTEXCODE_TOOL_NAMES).map(([canonical, tool]) => [tool, canonical]),
 );
 
-// A whole name inside the regex: not part of a longer identifier (so
-// `mcp__srv__Read` is untouched) and not an escape such as `\S`.
-const MATCHER_NAME_PATTERN = /(?<![\\\w])[A-Za-z_]\w*(?!\w)/g;
+// Splits a matcher regex into escapes (`\S`, `\b`), character classes
+// (`[A-Z]`) and whole names. A name is not part of a longer identifier (so
+// `mcp__srv__Read` is untouched) but may follow an escape, as in `\bRead\b`.
+// Escapes and classes are matched first so their letters are never names.
+const MATCHER_TOKEN_PATTERN = /\\.|\[(?:\\.|[^\]\\])*\]|(?<=^|[^\w\\]|\\\w)[A-Za-z_]\w*(?!\w)/gs;
+
+function isMatcherName(token: string): boolean {
+  return !token.startsWith("\\") && !token.startsWith("[");
+}
 
 function replaceMatcherNames(matcher: string, names: Readonly<Record<string, string>>): string {
-  return matcher.replace(
-    MATCHER_NAME_PATTERN,
-    (name) => (Object.hasOwn(names, name) ? names[name] : undefined) ?? name,
+  return matcher.replace(MATCHER_TOKEN_PATTERN, (token) =>
+    isMatcherName(token) && Object.hasOwn(names, token) ? (names[token] ?? token) : token,
   );
 }
 
@@ -60,16 +65,16 @@ export function canonicalToCortexcodeMatcher({
   warn: (message: string) => void;
 }): string {
   const translated = replaceMatcherNames(matcher, CANONICAL_TO_CORTEXCODE_TOOL_NAMES);
-  const unmatched = [...translated.matchAll(MATCHER_NAME_PATTERN)]
-    .map(([name]) => name)
-    .filter((name) => /^[A-Z]/.test(name));
+  const unmatched = [...translated.matchAll(MATCHER_TOKEN_PATTERN)]
+    .map(([token]) => token)
+    .filter((token) => isMatcherName(token) && /^[A-Z]/.test(token));
   if (unmatched.length > 0) {
     warn(
       `Cortex Code matches hook matchers case-sensitively against lowercase runtime tool names, ` +
         `and ${[...new Set(unmatched)].map((name) => quoteValueForWarning(name)).join(", ")} in the ` +
-        `"${eventName}" matcher ${quoteValueForWarning(matcher)} has no documented Cortex Code ` +
-        `equivalent, so it is written as-is and will likely never match. Use the Cortex Code ` +
-        `tool name under the "cortexcode.hooks" override instead.`,
+        `"${eventName}" matcher ${quoteValueForWarning(matcher)} is not a tool Cortex Code ` +
+        `documents a runtime ID for, so it is written as-is and will likely never match. ` +
+        `Replace it with the lowercase name Cortex Code uses for that tool, if it has one.`,
     );
   }
   return translated;

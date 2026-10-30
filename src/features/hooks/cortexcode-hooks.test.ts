@@ -296,6 +296,63 @@ describe("CortexcodeHooks", () => {
       );
     });
 
+    it("should translate names after escapes and leave character classes alone", async () => {
+      const rulesyncHooks = buildRulesyncHooks(testDir, {
+        version: 1,
+        hooks: {
+          preToolUse: [
+            { command: "a.sh", matcher: "\\bRead\\b" },
+            { command: "b.sh", matcher: "\\AEdit" },
+            { command: "c.sh", matcher: "[A-Z]\\w*|Bash" },
+          ],
+        },
+      });
+
+      const logger = createMockLogger();
+      const warnSpy = vi.spyOn(logger, "warn");
+      const hooks = await CortexcodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+        logger,
+      });
+
+      const parsed = JSON.parse(hooks.getFileContent());
+      expect(parsed.hooks.PreToolUse.map((g: { matcher?: string }) => g.matcher)).toEqual([
+        "\\bread\\b",
+        "\\Aedit",
+        "[A-Z]\\w*|bash",
+      ]);
+      expect(warnSpy).not.toHaveBeenCalled();
+    });
+
+    it("should warn once for hooks that share an untranslatable matcher", async () => {
+      const rulesyncHooks = buildRulesyncHooks(testDir, {
+        version: 1,
+        hooks: {
+          preToolUse: [
+            { command: "a.sh", matcher: "WebFetch" },
+            { command: "b.sh", matcher: "WebFetch" },
+            { command: "c.sh", matcher: "WebFetch" },
+          ],
+        },
+      });
+
+      const logger = createMockLogger();
+      const warnSpy = vi.spyOn(logger, "warn");
+      await CortexcodeHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+        logger,
+      });
+
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("is not a tool Cortex Code documents a runtime ID for"),
+      );
+    });
+
     it("should anchor dot-relative commands to $CORTEX_PROJECT_DIR", async () => {
       const rulesyncHooks = buildRulesyncHooks(testDir, {
         version: 1,

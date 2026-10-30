@@ -378,6 +378,9 @@ function groupDefinitionsByMatcher({
     ({ subdividesGroup }) => subdividesGroup,
   );
   const byMatcher = new Map<string, { matcher: string; defs: HooksConfig["hooks"][string] }>();
+  // Translated once per distinct matcher, so hooks sharing one do not repeat
+  // its warning.
+  const translatedMatchers = new Map<string, string>();
   for (const def of definitions) {
     const rawMatcher = def.matcher ?? "";
     // Normalized here rather than at emission so a `"*"` group and an
@@ -389,10 +392,13 @@ function groupDefinitionsByMatcher({
     // group. A matcher-less event drops the matcher anyway (with its own
     // warning), so it is not translated there.
     const translation = converterConfig.matcherTranslation;
-    const matcher =
-      translation && normalizedMatcher && !converterConfig.noMatcherEvents?.has(eventName)
-        ? translation.toTool({ matcher: normalizedMatcher, eventName, warn })
-        : normalizedMatcher;
+    let matcher = normalizedMatcher;
+    if (translation && normalizedMatcher && !converterConfig.noMatcherEvents?.has(eventName)) {
+      matcher =
+        translatedMatchers.get(normalizedMatcher) ??
+        translation.toTool({ matcher: normalizedMatcher, eventName, warn });
+      translatedMatchers.set(normalizedMatcher, matcher);
+    }
     const key = [
       matcher,
       // A value the tool cannot express is never emitted, so keying on it would
