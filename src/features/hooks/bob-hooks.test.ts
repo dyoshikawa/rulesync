@@ -117,11 +117,10 @@ describe("BobHooks", () => {
       expect(parsed.hooks.Stop[0].hooks[0].timeout).toBe(30);
     });
 
-    it("should drop matchers on SessionStart, UserPromptSubmit and Stop", async () => {
+    it("should drop matchers on UserPromptSubmit and Stop", async () => {
       const rulesyncHooks = buildRulesyncHooks(testDir, {
         version: 1,
         hooks: {
-          sessionStart: [{ command: "start.sh", matcher: "startup" }],
           beforeSubmitPrompt: [{ command: "prompt.sh", matcher: "*.js" }],
           stop: [{ command: "stop.sh", matcher: "*.ts" }],
         },
@@ -137,12 +136,44 @@ describe("BobHooks", () => {
       });
 
       const parsed = JSON.parse(bobHooks.getFileContent());
-      expect(parsed.hooks.SessionStart[0].matcher).toBeUndefined();
       expect(parsed.hooks.UserPromptSubmit[0].matcher).toBeUndefined();
       expect(parsed.hooks.Stop[0].matcher).toBeUndefined();
       expect(warnSpy).toHaveBeenCalledWith(
         expect.stringContaining('matcher "*.js" on "beforeSubmitPrompt" hook will be ignored'),
       );
+    });
+
+    it("should keep matchers on SessionStart, PreCompact and PostCompact (issue #3074)", async () => {
+      const rulesyncHooks = buildRulesyncHooks(testDir, {
+        version: 1,
+        hooks: {
+          sessionStart: [{ command: "start.sh", matcher: "startup|resume" }],
+          preCompact: [{ command: "pre-compact.sh", matcher: "auto" }],
+          postCompact: [{ command: "post-compact.sh", matcher: "manual" }],
+        },
+      });
+
+      const logger = createMockLogger();
+      const warnSpy = vi.spyOn(logger, "warn");
+      const bobHooks = await BobHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks,
+        validate: false,
+        logger,
+      });
+
+      const parsed = JSON.parse(bobHooks.getFileContent());
+      expect(parsed.hooks.SessionStart[0].matcher).toBe("startup|resume");
+      expect(parsed.hooks.PreCompact[0].matcher).toBe("auto");
+      expect(parsed.hooks.PostCompact[0].matcher).toBe("manual");
+      expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining("will be ignored"));
+
+      const imported = bobHooks.toRulesyncHooks().getJson();
+      expect(imported.hooks.sessionStart).toEqual([
+        { type: "command", command: "start.sh", matcher: "startup|resume" },
+      ]);
+      expect(imported.hooks.preCompact?.[0]?.matcher).toBe("auto");
+      expect(imported.hooks.postCompact?.[0]?.matcher).toBe("manual");
     });
 
     it("should emit a canonical '*' matcher as no matcher", async () => {
@@ -200,7 +231,7 @@ describe("BobHooks", () => {
       expect(hooks[0]).toMatchObject({ type: "command", command: "pre.sh" });
     });
 
-    it("should emit a canonical http hook as Bob's https handler (issue #3074)", async () => {
+    it("should emit a canonical http hook as Bob's http handler (issue #3074)", async () => {
       const rulesyncHooks = buildRulesyncHooks(testDir, {
         version: 1,
         hooks: {
@@ -222,16 +253,16 @@ describe("BobHooks", () => {
       const parsed = JSON.parse(bobHooks.getFileContent());
       expect(parsed.hooks.PreCompact[0].matcher).toBeUndefined();
       expect(parsed.hooks.PreCompact[0].hooks[0]).toEqual({
-        type: "https",
+        type: "http",
         url: "https://api.example.com/webhooks/bob-events",
         timeout: 10,
       });
       expect(parsed.hooks.PostToolUse[0].matcher).toBe("write_to_file");
       expect(parsed.hooks.PostToolUse[0].hooks[0]).toEqual({
-        type: "https",
+        type: "http",
         url: "https://api.example.com/tool",
       });
-      expect(bobHooks.getFileContent()).not.toContain('"type": "http"');
+      expect(bobHooks.getFileContent()).not.toContain('"type": "https"');
     });
 
     it("should merge into an existing settings.json and keep unrelated keys", async () => {
@@ -388,7 +419,7 @@ describe("BobHooks", () => {
       expect((json as Record<string, unknown>).bob).toBeUndefined();
     });
 
-    it("should import Bob's https handler as a canonical http hook (issue #3074)", () => {
+    it("should import Bob's http handler, and the legacy https spelling, as a canonical http hook (issue #3074)", () => {
       const bobHooks = new BobHooks({
         outputRoot: testDir,
         relativeDirPath: ".bob",
@@ -397,7 +428,7 @@ describe("BobHooks", () => {
           hooks: {
             PostCompact: [
               {
-                hooks: [{ type: "https", url: "https://api.example.com/webhooks/bob", timeout: 5 }],
+                hooks: [{ type: "http", url: "https://api.example.com/webhooks/bob", timeout: 5 }],
               },
             ],
             PreToolUse: [

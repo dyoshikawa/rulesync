@@ -156,4 +156,140 @@ describe("ensureAntigravityPluginManifests", () => {
       await cleanup();
     }
   });
+
+  it.each([
+    { dirName: "My_Plugin", expected: "my-plugin" },
+    { dirName: "Neo4j", expected: "neo4j" },
+    { dirName: "foo__bar-", expected: "foo-bar" },
+  ])(
+    "normalizes the directory name $dirName to the kebab-case name $expected and warns",
+    async ({ dirName, expected }) => {
+      const { testDir, cleanup } = await setupTestDirectory();
+      try {
+        const pluginRoot = join(testDir, dirName);
+        await ensureDir(pluginRoot);
+        const logger = createMockLogger();
+
+        const result = await ensureAntigravityPluginManifests({
+          outputRoots: [pluginRoot],
+          dryRun: false,
+          logger,
+        });
+
+        expect(result.count).toBe(1);
+        expect(await readFileContent(join(pluginRoot, "plugin.json"))).toBe(
+          `{\n  "name": "${expected}"\n}\n`,
+        );
+        expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("kebab-case"));
+      } finally {
+        await cleanup();
+      }
+    },
+  );
+
+  it("does not warn when the directory name is already kebab-case", async () => {
+    const { testDir, cleanup } = await setupTestDirectory();
+    try {
+      const pluginRoot = join(testDir, "review-tools");
+      await ensureDir(pluginRoot);
+      const logger = createMockLogger();
+
+      await ensureAntigravityPluginManifests({ outputRoots: [pluginRoot], dryRun: false, logger });
+
+      expect(logger.warn).not.toHaveBeenCalled();
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("warns and writes nothing when the directory name has no letters or digits", async () => {
+    const { testDir, cleanup } = await setupTestDirectory();
+    try {
+      const pluginRoot = join(testDir, "___");
+      await ensureDir(pluginRoot);
+      const logger = createMockLogger();
+
+      const result = await ensureAntigravityPluginManifests({
+        outputRoots: [pluginRoot],
+        dryRun: false,
+        logger,
+      });
+
+      expect(result.count).toBe(0);
+      expect(await fileExists(join(pluginRoot, "plugin.json"))).toBe(false);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("at least one letter or digit"),
+      );
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("warns when two output roots normalize to the same plugin name", async () => {
+    const { testDir, cleanup } = await setupTestDirectory();
+    try {
+      const upperRoot = join(testDir, "a", "My_Plugin");
+      const lowerRoot = join(testDir, "b", "my-plugin");
+      await ensureDir(upperRoot);
+      await ensureDir(lowerRoot);
+      const logger = createMockLogger();
+
+      const result = await ensureAntigravityPluginManifests({
+        outputRoots: [upperRoot, lowerRoot],
+        dryRun: false,
+        logger,
+      });
+
+      expect(result.count).toBe(2);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("collide"));
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("warns when a derived name collides with an existing manifest's name", async () => {
+    const { testDir, cleanup } = await setupTestDirectory();
+    try {
+      const existingRoot = join(testDir, "hand-written");
+      const derivedRoot = join(testDir, "review-tools");
+      const existing = '{ "name": "review-tools" }';
+      await writeFileContent(join(existingRoot, ".antigravity-plugin", "plugin.json"), existing);
+      await ensureDir(derivedRoot);
+      const logger = createMockLogger();
+
+      const result = await ensureAntigravityPluginManifests({
+        outputRoots: [existingRoot, derivedRoot],
+        dryRun: false,
+        logger,
+      });
+
+      expect(result.count).toBe(1);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("collide"));
+      expect(await readFileContent(join(existingRoot, ".antigravity-plugin", "plugin.json"))).toBe(
+        existing,
+      );
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("does not warn for an existing manifest that cannot be parsed", async () => {
+    const { testDir, cleanup } = await setupTestDirectory();
+    try {
+      const existingRoot = join(testDir, "broken");
+      await writeFileContent(join(existingRoot, "plugin.json"), "{ not json");
+      const logger = createMockLogger();
+
+      const result = await ensureAntigravityPluginManifests({
+        outputRoots: [existingRoot],
+        dryRun: false,
+        logger,
+      });
+
+      expect(result.count).toBe(0);
+      expect(logger.warn).not.toHaveBeenCalled();
+    } finally {
+      await cleanup();
+    }
+  });
 });
