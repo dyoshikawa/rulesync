@@ -15,9 +15,9 @@ import {
  * (`await ctx.tool.hook("execute.before", handler)`), and lifecycle events
  * are read from `ctx.event.subscribe({ types, signal })`, an async iterable of
  * the public event stream whose payload lives under `event.data`. `types`
- * narrows the stream to the event types the plugin handles (OpenCode 2.2.0+;
- * the per-type checks inside the loop stay, so an older 2.x that ignores the
- * option still runs each command only for its own event).
+ * narrows the stream to the event types the plugin handles (a newer 2.x
+ * option; the per-type checks inside the loop stay, so an older 2.x that
+ * ignores it still runs each command only for its own event).
  *
  * Commands run through a private Bun Shell instance (`new Bun.$.Shell()`, the
  * plugin runs inside the Bun-built OpenCode binary) whose working directory is

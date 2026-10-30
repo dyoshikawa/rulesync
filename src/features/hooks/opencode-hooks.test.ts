@@ -59,8 +59,8 @@ function createFakeRuntime(resultFor: (command: string) => ShellResult) {
     tool: domain("tool"),
     session: domain("session"),
     event: {
-      // Delivers every emitted event regardless of `types`, like an OpenCode
-      // 2.x older than 2.2.0 that ignores the option.
+      // Delivers every emitted event regardless of `types`, like an older
+      // OpenCode 2.x that ignores the option.
       subscribe: ({ signal, types }: { signal: AbortSignal; types?: string[] }) => ({
         types,
         async *[Symbol.asyncIterator]() {
