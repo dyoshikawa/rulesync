@@ -294,6 +294,32 @@ Missing description field.`;
 
       expect(skill.getFrontmatter()["disable-slash-command"]).toBe(true);
     });
+
+    it("should write the root disable-model-invocation for the IDE and plugin skills trees", () => {
+      const rulesyncSkill = new RulesyncSkill({
+        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+        dirName: "manual",
+        frontmatter: {
+          name: "manual",
+          description: "Manual skill",
+          targets: ["*"],
+          "disable-model-invocation": true,
+        },
+        body: "Body",
+        validate: true,
+      });
+
+      expect(
+        AntigravityIdeSkill.fromRulesyncSkill({ rulesyncSkill }).getFrontmatter()[
+          "disable-model-invocation"
+        ],
+      ).toBe(true);
+      expect(
+        AntigravityPluginSkill.fromRulesyncSkill({ rulesyncSkill }).getFrontmatter()[
+          "disable-model-invocation"
+        ],
+      ).toBe(true);
+    });
   });
 
   describe("isTargetedByRulesyncSkill", () => {

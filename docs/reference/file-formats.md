@@ -1060,6 +1060,9 @@ targets: ["*"] # * = all, or specific tools
 # as-is for the other clients reading `.agents/skills/`, and true also maps onto
 # `policy.allow_implicit_invocation: false` in the agents/openai.yaml sidecar
 # (codexcli.policy.allow_implicit_invocation overrides the sidecar value only).
+# antigravity-ide, antigravity-cli and antigravity-plugin also write this root value
+# into SKILL.md (skill runs only via /<name>); their section's
+# `disable-model-invocation` overrides it.
 disable-model-invocation: true
 # (optional) shared default for tools that support the flag — claudecode, codebuddy, copilot,
 # copilotcli, crush, cursor, qwencode, vibe, grokcli, factorydroid, dsh, reasonix, commandcode,
@@ -1354,6 +1357,7 @@ cline: # for Cline-specific parameters (optional; project/global .cline/skills/;
   disabled: true # (optional) Cline's own on/off toggle: hides the skill until it is re-enabled in Cline (`enabled: false` is read the same way)
 antigravity-cli: # for Antigravity CLI-specific parameters (optional; `antigravity-ide` takes the same keys. Both targets write the shared project `.agents/skills/`, so there each reads `antigravity-ide` then `antigravity-cli` merged, the CLI winning; globally each reads its own. `antigravity-plugin` reads the `antigravity-ide` section)
   disable-slash-command: true # (optional, CLI v1.1.12+) hide from the / menu, keep model access; overrides the root user-invocable
+  disable-model-invocation: true # (optional) explicit-only: run only via /<name>, no automatic model invocation; overrides the root disable-model-invocation
   metadata: # (optional) free-form metadata; overrides the root value outright
     icon: "📦" # (optional, CLI v1.1.20+) emoji shown in the /skills catalog and slash-command autocompletion
 ---

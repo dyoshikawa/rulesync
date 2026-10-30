@@ -11,18 +11,38 @@ import type { Logger } from "../../utils/logger.js";
 import { warnOnceWithFallback } from "../../utils/logger.js";
 import type { FeatureGenerateResult } from "../../utils/result.js";
 
-// The `name` pattern from Antigravity's published plugin manifest schema.
-// @see https://antigravity.google/docs/plugins
+// The `name` pattern from Antigravity's hosted plugin manifest schema, which the
+// loader still applies.
+// @see https://antigravity.google/schemas/v1/plugin.json
 const ANTIGRAVITY_PLUGIN_NAME_PATTERN = /^[a-zA-Z0-9-_]+$/;
+
+// The stricter lowercase kebab-case form the Marketplace requires. Since CLI
+// 1.4.9 `agy plugin validate` warns on any other `name` and fails under
+// `--strict`.
+// @see https://antigravity.google/docs/build-plugins
+// @see https://github.com/google-antigravity/antigravity-cli/releases/tag/1.4.9
+const ANTIGRAVITY_PLUGIN_STRICT_NAME_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+
+/**
+ * Lower-case a directory name and turn `_` into `-` (collapsing repeated and
+ * trimming edge hyphens), so `My_Plugin` becomes `my-plugin`.
+ */
+function toStrictAntigravityPluginName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[-_]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
 
 /**
  * Create the `plugin.json` manifest Antigravity requires before it treats a
  * directory as a plugin, so a tree generated from scratch actually loads.
  *
- * The manifest declares only `name` and `description`, and rejects anything
- * else, so the one required field is derived from the plugin directory's name.
- * An existing manifest is never read or rewritten: it may carry a
- * hand-authored `name` or `description` that rulesync has no source for. A
+ * Only the required `name` is written, derived from the plugin directory's
+ * name and normalized to the lowercase kebab-case form `agy plugin validate
+ * --strict` and the Marketplace require; the other manifest fields (such as
+ * `description`, `version` or `author`) have no rulesync source. An existing
+ * manifest is never read or rewritten: it may carry hand-authored fields. A
  * manifest kept in one of the manifest folders counts as present too, so no
  * root stub is written next to it.
  */
@@ -46,15 +66,27 @@ export async function ensureAntigravityPluginManifests({
       continue;
     }
 
-    const name = basename(resolve(outputRoot));
-    if (!ANTIGRAVITY_PLUGIN_NAME_PATTERN.test(name)) {
+    const dirName = basename(resolve(outputRoot));
+    const name = toStrictAntigravityPluginName(dirName);
+    if (
+      !ANTIGRAVITY_PLUGIN_NAME_PATTERN.test(dirName) ||
+      !ANTIGRAVITY_PLUGIN_STRICT_NAME_PATTERN.test(name)
+    ) {
       warnOnceWithFallback(
         logger,
-        `Cannot derive an Antigravity plugin name from the directory ${quoteForLog(name)}: it must ` +
+        `Cannot derive an Antigravity plugin name from the directory ${quoteForLog(dirName)}: it must ` +
           `match ${ANTIGRAVITY_PLUGIN_NAME_PATTERN.source}. Create ${quoteForLog(filePath)} by hand ` +
           `with a valid "name".`,
       );
       continue;
+    }
+    if (name !== dirName) {
+      warnOnceWithFallback(
+        logger,
+        `The Antigravity plugin directory ${quoteForLog(dirName)} is not lowercase kebab-case, ` +
+          `which \`agy plugin validate --strict\` and the Marketplace reject, so ` +
+          `${quoteForLog(filePath)} names the plugin ${quoteForLog(name)}.`,
+      );
     }
 
     const content = addTrailingNewline(JSON.stringify({ name }, null, 2));

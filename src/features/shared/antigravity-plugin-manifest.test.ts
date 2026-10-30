@@ -156,4 +156,72 @@ describe("ensureAntigravityPluginManifests", () => {
       await cleanup();
     }
   });
+
+  it.each([
+    { dirName: "My_Plugin", expected: "my-plugin" },
+    { dirName: "Neo4j", expected: "neo4j" },
+    { dirName: "foo__bar-", expected: "foo-bar" },
+  ])(
+    "normalizes the directory name $dirName to the kebab-case name $expected and warns",
+    async ({ dirName, expected }) => {
+      const { testDir, cleanup } = await setupTestDirectory();
+      try {
+        const pluginRoot = join(testDir, dirName);
+        await ensureDir(pluginRoot);
+        const logger = createMockLogger();
+
+        const result = await ensureAntigravityPluginManifests({
+          outputRoots: [pluginRoot],
+          dryRun: false,
+          logger,
+        });
+
+        expect(result.count).toBe(1);
+        expect(await readFileContent(join(pluginRoot, "plugin.json"))).toBe(
+          `{\n  "name": "${expected}"\n}\n`,
+        );
+        expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("kebab-case"));
+      } finally {
+        await cleanup();
+      }
+    },
+  );
+
+  it("does not warn when the directory name is already kebab-case", async () => {
+    const { testDir, cleanup } = await setupTestDirectory();
+    try {
+      const pluginRoot = join(testDir, "review-tools");
+      await ensureDir(pluginRoot);
+      const logger = createMockLogger();
+
+      await ensureAntigravityPluginManifests({ outputRoots: [pluginRoot], dryRun: false, logger });
+
+      expect(logger.warn).not.toHaveBeenCalled();
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("warns and writes nothing when the directory name has no letters or digits", async () => {
+    const { testDir, cleanup } = await setupTestDirectory();
+    try {
+      const pluginRoot = join(testDir, "___");
+      await ensureDir(pluginRoot);
+      const logger = createMockLogger();
+
+      const result = await ensureAntigravityPluginManifests({
+        outputRoots: [pluginRoot],
+        dryRun: false,
+        logger,
+      });
+
+      expect(result.count).toBe(0);
+      expect(await fileExists(join(pluginRoot, "plugin.json"))).toBe(false);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("Cannot derive an Antigravity plugin name"),
+      );
+    } finally {
+      await cleanup();
+    }
+  });
 });
