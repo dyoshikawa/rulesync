@@ -41,7 +41,7 @@ jobs:
         uses: ./.github/actions/git-config
 
       - name: Setup mise
-        uses: jdx/mise-action@8418fedb1110381a0d3ba51a7a415d7c1b884550 # v5.2.2
+        uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
         with:
           experimental: true
 
@@ -61,7 +61,7 @@ jobs:
           input-text: ${{ inputs.model }}
 
       - name: Run OpenCode to draft release
-        uses: anomalyco/opencode/github@bb25a2f4a3f3f04d7c344bec0c0574ea3510b3b1 # v2.1.3
+        uses: anomalyco/opencode/github@098aa7fd6e02b03d6fc410f0b052038c7d4c5e81 # v2.2.2
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           ZHIPU_API_KEY: ${{ secrets.ZHIPU_API_KEY }}
