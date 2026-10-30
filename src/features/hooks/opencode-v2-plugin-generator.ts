@@ -13,8 +13,11 @@ import {
  * OpenCode 2.x no longer runs V1 plugin modules: a plugin must default-export
  * `{ id, setup(ctx) }`. Inside `setup` hooks are registered per domain
  * (`await ctx.tool.hook("execute.before", handler)`), and lifecycle events
- * are read from `ctx.event.subscribe({ signal })`, an async iterable of the
- * public event stream whose payload lives under `event.data`.
+ * are read from `ctx.event.subscribe({ types, signal })`, an async iterable of
+ * the public event stream whose payload lives under `event.data`. `types`
+ * narrows the stream to the event types the plugin handles (OpenCode 2.2.0+;
+ * the per-type checks inside the loop stay, so an older 2.x that ignores the
+ * option still runs each command only for its own event).
  *
  * Commands run through a private Bun Shell instance (`new Bun.$.Shell()`, the
  * plugin runs inside the Bun-built OpenCode binary) whose working directory is
@@ -147,15 +150,19 @@ function buildHookRegistrationLines(hookPoint: string, handlers: V2Handler[]): s
 
 /**
  * Emit the event-stream loop. Each command is isolated in its own try/catch so
- * a failing hook neither skips its siblings nor ends the subscription.
+ * a failing hook neither skips its siblings nor ends the subscription. The
+ * subscription passes `types` so the server delivers only the handled events.
  */
 function buildEventLoopLines(eventHandlers: Map<string, V2Handler[]>): string[] {
   const lines: string[] = [];
+  // Event types come from the internal event map, never from user input.
+  const types = [...eventHandlers.keys()].map((eventType) => JSON.stringify(eventType)).join(", ");
   lines.push("const __rulesyncEvents = new AbortController();");
   lines.push("void (async () => {");
-  lines.push(
-    "  for await (const event of ctx.event.subscribe({ signal: __rulesyncEvents.signal })) {",
-  );
+  lines.push("  for await (const event of ctx.event.subscribe({");
+  lines.push(`    types: [${types}],`);
+  lines.push("    signal: __rulesyncEvents.signal,");
+  lines.push("  })) {");
   let isFirst = true;
   for (const [eventType, handlers] of eventHandlers) {
     lines.push(`    ${isFirst ? "if" : "} else if"} (event.type === "${eventType}") {`);
