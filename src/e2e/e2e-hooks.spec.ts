@@ -683,17 +683,20 @@ describe("E2E: hooks", () => {
     ]);
   });
 
-  it("should generate crush hooks into the hooks.PreToolUse list of crush.json", async () => {
+  it("should generate crush hooks into the hooks block of crush.json", async () => {
     const testDir = getTestDir();
 
-    // Crush only fires PreToolUse, so the generic matrix fixture (sessionStart/
-    // stop) would produce nothing; seed the one event it supports instead.
+    // Crush spells `stop` as `TurnEnd` and rejects a matcher on a non-tool
+    // event, so the matcher on sessionStart must be dropped.
     const hooksContent = JSON.stringify(
       {
         version: 1,
         hooks: {
           preToolUse: [{ command: ".rulesync/hooks/audit.sh", matcher: "bash", timeout: 5 }],
+          postToolUse: [{ command: ".rulesync/hooks/after.sh", matcher: "edit" }],
+          sessionStart: [{ command: ".rulesync/hooks/on-start.sh", matcher: "startup" }],
           stop: [{ command: ".rulesync/hooks/on-stop.sh" }],
+          subagentStop: [{ command: ".rulesync/hooks/on-subagent-stop.sh" }],
         },
       },
       null,
@@ -711,6 +714,9 @@ describe("E2E: hooks", () => {
     const parsed = JSON.parse(await readFileContent(join(testDir, "crush.json")));
     expect(parsed.hooks).toEqual({
       PreToolUse: [{ matcher: "bash", command: ".rulesync/hooks/audit.sh", timeout: 5 }],
+      PostToolUse: [{ matcher: "edit", command: ".rulesync/hooks/after.sh" }],
+      SessionStart: [{ command: ".rulesync/hooks/on-start.sh" }],
+      TurnEnd: [{ command: ".rulesync/hooks/on-stop.sh" }],
     });
     expect(parsed.options).toEqual({ debug: true });
   });
@@ -721,7 +727,13 @@ describe("E2E: hooks", () => {
     await writeFileContent(
       join(testDir, "crush.json"),
       JSON.stringify(
-        { hooks: { PreToolUse: [{ matcher: "bash|edit", command: "echo audit" }] } },
+        {
+          hooks: {
+            PreToolUse: [{ matcher: "bash|edit", command: "echo audit" }],
+            TurnEnd: [{ command: "echo done" }],
+            PermissionResult: [{ command: "echo result" }],
+          },
+        },
         null,
         2,
       ),
@@ -735,6 +747,10 @@ describe("E2E: hooks", () => {
     expect(imported.hooks.preToolUse).toEqual([
       { type: "command", matcher: "bash|edit", command: "echo audit" },
     ]);
+    expect(imported.hooks.stop).toEqual([{ type: "command", command: "echo done" }]);
+    expect(imported.crush.hooks).toEqual({
+      PermissionResult: [{ type: "command", command: "echo result" }],
+    });
   });
 
   it("should generate pool hooks into the hooks block of .poolside/settings.yaml", async () => {

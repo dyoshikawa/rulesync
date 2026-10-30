@@ -6,6 +6,7 @@ import {
   CANONICAL_TO_CRUSH_EVENT_NAMES,
   CRUSH_HOOK_EVENTS,
   CRUSH_TO_CANONICAL_EVENT_NAMES,
+  CRUSH_TOOL_EVENTS,
   type HookDefinition,
   type HooksConfig,
 } from "../../types/hooks.js";
@@ -34,7 +35,7 @@ import {
 
 /**
  * One entry of a `hooks.<Event>` array in `crush.json`.
- * @see https://github.com/charmbracelet/crush/blob/main/internal/config/config.go
+ * @see https://github.com/charmbracelet/crush/blob/v0.99.0/internal/hooks/config.go
  */
 type CrushHookEntry = {
   name?: string;
@@ -62,6 +63,11 @@ function normalizeCrushEventName(event: string): string {
   return event.replaceAll("_", "").toLowerCase();
 }
 
+/** Crush tool events, by normalized spelling, on which a `matcher` is valid. */
+const NORMALIZED_CRUSH_TOOL_EVENTS: ReadonlySet<string> = new Set(
+  CRUSH_TOOL_EVENTS.map((event) => normalizeCrushEventName(event)),
+);
+
 /**
  * Build the `hooks` block of `crush.json` from a canonical hooks config.
  * Crush keys a flat array of `{name, matcher, command, timeout}` entries by
@@ -70,7 +76,8 @@ function normalizeCrushEventName(event: string): string {
  * emitted, since a Crush hook is a shell command. A shared canonical event
  * Crush does not fire is skipped (the HooksProcessor reports it), while an
  * event under the `crush.hooks` override — such as one an import filed there
- * — is written verbatim so it round-trips.
+ * — is written verbatim so it round-trips. A `matcher` is only written on a
+ * tool event: Crush rejects the whole config when one appears anywhere else.
  */
 function canonicalToCrushHooks({
   config,
@@ -95,9 +102,10 @@ function canonicalToCrushHooks({
       continue;
     }
     const crushEvent = lookupOwn({ record: CANONICAL_TO_CRUSH_EVENT_NAMES, key: event }) ?? event;
+    const allowsMatcher = NORMALIZED_CRUSH_TOOL_EVENTS.has(normalizeCrushEventName(crushEvent));
     const entries: CrushHookEntry[] = [];
     for (const def of defs) {
-      const entry = canonicalDefToCrushEntry({ def, event, logger });
+      const entry = canonicalDefToCrushEntry({ def, event, allowsMatcher, logger });
       if (entry !== null) {
         entries.push(entry);
       }
@@ -114,10 +122,12 @@ function canonicalToCrushHooks({
 function canonicalDefToCrushEntry({
   def,
   event,
+  allowsMatcher,
   logger,
 }: {
   def: HookDefinition;
   event: string;
+  allowsMatcher: boolean;
   logger?: Logger;
 }): CrushHookEntry | null {
   if ((def.type ?? "command") !== "command") {
@@ -138,7 +148,16 @@ function canonicalDefToCrushEntry({
   // An omitted matcher fires on every tool, and so does `*`; Crush reads
   // the matcher as a regex, where `*` alone would not compile.
   if (typeof def.matcher === "string" && def.matcher !== "" && def.matcher !== "*") {
-    entry.matcher = def.matcher;
+    if (allowsMatcher) {
+      entry.matcher = def.matcher;
+    } else {
+      // Crush fails to load the whole config on a matcher outside a tool
+      // event ("matcher is only supported on tool events").
+      logger?.warn(
+        `matcher ${quoteValueForWarning(def.matcher)} on "${event}" hook will be ignored — ` +
+          `Crush only accepts a matcher on tool events.`,
+      );
+    }
   }
   if (typeof def.timeout === "number") {
     // Crush's `timeout` is an integer number of seconds; a fractional
@@ -208,12 +227,13 @@ function crushHooksToCanonical(hooksBlock: unknown): HooksConfig["hooks"] {
  * `<project>/crush.json` (or an existing `.crush.json`; Crush merges the pair,
  * lists concatenated) at project scope and `~/.config/crush/crush.json` at
  * user scope — as
- * `hooks.<Event>: [{name?, matcher?, command, timeout?}]`. Only `PreToolUse`
- * fires today. The `hooks` key is owned outright; every other top-level key
+ * `hooks.<Event>: [{name?, matcher?, command, timeout?}]`. `matcher` is only
+ * valid on tool events (`PreToolUse`, `PostToolUse`, `PostToolUseFailure`,
+ * `PermissionRequest`, `PermissionResult`). The `hooks` key is owned outright; every other top-level key
  * of the file is preserved and the file is never deleted.
  *
- * @see https://github.com/charmbracelet/crush/blob/main/docs/hooks/README.md
- * @see https://github.com/charmbracelet/crush/blob/main/internal/config/config.go
+ * @see https://github.com/charmbracelet/crush/blob/v0.99.0/docs/hooks/README.md
+ * @see https://github.com/charmbracelet/crush/blob/v0.99.0/internal/config/hooks.go
  */
 export class CrushHooks extends ToolHooks {
   private readonly json: Record<string, unknown>;

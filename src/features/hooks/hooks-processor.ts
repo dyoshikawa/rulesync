@@ -1239,9 +1239,9 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
     {
       // Crush hooks live under the `hooks` key of `<project>/crush.json` (or
       // `.crush.json`) and `~/.config/crush/crush.json`, as a flat
-      // `PreToolUse: [{name, matcher, command, timeout}]` list. `matcher` is
-      // a regex on the tool name; only `PreToolUse` fires today.
-      // https://github.com/charmbracelet/crush/blob/main/docs/hooks/README.md
+      // `<Event>: [{name, matcher, command, timeout}]` list. `matcher` is a
+      // regex on the tool name, accepted only on tool events.
+      // https://github.com/charmbracelet/crush/blob/v0.99.0/docs/hooks/README.md
       class: CrushHooks,
       meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
       supportedEvents: CRUSH_HOOK_EVENTS,
