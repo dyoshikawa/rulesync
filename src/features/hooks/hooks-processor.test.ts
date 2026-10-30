@@ -571,7 +571,7 @@ describe("HooksProcessor", () => {
       expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("prompt-type"));
     });
 
-    it("should not log http-type warning for bob, which writes them as https handlers (issue #3074)", async () => {
+    it("should not log http-type warning for bob, which writes them as http handlers (issue #3074)", async () => {
       const config = {
         version: 1,
         hooks: {
@@ -590,7 +590,7 @@ describe("HooksProcessor", () => {
       const toolFiles = await processor.convertRulesyncFilesToToolFiles([rulesyncHooks]);
 
       expect(toolFiles).toHaveLength(1);
-      expect(toolFiles[0]?.getFileContent()).toContain('"type": "https"');
+      expect(toolFiles[0]?.getFileContent()).toContain('"type": "http"');
       expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("http-type"));
     });
 
