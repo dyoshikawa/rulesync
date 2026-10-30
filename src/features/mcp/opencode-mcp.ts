@@ -533,7 +533,10 @@ function convertToOpencodeFormat(
         // filter turning off a dangerous tool is not this entry's to take away.
         if (serverConfig.enabledTools) {
           for (const tool of serverConfig.enabledTools) {
-            tools[opencodeMcpToolPermissionKey(serverName, tool)] = true;
+            const key = opencodeMcpToolPermissionKey(serverName, tool);
+            // Different server/tool names can sanitize to the same key. An
+            // existing deny must survive a later allow, regardless of order.
+            tools[key] = tools[key] !== false;
           }
         }
         if (serverConfig.disabledTools) {

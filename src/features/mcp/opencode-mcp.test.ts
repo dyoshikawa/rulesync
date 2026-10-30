@@ -66,6 +66,38 @@ describe("OpencodeMcp", () => {
     },
   );
 
+  it.each(
+    [OpencodeMcp, Opencodev1Mcp, MimocodeMcp].flatMap((Mcp) =>
+      [false, true].flatMap((global) =>
+        [false, true].map((denyFirst) => ({ name: Mcp.name, Mcp, global, denyFirst })),
+      ),
+    ),
+  )(
+    "$name should keep colliding denies regardless of server order (global=$global, denyFirst=$denyFirst)",
+    async ({ Mcp, global, denyFirst }) => {
+      const denied = ["a.b", { command: "node", disabledTools: ["x", "delete.*"] }] as const;
+      const allowed = [
+        "a_b",
+        { command: "node", enabledTools: ["x", "delete_*", "read"] },
+      ] as const;
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: Object.fromEntries(denyFirst ? [denied, allowed] : [allowed, denied]),
+        }),
+      });
+
+      const generated = await Mcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp, global });
+
+      expect(generated.getJson().tools).toEqual({
+        a_b_x: false,
+        "a_b_delete_*": false,
+        a_b_read: true,
+      });
+    },
+  );
+
   it("should assign sanitized tool keys to the longest server prefix and accept legacy raw keys", () => {
     const mcp = new OpencodeMcp({
       relativeDirPath: ".",
