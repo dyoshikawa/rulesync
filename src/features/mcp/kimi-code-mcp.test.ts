@@ -77,6 +77,33 @@ describe("KimiCodeMcp global config defaults", () => {
       expect(files[0]!.getFileContent()).not.toContain("timeout_ms");
     });
 
+    it.each([
+      { name: "a negative", value: -1 },
+      { name: "a fractional", value: 1.5 },
+      { name: "a NaN", value: Number.NaN },
+    ])("should drop $name reconnect delay with a warning", async ({ value }) => {
+      const logger = createMockLogger();
+      const block = { reconnectInitialDelayMs: value, reconnectMaxDelayMs: 60000 };
+      // Built directly so the guard is exercised even if schema validation is
+      // bypassed (NaN cannot even survive JSON.stringify).
+      const mcp = rulesyncMcp({ mcpServers: {} });
+      (mcp.getJson() as Record<string, unknown>)["kimi-code"] = block;
+
+      const files = await KimiCodeMcp.getAuxiliaryFiles({
+        outputRoot: testDir,
+        global: true,
+        rulesyncMcp: mcp,
+        logger,
+      });
+
+      expect(files).toHaveLength(1);
+      expect(files[0]!.getFileContent()).not.toContain("reconnect_initial_delay_ms");
+      expect(files[0]!.getFileContent()).toContain("reconnect_max_delay_ms = 60000");
+      expect(logger.warn).toHaveBeenCalledWith(
+        "Kimi Code MCP: dropping kimi-code.reconnectInitialDelayMs because it is not a non-negative integer number of milliseconds.",
+      );
+    });
+
     it("should emit nothing at project scope, where config.toml has no counterpart", async () => {
       expect(
         await KimiCodeMcp.getAuxiliaryFiles({
@@ -377,6 +404,26 @@ describe("KimiCodeMcp global config defaults", () => {
       ).toRulesyncMcp();
 
       expect(JSON.parse(imported.getFileContent())["kimi-code"]).toBeUndefined();
+    });
+
+    it("should drop an invalid reconnect delay with a warning on import", async () => {
+      const logger = createMockLogger();
+      await writeFileContent(
+        join(testDir, ...CONFIG_PATH),
+        "[mcp]\nreconnect_initial_delay_ms = -1\nreconnect_max_delay_ms = 60000\n",
+      );
+      await writeFileContent(join(testDir, ".kimi-code", "mcp.json"), '{"mcpServers":{}}');
+
+      const imported = (
+        await KimiCodeMcp.fromFile({ outputRoot: testDir, global: true, logger })
+      ).toRulesyncMcp();
+
+      expect(JSON.parse(imported.getFileContent())["kimi-code"]).toEqual({
+        reconnectMaxDelayMs: 60000,
+      });
+      expect(logger.warn).toHaveBeenCalledWith(
+        "Kimi Code MCP: dropping [mcp] reconnect_initial_delay_ms because it is not a non-negative integer number of milliseconds.",
+      );
     });
 
     it("should not read the config file at project scope", async () => {

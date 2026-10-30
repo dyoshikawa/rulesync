@@ -280,15 +280,55 @@ async function readKimiCodeConfig({
  * no defaults rather than failing the import: this file belongs to three
  * features plus the user.
  */
+/**
+ * Kimi's reconnect delays are millisecond counts, so only a non-negative safe
+ * integer is passed through. Anything else (a negative, a fraction, a string)
+ * is dropped with a warning rather than written into, or lifted out of, the
+ * shared global `config.toml`.
+ */
+function toKimiCodeReconnectDelay({
+  value,
+  key,
+  logger,
+}: {
+  value: unknown;
+  key: string;
+  logger?: Logger;
+}): number | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) {
+    return value;
+  }
+  warnWithFallback(
+    logger,
+    `Kimi Code MCP: dropping ${key} because it is not a non-negative integer number of milliseconds.`,
+  );
+  return undefined;
+}
+
 async function readKimiCodeMcpDefaults({
   outputRoot,
+  logger,
 }: {
   outputRoot: string;
+  logger?: Logger;
 }): Promise<KimiCodeMcpDefaults> {
   const config = await readKimiCodeConfig({ outputRoot });
   if (!config.parsed) {
     return {};
   }
+  const reconnectInitialDelayMs = toKimiCodeReconnectDelay({
+    value: config.mcp.reconnect_initial_delay_ms,
+    key: "[mcp] reconnect_initial_delay_ms",
+    logger,
+  });
+  const reconnectMaxDelayMs = toKimiCodeReconnectDelay({
+    value: config.mcp.reconnect_max_delay_ms,
+    key: "[mcp] reconnect_max_delay_ms",
+    logger,
+  });
   return {
     ...(typeof config.mcp.startup_timeout_ms === "number" && {
       startupTimeoutMs: config.mcp.startup_timeout_ms,
@@ -299,12 +339,8 @@ async function readKimiCodeMcpDefaults({
     ...(typeof config.mcp.default_deferred === "boolean" && {
       defaultDeferred: config.mcp.default_deferred,
     }),
-    ...(typeof config.mcp.reconnect_initial_delay_ms === "number" && {
-      reconnectInitialDelayMs: config.mcp.reconnect_initial_delay_ms,
-    }),
-    ...(typeof config.mcp.reconnect_max_delay_ms === "number" && {
-      reconnectMaxDelayMs: config.mcp.reconnect_max_delay_ms,
-    }),
+    ...(reconnectInitialDelayMs !== undefined && { reconnectInitialDelayMs }),
+    ...(reconnectMaxDelayMs !== undefined && { reconnectMaxDelayMs }),
   };
 }
 
@@ -438,7 +474,7 @@ export class KimiCodeMcp extends ToolMcp {
       fileContent,
       validate,
       global,
-      configDefaults: global ? await readKimiCodeMcpDefaults({ outputRoot }) : {},
+      configDefaults: global ? await readKimiCodeMcpDefaults({ outputRoot, logger }) : {},
       logger,
     });
   }
@@ -524,10 +560,16 @@ export class KimiCodeMcp extends ToolMcp {
     const toolTimeoutMs = typeof block.toolTimeoutMs === "number" ? block.toolTimeoutMs : undefined;
     const defaultDeferred =
       typeof block.defaultDeferred === "boolean" ? block.defaultDeferred : undefined;
-    const reconnectInitialDelayMs =
-      typeof block.reconnectInitialDelayMs === "number" ? block.reconnectInitialDelayMs : undefined;
-    const reconnectMaxDelayMs =
-      typeof block.reconnectMaxDelayMs === "number" ? block.reconnectMaxDelayMs : undefined;
+    const reconnectInitialDelayMs = toKimiCodeReconnectDelay({
+      value: block.reconnectInitialDelayMs,
+      key: "kimi-code.reconnectInitialDelayMs",
+      logger,
+    });
+    const reconnectMaxDelayMs = toKimiCodeReconnectDelay({
+      value: block.reconnectMaxDelayMs,
+      key: "kimi-code.reconnectMaxDelayMs",
+      logger,
+    });
     if (
       startupTimeoutMs === undefined &&
       toolTimeoutMs === undefined &&

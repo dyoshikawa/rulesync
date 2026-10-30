@@ -82,8 +82,8 @@ const kimiCodeScopedMcpSchema = z.extend(toolScopedMcpSchema, {
   startupTimeoutMs: z.optional(z.number()),
   toolTimeoutMs: z.optional(z.number()),
   defaultDeferred: z.optional(z.boolean()),
-  reconnectInitialDelayMs: z.optional(z.number()),
-  reconnectMaxDelayMs: z.optional(z.number()),
+  reconnectInitialDelayMs: z.optional(z.int().check(z.nonnegative())),
+  reconnectMaxDelayMs: z.optional(z.int().check(z.nonnegative())),
 });
 
 /**
