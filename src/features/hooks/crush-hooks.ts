@@ -69,15 +69,41 @@ const NORMALIZED_CRUSH_TOOL_EVENTS: ReadonlySet<string> = new Set(
 );
 
 /**
+ * Resolve a `crush.hooks` override key to the canonical event it names, or
+ * null when it names no canonical event. The key may be spelled the canonical
+ * way (`stop`) or in any spelling Crush accepts for the event (`TurnEnd`,
+ * `turn_end`), so an override an earlier import filed under a Crush name still
+ * lands on the same event as the shared hooks.
+ */
+function resolveOverrideCanonicalEvent(key: string): string | null {
+  if (lookupOwn({ record: CANONICAL_TO_CRUSH_EVENT_NAMES, key }) !== undefined) {
+    return key;
+  }
+  return (
+    lookupOwn({
+      record: NORMALIZED_CRUSH_TO_CANONICAL_EVENT_NAMES,
+      key: normalizeCrushEventName(key),
+    }) ?? null
+  );
+}
+
+/**
  * Build the `hooks` block of `crush.json` from a canonical hooks config.
  * Crush keys a flat array of `{name, matcher, command, timeout}` entries by
  * event name; `matcher` is a regex tested against the (lower-case) Crush tool
  * name and `timeout` is in seconds. Only `type: "command"` canonical hooks are
  * emitted, since a Crush hook is a shell command. A shared canonical event
- * Crush does not fire is skipped (the HooksProcessor reports it), while an
- * event under the `crush.hooks` override — such as one an import filed there
- * — is written verbatim so it round-trips. A `matcher` is only written on a
- * tool event: Crush rejects the whole config when one appears anywhere else.
+ * Crush does not fire is skipped (the HooksProcessor reports it).
+ *
+ * Every `crush.hooks` override key is resolved to its event first, whatever
+ * spelling it uses: the override replaces the shared entries of that event
+ * (as for every other tool's override), and override keys that name the same
+ * event are concatenated in order, the way Crush itself merges them. A key
+ * that names no canonical event — such as `PermissionResult`, or one an
+ * import filed there — is written verbatim so it round-trips; keys of that
+ * kind that Crush reads as the same event are concatenated under the first
+ * spelling. A `matcher` is only written on a tool event: Crush rejects the
+ * whole config when one appears anywhere else.
  */
 function canonicalToCrushHooks({
   config,
@@ -88,24 +114,47 @@ function canonicalToCrushHooks({
   toolOverride: HooksConfig["hooks"] | undefined;
   logger?: Logger;
 }): Record<string, CrushHookEntry[]> {
-  const sharedHooks: HooksConfig["hooks"] = {};
+  // Output Crush event name -> definitions, in insertion order.
+  const shared = new Map<string, HookDefinition[]>();
   for (const [event, defs] of Object.entries(config.hooks)) {
-    if (SUPPORTED_CRUSH_EVENTS.has(event)) {
-      sharedHooks[event] = defs;
+    const crushEvent = SUPPORTED_CRUSH_EVENTS.has(event)
+      ? lookupOwn({ record: CANONICAL_TO_CRUSH_EVENT_NAMES, key: event })
+      : undefined;
+    if (crushEvent !== undefined) {
+      shared.set(crushEvent, defs);
     }
   }
-  const effective: HooksConfig["hooks"] = { ...sharedHooks, ...toolOverride };
 
-  const hooks: Record<string, CrushHookEntry[]> = {};
-  for (const [event, defs] of Object.entries(effective)) {
-    if (isPrototypePollutionKey(event)) {
+  const override = new Map<string, HookDefinition[]>();
+  // Normalized spelling -> first spelling seen, for keys with no canonical event.
+  const verbatimSpellings = new Map<string, string>();
+  for (const [key, defs] of Object.entries(toolOverride ?? {})) {
+    if (isPrototypePollutionKey(key) || !Array.isArray(defs)) {
       continue;
     }
-    const crushEvent = lookupOwn({ record: CANONICAL_TO_CRUSH_EVENT_NAMES, key: event }) ?? event;
+    const canonical = resolveOverrideCanonicalEvent(key);
+    let crushEvent: string;
+    if (canonical !== null) {
+      crushEvent = lookupOwn({ record: CANONICAL_TO_CRUSH_EVENT_NAMES, key: canonical }) ?? key;
+    } else {
+      const normalized = normalizeCrushEventName(key);
+      crushEvent = verbatimSpellings.get(normalized) ?? key;
+      verbatimSpellings.set(normalized, crushEvent);
+    }
+    override.set(crushEvent, [...(override.get(crushEvent) ?? []), ...defs]);
+  }
+
+  const effective = new Map<string, HookDefinition[]>(shared);
+  for (const [crushEvent, defs] of override) {
+    effective.set(crushEvent, defs);
+  }
+
+  const hooks: Record<string, CrushHookEntry[]> = {};
+  for (const [crushEvent, defs] of effective) {
     const allowsMatcher = NORMALIZED_CRUSH_TOOL_EVENTS.has(normalizeCrushEventName(crushEvent));
     const entries: CrushHookEntry[] = [];
     for (const def of defs) {
-      const entry = canonicalDefToCrushEntry({ def, event, allowsMatcher, logger });
+      const entry = canonicalDefToCrushEntry({ def, event: crushEvent, allowsMatcher, logger });
       if (entry !== null) {
         entries.push(entry);
       }

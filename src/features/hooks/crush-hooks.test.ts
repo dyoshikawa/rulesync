@@ -199,14 +199,64 @@ describe("CrushHooks", () => {
         hooks: {
           SessionStart: [{ command: "./start.sh" }],
           TurnEnd: [{ command: "./stop.sh" }],
-          turn_start: [{ command: "./turn.sh" }],
+          TurnStart: [{ command: "./turn.sh" }],
           PermissionResult: [{ command: "./result.sh", matcher: "^bash$" }],
         },
       });
       // `*` already means "no matcher", so only the two real matchers warn.
       expect(logger.warn).toHaveBeenCalledTimes(2);
-      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('on "sessionStart" hook'));
-      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('on "turn_start" hook'));
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('on "SessionStart" hook'));
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('on "TurnStart" hook'));
+    });
+
+    it.each(["TurnEnd", "turn_end", "stop"])(
+      "should resolve an override keyed %s to the same event as the shared stop hooks",
+      async (overrideKey) => {
+        const hooks = await CrushHooks.fromRulesyncHooks({
+          outputRoot: testDir,
+          rulesyncHooks: buildRulesyncHooks({
+            version: 1,
+            hooks: { stop: [{ command: "./shared.sh" }] },
+            crush: { hooks: { [overrideKey]: [{ command: "./crush-only.sh" }] } },
+          }),
+        });
+
+        // The override replaces the shared entries of its event, whatever
+        // spelling it uses, and is never a second key Crush would add on top.
+        expect(hooks.getJson()).toEqual({
+          hooks: { TurnEnd: [{ command: "./crush-only.sh" }] },
+        });
+      },
+    );
+
+    it("should concatenate override keys that name the same event, in order", async () => {
+      const hooks = await CrushHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks: buildRulesyncHooks({
+          version: 1,
+          hooks: {
+            beforeSubmitPrompt: [{ command: "./shared.sh" }],
+            sessionStart: [{ command: "./start.sh" }],
+          },
+          crush: {
+            hooks: {
+              TurnStart: [{ command: "./a.sh" }],
+              turn_start: [{ command: "./b.sh" }],
+              beforeSubmitPrompt: [{ command: "./c.sh" }],
+              PermissionResult: [{ command: "./d.sh" }],
+              permission_result: [{ command: "./e.sh" }],
+            },
+          },
+        }),
+      });
+
+      expect(hooks.getJson()).toEqual({
+        hooks: {
+          TurnStart: [{ command: "./a.sh" }, { command: "./b.sh" }, { command: "./c.sh" }],
+          SessionStart: [{ command: "./start.sh" }],
+          PermissionResult: [{ command: "./d.sh" }, { command: "./e.sh" }],
+        },
+      });
     });
 
     it("should apply the crush override per event", async () => {
