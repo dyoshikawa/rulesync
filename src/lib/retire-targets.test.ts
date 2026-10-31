@@ -1,7 +1,7 @@
 import { symlink } from "node:fs/promises";
 import { join } from "node:path";
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 
 import { Config, type ConfigParams } from "../config/config.js";
 import { createMockLogger } from "../test-utils/mock-logger.js";

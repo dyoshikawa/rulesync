@@ -1,7 +1,7 @@
 import { join } from "node:path";
 
 import { parse as parseToml } from "smol-toml";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 import { CLAUDECODE_SETTINGS_SCHEMA_URL } from "../constants/claudecode-paths.js";
 import {

@@ -1,5 +1,5 @@
 import { Semaphore } from "es-toolkit/promise";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 import type { GitHubFileEntry } from "../types/fetch.js";
 import type { GitHubClient } from "./github-client.js";

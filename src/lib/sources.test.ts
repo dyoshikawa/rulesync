@@ -1,7 +1,7 @@
 import { mkdir, symlink, writeFile } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import {
   FETCH_CONCURRENCY_LIMIT,

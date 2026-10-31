@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 import { toolHooksFactories } from "../src/features/hooks/hooks-processor.js";
 import { HOOK_EVENTS } from "../src/types/hooks.js";

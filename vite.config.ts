@@ -52,6 +52,9 @@ export default defineConfig({
   // Oxlint's type-aware mode would add rules this repository does not use.
   lint: {
     plugins: ["typescript", "import", "unicorn"],
+    // Vite+'s own rule, which reports `vite` / `vitest` imports that should
+    // come from `vite-plus`.
+    jsPlugins: [{ name: "vite-plus", specifier: "vite-plus/oxlint-plugin" }],
     categories: {
       correctness: "error",
       suspicious: "warn",
@@ -69,6 +72,7 @@ export default defineConfig({
       "unicorn/prefer-node-protocol": "error",
       "unicorn/no-array-reduce": "off",
       "unicorn/consistent-function-scoping": "off",
+      "vite-plus/prefer-vite-plus-imports": "error",
     },
     env: {
       browser: false,

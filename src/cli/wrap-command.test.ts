@@ -1,5 +1,5 @@
 import { Command } from "commander";
-import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from "vite-plus/test";
 
 import { createMockLogger, type MockLogger } from "../test-utils/mock-logger.js";
 import { CLIError } from "../types/json-output.js";

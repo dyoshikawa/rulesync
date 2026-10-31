@@ -2,7 +2,7 @@ import { chmod, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 
 import { intersection } from "es-toolkit";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { ChecksProcessor } from "../features/checks/checks-processor.js";
 import { CommandsProcessor } from "../features/commands/commands-processor.js";

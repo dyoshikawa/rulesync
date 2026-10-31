@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { load as loadYaml } from "js-yaml";
 import { parse as parseJsonc } from "jsonc-parser";
 import { parse as parseToml } from "smol-toml";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { Config } from "../config/config.js";
 import {

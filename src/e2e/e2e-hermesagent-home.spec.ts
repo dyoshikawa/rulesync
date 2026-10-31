@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 import { CLAUDECODE_COMMANDS_DIR_PATH } from "../constants/claudecode-paths.js";
 import {

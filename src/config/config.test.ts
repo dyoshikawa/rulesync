@@ -1,6 +1,6 @@
 import { isAbsolute, join, resolve } from "node:path";
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 
 import { RULESYNC_CONFIG_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";
 import { ALL_FEATURES } from "../types/features.js";

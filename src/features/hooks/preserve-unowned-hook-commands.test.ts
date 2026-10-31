@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 import { ownedHookKey } from "./hooks-ownership-lock.js";
 import { mergeGeneratedHookLists } from "./preserve-unowned-hook-commands.js";

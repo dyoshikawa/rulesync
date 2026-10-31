@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { createMockLogger } from "../test-utils/mock-logger.js";
 import { ALL_TOOL_TARGETS, PACKAGING_TOOL_TARGETS } from "../types/tool-targets.js";

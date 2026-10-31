@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { join, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 
-import { afterEach, beforeEach, expect } from "vitest";
+import { afterEach, beforeEach, expect } from "vite-plus/test";
 
 import { setupTestDirectory } from "../test-utils/test-directories.js";
 import type { ToolTarget } from "../types/tool-targets.js";

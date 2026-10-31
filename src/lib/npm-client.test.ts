@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { createMockLogger } from "../test-utils/mock-logger.js";
 import {

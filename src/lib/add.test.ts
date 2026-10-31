@@ -2,7 +2,7 @@ import { rm, symlink } from "node:fs/promises";
 import { join } from "node:path";
 
 import { parse as parseJsonc } from "jsonc-parser";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import type { SourceEntry } from "../config/config.js";
 import { SKILL_FILE_NAME } from "../constants/general.js";

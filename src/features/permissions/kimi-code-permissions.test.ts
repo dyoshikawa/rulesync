@@ -1,5 +1,5 @@
 import * as smolToml from "smol-toml";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 import { KimiCodePermissions } from "./kimi-code-permissions.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";

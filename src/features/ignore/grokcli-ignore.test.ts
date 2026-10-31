@@ -1,7 +1,7 @@
 import { join } from "node:path";
 
 import { parse as parseToml } from "smol-toml";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import {
   RULESYNC_AIIGNORE_FILE_NAME,

@@ -1,5 +1,5 @@
 import { eastAsianWidthType } from "get-east-asian-width";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 import {
   AMBIGUOUS_CHARACTERS_PATTERN,

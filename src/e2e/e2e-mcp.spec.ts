@@ -4,7 +4,7 @@ import { setTimeout } from "node:timers/promises";
 
 import { load } from "js-yaml";
 import * as smolToml from "smol-toml";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 import {
   RULESYNC_MCP_LEGACY_RELATIVE_FILE_PATH,

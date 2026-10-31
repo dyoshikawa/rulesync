@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { fallbackLogger } from "../../utils/logger.js";

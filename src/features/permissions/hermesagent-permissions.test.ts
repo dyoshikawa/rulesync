@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vite-plus/test";
 
 import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { parseSharedConfig } from "../shared/shared-config-gateway.js";
