@@ -1,5 +1,5 @@
 // cspell:ignore zzzqqqnotaword
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 import { listDocuments, normalizeDocId, readDocument, searchDocuments } from "./docs.js";
 

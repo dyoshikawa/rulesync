@@ -2,7 +2,7 @@ import { readdir, rm, symlink } from "node:fs/promises";
 import { join, normalize } from "node:path";
 
 import * as smolToml from "smol-toml";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 import { SKILL_FILE_NAME } from "../constants/general.js";
 import {

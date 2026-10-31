@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { GitHubClient, GitHubClientError } from "./github-client.js";
 import { MemoizingGitHubClient } from "./memoizing-github-client.js";

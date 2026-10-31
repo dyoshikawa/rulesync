@@ -1,6 +1,6 @@
 import { gzipSync } from "node:zlib";
 
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 import { buildPaxEntry, buildTar, buildTarball } from "../test-utils/tar-fixture.js";
 import { extractPackageTarball, NpmTarError } from "./npm-tar.js";

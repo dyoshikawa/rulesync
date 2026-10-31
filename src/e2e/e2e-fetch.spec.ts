@@ -1,6 +1,6 @@
 import { join, posix } from "node:path";
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { createProgram } from "../cli/program.js";
 import { SKILL_FILE_NAME } from "../constants/general.js";

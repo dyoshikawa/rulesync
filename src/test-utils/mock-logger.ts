@@ -1,4 +1,4 @@
-import { type Mock, vi } from "vitest";
+import { type Mock, vi } from "vite-plus/test";
 
 import type { Logger } from "../utils/logger.js";
 

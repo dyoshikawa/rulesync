@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { ConfigResolver } from "../config/config-resolver.js";
 import { KIRO_IGNORE_FILE_NAME } from "../constants/kiro-paths.js";

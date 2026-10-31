@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 import { TOOL_DISPLAY } from "./tool-display.js";
 import { ALL_TOOL_TARGETS } from "./tool-targets.js";

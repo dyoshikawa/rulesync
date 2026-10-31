@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 import { MAX_JSON5_DEPTH, parseJson5 } from "./json5.js";
 

@@ -1,5 +1,5 @@
 // cspell:ignore lett revievv -- a lookalike fixture and a label cut mid-word on purpose
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { displayWidthOf } from "../utils/display-width.js";
 import {

@@ -1,5 +1,5 @@
 // cspell:ignore eploy forrnat revievv -- deliberate lookalike spellings used as fixtures
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 import { describeConfusableNames, mixedScriptsOf } from "./confusable-names.js";
 

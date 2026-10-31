@@ -1,5 +1,5 @@
 import * as smolToml from "smol-toml";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 import { RulesyncHooks } from "./rulesync-hooks.js";
 import { VibePluginHooks } from "./vibe-plugin-hooks.js";

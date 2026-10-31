@@ -2,7 +2,6 @@
 allowBuilds:
   "@openrouter/sdk": false
   esbuild: false
-  simple-git-hooks: false
   tldjs: false
 ignoreScripts: false
 minimumReleaseAge: 1440 # 1 day
@@ -11,3 +10,26 @@ overrides:
   "js-yaml@<4.3.2": 4.3.2
 patchedDependencies:
   gray-matter@4.0.3: patches/gray-matter@4.0.3.patch
+# Vite+ (`vp`) and the tools it drives. The root `vite` is Vite+'s core under
+# the upstream name, so Vitest (a peer of it) runs on the same Vite as `vp`.
+# There is deliberately no `vite` / `vitest` override: VitePress depends on
+# its own Vite 5 (`vitepress` -> `vite@^5`) and must keep it for `docs:*`.
+catalog:
+  vite: npm:@voidzero-dev/vite-plus-core@1.4.0
+  vitest: 5.0.5
+  vite-plus: 1.4.0
+  "@vitest/coverage-v8": 5.0.5
+  # `vp` resolves oxfmt and oxlint from the working directory before its own
+  # copies, and scripts/run-oxfmt.ts calls the root `oxfmt` directly, so both
+  # stay direct dependencies here.
+  oxfmt: 0.75.0
+  oxlint: 1.90.0
+# Vitest and its mocker declare peer ranges on upstream Vite; the aliased
+# Vite+ core satisfies them. Scoped so VitePress's peers are still checked.
+peerDependencyRules:
+  allowedVersions:
+    vitest>vite: "*"
+    "@vitest/mocker>vite": "*"
+    # oxlint 1.90 asks for a newer oxlint-tsgolint than vite-plus ships; the
+    # type-aware mode that would use it is off (`lint` in vite.config.ts).
+    oxlint>oxlint-tsgolint: "*"

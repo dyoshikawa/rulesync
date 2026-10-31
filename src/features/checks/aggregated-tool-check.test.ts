@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 import { AggregatedToolCheck, type AggregatedToolCheckConfig } from "./aggregated-tool-check.js";
 import { type ToolCheckSettablePaths } from "./tool-check.js";

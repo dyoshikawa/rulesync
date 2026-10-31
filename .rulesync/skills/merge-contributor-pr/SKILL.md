@@ -158,10 +158,10 @@ at the commit step.
 
 Resolving locally means running the fork's code on your own machine: Step 4's
 `pnpm cicheck` executes the PR's tests, the generators execute the PR's `src/`
-and `scripts/`, the pre-commit hook executes whatever `.lintstagedrc.js` names,
-and the `pnpm install` that Step 3 calls for when `main` brings a dependency
-change runs the merged tree's `prepare` script — here
-`simple-git-hooks && pnpm generate`. Your machine holds `gh`, npm and SSH credentials, so this gate comes **before**
+and `scripts/`, the pre-commit hook executes whatever the `staged` block of
+`vite.config.ts` names, and the `pnpm install` that Step 3 calls for when `main`
+brings a dependency change runs the merged tree's `prepare` script — here
+`vp config --no-agent && pnpm generate`. Your machine holds `gh`, npm and SSH credentials, so this gate comes **before**
 any command executes content from the branch — the read-only `git fetch` and
 `gh pr view` of Step 1 are fine, everything after this point is not — and not
 merely before the merge:
@@ -206,7 +206,7 @@ Nor is the input the `files` array of the saved payload: `gh pr view --json file
 for the first 100 and says nothing when there are more. The list comes back
 sorted by path, so what falls off the end is the tail of the alphabet —
 `package.json`, `patches/**`, `pnpm-workspace.yaml`, `scripts/**`,
-`tsconfig.json`, `vitest.config.ts`. A PR with a hundred files under `docs/`
+`tsconfig.json`, `vite.config.ts`, `vitest.config.ts`. A PR with a hundred files under `docs/`
 would hide every one of them behind a gate that printed nothing at all. The
 local diff has no such cap.
 
@@ -216,7 +216,8 @@ Stop, report the paths, and ask the user to confirm — or ask the author to mer
 
 - `.github/**`, `package.json` or a lockfile;
 - `scripts/**`, or anything else the build and release flow runs;
-- **`.rulesync/**`**, because `.lintstagedrc.js` maps it to `pnpm dev generate`:
+- **`.rulesync/**`**, because the `staged` block of `vite.config.ts` maps it to
+  `pnpm dev generate`:
   committing a change there in Step 4 runs the fork's own CLI through the
   pre-commit hook, and rewrites tracked generated files while it is at it;
 - **`rulesync.jsonc` and `rulesync.local.jsonc`**, which are what `pnpm generate`
@@ -227,13 +228,13 @@ Stop, report the paths, and ask the user to confirm — or ask the author to mer
   untouched and edits only `outputRoots` gets a generate that writes and deletes
   outside the repository, the maintainer's own home-directory agent
   configuration included;
-- **any `.lintstagedrc*` or `lint-staged.config.*`, anywhere in the tree**, not
-  only the one at the root. lint-staged resolves the config nearest each staged
-  file, so `src/.lintstagedrc.json` next to a file the PR deliberately made
-  conflict is a command that runs at Step 4's `git commit` — and at the root,
-  `.lintstagedrc.json` outranks the `.lintstagedrc.js` that is actually
-  committed here. A nested `package.json` carrying a `lint-staged` key does the
-  same;
+- **`vite.config.ts` and anything under `.vite-hooks/`**: the `staged` block is
+  what `vp staged` runs at Step 4's `git commit`, and `.vite-hooks/pre-commit`
+  is the hook script itself — `vp config` (run by `prepare`) points
+  `core.hooksPath` at `.vite-hooks/_`, so a fork's script there fires on this
+  clone at every later commit. `vp staged` is lint-staged underneath, so treat
+  any `.lintstagedrc*`, `lint-staged.config.*` or nested `package.json`
+  `lint-staged` key the PR adds, anywhere in the tree, the same way;
 - **`.npmrc`, `pnpm-workspace.yaml` and `patches/**`**, which are how a fork
   turns any `pnpm` command into arbitrary code. `.npmrc` sets the registry, so
   editing it redirects every install to a registry of the contributor's
@@ -245,27 +246,24 @@ Stop, report the paths, and ask the user to confirm — or ask the author to mer
   them. Git never writes there on its own, but a fork can commit a file there,
   and Step 4's `git switch` overwrites an ignored file without a word — the same
   silent overwrite that is why this run keeps its state under `.git/`. A
-  committed `node_modules/.bin/vitest`, or one replaced file inside a package
+  committed `node_modules/.bin/vp`, or one replaced file inside a package
   the test run imports, is executed by the next `pnpm cicheck` while
   `git status` stays clean. `git check-ignore --stdin --no-index`, fed the
   paths above, answers this for a diff too long to eyeball;
-- **any configuration file a local command loads**: `.lintstagedrc.js` (run by
-  the pre-commit hook, and it runs `npx`, which reads `.npmrc` too),
-  `vitest.config.ts` and `vitest.e2e.config.ts`, `knip.ts`, `tsconfig.json`,
-  `mise.toml`, `.claude/**`, and the lint configuration every check loads —
-  `.oxlintrc.json`, `cspell.json`, `.secretlintrc.json`, the last of which runs
-  on _every_ staged file through the pre-commit hook. `simple-git-hooks`
-  configuration deserves its own mention — `.simple-git-hooks.js`,
-  `simple-git-hooks.js` and their `.cjs` / `.mjs` / `.json` variants are read
-  ahead of the `package.json` key, and what they name is written into
-  `.git/hooks/pre-commit`, so a fork's entry keeps firing on this clone long
-  after the run is over. The bullets above are examples, not a closed list. When
+- **any configuration file a local command loads**: `vite.config.ts` (loaded by
+  every `vp fmt` / `vp lint` / `vp pack` / `vp staged`, so its top-level code
+  runs on each of them; its `staged` block runs `npx`, which reads `.npmrc`
+  too), `vitest.config.ts` and `vitest.e2e.config.ts`, `knip.ts`,
+  `tsconfig.json`, `mise.toml`, `.claude/**`, and the configuration every check
+  loads — `cspell.json`, `.secretlintrc.json`, the last of which runs on
+  _every_ staged file through the pre-commit hook. The bullets above are
+  examples, not a closed list. When
   in doubt about a dotfile or a config anywhere in the tree, treat it as on the
   list — the question is not whether it looks like build configuration, but
   whether some command executed here would read it.
 
 That list bounds the damage; it does not eliminate it. `pnpm cicheck` runs
-`vitest`, which executes every `src/**/*.test.ts` in the fork's tree, so a PR
+`vp test`, which executes every `src/**/*.test.ts` in the fork's tree, so a PR
 touching only `src/**` still runs the contributor's code with your credentials
 in reach. Before running anything, read the whole diff — `git diff
 origin/main...origin/pr-<pr_number>`, the fetched ref again for the reason

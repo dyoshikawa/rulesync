@@ -1,5 +1,5 @@
 import { intersection } from "es-toolkit";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { ConfigResolver } from "../../config/config-resolver.js";
 import { CommandsProcessor } from "../../features/commands/commands-processor.js";

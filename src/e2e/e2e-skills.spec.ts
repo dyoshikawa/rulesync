@@ -1,7 +1,7 @@
 import { symlink } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 import {
   RULESYNC_HOOKS_RELATIVE_FILE_PATH,

@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { AIASSISTANT_SKILLS_DIR_PATH } from "../../constants/aiassistant-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";

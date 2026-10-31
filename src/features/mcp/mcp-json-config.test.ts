@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 import { parseJsonc } from "../../utils/jsonc.js";
 import { parseMcpJsonObjectOrThrow } from "./mcp-json-config.js";

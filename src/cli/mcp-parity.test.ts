@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 import { rulesyncTool, supportedOperationsByFeature } from "../mcp/tools.js";
 import { MCP_OPTION_NAME_MAP, MCP_PARITY_EXCLUSIONS, mcpFeatureForCommand } from "./mcp-parity.js";

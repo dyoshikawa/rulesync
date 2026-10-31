@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { GROKCLI_DIR, GROKCLI_RULE_FILE_NAME } from "../../constants/grokcli-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";

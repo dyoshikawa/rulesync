@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { AMP_CHECKS_GLOBAL_DIR, AMP_CHECKS_PROJECT_DIR } from "../../constants/amp-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";

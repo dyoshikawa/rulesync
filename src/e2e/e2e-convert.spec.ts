@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 import { fileExists, readFileContent, writeFileContent } from "../utils/file.js";
 import { rulesyncArgs, rulesyncCmd, useTestDirectory } from "./e2e-helper.js";

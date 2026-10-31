@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 import { ALL_FEATURES, type Feature } from "../types/features.js";
 import { GENERATION_STEP_GRAPH } from "./generate.js";

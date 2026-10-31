@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 
 import { RULESYNC_NPM_SOURCES_LOCK_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";
 import { createMockLogger } from "../test-utils/mock-logger.js";

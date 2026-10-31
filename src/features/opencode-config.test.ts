@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { MIMOCODE_LAYOUT } from "../constants/mimocode-paths.js";
 import { OPENCODEV1_LAYOUT } from "../constants/opencode-paths.js";

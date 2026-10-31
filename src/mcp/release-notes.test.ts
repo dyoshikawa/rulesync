@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 import type { GitHubRelease } from "../types/fetch.js";
 import { executeReleaseNotes } from "./release-notes.js";
