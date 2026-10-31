@@ -2,10 +2,13 @@ import { type KnipConfig } from "knip";
 
 const config: KnipConfig = {
   entry: [
-    // `src/cli/index.ts` (package.json `bin`) and `src/index.ts` (package.json
-    // `exports`/`main`/`module`) are both auto-detected from package.json, so they
-    // do not need to be listed here. The test files are kept explicit because they
-    // are not covered by an enabled plugin's defaults.
+    // The `vp pack` entries (`pack.entry` in vite.config.ts): `src/cli/index.ts`
+    // (package.json `bin`) and `src/index.ts` (package.json `exports`/`main`/
+    // `module`). Knip has no plugin that reads `pack`, so they are listed here.
+    "src/cli/index.ts",
+    "src/index.ts",
+    // The test files are kept explicit because they are not covered by an
+    // enabled plugin's defaults.
     "src/**/*.test.ts",
     // Standalone task runners under scripts/ (executed via tsx) and their colocated
     // tests. Treating them as entries means script-only dependencies (e.g. `resend`,
@@ -17,7 +20,14 @@ const config: KnipConfig = {
   ignoreDependencies: [
     // Dependencies used only in configuration files
     "@secretlint/secretlint-rule-preset-recommend",
+    // Run by `vp lint`, which resolves it from the working directory first.
+    "oxlint",
   ],
+  // `vp test` is not a command Knip parses, so the E2E config the `test:e2e`
+  // script passes with `--config` is named here.
+  vitest: {
+    config: ["vitest.config.ts", "vitest.e2e.config.ts"],
+  },
   rules: {
     // `src/types/hooks.ts` intentionally aliases the OpenCode hook-event
     // constants for Kilo (`KILO_HOOK_EVENTS = OPENCODE_HOOK_EVENTS`,

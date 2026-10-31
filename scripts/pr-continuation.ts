@@ -18,11 +18,11 @@
 //   - `.github/workflows/**`     (workflow definitions, triggers, permissions)
 //   - `.github/actions/**`       (composite / local actions)
 //   - `package.json` fields:     `scripts` (postinstall / prepare /
-//                                prepublishOnly / etc.), `trustedDependencies`,
-//                                `simple-git-hooks`
+//                                prepublishOnly / etc.), `trustedDependencies`
 //   - `pnpm-workspace.yaml`      (`allowBuilds` entries — re-enabling a
 //                                postinstall opens a code-execution path)
-//   - `vitest.config.*`, `tsdown.config.*`, `eslint.config.*`, `scripts/**`
+//   - `vite.config.*` (its `staged` block runs on commit), `.vite-hooks/**`,
+//     `vitest.config.*`, `vitest.e2e.config.*`, `eslint.config.*`, `scripts/**`
 //   - Test files that import/execute shell commands or write to the filesystem
 // When in doubt, check out the PR locally in a sandbox first and inspect what
 // runs during `pnpm install`, `pnpm test`, and `pnpm build`.
