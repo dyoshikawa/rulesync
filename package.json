@@ -103,7 +103,7 @@
   },
   "devDependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.3.312",
-    "@openrouter/sdk": "1.5.20",
+    "@openrouter/sdk": "1.5.21",
     "@secretlint/secretlint-rule-preset-recommend": "13.1.0",
     "@tsconfig/node24": "24.0.5",
     "@types/node": "26.6.6",
@@ -121,7 +121,7 @@
     "simple-git": "4.0.2",
     "simple-git-hooks": "2.14.0",
     "sort-package-json": "4.1.0",
-    "tsdown": "0.23.3",
+    "tsdown": "0.23.4",
     "tsx": "4.23.15",
     "typescript": "7.0.2",
     "vite": "8.3.5",
