@@ -1,0 +1,38 @@
+name: Build Bun binary
+description: >-
+  Compile the rulesync CLI into a standalone executable for the runner's own
+  platform with Bun's ahead-of-time compiler. Install the dependencies first.
+
+inputs:
+  outfile:
+    description: Path of the executable to write (e.g. dist-bun/rulesync-linux-x64)
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Switch Bun to canary
+      # AOT compilation (`bun compile`) has only shipped in canary builds so
+      # far. Canary moves daily and cannot be pinned, so the exact revision is
+      # printed for every build.
+      shell: bash
+      run: |
+        bun upgrade --canary
+        bun --revision
+
+    - name: Compile binary
+      # `bun compile` is `bun build --compile --aot`: the code is compiled to
+      # machine code at build time, which starts much faster and makes a
+      # smaller executable than --bytecode. AOT cannot cross-compile, so this
+      # builds for the runner's platform only. --sourcemap is left out because
+      # an AOT binary already reports the positions of its sources.
+      shell: bash
+      env:
+        OUTFILE: ${{ inputs.outfile }}
+      run: bun compile --no-script --minify --outfile="$OUTFILE" ./src/cli/index.ts
+
+    - name: Smoke test binary
+      shell: bash
+      env:
+        OUTFILE: ${{ inputs.outfile }}
+      run: '"$OUTFILE" --version'

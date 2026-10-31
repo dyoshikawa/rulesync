@@ -21,89 +21,32 @@ permissions:
   contents: read # Required for checking out code
 
 jobs:
-  build:
-    name: Build binaries
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
-
-      - name: Setup mise
-        uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
-        with:
-          experimental: true
-
-      - name: Install dependencies
-        # Bun is not supported by the setup action. The tracked .npmrc still
-        # routes this installation through Takumi Guard.
-        run: bun install
-
-      - name: Build binaries
-        # --bytecode precompiles the bundle so the binaries start faster. It is
-        # left off the Windows target: that binary segfaults at startup when built
-        # with --bytecode (Bun 1.3.14).
-        run: |
-          mkdir -p dist-bun
-          bun build --compile --minify --sourcemap --bytecode --target=bun-linux-x64 --outfile=dist-bun/rulesync-linux-x64 ./src/cli/index.ts
-          bun build --compile --minify --sourcemap --bytecode --target=bun-linux-arm64 --outfile=dist-bun/rulesync-linux-arm64 ./src/cli/index.ts
-          bun build --compile --minify --sourcemap --bytecode --target=bun-darwin-arm64 --outfile=dist-bun/rulesync-darwin-arm64 ./src/cli/index.ts
-          bun build --compile --minify --sourcemap --bytecode --target=bun-darwin-x64 --outfile=dist-bun/rulesync-darwin-x64 ./src/cli/index.ts
-          bun build --compile --minify --sourcemap --target=bun-windows-x64 --outfile=dist-bun/rulesync-windows-x64.exe ./src/cli/index.ts
-
-      - name: Cache binaries
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: dist-bun
-          key: rulesync-binaries-${{ github.sha }}
-          enableCrossOsArchive: true
-
   e2e:
-    name: E2E Test (${{ matrix.os }})
+    name: E2E Test (${{ matrix.target }})
     runs-on: ${{ matrix.os }}
-    needs: build
     strategy:
       # Keep every platform leg running even if one fails, so a single
       # platform-specific breakage does not mask the others' results.
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        # Bun's AOT compiler only targets the platform it runs on, so each
+        # binary is built and tested on a native runner of its own.
+        include:
+          - target: linux-x64
+            os: ubuntu-latest
+          - target: linux-arm64
+            os: ubuntu-24.04-arm
+          - target: darwin-arm64
+            os: macos-latest
+          - target: darwin-x64
+            os: macos-15-intel
+          - target: windows-x64
+            os: windows-latest
+            ext: .exe
 
     steps:
       - name: Checkout code
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
-
-      - name: Restore cached binaries
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: dist-bun
-          key: rulesync-binaries-${{ github.sha }}
-          enableCrossOsArchive: true
-          fail-on-cache-miss: true
-
-      - name: Make binary executable (Unix)
-        if: runner.os != 'Windows'
-        env:
-          MATRIX_OS: ${{ matrix.os }}
-        run: |
-          if [ "$MATRIX_OS" = "ubuntu-latest" ]; then
-            chmod +x dist-bun/rulesync-linux-x64
-            BINARY_PATH=dist-bun/rulesync-linux-x64
-          elif [ "$MATRIX_OS" = "macos-latest" ]; then
-            # macos-latest is Apple Silicon (arm64)
-            chmod +x dist-bun/rulesync-darwin-arm64
-            BINARY_PATH=dist-bun/rulesync-darwin-arm64
-          else
-            echo "Unexpected matrix OS for Unix binary selection: $MATRIX_OS" >&2
-            exit 1
-          fi
-          echo "BINARY_PATH=$BINARY_PATH" >> "$GITHUB_ENV"
-
-      - name: Set binary path (Windows)
-        if: runner.os == 'Windows'
-        shell: bash
-        run: |
-          echo "BINARY_PATH=dist-bun/rulesync-windows-x64.exe" >> "$GITHUB_ENV"
 
       - name: Setup mise
         uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
@@ -116,7 +59,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --ignore-scripts
 
+      - name: Build binary
+        uses: ./.github/actions/build-bun-binary
+        with:
+          outfile: dist-bun/rulesync-${{ matrix.target }}${{ matrix.ext }}
+
       - name: Test binary
         env:
-          RULESYNC_CMD: ${{ env.BINARY_PATH }}
+          RULESYNC_CMD: dist-bun/rulesync-${{ matrix.target }}${{ matrix.ext }}
         run: pnpm test:e2e

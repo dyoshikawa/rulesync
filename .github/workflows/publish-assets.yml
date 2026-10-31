@@ -19,9 +19,68 @@ permissions:
   contents: write # Required for uploading release assets
 
 jobs:
+  build-binaries:
+    name: Build binary (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event.pull_request.merged == true &&
+        startsWith(github.event.pull_request.head.ref, 'release/v')
+      )
+    permissions:
+      contents: read # Required for checking out code
+    strategy:
+      matrix:
+        # Bun's AOT compiler only targets the platform it runs on, so each
+        # binary is built on a native runner of its own.
+        include:
+          - target: linux-x64
+            os: ubuntu-latest
+          - target: linux-arm64
+            os: ubuntu-24.04-arm
+          - target: darwin-arm64
+            os: macos-latest
+          - target: darwin-x64
+            os: macos-15-intel
+          - target: windows-x64
+            os: windows-latest
+            ext: .exe
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          # Build the same commit the build-assets job tags.
+          ref: ${{ github.event.pull_request.merge_commit_sha || 'main' }}
+
+      - name: Setup mise
+        uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
+        with:
+          experimental: true
+
+      - name: Install dependencies
+        # Bun is not supported by the setup action. The tracked .npmrc still
+        # routes this installation through Takumi Guard.
+        run: bun install
+
+      - name: Build binary
+        uses: ./.github/actions/build-bun-binary
+        with:
+          outfile: dist-bun/rulesync-${{ matrix.target }}${{ matrix.ext }}
+
+      - name: Upload binary
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: rulesync-${{ matrix.target }}
+          path: dist-bun/rulesync-${{ matrix.target }}${{ matrix.ext }}
+          if-no-files-found: error
+          retention-days: 1
+
   build-assets:
     name: Build and upload assets
     runs-on: ubuntu-latest
+    needs: build-binaries
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (
@@ -59,17 +118,16 @@ jobs:
         # routes this installation through Takumi Guard.
         run: bun install
 
-      - name: Build binaries
-        # --bytecode precompiles the bundle so the binaries start faster. It is
-        # left off the Windows target: that binary segfaults at startup when built
-        # with --bytecode (Bun 1.3.14).
-        run: |
-          mkdir -p dist-bun
-          bun build --compile --minify --sourcemap --bytecode --target=bun-linux-x64 --outfile=dist-bun/rulesync-linux-x64 ./src/cli/index.ts
-          bun build --compile --minify --sourcemap --bytecode --target=bun-linux-arm64 --outfile=dist-bun/rulesync-linux-arm64 ./src/cli/index.ts
-          bun build --compile --minify --sourcemap --bytecode --target=bun-darwin-arm64 --outfile=dist-bun/rulesync-darwin-arm64 ./src/cli/index.ts
-          bun build --compile --minify --sourcemap --bytecode --target=bun-darwin-x64 --outfile=dist-bun/rulesync-darwin-x64 ./src/cli/index.ts
-          bun build --compile --minify --sourcemap --target=bun-windows-x64 --outfile=dist-bun/rulesync-windows-x64.exe ./src/cli/index.ts
+      - name: Download binaries
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: rulesync-*
+          path: dist-bun
+          merge-multiple: true
+
+      - name: Make binaries executable
+        # Artifacts do not keep the executable bit.
+        run: chmod +x dist-bun/rulesync-*
 
       - name: Generate checksums
         run: |
