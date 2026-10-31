@@ -81,6 +81,44 @@ describe("GitlabduoMcp", () => {
     expect(warn).toHaveBeenCalledTimes(1);
   });
 
+  it("should skip a server named duo, which GitLab Duo CLI reserves", () => {
+    const warn = vi.fn();
+    const mcp = GitlabduoMcp.fromRulesyncMcp({
+      outputRoot: testDir,
+      rulesyncMcp: makeRulesyncMcp({
+        mcpServers: {
+          duo: { command: "node" },
+          Duo: { command: "node" },
+          "duo-tools": { command: "node" },
+        },
+      }),
+      logger: { warn } as never,
+    });
+
+    expect(mcp.getJson()).toEqual({
+      mcpServers: {
+        Duo: { type: "stdio", command: "node" },
+        "duo-tools": { type: "stdio", command: "node" },
+      },
+    });
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0]?.[0]).toContain('"duo"');
+    expect(warn.mock.calls[0]?.[0]).toContain("reserves");
+  });
+
+  it("should skip a server named duo in global scope too", () => {
+    const warn = vi.fn();
+    const mcp = GitlabduoMcp.fromRulesyncMcp({
+      outputRoot: testDir,
+      rulesyncMcp: makeRulesyncMcp({ mcpServers: { duo: { url: "https://example.com/mcp" } } }),
+      global: true,
+      logger: { warn } as never,
+    });
+
+    expect(mcp.getJson()).toEqual({ mcpServers: {} });
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
   it("should write the canonical timeout as timeoutMs", () => {
     const warn = vi.fn();
     const mcp = GitlabduoMcp.fromRulesyncMcp({

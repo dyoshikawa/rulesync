@@ -272,6 +272,51 @@ Missing description field.`;
       });
     });
 
+    it("should write the root disable-model-invocation into SKILL.md", () => {
+      const skill = AntigravityCliSkill.fromRulesyncSkill({
+        rulesyncSkill: buildRulesyncSkill({ "disable-model-invocation": true }),
+      });
+
+      expect(skill.getFrontmatter()).toEqual({
+        name: "flagged",
+        description: "Flagged skill",
+        "disable-model-invocation": true,
+      });
+    });
+
+    it("should let the section disable-model-invocation override the root value", () => {
+      const skill = AntigravityCliSkill.fromRulesyncSkill({
+        rulesyncSkill: buildRulesyncSkill({
+          "disable-model-invocation": true,
+          "antigravity-cli": { "disable-model-invocation": false },
+        }),
+      });
+
+      expect(skill.getFrontmatter()["disable-model-invocation"]).toBe(false);
+    });
+
+    it("should not emit disable-model-invocation when the root value is absent", () => {
+      const skill = AntigravityCliSkill.fromRulesyncSkill({
+        rulesyncSkill: buildRulesyncSkill({}),
+      });
+
+      expect(skill.getFrontmatter()).not.toHaveProperty("disable-model-invocation");
+    });
+
+    it("should import disable-model-invocation back so the next generate writes it again", () => {
+      const generated = AntigravityCliSkill.fromRulesyncSkill({
+        rulesyncSkill: buildRulesyncSkill({ "disable-model-invocation": true }),
+      });
+
+      const imported = generated.toRulesyncSkill();
+      expect(imported.getFrontmatter()["antigravity-cli"]).toEqual({
+        "disable-model-invocation": true,
+      });
+      expect(
+        AntigravityCliSkill.fromRulesyncSkill({ rulesyncSkill: imported }).getFrontmatter(),
+      ).toEqual(generated.getFrontmatter());
+    });
+
     it("should not emit disable-slash-command for user-invocable: true", () => {
       const skill = AntigravityCliSkill.fromRulesyncSkill({
         rulesyncSkill: buildRulesyncSkill({ "user-invocable": true }),

@@ -48,6 +48,7 @@ const piSkillSectionSchema = z.looseObject({
 
 const antigravitySkillSectionSchema = z.looseObject({
   "disable-slash-command": z.optional(z.boolean()),
+  "disable-model-invocation": z.optional(z.boolean()),
   metadata: z.optional(z.looseObject({})),
 });
 
@@ -69,6 +70,8 @@ const RulesyncSkillFrontmatterSchemaInternal = z.looseObject({
   // `devin.triggers` section value overrides it.
   // `codexcli` writes this root value into `SKILL.md` as-is and also maps
   // `true` onto `policy.allow_implicit_invocation: false` in `agents/openai.yaml`.
+  // The Antigravity targets (antigravity-ide, antigravity-cli, antigravity-plugin)
+  // also write this root value into `SKILL.md`; their section value overrides it.
   "disable-model-invocation": z.optional(z.boolean()),
   // Default for tools that support the flag (claudecode, codebuddy, copilot, copilotcli,
   // crush, cursor, qwencode, vibe, grokcli, factorydroid, dsh, reasonix, commandcode, lettacode,
@@ -807,6 +810,7 @@ export type RulesyncSkillFrontmatterInput = {
 
 type AntigravitySkillSectionInput = {
   "disable-slash-command"?: boolean;
+  "disable-model-invocation"?: boolean;
   metadata?: Record<string, unknown>;
   [key: string]: unknown;
 };

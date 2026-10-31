@@ -72,7 +72,9 @@ const toolScopedMcpSchema = z.looseObject({
  * server opts out. Per-server `startupTimeoutMs` / `toolTimeoutMs` / `deferred`
  * in `mcpServers` still win. `defaultDeferred` only takes effect when Kimi's
  * experimental `tool-select` flag is on, and is captured when a server connects
- * (MoonshotAI/kimi-code#4210).
+ * (MoonshotAI/kimi-code#4210). `reconnectInitialDelayMs` / `reconnectMaxDelayMs`
+ * (Kimi Code 2.4.0) set the first delay and the cap of the automatic reconnect
+ * backoff for workspace-level servers (MoonshotAI/kimi-code#4283).
  *
  * @see https://moonshotai.github.io/kimi-code/en/configuration/config-files.html#mcp
  */
@@ -80,6 +82,8 @@ const kimiCodeScopedMcpSchema = z.extend(toolScopedMcpSchema, {
   startupTimeoutMs: z.optional(z.number()),
   toolTimeoutMs: z.optional(z.number()),
   defaultDeferred: z.optional(z.boolean()),
+  reconnectInitialDelayMs: z.optional(z.int().check(z.nonnegative())),
+  reconnectMaxDelayMs: z.optional(z.int().check(z.nonnegative())),
 });
 
 /**

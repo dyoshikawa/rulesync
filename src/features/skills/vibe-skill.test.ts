@@ -115,7 +115,9 @@ describe("VibeSkill", () => {
         expect(logger.warn).toHaveBeenCalledTimes(1);
         expect(logger.warn).toHaveBeenCalledWith(
           expect.stringMatching(
-            new RegExp(`^Vibe skills: the skill name "${name}" is reserved for a Vibe built-in`),
+            new RegExp(
+              `^Vibe skills: the skill name "${name}" matches a Vibe built-in skill\\. Vibe before v3\\.0\\.4 skips`,
+            ),
           ),
         );
       },

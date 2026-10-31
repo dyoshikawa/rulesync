@@ -68,7 +68,7 @@ describe("CrushHooks", () => {
               { command: "./hooks/log.sh", matcher: "*" },
               { type: "prompt", prompt: "Check the diff" },
             ],
-            postToolUse: [{ type: "command", command: "./hooks/after.sh" }],
+            subagentStop: [{ type: "command", command: "./hooks/subagent.sh" }],
           },
         }),
         logger,
@@ -82,8 +82,8 @@ describe("CrushHooks", () => {
           ],
         },
       });
-      // The prompt hook and the postToolUse event are reported by the
-      // HooksProcessor, not a second time here.
+      // The prompt hook and the subagentStop event (which Crush does not
+      // fire) are reported by the HooksProcessor, not a second time here.
       expect(logger.warn).not.toHaveBeenCalled();
     });
 
@@ -134,6 +134,131 @@ describe("CrushHooks", () => {
       }
     });
 
+    it("should map every canonical event Crush fires to its Crush name", async () => {
+      const logger = createMockLogger();
+      const hooks = await CrushHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks: buildRulesyncHooks({
+          version: 1,
+          hooks: {
+            postToolUse: [{ command: "./a.sh", matcher: "^edit$" }],
+            postToolUseFailure: [{ command: "./b.sh", matcher: "^bash$" }],
+            permissionRequest: [{ command: "./c.sh", matcher: "^mcp_" }],
+            sessionStart: [{ command: "./d.sh" }],
+            sessionEnd: [{ command: "./e.sh" }],
+            beforeSubmitPrompt: [{ command: "./f.sh" }],
+            stop: [{ command: "./g.sh" }],
+            stopFailure: [{ command: "./h.sh" }],
+            stopCancelled: [{ command: "./i.sh" }],
+            preCompact: [{ command: "./j.sh" }],
+            postCompact: [{ command: "./k.sh" }],
+          },
+        }),
+        logger,
+      });
+
+      expect(hooks.getJson()).toEqual({
+        hooks: {
+          PostToolUse: [{ command: "./a.sh", matcher: "^edit$" }],
+          PostToolUseFailure: [{ command: "./b.sh", matcher: "^bash$" }],
+          PermissionRequest: [{ command: "./c.sh", matcher: "^mcp_" }],
+          SessionStart: [{ command: "./d.sh" }],
+          SessionEnd: [{ command: "./e.sh" }],
+          TurnStart: [{ command: "./f.sh" }],
+          TurnEnd: [{ command: "./g.sh" }],
+          StopFailure: [{ command: "./h.sh" }],
+          Interrupt: [{ command: "./i.sh" }],
+          PreCompact: [{ command: "./j.sh" }],
+          PostCompact: [{ command: "./k.sh" }],
+        },
+      });
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("should drop a matcher with a warning on an event that carries no tool", async () => {
+      const logger = createMockLogger();
+      const hooks = await CrushHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks: buildRulesyncHooks({
+          version: 1,
+          hooks: {
+            sessionStart: [{ command: "./start.sh", matcher: "startup" }],
+            stop: [{ command: "./stop.sh", matcher: "*" }],
+          },
+          crush: {
+            hooks: {
+              turn_start: [{ command: "./turn.sh", matcher: "^bash$" }],
+              PermissionResult: [{ command: "./result.sh", matcher: "^bash$" }],
+            },
+          },
+        }),
+        logger,
+      });
+
+      expect(hooks.getJson()).toEqual({
+        hooks: {
+          SessionStart: [{ command: "./start.sh" }],
+          TurnEnd: [{ command: "./stop.sh" }],
+          TurnStart: [{ command: "./turn.sh" }],
+          PermissionResult: [{ command: "./result.sh", matcher: "^bash$" }],
+        },
+      });
+      // `*` already means "no matcher", so only the two real matchers warn.
+      expect(logger.warn).toHaveBeenCalledTimes(2);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('on "SessionStart" hook'));
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('on "TurnStart" hook'));
+    });
+
+    it.each(["TurnEnd", "turn_end", "stop"])(
+      "should resolve an override keyed %s to the same event as the shared stop hooks",
+      async (overrideKey) => {
+        const hooks = await CrushHooks.fromRulesyncHooks({
+          outputRoot: testDir,
+          rulesyncHooks: buildRulesyncHooks({
+            version: 1,
+            hooks: { stop: [{ command: "./shared.sh" }] },
+            crush: { hooks: { [overrideKey]: [{ command: "./crush-only.sh" }] } },
+          }),
+        });
+
+        // The override replaces the shared entries of its event, whatever
+        // spelling it uses, and is never a second key Crush would add on top.
+        expect(hooks.getJson()).toEqual({
+          hooks: { TurnEnd: [{ command: "./crush-only.sh" }] },
+        });
+      },
+    );
+
+    it("should concatenate override keys that name the same event, in order", async () => {
+      const hooks = await CrushHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks: buildRulesyncHooks({
+          version: 1,
+          hooks: {
+            beforeSubmitPrompt: [{ command: "./shared.sh" }],
+            sessionStart: [{ command: "./start.sh" }],
+          },
+          crush: {
+            hooks: {
+              TurnStart: [{ command: "./a.sh" }],
+              turn_start: [{ command: "./b.sh" }],
+              beforeSubmitPrompt: [{ command: "./c.sh" }],
+              PermissionResult: [{ command: "./d.sh" }],
+              permission_result: [{ command: "./e.sh" }],
+            },
+          },
+        }),
+      });
+
+      expect(hooks.getJson()).toEqual({
+        hooks: {
+          TurnStart: [{ command: "./a.sh" }, { command: "./b.sh" }, { command: "./c.sh" }],
+          SessionStart: [{ command: "./start.sh" }],
+          PermissionResult: [{ command: "./d.sh" }, { command: "./e.sh" }],
+        },
+      });
+    });
+
     it("should apply the crush override per event", async () => {
       const hooks = await CrushHooks.fromRulesyncHooks({
         outputRoot: testDir,
@@ -155,7 +280,7 @@ describe("CrushHooks", () => {
         JSON.stringify({
           hooks: {
             PreToolUse: [{ command: "./pre.sh" }],
-            PostToolUse: [{ command: "./post.sh", matcher: "bash" }],
+            PermissionResult: [{ command: "./result.sh", matcher: "bash" }],
           },
         }),
       );
@@ -164,7 +289,9 @@ describe("CrushHooks", () => {
         version: 1,
         hooks: { preToolUse: [{ type: "command", command: "./pre.sh" }] },
         crush: {
-          hooks: { PostToolUse: [{ type: "command", command: "./post.sh", matcher: "bash" }] },
+          hooks: {
+            PermissionResult: [{ type: "command", command: "./result.sh", matcher: "bash" }],
+          },
         },
       });
 
@@ -177,7 +304,7 @@ describe("CrushHooks", () => {
       expect(regenerated.getJson()).toEqual({
         hooks: {
           PreToolUse: [{ command: "./pre.sh" }],
-          PostToolUse: [{ command: "./post.sh", matcher: "bash" }],
+          PermissionResult: [{ command: "./result.sh", matcher: "bash" }],
         },
       });
       expect(logger.warn).not.toHaveBeenCalled();
@@ -272,7 +399,8 @@ describe("CrushHooks", () => {
               { "command": "./log.sh" },
               { "matcher": "no command" }
             ],
-            "PostToolUse": [{ "command": "./after.sh" }],
+            "TurnEnd": [{ "command": "./after.sh" }],
+            "PermissionResult": [{ "command": "./result.sh" }],
             "__proto__": [{ "command": "./evil.sh" }]
           }
         }`,
@@ -284,10 +412,50 @@ describe("CrushHooks", () => {
           { type: "command", name: "guard", matcher: "^bash$", command: "./guard.sh", timeout: 10 },
           { type: "command", command: "./log.sh" },
         ],
+        stop: [{ type: "command", command: "./after.sh" }],
       });
       expect(json.crush).toEqual({
-        hooks: { PostToolUse: [{ type: "command", command: "./after.sh" }] },
+        hooks: { PermissionResult: [{ type: "command", command: "./result.sh" }] },
       });
+    });
+
+    it("should map every Crush event with a canonical counterpart back to it", () => {
+      const hooks = new CrushHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".",
+        relativeFilePath: "crush.json",
+        fileContent: JSON.stringify({
+          hooks: {
+            PostToolUse: [{ command: "./a.sh", matcher: "^bash$" }],
+            PostToolUseFailure: [{ command: "./b.sh" }],
+            PermissionRequest: [{ command: "./c.sh" }],
+            SessionStart: [{ command: "./d.sh" }],
+            SessionEnd: [{ command: "./e.sh" }],
+            TurnStart: [{ command: "./f.sh" }],
+            turn_end: [{ command: "./g.sh" }],
+            StopFailure: [{ command: "./h.sh" }],
+            Interrupt: [{ command: "./i.sh" }],
+            PreCompact: [{ command: "./j.sh" }],
+            PostCompact: [{ command: "./k.sh" }],
+          },
+        }),
+      });
+
+      const json = hooks.toRulesyncHooks().getJson();
+      expect(json.hooks).toEqual({
+        postToolUse: [{ type: "command", command: "./a.sh", matcher: "^bash$" }],
+        postToolUseFailure: [{ type: "command", command: "./b.sh" }],
+        permissionRequest: [{ type: "command", command: "./c.sh" }],
+        sessionStart: [{ type: "command", command: "./d.sh" }],
+        sessionEnd: [{ type: "command", command: "./e.sh" }],
+        beforeSubmitPrompt: [{ type: "command", command: "./f.sh" }],
+        stop: [{ type: "command", command: "./g.sh" }],
+        stopFailure: [{ type: "command", command: "./h.sh" }],
+        stopCancelled: [{ type: "command", command: "./i.sh" }],
+        preCompact: [{ type: "command", command: "./j.sh" }],
+        postCompact: [{ type: "command", command: "./k.sh" }],
+      });
+      expect(json.crush).toBeUndefined();
     });
 
     it("should fold the case- and underscore-insensitive spellings Crush accepts", () => {

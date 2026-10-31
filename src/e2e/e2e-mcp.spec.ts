@@ -1157,7 +1157,13 @@ describe("E2E: mcp (global mode)", () => {
       join(projectDir, RULESYNC_MCP_RELATIVE_FILE_PATH),
       JSON.stringify({
         mcpServers: { remote: { type: "http", url: "https://example.com/mcp" } },
-        "kimi-code": { startupTimeoutMs: 45000, toolTimeoutMs: 90000, defaultDeferred: true },
+        "kimi-code": {
+          startupTimeoutMs: 45000,
+          toolTimeoutMs: 90000,
+          defaultDeferred: true,
+          reconnectInitialDelayMs: 2000,
+          reconnectMaxDelayMs: 60000,
+        },
       }),
     );
 
@@ -1175,6 +1181,8 @@ describe("E2E: mcp (global mode)", () => {
       startup_timeout_ms: 45000,
       tool_timeout_ms: 90000,
       default_deferred: true,
+      reconnect_initial_delay_ms: 2000,
+      reconnect_max_delay_ms: 60000,
     });
     // The servers themselves stay in mcp.json.
     expect(
@@ -1196,6 +1204,8 @@ describe("E2E: mcp (global mode)", () => {
       startupTimeoutMs: 45000,
       toolTimeoutMs: 90000,
       defaultDeferred: true,
+      reconnectInitialDelayMs: 2000,
+      reconnectMaxDelayMs: 60000,
     });
   });
 
