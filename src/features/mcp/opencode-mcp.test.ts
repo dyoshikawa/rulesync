@@ -57,10 +57,9 @@ describe("OpencodeMcp", () => {
         "my_server_remove_?": false,
       });
       const imported = generated.toRulesyncMcp().getJson();
-      expect(imported.mcpServers["my.server"]).toMatchObject({
-        enabledTools: ["read_file"],
-        disabledTools: ["delete_*", "remove_?"],
-      });
+      const importedServer = imported.mcpServers["my.server"];
+      expect(importedServer?.enabledTools).toEqual(["read_file"]);
+      expect(importedServer?.disabledTools).toEqual(["delete_*", "remove_?"]);
       expect(imported).not.toHaveProperty("opencode");
       expect(imported).not.toHaveProperty("mimocode");
     },
@@ -116,12 +115,107 @@ describe("OpencodeMcp", () => {
     });
     const imported = mcp.toRulesyncMcp().getJson();
     expect(imported.mcpServers.my).not.toHaveProperty("disabledTools");
-    expect(imported.mcpServers["my.server"]).toMatchObject({
-      enabledTools: ["read.file"],
-      disabledTools: ["delete"],
-    });
+    const ownedServer = imported.mcpServers["my.server"];
+    expect(ownedServer?.enabledTools).toEqual(["read.file"]);
+    expect(ownedServer?.disabledTools).toEqual(["delete"]);
     expect(imported).toHaveProperty("opencode", {
       mcpServers: { orphan: { disabledTools: ["delete"] } },
+    });
+  });
+
+  it("should attribute colliding sanitized server names to the first listed server", () => {
+    const mcp = new OpencodeMcp({
+      relativeDirPath: ".",
+      relativeFilePath: "opencode.json",
+      fileContent: JSON.stringify({
+        mcp: {
+          "a.b": { type: "local", command: ["node"] },
+          a_b: { type: "local", command: ["node"] },
+        },
+        tools: {
+          a_b_x: false,
+        },
+      }),
+    });
+    const imported = mcp.toRulesyncMcp().getJson();
+    expect(imported.mcpServers["a.b"]?.disabledTools).toEqual(["x"]);
+    expect(imported.mcpServers.a_b).not.toHaveProperty("disabledTools");
+  });
+
+  it("should import orphan tool filters whose server names contain dots or hyphens", () => {
+    const mcp = new OpencodeMcp({
+      relativeDirPath: ".",
+      relativeFilePath: "opencode.json",
+      fileContent: JSON.stringify({
+        mcp: {},
+        tools: {
+          "my.server_delete.file": false,
+          "ghost-server_read": true,
+        },
+      }),
+    });
+    const imported = mcp.toRulesyncMcp().getJson();
+    expect(imported).toHaveProperty("opencode", {
+      mcpServers: {
+        "my.server": { disabledTools: ["delete.file"] },
+        "ghost-server": { enabledTools: ["read"] },
+      },
+    });
+  });
+
+  it("should import sanitized tool keys from an mcp.servers envelope", () => {
+    const mcp = new OpencodeMcp({
+      relativeDirPath: ".",
+      relativeFilePath: "opencode.json",
+      fileContent: JSON.stringify({
+        mcp: {
+          servers: {
+            "my.server": { type: "local", command: ["node"] },
+          },
+        },
+        tools: {
+          my_server_read_file: true,
+          "my_server_delete_*": false,
+        },
+      }),
+    });
+    const imported = mcp.toRulesyncMcp().getJson();
+    const v2Server = imported.mcpServers["my.server"];
+    expect(v2Server?.enabledTools).toEqual(["read_file"]);
+    expect(v2Server?.disabledTools).toEqual(["delete_*"]);
+  });
+
+  it("should replace legacy raw tool keys wholesale on regenerate", async () => {
+    await writeFileContent(
+      join(testDir, "opencode.json"),
+      JSON.stringify(
+        {
+          mcp: {
+            "my.server": { type: "local", command: ["node"], enabled: true },
+          },
+          tools: {
+            "my.server_delete.file": false,
+          },
+        },
+        null,
+        2,
+      ),
+    );
+    const rulesyncMcp = new RulesyncMcp({
+      relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+      relativeFilePath: ".mcp.json",
+      fileContent: JSON.stringify({
+        mcpServers: {
+          "my.server": {
+            command: "node",
+            disabledTools: ["delete.file"],
+          },
+        },
+      }),
+    });
+    const generated = await OpencodeMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+    expect(generated.getJson().tools).toEqual({
+      my_server_delete_file: false,
     });
   });
 
