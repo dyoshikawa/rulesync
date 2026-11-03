@@ -77,19 +77,25 @@ function resolveGooseUrl(config: Record<string, unknown>): string | undefined {
 
 /**
  * Determines the Goose `type` for a server based on its command/url/transport.
+ *
+ * Goose no longer has an SSE extension type (it skips a `type: sse` entry as
+ * unsupported), so every remote server is written as `streamable_http`.
  */
 function resolveGooseType(config: Record<string, unknown>, url: string | undefined): string {
   if (config.command !== undefined) {
     return "stdio";
   }
   if (url !== undefined) {
-    return canonicalTransport(config) === "sse" ? "sse" : "streamable_http";
+    return "streamable_http";
   }
   return canonicalTransport(config) === "builtin" ? "builtin" : "stdio";
 }
 
 /**
- * The Goose extension types that carry an MCP server. Goose also documents
+ * The Goose extension types that carry an MCP server. `sse` is no longer one
+ * Goose reads, but it stays here so a stale `type: sse` entry is still
+ * recognized: imported as canonical `sse` and replaced by the regenerated
+ * same-name `streamable_http` entry. Goose also documents
  * `builtin`, `platform`, `frontend` and `inline_python` extensions, which have
  * no canonical MCP counterpart: they name capabilities Goose provides itself
  * rather than a server rulesync could describe.
@@ -166,7 +172,14 @@ function convertServerToGooseExtension(
       );
       return undefined;
     }
-  } else if (gooseType === "sse" || gooseType === "streamable_http") {
+  } else if (gooseType === "streamable_http") {
+    if (canonicalTransport(config) === "sse") {
+      warnWithFallback(
+        logger,
+        `Goose extension "${name}" uses SSE, which Goose no longer supports; writing it as ` +
+          `streamable_http, which only works if the server also speaks Streamable HTTP.`,
+      );
+    }
     if (url !== undefined) ext.uri = url;
     if (isPlainObject(config.headers)) ext.headers = omitPrototypePollutionKeys(config.headers);
   }
@@ -183,8 +196,9 @@ function convertServerToGooseExtension(
  * Converts rulesync canonical MCP servers into Goose `extensions:` entries.
  *
  * Goose uses a non-standard schema: `name`, `type` (`stdio` | `streamable_http`
- * | `sse` | `builtin`), `cmd`/`args`/`envs` for stdio, `uri`/`headers` for
- * remote, plus `enabled` and `timeout`.
+ * | `builtin`), `cmd`/`args`/`envs` for stdio, `uri`/`headers` for remote, plus
+ * `enabled` and `timeout`. A canonical `sse` server is written as
+ * `streamable_http` with a warning, since Goose dropped SSE support.
  *
  * `extensions:` is co-owned: alongside the MCP servers rulesync manages it also
  * holds Goose's own `builtin`/`platform`/`frontend`/`inline_python` extensions
@@ -389,7 +403,8 @@ function convertToGoosePluginMcpServers(
  *   `~/.config/goose/config.yaml`. That file also holds other Goose settings
  *   (model, provider, ...), so generation merges the `extensions:` block into the
  *   existing config instead of overwriting it, and the file is never deleted.
- *   This location supports both stdio and remote (http/sse) servers.
+ *   This location supports both stdio and remote servers (SSE is written as
+ *   `streamable_http`, since Goose no longer reads `type: sse`).
  * - **Project**: a stdio-only open-plugin manifest at
  *   `.agents/plugins/rulesync/.mcp.json` (Goose v1.39.0+), reusing the same
  *   `.agents/plugins/rulesync/` tree as Goose hooks. The manifest uses the
