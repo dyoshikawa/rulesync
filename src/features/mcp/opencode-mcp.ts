@@ -219,9 +219,12 @@ function convertFromOpencodeFormat(
   remoteType: "sse" | "http",
 ): McpServers {
   const serverNames = Object.keys(opencodeMcp);
-  // A bare sanitized prefix has no tool suffix, so the owner lookup rejects
-  // it. Drop it here too, or the orphan importer splits a_b_ into server a
-  // and tool b_ when the listed server is a.b.
+  // Pre-filter with findOpencodeToolOwner so sanitized and legacy raw prefixes
+  // both count as owned. The owner lookup needs a nonempty tool suffix, so a
+  // bare sanitized prefix is dropped here as well; otherwise the orphan
+  // importer splits a_b_ into server a and tool b_ when the listed server is
+  // a.b. A bare raw prefix (a.b_) is left to the raw `<server>_` check in
+  // orphanMcpToolFiltersToRulesync, which Kilo also relies on.
   const orphanTools = Object.fromEntries(
     Object.entries(tools ?? {}).filter(
       ([key]) =>
@@ -235,6 +238,10 @@ function convertFromOpencodeFormat(
   };
 }
 
+// OpenCode's top-level `tools` map holds only MCP toggles. Built-in tool names
+// never appear there (unlike Kilo), so the owner lookup uses an empty set.
+const OPENCODE_MCP_BUILTIN_TOOL_KEYS: ReadonlySet<string> = new Set();
+
 /** Recognize both OpenCode's sanitized names and keys older rulesync versions wrote. */
 function findOpencodeToolOwner({
   key,
@@ -243,10 +250,13 @@ function findOpencodeToolOwner({
   key: string;
   serverNames: readonly string[];
 }) {
+  // When two server names sanitize to the same prefix of equal length (for
+  // example `a.b` and `a_b`), findOpencodeMcpToolKeyOwner keeps the first
+  // listed server, so the later server's filters are attributed to it.
   return findOpencodeMcpToolKeyOwner({
     key,
     serverNames,
-    builtinKeys: new Set<string>(),
+    builtinKeys: OPENCODE_MCP_BUILTIN_TOOL_KEYS,
     acceptRawPrefix: true,
   });
 }
