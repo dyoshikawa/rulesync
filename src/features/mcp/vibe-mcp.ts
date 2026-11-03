@@ -151,6 +151,7 @@ export class VibeMcp extends ToolMcp {
     // server from `.rulesync/mcp.jsonc` no longer removes it from
     // `config.toml`; delete it there (or via `vibe mcp remove`) as well.
     const unmanagedServers = existingServers.filter((server) => !managedNames.has(server.name));
+    const servers = [...mcpServers, ...unmanagedServers];
 
     return new VibeMcp({
       outputRoot,
@@ -160,7 +161,8 @@ export class VibeMcp extends ToolMcp {
         fileKey: sharedConfigFileKey(paths),
         feature: "mcp",
         existingContent,
-        patch: { mcp_servers: [...mcpServers, ...unmanagedServers] },
+        // An empty list retracts the key instead of writing `mcp_servers = []`.
+        patch: { mcp_servers: servers.length > 0 ? servers : undefined },
         filePath,
       }),
       validate,

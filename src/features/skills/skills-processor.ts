@@ -203,6 +203,18 @@ type ToolSkillFactory = {
      * directory-based tool cannot make it start deleting files.
      */
     canSweepFlatFileName?(params: { fileName: string }): boolean;
+    /**
+     * Optional generate-time hook for a tool whose own settings can make it
+     * ignore the directory rulesync writes to (e.g. Amp's
+     * `amp.skills.disableGlobalAgentsSkills`). Called once per run, only when
+     * at least one skill is generated for the tool; every returned message is
+     * logged as a warning.
+     */
+    getGenerationWarnings?(params: {
+      outputRoot: string;
+      global: boolean;
+      logger: Logger;
+    }): Promise<string[]>;
   };
   meta: {
     /** Whether the tool supports project (workspace-level) skills */
@@ -1001,6 +1013,17 @@ export class SkillsProcessor extends DirFeatureProcessor {
         }),
       )
     ).filter((skill): skill is ToolSkill => skill !== null);
+
+    if (toolSkills.length > 0 && factory.class.getGenerationWarnings) {
+      const warnings = await factory.class.getGenerationWarnings({
+        outputRoot: this.outputRoot,
+        global: this.global,
+        logger: this.logger,
+      });
+      for (const warning of warnings) {
+        this.logger.warn(warning);
+      }
+    }
 
     return toolSkills;
   }

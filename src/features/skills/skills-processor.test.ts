@@ -247,6 +247,84 @@ describe("SkillsProcessor", () => {
   describe("convertRulesyncDirsToToolDirs", () => {
     let processor: SkillsProcessor;
 
+    describe("Amp amp.skills.disableGlobalAgentsSkills warning", () => {
+      const makeSkill = () =>
+        new RulesyncSkill({
+          outputRoot: testDir,
+          relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+          dirName: "my-skill",
+          frontmatter: { name: "my-skill", description: "Does a thing" },
+          body: "body",
+          validate: false,
+        });
+
+      const run = async ({
+        global = true,
+        settings,
+        skills = [makeSkill()],
+      }: {
+        global?: boolean;
+        settings?: { fileName: string; content: string };
+        skills?: RulesyncSkill[];
+      }) => {
+        if (settings) {
+          await writeFileContent(
+            join(testDir, ".config", "amp", settings.fileName),
+            settings.content,
+          );
+        }
+        const logger = createMockLogger();
+        const ampProcessor = new SkillsProcessor({
+          logger,
+          outputRoot: testDir,
+          toolTarget: "amp",
+          global,
+        });
+        await ampProcessor.convertRulesyncDirsToToolDirs(skills);
+        return logger;
+      };
+
+      it.each(["settings.json", "settings.jsonc"])(
+        "warns when the setting is true in %s",
+        async (fileName) => {
+          const logger = await run({
+            settings: {
+              fileName,
+              content: '{\n  // c\n  "amp.skills.disableGlobalAgentsSkills": true,\n}',
+            },
+          });
+          expect(logger.warn).toHaveBeenCalledTimes(1);
+          expect(logger.warn.mock.calls[0]?.[0]).toContain(
+            "'amp.skills.disableGlobalAgentsSkills' is true",
+          );
+          expect(logger.warn.mock.calls[0]?.[0]).toContain(fileName);
+        },
+      );
+
+      it.each([
+        ["false", '{ "amp.skills.disableGlobalAgentsSkills": false }'],
+        ["absent", '{ "amp.tools.disable": ["Bash"] }'],
+        ["malformed", "{ not json"],
+      ])("does not warn when the setting is %s", async (_label, content) => {
+        const logger = await run({ settings: { fileName: "settings.json", content } });
+        expect(logger.warn).not.toHaveBeenCalled();
+      });
+
+      it("does not warn when there is no settings file", async () => {
+        const logger = await run({});
+        expect(logger.warn).not.toHaveBeenCalled();
+      });
+
+      it("does not warn in project mode or when no skill is generated", async () => {
+        const settings = {
+          fileName: "settings.json",
+          content: '{ "amp.skills.disableGlobalAgentsSkills": true }',
+        };
+        expect((await run({ global: false, settings })).warn).not.toHaveBeenCalled();
+        expect((await run({ settings, skills: [] })).warn).not.toHaveBeenCalled();
+      });
+    });
+
     beforeEach(() => {
       processor = new SkillsProcessor({
         logger: createMockLogger(),
