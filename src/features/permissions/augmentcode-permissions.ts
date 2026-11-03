@@ -342,21 +342,30 @@ function isGlobWildcard(ch: string | undefined): boolean {
 }
 
 /**
- * Whether a `shellInputRegex` escapes a glob wildcard (`\*` or `\?`). `shellRegexToGlob` turns
- * such a literal into a wildcard, so converting the regex would widen the set of commands it
- * matches instead of approximating it.
+ * Whether `shellRegexToGlob` can approximate a `shellInputRegex` without widening it. The lossy
+ * conversion keeps regex quantifiers as characters, and a `*` or `?` left in the glob becomes a
+ * wildcard: `^rm -rf /tmp/a*$` (a run of `a`s) would turn into the glob `rm -rf /tmp/a*`, which
+ * matches `rm -rf /tmp/a /home`. So a regex is unsafe when it has an escaped literal `\*` / `\?`,
+ * or a bare quantifier `*` / `?` / `+` / `{` that is not part of a `.*` run (which the glob `*`
+ * reproduces faithfully).
  */
-function hasEscapedGlobWildcard(regex: string): boolean {
+function canApproximateShellRegexWithoutWidening(regex: string): boolean {
   let i = 0;
   while (i < regex.length) {
-    if (regex[i] === "\\" && i + 1 < regex.length) {
-      if (isGlobWildcard(regex[i + 1])) return true;
+    const ch = regex[i];
+    if (ch === "\\" && i + 1 < regex.length) {
+      if (isGlobWildcard(regex[i + 1])) return false;
       i += 2;
       continue;
     }
+    if (ch === "." && regex[i + 1] === "*") {
+      i += 2;
+      continue;
+    }
+    if (ch === "*" || ch === "?" || ch === "+" || ch === "{") return false;
     i += 1;
   }
-  return false;
+  return true;
 }
 
 const MANAGED_AUGMENT_TOOL_NAMES = new Set(Object.values(CANONICAL_TO_AUGMENT_TOOL_NAMES));
@@ -1119,13 +1128,14 @@ function convertAugmentToRulesyncPermissions({
         //   rule. Lossy conversion preserves the user's intent on the most
         //   common patterns at the cost of the narrow regex semantics that
         //   only AugmentCode supports.
-        if (action !== "deny" && hasEscapedGlobWildcard(regex)) {
-          // The lossy conversion below would turn an escaped literal `*` / `?` into a wildcard
-          // and so widen the rule; an allow or ask cannot be broadened safely, so skip it.
+        if (action !== "deny" && !canApproximateShellRegexWithoutWidening(regex)) {
+          // The lossy conversion below would leave a quantifier (or an escaped literal `*` /
+          // `?`) in the glob as a wildcard and so widen the rule; an allow or ask cannot be
+          // broadened safely, so skip it.
           logger?.warn(
             `AugmentCode permissions: skipping ${action} entry for tool '${entry.toolName}': ` +
-              `shellInputRegex '${regex}' matches a literal '*' or '?', which a glob cannot ` +
-              `express, and converting it would widen the rule. The entry is not imported.`,
+              `shellInputRegex '${regex}' uses a quantifier or a literal '*' / '?' that a glob ` +
+              `cannot express, and converting it would widen the rule. The entry is not imported.`,
           );
           continue;
         }

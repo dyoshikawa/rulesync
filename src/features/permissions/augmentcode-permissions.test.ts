@@ -1871,6 +1871,51 @@ describe("AugmentcodePermissions", () => {
       warnSpy.mockRestore();
     });
 
+    describe.each(["bash", "launch-process"])(
+      "should skip a %s allow/ask regex whose quantifier a glob would read as a wildcard",
+      (toolName) => {
+        it.each([
+          ["^rm -rf /tmp/a*$", "allow"],
+          ["^rm /tmp/x?$", "allow"],
+          ["^git push origin main(-dev)*$", "allow"],
+          ["^npm run build+$", "ask-user"],
+          ["^ls a{2}$", "ask-user"],
+        ])("%s (%s)", (regex, type) => {
+          const warnSpy = vi.spyOn(ConsoleLogger.prototype, "warn").mockImplementation(() => {});
+          const instance = new AugmentcodePermissions({
+            relativeDirPath: ".augment",
+            relativeFilePath: "settings.json",
+            fileContent: JSON.stringify({
+              toolPermissions: [{ toolName, shellInputRegex: regex, permission: { type } }],
+            }),
+          });
+
+          const config = instance.toRulesyncPermissions().getJson();
+          // Importing `^rm -rf /tmp/a*$` as glob `rm -rf /tmp/a*` would allow `rm -rf /tmp/a /home`.
+          expect(config.permission).toEqual({});
+          const messages = warnSpy.mock.calls.map((call) => String(call[0]));
+          expect(messages.some((m) => m.includes("is not imported"))).toBe(true);
+          warnSpy.mockRestore();
+        });
+
+        it("still broadens such a deny to the catch-all pattern (fail-closed)", () => {
+          const instance = new AugmentcodePermissions({
+            relativeDirPath: ".augment",
+            relativeFilePath: "settings.json",
+            fileContent: JSON.stringify({
+              toolPermissions: [
+                { toolName, shellInputRegex: "^rm -rf /tmp/a*$", permission: { type: "deny" } },
+              ],
+            }),
+          });
+
+          expect(instance.toRulesyncPermissions().getJson().permission).toEqual({
+            bash: { "*": "deny" },
+          });
+        });
+      },
+    );
+
     it("should treat current-name rows as managed on regenerate: replace allows, keep denies, drop exact duplicates", async () => {
       const settingsDir = join(testDir, ".augment");
       await ensureDir(settingsDir);
