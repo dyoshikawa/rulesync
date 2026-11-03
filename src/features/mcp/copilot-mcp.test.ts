@@ -323,7 +323,7 @@ describe("CopilotMcp", () => {
         validate: false,
       });
 
-      expect(copilotMcp.getJson()).toEqual({ servers: {} });
+      expect(copilotMcp.getJson()).toEqual({});
     });
 
     it("should handle empty mcpServers object", async () => {
@@ -337,7 +337,7 @@ describe("CopilotMcp", () => {
         rulesyncMcp,
       });
 
-      expect(copilotMcp.getJson()).toEqual({ servers: {} });
+      expect(copilotMcp.getJson()).toEqual({});
     });
   });
 
@@ -367,6 +367,30 @@ describe("CopilotMcp", () => {
       expect(json.unknownFutureSection).toEqual({ keep: true });
       // `servers` is the only section rulesync owns, so it is replaced.
       expect(json.servers).toEqual({ fresh: { command: "node" } });
+    });
+
+    it("retracts servers when no managed server is left, keeping inputs and sandbox", async () => {
+      await writeFileContent(
+        join(testDir, ".vscode", "mcp.json"),
+        JSON.stringify({
+          inputs: [{ id: "api-key", type: "promptString", password: true }],
+          sandbox: { filesystem: { read: ["${workspaceFolder}"] } },
+          servers: { stale: { command: "gone" } },
+        }),
+      );
+
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: "mcp.json",
+        fileContent: JSON.stringify({ mcpServers: {} }),
+      });
+
+      const copilotMcp = await CopilotMcp.fromRulesyncMcp({ outputRoot: testDir, rulesyncMcp });
+
+      expect(JSON.parse(copilotMcp.getFileContent())).toEqual({
+        inputs: [{ id: "api-key", type: "promptString", password: true }],
+        sandbox: { filesystem: { read: ["${workspaceFolder}"] } },
+      });
     });
 
     it("refuses to overwrite an mcp.json it could not parse", async () => {

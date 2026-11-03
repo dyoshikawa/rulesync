@@ -28,6 +28,7 @@ import {
   SHARED_CONFIG_OWNERSHIP,
   stringifySharedConfig,
   TAKT_CONFIG_SHARED_FILE_KEY,
+  VIBE_CONFIG_SHARED_FILE_KEY,
 } from "./shared-config-gateway.js";
 
 /**
@@ -1882,6 +1883,23 @@ describe("diffSharedConfigOwnedKeys", () => {
         fileKey: CODEXCLI_CONFIG_SHARED_FILE_KEY,
         existingContent: 'model = "gpt-5"\n\n[mcp_servers.foo]\ncommand = "foo"\n',
         newContent: 'model = "gpt-5"\n',
+      }),
+    ).toEqual([{ action: "delete", key: "mcp_servers" }]);
+  });
+
+  it("should report a retracted servers key in .vscode/mcp.json and mcp_servers in .vibe/config.toml as deletions", () => {
+    expect(
+      diffSharedConfigOwnedKeys({
+        fileKey: ".vscode/mcp.json",
+        existingContent: JSON.stringify({ inputs: [], servers: { foo: { command: "foo" } } }),
+        newContent: JSON.stringify({ inputs: [] }),
+      }),
+    ).toEqual([{ action: "delete", key: "servers" }]);
+    expect(
+      diffSharedConfigOwnedKeys({
+        fileKey: VIBE_CONFIG_SHARED_FILE_KEY,
+        existingContent: ['active_model = "a"', "mcp_servers = []", ""].join("\n"),
+        newContent: 'active_model = "a"\n',
       }),
     ).toEqual([{ action: "delete", key: "mcp_servers" }]);
   });

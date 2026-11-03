@@ -157,6 +157,25 @@ function isUnicodeClass(rest: string): boolean {
 }
 
 /**
+ * Return a function that, for a `[:` at `index`, gives the position of the
+ * next `:]` (Go reads everything between as the class name), or -1. The
+ * position is cached and `index` only grows, so a long run of `[:` with no
+ * `:]` costs linear time rather than a scan to the end at each one.
+ */
+function posixEndFinder(source: string): (index: number) => number {
+  let next = -2;
+  return (index) => {
+    if (!source.startsWith("[:", index)) {
+      return -1;
+    }
+    if (next !== -1 && next < index + 2) {
+      next = source.indexOf(":]", index + 2);
+    }
+    return next;
+  };
+}
+
+/**
  * Replace each POSIX class (`[:alpha:]`) inside a bracket class with a plain
  * character, so JavaScript can compile the rest, or return `undefined` for an
  * unknown one. Only inside a bracket is `[:name:]` a POSIX class; a bare
@@ -166,6 +185,7 @@ function replacePosixClasses(source: string): string | undefined {
   let result = "";
   let inClass = false;
   let index = 0;
+  const findPosixEnd = posixEndFinder(source);
   while (index < source.length) {
     const character = source[index] ?? "";
     if (character === "\\") {
@@ -196,13 +216,13 @@ function replacePosixClasses(source: string): string | undefined {
     }
     // Go reads anything from `[:` to the next `:]` as a class name, so
     // `[:FOO:]` or `[:alpha1:]` is an unknown class, not three members.
-    const posix = /^\[:\^?([\s\S]*?):\]/.exec(source.slice(index));
-    if (posix !== null) {
-      if (!POSIX_CLASSES.has(posix[1] ?? "")) {
+    const posixEnd = findPosixEnd(index);
+    if (posixEnd !== -1) {
+      if (!POSIX_CLASSES.has(source.slice(index + 2, posixEnd).replace(/^\^/, ""))) {
         return undefined;
       }
       result += "a";
-      index += posix[0].length;
+      index = posixEnd + 2;
       continue;
     }
     if (character === "]") {
@@ -309,6 +329,7 @@ function hasClassEscapeRangeEnd(source: string): boolean {
   // Whether the item before is one character, which a `-` makes a range start.
   let afterCharacter = false;
   let index = 0;
+  const findPosixEnd = posixEndFinder(source);
   while (index < source.length) {
     const character = source[index] ?? "";
     if (character === "\\") {
@@ -323,7 +344,7 @@ function hasClassEscapeRangeEnd(source: string): boolean {
         : { index: index + 1, afterCharacter: false });
       continue;
     }
-    const posixEnd = source.startsWith("[:", index) ? source.indexOf(":]", index + 2) : -1;
+    const posixEnd = findPosixEnd(index);
     if (character === "]" || posixEnd !== -1) {
       inClass = character !== "]";
       afterCharacter = false;

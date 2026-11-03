@@ -360,4 +360,52 @@ describe("VibeMcp", () => {
     expect(servers[0].command).toBe("node");
     expect(servers[1].url).toBe("https://example.com/mcp");
   });
+
+  it("should retract an empty mcp_servers instead of writing mcp_servers = [], keeping sibling keys", async () => {
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      ['active_model = "devstral"', "mcp_servers = []"].join("\n"),
+    );
+
+    const vibeMcp = await VibeMcp.fromRulesyncMcp({
+      outputRoot: testDir,
+      rulesyncMcp: buildRulesyncMcp({ testDir, servers: {} }),
+    });
+
+    expect(smolToml.parse(vibeMcp.getFileContent())).toEqual({ active_model: "devstral" });
+  });
+
+  it("should not add mcp_servers to a config.toml that has none when no server is defined", async () => {
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(join(testDir, ".vibe", "config.toml"), 'active_model = "devstral"\n');
+
+    const vibeMcp = await VibeMcp.fromRulesyncMcp({
+      outputRoot: testDir,
+      rulesyncMcp: buildRulesyncMcp({ testDir, servers: {} }),
+    });
+
+    expect(smolToml.parse(vibeMcp.getFileContent())).toEqual({ active_model: "devstral" });
+  });
+
+  it("should keep the mcp_servers array when only unmanaged servers remain", async () => {
+    await ensureDir(join(testDir, ".vibe"));
+    await writeFileContent(
+      join(testDir, ".vibe", "config.toml"),
+      [
+        "[[mcp_servers]]",
+        'name = "added-by-vibe-mcp-add"',
+        'transport = "streamable_http"',
+        'url = "https://example.com/mcp"',
+      ].join("\n"),
+    );
+
+    const vibeMcp = await VibeMcp.fromRulesyncMcp({
+      outputRoot: testDir,
+      rulesyncMcp: buildRulesyncMcp({ testDir, servers: {} }),
+    });
+
+    const servers = (smolToml.parse(vibeMcp.getFileContent()) as any).mcp_servers;
+    expect(servers.map((server: any) => server.name)).toEqual(["added-by-vibe-mcp-add"]);
+  });
 });

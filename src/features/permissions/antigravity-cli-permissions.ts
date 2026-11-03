@@ -125,6 +125,12 @@ const ANTIGRAVITY_CLI_TO_CANONICAL_TOOL_NAMES: Record<string, string> = {
 };
 
 function toAntigravityCliToolName(canonical: string): string {
+  // Every `mcp__...` category is written as an `mcp(...)` entry, so it
+  // manages all of them, as the bare `mcp` category does: a hand-written
+  // `mcp(...)` entry is replaced once any MCP category is configured.
+  if (canonical.startsWith("mcp__")) {
+    return "mcp";
+  }
   return CANONICAL_TO_ANTIGRAVITY_CLI_TOOL_NAMES[canonical] ?? canonical;
 }
 
@@ -209,16 +215,22 @@ export class AntigravityCliPermissions extends ToolPermissions {
       Object.keys(config.permission).map((category) => toAntigravityCliToolName(category)),
     );
 
+    // Earlier releases wrote MCP tools as bare `mcp__server__tool` names,
+    // which Antigravity ignores, so they go once MCP is managed.
+    const isManagedToolName = (toolName: string): boolean =>
+      managedToolNames.has(toolName) ||
+      (managedToolNames.has("mcp") && toolName.startsWith("mcp__"));
+
     // Preserve existing entries for tools NOT in the permissions config
     const existingPermissions = settings.permissions ?? {};
     const preservedAllow = (existingPermissions.allow ?? []).filter(
-      (entry) => !managedToolNames.has(parseToolPatternEntry(entry).toolName),
+      (entry) => !isManagedToolName(parseToolPatternEntry(entry).toolName),
     );
     const preservedAsk = (existingPermissions.ask ?? []).filter(
-      (entry) => !managedToolNames.has(parseToolPatternEntry(entry).toolName),
+      (entry) => !isManagedToolName(parseToolPatternEntry(entry).toolName),
     );
     const preservedDeny = (existingPermissions.deny ?? []).filter(
-      (entry) => !managedToolNames.has(parseToolPatternEntry(entry).toolName),
+      (entry) => !isManagedToolName(parseToolPatternEntry(entry).toolName),
     );
 
     const mergedPermissions: Record<string, unknown> = {

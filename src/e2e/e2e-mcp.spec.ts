@@ -490,7 +490,9 @@ describe("E2E: mcp", () => {
     { target: "continue", orphanPath: join(".continue", "mcpServers", "mcp.json") },
     { target: "cursor", orphanPath: join(".cursor", "mcp.json") },
     { target: "trae", orphanPath: join(".trae", "mcp.json") },
-    { target: "copilot", orphanPath: join(".vscode", "mcp.json") },
+    // `.vscode/mcp.json` keeps its other keys and only retracts `servers`, so
+    // the orphan has to hold `servers` for the check to see a change.
+    { target: "copilot", orphanPath: join(".vscode", "mcp.json"), orphanKey: "servers" },
     { target: "copilotcli", orphanPath: join(".github", "mcp.json") },
     { target: "deepagents", orphanPath: join(".deepagents", ".mcp.json") },
     { target: "gitlabduo", orphanPath: join(".gitlab", "duo", "mcp.json") },
@@ -503,7 +505,7 @@ describe("E2E: mcp", () => {
     { target: "bob", orphanPath: join(".bob", "mcp.json") },
   ])(
     "should fail in check mode when delete would remove an orphan $target mcp file",
-    async ({ target, orphanPath }) => {
+    async ({ target, orphanPath, orphanKey = "mcpServers" }) => {
       const testDir = getTestDir();
 
       await writeFileContent(join(testDir, ".rulesync", ".gitkeep"), "");
@@ -512,7 +514,7 @@ describe("E2E: mcp", () => {
         JSON.stringify({ mcpServers: {} }),
       );
       const orphanContent = JSON.stringify(
-        { mcpServers: { "orphan-server": { command: "echo", args: ["orphan"] } } },
+        { [orphanKey]: { "orphan-server": { command: "echo", args: ["orphan"] } } },
         null,
         2,
       );

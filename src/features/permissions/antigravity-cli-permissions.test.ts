@@ -267,7 +267,7 @@ describe("AntigravityCliPermissions", () => {
     expect(settings.permissions?.ask).not.toContain("command(*)");
   });
 
-  it("should pass non-bash categories through unchanged as the tool name", async () => {
+  it("should write a canonical MCP tool category as an mcp(server/tool) target", async () => {
     const rulesyncPermissions = new RulesyncPermissions({
       outputRoot: testDir,
       relativeDirPath: ".rulesync",
@@ -275,6 +275,8 @@ describe("AntigravityCliPermissions", () => {
       fileContent: JSON.stringify({
         permission: {
           mcp__server__tool: { "*": "allow" },
+          mcp__github: { "*": "ask" },
+          mcp__sql__execute__mutation: { "*": "deny" },
         },
       }),
     });
@@ -285,7 +287,10 @@ describe("AntigravityCliPermissions", () => {
     });
 
     const settings = JSON.parse(permissions.getFileContent()) as SettingsJson;
-    expect(settings.permissions?.allow).toContain("mcp__server__tool");
+    expect(settings.permissions?.allow).toEqual(["mcp(server/tool)"]);
+    expect(settings.permissions?.ask).toEqual(["mcp(github/*)"]);
+    // The server ends at the first `__`; the rest is the tool name.
+    expect(settings.permissions?.deny).toEqual(["mcp(sql/execute__mutation)"]);
   });
 
   it("should map read/write/edit/webfetch to the engine action vocabulary", async () => {
@@ -420,6 +425,38 @@ describe("AntigravityCliPermissions", () => {
     expect(settings.permissions?.allow).toContain("command(git status)");
     // Unrelated top-level settings are also preserved.
     expect(settings.someOtherSetting).toBe(true);
+  });
+
+  it("should replace stale mcp(...) and legacy mcp__ entries once an MCP category is configured", async () => {
+    const dir = join(testDir, ".gemini", "antigravity-cli");
+    await ensureDir(dir);
+    await writeFileContent(
+      join(dir, "settings.json"),
+      JSON.stringify({
+        // `mcp__github__list` is the bare action earlier releases wrote.
+        permissions: {
+          allow: ["mcp(github/*)", "mcp__github__list", "execute_url(https://deploy.example.com)"],
+        },
+      }),
+    );
+
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: { mcp__github__delete: { "*": "ask" } },
+      }),
+    });
+
+    const permissions = await AntigravityCliPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    const settings = JSON.parse(permissions.getFileContent()) as SettingsJson;
+    expect(settings.permissions?.allow).toEqual(["execute_url(https://deploy.example.com)"]);
+    expect(settings.permissions?.ask).toEqual(["mcp(github/delete)"]);
   });
 
   it("should replace existing read_file entries when the read category is managed", async () => {
