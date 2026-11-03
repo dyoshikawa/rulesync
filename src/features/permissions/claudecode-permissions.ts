@@ -968,15 +968,19 @@ const CLAUDECODE_ENV_IGNORED_IN_EVERY_FILE: ReadonlySet<string> = new Set([
  * `env` variables a project or local settings file cannot set, because a
  * checked-out repository should not control them: where Claude Code stores its
  * own files, what session content it exports, where telemetry goes, how it
- * starts or syncs, the timers on an unanswered dialog, and whether it processes
- * attachments or expands `@` file mentions, and the screen reader (`CLAUDE_AX_*`) variables. Claude Code drops them there, so they are skipped at project scope and emitted only under `--global`.
+ * starts or syncs, which claude.ai sign-in it uses, the timers on an unanswered
+ * dialog, and whether it processes attachments or expands `@` file mentions,
+ * and the screen reader (`CLAUDE_AX_*`) variables. Claude Code drops them there, so they are skipped at project scope and emitted only under `--global`.
  *
- * Only the names the settings reference lists are covered; its directory and
- * Windows groups are introduced with "such as", so an unlisted member of those
+ * Only the names the settings reference lists are covered; its directory,
+ * Windows and sign-in groups are introduced with "such as", so an unlisted member of those
  * families is still written. Windows variable names are case-insensitive, so
- * that group is matched without regard to case.
+ * that group is matched without regard to case. `ALLUSERSPROFILE`,
+ * `SystemDrive` and the `CommonProgramFiles` family are ignored there since
+ * Claude Code v2.1.285.
  *
  * @see https://code.claude.com/docs/en/settings-reference#variables-claude-code-ignores-in-env
+ * @see https://github.com/anthropics/claude-code/blob/main/CHANGELOG.md
  */
 const CLAUDECODE_ENV_PROJECT_IGNORED_NAMES: ReadonlySet<string> = new Set([
   "BETA_TRACING_ENDPOINT",
@@ -986,6 +990,9 @@ const CLAUDECODE_ENV_PROJECT_IGNORED_NAMES: ReadonlySet<string> = new Set([
   "CLAUDE_CODE_DISABLE_FILE_MENTIONS",
   "CLAUDE_CODE_ENABLE_TELEMETRY",
   "CLAUDE_CODE_ENHANCED_TELEMETRY_BETA",
+  "CLAUDE_CODE_OAUTH_REFRESH_TOKEN",
+  "CLAUDE_CODE_OAUTH_SCOPES",
+  "CLAUDE_CODE_OAUTH_TOKEN",
   "CLAUDE_CODE_PLUGIN_CACHE_DIR",
   "CLAUDE_CODE_PLUGIN_SEED_DIR",
   "CLAUDE_CODE_PROCESS_WRAPPER",
@@ -1007,14 +1014,27 @@ const CLAUDECODE_ENV_PROJECT_IGNORED_NAMES: ReadonlySet<string> = new Set([
 ]);
 
 const CLAUDECODE_ENV_PROJECT_IGNORED_WINDOWS_NAMES: ReadonlySet<string> = new Set([
+  "ALLUSERSPROFILE",
+  "COMMONPROGRAMW6432",
   "COMSPEC",
   "LOCALAPPDATA",
   "PATHEXT",
   "PROGRAMDATA",
   "PROGRAMW6432",
   "PSMODULEPATH",
+  "SYSTEMDRIVE",
   "SYSTEMROOT",
 ]);
+
+/**
+ * Windows name prefixes matched as whole families: `ProgramFiles*` and
+ * `CommonProgramFiles*`. `ProgramW6432` and `CommonProgramW6432` are exact
+ * names in the set above.
+ */
+const CLAUDECODE_ENV_PROJECT_IGNORED_WINDOWS_PREFIXES = [
+  "PROGRAMFILES",
+  "COMMONPROGRAMFILES",
+] as const;
 
 const CLAUDECODE_ENV_OTLP_IGNORED_SUFFIXES = [
   "_ENDPOINT",
@@ -1065,7 +1085,10 @@ function isProjectIgnoredEnvVariable(name: string, value: unknown): boolean {
     return true;
   }
   const upper = name.toUpperCase();
-  if (CLAUDECODE_ENV_PROJECT_IGNORED_WINDOWS_NAMES.has(upper) || upper.startsWith("PROGRAMFILES")) {
+  if (
+    CLAUDECODE_ENV_PROJECT_IGNORED_WINDOWS_NAMES.has(upper) ||
+    CLAUDECODE_ENV_PROJECT_IGNORED_WINDOWS_PREFIXES.some((prefix) => upper.startsWith(prefix))
+  ) {
     return true;
   }
   if (
@@ -1124,7 +1147,7 @@ function stripIgnoredEnvVariables({
   }
   if (ignoredAtProjectScope.length > 0) {
     logger?.warn(
-      `Claude Code permissions: ${ignoredAtProjectScope.map((name) => `'env.${name}'`).join(", ")} ${ignoredAtProjectScope.length === 1 ? "is" : "are"} not honored in the project-scoped ${relativeFilePath}, so ${ignoredAtProjectScope.length === 1 ? "it is" : "they are"} not written there — Claude Code ignores variables there that choose where it writes its files, export session content or telemetry, change how it starts or syncs, set dialog timers, turn attachments or file mentions off, or turn Claude in Chrome on (a value that turns telemetry or Chrome off, such as "none" or "0", is still written). Author ${ignoredAtProjectScope.length === 1 ? "it" : "them"} in the global scope instead, and check that file for a stale value an earlier generate may have left there.`,
+      `Claude Code permissions: ${ignoredAtProjectScope.map((name) => `'env.${name}'`).join(", ")} ${ignoredAtProjectScope.length === 1 ? "is" : "are"} not honored in the project-scoped ${relativeFilePath}, so ${ignoredAtProjectScope.length === 1 ? "it is" : "they are"} not written there — Claude Code ignores variables there that choose where it writes its files, export session content or telemetry, change how it starts or syncs, set the claude.ai sign-in, set dialog timers, turn attachments or file mentions off, or turn Claude in Chrome on (a value that turns telemetry or Chrome off, such as "none" or "0", is still written). Author ${ignoredAtProjectScope.length === 1 ? "it" : "them"} in the global scope instead, and check that file for a stale value an earlier generate may have left there.`,
     );
   }
   return kept;
