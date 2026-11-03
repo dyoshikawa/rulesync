@@ -159,9 +159,10 @@ const DEFAULT_PERMISSION_MODE_RANK: Readonly<Record<CopilotDefaultPermissionMode
 /**
  * The `copilot.defaultPermissionMode` a `chat.defaultConfiguration` value
  * stands for. Autopilot is recognized only together with `allowAll`, the pair
- * Rulesync writes for it: an Autopilot mode with stricter (or unset, so
- * `manual`) approvals is read from `approvals` alone, or not at all, so that
- * regenerating never escalates it to Allow All.
+ * Rulesync writes for it: an Autopilot mode with stricter approvals is read
+ * from `approvals` alone, so that regenerating never escalates it to Allow
+ * All. An object without `approvals` is read as `default`, since VS Code then
+ * starts sessions with Manual permissions.
  */
 function readDefaultConfigurationMode(
   configuration: unknown,
@@ -170,6 +171,7 @@ function readDefaultConfigurationMode(
     return undefined;
   }
   switch (configuration.approvals) {
+    case undefined:
     case "manual":
       return "default";
     case "assisted":

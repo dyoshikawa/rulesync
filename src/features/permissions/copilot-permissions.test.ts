@@ -600,7 +600,9 @@ describe("CopilotPermissions", () => {
       // `autopilot`, which would regenerate as Allow All.
       [{ mode: "autopilot", approvals: "manual" }, "default"],
       [{ mode: "autopilot", approvals: "assisted" }, "assisted"],
-      [{ mode: "autopilot" }, undefined],
+      // VS Code reads a missing `approvals` as `manual`.
+      [{ mode: "autopilot" }, "default"],
+      [{ mode: "plan" }, "default"],
       [{ approvals: "allowAll" }, "autoApprove"],
     ])("imports chat.defaultConfiguration %j alone as %s", (value, expected) => {
       const permissions = new CopilotPermissions({
@@ -621,6 +623,9 @@ describe("CopilotPermissions", () => {
       // Local looser than the Copilot harness: the Copilot harness wins.
       [{ approvals: "manual" }, "autopilot", "default"],
       [{ approvals: "assisted" }, "autoApprove", "assisted"],
+      // A missing `approvals` means `manual`, so it outranks a looser Local key.
+      [{ mode: "plan" }, "autoApprove", "default"],
+      [{ mode: "autopilot" }, "autopilot", "default"],
     ])("imports disagreeing keys %j and %s as the less permissive %s", (value, local, expected) => {
       const permissions = new CopilotPermissions({
         relativeDirPath: ".vscode",
