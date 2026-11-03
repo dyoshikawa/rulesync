@@ -24,6 +24,7 @@ import {
 } from "../opencode-config.js";
 import {
   findOpencodeMcpToolKeyOwner,
+  isBareOpencodeMcpServerPrefix,
   opencodeMcpToolPermissionKey,
 } from "../shared/opencode-family-mcp-tool-keys.js";
 import {
@@ -221,15 +222,17 @@ function convertFromOpencodeFormat(
   const serverNames = Object.keys(opencodeMcp);
   // Pre-filter with findOpencodeToolOwner so sanitized and legacy raw prefixes
   // both count as owned. The owner lookup needs a nonempty tool suffix, so a
-  // bare sanitized prefix is dropped here as well; otherwise the orphan
-  // importer splits a_b_ into server a and tool b_ when the listed server is
-  // a.b. A bare raw prefix (a.b_) is left to the raw `<server>_` check in
-  // orphanMcpToolFiltersToRulesync, which Kilo also relies on.
+  // bare sanitized prefix (a_b_ for server a.b or a_b) is dropped here too;
+  // otherwise the orphan importer splits it into server a and tool b_.
+  // fromRulesyncMcp writes such a key back from the existing file, so the drop
+  // loses nothing on generate. Only a bare raw prefix (a.b_ for server a.b) is
+  // left to the raw `<server>_` check in orphanMcpToolFiltersToRulesync, which
+  // is why that second pass must stay.
   const orphanTools = Object.fromEntries(
     Object.entries(tools ?? {}).filter(
       ([key]) =>
         !findOpencodeToolOwner({ key, serverNames }) &&
-        !serverNames.some((serverName) => key === opencodeMcpToolPermissionKey(serverName, "")),
+        !isBareOpencodeMcpServerPrefix({ key, serverNames }),
     ),
   );
   return {
@@ -570,6 +573,27 @@ function convertToOpencodeFormat(
 }
 
 /**
+ * Copy each key of `existingTools` that is a bare sanitized `<server>_` prefix
+ * of one of `serverNames` into `tools`, unless a generated filter already
+ * writes the same key. Mutates `tools` in place.
+ */
+function preserveBareOpencodeMcpServerPrefixKeys({
+  tools,
+  existingTools,
+  serverNames,
+}: {
+  tools: Record<string, boolean>;
+  existingTools: Record<string, boolean> | undefined;
+  serverNames: readonly string[];
+}): void {
+  for (const [key, enabled] of Object.entries(existingTools ?? {})) {
+    if (!Object.hasOwn(tools, key) && isBareOpencodeMcpServerPrefix({ key, serverNames })) {
+      tools[key] = enabled;
+    }
+  }
+}
+
+/**
  * The `mcp` key shape `generate` writes: OpenCode V1's flat `mcp.<name>` map
  * with `enabled` (the default, which both 1.x and 2.x read), or OpenCode V2's
  * `mcp.servers.<name>` envelope with `disabled`.
@@ -790,6 +814,15 @@ export class OpencodeMcp extends ToolMcp {
       logger,
     );
     this.copyExtraPassthroughServerFields({ convertedMcp, mcpServers: transformedServers });
+    // A bare `<server>_` key is left out on import (see
+    // isBareOpencodeMcpServerPrefix), so nothing in the rulesync config writes
+    // it back. Carry it over from the file instead: rewriting `tools` without
+    // it would silently lift a deny another config layer's server relies on.
+    preserveBareOpencodeMcpServerPrefixKeys({
+      tools: mcpTools,
+      existingTools: existingMcp.success ? existingMcp.data.tools : undefined,
+      serverNames: Object.keys(transformedServers),
+    });
     if (this.layout.configVersion === "v2") {
       warnAboutOpencodeV2SseServers({ mcpServers: transformedServers, convertedMcp, logger });
     }
