@@ -105,19 +105,27 @@ const AUGMENT_TO_CANONICAL_TOOL_NAMES: Record<string, string> = Object.fromEntri
   Object.entries(CANONICAL_TO_AUGMENT_TOOL_NAMES).map(([k, v]) => [v, k]),
 );
 
-// Current AugmentCode tool names and the legacy names they alias. Auggie's permissions docs
-// (https://docs.augmentcode.com/cli/permissions) renamed `launch-process` / `view` /
-// `str-replace-editor` / `save-file` to `terminal` / `read` / `edit` / `write` and state that
-// the legacy names are aliased to their current equivalents, so a hand-authored settings.json
-// may use either spelling for the same tool. Rulesync keeps EMITTING the legacy names because
-// the shipped CLI (0.36.0 at the time of writing) matches `toolName` exactly and only knows the
-// legacy spellings; this map is only consulted when reading an existing file, so that a row
-// written under a current name is imported, deduplicated and retracted like its legacy twin.
+// Other AugmentCode spellings of the managed tools and the legacy names rulesync emits for them.
+// Auggie 0.x's permissions docs (https://docs.augmentcode.com/cli/v0/permissions) named the tools
+// `terminal` / `read` / `edit` / `write` and aliased the legacy names to them. Auggie 1.x
+// (https://docs.augmentcode.com/cli/permissions, a prerelease at the time of writing) renamed the
+// shell tool to `bash` and recognizes only these legacy names in permission rules:
+// `launch-process` / `shell` → `bash`, `view` → `read`, `str-replace-editor` /
+// `str_replace_editor` → `edit`, `save-file` / `save_file` → `write`. A hand-authored
+// settings.json (or one written by 1.x's `/permissions` manager) may therefore use any of these
+// spellings for the same tool. Rulesync keeps EMITTING the legacy names, because both the shipped
+// 0.x CLI (0.36.0) and 1.x accept them while `terminal` and `bash` each work in one line only;
+// this map is only consulted when reading an existing file, so that a row written under another
+// spelling is imported, deduplicated and retracted like its legacy twin.
 const CURRENT_TO_LEGACY_AUGMENT_TOOL_NAMES: Record<string, string> = {
   terminal: "launch-process",
+  bash: "launch-process",
+  shell: "launch-process",
   read: "view",
   edit: "str-replace-editor",
+  str_replace_editor: "str-replace-editor",
   write: "save-file",
+  save_file: "save-file",
 };
 
 function toAugmentToolName(canonical: string): string {
@@ -301,6 +309,13 @@ function isShellRegexRoundtrippable(regex: string): boolean {
   while (i < body.length) {
     const ch = body[i];
     if (ch === "\\" && i + 1 < body.length) {
+      // An escaped `*` / `?` / `[` is a literal the glob form cannot spell: `shellRegexToGlob`
+      // would turn it into a wildcard or a character class, so `^rm \*$` would come back as the
+      // much wider `^rm .*$`, and `\[a-z\]` would be read as a one-character range by targets
+      // whose globs support `[...]`.
+      if (isGlobSpecial(body[i + 1])) {
+        return false;
+      }
       // Skip escaped char.
       i += 2;
       continue;
@@ -319,6 +334,39 @@ function isShellRegexRoundtrippable(regex: string): boolean {
     if (/[$^|+?*(){}[\]]/.test(ch ?? "")) {
       return false;
     }
+    i += 1;
+  }
+  return true;
+}
+
+/** Characters a glob reads as syntax (wildcards or the start of a character class). */
+function isGlobSpecial(ch: string | undefined): boolean {
+  return ch === "*" || ch === "?" || ch === "[";
+}
+
+/**
+ * Whether `shellRegexToGlob` can approximate a `shellInputRegex` without widening it. The lossy
+ * conversion keeps regex quantifiers as characters, and a `*` or `?` left in the glob becomes a
+ * wildcard: `^rm -rf /tmp/a*$` (a run of `a`s) would turn into the glob `rm -rf /tmp/a*`, which
+ * matches `rm -rf /tmp/a /home`. So a regex is unsafe when it has an escaped literal `\*` / `\?` /
+ * `\[` (a `[` would open a character class in targets whose globs support one),
+ * or a bare quantifier `*` / `?` / `+` / `{` that is not part of a `.*` run (which the glob `*`
+ * reproduces faithfully).
+ */
+function canApproximateShellRegexWithoutWidening(regex: string): boolean {
+  let i = 0;
+  while (i < regex.length) {
+    const ch = regex[i];
+    if (ch === "\\" && i + 1 < regex.length) {
+      if (isGlobSpecial(regex[i + 1])) return false;
+      i += 2;
+      continue;
+    }
+    if (ch === "." && regex[i + 1] === "*") {
+      i += 2;
+      continue;
+    }
+    if (ch === "*" || ch === "?" || ch === "+" || ch === "{") return false;
     i += 1;
   }
   return true;
@@ -1057,7 +1105,7 @@ function convertAugmentToRulesyncPermissions({
     }
     const action = augmentTypeToAction(type);
 
-    // Only launch-process (or its current alias `terminal`) supports per-input pattern recovery
+    // Only launch-process (or one of its aliases `terminal` / `bash` / `shell`) supports per-input pattern recovery
     // via shellInputRegex. For other categories (view, str-replace-editor, save-file, web-fetch,
     // web-search) the AugmentCode schema does not carry per-pattern information, so they are
     // imported as the catch-all `*` pattern. This is the inverse of the fail-closed export side
@@ -1084,6 +1132,17 @@ function convertAugmentToRulesyncPermissions({
         //   rule. Lossy conversion preserves the user's intent on the most
         //   common patterns at the cost of the narrow regex semantics that
         //   only AugmentCode supports.
+        if (action !== "deny" && !canApproximateShellRegexWithoutWidening(regex)) {
+          // The lossy conversion below would leave a quantifier (or an escaped literal `*` /
+          // `?`) in the glob as a wildcard and so widen the rule; an allow or ask cannot be
+          // broadened safely, so skip it.
+          logger?.warn(
+            `AugmentCode permissions: skipping ${action} entry for tool '${entry.toolName}': ` +
+              `shellInputRegex '${regex}' uses a quantifier or a literal '*' / '?' that a glob ` +
+              `cannot express, and converting it would widen the rule. The entry is not imported.`,
+          );
+          continue;
+        }
         if (action === "deny") {
           logger?.warn(
             `AugmentCode permissions: shellInputRegex '${regex}' on tool '${entry.toolName}' ` +
