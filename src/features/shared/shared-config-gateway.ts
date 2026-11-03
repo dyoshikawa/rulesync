@@ -1574,17 +1574,17 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
   },
   // VS Code workspace settings (`.vscode/settings.json`): a general-purpose
   // user/project settings file. Copilot permissions owns only the flat dotted
-  // keys listed below (the `chat.tools.*.autoApprove` maps, `chat.permissions.default`
-  // and the `chat.agent.sandbox.*` leaves; VS Code stores dotted setting keys
+  // keys listed below (the `chat.tools.*.autoApprove` maps, `chat.permissions.default`,
+  // `chat.defaultConfiguration` and the `chat.agent.sandbox.*` leaves; VS Code stores dotted setting keys
   // flat at the top level); every unrelated editor setting is preserved by the
   // shallow merge. The Copilot MCP feature writes a SEPARATE file
   // (`.vscode/mcp.json`, declared just below).
   //
   // Three targets reach this file through the same `permissions` feature —
-  // `copilot` (the `chat.tools.*` keys, `chat.permissions.default` and the
-  // `chat.agent.sandbox.*` keys), `zoocode` (the `zoo-code.*` command
-  // lists) and `roo` (the same lists under the archived lineage's `roo-cline.*`
-  // spelling) — so `ownedKeys` is their union. They stay independent because a
+  // `copilot` (the `chat.tools.*` keys, `chat.permissions.default`,
+  // `chat.defaultConfiguration` and the `chat.agent.sandbox.*` keys), `zoocode`
+  // (the `zoo-code.*` command lists) and `roo` (the same lists under the
+  // archived lineage's `roo-cline.*` spelling) — so `ownedKeys` is their union. They stay independent because a
   // patch only ever names the keys its own adapter builds: generating for one
   // target never mentions the other's keys, and a key is dropped only when its
   // own adapter explicitly retracts it (patch value `undefined`).
@@ -1604,6 +1604,7 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
           "chat.tools.edits.autoApprove",
           "chat.tools.urls.autoApprove",
           "chat.permissions.default",
+          "chat.defaultConfiguration",
           "chat.agent.sandbox.enabled",
           "chat.agent.sandbox.network.allowNetwork",
           "chat.agent.sandbox.network.allowLocalNetwork",
