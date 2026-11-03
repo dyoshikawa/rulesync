@@ -30,5 +30,6 @@ export const CODEXCLI_OVERRIDE_KEYS = [
   "sandbox_workspace_write",
   "apps",
   "approvals_reviewer",
+  "auto_review",
   "tui",
 ] as const;
