@@ -248,6 +248,31 @@ describe("TraeHooks", () => {
     expect(json.hooks.postToolUse?.[0]?.loop_limit).toBeUndefined();
   });
 
+  it.each([["3"], [null]])(
+    "should import a Stop group with an unusable loop_limit %j without it, warning",
+    (loopLimit) => {
+      const hooks = new TraeHooks({
+        outputRoot: testDir,
+        relativeDirPath: ".trae",
+        relativeFilePath: "hooks.json",
+        fileContent: JSON.stringify({
+          hooks: {
+            Stop: [{ loop_limit: loopLimit, hooks: [{ type: "command", command: "stop.sh" }] }],
+          },
+        }),
+        validate: false,
+      });
+      const logger = createMockLogger();
+      const warnSpy = vi.spyOn(logger, "warn");
+
+      const json = hooks.toRulesyncHooks({ logger }).getJson();
+      expect(json.hooks.stop).toEqual([{ type: "command", command: "stop.sh" }]);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Dropping the unusable "loop_limit"'),
+      );
+    },
+  );
+
   it("should round-trip through generate and import", async () => {
     const { hooks, parsed } = await generate(testDir, {
       version: 1,

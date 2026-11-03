@@ -251,6 +251,14 @@ export type ToolHooksConverterConfig = {
      * additive payload, where sharing only widens what a hook receives.
      */
     readonly subdividesGroup?: boolean;
+    /**
+     * What import does with a group whose value is present but unusable.
+     * `"skip-group"` (the default) skips the group's hooks, as a filter must:
+     * importing them without it would widen when they fire. `"drop-field"`
+     * imports the hooks without the value and warns, for a field the tool
+     * defaults when it is missing (e.g. TRAE's `loop_limit`).
+     */
+    readonly onInvalidImport?: "skip-group" | "drop-field";
   }>;
   /**
    * When true, commands are emitted as written: `projectDirVar` is only
@@ -1505,7 +1513,9 @@ function stripCommandPrefix({
         isExecFormHook({ args, converterConfig }) || !runsInPosixShell({ shell, converterConfig }),
     });
     stripped = result.command;
-    if (warn && result.unrestored) {
+    // A tool that never anchors commands runs them from the project root, so
+    // a stripped data path still resolves to the same file there.
+    if (warn && result.unrestored && !converterConfig.stripsProjectDirVarOnImportOnly) {
       warn(
         `Hook command ${quoteValueForWarning(cmd)} was imported as ${quoteValueForWarning(stripped)}: ` +
           `a ${variable} path that is not a script the command runs becomes relative to the ` +
@@ -1928,10 +1938,12 @@ function describeGroupSkipReason({
     valueType,
     subdividesGroup,
     events,
+    onInvalidImport,
   } of converterConfig.groupPassthroughFields ?? []) {
     const value = entry[tool];
     if (
       subdividesGroup !== true ||
+      onInvalidImport === "drop-field" ||
       value === undefined ||
       !isGroupFieldOnEvent(events, eventName)
     ) {
@@ -1946,6 +1958,43 @@ function describeGroupSkipReason({
     }
   }
   return undefined;
+}
+
+/**
+ * Warn about each `"drop-field"` group value that is present but unusable;
+ * {@link importGroupPassthroughFields} leaves it off the imported hooks.
+ */
+function warnDroppedGroupFields({
+  rawEntry,
+  eventName,
+  converterConfig,
+  warn,
+}: {
+  rawEntry: ToolMatcherEntry;
+  eventName: string;
+  converterConfig: ToolHooksConverterConfig;
+  warn?: (message: string) => void;
+}): void {
+  const entry = rawEntry as unknown as Record<string, unknown>;
+  for (const {
+    tool,
+    valueType,
+    events,
+    onInvalidImport,
+  } of converterConfig.groupPassthroughFields ?? []) {
+    const value = entry[tool];
+    if (
+      onInvalidImport === "drop-field" &&
+      value !== undefined &&
+      isGroupFieldOnEvent(events, eventName) &&
+      !isGroupPassthroughValue(value, valueType)
+    ) {
+      warn?.(
+        `Dropping the unusable "${tool}" (${quoteValueForWarning(value)}) of a "${eventName}" ` +
+          `matcher group while importing; its hooks are imported without it.`,
+      );
+    }
+  }
 }
 
 /**
@@ -1996,6 +2045,7 @@ function toolMatcherEntryToCanonical({
     warn?.(groupSkipReason);
     return [];
   }
+  warnDroppedGroupFields({ rawEntry, eventName, converterConfig, warn });
   const definitions: HooksConfig["hooks"][string] = [];
   for (const h of hookDefs) {
     const hookType = resolveImportedHookType({ value: h.type, converterConfig });

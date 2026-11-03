@@ -45,6 +45,8 @@ const TRAE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
       valueType: "number",
       events: new Set(["stop"]),
       subdividesGroup: true,
+      // TRAE falls back to its default of 5 when the limit is missing.
+      onInvalidImport: "drop-field",
     },
   ],
   matcherTranslation: {
