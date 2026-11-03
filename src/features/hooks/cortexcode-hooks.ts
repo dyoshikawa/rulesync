@@ -10,6 +10,12 @@ import {
   CORTEXCODE_TO_CANONICAL_EVENT_NAMES,
 } from "../../types/hooks.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
+import {
+  invertToolNames,
+  isMatcherName,
+  MATCHER_TOKEN_PATTERN,
+  replaceMatcherNames,
+} from "./hook-matcher-tool-names.js";
 import { SettingsJsonHooks, type SettingsJsonHooksSpec } from "./settings-json-hooks.js";
 import type { ToolHooksConverterConfig } from "./tool-hooks-converter.js";
 import type { ToolHooksSettablePaths } from "./tool-hooks.js";
@@ -35,25 +41,7 @@ const CANONICAL_TO_CORTEXCODE_TOOL_NAMES: Readonly<Record<string, string>> = {
   Grep: "grep",
   Glob: "glob",
 };
-const CORTEXCODE_TO_CANONICAL_TOOL_NAMES: Readonly<Record<string, string>> = Object.fromEntries(
-  Object.entries(CANONICAL_TO_CORTEXCODE_TOOL_NAMES).map(([canonical, tool]) => [tool, canonical]),
-);
-
-// Splits a matcher regex into escapes (`\S`, `\b`), character classes
-// (`[A-Z]`) and whole names. A name is not part of a longer identifier (so
-// `mcp__srv__Read` is untouched) but may follow an escape, as in `\bRead\b`.
-// Escapes and classes are matched first so their letters are never names.
-const MATCHER_TOKEN_PATTERN = /\\.|\[(?:\\.|[^\]\\])*\]|(?<=^|[^\w\\]|\\\w)[A-Za-z_]\w*(?!\w)/gs;
-
-function isMatcherName(token: string): boolean {
-  return !token.startsWith("\\") && !token.startsWith("[");
-}
-
-function replaceMatcherNames(matcher: string, names: Readonly<Record<string, string>>): string {
-  return matcher.replace(MATCHER_TOKEN_PATTERN, (token) =>
-    isMatcherName(token) && Object.hasOwn(names, token) ? (names[token] ?? token) : token,
-  );
-}
+const CORTEXCODE_TO_CANONICAL_TOOL_NAMES = invertToolNames(CANONICAL_TO_CORTEXCODE_TOOL_NAMES);
 
 export function canonicalToCortexcodeMatcher({
   matcher,

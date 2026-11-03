@@ -68,6 +68,9 @@ const hooksKeyedEventNames: Record<string, { sessionStart: string; stop: string 
   // ~/.snowflake/cortex/hooks.json (global); commands are anchored with
   // $CORTEX_PROJECT_DIR only when they start with `./`.
   cortexcode: { sessionStart: "SessionStart", stop: "Stop" },
+  // TRAE stores Claude-style PascalCase events under the `hooks` key of the
+  // dedicated .trae/hooks.json in both scopes.
+  trae: { sessionStart: "SessionStart", stop: "Stop" },
   // CodeBuddy Code stores Claude-style PascalCase events under the `hooks`
   // key of .codebuddy/settings.json in both scopes; dot-relative commands are
   // anchored with $CODEBUDDY_PROJECT_DIR.
@@ -213,6 +216,7 @@ const hooksGenerateTargets = [
   { target: "bob", outputPath: join(".bob", "settings.json") },
   { target: "tabnine", outputPath: join(".tabnine", "agent", "settings.json") },
   { target: "cortexcode", outputPath: join(".cortex", "settings.json") },
+  { target: "trae", outputPath: join(".trae", "hooks.json") },
   { target: "codebuddy", outputPath: join(".codebuddy", "settings.json") },
   { target: "commandcode", outputPath: join(".commandcode", "settings.json") },
   { target: "continue", outputPath: join(".continue", "settings.json") },
@@ -1152,6 +1156,20 @@ describe("E2E: hooks (import)", () => {
       },
     },
     {
+      // TRAE stores hooks under the `hooks` key of .trae/hooks.json using
+      // PascalCase event names.
+      target: "trae",
+      sourcePath: join(".trae", "hooks.json"),
+      sourceContent: {
+        version: 1,
+        hooks: {
+          SessionStart: [
+            { hooks: [{ type: "command", command: "echo session started", timeout: 30 }] },
+          ],
+        },
+      },
+    },
+    {
       // CodeBuddy Code stores hooks under the `hooks` key of
       // .codebuddy/settings.json using Claude-style PascalCase event names;
       // SessionStart round-trips to the canonical `sessionStart` event.
@@ -1325,6 +1343,7 @@ const hooksGlobalTargets = [
   { target: "bob", outputPath: join(".bob", "settings", "settings.json") },
   { target: "tabnine", outputPath: join(".tabnine", "agent", "settings.json") },
   { target: "cortexcode", outputPath: join(".snowflake", "cortex", "hooks.json") },
+  { target: "trae", outputPath: join(".trae", "hooks.json") },
   { target: "codebuddy", outputPath: join(".codebuddy", "settings.json") },
   { target: "commandcode", outputPath: join(".commandcode", "settings.json") },
   { target: "continue", outputPath: join(".continue", "settings.json") },

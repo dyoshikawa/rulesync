@@ -1909,6 +1909,16 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
       },
     },
   },
+  // TRAE hooks (`.trae/hooks.json`, project and user scope): `hooks` is the
+  // only rulesync-owned key, so `version` and any other top-level key the IDE
+  // writes survive, and an unparseable root is refused rather than replaced.
+  ".trae/hooks.json": {
+    format: "json",
+    invalidRootPolicy: "error",
+    features: {
+      hooks: { kind: "replace-owned-keys", ownedKeys: ["hooks"] },
+    },
+  },
   // TRAE's global permission file (`~/.trae/permission/global.json`) also holds
   // the user's custom permission mode (`shellSandbox`, `approval.reviewer`,
   // `sceneRules`, ...) and `resourceAuthorization.filesystem`, so it is edited
