@@ -122,8 +122,9 @@ const DEFAULT_PERMISSION_MODE_MAPPINGS: Readonly<
 /**
  * The `chat.defaultConfiguration` value for `mode`. Rulesync owns only whether
  * the mode is Autopilot: authoring Autopilot sets it, and any other value
- * removes an Autopilot left by an earlier run, while a hand-written
- * `interactive` or `plan` is kept.
+ * removes any Autopilot mode in the file (whether an earlier run or a person
+ * wrote it, since the two cannot be told apart), while an `interactive` or
+ * `plan` mode is kept.
  */
 function buildDefaultConfigurationValue({
   defaultPermissionMode,
@@ -145,30 +146,64 @@ function buildDefaultConfigurationValue({
 }
 
 /**
- * Read `copilot.defaultPermissionMode` back from the settings. The
- * Copilot-harness `chat.defaultConfiguration` wins, since it is the only one of
- * the two that can say `assisted`; `chat.permissions.default` is the fallback
- * for files written for VS Code before 1.144.
+ * The `copilot.defaultPermissionMode` values from least to most permissive,
+ * used to settle a file whose two keys disagree.
+ */
+const DEFAULT_PERMISSION_MODE_RANK: Readonly<Record<CopilotDefaultPermissionMode, number>> = {
+  default: 0,
+  assisted: 1,
+  autoApprove: 2,
+  autopilot: 3,
+};
+
+/**
+ * The `copilot.defaultPermissionMode` a `chat.defaultConfiguration` value
+ * stands for. Autopilot is recognized only together with `allowAll`, the pair
+ * Rulesync writes for it: an Autopilot mode with stricter (or unset, so
+ * `manual`) approvals is read from `approvals` alone, or not at all, so that
+ * regenerating never escalates it to Allow All.
+ */
+function readDefaultConfigurationMode(
+  configuration: unknown,
+): CopilotDefaultPermissionMode | undefined {
+  if (!isPlainObject(configuration)) {
+    return undefined;
+  }
+  switch (configuration.approvals) {
+    case "manual":
+      return "default";
+    case "assisted":
+      return "assisted";
+    case "allowAll":
+      return configuration.mode === "autopilot" ? "autopilot" : "autoApprove";
+    default:
+      return undefined;
+  }
+}
+
+/**
+ * Read `copilot.defaultPermissionMode` back from the settings. When the two
+ * keys agree — `chat.permissions.default` holds the Local level Rulesync
+ * writes for the `chat.defaultConfiguration` value — the latter is returned,
+ * since only it can say `assisted`. When they disagree, the less permissive of
+ * the two is returned, so regenerating never raises either harness's starting
+ * permissions. Either key alone is read as it stands.
  */
 function readDefaultPermissionMode(
   settings: Record<string, unknown>,
 ): CopilotDefaultPermissionMode | undefined {
-  const configuration = settings[DEFAULT_CONFIGURATION_KEY];
-  if (isPlainObject(configuration)) {
-    if (configuration.mode === "autopilot") {
-      return "autopilot";
-    }
-    switch (configuration.approvals) {
-      case "manual":
-        return "default";
-      case "assisted":
-        return "assisted";
-      case "allowAll":
-        return "autoApprove";
-    }
+  const fromConfiguration = readDefaultConfigurationMode(settings[DEFAULT_CONFIGURATION_KEY]);
+  const localValue = settings[DEFAULT_PERMISSION_MODE_KEY];
+  const fromLocal = COPILOT_LOCAL_PERMISSION_LEVELS.find((level) => level === localValue);
+  if (fromConfiguration === undefined || fromLocal === undefined) {
+    return fromConfiguration ?? fromLocal;
   }
-  const local = settings[DEFAULT_PERMISSION_MODE_KEY];
-  return COPILOT_LOCAL_PERMISSION_LEVELS.find((level) => level === local);
+  if (DEFAULT_PERMISSION_MODE_MAPPINGS[fromConfiguration].local === fromLocal) {
+    return fromConfiguration;
+  }
+  return DEFAULT_PERMISSION_MODE_RANK[fromLocal] < DEFAULT_PERMISSION_MODE_RANK[fromConfiguration]
+    ? fromLocal
+    : fromConfiguration;
 }
 
 /**

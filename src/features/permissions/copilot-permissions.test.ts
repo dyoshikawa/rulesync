@@ -572,19 +572,61 @@ describe("CopilotPermissions", () => {
     });
 
     it.each([
-      [{ approvals: "manual" }, "default"],
+      [{ approvals: "manual" }, "default", "default"],
+      [{ approvals: "allowAll" }, "autoApprove", "autoApprove"],
+      [{ approvals: "assisted" }, "default", "assisted"],
+      [{ mode: "autopilot", approvals: "allowAll" }, "autopilot", "autopilot"],
+      [{ mode: "plan", approvals: "assisted" }, "default", "assisted"],
+    ])(
+      "imports chat.defaultConfiguration %j beside chat.permissions.default %s as %s",
+      (value, local, expected) => {
+        const permissions = new CopilotPermissions({
+          relativeDirPath: ".vscode",
+          relativeFilePath: "settings.json",
+          fileContent: JSON.stringify({
+            [DEFAULT_PERMISSION_MODE_KEY]: local,
+            [DEFAULT_CONFIGURATION_KEY]: value,
+          }),
+          validate: false,
+        });
+
+        const json = permissions.toRulesyncPermissions().getJson();
+        expect(json.copilot).toEqual({ defaultPermissionMode: expected });
+      },
+    );
+
+    it.each([
+      // An Autopilot mode without Allow All approvals must not come back as
+      // `autopilot`, which would regenerate as Allow All.
+      [{ mode: "autopilot", approvals: "manual" }, "default"],
+      [{ mode: "autopilot", approvals: "assisted" }, "assisted"],
+      [{ mode: "autopilot" }, undefined],
       [{ approvals: "allowAll" }, "autoApprove"],
-      [{ approvals: "assisted" }, "assisted"],
-      [{ mode: "autopilot", approvals: "allowAll" }, "autopilot"],
-      [{ mode: "autopilot" }, "autopilot"],
-      [{ mode: "plan", approvals: "assisted" }, "assisted"],
-    ])("imports chat.defaultConfiguration %j as defaultPermissionMode %s", (value, expected) => {
+    ])("imports chat.defaultConfiguration %j alone as %s", (value, expected) => {
       const permissions = new CopilotPermissions({
         relativeDirPath: ".vscode",
         relativeFilePath: "settings.json",
-        // The Copilot-harness setting wins over the Local one.
+        fileContent: JSON.stringify({ [DEFAULT_CONFIGURATION_KEY]: value }),
+        validate: false,
+      });
+
+      const json = permissions.toRulesyncPermissions().getJson();
+      expect(json.copilot?.defaultPermissionMode).toBe(expected);
+    });
+
+    it.each([
+      // Copilot harness looser than Local: Local wins.
+      [{ approvals: "allowAll" }, "default", "default"],
+      [{ mode: "autopilot", approvals: "allowAll" }, "autoApprove", "autoApprove"],
+      // Local looser than the Copilot harness: the Copilot harness wins.
+      [{ approvals: "manual" }, "autopilot", "default"],
+      [{ approvals: "assisted" }, "autoApprove", "assisted"],
+    ])("imports disagreeing keys %j and %s as the less permissive %s", (value, local, expected) => {
+      const permissions = new CopilotPermissions({
+        relativeDirPath: ".vscode",
+        relativeFilePath: "settings.json",
         fileContent: JSON.stringify({
-          [DEFAULT_PERMISSION_MODE_KEY]: "default",
+          [DEFAULT_PERMISSION_MODE_KEY]: local,
           [DEFAULT_CONFIGURATION_KEY]: value,
         }),
         validate: false,
