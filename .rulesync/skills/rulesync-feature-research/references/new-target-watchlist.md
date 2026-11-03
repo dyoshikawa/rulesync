@@ -32,6 +32,8 @@ latest re-check section.
 | Kun (`KunAgent/Kun`)                          | 2026-10-27 | Official docs pin a file-based project layout (rules / MCP / skills paths); today it is a GUI+TUI workbench (6,327 stars, v0.4.3 2026-10-27, PolyForm NC licence) whose MCP / skills / extensions are managed from the sidebar UI                                                                                                                                                                                                                                                                            |
 | avante.nvim (`avante-corp/avante.nvim`)       | 2026-10-31 | It stops falling back to covered files (first of `AGENTS.md` / `CLAUDE.md` / `OPENCODE.md` / `.cursorrules` / `.windsurfrules` / `.github/copilot-instructions.md`, plus `.cursor/rules/*.mdc`) or gains a file-based project MCP / skills / commands surface; today 18,183 stars, v0.4.8 (2026-10-28), own files are `avante.md` (configurable `instructions_file`) and `.avante/rules/*.{mode}.avanterules` Jinja system-prompt templates, MCP via `mcphub.nvim`, everything else Lua setup                |
 | FuXi (`fuxicodex/Fuxi`)                       | 2026-10-31 | The "checked-in project settings file (permissions, hooks)" gets a documented path and schema, and a release passes ~5k asset downloads; today proprietary, 3,199 stars, v0.1.8 (2026-09-22), installs from its own CDN, documented config is global-only (`~/.fuxi/config.yaml`, MCP via `--mcp-config` / `fuxi mcp`)                                                                                                                                                                                       |
+| OpenCursor (`PawanOsman/OpenCursor`)          | 2026-11-03 | It gains a file-based surface of its own beyond `.opencursor/skills` / `~/.opencursor/{skills,plugins}`, or Marketplace installs pass ~10k; today 6,049 stars, v0.2.1 (2026-10-26), 966 Marketplace installs, and it reads covered files (`AGENTS.md`, `.cursor/rules/*.md[c]`, `.agents/skills`, `.codex/skills`, `.cursor/skills`)                                                                                                                                                                         |
+| Docker Agent (`docker/docker-agent`)          | 2026-11-03 | It reads repo-convention config (rules / skills / MCP files a project carries) instead of only stand-alone `agent.yaml` agent definitions run with `docker agent run <file>`; today 4,648 stars, v1.156.2 (2026-11-02)                                                                                                                                                                                                                                                                                       |
 
 ## Zoo Code CLI — `apps/cli` in the Zoo-Code repo
 
@@ -338,6 +340,36 @@ Every row above was re-checked on 2026-10-31 and left as is unless noted:
   (`lua/avante/utils/prompts.lua` for the fallback file list).
 - FuXi: `https://github.com/fuxicodex/Fuxi`,
   `https://github.com/fuxicodex/Fuxi/blob/main/docs/usage.md`.
+
+## Re-check on 2026-11-03
+
+Every row above was re-checked on 2026-11-03 and left as is unless noted:
+
+- Open Interpreter: unmet — releases resumed with `rust-v0.0.57` (2026-10-31,
+  1,789 asset downloads) and `rust-v0.0.58` (2026-11-01, 2,583), Codex
+  compatibility and feedback changes only; `rust-v0.0.56` now 25,682.
+- avante.nvim: unmet — v0.5.0 (2026-10-31, 18,181 stars) adds `mcp_servers`
+  inside the Lua `acp_providers` setup; the fallback file list is unchanged.
+- JetBrains ThinkRail: unmet — v0.3.1 (2026-11-01, 7,251 stars) installs pi
+  packages from Settings, binding it closer to pi.
+- Zencoder: unmet — a per-project `.zencoder/settings.json` is now documented,
+  but only for custom model `providers`.
+- MiniMax Code: unmet — 0.7.4, ~21.8k downloads/week, 2,165 stars; hooks still
+  only inside a MiniMax-format plugin manifest.
+- Kiro Crew: unmet — v0.12.0 in release candidates (rc.5), 4,744 stars.
+- Kimchi: unmet — v1.26.0 (2026-11-02), 2,276 stars; config still global.
+- Kun: unmet — v0.4.4, 6,378 stars; still UI-managed.
+- ForgeCode: unmet — 261 downloads/week, 7,636 stars; docs pages still 404.
+- Zoo Code CLI, Verdent, Baidu Comate / Zulu, Warp Factories, fx, Nanocoder,
+  Prime Agent, Claurst, Databricks Genie Code, FuXi: unmet — unchanged.
+
+Proposed as targets the same day: DeepCode (#3730), Gajae-Code (#3731) and
+Eclipse Theia AI (#3732).
+
+## Watchlist candidates recorded on 2026-11-03
+
+- OpenCursor: `https://github.com/PawanOsman/OpenCursor`.
+- Docker Agent: `https://github.com/docker/docker-agent`.
 
 ## Promoted entries
 
