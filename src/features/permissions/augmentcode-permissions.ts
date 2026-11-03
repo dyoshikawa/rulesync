@@ -309,9 +309,11 @@ function isShellRegexRoundtrippable(regex: string): boolean {
   while (i < body.length) {
     const ch = body[i];
     if (ch === "\\" && i + 1 < body.length) {
-      // An escaped `*` / `?` is a literal the glob form cannot spell: `shellRegexToGlob` would
-      // turn it into a wildcard, so `^rm \*$` would come back as the much wider `^rm .*$`.
-      if (isGlobWildcard(body[i + 1])) {
+      // An escaped `*` / `?` / `[` is a literal the glob form cannot spell: `shellRegexToGlob`
+      // would turn it into a wildcard or a character class, so `^rm \*$` would come back as the
+      // much wider `^rm .*$`, and `\[a-z\]` would be read as a one-character range by targets
+      // whose globs support `[...]`.
+      if (isGlobSpecial(body[i + 1])) {
         return false;
       }
       // Skip escaped char.
@@ -337,15 +339,17 @@ function isShellRegexRoundtrippable(regex: string): boolean {
   return true;
 }
 
-function isGlobWildcard(ch: string | undefined): boolean {
-  return ch === "*" || ch === "?";
+/** Characters a glob reads as syntax (wildcards or the start of a character class). */
+function isGlobSpecial(ch: string | undefined): boolean {
+  return ch === "*" || ch === "?" || ch === "[";
 }
 
 /**
  * Whether `shellRegexToGlob` can approximate a `shellInputRegex` without widening it. The lossy
  * conversion keeps regex quantifiers as characters, and a `*` or `?` left in the glob becomes a
  * wildcard: `^rm -rf /tmp/a*$` (a run of `a`s) would turn into the glob `rm -rf /tmp/a*`, which
- * matches `rm -rf /tmp/a /home`. So a regex is unsafe when it has an escaped literal `\*` / `\?`,
+ * matches `rm -rf /tmp/a /home`. So a regex is unsafe when it has an escaped literal `\*` / `\?` /
+ * `\[` (a `[` would open a character class in targets whose globs support one),
  * or a bare quantifier `*` / `?` / `+` / `{` that is not part of a `.*` run (which the glob `*`
  * reproduces faithfully).
  */
@@ -354,7 +358,7 @@ function canApproximateShellRegexWithoutWidening(regex: string): boolean {
   while (i < regex.length) {
     const ch = regex[i];
     if (ch === "\\" && i + 1 < regex.length) {
-      if (isGlobWildcard(regex[i + 1])) return false;
+      if (isGlobSpecial(regex[i + 1])) return false;
       i += 2;
       continue;
     }

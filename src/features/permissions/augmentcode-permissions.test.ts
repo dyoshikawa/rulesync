@@ -1880,6 +1880,9 @@ describe("AugmentcodePermissions", () => {
           ["^git push origin main(-dev)*$", "allow"],
           ["^npm run build+$", "ask-user"],
           ["^ls a{2}$", "ask-user"],
+          // Literal brackets would become a glob character class (a one-character range).
+          ["^ls \\[a-z\\]$", "allow"],
+          ["^cat \\[x\\]$", "ask-user"],
         ])("%s (%s)", (regex, type) => {
           const warnSpy = vi.spyOn(ConsoleLogger.prototype, "warn").mockImplementation(() => {});
           const instance = new AugmentcodePermissions({
@@ -1896,6 +1899,22 @@ describe("AugmentcodePermissions", () => {
           const messages = warnSpy.mock.calls.map((call) => String(call[0]));
           expect(messages.some((m) => m.includes("is not imported"))).toBe(true);
           warnSpy.mockRestore();
+        });
+
+        it("broadens a deny with literal brackets to the catch-all pattern (fail-closed)", () => {
+          const instance = new AugmentcodePermissions({
+            relativeDirPath: ".augment",
+            relativeFilePath: "settings.json",
+            fileContent: JSON.stringify({
+              toolPermissions: [
+                { toolName, shellInputRegex: "^ls \\[a-z\\]$", permission: { type: "deny" } },
+              ],
+            }),
+          });
+
+          expect(instance.toRulesyncPermissions().getJson().permission).toEqual({
+            bash: { "*": "deny" },
+          });
         });
 
         it("still broadens such a deny to the catch-all pattern (fail-closed)", () => {
