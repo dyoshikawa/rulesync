@@ -506,6 +506,16 @@ describe("GrokcliPermissions", () => {
   });
 
   describe("toRulesyncPermissions (import)", () => {
+    it("imports absolute path patterns as Grok spells them, without restoring //", async () => {
+      await writeFileContent(
+        join(testDir, ".grok", "config.toml"),
+        ["[permission]", 'deny = ["Read(/etc/shadow)"]', ""].join("\n"),
+      );
+      const tool = await GrokcliPermissions.fromFile({ outputRoot: testDir, global: true });
+      const json = JSON.parse(tool.toRulesyncPermissions().getFileContent());
+      expect(json.permission.read).toEqual({ "/etc/shadow": "deny" });
+    });
+
     it("parses fine-grained [permission] arrays into canonical categories", async () => {
       await writeFileContent(
         join(testDir, ".grok", "config.toml"),
