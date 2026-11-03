@@ -242,11 +242,15 @@ function toWidenedDenyTarget(action: string, pattern: string): string | undefine
 }
 
 /** The entry a deny is widened to, and what it now blocks. */
-function describeWidenedDeny(
-  action: string,
-  prefix: string,
-  isMcp: boolean,
-): { entry: string; scope: string } {
+function describeWidenedDeny({
+  action,
+  prefix,
+  isMcp,
+}: {
+  action: string;
+  prefix: string;
+  isMcp: boolean;
+}): { entry: string; scope: string } {
   if (isMcp) {
     // `*` names every MCP tool, which the bare action already says.
     return prefix === "*"
@@ -333,7 +337,7 @@ export function buildAntigravityPermissionEntry({
     const prefix =
       decision !== "deny" ? undefined : isMcp ? result.lead : toWidenedDenyTarget(action, pattern);
     if (prefix !== undefined) {
-      const { entry, scope } = describeWidenedDeny(action, prefix, isMcp);
+      const { entry, scope } = describeWidenedDeny({ action, prefix, isMcp });
       logger.warn(
         `${toolLabel} permissions: widening ${rule} to ${entry}. ${result.skipReason}. The deny now blocks ${scope}, overriding any allow or ask for them.`,
       );

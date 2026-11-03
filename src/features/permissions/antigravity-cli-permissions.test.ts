@@ -427,13 +427,16 @@ describe("AntigravityCliPermissions", () => {
     expect(settings.someOtherSetting).toBe(true);
   });
 
-  it("should replace stale mcp(...) entries once an MCP category is configured", async () => {
+  it("should replace stale mcp(...) and legacy mcp__ entries once an MCP category is configured", async () => {
     const dir = join(testDir, ".gemini", "antigravity-cli");
     await ensureDir(dir);
     await writeFileContent(
       join(dir, "settings.json"),
       JSON.stringify({
-        permissions: { allow: ["mcp(github/*)", "execute_url(https://deploy.example.com)"] },
+        // `mcp__github__list` is the bare action earlier releases wrote.
+        permissions: {
+          allow: ["mcp(github/*)", "mcp__github__list", "execute_url(https://deploy.example.com)"],
+        },
       }),
     );
 

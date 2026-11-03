@@ -215,16 +215,22 @@ export class AntigravityCliPermissions extends ToolPermissions {
       Object.keys(config.permission).map((category) => toAntigravityCliToolName(category)),
     );
 
+    // Earlier releases wrote MCP tools as bare `mcp__server__tool` names,
+    // which Antigravity ignores, so they go once MCP is managed.
+    const isManagedToolName = (toolName: string): boolean =>
+      managedToolNames.has(toolName) ||
+      (managedToolNames.has("mcp") && toolName.startsWith("mcp__"));
+
     // Preserve existing entries for tools NOT in the permissions config
     const existingPermissions = settings.permissions ?? {};
     const preservedAllow = (existingPermissions.allow ?? []).filter(
-      (entry) => !managedToolNames.has(parseToolPatternEntry(entry).toolName),
+      (entry) => !isManagedToolName(parseToolPatternEntry(entry).toolName),
     );
     const preservedAsk = (existingPermissions.ask ?? []).filter(
-      (entry) => !managedToolNames.has(parseToolPatternEntry(entry).toolName),
+      (entry) => !isManagedToolName(parseToolPatternEntry(entry).toolName),
     );
     const preservedDeny = (existingPermissions.deny ?? []).filter(
-      (entry) => !managedToolNames.has(parseToolPatternEntry(entry).toolName),
+      (entry) => !isManagedToolName(parseToolPatternEntry(entry).toolName),
     );
 
     const mergedPermissions: Record<string, unknown> = {

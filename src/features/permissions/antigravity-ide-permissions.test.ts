@@ -230,13 +230,15 @@ describe("AntigravityIdePermissions", () => {
       expect(json.permissions.deny).toContain("unsandboxed");
     });
 
-    it("replaces stale mcp(...) entries once an MCP category is configured", async () => {
+    it("replaces stale mcp(...) and legacy mcp__ entries once an MCP category is configured", async () => {
       const dir = join(testDir, ".antigravity");
       await ensureDir(dir);
       await writeFileContent(
         join(dir, "settings.json"),
         JSON.stringify({
-          permissions: { allow: ["mcp(github/*)", "execute_url(localhost)"] },
+          permissions: {
+            allow: ["mcp(github/*)", "mcp__github__list", "execute_url(localhost)"],
+          },
         }),
       );
 
