@@ -1455,6 +1455,7 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
           "workflow_arpeggio",
           "workflow_runtime_prepare",
           "workflow_command_gates",
+          "workflow_system_commands",
           "sync_conflict_resolver",
           "allow_git_hooks",
           "allow_git_filters",
