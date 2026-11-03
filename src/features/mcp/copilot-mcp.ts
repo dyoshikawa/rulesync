@@ -4,7 +4,11 @@ import { COPILOT_MCP_DIR, COPILOT_MCP_FILE_NAME } from "../../constants/copilot-
 import { McpServers } from "../../types/mcp.js";
 import { readFileContent, readFileContentOrNull } from "../../utils/file.js";
 import { parseJsonc } from "../../utils/jsonc.js";
-import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
+import {
+  applySharedConfigPatch,
+  sharedConfigFileKey,
+  undefinedWhenEmpty,
+} from "../shared/shared-config-gateway.js";
 import {
   convertEnvVarRefsFromToolFormat,
   convertEnvVarRefsToToolFormat,
@@ -137,12 +141,14 @@ export class CopilotMcp extends ToolMcp {
       // The shared-config gateway owns only `servers`, parses the file as the
       // JSONC VS Code actually writes (its "MCP: Add Server" scaffold starts
       // with a comment), and fails closed rather than overwriting a file it
-      // could not fully parse.
+      // could not fully parse. With no managed server left, `servers` is
+      // retracted rather than written as `{}` (the VS Code schema requires no
+      // top-level key), so `inputs` and `sandbox` stay as they are.
       fileContent: applySharedConfigPatch({
         fileKey: sharedConfigFileKey(paths),
         feature: "mcp",
         existingContent,
-        patch: { servers: convertToCopilotFormat(mcpServers) },
+        patch: { servers: undefinedWhenEmpty(convertToCopilotFormat(mcpServers)) },
         filePath,
         logger,
       }),
