@@ -24,6 +24,31 @@ describe("RulesyncPermissionsFileSchema tool-scoped override enums", () => {
     });
   });
 
+  describe("codexcli.auto_review", () => {
+    it.each([0, 90_000, 4_294_967_295])("should accept timeout_ms %s", (value) => {
+      const result = RulesyncPermissionsFileSchema.safeParse(
+        withOverride({
+          codexcli: { auto_review: { policy: "Deny network calls.", timeout_ms: value } },
+        }),
+      );
+      expect(result.success).toBe(true);
+    });
+
+    it.each([-1, 1.5, 4_294_967_296, "90000"])("should reject timeout_ms %s", (value) => {
+      const result = RulesyncPermissionsFileSchema.safeParse(
+        withOverride({ codexcli: { auto_review: { timeout_ms: value } } }),
+      );
+      expect(result.success).toBe(false);
+    });
+
+    it("should pass unmodeled keys through", () => {
+      const result = RulesyncPermissionsFileSchema.safeParse(
+        withOverride({ codexcli: { auto_review: { circuit_break_action: "strict" } } }),
+      );
+      expect(result.success).toBe(true);
+    });
+  });
+
   describe("omp.approvalMode", () => {
     it.each(["always-ask", "always-ask-cached", "write", "yolo"])("should accept %s", (value) => {
       const result = RulesyncPermissionsFileSchema.safeParse(
