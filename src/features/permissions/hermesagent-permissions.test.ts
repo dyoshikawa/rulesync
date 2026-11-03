@@ -566,6 +566,186 @@ security:
     const roundTripped = JSON.parse(reimported.toRulesyncPermissions().getFileContent());
     expect(roundTripped).toEqual(canonical);
   });
+
+  describe("MCP trust-gate grants (mcp:<server>/<tool>)", () => {
+    const toRulesync = (permission: Record<string, unknown>) =>
+      new RulesyncPermissions({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: "permissions.json",
+        fileContent: JSON.stringify({ permission }),
+      });
+
+    it("writes a '*' allow on mcp__<server>__<tool> as an mcp:<server>/<tool> grant", () => {
+      const logger = createMockLogger();
+      const generated = HermesagentPermissions.fromRulesyncPermissions({
+        outputRoot: ".",
+        rulesyncPermissions: toRulesync({
+          bash: { "git status": "allow" },
+          mcp__notes__write_note: { "*": "allow" },
+          mcp__github__create_pull_request: { "*": "allow" },
+        }),
+        logger,
+      });
+
+      const config = parseSharedConfig({ format: "yaml", fileContent: generated.getFileContent() });
+      expect(config.command_allowlist).toEqual([
+        "git status",
+        "mcp:notes/write_note",
+        "mcp:github/create_pull_request",
+      ]);
+      expect(logger.warn).not.toHaveBeenCalled();
+    });
+
+    it("skips with a warning the MCP allows Hermes cannot grant tool by tool", () => {
+      const logger = createMockLogger();
+      const generated = HermesagentPermissions.fromRulesyncPermissions({
+        outputRoot: ".",
+        rulesyncPermissions: toRulesync({
+          mcp: { "*": "allow" },
+          mcp__notes: { "*": "allow" },
+          "mcp__notes__*": { "*": "allow" },
+          mcp__github__get_issue: { "owner:me": "allow" },
+        }),
+        logger,
+      });
+
+      const config = parseSharedConfig({ format: "yaml", fileContent: generated.getFileContent() });
+      expect(config.command_allowlist).toBeUndefined();
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          "the MCP allow rule(s) mcp: *, mcp__notes: *, mcp__notes__*: *, mcp__github__get_issue: owner:me were skipped",
+        ),
+      );
+    });
+
+    it.each([
+      { label: "an all-tools catch-all ask", restriction: { "*": { "*": "ask" } } },
+      { label: "an every-MCP deny", restriction: { mcp: { "*": "deny" } } },
+      { label: "a whole-server deny", restriction: { mcp__notes: { "*": "deny" } } },
+    ])("withholds an MCP grant that $label covers", ({ restriction }) => {
+      const logger = createMockLogger();
+      const canonical = { ...restriction, mcp__notes__write_note: { "*": "allow" } };
+      const generated = HermesagentPermissions.fromRulesyncPermissions({
+        outputRoot: ".",
+        rulesyncPermissions: toRulesync(canonical),
+        logger,
+      });
+
+      const config = parseSharedConfig({ format: "yaml", fileContent: generated.getFileContent() });
+      expect(config.command_allowlist).toBeUndefined();
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("was not given the MCP allow rule(s) for mcp__notes__write_note"),
+      );
+      // The grant was never written, so import must not read its absence as a retraction.
+      expect(generated.toRulesyncPermissions().getJson()).toEqual({ permission: canonical });
+    });
+
+    it("imports mcp: grants as canonical MCP allows, never as bash commands", () => {
+      const imported = new HermesagentPermissions({
+        outputRoot: ".",
+        fileContent: JSON.stringify({
+          command_allowlist: [
+            "git status",
+            "mcp:notes/write_note",
+            "mcp:github/create_pull_request",
+            // No canonical spelling: a `__` server name and a literal `*` tool name.
+            "mcp:my__server/tool",
+            "mcp:notes/*",
+          ],
+        }),
+      })
+        .toRulesyncPermissions()
+        .getJson();
+
+      expect(imported.permission).toEqual({
+        bash: { "git status": "allow" },
+        mcp__notes__write_note: { "*": "allow" },
+        mcp__github__create_pull_request: { "*": "allow" },
+      });
+    });
+
+    it("lets the native grants retract a stale single-tool MCP allow, keeping the rest", () => {
+      const imported = new HermesagentPermissions({
+        outputRoot: ".",
+        fileContent: JSON.stringify({
+          command_allowlist: ["mcp:notes/write_note"],
+          permissions: {
+            rulesync: {
+              permission: {
+                mcp__notes__write_note: { "*": "allow" },
+                mcp__notes__delete_note: { "*": "allow" },
+                mcp__github: { "*": "allow" },
+                mcp__docs__search: { "*": "deny" },
+              },
+            },
+          },
+        }),
+      })
+        .toRulesyncPermissions()
+        .getJson();
+
+      expect(imported.permission).toEqual({
+        mcp__notes__write_note: { "*": "allow" },
+        mcp__github: { "*": "allow" },
+        mcp__docs__search: { "*": "deny" },
+      });
+    });
+
+    it("keeps the grants Hermes persisted when generation rewrites command_allowlist", () => {
+      const generated = HermesagentPermissions.fromRulesyncPermissions({
+        outputRoot: ".",
+        rulesyncPermissions: toRulesync({
+          bash: { "git status": "allow", "npm test": "allow" },
+          mcp__github__create_pull_request: { "*": "allow" },
+        }),
+      });
+
+      generated.setFileContent(`command_allowlist:
+  - git status
+  - old-command
+  - mcp:notes/write_note
+  - mcp:github/create_pull_request
+  - mcp:my__server/tool
+  - mcp:stale/tool
+permissions:
+  rulesync:
+    permission:
+      bash:
+        old-command: allow
+      mcp__stale__tool:
+        "*": allow
+`);
+
+      const config = parseSharedConfig({ format: "yaml", fileContent: generated.getFileContent() });
+      // A user's "Always" grants rulesync never managed survive; the shell
+      // entries and the grant rulesync wrote from a now-removed rule do not.
+      expect(config.command_allowlist).toEqual([
+        "git status",
+        "npm test",
+        "mcp:github/create_pull_request",
+        "mcp:notes/write_note",
+        "mcp:my__server/tool",
+      ]);
+    });
+
+    it("drops a persisted grant the canonical block now restricts", () => {
+      const generated = HermesagentPermissions.fromRulesyncPermissions({
+        outputRoot: ".",
+        rulesyncPermissions: toRulesync({
+          bash: { "git status": "allow" },
+          mcp__notes__write_note: { "*": "deny" },
+        }),
+        logger: createMockLogger(),
+      });
+
+      generated.setFileContent(`command_allowlist:
+  - mcp:notes/write_note
+`);
+
+      const config = parseSharedConfig({ format: "yaml", fileContent: generated.getFileContent() });
+      expect(config.command_allowlist).toEqual(["git status"]);
+    });
+  });
 });
 
 describe("HermesagentPermissions global settable paths", () => {
