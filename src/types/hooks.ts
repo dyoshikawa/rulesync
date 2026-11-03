@@ -1459,6 +1459,39 @@ export const CORTEXCODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = inver
 );
 
 /**
+ * Hook events supported by TRAE.
+ *
+ * TRAE reads `.trae/hooks.json` (project) and `~/.trae/hooks.json` (user):
+ * `{ "version"?: 1, "hooks": { "<Event>": [{ "matcher"?, "hooks": [{ "type":
+ * "command", "command", "timeout"? }] }] } }` with Claude-Code-style
+ * PascalCase event names. `$TRAE_PROJECT_DIR` resolves to the workspace root
+ * inside commands.
+ *
+ * @see https://docs.trae.ai/ide/hook-configuration-reference?_lang=en
+ */
+export const TRAE_HOOK_EVENTS: readonly HookEvent[] = [
+  "sessionStart",
+  "beforeSubmitPrompt",
+  "preToolUse",
+  "postToolUse",
+  "stop",
+  "notification",
+];
+
+export const CANONICAL_TO_TRAE_EVENT_NAMES: Record<string, string> = {
+  sessionStart: "SessionStart",
+  beforeSubmitPrompt: "UserPromptSubmit",
+  preToolUse: "PreToolUse",
+  postToolUse: "PostToolUse",
+  stop: "Stop",
+  notification: "Notification",
+};
+
+export const TRAE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+  CANONICAL_TO_TRAE_EVENT_NAMES,
+);
+
+/**
  * Hook events supported by CodeBuddy Code.
  *
  * CodeBuddy Code reads hooks from the `hooks` key of `.codebuddy/settings.json`
@@ -1987,6 +2020,7 @@ export const HooksConfigSchema = z.looseObject({
   bob: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   codebuddy: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   cortexcode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
+  trae: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   commandcode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   lettacode: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),
   continue: z.optional(z.looseObject({ hooks: z.optional(hooksRecordSchema) })),

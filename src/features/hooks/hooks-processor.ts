@@ -108,6 +108,7 @@ import type {
   ToolHooksFromRulesyncHooksParams,
 } from "./tool-hooks.js";
 import { ToolHooks } from "./tool-hooks.js";
+import { TraeHooks } from "./trae-hooks.js";
 import { VibeHooks } from "./vibe-hooks.js";
 import { VibePluginHooks } from "./vibe-plugin-hooks.js";
 import { ZCODE_CONVERTER_CONFIG, ZcodeHooks } from "./zcode-hooks.js";
@@ -1071,6 +1072,25 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       supportedEvents: TABNINE_HOOK_EVENTS,
       supportedHookTypes: ["command"],
       supportsMatcher: true,
+    },
+  ],
+  [
+    "trae",
+    {
+      class: TraeHooks,
+      meta: {
+        // TRAE hooks live in the dedicated `.trae/hooks.json` (project) and
+        // `~/.trae/hooks.json` (global), with command hooks only. `matcher` is
+        // a regex over the tool name (PreToolUse/PostToolUse) or the
+        // notification type (Notification); other events take none.
+        // https://docs.trae.ai/ide/hook-configuration-reference?_lang=en
+        supportsProject: true,
+        supportsGlobal: true,
+        supportsImport: true,
+      },
+      ...converterCapabilities(TraeHooks.getConverterConfig()),
+      supportsMatcher: true,
+      matcherEvents: ["preToolUse", "postToolUse", "notification"],
     },
   ],
   [

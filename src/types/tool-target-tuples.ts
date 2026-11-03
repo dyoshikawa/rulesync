@@ -399,6 +399,7 @@ export const hooksProcessorToolTargetTuple = [
   "qwencode",
   "reasonix",
   "tabnine",
+  "trae",
   "grokcli",
   "gitlabduo",
   "lettacode",

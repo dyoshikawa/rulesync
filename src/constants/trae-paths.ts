@@ -10,11 +10,15 @@ import { join } from "node:path";
  * @see https://docs.trae.ai/ide/slash-commands?_lang=en
  * @see https://docs.trae.ai/ide/ignore-files?_lang=en
  * @see https://docs.trae.ai/ide/permission-and-approval?_lang=en
+ * @see https://docs.trae.ai/ide/hook-configuration-reference?_lang=en
  */
 export const TRAE_DIR = ".trae";
 
 /** Project MCP servers (`mcpServers` object), project scope only. */
 export const TRAE_MCP_FILE_NAME = "mcp.json";
+
+/** Hooks: `.trae/hooks.json` (project) and `~/.trae/hooks.json` (global). */
+export const TRAE_HOOKS_FILE_NAME = "hooks.json";
 
 /** Skills: `.trae/skills/<name>/SKILL.md` (project) and `~/.trae/skills/` (global). */
 export const TRAE_SKILLS_DIR_PATH = join(TRAE_DIR, "skills");

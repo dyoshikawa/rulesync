@@ -229,14 +229,20 @@ export type ToolHooksConverterConfig = {
    * puts it back on every definition of that group.
    */
   groupPassthroughFields?: ReadonlyArray<{
-    readonly canonical: "metadata" | "commandRegex";
+    readonly canonical: "metadata" | "commandRegex" | "loop_limit";
     readonly tool: string;
     /**
      * The value shape the tool documents. Anything else is ignored in both
      * directions, so an object never reaches a canonical string field (or the
      * reverse) and fails validation later. Defaults to `"object"`.
      */
-    readonly valueType?: "object" | "string";
+    readonly valueType?: "object" | "string" | "number";
+    /**
+     * Canonical events the field is documented on. Elsewhere it is dropped
+     * with a warning on generate and ignored on import. Defaults to every
+     * event.
+     */
+    readonly events?: ReadonlySet<string>;
     /**
      * When set, definitions carrying different values are split into separate
      * matcher entries instead of sharing the group's first value. Set it for a
@@ -245,7 +251,28 @@ export type ToolHooksConverterConfig = {
      * additive payload, where sharing only widens what a hook receives.
      */
     readonly subdividesGroup?: boolean;
+    /**
+     * What import does with a group whose value is present but unusable.
+     * `"skip-group"` (the default) skips the group's hooks, as a filter must:
+     * importing them without it would widen when they fire. `"drop-field"`
+     * imports the hooks without the value and warns, for a field the tool
+     * defaults when it is missing (e.g. TRAE's `loop_limit`).
+     */
+    readonly onInvalidImport?: "skip-group" | "drop-field";
   }>;
+  /**
+   * When true, commands are emitted as written: `projectDirVar` is only
+   * stripped on import, never added on generate. For a tool that runs hooks
+   * from the project root, where anchoring adds nothing and a quoted
+   * `"$VAR"` prefix would break under a non-POSIX shell.
+   */
+  stripsProjectDirVarOnImportOnly?: boolean;
+  /**
+   * Further project directory variables the tool documents as aliases of
+   * `projectDirVar` (e.g. TRAE's `$CLAUDE_PROJECT_DIR`). They are stripped on
+   * import like `projectDirVar` and never emitted.
+   */
+  importedProjectDirVarAliases?: readonly string[];
   /**
    * When true, only dot-relative commands (e.g. ./script.sh, ../script.sh, .rulesync/hooks/x.sh)
    * are prefixed with projectDirVar. Bare executable commands like `npx prettier ...` are left intact.
@@ -402,9 +429,11 @@ function groupDefinitionsByMatcher({
       // A value the tool cannot express is never emitted, so keying on it would
       // split a group into entries that come out identical. NUL separates the
       // parts because no emitted value may contain one.
-      ...subdividingFields.map(({ canonical, valueType }) => {
+      ...subdividingFields.map(({ canonical, valueType, events }) => {
         const value = def[canonical];
-        return isGroupPassthroughValue(value, valueType) ? stableJson(value) : "";
+        return isGroupFieldOnEvent(events, eventName) && isGroupPassthroughValue(value, valueType)
+          ? stableJson(value)
+          : "";
       }),
     ].join("\u0000");
     const group = byMatcher.get(key);
@@ -471,6 +500,9 @@ function applyCommandPrefix({
   def: HooksConfig["hooks"][string][number];
   converterConfig: ToolHooksConverterConfig;
 }): unknown {
+  if (converterConfig.stripsProjectDirVarOnImportOnly) {
+    return def.command;
+  }
   const commandText = def.command;
   const trimmedCommand = typeof commandText === "string" ? commandText.trimStart() : undefined;
   const unquotedCommand = trimmedCommand?.replace(/^["']/, "");
@@ -884,7 +916,11 @@ const describeInvalidRecord = ({ tool }: { tool: string }): string =>
  * A group-level passthrough value: an object payload (e.g. AugmentCode's
  * `metadata`) or a scalar filter (e.g. Factory Droid's `commandRegex`).
  */
-type GroupPassthroughValue = Record<string, unknown> | string;
+type GroupPassthroughValue = Record<string, unknown> | string | number;
+
+function isGroupFieldOnEvent(events: ReadonlySet<string> | undefined, eventName: string): boolean {
+  return events === undefined || events.has(eventName);
+}
 
 /**
  * Check a value against the shape its field documents. A string field also
@@ -893,8 +929,11 @@ type GroupPassthroughValue = Record<string, unknown> | string;
  */
 function isGroupPassthroughValue(
   value: unknown,
-  valueType: "object" | "string" = "object",
+  valueType: "object" | "string" | "number" = "object",
 ): value is GroupPassthroughValue {
+  if (valueType === "number") {
+    return typeof value === "number" && Number.isFinite(value);
+  }
   if (valueType === "string") {
     return typeof value === "string" && !CONTROL_CHARS.some((char) => value.includes(char));
   }
@@ -917,10 +956,18 @@ function emitGroupPassthroughFields({
   logger?: Logger;
 }): Record<string, GroupPassthroughValue> {
   const emitted: Record<string, GroupPassthroughValue> = {};
-  for (const { canonical, tool, valueType } of converterConfig.groupPassthroughFields ?? []) {
+  for (const { canonical, tool, valueType, events } of converterConfig.groupPassthroughFields ??
+    []) {
     const carried = defs.map((def) => def[canonical]);
     const first = carried.find((value) => isGroupPassthroughValue(value, valueType));
     if (first === undefined) {
+      continue;
+    }
+    if (!isGroupFieldOnEvent(events, eventName)) {
+      logger?.warn(
+        `"${canonical}" on "${eventName}" hooks is ignored — the tool supports "${tool}" only on ` +
+          `${[...(events ?? [])].map((event) => `"${event}"`).join(", ")} hooks.`,
+      );
       continue;
     }
     // One value per group, so hooks sharing a matcher cannot each keep their
@@ -948,15 +995,20 @@ function emitGroupPassthroughFields({
  */
 function importGroupPassthroughFields({
   rawEntry,
+  eventName,
   converterConfig,
 }: {
   rawEntry: ToolMatcherEntry;
+  eventName: string;
   converterConfig: ToolHooksConverterConfig;
 }): Record<string, GroupPassthroughValue> {
   const entry = rawEntry as unknown as Record<string, unknown>;
   return Object.fromEntries(
     (converterConfig.groupPassthroughFields ?? [])
-      .filter(({ tool, valueType }) => isGroupPassthroughValue(entry[tool], valueType))
+      .filter(
+        ({ tool, valueType, events }) =>
+          isGroupFieldOnEvent(events, eventName) && isGroupPassthroughValue(entry[tool], valueType),
+      )
       .map(({ canonical, tool }) => [canonical, entry[tool] as GroupPassthroughValue]),
   );
 }
@@ -1449,34 +1501,37 @@ function stripCommandPrefix({
   if (projectDirVar === "" || typeof cmd !== "string") {
     return cmd;
   }
-  const {
-    command: stripped,
-    unrestored,
-    retained,
-  } = importProjectDirVariable({
-    command: cmd,
-    projectDirVar,
-    // The exec form's command is one executable path, not shell words, and a
-    // non-POSIX shell's words are not what the scanner understands.
-    firstWordOnly:
-      isExecFormHook({ args, converterConfig }) || !runsInPosixShell({ shell, converterConfig }),
-  });
-  if (warn && unrestored) {
-    warn(
-      `Hook command ${quoteValueForWarning(cmd)} was imported as ${quoteValueForWarning(stripped)}: ` +
-        `a ${projectDirVar} path that is not a script the command runs becomes relative to the ` +
-        `hook's working directory and is not restored on generate. Put the exact command in a ` +
-        `tool-specific hooks override (such as "claudecode.hooks") to keep the variable.`,
-    );
-  }
-  if (warn && retained) {
-    warn(
-      `Hook command ${quoteValueForWarning(cmd)} keeps ${projectDirVar} in an assignment or ` +
-        `option value, or in a later word of a command whose later words are not normalized, ` +
-        `so the imported command still refers to it and other tools that do not define it ` +
-        `receive it verbatim. Put the exact command in a tool-specific hooks override (such as ` +
-        `"claudecode.hooks") if other tools should not see it.`,
-    );
+  let stripped = cmd;
+  for (const variable of [projectDirVar, ...(converterConfig.importedProjectDirVarAliases ?? [])]) {
+    const before = stripped;
+    const result = importProjectDirVariable({
+      command: before,
+      projectDirVar: variable,
+      // The exec form's command is one executable path, not shell words, and a
+      // non-POSIX shell's words are not what the scanner understands.
+      firstWordOnly:
+        isExecFormHook({ args, converterConfig }) || !runsInPosixShell({ shell, converterConfig }),
+    });
+    stripped = result.command;
+    // A tool that never anchors commands runs them from the project root, so
+    // a stripped data path still resolves to the same file there.
+    if (warn && result.unrestored && !converterConfig.stripsProjectDirVarOnImportOnly) {
+      warn(
+        `Hook command ${quoteValueForWarning(cmd)} was imported as ${quoteValueForWarning(stripped)}: ` +
+          `a ${variable} path that is not a script the command runs becomes relative to the ` +
+          `hook's working directory and is not restored on generate. Put the exact command in a ` +
+          `tool-specific hooks override (such as "claudecode.hooks") to keep the variable.`,
+      );
+    }
+    if (warn && result.retained) {
+      warn(
+        `Hook command ${quoteValueForWarning(cmd)} keeps ${variable} in an assignment or ` +
+          `option value, or in a later word of a command whose later words are not normalized, ` +
+          `so the imported command still refers to it and other tools that do not define it ` +
+          `receive it verbatim. Put the exact command in a tool-specific hooks override (such as ` +
+          `"claudecode.hooks") if other tools should not see it.`,
+      );
+    }
   }
   return stripped;
 }
@@ -1519,8 +1574,8 @@ function isStringRecord(value: unknown): value is Record<string, string> {
 }
 
 /** Compare object values without letting key order decide the answer. */
-function stableJson(value: Record<string, unknown> | string): string {
-  if (typeof value === "string") {
+function stableJson(value: Record<string, unknown> | string | number): string {
+  if (typeof value !== "object") {
     return JSON.stringify(value);
   }
   return JSON.stringify(
@@ -1802,7 +1857,7 @@ function toolHookToCanonical({
     ...(converterConfig.passthroughFields?.includes("description") &&
       description !== undefined && { description }),
     ...importAllPassthroughFields({ h, hookType, eventName, converterConfig, warn }),
-    ...importGroupPassthroughFields({ rawEntry, converterConfig }),
+    ...importGroupPassthroughFields({ rawEntry, eventName, converterConfig }),
     ...(matcher !== undefined && matcher !== null && matcher !== "" && { matcher }),
   };
 }
@@ -1870,15 +1925,28 @@ function definingFields({
  */
 function describeGroupSkipReason({
   rawEntry,
+  eventName,
   converterConfig,
 }: {
   rawEntry: ToolMatcherEntry;
+  eventName: string;
   converterConfig: ToolHooksConverterConfig;
 }): string | undefined {
   const entry = rawEntry as unknown as Record<string, unknown>;
-  for (const { tool, valueType, subdividesGroup } of converterConfig.groupPassthroughFields ?? []) {
+  for (const {
+    tool,
+    valueType,
+    subdividesGroup,
+    events,
+    onInvalidImport,
+  } of converterConfig.groupPassthroughFields ?? []) {
     const value = entry[tool];
-    if (subdividesGroup !== true || value === undefined) {
+    if (
+      subdividesGroup !== true ||
+      onInvalidImport === "drop-field" ||
+      value === undefined ||
+      !isGroupFieldOnEvent(events, eventName)
+    ) {
       continue;
     }
     if (!isGroupPassthroughValue(value, valueType)) {
@@ -1890,6 +1958,43 @@ function describeGroupSkipReason({
     }
   }
   return undefined;
+}
+
+/**
+ * Warn about each `"drop-field"` group value that is present but unusable;
+ * {@link importGroupPassthroughFields} leaves it off the imported hooks.
+ */
+function warnDroppedGroupFields({
+  rawEntry,
+  eventName,
+  converterConfig,
+  warn,
+}: {
+  rawEntry: ToolMatcherEntry;
+  eventName: string;
+  converterConfig: ToolHooksConverterConfig;
+  warn?: (message: string) => void;
+}): void {
+  const entry = rawEntry as unknown as Record<string, unknown>;
+  for (const {
+    tool,
+    valueType,
+    events,
+    onInvalidImport,
+  } of converterConfig.groupPassthroughFields ?? []) {
+    const value = entry[tool];
+    if (
+      onInvalidImport === "drop-field" &&
+      value !== undefined &&
+      isGroupFieldOnEvent(events, eventName) &&
+      !isGroupPassthroughValue(value, valueType)
+    ) {
+      warn?.(
+        `Dropping the unusable "${tool}" (${quoteValueForWarning(value)}) of a "${eventName}" ` +
+          `matcher group while importing; its hooks are imported without it.`,
+      );
+    }
+  }
 }
 
 /**
@@ -1935,11 +2040,12 @@ function toolMatcherEntryToCanonical({
   warn?: (message: string) => void;
 }): HooksConfig["hooks"][string] {
   const hookDefs = rawEntry.hooks ?? [];
-  const groupSkipReason = describeGroupSkipReason({ rawEntry, converterConfig });
+  const groupSkipReason = describeGroupSkipReason({ rawEntry, eventName, converterConfig });
   if (groupSkipReason !== undefined) {
     warn?.(groupSkipReason);
     return [];
   }
+  warnDroppedGroupFields({ rawEntry, eventName, converterConfig, warn });
   const definitions: HooksConfig["hooks"][string] = [];
   for (const h of hookDefs) {
     const hookType = resolveImportedHookType({ value: h.type, converterConfig });
