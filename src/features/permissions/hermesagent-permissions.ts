@@ -12,6 +12,7 @@ import {
   RulesyncPermissionsFileSchema,
 } from "../../types/permissions.js";
 import { readFileContent } from "../../utils/file.js";
+import { matchesGlob } from "../../utils/glob.js";
 import {
   getHermesagentConfigSharedFileKey,
   getHermesagentRelativeDirPath,
@@ -117,15 +118,22 @@ function isMcpAllowlistEntry(entry: string): boolean {
  * `*` is a wildcard).
  */
 function mcpAllowlistEntryToCategory(entry: string): string | null {
+  const parsed = parseMcpAllowlistEntry(entry);
+  if (parsed === null) return null;
+  const { server, tool } = parsed;
+  if (server.includes("__") || server.includes(CATCH_ALL_PATTERN)) return null;
+  if (tool.includes(CATCH_ALL_PATTERN)) return null;
+  return `${MCP_CANONICAL_PREFIX}${server}__${tool}`;
+}
+
+/** The server and tool an `mcp:<server>/<tool>` entry names, or `null` when it is malformed. */
+function parseMcpAllowlistEntry(entry: string): { server: string; tool: string } | null {
   if (!isMcpAllowlistEntry(entry)) return null;
   const rest = entry.slice(MCP_ALLOWLIST_PREFIX.length);
   const slash = rest.indexOf("/");
   const server = slash === -1 ? "" : rest.slice(0, slash);
   const tool = slash === -1 ? "" : rest.slice(slash + 1);
-  if (server.length === 0 || tool.length === 0) return null;
-  if (server.includes("__") || server.includes(CATCH_ALL_PATTERN)) return null;
-  if (tool.includes(CATCH_ALL_PATTERN)) return null;
-  return `${MCP_CANONICAL_PREFIX}${server}__${tool}`;
+  return server.length === 0 || tool.length === 0 ? null : { server, tool };
 }
 
 /**
@@ -140,7 +148,14 @@ function parseMcpToolCategory(category: string): { server: string; tool: string 
   if (separator <= 0) return null;
   const server = remainder.slice(0, separator);
   const tool = remainder.slice(separator + 2);
-  if (tool.length === 0 || server.includes(CATCH_ALL_PATTERN) || tool.includes(CATCH_ALL_PATTERN)) {
+  // A `/` in the server name would move the split of `mcp:<server>/<tool>`
+  // and read back as another server.
+  if (
+    tool.length === 0 ||
+    server.includes("/") ||
+    server.includes(CATCH_ALL_PATTERN) ||
+    tool.includes(CATCH_ALL_PATTERN)
+  ) {
     return null;
   }
   return { server, tool };
@@ -154,16 +169,52 @@ function isRestricting(action: PermissionAction | undefined): boolean {
   return action === "deny" || action === "ask";
 }
 
+function hasRestrictingRule(rules: Record<string, PermissionAction> | undefined): boolean {
+  return Object.values(rules ?? {}).some(isRestricting);
+}
+
 /**
- * Whether a catch-all `deny` or `ask` that covers every tool of `server` — under
- * `*`, the bare `mcp` category, or `mcp__<server>` — outranks an allow on one
- * of its tools. Hermes has no ask tier, so such an allow is withheld, the same
- * way a `bash` allow a stricter rule covers is.
+ * Whether an MCP name glob (the remainder of an `mcp__...` category, or a
+ * pattern of the bare `mcp` category) covers `server`'s tool `tool`: it names
+ * the tool (`github__delete_repo`, `github__*`, `*__delete_repo`, `*`) or the
+ * whole server (`github`).
  */
-function isMcpToolRestricted(permission: PermissionsConfig["permission"], server: string): boolean {
-  return [ALL_TOOLS_PERMISSION_CATEGORY, "mcp", `${MCP_CANONICAL_PREFIX}${server}`].some(
-    (category) => isRestricting(permission[category]?.[CATCH_ALL_PATTERN]),
+function mcpNameGlobCovers(glob: string, server: string, tool: string): boolean {
+  return (
+    glob === `${server}__${tool}` ||
+    glob === server ||
+    matchesGlob(glob, `${server}__${tool}`) ||
+    matchesGlob(glob, server)
   );
+}
+
+/**
+ * Whether a `deny` or `ask` rule outranks an allow on `server`'s tool `tool`:
+ * a catch-all one under `*`, one under the bare `mcp` category whose pattern
+ * covers the tool, or any one in an `mcp__...` category whose name covers the
+ * tool — its own category included, since a deny or ask scoped to some of its
+ * calls still forbids approving all of them. A Hermes grant approves every
+ * call of the tool and Hermes has no ask tier, so such an allow is withheld,
+ * the same way a `bash` allow a stricter rule covers is.
+ */
+function isMcpToolRestricted(
+  permission: PermissionsConfig["permission"],
+  server: string,
+  tool: string,
+): boolean {
+  if (isRestricting(permission[ALL_TOOLS_PERMISSION_CATEGORY]?.[CATCH_ALL_PATTERN])) return true;
+  return Object.entries(permission).some(([category, rules]) => {
+    if (category === "mcp") {
+      return Object.entries(rules).some(
+        ([pattern, action]) => isRestricting(action) && mcpNameGlobCovers(pattern, server, tool),
+      );
+    }
+    return (
+      category.startsWith(MCP_CANONICAL_PREFIX) &&
+      hasRestrictingRule(rules) &&
+      mcpNameGlobCovers(category.slice(MCP_CANONICAL_PREFIX.length), server, tool)
+    );
+  });
 }
 
 /**
@@ -186,7 +237,7 @@ function collectMcpAllowlistEntries(permission: PermissionsConfig["permission"])
     for (const pattern of patternsByAction(rules, "allow")) {
       if (parsed === null || pattern !== CATCH_ALL_PATTERN) {
         unexpressedRules.push(`${category}: ${pattern}`);
-      } else if (isMcpToolRestricted(permission, parsed.server)) {
+      } else if (isMcpToolRestricted(permission, parsed.server, parsed.tool)) {
         withheldCategories.push(category);
       } else {
         entries.push(`${MCP_ALLOWLIST_PREFIX}${parsed.server}/${parsed.tool}`);
@@ -209,8 +260,8 @@ function warnAboutUnwrittenMcpAllows({
     warnWithFallback(
       logger,
       `Hermes Agent's command_allowlist was not given the MCP allow rule(s) for ` +
-        `${withheldCategories.join(", ")}: a catch-all deny or ask rule covers them, and ` +
-        `Hermes has no ask tier.`,
+        `${withheldCategories.join(", ")}: a deny or ask rule covers them, a Hermes grant ` +
+        `approves every call of the tool, and Hermes has no ask tier.`,
     );
   }
   if (unexpressedRules.length > 0) {
@@ -235,25 +286,43 @@ function warnAboutUnwrittenMcpAllows({
 function reconcileMcpAllowlist({
   permission,
   mcpEntries,
+  logger,
 }: {
   permission: CanonicalPermissionBlock;
   mcpEntries: readonly string[];
+  logger?: Logger | undefined;
 }): void {
   for (const [category, rules] of Object.entries(permission)) {
     const parsed = parseMcpToolCategory(category);
     if (
       parsed !== null &&
       rules[CATCH_ALL_PATTERN] === "allow" &&
-      !isMcpToolRestricted(permission, parsed.server)
+      !isMcpToolRestricted(permission, parsed.server, parsed.tool)
     ) {
       delete rules[CATCH_ALL_PATTERN];
     }
   }
+  const keptRestrictions: string[] = [];
   for (const entry of mcpEntries) {
     const category = mcpAllowlistEntryToCategory(entry);
-    if (category !== null) {
-      ensureCategory(permission, category)[CATCH_ALL_PATTERN] = "allow";
+    if (category === null) continue;
+    const rules = ensureCategory(permission, category);
+    // A deny or ask the canonical block already holds is the author's word on
+    // the tool; the grant is left to Hermes (generation keeps it unmanaged
+    // only while nothing restricts it) rather than overturning the rule.
+    if (isRestricting(rules[CATCH_ALL_PATTERN])) {
+      keptRestrictions.push(entry);
+      continue;
     }
+    rules[CATCH_ALL_PATTERN] = "allow";
+  }
+  if (keptRestrictions.length > 0) {
+    warnWithFallback(
+      logger,
+      `Hermes Agent's command_allowlist grants ${keptRestrictions.join(", ")}, but the ` +
+        `permissions.rulesync block denies or asks for those MCP tools; the canonical rule ` +
+        `was kept and the grant was not imported.`,
+    );
   }
 }
 
@@ -262,8 +331,9 @@ function reconcileMcpAllowlist({
  * manage and must keep when it rewrites the list: Hermes appends one whenever
  * the user answers **Always** on an untrusted MCP server, so dropping it would
  * silently revoke the grant. A grant is managed — and so retracted with its
- * canonical rule — only when the previous or the new canonical block has a
- * rule for its `mcp__<server>__<tool>` category.
+ * canonical rule — when the previous or the new canonical block has a rule
+ * for its `mcp__<server>__<tool>` category, or when the new block restricts
+ * the tool in any way.
  */
 function unmanagedMcpAllowlistEntries({
   existing,
@@ -273,7 +343,7 @@ function unmanagedMcpAllowlistEntries({
 }: {
   existing: Record<string, unknown>;
   previousPermission: Record<string, unknown>;
-  nextPermission: Record<string, unknown>;
+  nextPermission: PermissionsConfig["permission"];
   nextAllowlist: readonly string[];
 }): string[] {
   const existingAllowlist = isStringArray(existing.command_allowlist)
@@ -281,12 +351,26 @@ function unmanagedMcpAllowlistEntries({
     : [];
   return existingAllowlist.filter((entry) => {
     if (!isMcpAllowlistEntry(entry) || nextAllowlist.includes(entry)) return false;
+    // A grant the new block restricts (by a deny or ask on the tool, its server,
+    // or a glob covering it) must not outlive that rule.
+    const parsed = parseMcpAllowlistEntry(entry);
+    if (parsed !== null && isMcpToolRestricted(nextPermission, parsed.server, parsed.tool)) {
+      return false;
+    }
     const category = mcpAllowlistEntryToCategory(entry);
     return (
       category === null ||
       (!Object.hasOwn(previousPermission, category) && !Object.hasOwn(nextPermission, category))
     );
   });
+}
+
+/** The validated canonical `permission` block of a config's `permissions.rulesync` blob. */
+function canonicalPermissionOf(config: Record<string, unknown>): PermissionsConfig["permission"] {
+  const parsed = RulesyncPermissionsFileSchema.safeParse({
+    permission: provenancePermissionOf(config),
+  });
+  return parsed.success ? parsed.data.permission : {};
 }
 
 /** The canonical `permission` block of a config's `permissions.rulesync` blob, if any. */
@@ -319,9 +403,10 @@ function reconcileCommandAllowlist({
     writesAllToolsDeny: false,
   });
   const withheld = new Set(shadowedAllowPatterns);
+  const isWithheld = (pattern: string) => withheld.has(pattern) || isMcpAllowlistEntry(pattern);
   const rules = ensureCategory(permission, SHELL_PERMISSION_CATEGORY);
   for (const [pattern, action] of Object.entries(rules)) {
-    if (action === "allow" && !withheld.has(pattern)) {
+    if (action === "allow" && !isWithheld(pattern)) {
       delete rules[pattern];
     }
   }
@@ -489,7 +574,7 @@ export class HermesagentPermissions extends ToolPermissions {
       const kept = unmanagedMcpAllowlistEntries({
         existing,
         previousPermission: provenancePermissionOf(existing),
-        nextPermission: provenancePermissionOf(patch),
+        nextPermission: canonicalPermissionOf(patch),
         nextAllowlist: patch.command_allowlist,
       });
       if (kept.length > 0) {
@@ -504,7 +589,7 @@ export class HermesagentPermissions extends ToolPermissions {
     });
   }
 
-  toRulesyncPermissions(): RulesyncPermissions {
+  toRulesyncPermissions({ logger }: { logger?: Logger } = {}): RulesyncPermissions {
     const config = parseSharedConfig({ format: "yaml", fileContent: this.getFileContent() });
     const permissionsRoot = isRecord(config.permissions) ? config.permissions : {};
     // Filter before validating: the provenance block is a canonical document
@@ -534,6 +619,7 @@ export class HermesagentPermissions extends ToolPermissions {
     reconcileMcpAllowlist({
       permission,
       mcpEntries: commandAllowlist.filter(isMcpAllowlistEntry),
+      logger,
     });
 
     const approvals = isRecord(config.approvals) ? config.approvals : {};
@@ -632,7 +718,21 @@ export class HermesagentPermissions extends ToolPermissions {
     // grant Hermes's MCP trust gate persists as `mcp:<server>/<tool>`.
     const mcpAllows = collectMcpAllowlistEntries(permissionBlock);
     warnAboutUnwrittenMcpAllows({ ...mcpAllows, logger });
-    const allowlist = [...commandAllowlist, ...mcpAllows.entries];
+    // A `bash` allow spelled `mcp:<server>/<tool>` is not a command: Hermes
+    // would read it as an MCP grant, past every MCP deny or ask.
+    const bashMcpAllows = commandAllowlist.filter(isMcpAllowlistEntry);
+    if (bashMcpAllows.length > 0) {
+      warnWithFallback(
+        logger,
+        `Hermes Agent reads 'mcp:' entries in command_allowlist as MCP tool grants, so the ` +
+          `bash allow rule(s) ${bashMcpAllows.join(", ")} were skipped; write them as a '*' ` +
+          `allow on an 'mcp__<server>__<tool>' category instead.`,
+      );
+    }
+    const allowlist = [
+      ...commandAllowlist.filter((entry) => !isMcpAllowlistEntry(entry)),
+      ...mcpAllows.entries,
+    ];
 
     let config: Record<string, unknown> = {};
     if (allowlist.length > 0) config.command_allowlist = allowlist;

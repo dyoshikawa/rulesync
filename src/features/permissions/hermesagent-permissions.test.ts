@@ -745,6 +745,143 @@ permissions:
       const config = parseSharedConfig({ format: "yaml", fileContent: generated.getFileContent() });
       expect(config.command_allowlist).toEqual(["git status"]);
     });
+
+    it("skips a bash allow spelled as an MCP grant, so no MCP deny is bypassed", () => {
+      const logger = createMockLogger();
+      const canonical = {
+        bash: { "git status": "allow", "mcp:notes/delete": "allow" },
+        mcp__notes: { "*": "deny" },
+      };
+      const generated = HermesagentPermissions.fromRulesyncPermissions({
+        outputRoot: ".",
+        rulesyncPermissions: toRulesync(canonical),
+        logger,
+      });
+
+      const config = parseSharedConfig({ format: "yaml", fileContent: generated.getFileContent() });
+      expect(config.command_allowlist).toEqual(["git status"]);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("the bash allow rule(s) mcp:notes/delete were skipped"),
+      );
+      // Never written, so a re-import keeps it where it was instead of turning
+      // it into an MCP grant.
+      expect(generated.toRulesyncPermissions().getJson()).toEqual({ permission: canonical });
+    });
+
+    it.each([
+      { label: "an every-MCP glob deny", restriction: { "mcp__*": { "*": "deny" } } },
+      { label: "a server-tools glob deny", restriction: { "mcp__notes__*": { "*": "deny" } } },
+      { label: "a tool-name glob ask", restriction: { "mcp__*__write_note": { "*": "ask" } } },
+      { label: "a bare-mcp pattern deny", restriction: { mcp: { "notes__*": "deny" } } },
+      { label: "a pattern-scoped server ask", restriction: { mcp__notes: { "rm*": "ask" } } },
+    ])("withholds an MCP grant that $label covers", ({ restriction }) => {
+      const logger = createMockLogger();
+      const canonical = { ...restriction, mcp__notes__write_note: { "*": "allow" } };
+      const generated = HermesagentPermissions.fromRulesyncPermissions({
+        outputRoot: ".",
+        rulesyncPermissions: toRulesync(canonical),
+        logger,
+      });
+
+      const config = parseSharedConfig({ format: "yaml", fileContent: generated.getFileContent() });
+      expect(config.command_allowlist).toBeUndefined();
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("was not given the MCP allow rule(s) for mcp__notes__write_note"),
+      );
+      expect(generated.toRulesyncPermissions().getJson()).toEqual({ permission: canonical });
+    });
+
+    it("withholds an MCP grant whose own category has a scoped deny or ask", () => {
+      const logger = createMockLogger();
+      const canonical = { mcp__notes__write_note: { "*": "allow", "path:/etc/*": "ask" } };
+      const generated = HermesagentPermissions.fromRulesyncPermissions({
+        outputRoot: ".",
+        rulesyncPermissions: toRulesync(canonical),
+        logger,
+      });
+
+      const config = parseSharedConfig({ format: "yaml", fileContent: generated.getFileContent() });
+      // Hermes's grant would approve every call, including the ones the ask covers.
+      expect(config.command_allowlist).toBeUndefined();
+      expect(generated.toRulesyncPermissions().getJson()).toEqual({ permission: canonical });
+    });
+
+    it("does not withhold an MCP grant for a restriction on another server or tool", () => {
+      const generated = HermesagentPermissions.fromRulesyncPermissions({
+        outputRoot: ".",
+        rulesyncPermissions: toRulesync({
+          mcp__github: { "*": "deny" },
+          mcp__notes__delete_note: { "*": "deny" },
+          "mcp__*__delete_repo": { "*": "deny" },
+          mcp__notes__write_note: { "*": "allow" },
+        }),
+        logger: createMockLogger(),
+      });
+
+      const config = parseSharedConfig({ format: "yaml", fileContent: generated.getFileContent() });
+      expect(config.command_allowlist).toEqual(["mcp:notes/write_note"]);
+    });
+
+    it.each(["deny", "ask"] as const)(
+      "keeps a canonical %s over a native grant for the same tool on import",
+      (action) => {
+        const logger = createMockLogger();
+        const imported = new HermesagentPermissions({
+          outputRoot: ".",
+          fileContent: JSON.stringify({
+            command_allowlist: ["mcp:notes/write_note"],
+            permissions: {
+              rulesync: { permission: { mcp__notes__write_note: { "*": action } } },
+            },
+          }),
+        })
+          .toRulesyncPermissions({ logger })
+          .getJson();
+
+        expect(imported.permission).toEqual({ mcp__notes__write_note: { "*": action } });
+        expect(logger.warn).toHaveBeenCalledWith(
+          expect.stringContaining(
+            "grants mcp:notes/write_note, but the permissions.rulesync block",
+          ),
+        );
+      },
+    );
+
+    it("drops a persisted grant a broader canonical rule now restricts", () => {
+      const generated = HermesagentPermissions.fromRulesyncPermissions({
+        outputRoot: ".",
+        rulesyncPermissions: toRulesync({
+          bash: { "git status": "allow" },
+          mcp__notes: { "*": "deny" },
+          "mcp__*__delete_repo": { "*": "ask" },
+        }),
+        logger: createMockLogger(),
+      });
+
+      generated.setFileContent(`command_allowlist:
+  - mcp:notes/write_note
+  - mcp:github/delete_repo
+  - mcp:github/get_issue
+`);
+
+      const config = parseSharedConfig({ format: "yaml", fileContent: generated.getFileContent() });
+      expect(config.command_allowlist).toEqual(["git status", "mcp:github/get_issue"]);
+    });
+
+    it("does not write a server name containing '/', which would read back as another server", () => {
+      const logger = createMockLogger();
+      const generated = HermesagentPermissions.fromRulesyncPermissions({
+        outputRoot: ".",
+        rulesyncPermissions: toRulesync({ "mcp__a/b__tool": { "*": "allow" } }),
+        logger,
+      });
+
+      const config = parseSharedConfig({ format: "yaml", fileContent: generated.getFileContent() });
+      expect(config.command_allowlist).toBeUndefined();
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining("the MCP allow rule(s) mcp__a/b__tool: * were skipped"),
+      );
+    });
   });
 });
 
