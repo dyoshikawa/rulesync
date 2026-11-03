@@ -1236,6 +1236,8 @@ amp: # for Amp-specific parameters (optional; project .agents/skills/, global ~/
   # Rulesync deduplicates by directory name, while Amp uses frontmatter `name`.
   # Import does not evaluate Amp settings (including amp.skills.disableGlobalAgentsSkills)
   # or custom skills paths.
+  # `generate --global` warns when ~/.config/amp/settings.json(c) sets
+  # amp.skills.disableGlobalAgentsSkills to true, since Amp then skips ~/.config/agents/skills/.
   # Amp reads the open Agent Skills standard and documents no frontmatter field beyond
   # `name`/`description`, so this section exists only to carry keys a hand-written SKILL.md adds:
   # they are imported into it and written back to the top level of the generated file instead of

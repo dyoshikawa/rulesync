@@ -1,7 +1,10 @@
+import { join } from "node:path";
+
 import { z } from "zod/mini";
 
 import { AGENTSMD_SKILLS_DIR_PATH } from "../../constants/agentsmd-paths.js";
 import {
+  AMP_GLOBAL_DIR,
   AMP_SKILLS_GLOBAL_DIR,
   AMP_SKILLS_NATIVE_GLOBAL_DIR,
   AMP_SKILLS_PROJECT_DIR,
@@ -9,6 +12,9 @@ import {
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
+import { formatError } from "../../utils/error.js";
+import type { Logger } from "../../utils/logger.js";
+import { parseAmpSettings, resolveAmpSettingsFile } from "../shared/amp-settings.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import {
   ToolSkill,
@@ -22,6 +28,12 @@ const AmpSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
   description: z.string(),
 });
+
+/**
+ * Amp setting that makes it skip `~/.config/agents/skills/` and
+ * `~/.agents/skills/`. https://ampcode.com/docs/cli/settings
+ */
+const AMP_DISABLE_GLOBAL_AGENTS_SKILLS_KEY = "amp.skills.disableGlobalAgentsSkills";
 
 export type AmpSkillFrontmatter = z.infer<typeof AmpSkillFrontmatterSchema>;
 
@@ -87,6 +99,49 @@ export class AmpSkill extends ToolSkill {
         importOnlySkillRoots: [AGENTSMD_SKILLS_DIR_PATH, AMP_SKILLS_NATIVE_GLOBAL_DIR],
       }),
     };
+  }
+
+  /**
+   * Warn when the user's Amp settings disable the global agent-agnostic skill
+   * roots, because the global skills rulesync writes to
+   * `~/.config/agents/skills/` would then never load. Only the user settings
+   * file is checked: a workspace `.amp/settings.json(c)` depends on where Amp
+   * is started, which global generation cannot know.
+   */
+  static async getGenerationWarnings({
+    outputRoot,
+    global,
+    logger,
+  }: {
+    outputRoot: string;
+    global: boolean;
+    logger: Logger;
+  }): Promise<string[]> {
+    if (!global) {
+      return [];
+    }
+    const { fileContent, relativeFilePath } = await resolveAmpSettingsFile(
+      join(outputRoot, AMP_GLOBAL_DIR),
+    );
+    if (fileContent === null) {
+      return [];
+    }
+    let settings: Record<string, unknown>;
+    try {
+      settings = parseAmpSettings({ fileContent });
+    } catch (error) {
+      logger.debug(
+        `Skipping the Amp skills settings check for ${join(AMP_GLOBAL_DIR, relativeFilePath)}: ${formatError(error)}`,
+      );
+      return [];
+    }
+    if (settings[AMP_DISABLE_GLOBAL_AGENTS_SKILLS_KEY] !== true) {
+      return [];
+    }
+    return [
+      `Amp will not load the global skills rulesync writes to ~/${AMP_SKILLS_GLOBAL_DIR}/: ` +
+        `'${AMP_DISABLE_GLOBAL_AGENTS_SKILLS_KEY}' is true in ~/${join(AMP_GLOBAL_DIR, relativeFilePath)}.`,
+    ];
   }
 
   getFrontmatter(): AmpSkillFrontmatter {
