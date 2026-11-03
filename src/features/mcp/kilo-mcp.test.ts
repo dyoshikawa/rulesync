@@ -1627,6 +1627,55 @@ describe("KiloMcp", () => {
       expect(imported.kilo.mcpServers["empty-command-server"]).toEqual({ disabled: true });
     });
 
+    it.each(["a.b", "a_b"])(
+      "should not split sanitized or bare server keys into phantom orphan servers (server=%s)",
+      async (serverName) => {
+        const fileContent = JSON.stringify({
+          mcp: { [serverName]: { type: "local", command: ["node"] } },
+          tools: {
+            a_b_: false,
+            a_b_read: true,
+            a_b_delete: false,
+            orphan_read: false,
+          },
+        });
+        const kiloMcp = new KiloMcp({
+          relativeDirPath: ".",
+          relativeFilePath: "kilo.json",
+          fileContent,
+        });
+
+        const imported = kiloMcp.toRulesyncMcp().getJson();
+
+        expect(imported).toEqual({
+          $schema: RULESYNC_MCP_SCHEMA_URL,
+          mcpServers: {
+            [serverName]: {
+              type: "stdio",
+              command: "node",
+              enabledTools: ["read"],
+              disabledTools: ["delete"],
+            },
+          },
+          kilo: { mcpServers: { orphan: { disabledTools: ["read"] } } },
+        });
+
+        // The bare key is managed by no server, so generate keeps it in the
+        // legacy map; the orphan filter moves to `permission` as usual.
+        await writeFileContent(join(testDir, "kilo.json"), fileContent);
+        const regenerated = await KiloMcp.fromRulesyncMcp({
+          outputRoot: testDir,
+          rulesyncMcp: new RulesyncMcp({
+            relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+            relativeFilePath: ".mcp.json",
+            fileContent: JSON.stringify(imported),
+          }).forTarget({ toolTarget: "kilo" }),
+        });
+        expect(regenerated.getJson().tools).toEqual({ a_b_: false });
+        expect(regenerated.getJson().permission).toMatchObject({ orphan_read: "deny" });
+      },
+    );
+
     it("should read permission keys as tool filters, preferring them over the tools map", () => {
       const kiloMcp = new KiloMcp({
         relativeDirPath: ".",

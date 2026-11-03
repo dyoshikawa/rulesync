@@ -261,10 +261,43 @@ Plan ahead.`;
       expect(subagent.getBody()).toBe("Plan ahead.");
     });
 
+    it("should derive the name from the file name when frontmatter omits it (Auggie 1.x)", async () => {
+      await writeFileContent(
+        join(testDir, ".augment", "agents", "rev.md"),
+        `---\ndescription: Reviews code\nthinking: high\nmax_turns: 10\nisolation: worktree\n---\n\nReview.`,
+      );
+
+      const subagent = await AugmentcodeSubagent.fromFile({
+        outputRoot: testDir,
+        relativeFilePath: "rev.md",
+        validate: true,
+      });
+
+      const rulesyncFrontmatter = subagent.toRulesyncSubagent().getFrontmatter();
+      expect(rulesyncFrontmatter.name).toBe("rev");
+      expect(rulesyncFrontmatter.description).toBe("Reviews code");
+      expect(rulesyncFrontmatter.augmentcode).toEqual({
+        thinking: "high",
+        max_turns: 10,
+        isolation: "worktree",
+      });
+    });
+
+    it("should throw for a Markdown file without frontmatter", async () => {
+      await writeFileContent(join(testDir, ".augment", "agents", "README.md"), "# Notes\n");
+      await expect(
+        AugmentcodeSubagent.fromFile({
+          outputRoot: testDir,
+          relativeFilePath: "README.md",
+          validate: true,
+        }),
+      ).rejects.toThrow(/Missing frontmatter/);
+    });
+
     it("should throw for invalid frontmatter", async () => {
       await writeFileContent(
         join(testDir, ".augment", "agents", "bad.md"),
-        `---\ninvalid: true\n---\n\nBody`,
+        `---\nname: 123\n---\n\nBody`,
       );
       await expect(
         AugmentcodeSubagent.fromFile({

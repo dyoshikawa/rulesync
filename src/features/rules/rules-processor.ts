@@ -405,6 +405,7 @@ export class RulesProcessor extends FeatureProcessor {
     this.warnForOutputPathCollisions({ outputFiles, convertedRules });
     await this.warnForDeactivatedImportOnlyRoots({ toolRules, factory });
     await this.warnForWarpLegacyRootFile(toolRules);
+    this.warnForAugmentcodePluginRules(toolRules);
     await this.warnForInstructionBudget({ toolRules, meta });
     return outputFiles;
   }
@@ -1067,6 +1068,25 @@ export class RulesProcessor extends FeatureProcessor {
     const remainingCount = names.length - listedNames.length;
     this.logger.warn(
       `Writing ${stripControlCharacters(rootFileRelativePath)} for ${this.toolTarget} means ${listedNames.join(", ")}${remainingCount > 0 ? ` and ${remainingCount} more` : ""} will no longer be read. Run \`rulesync import --targets ${this.toolTarget}\` first to carry that content into ${RULESYNC_RULES_RELATIVE_DIR_PATH}, or delete ${listedNames.length === 1 ? "it" : "them"} once you have checked the content is already in the root file.`,
+    );
+  }
+
+  /**
+   * Auggie 1.x (still a prerelease on npm at the time of writing; the stable
+   * line is 0.36.0) no longer loads `rules/` from plugins: "Rules shipped in
+   * plugins (`rules/` in a plugin)" is listed among the removed features, while
+   * commands, agents, skills, hooks and MCP servers still load. The rule files
+   * are still written, because the stable 0.x CLI reads them, but under 1.x the
+   * bundle silently loses them, so say so.
+   * @see https://docs.augmentcode.com/cli/whats-new
+   * @see https://docs.augmentcode.com/cli/v0/plugins
+   */
+  private warnForAugmentcodePluginRules(toolRules: ToolRule[]): void {
+    if (this.toolTarget !== "augmentcode-plugin" || toolRules.length === 0) {
+      return;
+    }
+    this.logger.warn(
+      `augmentcode-plugin: plugin rules (rules/*.md) are loaded by Auggie 0.x only; Auggie 1.x no longer reads rules/ from plugins, so these ${toolRules.length} rule file(s) have no effect there. Ship instructions that must reach Auggie 1.x users as a skill, or have them generate the augmentcode target in their project.`,
     );
   }
 

@@ -21,7 +21,31 @@ export function sanitizeOpencodeMcpNamePart(value: string): string {
  * key that matches nothing.
  */
 export function opencodeMcpToolPermissionKey(serverName: string, toolName: string): string {
-  return `${sanitizeOpencodeMcpNamePart(serverName)}_${toolName.replace(/[^a-zA-Z0-9_\-*?]/g, "_")}`;
+  return `${opencodeMcpServerKeyPrefix(serverName)}${toolName.replace(/[^a-zA-Z0-9_\-*?]/g, "_")}`;
+}
+
+/** The sanitized `<server>_` prefix every permission key of the server's tools starts with. */
+function opencodeMcpServerKeyPrefix(serverName: string): string {
+  return `${sanitizeOpencodeMcpNamePart(serverName)}_`;
+}
+
+/**
+ * Whether `key` is exactly the sanitized `<server>_` prefix of one of
+ * `serverNames` (e.g. `a_b_` for server `a.b` or `a_b`). No tool has an empty
+ * name, so such a key filters nothing of that server, and
+ * {@link findOpencodeMcpToolKeyOwner} gives it no owner. Read as an unlisted
+ * server's filter instead, it would be split at the first `_` into a phantom
+ * server (`a` with tool `b_`), so importers leave it out of the rulesync
+ * config, and the OpenCode family's generate keeps it in the file as it was.
+ */
+export function isBareOpencodeMcpServerPrefix({
+  key,
+  serverNames,
+}: {
+  key: string;
+  serverNames: readonly string[];
+}): boolean {
+  return serverNames.some((serverName) => key === opencodeMcpServerKeyPrefix(serverName));
 }
 
 /**
@@ -48,7 +72,7 @@ export function findOpencodeMcpToolKeyOwner({
   }
   let owner: { serverName: string; prefix: string } | undefined;
   for (const serverName of serverNames) {
-    const sanitized = `${sanitizeOpencodeMcpNamePart(serverName)}_`;
+    const sanitized = opencodeMcpServerKeyPrefix(serverName);
     const prefixes = acceptRawPrefix ? uniq([sanitized, `${serverName}_`]) : [sanitized];
     for (const prefix of prefixes) {
       if (
