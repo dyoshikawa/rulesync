@@ -1,4 +1,4 @@
-import { basename, extname, join } from "node:path";
+import { join } from "node:path";
 
 import {
   FACTORYDROID_DESIGN_FILE_NAME,
@@ -12,6 +12,12 @@ import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths
 import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { readFileContent } from "../../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
+import {
+  buildOutputStyleFrontmatter,
+  isDirectMarkdownChild,
+  isOutputStyleChannel,
+  resolveTopLevelOutputStyleStem,
+} from "./output-style-paths.js";
 import { RulesyncRule } from "./rulesync-rule.js";
 import {
   ToolRule,
@@ -202,11 +208,11 @@ export class FactorydroidRule extends ToolRule {
     relativeDirPath: string | undefined;
     relativeFilePath: string;
   }): boolean {
-    return (
-      relativeDirPath === this.getOutputStylesDirPath() &&
-      extname(relativeFilePath) === ".md" &&
-      basename(relativeFilePath) === relativeFilePath
-    );
+    return isDirectMarkdownChild({
+      outputStylesDirPath: this.getOutputStylesDirPath(),
+      relativeDirPath,
+      relativeFilePath,
+    });
   }
 
   /**
@@ -267,7 +273,10 @@ export class FactorydroidRule extends ToolRule {
   /** Whether a rule opts into the `output-style` channel (non-root only). */
   private static isOutputStyleRule(rulesyncRule: RulesyncRule): boolean {
     const frontmatter = rulesyncRule.getFrontmatter();
-    return !frontmatter.root && frontmatter.factorydroid?.channel === "output-style";
+    return isOutputStyleChannel({
+      root: frontmatter.root,
+      channel: frontmatter.factorydroid?.channel,
+    });
   }
 
   /**
@@ -444,12 +453,10 @@ export class FactorydroidRule extends ToolRule {
   }): FactorydroidRule {
     const frontmatter = rulesyncRule.getFrontmatter();
     const sourcePath = rulesyncRule.getRelativeFilePath();
-    if (basename(sourcePath) !== sourcePath) {
-      throw new Error(
-        `Rule '${sourcePath}' sets factorydroid.channel: output-style but is nested in a subdirectory: Factory Droid loads only direct .md children of .factory/output-styles/, so move it to the top of ${RULESYNC_RULES_RELATIVE_DIR_PATH}.`,
-      );
-    }
-    const stem = basename(sourcePath, extname(sourcePath));
+    const stem = resolveTopLevelOutputStyleStem({
+      sourcePath,
+      message: `Rule '${sourcePath}' sets factorydroid.channel: output-style but is nested in a subdirectory: Factory Droid loads only direct .md children of .factory/output-styles/, so move it to the top of ${RULESYNC_RULES_RELATIVE_DIR_PATH}.`,
+    });
     const name = frontmatter.factorydroid?.name;
     const styleName = name ?? stem;
     if (FACTORYDROID_RESERVED_OUTPUT_STYLE_NAMES.includes(styleName.trim().toLowerCase())) {
@@ -458,10 +465,10 @@ export class FactorydroidRule extends ToolRule {
       );
     }
 
-    const styleFrontmatter = {
-      ...(name !== undefined && { name }),
-      ...(frontmatter.description !== undefined && { description: frontmatter.description }),
-    };
+    const styleFrontmatter = buildOutputStyleFrontmatter({
+      name,
+      description: frontmatter.description,
+    });
     const body = rulesyncRule.getBody();
     return new FactorydroidRule({
       outputRoot,

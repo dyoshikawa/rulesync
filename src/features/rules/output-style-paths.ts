@@ -1,0 +1,76 @@
+import { basename, extname } from "node:path";
+
+/**
+ * Shared helpers for tool rule adapters that write opted-in rules as custom
+ * output styles (`<tool dir>/output-styles/<name>.md`), e.g. Qoder and
+ * Factory Droid. Both tools read only the direct `.md` children of their
+ * output-styles directory, with optional `name` / `description` frontmatter.
+ */
+
+/**
+ * Whether the given path is a direct `.md` child of `outputStylesDirPath`.
+ */
+export function isDirectMarkdownChild({
+  outputStylesDirPath,
+  relativeDirPath,
+  relativeFilePath,
+}: {
+  outputStylesDirPath: string;
+  relativeDirPath: string | undefined;
+  relativeFilePath: string;
+}): boolean {
+  return (
+    relativeDirPath === outputStylesDirPath &&
+    extname(relativeFilePath) === ".md" &&
+    basename(relativeFilePath) === relativeFilePath
+  );
+}
+
+/**
+ * Whether a rule opts into the `output-style` channel: only a non-root rule
+ * can, since an output style is a file of its own.
+ */
+export function isOutputStyleChannel({
+  root,
+  channel,
+}: {
+  root: boolean | undefined;
+  channel: string | undefined;
+}): boolean {
+  return !root && channel === "output-style";
+}
+
+/**
+ * Return the file stem of an output-style source rule, throwing `message`
+ * when the rule is nested in a subdirectory of the rules directory: the
+ * output file is named after the rule, and the tools read only the top level
+ * of their output-styles directory.
+ */
+export function resolveTopLevelOutputStyleStem({
+  sourcePath,
+  message,
+}: {
+  sourcePath: string;
+  message: string;
+}): string {
+  if (basename(sourcePath) !== sourcePath) {
+    throw new Error(message);
+  }
+  return basename(sourcePath, extname(sourcePath));
+}
+
+/**
+ * The output style's frontmatter: only the `name` and `description` that are set.
+ */
+export function buildOutputStyleFrontmatter({
+  name,
+  description,
+}: {
+  name: string | undefined;
+  description: string | undefined;
+}): { name?: string; description?: string } {
+  return {
+    ...(name !== undefined && { name }),
+    ...(description !== undefined && { description }),
+  };
+}
