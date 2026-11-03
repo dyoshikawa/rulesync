@@ -882,6 +882,49 @@ permissions:
         expect.stringContaining("the MCP allow rule(s) mcp__a/b__tool: * were skipped"),
       );
     });
+    it("withholds an MCP grant beside a narrower all-tools deny, naming the rule", () => {
+      const logger = createMockLogger();
+      const canonical = {
+        "*": { "secret*": "deny" },
+        bash: { "git status": "allow" },
+        mcp__fs__read_file: { "*": "allow" },
+      };
+      const generated = HermesagentPermissions.fromRulesyncPermissions({
+        outputRoot: ".",
+        rulesyncPermissions: toRulesync(canonical),
+        logger,
+      });
+
+      const config = parseSharedConfig({ format: "yaml", fileContent: generated.getFileContent() });
+      // A rule under `*` applies to every tool, and the grant would approve
+      // every call of read_file, the denied ones included. The bash allow is
+      // not covered by `secret*` and stays.
+      expect(config.command_allowlist).toEqual(["git status"]);
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          "the MCP allow rule(s) for mcp__fs__read_file (covered by *: secret* (deny))",
+        ),
+      );
+      expect(generated.toRulesyncPermissions().getJson()).toEqual({ permission: canonical });
+    });
+
+    it("drops a persisted grant beside a narrower all-tools ask", () => {
+      const generated = HermesagentPermissions.fromRulesyncPermissions({
+        outputRoot: ".",
+        rulesyncPermissions: toRulesync({
+          "*": { "rm *": "ask" },
+          bash: { "git status": "allow" },
+        }),
+        logger: createMockLogger(),
+      });
+
+      generated.setFileContent(`command_allowlist:
+  - mcp:notes/write_note
+`);
+
+      const config = parseSharedConfig({ format: "yaml", fileContent: generated.getFileContent() });
+      expect(config.command_allowlist).toEqual(["git status"]);
+    });
   });
 });
 
