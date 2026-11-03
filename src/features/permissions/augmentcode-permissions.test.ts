@@ -1633,7 +1633,7 @@ describe("AugmentcodePermissions", () => {
     });
   });
 
-  describe("current AugmentCode tool-name aliases (terminal / read / edit / write)", () => {
+  describe("AugmentCode tool-name aliases (0.x terminal / read / edit / write, 1.x bash / shell / str_replace_editor / save_file)", () => {
     // Auggie's docs renamed `launch-process` / `view` / `str-replace-editor` / `save-file` to
     // `terminal` / `read` / `edit` / `write` and alias the legacy names to them. Rulesync keeps
     // emitting the legacy names (the shipped CLI matches exact names), but an existing file
@@ -1786,6 +1786,89 @@ describe("AugmentcodePermissions", () => {
 
       const config = instance.toRulesyncPermissions().getJson();
       expect(config.permission).toEqual({ read: { "*": "deny" } });
+    });
+
+    it("should import Auggie 1.x tool names, recovering shellInputRegex on bash and shell", () => {
+      const instance = new AugmentcodePermissions({
+        relativeDirPath: ".augment",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          toolPermissions: [
+            { toolName: "bash", shellInputRegex: "^npm test$", permission: { type: "allow" } },
+            { toolName: "bash", shellInputRegex: "^rm .*$", permission: { type: "deny" } },
+            {
+              toolName: "shell",
+              shellInputRegex: "^git push .*$",
+              permission: { type: "ask-user" },
+            },
+            { toolName: "str_replace_editor", permission: { type: "ask-user" } },
+            { toolName: "save_file", permission: { type: "deny" } },
+          ],
+        }),
+      });
+
+      const config = instance.toRulesyncPermissions().getJson();
+      // A conditional `bash` allow must never collapse into the catch-all `*`.
+      expect(config.permission).toEqual({
+        bash: { "npm test": "allow", "rm *": "deny", "git push *": "ask" },
+        edit: { "*": "ask" },
+        write: { "*": "deny" },
+      });
+    });
+
+    it("should not widen a 1.x bash allow regex into an unconditional shell allow on regenerate", async () => {
+      const settingsDir = join(testDir, ".augment");
+      await ensureDir(settingsDir);
+      const existing = {
+        toolPermissions: [
+          { toolName: "bash", shellInputRegex: "^npm test$", permission: { type: "allow" } },
+        ],
+      };
+      await writeFileContent(join(settingsDir, "settings.json"), JSON.stringify(existing));
+
+      const imported = new AugmentcodePermissions({
+        relativeDirPath: ".augment",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify(existing),
+      }).toRulesyncPermissions();
+
+      const instance = await AugmentcodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: imported,
+      });
+
+      // The `bash` row is managed, so it is replaced by its legacy-named twin rather than kept
+      // beside a new catch-all `launch-process` allow.
+      expect(JSON.parse(instance.getFileContent()).toolPermissions).toEqual([
+        {
+          toolName: "launch-process",
+          shellInputRegex: "^npm test$",
+          permission: { type: "allow" },
+        },
+      ]);
+    });
+
+    it("should skip an allow regex matching a literal glob wildcard instead of widening it", () => {
+      const warnSpy = vi.spyOn(ConsoleLogger.prototype, "warn").mockImplementation(() => {});
+      const instance = new AugmentcodePermissions({
+        relativeDirPath: ".augment",
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          toolPermissions: [
+            { toolName: "bash", shellInputRegex: "^rm \\*$", permission: { type: "allow" } },
+            { toolName: "bash", shellInputRegex: "^ls \\?$", permission: { type: "ask-user" } },
+            { toolName: "bash", shellInputRegex: "^cat \\*$", permission: { type: "deny" } },
+          ],
+        }),
+      });
+
+      const config = instance.toRulesyncPermissions().getJson();
+      // `rm \*` names the literal command `rm *`; importing it as glob `rm *` would allow every
+      // `rm`. The allow and ask are dropped, and the deny is broadened (fail-closed).
+      expect(config.permission).toEqual({ bash: { "*": "deny" } });
+      const messages = warnSpy.mock.calls.map((call) => String(call[0]));
+      expect(messages.filter((m) => m.includes("is not imported"))).toHaveLength(2);
+      warnSpy.mockRestore();
     });
 
     it("should treat current-name rows as managed on regenerate: replace allows, keep denies, drop exact duplicates", async () => {

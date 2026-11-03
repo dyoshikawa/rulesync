@@ -105,19 +105,27 @@ const AUGMENT_TO_CANONICAL_TOOL_NAMES: Record<string, string> = Object.fromEntri
   Object.entries(CANONICAL_TO_AUGMENT_TOOL_NAMES).map(([k, v]) => [v, k]),
 );
 
-// Current AugmentCode tool names and the legacy names they alias. Auggie's permissions docs
-// (https://docs.augmentcode.com/cli/permissions) renamed `launch-process` / `view` /
-// `str-replace-editor` / `save-file` to `terminal` / `read` / `edit` / `write` and state that
-// the legacy names are aliased to their current equivalents, so a hand-authored settings.json
-// may use either spelling for the same tool. Rulesync keeps EMITTING the legacy names because
-// the shipped CLI (0.36.0 at the time of writing) matches `toolName` exactly and only knows the
-// legacy spellings; this map is only consulted when reading an existing file, so that a row
-// written under a current name is imported, deduplicated and retracted like its legacy twin.
+// Other AugmentCode spellings of the managed tools and the legacy names rulesync emits for them.
+// Auggie 0.x's permissions docs (https://docs.augmentcode.com/cli/v0/permissions) named the tools
+// `terminal` / `read` / `edit` / `write` and aliased the legacy names to them. Auggie 1.x
+// (https://docs.augmentcode.com/cli/permissions, a prerelease at the time of writing) renamed the
+// shell tool to `bash` and recognizes only these legacy names in permission rules:
+// `launch-process` / `shell` → `bash`, `view` → `read`, `str-replace-editor` /
+// `str_replace_editor` → `edit`, `save-file` / `save_file` → `write`. A hand-authored
+// settings.json (or one written by 1.x's `/permissions` manager) may therefore use any of these
+// spellings for the same tool. Rulesync keeps EMITTING the legacy names, because both the shipped
+// 0.x CLI (0.36.0) and 1.x accept them while `terminal` and `bash` each work in one line only;
+// this map is only consulted when reading an existing file, so that a row written under another
+// spelling is imported, deduplicated and retracted like its legacy twin.
 const CURRENT_TO_LEGACY_AUGMENT_TOOL_NAMES: Record<string, string> = {
   terminal: "launch-process",
+  bash: "launch-process",
+  shell: "launch-process",
   read: "view",
   edit: "str-replace-editor",
+  str_replace_editor: "str-replace-editor",
   write: "save-file",
+  save_file: "save-file",
 };
 
 function toAugmentToolName(canonical: string): string {
@@ -301,6 +309,11 @@ function isShellRegexRoundtrippable(regex: string): boolean {
   while (i < body.length) {
     const ch = body[i];
     if (ch === "\\" && i + 1 < body.length) {
+      // An escaped `*` / `?` is a literal the glob form cannot spell: `shellRegexToGlob` would
+      // turn it into a wildcard, so `^rm \*$` would come back as the much wider `^rm .*$`.
+      if (isGlobWildcard(body[i + 1])) {
+        return false;
+      }
       // Skip escaped char.
       i += 2;
       continue;
@@ -322,6 +335,28 @@ function isShellRegexRoundtrippable(regex: string): boolean {
     i += 1;
   }
   return true;
+}
+
+function isGlobWildcard(ch: string | undefined): boolean {
+  return ch === "*" || ch === "?";
+}
+
+/**
+ * Whether a `shellInputRegex` escapes a glob wildcard (`\*` or `\?`). `shellRegexToGlob` turns
+ * such a literal into a wildcard, so converting the regex would widen the set of commands it
+ * matches instead of approximating it.
+ */
+function hasEscapedGlobWildcard(regex: string): boolean {
+  let i = 0;
+  while (i < regex.length) {
+    if (regex[i] === "\\" && i + 1 < regex.length) {
+      if (isGlobWildcard(regex[i + 1])) return true;
+      i += 2;
+      continue;
+    }
+    i += 1;
+  }
+  return false;
 }
 
 const MANAGED_AUGMENT_TOOL_NAMES = new Set(Object.values(CANONICAL_TO_AUGMENT_TOOL_NAMES));
@@ -1057,7 +1092,7 @@ function convertAugmentToRulesyncPermissions({
     }
     const action = augmentTypeToAction(type);
 
-    // Only launch-process (or its current alias `terminal`) supports per-input pattern recovery
+    // Only launch-process (or one of its aliases `terminal` / `bash` / `shell`) supports per-input pattern recovery
     // via shellInputRegex. For other categories (view, str-replace-editor, save-file, web-fetch,
     // web-search) the AugmentCode schema does not carry per-pattern information, so they are
     // imported as the catch-all `*` pattern. This is the inverse of the fail-closed export side
@@ -1084,6 +1119,16 @@ function convertAugmentToRulesyncPermissions({
         //   rule. Lossy conversion preserves the user's intent on the most
         //   common patterns at the cost of the narrow regex semantics that
         //   only AugmentCode supports.
+        if (action !== "deny" && hasEscapedGlobWildcard(regex)) {
+          // The lossy conversion below would turn an escaped literal `*` / `?` into a wildcard
+          // and so widen the rule; an allow or ask cannot be broadened safely, so skip it.
+          logger?.warn(
+            `AugmentCode permissions: skipping ${action} entry for tool '${entry.toolName}': ` +
+              `shellInputRegex '${regex}' matches a literal '*' or '?', which a glob cannot ` +
+              `express, and converting it would widen the rule. The entry is not imported.`,
+          );
+          continue;
+        }
         if (action === "deny") {
           logger?.warn(
             `AugmentCode permissions: shellInputRegex '${regex}' on tool '${entry.toolName}' ` +
