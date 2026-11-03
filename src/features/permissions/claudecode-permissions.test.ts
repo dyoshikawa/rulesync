@@ -2260,15 +2260,21 @@ describe("ClaudecodePermissions", () => {
           CommonProgramFiles: "C:\\Program Files\\Common Files",
           "CommonProgramFiles(x86)": "C:\\Program Files (x86)\\Common Files",
           CommonProgramW6432: "C:\\Program Files\\Common Files",
+          // Windows variable names are case-insensitive.
+          systemdrive: "D:",
+          "COMMONPROGRAMFILES(X86)": "D:\\Common Files",
         };
+        // Shares the `CommonProgram` stem but is not a `CommonProgramFiles` variable.
+        // cspell:disable-next-line
+        const kept = { MY_VAR: "1", COMMONPROGRAMMER_X: "1" };
 
         const instance = await ClaudecodePermissions.fromRulesyncPermissions({
           outputRoot: testDir,
-          rulesyncPermissions: envCase({ ...ignored, MY_VAR: "1" }),
+          rulesyncPermissions: envCase({ ...ignored, ...kept }),
           logger: mockLogger,
         });
 
-        expect(JSON.parse(instance.getFileContent()).env).toEqual({ MY_VAR: "1" });
+        expect(JSON.parse(instance.getFileContent()).env).toEqual(kept);
         const messages = warnSpy.mock.calls.map(([message]) => message as string);
         const dropped = messages.find((message) => message.includes("project-scoped"));
         for (const name of Object.keys(ignored)) {

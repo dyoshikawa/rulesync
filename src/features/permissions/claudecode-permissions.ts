@@ -1015,6 +1015,7 @@ const CLAUDECODE_ENV_PROJECT_IGNORED_NAMES: ReadonlySet<string> = new Set([
 
 const CLAUDECODE_ENV_PROJECT_IGNORED_WINDOWS_NAMES: ReadonlySet<string> = new Set([
   "ALLUSERSPROFILE",
+  "COMMONPROGRAMW6432",
   "COMSPEC",
   "LOCALAPPDATA",
   "PATHEXT",
@@ -1026,10 +1027,14 @@ const CLAUDECODE_ENV_PROJECT_IGNORED_WINDOWS_NAMES: ReadonlySet<string> = new Se
 ]);
 
 /**
- * Windows name prefixes matched as whole families: `ProgramFiles*` /
- * `ProgramW6432` and `CommonProgramFiles*` / `CommonProgramW6432`.
+ * Windows name prefixes matched as whole families: `ProgramFiles*` and
+ * `CommonProgramFiles*`. `ProgramW6432` and `CommonProgramW6432` are exact
+ * names in the set above.
  */
-const CLAUDECODE_ENV_PROJECT_IGNORED_WINDOWS_PREFIXES = ["PROGRAMFILES", "COMMONPROGRAM"] as const;
+const CLAUDECODE_ENV_PROJECT_IGNORED_WINDOWS_PREFIXES = [
+  "PROGRAMFILES",
+  "COMMONPROGRAMFILES",
+] as const;
 
 const CLAUDECODE_ENV_OTLP_IGNORED_SUFFIXES = [
   "_ENDPOINT",

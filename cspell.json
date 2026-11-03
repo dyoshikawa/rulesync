@@ -542,13 +542,14 @@
     "minisearch",
     "jsons",
     "qjebbs",
+    "ALLUSERSPROFILE",
+    "COMMONPROGRAMFILES",
+    "COMMONPROGRAMW",
     "PATHEXT",
     "PROGRAMDATA",
     "PROGRAMW",
     "PSMODULEPATH",
-    "SYSTEMROOT",
-    "ALLUSERSPROFILE",
     "SYSTEMDRIVE",
-    "COMMONPROGRAM"
+    "SYSTEMROOT"
   ]
 }
