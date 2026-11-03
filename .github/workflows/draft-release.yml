@@ -61,7 +61,10 @@ jobs:
           input-text: ${{ inputs.model }}
 
       - name: Run OpenCode to draft release
-        uses: anomalyco/opencode/github@098aa7fd6e02b03d6fc410f0b052038c7d4c5e81 # v2.2.2
+        # Upstream removed the GitHub Action in anomalyco/opencode#59032, so v2.x
+        # commits no longer contain github/action.yml. github-v1.2.28 is the last
+        # tag that ships it; Dependabot is told to leave this pin alone.
+        uses: anomalyco/opencode/github@17b79f4e0c16dcff200b0417567ed22aeb2d7166 # github-v1.2.28
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           ZHIPU_API_KEY: ${{ secrets.ZHIPU_API_KEY }}
