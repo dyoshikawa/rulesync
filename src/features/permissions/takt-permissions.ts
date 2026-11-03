@@ -68,7 +68,8 @@ const TAKT_DEFAULT_COMPANION_ENABLED = false;
 
 // Takt's default-deny "workflow security policies": each admits one class of
 // user-supplied code (an Arpeggio module, a runtime-prepare script, a
-// workflow-declared command gate, a sync-conflict tool) or re-enables git hooks
+// workflow-declared command gate, a `system_inputs` `type: command` input, a
+// sync-conflict tool) or re-enables git hooks
 // and filters during Takt-managed commits. All are top-level keys of
 // `config.yaml` in both scopes, and all are routed through the `takt` override
 // because none maps onto a canonical permission category.
@@ -83,6 +84,9 @@ const TAKT_SECURITY_POLICIES: Record<string, readonly string[] | null> = {
   workflow_arpeggio: ["custom_data_source_modules", "custom_merge_inline_js", "custom_merge_files"],
   workflow_runtime_prepare: ["custom_scripts"],
   workflow_command_gates: ["custom_scripts"],
+  // Takt 0.74.0: admits `system_inputs` entries of `type: command`. Independent
+  // of `workflow_command_gates.custom_scripts`.
+  workflow_system_commands: ["custom_scripts"],
   sync_conflict_resolver: ["auto_approve_tools"],
   allow_git_hooks: null,
   allow_git_filters: null,

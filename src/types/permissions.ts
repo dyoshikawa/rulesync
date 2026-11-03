@@ -1171,6 +1171,7 @@ const TaktPermissionsOverrideSchema = z.looseObject({
   ),
   workflow_runtime_prepare: z.optional(z.object({ custom_scripts: z.optional(z.boolean()) })),
   workflow_command_gates: z.optional(z.object({ custom_scripts: z.optional(z.boolean()) })),
+  workflow_system_commands: z.optional(z.object({ custom_scripts: z.optional(z.boolean()) })),
   sync_conflict_resolver: z.optional(z.object({ auto_approve_tools: z.optional(z.boolean()) })),
   allow_git_hooks: z.optional(z.boolean()),
   allow_git_filters: z.optional(z.boolean()),
