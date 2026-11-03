@@ -427,6 +427,15 @@ describe("buildAntigravityPermissionEntry", () => {
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("not a valid regex"));
     });
 
+    it("checks POSIX classes in linear time (#3324)", () => {
+      // Each `[:` used to scan the rest of the word again for its `:]`.
+      const pattern = `regex:[${"[:".repeat(20_000)}`;
+      const start = performance.now();
+      const { entry } = build({ action: "command", pattern, decision: "deny" });
+      expect(performance.now() - start).toBeLessThan(500);
+      expect(entry).toBeUndefined();
+    });
+
     it.each(["regex:", "regex:   "])("skips the empty regex %j", (pattern) => {
       const { entry, logger } = build({ action: "command", pattern, decision: "deny" });
       expect(entry).toBeUndefined();

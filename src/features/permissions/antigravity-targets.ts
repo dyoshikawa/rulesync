@@ -26,6 +26,8 @@ import { parseToolPatternEntry } from "./tool-pattern-entry.js";
  * - `execute_url` takes a domain, like `read_url`.
  * - `command` and `unsandboxed` take literal words or a per-word `regex:`,
  *   matched word by word (see `antigravity-command-patterns.ts`).
+ * - `mcp` takes `server/tool` or `server/*`, matched exactly. A canonical
+ *   `mcp__<server>__<tool>` category is written as that target.
  *
  * A glob copied verbatim (`read_file(**\/*.env)`) is a literal path that
  * matches nothing, so a deny written that way blocks nothing. A pattern with
@@ -61,6 +63,7 @@ const DENY_HINTS: Record<string, string> = {
   write_file: "deny a directory or file path instead",
   command: "deny the first words of the command instead",
   unsandboxed: "deny the first words of the command instead",
+  mcp: "deny the whole MCP server or tool instead",
 };
 
 // `{a,b}` is not a glob step in `parseGlobPattern`, but it is one in every tool
@@ -154,6 +157,46 @@ function toTarget(action: string, pattern: string): TargetResult {
   return { target: pattern };
 }
 
+const MCP_CATEGORY_PREFIX = "mcp__";
+
+/**
+ * The `mcp` target of a canonical `mcp__<server>__<tool>` category:
+ * `<server>/<tool>`, `<server>/*` for a whole server (`mcp__<server>`,
+ * `mcp__<server>__*`), or `*` for every MCP tool (`mcp__*`). The server ends at
+ * the first `__`, as elsewhere in rulesync. Antigravity matches names exactly,
+ * so any other glob, or a `/` in the server, has no target; a tool glob has
+ * its server as the `lead` a deny widens to.
+ */
+function toMcpTarget(category: string): TargetResult & { lead?: string } {
+  const remainder = category.slice(MCP_CATEGORY_PREFIX.length);
+  const separator = remainder.indexOf("__");
+  const server = separator === -1 ? remainder : remainder.slice(0, separator);
+  const tool = (separator === -1 ? "" : remainder.slice(separator + 2)) || "*";
+  if (server === "*" && tool === "*") {
+    return { target: "*" };
+  }
+  const skipReason =
+    "Antigravity MCP targets name one server or one tool exactly. Only `mcp__<server>`, `mcp__<server>__*`, `mcp__<server>__<tool>` or `mcp__*` can be expressed";
+  if (server.length === 0 || server.includes("/") || hasGlob(server)) {
+    return { skipReason };
+  }
+  return tool === "*" || !hasGlob(tool)
+    ? { target: `${server}/${tool}` }
+    : { skipReason, lead: `${server}/*` };
+}
+
+/** The target of a canonical `mcp__...` rule, with the `lead` a deny widens to. */
+function toMcpRuleTarget(category: string, pattern: string): TargetResult & { lead?: string } {
+  const target = toMcpTarget(category);
+  if (pattern === "*" || !("target" in target)) {
+    return target;
+  }
+  return {
+    skipReason: "Antigravity MCP targets name a server or a tool, not the tool's arguments",
+    lead: target.target,
+  };
+}
+
 /**
  * The leading directories of a path glob (`src` for `src/*.ts`), or
  * `undefined` when it has none. A directory target covers everything inside
@@ -237,7 +280,7 @@ function warnHomeOrVariablePath({
  * blocks more than it says.
  */
 export function buildAntigravityPermissionEntry({
-  action,
+  action: toolAction,
   category,
   pattern,
   decision,
@@ -251,14 +294,23 @@ export function buildAntigravityPermissionEntry({
   logger: Logger;
   toolLabel: string;
 }): string | undefined {
-  const result = pattern === "*" ? { target: "*" } : toTarget(action, pattern);
+  const isMcp = category.startsWith(MCP_CATEGORY_PREFIX);
+  const action = isMcp ? "mcp" : toolAction;
+  const result: TargetResult & { lead?: string } = isMcp
+    ? toMcpRuleTarget(category, pattern)
+    : pattern === "*"
+      ? { target: "*" }
+      : toTarget(action, pattern);
   const rule = `${category}: { "${pattern}": "${decision}" }`;
   if ("skipReason" in result) {
-    const prefix = decision === "deny" ? toWidenedDenyTarget(action, pattern) : undefined;
+    const prefix =
+      decision !== "deny" ? undefined : isMcp ? result.lead : toWidenedDenyTarget(action, pattern);
     if (prefix !== undefined) {
-      const scope = PATH_ACTIONS.has(action)
-        ? `every path under \`${prefix}\``
-        : `every command that starts with \`${prefix}\``;
+      const scope = isMcp
+        ? `every call of \`mcp(${prefix})\``
+        : PATH_ACTIONS.has(action)
+          ? `every path under \`${prefix}\``
+          : `every command that starts with \`${prefix}\``;
       logger.warn(
         `${toolLabel} permissions: widening ${rule} to ${action}(${prefix}). ${result.skipReason}. The deny now blocks ${scope}, overriding any allow or ask for them.`,
       );

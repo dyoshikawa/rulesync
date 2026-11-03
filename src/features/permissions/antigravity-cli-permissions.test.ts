@@ -267,7 +267,7 @@ describe("AntigravityCliPermissions", () => {
     expect(settings.permissions?.ask).not.toContain("command(*)");
   });
 
-  it("should pass non-bash categories through unchanged as the tool name", async () => {
+  it("should write a canonical MCP tool category as an mcp(server/tool) target", async () => {
     const rulesyncPermissions = new RulesyncPermissions({
       outputRoot: testDir,
       relativeDirPath: ".rulesync",
@@ -275,6 +275,8 @@ describe("AntigravityCliPermissions", () => {
       fileContent: JSON.stringify({
         permission: {
           mcp__server__tool: { "*": "allow" },
+          mcp__github: { "*": "ask" },
+          mcp__sql__execute__mutation: { "*": "deny" },
         },
       }),
     });
@@ -285,7 +287,10 @@ describe("AntigravityCliPermissions", () => {
     });
 
     const settings = JSON.parse(permissions.getFileContent()) as SettingsJson;
-    expect(settings.permissions?.allow).toContain("mcp__server__tool");
+    expect(settings.permissions?.allow).toEqual(["mcp(server/tool)"]);
+    expect(settings.permissions?.ask).toEqual(["mcp(github/*)"]);
+    // The server ends at the first `__`; the rest is the tool name.
+    expect(settings.permissions?.deny).toEqual(["mcp(sql/execute__mutation)"]);
   });
 
   it("should map read/write/edit/webfetch to the engine action vocabulary", async () => {

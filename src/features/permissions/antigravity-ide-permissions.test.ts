@@ -79,6 +79,39 @@ describe("AntigravityIdePermissions", () => {
       expect(json.permissions.ask).toContain("command");
     });
 
+    it("writes canonical MCP tool categories as mcp(server/tool) targets", async () => {
+      const warn = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+      const perms = await AntigravityIdePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          mcp__linter__lint: { "*": "allow" },
+          mcp__sql: { "*": "ask" },
+          mcp__github__get_issue: { "owner:foo": "allow" },
+          mcp__github__delete_repo: { "owner:foo": "deny" },
+          mcp__fs__write_: { "*": "allow" },
+          "mcp__fs__write_*": { "*": "deny" },
+          "mcp__*": { "*": "ask" },
+          "mcp__git*": { "*": "allow" },
+        }),
+        logger: fallbackLogger,
+      });
+      const json = JSON.parse(perms.getFileContent());
+      expect(json.permissions.allow).toEqual(["mcp(fs/write_)", "mcp(linter/lint)"]);
+      expect(json.permissions.ask).toEqual(["mcp", "mcp(sql/*)"]);
+      // A deny Antigravity cannot spell is widened to the tool or the server,
+      // never dropped; an allow is skipped rather than widened.
+      expect(json.permissions.deny).toEqual(["mcp(fs/*)", "mcp(github/delete_repo)"]);
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('skipping mcp__github__get_issue: { "owner:foo": "allow" }'),
+      );
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          'widening mcp__github__delete_repo: { "owner:foo": "deny" } to mcp(github/delete_repo)',
+        ),
+      );
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("skipping mcp__git*"));
+    });
+
     it("writes globs Antigravity can match: literal words or a per-word regex", async () => {
       const perms = await AntigravityIdePermissions.fromRulesyncPermissions({
         outputRoot: testDir,
