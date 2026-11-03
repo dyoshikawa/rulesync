@@ -1477,6 +1477,9 @@ const CodexApprovalPolicySchema = z.enum(["untrusted", "on-request", "on-failure
  */
 const CodexSandboxModeSchema = z.enum(["read-only", "workspace-write", "danger-full-access"]);
 
+// Largest value of Codex's `u32` config fields.
+const CODEX_U32_MAX = 4_294_967_295;
+
 /**
  * Codex CLI's reviewer for approval requests. `guardian_subagent` is a legacy
  * value Codex still accepts for backward compatibility, so it is included so
@@ -1547,6 +1550,9 @@ const CodexBasePermissionProfileSchema = z.enum(CODEX_BASE_PERMISSION_PROFILES);
  *   | `guardian_subagent`), or a table for the richer reviewer config.
  *   Defaults to `auto_review` when neither the override nor the existing
  *   config sets it.
+ * - `auto_review` — the `[auto_review]` table that configures the reviewer
+ *   `approvals_reviewer = "auto_review"` selects (`policy`, `extra_policy`,
+ *   `timeout_ms`, …). A loose table, shallow-merged like `apps` / `tui`.
  * - `git_write_rules` — whether the managed profile's `:workspace_roots` table
  *   emits the default `.git` carve-out (`".git/**" = "write"`). Codex's
  *   `:workspace` baseline makes `.git` read-only, which denies basic git
@@ -1560,7 +1566,8 @@ const CodexBasePermissionProfileSchema = z.enum(CODEX_BASE_PERMISSION_PROFILES);
  * The keys written to `config.toml` are an **allowlist**, not verbatim
  * passthrough: only `CODEXCLI_OVERRIDE_KEYS`
  * (`src/constants/codexcli-paths.ts` — `approval_policy`, `sandbox_mode`,
- * `sandbox_workspace_write`, `apps`, `approvals_reviewer`) are emitted, and
+ * `sandbox_workspace_write`, `apps`, `approvals_reviewer`, `auto_review`,
+ * `tui`) are emitted, and
  * `computeCodexcliOverridePatch` skips anything else with a warning.
  * `base_permission_profile` and `git_write_rules` are consumed by the profile
  * builder rather than written, as described above, and `permission` is the
@@ -1591,6 +1598,28 @@ const CodexcliPermissionsOverrideSchema = z.looseObject({
   sandbox_workspace_write: z.optional(z.looseObject({})),
   apps: z.optional(z.looseObject({})),
   approvals_reviewer: z.optional(z.union([CodexApprovalsReviewerSchema, z.looseObject({})])),
+  /**
+   * The `[auto_review]` table of `config.toml`, which configures the reviewer
+   * that `approvals_reviewer = "auto_review"` (Rulesync's default) selects:
+   * `policy` / `extra_policy` (text inserted into the reviewer prompt),
+   * `timeout_ms` (the review budget, Codex 0.165.0+; `0` waits without a
+   * deadline), `circuit_break_action` (`default` | `strict`) and
+   * `conversation_history_max_output_tokens` (a positive token cap). Codex
+   * rejects the whole config file when one of these has the wrong type or is
+   * out of range (`timeout_ms` is a `u32`, the token cap a `NonZeroUsize`), so
+   * they are checked here; every other key passes through verbatim.
+   *
+   * @see https://github.com/openai/codex/blob/rust-v0.166.0/codex-rs/config/src/config_toml.rs (`AutoReviewToml`)
+   */
+  auto_review: z.optional(
+    z.looseObject({
+      policy: z.optional(z.string()),
+      extra_policy: z.optional(z.string()),
+      timeout_ms: z.optional(z.int().check(z.nonnegative(), z.lte(CODEX_U32_MAX))),
+      circuit_break_action: z.optional(z.enum(["default", "strict"])),
+      conversation_history_max_output_tokens: z.optional(z.int().check(z.positive())),
+    }),
+  ),
   /**
    * The `[tui]` table of `config.toml` (e.g. `vim_mode_default`, `keymap.*`).
    * Not a permission surface, but like `apps` it is a top-level table with no

@@ -179,6 +179,57 @@ describe("RulesProcessor", () => {
       );
     });
 
+    describe("augmentcode-plugin rules under Auggie 1.x", () => {
+      const findWarning = () =>
+        logger.warn.mock.calls
+          .map(([message]) => String(message))
+          .find((message) => message.includes("Auggie 1.x no longer reads rules/ from plugins"));
+
+      it("should warn that plugin rules load on Auggie 0.x only, and still write them", async () => {
+        const processor = new RulesProcessor({
+          logger,
+          outputRoot: testDir,
+          toolTarget: "augmentcode-plugin",
+        });
+
+        const toolFiles = await processor.convertRulesyncFilesToToolFiles([
+          new RulesyncRule({
+            outputRoot: testDir,
+            relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+            relativeFilePath: "style.md",
+            frontmatter: { targets: ["*"] },
+            body: "Style guide",
+          }),
+        ]);
+
+        // Stable Auggie (0.36.0) still loads plugin rules, so the output is unchanged.
+        expect(toolFiles.map((file) => file.getRelativePathFromCwd())).toEqual([
+          join("rules", "style.md"),
+        ]);
+        expect(findWarning()).toBeDefined();
+      });
+
+      it("should not warn for the augmentcode target", async () => {
+        const processor = new RulesProcessor({
+          logger,
+          outputRoot: testDir,
+          toolTarget: "augmentcode",
+        });
+
+        await processor.convertRulesyncFilesToToolFiles([
+          new RulesyncRule({
+            outputRoot: testDir,
+            relativeDirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+            relativeFilePath: "style.md",
+            frontmatter: { targets: ["*"] },
+            body: "Style guide",
+          }),
+        ]);
+
+        expect(findWarning()).toBeUndefined();
+      });
+    });
+
     describe("Warp legacy WARP.md", () => {
       const warpRules = () => [
         new RulesyncRule({

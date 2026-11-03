@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { basename, extname, join } from "node:path";
 
 import { z } from "zod/mini";
 
@@ -50,12 +50,17 @@ function normalizeAugmentcodeToolList(value: string[] | string): string[] | unde
 }
 
 // AugmentCode (Auggie CLI) subagents are Markdown files with YAML frontmatter.
-// `name` is required; `description`, `color` (ANSI color name), `model`,
-// `tools` (allowlist) and `disabled_tools` (denylist; takes precedence over
-// `tools`) are optional. See https://docs.augmentcode.com/cli/subagents
-// looseObject preserves unknown keys so future fields round-trip cleanly.
+// Auggie 0.36.0 requires `name` (https://docs.augmentcode.com/cli/v0/subagents);
+// Auggie 1.x makes it optional and "Defaults to the filename without `.md`"
+// (https://docs.augmentcode.com/cli/subagents), so import accepts a file
+// without it and derives the name from the file, while generate always writes
+// it so 0.x keeps loading the agent. `description`, `color`, `model`, `tools`
+// (allowlist) and `disabled_tools` (denylist) are optional; 0.x lets
+// `disabled_tools` win over `tools`, while 1.x requires a tool to be in `tools`
+// and not in `disabled_tools`. looseObject preserves unknown keys (such as the
+// 1.x `thinking`, `max_turns` or `isolation`) so they round-trip cleanly.
 const AugmentcodeSubagentFrontmatterSchema = z.looseObject({
-  name: z.string(),
+  name: z.optional(z.string()),
   description: z.optional(z.string()),
   color: z.optional(z.string()),
   model: z.optional(z.string()),
@@ -135,7 +140,8 @@ export class AugmentcodeSubagent extends ToolSubagent {
 
     const rulesyncFrontmatter: RulesyncSubagentFrontmatter = {
       targets: ["*"] as const,
-      name,
+      // Auggie 1.x falls back to the file name when `name` is absent.
+      name: name ?? basename(this.getRelativeFilePath(), extname(this.getRelativeFilePath())),
       description,
       // Round-trip tool-specific fields (color/model/tools/disabled_tools and
       // any future keys) through a dedicated augmentcode section.
@@ -237,7 +243,14 @@ export class AugmentcodeSubagent extends ToolSubagent {
     const dirPath = relativeDirPath ?? this.getSettablePaths({ global }).relativeDirPath;
     const filePath = join(outputRoot, dirPath, relativeFilePath);
     const fileContent = await readFileContent(filePath);
-    const { frontmatter, body: content } = parseFrontmatter(fileContent, filePath);
+    const { frontmatter, body: content, hasFrontmatter } = parseFrontmatter(fileContent, filePath);
+
+    // `name` is optional, so a frontmatter block is what marks a Markdown file
+    // as an agent; without it, a README or notes file beside the agents (for
+    // example in the shared `.agents/` root) would import as one.
+    if (!hasFrontmatter) {
+      throw new Error(`Missing frontmatter in ${filePath}`);
+    }
 
     const result = AugmentcodeSubagentFrontmatterSchema.safeParse(frontmatter);
     if (!result.success) {

@@ -2248,6 +2248,49 @@ describe("ClaudecodePermissions", () => {
         expect(JSON.parse(globalInstance.getFileContent()).env).toEqual(ignored);
       });
 
+      it("drops the claude.ai sign-in and v2.1.285 Windows variables at project scope", async () => {
+        const mockLogger = createMockLogger();
+        const warnSpy = vi.spyOn(mockLogger, "warn");
+        const ignored = {
+          CLAUDE_CODE_OAUTH_TOKEN: "sk-ant-oat-secret-token",
+          CLAUDE_CODE_OAUTH_REFRESH_TOKEN: "refresh-secret-token",
+          CLAUDE_CODE_OAUTH_SCOPES: "user:inference",
+          ALLUSERSPROFILE: "C:\\ProgramData",
+          SystemDrive: "C:",
+          CommonProgramFiles: "C:\\Program Files\\Common Files",
+          "CommonProgramFiles(x86)": "C:\\Program Files (x86)\\Common Files",
+          CommonProgramW6432: "C:\\Program Files\\Common Files",
+          // Windows variable names are case-insensitive.
+          systemdrive: "D:",
+          "COMMONPROGRAMFILES(X86)": "D:\\Common Files",
+        };
+        // Shares the `CommonProgram` stem but is not a `CommonProgramFiles` variable.
+        // cspell:disable-next-line
+        const kept = { MY_VAR: "1", COMMONPROGRAMMER_X: "1" };
+
+        const instance = await ClaudecodePermissions.fromRulesyncPermissions({
+          outputRoot: testDir,
+          rulesyncPermissions: envCase({ ...ignored, ...kept }),
+          logger: mockLogger,
+        });
+
+        expect(JSON.parse(instance.getFileContent()).env).toEqual(kept);
+        const messages = warnSpy.mock.calls.map(([message]) => message as string);
+        const dropped = messages.find((message) => message.includes("project-scoped"));
+        for (const name of Object.keys(ignored)) {
+          expect(dropped).toContain(`'env.${name}'`);
+        }
+        // Names only: the sign-in values are credentials.
+        expect(messages.join("\n")).not.toContain("secret-token");
+
+        const globalInstance = await ClaudecodePermissions.fromRulesyncPermissions({
+          outputRoot: testDir,
+          rulesyncPermissions: envCase(ignored),
+          global: true,
+        });
+        expect(JSON.parse(globalInstance.getFileContent()).env).toEqual(ignored);
+      });
+
       it.each([
         ["1", false],
         ["true", false],
