@@ -22,6 +22,7 @@ import {
   kiloMcpToolPermissionKey,
   kiloPermissionToToolFilter,
 } from "../shared/kilo-mcp-tool-keys.js";
+import { isBareOpencodeMcpServerPrefix } from "../shared/opencode-family-mcp-tool-keys.js";
 import {
   applySharedConfigPatch,
   sharedConfigFileKey,
@@ -311,7 +312,20 @@ function convertFromKiloFormat(
     // Only the legacy map: it holds nothing but tool toggles, whereas a
     // `permission` key naming no listed server (`external_directory`, ...) is
     // far more likely a built-in permission than a filter for an unlisted server.
-    ...orphanMcpToolFiltersToRulesync(kiloMcp, tools),
+    // Keys a listed server owns under its sanitized name (a_b_read for server
+    // a.b) were split off above, and a bare sanitized prefix (a_b_) names no
+    // tool; left in, either would be split again at the first `_` into a
+    // phantom server a. A bare key is not managed, so generate keeps it.
+    ...orphanMcpToolFiltersToRulesync(
+      kiloMcp,
+      Object.fromEntries(
+        Object.entries(tools ?? {}).filter(
+          ([key]) =>
+            !findKiloMcpToolKeyOwner(key, serverNames) &&
+            !isBareOpencodeMcpServerPrefix({ key, serverNames }),
+        ),
+      ),
+    ),
   };
 }
 

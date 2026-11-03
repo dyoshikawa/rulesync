@@ -135,6 +135,41 @@ const GROK_MCP_TOOL_ALIASES: ReadonlySet<string> = new Set(["mcp", GROK_MCP_TOOL
 // Key of the verbose rule form inside `[permission]`.
 const GROKCLI_PERMISSION_RULES_KEY = "rules";
 
+// Categories whose pattern is a file-path glob on the Grok side (`Read`,
+// `Edit`, `Grep`, `Glob`). Their anchors differ from Claude Code's: Claude
+// reads a leading `//` as an absolute path, while Grok treats a leading `//` as
+// literal glob text and spells an absolute path with a single `/`. A leading
+// `~/` names the home directory on both (on Grok from 1.0.73 on; older builds
+// read it literally), so it is passed through unchanged.
+// https://code.claude.com/docs/en/permissions
+// https://github.com/xai-org/grok-build/blob/main/crates/codegen/xai-grok-pager/docs/user-guide/22-permissions-and-safety.md
+const GROK_PATH_PATTERN_CATEGORIES: ReadonlySet<string> = new Set([
+  "read",
+  "edit",
+  "write",
+  "grep",
+  "glob",
+]);
+
+const CLAUDE_ABSOLUTE_PATH_PREFIX = "//";
+
+/**
+ * Rewrite a canonical path pattern into the anchor Grok understands. A
+ * Claude-style `//abs` absolute pattern becomes `/abs`; without this the rule
+ * would match nothing on Grok, so a `deny` or `ask` rule would silently give
+ * no protection. Every other pattern is returned unchanged.
+ */
+function toGrokPathPattern(category: string, pattern: string): string {
+  if (!GROK_PATH_PATTERN_CATEGORIES.has(category)) {
+    return pattern;
+  }
+  if (!pattern.startsWith(CLAUDE_ABSOLUTE_PATH_PREFIX)) {
+    return pattern;
+  }
+  // Collapse every leading slash to one: `///etc` is still `/etc`.
+  return `/${pattern.replace(/^\/+/, "")}`;
+}
+
 /**
  * Build a Grok Claude-style permission entry (e.g. `Bash(git *)`, `Read`,
  * `MCPTool(server__tool)`) from a canonical category + pattern. Returns `null`
@@ -145,7 +180,9 @@ const GROKCLI_PERMISSION_RULES_KEY = "rules";
  * `MCPTool`. For every other tool, a `*` pattern emits the bare tool name and a
  * concrete pattern emits `Tool(pattern)`. The all-tools `*` category becomes
  * Grok's bare `*` rule for its catch-all pattern only; a narrower pattern
- * under it has no Grok spelling and returns `null`.
+ * under it has no Grok spelling and returns `null`. A Claude-style `//abs`
+ * path pattern on a file tool is rewritten to Grok's `/abs` (see
+ * `toGrokPathPattern`).
  */
 function buildGrokEntry(category: string, pattern: string): string | null {
   if (category === ALL_TOOLS_PERMISSION_CATEGORY) {
@@ -164,7 +201,9 @@ function buildGrokEntry(category: string, pattern: string): string | null {
   if (tool === undefined) {
     return null;
   }
-  return pattern === CATCH_ALL_PATTERN || pattern === "" ? tool : `${tool}(${pattern})`;
+  return pattern === CATCH_ALL_PATTERN || pattern === ""
+    ? tool
+    : `${tool}(${toGrokPathPattern(category, pattern)})`;
 }
 
 /**

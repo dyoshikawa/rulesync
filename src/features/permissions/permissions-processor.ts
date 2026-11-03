@@ -257,8 +257,9 @@ export const toolPermissionsFactories = new Map<
       class: CopilotPermissions,
       meta: {
         // GitHub Copilot Chat in VS Code has no standalone policy file; the
-        // adapter manages the `chat.tools.*.autoApprove` maps and
-        // `chat.permissions.default` in the workspace `.vscode/settings.json`.
+        // adapter manages the `chat.tools.*.autoApprove` maps,
+        // `chat.permissions.default` and `chat.defaultConfiguration` in the
+        // workspace `.vscode/settings.json`.
         // VS Code's user-scope settings.json is at a platform-dependent path
         // outside rulesync's home-relative global model, so only project scope
         // is supported.
