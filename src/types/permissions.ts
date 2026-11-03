@@ -1459,15 +1459,15 @@ const CodexApprovalPolicySchema = z.enum(["untrusted", "on-request", "on-failure
  */
 const CodexSandboxModeSchema = z.enum(["read-only", "workspace-write", "danger-full-access"]);
 
+// Largest value of Codex's `u32` config fields.
+const CODEX_U32_MAX = 4_294_967_295;
+
 /**
  * Codex CLI's reviewer for approval requests. `guardian_subagent` is a legacy
  * value Codex still accepts for backward compatibility, so it is included so
  * existing configs round-trip through the rulesync model.
  * @see https://learn.chatgpt.com/docs/config-file/config-reference
  */
-// Largest value of Codex's `u32` config fields.
-const CODEX_U32_MAX = 4_294_967_295;
-
 const CodexApprovalsReviewerSchema = z.enum(["user", "auto_review", "guardian_subagent"]);
 
 /**
@@ -1583,11 +1583,13 @@ const CodexcliPermissionsOverrideSchema = z.looseObject({
   /**
    * The `[auto_review]` table of `config.toml`, which configures the reviewer
    * that `approvals_reviewer = "auto_review"` (Rulesync's default) selects:
-   * `policy` / `extra_policy` (text inserted into the reviewer prompt) and
+   * `policy` / `extra_policy` (text inserted into the reviewer prompt),
    * `timeout_ms` (the review budget, Codex 0.165.0+; `0` waits without a
-   * deadline). Codex reads `timeout_ms` as a `u32` and rejects the whole
-   * config file on an out-of-range value, so it is checked here; every other
-   * key passes through verbatim.
+   * deadline), `circuit_break_action` (`default` | `strict`) and
+   * `conversation_history_max_output_tokens` (a positive token cap). Codex
+   * rejects the whole config file when one of these has the wrong type or is
+   * out of range (`timeout_ms` is a `u32`, the token cap a `NonZeroUsize`), so
+   * they are checked here; every other key passes through verbatim.
    *
    * @see https://github.com/openai/codex/blob/rust-v0.166.0/codex-rs/config/src/config_toml.rs (`AutoReviewToml`)
    */
@@ -1596,6 +1598,8 @@ const CodexcliPermissionsOverrideSchema = z.looseObject({
       policy: z.optional(z.string()),
       extra_policy: z.optional(z.string()),
       timeout_ms: z.optional(z.int().check(z.nonnegative(), z.lte(CODEX_U32_MAX))),
+      circuit_break_action: z.optional(z.enum(["default", "strict"])),
+      conversation_history_max_output_tokens: z.optional(z.int().check(z.positive())),
     }),
   ),
   /**

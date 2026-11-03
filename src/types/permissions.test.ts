@@ -41,9 +41,33 @@ describe("RulesyncPermissionsFileSchema tool-scoped override enums", () => {
       expect(result.success).toBe(false);
     });
 
+    it.each([
+      { circuit_break_action: "default" },
+      { circuit_break_action: "strict" },
+      { conversation_history_max_output_tokens: 4000 },
+    ])("should accept %o", (value) => {
+      const result = RulesyncPermissionsFileSchema.safeParse(
+        withOverride({ codexcli: { auto_review: value } }),
+      );
+      expect(result.success).toBe(true);
+    });
+
+    it.each([
+      { circuit_break_action: "loose" },
+      { conversation_history_max_output_tokens: 0 },
+      { conversation_history_max_output_tokens: 1.5 },
+    ])("should reject %o", (value) => {
+      const result = RulesyncPermissionsFileSchema.safeParse(
+        withOverride({ codexcli: { auto_review: value } }),
+      );
+      expect(result.success).toBe(false);
+    });
+
     it("should pass unmodeled keys through", () => {
       const result = RulesyncPermissionsFileSchema.safeParse(
-        withOverride({ codexcli: { auto_review: { circuit_break_action: "strict" } } }),
+        withOverride({
+          codexcli: { auto_review: { experimental_policy_template: "{{ tenant_policy }}" } },
+        }),
       );
       expect(result.success).toBe(true);
     });
