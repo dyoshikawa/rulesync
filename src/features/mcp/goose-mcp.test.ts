@@ -154,8 +154,9 @@ describe("GooseMcp", () => {
       expect(warn).toHaveBeenCalledWith(expect.stringContaining("stdio-only"));
       // Assert on the resolved Goose server type rather than the server name, so
       // the test stays meaningful even if the sample server names change.
-      expect(warn).toHaveBeenCalledWith(expect.stringContaining("(streamable_http)"));
-      expect(warn).toHaveBeenCalledWith(expect.stringContaining("(sse)"));
+      // Goose has no SSE type, so an SSE server resolves to streamable_http too.
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('"remote" (streamable_http)'));
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('"sse" (streamable_http)'));
     });
 
     it("strips prototype-pollution keys from a server's env in project mode", async () => {
@@ -297,6 +298,81 @@ describe("GooseMcp", () => {
         enabled: true,
       });
       expect(ext?.cmd).toBeUndefined();
+    });
+
+    it("writes an sse server as streamable_http with a warning", async () => {
+      const warn = vi.fn();
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            legacy: {
+              type: "sse",
+              url: "https://example.com/sse",
+              headers: { Authorization: "Bearer x" },
+            },
+          },
+        }),
+      });
+
+      const mcp = await GooseMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+        logger: { warn } as never,
+      });
+
+      expect(getExtensions(mcp.getFileContent()).legacy).toEqual({
+        name: "legacy",
+        type: "streamable_http",
+        uri: "https://example.com/sse",
+        headers: { Authorization: "Bearer x" },
+        enabled: true,
+      });
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('"legacy" uses SSE'));
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("Streamable HTTP"));
+    });
+
+    it("replaces a stale same-name sse extension without a retraction warning", async () => {
+      const warn = vi.fn();
+      const dir = join(testDir, GOOSE_DIR);
+      await ensureDir(dir);
+      // What an older rulesync wrote for a canonical `type: sse` server.
+      await writeFileContent(
+        join(dir, GOOSE_FILE),
+        [
+          "extensions:",
+          "  legacy:",
+          "    name: legacy",
+          "    type: sse",
+          "    uri: https://example.com/sse",
+          "    enabled: true",
+          "",
+        ].join("\n"),
+      );
+
+      const rulesyncMcp = new RulesyncMcp({
+        relativeDirPath: ".rulesync",
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { legacy: { type: "sse", url: "https://example.com/sse" } },
+        }),
+      });
+
+      const mcp = await GooseMcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        rulesyncMcp,
+        global: true,
+        logger: { warn } as never,
+      });
+
+      expect(getExtensions(mcp.getFileContent()).legacy?.type).toBe("streamable_http");
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("uses SSE"));
+      expect(warn).not.toHaveBeenCalledWith(expect.stringContaining("Removing MCP extension"));
+      expect(warn).not.toHaveBeenCalledWith(expect.stringContaining("non-MCP extension"));
     });
 
     it("maps disabled to enabled: false", async () => {
@@ -601,6 +677,28 @@ describe("GooseMcp", () => {
         url: "https://example.com/mcp",
         disabled: true,
       });
+    });
+
+    it("imports a stale sse extension as a canonical sse server", async () => {
+      const dir = join(testDir, GOOSE_DIR);
+      await ensureDir(dir);
+      await writeFileContent(
+        join(dir, GOOSE_FILE),
+        [
+          "extensions:",
+          "  legacy:",
+          "    name: legacy",
+          "    type: sse",
+          "    uri: https://example.com/sse",
+          "    enabled: true",
+          "",
+        ].join("\n"),
+      );
+
+      const mcp = await GooseMcp.fromFile({ outputRoot: testDir, global: true });
+      const servers = JSON.parse(mcp.toRulesyncMcp().getFileContent()).mcpServers;
+
+      expect(servers.legacy).toEqual({ type: "sse", url: "https://example.com/sse" });
     });
 
     it("strips prototype-pollution keys from an extension's envs/headers on import", async () => {
