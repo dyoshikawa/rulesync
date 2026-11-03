@@ -427,6 +427,35 @@ describe("AntigravityCliPermissions", () => {
     expect(settings.someOtherSetting).toBe(true);
   });
 
+  it("should replace stale mcp(...) entries once an MCP category is configured", async () => {
+    const dir = join(testDir, ".gemini", "antigravity-cli");
+    await ensureDir(dir);
+    await writeFileContent(
+      join(dir, "settings.json"),
+      JSON.stringify({
+        permissions: { allow: ["mcp(github/*)", "execute_url(https://deploy.example.com)"] },
+      }),
+    );
+
+    const rulesyncPermissions = new RulesyncPermissions({
+      outputRoot: testDir,
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: { mcp__github__delete: { "*": "ask" } },
+      }),
+    });
+
+    const permissions = await AntigravityCliPermissions.fromRulesyncPermissions({
+      outputRoot: testDir,
+      rulesyncPermissions,
+    });
+
+    const settings = JSON.parse(permissions.getFileContent()) as SettingsJson;
+    expect(settings.permissions?.allow).toEqual(["execute_url(https://deploy.example.com)"]);
+    expect(settings.permissions?.ask).toEqual(["mcp(github/delete)"]);
+  });
+
   it("should replace existing read_file entries when the read category is managed", async () => {
     const dir = join(testDir, ".gemini", "antigravity-cli");
     await ensureDir(dir);

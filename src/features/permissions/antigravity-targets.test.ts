@@ -577,4 +577,61 @@ describe("buildAntigravityPermissionEntry", () => {
       );
     });
   });
+
+  describe("mcp targets", () => {
+    function buildMcp(category: string, pattern: string, decision: PermissionAction) {
+      const logger = createMockLogger();
+      const entry = buildAntigravityPermissionEntry({
+        action: "mcp",
+        category,
+        pattern,
+        decision,
+        logger,
+        toolLabel: "Antigravity CLI",
+      });
+      return { entry, logger };
+    }
+
+    it.each([
+      ["mcp__s__t", "*", "allow", "mcp(s/t)"],
+      ["mcp__s", "*", "allow", "mcp(s/*)"],
+      ["mcp__s__*", "*", "ask", "mcp(s/*)"],
+      ["mcp__*", "*", "allow", "mcp"],
+      ["mcp__*__*", "*", "ask", "mcp"],
+      // `mcp__*` names every MCP tool, so its widened deny is the same entry.
+      ["mcp__*", "owner:foo", "deny", "mcp"],
+      ["mcp__s__t", "owner:foo", "deny", "mcp(s/t)"],
+      // An empty or unreadable tool name widens a deny to its server.
+      ["mcp__s__", "*", "deny", "mcp(s/*)"],
+      ["mcp__s__a/b", "*", "deny", "mcp(s/*)"],
+      ["mcp__s__a(b)", "*", "deny", "mcp(s/*)"],
+    ] as const)("writes %s { %s: %s } as %s", (category, pattern, decision, expected) => {
+      expect(buildMcp(category, pattern, decision).entry).toBe(expected);
+    });
+
+    it.each([
+      ["mcp__s__", "allow", "*"],
+      ["mcp__s__a/b", "ask", "*"],
+      ["mcp__s__a(b)", "allow", "*"],
+      ["mcp__s(x)__t", "allow", "*"],
+      ["mcp__s/x__t", "ask", "*"],
+      ["mcp____t", "allow", "*"],
+      ["mcp__", "ask", "*"],
+      ["mcp__s__t", "allow", "owner:foo"],
+      ["mcp__*", "ask", "owner:foo"],
+    ] as const)("skips %s as %s rather than widening it", (category, decision, pattern) => {
+      const { entry, logger } = buildMcp(category, pattern, decision);
+      expect(entry).toBeUndefined();
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("skipping"));
+    });
+
+    it.each(["mcp__s(x)__t", "mcp____t", "mcp__", "mcp__git*"])(
+      "does not enforce a deny on %s, whose server cannot be named",
+      (category) => {
+        const { entry, logger } = buildMcp(category, "*", "deny");
+        expect(entry).toBeUndefined();
+        expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("NOT enforced"));
+      },
+    );
+  });
 });

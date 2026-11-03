@@ -125,6 +125,12 @@ const ANTIGRAVITY_CLI_TO_CANONICAL_TOOL_NAMES: Record<string, string> = {
 };
 
 function toAntigravityCliToolName(canonical: string): string {
+  // Every `mcp__...` category is written as an `mcp(...)` entry, so it
+  // manages all of them, as the bare `mcp` category does: a hand-written
+  // `mcp(...)` entry is replaced once any MCP category is configured.
+  if (canonical.startsWith("mcp__")) {
+    return "mcp";
+  }
   return CANONICAL_TO_ANTIGRAVITY_CLI_TOOL_NAMES[canonical] ?? canonical;
 }
 

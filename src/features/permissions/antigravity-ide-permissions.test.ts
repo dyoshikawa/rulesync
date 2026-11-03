@@ -229,6 +229,26 @@ describe("AntigravityIdePermissions", () => {
       expect(json.permissions.allow).toContain("command(git)");
       expect(json.permissions.deny).toContain("unsandboxed");
     });
+
+    it("replaces stale mcp(...) entries once an MCP category is configured", async () => {
+      const dir = join(testDir, ".antigravity");
+      await ensureDir(dir);
+      await writeFileContent(
+        join(dir, "settings.json"),
+        JSON.stringify({
+          permissions: { allow: ["mcp(github/*)", "execute_url(localhost)"] },
+        }),
+      );
+
+      const perms = await AntigravityIdePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({ mcp__github__delete: { "*": "ask" } }),
+      });
+      const json = JSON.parse(perms.getFileContent());
+
+      expect(json.permissions.allow).toEqual(["execute_url(localhost)"]);
+      expect(json.permissions.ask).toEqual(["mcp(github/delete)"]);
+    });
   });
 
   describe("toRulesyncPermissions round-trip", () => {

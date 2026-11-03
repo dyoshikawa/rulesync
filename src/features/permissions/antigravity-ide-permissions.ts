@@ -72,6 +72,12 @@ const IDE_ACTION_TO_CANONICAL: Record<string, string> = {
 };
 
 function toIdeAction(canonical: string): string {
+  // Every `mcp__...` category is written as an `mcp(...)` entry, so it
+  // manages all of them, as the bare `mcp` category does: a hand-written
+  // `mcp(...)` entry is replaced once any MCP category is configured.
+  if (canonical.startsWith("mcp__")) {
+    return "mcp";
+  }
   return CANONICAL_TO_IDE_ACTION[canonical] ?? canonical;
 }
 

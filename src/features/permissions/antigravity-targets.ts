@@ -159,30 +159,37 @@ function toTarget(action: string, pattern: string): TargetResult {
 
 const MCP_CATEGORY_PREFIX = "mcp__";
 
+// Characters that would change how Antigravity reads `mcp(server/tool)`.
+const MCP_TARGET_SEPARATORS = /[/()]/;
+
 /**
  * The `mcp` target of a canonical `mcp__<server>__<tool>` category:
  * `<server>/<tool>`, `<server>/*` for a whole server (`mcp__<server>`,
- * `mcp__<server>__*`), or `*` for every MCP tool (`mcp__*`). The server ends at
- * the first `__`, as elsewhere in rulesync. Antigravity matches names exactly,
- * so any other glob, or a `/` in the server, has no target; a tool glob has
- * its server as the `lead` a deny widens to.
+ * `mcp__<server>__*`), or `*` for every MCP tool (`mcp__*`, `mcp__*__*`). The
+ * server ends at the first `__`, as elsewhere in rulesync. Antigravity matches
+ * names exactly, so a glob, an empty name, or a `/` or parenthesis in a name
+ * has no target; when only the tool part is at fault, its server is the `lead`
+ * a deny widens to.
  */
 function toMcpTarget(category: string): TargetResult & { lead?: string } {
   const remainder = category.slice(MCP_CATEGORY_PREFIX.length);
   const separator = remainder.indexOf("__");
   const server = separator === -1 ? remainder : remainder.slice(0, separator);
-  const tool = (separator === -1 ? "" : remainder.slice(separator + 2)) || "*";
+  const tool = separator === -1 ? "*" : remainder.slice(separator + 2);
   if (server === "*" && tool === "*") {
     return { target: "*" };
   }
   const skipReason =
     "Antigravity MCP targets name one server or one tool exactly. Only `mcp__<server>`, `mcp__<server>__*`, `mcp__<server>__<tool>` or `mcp__*` can be expressed";
-  if (server.length === 0 || server.includes("/") || hasGlob(server)) {
+  if (server.length === 0 || MCP_TARGET_SEPARATORS.test(server) || hasGlob(server)) {
     return { skipReason };
   }
-  return tool === "*" || !hasGlob(tool)
-    ? { target: `${server}/${tool}` }
-    : { skipReason, lead: `${server}/*` };
+  if (tool === "*") {
+    return { target: `${server}/*` };
+  }
+  return tool.length === 0 || MCP_TARGET_SEPARATORS.test(tool) || hasGlob(tool)
+    ? { skipReason, lead: `${server}/*` }
+    : { target: `${server}/${tool}` };
 }
 
 /** The target of a canonical `mcp__...` rule, with the `lead` a deny widens to. */
@@ -232,6 +239,26 @@ function toWidenedDenyTarget(action: string, pattern: string): string | undefine
     return toPathLiteralPrefix(pattern);
   }
   return undefined;
+}
+
+/** The entry a deny is widened to, and what it now blocks. */
+function describeWidenedDeny(
+  action: string,
+  prefix: string,
+  isMcp: boolean,
+): { entry: string; scope: string } {
+  if (isMcp) {
+    // `*` names every MCP tool, which the bare action already says.
+    return prefix === "*"
+      ? { entry: action, scope: "every MCP tool" }
+      : { entry: `${action}(${prefix})`, scope: `every call of \`${action}(${prefix})\`` };
+  }
+  return {
+    entry: `${action}(${prefix})`,
+    scope: PATH_ACTIONS.has(action)
+      ? `every path under \`${prefix}\``
+      : `every command that starts with \`${prefix}\``,
+  };
 }
 
 /**
@@ -306,16 +333,12 @@ export function buildAntigravityPermissionEntry({
     const prefix =
       decision !== "deny" ? undefined : isMcp ? result.lead : toWidenedDenyTarget(action, pattern);
     if (prefix !== undefined) {
-      const scope = isMcp
-        ? `every call of \`mcp(${prefix})\``
-        : PATH_ACTIONS.has(action)
-          ? `every path under \`${prefix}\``
-          : `every command that starts with \`${prefix}\``;
+      const { entry, scope } = describeWidenedDeny(action, prefix, isMcp);
       logger.warn(
-        `${toolLabel} permissions: widening ${rule} to ${action}(${prefix}). ${result.skipReason}. The deny now blocks ${scope}, overriding any allow or ask for them.`,
+        `${toolLabel} permissions: widening ${rule} to ${entry}. ${result.skipReason}. The deny now blocks ${scope}, overriding any allow or ask for them.`,
       );
       warnHomeOrVariablePath({ action, target: prefix, rule, decision, logger, toolLabel });
-      return `${action}(${prefix})`;
+      return entry;
     }
     const consequence =
       decision === "deny"
