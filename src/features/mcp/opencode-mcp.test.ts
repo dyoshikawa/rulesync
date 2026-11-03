@@ -215,6 +215,50 @@ describe("OpencodeMcp", () => {
     });
   });
 
+  it.each([
+    { name: "transport server", a: { command: "node" } },
+    { name: "transport-less orphan", a: { disabled: true } },
+  ])("should not carry over a bare prefix another listed server owns ($name)", async ({ a }) => {
+    // `a_b_` is tool `b_` of server `a`; with that filter removed from the
+    // rulesync config, the key must go instead of surviving as a bare
+    // prefix of `a.b`.
+    await writeFileContent(
+      join(testDir, "opencode.json"),
+      JSON.stringify({ tools: { a_b_: false } }),
+    );
+    const generated = await OpencodeMcp.fromRulesyncMcp({
+      outputRoot: testDir,
+      rulesyncMcp: new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { a, "a.b": { command: "node" } },
+        }),
+      }),
+    });
+
+    expect(generated.getJson().tools).toBeUndefined();
+  });
+
+  it("should warn when an unreadable existing config holds a bare prefix it cannot keep", async () => {
+    await writeFileContent(
+      join(testDir, "opencode.json"),
+      JSON.stringify({ tools: { a_b_: false, other_read: "yes" } }),
+    );
+    const logger = { warn: vi.fn() } as unknown as Logger;
+    await OpencodeMcp.fromRulesyncMcp({
+      outputRoot: testDir,
+      logger,
+      rulesyncMcp: new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({ mcpServers: { "a.b": { command: "node" } } }),
+      }),
+    });
+
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"a_b_" is not kept'));
+  });
+
   it("should not let an existing bare prefix override the generated filter for the same key", async () => {
     await writeFileContent(
       join(testDir, "opencode.json"),

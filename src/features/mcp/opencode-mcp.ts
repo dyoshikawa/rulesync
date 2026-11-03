@@ -575,7 +575,10 @@ function convertToOpencodeFormat(
 /**
  * Copy each key of `existingTools` that is a bare sanitized `<server>_` prefix
  * of one of `serverNames` into `tools`, unless a generated filter already
- * writes the same key. Mutates `tools` in place.
+ * writes the same key or another listed server owns it (`a_b_` is tool `b_` of
+ * server `a` when `a` is listed too). An owned key is the rulesync config's to
+ * write, so carrying it over would keep a filter the user removed. Mutates
+ * `tools` in place.
  */
 function preserveBareOpencodeMcpServerPrefixKeys({
   tools,
@@ -587,9 +590,43 @@ function preserveBareOpencodeMcpServerPrefixKeys({
   serverNames: readonly string[];
 }): void {
   for (const [key, enabled] of Object.entries(existingTools ?? {})) {
-    if (!Object.hasOwn(tools, key) && isBareOpencodeMcpServerPrefix({ key, serverNames })) {
+    if (
+      !Object.hasOwn(tools, key) &&
+      isBareOpencodeMcpServerPrefix({ key, serverNames }) &&
+      !findOpencodeToolOwner({ key, serverNames })
+    ) {
       tools[key] = enabled;
     }
+  }
+}
+
+/**
+ * When the existing file does not pass the schema, its `tools` map cannot be
+ * read, so a bare `<server>_` key in it is not carried over. Say so rather
+ * than lift the deny it may hold without a word.
+ */
+function warnAboutUnreadableBareOpencodeMcpServerPrefixKeys({
+  existingJson,
+  serverNames,
+  logger,
+}: {
+  existingJson: unknown;
+  serverNames: readonly string[];
+  logger?: Logger;
+}): void {
+  const rawTools = isRecord(existingJson) ? existingJson.tools : undefined;
+  if (!isRecord(rawTools)) {
+    return;
+  }
+  const bareKeys = Object.keys(rawTools).filter((key) =>
+    isBareOpencodeMcpServerPrefix({ key, serverNames }),
+  );
+  if (bareKeys.length > 0) {
+    logger?.warn(
+      `OpenCode MCP: the existing config does not match the expected schema, so the bare server-prefix ` +
+        `tool ${bareKeys.length === 1 ? "key" : "keys"} ${bareKeys.map(quoteValueForWarning).join(", ")} ` +
+        `${bareKeys.length === 1 ? "is" : "are"} not kept in "tools".`,
+    );
   }
 }
 
@@ -818,11 +855,19 @@ export class OpencodeMcp extends ToolMcp {
     // isBareOpencodeMcpServerPrefix), so nothing in the rulesync config writes
     // it back. Carry it over from the file instead: rewriting `tools` without
     // it would silently lift a deny another config layer's server relies on.
-    preserveBareOpencodeMcpServerPrefixKeys({
-      tools: mcpTools,
-      existingTools: existingMcp.success ? existingMcp.data.tools : undefined,
-      serverNames: Object.keys(transformedServers),
-    });
+    if (existingMcp.success) {
+      preserveBareOpencodeMcpServerPrefixKeys({
+        tools: mcpTools,
+        existingTools: existingMcp.data.tools,
+        serverNames: Object.keys(transformedServers),
+      });
+    } else {
+      warnAboutUnreadableBareOpencodeMcpServerPrefixKeys({
+        existingJson: this.lowerConfig(existingJson),
+        serverNames: Object.keys(transformedServers),
+        logger,
+      });
+    }
     if (this.layout.configVersion === "v2") {
       warnAboutOpencodeV2SseServers({ mcpServers: transformedServers, convertedMcp, logger });
     }
