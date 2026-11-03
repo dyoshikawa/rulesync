@@ -123,6 +123,58 @@ describe("OpencodeMcp", () => {
     });
   });
 
+  it.each(
+    [OpencodeMcp, Opencodev1Mcp, MimocodeMcp].flatMap((Mcp) =>
+      [false, true].flatMap((global) =>
+        (Mcp === MimocodeMcp ? [false] : [false, true]).flatMap((envelope) =>
+          ["a.b", "a_b"].map((serverName) => ({
+            name: Mcp.name,
+            Mcp,
+            global,
+            envelope,
+            serverName,
+          })),
+        ),
+      ),
+    ),
+  )(
+    "$name should ignore bare server prefixes (global=$global, envelope=$envelope, server=$serverName)",
+    ({ Mcp, global, envelope, serverName }) => {
+      const servers = { [serverName]: { type: "local", command: ["node"] } };
+      const mcp = new Mcp({
+        outputRoot: testDir,
+        relativeDirPath: ".",
+        relativeFilePath: "opencode.json",
+        global,
+        fileContent: JSON.stringify({
+          mcp: envelope ? { servers } : servers,
+          tools: {
+            a_b_: false,
+            a_b_read: true,
+            a_b_delete: false,
+            orphan_read: false,
+          },
+        }),
+      });
+      const imported = mcp.toRulesyncMcp().getJson();
+
+      expect(imported).toEqual({
+        $schema: RULESYNC_MCP_SCHEMA_URL,
+        mcpServers: {
+          [serverName]: {
+            type: "stdio",
+            command: "node",
+            enabledTools: ["read"],
+            disabledTools: ["delete"],
+          },
+        },
+        [Mcp === MimocodeMcp ? "mimocode" : Mcp === Opencodev1Mcp ? "opencodev1" : "opencode"]: {
+          mcpServers: { orphan: { disabledTools: ["read"] } },
+        },
+      });
+    },
+  );
+
   it("should attribute colliding sanitized server names to the first listed server", () => {
     const mcp = new OpencodeMcp({
       relativeDirPath: ".",

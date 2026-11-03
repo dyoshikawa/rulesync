@@ -220,11 +220,17 @@ function convertFromOpencodeFormat(
 ): McpServers {
   const serverNames = Object.keys(opencodeMcp);
   // Pre-filter with findOpencodeToolOwner so sanitized and legacy raw prefixes
-  // both count as owned. orphanMcpToolFiltersToRulesync then applies its own
-  // raw `<server>_` prefix check; that second pass is redundant for this
-  // caller but stays because Kilo still needs it.
+  // both count as owned. The owner lookup needs a nonempty tool suffix, so a
+  // bare sanitized prefix is dropped here as well; otherwise the orphan
+  // importer splits a_b_ into server a and tool b_ when the listed server is
+  // a.b. A bare raw prefix (a.b_) is left to the raw `<server>_` check in
+  // orphanMcpToolFiltersToRulesync, which Kilo also relies on.
   const orphanTools = Object.fromEntries(
-    Object.entries(tools ?? {}).filter(([key]) => !findOpencodeToolOwner({ key, serverNames })),
+    Object.entries(tools ?? {}).filter(
+      ([key]) =>
+        !findOpencodeToolOwner({ key, serverNames }) &&
+        !serverNames.some((serverName) => key === opencodeMcpToolPermissionKey(serverName, "")),
+    ),
   );
   return {
     ...orphanMcpToolFiltersToRulesync(opencodeMcp, orphanTools),
