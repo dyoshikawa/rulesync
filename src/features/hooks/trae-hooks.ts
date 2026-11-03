@@ -24,16 +24,29 @@ const CANONICAL_TO_TRAE_TOOL_NAMES: Readonly<Record<string, string>> = { Bash: "
 const TRAE_TO_CANONICAL_TOOL_NAMES = invertToolNames(CANONICAL_TO_TRAE_TOOL_NAMES);
 
 // Only `command` handlers exist, with `timeout` in seconds (the canonical
-// unit). `$TRAE_PROJECT_DIR` is the documented workspace-root variable.
-// The Stop-only group field `loop_limit` is not carried.
+// unit). TRAE runs hooks from the project root and uses PowerShell on Windows,
+// so commands are written as-is; the documented `$TRAE_PROJECT_DIR` and its
+// `$CLAUDE_PROJECT_DIR` alias are only stripped on import. `loop_limit` (the
+// most times a Stop group may block the agent) is a matcher-group field
+// documented on Stop only; hooks with different limits get separate groups.
 const TRAE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
   supportedEvents: TRAE_HOOK_EVENTS,
   canonicalToToolEventNames: CANONICAL_TO_TRAE_EVENT_NAMES,
   toolToCanonicalEventNames: TRAE_TO_CANONICAL_EVENT_NAMES,
   projectDirVar: "$TRAE_PROJECT_DIR",
-  prefixDotRelativeCommandsOnly: true,
+  stripsProjectDirVarOnImportOnly: true,
+  importedProjectDirVarAliases: ["$CLAUDE_PROJECT_DIR"],
   noMatcherEvents: TRAE_NO_MATCHER_EVENTS,
   supportedHookTypes: new Set(["command"]),
+  groupPassthroughFields: [
+    {
+      canonical: "loop_limit",
+      tool: "loop_limit",
+      valueType: "number",
+      events: new Set(["stop"]),
+      subdividesGroup: true,
+    },
+  ],
   matcherTranslation: {
     toTool: ({ matcher }) => replaceMatcherNames(matcher, CANONICAL_TO_TRAE_TOOL_NAMES),
     toCanonical: (matcher) => replaceMatcherNames(matcher, TRAE_TO_CANONICAL_TOOL_NAMES),

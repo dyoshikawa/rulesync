@@ -104,8 +104,9 @@ export const SHARED_USER_MANAGED_CONFIG_PATHS: readonly string[] = [
   // `.tabnine/agent/` layout and carry the user's own settings beside the
   // `mcpServers`, `hooks` and `tools` blocks.
   ".tabnine/agent/settings.json",
-  // TRAE hooks: the IDE creates `.trae/hooks.json` itself (with `version`)
-  // and the user may author hooks there by hand beside the ones rulesync writes.
+  // TRAE hooks: the IDE creates `.trae/hooks.json` itself (with `version`),
+  // so the file stays committable. Generation keeps `version` and other
+  // top-level keys but replaces the whole `hooks` key.
   ".trae/hooks.json",
   ".vibe/config.toml",
   // ZCode config: the workspace file and the user one under `~/.zcode/cli/`.

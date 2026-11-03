@@ -124,13 +124,54 @@ describe("TraeHooks", () => {
     );
   });
 
-  it("should anchor dot-relative commands to $TRAE_PROJECT_DIR", async () => {
+  it("should write dot-relative commands as-is", async () => {
     const { parsed } = await generate(testDir, {
       version: 1,
-      hooks: { stop: [{ command: "./scripts/check.sh" }] },
+      hooks: { stop: [{ command: "python3 ./scripts/check.py" }, { command: "./run.sh" }] },
     });
 
-    expect(parsed.hooks.Stop[0].hooks[0].command).toBe('"$TRAE_PROJECT_DIR"/scripts/check.sh');
+    expect(parsed.hooks.Stop[0].hooks.map((h: { command: string }) => h.command)).toEqual([
+      "python3 ./scripts/check.py",
+      "./run.sh",
+    ]);
+  });
+
+  it("should carry loop_limit on Stop groups, splitting hooks with different limits", async () => {
+    const { parsed } = await generate(testDir, {
+      version: 1,
+      hooks: {
+        stop: [
+          { command: "a.sh", loop_limit: 3 },
+          { command: "b.sh", loop_limit: 3 },
+          { command: "c.sh" },
+          { command: "d.sh", loop_limit: 7 },
+        ],
+      },
+    });
+
+    expect(parsed.hooks.Stop).toEqual([
+      {
+        loop_limit: 3,
+        hooks: [
+          { type: "command", command: "a.sh" },
+          { type: "command", command: "b.sh" },
+        ],
+      },
+      { hooks: [{ type: "command", command: "c.sh" }] },
+      { loop_limit: 7, hooks: [{ type: "command", command: "d.sh" }] },
+    ]);
+  });
+
+  it("should drop loop_limit on events other than Stop with a warning", async () => {
+    const { parsed, warnSpy } = await generate(testDir, {
+      version: 1,
+      hooks: { preToolUse: [{ command: "pre.sh", loop_limit: 3 }] },
+    });
+
+    expect(parsed.hooks.PreToolUse[0].loop_limit).toBeUndefined();
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('"loop_limit" on "preToolUse" hooks is ignored'),
+    );
   });
 
   it("should keep version and other top-level keys of an existing file", async () => {
@@ -181,21 +222,52 @@ describe("TraeHooks", () => {
     expect(json.hooks.beforeSubmitPrompt?.[0]).toMatchObject({ command: "prompt.sh" });
   });
 
+  it("should import loop_limit from Stop groups only and strip both project dir variables", () => {
+    const hooks = new TraeHooks({
+      outputRoot: testDir,
+      relativeDirPath: ".trae",
+      relativeFilePath: "hooks.json",
+      fileContent: JSON.stringify({
+        hooks: {
+          Stop: [
+            {
+              loop_limit: 3,
+              hooks: [{ type: "command", command: 'python3 "$CLAUDE_PROJECT_DIR"/check_tests.py' }],
+            },
+          ],
+          PostToolUse: [{ loop_limit: 2, hooks: [{ type: "command", command: "post.sh" }] }],
+        },
+      }),
+      validate: false,
+    });
+
+    const json = hooks.toRulesyncHooks().getJson();
+    expect(json.hooks.stop).toEqual([
+      { type: "command", command: "python3 ./check_tests.py", loop_limit: 3 },
+    ]);
+    expect(json.hooks.postToolUse?.[0]?.loop_limit).toBeUndefined();
+  });
+
   it("should round-trip through generate and import", async () => {
-    const { hooks } = await generate(testDir, {
+    const { hooks, parsed } = await generate(testDir, {
       version: 1,
       hooks: {
         preToolUse: [{ command: "pre.sh", matcher: "Bash", timeout: 5 }],
-        stop: [{ command: "stop.sh" }],
+        stop: [{ command: "python3 ./check_tests.py", loop_limit: 3 }],
       },
     });
 
+    expect(parsed.hooks.Stop).toEqual([
+      { loop_limit: 3, hooks: [{ type: "command", command: "python3 ./check_tests.py" }] },
+    ]);
     const json = hooks.toRulesyncHooks().getJson();
     expect(json.hooks.preToolUse?.[0]).toMatchObject({
       command: "pre.sh",
       matcher: "Bash",
       timeout: 5,
     });
-    expect(json.hooks.stop?.[0]).toMatchObject({ command: "stop.sh" });
+    expect(json.hooks.stop).toEqual([
+      { type: "command", command: "python3 ./check_tests.py", loop_limit: 3 },
+    ]);
   });
 });
