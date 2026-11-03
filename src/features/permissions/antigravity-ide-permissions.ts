@@ -72,6 +72,12 @@ const IDE_ACTION_TO_CANONICAL: Record<string, string> = {
 };
 
 function toIdeAction(canonical: string): string {
+  // Every `mcp__...` category is written as an `mcp(...)` entry, so it
+  // manages all of them, as the bare `mcp` category does: a hand-written
+  // `mcp(...)` entry is replaced once any MCP category is configured.
+  if (canonical.startsWith("mcp__")) {
+    return "mcp";
+  }
   return CANONICAL_TO_IDE_ACTION[canonical] ?? canonical;
 }
 
@@ -151,9 +157,14 @@ export class AntigravityIdePermissions extends ToolPermissions {
       Object.keys(config.permission).map((category) => toIdeAction(category)),
     );
 
+    // Earlier releases wrote MCP tools as bare `mcp__server__tool` actions,
+    // which Antigravity ignores, so they go once MCP is managed.
+    const isManagedAction = (action: string): boolean =>
+      managedActions.has(action) || (managedActions.has("mcp") && action.startsWith("mcp__"));
+
     const existingPermissions = settings.permissions ?? {};
     const preserve = (entries: string[] | undefined): string[] =>
-      (entries ?? []).filter((entry) => !managedActions.has(parseToolPatternEntry(entry).toolName));
+      (entries ?? []).filter((entry) => !isManagedAction(parseToolPatternEntry(entry).toolName));
 
     const mergedPermissions: Record<string, unknown> = { ...existingPermissions };
     const mergedAllow = uniq([...preserve(existingPermissions.allow), ...allow].toSorted());
