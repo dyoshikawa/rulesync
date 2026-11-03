@@ -1,4 +1,4 @@
-import { basename, extname, join } from "node:path";
+import { join } from "node:path";
 
 import { z } from "zod/mini";
 
@@ -19,6 +19,12 @@ import {
   validateFrontmatterSchema,
 } from "../../utils/frontmatter.js";
 import { warnWithFallback } from "../../utils/logger.js";
+import {
+  buildOutputStyleFrontmatter,
+  isDirectMarkdownChild,
+  isOutputStyleChannel,
+  resolveTopLevelOutputStyleStem,
+} from "./output-style-paths.js";
 import { RulesyncRule, RulesyncRuleFrontmatter } from "./rulesync-rule.js";
 import {
   ToolRule,
@@ -211,17 +217,17 @@ export class QoderRule extends ToolRule {
     relativeDirPath: string | undefined;
     relativeFilePath: string;
   }): boolean {
-    return (
-      relativeDirPath === QODER_OUTPUT_STYLES_DIR_PATH &&
-      extname(relativeFilePath) === ".md" &&
-      basename(relativeFilePath) === relativeFilePath
-    );
+    return isDirectMarkdownChild({
+      outputStylesDirPath: QODER_OUTPUT_STYLES_DIR_PATH,
+      relativeDirPath,
+      relativeFilePath,
+    });
   }
 
   /** Whether a rule opts into the `output-style` channel (non-root only). */
   private static isOutputStyleRule(rulesyncRule: RulesyncRule): boolean {
     const frontmatter = rulesyncRule.getFrontmatter();
-    return !frontmatter.root && frontmatter.qoder?.channel === "output-style";
+    return isOutputStyleChannel({ root: frontmatter.root, channel: frontmatter.qoder?.channel });
   }
 
   /**
@@ -389,20 +395,15 @@ export class QoderRule extends ToolRule {
   }): QoderRule {
     const { description, qoder } = rulesyncRule.getFrontmatter();
     const sourcePath = rulesyncRule.getRelativeFilePath();
-    if (basename(sourcePath) !== sourcePath) {
-      throw new Error(
-        `Rule '${sourcePath}' sets qoder.channel: output-style but is nested in a subdirectory: Qoder reads only the files directly in .qoder/output-styles/, so move it to the top of ${RULESYNC_RULES_RELATIVE_DIR_PATH}.`,
-      );
-    }
-    const name = qoder?.name;
+    const stem = resolveTopLevelOutputStyleStem({
+      sourcePath,
+      message: `Rule '${sourcePath}' sets qoder.channel: output-style but is nested in a subdirectory: Qoder reads only the files directly in .qoder/output-styles/, so move it to the top of ${RULESYNC_RULES_RELATIVE_DIR_PATH}.`,
+    });
     return new QoderRule({
       outputRoot,
       relativeDirPath: QODER_OUTPUT_STYLES_DIR_PATH,
-      relativeFilePath: `${basename(sourcePath, extname(sourcePath))}.md`,
-      frontmatter: {
-        ...(name !== undefined && { name }),
-        ...(description !== undefined && { description }),
-      },
+      relativeFilePath: `${stem}.md`,
+      frontmatter: buildOutputStyleFrontmatter({ name: qoder?.name, description }),
       body: rulesyncRule.getBody(),
       validate,
       root: false,
