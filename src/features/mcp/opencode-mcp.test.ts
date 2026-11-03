@@ -123,13 +123,20 @@ describe("OpencodeMcp", () => {
     });
   });
 
+  const OPENCODE_FAMILY_CASES = [
+    { Mcp: OpencodeMcp, toolKey: "opencode", envelopes: [false, true] },
+    { Mcp: Opencodev1Mcp, toolKey: "opencodev1", envelopes: [false, true] },
+    { Mcp: MimocodeMcp, toolKey: "mimocode", envelopes: [false] },
+  ] as const;
+
   it.each(
-    [OpencodeMcp, Opencodev1Mcp, MimocodeMcp].flatMap((Mcp) =>
+    OPENCODE_FAMILY_CASES.flatMap(({ Mcp, toolKey, envelopes }) =>
       [false, true].flatMap((global) =>
-        (Mcp === MimocodeMcp ? [false] : [false, true]).flatMap((envelope) =>
+        envelopes.flatMap((envelope) =>
           ["a.b", "a_b"].map((serverName) => ({
             name: Mcp.name,
             Mcp,
+            toolKey,
             global,
             envelope,
             serverName,
@@ -138,23 +145,22 @@ describe("OpencodeMcp", () => {
       ),
     ),
   )(
-    "$name should ignore bare server prefixes (global=$global, envelope=$envelope, server=$serverName)",
-    ({ Mcp, global, envelope, serverName }) => {
+    "$name should ignore bare server prefixes and keep them on generate (global=$global, envelope=$envelope, server=$serverName)",
+    async ({ Mcp, toolKey, global, envelope, serverName }) => {
       const servers = { [serverName]: { type: "local", command: ["node"] } };
+      const tools = {
+        a_b_: false,
+        a_b_read: true,
+        a_b_delete: false,
+        orphan_read: false,
+      };
+      const fileContent = JSON.stringify({ mcp: envelope ? { servers } : servers, tools });
       const mcp = new Mcp({
         outputRoot: testDir,
         relativeDirPath: ".",
         relativeFilePath: "opencode.json",
         global,
-        fileContent: JSON.stringify({
-          mcp: envelope ? { servers } : servers,
-          tools: {
-            a_b_: false,
-            a_b_read: true,
-            a_b_delete: false,
-            orphan_read: false,
-          },
-        }),
+        fileContent,
       });
       const imported = mcp.toRulesyncMcp().getJson();
 
@@ -168,12 +174,133 @@ describe("OpencodeMcp", () => {
             disabledTools: ["delete"],
           },
         },
-        [Mcp === MimocodeMcp ? "mimocode" : Mcp === Opencodev1Mcp ? "opencodev1" : "opencode"]: {
+        [toolKey]: {
           mcpServers: { orphan: { disabledTools: ["read"] } },
         },
       });
+
+      // import -> generate: the bare key is carried over from the file, so a
+      // deny it holds for another config layer's server is not lifted.
+      const { relativeDirPath, relativeFilePath } = Mcp.getSettablePaths({ global });
+      await writeFileContent(join(testDir, relativeDirPath, relativeFilePath), fileContent);
+      const regenerated = await Mcp.fromRulesyncMcp({
+        outputRoot: testDir,
+        global,
+        rulesyncMcp: new RulesyncMcp({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: ".mcp.json",
+          fileContent: JSON.stringify(imported),
+        }).forTarget({ toolTarget: toolKey, global }),
+      });
+      expect(regenerated.getJson().tools).toEqual(tools);
     },
   );
+
+  it("should drop a bare raw server prefix that only the raw-prefix check catches", () => {
+    // `a.b_` is neither owned (no tool suffix) nor the sanitized bare prefix
+    // (`a_b_`); only the raw `<server>_` check in orphanMcpToolFiltersToRulesync
+    // keeps it from becoming a phantom server.
+    const mcp = new OpencodeMcp({
+      relativeDirPath: ".",
+      relativeFilePath: "opencode.json",
+      fileContent: JSON.stringify({
+        mcp: { "a.b": { type: "local", command: ["node"] } },
+        tools: { "a.b_": false },
+      }),
+    });
+
+    expect(mcp.toRulesyncMcp().getJson()).toEqual({
+      $schema: RULESYNC_MCP_SCHEMA_URL,
+      mcpServers: { "a.b": { type: "stdio", command: "node" } },
+    });
+  });
+
+  it.each([
+    { name: "transport server", a: { command: "node" } },
+    { name: "transport-less orphan", a: { disabled: true } },
+  ])("should not carry over a bare prefix another listed server owns ($name)", async ({ a }) => {
+    // `a_b_` is tool `b_` of server `a`; with that filter removed from the
+    // rulesync config, the key must go instead of surviving as a bare
+    // prefix of `a.b`.
+    await writeFileContent(
+      join(testDir, "opencode.json"),
+      JSON.stringify({ tools: { a_b_: false } }),
+    );
+    const generated = await OpencodeMcp.fromRulesyncMcp({
+      outputRoot: testDir,
+      rulesyncMcp: new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { a, "a.b": { command: "node" } },
+        }),
+      }),
+    });
+
+    expect(generated.getJson().tools).toBeUndefined();
+  });
+
+  it("should warn when an unreadable existing config holds a bare prefix it cannot keep", async () => {
+    await writeFileContent(
+      join(testDir, "opencode.json"),
+      JSON.stringify({ tools: { a_b_: false, other_read: "yes" } }),
+    );
+    const logger = { warn: vi.fn() } as unknown as Logger;
+    await OpencodeMcp.fromRulesyncMcp({
+      outputRoot: testDir,
+      logger,
+      rulesyncMcp: new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({ mcpServers: { "a.b": { command: "node" } } }),
+      }),
+    });
+
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"a_b_" is not kept'));
+  });
+
+  it("should not warn about an owned bare prefix in an unreadable existing config", async () => {
+    await writeFileContent(
+      join(testDir, "opencode.json"),
+      JSON.stringify({ tools: { a_b_: false, other_read: "yes" } }),
+    );
+    const logger = { warn: vi.fn() } as unknown as Logger;
+    await OpencodeMcp.fromRulesyncMcp({
+      outputRoot: testDir,
+      logger,
+      rulesyncMcp: new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { a: { command: "node" }, "a.b": { command: "node" } },
+        }),
+      }),
+    });
+
+    expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("a_b_"));
+  });
+
+  it("should not let an existing bare prefix override the generated filter for the same key", async () => {
+    await writeFileContent(
+      join(testDir, "opencode.json"),
+      JSON.stringify({ tools: { a_b_: true, stale_read: false } }),
+    );
+    const generated = await OpencodeMcp.fromRulesyncMcp({
+      outputRoot: testDir,
+      rulesyncMcp: new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: {
+            "a.b": { command: "node" },
+            a: { disabledTools: ["b_"] },
+          },
+        }),
+      }),
+    });
+
+    expect(generated.getJson().tools).toEqual({ a_b_: false });
+  });
 
   it("should attribute colliding sanitized server names to the first listed server", () => {
     const mcp = new OpencodeMcp({
