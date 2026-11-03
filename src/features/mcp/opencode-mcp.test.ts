@@ -259,6 +259,27 @@ describe("OpencodeMcp", () => {
     expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"a_b_" is not kept'));
   });
 
+  it("should not warn about an owned bare prefix in an unreadable existing config", async () => {
+    await writeFileContent(
+      join(testDir, "opencode.json"),
+      JSON.stringify({ tools: { a_b_: false, other_read: "yes" } }),
+    );
+    const logger = { warn: vi.fn() } as unknown as Logger;
+    await OpencodeMcp.fromRulesyncMcp({
+      outputRoot: testDir,
+      logger,
+      rulesyncMcp: new RulesyncMcp({
+        relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+        relativeFilePath: ".mcp.json",
+        fileContent: JSON.stringify({
+          mcpServers: { a: { command: "node" }, "a.b": { command: "node" } },
+        }),
+      }),
+    });
+
+    expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining("a_b_"));
+  });
+
   it("should not let an existing bare prefix override the generated filter for the same key", async () => {
     await writeFileContent(
       join(testDir, "opencode.json"),

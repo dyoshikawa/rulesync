@@ -618,8 +618,12 @@ function warnAboutUnreadableBareOpencodeMcpServerPrefixKeys({
   if (!isRecord(rawTools)) {
     return;
   }
-  const bareKeys = Object.keys(rawTools).filter((key) =>
-    isBareOpencodeMcpServerPrefix({ key, serverNames }),
+  // Same selection as preserveBareOpencodeMcpServerPrefixKeys: an owned key is
+  // never carried over, so it is not worth a warning either.
+  const bareKeys = Object.keys(rawTools).filter(
+    (key) =>
+      isBareOpencodeMcpServerPrefix({ key, serverNames }) &&
+      !findOpencodeToolOwner({ key, serverNames }),
   );
   if (bareKeys.length > 0) {
     logger?.warn(
