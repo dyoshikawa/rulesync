@@ -116,13 +116,30 @@ const CodewhalePermissionsOverrideSchema = z.looseObject({
 export type CodewhalePermissionsOverride = z.infer<typeof CodewhalePermissionsOverrideSchema>;
 
 /**
- * The starting permission level VS Code Copilot Chat gives new chat sessions
- * (`chat.permissions.default`). Values are VS Code's own: `default` (Default
+ * The values VS Code's `chat.permissions.default` setting accepts: the starting
+ * permission level of new Local-harness chat sessions — `default` (Default
  * Permissions), `autoApprove` (Bypass Approvals) and `autopilot` (Autopilot).
  *
  * @see https://code.visualstudio.com/docs/agents/reference/ai-settings
  */
-export const COPILOT_DEFAULT_PERMISSION_MODES = ["default", "autoApprove", "autopilot"] as const;
+export const COPILOT_LOCAL_PERMISSION_LEVELS = ["default", "autoApprove", "autopilot"] as const;
+export type CopilotLocalPermissionLevel = (typeof COPILOT_LOCAL_PERMISSION_LEVELS)[number];
+
+/**
+ * The starting permission level the `copilot.defaultPermissionMode` override
+ * sets for new chat sessions: the {@link COPILOT_LOCAL_PERMISSION_LEVELS}, plus
+ * `assisted` (Assisted permissions, GA for Copilot-harness sessions since VS
+ * Code 1.144 and unavailable to Local sessions). Each value is written to both
+ * `chat.permissions.default` (Local sessions) and the `approvals` / `mode` of
+ * `chat.defaultConfiguration` (Copilot-harness sessions, VS Code 1.144+).
+ *
+ * @see https://code.visualstudio.com/updates/v1_144
+ * @see https://github.com/microsoft/vscode/blob/1.144.0/src/vs/workbench/contrib/chat/browser/chat.shared.contribution.ts
+ */
+export const COPILOT_DEFAULT_PERMISSION_MODES = [
+  ...COPILOT_LOCAL_PERMISSION_LEVELS,
+  "assisted",
+] as const;
 export type CopilotDefaultPermissionMode = (typeof COPILOT_DEFAULT_PERMISSION_MODES)[number];
 
 /** `chat.agent.sandbox.enabled`: `"off"` or `"on"`. */
@@ -175,7 +192,7 @@ export type CopilotSandbox = z.infer<typeof CopilotSandboxSchema>;
 /**
  * Tool-scoped override block for GitHub Copilot in VS Code.
  * `defaultPermissionMode` writes the workspace `chat.permissions.default`
- * setting, and `sandbox` writes the `chat.agent.sandbox.*` settings; neither
+ * and `chat.defaultConfiguration` settings, and `sandbox` writes the `chat.agent.sandbox.*` settings; neither
  * has a canonical category.
  */
 const CopilotPermissionsOverrideSchema = z.looseObject({
@@ -1460,6 +1477,9 @@ const CodexApprovalPolicySchema = z.enum(["untrusted", "on-request", "on-failure
  */
 const CodexSandboxModeSchema = z.enum(["read-only", "workspace-write", "danger-full-access"]);
 
+// Largest value of Codex's `u32` config fields.
+const CODEX_U32_MAX = 4_294_967_295;
+
 /**
  * Codex CLI's reviewer for approval requests. `guardian_subagent` is a legacy
  * value Codex still accepts for backward compatibility, so it is included so
@@ -1530,6 +1550,9 @@ const CodexBasePermissionProfileSchema = z.enum(CODEX_BASE_PERMISSION_PROFILES);
  *   | `guardian_subagent`), or a table for the richer reviewer config.
  *   Defaults to `auto_review` when neither the override nor the existing
  *   config sets it.
+ * - `auto_review` — the `[auto_review]` table that configures the reviewer
+ *   `approvals_reviewer = "auto_review"` selects (`policy`, `extra_policy`,
+ *   `timeout_ms`, …). A loose table, shallow-merged like `apps` / `tui`.
  * - `git_write_rules` — whether the managed profile's `:workspace_roots` table
  *   emits the default `.git` carve-out (`".git/**" = "write"`). Codex's
  *   `:workspace` baseline makes `.git` read-only, which denies basic git
@@ -1543,7 +1566,8 @@ const CodexBasePermissionProfileSchema = z.enum(CODEX_BASE_PERMISSION_PROFILES);
  * The keys written to `config.toml` are an **allowlist**, not verbatim
  * passthrough: only `CODEXCLI_OVERRIDE_KEYS`
  * (`src/constants/codexcli-paths.ts` — `approval_policy`, `sandbox_mode`,
- * `sandbox_workspace_write`, `apps`, `approvals_reviewer`) are emitted, and
+ * `sandbox_workspace_write`, `apps`, `approvals_reviewer`, `auto_review`,
+ * `tui`) are emitted, and
  * `computeCodexcliOverridePatch` skips anything else with a warning.
  * `base_permission_profile` and `git_write_rules` are consumed by the profile
  * builder rather than written, as described above, and `permission` is the
@@ -1574,6 +1598,28 @@ const CodexcliPermissionsOverrideSchema = z.looseObject({
   sandbox_workspace_write: z.optional(z.looseObject({})),
   apps: z.optional(z.looseObject({})),
   approvals_reviewer: z.optional(z.union([CodexApprovalsReviewerSchema, z.looseObject({})])),
+  /**
+   * The `[auto_review]` table of `config.toml`, which configures the reviewer
+   * that `approvals_reviewer = "auto_review"` (Rulesync's default) selects:
+   * `policy` / `extra_policy` (text inserted into the reviewer prompt),
+   * `timeout_ms` (the review budget, Codex 0.165.0+; `0` waits without a
+   * deadline), `circuit_break_action` (`default` | `strict`) and
+   * `conversation_history_max_output_tokens` (a positive token cap). Codex
+   * rejects the whole config file when one of these has the wrong type or is
+   * out of range (`timeout_ms` is a `u32`, the token cap a `NonZeroUsize`), so
+   * they are checked here; every other key passes through verbatim.
+   *
+   * @see https://github.com/openai/codex/blob/rust-v0.166.0/codex-rs/config/src/config_toml.rs (`AutoReviewToml`)
+   */
+  auto_review: z.optional(
+    z.looseObject({
+      policy: z.optional(z.string()),
+      extra_policy: z.optional(z.string()),
+      timeout_ms: z.optional(z.int().check(z.nonnegative(), z.lte(CODEX_U32_MAX))),
+      circuit_break_action: z.optional(z.enum(["default", "strict"])),
+      conversation_history_max_output_tokens: z.optional(z.int().check(z.positive())),
+    }),
+  ),
   /**
    * The `[tui]` table of `config.toml` (e.g. `vim_mode_default`, `keymap.*`).
    * Not a permission surface, but like `apps` it is a top-level table with no
