@@ -8,8 +8,9 @@ import {
 } from "../../constants/copilot-paths.js";
 import type { AiFileParams } from "../../types/ai-file.js";
 import {
-  COPILOT_DEFAULT_PERMISSION_MODES,
+  COPILOT_LOCAL_PERMISSION_LEVELS,
   type CopilotDefaultPermissionMode,
+  type CopilotLocalPermissionLevel,
   type CopilotSandbox,
   CopilotSandboxEnabledSchema,
   CopilotSandboxUserConfiguredPathsSchema,
@@ -70,12 +71,105 @@ const AUTO_APPROVE_KEYS: Readonly<Record<string, string>> = {
 };
 
 /**
- * The workspace setting holding the starting permission level of new chat
- * sessions, authored through the `copilot.defaultPermissionMode` override.
+ * The workspace setting holding the starting permission level of new Local
+ * (`local` harness) chat sessions, authored through the
+ * `copilot.defaultPermissionMode` override. VS Code 1.144 narrowed it to Local
+ * sessions; the Copilot harness reads {@link DEFAULT_CONFIGURATION_KEY}.
  *
  * @see https://code.visualstudio.com/docs/agents/reference/ai-settings
  */
 const DEFAULT_PERMISSION_MODE_KEY = "chat.permissions.default";
+
+/**
+ * The workspace setting holding the starting `mode` (`interactive` / `plan` /
+ * `autopilot`) and `approvals` (`manual` / `assisted` / `allowAll`) of new
+ * agent sessions such as the Copilot harness, the default since VS Code 1.143.
+ * It shipped in stable VS Code 1.144 as an object setting with
+ * `additionalProperties: false`; older releases ignore it.
+ *
+ * @see https://github.com/microsoft/vscode/blob/1.144.0/src/vs/workbench/contrib/chat/browser/chat.shared.contribution.ts
+ * @see https://github.com/microsoft/vscode/blob/1.144.0/src/vs/workbench/contrib/chat/common/constants.ts
+ */
+const DEFAULT_CONFIGURATION_KEY = "chat.defaultConfiguration";
+
+/** The `approvals` values of `chat.defaultConfiguration`. */
+type CopilotDefaultApprovals = "manual" | "assisted" | "allowAll";
+
+/**
+ * What each `copilot.defaultPermissionMode` value writes. `local` goes to
+ * `chat.permissions.default`; `approvals` and `autopilot` go to
+ * `chat.defaultConfiguration`. The Local picker has no Assisted level, so
+ * `assisted` starts Local sessions with Default Permissions — the stricter
+ * fallback. Autopilot is a permission level in the Local picker but a `mode`
+ * in `chat.defaultConfiguration`, where it runs with every tool call approved.
+ */
+const DEFAULT_PERMISSION_MODE_MAPPINGS: Readonly<
+  Record<
+    CopilotDefaultPermissionMode,
+    {
+      local: CopilotLocalPermissionLevel;
+      approvals: CopilotDefaultApprovals;
+      autopilot: boolean;
+    }
+  >
+> = {
+  default: { local: "default", approvals: "manual", autopilot: false },
+  autoApprove: { local: "autoApprove", approvals: "allowAll", autopilot: false },
+  autopilot: { local: "autopilot", approvals: "allowAll", autopilot: true },
+  assisted: { local: "default", approvals: "assisted", autopilot: false },
+};
+
+/**
+ * The `chat.defaultConfiguration` value for `mode`. Rulesync owns only whether
+ * the mode is Autopilot: authoring Autopilot sets it, and any other value
+ * removes an Autopilot left by an earlier run, while a hand-written
+ * `interactive` or `plan` is kept.
+ */
+function buildDefaultConfigurationValue({
+  defaultPermissionMode,
+  existingSettings,
+}: {
+  defaultPermissionMode: CopilotDefaultPermissionMode;
+  existingSettings: Record<string, unknown>;
+}): Record<string, unknown> {
+  const { approvals, autopilot } = DEFAULT_PERMISSION_MODE_MAPPINGS[defaultPermissionMode];
+  const existing = existingSettings[DEFAULT_CONFIGURATION_KEY];
+  const value: Record<string, unknown> = { ...(isPlainObject(existing) ? existing : {}) };
+  if (autopilot) {
+    value.mode = "autopilot";
+  } else if (value.mode === "autopilot") {
+    delete value.mode;
+  }
+  value.approvals = approvals;
+  return value;
+}
+
+/**
+ * Read `copilot.defaultPermissionMode` back from the settings. The
+ * Copilot-harness `chat.defaultConfiguration` wins, since it is the only one of
+ * the two that can say `assisted`; `chat.permissions.default` is the fallback
+ * for files written for VS Code before 1.144.
+ */
+function readDefaultPermissionMode(
+  settings: Record<string, unknown>,
+): CopilotDefaultPermissionMode | undefined {
+  const configuration = settings[DEFAULT_CONFIGURATION_KEY];
+  if (isPlainObject(configuration)) {
+    if (configuration.mode === "autopilot") {
+      return "autopilot";
+    }
+    switch (configuration.approvals) {
+      case "manual":
+        return "default";
+      case "assisted":
+        return "assisted";
+      case "allowAll":
+        return "autoApprove";
+    }
+  }
+  const local = settings[DEFAULT_PERMISSION_MODE_KEY];
+  return COPILOT_LOCAL_PERMISSION_LEVELS.find((level) => level === local);
+}
 
 /**
  * The prefix every Agent Host sandbox setting shares. A `copilot.sandbox` leaf
@@ -254,10 +348,6 @@ function readSandboxFromSettings(settings: Record<string, unknown>): CopilotSand
   return Object.keys(sandbox).length > 0 ? sandbox : undefined;
 }
 
-function isCopilotDefaultPermissionMode(value: unknown): value is CopilotDefaultPermissionMode {
-  return COPILOT_DEFAULT_PERMISSION_MODES.some((mode) => mode === value);
-}
-
 function asAutoApproveMap(value: unknown): Record<string, boolean> {
   if (!isPlainObject(value)) {
     return {};
@@ -334,9 +424,11 @@ function buildAutoApproveValue({
  * `false`. A key whose canonical category is absent entirely
  * is left untouched, so authoring only `bash` rules never disturbs a
  * hand-written edits or urls map.
- * The `copilot.defaultPermissionMode` override writes `chat.permissions.default`
- * (the starting permission level of new chat sessions); without it the key is
- * left untouched. The `copilot.sandbox` override writes the Agent Host sandbox
+ * The `copilot.defaultPermissionMode` override writes both
+ * `chat.permissions.default` (Local sessions) and `chat.defaultConfiguration`
+ * (Copilot-harness sessions, VS Code 1.144+; see
+ * {@link DEFAULT_PERMISSION_MODE_MAPPINGS}); without it both keys are left
+ * untouched. The `copilot.sandbox` override writes the Agent Host sandbox
  * settings (`chat.agent.sandbox.*`, see {@link SANDBOX_LEAVES}) per key, and
  * warns about every value it writes that loosens the sandbox.
  * Only project scope is modeled: VS Code's user-scope settings.json lives at a
@@ -409,9 +501,16 @@ export class CopilotPermissions extends ToolPermissions {
       }
       patch[settingKey] = buildAutoApproveValue({ category, rules });
     }
+    const existingSettings = (): Record<string, unknown> =>
+      parseSharedConfig({ format: "jsonc", fileContent: existingContent, filePath });
     const defaultPermissionMode = config.copilot?.defaultPermissionMode;
     if (defaultPermissionMode !== undefined) {
-      patch[DEFAULT_PERMISSION_MODE_KEY] = defaultPermissionMode;
+      patch[DEFAULT_PERMISSION_MODE_KEY] =
+        DEFAULT_PERMISSION_MODE_MAPPINGS[defaultPermissionMode].local;
+      patch[DEFAULT_CONFIGURATION_KEY] = buildDefaultConfigurationValue({
+        defaultPermissionMode,
+        existingSettings: existingSettings(),
+      });
     }
     const sandbox = config.copilot?.sandbox;
     if (sandbox !== undefined) {
@@ -419,11 +518,7 @@ export class CopilotPermissions extends ToolPermissions {
         patch,
         buildSandboxPatch({
           sandbox,
-          existingSettings: parseSharedConfig({
-            format: "jsonc",
-            fileContent: existingContent,
-            filePath,
-          }),
+          existingSettings: existingSettings(),
         }),
       );
       warnOnTrustAffectingEntries({
@@ -489,10 +584,10 @@ export class CopilotPermissions extends ToolPermissions {
       }
     }
 
-    const defaultPermissionMode = settings[DEFAULT_PERMISSION_MODE_KEY];
+    const defaultPermissionMode = readDefaultPermissionMode(settings);
     const sandbox = readSandboxFromSettings(settings);
     const copilot = {
-      ...(isCopilotDefaultPermissionMode(defaultPermissionMode) && { defaultPermissionMode }),
+      ...(defaultPermissionMode !== undefined && { defaultPermissionMode }),
       ...(sandbox !== undefined && { sandbox }),
     };
     return this.toRulesyncPermissionsDefault({

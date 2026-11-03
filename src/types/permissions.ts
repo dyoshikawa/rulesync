@@ -116,13 +116,30 @@ const CodewhalePermissionsOverrideSchema = z.looseObject({
 export type CodewhalePermissionsOverride = z.infer<typeof CodewhalePermissionsOverrideSchema>;
 
 /**
- * The starting permission level VS Code Copilot Chat gives new chat sessions
- * (`chat.permissions.default`). Values are VS Code's own: `default` (Default
+ * The values VS Code's `chat.permissions.default` setting accepts: the starting
+ * permission level of new Local-harness chat sessions — `default` (Default
  * Permissions), `autoApprove` (Bypass Approvals) and `autopilot` (Autopilot).
  *
  * @see https://code.visualstudio.com/docs/agents/reference/ai-settings
  */
-export const COPILOT_DEFAULT_PERMISSION_MODES = ["default", "autoApprove", "autopilot"] as const;
+export const COPILOT_LOCAL_PERMISSION_LEVELS = ["default", "autoApprove", "autopilot"] as const;
+export type CopilotLocalPermissionLevel = (typeof COPILOT_LOCAL_PERMISSION_LEVELS)[number];
+
+/**
+ * The starting permission level the `copilot.defaultPermissionMode` override
+ * sets for new chat sessions: the {@link COPILOT_LOCAL_PERMISSION_LEVELS}, plus
+ * `assisted` (Assisted permissions, GA for Copilot-harness sessions since VS
+ * Code 1.144 and unavailable to Local sessions). Each value is written to both
+ * `chat.permissions.default` (Local sessions) and the `approvals` / `mode` of
+ * `chat.defaultConfiguration` (Copilot-harness sessions, VS Code 1.144+).
+ *
+ * @see https://code.visualstudio.com/updates/v1_144
+ * @see https://github.com/microsoft/vscode/blob/1.144.0/src/vs/workbench/contrib/chat/browser/chat.shared.contribution.ts
+ */
+export const COPILOT_DEFAULT_PERMISSION_MODES = [
+  ...COPILOT_LOCAL_PERMISSION_LEVELS,
+  "assisted",
+] as const;
 export type CopilotDefaultPermissionMode = (typeof COPILOT_DEFAULT_PERMISSION_MODES)[number];
 
 /** `chat.agent.sandbox.enabled`: `"off"` or `"on"`. */
@@ -175,7 +192,7 @@ export type CopilotSandbox = z.infer<typeof CopilotSandboxSchema>;
 /**
  * Tool-scoped override block for GitHub Copilot in VS Code.
  * `defaultPermissionMode` writes the workspace `chat.permissions.default`
- * setting, and `sandbox` writes the `chat.agent.sandbox.*` settings; neither
+ * and `chat.defaultConfiguration` settings, and `sandbox` writes the `chat.agent.sandbox.*` settings; neither
  * has a canonical category.
  */
 const CopilotPermissionsOverrideSchema = z.looseObject({

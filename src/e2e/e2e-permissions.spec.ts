@@ -992,6 +992,7 @@ web_search_request = true
       "npm *": false,
     });
     expect(generated["chat.permissions.default"]).toBe("autoApprove");
+    expect(generated["chat.defaultConfiguration"]).toEqual({ approvals: "allowAll" });
     expect(generated["editor.tabSize"]).toBe(2);
   });
 
