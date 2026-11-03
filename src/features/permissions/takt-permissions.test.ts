@@ -1030,6 +1030,7 @@ describe("TaktPermissions", () => {
             workflow_arpeggio: { custom_merge_files: true, custom_merge_inline_js: false },
             workflow_runtime_prepare: { custom_scripts: true },
             workflow_command_gates: { custom_scripts: true },
+            workflow_system_commands: { custom_scripts: true },
             sync_conflict_resolver: { auto_approve_tools: false },
             allow_git_hooks: true,
             allow_git_filters: false,
@@ -1044,6 +1045,7 @@ describe("TaktPermissions", () => {
       });
       expect(parsed.workflow_runtime_prepare).toEqual({ custom_scripts: true });
       expect(parsed.workflow_command_gates).toEqual({ custom_scripts: true });
+      expect(parsed.workflow_system_commands).toEqual({ custom_scripts: true });
       expect(parsed.sync_conflict_resolver).toEqual({ auto_approve_tools: false });
       expect(parsed.allow_git_hooks).toBe(true);
       expect(parsed.allow_git_filters).toBe(false);
@@ -1226,6 +1228,8 @@ describe("TaktPermissions", () => {
           "allow_git_hooks: true",
           "workflow_runtime_prepare:",
           "  custom_scripts: true",
+          "workflow_system_commands:",
+          "  custom_scripts: true",
           "",
         ].join("\n"),
       });
@@ -1234,7 +1238,47 @@ describe("TaktPermissions", () => {
       expect(imported.takt).toEqual({
         allow_git_hooks: true,
         workflow_runtime_prepare: { custom_scripts: true },
+        workflow_system_commands: { custom_scripts: true },
       });
+    });
+
+    it("revokes workflow_system_commands when the source no longer states it", async () => {
+      await writeFileContent(
+        join(testDir, ".takt", "config.yaml"),
+        ["workflow_system_commands:", "  custom_scripts: true", ""].join("\n"),
+      );
+      const mockLogger = createMockLogger();
+
+      const permissions = await TaktPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissionsJson({ permission: {}, takt: {} }),
+        logger: mockLogger,
+      });
+
+      const parsed = toRecord(load(permissions.getFileContent()));
+      expect(parsed.workflow_system_commands).toBeUndefined();
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('removing "workflow_system_commands"'),
+      );
+    });
+
+    it("drops an unknown workflow_system_commands sub-key with a warning", async () => {
+      const mockLogger = createMockLogger();
+
+      const permissions = await TaktPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissionsJson({
+          permission: {},
+          takt: { workflow_system_commands: { custom_script: true, custom_scripts: false } },
+        }),
+        logger: mockLogger,
+      });
+
+      const parsed = toRecord(load(permissions.getFileContent()));
+      expect(parsed.workflow_system_commands).toEqual({ custom_scripts: false });
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('"workflow_system_commands.custom_script"'),
+      );
     });
   });
 
