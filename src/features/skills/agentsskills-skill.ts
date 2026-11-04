@@ -263,7 +263,7 @@ export function toAgentsSkillsInvocationField(
  * …), where the key would otherwise leak into the `agentsskills` section on
  * import and from there into every `.agents/skills/` output.
  */
-export function isSharedAgentSkillsRoot(relativeDirPath: string): boolean {
+function isSharedAgentSkillsRoot(relativeDirPath: string): boolean {
   return toPosixPath(relativeDirPath) === toPosixPath(AGENTSMD_SKILLS_DIR_PATH);
 }
 

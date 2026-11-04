@@ -142,7 +142,7 @@ export type ToolSkillForDeletionParams = {
  * Common data loaded from a skill directory.
  * Used by loadSkillDirContent to return parsed file data.
  */
-export type LoadedSkillDirContent = {
+type LoadedSkillDirContent = {
   outputRoot: string;
   relativeDirPath: string;
   dirName: string;

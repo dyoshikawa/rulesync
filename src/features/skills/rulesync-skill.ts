@@ -823,7 +823,7 @@ export type RulesyncSkillFrontmatter = z.infer<typeof RulesyncSkillFrontmatterSc
  */
 export type SkillFile = AiDirFile;
 
-export type RulesyncSkillParams = {
+type RulesyncSkillParams = {
   outputRoot?: string;
   relativeDirPath?: string;
   dirName: string;
@@ -834,11 +834,11 @@ export type RulesyncSkillParams = {
   global?: boolean;
 };
 
-export type RulesyncSkillSettablePaths = {
+type RulesyncSkillSettablePaths = {
   relativeDirPath: string;
 };
 
-export type RulesyncSkillFromDirParams = {
+type RulesyncSkillFromDirParams = {
   outputRoot?: string;
   relativeDirPath?: string;
   dirName: string;
