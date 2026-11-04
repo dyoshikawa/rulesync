@@ -85,10 +85,10 @@ export const EMPTY_SKILL_DESCRIPTION_VIOLATION =
  * Report a skill read from disk whose `description` is empty. This lives on the
  * read rather than on any one tool class because several targets share one
  * `.agents/skills` tree: which of them reports the skill must not depend on
- * which target the user happened to enable. Every loader calls it — the two
- * directory loaders (`loadSkillDirContent`, `SimulatedSkill.fromDirDefault`)
- * and the flat-file one — so the form a tool stores its skills in does not
- * decide whether the problem is reported either.
+ * which target the user happened to enable. Every loader calls it — the
+ * directory loader (`loadSkillDirContent`) and the flat-file one — so the form
+ * a tool stores its skills in does not decide whether the problem is reported
+ * either.
  */
 export function warnOnEmptyLoadedDescription({
   skillFilePath,
@@ -318,6 +318,10 @@ export abstract class ToolSkill extends AiDir {
    * Subclasses should call this method and then validate the frontmatter
    * against their specific schema.
    *
+   * When `frontmatterSchema` is given, the frontmatter is validated against it
+   * right after parsing, before the empty-description warning and before the
+   * other files are collected, so an invalid skill fails without either.
+   *
    * @param params - Parameters including settablePaths callback to get tool-specific paths
    * @returns Parsed skill directory content
    */
@@ -327,8 +331,10 @@ export abstract class ToolSkill extends AiDir {
     dirName,
     global = false,
     getSettablePaths,
+    frontmatterSchema,
   }: ToolSkillFromDirParams & {
     getSettablePaths: (options: { global: boolean }) => ToolSkillSettablePaths;
+    frontmatterSchema?: z.ZodMiniType<Record<string, unknown>>;
   }): Promise<LoadedSkillDirContent> {
     const settablePaths = getSettablePaths({ global });
     const actualRelativeDirPath = relativeDirPath ?? settablePaths.relativeDirPath;
@@ -340,10 +346,19 @@ export abstract class ToolSkill extends AiDir {
     }
 
     const fileContent = await readFileContent(skillFilePath);
-    const { frontmatter, body: content } = parseFrontmatterWithYamlRepair(
+    const { frontmatter: rawFrontmatter, body: content } = parseFrontmatterWithYamlRepair(
       fileContent,
       skillFilePath,
     );
+
+    let frontmatter = rawFrontmatter;
+    if (frontmatterSchema) {
+      const result = frontmatterSchema.safeParse(rawFrontmatter);
+      if (!result.success) {
+        throw new Error(`Invalid frontmatter in ${skillFilePath}: ${formatError(result.error)}`);
+      }
+      frontmatter = result.data;
+    }
 
     warnOnEmptyLoadedDescription({ skillFilePath, description: frontmatter.description });
 

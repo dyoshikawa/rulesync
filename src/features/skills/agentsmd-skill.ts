@@ -5,7 +5,11 @@ import {
   toAgentsSkillsInvocationField,
   toSpecConformantAgentSkillFields,
 } from "./agentsskills-skill.js";
-import { SimulatedSkill } from "./simulated-skill.js";
+import {
+  SimulatedSkill,
+  SimulatedSkillFrontmatter,
+  SimulatedSkillFrontmatterSchema,
+} from "./simulated-skill.js";
 import {
   ToolSkillForDeletionParams,
   ToolSkillFromDirParams,
@@ -39,41 +43,63 @@ export class AgentsmdSkill extends SimulatedSkill {
   }
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<AgentsmdSkill> {
-    const baseParams = await this.fromDirDefault(params);
-    return new AgentsmdSkill(baseParams);
+    // The schema is checked while loading so an invalid SKILL.md fails before
+    // the empty-description warning is printed.
+    const loaded = await this.loadSkillDirContent({
+      ...params,
+      getSettablePaths: (options) => this.getSettablePaths(options),
+      frontmatterSchema: SimulatedSkillFrontmatterSchema,
+    });
+
+    return new AgentsmdSkill({
+      outputRoot: loaded.outputRoot,
+      relativeDirPath: loaded.relativeDirPath,
+      dirName: loaded.dirName,
+      frontmatter: this.parseLoadedFrontmatter({ schema: SimulatedSkillFrontmatterSchema, loaded }),
+      body: loaded.body,
+      otherFiles: loaded.otherFiles,
+      validate: true,
+    });
   }
 
   static fromRulesyncSkill(params: ToolSkillFromRulesyncSkillParams): AgentsmdSkill {
-    const defaults = this.fromRulesyncSkillDefault(params);
+    const { outputRoot = process.cwd(), rulesyncSkill, validate = true } = params;
+    const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
     const relativeDirPath = this.getSettablePaths().relativeDirPath;
-    const frontmatter = {
-      ...defaults.frontmatter,
+    const frontmatter: SimulatedSkillFrontmatter = {
+      name: rulesyncFrontmatter.name,
+      description: rulesyncFrontmatter.description,
       // Same shared block, same normalization as the native target that owns
       // this path, so the two writers cannot disagree about the file.
-      ...toSpecConformantAgentSkillFields(
-        resolveAgentsSkillsSection(params.rulesyncSkill.getFrontmatter()),
-      ),
-      ...toAgentsSkillsInvocationField(params.rulesyncSkill.getFrontmatter().agentsskills),
+      ...toSpecConformantAgentSkillFields(resolveAgentsSkillsSection(rulesyncFrontmatter)),
+      ...toAgentsSkillsInvocationField(rulesyncFrontmatter.agentsskills),
     };
 
     // Same file, same diagnostics: generating for this target alone must report
     // the spec violations the native target would have reported.
     AgentsSkillsSkill.reportSpecViolations({
-      outputRoot: params.outputRoot ?? process.cwd(),
+      outputRoot,
       relativeDirPath,
-      dirName: params.rulesyncSkill.getDirName(),
+      dirName: rulesyncSkill.getDirName(),
       frontmatter,
-      sourceAllowedTools: params.rulesyncSkill.getFrontmatter().agentsskills?.["allowed-tools"],
+      sourceAllowedTools: rulesyncFrontmatter.agentsskills?.["allowed-tools"],
       logger: params.logger,
     });
 
-    return new AgentsmdSkill({ ...defaults, relativeDirPath, frontmatter });
+    return new AgentsmdSkill({
+      outputRoot,
+      relativeDirPath,
+      dirName: rulesyncSkill.getDirName(),
+      frontmatter,
+      body: rulesyncSkill.getBody(),
+      otherFiles: rulesyncSkill.getOtherFiles(),
+      validate,
+    });
   }
 
   protected static override readonly toolTarget = "agentsmd";
 
   static forDeletion(params: ToolSkillForDeletionParams): AgentsmdSkill {
-    const baseParams = this.forDeletionDefault(params);
-    return new AgentsmdSkill(baseParams);
+    return new AgentsmdSkill(this.forDeletionParams(params));
   }
 }

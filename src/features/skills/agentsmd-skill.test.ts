@@ -137,6 +137,25 @@ This is the body of the agentsmd skill.`;
       );
     });
 
+    it("should reject invalid frontmatter before warning about an empty description", async () => {
+      const skillDir = join(testDir, ".agents", "skills", "invalid-skill");
+      await ensureDir(skillDir);
+      await writeFileContent(
+        join(skillDir, SKILL_FILE_NAME),
+        ["---", "name: 123", 'description: ""', "---", "", "Body."].join("\n"),
+      );
+      const warnSpy = vi.spyOn(fallbackLogger, "warn").mockImplementation(() => {});
+
+      try {
+        await expect(
+          AgentsmdSkill.fromDir({ outputRoot: testDir, dirName: "invalid-skill" }),
+        ).rejects.toThrow(/Invalid frontmatter/);
+        expect(warnSpy).not.toHaveBeenCalled();
+      } finally {
+        warnSpy.mockRestore();
+      }
+    });
+
     it("should throw error when SKILL.md not found", async () => {
       const skillDir = join(testDir, ".agents", "skills", "empty-skill");
       await ensureDir(skillDir);

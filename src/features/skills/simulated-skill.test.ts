@@ -1,17 +1,12 @@
-import { join } from "node:path";
-
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
-import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
-import { ensureDir, writeFileContent } from "../../utils/file.js";
 import { RulesyncSkill } from "./rulesync-skill.js";
 import {
   SimulatedSkill,
   SimulatedSkillFrontmatter,
   SimulatedSkillFrontmatterSchema,
-  SimulatedSkillParams,
 } from "./simulated-skill.js";
 import { ToolSkillSettablePaths } from "./tool-skill.js";
 
@@ -21,19 +16,6 @@ class TestSimulatedSkill extends SimulatedSkill {
     return {
       relativeDirPath: ".test/skills",
     };
-  }
-
-  static async fromDir(params: any): Promise<TestSimulatedSkill> {
-    const baseParams = await this.fromDirDefault(params);
-    return new TestSimulatedSkill(baseParams);
-  }
-
-  static fromRulesyncSkill(params: any): TestSimulatedSkill {
-    const baseParams: SimulatedSkillParams = {
-      ...this.fromRulesyncSkillDefault(params),
-      relativeDirPath: this.getSettablePaths().relativeDirPath,
-    };
-    return new TestSimulatedSkill(baseParams);
   }
 
   protected static override readonly toolTarget = "copilot"; // Use any valid target for testing
@@ -149,122 +131,6 @@ describe("SimulatedSkill", () => {
       expect(() => skill.toRulesyncSkill()).toThrow(
         "Not implemented because it is a SIMULATED skill.",
       );
-    });
-  });
-
-  describe("fromDir", () => {
-    it("should create instance from valid skill directory", async () => {
-      const skillDir = join(testDir, ".test/skills", "test-skill");
-      await ensureDir(skillDir);
-      const skillContent = `---
-name: Test Skill
-description: Test skill description
----
-
-This is the body of the simulated skill.
-It can be multiline.`;
-      await writeFileContent(join(skillDir, SKILL_FILE_NAME), skillContent);
-
-      const skill = await TestSimulatedSkill.fromDir({
-        outputRoot: testDir,
-        dirName: "test-skill",
-      });
-
-      expect(skill).toBeInstanceOf(TestSimulatedSkill);
-      expect(skill.getBody()).toBe(
-        "This is the body of the simulated skill.\nIt can be multiline.",
-      );
-      expect(skill.getFrontmatter()).toEqual({
-        name: "Test Skill",
-        description: "Test skill description",
-      });
-    });
-
-    it("should throw error for invalid skill directory", async () => {
-      const skillDir = join(testDir, ".test/skills", "invalid-skill");
-      await ensureDir(skillDir);
-      const invalidContent = `---
-# Missing required fields
-invalid: true
----
-
-Body content`;
-      await writeFileContent(join(skillDir, SKILL_FILE_NAME), invalidContent);
-
-      await expect(
-        TestSimulatedSkill.fromDir({
-          outputRoot: testDir,
-          dirName: "invalid-skill",
-        }),
-      ).rejects.toThrow(/Invalid frontmatter/);
-    });
-
-    it("should throw error when SKILL.md not found", async () => {
-      const skillDir = join(testDir, ".test/skills", "empty-skill");
-      await ensureDir(skillDir);
-
-      await expect(
-        TestSimulatedSkill.fromDir({
-          outputRoot: testDir,
-          dirName: "empty-skill",
-        }),
-      ).rejects.toThrow(/SKILL\.md not found/);
-    });
-  });
-
-  describe("fromRulesyncSkill", () => {
-    it("should create instance from RulesyncSkill", () => {
-      const rulesyncSkill = new RulesyncSkill({
-        outputRoot: testDir,
-        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
-        dirName: "test-skill",
-        frontmatter: {
-          name: "Test Skill",
-          description: "Test skill description",
-        },
-        body: "Test body content",
-        validate: true,
-      });
-
-      const simulatedSkill = TestSimulatedSkill.fromRulesyncSkill({
-        rulesyncSkill,
-        validate: true,
-      });
-
-      expect(simulatedSkill).toBeInstanceOf(TestSimulatedSkill);
-      expect(simulatedSkill.getBody()).toBe("Test body content");
-      expect(simulatedSkill.getFrontmatter()).toEqual({
-        name: "Test Skill",
-        description: "Test skill description",
-      });
-    });
-
-    it("should ignore claudecode-specific options from RulesyncSkill", () => {
-      const rulesyncSkill = new RulesyncSkill({
-        outputRoot: testDir,
-        relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
-        dirName: "claudecode-skill",
-        frontmatter: {
-          name: "ClaudeCode Skill",
-          description: "Skill with claudecode options",
-          claudecode: {
-            "allowed-tools": ["Bash", "Read"],
-          },
-        },
-        body: "Test body",
-        validate: true,
-      });
-
-      const simulatedSkill = TestSimulatedSkill.fromRulesyncSkill({
-        rulesyncSkill,
-        validate: true,
-      });
-
-      // Simulated skills should only have name and description
-      expect(simulatedSkill.getFrontmatter()).toEqual({
-        name: "ClaudeCode Skill",
-        description: "Skill with claudecode options",
-      });
     });
   });
 
