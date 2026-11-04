@@ -11,7 +11,6 @@ import { XUM_LOCAL_RULE_FILE_NAME } from "../../constants/xum-paths.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { rulesProcessorToolTargetTuple } from "../../types/tool-target-tuples.js";
 import { type Logger } from "../../utils/logger.js";
-import { AgentsmdCommand } from "../commands/agentsmd-command.js";
 import { KiloMcp } from "../mcp/kilo-mcp.js";
 import { MimocodeMcp } from "../mcp/mimocode-mcp.js";
 import { OpencodeMcp } from "../mcp/opencode-mcp.js";
@@ -19,9 +18,6 @@ import { Opencodev1Mcp } from "../mcp/opencodev1-mcp.js";
 import { AgentsmdSkill } from "../skills/agentsmd-skill.js";
 import { RovodevSkill } from "../skills/rovodev-skill.js";
 import { RulesyncSkill } from "../skills/rulesync-skill.js";
-import { AgentsmdSubagent } from "../subagents/agentsmd-subagent.js";
-import { QwencodeSubagent } from "../subagents/qwencode-subagent.js";
-import { RovodevSubagent } from "../subagents/rovodev-subagent.js";
 import { AgentsMdRule } from "./agentsmd-rule.js";
 import { AiassistantRule } from "./aiassistant-rule.js";
 import { AmpRule } from "./amp-rule.js";
@@ -112,24 +108,6 @@ export const RulesProcessorToolTargetSchema = z.enum(rulesProcessorToolTargetTup
 export type RuleDiscoveryMode = "auto" | "toon" | "claudecode-legacy";
 
 /**
- * Type for command class that provides settable paths.
- */
-type CommandClassType = {
-  getSettablePaths: (options?: { global?: boolean }) => {
-    relativeDirPath: string;
-  };
-};
-
-/**
- * Type for subagent class that provides settable paths.
- */
-type SubagentClassType = {
-  getSettablePaths: (options?: { global?: boolean }) => {
-    relativeDirPath: string;
-  };
-};
-
-/**
  * Type for skill class that can be used to build skill list.
  */
 type SkillClassType = {
@@ -144,19 +122,13 @@ type SkillClassType = {
  * Used for simulated features and for native subagents/skills when `ruleDiscoveryMode` is `toon`.
  */
 type AdditionalConventionsConfig = {
-  /** Command feature configuration */
-  commands?: {
-    commandClass: CommandClassType;
-  };
-  /** Subagent feature configuration */
-  subagents?: {
-    subagentClass: SubagentClassType;
-  };
+  /** Whether the simulated command conventions are embedded */
+  commands?: true;
+  /** Whether the simulated subagent conventions are embedded */
+  subagents?: true;
   /** Skill feature configuration */
   skills?: {
     skillClass: SkillClassType;
-    /** Whether skills are only supported in global mode */
-    globalOnly?: boolean;
   };
 };
 
@@ -283,8 +255,6 @@ export type ToolRuleFactory = {
     nonRootImportGlob?: string;
     /** Configuration for additional convention paths in the root rule */
     additionalConventions?: AdditionalConventionsConfig;
-    /** Whether to create a separate rule file for additional conventions instead of prepending to root */
-    createsSeparateConventionsRule?: boolean;
     /** How rules that resolve to the same output path are handled. */
     collisionPolicy?: RuleCollisionPolicy;
     /**
@@ -339,8 +309,8 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         ruleDiscoveryMode: "toon",
         collisionPolicy: "compose",
         additionalConventions: {
-          commands: { commandClass: AgentsmdCommand },
-          subagents: { subagentClass: AgentsmdSubagent },
+          commands: true,
+          subagents: true,
           skills: { skillClass: AgentsmdSkill },
         },
       },
@@ -1098,7 +1068,7 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         // Qwen Code subagents are native (Markdown + YAML frontmatter under
         // `.qwen/agents/`), so this mirrors how claudecode is wired.
         additionalConventions: {
-          subagents: { subagentClass: QwencodeSubagent },
+          subagents: true,
         },
       },
     },
@@ -1170,7 +1140,7 @@ export const toolRuleFactories = new Map<RulesProcessorToolTarget, ToolRuleFacto
         supportsGlobal: true,
         ruleDiscoveryMode: "toon",
         additionalConventions: {
-          subagents: { subagentClass: RovodevSubagent },
+          subagents: true,
           skills: { skillClass: RovodevSkill },
         },
         localRootMode: "separate-local-file",

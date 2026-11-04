@@ -393,8 +393,6 @@ export class RulesProcessor extends FeatureProcessor {
 
     this.applyLocalRootRules({ toolRules, localRootRules, factory });
 
-    this.appendSeparateConventionsRule({ toolRules, factory });
-
     const extraFiles = await this.buildMcpInstructionFiles({ toolRules, meta });
 
     this.applyRootRuleSections({ toolRules, factory, convertedRules });
@@ -466,49 +464,6 @@ export class RulesProcessor extends FeatureProcessor {
   }
 
   /**
-   * For tools that create a separate conventions rule file (e.g., cursor, roo),
-   * push that rule onto `toolRules`. Mutates `toolRules` in place.
-   */
-  private appendSeparateConventionsRule({
-    toolRules,
-    factory,
-  }: {
-    toolRules: ToolRule[];
-    factory: ToolRuleFactory;
-  }): void {
-    const { meta } = factory;
-    const isSimulated = this.simulateCommands || this.simulateSubagents || this.simulateSkills;
-    if (!isSimulated || !meta.createsSeparateConventionsRule || !meta.additionalConventions) {
-      return;
-    }
-
-    const conventionsContent = this.generateAdditionalConventionsSectionFromMeta(meta);
-    const settablePaths = factory.class.getSettablePaths();
-    const nonRootPath = "nonRoot" in settablePaths ? settablePaths.nonRoot : null;
-    if (!nonRootPath) {
-      return;
-    }
-    // Use .md extension - CursorRule.fromRulesyncRule will convert to .mdc
-    toolRules.push(
-      factory.class.fromRulesyncRule({
-        outputRoot: this.outputRoot,
-        rulesyncRule: new RulesyncRule({
-          outputRoot: this.outputRoot,
-          relativeDirPath: nonRootPath.relativeDirPath,
-          relativeFilePath: "additional-conventions.md",
-          frontmatter: {
-            root: false,
-            targets: [this.toolTarget],
-          },
-          body: conventionsContent,
-        }),
-        validate: true,
-        global: this.global,
-      }),
-    );
-  }
-
-  /**
    * Non-root rules of some tools are not auto-loaded; the tool's MCP feature
    * registers them in its shared config's `instructions` key. The root rule is
    * auto-loaded and never registered. Global scope opt-in via
@@ -542,9 +497,8 @@ export class RulesProcessor extends FeatureProcessor {
   }
 
   /**
-   * For tools that don't create a separate conventions rule, prepend the
-   * reference and conventions sections to the root rule content. Mutates the
-   * root rule in place.
+   * Prepend the reference and conventions sections to the root rule content.
+   * Mutates the root rule in place.
    */
   private applyRootRuleSections({
     toolRules,
@@ -567,10 +521,9 @@ export class RulesProcessor extends FeatureProcessor {
 
     const referenceSection = this.generateReferenceSectionFromMeta(meta, toolRules);
 
-    const conventionsSection =
-      !meta.createsSeparateConventionsRule && meta.additionalConventions
-        ? this.generateAdditionalConventionsSectionFromMeta(meta)
-        : "";
+    const conventionsSection = meta.additionalConventions
+      ? this.generateAdditionalConventionsSectionFromMeta(meta)
+      : "";
 
     const assembledContent = referenceSection + conventionsSection + rootRule.getFileContent();
     // Appended last so the block closes the file (and its root mirrors) after
@@ -1244,8 +1197,7 @@ As this project's AI coding tool, you must follow the additional conventions bel
     if (
       skillsConfig &&
       this.simulateSkills &&
-      SkillsProcessor.getToolTargetsSimulated().includes(this.toolTarget) &&
-      (!skillsConfig.globalOnly || this.global)
+      SkillsProcessor.getToolTargetsSimulated().includes(this.toolTarget)
     ) {
       sections.push(
         SkillsProcessor.getSimulatedConventionSection({
