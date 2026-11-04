@@ -17,7 +17,6 @@ import {
   ToolRuleFromRulesyncRuleParams,
   ToolRuleParams,
   ToolRuleSettablePaths,
-  buildToolPath,
 } from "./tool-rule.js";
 
 /**
@@ -183,7 +182,6 @@ export class QwencodeRule extends ToolRule {
   static getSettablePaths(
     _options: {
       global?: boolean;
-      excludeToolDir?: boolean;
     } = {},
   ): QwencodeRuleSettablePaths {
     // Global scope: the root memory file lives under `~/.qwen/QWEN.md`, and
@@ -191,11 +189,11 @@ export class QwencodeRule extends ToolRule {
     if (_options.global) {
       return {
         root: {
-          relativeDirPath: buildToolPath(QWENCODE_DIR, ".", _options.excludeToolDir),
+          relativeDirPath: join(QWENCODE_DIR, "."),
           relativeFilePath: QWENCODE_RULE_FILE_NAME,
         },
         nonRoot: {
-          relativeDirPath: buildToolPath(QWENCODE_DIR, "rules", _options.excludeToolDir),
+          relativeDirPath: join(QWENCODE_DIR, "rules"),
         },
       };
     }
@@ -205,7 +203,7 @@ export class QwencodeRule extends ToolRule {
         relativeFilePath: QWENCODE_RULE_FILE_NAME,
       },
       nonRoot: {
-        relativeDirPath: buildToolPath(QWENCODE_DIR, "rules", _options.excludeToolDir),
+        relativeDirPath: join(QWENCODE_DIR, "rules"),
       },
     };
   }

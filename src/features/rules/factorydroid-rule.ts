@@ -14,6 +14,7 @@ import { readFileContent } from "../../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
 import {
   buildOutputStyleFrontmatter,
+  getOutputStyleRuleOptionWarnings,
   isDirectMarkdownChild,
   isOutputStyleChannel,
   resolveTopLevelOutputStyleStem,
@@ -27,7 +28,6 @@ import {
   ToolRuleFromRulesyncRuleParams,
   ToolRuleSettablePaths,
   ToolRuleSettablePathsGlobal,
-  buildToolPath,
 } from "./tool-rule.js";
 
 /**
@@ -136,15 +136,13 @@ export class FactorydroidRule extends ToolRule {
 
   static getSettablePaths({
     global,
-    excludeToolDir,
   }: {
     global?: boolean;
-    excludeToolDir?: boolean;
   } = {}): FactorydroidRuleSettablePaths | FactorydroidRuleSettablePathsGlobal {
     if (global) {
       return {
         root: {
-          relativeDirPath: buildToolPath(FACTORYDROID_DIR, ".", excludeToolDir),
+          relativeDirPath: join(FACTORYDROID_DIR, "."),
           relativeFilePath: FACTORYDROID_RULE_FILE_NAME,
         },
       };
@@ -155,14 +153,14 @@ export class FactorydroidRule extends ToolRule {
         relativeFilePath: FACTORYDROID_RULE_FILE_NAME,
       },
       nonRoot: {
-        relativeDirPath: buildToolPath(FACTORYDROID_DIR, "rules", excludeToolDir),
+        relativeDirPath: join(FACTORYDROID_DIR, "rules"),
       },
       design: {
         relativeDirPath: ".",
         relativeFilePath: FACTORYDROID_DESIGN_FILE_NAME,
       },
       threatModel: {
-        relativeDirPath: buildToolPath(FACTORYDROID_DIR, ".", excludeToolDir),
+        relativeDirPath: join(FACTORYDROID_DIR, "."),
         relativeFilePath: FACTORYDROID_THREAT_MODEL_FILE_NAME,
       },
     };
@@ -172,8 +170,8 @@ export class FactorydroidRule extends ToolRule {
    * The directory custom output styles live in, `.factory/output-styles`
    * under the project root or the home directory alike.
    */
-  static getOutputStylesDirPath({ excludeToolDir }: { excludeToolDir?: boolean } = {}): string {
-    return buildToolPath(FACTORYDROID_DIR, FACTORYDROID_OUTPUT_STYLES_DIR_NAME, excludeToolDir);
+  static getOutputStylesDirPath(): string {
+    return join(FACTORYDROID_DIR, FACTORYDROID_OUTPUT_STYLES_DIR_NAME);
   }
 
   /**
@@ -268,6 +266,15 @@ export class FactorydroidRule extends ToolRule {
    */
   static isEmittedAsGlobalNonRootRule(rulesyncRule: RulesyncRule): boolean {
     return this.isOutputStyleRule(rulesyncRule);
+  }
+
+  /** See {@link getOutputStyleRuleOptionWarnings}. */
+  static getRuleOptionWarnings(rules: RulesyncRule[]): string[] {
+    return getOutputStyleRuleOptionWarnings({
+      rules,
+      toolTarget: "factorydroid",
+      isTargetedByRulesyncRule: (rule) => this.isTargetedByRulesyncRule(rule),
+    });
   }
 
   /** Whether a rule opts into the `output-style` channel (non-root only). */

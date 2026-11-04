@@ -16,7 +16,7 @@ import {
  * The static side a `PlainToolIgnore` subclass offers to the shared factory
  * methods below: a concrete constructor and its own settable paths.
  */
-type PlainToolIgnoreClass<T extends PlainToolIgnore> = {
+export type PlainToolIgnoreClass<T extends PlainToolIgnore> = {
   new (params: ToolIgnoreParams): T;
   getSettablePaths(params?: ToolIgnoreSettablePathsParams): ToolIgnoreSettablePaths;
 };

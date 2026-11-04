@@ -1,21 +1,27 @@
 import { join } from "node:path";
 
+import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { WARP_GLOBAL_RULE_DIR, WARP_LEGACY_RULE_FILE_NAME } from "../../constants/warp-paths.js";
 import { AiFileParams } from "../../types/ai-file.js";
-import { readFileContent } from "../../utils/file.js";
+import { stripControlCharacters } from "../../utils/control-characters.js";
+import { fileExists, readFileContent } from "../../utils/file.js";
 import {
   NestedAgentsmdRule,
   NestedAgentsmdRuleFamily,
-  NestedAgentsmdRuleSettablePaths,
   NestedAgentsmdRuleSettablePathsGlobal,
 } from "./nested-agentsmd-rule.js";
-import { ToolRuleFromFileParams, ToolRuleImportOnlyRoot } from "./tool-rule.js";
+import {
+  ToolRule,
+  ToolRuleFromFileParams,
+  ToolRuleImportOnlyRoot,
+  ToolRuleRootOnlySettablePaths,
+} from "./tool-rule.js";
 
 export type WarpRuleParams = AiFileParams & {
   root?: boolean;
 };
 
-export type WarpRuleSettablePaths = NestedAgentsmdRuleSettablePaths & {
+export type WarpRuleSettablePaths = ToolRuleRootOnlySettablePaths & {
   /** The legacy root `WARP.md`, read on import only. */
   importOnlyRoots?: ToolRuleImportOnlyRoot[];
 };
@@ -51,7 +57,7 @@ export class WarpRule extends NestedAgentsmdRule {
   }
 
   static override getSettablePaths(
-    options: { global?: boolean; excludeToolDir?: boolean } = {},
+    options: { global?: boolean } = {},
   ): WarpRuleSettablePaths | NestedAgentsmdRuleSettablePathsGlobal {
     const paths = super.getSettablePaths(options);
     if (options.global) {
@@ -68,6 +74,48 @@ export class WarpRule extends NestedAgentsmdRule {
         },
       ],
     };
+  }
+
+  /**
+   * Warp still reads a legacy `WARP.md`, and when both `WARP.md` and
+   * `AGENTS.md` sit in the same directory, `WARP.md` takes priority — so an
+   * `AGENTS.md` this run writes next to one would never be read. That holds for
+   * the root file and for every nested `<subprojectPath>/AGENTS.md` alike.
+   * Rulesync neither writes nor deletes `WARP.md` (it is hand-authored), so the
+   * only thing it can do is say so. Project scope only: the documented
+   * precedence is about project rules, and Warp's global rule source is
+   * `~/.agents/AGENTS.md`.
+   * @see https://docs.warp.dev/agents/capabilities/rules/
+   */
+  static async getGenerationWarnings({
+    toolRules,
+    outputRoot,
+    global,
+  }: {
+    toolRules: ToolRule[];
+    outputRoot: string;
+    global: boolean;
+  }): Promise<string[]> {
+    if (global) {
+      return [];
+    }
+    const rulePathsByDir = new Map(
+      toolRules.map((rule) => [
+        rule.getRelativeDirPath(),
+        join(rule.getRelativeDirPath(), rule.getRelativeFilePath()),
+      ]),
+    );
+    const warnings: string[] = [];
+    for (const [ruleDirPath, rulesRelativePath] of rulePathsByDir) {
+      const legacyRelativePath = join(ruleDirPath, WARP_LEGACY_RULE_FILE_NAME);
+      if (!(await fileExists(join(outputRoot, legacyRelativePath)))) {
+        continue;
+      }
+      warnings.push(
+        `${stripControlCharacters(legacyRelativePath)} exists next to ${stripControlCharacters(rulesRelativePath)}, and Warp reads WARP.md instead of AGENTS.md when both are present, so the generated ${stripControlCharacters(rulesRelativePath)} is ignored by Warp. Move any content you still need into ${RULESYNC_RULES_RELATIVE_DIR_PATH}, then delete or rename ${stripControlCharacters(legacyRelativePath)}.`,
+      );
+    }
+    return warnings;
   }
 
   static override async fromFile(params: ToolRuleFromFileParams): Promise<NestedAgentsmdRule> {

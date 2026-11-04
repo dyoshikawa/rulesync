@@ -29,9 +29,7 @@ import {
  * @see https://github.com/CodebuffAI/freebuff/blob/main/common/src/constants/knowledge.ts
  */
 export class CodebuffRule extends ToolRule {
-  static getSettablePaths(
-    _options: { global?: boolean; excludeToolDir?: boolean } = {},
-  ): ToolRuleSettablePathsGlobal {
+  static getSettablePaths(_options: { global?: boolean } = {}): ToolRuleSettablePathsGlobal {
     return {
       root: {
         relativeDirPath: ".",

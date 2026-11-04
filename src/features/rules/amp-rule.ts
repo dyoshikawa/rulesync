@@ -13,7 +13,6 @@ import {
   ToolRuleFromRulesyncRuleParams,
   ToolRuleSettablePaths,
   ToolRuleSettablePathsGlobal,
-  buildToolPath,
 } from "./tool-rule.js";
 
 /** Amp `globs:` frontmatter: accepted only as a list of strings. */
@@ -77,15 +76,13 @@ export type AmpRuleSettablePathsGlobal = ToolRuleSettablePathsGlobal;
 export class AmpRule extends ToolRule {
   static getSettablePaths({
     global,
-    excludeToolDir,
   }: {
     global?: boolean;
-    excludeToolDir?: boolean;
   } = {}): AmpRuleSettablePaths | AmpRuleSettablePathsGlobal {
     if (global) {
       return {
         root: {
-          relativeDirPath: buildToolPath(AMP_GLOBAL_DIR, ".", excludeToolDir),
+          relativeDirPath: join(AMP_GLOBAL_DIR, "."),
           relativeFilePath: AMP_RULE_FILE_NAME,
         },
       };
@@ -96,7 +93,7 @@ export class AmpRule extends ToolRule {
         relativeFilePath: AMP_RULE_FILE_NAME,
       },
       nonRoot: {
-        relativeDirPath: buildToolPath(AMP_AGENTS_DIR, "memories", excludeToolDir),
+        relativeDirPath: join(AMP_AGENTS_DIR, "memories"),
       },
     };
   }

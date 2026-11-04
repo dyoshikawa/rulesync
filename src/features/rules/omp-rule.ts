@@ -28,7 +28,6 @@ import {
   ToolRuleFromRulesyncRuleParams,
   ToolRuleParams,
   ToolRuleSettablePaths,
-  buildToolPath,
 } from "./tool-rule.js";
 
 /**
@@ -105,19 +104,17 @@ export class OmpRule extends ToolRule {
 
   static getSettablePaths({
     global,
-    excludeToolDir,
   }: {
     global?: boolean;
-    excludeToolDir?: boolean;
   } = {}): OmpRuleSettablePaths {
     const dir = global ? OMP_GLOBAL_DIR : OMP_DIR;
     return {
       root: {
-        relativeDirPath: buildToolPath(dir, ".", excludeToolDir),
+        relativeDirPath: join(dir, "."),
         relativeFilePath: OMP_RULE_FILE_NAME,
       },
       nonRoot: {
-        relativeDirPath: buildToolPath(dir, OMP_RULES_DIR_NAME, excludeToolDir),
+        relativeDirPath: join(dir, OMP_RULES_DIR_NAME),
       },
     };
   }

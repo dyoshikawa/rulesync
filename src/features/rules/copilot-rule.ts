@@ -22,7 +22,6 @@ import {
   ToolRuleParams,
   ToolRuleSettablePaths,
   ToolRuleSettablePathsGlobal,
-  buildToolPath,
 } from "./tool-rule.js";
 
 // looseObject preserves unknown keys during parsing, so a hand-written
@@ -99,27 +98,26 @@ export class CopilotRule extends ToolRule {
   static getSettablePaths(
     options: {
       global?: boolean;
-      excludeToolDir?: boolean;
     } = {},
   ): CopilotRuleSettablePaths | CopilotRuleSettablePathsGlobal {
     if (options.global) {
       return {
         root: {
-          relativeDirPath: buildToolPath(COPILOT_DIR, ".", options.excludeToolDir),
+          relativeDirPath: join(COPILOT_DIR, "."),
           relativeFilePath: COPILOT_RULE_FILE_NAME,
         },
         nonRoot: {
-          relativeDirPath: buildToolPath(COPILOT_DIR, "instructions", options.excludeToolDir),
+          relativeDirPath: join(COPILOT_DIR, "instructions"),
         },
       };
     }
     return {
       root: {
-        relativeDirPath: buildToolPath(GITHUB_DIR, ".", options.excludeToolDir),
+        relativeDirPath: join(GITHUB_DIR, "."),
         relativeFilePath: COPILOT_RULE_FILE_NAME,
       },
       nonRoot: {
-        relativeDirPath: buildToolPath(GITHUB_DIR, "instructions", options.excludeToolDir),
+        relativeDirPath: join(GITHUB_DIR, "instructions"),
       },
     };
   }

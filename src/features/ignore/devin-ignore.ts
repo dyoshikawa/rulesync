@@ -8,15 +8,12 @@ import {
   DEVIN_WINDSURF_IGNORE_FILE_NAME,
 } from "../../constants/devin-paths.js";
 import { fileExists, readFileContent } from "../../utils/file.js";
-import { RulesyncIgnore } from "./rulesync-ignore.js";
+import { PlainToolIgnore, type PlainToolIgnoreClass } from "./plain-tool-ignore.js";
 import type {
-  ToolIgnoreForDeletionParams,
   ToolIgnoreFromFileParams,
-  ToolIgnoreFromRulesyncIgnoreParams,
   ToolIgnoreSettablePaths,
   ToolIgnoreSettablePathsParams,
 } from "./tool-ignore.js";
-import { ToolIgnore } from "./tool-ignore.js";
 
 /**
  * Devin Desktop (the Windsurf/Cascade rebrand) ignore file implementation.
@@ -36,7 +33,7 @@ import { ToolIgnore } from "./tool-ignore.js";
  * @see https://docs.devin.ai/desktop/changelog — v3.1.7 added `.devinignore`
  *   alongside `.windsurfignore` and `.codeiumignore`.
  */
-export class DevinIgnore extends ToolIgnore {
+export class DevinIgnore extends PlainToolIgnore {
   static getSettablePaths({
     global = false,
   }: ToolIgnoreSettablePathsParams = {}): ToolIgnoreSettablePaths {
@@ -46,36 +43,16 @@ export class DevinIgnore extends ToolIgnore {
     };
   }
 
-  toRulesyncIgnore(): RulesyncIgnore {
-    return this.toRulesyncIgnoreDefault();
-  }
-
-  static fromRulesyncIgnore({
-    outputRoot = process.cwd(),
-    rulesyncIgnore,
-    global = false,
-  }: ToolIgnoreFromRulesyncIgnoreParams): DevinIgnore {
-    const paths = this.getSettablePaths({ global });
-    return new DevinIgnore({
-      outputRoot,
-      relativeDirPath: paths.relativeDirPath,
-      relativeFilePath: paths.relativeFilePath,
-      fileContent: rulesyncIgnore.getFileContent(),
-      global,
-    });
-  }
-
-  static async fromFile({
-    outputRoot = process.cwd(),
-    validate = true,
-    global = false,
-  }: ToolIgnoreFromFileParams): Promise<DevinIgnore> {
+  static override async fromFile<T extends PlainToolIgnore>(
+    this: PlainToolIgnoreClass<T>,
+    { outputRoot = process.cwd(), validate = true, global = false }: ToolIgnoreFromFileParams,
+  ): Promise<T> {
     const { relativeDirPath, relativeFilePath } = this.getSettablePaths({ global });
 
     // The global file has only ever been documented under the legacy name, so
     // there is no second filename to fall back to.
     if (global) {
-      return new DevinIgnore({
+      return new this({
         outputRoot,
         relativeDirPath,
         relativeFilePath,
@@ -106,28 +83,12 @@ export class DevinIgnore extends ToolIgnore {
 
     const fileContent = await readFileContent(join(outputRoot, relativeDirPath, resolvedFilePath));
 
-    return new DevinIgnore({
+    return new this({
       outputRoot,
       relativeDirPath,
       relativeFilePath: resolvedFilePath,
       fileContent,
       validate,
-      global,
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-    global = false,
-  }: ToolIgnoreForDeletionParams): DevinIgnore {
-    return new DevinIgnore({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: "",
-      validate: false,
       global,
     });
   }

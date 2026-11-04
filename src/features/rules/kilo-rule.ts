@@ -18,7 +18,6 @@ import {
   type ToolRuleFromRulesyncRuleParams,
   ToolRuleSettablePaths,
   ToolRuleSettablePathsGlobal,
-  buildToolPath,
 } from "./tool-rule.js";
 
 export type KiloRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
@@ -33,15 +32,13 @@ export type KiloRuleSettablePathsGlobal = ToolRuleSettablePathsGlobal;
 export class KiloRule extends ToolRule {
   static getSettablePaths({
     global,
-    excludeToolDir,
   }: {
     global?: boolean;
-    excludeToolDir?: boolean;
   } = {}): KiloRuleSettablePaths | KiloRuleSettablePathsGlobal {
     if (global) {
       return {
         root: {
-          relativeDirPath: buildToolPath(KILO_GLOBAL_DIR, ".", excludeToolDir),
+          relativeDirPath: join(KILO_GLOBAL_DIR, "."),
           relativeFilePath: KILO_RULE_FILE_NAME,
         },
         // Note the asymmetry, which is Kilo's rather than ours: the global root
@@ -60,7 +57,7 @@ export class KiloRule extends ToolRule {
         // which is why the project branch keeps that registration and this one
         // does not (see getExtraSharedWritePaths below).
         nonRoot: {
-          relativeDirPath: buildToolPath(KILO_DIR, KILO_RULES_DIR_NAME, excludeToolDir),
+          relativeDirPath: join(KILO_DIR, KILO_RULES_DIR_NAME),
         },
       };
     }
@@ -70,7 +67,7 @@ export class KiloRule extends ToolRule {
         relativeFilePath: KILO_RULE_FILE_NAME,
       },
       nonRoot: {
-        relativeDirPath: buildToolPath(KILO_DIR, KILO_RULES_DIR_NAME, excludeToolDir),
+        relativeDirPath: join(KILO_DIR, KILO_RULES_DIR_NAME),
       },
     };
   }

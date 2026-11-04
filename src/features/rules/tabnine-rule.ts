@@ -13,7 +13,6 @@ import {
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
   ToolRuleSettablePaths,
-  buildToolPath,
 } from "./tool-rule.js";
 
 export type TabnineRuleSettablePaths = ToolRuleSettablePaths & {
@@ -47,21 +46,19 @@ export type TabnineRuleSettablePaths = ToolRuleSettablePaths & {
 export class TabnineRule extends ToolRule {
   static getSettablePaths({
     global,
-    excludeToolDir,
   }: {
     global?: boolean;
-    excludeToolDir?: boolean;
   } = {}): TabnineRuleSettablePaths {
     return {
       root: {
         // The workspace file sits at the project root; the user file sits
         // inside `~/.tabnine/agent/`, which the processor reaches by supplying
         // the home directory as outputRoot.
-        relativeDirPath: global ? buildToolPath(TABNINE_AGENT_DIR_PATH, ".", excludeToolDir) : ".",
+        relativeDirPath: global ? join(TABNINE_AGENT_DIR_PATH, ".") : ".",
         relativeFilePath: TABNINE_RULE_FILE_NAME,
       },
       nonRoot: {
-        relativeDirPath: buildToolPath(TABNINE_DIR, "guidelines", excludeToolDir),
+        relativeDirPath: join(TABNINE_DIR, "guidelines"),
       },
     };
   }
