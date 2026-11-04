@@ -1,6 +1,6 @@
 import { HERMESAGENT_RULE_FILE_NAME } from "../../constants/hermesagent-paths.js";
 import { SingleRootFileRule } from "./single-root-file-rule.js";
-import { ToolRuleSettablePaths } from "./tool-rule.js";
+import { ToolRuleRootOnlySettablePaths } from "./tool-rule.js";
 
 /**
  * Rule generator for Hermes Agent.
@@ -24,16 +24,8 @@ import { ToolRuleSettablePaths } from "./tool-rule.js";
  * location (`nonRoot` is `undefined`). This mirrors the warp / deepagents
  * targets (decision recorded in issue #2214).
  */
-export type HermesagentRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> & {
-  root: {
-    relativeDirPath: string;
-    relativeFilePath: string;
-  };
-  nonRoot?: undefined;
-};
-
 export class HermesagentRule extends SingleRootFileRule {
-  static getSettablePaths(): HermesagentRuleSettablePaths {
+  static getSettablePaths(): ToolRuleRootOnlySettablePaths {
     // Project instructions live in the repository-root `.hermes.md`. Hermes has
     // no user-level rules file, so rules are project-scope only.
     return {

@@ -17,16 +17,8 @@ import {
   type ToolRuleForDeletionParams,
   type ToolRuleFromFileParams,
   type ToolRuleFromRulesyncRuleParams,
-  type ToolRuleSettablePaths,
+  type ToolRuleRootOnlySettablePaths,
 } from "./tool-rule.js";
-
-export type KimiCodeRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> & {
-  root: {
-    relativeDirPath: string;
-    relativeFilePath: string;
-  };
-  nonRoot?: undefined;
-};
 
 /**
  * Kimi Code instruction file.
@@ -41,7 +33,7 @@ export type KimiCodeRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> & {
 export class KimiCodeRule extends ToolRule {
   static getSettablePaths({
     global = false,
-  }: { global?: boolean } = {}): KimiCodeRuleSettablePaths {
+  }: { global?: boolean } = {}): ToolRuleRootOnlySettablePaths {
     return {
       root: {
         relativeDirPath: getKimiCodeRelativeDirPath({ global }),

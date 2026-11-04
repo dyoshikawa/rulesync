@@ -19,7 +19,7 @@ import {
   ToolRuleForDeletionParams,
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
-  ToolRuleSettablePaths,
+  ToolRuleRootOnlySettablePaths,
 } from "./tool-rule.js";
 
 export type PiRuleParams = AiFileParams & {
@@ -30,12 +30,7 @@ export type PiRuleParams = AiFileParams & {
   contextFileOverride?: boolean;
 };
 
-export type PiRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> & {
-  root: {
-    relativeDirPath: string;
-    relativeFilePath: string;
-  };
-  nonRoot?: undefined;
+export type PiRuleSettablePaths = ToolRuleRootOnlySettablePaths & {
   /**
    * Pi's *append* system-prompt file. Rules opt into this path via the
    * `pi.systemPrompt: append` frontmatter block; multiple opted-in rules are

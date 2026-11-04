@@ -174,6 +174,15 @@ export type ToolRuleSettablePaths = {
   };
 };
 
+/** Settable paths of a tool that writes only a root rule file. */
+export type ToolRuleRootOnlySettablePaths = Pick<ToolRuleSettablePaths, "root"> & {
+  root: {
+    relativeDirPath: string;
+    relativeFilePath: string;
+  };
+  nonRoot?: undefined;
+};
+
 export type ToolRuleSettablePathsGlobal = {
   root: {
     relativeDirPath: string;

@@ -1,6 +1,6 @@
 import { MUSECODE_RULE_FILE_NAME } from "../../constants/musecode-paths.js";
 import { SingleRootFileRule } from "./single-root-file-rule.js";
-import { ToolRuleSettablePaths } from "./tool-rule.js";
+import { ToolRuleRootOnlySettablePaths } from "./tool-rule.js";
 
 /**
  * Rule generator for Meta Muse Code.
@@ -19,20 +19,12 @@ import { ToolRuleSettablePaths } from "./tool-rule.js";
  * RulesProcessor; there is no separate non-root output location (`nonRoot` is
  * `undefined`). This mirrors the codexcli and warp targets.
  */
-export type MusecodeRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> & {
-  root: {
-    relativeDirPath: string;
-    relativeFilePath: string;
-  };
-  nonRoot?: undefined;
-};
-
 export class MusecodeRule extends SingleRootFileRule {
   static getSettablePaths(
     _options: {
       global?: boolean;
     } = {},
-  ): MusecodeRuleSettablePaths {
+  ): ToolRuleRootOnlySettablePaths {
     // Project scope only: the global rules path is undocumented, so `global`
     // is deliberately ignored (supportsGlobal is false in the processor).
     return {

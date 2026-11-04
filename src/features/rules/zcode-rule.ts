@@ -1,6 +1,6 @@
 import { ZCODE_DIR, ZCODE_RULE_FILE_NAME } from "../../constants/zcode-paths.js";
 import { SingleRootFileRule } from "./single-root-file-rule.js";
-import { ToolRuleSettablePaths } from "./tool-rule.js";
+import { ToolRuleRootOnlySettablePaths } from "./tool-rule.js";
 
 /**
  * Rule generator for ZCode, Z.ai's Agentic Development Environment.
@@ -17,20 +17,12 @@ import { ToolRuleSettablePaths } from "./tool-rule.js";
  *
  * @see https://zcode.z.ai/en/docs/agents
  */
-export type ZcodeRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> & {
-  root: {
-    relativeDirPath: string;
-    relativeFilePath: string;
-  };
-  nonRoot?: undefined;
-};
-
 export class ZcodeRule extends SingleRootFileRule {
   static getSettablePaths({
     global = false,
   }: {
     global?: boolean;
-  } = {}): ZcodeRuleSettablePaths {
+  } = {}): ToolRuleRootOnlySettablePaths {
     return {
       root: {
         // The workspace file sits at the project root; the user file sits

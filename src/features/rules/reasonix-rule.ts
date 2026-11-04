@@ -12,7 +12,7 @@ import {
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
   ToolRuleNestedFilePatterns,
-  ToolRuleSettablePaths,
+  ToolRuleRootOnlySettablePaths,
 } from "./tool-rule.js";
 
 /**
@@ -28,14 +28,6 @@ import {
  * (`nonRoot` is `undefined`).
  * @see https://github.com/esengine/DeepSeek-Reasonix/blob/main-v2/docs/GUIDE.md
  */
-export type ReasonixRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> & {
-  root: {
-    relativeDirPath: string;
-    relativeFilePath: string;
-  };
-  nonRoot?: undefined;
-};
-
 export class ReasonixRule extends ToolRule {
   /**
    * Build this tool's separate personal local-root file (`localRootMode:
@@ -66,7 +58,7 @@ export class ReasonixRule extends ToolRule {
     global = false,
   }: {
     global?: boolean;
-  } = {}): ReasonixRuleSettablePaths {
+  } = {}): ToolRuleRootOnlySettablePaths {
     return {
       root: {
         relativeDirPath: global ? REASONIX_GLOBAL_DIR : ".",

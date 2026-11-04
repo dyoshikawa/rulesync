@@ -11,17 +11,9 @@ import {
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
   ToolRuleNestedFilePatterns,
-  ToolRuleSettablePaths,
+  ToolRuleRootOnlySettablePaths,
   ToolRuleSettablePathsGlobal,
 } from "./tool-rule.js";
-
-export type NestedAgentsmdRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> & {
-  root: {
-    relativeDirPath: string;
-    relativeFilePath: string;
-  };
-  nonRoot?: undefined;
-};
 
 export type NestedAgentsmdRuleSettablePathsGlobal = ToolRuleSettablePathsGlobal;
 
@@ -61,7 +53,7 @@ export class NestedAgentsmdRule extends ToolRule {
     global = false,
   }: {
     global?: boolean;
-  } = {}): NestedAgentsmdRuleSettablePaths | NestedAgentsmdRuleSettablePathsGlobal {
+  } = {}): ToolRuleRootOnlySettablePaths | NestedAgentsmdRuleSettablePathsGlobal {
     if (global) {
       return {
         root: {

@@ -3,7 +3,7 @@ import {
   OPENCLAW_WORKSPACE_DIR_PATH,
 } from "../../constants/openclaw-paths.js";
 import { SingleRootFileRule } from "./single-root-file-rule.js";
-import { ToolRuleSettablePaths } from "./tool-rule.js";
+import { ToolRuleRootOnlySettablePaths } from "./tool-rule.js";
 
 /**
  * Rule generator for OpenClaw, the always-on assistant gateway.
@@ -20,20 +20,12 @@ import { ToolRuleSettablePaths } from "./tool-rule.js";
  * @see https://docs.openclaw.ai/concepts/system-prompt
  * @see https://docs.openclaw.ai/concepts/agent-workspace
  */
-export type OpenclawRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> & {
-  root: {
-    relativeDirPath: string;
-    relativeFilePath: string;
-  };
-  nonRoot?: undefined;
-};
-
 export class OpenclawRule extends SingleRootFileRule {
   static getSettablePaths({
     global = false,
   }: {
     global?: boolean;
-  } = {}): OpenclawRuleSettablePaths {
+  } = {}): ToolRuleRootOnlySettablePaths {
     return {
       root: {
         // The execution-folder file sits at the project root; the agent

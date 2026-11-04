@@ -9,16 +9,8 @@ import {
   ToolRuleForDeletionParams,
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
-  ToolRuleSettablePaths,
+  ToolRuleRootOnlySettablePaths,
 } from "./tool-rule.js";
-
-export type ReplitRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> & {
-  root: {
-    relativeDirPath: string;
-    relativeFilePath: string;
-  };
-  nonRoot?: undefined;
-};
 
 /**
  * Rule generator for Replit Agent
@@ -32,7 +24,7 @@ export class ReplitRule extends ToolRule {
     _options: {
       global?: boolean;
     } = {},
-  ): ReplitRuleSettablePaths {
+  ): ToolRuleRootOnlySettablePaths {
     return {
       root: {
         relativeDirPath: ".",

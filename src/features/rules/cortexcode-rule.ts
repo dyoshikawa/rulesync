@@ -1,6 +1,6 @@
 import { CORTEXCODE_RULE_FILE_NAME } from "../../constants/cortexcode-paths.js";
 import { SingleRootFileRule } from "./single-root-file-rule.js";
-import { ToolRuleSettablePaths } from "./tool-rule.js";
+import { ToolRuleRootOnlySettablePaths } from "./tool-rule.js";
 
 /**
  * Rule generator for Snowflake Cortex Code.
@@ -14,20 +14,12 @@ import { ToolRuleSettablePaths } from "./tool-rule.js";
  *
  * @see https://docs.snowflake.com/en/user-guide/cortex-code/cortex-code
  */
-export type CortexcodeRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> & {
-  root: {
-    relativeDirPath: string;
-    relativeFilePath: string;
-  };
-  nonRoot?: undefined;
-};
-
 export class CortexcodeRule extends SingleRootFileRule {
   static getSettablePaths(
     _options: {
       global?: boolean;
     } = {},
-  ): CortexcodeRuleSettablePaths {
+  ): ToolRuleRootOnlySettablePaths {
     return {
       root: {
         relativeDirPath: ".",

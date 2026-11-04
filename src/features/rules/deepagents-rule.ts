@@ -14,7 +14,7 @@ import {
   ToolRuleForDeletionParams,
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
-  ToolRuleSettablePaths,
+  ToolRuleRootOnlySettablePaths,
 } from "./tool-rule.js";
 
 /**
@@ -28,20 +28,12 @@ import {
  * @see https://github.com/langchain-ai/deepagents/blob/main/libs/code/deepagents_code/project_utils.py
  * @see https://github.com/langchain-ai/deepagents/blob/main/libs/deepagents/deepagents/middleware/memory.py
  */
-export type DeepagentsRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> & {
-  root: {
-    relativeDirPath: string;
-    relativeFilePath: string;
-  };
-  nonRoot?: undefined;
-};
-
 export class DeepagentsRule extends ToolRule {
   static getSettablePaths({
     global = false,
   }: {
     global?: boolean;
-  } = {}): DeepagentsRuleSettablePaths {
+  } = {}): ToolRuleRootOnlySettablePaths {
     // dcode reads user-level context from `~/.deepagents/<agent_name>/AGENTS.md`
     // (default agent_name `agent`); the home directory is resolved by the
     // processor through outputRoot in global mode, and `DEEPAGENTS_HOME`

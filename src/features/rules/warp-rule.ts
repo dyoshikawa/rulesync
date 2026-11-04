@@ -6,16 +6,19 @@ import { readFileContent } from "../../utils/file.js";
 import {
   NestedAgentsmdRule,
   NestedAgentsmdRuleFamily,
-  NestedAgentsmdRuleSettablePaths,
   NestedAgentsmdRuleSettablePathsGlobal,
 } from "./nested-agentsmd-rule.js";
-import { ToolRuleFromFileParams, ToolRuleImportOnlyRoot } from "./tool-rule.js";
+import {
+  ToolRuleFromFileParams,
+  ToolRuleImportOnlyRoot,
+  ToolRuleRootOnlySettablePaths,
+} from "./tool-rule.js";
 
 export type WarpRuleParams = AiFileParams & {
   root?: boolean;
 };
 
-export type WarpRuleSettablePaths = NestedAgentsmdRuleSettablePaths & {
+export type WarpRuleSettablePaths = ToolRuleRootOnlySettablePaths & {
   /** The legacy root `WARP.md`, read on import only. */
   importOnlyRoots?: ToolRuleImportOnlyRoot[];
 };
