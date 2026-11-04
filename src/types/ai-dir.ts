@@ -15,6 +15,7 @@ import {
 } from "../utils/file.js";
 import { warnOnceWithFallback } from "../utils/logger.js";
 import { recordIncompleteCarriedFiles } from "../utils/warned-once.js";
+import type { ValidationResult } from "./ai-file.js";
 
 /**
  * Whether `name` is a path rather than a single name.
@@ -35,15 +36,7 @@ export function containsPathSeparator(name: string): boolean {
   return name.includes("/") || name.includes("\\");
 }
 
-export type ValidationResult =
-  | {
-      success: true;
-      error: undefined | null;
-    }
-  | {
-      success: false;
-      error: Error;
-    };
+export type { ValidationResult };
 
 /**
  * The permission bits worth carrying from a source file: only an executable
