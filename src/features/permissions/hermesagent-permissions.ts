@@ -27,7 +27,11 @@ import {
   parseSharedConfig,
   stringifySharedConfig,
 } from "../shared/shared-config-gateway.js";
-import { RulesyncPermissions, withoutBlankPermissionKeysIn } from "./rulesync-permissions.js";
+import {
+  PERMISSION_OVERRIDE_KEY_ALIASES,
+  RulesyncPermissions,
+  withoutBlankPermissionKeysIn,
+} from "./rulesync-permissions.js";
 import {
   ALL_TOOLS_PERMISSION_CATEGORY,
   collectShellCommandRules,
@@ -388,6 +392,20 @@ function unmanagedMcpAllowlistEntries({
       (!Object.hasOwn(previousPermission, category) && !Object.hasOwn(nextPermission, category))
     );
   });
+}
+
+/**
+ * The part of a canonical permissions document Hermes keeps as provenance: the
+ * `$schema`, the canonical `permission` block, and Hermes's own override.
+ */
+function hermesProvenanceOf(permissions: PermissionsConfig): Record<string, unknown> {
+  const source: Record<string, unknown> = permissions;
+  const provenance: Record<string, unknown> = {};
+  const ownOverrideKey = PERMISSION_OVERRIDE_KEY_ALIASES.hermesagent ?? "hermesagent";
+  for (const key of ["$schema", "permission", ownOverrideKey]) {
+    if (source[key] !== undefined) provenance[key] = source[key];
+  }
+  return provenance;
 }
 
 /** The validated canonical `permission` block of a config's `permissions.rulesync` blob. */
@@ -779,9 +797,13 @@ export class HermesagentPermissions extends ToolPermissions {
       });
     }
 
-    // Keep the full canonical config under the rulesync-private key for a
-    // lossless round-trip back to `.rulesync/permissions.jsonc`.
-    config.permissions = { rulesync: permissions };
+    // Keep the canonical config under the rulesync-private key for a lossless
+    // round-trip back to `.rulesync/permissions.jsonc` — minus every other
+    // tool's override block. Those are not Hermes's to carry: the `claudecode`
+    // block passes `.claude/settings.json` through, `env` credentials included,
+    // so copying it here would write secrets into a third-party config. An
+    // import keeps the override blocks it does not name, so they are not lost.
+    config.permissions = { rulesync: hermesProvenanceOf(permissions) };
 
     return new HermesagentPermissions({
       outputRoot,

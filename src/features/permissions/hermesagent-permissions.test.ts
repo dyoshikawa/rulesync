@@ -261,6 +261,35 @@ security:
     });
   });
 
+  it("keeps other tools' override blocks, and the credentials they carry, out of the round-trip blob", async () => {
+    // `rulesync import --targets claudecode` passes `.claude/settings.json`
+    // through under `claudecode`, `env` credentials included.
+    const rulesyncPermissions = new RulesyncPermissions({
+      relativeDirPath: ".rulesync",
+      relativeFilePath: "permissions.json",
+      fileContent: JSON.stringify({
+        permission: { bash: { "git *": "allow" } },
+        claudecode: { env: { DEMO_API_KEY: "sk-test-not-a-real-key" } },
+        codexcli: { approval_policy: "on-request" },
+        hermes: { approvals: { mode: "manual" } },
+      }),
+    });
+
+    const permissions = await HermesagentPermissions.fromRulesyncPermissions({
+      outputRoot: ".",
+      rulesyncPermissions,
+    });
+
+    expect(permissions.getFileContent()).not.toContain("sk-test-not-a-real-key");
+    const config = parseSharedConfig({ format: "yaml", fileContent: permissions.getFileContent() });
+    expect(config.permissions).toEqual({
+      rulesync: {
+        permission: { bash: { "git *": "allow" } },
+        hermes: { approvals: { mode: "manual" } },
+      },
+    });
+  });
+
   it("maps bash deny rules to approvals.deny (hard denylist)", async () => {
     const rulesyncPermissions = new RulesyncPermissions({
       relativeDirPath: ".rulesync",
