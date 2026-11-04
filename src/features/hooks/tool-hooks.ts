@@ -7,6 +7,7 @@ import {
 import type { AiFileFromFileParams, AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { formatError } from "../../utils/error.js";
+import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { buildHooksOwnershipLockFile, type OwnedHookRef } from "./hooks-ownership-lock.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
@@ -155,12 +156,59 @@ export abstract class ToolHooks extends ToolFile {
     }
   }
 
-  static async fromFile(_params: ToolHooksFromFileParams): Promise<ToolHooks> {
-    throw new Error("Please implement this method in the subclass.");
+  /**
+   * `new this(params)` for the concrete adapter the static method was called
+   * on; the cast is what an abstract class needs to be constructed through
+   * `this`, and lives in one place.
+   */
+  protected static instantiate(params: ToolHooksParams): ToolHooks {
+    const ctor = this as unknown as new (p: ToolHooksParams) => ToolHooks;
+    return new ctor(params);
   }
 
-  static forDeletion(_params: ToolHooksForDeletionParams): ToolHooks {
-    throw new Error("Please implement this method in the subclass.");
+  /** What {@link fromFile} reads when the hooks file does not exist. */
+  protected static getMissingFileContent(): string {
+    return '{"hooks":{}}';
+  }
+
+  /** The content of the instance {@link forDeletion} builds. */
+  protected static getDeletionFileContent(): string {
+    return JSON.stringify({ hooks: {} }, null, 2);
+  }
+
+  /**
+   * Reads the hooks file at the settable path, or {@link getMissingFileContent}
+   * when it is absent. Adapters that read more than one file override this.
+   */
+  static async fromFile({
+    outputRoot = process.cwd(),
+    validate = true,
+    global = false,
+  }: ToolHooksFromFileParams): Promise<ToolHooks> {
+    const paths = this.getSettablePaths({ global });
+    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
+    const fileContent = (await readFileContentOrNull(filePath)) ?? this.getMissingFileContent();
+    return this.instantiate({
+      outputRoot,
+      relativeDirPath: paths.relativeDirPath,
+      relativeFilePath: paths.relativeFilePath,
+      fileContent,
+      validate,
+    });
+  }
+
+  static forDeletion({
+    outputRoot = process.cwd(),
+    relativeDirPath,
+    relativeFilePath,
+  }: ToolHooksForDeletionParams): ToolHooks {
+    return this.instantiate({
+      outputRoot,
+      relativeDirPath,
+      relativeFilePath,
+      fileContent: this.getDeletionFileContent(),
+      validate: false,
+    });
   }
 
   /**

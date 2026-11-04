@@ -22,10 +22,7 @@ import {
 } from "./tool-hooks-converter.js";
 import {
   ToolHooks,
-  type ToolHooksForDeletionParams,
-  type ToolHooksFromFileParams,
   type ToolHooksFromRulesyncHooksParams,
-  type ToolHooksParams,
   type ToolHooksSettablePaths,
 } from "./tool-hooks.js";
 
@@ -95,33 +92,6 @@ export abstract class SettingsJsonHooks extends ToolHooks {
    */
   static getSharedFileKey(paths: ToolHooksSettablePaths): string {
     return sharedConfigFileKey(paths);
-  }
-
-  /**
-   * `new this(params)` for the concrete adapter the static method was called
-   * on; the cast is what an abstract class needs to be constructed through
-   * `this`, and lives in one place.
-   */
-  private static instantiate(params: ToolHooksParams): SettingsJsonHooks {
-    const ctor = this as unknown as new (p: ToolHooksParams) => SettingsJsonHooks;
-    return new ctor(params);
-  }
-
-  static async fromFile({
-    outputRoot = process.cwd(),
-    validate = true,
-    global = false,
-  }: ToolHooksFromFileParams): Promise<SettingsJsonHooks> {
-    const paths = this.getSettablePaths({ global });
-    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
-    const fileContent = (await readFileContentOrNull(filePath)) ?? '{"hooks":{}}';
-    return this.instantiate({
-      outputRoot,
-      relativeDirPath: paths.relativeDirPath,
-      relativeFilePath: paths.relativeFilePath,
-      fileContent,
-      validate,
-    });
   }
 
   static async fromRulesyncHooks({
@@ -209,20 +179,6 @@ export abstract class SettingsJsonHooks extends ToolHooks {
         null,
         2,
       ),
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolHooksForDeletionParams): SettingsJsonHooks {
-    return this.instantiate({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: JSON.stringify({ hooks: {} }, null, 2),
-      validate: false,
     });
   }
 }

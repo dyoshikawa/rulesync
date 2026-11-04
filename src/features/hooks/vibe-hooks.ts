@@ -1,5 +1,3 @@
-import { join } from "node:path";
-
 import * as smolToml from "smol-toml";
 
 import type { ValidationResult } from "../../types/ai-file.js";
@@ -11,7 +9,6 @@ import {
   VIBE_TO_CANONICAL_EVENT_NAMES,
 } from "../../types/hooks.js";
 import { formatError } from "../../utils/error.js";
-import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { lookupOwn } from "../../utils/own-lookup.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
@@ -19,8 +16,6 @@ import type { RulesyncHooks } from "./rulesync-hooks.js";
 import { buildImportedHooksConfig } from "./tool-hooks-converter.js";
 import {
   ToolHooks,
-  type ToolHooksForDeletionParams,
-  type ToolHooksFromFileParams,
   type ToolHooksFromRulesyncHooksParams,
   type ToolHooksSettablePaths,
 } from "./tool-hooks.js";
@@ -352,21 +347,12 @@ export class VibeHooks extends ToolHooks {
     return { relativeDirPath: VIBE_DIR, relativeFilePath: VIBE_HOOKS_FILE_NAME };
   }
 
-  static async fromFile({
-    outputRoot = process.cwd(),
-    validate = true,
-    global = false,
-  }: ToolHooksFromFileParams): Promise<VibeHooks> {
-    const paths = this.getSettablePaths({ global });
-    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
-    const fileContent = (await readFileContentOrNull(filePath)) ?? smolToml.stringify({});
-    return new this({
-      outputRoot,
-      relativeDirPath: paths.relativeDirPath,
-      relativeFilePath: paths.relativeFilePath,
-      fileContent,
-      validate,
-    });
+  protected static override getMissingFileContent(): string {
+    return smolToml.stringify({});
+  }
+
+  protected static override getDeletionFileContent(): string {
+    return smolToml.stringify({});
   }
 
   static async fromRulesyncHooks({
@@ -424,19 +410,5 @@ export class VibeHooks extends ToolHooks {
         error: new Error(`Failed to parse Vibe hooks TOML: ${formatError(error)}`),
       };
     }
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolHooksForDeletionParams): VibeHooks {
-    return new this({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: smolToml.stringify({}),
-      validate: false,
-    });
   }
 }

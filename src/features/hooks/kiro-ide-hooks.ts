@@ -12,7 +12,6 @@ import {
   KIRO_LEGACY_TO_KIRO_IDE_TRIGGER_NAMES,
   safeString,
 } from "../../types/hooks.js";
-import { readFileContentOrNull } from "../../utils/file.js";
 import { lookupOwn } from "../../utils/own-lookup.js";
 import {
   isPrototypePollutionKey,
@@ -22,8 +21,6 @@ import type { RulesyncHooks } from "./rulesync-hooks.js";
 import { buildImportedHooksConfig } from "./tool-hooks-converter.js";
 import {
   ToolHooks,
-  type ToolHooksForDeletionParams,
-  type ToolHooksFromFileParams,
   type ToolHooksFromRulesyncHooksParams,
   type ToolHooksSettablePaths,
 } from "./tool-hooks.js";
@@ -252,23 +249,12 @@ export class KiroIdeHooks extends ToolHooks {
     };
   }
 
-  static async fromFile({
-    outputRoot = process.cwd(),
-    validate = true,
-    global = false,
-  }: ToolHooksFromFileParams): Promise<KiroIdeHooks> {
-    const paths = this.getSettablePaths({ global });
-    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
-    const fileContent =
-      (await readFileContentOrNull(filePath)) ??
-      JSON.stringify({ version: "v1", hooks: [] }, null, 2);
-    return new this({
-      outputRoot,
-      relativeDirPath: paths.relativeDirPath,
-      relativeFilePath: paths.relativeFilePath,
-      fileContent,
-      validate,
-    });
+  protected static override getMissingFileContent(): string {
+    return JSON.stringify({ version: "v1", hooks: [] }, null, 2);
+  }
+
+  protected static override getDeletionFileContent(): string {
+    return JSON.stringify({ version: "v1", hooks: [] }, null, 2);
   }
 
   static async fromRulesyncHooks({
@@ -313,20 +299,6 @@ export class KiroIdeHooks extends ToolHooks {
         null,
         2,
       ),
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolHooksForDeletionParams): KiroIdeHooks {
-    return new this({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: JSON.stringify({ version: "v1", hooks: [] }, null, 2),
-      validate: false,
     });
   }
 }
