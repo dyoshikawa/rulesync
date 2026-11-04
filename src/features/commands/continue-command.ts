@@ -1,21 +1,12 @@
-import { basename, join } from "node:path";
+import { basename } from "node:path";
 
 import { z } from "zod/mini";
 
 import { CONTINUE_PROMPTS_DIR_PATH } from "../../constants/continue-paths.js";
-import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
-import { formatError } from "../../utils/error.js";
-import { readFileContent } from "../../utils/file.js";
-import {
-  parseFrontmatter,
-  stringifyFrontmatter,
-  validateFrontmatterSchema,
-} from "../../utils/frontmatter.js";
-import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
-import {
-  ToolCommand,
-  ToolCommandForDeletionParams,
-  ToolCommandFromFileParams,
+import type { ToolTarget } from "../../types/tool-targets.js";
+import { FrontmatterMarkdownToolCommand } from "./frontmatter-markdown-command.js";
+import type { RulesyncCommandFrontmatter } from "./rulesync-command.js";
+import type {
   ToolCommandFromRulesyncCommandParams,
   ToolCommandSettablePaths,
 } from "./tool-command.js";
@@ -39,40 +30,12 @@ const ContinueCommandFrontmatterSchema = z.looseObject({
 
 export type ContinueCommandFrontmatter = z.infer<typeof ContinueCommandFrontmatterSchema>;
 
-export type ContinueCommandParams = {
-  frontmatter: ContinueCommandFrontmatter;
-  body: string;
-} & Omit<AiFileParams, "fileContent">;
-
 /** The command name Continue derives from a prompt file: its stem. */
 function commandNameFromFilePath(relativeFilePath: string): string {
   return basename(relativeFilePath).replace(/\.md$/, "");
 }
 
-export class ContinueCommand extends ToolCommand {
-  private readonly frontmatter: ContinueCommandFrontmatter;
-  private readonly body: string;
-
-  constructor({ frontmatter, body, ...rest }: ContinueCommandParams) {
-    // Validate frontmatter before calling super to avoid validation order issues
-    if (rest.validate) {
-      const result = ContinueCommandFrontmatterSchema.safeParse(frontmatter);
-      if (!result.success) {
-        throw new Error(
-          `Invalid frontmatter in ${join(rest.relativeDirPath, rest.relativeFilePath)}: ${formatError(result.error)}`,
-        );
-      }
-    }
-
-    super({
-      ...rest,
-      fileContent: stringifyFrontmatter(body, frontmatter),
-    });
-
-    this.frontmatter = frontmatter;
-    this.body = body;
-  }
-
+export class ContinueCommand extends FrontmatterMarkdownToolCommand<ContinueCommandFrontmatter> {
   static getSettablePaths(_options: { global?: boolean } = {}): ToolCommandSettablePaths {
     // Both scopes use the same relative directory; the processor supplies the
     // home directory as outputRoot in global mode.
@@ -81,15 +44,15 @@ export class ContinueCommand extends ToolCommand {
     };
   }
 
-  getBody(): string {
-    return this.body;
+  protected static override getToolTarget(): ToolTarget {
+    return "continue";
   }
 
-  getFrontmatter(): Record<string, unknown> {
-    return this.frontmatter;
+  protected static override getFrontmatterSchema() {
+    return ContinueCommandFrontmatterSchema;
   }
 
-  toRulesyncCommand(): RulesyncCommand {
+  protected override toRulesyncFrontmatter(): RulesyncCommandFrontmatter {
     // `invokable` is always re-emitted on generate and `name` defaults to the
     // file stem, so neither needs to round-trip unless `name` was customized.
     const { description, name, invokable: _invokable, ...restFields } = this.frontmatter;
@@ -99,23 +62,16 @@ export class ContinueCommand extends ToolCommand {
       ...restFields,
     };
 
-    const rulesyncFrontmatter: RulesyncCommandFrontmatter = {
+    return {
       targets: ["*"],
       description,
       ...(Object.keys(continueFields).length > 0 && { continue: continueFields }),
     };
-
-    return new RulesyncCommand({
-      outputRoot: ".", // RulesyncCommand outputRoot is always the project root directory
-      frontmatter: rulesyncFrontmatter,
-      body: this.body,
-      relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
-      relativeFilePath: this.relativeFilePath,
-      validate: true,
-    });
   }
 
-  static fromRulesyncCommand({
+  // The default `name` depends on the file path, which toToolFrontmatter does
+  // not see, so the whole factory is overridden.
+  static override fromRulesyncCommand({
     outputRoot = process.cwd(),
     rulesyncCommand,
     validate = true,
@@ -136,75 +92,13 @@ export class ContinueCommand extends ToolCommand {
     const body = rulesyncCommand.getBody();
     const paths = this.getSettablePaths({ global });
 
-    return new ContinueCommand({
+    return new this({
       outputRoot,
       frontmatter: continueFrontmatter,
       body,
       relativeDirPath: paths.relativeDirPath,
       relativeFilePath,
       validate,
-    });
-  }
-
-  validate(): ValidationResult {
-    // Check if frontmatter is set (may be undefined during construction)
-    if (!this.frontmatter) {
-      return { success: true, error: null };
-    }
-
-    return validateFrontmatterSchema({
-      schema: ContinueCommandFrontmatterSchema,
-      frontmatter: this.frontmatter,
-      relativeDirPath: this.relativeDirPath,
-      relativeFilePath: this.relativeFilePath,
-    });
-  }
-
-  static isTargetedByRulesyncCommand(rulesyncCommand: RulesyncCommand): boolean {
-    return this.isTargetedByRulesyncCommandDefault({
-      rulesyncCommand,
-      toolTarget: "continue",
-    });
-  }
-
-  static async fromFile({
-    outputRoot = process.cwd(),
-    relativeFilePath,
-    validate = true,
-    global = false,
-  }: ToolCommandFromFileParams): Promise<ContinueCommand> {
-    const paths = this.getSettablePaths({ global });
-    const filePath = join(outputRoot, paths.relativeDirPath, relativeFilePath);
-    const fileContent = await readFileContent(filePath);
-    const { frontmatter, body: content } = parseFrontmatter(fileContent, filePath);
-
-    const result = ContinueCommandFrontmatterSchema.safeParse(frontmatter);
-    if (!result.success) {
-      throw new Error(`Invalid frontmatter in ${filePath}: ${formatError(result.error)}`);
-    }
-
-    return new ContinueCommand({
-      outputRoot,
-      relativeDirPath: paths.relativeDirPath,
-      relativeFilePath,
-      frontmatter: result.data,
-      body: content.trim(),
-      validate,
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolCommandForDeletionParams): ContinueCommand {
-    return new ContinueCommand({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      frontmatter: { description: "" },
-      body: "",
-      validate: false,
     });
   }
 }
