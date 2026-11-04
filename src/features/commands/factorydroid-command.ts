@@ -2,10 +2,7 @@ import { z } from "zod/mini";
 
 import { FACTORYDROID_COMMANDS_DIR_PATH } from "../../constants/factorydroid-paths.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
-import {
-  FrontmatterMarkdownToolCommand,
-  type FrontmatterMarkdownToolCommandParams,
-} from "./frontmatter-markdown-command.js";
+import { FrontmatterMarkdownToolCommand } from "./frontmatter-markdown-command.js";
 import type { RulesyncCommandFrontmatter } from "./rulesync-command.js";
 import type { ToolCommandSettablePaths } from "./tool-command.js";
 
@@ -27,9 +24,6 @@ export const FactorydroidCommandFrontmatterSchema = z.looseObject({
 const FACTORYDROID_UNSUPPORTED_COMMAND_FIELDS = ["allowed-tools"] as const;
 
 export type FactorydroidCommandFrontmatter = z.infer<typeof FactorydroidCommandFrontmatterSchema>;
-
-export type FactorydroidCommandParams =
-  FrontmatterMarkdownToolCommandParams<FactorydroidCommandFrontmatter>;
 
 export class FactorydroidCommand extends FrontmatterMarkdownToolCommand<FactorydroidCommandFrontmatter> {
   static getSettablePaths(_options: { global?: boolean } = {}): ToolCommandSettablePaths {

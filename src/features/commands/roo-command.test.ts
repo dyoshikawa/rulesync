@@ -23,7 +23,6 @@ describe("RooCommand", () => {
         relativeFilePath: "test.md",
         frontmatter,
         body,
-        fileContent: stringifyFrontmatter(body, frontmatter),
       });
 
       expect(command.getBody()).toBe(body);
@@ -45,7 +44,6 @@ describe("RooCommand", () => {
         relativeFilePath: "test-with-hint.md",
         frontmatter,
         body,
-        fileContent: stringifyFrontmatter(body, frontmatter),
       });
 
       expect(command.getFrontmatter()).toEqual(frontmatter);
@@ -63,7 +61,6 @@ describe("RooCommand", () => {
           relativeFilePath: "test.md",
           frontmatter: invalidFrontmatter as any,
           body: "test body",
-          fileContent: "test content",
           validate: true,
         });
       }).toThrow();
@@ -81,7 +78,6 @@ describe("RooCommand", () => {
           relativeFilePath: "test.md",
           frontmatter: invalidFrontmatter as any,
           body: "test body",
-          fileContent: "test content",
           validate: false,
         });
       }).not.toThrow();
@@ -100,7 +96,6 @@ describe("RooCommand", () => {
         relativeFilePath: "test.md",
         frontmatter,
         body: "test body",
-        fileContent: stringifyFrontmatter("test body", frontmatter),
       });
 
       const result = command.validate();
@@ -115,7 +110,6 @@ describe("RooCommand", () => {
         relativeFilePath: "test.md",
         frontmatter: { description: 123 } as any,
         body: "test body",
-        fileContent: "test content",
         validate: false, // Skip validation in constructor
       });
 
@@ -132,7 +126,6 @@ describe("RooCommand", () => {
         relativeFilePath: "test.md",
         frontmatter: { description: "test" },
         body: "test body",
-        fileContent: "test content",
         validate: false,
       });
 
@@ -158,7 +151,6 @@ describe("RooCommand", () => {
         relativeFilePath: "convert-test.md",
         frontmatter,
         body,
-        fileContent: stringifyFrontmatter(body, frontmatter),
       });
 
       const rulesyncCommand = rooCommand.toRulesyncCommand();
@@ -187,7 +179,6 @@ describe("RooCommand", () => {
         relativeFilePath: "plan.md",
         frontmatter,
         body,
-        fileContent: stringifyFrontmatter(body, frontmatter),
       });
 
       const rulesyncCommand = rooCommand.toRulesyncCommand();
@@ -523,7 +514,6 @@ This file has invalid frontmatter`;
         relativeFilePath: "test.md",
         frontmatter: { description: "test" },
         body,
-        fileContent: "test content",
       });
 
       expect(command.getBody()).toBe(body);
@@ -540,7 +530,6 @@ This file has invalid frontmatter`;
         relativeFilePath: "test.md",
         frontmatter,
         body: "test body",
-        fileContent: "test content",
       });
 
       expect(command.getFrontmatter()).toEqual(frontmatter);
@@ -559,7 +548,6 @@ This file has invalid frontmatter`;
         relativeFilePath: "integration.md",
         frontmatter,
         body,
-        fileContent: expectedFileContent,
       });
 
       // Test inherited methods
@@ -610,7 +598,6 @@ This file has invalid frontmatter`;
           "custom-field": { nested: "value" },
         },
         body: "Test body",
-        fileContent: "",
       });
 
       const rulesyncCommand = command.toRulesyncCommand();
@@ -658,7 +645,6 @@ This file has invalid frontmatter`;
           description: "Test command",
         },
         body: "Test body",
-        fileContent: "",
       });
 
       const rulesyncCommand = command.toRulesyncCommand();

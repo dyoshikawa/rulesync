@@ -249,21 +249,6 @@ describe("HermesagentSubagent", () => {
     });
   });
 
-  test("declares per-subagent generated paths", () => {
-    const rulesyncSubagent = new RulesyncSubagent({
-      relativeDirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
-      relativeFilePath: `${RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH}/reviewer.md`,
-      frontmatter: {
-        name: "Reviewer",
-      },
-      body: "Review the code carefully.",
-    });
-
-    expect(HermesagentSubagent.getSettablePathsForRulesyncSubagent(rulesyncSubagent)).toEqual([
-      `${HERMESAGENT_RULESYNC_SUBAGENTS_DIR_PATH}/reviewer.json`,
-    ]);
-  });
-
   test("uses Hermes plugin directories", () => {
     expect(HERMESAGENT_RULESYNC_SUBAGENTS_PLUGIN_DIR_PATH).toBe(
       `${HERMESAGENT_GLOBAL_DIR}/plugins/rulesync-subagents`,

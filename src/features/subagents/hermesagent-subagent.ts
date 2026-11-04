@@ -226,9 +226,10 @@ export class HermesagentSubagent extends ToolSubagent {
   }
 
   static isTargetedByRulesyncSubagent(rulesyncSubagent: RulesyncSubagent): boolean {
-    const targets = rulesyncSubagent.getFrontmatter().targets;
-
-    return !targets || targets.includes("*") || targets.includes("hermesagent");
+    return this.isTargetedByRulesyncSubagentDefault({
+      rulesyncSubagent,
+      toolTarget: "hermesagent",
+    });
   }
 
   static fromRulesyncSubagents({
@@ -319,12 +320,6 @@ export class HermesagentSubagent extends ToolSubagent {
    */
   static getExtraSharedWritePaths(): SharedWritePath[] {
     return getHermesagentSharedConfigWritePaths();
-  }
-
-  static getSettablePathsForRulesyncSubagent(rulesyncSubagent: RulesyncSubagent): string[] {
-    const slug = subagentSlug(rulesyncSubagent.getRelativePathFromCwd());
-
-    return [join(HERMESAGENT_RULESYNC_SUBAGENTS_DIR_PATH, `${slug}.json`)];
   }
 
   toRulesyncSubagent(): RulesyncSubagent {

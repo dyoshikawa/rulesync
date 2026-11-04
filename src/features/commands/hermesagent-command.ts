@@ -139,7 +139,7 @@ function getEnabledPluginConfigContent({
   });
 }
 
-export function getDisabledHermesCommandsPluginConfigContent({
+function getDisabledHermesCommandsPluginConfigContent({
   currentContent,
   global,
 }: {

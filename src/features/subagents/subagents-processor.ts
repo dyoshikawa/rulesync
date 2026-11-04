@@ -1018,17 +1018,15 @@ const defaultGetFactory: GetFactory = (target) => {
 // Derive tool target arrays from factory metadata
 const allToolTargetKeys = [...toolSubagentFactories.keys()];
 
-export const subagentsProcessorToolTargets: ToolTarget[] = allToolTargetKeys.filter((target) => {
+const subagentsProcessorToolTargets: ToolTarget[] = allToolTargetKeys.filter((target) => {
   const factory = toolSubagentFactories.get(target);
   return factory?.meta.supportsProject ?? false;
 });
 
-export const subagentsProcessorToolTargetsSimulated: ToolTarget[] = allToolTargetKeys.filter(
-  (target) => {
-    const factory = toolSubagentFactories.get(target);
-    return factory?.meta.supportsSimulated ?? false;
-  },
-);
+const subagentsProcessorToolTargetsSimulated: ToolTarget[] = allToolTargetKeys.filter((target) => {
+  const factory = toolSubagentFactories.get(target);
+  return factory?.meta.supportsSimulated ?? false;
+});
 
 const subagentsProcessorToolTargetsGlobal: ToolTarget[] = allToolTargetKeys.filter((target) => {
   const factory = toolSubagentFactories.get(target);

@@ -5,8 +5,10 @@ import type { ToolCommandSettablePaths } from "./tool-command.js";
 
 export class ClaudecodePluginCommand extends ClaudecodeCommand {
   static override isTargetedByRulesyncCommand(rulesyncCommand: RulesyncCommand): boolean {
-    const targets = rulesyncCommand.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("claudecode-plugin");
+    return this.isTargetedByRulesyncCommandDefault({
+      rulesyncCommand,
+      toolTarget: "claudecode-plugin",
+    });
   }
 
   static override getSettablePaths(): ToolCommandSettablePaths {
