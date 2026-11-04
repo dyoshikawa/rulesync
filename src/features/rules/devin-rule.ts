@@ -24,8 +24,8 @@ import {
   TriggerRuleFrontmatter,
   TriggerRuleFrontmatterSchema,
   createTriggerStrategies,
-  normalizeStoredTriggerRule,
-  parseGlobsString,
+  toTriggerRulesyncData,
+  toTriggerToolFrontmatter,
 } from "./trigger-rule-strategies.js";
 
 /**
@@ -301,16 +301,11 @@ export class DevinRule extends ToolRule {
       });
     }
 
-    const storedDevin = rulesyncFrontmatter.devin;
-    const normalized = normalizeStoredTriggerRule(storedDevin);
-    const storedTrigger = storedDevin?.trigger;
-
-    const strategy = STRATEGIES.find((s) => s.canHandle(storedTrigger));
-    if (!strategy) {
-      throw new Error(`No strategy found for trigger: ${storedTrigger}`);
-    }
-
-    const frontmatter = strategy.generateFrontmatter(normalized, rulesyncFrontmatter);
+    const frontmatter = toTriggerToolFrontmatter({
+      strategies: STRATEGIES,
+      stored: rulesyncFrontmatter.devin,
+      rulesyncFrontmatter,
+    });
 
     // Non-root rules are placed in the `.devin/rules` directory — the project
     // one in project scope, the home `~/.devin/rules/` one in global scope (the
@@ -334,26 +329,11 @@ export class DevinRule extends ToolRule {
       return this.toRulesyncRuleDefault();
     }
 
-    const strategy = STRATEGIES.find((s) => s.canHandle(this.frontmatter.trigger));
-
-    let rulesyncData: {
-      globs: string[];
-      description?: string;
-      devin: Record<string, unknown>;
-    } = {
-      globs: [],
-      devin: this.frontmatter,
-    };
-
-    if (strategy) {
-      rulesyncData = strategy.exportRulesyncData(this.frontmatter);
-    }
-
-    // Convert devin.globs from string to array for the RulesyncRule schema.
-    const devinForRulesync = {
-      ...rulesyncData.devin,
-      globs: this.frontmatter.globs ? parseGlobsString(this.frontmatter.globs) : undefined,
-    };
+    const rulesyncData = toTriggerRulesyncData({
+      strategies: STRATEGIES,
+      key: "devin",
+      frontmatter: this.frontmatter,
+    });
 
     return new RulesyncRule({
       outputRoot: process.cwd(),
@@ -363,7 +343,6 @@ export class DevinRule extends ToolRule {
         root: false,
         targets: ["*"],
         ...rulesyncData,
-        devin: devinForRulesync,
       },
       body: this.body,
     });

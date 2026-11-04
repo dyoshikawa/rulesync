@@ -33,7 +33,7 @@ import {
   ToolRuleSettablePaths,
   ToolRuleSettablePathsGlobal,
 } from "./tool-rule.js";
-import { normalizeStoredTriggerRule, parseGlobsString } from "./trigger-rule-strategies.js";
+import { toTriggerRulesyncData, toTriggerToolFrontmatter } from "./trigger-rule-strategies.js";
 
 export type AntigravityCliRuleSettablePaths = ToolRuleSettablePaths & {
   root: {
@@ -173,16 +173,11 @@ export class AntigravityCliRule extends ToolRule {
     // valid `trigger` is discarded, so derive it the same way the IDE does for
     // its non-root rules (a plain rule becomes `always_on`).
     const rulesyncFrontmatter = rulesyncRule.getFrontmatter();
-    const storedAntigravity = rulesyncFrontmatter.antigravity;
-    const storedTrigger = storedAntigravity?.trigger;
-    const strategy = STRATEGIES.find((s) => s.canHandle(storedTrigger));
-    if (!strategy) {
-      throw new Error(`No strategy found for trigger: ${storedTrigger}`);
-    }
-    const frontmatter = strategy.generateFrontmatter(
-      normalizeStoredTriggerRule(storedAntigravity),
+    const frontmatter = toTriggerToolFrontmatter({
+      strategies: STRATEGIES,
+      stored: rulesyncFrontmatter.antigravity,
       rulesyncFrontmatter,
-    );
+    });
 
     const fileContent = stringifyFrontmatter(rulesyncRule.getBody(), frontmatter);
     if (!global) {
@@ -214,10 +209,11 @@ export class AntigravityCliRule extends ToolRule {
     }
 
     const { frontmatter, body } = this.parseNonRootContent();
-    const strategy = STRATEGIES.find((s) => s.canHandle(frontmatter.trigger));
-    const rulesyncData = strategy
-      ? strategy.exportRulesyncData(frontmatter)
-      : { globs: [], antigravity: frontmatter };
+    const rulesyncData = toTriggerRulesyncData({
+      strategies: STRATEGIES,
+      key: "antigravity",
+      frontmatter,
+    });
 
     // A nested rule carries its directory back the same way the IDE's does.
     const subprojectPath = this.global
@@ -232,10 +228,6 @@ export class AntigravityCliRule extends ToolRule {
         root: false,
         targets: subprojectPath === undefined ? ["*"] : [...ANTIGRAVITY_NESTED_RULE_TARGETS],
         ...rulesyncData,
-        antigravity: {
-          ...rulesyncData.antigravity,
-          globs: frontmatter.globs ? parseGlobsString(frontmatter.globs) : undefined,
-        },
         ...(subprojectPath !== undefined && { agentsmd: { subprojectPath } }),
       },
       body,

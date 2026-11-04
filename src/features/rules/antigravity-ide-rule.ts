@@ -32,7 +32,7 @@ import {
   ToolRuleNestedFilePatterns,
   ToolRuleParams,
 } from "./tool-rule.js";
-import { normalizeStoredTriggerRule, parseGlobsString } from "./trigger-rule-strategies.js";
+import { toTriggerRulesyncData, toTriggerToolFrontmatter } from "./trigger-rule-strategies.js";
 
 /**
  * Parameters for creating an AntigravityIdeRule instance.
@@ -271,16 +271,11 @@ export class AntigravityIdeRule extends ToolRule {
 
     const rulesyncFrontmatter = rulesyncRule.getFrontmatter();
 
-    const storedAntigravity = rulesyncFrontmatter.antigravity;
-    const normalized = normalizeStoredTriggerRule(storedAntigravity);
-    const storedTrigger = storedAntigravity?.trigger;
-
-    const strategy = STRATEGIES.find((s) => s.canHandle(storedTrigger));
-    if (!strategy) {
-      throw new Error(`No strategy found for trigger: ${storedTrigger}`);
-    }
-
-    const frontmatter = strategy.generateFrontmatter(normalized, rulesyncFrontmatter);
+    const frontmatter = toTriggerToolFrontmatter({
+      strategies: STRATEGIES,
+      stored: rulesyncFrontmatter.antigravity,
+      rulesyncFrontmatter,
+    });
 
     const subprojectPath = this.supportsSubprojectRules()
       ? resolveAntigravitySubprojectPath({ rulesyncRule, global })
@@ -314,25 +309,11 @@ export class AntigravityIdeRule extends ToolRule {
       return this.toRulesyncRuleDefault({ body: this.body });
     }
 
-    const strategy = STRATEGIES.find((s) => s.canHandle(this.frontmatter.trigger));
-
-    let rulesyncData: {
-      globs: string[];
-      description?: string;
-      antigravity: Record<string, unknown>;
-    } = {
-      globs: [],
-      antigravity: this.frontmatter,
-    };
-
-    if (strategy) {
-      rulesyncData = strategy.exportRulesyncData(this.frontmatter);
-    }
-
-    const antigravityForRulesync = {
-      ...rulesyncData.antigravity,
-      globs: this.frontmatter.globs ? parseGlobsString(this.frontmatter.globs) : undefined,
-    };
+    const rulesyncData = toTriggerRulesyncData({
+      strategies: STRATEGIES,
+      key: "antigravity",
+      frontmatter: this.frontmatter,
+    });
     // A nested rule carries its directory back through `agentsmd.subprojectPath`
     // and targets the two Antigravity tools only, so the next generate neither
     // surprises other tools with new nested files nor folds it into their root
@@ -349,7 +330,6 @@ export class AntigravityIdeRule extends ToolRule {
         root: false,
         targets: subprojectPath === undefined ? ["*"] : [...ANTIGRAVITY_NESTED_RULE_TARGETS],
         ...rulesyncData,
-        antigravity: antigravityForRulesync,
         ...(subprojectPath !== undefined && { agentsmd: { subprojectPath } }),
       },
       body: this.body,
