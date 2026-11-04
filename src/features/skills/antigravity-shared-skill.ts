@@ -1,5 +1,7 @@
 import { join } from "node:path";
 
+import { z } from "zod/mini";
+
 import {
   ANTIGRAVITY_GEMINI_DIR,
   ANTIGRAVITY_SKILLS_DIR_PATH,
@@ -10,10 +12,6 @@ import { ValidationResult } from "../../types/ai-dir.js";
 import { ToolTarget } from "../../types/tool-targets.js";
 import { isRecord } from "../../utils/type-guards.js";
 import { antigravityCommandSkillNameExists } from "../commands/antigravity-command-skill-name.js";
-import {
-  AntigravitySkillFrontmatter,
-  AntigravitySkillFrontmatterSchema,
-} from "./antigravity-skill.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import { resolveMetadata } from "./skills-utils.js";
 import {
@@ -23,6 +21,13 @@ import {
   ToolSkillFromRulesyncSkillParams,
   ToolSkillSettablePaths,
 } from "./tool-skill.js";
+
+const AntigravitySkillFrontmatterSchema = z.looseObject({
+  name: z.string(),
+  description: z.string(),
+});
+
+type AntigravitySkillFrontmatter = z.infer<typeof AntigravitySkillFrontmatterSchema>;
 
 export type AntigravitySharedSkillParams = {
   outputRoot?: string;
