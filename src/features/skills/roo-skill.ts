@@ -187,21 +187,7 @@ export class RooSkill extends ToolSkill {
     });
   }
 
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    dirName,
-    global = false,
-  }: ToolSkillForDeletionParams): RooSkill {
-    return new RooSkill({
-      outputRoot,
-      relativeDirPath,
-      dirName,
-      frontmatter: { name: "", description: "" },
-      body: "",
-      otherFiles: [],
-      validate: false,
-      global,
-    });
+  static forDeletion(params: ToolSkillForDeletionParams): RooSkill {
+    return new RooSkill(this.forDeletionParams(params));
   }
 }

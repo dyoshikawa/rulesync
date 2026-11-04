@@ -204,43 +204,12 @@ export class DeepagentsSkill extends ToolSkill {
   protected static override readonly toolTarget = "deepagents";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<DeepagentsSkill> {
-    const loaded = await this.loadSkillDirContent({
-      ...params,
-      getSettablePaths: DeepagentsSkill.getSettablePaths,
-    });
-
-    const frontmatter = this.parseLoadedFrontmatter({
-      schema: DeepagentsSkillFrontmatterSchema,
-      loaded,
-    });
-
-    return new DeepagentsSkill({
-      outputRoot: loaded.outputRoot,
-      relativeDirPath: loaded.relativeDirPath,
-      dirName: loaded.dirName,
-      frontmatter,
-      body: loaded.body,
-      otherFiles: loaded.otherFiles,
-      validate: true,
-      global: loaded.global,
-    });
+    return new DeepagentsSkill(
+      await this.loadStandardSkillParams({ params, schema: DeepagentsSkillFrontmatterSchema }),
+    );
   }
 
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    dirName,
-    global = false,
-  }: ToolSkillForDeletionParams): DeepagentsSkill {
-    return new DeepagentsSkill({
-      outputRoot,
-      relativeDirPath,
-      dirName,
-      frontmatter: { name: "", description: "" },
-      body: "",
-      otherFiles: [],
-      validate: false,
-      global,
-    });
+  static forDeletion(params: ToolSkillForDeletionParams): DeepagentsSkill {
+    return new DeepagentsSkill(this.forDeletionParams(params));
   }
 }

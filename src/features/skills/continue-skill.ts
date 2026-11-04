@@ -194,21 +194,7 @@ export class ContinueSkill extends ToolSkill {
     });
   }
 
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    dirName,
-    global = false,
-  }: ToolSkillForDeletionParams): ContinueSkill {
-    return new ContinueSkill({
-      outputRoot,
-      relativeDirPath,
-      dirName,
-      frontmatter: { name: "", description: "" },
-      body: "",
-      otherFiles: [],
-      validate: false,
-      global,
-    });
+  static forDeletion(params: ToolSkillForDeletionParams): ContinueSkill {
+    return new ContinueSkill(this.forDeletionParams(params));
   }
 }

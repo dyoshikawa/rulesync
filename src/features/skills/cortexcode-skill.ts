@@ -196,21 +196,7 @@ export class CortexcodeSkill extends ToolSkill {
     });
   }
 
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    dirName,
-    global = false,
-  }: ToolSkillForDeletionParams): CortexcodeSkill {
-    return new CortexcodeSkill({
-      outputRoot,
-      relativeDirPath,
-      dirName,
-      frontmatter: { name: "", description: "" },
-      body: "",
-      otherFiles: [],
-      validate: false,
-      global,
-    });
+  static forDeletion(params: ToolSkillForDeletionParams): CortexcodeSkill {
+    return new CortexcodeSkill(this.forDeletionParams(params));
   }
 }

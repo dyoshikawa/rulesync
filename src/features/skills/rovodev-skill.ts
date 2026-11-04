@@ -219,21 +219,7 @@ export class RovodevSkill extends ToolSkill {
     });
   }
 
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    dirName,
-    global = false,
-  }: ToolSkillForDeletionParams): RovodevSkill {
-    return new RovodevSkill({
-      outputRoot,
-      relativeDirPath,
-      dirName,
-      frontmatter: { name: "", description: "" },
-      body: "",
-      otherFiles: [],
-      validate: false,
-      global,
-    });
+  static forDeletion(params: ToolSkillForDeletionParams): RovodevSkill {
+    return new RovodevSkill(this.forDeletionParams(params));
   }
 }

@@ -221,43 +221,12 @@ export class CursorSkill extends ToolSkill {
   }
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<CursorSkill> {
-    const loaded = await this.loadSkillDirContent({
-      ...params,
-      getSettablePaths: CursorSkill.getSettablePaths,
-    });
-
-    const frontmatter = this.parseLoadedFrontmatter({
-      schema: CursorSkillFrontmatterSchema,
-      loaded,
-    });
-
-    return new CursorSkill({
-      outputRoot: loaded.outputRoot,
-      relativeDirPath: loaded.relativeDirPath,
-      dirName: loaded.dirName,
-      frontmatter,
-      body: loaded.body,
-      otherFiles: loaded.otherFiles,
-      validate: true,
-      global: loaded.global,
-    });
+    return new CursorSkill(
+      await this.loadStandardSkillParams({ params, schema: CursorSkillFrontmatterSchema }),
+    );
   }
 
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    dirName,
-    global = false,
-  }: ToolSkillForDeletionParams): CursorSkill {
-    return new CursorSkill({
-      outputRoot,
-      relativeDirPath,
-      dirName,
-      frontmatter: { name: "", description: "" },
-      body: "",
-      otherFiles: [],
-      validate: false,
-      global,
-    });
+  static forDeletion(params: ToolSkillForDeletionParams): CursorSkill {
+    return new CursorSkill(this.forDeletionParams(params));
   }
 }

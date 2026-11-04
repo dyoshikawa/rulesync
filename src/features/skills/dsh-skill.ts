@@ -204,40 +204,12 @@ export class DshSkill extends ToolSkill {
   protected static override readonly toolTarget = "dsh";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<DshSkill> {
-    const loaded = await this.loadSkillDirContent({
-      ...params,
-      getSettablePaths: DshSkill.getSettablePaths,
-    });
-
-    const frontmatter = this.parseLoadedFrontmatter({ schema: DshSkillFrontmatterSchema, loaded });
-
-    return new DshSkill({
-      outputRoot: loaded.outputRoot,
-      relativeDirPath: loaded.relativeDirPath,
-      dirName: loaded.dirName,
-      frontmatter,
-      body: loaded.body,
-      otherFiles: loaded.otherFiles,
-      validate: true,
-      global: loaded.global,
-    });
+    return new DshSkill(
+      await this.loadStandardSkillParams({ params, schema: DshSkillFrontmatterSchema }),
+    );
   }
 
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    dirName,
-    global = false,
-  }: ToolSkillForDeletionParams): DshSkill {
-    return new DshSkill({
-      outputRoot,
-      relativeDirPath,
-      dirName,
-      frontmatter: { name: "", description: "" },
-      body: "",
-      otherFiles: [],
-      validate: false,
-      global,
-    });
+  static forDeletion(params: ToolSkillForDeletionParams): DshSkill {
+    return new DshSkill(this.forDeletionParams(params));
   }
 }

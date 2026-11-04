@@ -194,21 +194,7 @@ export class TabnineSkill extends ToolSkill {
     });
   }
 
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    dirName,
-    global = false,
-  }: ToolSkillForDeletionParams): TabnineSkill {
-    return new TabnineSkill({
-      outputRoot,
-      relativeDirPath,
-      dirName,
-      frontmatter: { name: "", description: "" },
-      body: "",
-      otherFiles: [],
-      validate: false,
-      global,
-    });
+  static forDeletion(params: ToolSkillForDeletionParams): TabnineSkill {
+    return new TabnineSkill(this.forDeletionParams(params));
   }
 }

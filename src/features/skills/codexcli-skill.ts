@@ -414,43 +414,12 @@ export class CodexCliSkill extends ToolSkill {
   protected static override readonly toolTarget = "codexcli";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<CodexCliSkill> {
-    const loaded = await this.loadSkillDirContent({
-      ...params,
-      getSettablePaths: CodexCliSkill.getSettablePaths,
-    });
-
-    const frontmatter = this.parseLoadedFrontmatter({
-      schema: CodexCliSkillFrontmatterSchema,
-      loaded,
-    });
-
-    return new CodexCliSkill({
-      outputRoot: loaded.outputRoot,
-      relativeDirPath: loaded.relativeDirPath,
-      dirName: loaded.dirName,
-      frontmatter,
-      body: loaded.body,
-      otherFiles: loaded.otherFiles,
-      validate: true,
-      global: loaded.global,
-    });
+    return new CodexCliSkill(
+      await this.loadStandardSkillParams({ params, schema: CodexCliSkillFrontmatterSchema }),
+    );
   }
 
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    dirName,
-    global = false,
-  }: ToolSkillForDeletionParams): CodexCliSkill {
-    return new CodexCliSkill({
-      outputRoot,
-      relativeDirPath,
-      dirName,
-      frontmatter: { name: "", description: "" },
-      body: "",
-      otherFiles: [],
-      validate: false,
-      global,
-    });
+  static forDeletion(params: ToolSkillForDeletionParams): CodexCliSkill {
+    return new CodexCliSkill(this.forDeletionParams(params));
   }
 }

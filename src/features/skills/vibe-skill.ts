@@ -260,40 +260,12 @@ export class VibeSkill extends ToolSkill {
   protected static override readonly toolTarget: ToolTarget = "vibe";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<VibeSkill> {
-    const loaded = await this.loadSkillDirContent({
-      ...params,
-      getSettablePaths: (options) => this.getSettablePaths(options),
-    });
-
-    const frontmatter = this.parseLoadedFrontmatter({ schema: VibeSkillFrontmatterSchema, loaded });
-
-    return new VibeSkill({
-      outputRoot: loaded.outputRoot,
-      relativeDirPath: loaded.relativeDirPath,
-      dirName: loaded.dirName,
-      frontmatter,
-      body: loaded.body,
-      otherFiles: loaded.otherFiles,
-      validate: true,
-      global: loaded.global,
-    });
+    return new VibeSkill(
+      await this.loadStandardSkillParams({ params, schema: VibeSkillFrontmatterSchema }),
+    );
   }
 
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    dirName,
-    global = false,
-  }: ToolSkillForDeletionParams): VibeSkill {
-    return new VibeSkill({
-      outputRoot,
-      relativeDirPath,
-      dirName,
-      frontmatter: { name: "", description: "" },
-      body: "",
-      otherFiles: [],
-      validate: false,
-      global,
-    });
+  static forDeletion(params: ToolSkillForDeletionParams): VibeSkill {
+    return new VibeSkill(this.forDeletionParams(params));
   }
 }

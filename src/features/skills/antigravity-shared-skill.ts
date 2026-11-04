@@ -261,43 +261,12 @@ export class AntigravitySharedSkill extends ToolSkill {
   }
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<AntigravitySharedSkill> {
-    const loaded = await this.loadSkillDirContent({
-      ...params,
-      getSettablePaths: (options) => this.getSettablePaths(options),
-    });
-
-    const frontmatter = this.parseLoadedFrontmatter({
-      schema: AntigravitySkillFrontmatterSchema,
-      loaded,
-    });
-
-    return new this({
-      outputRoot: loaded.outputRoot,
-      relativeDirPath: loaded.relativeDirPath,
-      dirName: loaded.dirName,
-      frontmatter,
-      body: loaded.body,
-      otherFiles: loaded.otherFiles,
-      validate: true,
-      global: loaded.global,
-    });
+    return new this(
+      await this.loadStandardSkillParams({ params, schema: AntigravitySkillFrontmatterSchema }),
+    );
   }
 
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    dirName,
-    global = false,
-  }: ToolSkillForDeletionParams): AntigravitySharedSkill {
-    return new this({
-      outputRoot,
-      relativeDirPath,
-      dirName,
-      frontmatter: { name: "", description: "" },
-      body: "",
-      otherFiles: [],
-      validate: false,
-      global,
-    });
+  static forDeletion(params: ToolSkillForDeletionParams): AntigravitySharedSkill {
+    return new this(this.forDeletionParams(params));
   }
 }

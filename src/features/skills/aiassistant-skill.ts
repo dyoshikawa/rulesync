@@ -146,26 +146,9 @@ export class AiassistantSkill extends ToolSkill {
   protected static override readonly toolTarget = "aiassistant";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<AiassistantSkill> {
-    const loaded = await this.loadSkillDirContent({
-      ...params,
-      getSettablePaths: AiassistantSkill.getSettablePaths,
-    });
-
-    const frontmatter = this.parseLoadedFrontmatter({
-      schema: AiassistantSkillFrontmatterSchema,
-      loaded,
-    });
-
-    return new AiassistantSkill({
-      outputRoot: loaded.outputRoot,
-      relativeDirPath: loaded.relativeDirPath,
-      dirName: loaded.dirName,
-      frontmatter,
-      body: loaded.body,
-      otherFiles: loaded.otherFiles,
-      validate: true,
-      global: loaded.global,
-    });
+    return new AiassistantSkill(
+      await this.loadStandardSkillParams({ params, schema: AiassistantSkillFrontmatterSchema }),
+    );
   }
 
   static forDeletion({

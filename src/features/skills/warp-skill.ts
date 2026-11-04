@@ -180,40 +180,12 @@ export class WarpSkill extends ToolSkill {
   }
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<WarpSkill> {
-    const loaded = await this.loadSkillDirContent({
-      ...params,
-      getSettablePaths: WarpSkill.getSettablePaths,
-    });
-
-    const frontmatter = this.parseLoadedFrontmatter({ schema: WarpSkillFrontmatterSchema, loaded });
-
-    return new WarpSkill({
-      outputRoot: loaded.outputRoot,
-      relativeDirPath: loaded.relativeDirPath,
-      dirName: loaded.dirName,
-      frontmatter,
-      body: loaded.body,
-      otherFiles: loaded.otherFiles,
-      validate: true,
-      global: loaded.global,
-    });
+    return new WarpSkill(
+      await this.loadStandardSkillParams({ params, schema: WarpSkillFrontmatterSchema }),
+    );
   }
 
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    dirName,
-    global = false,
-  }: ToolSkillForDeletionParams): WarpSkill {
-    return new WarpSkill({
-      outputRoot,
-      relativeDirPath,
-      dirName,
-      frontmatter: { name: "", description: "" },
-      body: "",
-      otherFiles: [],
-      validate: false,
-      global,
-    });
+  static forDeletion(params: ToolSkillForDeletionParams): WarpSkill {
+    return new WarpSkill(this.forDeletionParams(params));
   }
 }

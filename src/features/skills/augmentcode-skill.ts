@@ -155,43 +155,12 @@ export class AugmentcodeSkill extends ToolSkill {
   protected static override readonly toolTarget: ToolTarget = "augmentcode";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<AugmentcodeSkill> {
-    const loaded = await this.loadSkillDirContent({
-      ...params,
-      getSettablePaths: (options) => this.getSettablePaths(options),
-    });
-
-    const frontmatter = this.parseLoadedFrontmatter({
-      schema: AugmentcodeSkillFrontmatterSchema,
-      loaded,
-    });
-
-    return new AugmentcodeSkill({
-      outputRoot: loaded.outputRoot,
-      relativeDirPath: loaded.relativeDirPath,
-      dirName: loaded.dirName,
-      frontmatter,
-      body: loaded.body,
-      otherFiles: loaded.otherFiles,
-      validate: true,
-      global: loaded.global,
-    });
+    return new AugmentcodeSkill(
+      await this.loadStandardSkillParams({ params, schema: AugmentcodeSkillFrontmatterSchema }),
+    );
   }
 
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    dirName,
-    global = false,
-  }: ToolSkillForDeletionParams): AugmentcodeSkill {
-    return new AugmentcodeSkill({
-      outputRoot,
-      relativeDirPath,
-      dirName,
-      frontmatter: { name: "", description: "" },
-      body: "",
-      otherFiles: [],
-      validate: false,
-      global,
-    });
+  static forDeletion(params: ToolSkillForDeletionParams): AugmentcodeSkill {
+    return new AugmentcodeSkill(this.forDeletionParams(params));
   }
 }

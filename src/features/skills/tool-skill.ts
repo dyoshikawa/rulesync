@@ -416,6 +416,77 @@ export abstract class ToolSkill extends AiDir {
     return result.data;
   }
 
+  /**
+   * The common `fromDir` body: load the skill directory (resolving the default
+   * root from the class's own `getSettablePaths`), parse its frontmatter
+   * against the tool's schema, and return validated constructor params.
+   */
+  protected static async loadStandardSkillParams<T>({
+    params,
+    schema,
+  }: {
+    params: ToolSkillFromDirParams;
+    schema: z.ZodMiniType<T>;
+  }): Promise<{
+    outputRoot: string;
+    relativeDirPath: string;
+    dirName: string;
+    frontmatter: T;
+    body: string;
+    otherFiles: SkillFile[];
+    validate: true;
+    global: boolean;
+  }> {
+    const loaded = await this.loadSkillDirContent({
+      ...params,
+      getSettablePaths: (options) => this.getSettablePaths(options),
+    });
+
+    const frontmatter = this.parseLoadedFrontmatter({ schema, loaded });
+
+    return {
+      outputRoot: loaded.outputRoot,
+      relativeDirPath: loaded.relativeDirPath,
+      dirName: loaded.dirName,
+      frontmatter,
+      body: loaded.body,
+      otherFiles: loaded.otherFiles,
+      validate: true,
+      global: loaded.global,
+    };
+  }
+
+  /**
+   * The common `forDeletion` body: constructor params for a minimal,
+   * unvalidated instance that never reads the directory content.
+   */
+  protected static forDeletionParams({
+    outputRoot = process.cwd(),
+    relativeDirPath,
+    dirName,
+    global = false,
+  }: ToolSkillForDeletionParams): {
+    outputRoot: string;
+    relativeDirPath: string;
+    dirName: string;
+    frontmatter: { name: string; description: string };
+    body: string;
+    otherFiles: SkillFile[];
+    validate: false;
+    global: boolean;
+  } {
+    return {
+      outputRoot,
+      relativeDirPath,
+      dirName,
+      frontmatter: { name: "", description: "" },
+      body: "",
+      otherFiles: [],
+      validate: false,
+      global,
+    };
+  }
+
   protected requireMainFileFrontmatter(): Record<string, unknown> {
     if (!this.mainFile?.frontmatter) {
       throw new Error(`Frontmatter is not defined in ${join(this.relativeDirPath, this.dirName)}`);

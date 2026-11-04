@@ -218,43 +218,12 @@ export class CrushSkill extends ToolSkill {
   protected static override readonly toolTarget = "crush";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<CrushSkill> {
-    const loaded = await this.loadSkillDirContent({
-      ...params,
-      getSettablePaths: CrushSkill.getSettablePaths,
-    });
-
-    const frontmatter = this.parseLoadedFrontmatter({
-      schema: CrushSkillFrontmatterSchema,
-      loaded,
-    });
-
-    return new CrushSkill({
-      outputRoot: loaded.outputRoot,
-      relativeDirPath: loaded.relativeDirPath,
-      dirName: loaded.dirName,
-      frontmatter,
-      body: loaded.body,
-      otherFiles: loaded.otherFiles,
-      validate: true,
-      global: loaded.global,
-    });
+    return new CrushSkill(
+      await this.loadStandardSkillParams({ params, schema: CrushSkillFrontmatterSchema }),
+    );
   }
 
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    dirName,
-    global = false,
-  }: ToolSkillForDeletionParams): CrushSkill {
-    return new CrushSkill({
-      outputRoot,
-      relativeDirPath,
-      dirName,
-      frontmatter: { name: "", description: "" },
-      body: "",
-      otherFiles: [],
-      validate: false,
-      global,
-    });
+  static forDeletion(params: ToolSkillForDeletionParams): CrushSkill {
+    return new CrushSkill(this.forDeletionParams(params));
   }
 }

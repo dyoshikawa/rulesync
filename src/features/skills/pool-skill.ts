@@ -167,40 +167,12 @@ export class PoolSkill extends ToolSkill {
   protected static override readonly toolTarget = "pool";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<PoolSkill> {
-    const loaded = await this.loadSkillDirContent({
-      ...params,
-      getSettablePaths: PoolSkill.getSettablePaths,
-    });
-
-    const frontmatter = this.parseLoadedFrontmatter({ schema: PoolSkillFrontmatterSchema, loaded });
-
-    return new PoolSkill({
-      outputRoot: loaded.outputRoot,
-      relativeDirPath: loaded.relativeDirPath,
-      dirName: loaded.dirName,
-      frontmatter,
-      body: loaded.body,
-      otherFiles: loaded.otherFiles,
-      validate: true,
-      global: loaded.global,
-    });
+    return new PoolSkill(
+      await this.loadStandardSkillParams({ params, schema: PoolSkillFrontmatterSchema }),
+    );
   }
 
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    dirName,
-    global = false,
-  }: ToolSkillForDeletionParams): PoolSkill {
-    return new PoolSkill({
-      outputRoot,
-      relativeDirPath,
-      dirName,
-      frontmatter: { name: "", description: "" },
-      body: "",
-      otherFiles: [],
-      validate: false,
-      global,
-    });
+  static forDeletion(params: ToolSkillForDeletionParams): PoolSkill {
+    return new PoolSkill(this.forDeletionParams(params));
   }
 }

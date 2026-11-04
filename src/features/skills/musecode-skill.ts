@@ -183,43 +183,12 @@ export class MusecodeSkill extends ToolSkill {
   protected static override readonly toolTarget = "musecode";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<MusecodeSkill> {
-    const loaded = await this.loadSkillDirContent({
-      ...params,
-      getSettablePaths: MusecodeSkill.getSettablePaths,
-    });
-
-    const frontmatter = this.parseLoadedFrontmatter({
-      schema: MusecodeSkillFrontmatterSchema,
-      loaded,
-    });
-
-    return new MusecodeSkill({
-      outputRoot: loaded.outputRoot,
-      relativeDirPath: loaded.relativeDirPath,
-      dirName: loaded.dirName,
-      frontmatter,
-      body: loaded.body,
-      otherFiles: loaded.otherFiles,
-      validate: true,
-      global: loaded.global,
-    });
+    return new MusecodeSkill(
+      await this.loadStandardSkillParams({ params, schema: MusecodeSkillFrontmatterSchema }),
+    );
   }
 
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    dirName,
-    global = false,
-  }: ToolSkillForDeletionParams): MusecodeSkill {
-    return new MusecodeSkill({
-      outputRoot,
-      relativeDirPath,
-      dirName,
-      frontmatter: { name: "", description: "" },
-      body: "",
-      otherFiles: [],
-      validate: false,
-      global,
-    });
+  static forDeletion(params: ToolSkillForDeletionParams): MusecodeSkill {
+    return new MusecodeSkill(this.forDeletionParams(params));
   }
 }

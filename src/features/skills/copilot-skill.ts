@@ -204,43 +204,12 @@ export class CopilotSkill extends ToolSkill {
   protected static override readonly toolTarget = "copilot";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<CopilotSkill> {
-    const loaded = await this.loadSkillDirContent({
-      ...params,
-      getSettablePaths: CopilotSkill.getSettablePaths,
-    });
-
-    const frontmatter = this.parseLoadedFrontmatter({
-      schema: CopilotSkillFrontmatterSchema,
-      loaded,
-    });
-
-    return new CopilotSkill({
-      outputRoot: loaded.outputRoot,
-      relativeDirPath: loaded.relativeDirPath,
-      dirName: loaded.dirName,
-      frontmatter,
-      body: loaded.body,
-      otherFiles: loaded.otherFiles,
-      validate: true,
-      global: loaded.global,
-    });
+    return new CopilotSkill(
+      await this.loadStandardSkillParams({ params, schema: CopilotSkillFrontmatterSchema }),
+    );
   }
 
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    dirName,
-    global = false,
-  }: ToolSkillForDeletionParams): CopilotSkill {
-    return new CopilotSkill({
-      outputRoot,
-      relativeDirPath,
-      dirName,
-      frontmatter: { name: "", description: "" },
-      body: "",
-      otherFiles: [],
-      validate: false,
-      global,
-    });
+  static forDeletion(params: ToolSkillForDeletionParams): CopilotSkill {
+    return new CopilotSkill(this.forDeletionParams(params));
   }
 }

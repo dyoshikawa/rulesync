@@ -200,43 +200,12 @@ export class ZcodeSkill extends ToolSkill {
   protected static override readonly toolTarget: ToolTarget = "zcode";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<ZcodeSkill> {
-    const loaded = await this.loadSkillDirContent({
-      ...params,
-      getSettablePaths: (options) => this.getSettablePaths(options),
-    });
-
-    const frontmatter = this.parseLoadedFrontmatter({
-      schema: ZcodeSkillFrontmatterSchema,
-      loaded,
-    });
-
-    return new ZcodeSkill({
-      outputRoot: loaded.outputRoot,
-      relativeDirPath: loaded.relativeDirPath,
-      dirName: loaded.dirName,
-      frontmatter,
-      body: loaded.body,
-      otherFiles: loaded.otherFiles,
-      validate: true,
-      global: loaded.global,
-    });
+    return new ZcodeSkill(
+      await this.loadStandardSkillParams({ params, schema: ZcodeSkillFrontmatterSchema }),
+    );
   }
 
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    dirName,
-    global = false,
-  }: ToolSkillForDeletionParams): ZcodeSkill {
-    return new ZcodeSkill({
-      outputRoot,
-      relativeDirPath,
-      dirName,
-      frontmatter: { name: "", description: "" },
-      body: "",
-      otherFiles: [],
-      validate: false,
-      global,
-    });
+  static forDeletion(params: ToolSkillForDeletionParams): ZcodeSkill {
+    return new ZcodeSkill(this.forDeletionParams(params));
   }
 }

@@ -523,43 +523,12 @@ export class AgentsSkillsSkill extends ToolSkill {
   protected static override readonly toolTarget: ToolTarget = "agentsskills";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<AgentsSkillsSkill> {
-    const loaded = await this.loadSkillDirContent({
-      ...params,
-      getSettablePaths: (options) => this.getSettablePaths(options),
-    });
-
-    const frontmatter = this.parseLoadedFrontmatter({
-      schema: AgentsSkillsSkillFrontmatterSchema,
-      loaded,
-    });
-
-    return new this({
-      outputRoot: loaded.outputRoot,
-      relativeDirPath: loaded.relativeDirPath,
-      dirName: loaded.dirName,
-      frontmatter,
-      body: loaded.body,
-      otherFiles: loaded.otherFiles,
-      validate: true,
-      global: loaded.global,
-    });
+    return new this(
+      await this.loadStandardSkillParams({ params, schema: AgentsSkillsSkillFrontmatterSchema }),
+    );
   }
 
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    dirName,
-    global = false,
-  }: ToolSkillForDeletionParams): AgentsSkillsSkill {
-    return new this({
-      outputRoot,
-      relativeDirPath,
-      dirName,
-      frontmatter: { name: "", description: "" },
-      body: "",
-      otherFiles: [],
-      validate: false,
-      global,
-    });
+  static forDeletion(params: ToolSkillForDeletionParams): AgentsSkillsSkill {
+    return new this(this.forDeletionParams(params));
   }
 }

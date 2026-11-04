@@ -227,26 +227,9 @@ export class ReasonixSkill extends ToolSkill {
   protected static override readonly toolTarget = "reasonix";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<ReasonixSkill> {
-    const loaded = await this.loadSkillDirContent({
-      ...params,
-      getSettablePaths: ReasonixSkill.getSettablePaths,
-    });
-
-    const frontmatter = this.parseLoadedFrontmatter({
-      schema: ReasonixSkillFrontmatterSchema,
-      loaded,
-    });
-
-    return new ReasonixSkill({
-      outputRoot: loaded.outputRoot,
-      relativeDirPath: loaded.relativeDirPath,
-      dirName: loaded.dirName,
-      frontmatter,
-      body: loaded.body,
-      otherFiles: loaded.otherFiles,
-      validate: true,
-      global: loaded.global,
-    });
+    return new ReasonixSkill(
+      await this.loadStandardSkillParams({ params, schema: ReasonixSkillFrontmatterSchema }),
+    );
   }
 
   /**
@@ -283,22 +266,8 @@ export class ReasonixSkill extends ToolSkill {
     }
   }
 
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    dirName,
-    global = false,
-  }: ToolSkillForDeletionParams): ReasonixSkill {
-    return new ReasonixSkill({
-      outputRoot,
-      relativeDirPath,
-      dirName,
-      frontmatter: { name: "", description: "" },
-      body: "",
-      otherFiles: [],
-      validate: false,
-      global,
-    });
+  static forDeletion(params: ToolSkillForDeletionParams): ReasonixSkill {
+    return new ReasonixSkill(this.forDeletionParams(params));
   }
 }
 

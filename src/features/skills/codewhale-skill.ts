@@ -158,43 +158,12 @@ export class CodewhaleSkill extends ToolSkill {
   protected static override readonly toolTarget = "codewhale";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<CodewhaleSkill> {
-    const loaded = await this.loadSkillDirContent({
-      ...params,
-      getSettablePaths: CodewhaleSkill.getSettablePaths,
-    });
-
-    const frontmatter = this.parseLoadedFrontmatter({
-      schema: CodewhaleSkillFrontmatterSchema,
-      loaded,
-    });
-
-    return new CodewhaleSkill({
-      outputRoot: loaded.outputRoot,
-      relativeDirPath: loaded.relativeDirPath,
-      dirName: loaded.dirName,
-      frontmatter,
-      body: loaded.body,
-      otherFiles: loaded.otherFiles,
-      validate: true,
-      global: loaded.global,
-    });
+    return new CodewhaleSkill(
+      await this.loadStandardSkillParams({ params, schema: CodewhaleSkillFrontmatterSchema }),
+    );
   }
 
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    dirName,
-    global = false,
-  }: ToolSkillForDeletionParams): CodewhaleSkill {
-    return new CodewhaleSkill({
-      outputRoot,
-      relativeDirPath,
-      dirName,
-      frontmatter: { name: "", description: "" },
-      body: "",
-      otherFiles: [],
-      validate: false,
-      global,
-    });
+  static forDeletion(params: ToolSkillForDeletionParams): CodewhaleSkill {
+    return new CodewhaleSkill(this.forDeletionParams(params));
   }
 }

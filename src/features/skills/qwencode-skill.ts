@@ -243,43 +243,12 @@ export class QwencodeSkill extends ToolSkill {
   protected static override readonly toolTarget = "qwencode";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<QwencodeSkill> {
-    const loaded = await this.loadSkillDirContent({
-      ...params,
-      getSettablePaths: QwencodeSkill.getSettablePaths,
-    });
-
-    const frontmatter = this.parseLoadedFrontmatter({
-      schema: QwencodeSkillFrontmatterSchema,
-      loaded,
-    });
-
-    return new QwencodeSkill({
-      outputRoot: loaded.outputRoot,
-      relativeDirPath: loaded.relativeDirPath,
-      dirName: loaded.dirName,
-      frontmatter,
-      body: loaded.body,
-      otherFiles: loaded.otherFiles,
-      validate: true,
-      global: loaded.global,
-    });
+    return new QwencodeSkill(
+      await this.loadStandardSkillParams({ params, schema: QwencodeSkillFrontmatterSchema }),
+    );
   }
 
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    dirName,
-    global = false,
-  }: ToolSkillForDeletionParams): QwencodeSkill {
-    return new QwencodeSkill({
-      outputRoot,
-      relativeDirPath,
-      dirName,
-      frontmatter: { name: "", description: "" },
-      body: "",
-      otherFiles: [],
-      validate: false,
-      global,
-    });
+  static forDeletion(params: ToolSkillForDeletionParams): QwencodeSkill {
+    return new QwencodeSkill(this.forDeletionParams(params));
   }
 }

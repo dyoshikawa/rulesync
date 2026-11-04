@@ -317,43 +317,12 @@ export class FactorydroidSkill extends ToolSkill {
   }
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<FactorydroidSkill> {
-    const loaded = await this.loadSkillDirContent({
-      ...params,
-      getSettablePaths: FactorydroidSkill.getSettablePaths,
-    });
-
-    const frontmatter = this.parseLoadedFrontmatter({
-      schema: FactorydroidSkillFrontmatterSchema,
-      loaded,
-    });
-
-    return new FactorydroidSkill({
-      outputRoot: loaded.outputRoot,
-      relativeDirPath: loaded.relativeDirPath,
-      dirName: loaded.dirName,
-      frontmatter,
-      body: loaded.body,
-      otherFiles: loaded.otherFiles,
-      validate: true,
-      global: loaded.global,
-    });
+    return new FactorydroidSkill(
+      await this.loadStandardSkillParams({ params, schema: FactorydroidSkillFrontmatterSchema }),
+    );
   }
 
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    dirName,
-    global = false,
-  }: ToolSkillForDeletionParams): FactorydroidSkill {
-    return new FactorydroidSkill({
-      outputRoot,
-      relativeDirPath,
-      dirName,
-      frontmatter: { name: "", description: "" },
-      body: "",
-      otherFiles: [],
-      validate: false,
-      global,
-    });
+  static forDeletion(params: ToolSkillForDeletionParams): FactorydroidSkill {
+    return new FactorydroidSkill(this.forDeletionParams(params));
   }
 }

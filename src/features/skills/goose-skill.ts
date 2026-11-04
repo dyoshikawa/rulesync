@@ -140,43 +140,12 @@ export class GooseSkill extends ToolSkill {
   protected static override readonly toolTarget = "goose";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<GooseSkill> {
-    const loaded = await this.loadSkillDirContent({
-      ...params,
-      getSettablePaths: GooseSkill.getSettablePaths,
-    });
-
-    const frontmatter = this.parseLoadedFrontmatter({
-      schema: GooseSkillFrontmatterSchema,
-      loaded,
-    });
-
-    return new GooseSkill({
-      outputRoot: loaded.outputRoot,
-      relativeDirPath: loaded.relativeDirPath,
-      dirName: loaded.dirName,
-      frontmatter,
-      body: loaded.body,
-      otherFiles: loaded.otherFiles,
-      validate: true,
-      global: loaded.global,
-    });
+    return new GooseSkill(
+      await this.loadStandardSkillParams({ params, schema: GooseSkillFrontmatterSchema }),
+    );
   }
 
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    dirName,
-    global = false,
-  }: ToolSkillForDeletionParams): GooseSkill {
-    return new GooseSkill({
-      outputRoot,
-      relativeDirPath,
-      dirName,
-      frontmatter: { name: "", description: "" },
-      body: "",
-      otherFiles: [],
-      validate: false,
-      global,
-    });
+  static forDeletion(params: ToolSkillForDeletionParams): GooseSkill {
+    return new GooseSkill(this.forDeletionParams(params));
   }
 }

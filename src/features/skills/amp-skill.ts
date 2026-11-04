@@ -209,40 +209,12 @@ export class AmpSkill extends ToolSkill {
   protected static override readonly toolTarget = "amp";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<AmpSkill> {
-    const loaded = await this.loadSkillDirContent({
-      ...params,
-      getSettablePaths: AmpSkill.getSettablePaths,
-    });
-
-    const frontmatter = this.parseLoadedFrontmatter({ schema: AmpSkillFrontmatterSchema, loaded });
-
-    return new AmpSkill({
-      outputRoot: loaded.outputRoot,
-      relativeDirPath: loaded.relativeDirPath,
-      dirName: loaded.dirName,
-      frontmatter,
-      body: loaded.body,
-      otherFiles: loaded.otherFiles,
-      validate: true,
-      global: loaded.global,
-    });
+    return new AmpSkill(
+      await this.loadStandardSkillParams({ params, schema: AmpSkillFrontmatterSchema }),
+    );
   }
 
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    dirName,
-    global = false,
-  }: ToolSkillForDeletionParams): AmpSkill {
-    return new AmpSkill({
-      outputRoot,
-      relativeDirPath,
-      dirName,
-      frontmatter: { name: "", description: "" },
-      body: "",
-      otherFiles: [],
-      validate: false,
-      global,
-    });
+  static forDeletion(params: ToolSkillForDeletionParams): AmpSkill {
+    return new AmpSkill(this.forDeletionParams(params));
   }
 }

@@ -168,43 +168,12 @@ export class LettacodeSkill extends ToolSkill {
   protected static override readonly toolTarget = "lettacode";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<LettacodeSkill> {
-    const loaded = await this.loadSkillDirContent({
-      ...params,
-      getSettablePaths: LettacodeSkill.getSettablePaths,
-    });
-
-    const frontmatter = this.parseLoadedFrontmatter({
-      schema: LettacodeSkillFrontmatterSchema,
-      loaded,
-    });
-
-    return new LettacodeSkill({
-      outputRoot: loaded.outputRoot,
-      relativeDirPath: loaded.relativeDirPath,
-      dirName: loaded.dirName,
-      frontmatter,
-      body: loaded.body,
-      otherFiles: loaded.otherFiles,
-      validate: true,
-      global: loaded.global,
-    });
+    return new LettacodeSkill(
+      await this.loadStandardSkillParams({ params, schema: LettacodeSkillFrontmatterSchema }),
+    );
   }
 
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    dirName,
-    global = false,
-  }: ToolSkillForDeletionParams): LettacodeSkill {
-    return new LettacodeSkill({
-      outputRoot,
-      relativeDirPath,
-      dirName,
-      frontmatter: { name: "", description: "" },
-      body: "",
-      otherFiles: [],
-      validate: false,
-      global,
-    });
+  static forDeletion(params: ToolSkillForDeletionParams): LettacodeSkill {
+    return new LettacodeSkill(this.forDeletionParams(params));
   }
 }

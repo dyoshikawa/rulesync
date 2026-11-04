@@ -230,43 +230,12 @@ export class GrokcliSkill extends ToolSkill {
   protected static override readonly toolTarget = "grokcli";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<GrokcliSkill> {
-    const loaded = await this.loadSkillDirContent({
-      ...params,
-      getSettablePaths: GrokcliSkill.getSettablePaths,
-    });
-
-    const frontmatter = this.parseLoadedFrontmatter({
-      schema: GrokcliSkillFrontmatterSchema,
-      loaded,
-    });
-
-    return new GrokcliSkill({
-      outputRoot: loaded.outputRoot,
-      relativeDirPath: loaded.relativeDirPath,
-      dirName: loaded.dirName,
-      frontmatter,
-      body: loaded.body,
-      otherFiles: loaded.otherFiles,
-      validate: true,
-      global: loaded.global,
-    });
+    return new GrokcliSkill(
+      await this.loadStandardSkillParams({ params, schema: GrokcliSkillFrontmatterSchema }),
+    );
   }
 
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    dirName,
-    global = false,
-  }: ToolSkillForDeletionParams): GrokcliSkill {
-    return new GrokcliSkill({
-      outputRoot,
-      relativeDirPath,
-      dirName,
-      frontmatter: { name: "", description: "" },
-      body: "",
-      otherFiles: [],
-      validate: false,
-      global,
-    });
+  static forDeletion(params: ToolSkillForDeletionParams): GrokcliSkill {
+    return new GrokcliSkill(this.forDeletionParams(params));
   }
 }

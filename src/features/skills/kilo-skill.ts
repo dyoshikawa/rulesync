@@ -174,40 +174,12 @@ export class KiloSkill extends ToolSkill {
   protected static override readonly toolTarget = "kilo";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<KiloSkill> {
-    const loaded = await this.loadSkillDirContent({
-      ...params,
-      getSettablePaths: KiloSkill.getSettablePaths,
-    });
-
-    const frontmatter = this.parseLoadedFrontmatter({ schema: KiloSkillFrontmatterSchema, loaded });
-
-    return new KiloSkill({
-      outputRoot: loaded.outputRoot,
-      relativeDirPath: loaded.relativeDirPath,
-      dirName: loaded.dirName,
-      frontmatter,
-      body: loaded.body,
-      otherFiles: loaded.otherFiles,
-      validate: true,
-      global: loaded.global,
-    });
+    return new KiloSkill(
+      await this.loadStandardSkillParams({ params, schema: KiloSkillFrontmatterSchema }),
+    );
   }
 
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    dirName,
-    global = false,
-  }: ToolSkillForDeletionParams): KiloSkill {
-    return new KiloSkill({
-      outputRoot,
-      relativeDirPath,
-      dirName,
-      frontmatter: { name: "", description: "" },
-      body: "",
-      otherFiles: [],
-      validate: false,
-      global,
-    });
+  static forDeletion(params: ToolSkillForDeletionParams): KiloSkill {
+    return new KiloSkill(this.forDeletionParams(params));
   }
 }

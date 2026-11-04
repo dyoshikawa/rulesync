@@ -241,40 +241,12 @@ export class ZedSkill extends ToolSkill {
   protected static override readonly toolTarget = "zed";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<ZedSkill> {
-    const loaded = await this.loadSkillDirContent({
-      ...params,
-      getSettablePaths: ZedSkill.getSettablePaths,
-    });
-
-    const frontmatter = this.parseLoadedFrontmatter({ schema: ZedSkillFrontmatterSchema, loaded });
-
-    return new ZedSkill({
-      outputRoot: loaded.outputRoot,
-      relativeDirPath: loaded.relativeDirPath,
-      dirName: loaded.dirName,
-      frontmatter,
-      body: loaded.body,
-      otherFiles: loaded.otherFiles,
-      validate: true,
-      global: loaded.global,
-    });
+    return new ZedSkill(
+      await this.loadStandardSkillParams({ params, schema: ZedSkillFrontmatterSchema }),
+    );
   }
 
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    dirName,
-    global = false,
-  }: ToolSkillForDeletionParams): ZedSkill {
-    return new ZedSkill({
-      outputRoot,
-      relativeDirPath,
-      dirName,
-      frontmatter: { name: "", description: "" },
-      body: "",
-      otherFiles: [],
-      validate: false,
-      global,
-    });
+  static forDeletion(params: ToolSkillForDeletionParams): ZedSkill {
+    return new ZedSkill(this.forDeletionParams(params));
   }
 }
