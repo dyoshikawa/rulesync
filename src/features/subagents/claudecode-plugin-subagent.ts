@@ -28,8 +28,10 @@ const PLUGIN_ISOLATION_VALUE = "worktree";
 
 export class ClaudecodePluginSubagent extends ClaudecodeSubagent {
   static override isTargetedByRulesyncSubagent(rulesyncSubagent: RulesyncSubagent): boolean {
-    const targets = rulesyncSubagent.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("claudecode-plugin");
+    return this.isTargetedByRulesyncSubagentDefault({
+      rulesyncSubagent,
+      toolTarget: "claudecode-plugin",
+    });
   }
 
   static override getSettablePaths(): ToolSubagentSettablePaths {

@@ -226,9 +226,10 @@ export class HermesagentSubagent extends ToolSubagent {
   }
 
   static isTargetedByRulesyncSubagent(rulesyncSubagent: RulesyncSubagent): boolean {
-    const targets = rulesyncSubagent.getFrontmatter().targets;
-
-    return !targets || targets.includes("*") || targets.includes("hermesagent");
+    return this.isTargetedByRulesyncSubagentDefault({
+      rulesyncSubagent,
+      toolTarget: "hermesagent",
+    });
   }
 
   static fromRulesyncSubagents({

@@ -12,8 +12,10 @@ import { ZcodeCommand } from "./zcode-command.js";
  */
 export class ZcodePluginCommand extends ZcodeCommand {
   static override isTargetedByRulesyncCommand(rulesyncCommand: RulesyncCommand): boolean {
-    const targets = rulesyncCommand.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("zcode-plugin");
+    return this.isTargetedByRulesyncCommandDefault({
+      rulesyncCommand,
+      toolTarget: "zcode-plugin",
+    });
   }
 
   static override getSettablePaths(): ToolCommandSettablePaths {
