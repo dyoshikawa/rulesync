@@ -6,6 +6,15 @@ import { nonnegative, z } from "zod/mini";
  */
 export const CONTROL_CHARS = ["\n", "\r", "\0"] as const;
 
+/** Remove every {@link CONTROL_CHARS} character from a value. */
+export function stripControlChars(value: string): string {
+  let stripped = value;
+  for (const char of CONTROL_CHARS) {
+    stripped = stripped.replaceAll(char, "");
+  }
+  return stripped;
+}
+
 /**
  * A string that must not contain newline (\n), carriage return (\r), or NUL (\0) characters.
  * Used for command and matcher fields that are embedded in generated code.

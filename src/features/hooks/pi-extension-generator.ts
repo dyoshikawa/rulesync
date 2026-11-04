@@ -1,5 +1,6 @@
-import { CONTROL_CHARS, HooksConfig } from "../../types/hooks.js";
+import { HooksConfig } from "../../types/hooks.js";
 import { buildBlockReasonSanitizerLines } from "./hook-block-reason.js";
+import { sanitizeMatcherRegex } from "./hook-matcher-regex.js";
 
 /**
  * Pi extension events fired per tool invocation; handlers for these receive
@@ -258,19 +259,7 @@ const STOP_HOOK_HELPER_LINES = [
  * string-literal (JSON.stringify quoting) safe to embed in generated code.
  */
 function matcherToEmbeddedLiteral(matcher: string): string {
-  let sanitized = matcher;
-  for (const char of CONTROL_CHARS) {
-    sanitized = sanitized.replaceAll(char, "");
-  }
-  if (sanitized === "*") {
-    sanitized = ".*";
-  }
-  try {
-    new RegExp(sanitized);
-  } catch {
-    throw new Error(`Invalid regex pattern in hook matcher: ${sanitized}`);
-  }
-  return JSON.stringify(sanitized);
+  return JSON.stringify(sanitizeMatcherRegex(matcher));
 }
 
 type Handler = { command: string; matcher?: string; onlyOnError: boolean };

@@ -1,6 +1,7 @@
 // cspell:ignore nothrow subshell redirections -- Bun Shell API and shell terms
-import { HooksConfig, CONTROL_CHARS } from "../../types/hooks.js";
+import { HooksConfig } from "../../types/hooks.js";
 import { buildBlockReasonSanitizerLines } from "./hook-block-reason.js";
+import { sanitizeMatcherRegex } from "./hook-matcher-regex.js";
 
 /**
  * Tool events emitted as named `(input, ...)` hooks rather than through the
@@ -161,18 +162,7 @@ export function escapeForTemplateLiteral(command: string): string {
 }
 
 export function validateAndSanitizeMatcher(matcher: string): string {
-  let sanitized = matcher;
-  for (const char of CONTROL_CHARS) {
-    sanitized = sanitized.replaceAll(char, "");
-  }
-  if (sanitized === "*") {
-    sanitized = ".*";
-  }
-  try {
-    new RegExp(sanitized);
-  } catch {
-    throw new Error(`Invalid regex pattern in hook matcher: ${sanitized}`);
-  }
+  const sanitized = sanitizeMatcherRegex(matcher);
   return sanitized.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
