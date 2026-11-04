@@ -207,7 +207,7 @@ function fromKimiCodeServers({
  */
 
 /** Kimi's `[mcp]` global defaults, in rulesync's camelCase spelling. */
-export type KimiCodeMcpDefaults = {
+type KimiCodeMcpDefaults = {
   startupTimeoutMs?: number;
   toolTimeoutMs?: number;
   /**

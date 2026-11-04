@@ -28,7 +28,7 @@ export function getCrushConfigSettablePaths({ global = false }: { global?: boole
   };
 }
 
-export type CrushConfigLocation = {
+type CrushConfigLocation = {
   relativeDirPath: string;
   relativeFilePath: string;
   /** The absolute path of the file the adapter reads and writes. */

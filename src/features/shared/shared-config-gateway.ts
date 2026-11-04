@@ -68,7 +68,7 @@ import { loadYaml } from "../../utils/yaml.js";
 // valid JSONC is edited in place like a `jsonc` one, so its comments survive,
 // and any other existing file is refused (`Json5EditRefusedError`) rather than
 // rewritten whole.
-export type SharedConfigFormat = "yaml" | "json" | "jsonc" | "json5" | "toml";
+type SharedConfigFormat = "yaml" | "json" | "jsonc" | "json5" | "toml";
 
 export type SharedConfigDocument = Record<string, unknown>;
 
@@ -77,7 +77,7 @@ export type SharedConfigDocument = Record<string, unknown>;
  * root is not a mapping: coerce it to `{}` (tolerant readers) or throw
  * (writers that would otherwise silently discard the user's file).
  */
-export type SharedConfigInvalidRootPolicy = "coerce-empty" | "error";
+type SharedConfigInvalidRootPolicy = "coerce-empty" | "error";
 
 /**
  * How {@link parseSharedConfig} treats JSONC syntax errors: `tolerate` keeps
@@ -86,7 +86,7 @@ export type SharedConfigInvalidRootPolicy = "coerce-empty" | "error";
  * (fail-closed, so a partial parse can't silently drop user content on the
  * write-back).
  */
-export type SharedConfigJsoncParseErrorsPolicy = "tolerate" | "error";
+type SharedConfigJsoncParseErrorsPolicy = "tolerate" | "error";
 
 /**
  * Upper bound on the number of values a shared config document may expand
@@ -1151,7 +1151,7 @@ export function mergeSharedConfigDeep({
 // Ownership declarations
 // ---------------------------------------------------------------------------
 
-export type SharedConfigConflictPolicy =
+type SharedConfigConflictPolicy =
   | {
       /** The feature owns `ownedKeys` outright; a patch may only set those. */
       readonly kind: "replace-owned-keys";
@@ -1176,7 +1176,7 @@ export type SharedConfigConflictPolicy =
       readonly policyFunction: string;
     };
 
-export type SharedConfigFileDeclaration = {
+type SharedConfigFileDeclaration = {
   readonly format: SharedConfigFormat;
   readonly invalidRootPolicy?: SharedConfigInvalidRootPolicy;
   readonly jsoncParseErrors?: SharedConfigJsoncParseErrorsPolicy;
@@ -1198,21 +1198,21 @@ export type SharedConfigFileDeclaration = {
 export const CLAUDE_SETTINGS_SHARED_FILE_KEY = ".claude/settings.json";
 export const CLAUDE_SETTINGS_LOCAL_SHARED_FILE_KEY = ".claude/settings.local.json";
 export const HERMES_CONFIG_SHARED_FILE_KEY = ".hermes/config.yaml";
-export const HERMES_WIN32_CONFIG_SHARED_FILE_KEY = "AppData/Local/hermes/config.yaml";
-export const HERMES_HOME_CONFIG_SHARED_FILE_KEY = "config.yaml";
+const HERMES_WIN32_CONFIG_SHARED_FILE_KEY = "AppData/Local/hermes/config.yaml";
+const HERMES_HOME_CONFIG_SHARED_FILE_KEY = "config.yaml";
 export const TAKT_CONFIG_SHARED_FILE_KEY = ".takt/config.yaml";
 export const CODEXCLI_CONFIG_SHARED_FILE_KEY = ".codex/config.toml";
 export const CODEWHALE_CONFIG_SHARED_FILE_KEY = ".codewhale/config.toml";
-export const GROKCLI_CONFIG_SHARED_FILE_KEY = ".grok/config.toml";
+const GROKCLI_CONFIG_SHARED_FILE_KEY = ".grok/config.toml";
 export const VIBE_CONFIG_SHARED_FILE_KEY = ".vibe/config.toml";
 export const KIMI_CODE_CONFIG_SHARED_FILE_KEY = ".kimi-code/config.toml";
-export const KIMI_CODE_HOME_CONFIG_SHARED_FILE_KEY = "config.toml";
-export const REASONIX_PROJECT_CONFIG_SHARED_FILE_KEY = "reasonix.toml";
-export const REASONIX_GLOBAL_CONFIG_SHARED_FILE_KEY = ".reasonix/config.toml";
+const KIMI_CODE_HOME_CONFIG_SHARED_FILE_KEY = "config.toml";
+const REASONIX_PROJECT_CONFIG_SHARED_FILE_KEY = "reasonix.toml";
+const REASONIX_GLOBAL_CONFIG_SHARED_FILE_KEY = ".reasonix/config.toml";
 export const ROVODEV_CONFIG_SHARED_FILE_KEY = ".rovodev/config.yml";
-export const OPENCLAW_CONFIG_SHARED_FILE_KEY = ".openclaw/openclaw.json";
-export const POOL_PROJECT_SETTINGS_SHARED_FILE_KEY = ".poolside/settings.yaml";
-export const POOL_GLOBAL_SETTINGS_SHARED_FILE_KEY = ".config/poolside/settings.yaml";
+const OPENCLAW_CONFIG_SHARED_FILE_KEY = ".openclaw/openclaw.json";
+const POOL_PROJECT_SETTINGS_SHARED_FILE_KEY = ".poolside/settings.yaml";
+const POOL_GLOBAL_SETTINGS_SHARED_FILE_KEY = ".config/poolside/settings.yaml";
 
 /**
  * Build the `SHARED_CONFIG_OWNERSHIP` lookup key from a tool's settable paths.
@@ -2357,7 +2357,7 @@ export function applySharedConfigPatch({
   });
 }
 
-export type SharedConfigKeyOperation = {
+type SharedConfigKeyOperation = {
   action: "write" | "delete";
   key: string;
 };
