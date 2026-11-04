@@ -1,5 +1,3 @@
-import { join } from "node:path";
-
 import { z } from "zod/mini";
 
 import { SKILL_FILE_NAME } from "../../constants/general.js";
@@ -7,10 +5,9 @@ import {
   ROVODEV_AGENTS_SKILLS_DIR_PATH,
   ROVODEV_SKILLS_DIR_PATH,
 } from "../../constants/rovodev-paths.js";
-import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
-import { resolveCompatibility, resolveLicense, resolveMetadata } from "./skills-utils.js";
+import { pickStandardSkillFields, resolveStandardSkillFields } from "./skills-utils.js";
 import {
   ToolSkill,
   ToolSkillForDeletionParams,
@@ -110,11 +107,7 @@ export class RovodevSkill extends ToolSkill {
       ...(frontmatter["allowed-tools"] !== undefined && {
         "allowed-tools": frontmatter["allowed-tools"],
       }),
-      ...(frontmatter.license !== undefined && { license: frontmatter.license }),
-      ...(frontmatter.compatibility !== undefined && {
-        compatibility: frontmatter.compatibility,
-      }),
-      ...(frontmatter.metadata !== undefined && { metadata: frontmatter.metadata }),
+      ...pickStandardSkillFields(frontmatter),
     };
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
       name: frontmatter.name,
@@ -123,16 +116,7 @@ export class RovodevSkill extends ToolSkill {
       ...(Object.keys(rovodevSection).length > 0 && { rovodev: rovodevSection }),
     };
 
-    return new RulesyncSkill({
-      outputRoot: this.outputRoot,
-      relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
-      dirName: this.getDirName(),
-      frontmatter: rulesyncFrontmatter,
-      body: this.getBody(),
-      otherFiles: this.getOtherFiles(),
-      validate: true,
-      global: this.global,
-    });
+    return this.toRulesyncSkillWith(rulesyncFrontmatter);
   }
 
   static fromRulesyncSkill({
@@ -146,18 +130,6 @@ export class RovodevSkill extends ToolSkill {
     const rovodevSection = rulesyncFrontmatter.rovodev;
     // The Agent Skills standard fields fall back to the root-level rulesync
     // value when the `rovodev` section omits them.
-    const license = resolveLicense({
-      rootFrontmatter: rulesyncFrontmatter,
-      section: rovodevSection,
-    });
-    const compatibility = resolveCompatibility({
-      rootFrontmatter: rulesyncFrontmatter,
-      section: rovodevSection,
-    });
-    const metadata = resolveMetadata({
-      rootFrontmatter: rulesyncFrontmatter,
-      section: rovodevSection,
-    });
 
     const rovodevFrontmatter: RovodevSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
@@ -165,9 +137,10 @@ export class RovodevSkill extends ToolSkill {
       ...(rovodevSection?.["allowed-tools"] !== undefined && {
         "allowed-tools": rovodevSection["allowed-tools"],
       }),
-      ...(license !== undefined && { license }),
-      ...(compatibility !== undefined && { compatibility }),
-      ...(metadata !== undefined && { metadata }),
+      ...resolveStandardSkillFields({
+        rootFrontmatter: rulesyncFrontmatter,
+        section: rovodevSection,
+      }),
     };
 
     return new RovodevSkill({
@@ -182,61 +155,18 @@ export class RovodevSkill extends ToolSkill {
     });
   }
 
-  static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("rovodev");
-  }
+  protected static override readonly toolTarget = "rovodev";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<RovodevSkill> {
-    const loaded = await this.loadSkillDirContent({
-      ...params,
-      getSettablePaths: RovodevSkill.getSettablePaths,
-    });
-
-    const frontmatter = this.parseLoadedFrontmatter({
-      schema: RovodevSkillFrontmatterSchema,
-      loaded,
-    });
-
-    if (frontmatter.name !== loaded.dirName) {
-      const skillFilePath = join(
-        loaded.outputRoot,
-        loaded.relativeDirPath,
-        loaded.dirName,
-        SKILL_FILE_NAME,
-      );
-      throw new Error(
-        `Frontmatter name (${frontmatter.name}) must match directory name (${loaded.dirName}) in ${skillFilePath}`,
-      );
-    }
-
-    return new RovodevSkill({
-      outputRoot: loaded.outputRoot,
-      relativeDirPath: loaded.relativeDirPath,
-      dirName: loaded.dirName,
-      frontmatter,
-      body: loaded.body,
-      otherFiles: loaded.otherFiles,
-      validate: true,
-      global: loaded.global,
-    });
+    return new RovodevSkill(
+      await this.loadStandardSkillParamsMatchingDirName({
+        params,
+        schema: RovodevSkillFrontmatterSchema,
+      }),
+    );
   }
 
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    dirName,
-    global = false,
-  }: ToolSkillForDeletionParams): RovodevSkill {
-    return new RovodevSkill({
-      outputRoot,
-      relativeDirPath,
-      dirName,
-      frontmatter: { name: "", description: "" },
-      body: "",
-      otherFiles: [],
-      validate: false,
-      global,
-    });
+  static forDeletion(params: ToolSkillForDeletionParams): RovodevSkill {
+    return new RovodevSkill(this.forDeletionParams(params));
   }
 }

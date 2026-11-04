@@ -5,8 +5,8 @@ import {
   DEVIN_SKILLS_DIR_PATH,
 } from "../../constants/devin-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
-import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
+import { ToolTarget } from "../../types/tool-targets.js";
 import { rulesyncCommandSlugExists } from "../commands/command-skill-ownership.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import {
@@ -180,16 +180,7 @@ export class DevinSkill extends ToolSkill {
       ...(Object.keys(devinSection).length > 0 && { devin: devinSection }),
     };
 
-    return new RulesyncSkill({
-      outputRoot: this.outputRoot,
-      relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
-      dirName: this.getDirName(),
-      frontmatter: rulesyncFrontmatter,
-      body: this.getBody(),
-      otherFiles: this.getOtherFiles(),
-      validate: true,
-      global: this.global,
-    });
+    return this.toRulesyncSkillWith(rulesyncFrontmatter);
   }
 
   static fromRulesyncSkill({
@@ -235,10 +226,7 @@ export class DevinSkill extends ToolSkill {
     });
   }
 
-  static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("devin");
-  }
+  protected static override readonly toolTarget: ToolTarget = "devin";
 
   /**
    * Commands are emitted into this same skills tree as `<slug>/SKILL.md`
@@ -259,43 +247,12 @@ export class DevinSkill extends ToolSkill {
   }
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<DevinSkill> {
-    const loaded = await this.loadSkillDirContent({
-      ...params,
-      getSettablePaths: (options) => this.getSettablePaths(options),
-    });
-
-    const frontmatter = this.parseLoadedFrontmatter({
-      schema: DevinSkillFrontmatterSchema,
-      loaded,
-    });
-
-    return new this({
-      outputRoot: loaded.outputRoot,
-      relativeDirPath: loaded.relativeDirPath,
-      dirName: loaded.dirName,
-      frontmatter,
-      body: loaded.body,
-      otherFiles: loaded.otherFiles,
-      validate: true,
-      global: loaded.global,
-    });
+    return new this(
+      await this.loadStandardSkillParams({ params, schema: DevinSkillFrontmatterSchema }),
+    );
   }
 
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    dirName,
-    global = false,
-  }: ToolSkillForDeletionParams): DevinSkill {
-    return new this({
-      outputRoot,
-      relativeDirPath,
-      dirName,
-      frontmatter: { name: "", description: "" },
-      body: "",
-      otherFiles: [],
-      validate: false,
-      global,
-    });
+  static forDeletion(params: ToolSkillForDeletionParams): DevinSkill {
+    return new this(this.forDeletionParams(params));
   }
 }

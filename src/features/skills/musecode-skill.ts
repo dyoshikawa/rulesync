@@ -5,7 +5,6 @@ import {
   MUSECODE_GLOBAL_SKILLS_DIR_PATH,
   MUSECODE_SKILLS_DIR_PATH,
 } from "../../constants/musecode-paths.js";
-import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { toSpecConformantAgentSkillFields } from "./agentsskills-skill.js";
 import {
@@ -14,7 +13,7 @@ import {
   RulesyncSkillFrontmatterInput,
   SkillFile,
 } from "./rulesync-skill.js";
-import { resolveCompatibility, resolveLicense, resolveMetadata } from "./skills-utils.js";
+import { pickStandardSkillFields, resolveStandardSkillFields } from "./skills-utils.js";
 import {
   ToolSkill,
   ToolSkillForDeletionParams,
@@ -60,17 +59,12 @@ function buildMusecodeFrontmatter(
   rulesyncFrontmatter: RulesyncSkillFrontmatter,
 ): MusecodeSkillFrontmatter {
   const section = rulesyncFrontmatter.musecode;
-  const license = resolveLicense({ rootFrontmatter: rulesyncFrontmatter, section });
-  const compatibility = resolveCompatibility({ rootFrontmatter: rulesyncFrontmatter, section });
-  const metadata = resolveMetadata({ rootFrontmatter: rulesyncFrontmatter, section });
 
   return {
     name: rulesyncFrontmatter.name,
     description: rulesyncFrontmatter.description,
     ...toSpecConformantAgentSkillFields({
-      ...(license !== undefined && { license }),
-      ...(compatibility !== undefined && { compatibility }),
-      ...(metadata !== undefined && { metadata }),
+      ...resolveStandardSkillFields({ rootFrontmatter: rulesyncFrontmatter, section }),
     }),
   };
 }
@@ -136,9 +130,7 @@ export class MusecodeSkill extends ToolSkill {
   toRulesyncSkill(): RulesyncSkill {
     const frontmatter = this.getFrontmatter();
     const musecodeSection = {
-      ...(frontmatter.license !== undefined && { license: frontmatter.license }),
-      ...(frontmatter.compatibility !== undefined && { compatibility: frontmatter.compatibility }),
-      ...(frontmatter.metadata !== undefined && { metadata: frontmatter.metadata }),
+      ...pickStandardSkillFields(frontmatter),
     };
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
       name: frontmatter.name,
@@ -147,16 +139,7 @@ export class MusecodeSkill extends ToolSkill {
       ...(Object.keys(musecodeSection).length > 0 && { musecode: musecodeSection }),
     };
 
-    return new RulesyncSkill({
-      outputRoot: this.outputRoot,
-      relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
-      dirName: this.getDirName(),
-      frontmatter: rulesyncFrontmatter,
-      body: this.getBody(),
-      otherFiles: this.getOtherFiles(),
-      validate: true,
-      global: this.global,
-    });
+    return this.toRulesyncSkillWith(rulesyncFrontmatter);
   }
 
   static fromRulesyncSkill({
@@ -180,49 +163,15 @@ export class MusecodeSkill extends ToolSkill {
     });
   }
 
-  static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("musecode");
-  }
+  protected static override readonly toolTarget = "musecode";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<MusecodeSkill> {
-    const loaded = await this.loadSkillDirContent({
-      ...params,
-      getSettablePaths: MusecodeSkill.getSettablePaths,
-    });
-
-    const frontmatter = this.parseLoadedFrontmatter({
-      schema: MusecodeSkillFrontmatterSchema,
-      loaded,
-    });
-
-    return new MusecodeSkill({
-      outputRoot: loaded.outputRoot,
-      relativeDirPath: loaded.relativeDirPath,
-      dirName: loaded.dirName,
-      frontmatter,
-      body: loaded.body,
-      otherFiles: loaded.otherFiles,
-      validate: true,
-      global: loaded.global,
-    });
+    return new MusecodeSkill(
+      await this.loadStandardSkillParams({ params, schema: MusecodeSkillFrontmatterSchema }),
+    );
   }
 
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    dirName,
-    global = false,
-  }: ToolSkillForDeletionParams): MusecodeSkill {
-    return new MusecodeSkill({
-      outputRoot,
-      relativeDirPath,
-      dirName,
-      frontmatter: { name: "", description: "" },
-      body: "",
-      otherFiles: [],
-      validate: false,
-      global,
-    });
+  static forDeletion(params: ToolSkillForDeletionParams): MusecodeSkill {
+    return new MusecodeSkill(this.forDeletionParams(params));
   }
 }

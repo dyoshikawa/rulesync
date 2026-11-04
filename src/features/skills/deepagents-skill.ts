@@ -12,7 +12,12 @@ import {
   getDeepagentsRulesyncOutputRoot,
 } from "../../utils/deepagents.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
-import { resolveCompatibility, resolveLicense, resolveMetadata } from "./skills-utils.js";
+import {
+  pickStandardSkillFields,
+  resolveStandardSkillFields,
+  toAllowedToolsArray,
+  toAllowedToolsString,
+} from "./skills-utils.js";
 import {
   ToolSkill,
   ToolSkillForDeletionParams,
@@ -115,17 +120,11 @@ export class DeepagentsSkill extends ToolSkill {
     // Normalize back to the canonical rulesync array representation. dcode
     // serializes `allowed-tools` as a whitespace-delimited string, so split it.
     const allowedToolsArray =
-      allowedTools === undefined
-        ? undefined
-        : Array.isArray(allowedTools)
-          ? allowedTools
-          : allowedTools.split(/\s+/).filter((tool) => tool.length > 0);
+      allowedTools === undefined ? undefined : toAllowedToolsArray(allowedTools);
     const deepagentsBlock = {
       ...(allowedToolsArray !== undefined &&
         allowedToolsArray.length > 0 && { "allowed-tools": allowedToolsArray }),
-      ...(frontmatter.license !== undefined && { license: frontmatter.license }),
-      ...(frontmatter.compatibility !== undefined && { compatibility: frontmatter.compatibility }),
-      ...(frontmatter.metadata !== undefined && { metadata: frontmatter.metadata }),
+      ...pickStandardSkillFields(frontmatter),
     };
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
       name: frontmatter.name,
@@ -162,28 +161,18 @@ export class DeepagentsSkill extends ToolSkill {
     const allowedTools = deepagentsSection?.["allowed-tools"];
     // dcode only honors a space-delimited string; serialize the canonical array
     // into that form so the allowlist is not dropped at runtime.
-    const allowedToolsString = Array.isArray(allowedTools) ? allowedTools.join(" ") : allowedTools;
+    const allowedToolsString =
+      allowedTools === undefined ? undefined : toAllowedToolsString(allowedTools);
     // The Agent Skills standard fields fall back to the root-level rulesync
     // value when the `deepagents` section omits them.
-    const license = resolveLicense({
-      rootFrontmatter: rulesyncFrontmatter,
-      section: deepagentsSection,
-    });
-    const compatibility = resolveCompatibility({
-      rootFrontmatter: rulesyncFrontmatter,
-      section: deepagentsSection,
-    });
-    const metadata = resolveMetadata({
-      rootFrontmatter: rulesyncFrontmatter,
-      section: deepagentsSection,
-    });
     const deepagentsFrontmatter: DeepagentsSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
       ...(allowedToolsString && { "allowed-tools": allowedToolsString }),
-      ...(license !== undefined && { license }),
-      ...(compatibility !== undefined && { compatibility }),
-      ...(metadata !== undefined && { metadata }),
+      ...resolveStandardSkillFields({
+        rootFrontmatter: rulesyncFrontmatter,
+        section: deepagentsSection,
+      }),
     };
 
     return new DeepagentsSkill({
@@ -198,49 +187,15 @@ export class DeepagentsSkill extends ToolSkill {
     });
   }
 
-  static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("deepagents");
-  }
+  protected static override readonly toolTarget = "deepagents";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<DeepagentsSkill> {
-    const loaded = await this.loadSkillDirContent({
-      ...params,
-      getSettablePaths: DeepagentsSkill.getSettablePaths,
-    });
-
-    const frontmatter = this.parseLoadedFrontmatter({
-      schema: DeepagentsSkillFrontmatterSchema,
-      loaded,
-    });
-
-    return new DeepagentsSkill({
-      outputRoot: loaded.outputRoot,
-      relativeDirPath: loaded.relativeDirPath,
-      dirName: loaded.dirName,
-      frontmatter,
-      body: loaded.body,
-      otherFiles: loaded.otherFiles,
-      validate: true,
-      global: loaded.global,
-    });
+    return new DeepagentsSkill(
+      await this.loadStandardSkillParams({ params, schema: DeepagentsSkillFrontmatterSchema }),
+    );
   }
 
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    dirName,
-    global = false,
-  }: ToolSkillForDeletionParams): DeepagentsSkill {
-    return new DeepagentsSkill({
-      outputRoot,
-      relativeDirPath,
-      dirName,
-      frontmatter: { name: "", description: "" },
-      body: "",
-      otherFiles: [],
-      validate: false,
-      global,
-    });
+  static forDeletion(params: ToolSkillForDeletionParams): DeepagentsSkill {
+    return new DeepagentsSkill(this.forDeletionParams(params));
   }
 }

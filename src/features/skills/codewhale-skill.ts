@@ -2,7 +2,6 @@ import { z } from "zod/mini";
 
 import { CODEWHALE_SKILLS_DIR_PATH } from "../../constants/codewhale-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
-import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import {
@@ -109,16 +108,7 @@ export class CodewhaleSkill extends ToolSkill {
       ...(Object.keys(codewhaleSection).length > 0 && { codewhale: codewhaleSection }),
     };
 
-    return new RulesyncSkill({
-      outputRoot: this.outputRoot,
-      relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
-      dirName: this.getDirName(),
-      frontmatter: rulesyncFrontmatter,
-      body: this.getBody(),
-      otherFiles: this.getOtherFiles(),
-      validate: true,
-      global: this.global,
-    });
+    return this.toRulesyncSkillWith(rulesyncFrontmatter);
   }
 
   static fromRulesyncSkill({
@@ -155,49 +145,15 @@ export class CodewhaleSkill extends ToolSkill {
     });
   }
 
-  static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("codewhale");
-  }
+  protected static override readonly toolTarget = "codewhale";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<CodewhaleSkill> {
-    const loaded = await this.loadSkillDirContent({
-      ...params,
-      getSettablePaths: CodewhaleSkill.getSettablePaths,
-    });
-
-    const frontmatter = this.parseLoadedFrontmatter({
-      schema: CodewhaleSkillFrontmatterSchema,
-      loaded,
-    });
-
-    return new CodewhaleSkill({
-      outputRoot: loaded.outputRoot,
-      relativeDirPath: loaded.relativeDirPath,
-      dirName: loaded.dirName,
-      frontmatter,
-      body: loaded.body,
-      otherFiles: loaded.otherFiles,
-      validate: true,
-      global: loaded.global,
-    });
+    return new CodewhaleSkill(
+      await this.loadStandardSkillParams({ params, schema: CodewhaleSkillFrontmatterSchema }),
+    );
   }
 
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    dirName,
-    global = false,
-  }: ToolSkillForDeletionParams): CodewhaleSkill {
-    return new CodewhaleSkill({
-      outputRoot,
-      relativeDirPath,
-      dirName,
-      frontmatter: { name: "", description: "" },
-      body: "",
-      otherFiles: [],
-      validate: false,
-      global,
-    });
+  static forDeletion(params: ToolSkillForDeletionParams): CodewhaleSkill {
+    return new CodewhaleSkill(this.forDeletionParams(params));
   }
 }

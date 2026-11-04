@@ -5,7 +5,6 @@ import {
   LETTACODE_GLOBAL_SKILLS_DIR_PATH,
   LETTACODE_PROJECT_SKILLS_DIR_PATH,
 } from "../../constants/lettacode-paths.js";
-import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import { resolveDisableModelInvocation, resolveUserInvocable } from "./skills-utils.js";
@@ -110,16 +109,7 @@ export class LettacodeSkill extends ToolSkill {
       ...(Object.keys(rest).length > 0 && { lettacode: rest }),
     };
 
-    return new RulesyncSkill({
-      outputRoot: this.outputRoot,
-      relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
-      dirName: this.getDirName(),
-      frontmatter: rulesyncFrontmatter,
-      body: this.getBody(),
-      otherFiles: this.getOtherFiles(),
-      validate: true,
-      global: this.global,
-    });
+    return this.toRulesyncSkillWith(rulesyncFrontmatter);
   }
 
   static fromRulesyncSkill({
@@ -165,49 +155,15 @@ export class LettacodeSkill extends ToolSkill {
     });
   }
 
-  static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("lettacode");
-  }
+  protected static override readonly toolTarget = "lettacode";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<LettacodeSkill> {
-    const loaded = await this.loadSkillDirContent({
-      ...params,
-      getSettablePaths: LettacodeSkill.getSettablePaths,
-    });
-
-    const frontmatter = this.parseLoadedFrontmatter({
-      schema: LettacodeSkillFrontmatterSchema,
-      loaded,
-    });
-
-    return new LettacodeSkill({
-      outputRoot: loaded.outputRoot,
-      relativeDirPath: loaded.relativeDirPath,
-      dirName: loaded.dirName,
-      frontmatter,
-      body: loaded.body,
-      otherFiles: loaded.otherFiles,
-      validate: true,
-      global: loaded.global,
-    });
+    return new LettacodeSkill(
+      await this.loadStandardSkillParams({ params, schema: LettacodeSkillFrontmatterSchema }),
+    );
   }
 
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    dirName,
-    global = false,
-  }: ToolSkillForDeletionParams): LettacodeSkill {
-    return new LettacodeSkill({
-      outputRoot,
-      relativeDirPath,
-      dirName,
-      frontmatter: { name: "", description: "" },
-      body: "",
-      otherFiles: [],
-      validate: false,
-      global,
-    });
+  static forDeletion(params: ToolSkillForDeletionParams): LettacodeSkill {
+    return new LettacodeSkill(this.forDeletionParams(params));
   }
 }

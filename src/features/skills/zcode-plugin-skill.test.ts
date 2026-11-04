@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { writeFileContent } from "../../utils/file.js";
-import { RulesyncSkill } from "./rulesync-skill.js";
+import { RulesyncSkill, RulesyncSkillFrontmatterInput } from "./rulesync-skill.js";
 import { ZcodePluginSkill } from "./zcode-plugin-skill.js";
 import { ZcodeSkill } from "./zcode-skill.js";
 
@@ -21,7 +21,7 @@ describe("ZcodePluginSkill", () => {
     await cleanup();
   });
 
-  const buildRulesyncSkill = (targets: string[]) =>
+  const buildRulesyncSkill = (targets: RulesyncSkillFrontmatterInput["targets"]) =>
     new RulesyncSkill({
       outputRoot: testDir,
       relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,

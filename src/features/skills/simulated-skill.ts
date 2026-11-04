@@ -4,19 +4,9 @@ import { z } from "zod/mini";
 
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { ValidationResult } from "../../types/ai-dir.js";
-import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
-import { fileExists, readFileContent } from "../../utils/file.js";
-import { parseFrontmatterWithYamlRepair } from "../../utils/frontmatter.js";
 import { RulesyncSkill, SkillFile } from "./rulesync-skill.js";
-import {
-  ToolSkill,
-  ToolSkillForDeletionParams,
-  ToolSkillFromDirParams,
-  ToolSkillFromRulesyncSkillParams,
-  ToolSkillSettablePaths,
-  warnOnEmptyLoadedDescription,
-} from "./tool-skill.js";
+import { ToolSkill } from "./tool-skill.js";
 
 export const SimulatedSkillFrontmatterSchema = z.looseObject({
   name: z.string(),
@@ -39,16 +29,11 @@ export type SimulatedSkillParams = {
  * Abstract base class for simulated skill formats.
  *
  * Simulated skills are used for tools that don't have native skill support
- * (e.g., Copilot, Cursor, CodexCLI). They provide a simplified skill format
- * with minimal frontmatter (name and description only).
- *
- * Unlike native skills, simulated skills:
- * - Cannot be converted back to RulesyncSkill (one-way conversion)
- * - Have minimal frontmatter (no tool-specific options like allowed-tools)
+ * (e.g., AGENTS.md). The processor recognizes them by this class: they are
+ * project mode only and are never converted back to RulesyncSkill.
  */
 export abstract class SimulatedSkill extends ToolSkill {
   private readonly frontmatter: SimulatedSkillFrontmatter;
-  private readonly body: string;
 
   constructor({
     outputRoot = process.cwd(),
@@ -82,11 +67,6 @@ export abstract class SimulatedSkill extends ToolSkill {
     }
 
     this.frontmatter = frontmatter;
-    this.body = body;
-  }
-
-  getBody(): string {
-    return this.body;
   }
 
   getFrontmatter(): SimulatedSkillFrontmatter {
@@ -98,10 +78,6 @@ export abstract class SimulatedSkill extends ToolSkill {
   }
 
   validate(): ValidationResult {
-    if (!this.frontmatter) {
-      return { success: true, error: null };
-    }
-
     const result = SimulatedSkillFrontmatterSchema.safeParse(this.frontmatter);
     if (result.success) {
       return { success: true, error: null };
@@ -113,126 +89,5 @@ export abstract class SimulatedSkill extends ToolSkill {
         ),
       };
     }
-  }
-
-  protected static fromRulesyncSkillDefault({
-    outputRoot = process.cwd(),
-    rulesyncSkill,
-    validate = true,
-  }: ToolSkillFromRulesyncSkillParams): SimulatedSkillParams {
-    const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
-
-    // Simulated skills use minimal frontmatter
-    const simulatedFrontmatter: SimulatedSkillFrontmatter = {
-      name: rulesyncFrontmatter.name,
-      description: rulesyncFrontmatter.description,
-    };
-
-    return {
-      outputRoot,
-      relativeDirPath: this.getSettablePaths().relativeDirPath,
-      dirName: rulesyncSkill.getDirName(),
-      frontmatter: simulatedFrontmatter,
-      body: rulesyncSkill.getBody(),
-      otherFiles: rulesyncSkill.getOtherFiles(),
-      validate,
-    };
-  }
-
-  protected static async fromDirDefault({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    dirName,
-  }: ToolSkillFromDirParams): Promise<SimulatedSkillParams> {
-    const settablePaths = this.getSettablePaths();
-    const actualRelativeDirPath = relativeDirPath ?? settablePaths.relativeDirPath;
-    const skillDirPath = join(outputRoot, actualRelativeDirPath, dirName);
-    const skillFilePath = join(skillDirPath, SKILL_FILE_NAME);
-
-    if (!(await fileExists(skillFilePath))) {
-      throw new Error(`${SKILL_FILE_NAME} not found in ${skillDirPath}`);
-    }
-
-    const fileContent = await readFileContent(skillFilePath);
-    const { frontmatter, body: content } = parseFrontmatterWithYamlRepair(
-      fileContent,
-      skillFilePath,
-    );
-
-    const result = SimulatedSkillFrontmatterSchema.safeParse(frontmatter);
-    if (!result.success) {
-      throw new Error(`Invalid frontmatter in ${skillFilePath}: ${formatError(result.error)}`);
-    }
-
-    warnOnEmptyLoadedDescription({ skillFilePath, description: result.data.description });
-
-    const otherFiles = await this.collectOtherFiles(
-      outputRoot,
-      actualRelativeDirPath,
-      dirName,
-      SKILL_FILE_NAME,
-    );
-
-    return {
-      outputRoot,
-      relativeDirPath: actualRelativeDirPath,
-      dirName,
-      frontmatter: result.data,
-      body: content.trim(),
-      otherFiles,
-      validate: true,
-    };
-  }
-
-  /**
-   * Create minimal params for deletion purposes.
-   * This method does not read or parse directory content, making it safe to use
-   * even when skill files have old/incompatible formats.
-   */
-  protected static forDeletionDefault({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    dirName,
-  }: ToolSkillForDeletionParams): SimulatedSkillParams {
-    return {
-      outputRoot,
-      relativeDirPath,
-      dirName,
-      frontmatter: { name: "", description: "" },
-      body: "",
-      otherFiles: [],
-      validate: false,
-    };
-  }
-
-  /**
-   * Check if a RulesyncSkill should be converted to this simulated skill type.
-   * Uses the targets field in the RulesyncSkill frontmatter to determine targeting.
-   */
-  protected static isTargetedByRulesyncSkillDefault({
-    rulesyncSkill,
-    toolTarget,
-  }: {
-    rulesyncSkill: RulesyncSkill;
-    toolTarget: ToolTarget;
-  }): boolean {
-    const frontmatter = rulesyncSkill.getFrontmatter();
-    const targets = frontmatter.targets;
-
-    // If targets includes "*", it targets all tools
-    if (targets.includes("*")) {
-      return true;
-    }
-
-    // Check if the specific tool is in the targets array
-    return targets.includes(toolTarget);
-  }
-
-  /**
-   * Get the settable paths for this tool's skill directories.
-   * Must be implemented by concrete subclasses.
-   */
-  static getSettablePaths(_options?: { global?: boolean }): ToolSkillSettablePaths {
-    throw new Error("Please implement this method in the subclass.");
   }
 }

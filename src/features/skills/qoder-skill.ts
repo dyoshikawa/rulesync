@@ -1,6 +1,5 @@
 import { QODER_SKILLS_DIR_PATH } from "../../constants/qoder-paths.js";
 import { AgentsSkillsSkill } from "./agentsskills-skill.js";
-import { RulesyncSkill } from "./rulesync-skill.js";
 import { ToolSkillSettablePaths } from "./tool-skill.js";
 
 /**
@@ -20,8 +19,5 @@ export class QoderSkill extends AgentsSkillsSkill {
     return { relativeDirPath: QODER_SKILLS_DIR_PATH };
   }
 
-  static override isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("qoder");
-  }
+  protected static override readonly toolTarget = "qoder";
 }

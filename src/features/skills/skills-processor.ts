@@ -886,22 +886,17 @@ const defaultGetFactory: GetFactory = (target) => {
 };
 
 // Derive tool target arrays from factory metadata
-const allToolTargetKeys = [...toolSkillFactories.keys()];
+const skillsProcessorToolTargetsProject: ToolTarget[] = [...toolSkillFactories]
+  .filter(([, factory]) => factory.meta.supportsProject)
+  .map(([target]) => target);
 
-const skillsProcessorToolTargetsProject: ToolTarget[] = allToolTargetKeys.filter((target) => {
-  const factory = toolSkillFactories.get(target);
-  return factory?.meta.supportsProject ?? true;
-});
+const skillsProcessorToolTargetsSimulated: ToolTarget[] = [...toolSkillFactories]
+  .filter(([, factory]) => factory.meta.supportsSimulated)
+  .map(([target]) => target);
 
-const skillsProcessorToolTargetsSimulated: ToolTarget[] = allToolTargetKeys.filter((target) => {
-  const factory = toolSkillFactories.get(target);
-  return factory?.meta.supportsSimulated ?? false;
-});
-
-export const skillsProcessorToolTargetsGlobal: ToolTarget[] = allToolTargetKeys.filter((target) => {
-  const factory = toolSkillFactories.get(target);
-  return factory?.meta.supportsGlobal ?? false;
-});
+const skillsProcessorToolTargetsGlobal: ToolTarget[] = [...toolSkillFactories]
+  .filter(([, factory]) => factory.meta.supportsGlobal)
+  .map(([target]) => target);
 
 export class SkillsProcessor extends DirFeatureProcessor {
   private readonly toolTarget: SkillsProcessorToolTarget;
@@ -1671,13 +1666,6 @@ export class SkillsProcessor extends DirFeatureProcessor {
 Simulated skills are specialized capabilities that can be invoked to handle specific types of tasks. When you determine that a skill would be helpful for the current task, read the corresponding SKILL.md file and execute its instructions.
 
 ${toonContent}`;
-  }
-
-  /**
-   * Return the tool targets that this processor supports in global mode
-   */
-  static getToolTargetsGlobal(): ToolTarget[] {
-    return skillsProcessorToolTargetsGlobal;
   }
 
   /**
