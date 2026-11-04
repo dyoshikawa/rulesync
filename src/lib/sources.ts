@@ -198,7 +198,9 @@ export async function resolveAndFetchSources(params: {
 
   // Frozen mode: validate lockfiles cover all declared sources.
   // Missing curated skills are fetched using locked refs.
-  validateFrozenLockCoverage({ frozen, lock, npmLock, sources });
+  if (frozen) {
+    assertFrozenLockCoversSources({ lock, npmLock, sources });
+  }
 
   const originalLockJson = JSON.stringify(lock);
   const originalNpmLockJson = JSON.stringify(npmLock);
@@ -1414,17 +1416,6 @@ function assertFrozenLockCoversSources(params: {
     throw new Error(
       `Frozen install failed: declared ref does not match the lockfile for: ${driftedRefs.join(", ")}. Run 'rulesync install' to update the lockfile.`,
     );
-  }
-}
-
-function validateFrozenLockCoverage(params: {
-  frozen: boolean;
-  lock: SourcesLock;
-  npmLock: NpmSourcesLock;
-  sources: SourceEntry[];
-}): void {
-  if (params.frozen) {
-    assertFrozenLockCoversSources(params);
   }
 }
 
