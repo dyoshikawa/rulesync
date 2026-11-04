@@ -64,6 +64,7 @@ import type { Logger } from "../utils/logger.js";
 import { getRulesyncSourceCandidates } from "../utils/rulesync-source-path.js";
 import { GitHubClient, GitHubClientError } from "./github-client.js";
 import {
+  isGitHubNotFoundError,
   listDirectoryRecursive,
   MAX_RECURSION_DEPTH,
   resolveExecutablePaths,
@@ -1592,31 +1593,6 @@ async function isSymbolicLink(path: string): Promise<boolean> {
 }
 
 /**
- * Type guard for error objects with statusCode
- */
-function hasStatusCode(error: unknown): error is { statusCode: number } {
-  if (typeof error !== "object" || error === null || !("statusCode" in error)) {
-    return false;
-  }
-  const maybeStatus = Object.getOwnPropertyDescriptor(error, "statusCode")?.value;
-  return typeof maybeStatus === "number";
-}
-
-/**
- * Check if error is a 404 "not found" error
- */
-function isNotFoundError(error: unknown): boolean {
-  if (error instanceof GitHubClientError && error.statusCode === 404) {
-    return true;
-  }
-  // Also handle plain objects with statusCode property (for test mocks)
-  if (hasStatusCode(error) && error.statusCode === 404) {
-    return true;
-  }
-  return false;
-}
-
-/**
  * Whether a fetched file is a skill's supporting file, the one kind of file
  * whose executable bit matters: an agent is told to run `scripts/run.sh`,
  * never a rule. Only such a file is worth a tree lookup or a chmod.
@@ -1908,7 +1884,7 @@ async function collectFeatureFiles(params: {
             }
           } catch (error) {
             // Only skip 404 errors (file not found), re-throw other errors
-            if (isNotFoundError(error)) {
+            if (isGitHubNotFoundError(error)) {
               logger.debug(`File not found: ${quoteForLog(fullPath)}`);
             } else {
               throw error;
@@ -1947,7 +1923,7 @@ async function collectFeatureFiles(params: {
         }
       } catch (error) {
         // Check for 404 errors (feature not found)
-        if (isNotFoundError(error)) {
+        if (isGitHubNotFoundError(error)) {
           // Feature directory/file not found, skip silently
           logger.debug(`Feature not found: ${quoteForLog(fullPath)}`);
           return collected;
