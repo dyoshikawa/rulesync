@@ -14,7 +14,7 @@ import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { isPlainObject, isRecord, isStringArray } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
-  parseSharedConfig,
+  parseSharedConfigFile,
   sharedConfigFileKey,
 } from "../shared/shared-config-gateway.js";
 import {
@@ -36,21 +36,6 @@ import {
 
 const OPENCLAW_GLOBAL_ONLY_MESSAGE =
   "OpenClaw MCP is global-only; use --global to sync ~/.openclaw/openclaw.json";
-
-/**
- * Single spelling of the openclaw.json codec/policy, matching its
- * `SHARED_CONFIG_OWNERSHIP` declaration: the file is JSON5, and a file whose
- * root is not an object is refused rather than replaced, since it also holds
- * every other Gateway setting.
- */
-function parseOpenclawConfig(fileContent: string, filePath?: string): Record<string, unknown> {
-  return parseSharedConfig({
-    format: "json5",
-    fileContent,
-    filePath,
-    invalidRootPolicy: "error",
-  });
-}
 
 // `oauth` string keys OpenClaw reads besides `identity`; `authProfileId` and
 // `scope` are trimmed and must not be empty, and the two URLs are URLs.
@@ -360,10 +345,11 @@ export class OpenclawMcp extends ToolMcp {
 
   constructor(params: ToolMcpParams) {
     super(params);
-    this.config = parseOpenclawConfig(
-      this.fileContent ?? "",
-      join(this.relativeDirPath, this.relativeFilePath),
-    );
+    this.config = parseSharedConfigFile({
+      fileKey: sharedConfigFileKey(OpenclawMcp.getSettablePaths({ global: this.global })),
+      fileContent: this.fileContent ?? "",
+      filePath: join(this.relativeDirPath, this.relativeFilePath),
+    });
   }
 
   getConfig(): Record<string, unknown> {
@@ -417,7 +403,11 @@ export class OpenclawMcp extends ToolMcp {
     const paths = this.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const existingContent = (await readFileContentOrNull(filePath)) ?? "";
-    const existing = parseOpenclawConfig(existingContent, filePath);
+    const existing = parseSharedConfigFile({
+      fileKey: sharedConfigFileKey(paths),
+      fileContent: existingContent,
+      filePath,
+    });
 
     // `mcp` is owned as a whole key, so its other members (such as
     // `sessionIdleTtlMs`) and the servers rulesync does not define are carried

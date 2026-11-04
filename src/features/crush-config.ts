@@ -9,7 +9,7 @@ import { readFileContentOrNull } from "../utils/file.js";
 import { type Logger } from "../utils/logger.js";
 import { isPrototypePollutionKey } from "../utils/prototype-pollution.js";
 import { isRecord } from "../utils/type-guards.js";
-import { parseSharedConfig } from "./shared/shared-config-gateway.js";
+import { parseSharedConfigFile, sharedConfigFileKey } from "./shared/shared-config-gateway.js";
 
 /**
  * Where Crush's JSON config lives for a scope, before the project-scope twin
@@ -92,17 +92,16 @@ export async function resolveCrushConfigFile({
 }
 
 /**
- * Single spelling of the crush.json codec/policy, matching the
- * `SHARED_CONFIG_OWNERSHIP` declaration for both scopes: fail closed on an
- * unparseable root rather than replacing the user's Crush config with
- * generated output.
+ * Parse a Crush config under its `SHARED_CONFIG_OWNERSHIP` declaration, which
+ * both scopes share. The declaration is named by the project-scope key: the
+ * hidden `.crush.json` spelling a project may use instead is not a declared
+ * key of its own.
  */
 export function parseCrushConfig(fileContent: string, filePath?: string): Record<string, unknown> {
-  return parseSharedConfig({
-    format: "json",
+  return parseSharedConfigFile({
+    fileKey: sharedConfigFileKey(getCrushConfigSettablePaths()),
     fileContent,
     filePath,
-    invalidRootPolicy: "error",
   });
 }
 

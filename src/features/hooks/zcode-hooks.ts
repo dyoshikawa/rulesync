@@ -18,7 +18,7 @@ import type { Logger } from "../../utils/logger.js";
 import { isRecord } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
-  parseSharedConfig,
+  parseSharedConfigFile,
   sharedConfigFileKey,
 } from "../shared/shared-config-gateway.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
@@ -35,20 +35,6 @@ import {
   type ToolHooksFromRulesyncHooksParams,
   type ToolHooksSettablePaths,
 } from "./tool-hooks.js";
-
-/**
- * Single spelling of the config.json codec/policy, matching the one in
- * ZcodeMcp: fail closed on an unparseable root rather than replacing the
- * user's primary ZCode config with generated output.
- */
-function parseZcodeConfig(fileContent: string, filePath?: string): Record<string, unknown> {
-  return parseSharedConfig({
-    format: "json",
-    fileContent,
-    filePath,
-    invalidRootPolicy: "error",
-  });
-}
 
 /**
  * Drop ZCode's native `process` hooks from an `events` map before the shared
@@ -166,10 +152,11 @@ export class ZcodeHooks extends ToolHooks {
 
   constructor(params: AiFileParams) {
     super(params);
-    this.json = parseZcodeConfig(
-      this.fileContent ?? "{}",
-      join(this.relativeDirPath, this.relativeFilePath),
-    );
+    this.json = parseSharedConfigFile({
+      fileKey: sharedConfigFileKey(ZcodeHooks.getSettablePaths({ global: this.global })),
+      fileContent: this.fileContent ?? "{}",
+      filePath: join(this.relativeDirPath, this.relativeFilePath),
+    });
   }
 
   override isDeletable(): boolean {
@@ -219,7 +206,11 @@ export class ZcodeHooks extends ToolHooks {
     const paths = this.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const existingContent = (await readFileContentOrNull(filePath)) ?? "{}";
-    const existing = parseZcodeConfig(existingContent, filePath);
+    const existing = parseSharedConfigFile({
+      fileKey: sharedConfigFileKey(paths),
+      fileContent: existingContent,
+      filePath,
+    });
 
     const config = rulesyncHooks.getJson();
     const events = canonicalToToolHooks({

@@ -14,7 +14,7 @@ import {
 import { isRecord } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
-  parseSharedConfig,
+  parseSharedConfigFile,
   sharedConfigFileKey,
   undefinedWhenEmpty,
 } from "../shared/shared-config-gateway.js";
@@ -47,11 +47,10 @@ function parseQoderMcpConfig({
   global: boolean;
 }): Record<string, unknown> {
   if (global) {
-    return parseSharedConfig({
-      format: "json",
+    return parseSharedConfigFile({
+      fileKey: sharedConfigFileKey(QoderMcp.getSettablePaths({ global })),
       fileContent: fileContent || "{}",
       filePath: relativePath,
-      invalidRootPolicy: "error",
     });
   }
   return parseMcpJsonObjectOrThrow({

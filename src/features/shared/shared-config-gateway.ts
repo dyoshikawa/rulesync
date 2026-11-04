@@ -2163,6 +2163,66 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
 };
 
 /**
+ * The declaration of a gateway-managed shared file, or an error naming the
+ * undeclared file.
+ */
+function getDeclarationOrThrow(fileKey: string): SharedConfigFileDeclaration {
+  const declaration = SHARED_CONFIG_OWNERSHIP[fileKey];
+  if (!declaration) {
+    throw new Error(
+      `Shared config file '${fileKey}' has no SHARED_CONFIG_OWNERSHIP declaration; ` +
+        `declare its writers and policies before writing it through the gateway.`,
+    );
+  }
+  return declaration;
+}
+
+/** {@link parseSharedConfig} under a declaration's codec and policies. */
+function parseWithDeclaration({
+  declaration,
+  fileContent,
+  filePath,
+}: {
+  declaration: SharedConfigFileDeclaration;
+  fileContent: string;
+  filePath?: string | undefined;
+}): SharedConfigDocument {
+  return parseSharedConfig({
+    format: declaration.format,
+    fileContent,
+    filePath,
+    ...(declaration.invalidRootPolicy !== undefined && {
+      invalidRootPolicy: declaration.invalidRootPolicy,
+    }),
+    ...(declaration.jsoncParseErrors !== undefined && {
+      jsoncParseErrors: declaration.jsoncParseErrors,
+    }),
+  });
+}
+
+/**
+ * Parse a gateway-managed shared file under its `SHARED_CONFIG_OWNERSHIP`
+ * declaration — its format and its invalid-root and JSONC-error policies — so
+ * a reader never re-spells what the declaration already states. Throws when
+ * the file is undeclared, and otherwise as {@link parseSharedConfig} does.
+ */
+export function parseSharedConfigFile({
+  fileKey,
+  fileContent,
+  filePath,
+}: {
+  fileKey: string;
+  fileContent: string;
+  filePath?: string | undefined;
+}): SharedConfigDocument {
+  return parseWithDeclaration({
+    declaration: getDeclarationOrThrow(fileKey),
+    fileContent,
+    filePath,
+  });
+}
+
+/**
  * The keys a declaration ensures, added to `document` when it lacks them and
  * placed in front of every key it has. A document that states all of them —
  * with whatever value — comes back as it is, and no key of the document
@@ -2231,13 +2291,7 @@ export function serializeSharedConfigFile({
   filePath?: string | undefined;
   logger?: Logger | undefined;
 }): string {
-  const declaration = SHARED_CONFIG_OWNERSHIP[fileKey];
-  if (!declaration) {
-    throw new Error(
-      `Shared config file '${fileKey}' has no SHARED_CONFIG_OWNERSHIP declaration; ` +
-        `declare its writers and policies before writing it through the gateway.`,
-    );
-  }
+  const declaration = getDeclarationOrThrow(fileKey);
   return serializeDeclaredSharedConfig({
     declaration,
     document,
@@ -2283,13 +2337,7 @@ export function applySharedConfigPatch({
   filePath?: string | undefined;
   logger?: Logger | undefined;
 }): string {
-  const declaration = SHARED_CONFIG_OWNERSHIP[fileKey];
-  if (!declaration) {
-    throw new Error(
-      `Shared config file '${fileKey}' has no SHARED_CONFIG_OWNERSHIP declaration; ` +
-        `declare its writers and policies before writing it through the gateway.`,
-    );
-  }
+  const declaration = getDeclarationOrThrow(fileKey);
   const policy = declaration.features[feature];
   if (!policy) {
     throw new Error(
@@ -2304,17 +2352,7 @@ export function applySharedConfigPatch({
     );
   }
 
-  const base = parseSharedConfig({
-    format: declaration.format,
-    fileContent: existingContent,
-    filePath,
-    ...(declaration.invalidRootPolicy !== undefined && {
-      invalidRootPolicy: declaration.invalidRootPolicy,
-    }),
-    ...(declaration.jsoncParseErrors !== undefined && {
-      jsoncParseErrors: declaration.jsoncParseErrors,
-    }),
-  });
+  const base = parseWithDeclaration({ declaration, fileContent: existingContent, filePath });
 
   if (policy.kind === "replace-owned-keys") {
     const unowned = Object.keys(patch).filter((key) => !policy.ownedKeys.includes(key));
@@ -2399,16 +2437,7 @@ export function diffSharedConfigOwnedKeys({
   if (!declaration) return [];
 
   const parse = (fileContent: string): SharedConfigDocument =>
-    parseSharedConfig({
-      format: declaration.format,
-      fileContent,
-      ...(declaration.invalidRootPolicy !== undefined && {
-        invalidRootPolicy: declaration.invalidRootPolicy,
-      }),
-      ...(declaration.jsoncParseErrors !== undefined && {
-        jsoncParseErrors: declaration.jsoncParseErrors,
-      }),
-    });
+    parseWithDeclaration({ declaration, fileContent });
   let before: SharedConfigDocument;
   let after: SharedConfigDocument;
   try {

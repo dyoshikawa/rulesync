@@ -14,7 +14,7 @@ import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { isRecord, isStringArray } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
-  parseSharedConfig,
+  parseSharedConfigFile,
   sharedConfigFileKey,
   undefinedWhenEmpty,
 } from "../shared/shared-config-gateway.js";
@@ -35,21 +35,6 @@ import {
   ToolMcpParams,
   ToolMcpSettablePaths,
 } from "./tool-mcp.js";
-
-/**
- * Single spelling of the settings.yaml codec/policy, matching the
- * `SHARED_CONFIG_OWNERSHIP` declaration for both scopes: fail closed on an
- * unparseable root rather than replacing the user's primary Pool settings with
- * generated output.
- */
-function parsePoolSettings(fileContent: string, filePath?: string): Record<string, unknown> {
-  return parseSharedConfig({
-    format: "yaml",
-    fileContent,
-    filePath,
-    invalidRootPolicy: "error",
-  });
-}
 
 /**
  * Pool spells remote headers as a list of `"Name: value"` strings rather than
@@ -354,10 +339,11 @@ export class PoolMcp extends ToolMcp {
 
   constructor(params: ToolMcpParams) {
     super(params);
-    this.settings = parsePoolSettings(
-      this.fileContent ?? "",
-      join(this.relativeDirPath, this.relativeFilePath),
-    );
+    this.settings = parseSharedConfigFile({
+      fileKey: sharedConfigFileKey(PoolMcp.getSettablePaths({ global: this.global })),
+      fileContent: this.fileContent ?? "",
+      filePath: join(this.relativeDirPath, this.relativeFilePath),
+    });
   }
 
   getSettings(): Record<string, unknown> {
