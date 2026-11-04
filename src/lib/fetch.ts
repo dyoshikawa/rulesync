@@ -2079,25 +2079,64 @@ async function fetchAndConvertToolFiles(params: {
   }
 }
 
+type DirFeature = "commands" | "subagents" | "skills" | "checks";
+
+/**
+ * Directory-based features whose rulesync paths (`<feature>/...`) map onto a
+ * tool directory, in the order `mapToToolPath` tries them. Each resolver
+ * returns the tool's relative directory, or `undefined` when the target does
+ * not support the feature.
+ */
+const DIR_FEATURE_PATH_RESOLVERS: ReadonlyArray<{
+  feature: DirFeature;
+  resolve: (target: ToolTarget) => string | undefined;
+}> = [
+  {
+    feature: "commands",
+    resolve: (target) =>
+      CommandsProcessor.getToolTargets({ global: false, includeSimulated: false }).includes(target)
+        ? CommandsProcessor.getFactory(target)?.class.getSettablePaths({ global: false })
+            .relativeDirPath
+        : undefined,
+  },
+  {
+    feature: "subagents",
+    resolve: (target) =>
+      SubagentsProcessor.getToolTargets({ global: false, includeSimulated: false }).includes(target)
+        ? SubagentsProcessor.getFactory(target)?.class.getSettablePaths({ global: false })
+            .relativeDirPath
+        : undefined,
+  },
+  {
+    feature: "skills",
+    resolve: (target) =>
+      SkillsProcessor.getToolTargets({ global: false }).includes(target)
+        ? SkillsProcessor.getFactory(target)?.class.getSettablePaths({ global: false })
+            .relativeDirPath
+        : undefined,
+  },
+  {
+    feature: "checks",
+    resolve: (target) =>
+      ChecksProcessor.getToolTargets({ global: false }).includes(target)
+        ? ChecksProcessor.getFactory(target)?.class.getSettablePaths({ global: false })
+            .relativeDirPath
+        : undefined,
+  },
+];
+
+type ToolPathMapping = {
+  rules?: { root?: string; nonRoot?: string };
+  dirs: Partial<Record<DirFeature, string>>;
+};
+
 /**
  * Get tool-specific path mapping for a target
  * Returns a mapping from rulesync feature paths to tool-specific paths
  */
-function getToolPathMapping(target: ToolTarget): {
-  rules?: { root?: string; nonRoot?: string };
-  commands?: string;
-  subagents?: string;
-  skills?: string;
-  checks?: string;
-} {
+function getToolPathMapping(target: ToolTarget): ToolPathMapping {
   // Get tool-specific paths from each processor class
-  const mapping: {
-    rules?: { root?: string; nonRoot?: string };
-    commands?: string;
-    subagents?: string;
-    skills?: string;
-    checks?: string;
-  } = {};
+  const mapping: ToolPathMapping = { dirs: {} };
 
   // Rules paths
   const supportedRulesTargets = RulesProcessor.getToolTargets({ global: false });
@@ -2112,49 +2151,10 @@ function getToolPathMapping(target: ToolTarget): {
     }
   }
 
-  // Commands paths
-  const supportedCommandsTargets = CommandsProcessor.getToolTargets({
-    global: false,
-    includeSimulated: false,
-  });
-  if (supportedCommandsTargets.includes(target)) {
-    const factory = CommandsProcessor.getFactory(target);
-    if (factory) {
-      const paths = factory.class.getSettablePaths({ global: false });
-      mapping.commands = paths.relativeDirPath;
-    }
-  }
-
-  // Subagents paths
-  const supportedSubagentsTargets = SubagentsProcessor.getToolTargets({
-    global: false,
-    includeSimulated: false,
-  });
-  if (supportedSubagentsTargets.includes(target)) {
-    const factory = SubagentsProcessor.getFactory(target);
-    if (factory) {
-      const paths = factory.class.getSettablePaths({ global: false });
-      mapping.subagents = paths.relativeDirPath;
-    }
-  }
-
-  // Skills paths
-  const supportedSkillsTargets = SkillsProcessor.getToolTargets({ global: false });
-  if (supportedSkillsTargets.includes(target)) {
-    const factory = SkillsProcessor.getFactory(target);
-    if (factory) {
-      const paths = factory.class.getSettablePaths({ global: false });
-      mapping.skills = paths.relativeDirPath;
-    }
-  }
-
-  // Checks paths
-  const supportedChecksTargets = ChecksProcessor.getToolTargets({ global: false });
-  if (supportedChecksTargets.includes(target)) {
-    const factory = ChecksProcessor.getFactory(target);
-    if (factory) {
-      const paths = factory.class.getSettablePaths({ global: false });
-      mapping.checks = paths.relativeDirPath;
+  for (const { feature, resolve } of DIR_FEATURE_PATH_RESOLVERS) {
+    const relativeDirPath = resolve(target);
+    if (relativeDirPath !== undefined) {
+      mapping.dirs[feature] = relativeDirPath;
     }
   }
 
@@ -2164,10 +2164,7 @@ function getToolPathMapping(target: ToolTarget): {
 /**
  * Map a rulesync-style relative path to tool-specific path
  */
-function mapToToolPath(
-  relativePath: string,
-  toolPaths: ReturnType<typeof getToolPathMapping>,
-): string {
+function mapToToolPath(relativePath: string, toolPaths: ToolPathMapping): string {
   // Check if this is a rules file
   if (relativePath.startsWith("rules/")) {
     const restPath = relativePath.substring("rules/".length);
@@ -2181,35 +2178,12 @@ function mapToToolPath(
     return relativePath;
   }
 
-  // Check if this is a commands file
-  if (relativePath.startsWith("commands/")) {
-    const restPath = relativePath.substring("commands/".length);
-    if (toolPaths.commands) {
-      return join(toolPaths.commands, restPath);
-    }
-  }
-
-  // Check if this is a subagents file
-  if (relativePath.startsWith("subagents/")) {
-    const restPath = relativePath.substring("subagents/".length);
-    if (toolPaths.subagents) {
-      return join(toolPaths.subagents, restPath);
-    }
-  }
-
-  // Check if this is a skills file
-  if (relativePath.startsWith("skills/")) {
-    const restPath = relativePath.substring("skills/".length);
-    if (toolPaths.skills) {
-      return join(toolPaths.skills, restPath);
-    }
-  }
-
-  // Check if this is a checks file
-  if (relativePath.startsWith("checks/")) {
-    const restPath = relativePath.substring("checks/".length);
-    if (toolPaths.checks) {
-      return join(toolPaths.checks, restPath);
+  // Check the directory-based features (commands, subagents, skills, checks)
+  for (const { feature } of DIR_FEATURE_PATH_RESOLVERS) {
+    const prefix = `${feature}/`;
+    const toolDirPath = toolPaths.dirs[feature];
+    if (relativePath.startsWith(prefix) && toolDirPath) {
+      return join(toolDirPath, relativePath.substring(prefix.length));
     }
   }
 
