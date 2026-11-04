@@ -1093,17 +1093,13 @@ export const toolMcpFactories = new Map<McpProcessorToolTarget, ToolMcpFactory>(
 ]);
 
 // Derive tool target arrays from factory metadata
-const allToolTargetKeys = [...toolMcpFactories.keys()];
+const mcpProcessorToolTargets: ToolTarget[] = [...toolMcpFactories]
+  .filter(([, factory]) => factory.meta.supportsProject)
+  .map(([target]) => target);
 
-const mcpProcessorToolTargets: ToolTarget[] = allToolTargetKeys.filter((target) => {
-  const factory = toolMcpFactories.get(target);
-  return factory?.meta.supportsProject ?? false;
-});
-
-const mcpProcessorToolTargetsGlobal: ToolTarget[] = allToolTargetKeys.filter((target) => {
-  const factory = toolMcpFactories.get(target);
-  return factory?.meta.supportsGlobal ?? false;
-});
+const mcpProcessorToolTargetsGlobal: ToolTarget[] = [...toolMcpFactories]
+  .filter(([, factory]) => factory.meta.supportsGlobal)
+  .map(([target]) => target);
 
 /**
  * Factory retrieval function type for dependency injection.
@@ -1279,36 +1275,32 @@ export class McpProcessor extends FeatureProcessor {
     }
 
     const factory = this.getFactory(this.toolTarget);
-    const toolMcps = await Promise.all(
-      [rulesyncMcp].map(async (mcp) => {
-        // Resolve the tool-scoped `{toolname}.mcpServers` block and the
-        // deprecated per-server `targets` filter for this target.
-        const targetedRulesyncMcp = mcp.forTarget({
-          toolTarget: this.toolTarget,
-          global: this.global,
-          logger: this.logger,
-        });
-        // Strip MCP server fields unsupported by the target tool
-        const fieldsToStrip: string[] = [];
-        if (!factory.meta.supportsEnabledTools) fieldsToStrip.push("enabledTools");
-        if (!factory.meta.supportsDisabledTools) fieldsToStrip.push("disabledTools");
-        warnStrippedMcpServerFields({
-          mcpServers: targetedRulesyncMcp.getJson().mcpServers,
-          fields: fieldsToStrip,
-          toolTarget: this.toolTarget,
-          logger: this.logger,
-        });
-        const filteredRulesyncMcp = targetedRulesyncMcp.stripMcpServerFields(fieldsToStrip);
+    // Resolve the tool-scoped `{toolname}.mcpServers` block and the
+    // deprecated per-server `targets` filter for this target.
+    const targetedRulesyncMcp = rulesyncMcp.forTarget({
+      toolTarget: this.toolTarget,
+      global: this.global,
+      logger: this.logger,
+    });
+    // Strip MCP server fields unsupported by the target tool
+    const fieldsToStrip: string[] = [];
+    if (!factory.meta.supportsEnabledTools) fieldsToStrip.push("enabledTools");
+    if (!factory.meta.supportsDisabledTools) fieldsToStrip.push("disabledTools");
+    warnStrippedMcpServerFields({
+      mcpServers: targetedRulesyncMcp.getJson().mcpServers,
+      fields: fieldsToStrip,
+      toolTarget: this.toolTarget,
+      logger: this.logger,
+    });
+    const filteredRulesyncMcp = targetedRulesyncMcp.stripMcpServerFields(fieldsToStrip);
 
-        return await factory.class.fromRulesyncMcp({
-          outputRoot: this.outputRoot,
-          rulesyncMcp: filteredRulesyncMcp,
-          global: this.global,
-          logger: this.logger,
-          featureOptions: this.featureOptions,
-        });
-      }),
-    );
+    const toolMcp = await factory.class.fromRulesyncMcp({
+      outputRoot: this.outputRoot,
+      rulesyncMcp: filteredRulesyncMcp,
+      global: this.global,
+      logger: this.logger,
+      featureOptions: this.featureOptions,
+    });
 
     // The unfiltered source: an auxiliary file reads the target's own override
     // block, not the per-target server list `forTarget` resolves above.
@@ -1322,7 +1314,7 @@ export class McpProcessor extends FeatureProcessor {
       logger: this.logger,
     });
 
-    return [...toolMcps, ...(auxiliaryFiles ?? [])];
+    return [toolMcp, ...(auxiliaryFiles ?? [])];
   }
 
   /**
