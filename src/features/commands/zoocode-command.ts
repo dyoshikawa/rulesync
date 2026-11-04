@@ -1,5 +1,5 @@
 import { RooCommand } from "./roo-command.js";
-import { RulesyncCommand } from "./rulesync-command.js";
+import type { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
 
 /**
  * Command generator for **Zoo Code** (the community continuation of Roo Code).
@@ -16,18 +16,9 @@ export class ZoocodeCommand extends RooCommand {
     });
   }
 
-  override toRulesyncCommand(): RulesyncCommand {
-    // Re-tag the import to this target: the base maps to `targets: ["roo"]`,
-    // which a subsequent zoocode generate would skip.
-    const command = super.toRulesyncCommand();
-    const frontmatter = { ...command.getFrontmatter(), targets: ["zoocode" as const] };
-    return new RulesyncCommand({
-      outputRoot: command.getOutputRoot(),
-      relativeDirPath: command.getRelativeDirPath(),
-      relativeFilePath: command.getRelativeFilePath(),
-      frontmatter,
-      body: command.getBody(),
-      validate: true,
-    });
+  // Tag the import with this target: the base maps to `targets: ["roo"]`,
+  // which a subsequent zoocode generate would skip.
+  protected static override getImportTargets(): RulesyncCommandFrontmatter["targets"] {
+    return ["zoocode"];
   }
 }
