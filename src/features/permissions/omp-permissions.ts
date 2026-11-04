@@ -12,6 +12,7 @@ import {
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
+import { invertRecord, lookupOwn } from "../../utils/own-lookup.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { isRecord } from "../../utils/type-guards.js";
 import {
@@ -73,9 +74,7 @@ const CATEGORY_TO_OMP_TOOL: Record<string, string> = {
   agent: "task",
 };
 
-const OMP_TOOL_TO_CATEGORY: Record<string, string> = Object.fromEntries(
-  Object.entries(CATEGORY_TO_OMP_TOOL).map(([category, tool]) => [tool, category]),
-);
+const OMP_TOOL_TO_CATEGORY: Record<string, string> = invertRecord(CATEGORY_TO_OMP_TOOL);
 
 // Canonical categories with no oh-my-pi tool to key a policy on: web pages are
 // fetched through `read` (or a mounted device), there is no notebook tool, and
@@ -260,12 +259,6 @@ function withoutKey(record: Record<string, unknown>, key: string): Record<string
   return Object.fromEntries(Object.entries(record).filter(([name]) => name !== key));
 }
 
-// `Object.hasOwn` keeps an inherited name such as `toString` from resolving to
-// a function instead of falling through to the name itself.
-function renamed(map: Record<string, string>, name: string): string {
-  return Object.hasOwn(map, name) ? (map[name] ?? name) : name;
-}
-
 function stricter(a: PermissionAction | undefined, b: PermissionAction): PermissionAction {
   return a !== undefined && PERMISSION_ACTION_PRIORITY[a] >= PERMISSION_ACTION_PRIORITY[b] ? a : b;
 }
@@ -448,7 +441,7 @@ function convertRulesyncToOmp({ config, logger }: { config: PermissionsConfig; l
       );
     }
     // `agent` and a verbatim `task` share one key, so the stricter one wins.
-    const tool = renamed(CATEGORY_TO_OMP_TOOL, category);
+    const tool = lookupOwn({ record: CATEGORY_TO_OMP_TOOL, key: category }) ?? category;
     if (/^mcp__.+__/u.test(tool)) {
       logger?.warn(
         `oh-my-pi registers MCP tools as "mcp__<server>_<tool>", so "${tool}" may never match; ` +
@@ -571,7 +564,7 @@ function convertOmpToRulesync(config: Record<string, unknown>): PermissionsConfi
         continue;
       }
       // A verbatim `agent` key and `task` import to one category; the stricter wins.
-      const category = renamed(OMP_TOOL_TO_CATEGORY, tool);
+      const category = lookupOwn({ record: OMP_TOOL_TO_CATEGORY, key: tool }) ?? tool;
       permission[category] = {
         [CATCH_ALL_PATTERN]: stricter(permission[category]?.[CATCH_ALL_PATTERN], action),
       };

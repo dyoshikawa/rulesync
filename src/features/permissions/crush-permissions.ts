@@ -9,7 +9,7 @@ import {
 import type { AiFileParams } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import type { Logger } from "../../utils/logger.js";
-import { lookupOwn } from "../../utils/own-lookup.js";
+import { invertRecord, lookupOwn } from "../../utils/own-lookup.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { isRecord, isStringArray } from "../../utils/type-guards.js";
@@ -56,8 +56,8 @@ const CANONICAL_TO_CRUSH_TOOL_NAMES: Record<string, string> = {
   webfetch: "fetch",
 };
 
-const CRUSH_TO_CANONICAL_TOOL_NAMES: Record<string, string> = Object.fromEntries(
-  Object.entries(CANONICAL_TO_CRUSH_TOOL_NAMES).map(([k, v]) => [v, k]),
+const CRUSH_TO_CANONICAL_TOOL_NAMES: Record<string, string> = invertRecord(
+  CANONICAL_TO_CRUSH_TOOL_NAMES,
 );
 
 // The canonical per-tool MCP category (`mcp__<server>__<tool>`) and the name
@@ -68,8 +68,9 @@ const MCP_CRUSH_PREFIX = "mcp_";
 // Own-property lookups only: a `constructor` category would otherwise resolve
 // to the `Object` function through the prototype chain.
 function toCrushToolName(canonical: string): string {
-  if (Object.hasOwn(CANONICAL_TO_CRUSH_TOOL_NAMES, canonical)) {
-    return CANONICAL_TO_CRUSH_TOOL_NAMES[canonical] ?? canonical;
+  const crushName = lookupOwn({ record: CANONICAL_TO_CRUSH_TOOL_NAMES, key: canonical });
+  if (crushName !== undefined) {
+    return crushName;
   }
   if (
     canonical.startsWith(MCP_CANONICAL_PREFIX) &&
@@ -87,9 +88,7 @@ function toCrushToolName(canonical: string): string {
 // ambiguous once the double underscore is gone) is kept verbatim, which
 // regenerates unchanged.
 function toCanonicalToolName(crushName: string): string {
-  return Object.hasOwn(CRUSH_TO_CANONICAL_TOOL_NAMES, crushName)
-    ? (CRUSH_TO_CANONICAL_TOOL_NAMES[crushName] ?? crushName)
-    : crushName;
+  return lookupOwn({ record: CRUSH_TO_CANONICAL_TOOL_NAMES, key: crushName }) ?? crushName;
 }
 
 function isMcpToolName(crushName: string): boolean {

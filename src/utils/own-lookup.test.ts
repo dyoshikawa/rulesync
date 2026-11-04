@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { lookupOwn } from "./own-lookup.js";
+import { invertRecord, lookupOwn } from "./own-lookup.js";
 
 describe("lookupOwn", () => {
   const record: Record<string, string> = { PreToolUse: "preToolUse" };
@@ -19,4 +19,17 @@ describe("lookupOwn", () => {
       expect(lookupOwn({ record, key })).toBeUndefined();
     },
   );
+});
+
+describe("invertRecord", () => {
+  it("swaps keys and values", () => {
+    expect(invertRecord({ Bash: "RunCommand", Read: "read" })).toEqual({
+      RunCommand: "Bash",
+      read: "Read",
+    });
+  });
+
+  it("keeps the later key when two keys share a value", () => {
+    expect(invertRecord({ first: "same", second: "same" })).toEqual({ same: "second" });
+  });
 });

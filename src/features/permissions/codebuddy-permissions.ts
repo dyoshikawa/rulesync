@@ -6,6 +6,7 @@ import type { PermissionAction, PermissionsConfig } from "../../types/permission
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
+import { invertRecord, lookupOwn } from "../../utils/own-lookup.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { isRecord, isStringArray, toStringArray } from "../../utils/type-guards.js";
 import {
@@ -97,9 +98,7 @@ const CATEGORY_TO_CODEBUDDY_TOOL: Record<string, string> = {
   skill: "Skill",
 };
 
-const CODEBUDDY_TOOL_TO_CATEGORY: Record<string, string> = Object.fromEntries(
-  Object.entries(CATEGORY_TO_CODEBUDDY_TOOL).map(([category, tool]) => [tool, category]),
-);
+const CODEBUDDY_TOOL_TO_CATEGORY: Record<string, string> = invertRecord(CATEGORY_TO_CODEBUDDY_TOOL);
 
 /**
  * Split a rule into its tool half and specifier: `Tool(specifier)` or a bare
@@ -128,7 +127,7 @@ function categoryOfRule(rule: string): string | undefined {
   if (tool === ALL_MCP_RULE) {
     return MCP_CATEGORY;
   }
-  return Object.hasOwn(CODEBUDDY_TOOL_TO_CATEGORY, tool) ? CODEBUDDY_TOOL_TO_CATEGORY[tool] : tool;
+  return lookupOwn({ record: CODEBUDDY_TOOL_TO_CATEGORY, key: tool }) ?? tool;
 }
 
 /**
@@ -181,9 +180,7 @@ function buildCodebuddyRule({
     );
     return null;
   }
-  const tool = Object.hasOwn(CATEGORY_TO_CODEBUDDY_TOOL, category)
-    ? (CATEGORY_TO_CODEBUDDY_TOOL[category] as string)
-    : category;
+  const tool = lookupOwn({ record: CATEGORY_TO_CODEBUDDY_TOOL, key: category }) ?? category;
   return catchAll ? tool : `${tool}(${pattern})`;
 }
 

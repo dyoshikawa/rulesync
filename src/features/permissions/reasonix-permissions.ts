@@ -17,6 +17,7 @@ import type {
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull, toPosixPath } from "../../utils/file.js";
 import { type Logger, warnWithFallback } from "../../utils/logger.js";
+import { invertRecord } from "../../utils/own-lookup.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { isRecord, toStringArray } from "../../utils/type-guards.js";
 import {
@@ -97,10 +98,10 @@ const CANONICAL_TO_LEGACY_REASONIX_TOOL_NAMES: Record<string, string> = {
  * Reverse mapping from Reasonix tool names (current and legacy spellings) to
  * rulesync canonical names.
  */
-const REASONIX_TO_CANONICAL_TOOL_NAMES: Record<string, string> = Object.fromEntries([
-  ...Object.entries(CANONICAL_TO_LEGACY_REASONIX_TOOL_NAMES).map(([k, v]) => [v, k]),
-  ...Object.entries(CANONICAL_TO_REASONIX_TOOL_NAMES).map(([k, v]) => [v, k]),
-]);
+const REASONIX_TO_CANONICAL_TOOL_NAMES: Record<string, string> = {
+  ...invertRecord(CANONICAL_TO_LEGACY_REASONIX_TOOL_NAMES),
+  ...invertRecord(CANONICAL_TO_REASONIX_TOOL_NAMES),
+};
 
 /** Every Reasonix tool name a canonical category owns on generate. */
 function reasonixToolNamesOf(canonical: string): string[] {

@@ -13,6 +13,7 @@ import { shortenToWidth } from "../../utils/display-width.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { fallbackLogger, type Logger } from "../../utils/logger.js";
+import { lookupOwn } from "../../utils/own-lookup.js";
 import { toStringArray } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
@@ -1220,9 +1221,7 @@ function resolveVibeToolNames({
     return toVibeMcpToolName(category);
   }
 
-  const builtin = Object.hasOwn(CANONICAL_TO_VIBE_TOOL_NAMES, category)
-    ? CANONICAL_TO_VIBE_TOOL_NAMES[category]
-    : undefined;
+  const builtin = lookupOwn({ record: CANONICAL_TO_VIBE_TOOL_NAMES, key: category });
   if (builtin === undefined) {
     return CANONICAL_PERMISSION_CATEGORIES.has(category) ? undefined : [category];
   }
@@ -1797,9 +1796,7 @@ function warnOnUnreachableToolName({
 }
 
 function toCanonicalToolName(vibeToolName: string): string {
-  return Object.hasOwn(VIBE_TO_CANONICAL_TOOL_NAMES, vibeToolName)
-    ? (VIBE_TO_CANONICAL_TOOL_NAMES[vibeToolName] ?? vibeToolName)
-    : vibeToolName;
+  return lookupOwn({ record: VIBE_TO_CANONICAL_TOOL_NAMES, key: vibeToolName }) ?? vibeToolName;
 }
 
 /**

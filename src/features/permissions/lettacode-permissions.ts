@@ -6,6 +6,7 @@ import type { PermissionAction, PermissionsConfig } from "../../types/permission
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
+import { invertRecord } from "../../utils/own-lookup.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { isRecord, toStringArray } from "../../utils/type-guards.js";
 import {
@@ -51,9 +52,7 @@ const CATEGORY_TO_LETTACODE_TOOL: Record<string, string> = {
 // canonical names are ever written.
 // https://github.com/letta-ai/letta-code/blob/main/src/permissions/canonical.ts
 const LETTACODE_TOOL_TO_CATEGORY: Record<string, string> = {
-  ...Object.fromEntries(
-    Object.entries(CATEGORY_TO_LETTACODE_TOOL).map(([category, tool]) => [tool, category]),
-  ),
+  ...invertRecord(CATEGORY_TO_LETTACODE_TOOL),
   shell: "bash",
   Shell: "bash",
   shell_command: "bash",

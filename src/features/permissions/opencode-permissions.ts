@@ -16,6 +16,7 @@ import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { parseJsonc as parseJsoncStrict } from "../../utils/jsonc.js";
 import type { Logger } from "../../utils/logger.js";
+import { invertRecord, lookupOwn } from "../../utils/own-lookup.js";
 import { isRecord } from "../../utils/type-guards.js";
 import {
   lowerOpencodeV2Mcp,
@@ -152,11 +153,8 @@ const CANONICAL_TO_OPENCODE_PERMISSION_KEYS: Record<string, string> = {
   agent: "task",
 };
 
-const OPENCODE_TO_CANONICAL_PERMISSION_KEYS: Record<string, string> = Object.fromEntries(
-  Object.entries(CANONICAL_TO_OPENCODE_PERMISSION_KEYS).map(([canonical, opencode]) => [
-    opencode,
-    canonical,
-  ]),
+const OPENCODE_TO_CANONICAL_PERMISSION_KEYS: Record<string, string> = invertRecord(
+  CANONICAL_TO_OPENCODE_PERMISSION_KEYS,
 );
 
 /**
@@ -364,9 +362,7 @@ function fromOpencodeV2PermissionRules(
 ): Record<string, Record<string, PermissionAction>> {
   const permission: Record<string, Record<string, PermissionAction>> = {};
   for (const { action, resource, effect } of rules) {
-    const key = Object.hasOwn(OPENCODE_V2_TO_V1_PERMISSION_KEYS, action)
-      ? OPENCODE_V2_TO_V1_PERMISSION_KEYS[action]!
-      : action;
+    const key = lookupOwn({ record: OPENCODE_V2_TO_V1_PERMISSION_KEYS, key: action }) ?? action;
     const patterns = Object.hasOwn(permission, key) ? permission[key]! : {};
     // Re-insert so the pattern takes the position of its last occurrence.
     // `setOwnEntry` keeps a `__proto__` action or resource an own key.

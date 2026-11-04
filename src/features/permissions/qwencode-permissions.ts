@@ -13,6 +13,7 @@ import type {
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull, toPosixPath } from "../../utils/file.js";
 import { fallbackLogger, type Logger, warnWithFallback } from "../../utils/logger.js";
+import { invertRecord } from "../../utils/own-lookup.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
@@ -64,8 +65,8 @@ const CANONICAL_TO_QWEN_TOOL_NAMES: Record<string, string> = {
   agent: "Agent",
 };
 
-const QWEN_TO_CANONICAL_TOOL_NAMES: Record<string, string> = Object.fromEntries(
-  Object.entries(CANONICAL_TO_QWEN_TOOL_NAMES).map(([k, v]) => [v, k]),
+const QWEN_TO_CANONICAL_TOOL_NAMES: Record<string, string> = invertRecord(
+  CANONICAL_TO_QWEN_TOOL_NAMES,
 );
 
 function toQwenToolName(canonical: string): string {

@@ -13,7 +13,7 @@ import type { AiFileParams } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
-import { lookupOwn } from "../../utils/own-lookup.js";
+import { invertRecord, lookupOwn } from "../../utils/own-lookup.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { isRecord, isStringArray } from "../../utils/type-guards.js";
@@ -60,8 +60,8 @@ const CANONICAL_TO_POOL_TOOL_NAMES: Record<string, string> = {
   websearch: "web_search",
 };
 
-const POOL_TO_CANONICAL_TOOL_NAMES: Record<string, string> = Object.fromEntries(
-  Object.entries(CANONICAL_TO_POOL_TOOL_NAMES).map(([k, v]) => [v, k]),
+const POOL_TO_CANONICAL_TOOL_NAMES: Record<string, string> = invertRecord(
+  CANONICAL_TO_POOL_TOOL_NAMES,
 );
 
 // The canonical categories that govern file access. Pool models file access

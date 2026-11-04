@@ -23,9 +23,3 @@ export function replaceMatcherNames(
     isMatcherName(token) && Object.hasOwn(names, token) ? (names[token] ?? token) : token,
   );
 }
-
-export function invertToolNames(
-  names: Readonly<Record<string, string>>,
-): Readonly<Record<string, string>> {
-  return Object.fromEntries(Object.entries(names).map(([canonical, tool]) => [tool, canonical]));
-}

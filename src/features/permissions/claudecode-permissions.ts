@@ -8,6 +8,7 @@ import { stripControlCharacters } from "../../utils/control-characters.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull, toPosixPath } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
+import { invertRecord } from "../../utils/own-lookup.js";
 import { PROTOTYPE_POLLUTION_KEYS } from "../../utils/prototype-pollution.js";
 import { isRecord } from "../../utils/type-guards.js";
 import {
@@ -57,8 +58,8 @@ const CANONICAL_TO_CLAUDE_TOOL_NAMES: Record<string, string> = {
 /**
  * Reverse mapping from Claude Code tool names to rulesync canonical names.
  */
-const CLAUDE_TO_CANONICAL_TOOL_NAMES: Record<string, string> = Object.fromEntries(
-  Object.entries(CANONICAL_TO_CLAUDE_TOOL_NAMES).map(([k, v]) => [v, k]),
+const CLAUDE_TO_CANONICAL_TOOL_NAMES: Record<string, string> = invertRecord(
+  CANONICAL_TO_CLAUDE_TOOL_NAMES,
 );
 
 function toClaudeToolName(canonical: string): string {

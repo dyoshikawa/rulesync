@@ -7,6 +7,7 @@ import type { PermissionAction, PermissionsConfig } from "../../types/permission
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
+import { invertRecord, lookupOwn } from "../../utils/own-lookup.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { isRecord, isStringArray, toStringArray } from "../../utils/type-guards.js";
 import {
@@ -107,9 +108,7 @@ const CATEGORY_TO_QODER_TOOL: Record<string, string> = {
   agent: "Agent",
 };
 
-const QODER_TOOL_TO_CATEGORY: Record<string, string> = Object.fromEntries(
-  Object.entries(CATEGORY_TO_QODER_TOOL).map(([category, tool]) => [tool, category]),
-);
+const QODER_TOOL_TO_CATEGORY: Record<string, string> = invertRecord(CATEGORY_TO_QODER_TOOL);
 
 /**
  * Qoder checks path-scoped writes against `Edit(...)` rules (covering `Edit`,
@@ -147,7 +146,7 @@ function categoryOfRule(rule: string): string | undefined {
   if (tool === ALL_TOOLS_PERMISSION_CATEGORY || tool.startsWith(MCP_TOOL_PREFIX)) {
     return tool;
   }
-  return Object.hasOwn(QODER_TOOL_TO_CATEGORY, tool) ? QODER_TOOL_TO_CATEGORY[tool] : undefined;
+  return lookupOwn({ record: QODER_TOOL_TO_CATEGORY, key: tool });
 }
 
 /**

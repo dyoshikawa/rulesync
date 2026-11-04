@@ -13,6 +13,7 @@ import type { AiFileParams } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import { invertRecord } from "../../utils/own-lookup.js";
 import { isPlainObject } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
@@ -97,8 +98,8 @@ const isZedExcludedCategory = (category: string): boolean =>
   ZED_EXCLUDED_CANONICAL_CATEGORIES.has(category) ||
   ZED_EXCLUDED_TOOL_NAMES.has(toZedToolName(category));
 
-const ZED_TO_CANONICAL_TOOL_NAMES: Record<string, string> = Object.fromEntries(
-  Object.entries(CANONICAL_TO_ZED_TOOL_NAMES).map(([k, v]) => [v, k]),
+const ZED_TO_CANONICAL_TOOL_NAMES: Record<string, string> = invertRecord(
+  CANONICAL_TO_ZED_TOOL_NAMES,
 );
 
 /**

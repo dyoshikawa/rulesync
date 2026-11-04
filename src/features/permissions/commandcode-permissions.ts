@@ -11,6 +11,7 @@ import type { PermissionAction, PermissionsConfig } from "../../types/permission
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { fallbackLogger, type Logger } from "../../utils/logger.js";
+import { lookupOwn } from "../../utils/own-lookup.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { isRecord } from "../../utils/type-guards.js";
 import {
@@ -134,9 +135,7 @@ function buildCommandcodeRule(category: string, pattern: string): string | null 
   if (category === ALL_TOOLS_PERMISSION_CATEGORY) {
     return catchAll ? CATCH_ALL_PATTERN : null;
   }
-  const tool = Object.hasOwn(CATEGORY_TO_COMMANDCODE_TOOL, category)
-    ? CATEGORY_TO_COMMANDCODE_TOOL[category]
-    : undefined;
+  const tool = lookupOwn({ record: CATEGORY_TO_COMMANDCODE_TOOL, key: category });
   if (tool === undefined) {
     return null;
   }
@@ -316,9 +315,7 @@ function parseCommandcodeRule(rule: string): ParsedCommandcodeRule | null {
   if (lowered.startsWith(MCP_CANONICAL_PREFIX)) {
     return parseMcpCommandcodeRule({ tool, inner });
   }
-  const category = Object.hasOwn(COMMANDCODE_TOOL_TO_CATEGORY, lowered)
-    ? COMMANDCODE_TOOL_TO_CATEGORY[lowered]
-    : undefined;
+  const category = lookupOwn({ record: COMMANDCODE_TOOL_TO_CATEGORY, key: lowered });
   if (category === undefined) {
     return null;
   }
