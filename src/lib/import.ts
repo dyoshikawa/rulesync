@@ -13,6 +13,8 @@ import { serializeSharedConfig } from "../features/shared/shared-config-gateway.
 import { RulesyncSkill } from "../features/skills/rulesync-skill.js";
 import { SkillsProcessor } from "../features/skills/skills-processor.js";
 import { SubagentsProcessor } from "../features/subagents/subagents-processor.js";
+import type { FeatureProcessor } from "../types/feature-processor.js";
+import type { Feature } from "../types/features.js";
 import type { RulesyncFile, RulesyncFileParams } from "../types/rulesync-file.js";
 import type { ToolTarget } from "../types/tool-targets.js";
 import { formatError } from "../utils/error.js";
@@ -102,14 +104,20 @@ export async function importFromTool(params: {
   });
 
   const rulesCount = await importRulesCore({ config, tool, logger });
-  const ignoreCount = await importIgnoreCore({ config, tool, logger });
-  const mcpCount = await importMcpCore({ config, tool, logger });
-  const commandsCount = await importCommandsCore({ config, tool, logger });
-  const subagentsCount = await importSubagentsCore({ config, tool, logger });
+  const ignoreCount = await runFeatureImport({ config, tool, logger }, IGNORE_IMPORT_STRATEGY);
+  const mcpCount = await runFeatureImport({ config, tool, logger }, MCP_IMPORT_STRATEGY);
+  const commandsCount = await runFeatureImport({ config, tool, logger }, COMMANDS_IMPORT_STRATEGY);
+  const subagentsCount = await runFeatureImport(
+    { config, tool, logger },
+    SUBAGENTS_IMPORT_STRATEGY,
+  );
   const skillsCount = await importSkillsCore({ config, tool, logger });
-  const hooksCount = await importHooksCore({ config, tool, logger });
-  const permissionsCount = await importPermissionsCore({ config, tool, logger });
-  const checksCount = await importChecksCore({ config, tool, logger });
+  const hooksCount = await runFeatureImport({ config, tool, logger }, HOOKS_IMPORT_STRATEGY);
+  const permissionsCount = await runFeatureImport(
+    { config, tool, logger },
+    PERMISSIONS_IMPORT_STRATEGY,
+  );
+  const checksCount = await runFeatureImport({ config, tool, logger }, CHECKS_IMPORT_STRATEGY);
 
   return {
     rulesCount,
@@ -179,181 +187,6 @@ async function importRulesCore(params: {
   return writtenCount;
 }
 
-async function importIgnoreCore(params: {
-  config: Config;
-  tool: ToolTarget;
-  logger: Logger;
-}): Promise<number> {
-  const { config, tool, logger } = params;
-
-  if (!config.getFeatures(tool).includes("ignore")) {
-    return 0;
-  }
-
-  const global = config.getGlobal();
-  if (!IgnoreProcessor.getToolTargets({ global }).includes(tool)) {
-    return 0;
-  }
-
-  const ignoreProcessor = new IgnoreProcessor({
-    outputRoot: getToolOutputRoot({ config, tool }),
-    toolTarget: tool,
-    global,
-    logger,
-    featureOptions: config.getFeatureOptions(tool, "ignore"),
-  });
-
-  const toolFiles = await ignoreProcessor.loadToolFiles();
-  if (toolFiles.length === 0) {
-    logger.warn(`No ignore files found for ${tool}. Skipping import.`);
-    return 0;
-  }
-
-  const rulesyncFiles = await ignoreProcessor.convertToolFilesToRulesyncFiles(toolFiles);
-  const { count: writtenCount } = await ignoreProcessor.writeAiFiles(rulesyncFiles);
-
-  if (config.getVerbose()) {
-    logger.success(`Created ignore files from ${toolFiles.length} tool ignore configurations`);
-  }
-
-  if (config.getVerbose() && writtenCount > 0) {
-    logger.success(`Created ${writtenCount} ignore files`);
-  }
-
-  return writtenCount;
-}
-
-async function importMcpCore(params: {
-  config: Config;
-  tool: ToolTarget;
-  logger: Logger;
-}): Promise<number> {
-  const { config, tool, logger } = params;
-
-  if (!config.getFeatures(tool).includes("mcp")) {
-    return 0;
-  }
-
-  const global = config.getGlobal();
-
-  const supportedTargets = McpProcessor.getToolTargets({ global });
-
-  if (!supportedTargets.includes(tool)) {
-    return 0;
-  }
-
-  const mcpProcessor = new McpProcessor({
-    outputRoot: getToolOutputRoot({ config, tool }),
-    toolTarget: tool,
-    global,
-    logger,
-  });
-
-  const toolFiles = await mcpProcessor.loadToolFiles();
-  if (toolFiles.length === 0) {
-    logger.warn(`No MCP files found for ${tool}. Skipping import.`);
-    return 0;
-  }
-
-  const convertedFiles = await mcpProcessor.convertToolFilesToRulesyncFiles(toolFiles);
-  const rulesyncFiles = await applyRulesyncSourcePath({
-    files: convertedFiles,
-    paths: RulesyncMcp.getSettablePaths(),
-    sourceClass: RulesyncMcp,
-    outputRoot: isPackagingToolTarget(tool) ? process.cwd() : undefined,
-  });
-  const { count: writtenCount } = await mcpProcessor.writeAiFiles(rulesyncFiles);
-
-  if (config.getVerbose() && writtenCount > 0) {
-    logger.success(`Created ${writtenCount} MCP files`);
-  }
-
-  return writtenCount;
-}
-
-async function importCommandsCore(params: {
-  config: Config;
-  tool: ToolTarget;
-  logger: Logger;
-}): Promise<number> {
-  const { config, tool, logger } = params;
-
-  if (!config.getFeatures(tool).includes("commands")) {
-    return 0;
-  }
-
-  const global = config.getGlobal();
-
-  const supportedTargets = CommandsProcessor.getToolTargets({ global, includeSimulated: false });
-
-  if (!supportedTargets.includes(tool)) {
-    return 0;
-  }
-
-  const commandsProcessor = new CommandsProcessor({
-    outputRoot: getToolOutputRoot({ config, tool }),
-    toolTarget: tool,
-    global,
-    logger,
-  });
-
-  const toolFiles = await commandsProcessor.loadToolFiles();
-  if (toolFiles.length === 0) {
-    logger.warn(`No command files found for ${tool}. Skipping import.`);
-    return 0;
-  }
-
-  const rulesyncFiles = await commandsProcessor.convertToolFilesToRulesyncFiles(toolFiles);
-  const { count: writtenCount } = await commandsProcessor.writeAiFiles(rulesyncFiles);
-
-  if (config.getVerbose() && writtenCount > 0) {
-    logger.success(`Created ${writtenCount} command files`);
-  }
-
-  return writtenCount;
-}
-
-async function importSubagentsCore(params: {
-  config: Config;
-  tool: ToolTarget;
-  logger: Logger;
-}): Promise<number> {
-  const { config, tool, logger } = params;
-
-  if (!config.getFeatures(tool).includes("subagents")) {
-    return 0;
-  }
-
-  // Use SubagentsProcessor for supported tools, excluding simulated ones
-  const global = config.getGlobal();
-  const supportedTargets = SubagentsProcessor.getToolTargets({ global, includeSimulated: false });
-  if (!supportedTargets.includes(tool)) {
-    return 0;
-  }
-
-  const subagentsProcessor = new SubagentsProcessor({
-    outputRoot: getToolOutputRoot({ config, tool }),
-    toolTarget: tool,
-    global: config.getGlobal(),
-    logger,
-  });
-
-  const toolFiles = await subagentsProcessor.loadToolFiles();
-  if (toolFiles.length === 0) {
-    logger.warn(`No subagent files found for ${tool}. Skipping import.`);
-    return 0;
-  }
-
-  const rulesyncFiles = await subagentsProcessor.convertToolFilesToRulesyncFiles(toolFiles);
-  const { count: writtenCount } = await subagentsProcessor.writeAiFiles(rulesyncFiles);
-
-  if (config.getVerbose() && writtenCount > 0) {
-    logger.success(`Created ${writtenCount} subagent files`);
-  }
-
-  return writtenCount;
-}
-
 async function importSkillsCore(params: {
   config: Config;
   tool: ToolTarget;
@@ -409,114 +242,6 @@ async function importSkillsCore(params: {
 
   if (config.getVerbose() && writtenCount > 0) {
     logger.success(`Created ${writtenCount} skill directories`);
-  }
-
-  return writtenCount;
-}
-
-async function importHooksCore(params: {
-  config: Config;
-  tool: ToolTarget;
-  logger: Logger;
-}): Promise<number> {
-  const { config, tool, logger } = params;
-
-  if (!config.getFeatures(tool).includes("hooks")) {
-    return 0;
-  }
-
-  const global = config.getGlobal();
-  const allTargets = HooksProcessor.getToolTargets({ global });
-  const importableTargets = HooksProcessor.getToolTargets({ global, importOnly: true });
-
-  if (!allTargets.includes(tool)) {
-    return 0;
-  }
-
-  if (!importableTargets.includes(tool)) {
-    logger.warn(`Import is not supported for ${tool} hooks. Skipping.`);
-    return 0;
-  }
-
-  const hooksProcessor = new HooksProcessor({
-    outputRoot: getToolOutputRoot({ config, tool }),
-    toolTarget: tool,
-    global,
-    logger,
-  });
-
-  const toolFiles = await hooksProcessor.loadToolFiles();
-  if (toolFiles.length === 0) {
-    logger.warn(`No hooks files found for ${tool}. Skipping import.`);
-    return 0;
-  }
-
-  const convertedFiles = await hooksProcessor.convertToolFilesToRulesyncFiles(toolFiles);
-  const rulesyncFiles = await applyRulesyncSourcePath({
-    files: convertedFiles,
-    paths: RulesyncHooks.getSettablePaths(),
-    sourceClass: RulesyncHooks,
-    outputRoot: isPackagingToolTarget(tool) ? process.cwd() : undefined,
-  });
-  const { count: writtenCount } = await hooksProcessor.writeAiFiles(rulesyncFiles);
-
-  if (config.getVerbose() && writtenCount > 0) {
-    logger.success(`Created ${writtenCount} hooks file(s)`);
-  }
-
-  return writtenCount;
-}
-
-async function importPermissionsCore(params: {
-  config: Config;
-  tool: ToolTarget;
-  logger: Logger;
-}): Promise<number> {
-  const { config, tool, logger } = params;
-
-  if (!config.getFeatures(tool).includes("permissions")) {
-    return 0;
-  }
-
-  const allTargets = PermissionsProcessor.getToolTargets({ global: config.getGlobal() });
-  const importableTargets = PermissionsProcessor.getToolTargets({
-    global: config.getGlobal(),
-    importOnly: true,
-  });
-
-  if (!allTargets.includes(tool)) {
-    return 0;
-  }
-
-  if (!importableTargets.includes(tool)) {
-    logger.warn(`Import is not supported for ${tool} permissions. Skipping.`);
-    return 0;
-  }
-
-  const permissionsProcessor = new PermissionsProcessor({
-    outputRoot: getToolOutputRoot({ config, tool }),
-    toolTarget: tool,
-    global: config.getGlobal(),
-    logger,
-  });
-
-  const toolFiles = await permissionsProcessor.loadToolFiles();
-  if (toolFiles.length === 0) {
-    logger.warn(`No permissions files found for ${tool}. Skipping import.`);
-    return 0;
-  }
-
-  const convertedFiles = await permissionsProcessor.convertToolFilesToRulesyncFiles(toolFiles);
-  const rulesyncFiles = await applyRulesyncSourcePath({
-    files: convertedFiles,
-    paths: RulesyncPermissions.getSettablePaths(),
-    sourceClass: RulesyncPermissions,
-  });
-  const mergedFiles = await mergeIntoExistingPermissions({ files: rulesyncFiles, tool, logger });
-  const { count: writtenCount } = await permissionsProcessor.writeAiFiles(mergedFiles);
-
-  if (config.getVerbose() && writtenCount > 0) {
-    logger.success(`Created ${writtenCount} permissions file(s)`);
   }
 
   return writtenCount;
@@ -585,42 +310,224 @@ async function mergeIntoExistingPermissions({
   return [withContent(fileContent)];
 }
 
-async function importChecksCore(params: {
-  config: Config;
-  tool: ToolTarget;
-  logger: Logger;
-}): Promise<number> {
+type ImportStrategy = {
+  feature: Feature;
+  getToolTargets: (global: boolean) => readonly ToolTarget[];
+  /**
+   * Targets whose files can be read back. A target outside this list but
+   * inside `getToolTargets` gets `Import is not supported for <tool>
+   * <label>. Skipping.`
+   */
+  importable?: { getToolTargets: (global: boolean) => readonly ToolTarget[]; label: string };
+  createProcessor: (params: {
+    config: Config;
+    tool: ToolTarget;
+    global: boolean;
+    logger: Logger;
+  }) => FeatureProcessor;
+  /** Used in `No <missingLabel> found for <tool>. Skipping import.` */
+  missingLabel: string;
+  /** Rewrites the converted rulesync files before they are written. */
+  postConvert?: (params: {
+    files: RulesyncFile[];
+    tool: ToolTarget;
+    logger: Logger;
+  }) => Promise<RulesyncFile[]>;
+  /** Logged in verbose mode, before the count, whether or not anything was written. */
+  verboseSummary?: (toolFileCount: number) => string;
+  /** Used in `Created <count> <createdLabel>`. */
+  createdLabel: string;
+};
+
+/**
+ * Import one file-based feature from `tool`: check the feature is enabled and
+ * the tool supports it, load the tool files, convert them to rulesync files
+ * and write them.
+ */
+async function runFeatureImport(
+  params: { config: Config; tool: ToolTarget; logger: Logger },
+  strategy: ImportStrategy,
+): Promise<number> {
   const { config, tool, logger } = params;
 
-  if (!config.getFeatures(tool).includes("checks")) {
+  if (!config.getFeatures(tool).includes(strategy.feature)) {
     return 0;
   }
 
   const global = config.getGlobal();
-  const supportedTargets = ChecksProcessor.getToolTargets({ global });
-  if (!supportedTargets.includes(tool)) {
+  if (!strategy.getToolTargets(global).includes(tool)) {
     return 0;
   }
 
-  const checksProcessor = new ChecksProcessor({
-    outputRoot: config.getOutputRoots()[0] ?? ".",
-    toolTarget: tool,
-    global,
-    logger,
-  });
+  if (strategy.importable && !strategy.importable.getToolTargets(global).includes(tool)) {
+    logger.warn(`Import is not supported for ${tool} ${strategy.importable.label}. Skipping.`);
+    return 0;
+  }
 
-  const toolFiles = await checksProcessor.loadToolFiles();
+  const processor = strategy.createProcessor({ config, tool, global, logger });
+
+  const toolFiles = await processor.loadToolFiles();
   if (toolFiles.length === 0) {
-    logger.warn(`No check files found for ${tool}. Skipping import.`);
+    logger.warn(`No ${strategy.missingLabel} found for ${tool}. Skipping import.`);
     return 0;
   }
 
-  const rulesyncFiles = await checksProcessor.convertToolFilesToRulesyncFiles(toolFiles);
-  const { count: writtenCount } = await checksProcessor.writeAiFiles(rulesyncFiles);
+  const convertedFiles = await processor.convertToolFilesToRulesyncFiles(toolFiles);
+  const rulesyncFiles = strategy.postConvert
+    ? await strategy.postConvert({ files: convertedFiles, tool, logger })
+    : convertedFiles;
+  const { count: writtenCount } = await processor.writeAiFiles(rulesyncFiles);
+
+  if (config.getVerbose() && strategy.verboseSummary) {
+    logger.success(strategy.verboseSummary(toolFiles.length));
+  }
 
   if (config.getVerbose() && writtenCount > 0) {
-    logger.success(`Created ${writtenCount} check files`);
+    logger.success(`Created ${writtenCount} ${strategy.createdLabel}`);
   }
 
   return writtenCount;
 }
+
+/**
+ * A packaging target imports into the project (`process.cwd()`) rather than
+ * into the plugin directory the tool files were read from.
+ */
+function getPackagingImportOutputRoot(tool: ToolTarget): string | undefined {
+  return isPackagingToolTarget(tool) ? process.cwd() : undefined;
+}
+
+const IGNORE_IMPORT_STRATEGY: ImportStrategy = {
+  feature: "ignore",
+  getToolTargets: (global) => IgnoreProcessor.getToolTargets({ global }),
+  createProcessor: ({ config, tool, global, logger }) =>
+    new IgnoreProcessor({
+      outputRoot: getToolOutputRoot({ config, tool }),
+      toolTarget: tool,
+      global,
+      logger,
+      featureOptions: config.getFeatureOptions(tool, "ignore"),
+    }),
+  missingLabel: "ignore files",
+  verboseSummary: (toolFileCount) =>
+    `Created ignore files from ${toolFileCount} tool ignore configurations`,
+  createdLabel: "ignore files",
+};
+
+const MCP_IMPORT_STRATEGY: ImportStrategy = {
+  feature: "mcp",
+  getToolTargets: (global) => McpProcessor.getToolTargets({ global }),
+  createProcessor: ({ config, tool, global, logger }) =>
+    new McpProcessor({
+      outputRoot: getToolOutputRoot({ config, tool }),
+      toolTarget: tool,
+      global,
+      logger,
+    }),
+  missingLabel: "MCP files",
+  postConvert: ({ files, tool }) =>
+    applyRulesyncSourcePath({
+      files,
+      paths: RulesyncMcp.getSettablePaths(),
+      sourceClass: RulesyncMcp,
+      outputRoot: getPackagingImportOutputRoot(tool),
+    }),
+  createdLabel: "MCP files",
+};
+
+const COMMANDS_IMPORT_STRATEGY: ImportStrategy = {
+  feature: "commands",
+  getToolTargets: (global) => CommandsProcessor.getToolTargets({ global, includeSimulated: false }),
+  createProcessor: ({ config, tool, global, logger }) =>
+    new CommandsProcessor({
+      outputRoot: getToolOutputRoot({ config, tool }),
+      toolTarget: tool,
+      global,
+      logger,
+    }),
+  missingLabel: "command files",
+  createdLabel: "command files",
+};
+
+const SUBAGENTS_IMPORT_STRATEGY: ImportStrategy = {
+  feature: "subagents",
+  // Simulated subagents have no tool files to read back.
+  getToolTargets: (global) =>
+    SubagentsProcessor.getToolTargets({ global, includeSimulated: false }),
+  createProcessor: ({ config, tool, global, logger }) =>
+    new SubagentsProcessor({
+      outputRoot: getToolOutputRoot({ config, tool }),
+      toolTarget: tool,
+      global,
+      logger,
+    }),
+  missingLabel: "subagent files",
+  createdLabel: "subagent files",
+};
+
+const HOOKS_IMPORT_STRATEGY: ImportStrategy = {
+  feature: "hooks",
+  getToolTargets: (global) => HooksProcessor.getToolTargets({ global }),
+  importable: {
+    getToolTargets: (global) => HooksProcessor.getToolTargets({ global, importOnly: true }),
+    label: "hooks",
+  },
+  createProcessor: ({ config, tool, global, logger }) =>
+    new HooksProcessor({
+      outputRoot: getToolOutputRoot({ config, tool }),
+      toolTarget: tool,
+      global,
+      logger,
+    }),
+  missingLabel: "hooks files",
+  postConvert: ({ files, tool }) =>
+    applyRulesyncSourcePath({
+      files,
+      paths: RulesyncHooks.getSettablePaths(),
+      sourceClass: RulesyncHooks,
+      outputRoot: getPackagingImportOutputRoot(tool),
+    }),
+  createdLabel: "hooks file(s)",
+};
+
+const PERMISSIONS_IMPORT_STRATEGY: ImportStrategy = {
+  feature: "permissions",
+  getToolTargets: (global) => PermissionsProcessor.getToolTargets({ global }),
+  importable: {
+    getToolTargets: (global) => PermissionsProcessor.getToolTargets({ global, importOnly: true }),
+    label: "permissions",
+  },
+  createProcessor: ({ config, tool, global, logger }) =>
+    new PermissionsProcessor({
+      outputRoot: getToolOutputRoot({ config, tool }),
+      toolTarget: tool,
+      global,
+      logger,
+    }),
+  missingLabel: "permissions files",
+  postConvert: async ({ files, tool, logger }) =>
+    mergeIntoExistingPermissions({
+      files: await applyRulesyncSourcePath({
+        files,
+        paths: RulesyncPermissions.getSettablePaths(),
+        sourceClass: RulesyncPermissions,
+      }),
+      tool,
+      logger,
+    }),
+  createdLabel: "permissions file(s)",
+};
+
+const CHECKS_IMPORT_STRATEGY: ImportStrategy = {
+  feature: "checks",
+  getToolTargets: (global) => ChecksProcessor.getToolTargets({ global }),
+  createProcessor: ({ config, tool, global, logger }) =>
+    new ChecksProcessor({
+      outputRoot: config.getOutputRoots()[0] ?? ".",
+      toolTarget: tool,
+      global,
+      logger,
+    }),
+  missingLabel: "check files",
+  createdLabel: "check files",
+};
