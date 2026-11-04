@@ -3,8 +3,8 @@ import { join } from "node:path";
 import { JUNIE_DIR, JUNIE_PERMISSIONS_FILE_NAME } from "../../constants/junie-paths.js";
 import type { AiFileParams } from "../../types/ai-file.js";
 import {
+  isPermissionAction,
   type PermissionAction,
-  PermissionActionSchema,
   type PermissionsConfig,
 } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
@@ -175,10 +175,6 @@ const JUNIE_GROUP_TO_CANONICAL: Record<JunieRuleGroup, string> = {
   mcpTools: "mcp",
   readOutsideProject: "read",
 };
-
-function isPermissionAction(value: unknown): value is PermissionAction {
-  return PermissionActionSchema.safeParse(value).success;
-}
 
 /**
  * Whether a rulesync pattern uses glob syntax. Junie expresses literal

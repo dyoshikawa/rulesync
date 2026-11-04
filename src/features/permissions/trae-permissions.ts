@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { TRAE_PERMISSION_DIR_PATH, TRAE_PERMISSION_FILE_NAME } from "../../constants/trae-paths.js";
 import type { AiFileParams } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
+import { isPermissionAction } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
@@ -41,10 +42,6 @@ const REGEX_SUFFIX = "/";
 
 type NetworkAction = "allow" | "deny";
 const NETWORK_ACTIONS: readonly NetworkAction[] = ["allow", "deny"];
-
-function isPermissionAction(value: unknown): value is PermissionAction {
-  return value === "allow" || value === "ask" || value === "deny";
-}
 
 function escapeRegex(text: string): string {
   return text.replace(/[\\^$.|?*+()[\]{}/]/g, "\\$&");

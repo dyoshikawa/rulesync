@@ -6,6 +6,7 @@ import { dump } from "js-yaml";
 import { KIRO_PERMISSIONS_FILE_NAME, KIRO_SETTINGS_DIR_PATH } from "../../constants/kiro-paths.js";
 import type { AiFileParams } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
+import { isPermissionAction } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
@@ -55,10 +56,6 @@ type KiroCapabilityRule = {
   match?: string[];
   effect: PermissionAction;
 };
-
-function isPermissionAction(value: unknown): value is PermissionAction {
-  return value === "allow" || value === "ask" || value === "deny";
-}
 
 /**
  * Whether an existing `permissions.yaml` rule can be read back into the

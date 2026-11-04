@@ -9,6 +9,10 @@ import { z } from "zod/mini";
 export const PermissionActionSchema = z.enum(["allow", "ask", "deny"]);
 export type PermissionAction = z.infer<typeof PermissionActionSchema>;
 
+export function isPermissionAction(value: unknown): value is PermissionAction {
+  return PermissionActionSchema.safeParse(value).success;
+}
+
 /**
  * Whether a key in a permission block — a category name or a pattern — is
  * blank, that is empty or only whitespace. Shared with the import-side filter

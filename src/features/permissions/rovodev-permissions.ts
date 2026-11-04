@@ -5,7 +5,7 @@ import { dump } from "js-yaml";
 import { ROVODEV_CONFIG_FILE_NAME, ROVODEV_DIR } from "../../constants/rovodev-paths.js";
 import type { AiFileParams } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
-import { PermissionActionSchema } from "../../types/permissions.js";
+import { isPermissionAction } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
@@ -962,8 +962,4 @@ function strictestAction(
   return ACTION_STRICTNESS.indexOf(current) <= ACTION_STRICTNESS.indexOf(candidate)
     ? current
     : candidate;
-}
-
-function isPermissionAction(value: unknown): value is PermissionAction {
-  return PermissionActionSchema.safeParse(value).success;
 }
