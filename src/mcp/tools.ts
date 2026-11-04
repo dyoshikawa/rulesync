@@ -157,72 +157,26 @@ function requireTargetPath({ targetPathFromCwd, feature, operation }: RulesyncTo
   return targetPathFromCwd;
 }
 
-function parseFrontmatter({
-  feature,
-  frontmatter,
-}: {
-  feature: "rule";
-  frontmatter: unknown;
-}): RulesyncRuleFrontmatter;
-function parseFrontmatter({
-  feature,
-  frontmatter,
-}: {
-  feature: "command";
-  frontmatter: unknown;
-}): RulesyncCommandFrontmatter;
-function parseFrontmatter({
-  feature,
-  frontmatter,
-}: {
-  feature: "subagent";
-  frontmatter: unknown;
-}): RulesyncSubagentFrontmatter;
-function parseFrontmatter({
-  feature,
-  frontmatter,
-}: {
-  feature: "skill";
-  frontmatter: unknown;
-}): RulesyncSkillFrontmatter;
-function parseFrontmatter({
-  feature,
-  frontmatter,
-}: {
-  feature: "check";
-  frontmatter: unknown;
-}): RulesyncCheckFrontmatter;
+const frontmatterParserByFeature: {
+  [Feature in RulesyncFrontmatterFeature]: (
+    frontmatter: unknown,
+  ) => RulesyncFrontmatterByFeature[Feature];
+} = {
+  rule: (frontmatter) => RulesyncRuleFrontmatterSchema.parse(frontmatter),
+  command: (frontmatter) => RulesyncCommandFrontmatterSchema.parse(frontmatter),
+  subagent: (frontmatter) => RulesyncSubagentFrontmatterSchema.parse(frontmatter),
+  skill: (frontmatter) => RulesyncSkillFrontmatterSchema.parse(frontmatter),
+  check: (frontmatter) => RulesyncCheckFrontmatterSchema.parse(frontmatter),
+};
+
 function parseFrontmatter<Feature extends RulesyncFrontmatterFeature>({
   feature,
   frontmatter,
 }: {
   feature: Feature;
   frontmatter: unknown;
-}): RulesyncFrontmatterByFeature[Feature];
-function parseFrontmatter({
-  feature,
-  frontmatter,
-}: {
-  feature: RulesyncFrontmatterFeature;
-  frontmatter: unknown;
-}): RulesyncFrontmatterByFeature[RulesyncFrontmatterFeature] {
-  switch (feature) {
-    case "rule": {
-      return RulesyncRuleFrontmatterSchema.parse(frontmatter);
-    }
-    case "command": {
-      return RulesyncCommandFrontmatterSchema.parse(frontmatter);
-    }
-    case "subagent": {
-      return RulesyncSubagentFrontmatterSchema.parse(frontmatter);
-    }
-    case "skill": {
-      return RulesyncSkillFrontmatterSchema.parse(frontmatter);
-    }
-    case "check": {
-      return RulesyncCheckFrontmatterSchema.parse(frontmatter);
-    }
-  }
+}): RulesyncFrontmatterByFeature[Feature] {
+  return frontmatterParserByFeature[feature](frontmatter);
 }
 
 function ensureBody({ body, feature, operation }: RulesyncToolArgs): string {
@@ -247,82 +201,104 @@ function requireContent({
   return content;
 }
 
-function executeRule(parsed: RulesyncToolArgs) {
-  if (parsed.operation === "list") {
-    return ruleTools.listRules.execute();
-  }
+/**
+ * Builds the list/get/put/delete dispatcher for a feature stored as Markdown
+ * files with frontmatter (rules, commands, subagents and checks).
+ */
+function createFrontmatterFileExecutor<
+  Feature extends Exclude<RulesyncFrontmatterFeature, "skill">,
+>({
+  feature,
+  list,
+  get,
+  put,
+  remove,
+}: {
+  feature: Feature;
+  list: () => Promise<string>;
+  get: (args: { relativePathFromCwd: string }) => Promise<string>;
+  put: (args: {
+    relativePathFromCwd: string;
+    frontmatter: RulesyncFrontmatterByFeature[Feature];
+    body: string;
+  }) => Promise<string>;
+  remove: (args: { relativePathFromCwd: string }) => Promise<string>;
+}): (parsed: RulesyncToolArgs) => Promise<string> {
+  return (parsed) => {
+    if (parsed.operation === "list") {
+      return list();
+    }
 
-  if (parsed.operation === "get") {
-    return ruleTools.getRule.execute({ relativePathFromCwd: requireTargetPath(parsed) });
-  }
+    if (parsed.operation === "get") {
+      return get({ relativePathFromCwd: requireTargetPath(parsed) });
+    }
 
-  if (parsed.operation === "put") {
-    return ruleTools.putRule.execute({
-      relativePathFromCwd: requireTargetPath(parsed),
-      frontmatter: parseFrontmatter({
-        feature: "rule",
-        frontmatter: parsed.frontmatter ?? {},
-      }),
-      body: ensureBody(parsed),
-    });
-  }
+    if (parsed.operation === "put") {
+      return put({
+        relativePathFromCwd: requireTargetPath(parsed),
+        frontmatter: parseFrontmatter({
+          feature,
+          frontmatter: parsed.frontmatter ?? {},
+        }),
+        body: ensureBody(parsed),
+      });
+    }
 
-  return ruleTools.deleteRule.execute({ relativePathFromCwd: requireTargetPath(parsed) });
+    return remove({ relativePathFromCwd: requireTargetPath(parsed) });
+  };
 }
 
-function executeCommand(parsed: RulesyncToolArgs) {
-  if (parsed.operation === "list") {
-    return commandTools.listCommands.execute();
-  }
+/**
+ * Builds the get/put/delete dispatcher for a feature stored as a single file
+ * whose whole content is passed through (ignore, MCP, permissions and hooks).
+ */
+function createContentFileExecutor({
+  feature,
+  get,
+  put,
+  remove,
+}: {
+  feature: RulesyncFeature;
+  get: () => Promise<string>;
+  put: (args: { content: string }) => Promise<string>;
+  remove: () => Promise<string>;
+}): (parsed: RulesyncToolArgs) => Promise<string> {
+  return (parsed) => {
+    if (parsed.operation === "get") {
+      return get();
+    }
 
-  if (parsed.operation === "get") {
-    return commandTools.getCommand.execute({
-      relativePathFromCwd: requireTargetPath(parsed),
-    });
-  }
+    if (parsed.operation === "put") {
+      return put({ content: requireContent({ content: parsed.content, feature }) });
+    }
 
-  if (parsed.operation === "put") {
-    return commandTools.putCommand.execute({
-      relativePathFromCwd: requireTargetPath(parsed),
-      frontmatter: parseFrontmatter({
-        feature: "command",
-        frontmatter: parsed.frontmatter ?? {},
-      }),
-      body: ensureBody(parsed),
-    });
-  }
-
-  return commandTools.deleteCommand.execute({
-    relativePathFromCwd: requireTargetPath(parsed),
-  });
+    return remove();
+  };
 }
 
-function executeSubagent(parsed: RulesyncToolArgs) {
-  if (parsed.operation === "list") {
-    return subagentTools.listSubagents.execute();
-  }
+const executeRule = createFrontmatterFileExecutor({
+  feature: "rule",
+  list: ruleTools.listRules.execute,
+  get: ruleTools.getRule.execute,
+  put: ruleTools.putRule.execute,
+  remove: ruleTools.deleteRule.execute,
+});
 
-  if (parsed.operation === "get") {
-    return subagentTools.getSubagent.execute({
-      relativePathFromCwd: requireTargetPath(parsed),
-    });
-  }
+const executeCommand = createFrontmatterFileExecutor({
+  feature: "command",
+  list: commandTools.listCommands.execute,
+  get: commandTools.getCommand.execute,
+  put: commandTools.putCommand.execute,
+  remove: commandTools.deleteCommand.execute,
+});
 
-  if (parsed.operation === "put") {
-    return subagentTools.putSubagent.execute({
-      relativePathFromCwd: requireTargetPath(parsed),
-      frontmatter: parseFrontmatter({
-        feature: "subagent",
-        frontmatter: parsed.frontmatter ?? {},
-      }),
-      body: ensureBody(parsed),
-    });
-  }
-
-  return subagentTools.deleteSubagent.execute({
-    relativePathFromCwd: requireTargetPath(parsed),
-  });
-}
+const executeSubagent = createFrontmatterFileExecutor({
+  feature: "subagent",
+  list: subagentTools.listSubagents.execute,
+  get: subagentTools.getSubagent.execute,
+  put: subagentTools.putSubagent.execute,
+  remove: subagentTools.deleteSubagent.execute,
+});
 
 function executeSkill(parsed: RulesyncToolArgs) {
   if (parsed.operation === "list") {
@@ -350,88 +326,41 @@ function executeSkill(parsed: RulesyncToolArgs) {
   });
 }
 
-function executeCheck(parsed: RulesyncToolArgs) {
-  if (parsed.operation === "list") {
-    return checkTools.listChecks.execute();
-  }
+const executeCheck = createFrontmatterFileExecutor({
+  feature: "check",
+  list: checkTools.listChecks.execute,
+  get: checkTools.getCheck.execute,
+  put: checkTools.putCheck.execute,
+  remove: checkTools.deleteCheck.execute,
+});
 
-  if (parsed.operation === "get") {
-    return checkTools.getCheck.execute({
-      relativePathFromCwd: requireTargetPath(parsed),
-    });
-  }
+const executeIgnore = createContentFileExecutor({
+  feature: "ignore",
+  get: ignoreTools.getIgnoreFile.execute,
+  put: ignoreTools.putIgnoreFile.execute,
+  remove: ignoreTools.deleteIgnoreFile.execute,
+});
 
-  if (parsed.operation === "put") {
-    return checkTools.putCheck.execute({
-      relativePathFromCwd: requireTargetPath(parsed),
-      frontmatter: parseFrontmatter({
-        feature: "check",
-        frontmatter: parsed.frontmatter ?? {},
-      }),
-      body: ensureBody(parsed),
-    });
-  }
+const executeMcp = createContentFileExecutor({
+  feature: "mcp",
+  get: mcpTools.getFile.execute,
+  put: mcpTools.putFile.execute,
+  remove: mcpTools.deleteFile.execute,
+});
 
-  return checkTools.deleteCheck.execute({
-    relativePathFromCwd: requireTargetPath(parsed),
-  });
-}
+const executePermissions = createContentFileExecutor({
+  feature: "permissions",
+  get: permissionsTools.getFile.execute,
+  put: permissionsTools.putFile.execute,
+  remove: permissionsTools.deleteFile.execute,
+});
 
-function executeIgnore(parsed: RulesyncToolArgs) {
-  if (parsed.operation === "get") {
-    return ignoreTools.getIgnoreFile.execute();
-  }
-
-  if (parsed.operation === "put") {
-    return ignoreTools.putIgnoreFile.execute({
-      content: requireContent({ content: parsed.content, feature: "ignore" }),
-    });
-  }
-
-  return ignoreTools.deleteIgnoreFile.execute();
-}
-
-function executeMcp(parsed: RulesyncToolArgs) {
-  if (parsed.operation === "get") {
-    return mcpTools.getFile.execute();
-  }
-
-  if (parsed.operation === "put") {
-    return mcpTools.putFile.execute({
-      content: requireContent({ content: parsed.content, feature: "mcp" }),
-    });
-  }
-
-  return mcpTools.deleteFile.execute();
-}
-
-function executePermissions(parsed: RulesyncToolArgs) {
-  if (parsed.operation === "get") {
-    return permissionsTools.getFile.execute();
-  }
-
-  if (parsed.operation === "put") {
-    return permissionsTools.putFile.execute({
-      content: requireContent({ content: parsed.content, feature: "permissions" }),
-    });
-  }
-
-  return permissionsTools.deleteFile.execute();
-}
-
-function executeHooks(parsed: RulesyncToolArgs) {
-  if (parsed.operation === "get") {
-    return hooksTools.getFile.execute();
-  }
-
-  if (parsed.operation === "put") {
-    return hooksTools.putFile.execute({
-      content: requireContent({ content: parsed.content, feature: "hooks" }),
-    });
-  }
-
-  return hooksTools.deleteFile.execute();
-}
+const executeHooks = createContentFileExecutor({
+  feature: "hooks",
+  get: hooksTools.getFile.execute,
+  put: hooksTools.putFile.execute,
+  remove: hooksTools.deleteFile.execute,
+});
 
 function executeGenerate(parsed: RulesyncToolArgs) {
   // Only "run" operation is supported for generate feature
