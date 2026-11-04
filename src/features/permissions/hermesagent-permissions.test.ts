@@ -269,7 +269,7 @@ security:
       relativeFilePath: "permissions.json",
       fileContent: JSON.stringify({
         permission: { bash: { "git *": "allow" } },
-        claudecode: { env: { DEMO_API_KEY: "sk-test-not-a-real-key" } },
+        claudecode: { env: { DEMO_API_KEY: "not-a-real-secret-value" } },
         codexcli: { approval_policy: "on-request" },
         hermes: { approvals: { mode: "manual" } },
       }),
@@ -280,7 +280,7 @@ security:
       rulesyncPermissions,
     });
 
-    expect(permissions.getFileContent()).not.toContain("sk-test-not-a-real-key");
+    expect(permissions.getFileContent()).not.toContain("not-a-real-secret-value");
     const config = parseSharedConfig({ format: "yaml", fileContent: permissions.getFileContent() });
     expect(config.permissions).toEqual({
       rulesync: {
@@ -366,6 +366,28 @@ security:
     expect(config.approvals).toEqual({ deny: ["rm -rf *"], mode: "smart" });
     expect(config.security).toEqual({ allow_private_urls: false });
     expect(config.skills).toEqual({ write_approval: true });
+  });
+
+  it("does not bring other tools' override blocks back from an older round-trip blob", () => {
+    // A config.yaml generated before other tools' blocks were left out of the
+    // blob still carries them, credentials included.
+    const imported = new HermesagentPermissions({
+      outputRoot: ".",
+      fileContent: JSON.stringify({
+        command_allowlist: ["git *"],
+        permissions: {
+          rulesync: {
+            permission: { bash: { "git *": "allow" } },
+            claudecode: { env: { DEMO_API_KEY: "not-a-real-secret-value" } },
+            codexcli: { approval_policy: "on-request" },
+          },
+        },
+      }),
+    })
+      .toRulesyncPermissions()
+      .getJson();
+
+    expect(imported).toEqual({ permission: { bash: { "git *": "allow" } } });
   });
 
   it("imports native Hermes permissions without a private round-trip blob", () => {

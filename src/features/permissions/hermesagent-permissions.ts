@@ -394,6 +394,9 @@ function unmanagedMcpAllowlistEntries({
   });
 }
 
+/** Hermes's override key in the canonical document (`hermes`). */
+const HERMES_OVERRIDE_KEY = PERMISSION_OVERRIDE_KEY_ALIASES.hermesagent ?? "hermesagent";
+
 /**
  * The part of a canonical permissions document Hermes keeps as provenance: the
  * `$schema`, the canonical `permission` block, and Hermes's own override.
@@ -401,8 +404,7 @@ function unmanagedMcpAllowlistEntries({
 function hermesProvenanceOf(permissions: PermissionsConfig): Record<string, unknown> {
   const source: Record<string, unknown> = permissions;
   const provenance: Record<string, unknown> = {};
-  const ownOverrideKey = PERMISSION_OVERRIDE_KEY_ALIASES.hermesagent ?? "hermesagent";
-  for (const key of ["$schema", "permission", ownOverrideKey]) {
+  for (const key of ["$schema", "permission", HERMES_OVERRIDE_KEY]) {
     if (source[key] !== undefined) provenance[key] = source[key];
   }
   return provenance;
@@ -684,10 +686,14 @@ export class HermesagentPermissions extends ToolPermissions {
     });
     removeEmptyCategories(permission);
 
-    const { permission: _permission, hermes: _hermes, ...otherProvenance } = provenance;
+    // Restore only what the generator keeps in the blob. A config.yaml written
+    // before other tools' override blocks were left out still carries them
+    // (`claudecode` with `env` credentials, say); bringing them back would put
+    // those secrets into `.rulesync/` again and overwrite fresher fields there.
     const hermes = buildHermesOverride(config, provenance);
+    const { $schema } = hermesProvenanceOf(provenance);
     const imported: PermissionsConfig = {
-      ...otherProvenance,
+      ...($schema !== undefined && { $schema }),
       permission,
       ...(Object.keys(hermes).length > 0 && { hermes }),
     };
