@@ -1,34 +1,6 @@
-import { z } from "zod/mini";
-
 import { BOB_SKILLS_DIR_PATH } from "../../constants/bob-paths.js";
-import { SKILL_FILE_NAME } from "../../constants/general.js";
-import { ValidationResult } from "../../types/ai-dir.js";
-import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
-import {
-  ToolSkill,
-  ToolSkillForDeletionParams,
-  ToolSkillFromDirParams,
-  ToolSkillFromRulesyncSkillParams,
-  ToolSkillSettablePaths,
-} from "./tool-skill.js";
-
-const BobSkillFrontmatterSchema = z.looseObject({
-  name: z.string(),
-  description: z.string(),
-});
-
-export type BobSkillFrontmatter = z.infer<typeof BobSkillFrontmatterSchema>;
-
-export type BobSkillParams = {
-  outputRoot?: string;
-  relativeDirPath?: string;
-  dirName: string;
-  frontmatter: BobSkillFrontmatter;
-  body: string;
-  otherFiles?: SkillFile[];
-  validate?: boolean;
-  global?: boolean;
-};
+import { SectionPassthroughSkill } from "./section-passthrough-skill.js";
+import { ToolSkillSettablePaths } from "./tool-skill.js";
 
 /**
  * Represents an IBM Bob skill directory.
@@ -41,37 +13,10 @@ export type BobSkillParams = {
  *
  * @see https://bob.ibm.com/docs/ide/features/skills
  */
-export class BobSkill extends ToolSkill {
-  constructor({
-    outputRoot = process.cwd(),
-    relativeDirPath = BOB_SKILLS_DIR_PATH,
-    dirName,
-    frontmatter,
-    body,
-    otherFiles = [],
-    validate = true,
-    global = false,
-  }: BobSkillParams) {
-    super({
-      outputRoot,
-      relativeDirPath,
-      dirName,
-      mainFile: {
-        name: SKILL_FILE_NAME,
-        body,
-        frontmatter: { ...frontmatter },
-      },
-      otherFiles,
-      global,
-    });
+export class BobSkill extends SectionPassthroughSkill {
+  protected static override readonly toolTarget = "bob";
 
-    if (validate) {
-      const result = this.validate();
-      if (!result.success) {
-        throw result.error;
-      }
-    }
-  }
+  protected static override readonly sectionKey = "bob";
 
   static getSettablePaths({
     global: _global = false,
@@ -85,78 +30,5 @@ export class BobSkill extends ToolSkill {
     return {
       relativeDirPath: BOB_SKILLS_DIR_PATH,
     };
-  }
-
-  getFrontmatter(): BobSkillFrontmatter {
-    const result = BobSkillFrontmatterSchema.parse(this.requireMainFileFrontmatter());
-    return result;
-  }
-
-  validate(): ValidationResult {
-    return this.validateMainFileFrontmatterAndDirName(BobSkillFrontmatterSchema);
-  }
-
-  toRulesyncSkill(): RulesyncSkill {
-    // Bob documents only `name` / `description`; any other key a hand-written
-    // SKILL.md carries is lifted into the `bob` section so it survives the
-    // round-trip (mirrors how roo-skill.ts consumes its section).
-    const { name, description, ...bobSection } = this.getFrontmatter();
-    const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
-      name,
-      description,
-      targets: ["*"],
-      ...(Object.keys(bobSection).length > 0 && { bob: bobSection }),
-    };
-
-    return this.toRulesyncSkillWith(rulesyncFrontmatter);
-  }
-
-  static fromRulesyncSkill({
-    outputRoot = process.cwd(),
-    rulesyncSkill,
-    validate = true,
-    global = false,
-  }: ToolSkillFromRulesyncSkillParams): BobSkill {
-    const settablePaths = BobSkill.getSettablePaths({ global });
-    const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
-
-    // The `bob` section carries Bob-specific frontmatter; canonical
-    // name/description always win over a stray same-named key in the section.
-    const {
-      name: _sectionName,
-      description: _sectionDescription,
-      ...bobSection
-    } = rulesyncFrontmatter.bob ?? {};
-    const bobFrontmatter: BobSkillFrontmatter = {
-      ...bobSection,
-      name: rulesyncFrontmatter.name,
-      description: rulesyncFrontmatter.description,
-    };
-
-    return new BobSkill({
-      outputRoot,
-      relativeDirPath: settablePaths.relativeDirPath,
-      dirName: bobFrontmatter.name,
-      frontmatter: bobFrontmatter,
-      body: rulesyncSkill.getBody(),
-      otherFiles: rulesyncSkill.getOtherFiles(),
-      validate,
-      global,
-    });
-  }
-
-  protected static override readonly toolTarget = "bob";
-
-  static async fromDir(params: ToolSkillFromDirParams): Promise<BobSkill> {
-    return new BobSkill(
-      await this.loadStandardSkillParamsMatchingDirName({
-        params,
-        schema: BobSkillFrontmatterSchema,
-      }),
-    );
-  }
-
-  static forDeletion(params: ToolSkillForDeletionParams): BobSkill {
-    return new BobSkill(this.forDeletionParams(params));
   }
 }

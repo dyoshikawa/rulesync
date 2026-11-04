@@ -1,34 +1,6 @@
-import { z } from "zod/mini";
-
-import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { TABNINE_SKILLS_DIR_PATH } from "../../constants/tabnine-paths.js";
-import { ValidationResult } from "../../types/ai-dir.js";
-import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
-import {
-  ToolSkill,
-  ToolSkillForDeletionParams,
-  ToolSkillFromDirParams,
-  ToolSkillFromRulesyncSkillParams,
-  ToolSkillSettablePaths,
-} from "./tool-skill.js";
-
-const TabnineSkillFrontmatterSchema = z.looseObject({
-  name: z.string(),
-  description: z.string(),
-});
-
-export type TabnineSkillFrontmatter = z.infer<typeof TabnineSkillFrontmatterSchema>;
-
-export type TabnineSkillParams = {
-  outputRoot?: string;
-  relativeDirPath?: string;
-  dirName: string;
-  frontmatter: TabnineSkillFrontmatter;
-  body: string;
-  otherFiles?: SkillFile[];
-  validate?: boolean;
-  global?: boolean;
-};
+import { SectionPassthroughSkill } from "./section-passthrough-skill.js";
+import { ToolSkillSettablePaths } from "./tool-skill.js";
 
 /**
  * Represents a Tabnine CLI skill directory.
@@ -41,37 +13,10 @@ export type TabnineSkillParams = {
  *
  * @see https://docs.tabnine.com/main/getting-started/tabnine-cli/features/agent-skills
  */
-export class TabnineSkill extends ToolSkill {
-  constructor({
-    outputRoot = process.cwd(),
-    relativeDirPath = TABNINE_SKILLS_DIR_PATH,
-    dirName,
-    frontmatter,
-    body,
-    otherFiles = [],
-    validate = true,
-    global = false,
-  }: TabnineSkillParams) {
-    super({
-      outputRoot,
-      relativeDirPath,
-      dirName,
-      mainFile: {
-        name: SKILL_FILE_NAME,
-        body,
-        frontmatter: { ...frontmatter },
-      },
-      otherFiles,
-      global,
-    });
+export class TabnineSkill extends SectionPassthroughSkill {
+  protected static override readonly toolTarget = "tabnine";
 
-    if (validate) {
-      const result = this.validate();
-      if (!result.success) {
-        throw result.error;
-      }
-    }
-  }
+  protected static override readonly sectionKey = "tabnine";
 
   static getSettablePaths({
     global: _global = false,
@@ -85,78 +30,5 @@ export class TabnineSkill extends ToolSkill {
     return {
       relativeDirPath: TABNINE_SKILLS_DIR_PATH,
     };
-  }
-
-  getFrontmatter(): TabnineSkillFrontmatter {
-    const result = TabnineSkillFrontmatterSchema.parse(this.requireMainFileFrontmatter());
-    return result;
-  }
-
-  validate(): ValidationResult {
-    return this.validateMainFileFrontmatterAndDirName(TabnineSkillFrontmatterSchema);
-  }
-
-  toRulesyncSkill(): RulesyncSkill {
-    // Tabnine documents only `name` / `description`; any other key a hand-written
-    // SKILL.md carries is lifted into the `tabnine` section so it survives the
-    // round-trip (mirrors how roo-skill.ts consumes its section).
-    const { name, description, ...tabnineSection } = this.getFrontmatter();
-    const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
-      name,
-      description,
-      targets: ["*"],
-      ...(Object.keys(tabnineSection).length > 0 && { tabnine: tabnineSection }),
-    };
-
-    return this.toRulesyncSkillWith(rulesyncFrontmatter);
-  }
-
-  static fromRulesyncSkill({
-    outputRoot = process.cwd(),
-    rulesyncSkill,
-    validate = true,
-    global = false,
-  }: ToolSkillFromRulesyncSkillParams): TabnineSkill {
-    const settablePaths = TabnineSkill.getSettablePaths({ global });
-    const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
-
-    // The `tabnine` section carries Tabnine-specific frontmatter; canonical
-    // name/description always win over a stray same-named key in the section.
-    const {
-      name: _sectionName,
-      description: _sectionDescription,
-      ...tabnineSection
-    } = rulesyncFrontmatter.tabnine ?? {};
-    const tabnineFrontmatter: TabnineSkillFrontmatter = {
-      ...tabnineSection,
-      name: rulesyncFrontmatter.name,
-      description: rulesyncFrontmatter.description,
-    };
-
-    return new TabnineSkill({
-      outputRoot,
-      relativeDirPath: settablePaths.relativeDirPath,
-      dirName: tabnineFrontmatter.name,
-      frontmatter: tabnineFrontmatter,
-      body: rulesyncSkill.getBody(),
-      otherFiles: rulesyncSkill.getOtherFiles(),
-      validate,
-      global,
-    });
-  }
-
-  protected static override readonly toolTarget = "tabnine";
-
-  static async fromDir(params: ToolSkillFromDirParams): Promise<TabnineSkill> {
-    return new TabnineSkill(
-      await this.loadStandardSkillParamsMatchingDirName({
-        params,
-        schema: TabnineSkillFrontmatterSchema,
-      }),
-    );
-  }
-
-  static forDeletion(params: ToolSkillForDeletionParams): TabnineSkill {
-    return new TabnineSkill(this.forDeletionParams(params));
   }
 }

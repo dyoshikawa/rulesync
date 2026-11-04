@@ -1,39 +1,11 @@
-import { z } from "zod/mini";
-
 import { CONTINUE_SKILLS_DIR_PATH } from "../../constants/continue-paths.js";
-import { SKILL_FILE_NAME } from "../../constants/general.js";
-import { ValidationResult } from "../../types/ai-dir.js";
-import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
-import {
-  ToolSkill,
-  ToolSkillForDeletionParams,
-  ToolSkillFromDirParams,
-  ToolSkillFromRulesyncSkillParams,
-  ToolSkillSettablePaths,
-} from "./tool-skill.js";
+import { SectionPassthroughSkill } from "./section-passthrough-skill.js";
+import { ToolSkillSettablePaths } from "./tool-skill.js";
 
 // Continue skill frontmatter: `name` and `description` are required as in the
-// Agent Skills spec (Continue additionally rejects empty strings at load time,
-// like the sibling adapters this schema mirrors); Continue validates nothing
-// else.
+// Agent Skills spec (Continue additionally rejects empty strings at load
+// time); Continue validates nothing else.
 // @see https://github.com/continuedev/continue/blob/5522c6f44ca0ac3528b37244818fbfa39b5af470/extensions/cli/src/util/loadMarkdownSkills.ts
-const ContinueSkillFrontmatterSchema = z.looseObject({
-  name: z.string(),
-  description: z.string(),
-});
-
-export type ContinueSkillFrontmatter = z.infer<typeof ContinueSkillFrontmatterSchema>;
-
-export type ContinueSkillParams = {
-  outputRoot?: string;
-  relativeDirPath?: string;
-  dirName: string;
-  frontmatter: ContinueSkillFrontmatter;
-  body: string;
-  otherFiles?: SkillFile[];
-  validate?: boolean;
-  global?: boolean;
-};
 
 /**
  * Represents a Continue skill directory.
@@ -46,37 +18,10 @@ export type ContinueSkillParams = {
  *
  * @see https://github.com/continuedev/continue/blob/5522c6f44ca0ac3528b37244818fbfa39b5af470/extensions/cli/src/util/loadMarkdownSkills.ts
  */
-export class ContinueSkill extends ToolSkill {
-  constructor({
-    outputRoot = process.cwd(),
-    relativeDirPath = CONTINUE_SKILLS_DIR_PATH,
-    dirName,
-    frontmatter,
-    body,
-    otherFiles = [],
-    validate = true,
-    global = false,
-  }: ContinueSkillParams) {
-    super({
-      outputRoot,
-      relativeDirPath,
-      dirName,
-      mainFile: {
-        name: SKILL_FILE_NAME,
-        body,
-        frontmatter: { ...frontmatter },
-      },
-      otherFiles,
-      global,
-    });
+export class ContinueSkill extends SectionPassthroughSkill {
+  protected static override readonly toolTarget = "continue";
 
-    if (validate) {
-      const result = this.validate();
-      if (!result.success) {
-        throw result.error;
-      }
-    }
-  }
+  protected static override readonly sectionKey = "continue";
 
   static getSettablePaths(_options: { global?: boolean } = {}): ToolSkillSettablePaths {
     // The processor supplies the home directory as outputRoot in global mode:
@@ -85,78 +30,5 @@ export class ContinueSkill extends ToolSkill {
     return {
       relativeDirPath: CONTINUE_SKILLS_DIR_PATH,
     };
-  }
-
-  getFrontmatter(): ContinueSkillFrontmatter {
-    const result = ContinueSkillFrontmatterSchema.parse(this.requireMainFileFrontmatter());
-    return result;
-  }
-
-  validate(): ValidationResult {
-    return this.validateMainFileFrontmatterAndDirName(ContinueSkillFrontmatterSchema);
-  }
-
-  toRulesyncSkill(): RulesyncSkill {
-    // Everything beyond `name` / `description` (any key a hand-written
-    // SKILL.md carries) is lifted into the `continue` section so it survives
-    // the round-trip (mirrors roo-skill.ts).
-    const { name, description, ...continueSection } = this.getFrontmatter();
-    const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
-      name,
-      description,
-      targets: ["*"],
-      ...(Object.keys(continueSection).length > 0 && { continue: continueSection }),
-    };
-
-    return this.toRulesyncSkillWith(rulesyncFrontmatter);
-  }
-
-  static fromRulesyncSkill({
-    outputRoot = process.cwd(),
-    rulesyncSkill,
-    validate = true,
-    global = false,
-  }: ToolSkillFromRulesyncSkillParams): ContinueSkill {
-    const settablePaths = ContinueSkill.getSettablePaths({ global });
-    const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
-
-    // The `continue` section carries Continue-specific frontmatter; canonical
-    // name/description always win over a stray same-named key in the section.
-    const {
-      name: _sectionName,
-      description: _sectionDescription,
-      ...continueSection
-    } = rulesyncFrontmatter.continue ?? {};
-    const continueFrontmatter: ContinueSkillFrontmatter = {
-      ...continueSection,
-      name: rulesyncFrontmatter.name,
-      description: rulesyncFrontmatter.description,
-    };
-
-    return new ContinueSkill({
-      outputRoot,
-      relativeDirPath: settablePaths.relativeDirPath,
-      dirName: continueFrontmatter.name,
-      frontmatter: continueFrontmatter,
-      body: rulesyncSkill.getBody(),
-      otherFiles: rulesyncSkill.getOtherFiles(),
-      validate,
-      global,
-    });
-  }
-
-  protected static override readonly toolTarget = "continue";
-
-  static async fromDir(params: ToolSkillFromDirParams): Promise<ContinueSkill> {
-    return new ContinueSkill(
-      await this.loadStandardSkillParamsMatchingDirName({
-        params,
-        schema: ContinueSkillFrontmatterSchema,
-      }),
-    );
-  }
-
-  static forDeletion(params: ToolSkillForDeletionParams): ContinueSkill {
-    return new ContinueSkill(this.forDeletionParams(params));
   }
 }

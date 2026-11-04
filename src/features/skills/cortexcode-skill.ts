@@ -4,16 +4,8 @@ import {
   CORTEXCODE_GLOBAL_SKILLS_DIR_PATH,
   CORTEXCODE_SKILLS_DIR_PATH,
 } from "../../constants/cortexcode-paths.js";
-import { SKILL_FILE_NAME } from "../../constants/general.js";
-import { ValidationResult } from "../../types/ai-dir.js";
-import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
-import {
-  ToolSkill,
-  ToolSkillForDeletionParams,
-  ToolSkillFromDirParams,
-  ToolSkillFromRulesyncSkillParams,
-  ToolSkillSettablePaths,
-} from "./tool-skill.js";
+import { SectionPassthroughSkill } from "./section-passthrough-skill.js";
+import { ToolSkillSettablePaths } from "./tool-skill.js";
 
 // Snowflake Cortex Code skill frontmatter: `name` and `description` as in the
 // Agent Skills spec, plus an optional `tools` allowlist.
@@ -25,19 +17,6 @@ const CortexcodeSkillFrontmatterSchema = z.looseObject({
   tools: z.optional(z.array(z.string())),
 });
 
-export type CortexcodeSkillFrontmatter = z.infer<typeof CortexcodeSkillFrontmatterSchema>;
-
-export type CortexcodeSkillParams = {
-  outputRoot?: string;
-  relativeDirPath?: string;
-  dirName: string;
-  frontmatter: CortexcodeSkillFrontmatter;
-  body: string;
-  otherFiles?: SkillFile[];
-  validate?: boolean;
-  global?: boolean;
-};
-
 /**
  * Represents a Snowflake Cortex Code skill directory.
  *
@@ -46,39 +25,17 @@ export type CortexcodeSkillParams = {
  * (user scope). The frontmatter requires `name` (matching the directory name)
  * and `description`; supporting files next to `SKILL.md` are carried along.
  *
+ * The documented `tools` list and any other key beyond name/description
+ * round-trip through the `cortexcode` section.
+ *
  * @see https://docs.snowflake.com/en/user-guide/cortex-code/extensibility
  */
-export class CortexcodeSkill extends ToolSkill {
-  constructor({
-    outputRoot = process.cwd(),
-    relativeDirPath = CORTEXCODE_SKILLS_DIR_PATH,
-    dirName,
-    frontmatter,
-    body,
-    otherFiles = [],
-    validate = true,
-    global = false,
-  }: CortexcodeSkillParams) {
-    super({
-      outputRoot,
-      relativeDirPath,
-      dirName,
-      mainFile: {
-        name: SKILL_FILE_NAME,
-        body,
-        frontmatter: { ...frontmatter },
-      },
-      otherFiles,
-      global,
-    });
+export class CortexcodeSkill extends SectionPassthroughSkill {
+  protected static override readonly toolTarget = "cortexcode";
 
-    if (validate) {
-      const result = this.validate();
-      if (!result.success) {
-        throw result.error;
-      }
-    }
-  }
+  protected static override readonly sectionKey = "cortexcode";
+
+  protected static override readonly frontmatterSchema = CortexcodeSkillFrontmatterSchema;
 
   static getSettablePaths({ global = false }: { global?: boolean } = {}): ToolSkillSettablePaths {
     // The processor supplies the home directory as outputRoot in global mode:
@@ -87,78 +44,5 @@ export class CortexcodeSkill extends ToolSkill {
     return {
       relativeDirPath: global ? CORTEXCODE_GLOBAL_SKILLS_DIR_PATH : CORTEXCODE_SKILLS_DIR_PATH,
     };
-  }
-
-  getFrontmatter(): CortexcodeSkillFrontmatter {
-    const result = CortexcodeSkillFrontmatterSchema.parse(this.requireMainFileFrontmatter());
-    return result;
-  }
-
-  validate(): ValidationResult {
-    return this.validateMainFileFrontmatterAndDirName(CortexcodeSkillFrontmatterSchema);
-  }
-
-  toRulesyncSkill(): RulesyncSkill {
-    // Everything beyond `name` / `description` (the documented `tools` list and
-    // any key a hand-written SKILL.md carries) is lifted into the `cortexcode`
-    // section so it survives the round-trip (mirrors roo-skill.ts).
-    const { name, description, ...cortexcodeSection } = this.getFrontmatter();
-    const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
-      name,
-      description,
-      targets: ["*"],
-      ...(Object.keys(cortexcodeSection).length > 0 && { cortexcode: cortexcodeSection }),
-    };
-
-    return this.toRulesyncSkillWith(rulesyncFrontmatter);
-  }
-
-  static fromRulesyncSkill({
-    outputRoot = process.cwd(),
-    rulesyncSkill,
-    validate = true,
-    global = false,
-  }: ToolSkillFromRulesyncSkillParams): CortexcodeSkill {
-    const settablePaths = CortexcodeSkill.getSettablePaths({ global });
-    const rulesyncFrontmatter = rulesyncSkill.getFrontmatter();
-
-    // The `cortexcode` section carries Cortex-specific frontmatter; canonical
-    // name/description always win over a stray same-named key in the section.
-    const {
-      name: _sectionName,
-      description: _sectionDescription,
-      ...cortexcodeSection
-    } = rulesyncFrontmatter.cortexcode ?? {};
-    const cortexcodeFrontmatter: CortexcodeSkillFrontmatter = {
-      ...cortexcodeSection,
-      name: rulesyncFrontmatter.name,
-      description: rulesyncFrontmatter.description,
-    };
-
-    return new CortexcodeSkill({
-      outputRoot,
-      relativeDirPath: settablePaths.relativeDirPath,
-      dirName: cortexcodeFrontmatter.name,
-      frontmatter: cortexcodeFrontmatter,
-      body: rulesyncSkill.getBody(),
-      otherFiles: rulesyncSkill.getOtherFiles(),
-      validate,
-      global,
-    });
-  }
-
-  protected static override readonly toolTarget = "cortexcode";
-
-  static async fromDir(params: ToolSkillFromDirParams): Promise<CortexcodeSkill> {
-    return new CortexcodeSkill(
-      await this.loadStandardSkillParamsMatchingDirName({
-        params,
-        schema: CortexcodeSkillFrontmatterSchema,
-      }),
-    );
-  }
-
-  static forDeletion(params: ToolSkillForDeletionParams): CortexcodeSkill {
-    return new CortexcodeSkill(this.forDeletionParams(params));
   }
 }
