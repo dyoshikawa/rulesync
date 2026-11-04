@@ -153,10 +153,7 @@ export class WarpSkill extends ToolSkill {
     });
   }
 
-  static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("warp");
-  }
+  protected static override readonly toolTarget = "warp";
 
   /**
    * Commands are emitted into the `.warp/skills/` tree as `<slug>/SKILL.md`

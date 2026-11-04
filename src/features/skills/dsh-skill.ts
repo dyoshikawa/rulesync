@@ -201,10 +201,7 @@ export class DshSkill extends ToolSkill {
     });
   }
 
-  static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("dsh");
-  }
+  protected static override readonly toolTarget = "dsh";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<DshSkill> {
     const loaded = await this.loadSkillDirContent({

@@ -1,6 +1,5 @@
 import { ANDROIDSTUDIO_SKILLS_DIR_PATH } from "../../constants/androidstudio-paths.js";
 import { AgentsSkillsSkill } from "./agentsskills-skill.js";
-import { RulesyncSkill } from "./rulesync-skill.js";
 import { ToolSkillSettablePaths } from "./tool-skill.js";
 
 /**
@@ -20,8 +19,5 @@ export class AndroidstudioSkill extends AgentsSkillsSkill {
     return { relativeDirPath: ANDROIDSTUDIO_SKILLS_DIR_PATH };
   }
 
-  static override isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("androidstudio");
-  }
+  protected static override readonly toolTarget = "androidstudio";
 }

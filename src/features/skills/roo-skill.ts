@@ -6,6 +6,7 @@ import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { ROO_SKILLS_DIR_PATH } from "../../constants/roo-paths.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
+import { ToolTarget } from "../../types/tool-targets.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import {
   ToolSkill,
@@ -152,10 +153,7 @@ export class RooSkill extends ToolSkill {
     });
   }
 
-  static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("roo");
-  }
+  protected static override readonly toolTarget: ToolTarget = "roo";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<RooSkill> {
     const loaded = await this.loadSkillDirContent({

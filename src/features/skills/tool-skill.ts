@@ -6,6 +6,7 @@ import { AGENTSMD_SKILLS_DIR_PATH } from "../../constants/agentsmd-paths.js";
 import { AMP_SKILLS_GLOBAL_DIR, AMP_SKILLS_NATIVE_GLOBAL_DIR } from "../../constants/amp-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { AiDir, ValidationResult } from "../../types/ai-dir.js";
+import { isTargetedByTargets, ToolTarget } from "../../types/tool-targets.js";
 import { stripControlCharacters } from "../../utils/control-characters.js";
 import { formatError } from "../../utils/error.js";
 import { fileExists, readFileContent, toPosixPath } from "../../utils/file.js";
@@ -240,15 +241,34 @@ export abstract class ToolSkill extends AiDir {
   abstract toRulesyncSkill(): RulesyncSkill;
 
   /**
+   * The target a subclass is generated for. When it is set, the default
+   * `isTargetedByRulesyncSkill` checks a skill's `targets` against it. Static
+   * fields are inherited, so a subclass that has a target of its own must
+   * declare it rather than rely on its parent's.
+   */
+  protected static readonly toolTarget: ToolTarget | undefined = undefined;
+
+  /**
    * Check if this tool is targeted by a RulesyncSkill.
-   * Since skills don't have targets field like commands/subagents,
-   * the default behavior may vary by tool.
    *
    * @param rulesyncSkill - The RulesyncSkill to check
    * @returns True if this tool should use the skill
    */
-  static isTargetedByRulesyncSkill(_rulesyncSkill: RulesyncSkill): boolean {
-    throw new Error("Please implement this method in the subclass.");
+  static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
+    if (this.toolTarget === undefined) {
+      throw new Error("Please implement this method in the subclass.");
+    }
+    return this.isTargetedByRulesyncSkillDefault({ rulesyncSkill, toolTarget: this.toolTarget });
+  }
+
+  protected static isTargetedByRulesyncSkillDefault({
+    rulesyncSkill,
+    toolTarget,
+  }: {
+    rulesyncSkill: RulesyncSkill;
+    toolTarget: ToolTarget;
+  }): boolean {
+    return isTargetedByTargets({ targets: rulesyncSkill.getFrontmatter().targets, toolTarget });
   }
 
   /**

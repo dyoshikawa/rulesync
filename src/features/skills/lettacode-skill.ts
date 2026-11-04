@@ -165,10 +165,7 @@ export class LettacodeSkill extends ToolSkill {
     });
   }
 
-  static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("lettacode");
-  }
+  protected static override readonly toolTarget = "lettacode";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<LettacodeSkill> {
     const loaded = await this.loadSkillDirContent({

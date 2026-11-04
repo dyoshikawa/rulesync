@@ -4,7 +4,6 @@ import { z } from "zod/mini";
 
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { ValidationResult } from "../../types/ai-dir.js";
-import { ToolTarget } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { fileExists, readFileContent } from "../../utils/file.js";
 import { parseFrontmatterWithYamlRepair } from "../../utils/frontmatter.js";
@@ -203,29 +202,6 @@ export abstract class SimulatedSkill extends ToolSkill {
       otherFiles: [],
       validate: false,
     };
-  }
-
-  /**
-   * Check if a RulesyncSkill should be converted to this simulated skill type.
-   * Uses the targets field in the RulesyncSkill frontmatter to determine targeting.
-   */
-  protected static isTargetedByRulesyncSkillDefault({
-    rulesyncSkill,
-    toolTarget,
-  }: {
-    rulesyncSkill: RulesyncSkill;
-    toolTarget: ToolTarget;
-  }): boolean {
-    const frontmatter = rulesyncSkill.getFrontmatter();
-    const targets = frontmatter.targets;
-
-    // If targets includes "*", it targets all tools
-    if (targets.includes("*")) {
-      return true;
-    }
-
-    // Check if the specific tool is in the targets array
-    return targets.includes(toolTarget);
   }
 
   /**

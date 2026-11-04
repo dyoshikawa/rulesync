@@ -159,10 +159,7 @@ export class CortexcodeSkill extends ToolSkill {
     });
   }
 
-  static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("cortexcode");
-  }
+  protected static override readonly toolTarget = "cortexcode";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<CortexcodeSkill> {
     const loaded = await this.loadSkillDirContent({

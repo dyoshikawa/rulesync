@@ -36,12 +36,7 @@ class TestSimulatedSkill extends SimulatedSkill {
     return new TestSimulatedSkill(baseParams);
   }
 
-  static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    return this.isTargetedByRulesyncSkillDefault({
-      rulesyncSkill,
-      toolTarget: "copilot", // Use any valid target for testing
-    });
-  }
+  protected static override readonly toolTarget = "copilot"; // Use any valid target for testing
 }
 
 describe("SimulatedSkill", () => {

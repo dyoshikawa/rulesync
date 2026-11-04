@@ -171,10 +171,7 @@ export class KiloSkill extends ToolSkill {
     });
   }
 
-  static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("kilo");
-  }
+  protected static override readonly toolTarget = "kilo";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<KiloSkill> {
     const loaded = await this.loadSkillDirContent({

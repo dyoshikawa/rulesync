@@ -8,7 +8,6 @@ import {
 } from "../../constants/gitlabduo-paths.js";
 import { fileExists } from "../../utils/file.js";
 import { AgentsSkillsSkill } from "./agentsskills-skill.js";
-import { RulesyncSkill } from "./rulesync-skill.js";
 import { ToolSkillSettablePaths } from "./tool-skill.js";
 
 /**
@@ -43,10 +42,7 @@ export class GitlabduoSkill extends AgentsSkillsSkill {
     };
   }
 
-  static override isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("gitlabduo");
-  }
+  protected static override readonly toolTarget = "gitlabduo";
 
   /**
    * The import-only project-root `skills/` directory is one many repositories

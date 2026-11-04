@@ -194,10 +194,7 @@ export class ReplitSkill extends ToolSkill {
     });
   }
 
-  static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("replit");
-  }
+  protected static override readonly toolTarget = "replit";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<ReplitSkill> {
     const loaded = await this.loadSkillDirContent({

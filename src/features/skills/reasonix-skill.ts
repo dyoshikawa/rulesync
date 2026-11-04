@@ -224,11 +224,7 @@ export class ReasonixSkill extends ToolSkill {
     });
   }
 
-  static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const frontmatter = rulesyncSkill.getFrontmatter();
-    const targets = frontmatter.targets;
-    return targets.includes("*") || targets.includes("reasonix");
-  }
+  protected static override readonly toolTarget = "reasonix";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<ReasonixSkill> {
     const loaded = await this.loadSkillDirContent({

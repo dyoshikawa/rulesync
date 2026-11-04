@@ -198,10 +198,7 @@ export class CursorSkill extends ToolSkill {
     });
   }
 
-  static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("cursor");
-  }
+  protected static override readonly toolTarget = "cursor";
 
   /**
    * Cursor walks the skills root recursively, and a category folder grouping

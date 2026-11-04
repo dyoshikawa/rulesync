@@ -7,6 +7,7 @@ import {
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
+import { ToolTarget } from "../../types/tool-targets.js";
 import { rulesyncCommandSlugExists } from "../commands/command-skill-ownership.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import {
@@ -235,10 +236,7 @@ export class DevinSkill extends ToolSkill {
     });
   }
 
-  static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("devin");
-  }
+  protected static override readonly toolTarget: ToolTarget = "devin";
 
   /**
    * Commands are emitted into this same skills tree as `<slug>/SKILL.md`

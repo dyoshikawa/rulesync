@@ -137,10 +137,7 @@ export class GooseSkill extends ToolSkill {
     });
   }
 
-  static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("goose");
-  }
+  protected static override readonly toolTarget = "goose";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<GooseSkill> {
     const loaded = await this.loadSkillDirContent({

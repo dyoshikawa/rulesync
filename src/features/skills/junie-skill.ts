@@ -192,10 +192,7 @@ export class JunieSkill extends ToolSkill {
     });
   }
 
-  static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("junie");
-  }
+  protected static override readonly toolTarget = "junie";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<JunieSkill> {
     const loaded = await this.loadSkillDirContent({

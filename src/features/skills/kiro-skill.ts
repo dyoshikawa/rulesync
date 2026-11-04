@@ -6,6 +6,7 @@ import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { KIRO_SKILLS_DIR_PATH } from "../../constants/kiro-paths.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
+import { ToolTarget } from "../../types/tool-targets.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import { resolveCompatibility, resolveLicense, resolveMetadata } from "./skills-utils.js";
 import {
@@ -167,10 +168,7 @@ export class KiroSkill extends ToolSkill {
     });
   }
 
-  static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("kiro");
-  }
+  protected static override readonly toolTarget: ToolTarget = "kiro";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<KiroSkill> {
     const loaded = await this.loadSkillDirContent({

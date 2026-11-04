@@ -164,10 +164,7 @@ export class PoolSkill extends ToolSkill {
     });
   }
 
-  static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("pool");
-  }
+  protected static override readonly toolTarget = "pool";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<PoolSkill> {
     const loaded = await this.loadSkillDirContent({

@@ -1,6 +1,5 @@
 import { DEVIN_PLUGIN_SKILLS_DIR } from "../../constants/plugin-paths.js";
 import { DevinSkill } from "./devin-skill.js";
-import type { RulesyncSkill } from "./rulesync-skill.js";
 import type { ToolSkillSettablePaths } from "./tool-skill.js";
 
 /**
@@ -11,10 +10,7 @@ import type { ToolSkillSettablePaths } from "./tool-skill.js";
  * @see https://docs.devin.ai/cli/extensibility/plugins/overview
  */
 export class DevinPluginSkill extends DevinSkill {
-  static override isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("devin-plugin");
-  }
+  protected static override readonly toolTarget = "devin-plugin";
 
   static override getSettablePaths(): ToolSkillSettablePaths {
     return { relativeDirPath: DEVIN_PLUGIN_SKILLS_DIR };

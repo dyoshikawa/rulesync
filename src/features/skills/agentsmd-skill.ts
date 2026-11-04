@@ -5,7 +5,6 @@ import {
   toAgentsSkillsInvocationField,
   toSpecConformantAgentSkillFields,
 } from "./agentsskills-skill.js";
-import { RulesyncSkill } from "./rulesync-skill.js";
 import { SimulatedSkill } from "./simulated-skill.js";
 import {
   ToolSkillForDeletionParams,
@@ -71,12 +70,7 @@ export class AgentsmdSkill extends SimulatedSkill {
     return new AgentsmdSkill({ ...defaults, relativeDirPath, frontmatter });
   }
 
-  static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    return this.isTargetedByRulesyncSkillDefault({
-      rulesyncSkill,
-      toolTarget: "agentsmd",
-    });
-  }
+  protected static override readonly toolTarget = "agentsmd";
 
   static forDeletion(params: ToolSkillForDeletionParams): AgentsmdSkill {
     const baseParams = this.forDeletionDefault(params);

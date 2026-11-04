@@ -1,5 +1,4 @@
 import { RooSkill } from "./roo-skill.js";
-import { RulesyncSkill } from "./rulesync-skill.js";
 
 /**
  * Skill generator for **Zoo Code** (the community continuation of Roo Code).
@@ -11,8 +10,5 @@ import { RulesyncSkill } from "./rulesync-skill.js";
  * @see https://docs.zoocode.dev/features/skills
  */
 export class ZoocodeSkill extends RooSkill {
-  static override isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("zoocode");
-  }
+  protected static override readonly toolTarget = "zoocode";
 }

@@ -206,10 +206,7 @@ export class AmpSkill extends ToolSkill {
     });
   }
 
-  static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("amp");
-  }
+  protected static override readonly toolTarget = "amp";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<AmpSkill> {
     const loaded = await this.loadSkillDirContent({

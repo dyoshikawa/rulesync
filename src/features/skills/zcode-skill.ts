@@ -4,6 +4,7 @@ import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ZCODE_SKILLS_DIR_PATH } from "../../constants/zcode-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
+import { ToolTarget } from "../../types/tool-targets.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import { resolveLicense, resolveMetadata } from "./skills-utils.js";
 import {
@@ -196,10 +197,7 @@ export class ZcodeSkill extends ToolSkill {
     });
   }
 
-  static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("zcode");
-  }
+  protected static override readonly toolTarget: ToolTarget = "zcode";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<ZcodeSkill> {
     const loaded = await this.loadSkillDirContent({

@@ -227,10 +227,7 @@ export class GrokcliSkill extends ToolSkill {
     });
   }
 
-  static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("grokcli");
-  }
+  protected static override readonly toolTarget = "grokcli";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<GrokcliSkill> {
     const loaded = await this.loadSkillDirContent({

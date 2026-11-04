@@ -182,10 +182,7 @@ export class RovodevSkill extends ToolSkill {
     });
   }
 
-  static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("rovodev");
-  }
+  protected static override readonly toolTarget = "rovodev";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<RovodevSkill> {
     const loaded = await this.loadSkillDirContent({

@@ -178,10 +178,7 @@ export class CodebuddySkill extends ToolSkill {
     });
   }
 
-  static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("codebuddy");
-  }
+  protected static override readonly toolTarget = "codebuddy";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<CodebuddySkill> {
     const loaded = await this.loadSkillDirContent({

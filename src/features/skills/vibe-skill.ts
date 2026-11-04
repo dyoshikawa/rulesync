@@ -5,6 +5,7 @@ import { z } from "zod/mini";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
+import { ToolTarget } from "../../types/tool-targets.js";
 import type { Logger } from "../../utils/logger.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
 import {
@@ -256,10 +257,7 @@ export class VibeSkill extends ToolSkill {
     });
   }
 
-  static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("vibe");
-  }
+  protected static override readonly toolTarget: ToolTarget = "vibe";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<VibeSkill> {
     const loaded = await this.loadSkillDirContent({

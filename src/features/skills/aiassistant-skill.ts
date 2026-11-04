@@ -143,10 +143,7 @@ export class AiassistantSkill extends ToolSkill {
     });
   }
 
-  static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("aiassistant");
-  }
+  protected static override readonly toolTarget = "aiassistant";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<AiassistantSkill> {
     const loaded = await this.loadSkillDirContent({

@@ -150,10 +150,7 @@ export class ClineSkill extends ToolSkill {
     });
   }
 
-  static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("cline");
-  }
+  protected static override readonly toolTarget = "cline";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<ClineSkill> {
     const loaded = await this.loadSkillDirContent({

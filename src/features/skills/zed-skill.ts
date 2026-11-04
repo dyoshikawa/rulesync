@@ -238,10 +238,7 @@ export class ZedSkill extends ToolSkill {
     });
   }
 
-  static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("zed");
-  }
+  protected static override readonly toolTarget = "zed";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<ZedSkill> {
     const loaded = await this.loadSkillDirContent({

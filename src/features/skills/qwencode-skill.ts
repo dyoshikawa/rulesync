@@ -240,11 +240,7 @@ export class QwencodeSkill extends ToolSkill {
     });
   }
 
-  static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const frontmatter = rulesyncSkill.getFrontmatter();
-    const targets = frontmatter.targets;
-    return targets.includes("*") || targets.includes("qwencode");
-  }
+  protected static override readonly toolTarget = "qwencode";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<QwencodeSkill> {
     const loaded = await this.loadSkillDirContent({

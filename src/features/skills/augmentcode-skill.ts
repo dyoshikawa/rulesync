@@ -7,6 +7,7 @@ import {
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
+import { ToolTarget } from "../../types/tool-targets.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import {
   ToolSkill,
@@ -151,10 +152,7 @@ export class AugmentcodeSkill extends ToolSkill {
     });
   }
 
-  static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("augmentcode");
-  }
+  protected static override readonly toolTarget: ToolTarget = "augmentcode";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<AugmentcodeSkill> {
     const loaded = await this.loadSkillDirContent({

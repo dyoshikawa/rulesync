@@ -4,9 +4,13 @@ import type { RulesyncSkill } from "./rulesync-skill.js";
 import type { ToolSkillSettablePaths } from "./tool-skill.js";
 
 export class ClaudecodePluginSkill extends ClaudecodeSkill {
+  // Overrides the inherited method rather than setting `toolTarget`, because
+  // the parent's `scheduled-task` routing is specific to Claude Code itself.
   static override isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("claudecode-plugin");
+    return this.isTargetedByRulesyncSkillDefault({
+      rulesyncSkill,
+      toolTarget: "claudecode-plugin",
+    });
   }
 
   static override getSettablePaths(): ToolSkillSettablePaths {

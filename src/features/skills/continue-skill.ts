@@ -157,10 +157,7 @@ export class ContinueSkill extends ToolSkill {
     });
   }
 
-  static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("continue");
-  }
+  protected static override readonly toolTarget = "continue";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<ContinueSkill> {
     const loaded = await this.loadSkillDirContent({

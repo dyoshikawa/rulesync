@@ -201,10 +201,7 @@ export class CopilotSkill extends ToolSkill {
     });
   }
 
-  static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("copilot");
-  }
+  protected static override readonly toolTarget = "copilot";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<CopilotSkill> {
     const loaded = await this.loadSkillDirContent({

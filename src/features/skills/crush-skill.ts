@@ -215,10 +215,7 @@ export class CrushSkill extends ToolSkill {
     });
   }
 
-  static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("crush");
-  }
+  protected static override readonly toolTarget = "crush";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<CrushSkill> {
     const loaded = await this.loadSkillDirContent({

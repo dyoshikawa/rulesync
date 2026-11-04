@@ -180,10 +180,7 @@ export class MusecodeSkill extends ToolSkill {
     });
   }
 
-  static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("musecode");
-  }
+  protected static override readonly toolTarget = "musecode";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<MusecodeSkill> {
     const loaded = await this.loadSkillDirContent({

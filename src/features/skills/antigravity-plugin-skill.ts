@@ -4,9 +4,13 @@ import type { RulesyncSkill } from "./rulesync-skill.js";
 import type { ToolSkillSettablePaths } from "./tool-skill.js";
 
 export class AntigravityPluginSkill extends AntigravityIdeSkill {
+  // Overrides the inherited method rather than setting `toolTarget`, because
+  // the parent's check is keyed by the `antigravity-ide` section target.
   static override isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("antigravity-plugin");
+    return this.isTargetedByRulesyncSkillDefault({
+      rulesyncSkill,
+      toolTarget: "antigravity-plugin",
+    });
   }
 
   static override getSettablePaths(): ToolSkillSettablePaths {

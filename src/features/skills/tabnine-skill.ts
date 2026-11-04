@@ -157,10 +157,7 @@ export class TabnineSkill extends ToolSkill {
     });
   }
 
-  static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("tabnine");
-  }
+  protected static override readonly toolTarget = "tabnine";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<TabnineSkill> {
     const loaded = await this.loadSkillDirContent({

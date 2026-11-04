@@ -201,10 +201,7 @@ export class DeepagentsSkill extends ToolSkill {
     });
   }
 
-  static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("deepagents");
-  }
+  protected static override readonly toolTarget = "deepagents";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<DeepagentsSkill> {
     const loaded = await this.loadSkillDirContent({

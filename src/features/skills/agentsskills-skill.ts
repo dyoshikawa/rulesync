@@ -6,6 +6,7 @@ import { AGENTSMD_SKILLS_DIR_PATH } from "../../constants/agentsmd-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
+import { ToolTarget } from "../../types/tool-targets.js";
 import { toPosixPath } from "../../utils/file.js";
 import { type Logger } from "../../utils/logger.js";
 import {
@@ -519,10 +520,7 @@ export class AgentsSkillsSkill extends ToolSkill {
     });
   }
 
-  static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("agentsskills");
-  }
+  protected static override readonly toolTarget: ToolTarget = "agentsskills";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<AgentsSkillsSkill> {
     const loaded = await this.loadSkillDirContent({
