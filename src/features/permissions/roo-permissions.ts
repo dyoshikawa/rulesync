@@ -143,7 +143,7 @@ function withholdAllowsOutrankingDenies({
   return kept;
 }
 
-export type RooPermissionsParams = AiFileParams & {
+type RooPermissionsParams = AiFileParams & {
   /** See {@link RooPermissions.shouldSkipCreationWhenPayloadEmpty}. */
   ownsCommandKeys?: boolean | undefined;
 };

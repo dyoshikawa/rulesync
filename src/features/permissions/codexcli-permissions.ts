@@ -347,7 +347,7 @@ export class CodexcliPermissions extends ToolPermissions {
   }
 }
 
-export class CodexcliRulesFile extends ToolFile {
+class CodexcliRulesFile extends ToolFile {
   validate(): ValidationResult {
     return { success: true, error: null };
   }

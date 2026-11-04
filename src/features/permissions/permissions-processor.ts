@@ -69,7 +69,7 @@ import { WarpcliPermissions } from "./warpcli-permissions.js";
 import { ZedPermissions } from "./zed-permissions.js";
 import { ZoocodePermissions } from "./zoocode-permissions.js";
 
-export type PermissionsProcessorToolTarget = (typeof permissionsProcessorToolTargetTuple)[number];
+type PermissionsProcessorToolTarget = (typeof permissionsProcessorToolTargetTuple)[number];
 
 export const PermissionsProcessorToolTargetSchema = z.enum(permissionsProcessorToolTargetTuple);
 
