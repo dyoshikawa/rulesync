@@ -3,22 +3,11 @@ import { join } from "node:path";
 import { z } from "zod/mini";
 
 import { PI_LAYOUT, type PiLayout } from "../../constants/pi-paths.js";
-import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
-import { formatError } from "../../utils/error.js";
-import { readFileContent } from "../../utils/file.js";
-import {
-  parseFrontmatter,
-  stringifyFrontmatter,
-  validateFrontmatterSchema,
-} from "../../utils/frontmatter.js";
-import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
-import {
-  ToolCommand,
-  ToolCommandForDeletionParams,
-  ToolCommandFromFileParams,
-  ToolCommandFromRulesyncCommandParams,
-  ToolCommandSettablePaths,
-} from "./tool-command.js";
+import type { ToolTarget } from "../../types/tool-targets.js";
+import { stringifyFrontmatter } from "../../utils/frontmatter.js";
+import { FrontmatterMarkdownToolCommand } from "./frontmatter-markdown-command.js";
+import type { RulesyncCommandFrontmatter } from "./rulesync-command.js";
+import type { ToolCommandSettablePaths } from "./tool-command.js";
 
 /**
  * Frontmatter schema for Pi Coding Agent commands.
@@ -34,11 +23,6 @@ export const PiCommandFrontmatterSchema = z.looseObject({
 
 export type PiCommandFrontmatter = z.infer<typeof PiCommandFrontmatterSchema>;
 
-export type PiCommandParams = {
-  frontmatter: PiCommandFrontmatter;
-  body: string;
-} & Omit<AiFileParams, "fileContent">;
-
 /**
  * Command generator for Pi Coding Agent.
  *
@@ -48,40 +32,9 @@ export type PiCommandParams = {
  * Pi's argument placeholders (`$1`, `$2`, `$@`, `$ARGUMENTS`) are compatible
  * with rulesync command bodies, so the body is passed through verbatim.
  */
-export class PiCommand extends ToolCommand {
+export class PiCommand extends FrontmatterMarkdownToolCommand<PiCommandFrontmatter> {
   /** Directory layout; Pi forks (oh-my-pi) override it. */
   protected static readonly layout: PiLayout = PI_LAYOUT;
-
-  private readonly frontmatter: PiCommandFrontmatter;
-  private readonly body: string;
-
-  constructor({ frontmatter, body, ...rest }: PiCommandParams) {
-    if (rest.validate) {
-      const result = PiCommandFrontmatterSchema.safeParse(frontmatter);
-      if (!result.success) {
-        throw new Error(
-          `Invalid frontmatter in ${join(rest.relativeDirPath, rest.relativeFilePath)}: ${formatError(result.error)}`,
-        );
-      }
-    }
-
-    super({
-      ...rest,
-      fileContent: PiCommand.generateFileContent(body, frontmatter),
-    });
-
-    this.frontmatter = frontmatter;
-    this.body = body;
-  }
-
-  private static generateFileContent(body: string, frontmatter: PiCommandFrontmatter): string {
-    // Emit frontmatter only when there is at least one defined field.
-    const hasContent = Object.values(frontmatter).some((value) => value !== undefined);
-    if (!hasContent) {
-      return body;
-    }
-    return stringifyFrontmatter(body, frontmatter);
-  }
 
   static getSettablePaths({ global }: { global?: boolean } = {}): ToolCommandSettablePaths {
     const root = global ? this.layout.globalDir : this.layout.dir;
@@ -90,123 +43,43 @@ export class PiCommand extends ToolCommand {
     };
   }
 
-  getBody(): string {
-    return this.body;
+  /** Also the tool-scoped section (`pi:` / `omp:`) of the Rulesync frontmatter. */
+  protected static override getToolTarget(): ToolTarget {
+    return this.layout.toolTarget;
   }
 
-  getFrontmatter(): Record<string, unknown> {
-    return this.frontmatter;
+  protected static override getFrontmatterSchema() {
+    return PiCommandFrontmatterSchema;
   }
 
-  toRulesyncCommand(): RulesyncCommand {
-    const { description, ...restFields } = this.frontmatter;
-
-    const rulesyncFrontmatter: RulesyncCommandFrontmatter = {
-      targets: ["*"],
-      description,
-      // Preserve Pi-specific fields (e.g. `argument-hint`) under the
-      // tool-scoped section (`pi:` / `omp:`) so round-trips retain tool-specific metadata.
-      ...(Object.keys(restFields).length > 0 && {
-        [(this.constructor as typeof PiCommand).layout.toolTarget]: restFields,
-      }),
-    };
-
-    return new RulesyncCommand({
-      outputRoot: ".",
-      frontmatter: rulesyncFrontmatter,
-      body: this.body,
-      relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
-      relativeFilePath: this.relativeFilePath,
-      validate: true,
-    });
+  protected static override stringifyFileContent({
+    body,
+    frontmatter,
+  }: {
+    body: string;
+    frontmatter: Record<string, unknown>;
+  }): string {
+    // Emit frontmatter only when there is at least one defined field.
+    const hasContent = Object.values(frontmatter).some((value) => value !== undefined);
+    if (!hasContent) {
+      return body;
+    }
+    return stringifyFrontmatter(body, frontmatter);
   }
 
-  static fromRulesyncCommand({
-    outputRoot = process.cwd(),
-    rulesyncCommand,
-    validate = true,
-    global = false,
-  }: ToolCommandFromRulesyncCommandParams): PiCommand {
-    const rulesyncFrontmatter = rulesyncCommand.getFrontmatter();
-    const piFields = rulesyncFrontmatter[this.layout.toolTarget] ?? {};
-
-    const piFrontmatter: PiCommandFrontmatter = {
+  protected static override toToolFrontmatter(
+    rulesyncFrontmatter: RulesyncCommandFrontmatter,
+  ): PiCommandFrontmatter {
+    const piFields = rulesyncFrontmatter[this.getToolTarget()] ?? {};
+    return {
       ...(rulesyncFrontmatter.description !== undefined && {
         description: rulesyncFrontmatter.description,
       }),
       ...piFields,
     };
-
-    const paths = this.getSettablePaths({ global });
-
-    return new this({
-      outputRoot,
-      frontmatter: piFrontmatter,
-      body: rulesyncCommand.getBody(),
-      relativeDirPath: paths.relativeDirPath,
-      relativeFilePath: rulesyncCommand.getRelativeFilePath(),
-      validate,
-    });
   }
 
-  validate(): ValidationResult {
-    if (!this.frontmatter) {
-      return { success: true, error: null };
-    }
-
-    return validateFrontmatterSchema({
-      schema: PiCommandFrontmatterSchema,
-      frontmatter: this.frontmatter,
-      relativeDirPath: this.relativeDirPath,
-      relativeFilePath: this.relativeFilePath,
-    });
-  }
-
-  static isTargetedByRulesyncCommand(rulesyncCommand: RulesyncCommand): boolean {
-    return this.isTargetedByRulesyncCommandDefault({
-      rulesyncCommand,
-      toolTarget: this.layout.toolTarget,
-    });
-  }
-
-  static async fromFile({
-    outputRoot = process.cwd(),
-    relativeFilePath,
-    validate = true,
-    global = false,
-  }: ToolCommandFromFileParams): Promise<PiCommand> {
-    const paths = this.getSettablePaths({ global });
-    const filePath = join(outputRoot, paths.relativeDirPath, relativeFilePath);
-    const fileContent = await readFileContent(filePath);
-    const { frontmatter, body: content } = parseFrontmatter(fileContent, filePath);
-
-    const result = PiCommandFrontmatterSchema.safeParse(frontmatter);
-    if (!result.success) {
-      throw new Error(`Invalid frontmatter in ${filePath}: ${formatError(result.error)}`);
-    }
-
-    return new this({
-      outputRoot,
-      relativeDirPath: paths.relativeDirPath,
-      relativeFilePath,
-      frontmatter: result.data,
-      body: content.trim(),
-      validate,
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolCommandForDeletionParams): PiCommand {
-    return new this({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      frontmatter: {},
-      body: "",
-      validate: false,
-    });
+  protected static override getDeletionFrontmatter(): PiCommandFrontmatter {
+    return {};
   }
 }
