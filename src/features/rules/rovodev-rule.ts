@@ -67,10 +67,6 @@ export class RovodevRule extends ToolRule {
   }
 
   /**
-   * Whether `relativePath` (posix-style path relative to modular-rules root) may be imported as a modular rule.
-   * Rejects memory filenames that belong at repo root or under `.rovodev/AGENTS.md`.
-   */
-  /**
    * The import warning for a discovered modular-rules file whose path Rovodev
    * reserves, or `undefined` when it may be imported.
    */
@@ -86,6 +82,10 @@ export class RovodevRule extends ToolRule {
       : `Skipping reserved Rovodev path under modular-rules (import): ${join(nonRootRelativeDirPath, relativeFilePath)}`;
   }
 
+  /**
+   * Whether `relativePath` (posix-style path relative to modular-rules root) may be imported as a modular rule.
+   * Rejects memory filenames that belong at repo root or under `.rovodev/AGENTS.md`.
+   */
   static isAllowedModularRulesRelativePath(relativePath: string): boolean {
     if (!relativePath) {
       return false;
