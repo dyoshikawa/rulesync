@@ -13,13 +13,11 @@ import {
 } from "./npm-client.js";
 import { getNpmLockedSource } from "./npm-sources-lock.js";
 import { parseSource } from "./source-parser.js";
+import { resolveGitSourceRef } from "./sources-git.js";
+import { resolveGithubFetchRef } from "./sources-github.js";
 import { getLockedSource } from "./sources-lock.js";
-import {
-  loadSourceLocks,
-  resolveGitSourceRef,
-  resolveGithubFetchRef,
-  resolveNpmFetchVersion,
-} from "./sources.js";
+import { resolveNpmFetchVersion } from "./sources-npm.js";
+import { loadSourceLocks } from "./sources.js";
 
 type OutdatedSourceStatus = "up-to-date" | "outdated" | "not-locked" | "failed";
 
