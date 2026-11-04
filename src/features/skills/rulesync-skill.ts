@@ -647,7 +647,8 @@ export class RulesyncSkill extends AiDir {
     });
 
     // Each caller gets its own frontmatter and file list, so nothing one target
-    // does with its skill can reach the copy another target reuses.
+    // does with its skill can reach the copy another target reuses. The file
+    // buffers themselves are shared: nothing in rulesync writes into one.
     return new RulesyncSkill({
       outputRoot,
       relativeDirPath,

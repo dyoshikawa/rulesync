@@ -85,10 +85,14 @@ describe("RulesyncSkill.fromDir inside withRulesyncSkillCache", () => {
     ]);
 
     expect(second.getFrontmatter()).toEqual(first.getFrontmatter());
-    expect(second.getFrontmatter()).not.toBe(first.getFrontmatter());
-    expect(second.getFrontmatter().claudecode).not.toBe(first.getFrontmatter().claudecode);
     expect(second.getOtherFiles()).toEqual(first.getOtherFiles());
-    expect(second.getOtherFiles()).not.toBe(first.getOtherFiles());
     expect(second.getBody()).toBe("Body");
+
+    // Changing one instance's stored frontmatter and file list leaves the other alone.
+    const firstClaudecode = first.getMainFile()?.frontmatter?.claudecode as Record<string, unknown>;
+    firstClaudecode.model = "haiku";
+    first.getOtherFiles()[0]!.relativeFilePathToDirPath = "changed.md";
+    expect(second.getFrontmatter().claudecode).toEqual({ model: "opus" });
+    expect(second.getOtherFiles()[0]?.relativeFilePathToDirPath).toBe("notes.md");
   });
 });
