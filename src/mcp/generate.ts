@@ -15,10 +15,10 @@ import { type RulesyncFeatures } from "../types/features.js";
 import { ErrorCodes } from "../types/json-output.js";
 import { type RulesyncTargets, type ToolTarget } from "../types/tool-targets.js";
 import { stripControlCharactersKeepingLineFeeds } from "../utils/control-characters.js";
-import { formatError } from "../utils/error.js";
-import { WarningCollectingLogger, withFallbackLoggerTarget } from "../utils/logger.js";
+import { WarningCollectingLogger } from "../utils/logger.js";
 import { calculateTotalCount } from "../utils/result.js";
 import { truncateText } from "../utils/truncate.js";
+import { runMcpOperation } from "./command-runner.js";
 import {
   assertOptionalPathOptionWithinCwd,
   assertPathOptionsWithinCwd,
@@ -192,79 +192,64 @@ export type McpGenerateResult = {
  * Configuration priority: MCP Parameters > rulesync.local.jsonc > rulesync.jsonc > Default values
  */
 export async function executeGenerate(options: GenerateOptions = {}): Promise<McpGenerateResult> {
-  // Declared outside the `try` because the source-load failure below is
-  // reported by throwing, and a run that warns and then fails is exactly when
-  // the caller needs to hear what it warned about.
+  // Declared before the run so a run that warns and then fails still reports
+  // what it warned about.
   const logger = new ErrorCollectingLogger({ verbose: false, silent: true });
 
-  try {
-    // The whole run adopts the shared fallback, config resolution included:
-    // warnings raised on paths that never received a logger would otherwise go
-    // to a stderr the calling agent cannot read. Resolution is inside rather
-    // than before it because that is where a config file's own contradictions
-    // are reported — `global: true` quietly downgraded to project scope
-    // changes where the run writes.
-    return await withFallbackLoggerTarget({
-      logger,
-      operation: async () => {
-        // Resolve config with MCP parameters taking precedence
-        // ConfigResolver handles: CLI options > rulesync.local.jsonc > rulesync.jsonc > defaults
-        // In MCP context, options act as CLI options (highest priority)
-        await assertGeneratePathOptionsWithinCwd(options);
+  return await runMcpOperation({
+    logger,
+    operation: async () => {
+      // Resolve config with MCP parameters taking precedence
+      // ConfigResolver handles: CLI options > rulesync.local.jsonc > rulesync.jsonc > defaults
+      // In MCP context, options act as CLI options (highest priority)
+      await assertGeneratePathOptionsWithinCwd(options);
 
-        // The resolver enforces the same rules the CLI does: `inputRoot` and
-        // `inputRoots` are mutually exclusive, and `retireTargets` requires an
-        // explicit `features` list and cannot be combined with `targets`.
-        const config = await ConfigResolver.resolve({
-          targets: options.targets as RulesyncTargets | undefined,
-          features: options.features as RulesyncFeatures | undefined,
-          delete: options.delete,
-          global: options.global,
-          simulateCommands: options.simulateCommands,
-          simulateSubagents: options.simulateSubagents,
-          simulateSkills: options.simulateSkills,
-          dryRun: options.dryRun,
-          check: options.check,
-          retireTargets: options.retireTargets as ToolTarget[] | undefined,
-          outputRoots: options.outputRoots,
-          inputRoots: options.inputRoots,
-          inputRoot: options.inputRoot,
-          configPath: options.configPath,
-          // verbose and silent are meaningless in MCP context
-          verbose: false,
-          silent: true,
-        });
+      // The resolver enforces the same rules the CLI does: `inputRoot` and
+      // `inputRoots` are mutually exclusive, and `retireTargets` requires an
+      // explicit `features` list and cannot be combined with `targets`.
+      const config = await ConfigResolver.resolve({
+        targets: options.targets as RulesyncTargets | undefined,
+        features: options.features as RulesyncFeatures | undefined,
+        delete: options.delete,
+        global: options.global,
+        simulateCommands: options.simulateCommands,
+        simulateSubagents: options.simulateSubagents,
+        simulateSkills: options.simulateSkills,
+        dryRun: options.dryRun,
+        check: options.check,
+        retireTargets: options.retireTargets as ToolTarget[] | undefined,
+        outputRoots: options.outputRoots,
+        inputRoots: options.inputRoots,
+        inputRoot: options.inputRoot,
+        configPath: options.configPath,
+        // verbose and silent are meaningless in MCP context
+        verbose: false,
+        silent: true,
+      });
 
-        await assertResolvedRootsWithinCwd({ options, config });
+      await assertResolvedRootsWithinCwd({ options, config });
 
-        const inputRoots = config.getInputRoots();
-        const inputRootInspection = await inspectInputRoots(inputRoots);
+      const inputRoots = config.getInputRoots();
+      const inputRootInspection = await inspectInputRoots(inputRoots);
 
-        if (inputRootInspection.message !== undefined) {
-          throw new Error(inputRootInspection.message);
-        }
+      if (inputRootInspection.message !== undefined) {
+        throw new Error(inputRootInspection.message);
+      }
 
-        const generateResult = await generate({ config, logger });
+      const generateResult = await generate({ config, logger });
 
-        // A source that could not be read writes nothing, and every count in
-        // the result reads zero for it — the same shape as a run that had
-        // nothing to do. Reporting that as success would tell the agent its
-        // edit was applied.
-        const sourceLoadFailureMessage = formatSourceLoadFailure(generateResult);
-        if (sourceLoadFailureMessage !== undefined) {
-          throw new Error([sourceLoadFailureMessage, ...logger.getErrors()].join("\n"));
-        }
+      // A source that could not be read writes nothing, and every count in
+      // the result reads zero for it — the same shape as a run that had
+      // nothing to do. Reporting that as success would tell the agent its
+      // edit was applied.
+      const sourceLoadFailureMessage = formatSourceLoadFailure(generateResult);
+      if (sourceLoadFailureMessage !== undefined) {
+        throw new Error([sourceLoadFailureMessage, ...logger.getErrors()].join("\n"));
+      }
 
-        return buildSuccessResponse({ generateResult, config, logger });
-      },
-    });
-  } catch (error) {
-    return {
-      success: false,
-      error: formatError(error),
-      ...warningsField(logger),
-    };
-  }
+      return buildSuccessResponse({ generateResult, config, logger });
+    },
+  });
 }
 
 /**

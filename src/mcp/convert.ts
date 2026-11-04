@@ -5,9 +5,9 @@ import { Config } from "../config/config.js";
 import { convertFromTool, type ConvertResult } from "../lib/convert.js";
 import { type RulesyncFeatures } from "../types/features.js";
 import { ALL_TOOL_TARGETS, type ToolTarget, ToolTargetSchema } from "../types/tool-targets.js";
-import { formatError } from "../utils/error.js";
-import { WarningCollectingLogger, withFallbackLoggerTarget } from "../utils/logger.js";
+import { WarningCollectingLogger } from "../utils/logger.js";
 import { calculateTotalCount } from "../utils/result.js";
+import { runMcpOperation } from "./command-runner.js";
 import { type McpResultCounts, type McpWarnings, warningsField } from "./types.js";
 
 /**
@@ -58,79 +58,64 @@ function parseToolTarget(value: string, label: string): ToolTarget {
  * Configuration priority: MCP Parameters > rulesync.local.jsonc > rulesync.jsonc > Default values
  */
 export async function executeConvert(options: ConvertOptions): Promise<McpConvertResult> {
-  // Declared outside the `try` so a run that warns and then fails still reports
-  // what it warned about. A failed import that had already read a
-  // machine-local overrides file is exactly when the caller needs to hear it.
+  // Declared before the run so a run that warns and then fails still reports
+  // what it warned about.
   const logger = new WarningCollectingLogger({ verbose: false, silent: true });
 
-  try {
-    // The whole run adopts the shared fallback, config resolution included:
-    // warnings raised on paths that never received a logger would otherwise go
-    // to a stderr the calling agent cannot read. Resolution is inside rather
-    // than before it because that is where a config file's own contradictions
-    // are reported — `global: true` quietly downgraded to project scope
-    // changes where the run writes.
-    return await withFallbackLoggerTarget({
-      logger,
-      operation: async () => {
-        // Validate from
-        if (!options.from) {
-          return {
-            success: false,
-            error: "from is required. Please specify a source tool to convert from.",
-          };
-        }
+  return await runMcpOperation({
+    logger,
+    operation: async () => {
+      // Validate from
+      if (!options.from) {
+        return {
+          success: false,
+          error: "from is required. Please specify a source tool to convert from.",
+        };
+      }
 
-        // Validate to
-        if (!options.to || options.to.length === 0) {
-          return {
-            success: false,
-            error: "to is required and must not be empty. Please specify destination tools.",
-          };
-        }
+      // Validate to
+      if (!options.to || options.to.length === 0) {
+        return {
+          success: false,
+          error: "to is required and must not be empty. Please specify destination tools.",
+        };
+      }
 
-        const fromTool = parseToolTarget(options.from, "source");
-        const toToolsRaw = options.to.map((t) => parseToolTarget(t, "destination"));
-        const toTools = Array.from(new Set(toToolsRaw));
+      const fromTool = parseToolTarget(options.from, "source");
+      const toToolsRaw = options.to.map((t) => parseToolTarget(t, "destination"));
+      const toTools = Array.from(new Set(toToolsRaw));
 
-        if (toTools.includes(fromTool)) {
-          return {
-            success: false,
-            error:
-              `Destination tools must not include the source tool '${fromTool}'. ` +
-              `Converting a tool onto itself is likely a mistake and may cause lossy round-trips.`,
-          };
-        }
+      if (toTools.includes(fromTool)) {
+        return {
+          success: false,
+          error:
+            `Destination tools must not include the source tool '${fromTool}'. ` +
+            `Converting a tool onto itself is likely a mistake and may cause lossy round-trips.`,
+        };
+      }
 
-        // Resolve config with MCP parameters taking precedence
-        // ConfigResolver handles: CLI options > rulesync.local.jsonc > rulesync.jsonc > defaults
-        // In MCP context, options act as CLI options (highest priority)
-        // Pass both source and destinations as `targets` so per-target feature maps
-        // in `rulesync.jsonc` are honored for every tool involved. Default features
-        // to `*` so every feature that both tools support is attempted.
-        const config = await ConfigResolver.resolve({
-          targets: [fromTool, ...toTools],
-          features: (options.features ?? ["*"]) as RulesyncFeatures,
-          global: options.global,
-          dryRun: options.dryRun,
-          // Always use default outputRoots (process.cwd()) and configPath
-          // verbose and silent are meaningless in MCP context
-          verbose: false,
-          silent: true,
-        });
+      // Resolve config with MCP parameters taking precedence
+      // ConfigResolver handles: CLI options > rulesync.local.jsonc > rulesync.jsonc > defaults
+      // In MCP context, options act as CLI options (highest priority)
+      // Pass both source and destinations as `targets` so per-target feature maps
+      // in `rulesync.jsonc` are honored for every tool involved. Default features
+      // to `*` so every feature that both tools support is attempted.
+      const config = await ConfigResolver.resolve({
+        targets: [fromTool, ...toTools],
+        features: (options.features ?? ["*"]) as RulesyncFeatures,
+        global: options.global,
+        dryRun: options.dryRun,
+        // Always use default outputRoots (process.cwd()) and configPath
+        // verbose and silent are meaningless in MCP context
+        verbose: false,
+        silent: true,
+      });
 
-        const convertResult = await convertFromTool({ config, fromTool, toTools, logger });
+      const convertResult = await convertFromTool({ config, fromTool, toTools, logger });
 
-        return buildSuccessResponse({ convertResult, config, fromTool, toTools, logger });
-      },
-    });
-  } catch (error) {
-    return {
-      success: false,
-      error: formatError(error),
-      ...warningsField(logger),
-    };
-  }
+      return buildSuccessResponse({ convertResult, config, fromTool, toTools, logger });
+    },
+  });
 }
 
 function buildSuccessResponse(params: {

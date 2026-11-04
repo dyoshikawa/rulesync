@@ -5,9 +5,9 @@ import { Config } from "../config/config.js";
 import { importFromTool, type ImportResult } from "../lib/import.js";
 import { type RulesyncFeatures } from "../types/features.js";
 import { type RulesyncTargets, type ToolTarget } from "../types/tool-targets.js";
-import { formatError } from "../utils/error.js";
-import { WarningCollectingLogger, withFallbackLoggerTarget } from "../utils/logger.js";
+import { WarningCollectingLogger } from "../utils/logger.js";
 import { calculateTotalCount } from "../utils/result.js";
+import { runMcpOperation } from "./command-runner.js";
 import { assertOptionalPathOptionWithinCwd } from "./path-options.js";
 import { type McpResultCounts, type McpWarnings, warningsField } from "./types.js";
 
@@ -53,56 +53,40 @@ export type McpImportResult = {
  * Configuration priority: MCP Parameters > rulesync.local.jsonc > rulesync.jsonc > Default values
  */
 export async function executeImport(options: ImportOptions): Promise<McpImportResult> {
-  // Declared outside the `try` so a run that warns and then fails still reports
-  // what it warned about. A failed import that had already read a
-  // machine-local overrides file is exactly when the caller needs to hear it.
+  // Declared before the run so a run that warns and then fails still reports
+  // what it warned about.
   const logger = new WarningCollectingLogger({ verbose: false, silent: true });
 
-  try {
-    // The whole run adopts the shared fallback, config resolution included:
-    // warnings raised on paths that never received a logger would otherwise go
-    // to a stderr the calling agent cannot read, and the absence of a
-    // `warnings` key would read as "nothing was wrong". Resolution is inside
-    // rather than before it because that is where a config file's own
-    // contradictions are reported — `global: true` quietly downgraded to
-    // project scope changes where the run writes.
-    return await withFallbackLoggerTarget({
-      logger,
-      operation: async () => {
-        const targetResult = resolveImportTarget(options);
-        if ("error" in targetResult) {
-          return { success: false, error: targetResult.error };
-        }
+  return await runMcpOperation({
+    logger,
+    operation: async () => {
+      const targetResult = resolveImportTarget(options);
+      if ("error" in targetResult) {
+        return { success: false, error: targetResult.error };
+      }
 
-        await assertOptionalPathOptionWithinCwd({ path: options.outputRoot, label: "outputRoot" });
+      await assertOptionalPathOptionWithinCwd({ path: options.outputRoot, label: "outputRoot" });
 
-        // Resolve config with MCP parameters taking precedence
-        // ConfigResolver handles: CLI options > rulesync.local.jsonc > rulesync.jsonc > defaults
-        // In MCP context, options act as CLI options (highest priority)
-        const config = await ConfigResolver.resolve({
-          targets: [targetResult.target] as RulesyncTargets,
-          features: options.features as RulesyncFeatures | undefined,
-          global: options.global,
-          outputRoots: options.outputRoot !== undefined ? [options.outputRoot] : undefined,
-          // verbose and silent are meaningless in MCP context
-          verbose: false,
-          silent: true,
-        });
+      // Resolve config with MCP parameters taking precedence
+      // ConfigResolver handles: CLI options > rulesync.local.jsonc > rulesync.jsonc > defaults
+      // In MCP context, options act as CLI options (highest priority)
+      const config = await ConfigResolver.resolve({
+        targets: [targetResult.target] as RulesyncTargets,
+        features: options.features as RulesyncFeatures | undefined,
+        global: options.global,
+        outputRoots: options.outputRoot !== undefined ? [options.outputRoot] : undefined,
+        // verbose and silent are meaningless in MCP context
+        verbose: false,
+        silent: true,
+      });
 
-        const tool = config.getTargets()[0] as ToolTarget;
+      const tool = config.getTargets()[0] as ToolTarget;
 
-        const importResult = await importFromTool({ config, tool, logger });
+      const importResult = await importFromTool({ config, tool, logger });
 
-        return buildSuccessResponse({ importResult, config, tool, logger });
-      },
-    });
-  } catch (error) {
-    return {
-      success: false,
-      error: formatError(error),
-      ...warningsField(logger),
-    };
-  }
+      return buildSuccessResponse({ importResult, config, tool, logger });
+    },
+  });
 }
 
 /**
