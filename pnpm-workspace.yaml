@@ -16,9 +16,9 @@ patchedDependencies:
 # its own Vite 5 (`vitepress` -> `vite@^5`) and must keep it for `docs:*`.
 catalog:
   vite: npm:@voidzero-dev/vite-plus-core@1.4.0
-  vitest: 5.0.5
+  vitest: 5.1.0
   vite-plus: 1.4.0
-  "@vitest/coverage-v8": 5.0.5
+  "@vitest/coverage-v8": 5.1.0
   # `vp` resolves oxfmt and oxlint from the working directory before its own
   # copies, and scripts/run-oxfmt.ts calls the root `oxfmt` directly, so both
   # stay direct dependencies here.
