@@ -72,15 +72,6 @@ describe("CodebuddyPermissions", () => {
     expect(CodebuddyPermissions.getSettablePaths({ global: true })).toEqual(expected);
   });
 
-  it("is never deletable", () => {
-    const permissions = CodebuddyPermissions.forDeletion({
-      outputRoot: testDir,
-      relativeDirPath: SETTINGS_DIR,
-      relativeFilePath: SETTINGS_FILE,
-    });
-    expect(permissions.isDeletable()).toBe(false);
-  });
-
   describe("fromRulesyncPermissions", () => {
     it("maps categories to Claude-style CodeBuddy rules", async () => {
       const settings = await generate(testDir, {

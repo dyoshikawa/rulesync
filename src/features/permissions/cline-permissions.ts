@@ -19,7 +19,6 @@ import {
 } from "./shell-command-categories.js";
 import {
   ToolPermissions,
-  type ToolPermissionsForDeletionParams,
   type ToolPermissionsFromFileParams,
   type ToolPermissionsFromRulesyncPermissionsParams,
   type ToolPermissionsSettablePaths,
@@ -474,19 +473,5 @@ export class ClinePermissions extends ToolPermissions {
         error: new Error(`Failed to parse Cline permissions JSON: ${formatError(error)}`),
       };
     }
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolPermissionsForDeletionParams): ClinePermissions {
-    return new ClinePermissions({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: JSON.stringify({ allow: [], deny: [], allowRedirects: false }, null, 2),
-      validate: false,
-    });
   }
 }

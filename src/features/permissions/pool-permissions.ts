@@ -30,7 +30,6 @@ import {
 } from "./shell-command-categories.js";
 import {
   ToolPermissions,
-  type ToolPermissionsForDeletionParams,
   type ToolPermissionsFromFileParams,
   type ToolPermissionsFromRulesyncPermissionsParams,
   type ToolPermissionsSettablePaths,
@@ -317,24 +316,6 @@ export class PoolPermissions extends ToolPermissions {
     // (`mcp_servers`, `pool`, `sandbox`, ...) must not leak into rulesync.
     return this.toRulesyncPermissionsDefault({
       fileContent: JSON.stringify(rulesyncConfig, null, 2),
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-    global = false,
-  }: ToolPermissionsForDeletionParams): PoolPermissions {
-    // The shared settings file is never deleted (isDeletable() === false), but
-    // forDeletion must still return a well-formed instance.
-    return new PoolPermissions({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: "",
-      validate: false,
-      global,
     });
   }
 }

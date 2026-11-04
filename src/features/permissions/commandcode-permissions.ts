@@ -23,7 +23,6 @@ import { ALL_TOOLS_PERMISSION_CATEGORY, honorAllToolsOnBash } from "./shell-comm
 import { isStricterAction } from "./single-action-collapse.js";
 import {
   ToolPermissions,
-  type ToolPermissionsForDeletionParams,
   type ToolPermissionsFromFileParams,
   type ToolPermissionsFromRulesyncPermissionsParams,
   type ToolPermissionsSettablePaths,
@@ -813,22 +812,6 @@ export class CommandcodePermissions extends ToolPermissions {
       : {};
     return this.toRulesyncPermissionsDefault({
       fileContent: JSON.stringify({ permission: parseCommandcodeRuleLists(permissions) }, null, 2),
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-    global = false,
-  }: ToolPermissionsForDeletionParams): CommandcodePermissions {
-    return new CommandcodePermissions({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: "{}",
-      validate: false,
-      global,
     });
   }
 }

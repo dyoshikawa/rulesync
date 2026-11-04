@@ -19,7 +19,6 @@ import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { buildToolPatternEntry } from "./tool-pattern-entry.js";
 import {
   ToolPermissions,
-  type ToolPermissionsForDeletionParams,
   type ToolPermissionsFromFileParams,
   type ToolPermissionsFromRulesyncPermissionsParams,
   type ToolPermissionsSettablePaths,
@@ -1118,20 +1117,6 @@ export class QwencodePermissions extends ToolPermissions {
         error: new Error(`Failed to parse Qwen permissions JSON: ${formatError(error)}`),
       };
     }
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolPermissionsForDeletionParams): QwencodePermissions {
-    return new QwencodePermissions({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: JSON.stringify({ permissions: {} }, null, 2),
-      validate: false,
-    });
   }
 }
 

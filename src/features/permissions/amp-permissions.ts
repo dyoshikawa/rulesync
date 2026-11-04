@@ -14,7 +14,6 @@ import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { isStricterAction } from "./single-action-collapse.js";
 import {
   ToolPermissions,
-  type ToolPermissionsForDeletionParams,
   type ToolPermissionsFromFileParams,
   type ToolPermissionsFromRulesyncPermissionsParams,
   type ToolPermissionsSettablePaths,
@@ -366,20 +365,6 @@ export class AmpPermissions extends ToolPermissions {
         error: error instanceof Error ? error : new Error(formatError(error)),
       };
     }
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolPermissionsForDeletionParams): AmpPermissions {
-    return new AmpPermissions({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: JSON.stringify({ [AMP_TOOLS_DISABLE_KEY]: [] }, null, 2),
-      validate: false,
-    });
   }
 }
 

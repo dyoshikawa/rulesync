@@ -57,7 +57,6 @@ import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { TabninePermissions } from "./tabnine-permissions.js";
 import { TaktPermissions } from "./takt-permissions.js";
 import type {
-  ToolPermissionsForDeletionParams,
   ToolPermissionsFromFileParams,
   ToolPermissionsFromRulesyncPermissionsParams,
   ToolPermissionsSettablePaths,
@@ -80,7 +79,6 @@ type ToolPermissionsFactory = {
       params: ToolPermissionsFromRulesyncPermissionsParams,
     ): ToolPermissions | Promise<ToolPermissions>;
     fromFile(params: ToolPermissionsFromFileParams): Promise<ToolPermissions>;
-    forDeletion(params: ToolPermissionsForDeletionParams): ToolPermissions;
     getSettablePaths(options?: { global?: boolean }): ToolPermissionsSettablePaths;
   };
   meta: {
@@ -823,18 +821,10 @@ export class PermissionsProcessor extends FeatureProcessor {
     try {
       const factory = toolPermissionsFactories.get(this.toolTarget);
       if (!factory) throw new Error(`Unsupported tool target: ${this.toolTarget}`);
-      const paths = factory.class.getSettablePaths({ global: this.global });
 
-      if (forDeletion) {
-        const toolPermissions = factory.class.forDeletion({
-          outputRoot: this.outputRoot,
-          relativeDirPath: paths.relativeDirPath,
-          relativeFilePath: paths.relativeFilePath,
-          global: this.global,
-        });
-        const list = toolPermissions.isDeletable() ? [toolPermissions] : [];
-        return list;
-      }
+      // Permission settings live in shared config files that are never
+      // deleted outright (see `ToolPermissions.isDeletable`).
+      if (forDeletion) return [];
 
       const toolPermissions = await factory.class.fromFile({
         outputRoot: this.outputRoot,

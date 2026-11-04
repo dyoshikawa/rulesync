@@ -407,19 +407,10 @@ describe("KiloPermissions", () => {
     expect(instance.getRelativeDirPath()).toBe(".");
   });
 
-  it("forDeletion returns non-deletable instance", () => {
-    const instance = KiloPermissions.forDeletion({
-      outputRoot: testDir,
-      relativeDirPath: ".",
-      relativeFilePath: "kilo.jsonc",
-    });
-    expect(instance.isDeletable()).toBe(false);
-  });
-
   it("should NOT throw on schema-incompatible input when validate=false (parsing deferred)", () => {
     // Permission value of `true` is not in the schema enum, but with validate=false the constructor
     // must not throw. This matches the behavior of `RulesyncPermissions` and is required so that
-    // `forDeletion` and dry-run scenarios can construct the instance without strict parsing.
+    // dry-run scenarios can construct the instance without strict parsing.
     expect(
       () =>
         new KiloPermissions({

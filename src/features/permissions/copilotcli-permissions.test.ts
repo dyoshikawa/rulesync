@@ -72,16 +72,6 @@ describe("CopilotcliPermissions", () => {
     });
   });
 
-  describe("isDeletable", () => {
-    it("is not deletable (shared settings file)", () => {
-      const permissions = CopilotcliPermissions.forDeletion({
-        relativeDirPath: PROJECT_DIR,
-        relativeFilePath: SETTINGS_FILE,
-      });
-      expect(permissions.isDeletable()).toBe(false);
-    });
-  });
-
   describe("fromRulesyncPermissions", () => {
     it("writes deniedUrls at project scope and omits ask patterns", async () => {
       const permissions = await CopilotcliPermissions.fromRulesyncPermissions({

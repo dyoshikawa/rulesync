@@ -37,7 +37,6 @@ import {
 } from "./shell-command-categories.js";
 import {
   ToolPermissions,
-  type ToolPermissionsForDeletionParams,
   type ToolPermissionsFromFileParams,
   type ToolPermissionsFromRulesyncPermissionsParams,
 } from "./tool-permissions.js";
@@ -576,13 +575,6 @@ export class HermesagentPermissions extends ToolPermissions {
       validate,
       global,
     });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    global = false,
-  }: ToolPermissionsForDeletionParams): HermesagentPermissions {
-    return new HermesagentPermissions({ outputRoot, fileContent: "", validate: false, global });
   }
 
   shouldMergeExistingFileContent(): boolean {

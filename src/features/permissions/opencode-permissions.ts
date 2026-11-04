@@ -40,7 +40,6 @@ import {
 } from "./single-action-collapse.js";
 import {
   ToolPermissions,
-  type ToolPermissionsForDeletionParams,
   type ToolPermissionsFromFileParams,
   type ToolPermissionsFromRulesyncPermissionsParams,
   type ToolPermissionsSettablePaths,
@@ -721,20 +720,6 @@ export class OpencodePermissions extends ToolPermissions {
         error: new Error(`Failed to parse OpenCode permissions JSON: ${formatError(error)}`),
       };
     }
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolPermissionsForDeletionParams): OpencodePermissions {
-    return new this({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: JSON.stringify({ permission: {} }, null, 2),
-      validate: false,
-    });
   }
 
   /**

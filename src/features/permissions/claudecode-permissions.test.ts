@@ -3030,19 +3030,6 @@ describe("ClaudecodePermissions", () => {
     });
   });
 
-  describe("forDeletion", () => {
-    it("should create minimal instance for deletion", () => {
-      const instance = ClaudecodePermissions.forDeletion({
-        outputRoot: testDir,
-        relativeDirPath: ".claude",
-        relativeFilePath: "settings.json",
-      });
-
-      expect(instance).toBeInstanceOf(ClaudecodePermissions);
-      expect(instance.isDeletable()).toBe(false);
-    });
-  });
-
   describe("validate", () => {
     it("should always return success", () => {
       const instance = new ClaudecodePermissions({

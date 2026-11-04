@@ -23,7 +23,6 @@ import {
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   ToolPermissions,
-  type ToolPermissionsForDeletionParams,
   type ToolPermissionsFromFileParams,
   type ToolPermissionsFromRulesyncPermissionsParams,
   type ToolPermissionsSettablePaths,
@@ -497,17 +496,6 @@ export class KimiCodePermissions extends ToolPermissions {
         null,
         2,
       ),
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-  }: ToolPermissionsForDeletionParams): KimiCodePermissions {
-    return new KimiCodePermissions({
-      outputRoot,
-      fileContent: "",
-      validate: false,
-      global: true,
     });
   }
 }

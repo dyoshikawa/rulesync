@@ -29,13 +29,6 @@ export type ToolPermissionsFromFileParams = Pick<
   logger?: Logger;
 };
 
-export type ToolPermissionsForDeletionParams = {
-  outputRoot?: string;
-  relativeDirPath: string;
-  relativeFilePath: string;
-  global?: boolean;
-};
-
 export abstract class ToolPermissions extends ToolFile {
   static getSettablePaths(_options?: { global?: boolean }): ToolPermissionsSettablePaths {
     throw new Error("Please implement this method in the subclass.");
@@ -81,10 +74,6 @@ export abstract class ToolPermissions extends ToolFile {
   }
 
   static async fromFile(_params: ToolPermissionsFromFileParams): Promise<ToolPermissions> {
-    throw new Error("Please implement this method in the subclass.");
-  }
-
-  static forDeletion(_params: ToolPermissionsForDeletionParams): ToolPermissions {
     throw new Error("Please implement this method in the subclass.");
   }
 }

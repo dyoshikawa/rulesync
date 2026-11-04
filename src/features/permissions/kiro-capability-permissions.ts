@@ -17,7 +17,6 @@ import { honorAllToolsOnBash } from "./shell-command-categories.js";
 import { isStricterAction } from "./single-action-collapse.js";
 import {
   ToolPermissions,
-  type ToolPermissionsForDeletionParams,
   type ToolPermissionsFromFileParams,
   type ToolPermissionsFromRulesyncPermissionsParams,
   type ToolPermissionsSettablePaths,
@@ -361,21 +360,6 @@ export class KiroCapabilityPermissions extends ToolPermissions {
       fileContent: JSON.stringify({ permission }, null, 2),
     });
   }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolPermissionsForDeletionParams): KiroCapabilityPermissions {
-    return new KiroCapabilityPermissions({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: "",
-      validate: false,
-      global: true,
-    });
-  }
 }
 
 /**
@@ -487,10 +471,5 @@ export const KiroScopedPermissions = {
     return params.global
       ? KiroCapabilityPermissions.fromRulesyncPermissions(params)
       : KiroPermissions.fromRulesyncPermissions(params);
-  },
-  forDeletion(params: ToolPermissionsForDeletionParams): ToolPermissions {
-    return params.global
-      ? KiroCapabilityPermissions.forDeletion(params)
-      : KiroPermissions.forDeletion(params);
   },
 };

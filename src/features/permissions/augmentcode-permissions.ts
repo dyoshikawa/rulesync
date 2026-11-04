@@ -30,7 +30,6 @@ import { bashRulesHonoringAllTools } from "./shell-command-categories.js";
 import { isStricterAction } from "./single-action-collapse.js";
 import {
   ToolPermissions,
-  type ToolPermissionsForDeletionParams,
   type ToolPermissionsFromFileParams,
   type ToolPermissionsFromRulesyncPermissionsParams,
   type ToolPermissionsSettablePaths,
@@ -646,20 +645,6 @@ export class AugmentcodePermissions extends ToolPermissions {
         error: new Error(`Failed to parse AugmentCode permissions JSON: ${formatError(error)}`),
       };
     }
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolPermissionsForDeletionParams): AugmentcodePermissions {
-    return new AugmentcodePermissions({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: JSON.stringify({ toolPermissions: [] }, null, 2),
-      validate: false,
-    });
   }
 }
 
