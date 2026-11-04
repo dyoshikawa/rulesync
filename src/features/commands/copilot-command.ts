@@ -1,24 +1,10 @@
-import { join } from "node:path";
-
 import { z } from "zod/mini";
 
 import { COPILOT_PROMPTS_DIR_PATH } from "../../constants/copilot-paths.js";
-import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
-import { formatError } from "../../utils/error.js";
-import { readFileContent } from "../../utils/file.js";
-import {
-  parseFrontmatter,
-  stringifyFrontmatter,
-  validateFrontmatterSchema,
-} from "../../utils/frontmatter.js";
-import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
-import {
-  ToolCommand,
-  ToolCommandForDeletionParams,
-  ToolCommandFromFileParams,
-  ToolCommandFromRulesyncCommandParams,
-  ToolCommandSettablePaths,
-} from "./tool-command.js";
+import type { ToolTarget } from "../../types/tool-targets.js";
+import { FrontmatterMarkdownToolCommand } from "./frontmatter-markdown-command.js";
+import type { RulesyncCommandFrontmatter } from "./rulesync-command.js";
+import type { ToolCommandSettablePaths } from "./tool-command.js";
 
 // looseObject preserves unknown keys during parsing (like passthrough in Zod 3)
 export const CopilotCommandFrontmatterSchema = z.looseObject({
@@ -34,49 +20,27 @@ export const CopilotCommandFrontmatterSchema = z.looseObject({
 
 export type CopilotCommandFrontmatter = z.infer<typeof CopilotCommandFrontmatterSchema>;
 
-export type CopilotCommandParams = {
-  frontmatter: CopilotCommandFrontmatter;
-  body: string;
-} & Omit<AiFileParams, "fileContent">;
-
-export class CopilotCommand extends ToolCommand {
-  private readonly frontmatter: CopilotCommandFrontmatter;
-  private readonly body: string;
-
-  constructor({ frontmatter, body, ...rest }: CopilotCommandParams) {
-    if (rest.validate) {
-      const result = CopilotCommandFrontmatterSchema.safeParse(frontmatter);
-      if (!result.success) {
-        throw new Error(
-          `Invalid frontmatter in ${join(rest.relativeDirPath, rest.relativeFilePath)}: ${formatError(result.error)}`,
-        );
-      }
-    }
-
-    super({
-      ...rest,
-      fileContent: stringifyFrontmatter(body, frontmatter),
-    });
-
-    this.frontmatter = frontmatter;
-    this.body = body;
-  }
-
+export class CopilotCommand extends FrontmatterMarkdownToolCommand<CopilotCommandFrontmatter> {
   static getSettablePaths(): ToolCommandSettablePaths {
     return {
       relativeDirPath: COPILOT_PROMPTS_DIR_PATH,
     };
   }
 
-  getBody(): string {
-    return this.body;
+  protected static override getToolTarget(): ToolTarget {
+    return "copilot";
   }
 
-  getFrontmatter(): CopilotCommandFrontmatter {
-    return this.frontmatter;
+  protected static override getFrontmatterSchema() {
+    return CopilotCommandFrontmatterSchema;
   }
 
-  toRulesyncCommand(): RulesyncCommand {
+  // Change file extension from .md to .prompt.md
+  protected static override toToolRelativeFilePath(rulesyncRelativeFilePath: string): string {
+    return rulesyncRelativeFilePath.replace(/\.md$/, ".prompt.md");
+  }
+
+  protected override toRulesyncFrontmatter(): RulesyncCommandFrontmatter {
     const { mode, agent, description, ...restFields } = this.frontmatter;
 
     // Migrate the deprecated `mode` field to `agent`. If both are present, the
@@ -88,118 +52,21 @@ export class CopilotCommand extends ToolCommand {
       ...(resolvedAgent !== undefined && { agent: resolvedAgent }),
     };
 
-    const rulesyncFrontmatter: RulesyncCommandFrontmatter = {
+    return {
       targets: ["*"],
       description,
       // Preserve extra copilot-specific fields (including the normalized `agent`;
       // the deprecated `mode` is dropped in favor of `agent`).
       ...(Object.keys(copilotFields).length > 0 && { copilot: copilotFields }),
     };
-
-    // Strip .prompt.md extension and normalize to .md
-    const originalFilePath = this.relativeFilePath;
-    const relativeFilePath = originalFilePath.replace(/\.prompt\.md$/, ".md");
-
-    return new RulesyncCommand({
-      outputRoot: this.outputRoot,
-      frontmatter: rulesyncFrontmatter,
-      body: this.body,
-      relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
-      relativeFilePath,
-      validate: true,
-    });
   }
 
-  validate(): ValidationResult {
-    if (!this.frontmatter) {
-      return { success: true, error: null };
-    }
-
-    return validateFrontmatterSchema({
-      schema: CopilotCommandFrontmatterSchema,
-      frontmatter: this.frontmatter,
-      relativeDirPath: this.relativeDirPath,
-      relativeFilePath: this.relativeFilePath,
-    });
+  protected override getRulesyncOutputRoot(): string {
+    return this.outputRoot;
   }
 
-  static fromRulesyncCommand({
-    outputRoot = process.cwd(),
-    rulesyncCommand,
-    validate = true,
-  }: ToolCommandFromRulesyncCommandParams): CopilotCommand {
-    const paths = this.getSettablePaths();
-    const rulesyncFrontmatter = rulesyncCommand.getFrontmatter();
-
-    // Merge copilot-specific fields from rulesync frontmatter
-    const copilotFields = rulesyncFrontmatter.copilot ?? {};
-
-    const copilotFrontmatter: CopilotCommandFrontmatter = {
-      description: rulesyncFrontmatter.description,
-      ...copilotFields,
-    };
-
-    const body = rulesyncCommand.getBody();
-
-    // Change file extension from .md to .prompt.md
-    const originalFilePath = rulesyncCommand.getRelativeFilePath();
-    const relativeFilePath = originalFilePath.replace(/\.md$/, ".prompt.md");
-
-    return new CopilotCommand({
-      outputRoot: outputRoot,
-      frontmatter: copilotFrontmatter,
-      body,
-      relativeDirPath: paths.relativeDirPath,
-      relativeFilePath,
-      validate,
-    });
-  }
-
-  static async fromFile({
-    outputRoot = process.cwd(),
-    relativeFilePath,
-    validate = true,
-  }: ToolCommandFromFileParams): Promise<CopilotCommand> {
-    const paths = this.getSettablePaths();
-    const filePath = join(outputRoot, paths.relativeDirPath, relativeFilePath);
-
-    const fileContent = await readFileContent(filePath);
-    const { frontmatter, body: content } = parseFrontmatter(fileContent, filePath);
-
-    const result = CopilotCommandFrontmatterSchema.safeParse(frontmatter);
-    if (!result.success) {
-      throw new Error(`Invalid frontmatter in ${filePath}: ${formatError(result.error)}`);
-    }
-
-    return new CopilotCommand({
-      outputRoot: outputRoot,
-      relativeDirPath: paths.relativeDirPath,
-      relativeFilePath,
-      frontmatter: result.data,
-      body: content.trim(),
-      validate,
-    });
-  }
-
-  static isTargetedByRulesyncCommand(rulesyncCommand: RulesyncCommand): boolean {
-    return this.isTargetedByRulesyncCommandDefault({
-      rulesyncCommand,
-      toolTarget: "copilot",
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolCommandForDeletionParams): CopilotCommand {
-    return new CopilotCommand({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      frontmatter: { description: "" },
-      body: "",
-      validate: false,
-    });
+  // Strip .prompt.md extension and normalize to .md
+  protected override toRulesyncRelativeFilePath(): string {
+    return this.relativeFilePath.replace(/\.prompt\.md$/, ".md");
   }
 }
