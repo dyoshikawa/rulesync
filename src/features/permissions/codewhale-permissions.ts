@@ -15,12 +15,14 @@ import {
   type PermissionAction,
   type PermissionsConfig,
 } from "../../types/permissions.js";
+import type { ToolFile } from "../../types/tool-file.js";
 import { formatError } from "../../utils/error.js";
 import { fileExists, readFileContentOrNull } from "../../utils/file.js";
 import { createIntersectionBudget } from "../../utils/glob.js";
 import type { Logger } from "../../utils/logger.js";
 import {
   CODEWHALE_PROJECT_CONFIG_PATHS,
+  createCodewhaleProjectConfigFile,
   readCodewhaleProjectShellDisabled,
 } from "./codewhale-project-config.js";
 import {
@@ -38,6 +40,7 @@ import {
 import { PERMISSION_ACTION_PRIORITY } from "./single-action-collapse.js";
 import {
   ToolPermissions,
+  type ToolPermissionsAuxiliaryFilesParams,
   type ToolPermissionsFromFileParams,
   type ToolPermissionsFromRulesyncPermissionsParams,
   type ToolPermissionsSettablePaths,
@@ -811,6 +814,25 @@ export class CodewhalePermissions extends ToolPermissions {
    */
   static getExtraSharedWritePaths(options?: { global?: boolean }): SharedWritePath[] {
     return options?.global ? [] : [{ ...CODEWHALE_PROJECT_CONFIG_PATHS }];
+  }
+
+  /**
+   * The project overlay file, when a deny on every shell command needs it;
+   * never in global scope.
+   */
+  static async getAuxiliaryFiles({
+    outputRoot,
+    config,
+    global,
+    logger,
+  }: ToolPermissionsAuxiliaryFilesParams): Promise<ToolFile[]> {
+    if (global) return [];
+    const projectConfigFile = await createCodewhaleProjectConfigFile({
+      outputRoot,
+      config,
+      logger,
+    });
+    return projectConfigFile ? [projectConfigFile] : [];
   }
 
   override shouldSkipCreationWhenPayloadEmpty(): boolean {

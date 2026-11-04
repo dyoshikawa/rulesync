@@ -27,6 +27,7 @@ import { bashRulesHonoringAllTools } from "./shell-command-categories.js";
 import { isStricterAction } from "./single-action-collapse.js";
 import {
   ToolPermissions,
+  type ToolPermissionsAuxiliaryFilesParams,
   type ToolPermissionsFromFileParams,
   type ToolPermissionsFromRulesyncPermissionsParams,
   type ToolPermissionsSettablePaths,
@@ -136,6 +137,15 @@ type CodexProfileParseResult = {
 type UnknownTable = Record<string, unknown>;
 
 export class CodexcliPermissions extends ToolPermissions {
+  /** The bash rules file Codex CLI reads beside `config.toml`. */
+  static getAuxiliaryFiles({
+    outputRoot,
+    config,
+    logger,
+  }: ToolPermissionsAuxiliaryFilesParams): ToolFile[] {
+    return [createCodexcliBashRulesFile({ outputRoot, config, logger })];
+  }
+
   static getSettablePaths(_options: { global?: boolean } = {}): ToolPermissionsSettablePaths {
     return {
       relativeDirPath: CODEXCLI_DIR,

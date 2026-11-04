@@ -1,4 +1,5 @@
 import type { AiFileFromFileParams, AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { PermissionsConfig } from "../../types/permissions.js";
 import { ToolFile } from "../../types/tool-file.js";
 import type { Logger } from "../../utils/logger.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
@@ -27,6 +28,17 @@ export type ToolPermissionsFromFileParams = Pick<
    * machine-local overrides file the import is about to make committable.
    */
   logger?: Logger;
+};
+
+/**
+ * Inputs for a factory's optional `getAuxiliaryFiles` hook, which returns the
+ * companion files written next to the main permissions file.
+ */
+export type ToolPermissionsAuxiliaryFilesParams = {
+  outputRoot: string;
+  config: PermissionsConfig;
+  global: boolean;
+  logger: Logger;
 };
 
 export abstract class ToolPermissions extends ToolFile {

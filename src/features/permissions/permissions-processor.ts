@@ -22,8 +22,7 @@ import { ClaudecodePermissions } from "./claudecode-permissions.js";
 import { ClinePermissions } from "./cline-permissions.js";
 import { CodebuddyPermissions } from "./codebuddy-permissions.js";
 import { CodewhalePermissions } from "./codewhale-permissions.js";
-import { createCodewhaleProjectConfigFile } from "./codewhale-project-config.js";
-import { CodexcliPermissions, createCodexcliBashRulesFile } from "./codexcli-permissions.js";
+import { CodexcliPermissions } from "./codexcli-permissions.js";
 import { CommandcodePermissions } from "./commandcode-permissions.js";
 import { ContinuePermissions } from "./continue-permissions.js";
 import { CopilotPermissions } from "./copilot-permissions.js";
@@ -57,6 +56,7 @@ import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { TabninePermissions } from "./tabnine-permissions.js";
 import { TaktPermissions } from "./takt-permissions.js";
 import type {
+  ToolPermissionsAuxiliaryFilesParams,
   ToolPermissionsFromFileParams,
   ToolPermissionsFromRulesyncPermissionsParams,
   ToolPermissionsSettablePaths,
@@ -80,6 +80,13 @@ type ToolPermissionsFactory = {
     ): ToolPermissions | Promise<ToolPermissions>;
     fromFile(params: ToolPermissionsFromFileParams): Promise<ToolPermissions>;
     getSettablePaths(options?: { global?: boolean }): ToolPermissionsSettablePaths;
+    /**
+     * Companion files written after the main permissions file, e.g. Codex
+     * CLI's bash rules file.
+     */
+    getAuxiliaryFiles?(
+      params: ToolPermissionsAuxiliaryFilesParams,
+    ): ToolFile[] | Promise<ToolFile[]>;
   };
   meta: {
     supportsProject: boolean;
@@ -871,24 +878,14 @@ export class PermissionsProcessor extends FeatureProcessor {
       logger: this.logger,
       global: this.global,
     });
-    if (this.toolTarget === "codewhale" && !this.global) {
-      const projectConfigFile = await createCodewhaleProjectConfigFile({
+    const auxiliaryFiles =
+      (await factory.class.getAuxiliaryFiles?.({
         outputRoot: this.outputRoot,
         config: effectivePermissions.getJson(),
+        global: this.global,
         logger: this.logger,
-      });
-      return projectConfigFile ? [toolPermissions, projectConfigFile] : [toolPermissions];
-    }
-    if (this.toolTarget !== "codexcli") {
-      return [toolPermissions];
-    }
-
-    const bashRulesFile = createCodexcliBashRulesFile({
-      outputRoot: this.outputRoot,
-      config: effectivePermissions.getJson(),
-      logger: this.logger,
-    });
-    return [toolPermissions, bashRulesFile];
+      })) ?? [];
+    return [toolPermissions, ...auxiliaryFiles];
   }
 
   async convertToolFilesToRulesyncFiles(toolFiles: ToolFile[]): Promise<RulesyncFile[]> {
