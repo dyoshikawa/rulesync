@@ -68,9 +68,7 @@ export type StoredTriggerRule =
  * Normalizes a StoredTriggerRule value to TriggerRuleFrontmatter format by
  * converting globs from array to string if needed.
  */
-function normalizeStoredTriggerRule(
-  stored: StoredTriggerRule,
-): TriggerRuleFrontmatter | undefined {
+function normalizeStoredTriggerRule(stored: StoredTriggerRule): TriggerRuleFrontmatter | undefined {
   if (!stored) {
     return undefined;
   }
