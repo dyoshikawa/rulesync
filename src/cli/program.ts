@@ -14,6 +14,7 @@ import { DEFAULT_LATEST_COUNT } from "../lib/release-notes.js";
 import { resolveGitignoreTargets } from "../lib/resolve-gitignore-targets.js";
 import { ALL_FEATURES, RulesyncFeatures } from "../types/features.js";
 import { FetchOptions } from "../types/fetch.js";
+import { type ErrorCode, ErrorCodes } from "../types/json-output.js";
 import type { Logger } from "../utils/logger.js";
 import { parseCommaSeparatedList } from "../utils/parse-comma-separated-list.js";
 import { convertCommand, ConvertOptions } from "./commands/convert.js";
@@ -29,7 +30,7 @@ const FEATURES_HELP = `${ALL_FEATURES.join(",")}; ignore is deprecated, use perm
 
 function wrapCommand(
   name: string,
-  errorCode: string,
+  errorCode: ErrorCode,
   handler: (
     logger: Logger,
     options: unknown,
@@ -68,7 +69,7 @@ export function createProgram(): Command {
     .option("-V, --verbose", "Verbose output")
     .option("-s, --silent", "Suppress all output")
     .action(
-      wrapCommand("init", "INIT_FAILED", async (logger) => {
+      wrapCommand("init", ErrorCodes.INIT_FAILED, async (logger) => {
         await initCommand(logger);
       }),
     );
@@ -89,7 +90,7 @@ export function createProgram(): Command {
     .option("-V, --verbose", "Verbose output")
     .option("-s, --silent", "Suppress all output")
     .action(
-      wrapCommand("gitignore", "GITIGNORE_FAILED", async (logger, options) => {
+      wrapCommand("gitignore", ErrorCodes.GITIGNORE_FAILED, async (logger, options) => {
         const cliTargets = (options as { targets?: string[] }).targets;
         const cliFeatures = (options as { features?: RulesyncFeatures }).features;
 
@@ -127,16 +128,20 @@ export function createProgram(): Command {
     .option("-V, --verbose", "Verbose output")
     .option("-s, --silent", "Suppress all output")
     .action(
-      wrapCommand("add", "ADD_FAILED", async (logger, options, _globalOpts, positionalArgs) => {
-        const source = positionalArgs[0] as string;
-        const addOptions = withConfigPath(
-          options as Omit<AddCommandOptions, "source" | "configPath"> & { config?: string },
-        );
-        await addCommand(logger, {
-          ...addOptions,
-          source,
-        });
-      }),
+      wrapCommand(
+        "add",
+        ErrorCodes.ADD_FAILED,
+        async (logger, options, _globalOpts, positionalArgs) => {
+          const source = positionalArgs[0] as string;
+          const addOptions = withConfigPath(
+            options as Omit<AddCommandOptions, "source" | "configPath"> & { config?: string },
+          );
+          await addCommand(logger, {
+            ...addOptions,
+            source,
+          });
+        },
+      ),
     );
 
   program
@@ -175,16 +180,20 @@ export function createProgram(): Command {
     .option("-V, --verbose", "Verbose output")
     .option("-s, --silent", "Suppress all output")
     .action(
-      wrapCommand("fetch", "FETCH_FAILED", async (logger, options, globalOpts, positionalArgs) => {
-        const fetchOptions = options as FetchOptions;
-        // The interactive prompt draws its UI on stdout; mixing it with the
-        // global --json envelope would corrupt the machine-readable output.
-        if (fetchOptions.interactive && globalOpts.json) {
-          throw new Error("The --interactive option cannot be combined with --json output.");
-        }
-        const source = positionalArgs[0] as string;
-        await fetchCommand(logger, { ...fetchOptions, source });
-      }),
+      wrapCommand(
+        "fetch",
+        ErrorCodes.FETCH_FAILED,
+        async (logger, options, globalOpts, positionalArgs) => {
+          const fetchOptions = options as FetchOptions;
+          // The interactive prompt draws its UI on stdout; mixing it with the
+          // global --json envelope would corrupt the machine-readable output.
+          if (fetchOptions.interactive && globalOpts.json) {
+            throw new Error("The --interactive option cannot be combined with --json output.");
+          }
+          const source = positionalArgs[0] as string;
+          await fetchCommand(logger, { ...fetchOptions, source });
+        },
+      ),
     );
 
   program
@@ -208,7 +217,7 @@ export function createProgram(): Command {
       "Root directory containing the tool configuration to import",
     )
     .action(
-      wrapCommand("import", "IMPORT_FAILED", async (logger, options) => {
+      wrapCommand("import", ErrorCodes.IMPORT_FAILED, async (logger, options) => {
         const { outputRoot, ...importOptions } = options as ImportOptions & {
           outputRoot?: string;
         };
@@ -240,7 +249,7 @@ export function createProgram(): Command {
     .option("-g, --global", "Convert for global(user scope) configuration files")
     .option("--dry-run", "Dry run: show changes without writing files")
     .action(
-      wrapCommand("convert", "CONVERT_FAILED", async (logger, options) => {
+      wrapCommand("convert", ErrorCodes.CONVERT_FAILED, async (logger, options) => {
         await convertCommand(logger, options as ConvertOptions);
       }),
     );
@@ -249,7 +258,7 @@ export function createProgram(): Command {
     .command("mcp")
     .description("Start MCP server for rulesync")
     .action(
-      wrapCommand("mcp", "MCP_FAILED", async (logger, _options) => {
+      wrapCommand("mcp", ErrorCodes.MCP_FAILED, async (logger, _options) => {
         await mcpCommand(logger, { version });
       }),
     );
@@ -277,7 +286,7 @@ export function createProgram(): Command {
     .option("-V, --verbose", "Verbose output")
     .option("-s, --silent", "Suppress all output")
     .action(
-      wrapCommand("install", "INSTALL_FAILED", async (logger, options) => {
+      wrapCommand("install", ErrorCodes.INSTALL_FAILED, async (logger, options) => {
         const {
           mode: rawMode,
           update,
@@ -368,7 +377,7 @@ export function createProgram(): Command {
       "Keep running and regenerate whenever rulesync source files change (cannot be combined with --check, --dry-run or --json)",
     )
     .action(
-      wrapCommand("generate", "GENERATION_FAILED", async (logger, options) => {
+      wrapCommand("generate", ErrorCodes.GENERATION_FAILED, async (logger, options) => {
         await generateCommand(
           logger,
           withConfigPath(options as Omit<GenerateOptions, "configPath"> & { config?: string }),
@@ -386,7 +395,7 @@ export function createProgram(): Command {
     .option("-V, --verbose", "Verbose output")
     .option("-s, --silent", "Suppress all output")
     .action(
-      wrapCommand("doctor", "DOCTOR_FAILED", async (logger, options) => {
+      wrapCommand("doctor", ErrorCodes.DOCTOR_FAILED, async (logger, options) => {
         await doctorCommand(
           logger,
           withConfigPath(options as Omit<DoctorOptions, "configPath"> & { config?: string }),
@@ -403,15 +412,19 @@ export function createProgram(): Command {
     .option("-V, --verbose", "Verbose output")
     .option("-s, --silent", "Suppress all output")
     .action(
-      wrapCommand("docs", "DOCS_FAILED", async (logger, options, globalOpts, positionalArgs) => {
-        // The command's product is raw Markdown on stdout; mixing it with the
-        // global --json envelope would break both consumers.
-        if (globalOpts.json) {
-          throw new Error("The docs command prints raw Markdown and does not support --json.");
-        }
-        const document = positionalArgs[0] as string | undefined;
-        await docsCommand(logger, document, options as DocsOptions);
-      }),
+      wrapCommand(
+        "docs",
+        ErrorCodes.DOCS_FAILED,
+        async (logger, options, globalOpts, positionalArgs) => {
+          // The command's product is raw Markdown on stdout; mixing it with the
+          // global --json envelope would break both consumers.
+          if (globalOpts.json) {
+            throw new Error("The docs command prints raw Markdown and does not support --json.");
+          }
+          const document = positionalArgs[0] as string | undefined;
+          await docsCommand(logger, document, options as DocsOptions);
+        },
+      ),
     );
 
   program
@@ -433,7 +446,7 @@ export function createProgram(): Command {
     .action(
       wrapCommand(
         "release-notes",
-        "RELEASE_NOTES_FAILED",
+        ErrorCodes.RELEASE_NOTES_FAILED,
         async (logger, options, _globalOpts, positionalArgs) => {
           const source = positionalArgs[0] as string;
           await releaseNotesCommand(logger, {
@@ -453,7 +466,7 @@ export function createProgram(): Command {
     .option("-V, --verbose", "Verbose output")
     .option("-s, --silent", "Suppress all output")
     .action(
-      wrapCommand("update", "UPDATE_FAILED", async (logger, options) => {
+      wrapCommand("update", ErrorCodes.UPDATE_FAILED, async (logger, options) => {
         await updateCommand(logger, version, options as UpdateCommandOptions);
       }),
     );
