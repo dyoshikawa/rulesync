@@ -1384,6 +1384,137 @@ const FIREBENDER_CONFIG_DECLARATION: SharedConfigFileDeclaration = {
 };
 
 /**
+ * Zed settings, shared by the project (`.zed/settings.json`), global
+ * (`.config/zed/settings.json`) and win32 global (`%APPDATA%\Zed`, which
+ * `getZedGlobalDir()` resolves to) spellings so a policy edit lands on all
+ * three. Each feature holds an exclusive top-level key. `private_files` is
+ * recomputed from `.rulesync/.aiignore` alone, so a pattern deleted there is
+ * retracted here; it is a worktree setting, so Zed reads it from the user
+ * settings file too. Blocks whose final value depends on existing entries
+ * (`agent.tool_permissions.tools` keeps user entries for unmanaged tools, and
+ * `agent` siblings are carried over) are recomputed from the existing file
+ * before being applied, so the whole key is owned here either way.
+ */
+const ZED_SETTINGS_DECLARATION: SharedConfigFileDeclaration = {
+  format: "json",
+  features: {
+    ignore: { kind: "replace-owned-keys", ownedKeys: ["private_files"] },
+    mcp: { kind: "replace-owned-keys", ownedKeys: ["context_servers"] },
+    permissions: { kind: "replace-owned-keys", ownedKeys: ["agent"] },
+  },
+};
+
+/**
+ * oh-my-pi `config.yml` (`.omp/config.yml` / `.omp/agent/config.yml`) carries
+ * every omp setting. The permissions writer recomputes `tools` and `bash` from
+ * the existing file (sibling keys such as `tools.approvalMode` and
+ * `bash.enabled` carried over, `tools.approval` and `bash.patterns` replaced)
+ * before patching, so both whole keys are owned.
+ */
+const OMP_CONFIG_DECLARATION: SharedConfigFileDeclaration = {
+  format: "yaml",
+  invalidRootPolicy: "error",
+  features: {
+    permissions: { kind: "replace-owned-keys", ownedKeys: ["tools", "bash"] },
+  },
+};
+
+/**
+ * Pi Coding Agent settings (`.pi/settings.json` project /
+ * `~/.pi/agent/settings.json` global): a hand-edited file carrying `theme`,
+ * `defaultModel`, `packages`, `sessionDir` and more. Permissions owns the one
+ * repository-syncable tool gate, `defaultTools`.
+ */
+const PI_SETTINGS_DECLARATION: SharedConfigFileDeclaration = {
+  format: "json",
+  invalidRootPolicy: "error",
+  features: {
+    permissions: { kind: "replace-owned-keys", ownedKeys: ["defaultTools"] },
+  },
+};
+
+/**
+ * Amp settings (`settings.json`, or a hand-authored `settings.jsonc` twin the
+ * writers probe for — both resolve to this declaration via the settable
+ * paths), shared by the project and global spellings. Keys are Amp's literal
+ * dotted names. `amp.permissions` is recomputed from the existing file
+ * (fail-closed first-match-wins ordering, authored/delegate entries folded in)
+ * before being applied, and is retracted when the merge yields no entries.
+ * Amp's writers have always refused to write over a file they could not fully
+ * parse, hence the strict policies.
+ */
+const AMP_SETTINGS_DECLARATION: SharedConfigFileDeclaration = {
+  format: "jsonc",
+  invalidRootPolicy: "error",
+  jsoncParseErrors: "error",
+  features: {
+    mcp: { kind: "replace-owned-keys", ownedKeys: ["amp.mcpServers"] },
+    permissions: {
+      kind: "replace-owned-keys",
+      ownedKeys: [
+        "amp.tools.disable",
+        "amp.permissions",
+        "amp.guardedFiles.allowlist",
+        "amp.dangerouslyAllowAll",
+        "amp.mcpPermissions",
+      ],
+    },
+  },
+};
+
+/**
+ * OpenCode config (`opencode.json`, or the preferred `opencode.jsonc` twin —
+ * both resolve here via the settable paths), shared by the project and global
+ * spellings. `tools` is retracted when the generated MCP servers yield no tool
+ * filters; `permission` and `instructions` are recomputed from source/existing
+ * content before being applied. OpenCode reads `instructions` from the global
+ * config too, so rules are registered at both scopes.
+ */
+const OPENCODE_CONFIG_DECLARATION: SharedConfigFileDeclaration = {
+  format: "jsonc",
+  features: {
+    mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp", "tools"] },
+    // `permission` (OpenCode V1) and `permissions` (OpenCode V2).
+    permissions: { kind: "replace-owned-keys", ownedKeys: ["permission", "permissions"] },
+    rules: { kind: "replace-owned-keys", ownedKeys: ["instructions"] },
+  },
+};
+
+/**
+ * MiMo Code config (an OpenCode fork; `.mimocode/mimocode.json` or the
+ * preferred `mimocode.jsonc` twin) — same ownership as OpenCode at both scopes.
+ */
+const MIMOCODE_CONFIG_DECLARATION: SharedConfigFileDeclaration = {
+  format: "jsonc",
+  features: {
+    mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp", "tools"] },
+    permissions: { kind: "replace-owned-keys", ownedKeys: ["permission"] },
+    rules: { kind: "replace-owned-keys", ownedKeys: ["instructions"] },
+  },
+};
+
+/**
+ * Reasonix config, shared by the project (`./reasonix.toml`) and global
+ * (`~/.reasonix/config.toml`) spellings: mcp owns `plugins`; permissions owns
+ * `permissions`/`sandbox`/`agent`/`tools`. All are recomputed from the
+ * existing file (unmanaged entries and sibling override keys preserved) before
+ * being applied. `ignore` writes `Read(...)` entries into `permissions.deny`
+ * under the same entry-level rule as `.claude/settings.json` — Reasonix's
+ * `[permissions]` table is documented as Claude-Code-style.
+ */
+const REASONIX_CONFIG_DECLARATION: SharedConfigFileDeclaration = {
+  format: "toml",
+  features: {
+    ignore: { kind: "custom", policyFunction: "applyIgnoreReadDenies" },
+    mcp: { kind: "replace-owned-keys", ownedKeys: ["plugins"] },
+    permissions: {
+      kind: "replace-owned-keys",
+      ownedKeys: ["permissions", "sandbox", "agent", "tools"],
+    },
+  },
+};
+
+/**
  * What the two Claude Code settings files have in common: both are plain JSON,
  * and both validate against the one published schema, which the gateway
  * points every file it writes at. `.claude/settings.local.json` is the same
@@ -1463,76 +1594,13 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
       },
     },
   },
-  // Zed settings: each feature holds an exclusive top-level key. `private_files`
-  // is recomputed from `.rulesync/.aiignore` alone, so a pattern deleted there is
-  // retracted here. Blocks whose final value depends on existing entries
-  // (`agent.tool_permissions.tools` keeps user entries for unmanaged tools, and
-  // `agent` siblings are carried over) are recomputed from the existing file
-  // before being applied, so the whole key is owned here either way.
-  ".zed/settings.json": {
-    format: "json",
-    features: {
-      ignore: { kind: "replace-owned-keys", ownedKeys: ["private_files"] },
-      mcp: { kind: "replace-owned-keys", ownedKeys: ["context_servers"] },
-      permissions: { kind: "replace-owned-keys", ownedKeys: ["agent"] },
-    },
-  },
-  // Global scope of the Zed settings above. `private_files` is a worktree
-  // setting, so Zed reads it from the user settings file too.
-  ".config/zed/settings.json": {
-    format: "json",
-    features: {
-      ignore: { kind: "replace-owned-keys", ownedKeys: ["private_files"] },
-      mcp: { kind: "replace-owned-keys", ownedKeys: ["context_servers"] },
-      permissions: { kind: "replace-owned-keys", ownedKeys: ["agent"] },
-    },
-  },
-  // The same global Zed settings under the Windows user config dir
-  // (`%APPDATA%\Zed`), which `getZedGlobalDir()` resolves to on win32.
-  "AppData/Roaming/Zed/settings.json": {
-    format: "json",
-    features: {
-      ignore: { kind: "replace-owned-keys", ownedKeys: ["private_files"] },
-      mcp: { kind: "replace-owned-keys", ownedKeys: ["context_servers"] },
-      permissions: { kind: "replace-owned-keys", ownedKeys: ["agent"] },
-    },
-  },
-  // oh-my-pi `config.yml` carries every omp setting. The permissions writer
-  // recomputes `tools` and `bash` from the existing file (sibling keys such as
-  // `tools.approvalMode` and `bash.enabled` carried over, `tools.approval` and
-  // `bash.patterns` replaced) before patching, so both whole keys are owned.
-  ".omp/config.yml": {
-    format: "yaml",
-    invalidRootPolicy: "error",
-    features: {
-      permissions: { kind: "replace-owned-keys", ownedKeys: ["tools", "bash"] },
-    },
-  },
-  ".omp/agent/config.yml": {
-    format: "yaml",
-    invalidRootPolicy: "error",
-    features: {
-      permissions: { kind: "replace-owned-keys", ownedKeys: ["tools", "bash"] },
-    },
-  },
-  // Pi Coding Agent settings (`.pi/settings.json` project /
-  // `~/.pi/agent/settings.json` global): a hand-edited file carrying `theme`,
-  // `defaultModel`, `packages`, `sessionDir` and more. Permissions owns the one
-  // repository-syncable tool gate, `defaultTools`.
-  ".pi/settings.json": {
-    format: "json",
-    invalidRootPolicy: "error",
-    features: {
-      permissions: { kind: "replace-owned-keys", ownedKeys: ["defaultTools"] },
-    },
-  },
-  ".pi/agent/settings.json": {
-    format: "json",
-    invalidRootPolicy: "error",
-    features: {
-      permissions: { kind: "replace-owned-keys", ownedKeys: ["defaultTools"] },
-    },
-  },
+  ".zed/settings.json": ZED_SETTINGS_DECLARATION,
+  ".config/zed/settings.json": ZED_SETTINGS_DECLARATION,
+  "AppData/Roaming/Zed/settings.json": ZED_SETTINGS_DECLARATION,
+  ".omp/config.yml": OMP_CONFIG_DECLARATION,
+  ".omp/agent/config.yml": OMP_CONFIG_DECLARATION,
+  ".pi/settings.json": PI_SETTINGS_DECLARATION,
+  ".pi/agent/settings.json": PI_SETTINGS_DECLARATION,
   // Copilot CLI repository settings (`.github/copilot/settings.json`, CLI
   // v1.0.60+): a committed, hand-edited file that also carries `model`,
   // `effortLevel`, `hooks` and other repository-scope keys rulesync does not
@@ -1962,93 +2030,12 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
       permissions: { kind: "replace-owned-keys", ownedKeys: ["allowedTools", "toolsSettings"] },
     },
   },
-  // Amp settings (`settings.json`, or a hand-authored `settings.jsonc` twin the
-  // writers probe for — both resolve to this declaration via the settable
-  // paths). Keys are Amp's literal dotted names. `amp.permissions` is
-  // recomputed from the existing file (fail-closed first-match-wins ordering,
-  // authored/delegate entries folded in) before being applied, and is retracted
-  // when the merge yields no entries. Amp's writers have always refused to
-  // write over a file they could not fully parse, hence the strict policies.
-  ".amp/settings.json": {
-    format: "jsonc",
-    invalidRootPolicy: "error",
-    jsoncParseErrors: "error",
-    features: {
-      mcp: { kind: "replace-owned-keys", ownedKeys: ["amp.mcpServers"] },
-      permissions: {
-        kind: "replace-owned-keys",
-        ownedKeys: [
-          "amp.tools.disable",
-          "amp.permissions",
-          "amp.guardedFiles.allowlist",
-          "amp.dangerouslyAllowAll",
-          "amp.mcpPermissions",
-        ],
-      },
-    },
-  },
-  ".config/amp/settings.json": {
-    format: "jsonc",
-    invalidRootPolicy: "error",
-    jsoncParseErrors: "error",
-    features: {
-      mcp: { kind: "replace-owned-keys", ownedKeys: ["amp.mcpServers"] },
-      permissions: {
-        kind: "replace-owned-keys",
-        ownedKeys: [
-          "amp.tools.disable",
-          "amp.permissions",
-          "amp.guardedFiles.allowlist",
-          "amp.dangerouslyAllowAll",
-          "amp.mcpPermissions",
-        ],
-      },
-    },
-  },
-  // OpenCode config (`opencode.json`, or the preferred `opencode.jsonc` twin —
-  // both resolve here via the settable paths). `tools` is retracted when the
-  // generated MCP servers yield no tool filters; `permission` and
-  // `instructions` are recomputed from source/existing content before being
-  // applied. Rules (`instructions`) are registered at both scopes.
-  "opencode.json": {
-    format: "jsonc",
-    features: {
-      mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp", "tools"] },
-      // `permission` (OpenCode V1) and `permissions` (OpenCode V2).
-      permissions: { kind: "replace-owned-keys", ownedKeys: ["permission", "permissions"] },
-      rules: { kind: "replace-owned-keys", ownedKeys: ["instructions"] },
-    },
-  },
-  ".config/opencode/opencode.json": {
-    format: "jsonc",
-    features: {
-      mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp", "tools"] },
-      // `permission` (OpenCode V1) and `permissions` (OpenCode V2).
-      permissions: { kind: "replace-owned-keys", ownedKeys: ["permission", "permissions"] },
-      // OpenCode reads `instructions` from the global config too; the rules
-      // feature registers global non-root rules here (recomputed from the
-      // existing list before being applied, like the project-scope entry).
-      rules: { kind: "replace-owned-keys", ownedKeys: ["instructions"] },
-    },
-  },
-  // MiMo Code config (an OpenCode fork; `.mimocode/mimocode.json` or the
-  // preferred `mimocode.jsonc` twin) — same ownership as OpenCode at both scopes.
-  ".mimocode/mimocode.json": {
-    format: "jsonc",
-    features: {
-      mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp", "tools"] },
-      permissions: { kind: "replace-owned-keys", ownedKeys: ["permission"] },
-      rules: { kind: "replace-owned-keys", ownedKeys: ["instructions"] },
-    },
-  },
-  ".config/mimocode/mimocode.json": {
-    format: "jsonc",
-    features: {
-      mcp: { kind: "replace-owned-keys", ownedKeys: ["mcp", "tools"] },
-      permissions: { kind: "replace-owned-keys", ownedKeys: ["permission"] },
-      rules: { kind: "replace-owned-keys", ownedKeys: ["instructions"] },
-    },
-  },
+  ".amp/settings.json": AMP_SETTINGS_DECLARATION,
+  ".config/amp/settings.json": AMP_SETTINGS_DECLARATION,
+  "opencode.json": OPENCODE_CONFIG_DECLARATION,
+  ".config/opencode/opencode.json": OPENCODE_CONFIG_DECLARATION,
+  ".mimocode/mimocode.json": MIMOCODE_CONFIG_DECLARATION,
+  ".config/mimocode/mimocode.json": MIMOCODE_CONFIG_DECLARATION,
   // Kilo config (`kilo.json` / preferred `kilo.jsonc` twin): `instructions` is
   // recomputed from the existing list before being applied. MCP replaces `mcp`
   // and the legacy `tools` map wholesale, but deep-merges its `{server}_{tool}`
@@ -2141,36 +2128,8 @@ export const SHARED_CONFIG_OWNERSHIP: Readonly<Record<string, SharedConfigFileDe
   },
   [KIMI_CODE_CONFIG_SHARED_FILE_KEY]: KIMI_CODE_CONFIG_DECLARATION,
   [KIMI_CODE_HOME_CONFIG_SHARED_FILE_KEY]: KIMI_CODE_CONFIG_DECLARATION,
-  // Reasonix project config (`./reasonix.toml`): mcp owns `plugins`;
-  // permissions owns `permissions`/`sandbox`/`agent`/`tools`. All are recomputed
-  // from the existing file (unmanaged entries and sibling override keys
-  // preserved) before being applied. `ignore` writes `Read(...)` entries into
-  // `permissions.deny` under the same entry-level rule as `.claude/settings.json`
-  // — Reasonix's `[permissions]` table is documented as Claude-Code-style.
-  [REASONIX_PROJECT_CONFIG_SHARED_FILE_KEY]: {
-    format: "toml",
-    features: {
-      ignore: { kind: "custom", policyFunction: "applyIgnoreReadDenies" },
-      mcp: { kind: "replace-owned-keys", ownedKeys: ["plugins"] },
-      permissions: {
-        kind: "replace-owned-keys",
-        ownedKeys: ["permissions", "sandbox", "agent", "tools"],
-      },
-    },
-  },
-  // Reasonix global config (`~/.reasonix/config.toml`) — same shape as the
-  // project file above.
-  [REASONIX_GLOBAL_CONFIG_SHARED_FILE_KEY]: {
-    format: "toml",
-    features: {
-      ignore: { kind: "custom", policyFunction: "applyIgnoreReadDenies" },
-      mcp: { kind: "replace-owned-keys", ownedKeys: ["plugins"] },
-      permissions: {
-        kind: "replace-owned-keys",
-        ownedKeys: ["permissions", "sandbox", "agent", "tools"],
-      },
-    },
-  },
+  [REASONIX_PROJECT_CONFIG_SHARED_FILE_KEY]: REASONIX_CONFIG_DECLARATION,
+  [REASONIX_GLOBAL_CONFIG_SHARED_FILE_KEY]: REASONIX_CONFIG_DECLARATION,
   [ROVODEV_CONFIG_SHARED_FILE_KEY]: {
     format: "yaml",
     features: {
