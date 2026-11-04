@@ -362,7 +362,6 @@ describe("CommandsProcessor", () => {
         outputRoot: testDir,
         relativeDirPath: join(".roo", "commands"),
         relativeFilePath: "test.md",
-        fileContent: "converted content",
         frontmatter: {
           description: "test description",
         },
@@ -1036,7 +1035,6 @@ describe("CommandsProcessor", () => {
           description: "test description",
         },
         body: "content",
-        fileContent: '---\ndescription: "test description"\n---\n\ncontent',
       });
 
       mockFindFilesByGlobs.mockResolvedValue(mockPaths);

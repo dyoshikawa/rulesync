@@ -78,7 +78,6 @@ export class AntigravityIdeCommand extends AntigravitySharedCommand {
           relativeFilePath: basename(filePath),
           frontmatter: result.data,
           body: body.trim(),
-          fileContent,
           global,
         });
       }),

@@ -33,7 +33,7 @@ export type RooCommandFrontmatter = z.infer<typeof RooCommandFrontmatterSchema>;
 export type RooCommandParams = {
   frontmatter: RooCommandFrontmatter;
   body: string;
-} & AiFileParams;
+} & Omit<AiFileParams, "fileContent">;
 
 export type RooCommandSettablePaths = {
   relativeDirPath: string;
@@ -117,9 +117,7 @@ export class RooCommand extends ToolCommand {
       ...rooFields,
     };
 
-    // Generate proper file content with Roo Code specific frontmatter
     const body = rulesyncCommand.getBody();
-    const fileContent = stringifyFrontmatter(body, rooFrontmatter);
 
     return new this({
       outputRoot: outputRoot,
@@ -127,7 +125,6 @@ export class RooCommand extends ToolCommand {
       body,
       relativeDirPath: RooCommand.getSettablePaths().relativeDirPath,
       relativeFilePath: rulesyncCommand.getRelativeFilePath(),
-      fileContent: fileContent,
       validate,
     });
   }
@@ -179,7 +176,6 @@ export class RooCommand extends ToolCommand {
       relativeFilePath,
       frontmatter: result.data,
       body: content.trim(),
-      fileContent,
       validate,
     });
   }
@@ -195,7 +191,6 @@ export class RooCommand extends ToolCommand {
       relativeFilePath,
       frontmatter: { description: "" },
       body: "",
-      fileContent: "",
       validate: false,
     });
   }
