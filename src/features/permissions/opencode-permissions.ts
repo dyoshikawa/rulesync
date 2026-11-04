@@ -17,7 +17,7 @@ import { readFileContentOrNull } from "../../utils/file.js";
 import { parseJsonc as parseJsoncStrict } from "../../utils/jsonc.js";
 import type { Logger } from "../../utils/logger.js";
 import { invertRecord, lookupOwn } from "../../utils/own-lookup.js";
-import { isRecord } from "../../utils/type-guards.js";
+import { isRecord, toRecord } from "../../utils/type-guards.js";
 import {
   lowerOpencodeV2Mcp,
   mergeOpencodeConfigValues,
@@ -497,7 +497,7 @@ export class OpencodePermissions extends ToolPermissions {
     const parsed = overlays
       .map(({ config }): unknown => config)
       .reduce(mergeOpencodeConfigValues, parseJsonc(fileContent ?? "{}"));
-    const record = isRecord(parsed) ? parsed : {};
+    const record = toRecord(parsed);
     // Read as an own property rather than through the prototype chain:
     // `jsonc-parser` assigns keys with `obj[key] = value`, so a literal
     // `"__proto__": { "permission": ... }` in the config replaces this
@@ -551,8 +551,7 @@ export class OpencodePermissions extends ToolPermissions {
     for (const [key, patterns] of Object.entries(fromV2)) {
       const existing = Object.hasOwn(merged, key) ? merged[key] : undefined;
       const combined: Record<string, unknown> = {};
-      const base =
-        typeof existing === "string" ? { "*": existing } : isRecord(existing) ? existing : {};
+      const base = typeof existing === "string" ? { "*": existing } : toRecord(existing);
       for (const [resource, effect] of [...Object.entries(base), ...Object.entries(patterns)]) {
         delete combined[resource];
         setOwnEntry(combined, resource, effect);

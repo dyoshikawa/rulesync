@@ -14,7 +14,7 @@ import { fallbackLogger, type Logger, warnWithFallback } from "../../utils/logge
 import { invertRecord, lookupOwn } from "../../utils/own-lookup.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
-import { isRecord, isStringArray } from "../../utils/type-guards.js";
+import { isRecord, isStringArray, toRecord } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
   parseSharedConfig,
@@ -271,7 +271,7 @@ function stripRefusedOverridePaths(override: Record<string, unknown>): {
 } {
   const tools = stripRefusedPaths({
     group: TOOLS_KEY,
-    record: isRecord(override[TOOLS_KEY]) ? override[TOOLS_KEY] : {},
+    record: toRecord(override[TOOLS_KEY]),
   });
   const general = isRecord(override[GENERAL_KEY])
     ? stripRefusedPaths({ group: GENERAL_KEY, record: override[GENERAL_KEY] })
@@ -728,7 +728,7 @@ export class TabninePermissions extends ToolPermissions {
     const existingContent = (await readFileContentOrNull(filePath)) ?? "{}";
 
     const config = rulesyncPermissions.getJson();
-    const override = isRecord(config.tabnine) ? config.tabnine : {};
+    const override = toRecord(config.tabnine);
     const {
       tools: overrideTools,
       general: overrideGeneral,
@@ -899,7 +899,7 @@ export class TabninePermissions extends ToolPermissions {
 
   toRulesyncPermissions(): RulesyncPermissions {
     const settings = this.parseSettings();
-    const tools = isRecord(settings[TOOLS_KEY]) ? settings[TOOLS_KEY] : {};
+    const tools = toRecord(settings[TOOLS_KEY]);
 
     const permission: Record<string, Record<string, PermissionAction>> = {};
     const leftovers: Record<string, string[]> = {};

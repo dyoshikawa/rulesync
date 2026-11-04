@@ -9,7 +9,7 @@ import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { invertRecord, lookupOwn } from "../../utils/own-lookup.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
-import { isRecord, isStringArray, toStringArray } from "../../utils/type-guards.js";
+import { isRecord, isStringArray, toRecord, toStringArray } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
   parseSharedConfig,
@@ -318,14 +318,14 @@ function announcePermissiveQoderSettings({
   where: string;
   logger?: Logger;
 }): void {
-  const general = isRecord(patch.general) ? patch.general : {};
+  const general = toRecord(patch.general);
   const mode = general.defaultPermissionMode;
   if (typeof mode === "string" && QODER_PERMISSIVE_MODES.has(mode.trim().toLowerCase())) {
     logger?.warn(
       `Qoder permissions: qoder.general.defaultPermissionMode = ${JSON.stringify(mode)} was written to ${where}, so Qoder starts every session it applies to in a mode that runs actions without asking first.`,
     );
   }
-  const mcp = isRecord(patch.mcp) ? patch.mcp : {};
+  const mcp = toRecord(patch.mcp);
   if (mcp.enableAllProjectMcpServers === true) {
     logger?.warn(
       `Qoder permissions: qoder.mcp.enableAllProjectMcpServers = true was written to ${where}, so Qoder starts every project-level MCP server without asking for approval.`,
@@ -337,7 +337,7 @@ function announcePermissiveQoderSettings({
       `Qoder permissions: qoder.mcp.enabledProjectMcpServers was written to ${where}, so Qoder starts the project-level MCP servers ${enabledServers.map((name) => JSON.stringify(name)).join(", ")} without asking for approval.`,
     );
   }
-  const autoMode = isRecord(patch[QODER_AUTO_MODE_KEY]) ? patch[QODER_AUTO_MODE_KEY] : {};
+  const autoMode = toRecord(patch[QODER_AUTO_MODE_KEY]);
   if (toStringArray(autoMode.allow).length > 0) {
     logger?.warn(
       `Qoder permissions: qoder.autoMode.allow was written to ${where}, so Qoder's Auto-mode classifier leans toward approving the actions it describes.`,
@@ -382,7 +382,7 @@ function buildQoderOverridePatch({
       logger,
     });
     if (Object.keys(picked).length > 0) {
-      const existingGroup = isRecord(existing[group]) ? existing[group] : {};
+      const existingGroup = toRecord(existing[group]);
       patch[group] = { ...existingGroup, ...picked };
     }
   }

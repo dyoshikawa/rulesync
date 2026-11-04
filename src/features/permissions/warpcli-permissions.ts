@@ -7,7 +7,7 @@ import { WARP_PERMISSIONS_FILE_NAME, warpcliConfigDir } from "../../constants/wa
 import type { AiFileParams } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
-import { isRecord, isStringArray } from "../../utils/type-guards.js";
+import { isRecord, isStringArray, toRecord } from "../../utils/type-guards.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   ToolPermissions,
@@ -191,7 +191,7 @@ export class WarpcliPermissions extends ToolPermissions {
     }
 
     // Only the `default` profile is ever enforced by the CLI.
-    const agents = isRecord(settings.agents) ? settings.agents : {};
+    const agents = toRecord(settings.agents);
     const executionProfiles = isRecord(agents[EXECUTION_PROFILES_KEY])
       ? agents[EXECUTION_PROFILES_KEY]
       : {};

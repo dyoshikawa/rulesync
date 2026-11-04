@@ -8,7 +8,7 @@ import type { PermissionAction, PermissionsConfig } from "../../types/permission
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
-import { isRecord, isStringArray } from "../../utils/type-guards.js";
+import { isRecord, isStringArray, toRecord } from "../../utils/type-guards.js";
 import { loadYaml } from "../../utils/yaml.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { honorAllToolsOnBash } from "./shell-command-categories.js";
@@ -216,8 +216,8 @@ export class GoosePermissions extends ToolPermissions {
       );
     }
 
-    const config = isRecord(parsed) ? parsed : {};
-    const userPermission = isRecord(config[GOOSE_USER_KEY]) ? config[GOOSE_USER_KEY] : {};
+    const config = toRecord(parsed);
+    const userPermission = toRecord(config[GOOSE_USER_KEY]);
     const rulesyncConfig = convertGoosePermissionConfigToRulesync(userPermission);
 
     return this.toRulesyncPermissionsDefault({

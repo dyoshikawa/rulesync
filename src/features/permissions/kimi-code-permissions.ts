@@ -13,7 +13,7 @@ import {
   getKimiCodeRulesyncOutputRoot,
 } from "../../utils/kimi-code.js";
 import { type Logger, warnWithFallback } from "../../utils/logger.js";
-import { isRecord, isStringArray } from "../../utils/type-guards.js";
+import { isRecord, isStringArray, toRecord } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
   KIMI_CODE_CONFIG_SHARED_FILE_KEY,
@@ -87,8 +87,8 @@ function mergeKimiCodeToolsSection({
     existing = undefined;
   }
   const merged: Record<string, unknown> = {
-    ...(isRecord(existing) ? existing : {}),
-    ...(isRecord(patch.tools) ? patch.tools : {}),
+    ...toRecord(existing),
+    ...toRecord(patch.tools),
   };
   if (Object.keys(merged).length === 0) {
     return undefined;
@@ -122,10 +122,10 @@ function mergeKimiCodePermissionSection({
   } catch {
     existing = undefined;
   }
-  const { rules: _existingRules, ...siblings } = isRecord(existing) ? existing : {};
+  const { rules: _existingRules, ...siblings } = toRecord(existing);
   return {
     ...siblings,
-    ...(isRecord(patch.permission) ? patch.permission : {}),
+    ...toRecord(patch.permission),
   };
 }
 
@@ -465,7 +465,7 @@ export class KimiCodePermissions extends ToolPermissions {
       format: "toml",
       fileContent: this.getFileContent(),
     });
-    const permissionConfig = isRecord(config.permission) ? config.permission : {};
+    const permissionConfig = toRecord(config.permission);
     const { permission, nativeRules } = preserveKimiCodeRules(permissionConfig.rules);
     const defaultPermissionMode = config.default_permission_mode;
     const dangerousCommandGuard = permissionConfig.dangerous_command_guard;

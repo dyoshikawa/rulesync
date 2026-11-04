@@ -10,7 +10,7 @@ import { readFileContentOrNull, toPosixPath } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { invertRecord } from "../../utils/own-lookup.js";
 import { PROTOTYPE_POLLUTION_KEYS } from "../../utils/prototype-pollution.js";
-import { isRecord } from "../../utils/type-guards.js";
+import { isRecord, toRecord } from "../../utils/type-guards.js";
 import {
   applyPermissions,
   CLAUDE_SETTINGS_SHARED_FILE_KEY,
@@ -1465,10 +1465,7 @@ export class ClaudecodePermissions extends ToolPermissions {
         }),
       );
       if (Object.keys(scopedSandbox).length > 0) {
-        settings.sandbox = deepMergeRecords(
-          isRecord(settings.sandbox) ? settings.sandbox : {},
-          scopedSandbox,
-        );
+        settings.sandbox = deepMergeRecords(toRecord(settings.sandbox), scopedSandbox);
       }
     }
 

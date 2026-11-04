@@ -20,7 +20,7 @@ import {
   getHermesagentSharedConfigWritePaths,
 } from "../../utils/hermesagent.js";
 import { type Logger, warnWithFallback } from "../../utils/logger.js";
-import { isRecord, isStringArray } from "../../utils/type-guards.js";
+import { isRecord, isStringArray, toRecord } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
   mergeSharedConfigDeep,
@@ -399,9 +399,9 @@ function canonicalPermissionOf(config: Record<string, unknown>): PermissionsConf
 
 /** The canonical `permission` block of a config's `permissions.rulesync` blob, if any. */
 function provenancePermissionOf(config: Record<string, unknown>): Record<string, unknown> {
-  const permissionsRoot = isRecord(config.permissions) ? config.permissions : {};
-  const provenance = isRecord(permissionsRoot.rulesync) ? permissionsRoot.rulesync : {};
-  return isRecord(provenance.permission) ? provenance.permission : {};
+  const permissionsRoot = toRecord(config.permissions);
+  const provenance = toRecord(permissionsRoot.rulesync);
+  return toRecord(provenance.permission);
 }
 
 /**
@@ -498,7 +498,7 @@ function buildHermesOverride(
   provenance: PermissionsConfig,
 ): Record<string, unknown> {
   const base = isRecord(provenance.hermes) ? { ...provenance.hermes } : {};
-  const approvals = isRecord(config.approvals) ? config.approvals : {};
+  const approvals = toRecord(config.approvals);
   const approvalsOverride = withoutKey(approvals, "deny");
   if (Object.keys(approvalsOverride).length > 0) {
     base.approvals = approvalsOverride;
@@ -608,7 +608,7 @@ export class HermesagentPermissions extends ToolPermissions {
 
   toRulesyncPermissions({ logger }: { logger?: Logger } = {}): RulesyncPermissions {
     const config = parseSharedConfig({ format: "yaml", fileContent: this.getFileContent() });
-    const permissionsRoot = isRecord(config.permissions) ? config.permissions : {};
+    const permissionsRoot = toRecord(config.permissions);
     // Filter before validating: the provenance block is a canonical document
     // that a user may have hand-edited, and one blank pattern or category would
     // fail the schema and discard every rule recorded here without a word.
@@ -639,15 +639,15 @@ export class HermesagentPermissions extends ToolPermissions {
       logger,
     });
 
-    const approvals = isRecord(config.approvals) ? config.approvals : {};
+    const approvals = toRecord(config.approvals);
     reconcileNativeDenies({
       permission,
       category: SHELL_PERMISSION_CATEGORY,
       patterns: isStringArray(approvals.deny) ? approvals.deny : [],
     });
 
-    const security = isRecord(config.security) ? config.security : {};
-    const websiteBlocklist = isRecord(security.website_blocklist) ? security.website_blocklist : {};
+    const security = toRecord(config.security);
+    const websiteBlocklist = toRecord(security.website_blocklist);
     reconcileNativeDenies({
       permission,
       category: WEBFETCH_PERMISSION_CATEGORY,

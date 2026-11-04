@@ -19,7 +19,7 @@ import { readFileContentOrNull, toPosixPath } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
-import { isRecord } from "../../utils/type-guards.js";
+import { isRecord, toRecord } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
@@ -263,7 +263,7 @@ export class DevinPermissions extends ToolPermissions {
     let settings: Record<string, unknown>;
     try {
       const parsed: unknown = JSON.parse(existingContent);
-      settings = isRecord(parsed) ? parsed : {};
+      settings = toRecord(parsed);
     } catch (error) {
       throw new Error(
         `Failed to parse existing Devin config at ${filePath}: ${formatError(error)}`,
@@ -395,7 +395,7 @@ export class DevinPermissions extends ToolPermissions {
     let settings: Record<string, unknown>;
     try {
       const parsed: unknown = JSON.parse(this.getFileContent());
-      settings = isRecord(parsed) ? parsed : {};
+      settings = toRecord(parsed);
     } catch (error) {
       throw new Error(
         `Failed to parse Devin permissions content in ${join(this.getRelativeDirPath(), this.getRelativeFilePath())}: ${formatError(error)}`,

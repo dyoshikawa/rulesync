@@ -14,7 +14,7 @@ import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { invertRecord, lookupOwn } from "../../utils/own-lookup.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
-import { isRecord } from "../../utils/type-guards.js";
+import { isRecord, toRecord } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
   parseSharedConfig,
@@ -190,7 +190,7 @@ export class OmpPermissions extends ToolPermissions {
     const approvalMode = config.omp?.approvalMode;
     const restrictedFolders = config.omp?.restrictedFolders;
 
-    const existingTools = isRecord(existing.tools) ? existing.tools : {};
+    const existingTools = toRecord(existing.tools);
     // A kept key is still raised to the all-tools floor, so a hand-written
     // `eval: allow` cannot outlive an all-tools deny.
     const keptApproval = isRecord(existingTools.approval)
@@ -213,7 +213,7 @@ export class OmpPermissions extends ToolPermissions {
         ? { ...toolsSiblings, approval: nextApproval }
         : toolsSiblings;
 
-    const existingBash = isRecord(existing.bash) ? existing.bash : {};
+    const existingBash = toRecord(existing.bash);
     const bashSiblings = withoutKey(existingBash, "patterns");
     const nextBash = patterns.length > 0 ? { ...bashSiblings, patterns } : bashSiblings;
 
@@ -542,11 +542,11 @@ function importBashPatterns(value: unknown): Record<string, PermissionAction> {
 
 function convertOmpToRulesync(config: Record<string, unknown>): PermissionsConfig {
   const permission: Record<string, Record<string, PermissionAction>> = {};
-  const tools = isRecord(config.tools) ? config.tools : {};
-  const bash = isRecord(config.bash) ? config.bash : {};
+  const tools = toRecord(config.tools);
+  const bash = toRecord(config.bash);
 
   const bashRules = importBashPatterns(bash.patterns);
-  const approvals = isRecord(tools.approval) ? tools.approval : {};
+  const approvals = toRecord(tools.approval);
   const bashApproval = toOmpApproval(approvals.bash);
   importBashPolicy(
     bashRules,

@@ -8,7 +8,7 @@ import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
-import { isRecord, toStringArray } from "../../utils/type-guards.js";
+import { isRecord, toRecord, toStringArray } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
   parseSharedConfig,
@@ -130,7 +130,7 @@ function readRecord(
     }
     current = current[key];
   }
-  return isRecord(current) ? current : {};
+  return toRecord(current);
 }
 
 /**
@@ -346,7 +346,7 @@ function buildCustomProfiles({
   if (bashRules === undefined && !managesMcp) {
     return existing;
   }
-  let result: Record<string, unknown> = isRecord(existing) ? existing : {};
+  let result: Record<string, unknown> = toRecord(existing);
   if (bashRules !== undefined) {
     const commandRules = buildCommandRules({
       bashRules,
@@ -384,7 +384,7 @@ function buildResourceAuthorization({
     return existing;
   }
   const lists = buildNetworkLists({ webfetchRules, logger });
-  let result: Record<string, unknown> = isRecord(existing) ? existing : {};
+  let result: Record<string, unknown> = toRecord(existing);
   for (const action of NETWORK_ACTIONS) {
     result = withPath(result, [NETWORK_KEY, action], nonEmpty(lists[action]));
   }

@@ -16,7 +16,7 @@ import type { Logger } from "../../utils/logger.js";
 import { invertRecord, lookupOwn } from "../../utils/own-lookup.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
-import { isRecord, isStringArray } from "../../utils/type-guards.js";
+import { isRecord, isStringArray, toRecord } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
   parseSharedConfig,
@@ -302,8 +302,8 @@ export class PoolPermissions extends ToolPermissions {
 
   toRulesyncPermissions(): RulesyncPermissions {
     const rulesyncConfig = convertPoolToRulesync({
-      tools: isRecord(this.settings[POOL_TOOLS_KEY]) ? this.settings[POOL_TOOLS_KEY] : {},
-      paths: isRecord(this.settings[POOL_PATHS_KEY]) ? this.settings[POOL_PATHS_KEY] : {},
+      tools: toRecord(this.settings[POOL_TOOLS_KEY]),
+      paths: toRecord(this.settings[POOL_PATHS_KEY]),
     });
 
     // Do not spread the full settings document: Pool's own keys

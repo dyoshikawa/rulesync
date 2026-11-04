@@ -13,7 +13,7 @@ import {
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
-import { isRecord, isStringArray } from "../../utils/type-guards.js";
+import { isRecord, isStringArray, toRecord } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { ALL_TOOLS_PERMISSION_CATEGORY, honorAllToolsOnBash } from "./shell-command-categories.js";
@@ -480,7 +480,7 @@ export class GrokcliPermissions extends ToolPermissions {
     // already selects it: it has no canonical counterpart to derive it from, so
     // overwriting it would silently downgrade the user to `ask` on every
     // `generate --global`.
-    const existingUi = isRecord(parsed[GROKCLI_UI_KEY]) ? parsed[GROKCLI_UI_KEY] : {};
+    const existingUi = toRecord(parsed[GROKCLI_UI_KEY]);
     const uiPatch =
       global && existingUi[GROKCLI_PERMISSION_MODE_KEY] !== GROKCLI_AUTO_PERMISSION_MODE
         ? {
@@ -755,7 +755,7 @@ function parseGrokPermissionArrays(
  * `always-approve` ⇒ `allow`; anything else (including a missing mode) ⇒ `ask`.
  */
 function legacyModeAction(parsed: smolToml.TomlTable): PermissionAction {
-  const ui = isRecord(parsed[GROKCLI_UI_KEY]) ? parsed[GROKCLI_UI_KEY] : {};
+  const ui = toRecord(parsed[GROKCLI_UI_KEY]);
   return ui[GROKCLI_PERMISSION_MODE_KEY] === "always-approve" ? "allow" : "ask";
 }
 

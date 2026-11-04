@@ -12,7 +12,7 @@ import type { Logger } from "../../utils/logger.js";
 import { invertRecord, lookupOwn } from "../../utils/own-lookup.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
-import { isRecord, isStringArray } from "../../utils/type-guards.js";
+import { isRecord, isStringArray, toRecord } from "../../utils/type-guards.js";
 import {
   crushConfigImportContent,
   getCrushConfigSettablePaths,
@@ -278,7 +278,7 @@ export class CrushPermissions extends ToolPermissions {
     const permissions = isRecord(this.json[CRUSH_PERMISSIONS_KEY])
       ? this.json[CRUSH_PERMISSIONS_KEY]
       : {};
-    const options = isRecord(this.json[CRUSH_OPTIONS_KEY]) ? this.json[CRUSH_OPTIONS_KEY] : {};
+    const options = toRecord(this.json[CRUSH_OPTIONS_KEY]);
     const rulesyncConfig = convertCrushListsToRulesync({
       allowed: isStringArray(permissions[CRUSH_ALLOWED_TOOLS_KEY])
         ? permissions[CRUSH_ALLOWED_TOOLS_KEY]

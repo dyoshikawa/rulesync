@@ -11,7 +11,7 @@ import type { Logger } from "../../utils/logger.js";
 import { invertRecord, lookupOwn } from "../../utils/own-lookup.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
-import { isRecord, isStringArray } from "../../utils/type-guards.js";
+import { isStringArray, toRecord } from "../../utils/type-guards.js";
 import { loadYaml } from "../../utils/yaml.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { ALL_TOOLS_PERMISSION_CATEGORY, honorAllToolsOnBash } from "./shell-command-categories.js";
@@ -213,7 +213,7 @@ export class ContinuePermissions extends ToolPermissions {
         { cause: error },
       );
     }
-    const existing = parseContinuePermissionLists(isRecord(parsed) ? parsed : {});
+    const existing = parseContinuePermissionLists(toRecord(parsed));
 
     const config = rulesyncPermissions.getJson();
     const generated = convertRulesyncToContinuePermissions({ config, logger });
@@ -254,7 +254,7 @@ export class ContinuePermissions extends ToolPermissions {
         { cause: error },
       );
     }
-    const lists = parseContinuePermissionLists(isRecord(parsed) ? parsed : {});
+    const lists = parseContinuePermissionLists(toRecord(parsed));
     const rulesyncConfig = convertContinuePermissionsToRulesync(lists);
 
     return this.toRulesyncPermissionsDefault({
