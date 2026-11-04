@@ -21,6 +21,7 @@ import {
 import { warnWithFallback } from "../../utils/logger.js";
 import {
   buildOutputStyleFrontmatter,
+  getOutputStyleRuleOptionWarnings,
   isDirectMarkdownChild,
   isOutputStyleChannel,
   resolveTopLevelOutputStyleStem,
@@ -220,6 +221,15 @@ export class QoderRule extends ToolRule {
       outputStylesDirPath: QODER_OUTPUT_STYLES_DIR_PATH,
       relativeDirPath,
       relativeFilePath,
+    });
+  }
+
+  /** See {@link getOutputStyleRuleOptionWarnings}. */
+  static getRuleOptionWarnings(rules: RulesyncRule[]): string[] {
+    return getOutputStyleRuleOptionWarnings({
+      rules,
+      toolTarget: "qoder",
+      isTargetedByRulesyncRule: (rule) => this.isTargetedByRulesyncRule(rule),
     });
   }
 

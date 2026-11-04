@@ -14,6 +14,7 @@ import { readFileContent } from "../../utils/file.js";
 import { parseFrontmatter, stringifyFrontmatter } from "../../utils/frontmatter.js";
 import {
   buildOutputStyleFrontmatter,
+  getOutputStyleRuleOptionWarnings,
   isDirectMarkdownChild,
   isOutputStyleChannel,
   resolveTopLevelOutputStyleStem,
@@ -265,6 +266,15 @@ export class FactorydroidRule extends ToolRule {
    */
   static isEmittedAsGlobalNonRootRule(rulesyncRule: RulesyncRule): boolean {
     return this.isOutputStyleRule(rulesyncRule);
+  }
+
+  /** See {@link getOutputStyleRuleOptionWarnings}. */
+  static getRuleOptionWarnings(rules: RulesyncRule[]): string[] {
+    return getOutputStyleRuleOptionWarnings({
+      rules,
+      toolTarget: "factorydroid",
+      isTargetedByRulesyncRule: (rule) => this.isTargetedByRulesyncRule(rule),
+    });
   }
 
   /** Whether a rule opts into the `output-style` channel (non-root only). */

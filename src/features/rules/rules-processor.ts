@@ -9,7 +9,6 @@ import {
   RULES_FEATURE_SUBDIR,
   RULESYNC_RULES_RELATIVE_DIR_PATH,
 } from "../../constants/rulesync-paths.js";
-import { WARP_LEGACY_RULE_FILE_NAME } from "../../constants/warp-paths.js";
 import {
   caseFoldIdentity,
   FeatureProcessor,
@@ -20,7 +19,6 @@ import {
 import type { FeatureOptions } from "../../types/features.js";
 import { Language, appendLanguageBlock, stripLanguageBlock } from "../../types/language.js";
 import { RulesyncFile } from "../../types/rulesync-file.js";
-import { TOOL_DISPLAY } from "../../types/tool-display.js";
 import { ToolFile } from "../../types/tool-file.js";
 import { ToolTarget } from "../../types/tool-targets.js";
 import { stripControlCharacters } from "../../utils/control-characters.js";
@@ -47,8 +45,7 @@ import {
   toInstructionBudgetFile,
   findProjectInstructionBudgetFindings,
 } from "./instruction-budget.js";
-import { RovodevRule } from "./rovodev-rule.js";
-import { RulesyncRule } from "./rulesync-rule.js";
+import { RulesyncRule, formatRulePaths } from "./rulesync-rule.js";
 import {
   RulesProcessorToolTarget,
   RulesProcessorToolTargetSchema,
@@ -62,9 +59,6 @@ import { ToolRule, ToolRuleExtraFixedFile } from "./tool-rule.js";
 /** A tool rule's output path relative to its output root, for comparison. */
 const toolOutputPath = (toolRule: ToolRule): string =>
   posix.join(normalizeRelativeDir(toolRule.getRelativeDirPath()), toolRule.getRelativeFilePath());
-
-const formatRulePaths = (rules: RulesyncRule[]): string =>
-  rules.map((r) => join(r.getRelativeDirPath(), r.getRelativeFilePath())).join(", ");
 
 /**
  * The leading `---` frontmatter block (with its closing delimiter line) that
@@ -346,11 +340,13 @@ export class RulesProcessor extends FeatureProcessor {
       (file): file is RulesyncRule => file instanceof RulesyncRule,
     );
 
-    const alignedRules = this.alignPiContextFile(rulesyncRules);
+    const alignedRules = this.alignRulesyncRules(rulesyncRules);
     const factory = this.getFactory(this.toolTarget);
     const { meta } = factory;
     this.warnForIncludeRootOption(meta);
-    this.warnForOutputStyleRuleOptions({ rules: alignedRules, factory });
+    for (const warning of factory.class.getRuleOptionWarnings?.(alignedRules) ?? []) {
+      this.logger.warn(warning);
+    }
     const emittedRules = this.omitsRootFiles()
       ? await this.dropRootRules(alignedRules)
       : alignedRules;
@@ -391,10 +387,28 @@ export class RulesProcessor extends FeatureProcessor {
     const outputFiles = [...toolRules, ...extraFiles];
     this.warnForOutputPathCollisions({ outputFiles, convertedRules });
     await this.warnForDeactivatedImportOnlyRoots({ toolRules, factory });
-    await this.warnForWarpLegacyRootFile(toolRules);
-    this.warnForAugmentcodePluginRules(toolRules);
+    await this.warnForToolGenerationWarnings({ toolRules, factory });
     await this.warnForInstructionBudget({ toolRules, meta });
     return outputFiles;
+  }
+
+  /** Print the tool's own generate warnings (`getGenerationWarnings`). */
+  private async warnForToolGenerationWarnings({
+    toolRules,
+    factory,
+  }: {
+    toolRules: ToolRule[];
+    factory: ToolRuleFactory;
+  }): Promise<void> {
+    const warnings =
+      (await factory.class.getGenerationWarnings?.({
+        toolRules,
+        outputRoot: this.outputRoot,
+        global: this.global,
+      })) ?? [];
+    for (const warning of warnings) {
+      this.logger.warn(warning);
+    }
   }
 
   /**
@@ -600,48 +614,6 @@ export class RulesProcessor extends FeatureProcessor {
       this.logger.warn(
         "The rules option `ruleDiscoveryMode` has no effect with `includeRoot: false` on claudecode: the rule references it adds are written into CLAUDE.md, which is not generated.",
       );
-    }
-  }
-
-  /**
-   * Warn about `factorydroid` / `qoder` frontmatter that does not do what it
-   * looks like it does: an `output-style` rule that also targets other tools
-   * reaches them as an ordinary rule (so presentation instructions end up in
-   * their project rules), and `<tool>.name` is read only with
-   * `channel: output-style`. Checked while generating for that tool only, so
-   * each warning prints once.
-   */
-  private warnForOutputStyleRuleOptions({
-    rules,
-    factory,
-  }: {
-    rules: RulesyncRule[];
-    factory: ToolRuleFactory;
-  }): void {
-    const toolTarget = this.toolTarget;
-    if (toolTarget !== "factorydroid" && toolTarget !== "qoder") {
-      return;
-    }
-    const toolLabel = TOOL_DISPLAY.find((entry) => entry.key === toolTarget)?.label ?? toolTarget;
-    for (const rule of rules) {
-      const frontmatter = rule.getFrontmatter();
-      const section = frontmatter[toolTarget];
-      if (frontmatter.root || !section || !factory.class.isTargetedByRulesyncRule(rule)) {
-        continue;
-      }
-      const { channel, name } = section;
-      const fileName = stripControlCharacters(rule.getRelativeFilePath());
-      const targets = frontmatter.targets ?? ["*"];
-      if (channel === "output-style" && targets.some((target) => target !== toolTarget)) {
-        this.logger.warn(
-          `${fileName} sets ${toolTarget}.channel: output-style but also targets other tools, which receive it as an ordinary rule. Set \`targets: ["${toolTarget}"]\` to keep the output style to ${toolLabel}.`,
-        );
-      }
-      if (channel !== "output-style" && name !== undefined) {
-        this.logger.warn(
-          `${fileName} sets ${toolTarget}.name, which is read only with ${toolTarget}.channel: output-style; ignoring it.`,
-        );
-      }
     }
   }
 
@@ -1016,57 +988,6 @@ export class RulesProcessor extends FeatureProcessor {
     this.logger.warn(
       `Writing ${stripControlCharacters(rootFileRelativePath)} for ${this.toolTarget} means ${listedNames.join(", ")}${remainingCount > 0 ? ` and ${remainingCount} more` : ""} will no longer be read. Run \`rulesync import --targets ${this.toolTarget}\` first to carry that content into ${RULESYNC_RULES_RELATIVE_DIR_PATH}, or delete ${listedNames.length === 1 ? "it" : "them"} once you have checked the content is already in the root file.`,
     );
-  }
-
-  /**
-   * Auggie 1.x (still a prerelease on npm at the time of writing; the stable
-   * line is 0.36.0) no longer loads `rules/` from plugins: "Rules shipped in
-   * plugins (`rules/` in a plugin)" is listed among the removed features, while
-   * commands, agents, skills, hooks and MCP servers still load. The rule files
-   * are still written, because the stable 0.x CLI reads them, but under 1.x the
-   * bundle silently loses them, so say so.
-   * @see https://docs.augmentcode.com/cli/whats-new
-   * @see https://docs.augmentcode.com/cli/v0/plugins
-   */
-  private warnForAugmentcodePluginRules(toolRules: ToolRule[]): void {
-    if (this.toolTarget !== "augmentcode-plugin" || toolRules.length === 0) {
-      return;
-    }
-    this.logger.warn(
-      `augmentcode-plugin: plugin rules (rules/*.md) are loaded by Auggie 0.x only; Auggie 1.x no longer reads rules/ from plugins, so these ${toolRules.length} rule file(s) have no effect there. Ship instructions that must reach Auggie 1.x users as a skill, or have them generate the augmentcode target in their project.`,
-    );
-  }
-
-  /**
-   * Warp still reads a legacy `WARP.md`, and when both `WARP.md` and
-   * `AGENTS.md` sit in the same directory, `WARP.md` takes priority — so an
-   * `AGENTS.md` this run writes next to one would never be read. That holds for
-   * the root file and for every nested `<subprojectPath>/AGENTS.md` alike.
-   * Rulesync neither writes nor deletes `WARP.md` (it is hand-authored), so the
-   * only thing it can do is say so. Project scope only: the documented
-   * precedence is about project rules, and Warp's global rule source is
-   * `~/.agents/AGENTS.md`.
-   * @see https://docs.warp.dev/agents/capabilities/rules/
-   */
-  private async warnForWarpLegacyRootFile(toolRules: ToolRule[]): Promise<void> {
-    if (this.toolTarget !== "warp" || this.global) {
-      return;
-    }
-    const rulePathsByDir = new Map(
-      toolRules.map((rule) => [
-        rule.getRelativeDirPath(),
-        join(rule.getRelativeDirPath(), rule.getRelativeFilePath()),
-      ]),
-    );
-    for (const [ruleDirPath, rulesRelativePath] of rulePathsByDir) {
-      const legacyRelativePath = join(ruleDirPath, WARP_LEGACY_RULE_FILE_NAME);
-      if (!(await fileExists(join(this.outputRoot, legacyRelativePath)))) {
-        continue;
-      }
-      this.logger.warn(
-        `${stripControlCharacters(legacyRelativePath)} exists next to ${stripControlCharacters(rulesRelativePath)}, and Warp reads WARP.md instead of AGENTS.md when both are present, so the generated ${stripControlCharacters(rulesRelativePath)} is ignored by Warp. Move any content you still need into ${RULESYNC_RULES_RELATIVE_DIR_PATH}, then delete or rename ${stripControlCharacters(legacyRelativePath)}.`,
-      );
-    }
   }
 
   /**
@@ -1521,64 +1442,21 @@ As this project's AI coding tool, you must follow the additional conventions bel
   }
 
   /**
-   * Pi reads `AGENTS.override.md` *instead of* `AGENTS.md` from a directory, and
-   * non-root Pi rules are folded into whichever file the root emits. A mix of
-   * opted-in and opted-out rules would therefore split the output across both
-   * files and let Pi silently ignore everything in `AGENTS.md`, so the root rule
-   * decides for all of them: its `pi.contextFile` is copied onto the non-root
-   * rules, and the flag set only on a non-root rule is dropped with a warning.
+   * Align the rules with each other through the tool's `alignRulesyncRules`
+   * hook, printing its warnings unless `warn` is off.
    */
-  private alignPiContextFile(
+  private alignRulesyncRules(
     rules: RulesyncRule[],
     { warn = true }: { warn?: boolean } = {},
   ): RulesyncRule[] {
-    if (this.toolTarget !== "pi") return rules;
-
-    const factory = this.getFactory(this.toolTarget);
-    const targeted = rules.filter((rule) => factory.class.isTargetedByRulesyncRule(rule));
-    // Any root rule opting in decides for the whole output: with several root
-    // rules, honoring only one of them would leave the others in the file Pi
-    // stops reading.
-    const rootContextFile = targeted.some(
-      (rule) =>
-        rule.getFrontmatter().root === true && rule.getFrontmatter().pi?.contextFile === "override",
-    )
-      ? ("override" as const)
-      : undefined;
-    const mismatched = targeted.filter(
-      (rule) => rule.getFrontmatter().pi?.contextFile !== rootContextFile,
-    );
-    if (mismatched.length === 0) return rules;
-
-    if (warn && rootContextFile === undefined) {
-      this.logger.warn(
-        `pi.contextFile is set on ${mismatched.length} non-root rule(s) but not on the root rule, ` +
-          `so it is ignored: Pi folds every rule body into the root context file, and emitting ` +
-          `AGENTS.override.md for some of them would hide the rest. Set it on the root rule ` +
-          `instead: ${formatRulePaths(mismatched)}`,
-      );
+    const aligned = this.getFactory(this.toolTarget).class.alignRulesyncRules?.(rules);
+    if (!aligned) return rules;
+    if (warn) {
+      for (const warning of aligned.warnings) {
+        this.logger.warn(warning);
+      }
     }
-
-    const mismatchedSet = new Set(mismatched);
-    return rules.map((rule) => {
-      if (!mismatchedSet.has(rule)) return rule;
-      const frontmatter = rule.getFrontmatter();
-      const { contextFile: _dropped, ...pi } = frontmatter.pi ?? {};
-      const nextPi = { ...pi, ...(rootContextFile ? { contextFile: rootContextFile } : {}) };
-      return new RulesyncRule({
-        outputRoot: rule.getOutputRoot(),
-        relativeDirPath: rule.getRelativeDirPath(),
-        relativeFilePath: rule.getRelativeFilePath(),
-        frontmatter: {
-          ...frontmatter,
-          ...(Object.keys(nextPi).length > 0 ? { pi: nextPi } : { pi: undefined }),
-        },
-        body: rule.getBody(),
-        // The source rule was already parsed under its own validate setting;
-        // only the pi block changes here.
-        validate: false,
-      });
-    });
+    return aligned.rules;
   }
 
   /**
@@ -1628,7 +1506,7 @@ As this project's AI coding tool, you must follow the additional conventions bel
     // Resolve placement the way generate does: Pi's non-root rules follow the
     // root rule's `pi.contextFile` (aligned silently here, since the mismatch
     // warning belongs to generate).
-    const mergedRules = this.alignPiContextFile(await this.loadMergedRulesyncRules(), {
+    const mergedRules = this.alignRulesyncRules(await this.loadMergedRulesyncRules(), {
       warn: false,
     });
     const targetedRules = mergedRules.filter((rule) =>
@@ -2153,24 +2031,22 @@ As this project's AI coding tool, you must follow the additional conventions bel
             ? settablePaths.root?.relativeFilePath
             : undefined;
 
-        const nonRootPathsForImport = (
-          factory.class === RovodevRule
-            ? nonRootFilePaths.filter((filePath) => {
-                const relativeFilePath = relative(nonRootOutputRoot, filePath);
-                const ok = RovodevRule.isAllowedModularRulesRelativePath(relativeFilePath);
-                if (!ok) {
-                  this.logger.warn(
-                    `Skipping reserved Rovodev path under modular-rules (import): ${join(modularRootRelative, relativeFilePath)}`,
-                  );
-                }
-                return ok;
-              })
-            : nonRootFilePaths
-        ).filter(
-          (filePath) =>
-            rootFileNameInSameDir === undefined ||
-            relative(nonRootOutputRoot, filePath) !== rootFileNameInSameDir,
-        );
+        const nonRootPathsForImport = nonRootFilePaths
+          .filter((filePath) => {
+            const warning = factory.class.getNonRootImportSkipWarning?.({
+              relativeFilePath: relative(nonRootOutputRoot, filePath),
+              nonRootRelativeDirPath: modularRootRelative,
+            });
+            if (warning !== undefined) {
+              this.logger.warn(warning);
+            }
+            return warning === undefined;
+          })
+          .filter(
+            (filePath) =>
+              rootFileNameInSameDir === undefined ||
+              relative(nonRootOutputRoot, filePath) !== rootFileNameInSameDir,
+          );
 
         const loadedNonRootRules = await Promise.all(
           nonRootPathsForImport.map(async (filePath) => {

@@ -217,6 +217,39 @@ export type ToolRuleFactory = {
      * wrote. See {@link AgentsMdRule.getNestedFilePatterns}.
      */
     getNestedFilePatterns?(): ToolRuleNestedFilePatterns;
+    /**
+     * Align the targeted rulesync rules with each other before conversion, when
+     * one rule's frontmatter decides for the others (Pi's `pi.contextFile`).
+     * Returns the aligned rules and the warnings generate prints about the
+     * change. See {@link PiRule.alignRulesyncRules}.
+     */
+    alignRulesyncRules?(rules: RulesyncRule[]): { rules: RulesyncRule[]; warnings: string[] };
+    /**
+     * Warnings about rule frontmatter that does not do what it looks like it
+     * does for this tool, checked while generating for this tool only. See
+     * {@link QoderRule.getRuleOptionWarnings}.
+     */
+    getRuleOptionWarnings?(rules: RulesyncRule[]): string[];
+    /**
+     * Warnings about the generated tool rules that only this tool needs, printed
+     * after the shared generate warnings and before the instruction budget
+     * check. See {@link WarpRule.getGenerationWarnings}.
+     */
+    getGenerationWarnings?(params: {
+      toolRules: ToolRule[];
+      outputRoot: string;
+      global: boolean;
+    }): Promise<string[]>;
+    /**
+     * The warning for a discovered non-root file that import skips because the
+     * tool reserves its path, or `undefined` to import it. `relativeFilePath`
+     * is relative to the non-root directory. See
+     * {@link RovodevRule.getNonRootImportSkipWarning}.
+     */
+    getNonRootImportSkipWarning?(params: {
+      relativeFilePath: string;
+      nonRootRelativeDirPath: string;
+    }): string | undefined;
   };
   meta: {
     /** File extension for the rule file */
