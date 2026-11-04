@@ -19,10 +19,12 @@ import type { Logger } from "../../utils/logger.js";
 import { isRecord } from "../../utils/type-guards.js";
 import {
   findKiloMcpToolKeyOwner,
-  kiloMcpToolPermissionKey,
   kiloPermissionToToolFilter,
 } from "../shared/kilo-mcp-tool-keys.js";
-import { isBareOpencodeMcpServerPrefix } from "../shared/opencode-family-mcp-tool-keys.js";
+import {
+  isBareOpencodeMcpServerPrefix,
+  opencodeMcpToolPermissionKey,
+} from "../shared/opencode-family-mcp-tool-keys.js";
 import {
   applySharedConfigPatch,
   sharedConfigFileKey,
@@ -349,7 +351,7 @@ function collectKiloServerToolPermissions(
   serverConfig: McpServerConfig,
 ): void {
   for (const tool of serverConfig.enabledTools ?? []) {
-    const key = kiloMcpToolPermissionKey(serverName, tool);
+    const key = opencodeMcpToolPermissionKey(serverName, tool);
     // Two servers can sanitize to the same key (`a.b` and `a_b`); a deny
     // another server already wrote must not be lifted by this allow.
     if (permission[key] !== "deny") {
@@ -357,7 +359,7 @@ function collectKiloServerToolPermissions(
     }
   }
   for (const tool of serverConfig.disabledTools ?? []) {
-    permission[kiloMcpToolPermissionKey(serverName, tool)] = "deny";
+    permission[opencodeMcpToolPermissionKey(serverName, tool)] = "deny";
   }
 }
 
@@ -619,7 +621,7 @@ function buildKiloMcpPermissionPatch({
         return (
           enabled === false &&
           owner !== undefined &&
-          toolPermissions[kiloMcpToolPermissionKey(owner.serverName, owner.toolName)] !== "deny"
+          toolPermissions[opencodeMcpToolPermissionKey(owner.serverName, owner.toolName)] !== "deny"
         );
       })
       .map(([key]) => key),
