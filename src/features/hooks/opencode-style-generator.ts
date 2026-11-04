@@ -278,7 +278,7 @@ function buildGenericEventBodyLines(genericEventHandlers: HandlerGroup): string[
   return bodyLines;
 }
 
-function stdinPayloadVariable(stdinEvent: string): string {
+export function stdinPayloadVariable(stdinEvent: string): string {
   return `__rulesync${stdinEvent}Input`;
 }
 
@@ -287,7 +287,7 @@ function stdinPayloadVariable(stdinEvent: string): string {
  * pipes the payload in and hands the result to the deny-aware helper; every
  * other handler keeps Bun Shell's default mode, where a non-zero exit throws.
  */
-function buildRunStatement(handler: Handler): string {
+export function buildRunStatement(handler: { command: string; stdinEvent?: string }): string {
   const escapedCommand = escapeForTemplateLiteral(handler.command);
   if (handler.stdinEvent) {
     const payload = stdinPayloadVariable(handler.stdinEvent);
