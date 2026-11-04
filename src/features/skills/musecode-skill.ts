@@ -5,7 +5,6 @@ import {
   MUSECODE_GLOBAL_SKILLS_DIR_PATH,
   MUSECODE_SKILLS_DIR_PATH,
 } from "../../constants/musecode-paths.js";
-import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { toSpecConformantAgentSkillFields } from "./agentsskills-skill.js";
 import {
@@ -147,16 +146,7 @@ export class MusecodeSkill extends ToolSkill {
       ...(Object.keys(musecodeSection).length > 0 && { musecode: musecodeSection }),
     };
 
-    return new RulesyncSkill({
-      outputRoot: this.outputRoot,
-      relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
-      dirName: this.getDirName(),
-      frontmatter: rulesyncFrontmatter,
-      body: this.getBody(),
-      otherFiles: this.getOtherFiles(),
-      validate: true,
-      global: this.global,
-    });
+    return this.toRulesyncSkillWith(rulesyncFrontmatter);
   }
 
   static fromRulesyncSkill({

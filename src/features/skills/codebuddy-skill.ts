@@ -2,7 +2,6 @@ import { z } from "zod/mini";
 
 import { CODEBUDDY_SKILLS_DIR_PATH } from "../../constants/codebuddy-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
-import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import { resolveDisableModelInvocation, resolveUserInvocable } from "./skills-utils.js";
@@ -119,16 +118,7 @@ export class CodebuddySkill extends ToolSkill {
       ...(Object.keys(codebuddySection).length > 0 && { codebuddy: codebuddySection }),
     };
 
-    return new RulesyncSkill({
-      outputRoot: this.outputRoot,
-      relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
-      dirName: this.getDirName(),
-      frontmatter: rulesyncFrontmatter,
-      body: this.getBody(),
-      otherFiles: this.getOtherFiles(),
-      validate: true,
-      global: this.global,
-    });
+    return this.toRulesyncSkillWith(rulesyncFrontmatter);
   }
 
   static fromRulesyncSkill({

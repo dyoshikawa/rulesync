@@ -2,7 +2,6 @@ import { z } from "zod/mini";
 
 import { CRUSH_SKILLS_GLOBAL_DIR, CRUSH_SKILLS_PROJECT_DIR } from "../../constants/crush-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
-import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { toCompatibilityString, toStringMetadata } from "./agentsskills-skill.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
@@ -144,16 +143,7 @@ export class CrushSkill extends ToolSkill {
       ...(Object.keys(crushSection).length > 0 && { crush: crushSection }),
     };
 
-    return new RulesyncSkill({
-      outputRoot: this.outputRoot,
-      relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
-      dirName: this.getDirName(),
-      frontmatter: rulesyncFrontmatter,
-      body: this.getBody(),
-      otherFiles: this.getOtherFiles(),
-      validate: true,
-      global: this.global,
-    });
+    return this.toRulesyncSkillWith(rulesyncFrontmatter);
   }
 
   static fromRulesyncSkill({

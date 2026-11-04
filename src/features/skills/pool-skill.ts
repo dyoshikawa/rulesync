@@ -4,7 +4,6 @@ import { z } from "zod/mini";
 
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { POOL_GLOBAL_SKILLS_DIR_PATH, POOL_SKILLS_DIR_PATH } from "../../constants/pool-paths.js";
-import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { quoteForLog, stripControlCharacters } from "../../utils/control-characters.js";
 import { toPosixPath } from "../../utils/file.js";
@@ -112,16 +111,7 @@ export class PoolSkill extends ToolSkill {
       targets: ["*"],
     };
 
-    return new RulesyncSkill({
-      outputRoot: this.outputRoot,
-      relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
-      dirName: this.getDirName(),
-      frontmatter: rulesyncFrontmatter,
-      body: this.getBody(),
-      otherFiles: this.getOtherFiles(),
-      validate: true,
-      global: this.global,
-    });
+    return this.toRulesyncSkillWith(rulesyncFrontmatter);
   }
 
   static fromRulesyncSkill({

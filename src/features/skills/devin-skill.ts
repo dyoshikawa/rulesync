@@ -5,7 +5,6 @@ import {
   DEVIN_SKILLS_DIR_PATH,
 } from "../../constants/devin-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
-import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { ToolTarget } from "../../types/tool-targets.js";
 import { rulesyncCommandSlugExists } from "../commands/command-skill-ownership.js";
@@ -181,16 +180,7 @@ export class DevinSkill extends ToolSkill {
       ...(Object.keys(devinSection).length > 0 && { devin: devinSection }),
     };
 
-    return new RulesyncSkill({
-      outputRoot: this.outputRoot,
-      relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
-      dirName: this.getDirName(),
-      frontmatter: rulesyncFrontmatter,
-      body: this.getBody(),
-      otherFiles: this.getOtherFiles(),
-      validate: true,
-      global: this.global,
-    });
+    return this.toRulesyncSkillWith(rulesyncFrontmatter);
   }
 
   static fromRulesyncSkill({

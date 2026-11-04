@@ -5,6 +5,7 @@ import { z } from "zod/mini";
 import { AGENTSMD_SKILLS_DIR_PATH } from "../../constants/agentsmd-paths.js";
 import { AMP_SKILLS_GLOBAL_DIR, AMP_SKILLS_NATIVE_GLOBAL_DIR } from "../../constants/amp-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
+import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { AiDir, ValidationResult } from "../../types/ai-dir.js";
 import { isTargetedByTargets, ToolTarget } from "../../types/tool-targets.js";
 import { stripControlCharacters } from "../../utils/control-characters.js";
@@ -12,7 +13,7 @@ import { formatError } from "../../utils/error.js";
 import { fileExists, readFileContent, toPosixPath } from "../../utils/file.js";
 import { parseFrontmatterWithYamlRepair } from "../../utils/frontmatter.js";
 import { type Logger, warnOnceWithFallback } from "../../utils/logger.js";
-import { RulesyncSkill, SkillFile } from "./rulesync-skill.js";
+import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 
 export type ToolSkillFromRulesyncSkillParams = {
   outputRoot?: string;
@@ -259,6 +260,24 @@ export abstract class ToolSkill extends AiDir {
    * declare it rather than rely on its parent's.
    */
   protected static readonly toolTarget: ToolTarget | undefined = undefined;
+
+  /**
+   * The common `toRulesyncSkill` tail: a RulesyncSkill in the rulesync skills
+   * directory that carries this skill's directory name, body and other files
+   * with the given frontmatter.
+   */
+  protected toRulesyncSkillWith(frontmatter: RulesyncSkillFrontmatterInput): RulesyncSkill {
+    return new RulesyncSkill({
+      outputRoot: this.outputRoot,
+      relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+      dirName: this.getDirName(),
+      frontmatter,
+      body: this.getBody(),
+      otherFiles: this.getOtherFiles(),
+      validate: true,
+      global: this.global,
+    });
+  }
 
   /**
    * Check if this tool is targeted by a RulesyncSkill.

@@ -5,7 +5,6 @@ import {
   ROVODEV_AGENTS_SKILLS_DIR_PATH,
   ROVODEV_SKILLS_DIR_PATH,
 } from "../../constants/rovodev-paths.js";
-import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import { resolveCompatibility, resolveLicense, resolveMetadata } from "./skills-utils.js";
@@ -121,16 +120,7 @@ export class RovodevSkill extends ToolSkill {
       ...(Object.keys(rovodevSection).length > 0 && { rovodev: rovodevSection }),
     };
 
-    return new RulesyncSkill({
-      outputRoot: this.outputRoot,
-      relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
-      dirName: this.getDirName(),
-      frontmatter: rulesyncFrontmatter,
-      body: this.getBody(),
-      otherFiles: this.getOtherFiles(),
-      validate: true,
-      global: this.global,
-    });
+    return this.toRulesyncSkillWith(rulesyncFrontmatter);
   }
 
   static fromRulesyncSkill({

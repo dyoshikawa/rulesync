@@ -5,7 +5,6 @@ import {
   LETTACODE_GLOBAL_SKILLS_DIR_PATH,
   LETTACODE_PROJECT_SKILLS_DIR_PATH,
 } from "../../constants/lettacode-paths.js";
-import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import { resolveDisableModelInvocation, resolveUserInvocable } from "./skills-utils.js";
@@ -110,16 +109,7 @@ export class LettacodeSkill extends ToolSkill {
       ...(Object.keys(rest).length > 0 && { lettacode: rest }),
     };
 
-    return new RulesyncSkill({
-      outputRoot: this.outputRoot,
-      relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
-      dirName: this.getDirName(),
-      frontmatter: rulesyncFrontmatter,
-      body: this.getBody(),
-      otherFiles: this.getOtherFiles(),
-      validate: true,
-      global: this.global,
-    });
+    return this.toRulesyncSkillWith(rulesyncFrontmatter);
   }
 
   static fromRulesyncSkill({

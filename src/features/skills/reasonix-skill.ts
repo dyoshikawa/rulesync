@@ -8,7 +8,6 @@ import {
   REASONIX_SKILLS_DIR_PATH,
   REASONIX_SUBAGENT_RUN_AS,
 } from "../../constants/reasonix-paths.js";
-import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { readFileContent } from "../../utils/file.js";
 import { parseFrontmatterWithYamlRepair } from "../../utils/frontmatter.js";
@@ -155,16 +154,7 @@ export class ReasonixSkill extends ToolSkill {
       ...(Object.keys(reasonixSection).length > 0 && { reasonix: reasonixSection }),
     };
 
-    return new RulesyncSkill({
-      outputRoot: this.outputRoot,
-      relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
-      dirName: this.getDirName(),
-      frontmatter: rulesyncFrontmatter,
-      body: this.getBody(),
-      otherFiles: this.getOtherFiles(),
-      validate: true,
-      global: this.global,
-    });
+    return this.toRulesyncSkillWith(rulesyncFrontmatter);
   }
 
   static fromRulesyncSkill({
