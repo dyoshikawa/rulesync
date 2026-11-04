@@ -421,16 +421,8 @@ function buildSuccessResponse(params: {
   };
 }
 
-const generateToolSchemas = {
-  executeGenerate: generateOptionsSchema,
-};
-
 export const generateTools = {
   executeGenerate: {
-    name: "executeGenerate",
-    description:
-      "Execute the rulesync generate command to create output files for AI tools. Uses rulesync.jsonc settings by default, but options can override them. Accepts the CLI's options (dryRun, check, retireTargets, outputRoots, inputRoots, inputRoot, configPath, ...) except watch/verbose/silent; path options must stay inside the project directory. With check or dryRun nothing is written, and 'upToDate' plus 'plan' report what a real run would change. Idempotent: only files whose content changed are written, so a totalCount of 0 means the outputs are already up to date (a successful no-op), not a failure. See the 'message' field for a human-readable summary. A 'warnings' array of strings is present, on success and on failure alike, when the run had something worth acting on to report.",
-    parameters: generateToolSchemas.executeGenerate,
     execute: async (options: GenerateOptions = {}): Promise<string> => {
       const result = await executeGenerate(options);
       return JSON.stringify(result, null, 2);

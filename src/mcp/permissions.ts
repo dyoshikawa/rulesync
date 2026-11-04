@@ -6,7 +6,6 @@ import { createJsoncSourceFileTools } from "./jsonc-source-file-tools.js";
  * Tool definitions for permissions-related operations
  */
 export const permissionsTools = createJsoncSourceFileTools({
-  toolNameSuffix: "Permissions",
   label: "permissions",
   sizeLabel: "Permissions",
   relativeFilePath: RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH,

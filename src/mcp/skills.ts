@@ -1,14 +1,8 @@
 import { basename, dirname, join } from "node:path";
 
-import { z } from "zod/mini";
-
 import { SKILL_FILE_NAME } from "../constants/general.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
-import {
-  RulesyncSkill,
-  type RulesyncSkillFrontmatter,
-  RulesyncSkillFrontmatterSchema,
-} from "../features/skills/rulesync-skill.js";
+import { RulesyncSkill, type RulesyncSkillFrontmatter } from "../features/skills/rulesync-skill.js";
 import { AiDirFile } from "../types/ai-dir.js";
 import { stripControlCharacters } from "../utils/control-characters.js";
 import { formatError } from "../utils/error.js";
@@ -408,41 +402,10 @@ async function deleteSkill({
 }
 
 /**
- * Schema for other files in a skill directory
- */
-const McpSkillFileSchema = z.object({
-  name: z.string(),
-  body: z.string(),
-  encoding: z.optional(z.enum(["utf-8", "base64"])),
-});
-
-/**
- * Schema for skill-related tool parameters
- */
-const skillToolSchemas = {
-  listSkills: z.object({}),
-  getSkill: z.object({
-    relativeDirPathFromCwd: z.string(),
-  }),
-  putSkill: z.object({
-    relativeDirPathFromCwd: z.string(),
-    frontmatter: RulesyncSkillFrontmatterSchema,
-    body: z.string(),
-    otherFiles: z.optional(z.array(McpSkillFileSchema)),
-  }),
-  deleteSkill: z.object({
-    relativeDirPathFromCwd: z.string(),
-  }),
-} as const;
-
-/**
  * Tool definitions for skill-related operations
  */
 export const skillTools = {
   listSkills: {
-    name: "listSkills",
-    description: `List all skills from ${join(RULESYNC_SKILLS_RELATIVE_DIR_PATH, "*", SKILL_FILE_NAME)} with their frontmatter.`,
-    parameters: skillToolSchemas.listSkills,
     execute: async () => {
       const skills = await listSkills();
       const output = { skills };
@@ -450,20 +413,12 @@ export const skillTools = {
     },
   },
   getSkill: {
-    name: "getSkill",
-    description:
-      'Get detailed information about a specific skill including SKILL.md content and other files. relativeDirPathFromCwd parameter is required. Each other file carries an encoding field: "utf-8" for text files and "base64" for binary files.',
-    parameters: skillToolSchemas.getSkill,
     execute: async (args: { relativeDirPathFromCwd: string }) => {
       const result = await getSkill({ relativeDirPathFromCwd: args.relativeDirPathFromCwd });
       return JSON.stringify(result, null, 2);
     },
   },
   putSkill: {
-    name: "putSkill",
-    description:
-      'Create or update a skill (upsert operation). relativeDirPathFromCwd, frontmatter, and body parameters are required. otherFiles is optional; each other file may set encoding to "base64" for binary content (defaults to "utf-8").',
-    parameters: skillToolSchemas.putSkill,
     execute: async (args: {
       relativeDirPathFromCwd: string;
       frontmatter: RulesyncSkillFrontmatter;
@@ -480,10 +435,6 @@ export const skillTools = {
     },
   },
   deleteSkill: {
-    name: "deleteSkill",
-    description:
-      "Delete a skill directory and all its contents. relativeDirPathFromCwd parameter is required.",
-    parameters: skillToolSchemas.deleteSkill,
     execute: async (args: { relativeDirPathFromCwd: string }) => {
       const result = await deleteSkill({ relativeDirPathFromCwd: args.relativeDirPathFromCwd });
       return JSON.stringify(result, null, 2);

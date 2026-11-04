@@ -1,12 +1,9 @@
 import { dirname, join, relative, resolve } from "node:path";
 
-import { z } from "zod/mini";
-
 import { RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import {
   RulesyncSubagent,
   type RulesyncSubagentFrontmatter,
-  RulesyncSubagentFrontmatterSchema,
 } from "../features/subagents/rulesync-subagent.js";
 import { formatError } from "../utils/error.js";
 import {
@@ -270,31 +267,10 @@ async function deleteSubagent({ relativePathFromCwd }: { relativePathFromCwd: st
 }
 
 /**
- * Schema for subagent-related tool parameters
- */
-const subagentToolSchemas = {
-  listSubagents: z.object({}),
-  getSubagent: z.object({
-    relativePathFromCwd: z.string(),
-  }),
-  putSubagent: z.object({
-    relativePathFromCwd: z.string(),
-    frontmatter: RulesyncSubagentFrontmatterSchema,
-    body: z.string(),
-  }),
-  deleteSubagent: z.object({
-    relativePathFromCwd: z.string(),
-  }),
-} as const;
-
-/**
  * Tool definitions for subagent-related operations
  */
 export const subagentTools = {
   listSubagents: {
-    name: "listSubagents",
-    description: `List all subagents from ${join(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, "**/*.md")} with their frontmatter.`,
-    parameters: subagentToolSchemas.listSubagents,
     execute: async () => {
       const subagents = await listSubagents();
       const output = { subagents };
@@ -302,20 +278,12 @@ export const subagentTools = {
     },
   },
   getSubagent: {
-    name: "getSubagent",
-    description:
-      "Get detailed information about a specific subagent. relativePathFromCwd parameter is required.",
-    parameters: subagentToolSchemas.getSubagent,
     execute: async (args: { relativePathFromCwd: string }) => {
       const result = await getSubagent({ relativePathFromCwd: args.relativePathFromCwd });
       return JSON.stringify(result, null, 2);
     },
   },
   putSubagent: {
-    name: "putSubagent",
-    description:
-      "Create or update a subagent (upsert operation). relativePathFromCwd, frontmatter, and body parameters are required.",
-    parameters: subagentToolSchemas.putSubagent,
     execute: async (args: {
       relativePathFromCwd: string;
       frontmatter: RulesyncSubagentFrontmatter;
@@ -330,9 +298,6 @@ export const subagentTools = {
     },
   },
   deleteSubagent: {
-    name: "deleteSubagent",
-    description: "Delete a subagent file. relativePathFromCwd parameter is required.",
-    parameters: subagentToolSchemas.deleteSubagent,
     execute: async (args: { relativePathFromCwd: string }) => {
       const result = await deleteSubagent({ relativePathFromCwd: args.relativePathFromCwd });
       return JSON.stringify(result, null, 2);

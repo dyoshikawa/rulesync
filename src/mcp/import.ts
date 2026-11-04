@@ -163,16 +163,8 @@ function buildSuccessResponse(params: {
   };
 }
 
-const importToolSchemas = {
-  executeImport: importOptionsSchema,
-};
-
 export const importTools = {
   executeImport: {
-    name: "executeImport",
-    description:
-      "Execute the rulesync import command to import configuration files from an AI tool into .rulesync directory. Requires exactly one tool to import from, given as 'target' or as a one-element 'targets' list (not both). 'outputRoot' (inside the project directory) selects where the tool configuration is read from. A 'warnings' array of strings is present, on success and on failure alike, when the run had something worth acting on to report.",
-    parameters: importToolSchemas.executeImport,
     execute: async (options: ImportOptions): Promise<string> => {
       const result = await executeImport(options);
       return JSON.stringify(result, null, 2);

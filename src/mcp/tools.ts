@@ -393,44 +393,44 @@ function executeIgnore(parsed: RulesyncToolArgs) {
 
 function executeMcp(parsed: RulesyncToolArgs) {
   if (parsed.operation === "get") {
-    return mcpTools.getMcpFile.execute();
+    return mcpTools.getFile.execute();
   }
 
   if (parsed.operation === "put") {
-    return mcpTools.putMcpFile.execute({
+    return mcpTools.putFile.execute({
       content: requireContent({ content: parsed.content, feature: "mcp" }),
     });
   }
 
-  return mcpTools.deleteMcpFile.execute();
+  return mcpTools.deleteFile.execute();
 }
 
 function executePermissions(parsed: RulesyncToolArgs) {
   if (parsed.operation === "get") {
-    return permissionsTools.getPermissionsFile.execute();
+    return permissionsTools.getFile.execute();
   }
 
   if (parsed.operation === "put") {
-    return permissionsTools.putPermissionsFile.execute({
+    return permissionsTools.putFile.execute({
       content: requireContent({ content: parsed.content, feature: "permissions" }),
     });
   }
 
-  return permissionsTools.deletePermissionsFile.execute();
+  return permissionsTools.deleteFile.execute();
 }
 
 function executeHooks(parsed: RulesyncToolArgs) {
   if (parsed.operation === "get") {
-    return hooksTools.getHooksFile.execute();
+    return hooksTools.getFile.execute();
   }
 
   if (parsed.operation === "put") {
-    return hooksTools.putHooksFile.execute({
+    return hooksTools.putFile.execute({
       content: requireContent({ content: parsed.content, feature: "hooks" }),
     });
   }
 
-  return hooksTools.deleteHooksFile.execute();
+  return hooksTools.deleteFile.execute();
 }
 
 function executeGenerate(parsed: RulesyncToolArgs) {

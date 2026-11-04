@@ -21,9 +21,6 @@ export async function executeInit(): Promise<McpCommandResult> {
 
 export const initTools = {
   executeInit: {
-    name: "executeInit",
-    description:
-      "Execute the rulesync init command to scaffold rulesync.jsonc and sample .rulesync/ files in the project. Existing files are kept.",
     execute: async (): Promise<string> => stringifyResult(await executeInit()),
   },
 };

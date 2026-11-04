@@ -45,7 +45,7 @@ describe("Permissions Tools", () => {
         JSON.stringify(permissionsConfig, null, 2),
       );
 
-      const result = await permissionsTools.getPermissionsFile.execute();
+      const result = await permissionsTools.getFile.execute();
       const parsed = JSON.parse(result);
 
       expect(parsed.relativePathFromCwd).toBe(RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH);
@@ -57,7 +57,7 @@ describe("Permissions Tools", () => {
       const rulesyncDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
       await ensureDir(rulesyncDir);
 
-      await expect(permissionsTools.getPermissionsFile.execute()).rejects.toThrow();
+      await expect(permissionsTools.getFile.execute()).rejects.toThrow();
     });
   });
 
@@ -74,7 +74,7 @@ describe("Permissions Tools", () => {
         },
       };
 
-      const result = await permissionsTools.putPermissionsFile.execute({
+      const result = await permissionsTools.putFile.execute({
         content: JSON.stringify(permissionsConfig, null, 2),
       });
       const parsed = JSON.parse(result);
@@ -84,7 +84,7 @@ describe("Permissions Tools", () => {
       expect(contentParsed.permission.bash["*"]).toBe("ask");
 
       // Verify round-trip via get
-      const getResult = await permissionsTools.getPermissionsFile.execute();
+      const getResult = await permissionsTools.getFile.execute();
       const getParsed = JSON.parse(getResult);
       const getContentParsed = JSON.parse(getParsed.content);
       expect(getContentParsed.permission.bash["*"]).toBe("ask");
@@ -95,7 +95,7 @@ describe("Permissions Tools", () => {
       await ensureDir(rulesyncDir);
 
       await expect(
-        permissionsTools.putPermissionsFile.execute({
+        permissionsTools.putFile.execute({
           content: "not valid json {{{",
         }),
       ).rejects.toThrow(/Invalid JSONC format/i);
@@ -115,7 +115,7 @@ describe("Permissions Tools", () => {
       });
 
       await expect(
-        permissionsTools.putPermissionsFile.execute({
+        permissionsTools.putFile.execute({
           content: largeContent,
         }),
       ).rejects.toThrow(/exceeds maximum/i);
@@ -131,7 +131,7 @@ describe("Permissions Tools", () => {
         '{ "permission": { /* comment */ "bash": { "git *": "allow", } } }',
       );
 
-      const result = await permissionsTools.getPermissionsFile.execute();
+      const result = await permissionsTools.getFile.execute();
       const parsed = JSON.parse(result);
 
       expect(parsed.relativePathFromCwd).toBe(
@@ -145,13 +145,13 @@ describe("Permissions Tools", () => {
       await ensureDir(rulesyncDir);
       await writeFileContent(join(rulesyncDir, "permissions.jsonc"), '{ "permission": {} }');
 
-      const result = await permissionsTools.putPermissionsFile.execute({
+      const result = await permissionsTools.putFile.execute({
         content:
           '{ // JSONC remains accepted\n "permission": { "bash": { "git status": "allow", }, }, }',
       });
 
       expect(JSON.parse(result).relativePathFromCwd).toBe(RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH);
-      expect(await permissionsTools.getPermissionsFile.execute()).toContain("git status");
+      expect(await permissionsTools.getFile.execute()).toContain("git status");
     });
 
     it("should delete the permissions.jsonc variant too", async () => {
@@ -159,9 +159,9 @@ describe("Permissions Tools", () => {
       await ensureDir(rulesyncDir);
       await writeFileContent(join(rulesyncDir, "permissions.jsonc"), '{ "permission": {} }');
 
-      await permissionsTools.deletePermissionsFile.execute();
+      await permissionsTools.deleteFile.execute();
 
-      await expect(permissionsTools.getPermissionsFile.execute()).rejects.toThrow();
+      await expect(permissionsTools.getFile.execute()).rejects.toThrow();
     });
   });
 
@@ -184,10 +184,10 @@ describe("Permissions Tools", () => {
       );
 
       // Verify it exists
-      await expect(permissionsTools.getPermissionsFile.execute()).resolves.toBeDefined();
+      await expect(permissionsTools.getFile.execute()).resolves.toBeDefined();
 
       // Delete it
-      const result = await permissionsTools.deletePermissionsFile.execute();
+      const result = await permissionsTools.deleteFile.execute();
       const parsed = JSON.parse(result);
 
       expect(parsed.relativePathFromCwd).toBe(RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH);
@@ -196,14 +196,14 @@ describe("Permissions Tools", () => {
       );
 
       // Verify it's deleted
-      await expect(permissionsTools.getPermissionsFile.execute()).rejects.toThrow();
+      await expect(permissionsTools.getFile.execute()).rejects.toThrow();
     });
 
     it("should succeed when deleting non-existent permissions file (idempotent)", async () => {
       const rulesyncDir = join(testDir, RULESYNC_RELATIVE_DIR_PATH);
       await ensureDir(rulesyncDir);
 
-      const result = await permissionsTools.deletePermissionsFile.execute();
+      const result = await permissionsTools.deleteFile.execute();
       const parsed = JSON.parse(result);
 
       expect(parsed.relativePathFromCwd).toBe(RULESYNC_PERMISSIONS_RELATIVE_FILE_PATH);
@@ -216,7 +216,7 @@ describe("Permissions Tools", () => {
         '{ "permission": {} }',
       );
 
-      const result = await permissionsTools.putPermissionsFile.execute({
+      const result = await permissionsTools.putFile.execute({
         content: '{ "permission": { "bash": { "git diff": "allow" } } }',
       });
 

@@ -1,13 +1,10 @@
 import { basename, join } from "node:path";
 
-import { z } from "zod/mini";
-
 import { RULESYNC_RULES_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import {
   RulesyncRule,
   type RulesyncRuleFrontmatter,
   type RulesyncRuleFrontmatterInput,
-  RulesyncRuleFrontmatterSchema,
 } from "../features/rules/rulesync-rule.js";
 import { formatError } from "../utils/error.js";
 import {
@@ -264,31 +261,10 @@ async function deleteRule({ relativePathFromCwd }: { relativePathFromCwd: string
 }
 
 /**
- * Schema for rule-related tool parameters
- */
-const ruleToolSchemas = {
-  listRules: z.object({}),
-  getRule: z.object({
-    relativePathFromCwd: z.string(),
-  }),
-  putRule: z.object({
-    relativePathFromCwd: z.string(),
-    frontmatter: RulesyncRuleFrontmatterSchema,
-    body: z.string(),
-  }),
-  deleteRule: z.object({
-    relativePathFromCwd: z.string(),
-  }),
-} as const;
-
-/**
  * Tool definitions for rule-related operations
  */
 export const ruleTools = {
   listRules: {
-    name: "listRules",
-    description: `List all rules from ${join(RULESYNC_RULES_RELATIVE_DIR_PATH, "*.md")} with their frontmatter.`,
-    parameters: ruleToolSchemas.listRules,
     execute: async () => {
       const rules = await listRules();
       const output = { rules };
@@ -296,20 +272,12 @@ export const ruleTools = {
     },
   },
   getRule: {
-    name: "getRule",
-    description:
-      "Get detailed information about a specific rule. relativePathFromCwd parameter is required.",
-    parameters: ruleToolSchemas.getRule,
     execute: async (args: { relativePathFromCwd: string }) => {
       const result = await getRule({ relativePathFromCwd: args.relativePathFromCwd });
       return JSON.stringify(result, null, 2);
     },
   },
   putRule: {
-    name: "putRule",
-    description:
-      "Create or update a rule (upsert operation). relativePathFromCwd, frontmatter, and body parameters are required.",
-    parameters: ruleToolSchemas.putRule,
     execute: async (args: {
       relativePathFromCwd: string;
       frontmatter: RulesyncRuleFrontmatterInput;
@@ -324,9 +292,6 @@ export const ruleTools = {
     },
   },
   deleteRule: {
-    name: "deleteRule",
-    description: "Delete a rule file. relativePathFromCwd parameter is required.",
-    parameters: ruleToolSchemas.deleteRule,
     execute: async (args: { relativePathFromCwd: string }) => {
       const result = await deleteRule({ relativePathFromCwd: args.relativePathFromCwd });
       return JSON.stringify(result, null, 2);

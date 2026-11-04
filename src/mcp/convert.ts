@@ -169,16 +169,8 @@ function buildSuccessResponse(params: {
   };
 }
 
-const convertToolSchemas = {
-  executeConvert: convertOptionsSchema,
-};
-
 export const convertTools = {
   executeConvert: {
-    name: "executeConvert",
-    description:
-      "Execute the rulesync convert command to convert configuration files between AI tools without writing intermediate .rulesync/ files. Requires a source tool (from) and one or more destination tools (to). A 'warnings' array of strings is present, on success and on failure alike, when the run had something worth acting on to report.",
-    parameters: convertToolSchemas.executeConvert,
     execute: async (options: ConvertOptions): Promise<string> => {
       const result = await executeConvert(options);
       return JSON.stringify(result, null, 2);

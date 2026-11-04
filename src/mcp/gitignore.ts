@@ -39,10 +39,6 @@ export async function executeGitignore(options: GitignoreOptions = {}): Promise<
 
 export const gitignoreTools = {
   executeGitignore: {
-    name: "executeGitignore",
-    description:
-      "Execute the rulesync gitignore command to add the files rulesync generates to .gitignore (and .gitattributes or .git/info/exclude when configured).",
-    parameters: gitignoreOptionsSchema,
     execute: async (options: GitignoreOptions = {}): Promise<string> =>
       stringifyResult(await executeGitignore(options)),
   },

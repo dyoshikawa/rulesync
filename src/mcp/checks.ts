@@ -1,13 +1,7 @@
 import { basename, join } from "node:path";
 
-import { z } from "zod/mini";
-
 import { RULESYNC_CHECKS_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
-import {
-  RulesyncCheck,
-  type RulesyncCheckFrontmatter,
-  RulesyncCheckFrontmatterSchema,
-} from "../features/checks/rulesync-check.js";
+import { RulesyncCheck, type RulesyncCheckFrontmatter } from "../features/checks/rulesync-check.js";
 import { formatError } from "../utils/error.js";
 import {
   checkPathTraversal,
@@ -219,31 +213,10 @@ async function deleteCheck({ relativePathFromCwd }: { relativePathFromCwd: strin
 }
 
 /**
- * Schema for check-related tool parameters
- */
-const checkToolSchemas = {
-  listChecks: z.object({}),
-  getCheck: z.object({
-    relativePathFromCwd: z.string(),
-  }),
-  putCheck: z.object({
-    relativePathFromCwd: z.string(),
-    frontmatter: RulesyncCheckFrontmatterSchema,
-    body: z.string(),
-  }),
-  deleteCheck: z.object({
-    relativePathFromCwd: z.string(),
-  }),
-} as const;
-
-/**
  * Tool definitions for check-related operations
  */
 export const checkTools = {
   listChecks: {
-    name: "listChecks",
-    description: `List all checks from ${join(RULESYNC_CHECKS_RELATIVE_DIR_PATH, "*.md")} with their frontmatter.`,
-    parameters: checkToolSchemas.listChecks,
     execute: async () => {
       const checks = await listChecks();
       const output = { checks };
@@ -251,20 +224,12 @@ export const checkTools = {
     },
   },
   getCheck: {
-    name: "getCheck",
-    description:
-      "Get detailed information about a specific check. relativePathFromCwd parameter is required.",
-    parameters: checkToolSchemas.getCheck,
     execute: async (args: { relativePathFromCwd: string }) => {
       const result = await getCheck({ relativePathFromCwd: args.relativePathFromCwd });
       return JSON.stringify(result, null, 2);
     },
   },
   putCheck: {
-    name: "putCheck",
-    description:
-      "Create or update a check (upsert operation). relativePathFromCwd, frontmatter, and body parameters are required.",
-    parameters: checkToolSchemas.putCheck,
     execute: async (args: {
       relativePathFromCwd: string;
       frontmatter: RulesyncCheckFrontmatter;
@@ -279,9 +244,6 @@ export const checkTools = {
     },
   },
   deleteCheck: {
-    name: "deleteCheck",
-    description: "Delete a check file. relativePathFromCwd parameter is required.",
-    parameters: checkToolSchemas.deleteCheck,
     execute: async (args: { relativePathFromCwd: string }) => {
       const result = await deleteCheck({ relativePathFromCwd: args.relativePathFromCwd });
       return JSON.stringify(result, null, 2);
