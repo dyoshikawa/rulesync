@@ -9,6 +9,7 @@ import { RulesyncTargetsSchema } from "../../types/tool-targets.js";
 import { formatError } from "../../utils/error.js";
 import { fileExists, readFileContent } from "../../utils/file.js";
 import { parseFrontmatterWithYamlRepair } from "../../utils/frontmatter.js";
+import { type LoadedRulesyncSkill, loadRulesyncSkillOnce } from "./rulesync-skill-cache.js";
 
 /**
  * Several targets use a skill's `name` verbatim as the directory name they write
@@ -640,6 +641,35 @@ export class RulesyncSkill extends AiDir {
     global = false,
   }: RulesyncSkillFromDirParams): Promise<RulesyncSkill> {
     const skillDirPath = join(outputRoot, relativeDirPath, dirName);
+    const loaded = await loadRulesyncSkillOnce({
+      skillDirPath,
+      load: () => this.loadSkillDir({ outputRoot, relativeDirPath, dirName }),
+    });
+
+    // Each caller gets its own frontmatter and file list, so nothing one target
+    // does with its skill can reach the copy another target reuses.
+    return new RulesyncSkill({
+      outputRoot,
+      relativeDirPath,
+      dirName,
+      frontmatter: structuredClone(loaded.frontmatter) as RulesyncSkillFrontmatter,
+      body: loaded.body,
+      otherFiles: loaded.otherFiles.map((file) => ({ ...file })),
+      validate: true,
+      global,
+    });
+  }
+
+  private static async loadSkillDir({
+    outputRoot,
+    relativeDirPath,
+    dirName,
+  }: {
+    outputRoot: string;
+    relativeDirPath: string;
+    dirName: string;
+  }): Promise<LoadedRulesyncSkill> {
+    const skillDirPath = join(outputRoot, relativeDirPath, dirName);
     const skillFilePath = join(skillDirPath, SKILL_FILE_NAME);
 
     if (!(await fileExists(skillFilePath))) {
@@ -670,15 +700,6 @@ export class RulesyncSkill extends AiDir {
       SKILL_FILE_NAME,
     );
 
-    return new RulesyncSkill({
-      outputRoot,
-      relativeDirPath,
-      dirName,
-      frontmatter: result.data,
-      body: content.trim(),
-      otherFiles,
-      validate: true,
-      global,
-    });
+    return { frontmatter: result.data, body: content.trim(), otherFiles };
   }
 }

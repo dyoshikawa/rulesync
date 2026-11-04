@@ -22,6 +22,7 @@ import {
   activateHermesProjectPlugins,
   type HermesProjectPluginName,
 } from "../features/shared/hermes-project-plugin-activation.js";
+import { withRulesyncSkillCache } from "../features/skills/rulesync-skill-cache.js";
 import { RulesyncSkill } from "../features/skills/rulesync-skill.js";
 import { SkillsProcessor } from "../features/skills/skills-processor.js";
 import { RulesyncSubagent } from "../features/subagents/rulesync-subagent.js";
@@ -901,7 +902,10 @@ export async function generate(params: {
 }): Promise<GenerateResult> {
   // Every write is checked against links on its way, and those checks look up
   // the same ancestor directories over and over; one run shares what it found.
-  return await withWriteLandingCache(() => generateInWriteLandingScope(params));
+  // Every target loads the same source skills too, so the run loads each once.
+  return await withWriteLandingCache(() =>
+    withRulesyncSkillCache(() => generateInWriteLandingScope(params)),
+  );
 }
 
 async function generateInWriteLandingScope(params: {
