@@ -886,6 +886,44 @@ async function getLocalRuleNames(projectRoot: string): Promise<Set<string>> {
   );
 }
 
+/**
+ * Read both lockfiles (npm first) and migrate the git lockfile's keys to the
+ * ones the declared sources resolve to.
+ */
+export async function loadSourceLocks(params: {
+  sources: SourceEntry[];
+  projectRoot: string;
+  logger: Logger;
+}): Promise<{ lock: SourcesLock; npmLock: NpmSourcesLock; lockKeys: string[] }> {
+  const { sources, projectRoot, logger } = params;
+  const npmLock = await readNpmLockFile({ projectRoot, logger });
+  const lockKeys = resolveSourceLockKeys(sources);
+  const lock = migrateSourceLockKeys({
+    lock: await readLockFile({ projectRoot, logger }),
+    sources,
+    lockKeys,
+    logger,
+  });
+  return { lock, npmLock, lockKeys };
+}
+
+/**
+ * The lock entry of the declared source at `index`, looked up in the lockfile
+ * of its transport.
+ */
+function getDeclaredLockedSource(params: {
+  source: SourceEntry;
+  index: number;
+  lock: SourcesLock;
+  npmLock: NpmSourcesLock;
+  lockKeys: string[];
+}): LockedSource | NpmLockedSource | undefined {
+  const { source, index, lock, npmLock, lockKeys } = params;
+  return getSourceTransport(source) === "npm"
+    ? getNpmLockedSource(npmLock, source.source)
+    : getLockedSource(lock, lockKeys[index] ?? source.source);
+}
+
 export async function getInstalledSourceSkillNames({
   sources,
   projectRoot,
@@ -895,26 +933,12 @@ export async function getInstalledSourceSkillNames({
   projectRoot: string;
   logger: Logger;
 }): Promise<string[]> {
-  const npmLock = await readNpmLockFile({ projectRoot, logger });
+  const { lock, npmLock, lockKeys } = await loadSourceLocks({ sources, projectRoot, logger });
   const curatedDir = join(projectRoot, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
   const skillNames = new Set<string>();
-  const lockKeys = resolveSourceLockKeys(sources);
-  const lock = migrateSourceLockKeys({
-    lock: await readLockFile({ projectRoot, logger }),
-    sources,
-    lockKeys,
-    logger,
-  });
   for (const [index, source] of sources.entries()) {
-    const npmTransport = getSourceTransport(source) === "npm";
-    const entry = npmTransport
-      ? getNpmLockedSource(npmLock, source.source)
-      : getLockedSource(lock, lockKeys[index] ?? source.source);
-    const lockedSkillNames = entry
-      ? npmTransport
-        ? getNpmLockedSkillNames(entry as NpmLockedSource)
-        : getLockedSkillNames(entry as LockedSource)
-      : [];
+    const entry = getDeclaredLockedSource({ source, index, lock, npmLock, lockKeys });
+    const lockedSkillNames = entry ? Object.keys(entry.skills) : [];
     if (
       entry === undefined ||
       (getSourceFilters(source).skills !== undefined &&
@@ -943,29 +967,15 @@ export async function getInstalledSourceRuleNames({
   projectRoot: string;
   logger: Logger;
 }): Promise<string[]> {
-  const npmLock = await readNpmLockFile({ projectRoot, logger });
+  const { lock, npmLock, lockKeys } = await loadSourceLocks({ sources, projectRoot, logger });
   const curatedDir = join(projectRoot, RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH);
   const ruleNames = new Set<string>();
-  const lockKeys = resolveSourceLockKeys(sources);
-  const lock = migrateSourceLockKeys({
-    lock: await readLockFile({ projectRoot, logger }),
-    sources,
-    lockKeys,
-    logger,
-  });
   for (const [index, source] of sources.entries()) {
     if (getSourceFilters(source).rules === undefined) {
       continue;
     }
-    const npmTransport = getSourceTransport(source) === "npm";
-    const entry = npmTransport
-      ? getNpmLockedSource(npmLock, source.source)
-      : getLockedSource(lock, lockKeys[index] ?? source.source);
-    const lockedRuleNames = entry
-      ? npmTransport
-        ? getNpmLockedRuleNames(entry as NpmLockedSource)
-        : getLockedRuleNames(entry as LockedSource)
-      : [];
+    const entry = getDeclaredLockedSource({ source, index, lock, npmLock, lockKeys });
+    const lockedRuleNames = entry ? Object.keys(entry.rules ?? {}) : [];
     if (
       entry === undefined ||
       entry.rules === undefined ||
@@ -1389,10 +1399,7 @@ function assertFrozenLockCoversSources(params: {
     if (hasEmptySelection(source)) {
       continue;
     }
-    const locked =
-      getSourceTransport(source) === "npm"
-        ? getNpmLockedSource(npmLock, source.source)
-        : getLockedSource(lock, lockKeys[index] ?? source.source);
+    const locked = getDeclaredLockedSource({ source, index, lock, npmLock, lockKeys });
     const filters = getSourceFilters(source);
     const skillsCovered =
       filters.skills === undefined ||

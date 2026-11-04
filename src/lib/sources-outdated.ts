@@ -11,11 +11,11 @@ import {
   validateNpmPackageName,
   validateNpmRegistryUrl,
 } from "./npm-client.js";
-import { getNpmLockedSource, readNpmLockFile } from "./npm-sources-lock.js";
+import { getNpmLockedSource } from "./npm-sources-lock.js";
 import { parseSource } from "./source-parser.js";
-import { getLockedSource, readLockFile, resolveSourceLockKeys } from "./sources-lock.js";
+import { getLockedSource } from "./sources-lock.js";
 import {
-  migrateSourceLockKeys,
+  loadSourceLocks,
   resolveGitSourceRef,
   resolveGithubFetchRef,
   resolveNpmFetchVersion,
@@ -51,16 +51,8 @@ export async function checkOutdatedSources(params: {
   logger: Logger;
 }): Promise<OutdatedSourceReport[]> {
   const { sources, projectRoot, logger } = params;
-  const npmLock = await readNpmLockFile({ projectRoot, logger });
+  const { lock, npmLock, lockKeys } = await loadSourceLocks({ sources, projectRoot, logger });
   const client = new GitHubClient({ token: GitHubClient.resolveToken(params.token) });
-
-  const lockKeys = resolveSourceLockKeys(sources);
-  const lock = migrateSourceLockKeys({
-    lock: await readLockFile({ projectRoot, logger }),
-    sources,
-    lockKeys,
-    logger,
-  });
 
   const reports: OutdatedSourceReport[] = [];
   for (const [index, sourceEntry] of sources.entries()) {
