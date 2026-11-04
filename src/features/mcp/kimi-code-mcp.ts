@@ -12,7 +12,6 @@ import type { SharedWritePath } from "../../lib/shared-file-derive.js";
 import type { ValidationResult } from "../../types/ai-file.js";
 import { isMcpServers, type McpServers } from "../../types/mcp.js";
 import { ToolFile } from "../../types/tool-file.js";
-import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import {
   getKimiCodeConfigSharedFileKey,
@@ -23,6 +22,7 @@ import {
 import { type Logger, warnWithFallback } from "../../utils/logger.js";
 import { isRecord } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, parseSharedConfig } from "../shared/shared-config-gateway.js";
+import { parseMcpJsonOrThrow } from "./mcp-json-config.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -437,14 +437,13 @@ export class KimiCodeMcp extends ToolMcp {
     super(params);
     this.configDefaults = configDefaults ?? {};
     this.logger = logger;
-    try {
-      this.json = this.fileContent ? JSON.parse(this.fileContent) : {};
-    } catch (error) {
-      throw new Error(
-        `Failed to parse Kimi Code MCP config at ${join(this.relativeDirPath, this.relativeFilePath)}: ${formatError(error)}`,
-        { cause: error },
-      );
-    }
+    this.json = this.fileContent
+      ? parseMcpJsonOrThrow({
+          fileContent: this.fileContent,
+          relativePath: join(this.relativeDirPath, this.relativeFilePath),
+          label: "Kimi Code",
+        })
+      : {};
   }
 
   override isDeletable(): boolean {
@@ -490,17 +489,11 @@ export class KimiCodeMcp extends ToolMcp {
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const existingContent = (await readFileContentOrNull(filePath)) ?? "{}";
 
-    let existing: Record<string, unknown>;
-    try {
-      existing = JSON.parse(existingContent);
-    } catch (error) {
-      throw new Error(
-        `Failed to parse Kimi Code MCP config at ${filePath}: ${formatError(error)}`,
-        {
-          cause: error,
-        },
-      );
-    }
+    const existing = parseMcpJsonOrThrow({
+      fileContent: existingContent,
+      relativePath: filePath,
+      label: "Kimi Code",
+    });
 
     return new KimiCodeMcp({
       outputRoot,

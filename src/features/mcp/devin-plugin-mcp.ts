@@ -1,10 +1,10 @@
 import { join } from "node:path";
 
 import { DEVIN_PLUGIN_MCP_FILE_NAME } from "../../constants/plugin-paths.js";
-import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { isRecord } from "../../utils/type-guards.js";
 import { DevinMcp } from "./devin-mcp.js";
+import { parseMcpJsonOrThrow } from "./mcp-json-config.js";
 import type {
   ToolMcpFromFileParams,
   ToolMcpFromRulesyncMcpParams,
@@ -32,17 +32,11 @@ export class DevinPluginMcp extends DevinMcp {
     const paths = this.getSettablePaths();
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const fileContent = (await readFileContentOrNull(filePath)) ?? '{"mcpServers":{}}';
-    let json: unknown;
-    try {
-      json = JSON.parse(fileContent);
-    } catch (error) {
-      throw new Error(
-        `Failed to parse Devin plugin MCP config at ${filePath}: ${formatError(error)}`,
-        {
-          cause: error,
-        },
-      );
-    }
+    const json = parseMcpJsonOrThrow({
+      fileContent,
+      relativePath: filePath,
+      label: "Devin plugin",
+    });
     const mcpServers = isRecord(json) && isRecord(json.mcpServers) ? json.mcpServers : {};
     return new DevinPluginMcp({
       outputRoot,

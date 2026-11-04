@@ -6,8 +6,8 @@ import {
   DEVIN_GLOBAL_CONFIG_DIR_PATH,
   DEVIN_MCP_CONFIG_FILE_NAME,
 } from "../../constants/devin-paths.js";
-import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import { parseMcpJsonOrThrow } from "./mcp-json-config.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -47,27 +47,16 @@ export class DevinMcp extends ToolMcp {
     super(params);
     this.json =
       this.fileContent !== undefined
-        ? DevinMcp.parseJsonOrThrow(this.fileContent, this.relativeDirPath, this.relativeFilePath)
+        ? parseMcpJsonOrThrow({
+            fileContent: this.fileContent,
+            relativePath: join(this.relativeDirPath, this.relativeFilePath),
+            label: "Devin",
+          })
         : {};
   }
 
   getJson(): Record<string, unknown> {
     return this.json;
-  }
-
-  private static parseJsonOrThrow(
-    content: string,
-    relativeDirPath: string,
-    relativeFilePath: string,
-  ): Record<string, unknown> {
-    try {
-      return JSON.parse(content);
-    } catch (error) {
-      throw new Error(
-        `Failed to parse Devin MCP config at ${join(relativeDirPath, relativeFilePath)}: ${formatError(error)}`,
-        { cause: error },
-      );
-    }
   }
 
   static getSettablePaths({ global = false }: { global?: boolean } = {}): ToolMcpSettablePaths {
@@ -99,20 +88,20 @@ export class DevinMcp extends ToolMcp {
       const legacyPath = join(outputRoot, paths.relativeDirPath, DEVIN_CONFIG_FILE_NAME);
       const legacyContent = await readFileContentOrNull(legacyPath);
       if (legacyContent !== null) {
-        const legacyJson = this.parseJsonOrThrow(
-          legacyContent,
-          paths.relativeDirPath,
-          DEVIN_CONFIG_FILE_NAME,
-        );
+        const legacyJson = parseMcpJsonOrThrow({
+          fileContent: legacyContent,
+          relativePath: join(paths.relativeDirPath, DEVIN_CONFIG_FILE_NAME),
+          label: "Devin",
+        });
         fileContent = JSON.stringify({ mcpServers: legacyJson.mcpServers ?? {} }, null, 2);
       }
     }
 
-    const json = this.parseJsonOrThrow(
-      fileContent ?? '{"mcpServers":{}}',
-      paths.relativeDirPath,
-      paths.relativeFilePath,
-    );
+    const json = parseMcpJsonOrThrow({
+      fileContent: fileContent ?? '{"mcpServers":{}}',
+      relativePath: join(paths.relativeDirPath, paths.relativeFilePath),
+      label: "Devin",
+    });
     const newJson = { mcpServers: json.mcpServers ?? {} };
 
     return new DevinMcp({
@@ -144,11 +133,11 @@ export class DevinMcp extends ToolMcp {
       // Parse unconditionally so a malformed existing file aborts the
       // generate (protecting possibly-recoverable user data) whether or not
       // a logger was provided.
-      const existingJson = this.parseJsonOrThrow(
-        existingContent,
-        paths.relativeDirPath,
-        paths.relativeFilePath,
-      );
+      const existingJson = parseMcpJsonOrThrow({
+        fileContent: existingContent,
+        relativePath: join(paths.relativeDirPath, paths.relativeFilePath),
+        label: "Devin",
+      });
       const existingServers =
         existingJson.mcpServers && typeof existingJson.mcpServers === "object"
           ? Object.keys(existingJson.mcpServers)
