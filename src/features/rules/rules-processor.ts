@@ -160,36 +160,25 @@ const resolveRuleDiscoveryMode = ({
   return parsed.data.ruleDiscoveryMode === "none" ? "auto" : "toon";
 };
 
-const IncludeLocalRootSchema = z.looseObject({
-  includeLocalRoot: z.optional(z.boolean()),
-});
+type BooleanRulesOptionKey = "includeLocalRoot" | "includeRoot";
 
-const resolveIncludeLocalRoot = (options?: FeatureOptions): boolean => {
+/** Resolve a boolean rules feature option that defaults to `true`. */
+const resolveBooleanRulesOption = ({
+  options,
+  key,
+}: {
+  options?: FeatureOptions;
+  key: BooleanRulesOptionKey;
+}): boolean => {
   if (!options) return true;
-  const parsed = IncludeLocalRootSchema.safeParse(options);
+  const parsed = z.looseObject({ [key]: z.optional(z.boolean()) }).safeParse(options);
   if (!parsed.success) {
     throw new Error(
       `Invalid options for rules feature: ${parsed.error.message}. ` +
-        "`includeLocalRoot` must be a boolean.",
+        `\`${key}\` must be a boolean.`,
     );
   }
-  return parsed.data.includeLocalRoot ?? true;
-};
-
-const IncludeRootSchema = z.looseObject({
-  includeRoot: z.optional(z.boolean()),
-});
-
-const resolveIncludeRoot = (options?: FeatureOptions): boolean => {
-  if (!options) return true;
-  const parsed = IncludeRootSchema.safeParse(options);
-  if (!parsed.success) {
-    throw new Error(
-      `Invalid options for rules feature: ${parsed.error.message}. ` +
-        "`includeRoot` must be a boolean.",
-    );
-  }
-  return parsed.data.includeRoot ?? true;
+  return parsed.data[key] ?? true;
 };
 
 type RuleConversion = {
@@ -453,7 +442,10 @@ export class RulesProcessor extends FeatureProcessor {
     localRootRules: RulesyncRule[];
     factory: ToolRuleFactory;
   }): void {
-    const includeLocalRoot = resolveIncludeLocalRoot(this.featureOptions);
+    const includeLocalRoot = resolveBooleanRulesOption({
+      options: this.featureOptions,
+      key: "includeLocalRoot",
+    });
     if (localRootRules.length === 0 || this.global || !includeLocalRoot) {
       return;
     }
@@ -574,7 +566,9 @@ export class RulesProcessor extends FeatureProcessor {
    */
   private omitsRootFiles(): boolean {
     return (
-      this.toolTarget === "claudecode" && !this.global && !resolveIncludeRoot(this.featureOptions)
+      this.toolTarget === "claudecode" &&
+      !this.global &&
+      !resolveBooleanRulesOption({ options: this.featureOptions, key: "includeRoot" })
     );
   }
 
@@ -583,7 +577,7 @@ export class RulesProcessor extends FeatureProcessor {
    * silently disables another option that writes into the root file.
    */
   private warnForIncludeRootOption(meta: ToolRuleFactory["meta"]): void {
-    if (resolveIncludeRoot(this.featureOptions)) {
+    if (resolveBooleanRulesOption({ options: this.featureOptions, key: "includeRoot" })) {
       return;
     }
     if (this.toolTarget !== "claudecode") {
@@ -1644,7 +1638,10 @@ As this project's AI coding tool, you must follow the additional conventions bel
     // not abort the import, so fall back to the default here.
     let includeLocalRoot = !this.global;
     try {
-      includeLocalRoot &&= resolveIncludeLocalRoot(this.featureOptions);
+      includeLocalRoot &&= resolveBooleanRulesOption({
+        options: this.featureOptions,
+        key: "includeLocalRoot",
+      });
     } catch {
       // Keep the default.
     }
