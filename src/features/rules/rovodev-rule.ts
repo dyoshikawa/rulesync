@@ -89,7 +89,6 @@ export class RovodevRule extends ToolRule {
     global = false,
   }: {
     global?: boolean;
-    excludeToolDir?: boolean;
   } = {}): RovodevRuleSettablePaths | ToolRuleSettablePathsGlobal {
     const rovodevAgents = {
       relativeDirPath: ROVODEV_DIR,

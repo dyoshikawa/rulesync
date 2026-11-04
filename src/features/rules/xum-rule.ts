@@ -113,7 +113,6 @@ export class XumRule extends ToolRule {
   static getSettablePaths(
     _options: {
       global?: boolean;
-      excludeToolDir?: boolean;
     } = {},
   ): XumRuleSettablePaths {
     // Both scopes share the same relative path; the home-directory root is

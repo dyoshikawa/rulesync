@@ -51,7 +51,7 @@ export class WarpRule extends NestedAgentsmdRule {
   }
 
   static override getSettablePaths(
-    options: { global?: boolean; excludeToolDir?: boolean } = {},
+    options: { global?: boolean } = {},
   ): WarpRuleSettablePaths | NestedAgentsmdRuleSettablePathsGlobal {
     const paths = super.getSettablePaths(options);
     if (options.global) {

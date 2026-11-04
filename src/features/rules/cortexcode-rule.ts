@@ -26,7 +26,6 @@ export class CortexcodeRule extends SingleRootFileRule {
   static getSettablePaths(
     _options: {
       global?: boolean;
-      excludeToolDir?: boolean;
     } = {},
   ): CortexcodeRuleSettablePaths {
     return {

@@ -59,13 +59,6 @@ describe("AntigravityCliRule", () => {
 
       expect(paths.nonRoot?.relativeDirPath).toBe(join(".gemini", "config", "rules"));
     });
-
-    it("should drop the .gemini prefix from global paths when excludeToolDir is set", () => {
-      const paths = AntigravityCliRule.getSettablePaths({ global: true, excludeToolDir: true });
-
-      expect(paths.root.relativeDirPath).toBe(".");
-      expect(paths.nonRoot?.relativeDirPath).toBe(join("config", "rules"));
-    });
   });
 
   describe("global non-root rules", () => {

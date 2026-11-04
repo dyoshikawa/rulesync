@@ -41,7 +41,7 @@ export type KimiCodeRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> & {
 export class KimiCodeRule extends ToolRule {
   static getSettablePaths({
     global = false,
-  }: { global?: boolean; excludeToolDir?: boolean } = {}): KimiCodeRuleSettablePaths {
+  }: { global?: boolean } = {}): KimiCodeRuleSettablePaths {
     return {
       root: {
         relativeDirPath: getKimiCodeRelativeDirPath({ global }),

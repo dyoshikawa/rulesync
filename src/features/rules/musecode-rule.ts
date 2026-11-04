@@ -31,7 +31,6 @@ export class MusecodeRule extends SingleRootFileRule {
   static getSettablePaths(
     _options: {
       global?: boolean;
-      excludeToolDir?: boolean;
     } = {},
   ): MusecodeRuleSettablePaths {
     // Project scope only: the global rules path is undocumented, so `global`

@@ -31,7 +31,6 @@ export class ReplitRule extends ToolRule {
   static getSettablePaths(
     _options: {
       global?: boolean;
-      excludeToolDir?: boolean;
     } = {},
   ): ReplitRuleSettablePaths {
     return {

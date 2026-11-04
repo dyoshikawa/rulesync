@@ -15,7 +15,6 @@ import {
   ToolRuleFromRulesyncRuleParams,
   ToolRuleNestedFilePatterns,
   ToolRuleSettablePaths,
-  buildToolPath,
 } from "./tool-rule.js";
 
 export type AgentsMdRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
@@ -32,7 +31,6 @@ export class AgentsMdRule extends ToolRule {
   static getSettablePaths(
     _options: {
       global?: boolean;
-      excludeToolDir?: boolean;
     } = {},
   ): AgentsMdRuleSettablePaths {
     return {
@@ -41,7 +39,7 @@ export class AgentsMdRule extends ToolRule {
         relativeFilePath: AGENTSMD_RULE_FILE_NAME,
       },
       nonRoot: {
-        relativeDirPath: buildToolPath(AGENTSMD_DIR, "memories", _options.excludeToolDir),
+        relativeDirPath: join(AGENTSMD_DIR, "memories"),
       },
     };
   }

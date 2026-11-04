@@ -126,13 +126,6 @@ This is a test rule.`);
       const nonRoot = (paths as { nonRoot?: { relativeDirPath: string } }).nonRoot;
       expect(nonRoot?.relativeDirPath).toBe(join(".devin", "rules"));
     });
-
-    it("should exclude the tool dir for project scope when requested", () => {
-      const paths = DevinRule.getSettablePaths({ excludeToolDir: true });
-
-      const nonRoot = (paths as { nonRoot: { relativeDirPath: string } }).nonRoot;
-      expect(nonRoot.relativeDirPath).toBe("rules");
-    });
   });
 
   describe("fromFile", () => {

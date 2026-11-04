@@ -14,7 +14,6 @@ import {
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
   ToolRuleSettablePaths,
-  buildToolPath,
 } from "./tool-rule.js";
 
 export type AugmentcodeLegacyRuleSettablePaths = ToolRuleSettablePaths & {
@@ -48,7 +47,6 @@ export class AugmentcodeLegacyRule extends ToolRule {
   static getSettablePaths(
     _options: {
       global?: boolean;
-      excludeToolDir?: boolean;
     } = {},
   ): AugmentcodeLegacyRuleSettablePaths {
     return {
@@ -57,7 +55,7 @@ export class AugmentcodeLegacyRule extends ToolRule {
         relativeFilePath: AUGMENTCODE_LEGACY_RULE_FILE_NAME,
       },
       nonRoot: {
-        relativeDirPath: buildToolPath(AUGMENTCODE_DIR, "rules", _options.excludeToolDir),
+        relativeDirPath: join(AUGMENTCODE_DIR, "rules"),
       },
     };
   }

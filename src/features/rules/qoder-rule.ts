@@ -35,7 +35,6 @@ import {
   ToolRuleFromRulesyncRuleParams,
   ToolRuleParams,
   ToolRuleSettablePaths,
-  buildToolPath,
 } from "./tool-rule.js";
 
 /**
@@ -253,21 +252,19 @@ export class QoderRule extends ToolRule {
 
   static getSettablePaths({
     global = false,
-    excludeToolDir,
   }: {
     global?: boolean;
-    excludeToolDir?: boolean;
   } = {}): QoderRuleSettablePaths {
     return {
       root: {
         // The project file sits at the project root; the user file sits inside
         // `~/.qoder/`, which the processor reaches by supplying the home
         // directory as outputRoot.
-        relativeDirPath: global ? buildToolPath(QODER_DIR, ".", excludeToolDir) : ".",
+        relativeDirPath: global ? join(QODER_DIR, ".") : ".",
         relativeFilePath: QODER_RULE_FILE_NAME,
       },
       nonRoot: {
-        relativeDirPath: buildToolPath(QODER_DIR, "rules", excludeToolDir),
+        relativeDirPath: join(QODER_DIR, "rules"),
       },
     };
   }

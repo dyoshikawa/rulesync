@@ -86,7 +86,6 @@ export class CrushRule extends ToolRule {
     global = false,
   }: {
     global?: boolean;
-    excludeToolDir?: boolean;
   } = {}): CrushRuleSettablePaths {
     if (global) {
       return {

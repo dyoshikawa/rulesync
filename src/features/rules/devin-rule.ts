@@ -19,7 +19,6 @@ import {
   ToolRuleParams,
   ToolRuleSettablePaths,
   ToolRuleSettablePathsGlobal,
-  buildToolPath,
 } from "./tool-rule.js";
 import {
   TriggerRuleFrontmatter,
@@ -149,12 +148,12 @@ export class DevinRule extends ToolRule {
     this.body = body;
   }
 
-  private static getGlobalRootPath(excludeToolDir?: boolean): {
+  private static getGlobalRootPath(): {
     relativeDirPath: string;
     relativeFilePath: string;
   } {
     return {
-      relativeDirPath: buildToolPath(DEVIN_GLOBAL_CONFIG_DIR_PATH, ".", excludeToolDir),
+      relativeDirPath: join(DEVIN_GLOBAL_CONFIG_DIR_PATH, "."),
       relativeFilePath: DEVIN_GLOBAL_AGENTS_FILE_NAME,
     };
   }
@@ -165,12 +164,12 @@ export class DevinRule extends ToolRule {
    * scope. Single-sourced so `getSettablePaths`, `fromFile` and
    * `fromRulesyncRule` cannot disagree about it.
    */
-  private static getRootPath(
-    global: boolean,
-    excludeToolDir?: boolean,
-  ): { relativeDirPath: string; relativeFilePath: string } {
+  private static getRootPath(global: boolean): {
+    relativeDirPath: string;
+    relativeFilePath: string;
+  } {
     return global
-      ? DevinRule.getGlobalRootPath(excludeToolDir)
+      ? DevinRule.getGlobalRootPath()
       : { relativeDirPath: ".", relativeFilePath: "AGENTS.md" };
   }
 
@@ -179,19 +178,17 @@ export class DevinRule extends ToolRule {
    * `fromFile` and `forDeletion` use to tell them from the root `AGENTS.md`.
    */
   protected static getNonRootDirPath(): string {
-    return buildToolPath(DEVIN_DIR, "rules");
+    return join(DEVIN_DIR, "rules");
   }
 
   static getSettablePaths({
     global = false,
-    excludeToolDir,
   }: {
     global?: boolean;
-    excludeToolDir?: boolean;
   } = {}): DevinRuleSettablePaths | ToolRuleSettablePathsGlobal {
     if (global) {
       return {
-        root: DevinRule.getRootPath(true, excludeToolDir),
+        root: DevinRule.getRootPath(true),
         // Per-rule global rules live in the home `~/.devin/rules/` directory,
         // NOT under `~/.config/devin/` where every other Devin global surface
         // sits (`AGENTS.md`, `config.json`, `mcp_config.json`, `agents/`,
@@ -200,7 +197,7 @@ export class DevinRule extends ToolRule {
         // `~/.devin/global_rules.md`) to apply them to every project."
         // @see https://docs.devin.ai/cli/extensibility/rules
         nonRoot: {
-          relativeDirPath: buildToolPath(DEVIN_DIR, "rules", excludeToolDir),
+          relativeDirPath: join(DEVIN_DIR, "rules"),
         },
       };
     }
@@ -210,9 +207,9 @@ export class DevinRule extends ToolRule {
       // `.devin/rules/*.md` remains the Devin Desktop Cascade directory for
       // non-root rules with activation modes.
       // @see https://docs.devin.ai/cli/extensibility/rules
-      root: DevinRule.getRootPath(false, excludeToolDir),
+      root: DevinRule.getRootPath(false),
       nonRoot: {
-        relativeDirPath: buildToolPath(DEVIN_DIR, "rules", excludeToolDir),
+        relativeDirPath: join(DEVIN_DIR, "rules"),
       },
     };
   }

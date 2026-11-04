@@ -41,7 +41,6 @@ export class DeepagentsRule extends ToolRule {
     global = false,
   }: {
     global?: boolean;
-    excludeToolDir?: boolean;
   } = {}): DeepagentsRuleSettablePaths {
     // dcode reads user-level context from `~/.deepagents/<agent_name>/AGENTS.md`
     // (default agent_name `agent`); the home directory is resolved by the

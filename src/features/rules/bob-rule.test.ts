@@ -51,13 +51,6 @@ describe("BobRule", () => {
       expect(paths.root.relativeFilePath).toBe("AGENTS.md");
       expect(paths.nonRoot.relativeDirPath).toBe(join(".bob", "rules"));
     });
-
-    it("should drop the tool directory when excludeToolDir is set", () => {
-      const paths = BobRule.getSettablePaths({ global: true, excludeToolDir: true });
-
-      expect(paths.root.relativeDirPath).toBe(".");
-      expect(paths.nonRoot.relativeDirPath).toBe("rules");
-    });
   });
 
   describe("fromRulesyncRule", () => {

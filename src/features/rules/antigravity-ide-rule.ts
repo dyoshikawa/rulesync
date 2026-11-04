@@ -31,7 +31,6 @@ import {
   ToolRuleFromRulesyncRuleParams,
   ToolRuleNestedFilePatterns,
   ToolRuleParams,
-  buildToolPath,
 } from "./tool-rule.js";
 import { normalizeStoredTriggerRule, parseGlobsString } from "./trigger-rule-strategies.js";
 
@@ -107,12 +106,12 @@ export class AntigravityIdeRule extends ToolRule {
     return {};
   }
 
-  protected static getGlobalRootPath(excludeToolDir?: boolean): {
+  protected static getGlobalRootPath(): {
     relativeDirPath: string;
     relativeFilePath: string;
   } {
     return {
-      relativeDirPath: buildToolPath(ANTIGRAVITY_IDE_GEMINI_DIR, ".", excludeToolDir),
+      relativeDirPath: join(ANTIGRAVITY_IDE_GEMINI_DIR, "."),
       relativeFilePath: ANTIGRAVITY_IDE_GLOBAL_RULE_FILE_NAME,
     };
   }
@@ -129,20 +128,14 @@ export class AntigravityIdeRule extends ToolRule {
 
   static getSettablePaths({
     global = false,
-    excludeToolDir,
   }: {
     global?: boolean;
-    excludeToolDir?: boolean;
   } = {}): AntigravityIdeRuleSettablePaths {
     if (global) {
       return {
-        root: this.getGlobalRootPath(excludeToolDir),
+        root: this.getGlobalRootPath(),
         nonRoot: {
-          relativeDirPath: buildToolPath(
-            ANTIGRAVITY_IDE_GEMINI_DIR,
-            ANTIGRAVITY_IDE_GLOBAL_RULES_SUBDIR,
-            excludeToolDir,
-          ),
+          relativeDirPath: join(ANTIGRAVITY_IDE_GEMINI_DIR, ANTIGRAVITY_IDE_GLOBAL_RULES_SUBDIR),
         },
       };
     }
@@ -153,7 +146,7 @@ export class AntigravityIdeRule extends ToolRule {
     return {
       root: this.getProjectRootPath(),
       nonRoot: {
-        relativeDirPath: buildToolPath(ANTIGRAVITY_IDE_AGENTS_DIR, "rules", excludeToolDir),
+        relativeDirPath: join(ANTIGRAVITY_IDE_AGENTS_DIR, "rules"),
       },
     };
   }

@@ -51,13 +51,6 @@ describe("TabnineRule", () => {
       expect(paths.root.relativeFilePath).toBe("TABNINE.md");
       expect(paths.nonRoot.relativeDirPath).toBe(join(".tabnine", "guidelines"));
     });
-
-    it("should drop the tool directory when excludeToolDir is set", () => {
-      const paths = TabnineRule.getSettablePaths({ global: true, excludeToolDir: true });
-
-      expect(paths.root.relativeDirPath).toBe(".");
-      expect(paths.nonRoot.relativeDirPath).toBe("guidelines");
-    });
   });
 
   describe("fromRulesyncRule", () => {

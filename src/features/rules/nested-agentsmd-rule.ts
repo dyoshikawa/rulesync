@@ -61,7 +61,6 @@ export class NestedAgentsmdRule extends ToolRule {
     global = false,
   }: {
     global?: boolean;
-    excludeToolDir?: boolean;
   } = {}): NestedAgentsmdRuleSettablePaths | NestedAgentsmdRuleSettablePathsGlobal {
     if (global) {
       return {

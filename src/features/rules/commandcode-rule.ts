@@ -28,7 +28,6 @@ export class CommandcodeRule extends SingleRootFileRule {
     global = false,
   }: {
     global?: boolean;
-    excludeToolDir?: boolean;
   } = {}): CommandcodeRuleSettablePaths {
     return {
       root: {

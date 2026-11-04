@@ -20,7 +20,6 @@ import {
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
   ToolRuleSettablePaths,
-  buildToolPath,
 } from "./tool-rule.js";
 
 export type PiRuleParams = AiFileParams & {
@@ -95,24 +94,22 @@ export class PiRule extends ToolRule {
 
   static getSettablePaths({
     global = false,
-    excludeToolDir,
     contextFile,
   }: {
     global?: boolean;
-    excludeToolDir?: boolean;
     /** `"override"` emits the root context file as `AGENTS.override.md`. */
     contextFile?: "override" | undefined;
   } = {}): PiRuleSettablePaths {
     return {
       root: {
-        relativeDirPath: global ? buildToolPath(PI_DIR, "agent", excludeToolDir) : ".",
+        relativeDirPath: global ? join(PI_DIR, "agent") : ".",
         relativeFilePath:
           contextFile === "override" ? PI_RULE_OVERRIDE_FILE_NAME : PI_RULE_FILE_NAME,
       },
       appendSystemPrompt: {
         // Project scope: `.pi/APPEND_SYSTEM.md`. Global scope: same `.pi/agent`
         // directory as the global root AGENTS.md.
-        relativeDirPath: global ? buildToolPath(PI_DIR, "agent", excludeToolDir) : PI_DIR,
+        relativeDirPath: global ? join(PI_DIR, "agent") : PI_DIR,
         relativeFilePath: PI_APPEND_SYSTEM_FILE_NAME,
       },
     };

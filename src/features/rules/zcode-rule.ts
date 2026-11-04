@@ -30,7 +30,6 @@ export class ZcodeRule extends SingleRootFileRule {
     global = false,
   }: {
     global?: boolean;
-    excludeToolDir?: boolean;
   } = {}): ZcodeRuleSettablePaths {
     return {
       root: {

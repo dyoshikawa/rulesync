@@ -42,15 +42,6 @@ describe("PiRule", () => {
       expect(paths.nonRoot).toBeUndefined();
     });
 
-    it("should honor excludeToolDir for global paths", () => {
-      const paths = PiRule.getSettablePaths({ global: true, excludeToolDir: true });
-
-      expect(paths.root).toEqual({
-        relativeDirPath: "agent",
-        relativeFilePath: "AGENTS.md",
-      });
-    });
-
     it("should expose the append system-prompt path (project)", () => {
       const paths = PiRule.getSettablePaths();
 

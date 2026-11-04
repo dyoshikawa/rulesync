@@ -33,7 +33,6 @@ export class OpenclawRule extends SingleRootFileRule {
     global = false,
   }: {
     global?: boolean;
-    excludeToolDir?: boolean;
   } = {}): OpenclawRuleSettablePaths {
     return {
       root: {

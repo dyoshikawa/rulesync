@@ -20,7 +20,6 @@ import {
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
   ToolRuleParams,
-  buildToolPath,
 } from "./tool-rule.js";
 
 /**
@@ -106,21 +105,16 @@ export class FirebenderRule extends ToolRule {
     this.body = resolvedBody;
   }
 
-  static getSettablePaths({
-    excludeToolDir,
-  }: {
-    global?: boolean;
-    excludeToolDir?: boolean;
-  } = {}): FirebenderRuleSettablePaths {
+  static getSettablePaths(_options: { global?: boolean } = {}): FirebenderRuleSettablePaths {
     // Both scopes share the same layout; the home-directory root is applied by
     // the processor in global mode.
     return {
       root: {
-        relativeDirPath: buildToolPath(FIREBENDER_DIR, ".", excludeToolDir),
+        relativeDirPath: join(FIREBENDER_DIR, "."),
         relativeFilePath: FIREBENDER_AGENTS_MD_FILE_NAME,
       },
       nonRoot: {
-        relativeDirPath: buildToolPath(FIREBENDER_DIR, "rules", excludeToolDir),
+        relativeDirPath: join(FIREBENDER_DIR, "rules"),
       },
     };
   }

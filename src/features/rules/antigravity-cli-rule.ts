@@ -32,7 +32,6 @@ import {
   ToolRuleNestedFilePatterns,
   ToolRuleSettablePaths,
   ToolRuleSettablePathsGlobal,
-  buildToolPath,
 } from "./tool-rule.js";
 import { normalizeStoredTriggerRule, parseGlobsString } from "./trigger-rule-strategies.js";
 
@@ -67,23 +66,17 @@ export type AntigravityCliRuleSettablePathsGlobal = ToolRuleSettablePathsGlobal;
 export class AntigravityCliRule extends ToolRule {
   static getSettablePaths({
     global,
-    excludeToolDir,
   }: {
     global?: boolean;
-    excludeToolDir?: boolean;
   } = {}): AntigravityCliRuleSettablePaths | AntigravityCliRuleSettablePathsGlobal {
     if (global) {
       return {
         root: {
-          relativeDirPath: buildToolPath(ANTIGRAVITY_GEMINI_DIR, ".", excludeToolDir),
+          relativeDirPath: join(ANTIGRAVITY_GEMINI_DIR, "."),
           relativeFilePath: ANTIGRAVITY_GLOBAL_RULE_FILE_NAME,
         },
         nonRoot: {
-          relativeDirPath: buildToolPath(
-            ANTIGRAVITY_GEMINI_DIR,
-            ANTIGRAVITY_GLOBAL_RULES_SUBDIR,
-            excludeToolDir,
-          ),
+          relativeDirPath: join(ANTIGRAVITY_GEMINI_DIR, ANTIGRAVITY_GLOBAL_RULES_SUBDIR),
         },
       };
     }
@@ -93,7 +86,7 @@ export class AntigravityCliRule extends ToolRule {
         relativeFilePath: ANTIGRAVITY_RULE_FILE_NAME,
       },
       nonRoot: {
-        relativeDirPath: buildToolPath(ANTIGRAVITY_AGENTS_DIR, "rules", excludeToolDir),
+        relativeDirPath: join(ANTIGRAVITY_AGENTS_DIR, "rules"),
       },
     };
   }

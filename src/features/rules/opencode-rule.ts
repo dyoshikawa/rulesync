@@ -17,7 +17,6 @@ import {
   type ToolRuleFromRulesyncRuleParams,
   ToolRuleSettablePaths,
   ToolRuleSettablePathsGlobal,
-  buildToolPath,
 } from "./tool-rule.js";
 
 export type OpenCodeRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
@@ -35,22 +34,20 @@ export class OpenCodeRule extends ToolRule {
 
   static getSettablePaths({
     global,
-    excludeToolDir,
   }: {
     global?: boolean;
-    excludeToolDir?: boolean;
   } = {}): OpenCodeRuleSettablePaths | OpenCodeRuleSettablePathsGlobal {
     if (global) {
       return {
         root: {
-          relativeDirPath: buildToolPath(this.layout.globalDir, ".", excludeToolDir),
+          relativeDirPath: join(this.layout.globalDir, "."),
           relativeFilePath: OPENCODE_RULE_FILE_NAME,
         },
         // OpenCode reads `instructions` from the global opencode.json too, so
         // global non-root rules are written under the global config dir and
         // registered there instead of being dropped.
         nonRoot: {
-          relativeDirPath: buildToolPath(this.layout.globalDir, "memories", excludeToolDir),
+          relativeDirPath: join(this.layout.globalDir, "memories"),
         },
       };
     }
@@ -60,7 +57,7 @@ export class OpenCodeRule extends ToolRule {
         relativeFilePath: OPENCODE_RULE_FILE_NAME,
       },
       nonRoot: {
-        relativeDirPath: buildToolPath(this.layout.dir, "memories", excludeToolDir),
+        relativeDirPath: join(this.layout.dir, "memories"),
       },
     };
   }

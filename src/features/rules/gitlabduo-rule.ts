@@ -25,7 +25,6 @@ export class GitlabduoRule extends SingleRootFileRule {
   static getSettablePaths(
     _options: {
       global?: boolean;
-      excludeToolDir?: boolean;
     } = {},
   ): GitlabduoRuleSettablePaths {
     // The same `.gitlab/duo/chat-rules.md` path is used relative to the project

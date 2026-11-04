@@ -66,7 +66,6 @@ export class ReasonixRule extends ToolRule {
     global = false,
   }: {
     global?: boolean;
-    excludeToolDir?: boolean;
   } = {}): ReasonixRuleSettablePaths {
     return {
       root: {

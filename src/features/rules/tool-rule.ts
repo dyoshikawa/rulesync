@@ -226,7 +226,7 @@ export abstract class ToolRule extends ToolFile {
   }
 
   static getSettablePaths(
-    _options: { global?: boolean; excludeToolDir?: boolean } = {},
+    _options: { global?: boolean } = {},
   ): ToolRuleSettablePaths | ToolRuleSettablePathsGlobal {
     throw new Error("Please implement this method in the subclass.");
   }
@@ -497,8 +497,4 @@ export abstract class ToolRule extends ToolFile {
   }): boolean {
     return isTargetedByTargets({ targets: rulesyncRule.getFrontmatter().targets, toolTarget });
   }
-}
-
-export function buildToolPath(toolDir: string, subDir: string, excludeToolDir?: boolean): string {
-  return excludeToolDir ? subDir : join(toolDir, subDir);
 }
