@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { isAbsolute, join, posix, relative } from "node:path";
 import { promisify } from "node:util";
 
-import { MAX_FILE_SIZE } from "../constants/rulesync-paths.js";
+import { formatMegabytes, MAX_FILE_SIZE, MAX_FILE_SIZE_MB } from "../constants/rulesync-paths.js";
 import {
   createTempDirectory,
   directoryExists,
@@ -376,7 +376,7 @@ async function walkDirectory(
       const { size, executable } = await getFileSizeAndExecutableBit(fullPath);
       if (size > MAX_FILE_SIZE) {
         logger?.warn(
-          `Skipping file "${fullPath}" (${(size / 1024 / 1024).toFixed(2)}MB exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit).`,
+          `Skipping file "${fullPath}" (${formatMegabytes(size)}MB exceeds ${MAX_FILE_SIZE_MB}MB limit).`,
         );
         continue;
       }

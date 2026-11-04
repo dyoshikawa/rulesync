@@ -8,7 +8,9 @@ import {
   CURATED_RULES_FEATURE_SUBDIR,
   FETCH_CONCURRENCY_LIMIT,
   RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH,
+  formatMegabytes,
   MAX_FILE_SIZE,
+  MAX_FILE_SIZE_MB,
   RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH,
   RULESYNC_NPM_SOURCES_LOCK_RELATIVE_FILE_PATH,
   RULESYNC_RULES_RELATIVE_DIR_PATH,
@@ -2561,7 +2563,7 @@ async function fetchRulesViaGithub(params: {
   for (const { entry, name } of remoteRules) {
     if (entry.size > MAX_FILE_SIZE) {
       logger.warn(
-        `Skipping rule "${entry.path}" (${(entry.size / 1024 / 1024).toFixed(2)}MB exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit).`,
+        `Skipping rule "${entry.path}" (${formatMegabytes(entry.size)}MB exceeds ${MAX_FILE_SIZE_MB}MB limit).`,
       );
       continue;
     }
@@ -2825,7 +2827,7 @@ async function fetchRootLevelFallbackSkill(params: {
   for (const file of rootFiles) {
     if (file.size > MAX_FILE_SIZE) {
       logger.warn(
-        `Skipping file "${file.path}" (${(file.size / 1024 / 1024).toFixed(2)}MB exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit).`,
+        `Skipping file "${file.path}" (${formatMegabytes(file.size)}MB exceeds ${MAX_FILE_SIZE_MB}MB limit).`,
       );
       continue;
     }
@@ -2921,7 +2923,7 @@ async function fetchGithubSkillDir(params: {
   const files = allFiles.filter((file) => {
     if (file.size > MAX_FILE_SIZE) {
       logger.warn(
-        `Skipping file "${file.path}" (${(file.size / 1024 / 1024).toFixed(2)}MB exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit).`,
+        `Skipping file "${file.path}" (${formatMegabytes(file.size)}MB exceeds ${MAX_FILE_SIZE_MB}MB limit).`,
       );
       return false;
     }
@@ -3542,7 +3544,7 @@ function extractNpmRemoteFiles(params: { tarball: Buffer; logger: Logger }): Rem
   for (const entry of extracted) {
     if (entry.content.length > MAX_FILE_SIZE) {
       logger.warn(
-        `Skipping file "${entry.relativePath}" (${(entry.content.length / 1024 / 1024).toFixed(2)}MB exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit).`,
+        `Skipping file "${entry.relativePath}" (${formatMegabytes(entry.content.length)}MB exceeds ${MAX_FILE_SIZE_MB}MB limit).`,
       );
       continue;
     }

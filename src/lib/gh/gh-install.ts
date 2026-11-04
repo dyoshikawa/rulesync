@@ -3,7 +3,12 @@ import { basename, join, posix } from "node:path";
 import { Semaphore } from "es-toolkit/promise";
 
 import type { SourceEntry } from "../../config/config.js";
-import { FETCH_CONCURRENCY_LIMIT, MAX_FILE_SIZE } from "../../constants/rulesync-paths.js";
+import {
+  FETCH_CONCURRENCY_LIMIT,
+  formatMegabytes,
+  MAX_FILE_SIZE,
+  MAX_FILE_SIZE_MB,
+} from "../../constants/rulesync-paths.js";
 import { formatError } from "../../utils/error.js";
 import {
   assertNoSymlinkBelowRoot,
@@ -911,7 +916,7 @@ async function buildSkillDeployment(params: {
   for (const file of allFiles) {
     if (file.size > MAX_FILE_SIZE) {
       logger.warn(
-        `Skipping "${file.path}" from ${sourceKey}: ${(file.size / 1024 / 1024).toFixed(2)}MB exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit.`,
+        `Skipping "${file.path}" from ${sourceKey}: ${formatMegabytes(file.size)}MB exceeds ${MAX_FILE_SIZE_MB}MB limit.`,
       );
       continue;
     }
@@ -939,7 +944,7 @@ async function buildSkillDeployment(params: {
     const byteLength = Buffer.byteLength(content, "utf8");
     if (byteLength > MAX_FILE_SIZE) {
       logger.warn(
-        `Skipping "${file.path}" from ${sourceKey}: fetched ${(byteLength / 1024 / 1024).toFixed(2)}MB exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit.`,
+        `Skipping "${file.path}" from ${sourceKey}: fetched ${formatMegabytes(byteLength)}MB exceeds ${MAX_FILE_SIZE_MB}MB limit.`,
       );
       continue;
     }

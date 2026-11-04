@@ -7,7 +7,9 @@ import { SKILL_FILE_NAME } from "../constants/general.js";
 import {
   FEATURE_SOURCE_TREE_ENTRIES,
   FETCH_CONCURRENCY_LIMIT,
+  formatMegabytes,
   MAX_FILE_SIZE,
+  MAX_FILE_SIZE_MB,
   RULESYNC_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
 import { ChecksProcessor } from "../features/checks/checks-processor.js";
@@ -87,7 +89,7 @@ function validateFileSize(relativePath: string, size: number): void {
       // The path comes from the remote repository, and this message is read in
       // a terminal, so it is quoted and stripped like every other remote path
       // this command prints.
-      `File ${quoteForLog(relativePath)} exceeds maximum size limit (${(size / 1024 / 1024).toFixed(2)}MB > ${MAX_FILE_SIZE / 1024 / 1024}MB)`,
+      `File ${quoteForLog(relativePath)} exceeds maximum size limit (${formatMegabytes(size)}MB > ${MAX_FILE_SIZE_MB}MB)`,
     );
   }
 }

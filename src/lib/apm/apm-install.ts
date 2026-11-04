@@ -2,7 +2,12 @@ import { join, posix } from "node:path";
 
 import { Semaphore } from "es-toolkit/promise";
 
-import { FETCH_CONCURRENCY_LIMIT, MAX_FILE_SIZE } from "../../constants/rulesync-paths.js";
+import {
+  FETCH_CONCURRENCY_LIMIT,
+  formatMegabytes,
+  MAX_FILE_SIZE,
+  MAX_FILE_SIZE_MB,
+} from "../../constants/rulesync-paths.js";
 import type { GitHubFileEntry } from "../../types/fetch.js";
 import { formatError } from "../../utils/error.js";
 import {
@@ -547,7 +552,7 @@ async function collectPrimitiveDeployments(params: {
   for (const file of files) {
     if (file.size > MAX_FILE_SIZE) {
       logger.warn(
-        `Skipping "${file.path}" from ${repoUrl}: ${(file.size / 1024 / 1024).toFixed(2)}MB exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit.`,
+        `Skipping "${file.path}" from ${repoUrl}: ${formatMegabytes(file.size)}MB exceeds ${MAX_FILE_SIZE_MB}MB limit.`,
       );
       continue;
     }
@@ -569,7 +574,7 @@ async function collectPrimitiveDeployments(params: {
     const byteLength = Buffer.byteLength(content, "utf8");
     if (byteLength > MAX_FILE_SIZE) {
       logger.warn(
-        `Skipping "${file.path}" from ${repoUrl}: fetched ${(byteLength / 1024 / 1024).toFixed(2)}MB exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit.`,
+        `Skipping "${file.path}" from ${repoUrl}: fetched ${formatMegabytes(byteLength)}MB exceeds ${MAX_FILE_SIZE_MB}MB limit.`,
       );
       continue;
     }
