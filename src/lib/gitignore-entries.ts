@@ -449,12 +449,6 @@ const warnInvalidFeatures = (features: RulesyncFeatures, logger?: Logger): void 
   }
 };
 
-export const filterGitignoreEntries = (
-  params?: FilterGitignoreEntriesParams & { logger?: Logger },
-): string[] => {
-  return resolveGitignoreEntries(params).map((entry) => entry.entry);
-};
-
 export const resolveGitignoreEntries = (
   params?: FilterGitignoreEntriesParams & { logger?: Logger },
 ): ResolvedGitignoreEntry[] => {

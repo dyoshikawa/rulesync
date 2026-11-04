@@ -1,15 +1,14 @@
 import { join } from "node:path";
 
-import { dump } from "js-yaml";
-import { optional, refine, z } from "zod/mini";
+import { optional, z } from "zod/mini";
 
 import {
-  assertWritablePathInsideRoot,
-  fileExists,
-  readFileContent,
-  writeFileContent,
-} from "../../utils/file.js";
-import { loadYaml } from "../../utils/yaml.js";
+  parseYamlLockfile,
+  readYamlLockfile,
+  ResolvedCommitShaSchema,
+  serializeYamlLockfile,
+  writeYamlLockfile,
+} from "../yaml-lockfile.js";
 
 /**
  * Filename of the rulesync-managed gh-skill-compatible lockfile. Distinct
@@ -19,14 +18,6 @@ import { loadYaml } from "../../utils/yaml.js";
  */
 const GH_LOCKFILE_FILE_NAME = "rulesync-gh.lock.yaml";
 export const GH_LOCKFILE_VERSION = "1" as const;
-
-/**
- * Shape of content_hash values that rulesync writes for gh installs. Same
- * format as the apm-mode hash so callers can reuse the integrity check
- * conventions; under `--frozen` only values matching this regex are
- * considered comparable.
- */
-export const RULESYNC_CONTENT_HASH_REGEX = /^sha256:[0-9a-f]{64}$/;
 
 const ScopeSchema = z.enum(["project", "user"]);
 
@@ -44,9 +35,7 @@ const GhLockInstallationSchema = z.looseObject({
   skill: z.string(),
   requested_ref: optional(z.string()),
   resolved_ref: z.string(),
-  resolved_commit: z
-    .string()
-    .check(refine((v) => /^[0-9a-f]{40}$/.test(v), "resolved_commit must be a 40-char hex SHA")),
+  resolved_commit: ResolvedCommitShaSchema,
   install_dir: z.string(),
   deployed_files: z.array(z.string()),
   content_hash: optional(z.string()),
@@ -86,50 +75,23 @@ export function createEmptyGhLock(params?: { existingLock?: GhLock | null }): Gh
  * throws, rather than silently dropping previously pinned entries.
  */
 export function parseGhLock(content: string): GhLock | null {
-  if (!content.trim()) {
-    return null;
-  }
-  let loaded: unknown;
-  try {
-    loaded = loadYaml(content);
-  } catch {
-    return null;
-  }
-  if (!loaded || typeof loaded !== "object") {
-    return null;
-  }
-  const parsed = GhLockSchema.safeParse(loaded);
-  if (!parsed.success) {
-    const issues = parsed.error.issues
-      .map((issue) => `  - ${issue.path.join(".") || "<root>"}: ${issue.message}`)
-      .join("\n");
-    throw new Error(`Invalid ${GH_LOCKFILE_FILE_NAME}:\n${issues}`);
-  }
-  return parsed.data;
+  return parseYamlLockfile({ content, schema: GhLockSchema, fileName: GH_LOCKFILE_FILE_NAME });
 }
 
 export async function readGhLock(projectRoot: string): Promise<GhLock | null> {
-  const path = getGhLockPath(projectRoot);
-  if (!(await fileExists(path))) {
-    return null;
-  }
-  const content = await readFileContent(path);
-  return parseGhLock(content);
+  return readYamlLockfile({ path: getGhLockPath(projectRoot), parse: parseGhLock });
 }
 
 export async function writeGhLock(params: { projectRoot: string; lock: GhLock }): Promise<void> {
-  const path = getGhLockPath(params.projectRoot);
-  const content = serializeGhLock(params.lock);
-  // The lockfile is committed with the project; refuse to follow a link that
-  // would make this write overwrite a file elsewhere.
-  await assertWritablePathInsideRoot({ rootPath: params.projectRoot, targetPath: path });
-  await writeFileContent(path, content);
+  await writeYamlLockfile({
+    projectRoot: params.projectRoot,
+    path: getGhLockPath(params.projectRoot),
+    content: serializeGhLock(params.lock),
+  });
 }
 
 export function serializeGhLock(lock: GhLock): string {
-  // `noRefs: true` avoids YAML anchors/aliases; `lineWidth: -1` keeps long
-  // URLs and sha values on a single line so the file stays diff-friendly.
-  return dump(lock, { noRefs: true, lineWidth: -1, sortKeys: false });
+  return serializeYamlLockfile(lock);
 }
 
 /**

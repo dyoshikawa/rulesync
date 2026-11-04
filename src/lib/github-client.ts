@@ -2,7 +2,7 @@
 import { RequestError } from "@octokit/request-error";
 import { Octokit } from "@octokit/rest";
 
-import { MAX_FILE_SIZE } from "../constants/rulesync-paths.js";
+import { MAX_FILE_SIZE, MAX_FILE_SIZE_MB } from "../constants/rulesync-paths.js";
 import type {
   GitHubApiError,
   GitHubClientConfig,
@@ -258,7 +258,7 @@ export class GitHubClient {
         throw new GitHubClientError(
           // `path` names a file in the remote repository, so it is stripped
           // and quoted before it reaches a terminal.
-          `File ${quoteForLog(path)} exceeds maximum size limit of ${MAX_FILE_SIZE / 1024 / 1024}MB`,
+          `File ${quoteForLog(path)} exceeds maximum size limit of ${MAX_FILE_SIZE_MB}MB`,
         );
       }
 
