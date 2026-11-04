@@ -12,6 +12,8 @@ import {
   resolveDisableModelInvocation,
   resolveLicense,
   resolveMetadata,
+  toAllowedToolsArray,
+  toAllowedToolsString,
 } from "./skills-utils.js";
 import {
   ToolSkill,
@@ -119,11 +121,7 @@ export class PiSkill extends ToolSkill {
     const frontmatter = this.getFrontmatter();
     const allowedTools = frontmatter["allowed-tools"];
     const allowedToolsArray =
-      allowedTools === undefined
-        ? undefined
-        : Array.isArray(allowedTools)
-          ? allowedTools
-          : allowedTools.split(/\s+/).filter((tool) => tool.length > 0);
+      allowedTools === undefined ? undefined : toAllowedToolsArray(allowedTools);
     const piBlock = {
       // Normalized back to the canonical rulesync array, mirroring
       // `DeepagentsSkill`, so a generate → import round trip is stable.
@@ -177,7 +175,8 @@ export class PiSkill extends ToolSkill {
     // space-delimited string, so a canonical rulesync list is joined rather than
     // emitted as a YAML sequence. Mirrors `DeepagentsSkill`.
     const { "allowed-tools": allowedTools, ...piSectionRest } = piSection ?? {};
-    const allowedToolsString = Array.isArray(allowedTools) ? allowedTools.join(" ") : allowedTools;
+    const allowedToolsString =
+      allowedTools === undefined ? undefined : toAllowedToolsString(allowedTools);
     // The Agent Skills standard fields fall back to the root-level rulesync
     // value when the `pi` section omits them.
     const license = resolveLicense({ rootFrontmatter: rulesyncFrontmatter, section: piSection });

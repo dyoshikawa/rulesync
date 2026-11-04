@@ -20,6 +20,8 @@ import {
   resolveLicense,
   resolveMetadata,
   SKILL_DESCRIPTION_MAX_LENGTH,
+  toAllowedToolsArray,
+  toAllowedToolsString,
   warnSkillViolations,
 } from "./skills-utils.js";
 import {
@@ -100,25 +102,6 @@ function stringifyValue(value: unknown): string {
     }
   }
   return String(value);
-}
-
-/**
- * The spec types `allowed-tools` as "a space-separated string of tools", so an
- * array from a legacy rulesync input is joined rather than emitted as a YAML
- * sequence. Mirrors `DeepagentsSkill`.
- */
-function toAllowedToolsString(value: string | string[]): string {
-  return Array.isArray(value) ? value.join(" ") : value;
-}
-
-/**
- * Inverse of {@link toAllowedToolsString}: normalize back to the canonical
- * rulesync array representation on import, so a generate → import round trip
- * leaves `.rulesync/skills/**` in the shape it started in. Mirrors
- * `DeepagentsSkill`.
- */
-export function toAllowedToolsArray(value: string | string[]): string[] {
-  return Array.isArray(value) ? value : value.split(/\s+/).filter((tool) => tool.length > 0);
 }
 
 /**

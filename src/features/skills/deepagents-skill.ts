@@ -12,7 +12,13 @@ import {
   getDeepagentsRulesyncOutputRoot,
 } from "../../utils/deepagents.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
-import { resolveCompatibility, resolveLicense, resolveMetadata } from "./skills-utils.js";
+import {
+  resolveCompatibility,
+  resolveLicense,
+  resolveMetadata,
+  toAllowedToolsArray,
+  toAllowedToolsString,
+} from "./skills-utils.js";
 import {
   ToolSkill,
   ToolSkillForDeletionParams,
@@ -115,11 +121,7 @@ export class DeepagentsSkill extends ToolSkill {
     // Normalize back to the canonical rulesync array representation. dcode
     // serializes `allowed-tools` as a whitespace-delimited string, so split it.
     const allowedToolsArray =
-      allowedTools === undefined
-        ? undefined
-        : Array.isArray(allowedTools)
-          ? allowedTools
-          : allowedTools.split(/\s+/).filter((tool) => tool.length > 0);
+      allowedTools === undefined ? undefined : toAllowedToolsArray(allowedTools);
     const deepagentsBlock = {
       ...(allowedToolsArray !== undefined &&
         allowedToolsArray.length > 0 && { "allowed-tools": allowedToolsArray }),
@@ -162,7 +164,8 @@ export class DeepagentsSkill extends ToolSkill {
     const allowedTools = deepagentsSection?.["allowed-tools"];
     // dcode only honors a space-delimited string; serialize the canonical array
     // into that form so the allowlist is not dropped at runtime.
-    const allowedToolsString = Array.isArray(allowedTools) ? allowedTools.join(" ") : allowedTools;
+    const allowedToolsString =
+      allowedTools === undefined ? undefined : toAllowedToolsString(allowedTools);
     // The Agent Skills standard fields fall back to the root-level rulesync
     // value when the `deepagents` section omits them.
     const license = resolveLicense({

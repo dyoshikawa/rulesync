@@ -287,3 +287,21 @@ export function resolveMetadata<TSection = Record<string, unknown>>({
 }): TSection | Record<string, unknown> | undefined {
   return section?.metadata ?? rootFrontmatter.metadata;
 }
+
+/**
+ * The Agent Skills spec types `allowed-tools` as "a space-separated string of
+ * tools", so an array from a rulesync input is joined rather than emitted as a
+ * YAML sequence.
+ */
+export function toAllowedToolsString(value: string | string[]): string {
+  return Array.isArray(value) ? value.join(" ") : value;
+}
+
+/**
+ * Inverse of {@link toAllowedToolsString}: normalize back to the canonical
+ * rulesync array representation on import, so a generate → import round trip
+ * leaves `.rulesync/skills/**` in the shape it started in.
+ */
+export function toAllowedToolsArray(value: string | string[]): string[] {
+  return Array.isArray(value) ? value : value.split(/\s+/).filter((tool) => tool.length > 0);
+}

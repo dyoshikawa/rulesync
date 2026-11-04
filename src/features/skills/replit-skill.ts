@@ -5,7 +5,13 @@ import { REPLIT_SKILLS_DIR_PATH } from "../../constants/replit-paths.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
-import { resolveCompatibility, resolveLicense, resolveMetadata } from "./skills-utils.js";
+import {
+  resolveCompatibility,
+  resolveLicense,
+  resolveMetadata,
+  toAllowedToolsArray,
+  toAllowedToolsString,
+} from "./skills-utils.js";
 import {
   ToolSkill,
   ToolSkillForDeletionParams,
@@ -106,11 +112,7 @@ export class ReplitSkill extends ToolSkill {
     // `DeepagentsSkill`, so a generate → import round trip is stable.
     const allowedTools = frontmatter["allowed-tools"];
     const allowedToolsArray =
-      allowedTools === undefined
-        ? undefined
-        : Array.isArray(allowedTools)
-          ? allowedTools
-          : allowedTools.split(/\s+/).filter((tool) => tool.length > 0);
+      allowedTools === undefined ? undefined : toAllowedToolsArray(allowedTools);
     const replitBlock = {
       ...(allowedToolsArray !== undefined &&
         allowedToolsArray.length > 0 && { "allowed-tools": allowedToolsArray }),
@@ -152,7 +154,8 @@ export class ReplitSkill extends ToolSkill {
     // space-separated string, so a canonical rulesync array is joined rather
     // than emitted as a YAML sequence. Mirrors `DeepagentsSkill`.
     const { "allowed-tools": allowedTools, ...replitSection } = rulesyncFrontmatter.replit ?? {};
-    const allowedToolsString = Array.isArray(allowedTools) ? allowedTools.join(" ") : allowedTools;
+    const allowedToolsString =
+      allowedTools === undefined ? undefined : toAllowedToolsString(allowedTools);
     // The Agent Skills standard fields fall back to the root-level rulesync
     // value when the `replit` section omits them. Every resolver already prefers
     // a defined section value, so re-applying them after the spread never
