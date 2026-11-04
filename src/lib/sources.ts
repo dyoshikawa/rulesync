@@ -618,7 +618,7 @@ async function prefetchGithubSkills(params: {
     return;
   }
   const skillFilter = sourceEntry.skills ?? ["*"];
-  const isWildcard = skillFilter.length === 1 && skillFilter[0] === "*";
+  const isWildcard = isWildcardSelection(skillFilter);
   const entries = await withSemaphore(semaphore, () =>
     client.listDirectory(parsed.owner, parsed.repo, resolveSkillsSourcePath(sourceEntry), ref),
   );
@@ -741,22 +741,17 @@ async function prefetchGithubRules(params: {
       ref,
     ),
   );
-  const ruleFilter = (sourceEntry.rules ?? []).map(normalizeRuleFilterName);
-  const isWildcard = ruleFilter.length === 1 && ruleFilter[0] === "*";
-  const files = entries.filter((entry) => {
-    if (entry.type !== "file" || !entry.name.toLowerCase().endsWith(".md")) {
-      return false;
-    }
-    const name = normalizeRuleFilterName(entry.name);
-    return (
-      (isWildcard || ruleFilter.includes(name)) &&
-      isValidRuleName(name) &&
-      !context.localRuleNames.has(name) &&
-      !claimed.has(name)
-    );
+  const selected = selectDeclaredRules({
+    sourceEntry,
+    candidates: entries.filter((entry) => entry.type === "file"),
+    getFileName: (entry) => entry.name,
+  }).filter(({ name }) => !context.localRuleNames.has(name) && !claimed.has(name));
+  claim.settle(selected.map(({ name }) => name));
+  await prefetchFileContents({
+    files: selected.map(({ candidate }) => candidate),
+    target,
+    context,
   });
-  claim.settle(files.map((file) => normalizeRuleFilterName(file.name)));
-  await prefetchFileContents({ files, target, context });
 }
 
 async function prefetchFileContents(params: {
@@ -2293,6 +2288,30 @@ function normalizeRuleFilterName(name: string): string {
   return name.replace(/\.md$/i, "");
 }
 
+/** Whether a declared skill or rule selection is the `["*"]` wildcard. */
+function isWildcardSelection(selection: readonly string[]): boolean {
+  return selection.length === 1 && selection[0] === "*";
+}
+
+/**
+ * Pick the remote rule files a source entry declares: Markdown files whose
+ * normalized name is selected by `sourceEntry.rules` (or the wildcard) and is
+ * a valid rule name. Candidate order is preserved.
+ */
+function selectDeclaredRules<T>(params: {
+  sourceEntry: SourceEntry;
+  candidates: readonly T[];
+  getFileName: (candidate: T) => string;
+}): Array<{ candidate: T; name: string }> {
+  const { sourceEntry, candidates, getFileName } = params;
+  const ruleFilter = (sourceEntry.rules ?? []).map(normalizeRuleFilterName);
+  const isWildcard = isWildcardSelection(ruleFilter);
+  return candidates
+    .filter((candidate) => getFileName(candidate).toLowerCase().endsWith(".md"))
+    .map((candidate) => ({ candidate, name: normalizeRuleFilterName(getFileName(candidate)) }))
+    .filter(({ name }) => (isWildcard || ruleFilter.includes(name)) && isValidRuleName(name));
+}
+
 function normalizeRuleSelection(rules: string[]): string[] {
   return [...new Set(rules.map(normalizeRuleFilterName))].toSorted();
 }
@@ -2348,7 +2367,7 @@ function lockedSkillConfigMatches(params: {
     if (!params.acceptLegacy || lockedSkillNames.size === 0) {
       return false;
     }
-    if (selection.length === 1 && selection[0] === "*") {
+    if (isWildcardSelection(selection)) {
       return true;
     }
     return selection.every((skillName) => lockedSkillNames.has(skillName));
@@ -2543,8 +2562,6 @@ async function fetchRulesViaGithub(params: {
     return { ruleCount: 0, fetchedRuleNames: lockedRuleNames, updatedLock: lock };
   }
 
-  const ruleFilter = (sourceEntry.rules ?? []).map(normalizeRuleFilterName);
-  const isWildcard = ruleFilter.length === 1 && ruleFilter[0] === "*";
   const rulesPath = resolveRulesSourcePath(sourceEntry);
   let entries: GitHubFileEntry[];
   try {
@@ -2555,10 +2572,11 @@ async function fetchRulesViaGithub(params: {
     }
     throw error;
   }
-  const remoteRules = entries
-    .filter((entry) => entry.type === "file" && entry.name.toLowerCase().endsWith(".md"))
-    .map((entry) => ({ entry, name: normalizeRuleFilterName(entry.name) }))
-    .filter(({ name }) => (isWildcard || ruleFilter.includes(name)) && isValidRuleName(name));
+  const remoteRules = selectDeclaredRules({
+    sourceEntry,
+    candidates: entries.filter((entry) => entry.type === "file"),
+    getFileName: (entry) => entry.name,
+  }).map(({ candidate, name }) => ({ entry: candidate, name }));
   const remoteRuleNames = remoteRules.map(({ name }) => name);
   assertMatchingRulesFound({ ruleNames: remoteRuleNames, source: sourceKey });
   const preparedRules: RemoteRuleFile[] = [];
@@ -2690,16 +2708,11 @@ async function fetchRulesViaGit(params: {
     skillsPath: resolveRulesSourcePath(sourceEntry),
     logger,
   });
-  const ruleFilter = (sourceEntry.rules ?? []).map(normalizeRuleFilterName);
-  const isWildcard = ruleFilter.length === 1 && ruleFilter[0] === "*";
-  const remoteRules = files
-    .filter(
-      (file) =>
-        getFirstPathSeparatorIndex(file.relativePath) === -1 &&
-        file.relativePath.toLowerCase().endsWith(".md"),
-    )
-    .map((file) => ({ name: normalizeRuleFilterName(file.relativePath), content: file.content }))
-    .filter((rule) => (isWildcard || ruleFilter.includes(rule.name)) && isValidRuleName(rule.name));
+  const remoteRules = selectDeclaredRules({
+    sourceEntry,
+    candidates: files.filter((file) => getFirstPathSeparatorIndex(file.relativePath) === -1),
+    getFileName: (file) => file.relativePath,
+  }).map(({ candidate, name }) => ({ name, content: candidate.content }));
   const remoteRuleNames = remoteRules.map((rule) => rule.name);
   assertMatchingRulesFound({ ruleNames: remoteRuleNames, source: sourceKey });
   const fetchedRules = await replaceCuratedRules({
@@ -3150,7 +3163,7 @@ async function fetchSource(params: {
 
   // Determine which skills to fetch
   const skillFilter = sourceEntry.skills ?? ["*"];
-  const isWildcard = skillFilter.length === 1 && skillFilter[0] === "*";
+  const isWildcard = isWildcardSelection(skillFilter);
   const semaphore = new Semaphore(FETCH_CONCURRENCY_LIMIT);
   const getExecutablePaths = createExecutablePathsLoader({
     client,
@@ -3329,7 +3342,7 @@ async function fetchSourceViaGit(params: {
   }
 
   const skillFilter = sourceEntry.skills ?? ["*"];
-  const isWildcard = skillFilter.length === 1 && skillFilter[0] === "*";
+  const isWildcard = isWildcardSelection(skillFilter);
   const remoteFiles = await fetchSkillFiles({
     url,
     ref: requestedRef,
@@ -3657,7 +3670,7 @@ async function fetchNpmSkills(params: {
     logger,
   } = params;
   const skillFilter = sourceEntry.skills ?? [];
-  const declaredWildcard = skillFilter.length === 1 && skillFilter[0] === "*";
+  const declaredWildcard = isWildcardSelection(skillFilter);
   const selectedFiles = selectNpmSkillFiles({
     allFiles,
     skillsPath: resolveSkillsSourcePath(sourceEntry),
@@ -3740,21 +3753,17 @@ async function fetchNpmRules(params: {
   } = params;
   const normalizedRulesPath = resolveRulesPath(sourceEntry);
   const rulePrefix = normalizedRulesPath === "." ? "" : `${normalizedRulesPath}/`;
-  const ruleFilter = (sourceEntry.rules ?? []).map(normalizeRuleFilterName);
-  const isWildcard = ruleFilter.length === 1 && ruleFilter[0] === "*";
-  const remoteRules = allFiles
-    .filter((file) => file.relativePath.startsWith(rulePrefix))
-    .map((file) => ({
-      relativePath: file.relativePath.substring(rulePrefix.length),
-      content: file.content,
-    }))
-    .filter(
-      (file) =>
-        getFirstPathSeparatorIndex(file.relativePath) === -1 &&
-        file.relativePath.toLowerCase().endsWith(".md"),
-    )
-    .map((file) => ({ name: normalizeRuleFilterName(file.relativePath), content: file.content }))
-    .filter((rule) => (isWildcard || ruleFilter.includes(rule.name)) && isValidRuleName(rule.name));
+  const remoteRules = selectDeclaredRules({
+    sourceEntry,
+    candidates: allFiles
+      .filter((file) => file.relativePath.startsWith(rulePrefix))
+      .map((file) => ({
+        relativePath: file.relativePath.substring(rulePrefix.length),
+        content: file.content,
+      }))
+      .filter((file) => getFirstPathSeparatorIndex(file.relativePath) === -1),
+    getFileName: (file) => file.relativePath,
+  }).map(({ candidate, name }) => ({ name, content: candidate.content }));
   const resolvedRuleNames = remoteRules.map((rule) => rule.name);
   assertMatchingRulesFound({ ruleNames: resolvedRuleNames, source: packageName });
   const fetchedRules = await replaceCuratedRules({
