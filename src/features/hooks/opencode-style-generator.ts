@@ -123,7 +123,7 @@ const STDIN_PAYLOAD_EVENTS: Record<string, string> = {
  *   non-zero exit aborted the call. Keeping that preserves guards that block
  *   with `exit 1`, rather than silently failing them open.
  */
-export const PRE_TOOL_USE_RESULT_HELPER = "__rulesyncEnforcePreToolUseResult";
+const PRE_TOOL_USE_RESULT_HELPER = "__rulesyncEnforcePreToolUseResult";
 
 export const PRE_TOOL_USE_RESULT_HELPER_LINES: readonly string[] = [
   ...buildBlockReasonSanitizerLines({ typed: false }),
@@ -157,7 +157,7 @@ export const PRE_TOOL_USE_RESULT_HELPER_LINES: readonly string[] = [
   "};",
 ];
 
-export function escapeForTemplateLiteral(command: string): string {
+function escapeForTemplateLiteral(command: string): string {
   return command.replace(/\\/g, "\\\\").replace(/`/g, "\\`").replace(/\$\{/g, "\\${");
 }
 

@@ -29,7 +29,7 @@ export type TriggerRuleFrontmatter = z.infer<typeof TriggerRuleFrontmatterSchema
  * @param globs - Comma-separated globs string (e.g., "*.ts,*.js") or array of globs
  * @returns Array of glob patterns
  */
-export function parseGlobsString(globs: string | string[] | undefined): string[] {
+function parseGlobsString(globs: string | string[] | undefined): string[] {
   if (!globs) {
     return [];
   }
@@ -68,7 +68,7 @@ export type StoredTriggerRule =
  * Normalizes a StoredTriggerRule value to TriggerRuleFrontmatter format by
  * converting globs from array to string if needed.
  */
-export function normalizeStoredTriggerRule(
+function normalizeStoredTriggerRule(
   stored: StoredTriggerRule,
 ): TriggerRuleFrontmatter | undefined {
   if (!stored) {

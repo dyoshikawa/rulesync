@@ -3,7 +3,7 @@ import { z } from "zod/mini";
 import { FrontmatterMarkdownToolCommand } from "./frontmatter-markdown-command.js";
 import type { RulesyncCommandFrontmatter } from "./rulesync-command.js";
 
-export const SimulatedCommandFrontmatterSchema = z.object({
+const SimulatedCommandFrontmatterSchema = z.object({
   description: z.optional(z.string()),
 });
 

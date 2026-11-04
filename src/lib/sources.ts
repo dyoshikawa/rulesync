@@ -485,7 +485,7 @@ export async function getInstalledSourceRuleNames({
  * The entry moves as a whole, so its commit and integrity hashes are reused
  * exactly as they would have been under the old key.
  */
-export function migrateSourceLockKeys(params: {
+function migrateSourceLockKeys(params: {
   lock: SourcesLock;
   sources: SourceEntry[];
   lockKeys: string[];
