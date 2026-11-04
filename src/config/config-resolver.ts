@@ -5,7 +5,6 @@ import { parse as parseJsonc } from "jsonc-parser";
 import {
   RULESYNC_CONFIG_RELATIVE_FILE_PATH,
   RULESYNC_LOCAL_CONFIG_RELATIVE_FILE_PATH,
-  RULESYNC_RELATIVE_DIR_PATH,
 } from "../constants/rulesync-paths.js";
 import {
   ALL_TOOL_TARGETS,
@@ -29,6 +28,7 @@ import {
   ConfigFile,
   ConfigFileSchema,
   ConfigParams,
+  expandInputRootSource,
   expandWildcardTargets,
   PartialConfigParams,
   RequiredConfigParams,
@@ -135,30 +135,27 @@ const mergeConfigs = (
 ): PartialConfigParams => {
   // Local config takes precedence over base config
   // Only override if the value is explicitly set (not undefined)
-  return {
-    targets: localConfig.targets ?? baseConfig.targets,
-    features: localConfig.features ?? baseConfig.features,
-    verbose: localConfig.verbose ?? baseConfig.verbose,
-    delete: localConfig.delete ?? baseConfig.delete,
-    outputRoots: localConfig.outputRoots ?? baseConfig.outputRoots,
-    global: localConfig.global ?? baseConfig.global,
-    silent: localConfig.silent ?? baseConfig.silent,
-    simulateCommands: localConfig.simulateCommands ?? baseConfig.simulateCommands,
-    simulateSubagents: localConfig.simulateSubagents ?? baseConfig.simulateSubagents,
-    simulateSkills: localConfig.simulateSkills ?? baseConfig.simulateSkills,
-    preserveUnownedHooks: localConfig.preserveUnownedHooks ?? baseConfig.preserveUnownedHooks,
-    deriveSubprojectPathFromGlobs:
-      localConfig.deriveSubprojectPathFromGlobs ?? baseConfig.deriveSubprojectPathFromGlobs,
-    flattenedCommandNaming: localConfig.flattenedCommandNaming ?? baseConfig.flattenedCommandNaming,
-    language: localConfig.language ?? baseConfig.language,
-    gitignoreTargetsOnly: localConfig.gitignoreTargetsOnly ?? baseConfig.gitignoreTargetsOnly,
-    gitignoreDestination: localConfig.gitignoreDestination ?? baseConfig.gitignoreDestination,
-    dryRun: localConfig.dryRun ?? baseConfig.dryRun,
-    check: localConfig.check ?? baseConfig.check,
-    ...mergeInputRootConfigs({ baseConfig, localConfig }),
-    sources: localConfig.sources ?? baseConfig.sources,
-  };
+  const definedLocalConfig = Object.fromEntries(
+    Object.entries(localConfig).filter(([, value]) => value !== undefined),
+  );
+  return { ...baseConfig, ...definedLocalConfig };
 };
+
+/**
+ * Reject traversal patterns in the raw `inputRoot` / `inputRoots` values
+ * before `resolve()` normalizes them away.
+ */
+function validateInputRootFields({ inputRoot, inputRoots }: InputRootConfig): void {
+  if (inputRoot !== undefined) {
+    validateOutputRoot(inputRoot);
+  }
+
+  if (inputRoots !== undefined) {
+    for (const entry of inputRoots) {
+      validateOutputRoot(entry);
+    }
+  }
+}
 
 /**
  * Resolve a single config value honouring precedence:
@@ -306,30 +303,34 @@ export function resolveEffectiveInputRoots({
   candidates: string[];
   field: "inputRoot" | "inputRoots" | undefined;
 } {
-  let source: readonly string[] | undefined;
-  let field: "inputRoot" | "inputRoots" | undefined;
+  const hasCliInputRoot =
+    (cliInputRoots !== undefined && cliInputRoots.length > 0) || cliInputRoot !== undefined;
+  const fieldSource: InputRootConfig = hasCliInputRoot
+    ? { inputRoot: cliInputRoot, inputRoots: cliInputRoots }
+    : configByFile;
 
-  if (cliInputRoots !== undefined && cliInputRoots.length > 0) {
-    source = cliInputRoots;
-    field = "inputRoots";
-  } else if (cliInputRoot !== undefined) {
-    source = [join(cliInputRoot, RULESYNC_RELATIVE_DIR_PATH)];
-    field = "inputRoot";
-  } else if (configByFile.inputRoots !== undefined && configByFile.inputRoots.length > 0) {
-    source = configByFile.inputRoots;
-    field = "inputRoots";
-
-    if (configByFile.inputRoot !== undefined) {
-      logger?.debug(
-        `Both 'inputRoot' and 'inputRoots' were set after merging base and local configs; 'inputRoots' wins and 'inputRoot' was dropped.`,
-      );
-    }
-  } else if (configByFile.inputRoot !== undefined) {
-    source = [join(configByFile.inputRoot, RULESYNC_RELATIVE_DIR_PATH)];
-    field = "inputRoot";
-  } else {
-    source = [join(cwd, RULESYNC_RELATIVE_DIR_PATH)];
+  if (
+    !hasCliInputRoot &&
+    configByFile.inputRoots !== undefined &&
+    configByFile.inputRoots.length > 0 &&
+    configByFile.inputRoot !== undefined
+  ) {
+    logger?.debug(
+      `Both 'inputRoot' and 'inputRoots' were set after merging base and local configs; 'inputRoots' wins and 'inputRoot' was dropped.`,
+    );
   }
+
+  const field: "inputRoot" | "inputRoots" | undefined =
+    fieldSource.inputRoots !== undefined && fieldSource.inputRoots.length > 0
+      ? "inputRoots"
+      : fieldSource.inputRoot !== undefined
+        ? "inputRoot"
+        : undefined;
+  const source = expandInputRootSource({
+    inputRoot: fieldSource.inputRoot,
+    inputRoots: fieldSource.inputRoots,
+    cwd,
+  });
 
   // Resolve against the passed-in `cwd` rather than the ambient
   // `process.cwd()`, so a relative entry lands under the directory the caller
@@ -471,15 +472,7 @@ export class ConfigResolver {
     // patterns like `/foo/../bar` cannot slip through `resolve()`'s
     // normalization. We do not validate cwd itself because cwd is trusted
     // process state, not attacker-controlled input.
-    if (inputRoot !== undefined) {
-      validateOutputRoot(inputRoot);
-    }
-
-    if (inputRoots !== undefined) {
-      for (const entry of inputRoots) {
-        validateOutputRoot(entry);
-      }
-    }
+    validateInputRootFields({ inputRoot, inputRoots });
 
     const cliConfigAnchor = inputRoot;
     const hasCliInputRootOverride = inputRoot !== undefined || inputRoots !== undefined;
@@ -504,15 +497,10 @@ export class ConfigResolver {
     // caller did not supply their own (otherwise the CLI values already
     // covered that case above).
     if (!hasCliInputRootOverride) {
-      if (configByFile.inputRoot !== undefined) {
-        validateOutputRoot(configByFile.inputRoot);
-      }
-
-      if (configByFile.inputRoots !== undefined) {
-        for (const entry of configByFile.inputRoots) {
-          validateOutputRoot(entry);
-        }
-      }
+      validateInputRootFields({
+        inputRoot: configByFile.inputRoot,
+        inputRoots: configByFile.inputRoots,
+      });
     }
 
     // Per-file `assertTargetsFeaturesExclusive` in `loadConfigFromFile` only

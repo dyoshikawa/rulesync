@@ -1,10 +1,12 @@
 import { join } from "node:path";
 
+import { AGENTSMD_SKILLS_DIR_PATH } from "./agentsmd-paths.js";
+
 export const CODEXCLI_DIR = ".codex";
 export const CODEXCLI_PROMPTS_DIR_PATH = join(CODEXCLI_DIR, "prompts");
 export const CODEXCLI_RULES_DIR_PATH = join(CODEXCLI_DIR, "rules");
 export const CODEXCLI_AGENTS_DIR_PATH = join(CODEXCLI_DIR, "agents");
-export const CODEXCLI_SKILLS_DIR_PATH = join(".agents", "skills");
+export const CODEXCLI_SKILLS_DIR_PATH = AGENTSMD_SKILLS_DIR_PATH;
 export const CODEXCLI_HOOKS_FILE_NAME = "hooks.json";
 export const CODEXCLI_MCP_FILE_NAME = "config.toml";
 // Codex CLI's default `project_doc_max_bytes`: the combined byte budget for the

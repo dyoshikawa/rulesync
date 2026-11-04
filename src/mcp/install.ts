@@ -94,10 +94,6 @@ export async function executeInstall(options: InstallOptions = {}): Promise<McpC
 
 export const installTools = {
   executeInstall: {
-    name: "executeInstall",
-    description:
-      "Execute the rulesync install command to install skills and rules from the sources declared in rulesync.jsonc (or apm.yml with mode 'apm'). With outdated: true it only reports which sources are behind the lockfile, without writing anything.",
-    parameters: installOptionsSchema,
     execute: async (options: InstallOptions = {}): Promise<string> =>
       stringifyResult(await executeInstall(options)),
   },

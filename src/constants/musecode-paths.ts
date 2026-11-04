@@ -1,5 +1,7 @@
 import { join } from "node:path";
 
+import { AGENTSMD_SKILLS_DIR_PATH } from "./agentsmd-paths.js";
+
 // Meta Muse Code (terminal coding agent, beta since 2026-08-05).
 // https://research.meta.ai/blog/introducing-muse-code-and-muse-spark-1-2
 // https://dev.meta.ai/docs/muse-code
@@ -17,7 +19,7 @@ export const MUSECODE_RULE_FILE_NAME = "AGENTS.md";
 // `.codex/skills` and `.claude/skills` for compatibility, but those belong to
 // other tools and are deliberately not emitted for musecode.
 // https://dev.meta.ai/docs/muse-code/extending.md
-export const MUSECODE_SKILLS_DIR_PATH = join(".agents", "skills");
+export const MUSECODE_SKILLS_DIR_PATH = AGENTSMD_SKILLS_DIR_PATH;
 
 // Muse Code's global config directory. User skills load from
 // `$XDG_CONFIG_HOME/muse/skills` (and `~/.agents/skills`); rulesync emits only

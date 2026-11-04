@@ -1,12 +1,9 @@
 import { basename, join } from "node:path";
 
-import { z } from "zod/mini";
-
 import { RULESYNC_COMMANDS_RELATIVE_DIR_PATH } from "../constants/rulesync-paths.js";
 import {
   RulesyncCommand,
   type RulesyncCommandFrontmatter,
-  RulesyncCommandFrontmatterSchema,
 } from "../features/commands/rulesync-command.js";
 import { formatError } from "../utils/error.js";
 import {
@@ -17,12 +14,10 @@ import {
   writeFileContent,
 } from "../utils/file.js";
 import { ConsoleLogger } from "../utils/logger.js";
+import { assertEntryCountWithinLimit, assertEntrySizeWithinLimit } from "./entry-limits.js";
 import { assertNoSymlinkInFeaturePath, isFeatureSymlinkRefusal } from "./feature-symlinks.js";
 
 const logger = new ConsoleLogger({ verbose: false, silent: true });
-
-const maxCommandSizeBytes = 1024 * 1024; // 1MB
-const maxCommandsCount = 1000;
 
 /**
  * Tool to list all commands from .rulesync/commands/*.md
@@ -145,11 +140,7 @@ async function putCommand({
 
   // Check file size constraint
   const estimatedSize = JSON.stringify(frontmatter).length + body.length;
-  if (estimatedSize > maxCommandSizeBytes) {
-    throw new Error(
-      `Command size ${estimatedSize} bytes exceeds maximum ${maxCommandSizeBytes} bytes (1MB) for ${relativePathFromCwd}`,
-    );
-  }
+  assertEntrySizeWithinLimit({ label: "Command", estimatedSize, path: relativePathFromCwd });
 
   try {
     // Check command count constraint
@@ -159,11 +150,12 @@ async function putCommand({
         command.relativePathFromCwd === join(RULESYNC_COMMANDS_RELATIVE_DIR_PATH, filename),
     );
 
-    if (!isUpdate && existingCommands.length >= maxCommandsCount) {
-      throw new Error(
-        `Maximum number of commands (${maxCommandsCount}) reached in ${RULESYNC_COMMANDS_RELATIVE_DIR_PATH}`,
-      );
-    }
+    assertEntryCountWithinLimit({
+      plural: "commands",
+      dirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+      existingCount: existingCommands.length,
+      isUpdate,
+    });
 
     // Create a new RulesyncCommand instance
     const command = new RulesyncCommand({
@@ -226,31 +218,10 @@ async function deleteCommand({ relativePathFromCwd }: { relativePathFromCwd: str
 }
 
 /**
- * Schema for command-related tool parameters
- */
-const commandToolSchemas = {
-  listCommands: z.object({}),
-  getCommand: z.object({
-    relativePathFromCwd: z.string(),
-  }),
-  putCommand: z.object({
-    relativePathFromCwd: z.string(),
-    frontmatter: RulesyncCommandFrontmatterSchema,
-    body: z.string(),
-  }),
-  deleteCommand: z.object({
-    relativePathFromCwd: z.string(),
-  }),
-} as const;
-
-/**
  * Tool definitions for command-related operations
  */
 export const commandTools = {
   listCommands: {
-    name: "listCommands",
-    description: `List all commands from ${join(RULESYNC_COMMANDS_RELATIVE_DIR_PATH, "*.md")} with their frontmatter.`,
-    parameters: commandToolSchemas.listCommands,
     execute: async () => {
       const commands = await listCommands();
       const output = { commands };
@@ -258,20 +229,12 @@ export const commandTools = {
     },
   },
   getCommand: {
-    name: "getCommand",
-    description:
-      "Get detailed information about a specific command. relativePathFromCwd parameter is required.",
-    parameters: commandToolSchemas.getCommand,
     execute: async (args: { relativePathFromCwd: string }) => {
       const result = await getCommand({ relativePathFromCwd: args.relativePathFromCwd });
       return JSON.stringify(result, null, 2);
     },
   },
   putCommand: {
-    name: "putCommand",
-    description:
-      "Create or update a command (upsert operation). relativePathFromCwd, frontmatter, and body parameters are required.",
-    parameters: commandToolSchemas.putCommand,
     execute: async (args: {
       relativePathFromCwd: string;
       frontmatter: RulesyncCommandFrontmatter;
@@ -286,9 +249,6 @@ export const commandTools = {
     },
   },
   deleteCommand: {
-    name: "deleteCommand",
-    description: "Delete a command file. relativePathFromCwd parameter is required.",
-    parameters: commandToolSchemas.deleteCommand,
     execute: async (args: { relativePathFromCwd: string }) => {
       const result = await deleteCommand({ relativePathFromCwd: args.relativePathFromCwd });
       return JSON.stringify(result, null, 2);

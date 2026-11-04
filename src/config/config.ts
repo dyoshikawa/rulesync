@@ -278,6 +278,30 @@ function normalizeConfigFilePath({
 }
 
 /**
+ * Expands one input-root shape to its source-tree entries, unresolved:
+ * `inputRoots` when non-empty, else `inputRoot` joined with `.rulesync`, else
+ * `cwd` joined with `.rulesync`. This is the one place `.rulesync` is appended
+ * by convention, shared by `Config` and `ConfigResolver`.
+ */
+export function expandInputRootSource({
+  inputRoot,
+  inputRoots,
+  cwd,
+}: {
+  inputRoot: string | undefined;
+  inputRoots: readonly string[] | undefined;
+  cwd: string;
+}): readonly string[] {
+  if (inputRoots !== undefined && inputRoots.length > 0) {
+    return inputRoots;
+  }
+  if (inputRoot !== undefined) {
+    return [join(inputRoot, RULESYNC_RELATIVE_DIR_PATH)];
+  }
+  return [join(cwd, RULESYNC_RELATIVE_DIR_PATH)];
+}
+
+/**
  * Resolves any accepted input-root shape (`inputRoot`, `inputRoots`, or
  * neither) to the canonical non-empty tuple of absolute paths that
  * `Config` stores. Relative entries are resolved against the current
@@ -289,8 +313,8 @@ function normalizeConfigFilePath({
  *   `.rulesync/` join is applied.
  * - The legacy singular `inputRoot` is a shorthand for "parent of the
  *   default `.rulesync/` source tree", and is expanded to
- *   `[join(inputRoot, ".rulesync")]` before hitting any consumer. This is
- *   the ONLY place `.rulesync` is appended by convention.
+ *   `[join(inputRoot, ".rulesync")]` before hitting any consumer (see
+ *   `expandInputRootSource`).
  * - The "nothing configured" default expands to `[join(cwd, ".rulesync")]`
  *   so existing projects with a single `.rulesync/` tree keep working
  *   unchanged.
@@ -304,12 +328,7 @@ function normalizeInputRoots({
   inputRoot?: string;
   inputRoots?: string[];
 }): [string, ...string[]] {
-  const source =
-    inputRoots !== undefined && inputRoots.length > 0
-      ? inputRoots
-      : inputRoot !== undefined
-        ? [join(inputRoot, RULESYNC_RELATIVE_DIR_PATH)]
-        : [join(process.cwd(), RULESYNC_RELATIVE_DIR_PATH)];
+  const source = expandInputRootSource({ inputRoot, inputRoots, cwd: process.cwd() });
 
   const resolved = source.map((entry) => (isAbsolute(entry) ? entry : resolve(entry)));
 
@@ -970,13 +989,6 @@ export class Config {
   private static parseGitignoreDestination(value: unknown): GitignoreDestination | undefined {
     const result = GitignoreDestinationSchema.safeParse(value);
     return result.success ? result.data : undefined;
-  }
-
-  /**
-   * Check if per-target features configuration is being used.
-   */
-  public hasPerTargetFeatures(): boolean {
-    return isRulesyncConfigTargetsObject(this.targets);
   }
 
   public getVerbose(): boolean {
