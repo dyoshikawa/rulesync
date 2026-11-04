@@ -7,7 +7,7 @@ import {
   ALL_TOOLS_PERMISSION_CATEGORY,
   SHELL_PERMISSION_CATEGORY,
 } from "./shell-command-categories.js";
-import { PERMISSION_ACTION_PRIORITY } from "./single-action-collapse.js";
+import { isStricterAction } from "./single-action-collapse.js";
 
 /**
  * Project-scope Codewhale permissions: the enforced `protected_invariants` of
@@ -190,10 +190,7 @@ function setStrongest(
   action: PermissionAction,
 ): void {
   const current = restrictions.get(key);
-  if (
-    current === undefined ||
-    PERMISSION_ACTION_PRIORITY[action] > PERMISSION_ACTION_PRIORITY[current]
-  ) {
+  if (isStricterAction({ action, existing: current })) {
     restrictions.set(key, action);
   }
 }

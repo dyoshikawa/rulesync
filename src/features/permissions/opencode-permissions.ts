@@ -37,6 +37,7 @@ import { honorAllToolsOnBash } from "./shell-command-categories.js";
 import {
   collapseRulesToSingleAction,
   hasPatternSpecificRules,
+  isStricterAction,
   PERMISSION_ACTION_PRIORITY,
 } from "./single-action-collapse.js";
 import {
@@ -298,10 +299,7 @@ function mergePatternRules(
   const merged: Record<string, PermissionAction> = { ...base };
   for (const [pattern, action] of Object.entries(incoming)) {
     const existing = Object.hasOwn(merged, pattern) ? merged[pattern] : undefined;
-    if (
-      existing === undefined ||
-      PERMISSION_ACTION_PRIORITY[action] > PERMISSION_ACTION_PRIORITY[existing]
-    ) {
+    if (isStricterAction({ action, existing })) {
       merged[pattern] = action;
     }
   }

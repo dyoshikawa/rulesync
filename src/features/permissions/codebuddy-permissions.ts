@@ -16,7 +16,7 @@ import {
 } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { ALL_TOOLS_PERMISSION_CATEGORY, honorAllToolsOnBash } from "./shell-command-categories.js";
-import { PERMISSION_ACTION_PRIORITY } from "./single-action-collapse.js";
+import { isStricterAction } from "./single-action-collapse.js";
 import { splitToolRule } from "./tool-pattern-entry.js";
 import {
   ToolPermissions,
@@ -228,10 +228,7 @@ function buildCodebuddyRuleLists({
         managedCategories.add(emittedCategory);
       }
       const existing = ranked.get(rule);
-      if (
-        existing === undefined ||
-        PERMISSION_ACTION_PRIORITY[action] > PERMISSION_ACTION_PRIORITY[existing]
-      ) {
+      if (isStricterAction({ action, existing })) {
         ranked.set(rule, action);
       }
     }
@@ -528,10 +525,7 @@ export class CodebuddyPermissions extends ToolPermissions {
         const existing = rules[parsed.pattern];
         // CodeBuddy evaluates `deny` first, then `ask`, then `allow`, so the
         // stricter action wins when a rule appears in more than one list.
-        if (
-          existing === undefined ||
-          PERMISSION_ACTION_PRIORITY[action] > PERMISSION_ACTION_PRIORITY[existing]
-        ) {
+        if (isStricterAction({ action, existing })) {
           rules[parsed.pattern] = action;
         }
       }
