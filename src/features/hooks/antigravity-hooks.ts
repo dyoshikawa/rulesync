@@ -5,7 +5,6 @@ import {
   ANTIGRAVITY_GLOBAL_CONFIG_DIR_PATH,
   ANTIGRAVITY_HOOKS_FILE_NAME,
 } from "../../constants/antigravity-paths.js";
-import type { AiFileParams } from "../../types/ai-file.js";
 import {
   ANTIGRAVITY_HOOK_EVENTS,
   ANTIGRAVITY_TO_CANONICAL_EVENT_NAMES,
@@ -178,13 +177,6 @@ type AntigravityOverrideKey = "antigravity-ide" | "antigravity-cli";
  * rulesync hooks config.
  */
 class AntigravityHooks extends ToolHooks {
-  constructor(params: AiFileParams) {
-    super({
-      ...params,
-      fileContent: params.fileContent ?? "{}",
-    });
-  }
-
   /** Per-target override key in the rulesync hooks config. */
   protected static getOverrideKey(): AntigravityOverrideKey {
     throw new Error("Please implement this method in the subclass.");

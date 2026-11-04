@@ -8,7 +8,6 @@ import {
   COPILOT_HOOKS_DIR_PATH,
   COPILOT_HOOKS_FILE_NAME,
 } from "../../constants/copilot-paths.js";
-import type { AiFileParams } from "../../types/ai-file.js";
 import type { HooksConfig } from "../../types/hooks.js";
 import {
   COPILOT_TO_CANONICAL_EVENT_NAMES,
@@ -253,13 +252,6 @@ function copilotHooksToCanonical(copilotHooks: unknown, logger?: Logger): HooksC
 }
 
 export class CopilotHooks extends ToolHooks {
-  constructor(params: AiFileParams) {
-    super({
-      ...params,
-      fileContent: params.fileContent ?? "{}",
-    });
-  }
-
   static getSettablePaths({ global = false }: { global?: boolean } = {}): ToolHooksSettablePaths {
     if (global) {
       return {

@@ -1,7 +1,6 @@
 import { join } from "node:path";
 
 import { GOOSE_HOOKS_DIR_PATH, GOOSE_HOOKS_FILE_NAME } from "../../constants/goose-paths.js";
-import type { AiFileParams } from "../../types/ai-file.js";
 import {
   CANONICAL_TO_GOOSE_EVENT_NAMES,
   GOOSE_HOOK_EVENTS,
@@ -68,13 +67,6 @@ export const GOOSE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
  * @see https://goose-docs.ai/docs/guides/context-engineering/hooks/
  */
 export class GooseHooks extends ToolHooks {
-  constructor(params: AiFileParams) {
-    super({
-      ...params,
-      fileContent: params.fileContent ?? "{}",
-    });
-  }
-
   static getSettablePaths(_options: { global?: boolean } = {}): ToolHooksSettablePaths {
     return {
       relativeDirPath: GOOSE_HOOKS_DIR_PATH,

@@ -4,7 +4,6 @@ import {
   COMMANDCODE_DIR,
   COMMANDCODE_SETTINGS_FILE_NAME,
 } from "../../constants/commandcode-paths.js";
-import type { AiFileParams } from "../../types/ai-file.js";
 import {
   CANONICAL_TO_COMMANDCODE_EVENT_NAMES,
   COMMANDCODE_HOOK_EVENTS,
@@ -86,13 +85,6 @@ function parseCommandcodeSettings(fileContent: string, filePath?: string): Recor
  * @see https://commandcode.ai/docs/settings
  */
 export class CommandcodeHooks extends ToolHooks {
-  constructor(params: AiFileParams) {
-    super({
-      ...params,
-      fileContent: params.fileContent ?? "{}",
-    });
-  }
-
   override isDeletable(): boolean {
     // settings.json carries user-managed settings beyond hooks, so it is never
     // removed wholesale; clearing hooks happens via an in-place merge.

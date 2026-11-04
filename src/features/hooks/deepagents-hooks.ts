@@ -1,7 +1,6 @@
 import { join } from "node:path";
 
 import { DEEPAGENTS_DIR, DEEPAGENTS_HOOKS_FILE_NAME } from "../../constants/deepagents-paths.js";
-import type { AiFileParams } from "../../types/ai-file.js";
 import type { HookDefinition, HooksConfig } from "../../types/hooks.js";
 import {
   CANONICAL_TO_DEEPAGENTS_EVENT_NAMES,
@@ -181,13 +180,6 @@ function deepagentsLegacyToCanonicalHooks(entries: unknown[]): HooksConfig["hook
 }
 
 export class DeepagentsHooks extends ToolHooks {
-  constructor(params: AiFileParams) {
-    super({
-      ...params,
-      fileContent: params.fileContent ?? JSON.stringify({ hooks: {} }, null, 2),
-    });
-  }
-
   override isDeletable(): boolean {
     return true;
   }

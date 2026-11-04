@@ -3,7 +3,6 @@ import { join } from "node:path";
 import { nonnegative, z } from "zod/mini";
 
 import { KIRO_AGENTS_DIR_PATH, KIRO_HOOKS_FILE_NAME } from "../../constants/kiro-paths.js";
-import type { AiFileParams } from "../../types/ai-file.js";
 import type { HooksConfig } from "../../types/hooks.js";
 import {
   KIRO_HOOK_EVENTS,
@@ -196,13 +195,6 @@ function kiroHooksToCanonical(kiroHooks: unknown): HooksConfig["hooks"] {
  * @see https://kiro.dev/docs/cli/v3/hooks-migration/
  */
 export class KiroHooks extends ToolHooks {
-  constructor(params: AiFileParams) {
-    super({
-      ...params,
-      fileContent: params.fileContent ?? "{}",
-    });
-  }
-
   override isDeletable(): boolean {
     return false;
   }

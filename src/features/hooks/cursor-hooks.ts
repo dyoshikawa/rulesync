@@ -29,10 +29,7 @@ export type CursorHooksConstructorParams = ToolHooksParams & {
 export class CursorHooks extends ToolHooks {
   constructor(params: CursorHooksConstructorParams) {
     const { rulesyncHooks: _r, ...rest } = params;
-    super({
-      ...rest,
-      fileContent: rest.fileContent ?? "{}",
-    });
+    super(rest);
   }
 
   static getSettablePaths(_options: { global?: boolean } = {}): ToolHooksSettablePaths {

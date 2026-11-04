@@ -1,7 +1,6 @@
 import { join } from "node:path";
 
 import { GROKCLI_HOOKS_DIR_PATH, GROKCLI_HOOKS_FILE_NAME } from "../../constants/grokcli-paths.js";
-import type { AiFileParams } from "../../types/ai-file.js";
 import {
   CANONICAL_TO_GROKCLI_EVENT_NAMES,
   GROKCLI_HOOK_EVENTS,
@@ -114,13 +113,6 @@ export const GROKCLI_CONVERTER_CONFIG: ToolHooksConverterConfig = {
  * @see https://docs.x.ai/build/features/hooks
  */
 export class GrokcliHooks extends ToolHooks {
-  constructor(params: AiFileParams) {
-    super({
-      ...params,
-      fileContent: params.fileContent ?? "{}",
-    });
-  }
-
   static getSettablePaths(_options: { global?: boolean } = {}): ToolHooksSettablePaths {
     // Grok resolves project vs global scope by the directory it runs in, so both
     // scopes share the same relative layout (`.grok/hooks/rulesync.json`).

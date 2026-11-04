@@ -4,7 +4,6 @@ import {
   AUGMENTCODE_DIR,
   AUGMENTCODE_SETTINGS_FILE_NAME,
 } from "../../constants/augmentcode-paths.js";
-import type { AiFileParams } from "../../types/ai-file.js";
 import {
   AUGMENTCODE_HOOK_EVENTS,
   AUGMENTCODE_TO_CANONICAL_EVENT_NAMES,
@@ -81,13 +80,6 @@ export const AUGMENTCODE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
  * @see https://docs.augmentcode.com/cli/hooks
  */
 export class AugmentcodeHooks extends ToolHooks {
-  constructor(params: AiFileParams) {
-    super({
-      ...params,
-      fileContent: params.fileContent ?? "{}",
-    });
-  }
-
   override isDeletable(): boolean {
     // settings.json is shared with the permissions feature, so it must never be
     // removed wholesale; clearing hooks happens via an in-place merge instead.

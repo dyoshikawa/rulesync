@@ -535,10 +535,7 @@ export class CopilotcliHooks extends ToolHooks {
   private readonly disableAllHooks: boolean | undefined;
 
   constructor({ settingsFile, disableAllHooks, ...params }: CopilotcliHooksParams) {
-    super({
-      ...params,
-      fileContent: params.fileContent ?? "{}",
-    });
+    super(params);
     this.settingsFile = settingsFile;
     this.disableAllHooks = disableAllHooks;
   }

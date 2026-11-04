@@ -6,7 +6,6 @@ import {
   TABNINE_AGENT_DIR_PATH,
   TABNINE_SETTINGS_FILE_NAME,
 } from "../../constants/tabnine-paths.js";
-import type { AiFileParams } from "../../types/ai-file.js";
 import type { HooksConfig } from "../../types/hooks.js";
 import {
   CANONICAL_TO_TABNINE_EVENT_NAMES,
@@ -277,13 +276,6 @@ function parseTabnineSettings(fileContent: string, filePath?: string): Record<st
  * @see https://docs.tabnine.com/main/getting-started/tabnine-cli/features/hooks/configuration
  */
 export class TabnineHooks extends ToolHooks {
-  constructor(params: AiFileParams) {
-    super({
-      ...params,
-      fileContent: params.fileContent ?? "{}",
-    });
-  }
-
   override isDeletable(): boolean {
     // settings.json carries user-managed settings beyond hooks, so it must
     // never be removed wholesale; clearing hooks happens via an in-place merge.

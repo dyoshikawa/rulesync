@@ -1,7 +1,6 @@
 import { join } from "node:path";
 
 import { LETTACODE_DIR, LETTACODE_SETTINGS_FILE_NAME } from "../../constants/lettacode-paths.js";
-import type { AiFileParams } from "../../types/ai-file.js";
 import {
   CANONICAL_TO_LETTACODE_EVENT_NAMES,
   LETTACODE_HOOK_EVENTS,
@@ -158,13 +157,6 @@ function parseLettacodeSettings(fileContent: string, filePath?: string): Record<
  * @see https://github.com/letta-ai/letta-code/blob/main/src/hooks/loader.ts
  */
 export class LettacodeHooks extends ToolHooks {
-  constructor(params: AiFileParams) {
-    super({
-      ...params,
-      fileContent: params.fileContent ?? "{}",
-    });
-  }
-
   override isDeletable(): boolean {
     // settings.json carries user-managed settings beyond hooks, so it is never
     // removed wholesale; clearing hooks happens via an in-place merge.

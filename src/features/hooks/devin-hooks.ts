@@ -6,7 +6,6 @@ import {
   DEVIN_GLOBAL_CONFIG_DIR_PATH,
   DEVIN_HOOKS_V1_FILE_NAME,
 } from "../../constants/devin-paths.js";
-import type { AiFileParams } from "../../types/ai-file.js";
 import {
   CANONICAL_TO_DEVIN_EVENT_NAMES,
   DEVIN_HOOK_EVENTS,
@@ -84,13 +83,6 @@ export const DEVIN_CONVERTER_CONFIG: ToolHooksConverterConfig = {
  * @see https://docs.devin.ai/cli/extensibility/hooks/overview
  */
 export class DevinHooks extends ToolHooks {
-  constructor(params: AiFileParams) {
-    super({
-      ...params,
-      fileContent: params.fileContent ?? "{}",
-    });
-  }
-
   /**
    * The project standalone `hooks.v1.json` is owned wholesale by rulesync and
    * may be deleted as an orphan. The global `config.json` is shared with the MCP

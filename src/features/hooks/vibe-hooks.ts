@@ -2,7 +2,7 @@ import { join } from "node:path";
 
 import * as smolToml from "smol-toml";
 
-import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { ValidationResult } from "../../types/ai-file.js";
 import {
   CANONICAL_TO_VIBE_EVENT_NAMES,
   type HookDefinition,
@@ -348,13 +348,6 @@ function parseVibeToml(fileContent: string): Record<string, unknown> {
  * @see https://github.com/mistralai/mistral-vibe/blob/main/README.md
  */
 export class VibeHooks extends ToolHooks {
-  constructor(params: AiFileParams) {
-    super({
-      ...params,
-      fileContent: params.fileContent ?? smolToml.stringify({}),
-    });
-  }
-
   static getSettablePaths(_options: { global?: boolean } = {}): ToolHooksSettablePaths {
     return { relativeDirPath: VIBE_DIR, relativeFilePath: VIBE_HOOKS_FILE_NAME };
   }

@@ -7,7 +7,7 @@ import {
   CODEWHALE_DIR,
   CODEWHALE_HOOKS_FILE_NAME,
 } from "../../constants/codewhale-paths.js";
-import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { ValidationResult } from "../../types/ai-file.js";
 import {
   CANONICAL_TO_CODEWHALE_EVENT_NAMES,
   CODEWHALE_HOOK_EVENTS,
@@ -307,13 +307,6 @@ function parseCodewhaleToml(fileContent: string): Record<string, unknown> {
  * @see https://github.com/Hmbown/Codewhale/blob/main/crates/tui/src/hooks/config.rs
  */
 export class CodewhaleHooks extends ToolHooks {
-  constructor(params: AiFileParams) {
-    super({
-      ...params,
-      fileContent: params.fileContent ?? smolToml.stringify({}),
-    });
-  }
-
   static getSettablePaths({ global = false }: { global?: boolean } = {}): ToolHooksSettablePaths {
     return {
       relativeDirPath: CODEWHALE_DIR,

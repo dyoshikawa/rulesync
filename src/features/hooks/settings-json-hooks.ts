@@ -63,13 +63,6 @@ export type SettingsJsonHooksSpec = {
  * through {@link ToolHooks.supportsPreserveUnowned}.
  */
 export abstract class SettingsJsonHooks extends ToolHooks {
-  constructor(params: ToolHooksParams) {
-    super({
-      ...params,
-      fileContent: params.fileContent ?? "{}",
-    });
-  }
-
   override isDeletable(): boolean {
     // The settings file carries user-managed settings beyond hooks, so it is
     // never removed wholesale; clearing hooks happens via an in-place merge.

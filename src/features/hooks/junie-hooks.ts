@@ -1,7 +1,6 @@
 import { join } from "node:path";
 
 import { JUNIE_DIR, JUNIE_HOOKS_FILE_NAME } from "../../constants/junie-paths.js";
-import type { AiFileParams } from "../../types/ai-file.js";
 import {
   CANONICAL_TO_JUNIE_EVENT_NAMES,
   JUNIE_HOOK_EVENTS,
@@ -51,13 +50,6 @@ export const JUNIE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
 };
 
 export class JunieHooks extends ToolHooks {
-  constructor(params: AiFileParams) {
-    super({
-      ...params,
-      fileContent: params.fileContent ?? "{}",
-    });
-  }
-
   override isDeletable(): boolean {
     // ~/.junie/config.json is the user's primary Junie CLI config and holds
     // other user settings besides hooks; it must never be deleted.

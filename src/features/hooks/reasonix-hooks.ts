@@ -1,7 +1,6 @@
 import { join } from "node:path";
 
 import { REASONIX_DIR, REASONIX_SETTINGS_FILE_NAME } from "../../constants/reasonix-paths.js";
-import type { AiFileParams } from "../../types/ai-file.js";
 import {
   CANONICAL_TO_REASONIX_EVENT_NAMES,
   type HookDefinition,
@@ -244,13 +243,6 @@ function reasonixHooksToCanonical(hooks: unknown): HooksConfig["hooks"] {
  * @see https://github.com/esengine/DeepSeek-Reasonix/blob/main-v2/docs/DESKTOP_HOOKS.zh-CN.md
  */
 export class ReasonixHooks extends ToolHooks {
-  constructor(params: AiFileParams) {
-    super({
-      ...params,
-      fileContent: params.fileContent ?? "{}",
-    });
-  }
-
   override isDeletable(): boolean {
     // settings.json is not documented as holding anything besides hooks today,
     // but treat it conservatively (like claudecode-hooks.ts) in case future

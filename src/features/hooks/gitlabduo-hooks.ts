@@ -1,7 +1,6 @@
 import { join } from "node:path";
 
 import { GITLABDUO_DIR, GITLABDUO_HOOKS_FILE_NAME } from "../../constants/gitlabduo-paths.js";
-import type { AiFileParams } from "../../types/ai-file.js";
 import {
   CANONICAL_TO_GITLABDUO_EVENT_NAMES,
   GITLABDUO_HOOK_EVENTS,
@@ -49,13 +48,6 @@ export const GITLABDUO_CONVERTER_CONFIG: ToolHooksConverterConfig = {
  * rulesync owns the whole file, so it is regenerated and deleted as a unit.
  */
 export class GitlabduoHooks extends ToolHooks {
-  constructor(params: AiFileParams) {
-    super({
-      ...params,
-      fileContent: params.fileContent ?? "{}",
-    });
-  }
-
   static getSettablePaths(_options: { global?: boolean } = {}): ToolHooksSettablePaths {
     return { relativeDirPath: GITLABDUO_DIR, relativeFilePath: GITLABDUO_HOOKS_FILE_NAME };
   }
