@@ -16,7 +16,7 @@ import { ErrorCodes } from "../types/json-output.js";
 import { type RulesyncTargets, type ToolTarget } from "../types/tool-targets.js";
 import { stripControlCharactersKeepingLineFeeds } from "../utils/control-characters.js";
 import { WarningCollectingLogger } from "../utils/logger.js";
-import { calculateTotalCount } from "../utils/result.js";
+import { calculateTotalCount, pickFeatureCounts } from "../utils/result.js";
 import { truncateText } from "../utils/truncate.js";
 import { runMcpOperation } from "./command-runner.js";
 import {
@@ -369,15 +369,7 @@ function buildSuccessResponse(params: {
     success: true,
     message: buildGenerateMessage({ totalCount, hasDiff: generateResult.hasDiff, config }),
     result: {
-      rulesCount: generateResult.rulesCount,
-      ignoreCount: generateResult.ignoreCount,
-      mcpCount: generateResult.mcpCount,
-      commandsCount: generateResult.commandsCount,
-      subagentsCount: generateResult.subagentsCount,
-      skillsCount: generateResult.skillsCount,
-      hooksCount: generateResult.hooksCount,
-      permissionsCount: generateResult.permissionsCount,
-      checksCount: generateResult.checksCount,
+      ...pickFeatureCounts(generateResult),
       activationCount: generateResult.activationCount,
       pluginManifestCount: generateResult.pluginManifestCount,
       totalCount,

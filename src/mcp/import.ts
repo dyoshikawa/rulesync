@@ -6,7 +6,7 @@ import { importFromTool, type ImportResult } from "../lib/import.js";
 import { type RulesyncFeatures } from "../types/features.js";
 import { type RulesyncTargets, type ToolTarget } from "../types/tool-targets.js";
 import { WarningCollectingLogger } from "../utils/logger.js";
-import { calculateTotalCount } from "../utils/result.js";
+import { calculateTotalCount, pickFeatureCounts } from "../utils/result.js";
 import { runMcpOperation } from "./command-runner.js";
 import { assertOptionalPathOptionWithinCwd } from "./path-options.js";
 import { type McpResultCounts, type McpWarnings, warningsField } from "./types.js";
@@ -126,15 +126,7 @@ function buildSuccessResponse(params: {
   return {
     success: true,
     result: {
-      rulesCount: importResult.rulesCount,
-      ignoreCount: importResult.ignoreCount,
-      mcpCount: importResult.mcpCount,
-      commandsCount: importResult.commandsCount,
-      subagentsCount: importResult.subagentsCount,
-      skillsCount: importResult.skillsCount,
-      hooksCount: importResult.hooksCount,
-      permissionsCount: importResult.permissionsCount,
-      checksCount: importResult.checksCount,
+      ...pickFeatureCounts(importResult),
       totalCount,
     },
     config: {

@@ -2,7 +2,11 @@ import { ConfigResolver, ConfigResolverResolveParams } from "../../config/config
 import { importFromTool } from "../../lib/import.js";
 import { CLIError, ErrorCodes } from "../../types/json-output.js";
 import type { Logger } from "../../utils/logger.js";
-import { calculateTotalCount } from "../../utils/result.js";
+import {
+  buildFeatureCountSummaryParts,
+  calculateTotalCount,
+  featureCountsByFeature,
+} from "../../utils/result.js";
 
 // `inputRoot` and `inputRoots` are intentionally excluded: they only affect
 // where source files are *read from* during `generate`, and `import` does not
@@ -52,30 +56,11 @@ export async function importCommand(logger: Logger, options: ImportOptions): Pro
   // Capture JSON data if in JSON mode
   if (logger.jsonMode) {
     logger.captureData("tool", tool);
-    logger.captureData("features", {
-      rules: { count: result.rulesCount },
-      ignore: { count: result.ignoreCount },
-      mcp: { count: result.mcpCount },
-      commands: { count: result.commandsCount },
-      subagents: { count: result.subagentsCount },
-      skills: { count: result.skillsCount },
-      hooks: { count: result.hooksCount },
-      permissions: { count: result.permissionsCount },
-      checks: { count: result.checksCount },
-    });
+    logger.captureData("features", featureCountsByFeature(result));
     logger.captureData("totalFiles", totalImported);
   }
 
-  const parts = [];
-  if (result.rulesCount > 0) parts.push(`${result.rulesCount} rules`);
-  if (result.ignoreCount > 0) parts.push(`${result.ignoreCount} ignore files`);
-  if (result.mcpCount > 0) parts.push(`${result.mcpCount} MCP files`);
-  if (result.commandsCount > 0) parts.push(`${result.commandsCount} commands`);
-  if (result.subagentsCount > 0) parts.push(`${result.subagentsCount} subagents`);
-  if (result.skillsCount > 0) parts.push(`${result.skillsCount} skills`);
-  if (result.hooksCount > 0) parts.push(`${result.hooksCount} hooks`);
-  if (result.permissionsCount > 0) parts.push(`${result.permissionsCount} permissions`);
-  if (result.checksCount > 0) parts.push(`${result.checksCount} checks`);
+  const parts = buildFeatureCountSummaryParts(result);
 
   logger.success(`Imported ${totalImported} file(s) total (${parts.join(" + ")})`);
 }

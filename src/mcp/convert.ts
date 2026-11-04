@@ -6,7 +6,7 @@ import { convertFromTool, type ConvertResult } from "../lib/convert.js";
 import { type RulesyncFeatures } from "../types/features.js";
 import { ALL_TOOL_TARGETS, type ToolTarget, ToolTargetSchema } from "../types/tool-targets.js";
 import { WarningCollectingLogger } from "../utils/logger.js";
-import { calculateTotalCount } from "../utils/result.js";
+import { calculateTotalCount, pickFeatureCounts } from "../utils/result.js";
 import { runMcpOperation } from "./command-runner.js";
 import { type McpResultCounts, type McpWarnings, warningsField } from "./types.js";
 
@@ -132,15 +132,7 @@ function buildSuccessResponse(params: {
   return {
     success: true,
     result: {
-      rulesCount: convertResult.rulesCount,
-      ignoreCount: convertResult.ignoreCount,
-      mcpCount: convertResult.mcpCount,
-      commandsCount: convertResult.commandsCount,
-      subagentsCount: convertResult.subagentsCount,
-      skillsCount: convertResult.skillsCount,
-      hooksCount: convertResult.hooksCount,
-      permissionsCount: convertResult.permissionsCount,
-      checksCount: convertResult.checksCount,
+      ...pickFeatureCounts(convertResult),
       totalCount,
     },
     config: {
