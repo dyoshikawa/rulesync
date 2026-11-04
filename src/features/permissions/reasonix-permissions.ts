@@ -600,13 +600,6 @@ export class ReasonixPermissions extends ToolPermissions {
     this.toml = parseReasonixConfig(this.getFileContent());
   }
 
-  override isDeletable(): boolean {
-    // The Reasonix config file may hold many other settings (providers, ui,
-    // agent, MCP `[[plugins]]`, …), so it must never be deleted when no
-    // rulesync-managed permission rules remain.
-    return false;
-  }
-
   static getSettablePaths({ global }: { global?: boolean } = {}): ToolPermissionsSettablePaths {
     // Project config lives at the repository root (`./reasonix.toml`), while the
     // global config lives at `~/.reasonix/config.toml`; the home root is supplied

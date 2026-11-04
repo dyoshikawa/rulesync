@@ -184,15 +184,6 @@ export class AmpPermissions extends ToolPermissions {
     });
   }
 
-  /**
-   * The settings file may carry other Amp settings (e.g. `amp.mcpServers`), so
-   * we never delete it; only the managed `amp.tools.disable` /
-   * `amp.permissions` keys are rewritten.
-   */
-  override isDeletable(): boolean {
-    return false;
-  }
-
   static getSettablePaths({
     global = false,
   }: { global?: boolean } = {}): ToolPermissionsSettablePaths {

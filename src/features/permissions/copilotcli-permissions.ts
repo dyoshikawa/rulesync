@@ -121,14 +121,6 @@ export class CopilotcliPermissions extends ToolPermissions {
     });
   }
 
-  /**
-   * `settings.json` holds unrelated user settings (`model`, `effortLevel`,
-   * `hooks`, ...), so it must not be deleted.
-   */
-  override isDeletable(): boolean {
-    return false;
-  }
-
   static getSettablePaths({
     global = false,
   }: { global?: boolean } = {}): ToolPermissionsSettablePaths {

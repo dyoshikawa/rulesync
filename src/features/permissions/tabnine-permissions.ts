@@ -693,14 +693,6 @@ export class TabninePermissions extends ToolPermissions {
     });
   }
 
-  /**
-   * `settings.json` holds unrelated user settings (`mcpServers`, `hooks`,
-   * `general`, ...), so it must not be deleted.
-   */
-  override isDeletable(): boolean {
-    return false;
-  }
-
   static getSettablePaths(_options: { global?: boolean } = {}): ToolPermissionsSettablePaths {
     return {
       relativeDirPath: TABNINE_AGENT_DIR_PATH,

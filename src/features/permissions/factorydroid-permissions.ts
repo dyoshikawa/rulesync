@@ -80,14 +80,6 @@ export class FactorydroidPermissions extends ToolPermissions {
     });
   }
 
-  /**
-   * `.factory/settings.json` holds other settings (hooks, autonomy, etc.), so
-   * it must never be deleted by the permissions feature.
-   */
-  override isDeletable(): boolean {
-    return false;
-  }
-
   static getSettablePaths(_options: { global?: boolean } = {}): ToolPermissionsSettablePaths {
     // Project: `.factory/settings.json`; global: `~/.factory/settings.json`
     // (the home directory is resolved by the processor through outputRoot).

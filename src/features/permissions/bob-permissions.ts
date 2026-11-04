@@ -454,14 +454,6 @@ export class BobPermissions extends ToolPermissions {
     });
   }
 
-  /**
-   * `~/.bob/settings/settings.json` holds Bob's other settings and the hooks
-   * feature's `hooks` key, so it must never be deleted by this feature.
-   */
-  override isDeletable(): boolean {
-    return false;
-  }
-
   static getSettablePaths(_options: { global?: boolean } = {}): ToolPermissionsSettablePaths {
     // Global only: `~/.bob/settings/settings.json` (the processor resolves the
     // home directory through outputRoot). Bob documents no project-scoped

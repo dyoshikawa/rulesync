@@ -715,14 +715,6 @@ export class CommandcodePermissions extends ToolPermissions {
     });
   }
 
-  /**
-   * `settings.json` holds hooks and other user settings, so it is never
-   * deleted; clearing permissions happens via an in-place merge.
-   */
-  override isDeletable(): boolean {
-    return false;
-  }
-
   static getSettablePaths(_options: { global?: boolean } = {}): ToolPermissionsSettablePaths {
     // The same relative path is used for both scopes; the processor supplies
     // the home directory as outputRoot in global mode.

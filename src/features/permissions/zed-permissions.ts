@@ -442,15 +442,6 @@ export class ZedPermissions extends ToolPermissions {
     });
   }
 
-  /**
-   * settings.json is a user-managed file shared with other features
-   * (e.g. MCP `context_servers`, ignore `private_files`), so it must not be
-   * deleted.
-   */
-  override isDeletable(): boolean {
-    return false;
-  }
-
   static getSettablePaths({
     global = false,
   }: { global?: boolean } = {}): ToolPermissionsSettablePaths {

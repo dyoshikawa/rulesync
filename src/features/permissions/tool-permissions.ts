@@ -42,8 +42,7 @@ export abstract class ToolPermissions extends ToolFile {
    * Permission settings live in a tool's shared settings/config file, which
    * also carries settings rulesync does not own (other features' keys, user
    * preferences), so the permissions feature never deletes it outright;
-   * retracting rules happens through an in-place merge instead. Subclasses
-   * that override this only restate the reason for their own file.
+   * retracting rules happens through an in-place merge instead.
    */
   override isDeletable(): boolean {
     return false;

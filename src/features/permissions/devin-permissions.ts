@@ -217,16 +217,6 @@ export class DevinPermissions extends ToolPermissions {
     });
   }
 
-  /**
-   * config.json may carry the MCP/hooks features' keys, so it is never deleted;
-   * only the keys this feature manages are rewritten — `permissions`, plus
-   * `sandbox` (global) and the plugin governance lists (project) when the
-   * `devin` override authors them.
-   */
-  override isDeletable(): boolean {
-    return false;
-  }
-
   static getSettablePaths({
     global = false,
   }: { global?: boolean } = {}): ToolPermissionsSettablePaths {

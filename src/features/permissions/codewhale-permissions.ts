@@ -813,15 +813,6 @@ export class CodewhalePermissions extends ToolPermissions {
     return options?.global ? [] : [{ ...CODEWHALE_PROJECT_CONFIG_PATHS }];
   }
 
-  /**
-   * Codewhale's approval card writes to the global file, and the constitution
-   * carries repo policy rulesync does not own, so this feature never deletes
-   * either.
-   */
-  override isDeletable(): boolean {
-    return false;
-  }
-
   override shouldSkipCreationWhenPayloadEmpty(): boolean {
     return true;
   }

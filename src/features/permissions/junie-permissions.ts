@@ -197,13 +197,6 @@ export class JuniePermissions extends ToolPermissions {
     });
   }
 
-  override isDeletable(): boolean {
-    // allowlist.json may carry user-managed top-level settings
-    // (defaultBehavior / allowReadonlyCommands) that rulesync does not model,
-    // so the permissions feature must never delete it.
-    return false;
-  }
-
   static getSettablePaths(_options: { global?: boolean } = {}): ToolPermissionsSettablePaths {
     // Global-only: `~/.junie/allowlist.json` (the home directory is resolved
     // by the processor through outputRoot).

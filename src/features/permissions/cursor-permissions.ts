@@ -320,13 +320,6 @@ export class CursorPermissions extends ToolPermissions {
     });
   }
 
-  override isDeletable(): boolean {
-    // The cli.json / cli-config.json file may carry non-permissions
-    // settings (editor, model, network, attribution), so we never delete
-    // the file outright — only manage the `permissions` block.
-    return false;
-  }
-
   static getSettablePaths({
     global = false,
   }: { global?: boolean } = {}): ToolPermissionsSettablePaths {

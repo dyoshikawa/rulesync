@@ -228,12 +228,6 @@ export class PoolPermissions extends ToolPermissions {
     return this.settings;
   }
 
-  override isDeletable(): boolean {
-    // settings.yaml is Pool's primary settings file, so it must never be
-    // removed wholesale; retracting rules happens via an in-place merge.
-    return false;
-  }
-
   /**
    * settings.yaml is Pool's file: rulesync merges into it when it exists but
    * does not create one that holds nothing of its own — an absent file and an

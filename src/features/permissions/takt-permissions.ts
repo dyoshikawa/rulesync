@@ -181,12 +181,6 @@ export class TaktPermissions extends ToolPermissions {
     this.runtimeFileContent = runtimeFileContent ?? "";
   }
 
-  override isDeletable(): boolean {
-    // config.yaml holds other Takt settings, so it must never be removed
-    // wholesale; permission changes happen via an in-place merge instead.
-    return false;
-  }
-
   static getSettablePaths(_options?: { global?: boolean }): ToolPermissionsSettablePaths {
     // Project: `.takt/config.yaml`; global: `~/.takt/config.yaml` (the home
     // directory is resolved by the processor through outputRoot).
