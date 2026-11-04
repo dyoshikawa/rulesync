@@ -99,7 +99,7 @@ const OMP_SESSION_STOP_BLOCKING_EVENT = "session_stop";
  *
  * @see https://github.com/can1357/oh-my-pi/blob/40e9368ef0458fd9073329cdff4174895f91bc6b/packages/coding-agent/src/extensibility/extensions/types.ts
  */
-export type PiExtensionDialect = {
+type PiExtensionDialect = {
   /** Tool-scoped override block in `hooks.json` merged over the shared hooks. */
   overrideKey: "pi" | "omp";
   /** Package the generated module imports `ExtensionAPI` and friends from. */

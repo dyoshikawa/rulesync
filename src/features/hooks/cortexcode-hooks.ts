@@ -43,7 +43,7 @@ const CANONICAL_TO_CORTEXCODE_TOOL_NAMES: Readonly<Record<string, string>> = {
 };
 const CORTEXCODE_TO_CANONICAL_TOOL_NAMES = invertToolNames(CANONICAL_TO_CORTEXCODE_TOOL_NAMES);
 
-export function canonicalToCortexcodeMatcher({
+function canonicalToCortexcodeMatcher({
   matcher,
   eventName,
   warn,
@@ -68,7 +68,7 @@ export function canonicalToCortexcodeMatcher({
   return translated;
 }
 
-export function cortexcodeToCanonicalMatcher(matcher: string): string {
+function cortexcodeToCanonicalMatcher(matcher: string): string {
   return replaceMatcherNames(matcher, CORTEXCODE_TO_CANONICAL_TOOL_NAMES);
 }
 

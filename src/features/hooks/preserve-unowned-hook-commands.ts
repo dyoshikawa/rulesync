@@ -6,9 +6,9 @@ import {
 import { isPlainObject } from "../../utils/type-guards.js";
 import { type OwnedHookRef, ownedHookKey } from "./hooks-ownership-lock.js";
 
-export type HookListShape = "matcher-groups" | "flat";
+type HookListShape = "matcher-groups" | "flat";
 
-export type MergedHookLists = {
+type MergedHookLists = {
   /** The `hooks` value to write. */
   hooks: Record<string, unknown[]>;
   /**

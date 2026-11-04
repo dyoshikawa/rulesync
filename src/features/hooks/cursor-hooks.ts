@@ -22,7 +22,7 @@ import {
   type ToolHooksSettablePaths,
 } from "./tool-hooks.js";
 
-export type CursorHooksConstructorParams = ToolHooksParams & {
+type CursorHooksConstructorParams = ToolHooksParams & {
   rulesyncHooks?: RulesyncHooks;
 };
 
