@@ -14,6 +14,7 @@ import {
 } from "../../utils/frontmatter.js";
 import { RulesyncSubagent, RulesyncSubagentFrontmatter } from "./rulesync-subagent.js";
 import {
+  parseGeneratedSubagentFrontmatter,
   ToolSubagent,
   ToolSubagentForDeletionParams,
   ToolSubagentFromFileParams,
@@ -126,14 +127,13 @@ export class FactorydroidSubagent extends ToolSubagent {
       ...factorydroidSection,
     };
 
-    const result = FactorydroidSubagentFrontmatterSchema.safeParse(rawFactorydroidFrontmatter);
-    if (!result.success) {
-      throw new Error(
-        `Invalid factorydroid subagent frontmatter in ${rulesyncSubagent.getRelativeFilePath()}: ${formatError(result.error)}`,
-      );
-    }
+    const factorydroidFrontmatter = parseGeneratedSubagentFrontmatter({
+      schema: FactorydroidSubagentFrontmatterSchema,
+      frontmatter: rawFactorydroidFrontmatter,
+      toolTarget: "factorydroid",
+      rulesyncSubagent,
+    });
 
-    const factorydroidFrontmatter = result.data;
     const body = rulesyncSubagent.getBody();
     const fileContent = stringifyFrontmatter(body, factorydroidFrontmatter);
 

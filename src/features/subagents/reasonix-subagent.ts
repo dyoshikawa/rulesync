@@ -19,6 +19,7 @@ import {
 } from "../../utils/frontmatter.js";
 import { RulesyncSubagent, RulesyncSubagentFrontmatter } from "./rulesync-subagent.js";
 import {
+  parseGeneratedSubagentFrontmatter,
   ToolSubagent,
   ToolSubagentForDeletionParams,
   ToolSubagentFromFileParams,
@@ -180,14 +181,13 @@ export class ReasonixSubagent extends ToolSubagent {
       runAs: REASONIX_SUBAGENT_RUN_AS,
     };
 
-    const result = ReasonixSubagentFrontmatterSchema.safeParse(rawReasonixFrontmatter);
-    if (!result.success) {
-      throw new Error(
-        `Invalid reasonix subagent frontmatter in ${rulesyncSubagent.getRelativeFilePath()}: ${formatError(result.error)}`,
-      );
-    }
+    const reasonixFrontmatter = parseGeneratedSubagentFrontmatter({
+      schema: ReasonixSubagentFrontmatterSchema,
+      frontmatter: rawReasonixFrontmatter,
+      toolTarget: "reasonix",
+      rulesyncSubagent,
+    });
 
-    const reasonixFrontmatter = result.data;
     const body = rulesyncSubagent.getBody();
     const fileContent = stringifyFrontmatter(body, reasonixFrontmatter);
 

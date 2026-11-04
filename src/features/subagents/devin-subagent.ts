@@ -17,6 +17,7 @@ import {
 } from "../../utils/frontmatter.js";
 import { RulesyncSubagent, RulesyncSubagentFrontmatter } from "./rulesync-subagent.js";
 import {
+  parseGeneratedSubagentFrontmatter,
   ToolSubagent,
   ToolSubagentForDeletionParams,
   ToolSubagentFromFileParams,
@@ -172,14 +173,13 @@ export class DevinSubagent extends ToolSubagent {
       ...devinSection,
     };
 
-    const result = DevinSubagentFrontmatterSchema.safeParse(rawDevinFrontmatter);
-    if (!result.success) {
-      throw new Error(
-        `Invalid devin subagent frontmatter in ${rulesyncSubagent.getRelativeFilePath()}: ${formatError(result.error)}`,
-      );
-    }
+    const devinFrontmatter = parseGeneratedSubagentFrontmatter({
+      schema: DevinSubagentFrontmatterSchema,
+      frontmatter: rawDevinFrontmatter,
+      toolTarget: "devin",
+      rulesyncSubagent,
+    });
 
-    const devinFrontmatter = result.data;
     const body = rulesyncSubagent.getBody();
     const fileContent = stringifyFrontmatter(body, devinFrontmatter);
 

@@ -19,6 +19,7 @@ import {
 import { isPlainObject } from "../../utils/type-guards.js";
 import { RulesyncSubagent, RulesyncSubagentFrontmatter } from "./rulesync-subagent.js";
 import {
+  parseGeneratedSubagentFrontmatter,
   ToolSubagent,
   ToolSubagentForDeletionParams,
   ToolSubagentFromFileParams,
@@ -133,13 +134,12 @@ export function toAntigravitySubagentFrontmatter({
     ...toolSection,
   };
 
-  const result = AntigravitySubagentFrontmatterSchema.safeParse(rawFrontmatter);
-  if (!result.success) {
-    throw new Error(
-      `Invalid ${toolTarget} subagent frontmatter in ${rulesyncSubagent.getRelativeFilePath()}: ${formatError(result.error)}`,
-    );
-  }
-  return result.data;
+  return parseGeneratedSubagentFrontmatter({
+    schema: AntigravitySubagentFrontmatterSchema,
+    frontmatter: rawFrontmatter,
+    toolTarget,
+    rulesyncSubagent,
+  });
 }
 
 /**
