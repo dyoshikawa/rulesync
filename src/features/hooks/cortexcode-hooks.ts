@@ -9,9 +9,9 @@ import {
   CORTEXCODE_HOOK_EVENTS,
   CORTEXCODE_TO_CANONICAL_EVENT_NAMES,
 } from "../../types/hooks.js";
+import { invertRecord } from "../../utils/own-lookup.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
 import {
-  invertToolNames,
   isMatcherName,
   MATCHER_TOKEN_PATTERN,
   replaceMatcherNames,
@@ -41,7 +41,7 @@ const CANONICAL_TO_CORTEXCODE_TOOL_NAMES: Readonly<Record<string, string>> = {
   Grep: "grep",
   Glob: "glob",
 };
-const CORTEXCODE_TO_CANONICAL_TOOL_NAMES = invertToolNames(CANONICAL_TO_CORTEXCODE_TOOL_NAMES);
+const CORTEXCODE_TO_CANONICAL_TOOL_NAMES = invertRecord(CANONICAL_TO_CORTEXCODE_TOOL_NAMES);
 
 function canonicalToCortexcodeMatcher({
   matcher,

@@ -8,14 +8,13 @@ import type { PermissionAction, PermissionsConfig } from "../../types/permission
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
-import { isRecord, isStringArray } from "../../utils/type-guards.js";
+import { isRecord, isStringArray, toRecord } from "../../utils/type-guards.js";
 import { loadYaml } from "../../utils/yaml.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
-import { honorAllToolsOnBash } from "./shell-command-categories.js";
+import { CATCH_ALL_PATTERN, honorAllToolsOnBash } from "./shell-command-categories.js";
 import { PERMISSION_ACTION_PRIORITY, failSafeCatchAllAction } from "./single-action-collapse.js";
 import {
   ToolPermissions,
-  type ToolPermissionsForDeletionParams,
   type ToolPermissionsFromFileParams,
   type ToolPermissionsFromRulesyncPermissionsParams,
   type ToolPermissionsSettablePaths,
@@ -29,11 +28,6 @@ const GOOSE_GLOBAL_ONLY_MESSAGE =
 // decisions and are preserved verbatim.
 // https://github.com/aaif-goose/goose/blob/main/crates/goose/src/config/permission.rs
 const GOOSE_USER_KEY = "user";
-
-// The catch-all rulesync pattern. Goose permission lists hold whole tool names
-// (not per-command/per-path globs), so only a category's catch-all maps onto a
-// Goose tool. Non-catch-all patterns cannot be expressed and are reported.
-const CATCH_ALL_PATTERN = "*";
 
 // Goose's built-in Developer extension exposes its tools unprefixed (`shell`,
 // `write`, `edit`, `tree`, `read_image`), and permission.yaml is matched against
@@ -217,27 +211,12 @@ export class GoosePermissions extends ToolPermissions {
       );
     }
 
-    const config = isRecord(parsed) ? parsed : {};
-    const userPermission = isRecord(config[GOOSE_USER_KEY]) ? config[GOOSE_USER_KEY] : {};
+    const config = toRecord(parsed);
+    const userPermission = toRecord(config[GOOSE_USER_KEY]);
     const rulesyncConfig = convertGoosePermissionConfigToRulesync(userPermission);
 
     return this.toRulesyncPermissionsDefault({
       fileContent: JSON.stringify(rulesyncConfig, null, 2),
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolPermissionsForDeletionParams): GoosePermissions {
-    return new GoosePermissions({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: "",
-      validate: false,
-      global: true,
     });
   }
 }

@@ -12,8 +12,9 @@ import {
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
+import { invertRecord, lookupOwn } from "../../utils/own-lookup.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
-import { isRecord } from "../../utils/type-guards.js";
+import { isRecord, toRecord } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
   parseSharedConfig,
@@ -23,6 +24,7 @@ import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   ALL_TOOLS_PERMISSION_CATEGORY,
   bashRulesHonoringAllTools,
+  CATCH_ALL_PATTERN,
   SHELL_PERMISSION_CATEGORY,
 } from "./shell-command-categories.js";
 import {
@@ -32,7 +34,6 @@ import {
 } from "./single-action-collapse.js";
 import {
   ToolPermissions,
-  type ToolPermissionsForDeletionParams,
   type ToolPermissionsFromFileParams,
   type ToolPermissionsFromRulesyncPermissionsParams,
   type ToolPermissionsSettablePaths,
@@ -41,8 +42,6 @@ import {
 type OmpApproval = "allow" | "prompt" | "deny";
 
 type OmpBashPattern = { match: string; approval: OmpApproval };
-
-const CATCH_ALL_PATTERN = "*";
 
 // The `tools` key holding oh-my-pi's approval mode, authored through the
 // `omp.approvalMode` override.
@@ -74,9 +73,7 @@ const CATEGORY_TO_OMP_TOOL: Record<string, string> = {
   agent: "task",
 };
 
-const OMP_TOOL_TO_CATEGORY: Record<string, string> = Object.fromEntries(
-  Object.entries(CATEGORY_TO_OMP_TOOL).map(([category, tool]) => [tool, category]),
-);
+const OMP_TOOL_TO_CATEGORY: Record<string, string> = invertRecord(CATEGORY_TO_OMP_TOOL);
 
 // Canonical categories with no oh-my-pi tool to key a policy on: web pages are
 // fetched through `read` (or a mounted device), there is no notebook tool, and
@@ -147,11 +144,6 @@ export class OmpPermissions extends ToolPermissions {
     });
   }
 
-  /** `config.yml` holds unrelated user settings, so it must not be deleted. */
-  override isDeletable(): boolean {
-    return false;
-  }
-
   static getSettablePaths({
     global = false,
   }: { global?: boolean } = {}): ToolPermissionsSettablePaths {
@@ -197,7 +189,7 @@ export class OmpPermissions extends ToolPermissions {
     const approvalMode = config.omp?.approvalMode;
     const restrictedFolders = config.omp?.restrictedFolders;
 
-    const existingTools = isRecord(existing.tools) ? existing.tools : {};
+    const existingTools = toRecord(existing.tools);
     // A kept key is still raised to the all-tools floor, so a hand-written
     // `eval: allow` cannot outlive an all-tools deny.
     const keptApproval = isRecord(existingTools.approval)
@@ -220,7 +212,7 @@ export class OmpPermissions extends ToolPermissions {
         ? { ...toolsSiblings, approval: nextApproval }
         : toolsSiblings;
 
-    const existingBash = isRecord(existing.bash) ? existing.bash : {};
+    const existingBash = toRecord(existing.bash);
     const bashSiblings = withoutKey(existingBash, "patterns");
     const nextBash = patterns.length > 0 ? { ...bashSiblings, patterns } : bashSiblings;
 
@@ -260,32 +252,10 @@ export class OmpPermissions extends ToolPermissions {
       fileContent: JSON.stringify(convertOmpToRulesync(config), null, 2),
     });
   }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-    global = false,
-  }: ToolPermissionsForDeletionParams): OmpPermissions {
-    return new OmpPermissions({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: "",
-      validate: false,
-      global,
-    });
-  }
 }
 
 function withoutKey(record: Record<string, unknown>, key: string): Record<string, unknown> {
   return Object.fromEntries(Object.entries(record).filter(([name]) => name !== key));
-}
-
-// `Object.hasOwn` keeps an inherited name such as `toString` from resolving to
-// a function instead of falling through to the name itself.
-function renamed(map: Record<string, string>, name: string): string {
-  return Object.hasOwn(map, name) ? (map[name] ?? name) : name;
 }
 
 function stricter(a: PermissionAction | undefined, b: PermissionAction): PermissionAction {
@@ -470,7 +440,7 @@ function convertRulesyncToOmp({ config, logger }: { config: PermissionsConfig; l
       );
     }
     // `agent` and a verbatim `task` share one key, so the stricter one wins.
-    const tool = renamed(CATEGORY_TO_OMP_TOOL, category);
+    const tool = lookupOwn({ record: CATEGORY_TO_OMP_TOOL, key: category }) ?? category;
     if (/^mcp__.+__/u.test(tool)) {
       logger?.warn(
         `oh-my-pi registers MCP tools as "mcp__<server>_<tool>", so "${tool}" may never match; ` +
@@ -571,11 +541,11 @@ function importBashPatterns(value: unknown): Record<string, PermissionAction> {
 
 function convertOmpToRulesync(config: Record<string, unknown>): PermissionsConfig {
   const permission: Record<string, Record<string, PermissionAction>> = {};
-  const tools = isRecord(config.tools) ? config.tools : {};
-  const bash = isRecord(config.bash) ? config.bash : {};
+  const tools = toRecord(config.tools);
+  const bash = toRecord(config.bash);
 
   const bashRules = importBashPatterns(bash.patterns);
-  const approvals = isRecord(tools.approval) ? tools.approval : {};
+  const approvals = toRecord(tools.approval);
   const bashApproval = toOmpApproval(approvals.bash);
   importBashPolicy(
     bashRules,
@@ -593,7 +563,7 @@ function convertOmpToRulesync(config: Record<string, unknown>): PermissionsConfi
         continue;
       }
       // A verbatim `agent` key and `task` import to one category; the stricter wins.
-      const category = renamed(OMP_TOOL_TO_CATEGORY, tool);
+      const category = lookupOwn({ record: OMP_TOOL_TO_CATEGORY, key: tool }) ?? tool;
       permission[category] = {
         [CATCH_ALL_PATTERN]: stricter(permission[category]?.[CATCH_ALL_PATTERN], action),
       };

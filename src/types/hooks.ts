@@ -1,5 +1,7 @@
 import { nonnegative, z } from "zod/mini";
 
+import { invertRecord } from "../utils/own-lookup.js";
+
 /**
  * Control characters that must be stripped from command and matcher fields
  * before embedding in generated code.
@@ -459,14 +461,6 @@ export const CODEWHALE_MATCHER_HOOK_EVENTS: readonly HookEvent[] = [
   "afterError",
 ];
 
-/**
- * Invert a canonical-to-tool event name map into the tool-to-canonical map
- * the importers read.
- */
-function invertEventNames(map: Readonly<Record<string, string>>): Record<string, string> {
-  return Object.fromEntries(Object.entries(map).map(([canonical, tool]) => [tool, canonical]));
-}
-
 export const CANONICAL_TO_POOL_EVENT_NAMES: Record<string, string> = {
   preToolUse: "PreToolUse",
   postToolUse: "PostToolUse",
@@ -489,7 +483,7 @@ export const CANONICAL_TO_POOL_EVENT_NAMES: Record<string, string> = {
  */
 export const POOL_HOOK_EVENTS: readonly HookEvent[] = eventsOf(CANONICAL_TO_POOL_EVENT_NAMES);
 
-export const POOL_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+export const POOL_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertRecord(
   CANONICAL_TO_POOL_EVENT_NAMES,
 );
 
@@ -598,7 +592,7 @@ export const KIMI_CODE_NATIVE_HOOK_EVENTS = [
   "SessionHeartbeat",
 ] as const;
 
-export const KIMI_CODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+export const KIMI_CODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertRecord(
   CANONICAL_TO_KIMI_CODE_EVENT_NAMES,
 );
 
@@ -638,7 +632,7 @@ export const CANONICAL_TO_ZCODE_EVENT_NAMES: Record<string, string> = {
  */
 export const ZCODE_HOOK_EVENTS: readonly HookEvent[] = eventsOf(CANONICAL_TO_ZCODE_EVENT_NAMES);
 
-export const ZCODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+export const ZCODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertRecord(
   CANONICAL_TO_ZCODE_EVENT_NAMES,
 );
 
@@ -668,7 +662,7 @@ export const CANONICAL_TO_BOB_EVENT_NAMES: Record<string, string> = {
  */
 export const BOB_HOOK_EVENTS: readonly HookEvent[] = eventsOf(CANONICAL_TO_BOB_EVENT_NAMES);
 
-export const BOB_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+export const BOB_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertRecord(
   CANONICAL_TO_BOB_EVENT_NAMES,
 );
 
@@ -700,7 +694,7 @@ export const CANONICAL_TO_TABNINE_EVENT_NAMES: Record<string, string> = {
  */
 export const TABNINE_HOOK_EVENTS: readonly HookEvent[] = eventsOf(CANONICAL_TO_TABNINE_EVENT_NAMES);
 
-export const TABNINE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+export const TABNINE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertRecord(
   CANONICAL_TO_TABNINE_EVENT_NAMES,
 );
 
@@ -734,7 +728,7 @@ export const CORTEXCODE_HOOK_EVENTS: readonly HookEvent[] = eventsOf(
   CANONICAL_TO_CORTEXCODE_EVENT_NAMES,
 );
 
-export const CORTEXCODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+export const CORTEXCODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertRecord(
   CANONICAL_TO_CORTEXCODE_EVENT_NAMES,
 );
 
@@ -760,7 +754,7 @@ export const CANONICAL_TO_TRAE_EVENT_NAMES: Record<string, string> = {
  */
 export const TRAE_HOOK_EVENTS: readonly HookEvent[] = eventsOf(CANONICAL_TO_TRAE_EVENT_NAMES);
 
-export const TRAE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+export const TRAE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertRecord(
   CANONICAL_TO_TRAE_EVENT_NAMES,
 );
 
@@ -842,7 +836,7 @@ export const CODEBUDDY_MATCHER_HOOK_EVENTS: readonly HookEvent[] = CODEBUDDY_HOO
   (event) => !CODEBUDDY_NO_MATCHER_HOOK_EVENTS.includes(event),
 );
 
-export const CODEBUDDY_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+export const CODEBUDDY_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertRecord(
   CANONICAL_TO_CODEBUDDY_EVENT_NAMES,
 );
 
@@ -892,7 +886,7 @@ export const CANONICAL_TO_QODER_EVENT_NAMES: Record<string, string> = {
  */
 export const QODER_HOOK_EVENTS: readonly HookEvent[] = eventsOf(CANONICAL_TO_QODER_EVENT_NAMES);
 
-export const QODER_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+export const QODER_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertRecord(
   CANONICAL_TO_QODER_EVENT_NAMES,
 );
 
@@ -918,7 +912,7 @@ export const COMMANDCODE_HOOK_EVENTS: readonly HookEvent[] = eventsOf(
   CANONICAL_TO_COMMANDCODE_EVENT_NAMES,
 );
 
-export const COMMANDCODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+export const COMMANDCODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertRecord(
   CANONICAL_TO_COMMANDCODE_EVENT_NAMES,
 );
 
@@ -952,7 +946,7 @@ export const LETTACODE_HOOK_EVENTS: readonly HookEvent[] = eventsOf(
   CANONICAL_TO_LETTACODE_EVENT_NAMES,
 );
 
-export const LETTACODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+export const LETTACODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertRecord(
   CANONICAL_TO_LETTACODE_EVENT_NAMES,
 );
 
@@ -994,7 +988,7 @@ export const CONTINUE_HOOK_EVENTS: readonly HookEvent[] = eventsOf(
   CANONICAL_TO_CONTINUE_EVENT_NAMES,
 );
 
-export const CONTINUE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+export const CONTINUE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertRecord(
   CANONICAL_TO_CONTINUE_EVENT_NAMES,
 );
 
@@ -1114,7 +1108,7 @@ export const HERMESAGENT_HOOK_EVENTS: readonly HookEvent[] = eventsOf(
 /**
  * Map Hermes Agent's native `VALID_HOOKS` keys back to canonical camelCase.
  */
-export const HERMESAGENT_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+export const HERMESAGENT_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertRecord(
   CANONICAL_TO_HERMESAGENT_EVENT_NAMES,
 );
 
@@ -1277,7 +1271,7 @@ export const CLAUDE_HOOK_EVENTS: readonly HookEvent[] = eventsOf(CANONICAL_TO_CL
 /**
  * Map Claude PascalCase event names to canonical camelCase.
  */
-export const CLAUDE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+export const CLAUDE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertRecord(
   CANONICAL_TO_CLAUDE_EVENT_NAMES,
 );
 
@@ -1334,7 +1328,7 @@ export const DEVIN_HOOK_EVENTS: readonly HookEvent[] = eventsOf(CANONICAL_TO_DEV
  * (CLI v3000.11.92) is accepted on import as an alias of `PostCompaction`.
  */
 export const DEVIN_TO_CANONICAL_EVENT_NAMES: Record<string, string> = {
-  ...invertEventNames(CANONICAL_TO_DEVIN_EVENT_NAMES),
+  ...invertRecord(CANONICAL_TO_DEVIN_EVENT_NAMES),
   PostCompact: "postCompact",
 };
 
@@ -1368,7 +1362,7 @@ export const AUGMENTCODE_HOOK_EVENTS: readonly HookEvent[] = eventsOf(
 /**
  * Map AugmentCode PascalCase event names to canonical camelCase.
  */
-export const AUGMENTCODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+export const AUGMENTCODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertRecord(
   CANONICAL_TO_AUGMENTCODE_EVENT_NAMES,
 );
 
@@ -1403,7 +1397,7 @@ export const ANTIGRAVITY_HOOK_EVENTS: readonly HookEvent[] = eventsOf(
 /**
  * Map Antigravity PascalCase event names to canonical camelCase.
  */
-export const ANTIGRAVITY_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+export const ANTIGRAVITY_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertRecord(
   CANONICAL_TO_ANTIGRAVITY_EVENT_NAMES,
 );
 
@@ -1441,7 +1435,7 @@ export const CURSOR_HOOK_EVENTS: readonly HookEvent[] = eventsOf(CANONICAL_TO_CU
 /**
  * Map Cursor camelCase event names to canonical camelCase.
  */
-export const CURSOR_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+export const CURSOR_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertRecord(
   CANONICAL_TO_CURSOR_EVENT_NAMES,
 );
 
@@ -1475,7 +1469,7 @@ export const FACTORYDROID_HOOK_EVENTS: readonly HookEvent[] = eventsOf(
 /**
  * Map Factory Droid PascalCase event names to canonical camelCase.
  */
-export const FACTORYDROID_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+export const FACTORYDROID_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertRecord(
   CANONICAL_TO_FACTORYDROID_EVENT_NAMES,
 );
 
@@ -1808,7 +1802,7 @@ export const COPILOT_HOOK_EVENTS: readonly HookEvent[] = eventsOf(CANONICAL_TO_C
 /**
  * Map Copilot camelCase event names to canonical camelCase.
  */
-export const COPILOT_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+export const COPILOT_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertRecord(
   CANONICAL_TO_COPILOT_EVENT_NAMES,
 );
 
@@ -1865,7 +1859,7 @@ export const COPILOTCLI_HOOK_EVENTS: readonly HookEvent[] = eventsOf(
 );
 
 /** Map GitHub Copilot CLI event names back to canonical camelCase. */
-export const COPILOTCLI_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+export const COPILOTCLI_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertRecord(
   CANONICAL_TO_COPILOTCLI_EVENT_NAMES,
 );
 
@@ -1913,7 +1907,7 @@ export const CODEXCLI_HOOK_EVENTS: readonly HookEvent[] = eventsOf(
 /**
  * Map Codex CLI PascalCase event names to canonical camelCase.
  */
-export const CODEXCLI_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+export const CODEXCLI_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertRecord(
   CANONICAL_TO_CODEXCLI_EVENT_NAMES,
 );
 
@@ -1953,7 +1947,7 @@ export const GOOSE_HOOK_EVENTS: readonly HookEvent[] = eventsOf(CANONICAL_TO_GOO
 /**
  * Map Goose PascalCase event names to canonical camelCase.
  */
-export const GOOSE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+export const GOOSE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertRecord(
   CANONICAL_TO_GOOSE_EVENT_NAMES,
 );
 
@@ -1992,7 +1986,7 @@ export const CANONICAL_TO_DEEPAGENTS_EVENT_NAMES: Record<string, string> = {
 /**
  * Map deepagents-cli `HookEvent` values to canonical camelCase.
  */
-export const DEEPAGENTS_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+export const DEEPAGENTS_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertRecord(
   CANONICAL_TO_DEEPAGENTS_EVENT_NAMES,
 );
 
@@ -2083,7 +2077,7 @@ export const KIRO_LEGACY_TO_KIRO_IDE_TRIGGER_NAMES: Record<string, string> = {
 /**
  * Map Kiro CLI camelCase event names to canonical camelCase.
  */
-export const KIRO_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+export const KIRO_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertRecord(
   CANONICAL_TO_KIRO_EVENT_NAMES,
 );
 
@@ -2124,7 +2118,7 @@ export const KIRO_IDE_HOOK_EVENTS: readonly HookEvent[] = eventsOf(
 /**
  * Map Kiro IDE PascalCase trigger names to canonical camelCase.
  */
-export const KIRO_IDE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+export const KIRO_IDE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertRecord(
   CANONICAL_TO_KIRO_IDE_EVENT_NAMES,
 );
 
@@ -2154,7 +2148,7 @@ export const GITLABDUO_HOOK_EVENTS: readonly HookEvent[] = eventsOf(
 /**
  * Map GitLab Duo CLI PascalCase event names to canonical camelCase.
  */
-export const GITLABDUO_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+export const GITLABDUO_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertRecord(
   CANONICAL_TO_GITLABDUO_EVENT_NAMES,
 );
 
@@ -2190,7 +2184,7 @@ export const JUNIE_HOOK_EVENTS: readonly HookEvent[] = eventsOf(CANONICAL_TO_JUN
 /**
  * Map Junie PascalCase event names to canonical camelCase.
  */
-export const JUNIE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+export const JUNIE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertRecord(
   CANONICAL_TO_JUNIE_EVENT_NAMES,
 );
 
@@ -2246,7 +2240,7 @@ export const VIBE_HOOK_EVENTS: readonly HookEvent[] = eventsOf(CANONICAL_TO_VIBE
  * into a tool override block and lose the event.
  */
 export const VIBE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = {
-  ...invertEventNames(CANONICAL_TO_VIBE_EVENT_NAMES),
+  ...invertRecord(CANONICAL_TO_VIBE_EVENT_NAMES),
   // `post_agent` is shared by `stop` and `subagentStop`; the adapter picks
   // `subagentStop` from a non-`main` `match`, so the default is `stop`.
   post_agent: "stop",
@@ -2294,7 +2288,7 @@ export const CODEWHALE_HOOK_EVENTS: readonly HookEvent[] = eventsOf(
 );
 
 /** Map Codewhale snake_case event names to canonical camelCase. */
-export const CODEWHALE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+export const CODEWHALE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertRecord(
   CANONICAL_TO_CODEWHALE_EVENT_NAMES,
 );
 
@@ -2347,7 +2341,7 @@ export const CRUSH_TOOL_EVENTS: readonly string[] = [
   "PermissionResult",
 ];
 
-export const CRUSH_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+export const CRUSH_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertRecord(
   CANONICAL_TO_CRUSH_EVENT_NAMES,
 );
 
@@ -2386,7 +2380,7 @@ export const CANONICAL_TO_QWENCODE_EVENT_NAMES: Record<string, string> = {
 /**
  * Map Qwen Code PascalCase event names to canonical camelCase.
  */
-export const QWENCODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+export const QWENCODE_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertRecord(
   CANONICAL_TO_QWENCODE_EVENT_NAMES,
 );
 
@@ -2441,7 +2435,7 @@ export const REASONIX_HOOK_EVENTS: readonly HookEvent[] = eventsOf(
 /**
  * Map Reasonix PascalCase event names to canonical camelCase.
  */
-export const REASONIX_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+export const REASONIX_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertRecord(
   CANONICAL_TO_REASONIX_EVENT_NAMES,
 );
 
@@ -2492,6 +2486,6 @@ export const GROKCLI_HOOK_EVENTS: readonly HookEvent[] = eventsOf(CANONICAL_TO_G
 /**
  * Map Grok CLI PascalCase event names to canonical camelCase.
  */
-export const GROKCLI_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertEventNames(
+export const GROKCLI_TO_CANONICAL_EVENT_NAMES: Record<string, string> = invertRecord(
   CANONICAL_TO_GROKCLI_EVENT_NAMES,
 );

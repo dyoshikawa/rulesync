@@ -49,16 +49,6 @@ describe("OmpPermissions", () => {
     });
   });
 
-  it("should not be deletable because config.yml holds unrelated user settings", () => {
-    const permissions = OmpPermissions.forDeletion({
-      outputRoot: testDir,
-      relativeDirPath: ".omp",
-      relativeFilePath: "config.yml",
-    });
-
-    expect(permissions.isDeletable()).toBe(false);
-  });
-
   it("should map catch-all rules to tools.approval and bash rules to ordered bash.patterns", async () => {
     const permissions = await OmpPermissions.fromRulesyncPermissions({
       outputRoot: testDir,

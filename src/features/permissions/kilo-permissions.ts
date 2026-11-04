@@ -22,10 +22,9 @@ import {
   kiloPermissionToToolFilter,
 } from "../shared/kilo-mcp-tool-keys.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
-import { honorAllToolsOnBash } from "./shell-command-categories.js";
+import { honorAllToolsOnBash, MCP_CATEGORY_PREFIX } from "./shell-command-categories.js";
 import {
   ToolPermissions,
-  type ToolPermissionsForDeletionParams,
   type ToolPermissionsFromFileParams,
   type ToolPermissionsFromRulesyncPermissionsParams,
   type ToolPermissionsSettablePaths,
@@ -71,7 +70,7 @@ const KILO_SHARED_CATEGORIES = new Set([
 ]);
 
 function isSharedKiloCategory(key: string): boolean {
-  return key === "*" || KILO_SHARED_CATEGORIES.has(key) || key.startsWith("mcp__");
+  return key === "*" || KILO_SHARED_CATEGORIES.has(key) || key.startsWith(MCP_CATEGORY_PREFIX);
 }
 
 /**
@@ -236,7 +235,7 @@ export class KiloPermissions extends ToolPermissions {
     super(params);
     // Always parse the JSONC payload so consumers can call `getJson()` without re-parsing,
     // but only enforce schema validation when `params.validate !== false` (this matches
-    // `RulesyncPermissions` behavior and avoids throwing during `forDeletion` / dry-run /
+    // `RulesyncPermissions` behavior and avoids throwing during dry-run /
     // import scenarios where the input may be intentionally permissive).
     const parsed = parseJsonc(this.fileContent || "{}");
     if (params.validate !== false) {
@@ -497,19 +496,5 @@ export class KiloPermissions extends ToolPermissions {
         error: new Error(`Failed to parse Kilo permissions JSON: ${formatError(error)}`),
       };
     }
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolPermissionsForDeletionParams): KiloPermissions {
-    return new KiloPermissions({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: JSON.stringify({ permission: {} }, null, 2),
-      validate: false,
-    });
   }
 }

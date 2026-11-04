@@ -39,3 +39,12 @@ export function toStringArray(value: unknown): string[] {
     ? value.filter((entry): entry is string => typeof entry === "string")
     : [];
 }
+
+/**
+ * The value itself when it is a record, otherwise a new empty object. For
+ * reading a hand-edited config table that may hold any type; the record is
+ * returned as-is, not copied.
+ */
+export function toRecord(value: unknown): Record<string, unknown> {
+  return isRecord(value) ? value : {};
+}

@@ -1393,15 +1393,4 @@ describe("TaktPermissions", () => {
       expect(json.permission.bash["*"]).toBe("deny");
     });
   });
-
-  describe("isDeletable", () => {
-    it("never deletes the shared config", () => {
-      const tool = TaktPermissions.forDeletion({
-        outputRoot: testDir,
-        relativeDirPath: ".takt",
-        relativeFilePath: "config.yaml",
-      });
-      expect(tool.isDeletable()).toBe(false);
-    });
-  });
 });

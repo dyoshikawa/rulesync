@@ -6,6 +6,7 @@ import type { PermissionAction, PermissionsConfig } from "../../types/permission
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
+import { invertRecord, lookupOwn } from "../../utils/own-lookup.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { isRecord, isStringArray, toStringArray } from "../../utils/type-guards.js";
 import {
@@ -14,11 +15,15 @@ import {
   sharedConfigFileKey,
 } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
-import { ALL_TOOLS_PERMISSION_CATEGORY, honorAllToolsOnBash } from "./shell-command-categories.js";
-import { PERMISSION_ACTION_PRIORITY } from "./single-action-collapse.js";
+import {
+  ALL_TOOLS_PERMISSION_CATEGORY,
+  CATCH_ALL_PATTERN,
+  honorAllToolsOnBash,
+} from "./shell-command-categories.js";
+import { isStricterAction } from "./single-action-collapse.js";
+import { splitToolRule } from "./tool-pattern-entry.js";
 import {
   ToolPermissions,
-  type ToolPermissionsForDeletionParams,
   type ToolPermissionsFromFileParams,
   type ToolPermissionsFromRulesyncPermissionsParams,
   type ToolPermissionsSettablePaths,
@@ -70,7 +75,6 @@ const CODEBUDDY_USER_ONLY_GROUPS: ReadonlySet<CodebuddyOverrideGroup> = new Set(
 /** The rule lists under `permissions`, one per canonical action. */
 const CODEBUDDY_RULE_LISTS: readonly PermissionAction[] = ["allow", "ask", "deny"];
 
-const CATCH_ALL_PATTERN = "*";
 const MCP_CATEGORY = "mcp";
 const MCP_RULE_PREFIX = "mcp__";
 const ALL_MCP_RULE = "mcp__*";
@@ -98,22 +102,7 @@ const CATEGORY_TO_CODEBUDDY_TOOL: Record<string, string> = {
   skill: "Skill",
 };
 
-const CODEBUDDY_TOOL_TO_CATEGORY: Record<string, string> = Object.fromEntries(
-  Object.entries(CATEGORY_TO_CODEBUDDY_TOOL).map(([category, tool]) => [tool, category]),
-);
-
-/**
- * Split a rule into its tool half and specifier: `Tool(specifier)` or a bare
- * `Tool`. A rule that opens a parenthesis without closing it comes back with
- * a `null` tool so it stays unmodeled (and is preserved as-is).
- */
-function splitCodebuddyRule(rule: string): { tool: string | null; specifier: string | undefined } {
-  const match = rule.match(/^([^(]+)\(([\s\S]*)\)$/);
-  if (match) {
-    return { tool: match[1] ?? null, specifier: match[2] };
-  }
-  return { tool: rule.includes("(") ? null : rule, specifier: undefined };
-}
+const CODEBUDDY_TOOL_TO_CATEGORY: Record<string, string> = invertRecord(CATEGORY_TO_CODEBUDDY_TOOL);
 
 /**
  * The canonical category a CodeBuddy rule belongs to: a built-in tool maps to
@@ -122,14 +111,14 @@ function splitCodebuddyRule(rule: string): { tool: string | null; specifier: str
  * a canonical category) is its own category.
  */
 function categoryOfRule(rule: string): string | undefined {
-  const { tool } = splitCodebuddyRule(rule);
+  const { tool } = splitToolRule(rule);
   if (tool === null) {
     return undefined;
   }
   if (tool === ALL_MCP_RULE) {
     return MCP_CATEGORY;
   }
-  return Object.hasOwn(CODEBUDDY_TOOL_TO_CATEGORY, tool) ? CODEBUDDY_TOOL_TO_CATEGORY[tool] : tool;
+  return lookupOwn({ record: CODEBUDDY_TOOL_TO_CATEGORY, key: tool }) ?? tool;
 }
 
 /**
@@ -182,9 +171,7 @@ function buildCodebuddyRule({
     );
     return null;
   }
-  const tool = Object.hasOwn(CATEGORY_TO_CODEBUDDY_TOOL, category)
-    ? (CATEGORY_TO_CODEBUDDY_TOOL[category] as string)
-    : category;
+  const tool = lookupOwn({ record: CATEGORY_TO_CODEBUDDY_TOOL, key: category }) ?? category;
   return catchAll ? tool : `${tool}(${pattern})`;
 }
 
@@ -194,11 +181,11 @@ function parseCodebuddyRule(rule: string): { category: string; pattern: string }
   if (category === undefined) {
     return null;
   }
-  const { specifier } = splitCodebuddyRule(rule);
-  if (specifier === undefined) {
+  const { payload } = splitToolRule(rule);
+  if (payload === undefined) {
     return { category, pattern: CATCH_ALL_PATTERN };
   }
-  const trimmed = specifier.trim();
+  const trimmed = payload.trim();
   // `Tool()` matches no call, so it has no canonical meaning.
   return trimmed === "" ? null : { category, pattern: trimmed };
 }
@@ -244,10 +231,7 @@ function buildCodebuddyRuleLists({
         managedCategories.add(emittedCategory);
       }
       const existing = ranked.get(rule);
-      if (
-        existing === undefined ||
-        PERMISSION_ACTION_PRIORITY[action] > PERMISSION_ACTION_PRIORITY[existing]
-      ) {
+      if (isStricterAction({ action, existing })) {
         ranked.set(rule, action);
       }
     }
@@ -544,10 +528,7 @@ export class CodebuddyPermissions extends ToolPermissions {
         const existing = rules[parsed.pattern];
         // CodeBuddy evaluates `deny` first, then `ask`, then `allow`, so the
         // stricter action wins when a rule appears in more than one list.
-        if (
-          existing === undefined ||
-          PERMISSION_ACTION_PRIORITY[action] > PERMISSION_ACTION_PRIORITY[existing]
-        ) {
+        if (isStricterAction({ action, existing })) {
           rules[parsed.pattern] = action;
         }
       }
@@ -559,22 +540,6 @@ export class CodebuddyPermissions extends ToolPermissions {
         null,
         2,
       ),
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-    global = false,
-  }: ToolPermissionsForDeletionParams): CodebuddyPermissions {
-    return new CodebuddyPermissions({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: "{}",
-      validate: false,
-      global,
     });
   }
 }

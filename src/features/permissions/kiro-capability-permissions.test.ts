@@ -42,9 +42,12 @@ describe("KiroCapabilityPermissions", () => {
   });
 
   it("is never deletable and is not created for an empty payload", () => {
-    const perms = KiroCapabilityPermissions.forDeletion({
+    const perms = new KiroCapabilityPermissions({
       relativeDirPath: join(".kiro", "settings"),
       relativeFilePath: "permissions.yaml",
+      fileContent: "",
+      validate: false,
+      global: true,
     });
     expect(perms.isDeletable()).toBe(false);
     expect(perms.shouldSkipCreationWhenPayloadEmpty()).toBe(true);
@@ -352,18 +355,5 @@ describe("KiroScopedPermissions", () => {
     expect(KiroScopedPermissions.getSettablePaths({ global: true })).toEqual(
       KiroCapabilityPermissions.getSettablePaths(),
     );
-    expect(
-      KiroScopedPermissions.forDeletion({
-        relativeDirPath: join(".kiro", "settings"),
-        relativeFilePath: "permissions.yaml",
-        global: true,
-      }),
-    ).toBeInstanceOf(KiroCapabilityPermissions);
-    expect(
-      KiroScopedPermissions.forDeletion({
-        relativeDirPath: join(".kiro", "agents"),
-        relativeFilePath: "default.json",
-      }),
-    ).toBeInstanceOf(KiroPermissions);
   });
 });

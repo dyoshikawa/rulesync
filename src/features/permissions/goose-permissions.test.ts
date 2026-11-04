@@ -432,15 +432,4 @@ describe("GoosePermissions", () => {
       expect(json.permission.bash["*"]).toBe("deny");
     });
   });
-
-  describe("forDeletion", () => {
-    it("is not deletable", () => {
-      const perms = GoosePermissions.forDeletion({
-        outputRoot: testDir,
-        relativeDirPath: join(".config", "goose"),
-        relativeFilePath: "permission.yaml",
-      });
-      expect(perms.isDeletable()).toBe(false);
-    });
-  });
 });

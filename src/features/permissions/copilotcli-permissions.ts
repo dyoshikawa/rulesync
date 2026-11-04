@@ -21,7 +21,6 @@ import {
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   ToolPermissions,
-  type ToolPermissionsForDeletionParams,
   type ToolPermissionsFromFileParams,
   type ToolPermissionsFromRulesyncPermissionsParams,
   type ToolPermissionsSettablePaths,
@@ -120,14 +119,6 @@ export class CopilotcliPermissions extends ToolPermissions {
       ...params,
       fileContent: params.fileContent ?? "{}",
     });
-  }
-
-  /**
-   * `settings.json` holds unrelated user settings (`model`, `effortLevel`,
-   * `hooks`, ...), so it must not be deleted.
-   */
-  override isDeletable(): boolean {
-    return false;
   }
 
   static getSettablePaths({
@@ -275,21 +266,5 @@ export class CopilotcliPermissions extends ToolPermissions {
         { cause: error },
       );
     }
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-    global = false,
-  }: ToolPermissionsForDeletionParams): CopilotcliPermissions {
-    return new CopilotcliPermissions({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: "{}",
-      validate: false,
-      global,
-    });
   }
 }

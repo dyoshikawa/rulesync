@@ -26,7 +26,6 @@ import {
 } from "./shell-command-categories.js";
 import {
   ToolPermissions,
-  type ToolPermissionsForDeletionParams,
   type ToolPermissionsFromFileParams,
   type ToolPermissionsFromRulesyncPermissionsParams,
   type ToolPermissionsSettablePaths,
@@ -144,7 +143,7 @@ function withholdAllowsOutrankingDenies({
   return kept;
 }
 
-export type RooPermissionsParams = AiFileParams & {
+type RooPermissionsParams = AiFileParams & {
   /** See {@link RooPermissions.shouldSkipCreationWhenPayloadEmpty}. */
   ownsCommandKeys?: boolean | undefined;
 };
@@ -225,14 +224,6 @@ export class RooPermissions extends ToolPermissions {
    */
   override shouldSkipCreationWhenPayloadEmpty(): boolean {
     return this.ownsCommandKeys ? false : super.shouldSkipCreationWhenPayloadEmpty();
-  }
-
-  /**
-   * `.vscode/settings.json` is a user-managed workspace file with unrelated
-   * settings, so it must not be deleted.
-   */
-  override isDeletable(): boolean {
-    return false;
   }
 
   static getSettablePaths(_options: { global?: boolean } = {}): ToolPermissionsSettablePaths {
@@ -356,20 +347,6 @@ export class RooPermissions extends ToolPermissions {
 
     return this.toRulesyncPermissionsDefault({
       fileContent: JSON.stringify({ permission }, null, 2),
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolPermissionsForDeletionParams): RooPermissions {
-    return new this({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: "{}",
-      validate: false,
     });
   }
 }

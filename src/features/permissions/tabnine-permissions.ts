@@ -11,10 +11,10 @@ import type { PermissionAction, PermissionsConfig } from "../../types/permission
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { fallbackLogger, type Logger, warnWithFallback } from "../../utils/logger.js";
-import { lookupOwn } from "../../utils/own-lookup.js";
+import { invertRecord, lookupOwn } from "../../utils/own-lookup.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
-import { isRecord, isStringArray } from "../../utils/type-guards.js";
+import { isRecord, isStringArray, toRecord } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
   parseSharedConfig,
@@ -37,7 +37,6 @@ import {
 import { failSafeCatchAllAction } from "./single-action-collapse.js";
 import {
   ToolPermissions,
-  type ToolPermissionsForDeletionParams,
   type ToolPermissionsFromFileParams,
   type ToolPermissionsFromRulesyncPermissionsParams,
   type ToolPermissionsSettablePaths,
@@ -97,11 +96,8 @@ const CANONICAL_TO_TABNINE_TOOL_NAMES: Record<string, string> = {
   glob: "glob",
 };
 
-const TABNINE_TO_CANONICAL_TOOL_NAMES: Record<string, string> = Object.fromEntries(
-  Object.entries(CANONICAL_TO_TABNINE_TOOL_NAMES).map(([canonical, tabnine]) => [
-    tabnine,
-    canonical,
-  ]),
+const TABNINE_TO_CANONICAL_TOOL_NAMES: Record<string, string> = invertRecord(
+  CANONICAL_TO_TABNINE_TOOL_NAMES,
 );
 
 // Shared fallback logger used by the importing direction (toRulesyncPermissions), where the
@@ -275,7 +271,7 @@ function stripRefusedOverridePaths(override: Record<string, unknown>): {
 } {
   const tools = stripRefusedPaths({
     group: TOOLS_KEY,
-    record: isRecord(override[TOOLS_KEY]) ? override[TOOLS_KEY] : {},
+    record: toRecord(override[TOOLS_KEY]),
   });
   const general = isRecord(override[GENERAL_KEY])
     ? stripRefusedPaths({ group: GENERAL_KEY, record: override[GENERAL_KEY] })
@@ -694,14 +690,6 @@ export class TabninePermissions extends ToolPermissions {
     });
   }
 
-  /**
-   * `settings.json` holds unrelated user settings (`mcpServers`, `hooks`,
-   * `general`, ...), so it must not be deleted.
-   */
-  override isDeletable(): boolean {
-    return false;
-  }
-
   static getSettablePaths(_options: { global?: boolean } = {}): ToolPermissionsSettablePaths {
     return {
       relativeDirPath: TABNINE_AGENT_DIR_PATH,
@@ -740,7 +728,7 @@ export class TabninePermissions extends ToolPermissions {
     const existingContent = (await readFileContentOrNull(filePath)) ?? "{}";
 
     const config = rulesyncPermissions.getJson();
-    const override = isRecord(config.tabnine) ? config.tabnine : {};
+    const override = toRecord(config.tabnine);
     const {
       tools: overrideTools,
       general: overrideGeneral,
@@ -911,7 +899,7 @@ export class TabninePermissions extends ToolPermissions {
 
   toRulesyncPermissions(): RulesyncPermissions {
     const settings = this.parseSettings();
-    const tools = isRecord(settings[TOOLS_KEY]) ? settings[TOOLS_KEY] : {};
+    const tools = toRecord(settings[TOOLS_KEY]);
 
     const permission: Record<string, Record<string, PermissionAction>> = {};
     const leftovers: Record<string, string[]> = {};
@@ -1019,21 +1007,5 @@ export class TabninePermissions extends ToolPermissions {
         { cause: error },
       );
     }
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-    global = false,
-  }: ToolPermissionsForDeletionParams): TabninePermissions {
-    return new TabninePermissions({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: "{}",
-      validate: false,
-      global,
-    });
   }
 }

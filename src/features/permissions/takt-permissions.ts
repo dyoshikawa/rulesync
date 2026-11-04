@@ -18,9 +18,9 @@ import {
   TAKT_CONFIG_SHARED_FILE_KEY,
 } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
+import { CATCH_ALL_PATTERN } from "./shell-command-categories.js";
 import {
   ToolPermissions,
-  type ToolPermissionsForDeletionParams,
   type ToolPermissionsFromFileParams,
   type ToolPermissionsFromRulesyncPermissionsParams,
   type ToolPermissionsSettablePaths,
@@ -108,10 +108,6 @@ const TAKT_DEFAULT_PROVIDER = "claude-sdk";
 // choice, so it is not promoted to the active provider.
 const TAKT_LEGACY_DEFAULT_PROVIDER = "claude";
 
-// rulesync canonical catch-all pattern (Takt's mode is coarse, so only a
-// catch-all maps cleanly back on import).
-const CATCH_ALL_PATTERN = "*";
-
 /**
  * Permissions adapter for Takt (`.takt/config.yaml`).
  *
@@ -180,12 +176,6 @@ export class TaktPermissions extends ToolPermissions {
       fileContent: params.fileContent ?? "",
     });
     this.runtimeFileContent = runtimeFileContent ?? "";
-  }
-
-  override isDeletable(): boolean {
-    // config.yaml holds other Takt settings, so it must never be removed
-    // wholesale; permission changes happen via an in-place merge instead.
-    return false;
   }
 
   static getSettablePaths(_options?: { global?: boolean }): ToolPermissionsSettablePaths {
@@ -433,22 +423,6 @@ export class TaktPermissions extends ToolPermissions {
 
     return this.toRulesyncPermissionsDefault({
       fileContent: JSON.stringify(result, null, 2),
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-    global = false,
-  }: ToolPermissionsForDeletionParams): TaktPermissions {
-    return new TaktPermissions({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: "",
-      validate: false,
-      global,
     });
   }
 }

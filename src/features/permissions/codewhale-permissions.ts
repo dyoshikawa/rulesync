@@ -15,12 +15,14 @@ import {
   type PermissionAction,
   type PermissionsConfig,
 } from "../../types/permissions.js";
+import type { ToolFile } from "../../types/tool-file.js";
 import { formatError } from "../../utils/error.js";
 import { fileExists, readFileContentOrNull } from "../../utils/file.js";
 import { createIntersectionBudget } from "../../utils/glob.js";
 import type { Logger } from "../../utils/logger.js";
 import {
   CODEWHALE_PROJECT_CONFIG_PATHS,
+  createCodewhaleProjectConfigFile,
   readCodewhaleProjectShellDisabled,
 } from "./codewhale-project-config.js";
 import {
@@ -38,7 +40,7 @@ import {
 import { PERMISSION_ACTION_PRIORITY } from "./single-action-collapse.js";
 import {
   ToolPermissions,
-  type ToolPermissionsForDeletionParams,
+  type ToolPermissionsAuxiliaryFilesParams,
   type ToolPermissionsFromFileParams,
   type ToolPermissionsFromRulesyncPermissionsParams,
   type ToolPermissionsSettablePaths,
@@ -815,12 +817,22 @@ export class CodewhalePermissions extends ToolPermissions {
   }
 
   /**
-   * Codewhale's approval card writes to the global file, and the constitution
-   * carries repo policy rulesync does not own, so this feature never deletes
-   * either.
+   * The project overlay file, when a deny on every shell command needs it;
+   * never in global scope.
    */
-  override isDeletable(): boolean {
-    return false;
+  static async getAuxiliaryFiles({
+    outputRoot,
+    config,
+    global,
+    logger,
+  }: ToolPermissionsAuxiliaryFilesParams): Promise<ToolFile[]> {
+    if (global) return [];
+    const projectConfigFile = await createCodewhaleProjectConfigFile({
+      outputRoot,
+      config,
+      logger,
+    });
+    return projectConfigFile ? [projectConfigFile] : [];
   }
 
   override shouldSkipCreationWhenPayloadEmpty(): boolean {
@@ -958,22 +970,6 @@ export class CodewhalePermissions extends ToolPermissions {
         null,
         2,
       ),
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-    global = false,
-  }: ToolPermissionsForDeletionParams): CodewhalePermissions {
-    return new CodewhalePermissions({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: "",
-      validate: false,
-      global,
     });
   }
 }

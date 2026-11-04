@@ -3,8 +3,8 @@ import { join } from "node:path";
 import { JUNIE_DIR, JUNIE_PERMISSIONS_FILE_NAME } from "../../constants/junie-paths.js";
 import type { AiFileParams } from "../../types/ai-file.js";
 import {
+  isPermissionAction,
   type PermissionAction,
-  PermissionActionSchema,
   type PermissionsConfig,
 } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
@@ -14,7 +14,6 @@ import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { honorAllToolsOnBash } from "./shell-command-categories.js";
 import {
   ToolPermissions,
-  type ToolPermissionsForDeletionParams,
   type ToolPermissionsFromFileParams,
   type ToolPermissionsFromRulesyncPermissionsParams,
   type ToolPermissionsSettablePaths,
@@ -177,10 +176,6 @@ const JUNIE_GROUP_TO_CANONICAL: Record<JunieRuleGroup, string> = {
   readOutsideProject: "read",
 };
 
-function isPermissionAction(value: unknown): value is PermissionAction {
-  return PermissionActionSchema.safeParse(value).success;
-}
-
 /**
  * Whether a rulesync pattern uses glob syntax. Junie expresses literal
  * "starts-with" matches as `prefix` and glob matches as `pattern`, so a pattern
@@ -196,13 +191,6 @@ export class JuniePermissions extends ToolPermissions {
       ...params,
       fileContent: params.fileContent ?? "{}",
     });
-  }
-
-  override isDeletable(): boolean {
-    // allowlist.json may carry user-managed top-level settings
-    // (defaultBehavior / allowReadonlyCommands) that rulesync does not model,
-    // so the permissions feature must never delete it.
-    return false;
   }
 
   static getSettablePaths(_options: { global?: boolean } = {}): ToolPermissionsSettablePaths {
@@ -349,22 +337,6 @@ export class JuniePermissions extends ToolPermissions {
 
     return this.toRulesyncPermissionsDefault({
       fileContent: JSON.stringify(result, null, 2),
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolPermissionsForDeletionParams): JuniePermissions {
-    // Kept for interface parity; isDeletable() returns false so the file is
-    // never actually removed by the permissions feature.
-    return new JuniePermissions({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: "{}",
-      validate: false,
     });
   }
 }

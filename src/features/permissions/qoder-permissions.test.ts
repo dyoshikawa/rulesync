@@ -73,16 +73,6 @@ describe("QoderPermissions", () => {
     expect(QoderPermissions.getSettablePaths({ global: true })).toEqual(expected);
   });
 
-  it("is never deletable", () => {
-    expect(
-      QoderPermissions.forDeletion({
-        outputRoot: testDir,
-        relativeDirPath: SETTINGS_DIR,
-        relativeFilePath: SETTINGS_FILE,
-      }).isDeletable(),
-    ).toBe(false);
-  });
-
   describe("fromRulesyncPermissions", () => {
     it("writes allow / ask / deny lists with Qoder tool names", async () => {
       const settings = await generate(testDir, {
