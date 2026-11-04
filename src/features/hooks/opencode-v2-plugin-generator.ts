@@ -1,9 +1,9 @@
 // cspell:ignore nothrow -- Bun Shell API
 import { HooksConfig } from "../../types/hooks.js";
 import {
-  escapeForTemplateLiteral,
-  PRE_TOOL_USE_RESULT_HELPER,
+  buildRunStatement,
   PRE_TOOL_USE_RESULT_HELPER_LINES,
+  stdinPayloadVariable,
   validateAndSanitizeMatcher,
 } from "./opencode-style-generator.js";
 
@@ -86,19 +86,6 @@ type V2Handler = {
   gate?: string;
   stdinEvent?: string;
 };
-
-function stdinPayloadVariable(stdinEvent: string): string {
-  return `__rulesync${stdinEvent}Input`;
-}
-
-function buildRunStatement(handler: V2Handler): string {
-  const escapedCommand = escapeForTemplateLiteral(handler.command);
-  if (handler.stdinEvent) {
-    const payload = stdinPayloadVariable(handler.stdinEvent);
-    return `${PRE_TOOL_USE_RESULT_HELPER}(await $\`echo \${${payload}()} | ${escapedCommand}\`.nothrow().quiet());`;
-  }
-  return `await $\`${escapedCommand}\`;`;
-}
 
 /** Wrap a statement in the handler's gate and matcher conditions. */
 function wrapInConditions(handler: V2Handler, statement: string, indent: string): string[] {

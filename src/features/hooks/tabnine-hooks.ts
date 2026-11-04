@@ -6,7 +6,6 @@ import {
   TABNINE_AGENT_DIR_PATH,
   TABNINE_SETTINGS_FILE_NAME,
 } from "../../constants/tabnine-paths.js";
-import type { AiFileParams } from "../../types/ai-file.js";
 import type { HooksConfig } from "../../types/hooks.js";
 import {
   CANONICAL_TO_TABNINE_EVENT_NAMES,
@@ -26,8 +25,6 @@ import type { RulesyncHooks } from "./rulesync-hooks.js";
 import { buildImportedHooksConfig, isSafeEnvEntry } from "./tool-hooks-converter.js";
 import {
   ToolHooks,
-  type ToolHooksForDeletionParams,
-  type ToolHooksFromFileParams,
   type ToolHooksFromRulesyncHooksParams,
   type ToolHooksSettablePaths,
 } from "./tool-hooks.js";
@@ -277,13 +274,6 @@ function parseTabnineSettings(fileContent: string, filePath?: string): Record<st
  * @see https://docs.tabnine.com/main/getting-started/tabnine-cli/features/hooks/configuration
  */
 export class TabnineHooks extends ToolHooks {
-  constructor(params: AiFileParams) {
-    super({
-      ...params,
-      fileContent: params.fileContent ?? "{}",
-    });
-  }
-
   override isDeletable(): boolean {
     // settings.json carries user-managed settings beyond hooks, so it must
     // never be removed wholesale; clearing hooks happens via an in-place merge.
@@ -297,23 +287,6 @@ export class TabnineHooks extends ToolHooks {
       relativeDirPath: TABNINE_AGENT_DIR_PATH,
       relativeFilePath: TABNINE_SETTINGS_FILE_NAME,
     };
-  }
-
-  static async fromFile({
-    outputRoot = process.cwd(),
-    validate = true,
-    global = false,
-  }: ToolHooksFromFileParams): Promise<TabnineHooks> {
-    const paths = TabnineHooks.getSettablePaths({ global });
-    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
-    const fileContent = (await readFileContentOrNull(filePath)) ?? '{"hooks":{}}';
-    return new TabnineHooks({
-      outputRoot,
-      relativeDirPath: paths.relativeDirPath,
-      relativeFilePath: paths.relativeFilePath,
-      fileContent,
-      validate,
-    });
   }
 
   static async fromRulesyncHooks({
@@ -362,20 +335,6 @@ export class TabnineHooks extends ToolHooks {
         null,
         2,
       ),
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolHooksForDeletionParams): TabnineHooks {
-    return new TabnineHooks({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: JSON.stringify({ hooks: {} }, null, 2),
-      validate: false,
     });
   }
 }

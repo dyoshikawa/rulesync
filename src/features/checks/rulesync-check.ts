@@ -38,16 +38,16 @@ type RulesyncCheckFrontmatterInput = z.input<typeof RulesyncCheckFrontmatterSche
 export type RulesyncCheckFrontmatter = z.infer<typeof RulesyncCheckFrontmatterSchema> &
   Partial<Record<ToolTarget, Record<string, unknown>>>;
 
-export type RulesyncCheckParams = Omit<RulesyncFileParams, "fileContent"> & {
+type RulesyncCheckParams = Omit<RulesyncFileParams, "fileContent"> & {
   frontmatter: RulesyncCheckFrontmatterInput;
   body: string;
 };
 
-export type RulesyncCheckSettablePaths = {
+type RulesyncCheckSettablePaths = {
   relativeDirPath: string;
 };
 
-export type RulesyncCheckFromFileParams = RulesyncFileFromFileParams;
+type RulesyncCheckFromFileParams = RulesyncFileFromFileParams;
 
 export class RulesyncCheck extends RulesyncFile {
   private readonly frontmatter: RulesyncCheckFrontmatter;

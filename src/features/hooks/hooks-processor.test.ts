@@ -1571,6 +1571,8 @@ describe("toolHooksFactories capability table", () => {
         supportedEvents: KIRO_IDE_HOOK_EVENTS,
         supportedHookTypes: ["command", "prompt"],
         supportsMatcher: true,
+        supportsPerHookEnabled: true,
+        supportsPerHookConfirm: true,
       },
     ],
     [
@@ -1580,6 +1582,8 @@ describe("toolHooksFactories capability table", () => {
         supportedEvents: KIRO_IDE_HOOK_EVENTS,
         supportedHookTypes: ["command", "prompt"],
         supportsMatcher: true,
+        supportsPerHookEnabled: true,
+        supportsPerHookConfirm: true,
       },
     ],
     [
@@ -1820,6 +1824,7 @@ describe("toolHooksFactories capability table", () => {
         supportedEvents: ZCODE_HOOK_EVENTS,
         supportedHookTypes: ["command"],
         supportsMatcher: true,
+        supportsPerHookEnabled: true,
       },
     ],
     [
@@ -1829,6 +1834,7 @@ describe("toolHooksFactories capability table", () => {
         supportedEvents: ZCODE_HOOK_EVENTS,
         supportedHookTypes: ["command"],
         supportsMatcher: true,
+        supportsPerHookEnabled: true,
       },
     ],
   ]);

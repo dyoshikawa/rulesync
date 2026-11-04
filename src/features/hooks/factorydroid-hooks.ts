@@ -6,7 +6,6 @@ import {
   FACTORYDROID_LEGACY_HOOKS_DIR_PATH,
   FACTORYDROID_SETTINGS_FILE_NAME,
 } from "../../constants/factorydroid-paths.js";
-import type { AiFileParams } from "../../types/ai-file.js";
 import {
   FACTORYDROID_HOOK_EVENTS,
   FACTORYDROID_TO_CANONICAL_EVENT_NAMES,
@@ -25,7 +24,6 @@ import {
 } from "./tool-hooks-converter.js";
 import {
   ToolHooks,
-  type ToolHooksForDeletionParams,
   type ToolHooksFromFileParams,
   type ToolHooksFromRulesyncHooksParams,
   type ToolHooksSettablePaths,
@@ -88,13 +86,6 @@ function hasFactorydroidEventKey(parsed: object): boolean {
 }
 
 export class FactorydroidHooks extends ToolHooks {
-  constructor(params: AiFileParams) {
-    super({
-      ...params,
-      fileContent: params.fileContent ?? "{}",
-    });
-  }
-
   static getSettablePaths(_options: { global?: boolean } = {}): ToolHooksSettablePaths {
     // Factory Droid's primary hooks file is `.factory/hooks.json` (project) and
     // `~/.factory/hooks.json` (global). The home directory is resolved by the
@@ -214,20 +205,6 @@ export class FactorydroidHooks extends ToolHooks {
         null,
         2,
       ),
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolHooksForDeletionParams): FactorydroidHooks {
-    return new FactorydroidHooks({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: JSON.stringify({ hooks: {} }, null, 2),
-      validate: false,
     });
   }
 }

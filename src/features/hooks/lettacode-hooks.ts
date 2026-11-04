@@ -1,7 +1,6 @@
 import { join } from "node:path";
 
 import { LETTACODE_DIR, LETTACODE_SETTINGS_FILE_NAME } from "../../constants/lettacode-paths.js";
-import type { AiFileParams } from "../../types/ai-file.js";
 import {
   CANONICAL_TO_LETTACODE_EVENT_NAMES,
   LETTACODE_HOOK_EVENTS,
@@ -23,8 +22,6 @@ import {
 } from "./tool-hooks-converter.js";
 import {
   ToolHooks,
-  type ToolHooksForDeletionParams,
-  type ToolHooksFromFileParams,
   type ToolHooksFromRulesyncHooksParams,
   type ToolHooksSettablePaths,
 } from "./tool-hooks.js";
@@ -158,13 +155,6 @@ function parseLettacodeSettings(fileContent: string, filePath?: string): Record<
  * @see https://github.com/letta-ai/letta-code/blob/main/src/hooks/loader.ts
  */
 export class LettacodeHooks extends ToolHooks {
-  constructor(params: AiFileParams) {
-    super({
-      ...params,
-      fileContent: params.fileContent ?? "{}",
-    });
-  }
-
   override isDeletable(): boolean {
     // settings.json carries user-managed settings beyond hooks, so it is never
     // removed wholesale; clearing hooks happens via an in-place merge.
@@ -178,23 +168,6 @@ export class LettacodeHooks extends ToolHooks {
       relativeDirPath: LETTACODE_DIR,
       relativeFilePath: LETTACODE_SETTINGS_FILE_NAME,
     };
-  }
-
-  static async fromFile({
-    outputRoot = process.cwd(),
-    validate = true,
-    global = false,
-  }: ToolHooksFromFileParams): Promise<LettacodeHooks> {
-    const paths = LettacodeHooks.getSettablePaths({ global });
-    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
-    const fileContent = (await readFileContentOrNull(filePath)) ?? '{"hooks":{}}';
-    return new LettacodeHooks({
-      outputRoot,
-      relativeDirPath: paths.relativeDirPath,
-      relativeFilePath: paths.relativeFilePath,
-      fileContent,
-      validate,
-    });
   }
 
   static async fromRulesyncHooks({
@@ -262,20 +235,6 @@ export class LettacodeHooks extends ToolHooks {
         null,
         2,
       ),
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolHooksForDeletionParams): LettacodeHooks {
-    return new LettacodeHooks({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: JSON.stringify({ hooks: {} }, null, 2),
-      validate: false,
     });
   }
 }

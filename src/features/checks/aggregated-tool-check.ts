@@ -1,6 +1,5 @@
 import { join } from "node:path";
 
-import { type ValidationResult } from "../../types/ai-file.js";
 import { ToolTarget } from "../../types/tool-targets.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import {
@@ -10,13 +9,8 @@ import {
   splitCheckFile,
 } from "./aggregated-check-file.js";
 import { RulesyncCheck } from "./rulesync-check.js";
-import {
-  ToolCheck,
-  type ToolCheckForDeletionParams,
-  type ToolCheckFromFileParams,
-  type ToolCheckFromRulesyncCheckParams,
-  type ToolCheckFromRulesyncChecksParams,
-} from "./tool-check.js";
+import { SingleFileToolCheck } from "./single-file-tool-check.js";
+import { type ToolCheckFromRulesyncChecksParams } from "./tool-check.js";
 
 export type AggregatedToolCheckConfig = {
   /**
@@ -85,7 +79,7 @@ export type AggregatedToolCheckConfig = {
  * of this codebase enforces it on a static — {@link getAggregatedCheckConfig}
  * throws until it is overridden.
  */
-export class AggregatedToolCheck extends ToolCheck {
+export class AggregatedToolCheck extends SingleFileToolCheck {
   /**
    * The per-tool values the shared skeleton reads. Thrown rather than abstract
    * because TypeScript has no abstract statics; a subclass that forgets it
@@ -93,38 +87,6 @@ export class AggregatedToolCheck extends ToolCheck {
    */
   protected static getAggregatedCheckConfig(): AggregatedToolCheckConfig {
     throw new Error("Please implement this method in the subclass.");
-  }
-
-  /**
-   * The settable paths with the file name required. An aggregated adapter names
-   * the one file it writes — that is what keeps consumers which would otherwise
-   * claim the whole tool directory, the gitignore derivation among them,
-   * narrowed to it — so a missing name is a mistake in the subclass rather than
-   * a case to fall back for.
-   */
-  protected static getAggregatedPaths({ global = false }: { global?: boolean } = {}): {
-    relativeDirPath: string;
-    relativeFilePath: string;
-  } {
-    const paths = this.getSettablePaths({ global });
-    if (!paths.relativeFilePath) {
-      throw new Error(`${this.name} writes one aggregated file, so getSettablePaths must name it.`);
-    }
-    return { relativeDirPath: paths.relativeDirPath, relativeFilePath: paths.relativeFilePath };
-  }
-
-  private static getAggregatedFilePath({
-    outputRoot,
-    global = false,
-  }: {
-    outputRoot: string;
-    global?: boolean;
-  }): { relativeDirPath: string; relativeFilePath: string; filePath: string } {
-    const paths = this.getAggregatedPaths({ global });
-    return {
-      ...paths,
-      filePath: join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
-    };
   }
 
   static override isTargetedByRulesyncCheck(rulesyncCheck: RulesyncCheck): boolean {
@@ -146,7 +108,7 @@ export class AggregatedToolCheck extends ToolCheck {
    * stays.
    */
   static async canDeleteAuxiliaryFiles({ outputRoot }: { outputRoot: string }): Promise<boolean> {
-    const { filePath } = this.getAggregatedFilePath({ outputRoot });
+    const { filePath } = this.getSingleFilePath({ outputRoot });
     const fileContent = await readFileContentOrNull(filePath);
     if (fileContent === null) {
       return true;
@@ -154,12 +116,8 @@ export class AggregatedToolCheck extends ToolCheck {
     return isOnlyGeneratedSections(fileContent);
   }
 
-  static override fromRulesyncCheck(_params: ToolCheckFromRulesyncCheckParams): ToolCheck {
-    // Sections share one file, so they are only ever built as a set.
-    const { displayName } = this.getAggregatedCheckConfig();
-    throw new Error(
-      `${displayName} checks are built from all checks at once; use fromRulesyncChecks.`,
-    );
+  protected static override getDisplayName(): string {
+    return this.getAggregatedCheckConfig().displayName;
   }
 
   static async fromRulesyncChecks({
@@ -175,7 +133,7 @@ export class AggregatedToolCheck extends ToolCheck {
     }
 
     const config = this.getAggregatedCheckConfig();
-    const { relativeDirPath, relativeFilePath, filePath } = this.getAggregatedFilePath({
+    const { relativeDirPath, relativeFilePath, filePath } = this.getSingleFilePath({
       outputRoot,
       global,
     });
@@ -212,43 +170,6 @@ export class AggregatedToolCheck extends ToolCheck {
         global,
       }),
     ];
-  }
-
-  static override async fromFile({
-    outputRoot = process.cwd(),
-    global = false,
-  }: ToolCheckFromFileParams): Promise<AggregatedToolCheck> {
-    const { relativeDirPath, relativeFilePath, filePath } = this.getAggregatedFilePath({
-      outputRoot,
-      global,
-    });
-    return new this({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: (await readFileContentOrNull(filePath)) ?? "",
-      global,
-    });
-  }
-
-  static override forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-    global = false,
-  }: ToolCheckForDeletionParams): AggregatedToolCheck {
-    return new this({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: "",
-      validate: false,
-      global,
-    });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   toRulesyncCheck(): RulesyncCheck {

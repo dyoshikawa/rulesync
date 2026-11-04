@@ -5,7 +5,6 @@ import {
   PI_EXTENSIONS_DIR_PATH,
   PI_HOOKS_FILE_NAME,
 } from "../../constants/pi-paths.js";
-import type { AiFileParams } from "../../types/ai-file.js";
 import { CANONICAL_TO_PI_EVENT_NAMES, PI_HOOK_EVENTS } from "../../types/hooks.js";
 import { readFileContent } from "../../utils/file.js";
 import { generatePiExtensionCode } from "./pi-extension-generator.js";
@@ -28,13 +27,6 @@ import {
  * @see https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/extensions.md
  */
 export class PiHooks extends ToolHooks {
-  constructor(params: AiFileParams) {
-    super({
-      ...params,
-      fileContent: params.fileContent ?? "",
-    });
-  }
-
   static getSettablePaths(options?: { global?: boolean }): ToolHooksSettablePaths {
     return {
       relativeDirPath: options?.global ? PI_AGENT_EXTENSIONS_DIR_PATH : PI_EXTENSIONS_DIR_PATH,

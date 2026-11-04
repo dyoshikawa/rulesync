@@ -5,7 +5,6 @@ import {
   AUGMENTCODE_PLUGIN_HOOKS_FILE_NAME,
 } from "../../constants/plugin-paths.js";
 import { parseAugmentcodeSettingsDocument } from "../../utils/augmentcode-settings.js";
-import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { AUGMENTCODE_CONVERTER_CONFIG } from "./augmentcode-hooks.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
@@ -17,8 +16,6 @@ import {
 } from "./tool-hooks-converter.js";
 import {
   ToolHooks,
-  type ToolHooksForDeletionParams,
-  type ToolHooksFromFileParams,
   type ToolHooksFromRulesyncHooksParams,
   type ToolHooksSettablePaths,
 } from "./tool-hooks.js";
@@ -62,24 +59,6 @@ export class AugmentcodePluginHooks extends ToolHooks {
       relativeDirPath: AUGMENTCODE_PLUGIN_HOOKS_DIR,
       relativeFilePath: AUGMENTCODE_PLUGIN_HOOKS_FILE_NAME,
     };
-  }
-
-  static async fromFile({
-    outputRoot = process.cwd(),
-    validate = true,
-  }: ToolHooksFromFileParams): Promise<AugmentcodePluginHooks> {
-    const paths = this.getSettablePaths();
-    const fileContent =
-      (await readFileContentOrNull(
-        join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
-      )) ?? '{"hooks":{}}';
-    return new AugmentcodePluginHooks({
-      outputRoot,
-      relativeDirPath: paths.relativeDirPath,
-      relativeFilePath: paths.relativeFilePath,
-      fileContent,
-      validate,
-    });
   }
 
   static async fromRulesyncHooks({
@@ -131,20 +110,6 @@ export class AugmentcodePluginHooks extends ToolHooks {
         null,
         2,
       ),
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolHooksForDeletionParams): AugmentcodePluginHooks {
-    return new AugmentcodePluginHooks({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: JSON.stringify({ hooks: {} }, null, 2),
-      validate: false,
     });
   }
 }

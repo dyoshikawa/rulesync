@@ -30,10 +30,7 @@ import {
 } from "./tool-hooks-converter.js";
 import {
   ToolHooks,
-  type ToolHooksForDeletionParams,
-  type ToolHooksFromFileParams,
   type ToolHooksFromRulesyncHooksParams,
-  type ToolHooksParams,
   type ToolHooksSettablePaths,
 } from "./tool-hooks.js";
 
@@ -247,13 +244,6 @@ export class CodexcliConfigToml extends ToolFile {
 }
 
 export class CodexcliHooks extends ToolHooks {
-  constructor(params: ToolHooksParams) {
-    super({
-      ...params,
-      fileContent: params.fileContent ?? "{}",
-    });
-  }
-
   static getSettablePaths(_options: { global?: boolean } = {}): ToolHooksSettablePaths {
     return { relativeDirPath: CODEXCLI_DIR, relativeFilePath: CODEXCLI_HOOKS_FILE_NAME };
   }
@@ -262,23 +252,6 @@ export class CodexcliHooks extends ToolHooks {
   // and permissions features share. Declared here because it is not a settable path.
   static getExtraSharedWritePaths(): SharedWritePath[] {
     return [{ relativeDirPath: CODEXCLI_DIR, relativeFilePath: CODEXCLI_MCP_FILE_NAME }];
-  }
-
-  static async fromFile({
-    outputRoot = process.cwd(),
-    validate = true,
-    global = false,
-  }: ToolHooksFromFileParams): Promise<CodexcliHooks> {
-    const paths = CodexcliHooks.getSettablePaths({ global });
-    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
-    const fileContent = (await readFileContentOrNull(filePath)) ?? '{"hooks":{}}';
-    return new CodexcliHooks({
-      outputRoot,
-      relativeDirPath: paths.relativeDirPath,
-      relativeFilePath: paths.relativeFilePath,
-      fileContent,
-      validate,
-    });
   }
 
   static async fromRulesyncHooks({
@@ -344,20 +317,6 @@ export class CodexcliHooks extends ToolHooks {
         null,
         2,
       ),
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolHooksForDeletionParams): CodexcliHooks {
-    return new CodexcliHooks({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: JSON.stringify({ hooks: {} }, null, 2),
-      validate: false,
     });
   }
 
