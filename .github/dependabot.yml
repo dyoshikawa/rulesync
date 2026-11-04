@@ -53,6 +53,9 @@ updates:
     # be updated by hand and kept identical across every workflow file.
     ignore:
       - dependency-name: "actions/checkout"
+      # Upstream removed this action (anomalyco/opencode#59032); newer tags
+      # do not contain github/action.yml, so the pin stays on github-v1.2.28.
+      - dependency-name: "anomalyco/opencode/github"
     commit-message:
       prefix: "ci"
       include: "scope"
