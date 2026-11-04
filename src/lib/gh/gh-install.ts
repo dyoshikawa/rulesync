@@ -23,7 +23,7 @@ import {
 import type { Logger } from "../../utils/logger.js";
 import { GitHubClient, GitHubClientError, logGitHubAuthHints } from "../github-client.js";
 import { isGitHubNotFoundError, listDirectoryRecursive, withSemaphore } from "../github-utils.js";
-import { computeInstallContentHash } from "../install-content-hash.js";
+import { computeInstallContentHash, RULESYNC_CONTENT_HASH_REGEX } from "../install-content-hash.js";
 import { parseSource } from "../source-parser.js";
 import { injectSourceMetadata } from "./gh-frontmatter.js";
 import {
@@ -32,7 +32,6 @@ import {
   type GhLock,
   type GhLockInstallation,
   readGhLock,
-  RULESYNC_CONTENT_HASH_REGEX,
   writeGhLock,
 } from "./gh-lock.js";
 import { type GhAgent, GH_AGENTS, type GhScope, relativeInstallDirFor } from "./gh-paths.js";

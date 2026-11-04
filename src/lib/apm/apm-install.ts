@@ -21,14 +21,13 @@ import {
 import type { Logger } from "../../utils/logger.js";
 import { GitHubClient, GitHubClientError, logGitHubAuthHints } from "../github-client.js";
 import { listDirectoryRecursive, withSemaphore } from "../github-utils.js";
-import { computeInstallContentHash } from "../install-content-hash.js";
+import { computeInstallContentHash, RULESYNC_CONTENT_HASH_REGEX } from "../install-content-hash.js";
 import {
   type ApmLock,
   type ApmLockDependency,
   createEmptyApmLock,
   findApmLockDependency,
   readApmLock,
-  RULESYNC_CONTENT_HASH_REGEX,
   writeApmLock,
 } from "./apm-lock.js";
 import { type ApmDependency, readApmManifest } from "./apm-manifest.js";
