@@ -29,7 +29,9 @@ import {
   checkPathTraversal,
   directoryExists,
   fileExists,
+  isRootDirPath,
   listFilePathsRecursively,
+  normalizePosixDirPath,
   readFileContent,
   removeFileStrict,
   removeDirectoryStrict,
@@ -2433,7 +2435,7 @@ function resolveRulesPath(sourceEntry: SourceEntry): string {
  * in: posix separators, normalized, with no trailing slash.
  */
 function normalizeSourceDirPath(dirPath: string): string {
-  return posix.normalize(dirPath.replace(/\\/g, "/")).replace(/\/+$/, "");
+  return normalizePosixDirPath(dirPath);
 }
 
 function lockedRuleConfigMatches(params: {
@@ -3418,8 +3420,8 @@ function selectNpmSkillFiles(params: {
 }): { remoteFiles: RemoteSkillFile[]; skillFilter: string[]; isWildcard: boolean } {
   const { allFiles, skillsPath, skillFilter, isWildcard, packageName } = params;
 
-  const normalizedBase = posix.normalize(skillsPath.replace(/\\/g, "/")).replace(/\/+$/, "");
-  const isRootPath = normalizedBase === "" || normalizedBase === ".";
+  const normalizedBase = normalizePosixDirPath(skillsPath);
+  const isRootPath = isRootDirPath(normalizedBase);
   if (isRootPath) {
     return { remoteFiles: allFiles, skillFilter, isWildcard };
   }

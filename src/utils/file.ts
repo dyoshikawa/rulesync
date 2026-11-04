@@ -432,6 +432,22 @@ export function toPosixPath(p: string): string {
   return p.replace(/\\/g, "/");
 }
 
+/**
+ * Normalizes a directory path to POSIX form: forward slashes, `.`/`..`
+ * segments resolved, and no trailing slash. The root comes back as `.`
+ * (or `""`), which `isRootDirPath` recognizes.
+ */
+export function normalizePosixDirPath(p: string): string {
+  return posix.normalize(toPosixPath(p)).replace(/\/+$/, "");
+}
+
+/**
+ * Whether a path produced by `normalizePosixDirPath` points at the root.
+ */
+export function isRootDirPath(normalizedPath: string): boolean {
+  return normalizedPath === "" || normalizedPath === ".";
+}
+
 export function checkPathTraversal({
   relativePath,
   intendedRootDir,
