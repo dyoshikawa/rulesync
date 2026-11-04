@@ -21,6 +21,7 @@ import {
   stringifySharedConfig,
 } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
+import { MCP_CATEGORY_PREFIX } from "./shell-command-categories.js";
 import {
   ToolPermissions,
   type ToolPermissionsFromFileParams,
@@ -50,7 +51,7 @@ const CATEGORY_TO_KIMI_CODE_TOOL: Record<string, string> = {
 };
 
 function buildKimiCodePattern(category: string, pattern: string): string | null {
-  if (category.startsWith("mcp__")) {
+  if (category.startsWith(MCP_CATEGORY_PREFIX)) {
     return pattern === "*" || pattern === "" ? category : null;
   }
   if (category === "mcp") {
@@ -189,7 +190,7 @@ function canonicalToKimiCodeRules({
   for (const [category, rules] of Object.entries(config.permission)) {
     const isSupported =
       category === "mcp" ||
-      category.startsWith("mcp__") ||
+      category.startsWith(MCP_CATEGORY_PREFIX) ||
       CATEGORY_TO_KIMI_CODE_TOOL[category] !== undefined;
     if (!isSupported) {
       if (Object.keys(rules).length > 0) {
@@ -198,7 +199,7 @@ function canonicalToKimiCodeRules({
       continue;
     }
     for (const [pattern, decision] of Object.entries(rules)) {
-      if (category.startsWith("mcp__") && pattern !== "*" && pattern !== "") {
+      if (category.startsWith(MCP_CATEGORY_PREFIX) && pattern !== "*" && pattern !== "") {
         if (decision === "deny") {
           logger?.warn(
             `Kimi Code permissions: broadening argument-specific deny for "${category}" to the whole MCP tool because Kimi does not match MCP tool arguments.`,

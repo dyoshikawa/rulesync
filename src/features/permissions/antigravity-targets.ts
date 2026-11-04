@@ -9,7 +9,7 @@ import {
   toAntigravityCommandLiteralPrefix,
   toAntigravityCommandTarget,
 } from "./antigravity-command-patterns.js";
-import { honorAllToolsOnBash } from "./shell-command-categories.js";
+import { honorAllToolsOnBash, MCP_CATEGORY_PREFIX } from "./shell-command-categories.js";
 import { parseToolPatternEntry } from "./tool-pattern-entry.js";
 
 /**
@@ -156,8 +156,6 @@ function toTarget(action: string, pattern: string): TargetResult {
   }
   return { target: pattern };
 }
-
-const MCP_CATEGORY_PREFIX = "mcp__";
 
 // Characters that would change how Antigravity reads `mcp(server/tool)`.
 const MCP_TARGET_SEPARATORS = /[/()]/;

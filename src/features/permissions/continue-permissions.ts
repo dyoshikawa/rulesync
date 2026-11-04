@@ -14,7 +14,11 @@ import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { isStringArray, toRecord } from "../../utils/type-guards.js";
 import { loadYaml } from "../../utils/yaml.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
-import { ALL_TOOLS_PERMISSION_CATEGORY, honorAllToolsOnBash } from "./shell-command-categories.js";
+import {
+  ALL_TOOLS_PERMISSION_CATEGORY,
+  CATCH_ALL_PATTERN,
+  honorAllToolsOnBash,
+} from "./shell-command-categories.js";
 import { buildToolPatternEntry } from "./tool-pattern-entry.js";
 import {
   ToolPermissions,
@@ -25,9 +29,6 @@ import {
 
 const CONTINUE_GLOBAL_ONLY_MESSAGE =
   "Continue permissions are global-only; use --global to sync ~/.continue/permissions.yaml";
-
-// The catch-all rulesync pattern; an entry with no argument pattern.
-const CATCH_ALL_PATTERN = "*";
 
 /**
  * A run of `*` (`**`, `***`) is the catch-all spelled another way: Continue

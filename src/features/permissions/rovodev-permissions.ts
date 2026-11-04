@@ -16,7 +16,7 @@ import {
   applySharedConfigPatch,
 } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
-import { honorAllToolsOnBash } from "./shell-command-categories.js";
+import { CATCH_ALL_PATTERN, honorAllToolsOnBash } from "./shell-command-categories.js";
 import { failSafeCatchAllAction } from "./single-action-collapse.js";
 import {
   ToolPermissions,
@@ -24,10 +24,6 @@ import {
   type ToolPermissionsFromRulesyncPermissionsParams,
   type ToolPermissionsSettablePaths,
 } from "./tool-permissions.js";
-
-// The catch-all pattern in a rulesync category. It maps to a Rovo Dev per-tool
-// default level (or `bash.default`) rather than to a `bash.commands[]` regex.
-const CATCH_ALL_PATTERN = "*";
 
 // Rovo Dev's per-tool permission keys. Each holds a single level (no per-pattern
 // rules), so a whole rulesync category maps to one of these via its catch-all.

@@ -25,8 +25,10 @@ import {
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   ALL_TOOLS_PERMISSION_CATEGORY,
+  CATCH_ALL_PATTERN,
   createShadowingRestrictionsTest,
   honorAllToolsOnBash,
+  MCP_CATEGORY_PREFIX,
 } from "./shell-command-categories.js";
 import {
   ToolPermissions,
@@ -41,9 +43,6 @@ const POOL_DENY_KEY = "deny";
 const POOL_DISABLED_KEY = "disabled";
 const POOL_PATH_KEY = "path";
 const POOL_WRITE_KEY = "write";
-
-// The catch-all rulesync pattern; a rule about the whole tool.
-const CATCH_ALL_PATTERN = "*";
 
 // The catch-all `paths` glob. A bare `*` names every file canonically, but a
 // `*` in Pool's path globs is one path segment, so the catch-all is spelled
@@ -72,10 +71,6 @@ const READ_CATEGORY = "read";
 const WRITE_CATEGORIES = ["edit", "write"] as const;
 const FILE_CATEGORIES: readonly string[] = [READ_CATEGORY, ...WRITE_CATEGORIES];
 
-// The canonical per-tool MCP category; Pool approves MCP tools per server
-// under `mcp_servers.<server>.allow`/`deny`, which the mcp feature writes.
-const MCP_CANONICAL_PREFIX = "mcp__";
-
 /**
  * Single spelling of the settings.yaml codec/policy, matching the
  * `SHARED_CONFIG_OWNERSHIP` declaration for both scopes: fail closed on an
@@ -101,8 +96,10 @@ function toCanonicalToolName(poolName: string): string {
   return lookupOwn({ record: POOL_TO_CANONICAL_TOOL_NAMES, key: poolName }) ?? poolName;
 }
 
+// Pool approves MCP tools per server under `mcp_servers.<server>.allow`/`deny`,
+// which the mcp feature writes.
 function isMcpCategory(category: string): boolean {
-  return category.startsWith(MCP_CANONICAL_PREFIX) && category.length > MCP_CANONICAL_PREFIX.length;
+  return category.startsWith(MCP_CATEGORY_PREFIX) && category.length > MCP_CATEGORY_PREFIX.length;
 }
 
 function isFileCategory(category: string): boolean {

@@ -20,6 +20,14 @@ export const SHELL_PERMISSION_CATEGORY = "bash";
  */
 export const ALL_TOOLS_PERMISSION_CATEGORY = "*";
 
+/**
+ * The prefix of a canonical per-tool MCP category: `mcp__<server>__<tool>`.
+ */
+export const MCP_CATEGORY_PREFIX = "mcp__";
+
+/** The canonical catch-all pattern: a rule about the whole tool or category. */
+export const CATCH_ALL_PATTERN = "*";
+
 /** One canonical rule that governs shell commands, and where it was written. */
 export type ShellCommandRule = {
   pattern: string;

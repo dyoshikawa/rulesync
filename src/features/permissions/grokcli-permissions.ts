@@ -16,7 +16,12 @@ import type { Logger } from "../../utils/logger.js";
 import { isRecord, isStringArray, toRecord } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
-import { ALL_TOOLS_PERMISSION_CATEGORY, honorAllToolsOnBash } from "./shell-command-categories.js";
+import {
+  ALL_TOOLS_PERMISSION_CATEGORY,
+  CATCH_ALL_PATTERN,
+  honorAllToolsOnBash,
+  MCP_CATEGORY_PREFIX,
+} from "./shell-command-categories.js";
 import { isStricterAction, PERMISSION_ACTION_PRIORITY } from "./single-action-collapse.js";
 import {
   ToolPermissions,
@@ -41,12 +46,6 @@ type GrokPermissionMode = "ask" | "always-approve";
 // never writes it — but it is preserved when a config already selects it.
 // https://docs.x.ai/build/features/permissions
 const GROKCLI_AUTO_PERMISSION_MODE = "auto";
-
-// rulesync canonical catch-all pattern (Grok's coarse mode is global, so only a
-// catch-all maps cleanly back on import from `permission_mode`).
-const CATCH_ALL_PATTERN = "*";
-
-const MCP_CANONICAL_PREFIX = "mcp__";
 
 // Canonical category ⇒ Grok Claude-style tool prefix. Grok exposes no separate
 // `Write` tool (writes gate through `Edit`), so `write` collapses onto `Edit`;
@@ -187,8 +186,8 @@ function buildGrokEntry(category: string, pattern: string): string | null {
   if (category === ALL_TOOLS_PERMISSION_CATEGORY) {
     return pattern === CATCH_ALL_PATTERN ? GROK_ALL_TOOLS_ENTRY : null;
   }
-  if (category.startsWith(MCP_CANONICAL_PREFIX)) {
-    const remainder = category.slice(MCP_CANONICAL_PREFIX.length);
+  if (category.startsWith(MCP_CATEGORY_PREFIX)) {
+    const remainder = category.slice(MCP_CATEGORY_PREFIX.length);
     return remainder.length > 0 ? `${GROK_MCP_TOOL}(${remainder})` : GROK_MCP_TOOL;
   }
   if (category === "mcp") {
@@ -228,13 +227,13 @@ function parseGrokEntry(entry: string): { category: string; pattern: string } | 
     return { category: ALL_TOOLS_PERMISSION_CATEGORY, pattern: CATCH_ALL_PATTERN };
   }
 
-  if (parenIndex === -1 && tool.startsWith(MCP_CANONICAL_PREFIX)) {
+  if (parenIndex === -1 && tool.startsWith(MCP_CATEGORY_PREFIX)) {
     return parseClaudeStyleMcpEntry(tool);
   }
 
   if (tool === GROK_MCP_TOOL) {
     return inner.length > 0
-      ? { category: `${MCP_CANONICAL_PREFIX}${inner}`, pattern: CATCH_ALL_PATTERN }
+      ? { category: `${MCP_CATEGORY_PREFIX}${inner}`, pattern: CATCH_ALL_PATTERN }
       : { category: "mcp", pattern: CATCH_ALL_PATTERN };
   }
 
@@ -257,7 +256,7 @@ function parseGrokEntry(entry: string): { category: string; pattern: string } | 
  * https://github.com/xai-org/grok-build/blob/main/crates/codegen/xai-grok-permission-rules/src/rules.rs
  */
 function parseClaudeStyleMcpEntry(entry: string): { category: string; pattern: string } | null {
-  const rest = entry.slice(MCP_CANONICAL_PREFIX.length);
+  const rest = entry.slice(MCP_CATEGORY_PREFIX.length);
   if (rest.length === 0) {
     return null;
   }
@@ -265,7 +264,7 @@ function parseClaudeStyleMcpEntry(entry: string): { category: string; pattern: s
     return { category: "mcp", pattern: CATCH_ALL_PATTERN };
   }
   const address = rest.includes("__") ? rest : `${rest}__*`;
-  return { category: `${MCP_CANONICAL_PREFIX}${address}`, pattern: CATCH_ALL_PATTERN };
+  return { category: `${MCP_CATEGORY_PREFIX}${address}`, pattern: CATCH_ALL_PATTERN };
 }
 
 /**
@@ -313,7 +312,7 @@ function parseGrokRule(
     return resolvedPattern === CATCH_ALL_PATTERN
       ? { category: "mcp", pattern: CATCH_ALL_PATTERN, action }
       : {
-          category: `${MCP_CANONICAL_PREFIX}${resolvedPattern}`,
+          category: `${MCP_CATEGORY_PREFIX}${resolvedPattern}`,
           pattern: CATCH_ALL_PATTERN,
           action,
         };

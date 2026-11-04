@@ -22,7 +22,7 @@ import {
   kiloPermissionToToolFilter,
 } from "../shared/kilo-mcp-tool-keys.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
-import { honorAllToolsOnBash } from "./shell-command-categories.js";
+import { honorAllToolsOnBash, MCP_CATEGORY_PREFIX } from "./shell-command-categories.js";
 import {
   ToolPermissions,
   type ToolPermissionsFromFileParams,
@@ -70,7 +70,7 @@ const KILO_SHARED_CATEGORIES = new Set([
 ]);
 
 function isSharedKiloCategory(key: string): boolean {
-  return key === "*" || KILO_SHARED_CATEGORIES.has(key) || key.startsWith("mcp__");
+  return key === "*" || KILO_SHARED_CATEGORIES.has(key) || key.startsWith(MCP_CATEGORY_PREFIX);
 }
 
 /**

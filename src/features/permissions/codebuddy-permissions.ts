@@ -15,7 +15,11 @@ import {
   sharedConfigFileKey,
 } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
-import { ALL_TOOLS_PERMISSION_CATEGORY, honorAllToolsOnBash } from "./shell-command-categories.js";
+import {
+  ALL_TOOLS_PERMISSION_CATEGORY,
+  CATCH_ALL_PATTERN,
+  honorAllToolsOnBash,
+} from "./shell-command-categories.js";
 import { isStricterAction } from "./single-action-collapse.js";
 import { splitToolRule } from "./tool-pattern-entry.js";
 import {
@@ -71,7 +75,6 @@ const CODEBUDDY_USER_ONLY_GROUPS: ReadonlySet<CodebuddyOverrideGroup> = new Set(
 /** The rule lists under `permissions`, one per canonical action. */
 const CODEBUDDY_RULE_LISTS: readonly PermissionAction[] = ["allow", "ask", "deny"];
 
-const CATCH_ALL_PATTERN = "*";
 const MCP_CATEGORY = "mcp";
 const MCP_RULE_PREFIX = "mcp__";
 const ALL_MCP_RULE = "mcp__*";

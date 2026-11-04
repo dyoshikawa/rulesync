@@ -14,7 +14,7 @@ import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
-import { honorAllToolsOnBash } from "./shell-command-categories.js";
+import { honorAllToolsOnBash, MCP_CATEGORY_PREFIX } from "./shell-command-categories.js";
 import { buildToolPatternEntry, parseToolPatternEntry } from "./tool-pattern-entry.js";
 import {
   ToolPermissions,
@@ -66,16 +66,12 @@ const CURSOR_TYPE_TO_CANONICAL: Record<string, string> = {
   Mcp: "mcp",
 };
 
-const MCP_CANONICAL_PREFIX = "mcp__";
-
 /**
  * Returns true if the canonical category is the per-tool MCP form
  * `mcp__<server>__<tool>`.
  */
 function isMcpScopedCategory(canonical: string): boolean {
-  return (
-    canonical.startsWith(MCP_CANONICAL_PREFIX) && canonical.length > MCP_CANONICAL_PREFIX.length
-  );
+  return canonical.startsWith(MCP_CATEGORY_PREFIX) && canonical.length > MCP_CATEGORY_PREFIX.length;
 }
 
 function toCursorType(canonical: string): string {
@@ -98,7 +94,7 @@ function toCursorType(canonical: string): string {
  */
 function toCursorPattern(canonical: string, pattern: string): string {
   if (isMcpScopedCategory(canonical)) {
-    const remainder = canonical.slice(MCP_CANONICAL_PREFIX.length);
+    const remainder = canonical.slice(MCP_CATEGORY_PREFIX.length);
     const [server, ...toolParts] = remainder.split("__");
     const tool = toolParts.length > 0 ? toolParts.join("__") : "*";
     const serverName = server ?? "*";
@@ -123,7 +119,7 @@ function toCanonicalCategory(cursorType: string, pattern: string): string {
     if (match) {
       const server = match[1] ?? "*";
       const tool = match[2] ?? "*";
-      return `${MCP_CANONICAL_PREFIX}${server}__${tool}`;
+      return `${MCP_CATEGORY_PREFIX}${server}__${tool}`;
     }
     return CURSOR_TYPE_TO_CANONICAL[cursorType] ?? cursorType.toLowerCase();
   }
@@ -562,7 +558,7 @@ function convertCursorToRulesyncPermissions(params: {
       // and tool address is already encoded in the category name, so the
       // pattern collapses to `*` to mirror the generation path.
       const canonicalPattern =
-        type === "Mcp" && canonical.startsWith(MCP_CANONICAL_PREFIX) ? "*" : pattern;
+        type === "Mcp" && canonical.startsWith(MCP_CATEGORY_PREFIX) ? "*" : pattern;
       permission[canonical][canonicalPattern] = action;
     }
   };

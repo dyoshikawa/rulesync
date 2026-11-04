@@ -20,6 +20,7 @@ import {
   convertRulesyncToAntigravityPermissions,
 } from "./antigravity-targets.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
+import { MCP_CATEGORY_PREFIX } from "./shell-command-categories.js";
 import { parseToolPatternEntry } from "./tool-pattern-entry.js";
 import {
   ToolPermissions,
@@ -127,7 +128,7 @@ function toAntigravityCliToolName(canonical: string): string {
   // Every `mcp__...` category is written as an `mcp(...)` entry, so it
   // manages all of them, as the bare `mcp` category does: a hand-written
   // `mcp(...)` entry is replaced once any MCP category is configured.
-  if (canonical.startsWith("mcp__")) {
+  if (canonical.startsWith(MCP_CATEGORY_PREFIX)) {
     return "mcp";
   }
   return CANONICAL_TO_ANTIGRAVITY_CLI_TOOL_NAMES[canonical] ?? canonical;

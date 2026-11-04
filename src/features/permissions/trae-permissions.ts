@@ -15,7 +15,7 @@ import {
   sharedConfigFileKey,
 } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
-import { honorAllToolsOnBash } from "./shell-command-categories.js";
+import { CATCH_ALL_PATTERN, honorAllToolsOnBash } from "./shell-command-categories.js";
 import { isStricterAction } from "./single-action-collapse.js";
 import {
   ToolPermissions,
@@ -36,7 +36,6 @@ const BASH_CATEGORY = "bash";
 const WEBFETCH_CATEGORY = "webfetch";
 const MCP_TOOL_PREFIX = "mcp__";
 const MCP_SEPARATOR = "__";
-const CATCH_ALL_PATTERN = "*";
 const REGEX_PREFIX = "r/";
 const REGEX_SUFFIX = "/";
 

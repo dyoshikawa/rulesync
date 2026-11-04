@@ -16,7 +16,11 @@ import {
   sharedConfigFileKey,
 } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
-import { ALL_TOOLS_PERMISSION_CATEGORY, honorAllToolsOnBash } from "./shell-command-categories.js";
+import {
+  ALL_TOOLS_PERMISSION_CATEGORY,
+  CATCH_ALL_PATTERN,
+  honorAllToolsOnBash,
+} from "./shell-command-categories.js";
 import { isStricterAction } from "./single-action-collapse.js";
 import { splitToolRule } from "./tool-pattern-entry.js";
 import {
@@ -89,8 +93,6 @@ const QODER_PERMISSIVE_MODES = new Set([
   "bypasspermissions",
   "yolo",
 ]);
-
-const CATCH_ALL_PATTERN = "*";
 
 /** Prefix of the fully qualified MCP tool names (`mcp__<server>__<tool>`). */
 const MCP_TOOL_PREFIX = "mcp__";

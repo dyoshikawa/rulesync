@@ -24,6 +24,7 @@ import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   ALL_TOOLS_PERMISSION_CATEGORY,
   bashRulesHonoringAllTools,
+  CATCH_ALL_PATTERN,
   SHELL_PERMISSION_CATEGORY,
 } from "./shell-command-categories.js";
 import {
@@ -41,8 +42,6 @@ import {
 type OmpApproval = "allow" | "prompt" | "deny";
 
 type OmpBashPattern = { match: string; approval: OmpApproval };
-
-const CATCH_ALL_PATTERN = "*";
 
 // The `tools` key holding oh-my-pi's approval mode, authored through the
 // `omp.approvalMode` override.

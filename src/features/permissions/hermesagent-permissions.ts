@@ -30,7 +30,9 @@ import {
 import { RulesyncPermissions, withoutBlankPermissionKeysIn } from "./rulesync-permissions.js";
 import {
   ALL_TOOLS_PERMISSION_CATEGORY,
+  CATCH_ALL_PATTERN,
   collectShellCommandRules,
+  MCP_CATEGORY_PREFIX,
   partitionCommandRules,
   SHELL_PERMISSION_CATEGORY,
   warnAboutUnwrittenCommandRules,
@@ -94,8 +96,6 @@ function removeEmptyCategories(permission: CanonicalPermissionBlock): void {
 
 /** The prefix Hermes's MCP trust gate keys its persisted "Always" answers with. */
 const MCP_ALLOWLIST_PREFIX = "mcp:";
-const MCP_CANONICAL_PREFIX = "mcp__";
-const CATCH_ALL_PATTERN = "*";
 
 /**
  * Whether a `command_allowlist` entry is an MCP trust-gate grant rather than a
@@ -122,7 +122,7 @@ function mcpAllowlistEntryToCategory(entry: string): string | null {
   const { server, tool } = parsed;
   if (server.includes("__") || server.includes(CATCH_ALL_PATTERN)) return null;
   if (tool.includes(CATCH_ALL_PATTERN)) return null;
-  return `${MCP_CANONICAL_PREFIX}${server}__${tool}`;
+  return `${MCP_CATEGORY_PREFIX}${server}__${tool}`;
 }
 
 /** The server and tool an `mcp:<server>/<tool>` entry names, or `null` when it is malformed. */
@@ -141,8 +141,8 @@ function parseMcpAllowlistEntry(entry: string): { server: string; tool: string }
  * `mcp` category). Only such a category can become one Hermes grant.
  */
 function parseMcpToolCategory(category: string): { server: string; tool: string } | null {
-  if (!category.startsWith(MCP_CANONICAL_PREFIX)) return null;
-  const remainder = category.slice(MCP_CANONICAL_PREFIX.length);
+  if (!category.startsWith(MCP_CATEGORY_PREFIX)) return null;
+  const remainder = category.slice(MCP_CATEGORY_PREFIX.length);
   const separator = remainder.indexOf("__");
   if (separator <= 0) return null;
   const server = remainder.slice(0, separator);
@@ -161,7 +161,7 @@ function parseMcpToolCategory(category: string): { server: string; tool: string 
 }
 
 function isMcpCategory(category: string): boolean {
-  return category === "mcp" || category.startsWith(MCP_CANONICAL_PREFIX);
+  return category === "mcp" || category.startsWith(MCP_CATEGORY_PREFIX);
 }
 
 function isRestricting(action: PermissionAction | undefined): boolean {
@@ -220,8 +220,8 @@ function findMcpToolRestriction(
         mcpNameGlobCovers(pattern, server, tool),
       );
     } else if (
-      category.startsWith(MCP_CANONICAL_PREFIX) &&
-      mcpNameGlobCovers(category.slice(MCP_CANONICAL_PREFIX.length), server, tool)
+      category.startsWith(MCP_CATEGORY_PREFIX) &&
+      mcpNameGlobCovers(category.slice(MCP_CATEGORY_PREFIX.length), server, tool)
     ) {
       found = firstRestrictingRule(category, rules);
     }

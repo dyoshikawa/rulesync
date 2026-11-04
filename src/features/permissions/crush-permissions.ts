@@ -22,16 +22,18 @@ import {
 } from "../crush-config.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
-import { ALL_TOOLS_PERMISSION_CATEGORY, honorAllToolsOnBash } from "./shell-command-categories.js";
+import {
+  ALL_TOOLS_PERMISSION_CATEGORY,
+  CATCH_ALL_PATTERN,
+  honorAllToolsOnBash,
+  MCP_CATEGORY_PREFIX,
+} from "./shell-command-categories.js";
 import {
   ToolPermissions,
   type ToolPermissionsFromFileParams,
   type ToolPermissionsFromRulesyncPermissionsParams,
   type ToolPermissionsSettablePaths,
 } from "./tool-permissions.js";
-
-// The catch-all rulesync pattern; a rule about the whole tool.
-const CATCH_ALL_PATTERN = "*";
 
 /**
  * A run of `*` (`**`, `***`) is the catch-all spelled another way: Crush has no
@@ -60,9 +62,8 @@ const CRUSH_TO_CANONICAL_TOOL_NAMES: Record<string, string> = invertRecord(
   CANONICAL_TO_CRUSH_TOOL_NAMES,
 );
 
-// The canonical per-tool MCP category (`mcp__<server>__<tool>`) and the name
-// Crush registers an MCP tool under (`mcp_<server>_<tool>`).
-const MCP_CANONICAL_PREFIX = "mcp__";
+// The name Crush registers an MCP tool under (`mcp_<server>_<tool>`) for the
+// canonical per-tool MCP category (`mcp__<server>__<tool>`).
 const MCP_CRUSH_PREFIX = "mcp_";
 
 // Own-property lookups only: a `constructor` category would otherwise resolve
@@ -72,13 +73,10 @@ function toCrushToolName(canonical: string): string {
   if (crushName !== undefined) {
     return crushName;
   }
-  if (
-    canonical.startsWith(MCP_CANONICAL_PREFIX) &&
-    canonical.length > MCP_CANONICAL_PREFIX.length
-  ) {
+  if (canonical.startsWith(MCP_CATEGORY_PREFIX) && canonical.length > MCP_CATEGORY_PREFIX.length) {
     // `mcp__server__tool` -> `mcp_server_tool`, the name Crush's permission
     // service sees for that MCP tool.
-    return `${MCP_CRUSH_PREFIX}${canonical.slice(MCP_CANONICAL_PREFIX.length).replaceAll("__", "_")}`;
+    return `${MCP_CRUSH_PREFIX}${canonical.slice(MCP_CATEGORY_PREFIX.length).replaceAll("__", "_")}`;
   }
   return canonical;
 }

@@ -18,6 +18,7 @@ import {
   TAKT_CONFIG_SHARED_FILE_KEY,
 } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
+import { CATCH_ALL_PATTERN } from "./shell-command-categories.js";
 import {
   ToolPermissions,
   type ToolPermissionsFromFileParams,
@@ -106,10 +107,6 @@ const TAKT_DEFAULT_PROVIDER = "claude-sdk";
 // with no `provider:` is what an earlier generate left behind, not a provider
 // choice, so it is not promoted to the active provider.
 const TAKT_LEGACY_DEFAULT_PROVIDER = "claude";
-
-// rulesync canonical catch-all pattern (Takt's mode is coarse, so only a
-// catch-all maps cleanly back on import).
-const CATCH_ALL_PATTERN = "*";
 
 /**
  * Permissions adapter for Takt (`.takt/config.yaml`).

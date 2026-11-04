@@ -11,7 +11,7 @@ import type { Logger } from "../../utils/logger.js";
 import { isRecord, isStringArray, toRecord } from "../../utils/type-guards.js";
 import { loadYaml } from "../../utils/yaml.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
-import { honorAllToolsOnBash } from "./shell-command-categories.js";
+import { CATCH_ALL_PATTERN, honorAllToolsOnBash } from "./shell-command-categories.js";
 import { PERMISSION_ACTION_PRIORITY, failSafeCatchAllAction } from "./single-action-collapse.js";
 import {
   ToolPermissions,
@@ -28,11 +28,6 @@ const GOOSE_GLOBAL_ONLY_MESSAGE =
 // decisions and are preserved verbatim.
 // https://github.com/aaif-goose/goose/blob/main/crates/goose/src/config/permission.rs
 const GOOSE_USER_KEY = "user";
-
-// The catch-all rulesync pattern. Goose permission lists hold whole tool names
-// (not per-command/per-path globs), so only a category's catch-all maps onto a
-// Goose tool. Non-catch-all patterns cannot be expressed and are reported.
-const CATCH_ALL_PATTERN = "*";
 
 // Goose's built-in Developer extension exposes its tools unprefixed (`shell`,
 // `write`, `edit`, `tree`, `read_image`), and permission.yaml is matched against

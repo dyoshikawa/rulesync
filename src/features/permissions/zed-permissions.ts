@@ -17,7 +17,7 @@ import { invertRecord } from "../../utils/own-lookup.js";
 import { isPlainObject } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
-import { honorAllToolsOnBash } from "./shell-command-categories.js";
+import { honorAllToolsOnBash, MCP_CATEGORY_PREFIX } from "./shell-command-categories.js";
 import {
   ToolPermissions,
   type ToolPermissionsFromFileParams,
@@ -53,9 +53,6 @@ const ZedToolPermissionsSchema = z.looseObject({
   default: z.optional(ZedPermissionActionSchema),
   tools: z.optional(z.record(z.string(), ZedToolPermissionSchema)),
 });
-
-/** Canonical per-tool MCP category prefix: `mcp__<server>__<tool>`. */
-const MCP_CANONICAL_PREFIX = "mcp__";
 
 /** Zed's per-tool MCP name prefix: `mcp:<server>:<tool>`. */
 const MCP_ZED_PREFIX = "mcp:";
@@ -116,8 +113,8 @@ const ZED_TO_CANONICAL_TOOL_NAMES: Record<string, string> = invertRecord(
  * @see https://zed.dev/docs/ai/tool-permissions
  */
 function toZedToolName(canonical: string): string {
-  if (canonical.startsWith(MCP_CANONICAL_PREFIX)) {
-    const [server, ...toolParts] = canonical.slice(MCP_CANONICAL_PREFIX.length).split("__");
+  if (canonical.startsWith(MCP_CATEGORY_PREFIX)) {
+    const [server, ...toolParts] = canonical.slice(MCP_CATEGORY_PREFIX.length).split("__");
     const address = toolParts.length > 0 ? `${server}:${toolParts.join("__")}` : (server ?? "");
     return `${MCP_ZED_PREFIX}${address}`;
   }
@@ -128,7 +125,7 @@ function toCanonicalToolName(zedName: string): string {
   if (zedName.startsWith(MCP_ZED_PREFIX)) {
     const [server, ...toolParts] = zedName.slice(MCP_ZED_PREFIX.length).split(":");
     const address = toolParts.length > 0 ? `${server}__${toolParts.join(":")}` : (server ?? "");
-    return `${MCP_CANONICAL_PREFIX}${address}`;
+    return `${MCP_CATEGORY_PREFIX}${address}`;
   }
   return ZED_TO_CANONICAL_TOOL_NAMES[zedName] ?? zedName;
 }
@@ -549,7 +546,7 @@ export class ZedPermissions extends ToolPermissions {
     // later generate cleans up, and that import would fold back into the
     // canonical category, resurrecting rules the config no longer states.
     for (const toolName of Object.keys(existingTools)) {
-      if (toolName.startsWith(MCP_CANONICAL_PREFIX)) {
+      if (toolName.startsWith(MCP_CATEGORY_PREFIX)) {
         managedToolNames.add(toolName);
       }
     }

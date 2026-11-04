@@ -33,7 +33,7 @@ import {
 } from "../shared/opencode-family-mcp-tool-keys.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
-import { honorAllToolsOnBash } from "./shell-command-categories.js";
+import { honorAllToolsOnBash, MCP_CATEGORY_PREFIX } from "./shell-command-categories.js";
 import {
   collapseRulesToSingleAction,
   hasPatternSpecificRules,
@@ -178,8 +178,6 @@ const CANONICAL_TO_OPENCODE_FOLDED_PERMISSION_KEYS: Record<string, string> = {
  */
 const OPENCODE_UNSUPPORTED_PERMISSION_CATEGORIES = new Set(["notebookedit"]);
 
-const MCP_CANONICAL_PREFIX = "mcp__";
-
 /**
  * OpenCode permission keys (V1) and actions (V2) that are not MCP tools, so a
  * server whose name is a prefix of one (`external` vs. `external_directory`,
@@ -219,10 +217,10 @@ const OPENCODE_BUILTIN_PERMISSION_KEYS: ReadonlySet<string> = new Set([
  * which has no OpenCode key that matches only MCP tools.
  */
 function toOpencodeMcpPermissionKey(category: string): string | undefined {
-  if (!category.startsWith(MCP_CANONICAL_PREFIX)) {
+  if (!category.startsWith(MCP_CATEGORY_PREFIX)) {
     return undefined;
   }
-  const remainder = category.slice(MCP_CANONICAL_PREFIX.length);
+  const remainder = category.slice(MCP_CATEGORY_PREFIX.length);
   const separator = remainder.indexOf("__");
   const server = separator === -1 ? remainder : remainder.slice(0, separator);
   const tool = separator === -1 ? "" : remainder.slice(separator + 2);
@@ -259,8 +257,8 @@ function fromOpencodeMcpPermissionKey(
     return undefined;
   }
   return owner.toolName === "*"
-    ? `${MCP_CANONICAL_PREFIX}${owner.serverName}`
-    : `${MCP_CANONICAL_PREFIX}${owner.serverName}__${owner.toolName}`;
+    ? `${MCP_CATEGORY_PREFIX}${owner.serverName}`
+    : `${MCP_CATEGORY_PREFIX}${owner.serverName}__${owner.toolName}`;
 }
 
 /** The MCP server names an OpenCode config declares (V1 flat map or V2 `mcp.servers`). */
@@ -322,7 +320,7 @@ function isSharedPermissionCategory(category: string): boolean {
   return (
     category === "*" ||
     CANONICAL_PERMISSION_CATEGORIES.has(category) ||
-    category.startsWith("mcp__")
+    category.startsWith(MCP_CATEGORY_PREFIX)
   );
 }
 
@@ -395,7 +393,7 @@ function toOpencodeSharedPermission({
       continue;
     }
     let key = toOpencodePermissionKey(category);
-    if (category.startsWith(MCP_CANONICAL_PREFIX)) {
+    if (category.startsWith(MCP_CATEGORY_PREFIX)) {
       const mcpKey = toOpencodeMcpPermissionKey(category);
       if (mcpKey === undefined) {
         logger?.warn(

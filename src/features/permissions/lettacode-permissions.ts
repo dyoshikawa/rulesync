@@ -15,7 +15,7 @@ import {
   sharedConfigFileKey,
 } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
-import { honorAllToolsOnBash } from "./shell-command-categories.js";
+import { CATCH_ALL_PATTERN, honorAllToolsOnBash } from "./shell-command-categories.js";
 import { isStricterAction } from "./single-action-collapse.js";
 import { splitToolRule } from "./tool-pattern-entry.js";
 import {
@@ -27,8 +27,6 @@ import {
 
 /** Top-level key of `.letta/settings.json` that rulesync owns. */
 const LETTACODE_PERMISSIONS_KEY = "permissions";
-
-const CATCH_ALL_PATTERN = "*";
 
 /** Letta Code's `Bash(prefix:*)` prefix-match suffix. */
 const PREFIX_SUFFIX = ":*";
