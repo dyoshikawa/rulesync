@@ -2261,6 +2261,57 @@ export async function resolveGitSourceRef(
 }
 
 /**
+ * Resolve a git-transport source's ref to a commit SHA, preferring the locked
+ * SHA for deterministic fetches. The locked path may leave `requestedRef`
+ * unset (a legacy entry without it); {@link ensureGitRequestedRef} fills it in
+ * lazily so a reusable lock entry needs no network call.
+ */
+async function resolveGitFetchRef(params: {
+  sourceEntry: SourceEntry;
+  locked: LockedSource | undefined;
+  updateSources: boolean;
+}): Promise<{ requestedRef: string | undefined; resolvedSha: string }> {
+  const { sourceEntry, locked, updateSources } = params;
+  if (
+    locked &&
+    !updateSources &&
+    lockedRefMatchesDeclared({ locked, declaredRef: sourceEntry.ref })
+  ) {
+    const requestedRef = locked.requestedRef ?? sourceEntry.ref;
+    // Validate locked ref before passing to git commands
+    if (requestedRef) {
+      validateRef(requestedRef);
+    }
+    return { requestedRef, resolvedSha: locked.resolvedRef };
+  }
+  return resolveGitSourceRef(sourceEntry);
+}
+
+/**
+ * Resolve `requestedRef` lazily (deferred from the locked path to avoid
+ * unnecessary network calls) by falling back to the default branch, which a
+ * frozen install refuses.
+ */
+async function ensureGitRequestedRef(params: {
+  url: string;
+  requestedRef: string | undefined;
+  resolvedSha: string;
+  frozen: boolean;
+}): Promise<{ requestedRef: string; resolvedSha: string }> {
+  const { url, requestedRef, resolvedSha, frozen } = params;
+  if (requestedRef) {
+    return { requestedRef, resolvedSha };
+  }
+  if (frozen) {
+    throw new Error(
+      `Frozen install failed: lockfile entry for "${url}" is missing requestedRef. Run 'rulesync install' to update the lockfile.`,
+    );
+  }
+  const defaultRef = await resolveDefaultRef(url);
+  return { requestedRef: defaultRef.ref, resolvedSha: defaultRef.sha };
+}
+
+/**
  * Resolve a GitHub source's ref to a commit SHA, preferring the locked SHA for
  * deterministic fetches and otherwise resolving the declared ref or default
  * branch. Returns the on-disk `ref` (SHA when freshly resolved, else locked
@@ -2668,23 +2719,11 @@ async function fetchRulesViaGit(params: {
   const sourceKey = sourceEntry.source;
   const locked = getLockedSource(lock, lockKey);
   const lockedRuleNames = locked ? getLockedRuleNames(locked) : [];
-  let resolvedRef: string;
-  let requestedRef: string | undefined;
-  if (
-    locked &&
-    !updateSources &&
-    lockedRefMatchesDeclared({ locked, declaredRef: sourceEntry.ref })
-  ) {
-    resolvedRef = locked.resolvedRef;
-    requestedRef = locked.requestedRef ?? sourceEntry.ref;
-    if (requestedRef) validateRef(requestedRef);
-  } else {
-    ({ requestedRef, resolvedSha: resolvedRef } = await resolveGitSourceRef(sourceEntry));
-  }
+  const lockedOrResolved = await resolveGitFetchRef({ sourceEntry, locked, updateSources });
   const curatedDir = join(projectRoot, RULESYNC_CURATED_RULES_RELATIVE_DIR_PATH);
   if (
     locked &&
-    resolvedRef === locked.resolvedRef &&
+    lockedOrResolved.resolvedSha === locked.resolvedRef &&
     !updateSources &&
     !forceRefetch &&
     (await canReuseLockedRules({
@@ -2698,16 +2737,11 @@ async function fetchRulesViaGit(params: {
   ) {
     return { ruleCount: 0, fetchedRuleNames: lockedRuleNames, updatedLock: lock };
   }
-  if (!requestedRef) {
-    if (frozen) {
-      throw new Error(
-        `Frozen install failed: lockfile entry for "${sourceKey}" is missing requestedRef. Run 'rulesync install' to update the lockfile.`,
-      );
-    }
-    const defaultRef = await resolveDefaultRef(sourceKey);
-    requestedRef = defaultRef.ref;
-    resolvedRef = defaultRef.sha;
-  }
+  const { requestedRef, resolvedSha: resolvedRef } = await ensureGitRequestedRef({
+    url: sourceKey,
+    ...lockedOrResolved,
+    frozen,
+  });
   const files = await fetchSkillFiles({
     url: sourceKey,
     ref: requestedRef,
@@ -3304,28 +3338,13 @@ async function fetchSourceViaGit(params: {
   const locked = getLockedSource(lock, lockKey);
   const lockedSkillNames = locked ? getLockedSkillNames(locked) : [];
 
-  let resolvedSha: string;
-  let requestedRef: string | undefined;
-  if (
-    locked &&
-    !updateSources &&
-    lockedRefMatchesDeclared({ locked, declaredRef: sourceEntry.ref })
-  ) {
-    resolvedSha = locked.resolvedRef;
-    requestedRef = locked.requestedRef ?? sourceEntry.ref;
-    // Validate locked ref before passing to git commands
-    if (requestedRef) {
-      validateRef(requestedRef);
-    }
-  } else {
-    ({ requestedRef, resolvedSha } = await resolveGitSourceRef(sourceEntry));
-  }
+  const lockedOrResolved = await resolveGitFetchRef({ sourceEntry, locked, updateSources });
 
   const curatedDir = join(projectRoot, RULESYNC_CURATED_SKILLS_RELATIVE_DIR_PATH);
   if (
     await canReuseLockedSkills({
       locked,
-      resolvedSha,
+      resolvedSha: lockedOrResolved.resolvedSha,
       updateSources,
       frozen,
       sourceEntry,
@@ -3336,17 +3355,11 @@ async function fetchSourceViaGit(params: {
     return { skillCount: 0, fetchedSkillNames: lockedSkillNames, updatedLock: lock };
   }
 
-  // Resolve requestedRef lazily (deferred from locked path to avoid unnecessary network calls)
-  if (!requestedRef) {
-    if (frozen) {
-      throw new Error(
-        `Frozen install failed: lockfile entry for "${url}" is missing requestedRef. Run 'rulesync install' to update the lockfile.`,
-      );
-    }
-    const def = await resolveDefaultRef(url);
-    requestedRef = def.ref;
-    resolvedSha = def.sha;
-  }
+  const { requestedRef, resolvedSha } = await ensureGitRequestedRef({
+    url,
+    ...lockedOrResolved,
+    frozen,
+  });
 
   const skillFilter = sourceEntry.skills ?? ["*"];
   const isWildcard = isWildcardSelection(skillFilter);
