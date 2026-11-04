@@ -1801,8 +1801,9 @@ As this project's AI coding tool, you must follow the additional conventions bel
 
       /**
        * Import counterpart of {@link buildDeletionRulesFromPaths} for the
-       * root-shaped scans (root, legacy roots, and read-only roots), whose
-       * paths all sit at a directory Rulesync resolves from the file itself.
+       * root-shaped scans (root, legacy roots, read-only roots, extra fixed
+       * files and nested files), whose paths all sit at a directory Rulesync
+       * resolves from the file itself.
        */
       const buildImportRulesFromPaths = (filePaths: string[]): Promise<ToolRule[]> =>
         Promise.all(
@@ -1999,21 +2000,7 @@ As this project's AI coding tool, you must follow the additional conventions bel
           return [];
         }
 
-        return await Promise.all(
-          filePaths.map((filePath) => {
-            const relativeDirPath = resolveRelativeDirPath(filePath);
-            checkPathTraversal({
-              relativePath: relativeDirPath,
-              intendedRootDir: this.outputRoot,
-            });
-            return factory.class.fromFile({
-              outputRoot: this.outputRoot,
-              relativeDirPath,
-              relativeFilePath: basename(filePath),
-              global: this.global,
-            });
-          }),
-        );
+        return await buildImportRulesFromPaths(filePaths);
       })();
       this.logger.debug(`Found ${extraFixedToolRules.length} extra fixed tool rule files`);
 
@@ -2050,21 +2037,7 @@ As this project's AI coding tool, you must follow the additional conventions bel
           ownedDirPath: patterns.ownedDirPath,
         });
 
-        return await Promise.all(
-          filePaths.map((filePath) => {
-            const relativeDirPath = resolveRelativeDirPath(filePath);
-            checkPathTraversal({
-              relativePath: relativeDirPath,
-              intendedRootDir: this.outputRoot,
-            });
-            return factory.class.fromFile({
-              outputRoot: this.outputRoot,
-              relativeDirPath,
-              relativeFilePath: basename(filePath),
-              global: this.global,
-            });
-          }),
-        );
+        return await buildImportRulesFromPaths(filePaths);
       })();
       this.logger.debug(`Found ${nestedToolRules.length} nested tool rule files`);
 
