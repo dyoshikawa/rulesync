@@ -400,13 +400,6 @@ describe("Config", () => {
       expect(features).not.toContain("*");
     });
 
-    it("should report hasPerTargetFeatures true for object-form targets", () => {
-      const config = createConfig({
-        targets: { claudecode: ["rules"] },
-      });
-      expect(config.hasPerTargetFeatures()).toBe(true);
-    });
-
     it("should detect conflicting targets within the object form keys", () => {
       expect(() =>
         createConfig({

@@ -972,13 +972,6 @@ export class Config {
     return result.success ? result.data : undefined;
   }
 
-  /**
-   * Check if per-target features configuration is being used.
-   */
-  public hasPerTargetFeatures(): boolean {
-    return isRulesyncConfigTargetsObject(this.targets);
-  }
-
   public getVerbose(): boolean {
     return this.verbose;
   }
