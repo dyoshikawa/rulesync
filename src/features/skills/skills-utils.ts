@@ -305,3 +305,51 @@ export function toAllowedToolsString(value: string | string[]): string {
 export function toAllowedToolsArray(value: string | string[]): string[] {
   return Array.isArray(value) ? value : value.split(/\s+/).filter((tool) => tool.length > 0);
 }
+
+/**
+ * The Agent Skills standard fields (`license`, `compatibility`, `metadata`)
+ * that are set, in that order, leaving out the undefined ones so they are not
+ * written as keys.
+ */
+export function pickStandardSkillFields<TLicense, TCompatibility, TMetadata>({
+  license,
+  compatibility,
+  metadata,
+}: {
+  license?: TLicense;
+  compatibility?: TCompatibility;
+  metadata?: TMetadata;
+}): { license?: TLicense; compatibility?: TCompatibility; metadata?: TMetadata } {
+  return {
+    ...(license !== undefined && { license }),
+    ...(compatibility !== undefined && { compatibility }),
+    ...(metadata !== undefined && { metadata }),
+  };
+}
+
+/**
+ * {@link pickStandardSkillFields} after resolving each field through
+ * {@link resolveLicense}, {@link resolveCompatibility} and
+ * {@link resolveMetadata} (a defined section value wins over the root default).
+ */
+export function resolveStandardSkillFields<
+  TLicense = string,
+  TCompatibility = string | Record<string, unknown>,
+  TMetadata = Record<string, unknown>,
+>({
+  rootFrontmatter,
+  section,
+}: {
+  rootFrontmatter: {
+    license?: string;
+    compatibility?: string | Record<string, unknown>;
+    metadata?: Record<string, unknown>;
+  };
+  section: { license?: TLicense; compatibility?: TCompatibility; metadata?: TMetadata } | undefined;
+}) {
+  return pickStandardSkillFields({
+    license: resolveLicense({ rootFrontmatter, section }),
+    compatibility: resolveCompatibility({ rootFrontmatter, section }),
+    metadata: resolveMetadata({ rootFrontmatter, section }),
+  });
+}

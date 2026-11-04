@@ -16,6 +16,7 @@ import {
 } from "./rulesync-skill.js";
 import {
   collectSkillNameViolations,
+  pickStandardSkillFields,
   resolveCompatibility,
   resolveLicense,
   resolveMetadata,
@@ -419,9 +420,7 @@ export class AgentsSkillsSkill extends ToolSkill {
         ? undefined
         : toAllowedToolsArray(frontmatter["allowed-tools"]);
     const agentsskillsSection = {
-      ...(frontmatter.license !== undefined && { license: frontmatter.license }),
-      ...(frontmatter.compatibility !== undefined && { compatibility: frontmatter.compatibility }),
-      ...(frontmatter.metadata !== undefined && { metadata: frontmatter.metadata }),
+      ...pickStandardSkillFields(frontmatter),
       ...(allowedTools !== undefined &&
         allowedTools.length > 0 && { "allowed-tools": allowedTools }),
       // Back to the opt-in section key generate reads it from (not the root

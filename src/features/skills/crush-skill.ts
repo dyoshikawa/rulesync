@@ -6,6 +6,7 @@ import { ValidationResult } from "../../types/ai-dir.js";
 import { toCompatibilityString, toStringMetadata } from "./agentsskills-skill.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import {
+  pickStandardSkillFields,
   resolveCompatibility,
   resolveDisableModelInvocation,
   resolveLicense,
@@ -130,11 +131,7 @@ export class CrushSkill extends ToolSkill {
       ...(frontmatter["disable-model-invocation"] !== undefined && {
         "disable-model-invocation": frontmatter["disable-model-invocation"],
       }),
-      ...(frontmatter.license !== undefined && { license: frontmatter.license }),
-      ...(frontmatter.compatibility !== undefined && {
-        compatibility: frontmatter.compatibility,
-      }),
-      ...(frontmatter.metadata !== undefined && { metadata: frontmatter.metadata }),
+      ...pickStandardSkillFields(frontmatter),
     };
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
       name: frontmatter.name,

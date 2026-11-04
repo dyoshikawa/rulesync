@@ -5,10 +5,8 @@ import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import {
-  resolveCompatibility,
   resolveDisableModelInvocation,
-  resolveLicense,
-  resolveMetadata,
+  resolveStandardSkillFields,
   resolveUserInvocable,
 } from "./skills-utils.js";
 import {
@@ -145,18 +143,6 @@ export class CommandcodeSkill extends ToolSkill {
     // back to the root-level rulesync value when the section omits them
     // (mirrors `CrushSkill`). Every resolver prefers a defined section value,
     // so re-applying the resolved values over the spread never discards one.
-    const license = resolveLicense({
-      rootFrontmatter: rulesyncFrontmatter,
-      section: commandcodeSection,
-    });
-    const compatibility = resolveCompatibility({
-      rootFrontmatter: rulesyncFrontmatter,
-      section: commandcodeSection,
-    });
-    const metadata = resolveMetadata({
-      rootFrontmatter: rulesyncFrontmatter,
-      section: commandcodeSection,
-    });
     const disableModelInvocation = resolveDisableModelInvocation({
       rootFrontmatter: rulesyncFrontmatter,
       section: commandcodeSection,
@@ -169,9 +155,10 @@ export class CommandcodeSkill extends ToolSkill {
       ...commandcodeSection,
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
-      ...(license !== undefined && { license }),
-      ...(compatibility !== undefined && { compatibility }),
-      ...(metadata !== undefined && { metadata }),
+      ...resolveStandardSkillFields({
+        rootFrontmatter: rulesyncFrontmatter,
+        section: commandcodeSection,
+      }),
       ...(disableModelInvocation !== undefined && {
         "disable-model-invocation": disableModelInvocation,
       }),

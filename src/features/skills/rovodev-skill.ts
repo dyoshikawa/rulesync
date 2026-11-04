@@ -7,7 +7,7 @@ import {
 } from "../../constants/rovodev-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
-import { resolveCompatibility, resolveLicense, resolveMetadata } from "./skills-utils.js";
+import { pickStandardSkillFields, resolveStandardSkillFields } from "./skills-utils.js";
 import {
   ToolSkill,
   ToolSkillForDeletionParams,
@@ -107,11 +107,7 @@ export class RovodevSkill extends ToolSkill {
       ...(frontmatter["allowed-tools"] !== undefined && {
         "allowed-tools": frontmatter["allowed-tools"],
       }),
-      ...(frontmatter.license !== undefined && { license: frontmatter.license }),
-      ...(frontmatter.compatibility !== undefined && {
-        compatibility: frontmatter.compatibility,
-      }),
-      ...(frontmatter.metadata !== undefined && { metadata: frontmatter.metadata }),
+      ...pickStandardSkillFields(frontmatter),
     };
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
       name: frontmatter.name,
@@ -134,18 +130,6 @@ export class RovodevSkill extends ToolSkill {
     const rovodevSection = rulesyncFrontmatter.rovodev;
     // The Agent Skills standard fields fall back to the root-level rulesync
     // value when the `rovodev` section omits them.
-    const license = resolveLicense({
-      rootFrontmatter: rulesyncFrontmatter,
-      section: rovodevSection,
-    });
-    const compatibility = resolveCompatibility({
-      rootFrontmatter: rulesyncFrontmatter,
-      section: rovodevSection,
-    });
-    const metadata = resolveMetadata({
-      rootFrontmatter: rulesyncFrontmatter,
-      section: rovodevSection,
-    });
 
     const rovodevFrontmatter: RovodevSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
@@ -153,9 +137,10 @@ export class RovodevSkill extends ToolSkill {
       ...(rovodevSection?.["allowed-tools"] !== undefined && {
         "allowed-tools": rovodevSection["allowed-tools"],
       }),
-      ...(license !== undefined && { license }),
-      ...(compatibility !== undefined && { compatibility }),
-      ...(metadata !== undefined && { metadata }),
+      ...resolveStandardSkillFields({
+        rootFrontmatter: rulesyncFrontmatter,
+        section: rovodevSection,
+      }),
     };
 
     return new RovodevSkill({

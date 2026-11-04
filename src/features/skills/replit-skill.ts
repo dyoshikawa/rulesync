@@ -5,9 +5,8 @@ import { REPLIT_SKILLS_DIR_PATH } from "../../constants/replit-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import {
-  resolveCompatibility,
-  resolveLicense,
-  resolveMetadata,
+  pickStandardSkillFields,
+  resolveStandardSkillFields,
   toAllowedToolsArray,
   toAllowedToolsString,
 } from "./skills-utils.js";
@@ -115,11 +114,7 @@ export class ReplitSkill extends ToolSkill {
     const replitBlock = {
       ...(allowedToolsArray !== undefined &&
         allowedToolsArray.length > 0 && { "allowed-tools": allowedToolsArray }),
-      ...(frontmatter.license !== undefined && { license: frontmatter.license }),
-      ...(frontmatter.compatibility !== undefined && {
-        compatibility: frontmatter.compatibility,
-      }),
-      ...(frontmatter.metadata !== undefined && { metadata: frontmatter.metadata }),
+      ...pickStandardSkillFields(frontmatter),
     };
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
       name: frontmatter.name,
@@ -150,26 +145,15 @@ export class ReplitSkill extends ToolSkill {
     // value when the `replit` section omits them. Every resolver already prefers
     // a defined section value, so re-applying them after the spread never
     // discards one.
-    const license = resolveLicense({
-      rootFrontmatter: rulesyncFrontmatter,
-      section: replitSection,
-    });
-    const compatibility = resolveCompatibility({
-      rootFrontmatter: rulesyncFrontmatter,
-      section: replitSection,
-    });
-    const metadata = resolveMetadata({
-      rootFrontmatter: rulesyncFrontmatter,
-      section: replitSection,
-    });
     const replitFrontmatter: ReplitSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
       ...(allowedToolsString && { "allowed-tools": allowedToolsString }),
       ...replitSection,
-      ...(license !== undefined && { license }),
-      ...(compatibility !== undefined && { compatibility }),
-      ...(metadata !== undefined && { metadata }),
+      ...resolveStandardSkillFields({
+        rootFrontmatter: rulesyncFrontmatter,
+        section: replitSection,
+      }),
     };
 
     return new ReplitSkill({

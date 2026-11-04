@@ -20,10 +20,9 @@ import {
 } from "../opencode-config.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import {
-  resolveCompatibility,
+  pickStandardSkillFields,
   resolveDisableModelInvocation,
-  resolveLicense,
-  resolveMetadata,
+  resolveStandardSkillFields,
 } from "./skills-utils.js";
 import {
   ToolSkill,
@@ -207,11 +206,7 @@ export class OpenCodeSkill extends ToolSkill {
       ...(frontmatter["allowed-tools"] !== undefined && {
         "allowed-tools": frontmatter["allowed-tools"],
       }),
-      ...(frontmatter.license !== undefined && { license: frontmatter.license }),
-      ...(frontmatter.compatibility !== undefined && {
-        compatibility: frontmatter.compatibility,
-      }),
-      ...(frontmatter.metadata !== undefined && { metadata: frontmatter.metadata }),
+      ...pickStandardSkillFields(frontmatter),
       ...(frontmatter["disable-model-invocation"] !== undefined && {
         "disable-model-invocation": frontmatter["disable-model-invocation"],
       }),
@@ -238,18 +233,6 @@ export class OpenCodeSkill extends ToolSkill {
 
     // Source precedence: the `opencode` section value takes priority, falling
     // back to the root-level rulesync frontmatter value when present.
-    const license = resolveLicense({
-      rootFrontmatter: rulesyncFrontmatter,
-      section: opencodeSection,
-    });
-    const compatibility = resolveCompatibility({
-      rootFrontmatter: rulesyncFrontmatter,
-      section: opencodeSection,
-    });
-    const metadata = resolveMetadata({
-      rootFrontmatter: rulesyncFrontmatter,
-      section: opencodeSection,
-    });
     const disableModelInvocation = resolveDisableModelInvocation({
       rootFrontmatter: rulesyncFrontmatter,
       section: opencodeSection,
@@ -258,9 +241,10 @@ export class OpenCodeSkill extends ToolSkill {
     const opencodeFrontmatter: OpenCodeSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
-      ...(license !== undefined && { license }),
-      ...(compatibility !== undefined && { compatibility }),
-      ...(metadata !== undefined && { metadata }),
+      ...resolveStandardSkillFields({
+        rootFrontmatter: rulesyncFrontmatter,
+        section: opencodeSection,
+      }),
       ...(opencodeSection?.["allowed-tools"] !== undefined && {
         "allowed-tools": opencodeSection["allowed-tools"],
       }),

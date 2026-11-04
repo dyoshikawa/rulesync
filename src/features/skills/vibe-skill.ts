@@ -14,10 +14,9 @@ import {
   SkillFile,
 } from "./rulesync-skill.js";
 import {
-  resolveCompatibility,
+  pickStandardSkillFields,
   resolveDisableModelInvocation,
-  resolveLicense,
-  resolveMetadata,
+  resolveStandardSkillFields,
   resolveUserInvocable,
 } from "./skills-utils.js";
 import {
@@ -76,12 +75,6 @@ const VIBE_RESERVED_SKILL_NAMES: ReadonlySet<string> = new Set(["vibe", "skill-c
 function buildVibeFrontmatter(rulesyncFrontmatter: RulesyncSkillFrontmatter): VibeSkillFrontmatter {
   const vibeSection = rulesyncFrontmatter.vibe;
 
-  const license = resolveLicense({ rootFrontmatter: rulesyncFrontmatter, section: vibeSection });
-  const compatibility = resolveCompatibility({
-    rootFrontmatter: rulesyncFrontmatter,
-    section: vibeSection,
-  });
-  const metadata = resolveMetadata({ rootFrontmatter: rulesyncFrontmatter, section: vibeSection });
   const resolvedUserInvocable = resolveUserInvocable({
     rootFrontmatter: rulesyncFrontmatter,
     section: vibeSection,
@@ -94,9 +87,7 @@ function buildVibeFrontmatter(rulesyncFrontmatter: RulesyncSkillFrontmatter): Vi
   return {
     name: rulesyncFrontmatter.name,
     description: rulesyncFrontmatter.description,
-    ...(license !== undefined && { license }),
-    ...(compatibility !== undefined && { compatibility }),
-    ...(metadata !== undefined && { metadata }),
+    ...resolveStandardSkillFields({ rootFrontmatter: rulesyncFrontmatter, section: vibeSection }),
     ...(resolvedUserInvocable !== undefined && {
       "user-invocable": resolvedUserInvocable,
     }),
@@ -197,9 +188,7 @@ export class VibeSkill extends ToolSkill {
   toRulesyncSkill(): RulesyncSkill {
     const frontmatter = this.getFrontmatter();
     const vibeSection = {
-      ...(frontmatter.license !== undefined && { license: frontmatter.license }),
-      ...(frontmatter.compatibility !== undefined && { compatibility: frontmatter.compatibility }),
-      ...(frontmatter.metadata !== undefined && { metadata: frontmatter.metadata }),
+      ...pickStandardSkillFields(frontmatter),
       ...(frontmatter["user-invocable"] !== undefined && {
         "user-invocable": frontmatter["user-invocable"],
       }),

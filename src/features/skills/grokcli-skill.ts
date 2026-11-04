@@ -5,10 +5,8 @@ import { GROKCLI_SKILLS_DIR_PATH } from "../../constants/grokcli-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import {
-  resolveCompatibility,
   resolveDisableModelInvocation,
-  resolveLicense,
-  resolveMetadata,
+  resolveStandardSkillFields,
   resolveUserInvocable,
 } from "./skills-utils.js";
 import {
@@ -171,18 +169,6 @@ export class GrokcliSkill extends ToolSkill {
     // to the root-level rulesync value when the section omits them. Every
     // resolver prefers a defined section value, so re-applying the resolved
     // values over the spread never discards one.
-    const license = resolveLicense({
-      rootFrontmatter: rulesyncFrontmatter,
-      section: grokcliSection,
-    });
-    const compatibility = resolveCompatibility({
-      rootFrontmatter: rulesyncFrontmatter,
-      section: grokcliSection,
-    });
-    const metadata = resolveMetadata({
-      rootFrontmatter: rulesyncFrontmatter,
-      section: grokcliSection,
-    });
     const resolvedUserInvocable = resolveUserInvocable({
       rootFrontmatter: rulesyncFrontmatter,
       section: grokcliSection,
@@ -196,9 +182,10 @@ export class GrokcliSkill extends ToolSkill {
       ...grokcliSection,
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
-      ...(license !== undefined && { license }),
-      ...(compatibility !== undefined && { compatibility }),
-      ...(metadata !== undefined && { metadata }),
+      ...resolveStandardSkillFields({
+        rootFrontmatter: rulesyncFrontmatter,
+        section: grokcliSection,
+      }),
       ...(resolvedUserInvocable !== undefined && { "user-invocable": resolvedUserInvocable }),
       ...(resolvedDisableModelInvocation !== undefined && {
         "disable-model-invocation": resolvedDisableModelInvocation,

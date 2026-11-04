@@ -11,10 +11,8 @@ import { caseFoldIdentity } from "../../types/feature-processor.js";
 import { toPosixPath } from "../../utils/file.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import {
-  resolveCompatibility,
   resolveDisableModelInvocation,
-  resolveLicense,
-  resolveMetadata,
+  resolveStandardSkillFields,
   resolveUserInvocable,
 } from "./skills-utils.js";
 import {
@@ -168,18 +166,6 @@ export class FactorydroidSkill extends ToolSkill {
     });
     // The packaging fields fall back to the root-level rulesync value when the
     // section omits them; a section value keeps its untyped shape.
-    const license = resolveLicense({
-      rootFrontmatter: rulesyncFrontmatter,
-      section: factorydroidSection,
-    });
-    const compatibility = resolveCompatibility({
-      rootFrontmatter: rulesyncFrontmatter,
-      section: factorydroidSection,
-    });
-    const metadata = resolveMetadata({
-      rootFrontmatter: rulesyncFrontmatter,
-      section: factorydroidSection,
-    });
 
     // A `name`/`description` that somehow rode along in the section is dropped
     // so the canonical values keep owning those keys, which also lets them stay
@@ -195,9 +181,10 @@ export class FactorydroidSkill extends ToolSkill {
       ...section,
       // Every resolver already prefers a defined section value over the root
       // default, so overriding the spread with them never discards one.
-      ...(license !== undefined && { license }),
-      ...(compatibility !== undefined && { compatibility }),
-      ...(metadata !== undefined && { metadata }),
+      ...resolveStandardSkillFields({
+        rootFrontmatter: rulesyncFrontmatter,
+        section: factorydroidSection,
+      }),
       ...(resolvedDisableModelInvocation !== undefined && {
         "disable-model-invocation": resolvedDisableModelInvocation,
       }),

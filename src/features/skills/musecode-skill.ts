@@ -13,7 +13,7 @@ import {
   RulesyncSkillFrontmatterInput,
   SkillFile,
 } from "./rulesync-skill.js";
-import { resolveCompatibility, resolveLicense, resolveMetadata } from "./skills-utils.js";
+import { pickStandardSkillFields, resolveStandardSkillFields } from "./skills-utils.js";
 import {
   ToolSkill,
   ToolSkillForDeletionParams,
@@ -59,17 +59,12 @@ function buildMusecodeFrontmatter(
   rulesyncFrontmatter: RulesyncSkillFrontmatter,
 ): MusecodeSkillFrontmatter {
   const section = rulesyncFrontmatter.musecode;
-  const license = resolveLicense({ rootFrontmatter: rulesyncFrontmatter, section });
-  const compatibility = resolveCompatibility({ rootFrontmatter: rulesyncFrontmatter, section });
-  const metadata = resolveMetadata({ rootFrontmatter: rulesyncFrontmatter, section });
 
   return {
     name: rulesyncFrontmatter.name,
     description: rulesyncFrontmatter.description,
     ...toSpecConformantAgentSkillFields({
-      ...(license !== undefined && { license }),
-      ...(compatibility !== undefined && { compatibility }),
-      ...(metadata !== undefined && { metadata }),
+      ...resolveStandardSkillFields({ rootFrontmatter: rulesyncFrontmatter, section }),
     }),
   };
 }
@@ -135,9 +130,7 @@ export class MusecodeSkill extends ToolSkill {
   toRulesyncSkill(): RulesyncSkill {
     const frontmatter = this.getFrontmatter();
     const musecodeSection = {
-      ...(frontmatter.license !== undefined && { license: frontmatter.license }),
-      ...(frontmatter.compatibility !== undefined && { compatibility: frontmatter.compatibility }),
-      ...(frontmatter.metadata !== undefined && { metadata: frontmatter.metadata }),
+      ...pickStandardSkillFields(frontmatter),
     };
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
       name: frontmatter.name,

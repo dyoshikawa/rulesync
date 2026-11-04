@@ -7,10 +7,9 @@ import { PI_LAYOUT, type PiLayout } from "../../constants/pi-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import {
-  resolveCompatibility,
+  pickStandardSkillFields,
   resolveDisableModelInvocation,
-  resolveLicense,
-  resolveMetadata,
+  resolveStandardSkillFields,
   toAllowedToolsArray,
   toAllowedToolsString,
 } from "./skills-utils.js";
@@ -129,11 +128,7 @@ export class PiSkill extends ToolSkill {
       ...(frontmatter["disable-model-invocation"] !== undefined && {
         "disable-model-invocation": frontmatter["disable-model-invocation"],
       }),
-      ...(frontmatter.license !== undefined && { license: frontmatter.license }),
-      ...(frontmatter.compatibility !== undefined && {
-        compatibility: frontmatter.compatibility,
-      }),
-      ...(frontmatter.metadata !== undefined && { metadata: frontmatter.metadata }),
+      ...pickStandardSkillFields(frontmatter),
     };
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
       name: frontmatter.name,
@@ -169,13 +164,6 @@ export class PiSkill extends ToolSkill {
       allowedTools === undefined ? undefined : toAllowedToolsString(allowedTools);
     // The Agent Skills standard fields fall back to the root-level rulesync
     // value when the `pi` section omits them.
-    const license = resolveLicense({ rootFrontmatter: rulesyncFrontmatter, section: piSection });
-    const compatibility = resolveCompatibility({
-      rootFrontmatter: rulesyncFrontmatter,
-      section: piSection,
-    });
-    const metadata = resolveMetadata({ rootFrontmatter: rulesyncFrontmatter, section: piSection });
-
     const piFrontmatter: PiSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
@@ -185,9 +173,7 @@ export class PiSkill extends ToolSkill {
       // section omits a key. Every resolver already prefers a defined section
       // value, so overriding the spread never discards one.
       ...piSectionRest,
-      ...(license !== undefined && { license }),
-      ...(compatibility !== undefined && { compatibility }),
-      ...(metadata !== undefined && { metadata }),
+      ...resolveStandardSkillFields({ rootFrontmatter: rulesyncFrontmatter, section: piSection }),
       ...(resolvedDisableModelInvocation !== undefined && {
         "disable-model-invocation": resolvedDisableModelInvocation,
       }),

@@ -13,9 +13,8 @@ import {
 } from "../../utils/deepagents.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import {
-  resolveCompatibility,
-  resolveLicense,
-  resolveMetadata,
+  pickStandardSkillFields,
+  resolveStandardSkillFields,
   toAllowedToolsArray,
   toAllowedToolsString,
 } from "./skills-utils.js";
@@ -125,9 +124,7 @@ export class DeepagentsSkill extends ToolSkill {
     const deepagentsBlock = {
       ...(allowedToolsArray !== undefined &&
         allowedToolsArray.length > 0 && { "allowed-tools": allowedToolsArray }),
-      ...(frontmatter.license !== undefined && { license: frontmatter.license }),
-      ...(frontmatter.compatibility !== undefined && { compatibility: frontmatter.compatibility }),
-      ...(frontmatter.metadata !== undefined && { metadata: frontmatter.metadata }),
+      ...pickStandardSkillFields(frontmatter),
     };
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
       name: frontmatter.name,
@@ -168,25 +165,14 @@ export class DeepagentsSkill extends ToolSkill {
       allowedTools === undefined ? undefined : toAllowedToolsString(allowedTools);
     // The Agent Skills standard fields fall back to the root-level rulesync
     // value when the `deepagents` section omits them.
-    const license = resolveLicense({
-      rootFrontmatter: rulesyncFrontmatter,
-      section: deepagentsSection,
-    });
-    const compatibility = resolveCompatibility({
-      rootFrontmatter: rulesyncFrontmatter,
-      section: deepagentsSection,
-    });
-    const metadata = resolveMetadata({
-      rootFrontmatter: rulesyncFrontmatter,
-      section: deepagentsSection,
-    });
     const deepagentsFrontmatter: DeepagentsSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
       ...(allowedToolsString && { "allowed-tools": allowedToolsString }),
-      ...(license !== undefined && { license }),
-      ...(compatibility !== undefined && { compatibility }),
-      ...(metadata !== undefined && { metadata }),
+      ...resolveStandardSkillFields({
+        rootFrontmatter: rulesyncFrontmatter,
+        section: deepagentsSection,
+      }),
     };
 
     return new DeepagentsSkill({
