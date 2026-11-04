@@ -213,6 +213,17 @@ const defaultGetFactory: GetFactory = (target) => {
  */
 const MAX_LISTED_SKIPPED_IMPORT_ONLY_PATHS = 10;
 
+/** What every `loadToolFiles` scan shares. */
+type ToolFileLoadContext = {
+  factory: ToolRuleFactory;
+  settablePaths: ReturnType<ToolRuleFactory["class"]["getSettablePaths"]>;
+  forDeletion: boolean;
+  /** Whether `includeRoot: false` leaves the root files out. */
+  omitsRootFiles: boolean;
+  /** The tool's own root file paths; see `loadToolFiles`. */
+  primaryRootFilePaths: string[];
+};
+
 /**
  * Fall back to a tool's legacy roots when its primary root file is absent.
  *
@@ -1633,70 +1644,6 @@ As this project's AI coding tool, you must follow the additional conventions bel
         global: this.global,
       });
 
-      const resolveRelativeDirPath = (filePath: string): string => {
-        const dirName = dirname(relative(this.outputRoot, filePath));
-        return dirName === "" ? "." : dirName;
-      };
-
-      /**
-       * Build deletion rules from discovered file paths: resolve dir, check traversal, create forDeletion, filter isDeletable.
-       *
-       * Two modes:
-       * - Root mode (no opts): `relativeFilePath` = `basename(filePath)`, traversal checks `relativeDirPath` against `this.outputRoot`.
-       * - Non-root mode (with `outputRootOverride` + `relativeDirPathOverride`): `relativeFilePath` = `relative(outputRootOverride, filePath)`,
-       *   traversal checks `relativeFilePath` against `outputRootOverride`.
-       */
-      const buildDeletionRulesFromPaths = (
-        filePaths: string[],
-        opts?: { outputRootOverride: string; relativeDirPathOverride: string },
-      ): ToolRule[] => {
-        const isNonRoot = opts !== undefined;
-        const effectiveOutputRoot = isNonRoot ? opts.outputRootOverride : this.outputRoot;
-        return filePaths
-          .map((filePath) => {
-            const relativeDirPath = isNonRoot
-              ? opts.relativeDirPathOverride
-              : resolveRelativeDirPath(filePath);
-            const relativeFilePath = isNonRoot
-              ? relative(effectiveOutputRoot, filePath)
-              : basename(filePath);
-            checkPathTraversal({
-              relativePath: isNonRoot ? relativeFilePath : relativeDirPath,
-              intendedRootDir: effectiveOutputRoot,
-            });
-            return factory.class.forDeletion({
-              outputRoot: this.outputRoot,
-              relativeDirPath,
-              relativeFilePath,
-              global: this.global,
-            });
-          })
-          .filter((rule) => rule.isDeletable());
-      };
-
-      /**
-       * Import counterpart of {@link buildDeletionRulesFromPaths} for the
-       * root-shaped scans (root, legacy roots, read-only roots, extra fixed
-       * files and nested files), whose paths all sit at a directory Rulesync
-       * resolves from the file itself.
-       */
-      const buildImportRulesFromPaths = (filePaths: string[]): Promise<ToolRule[]> =>
-        Promise.all(
-          filePaths.map((filePath) => {
-            const relativeDirPath = resolveRelativeDirPath(filePath);
-            checkPathTraversal({
-              relativePath: relativeDirPath,
-              intendedRootDir: this.outputRoot,
-            });
-            return factory.class.fromFile({
-              outputRoot: this.outputRoot,
-              relativeDirPath,
-              relativeFilePath: basename(filePath),
-              global: this.global,
-            });
-          }),
-        );
-
       /**
        * The tool's own root file, as opposed to whichever root
        * `rootToolRules` ends up resolving. A legacy root reached through
@@ -1720,363 +1667,26 @@ As this project's AI coding tool, you must follow the additional conventions bel
           )
         : [];
 
-      const rootToolRules = await (async () => {
-        if (!settablePaths.root) {
-          return [];
-        }
+      const context: ToolFileLoadContext = {
+        factory,
+        settablePaths,
+        forDeletion,
+        omitsRootFiles,
+        primaryRootFilePaths,
+      };
 
-        if (forDeletion && omitsRootFiles) {
-          // Only sweep the file Rulesync writes: a `.claude/CLAUDE.md` is
-          // hand-authored, so it is reported instead of deleted.
-          await this.warnForShadowingRootFiles({ includePrimaryRoots: false });
-          return buildDeletionRulesFromPaths(primaryRootFilePaths);
-        }
-
-        const uniqueRootFilePaths = await findFilesWithFallback(
-          primaryRootFilePaths,
-          settablePaths.alternativeRoots,
-          (alt) => rootRelativeGlob(alt.relativeDirPath, alt.relativeFilePath),
-          this.outputRoot,
-        );
-
-        if (forDeletion) {
-          return buildDeletionRulesFromPaths(uniqueRootFilePaths);
-        }
-
-        return await buildImportRulesFromPaths(uniqueRootFilePaths);
-      })();
+      const rootToolRules = await this.loadRootToolRules(context);
       this.logger.debug(`Found ${rootToolRules.length} root tool rule files`);
-
-      // Load the separate `*.local.md` file (import and deletion) when the
-      // tool uses one, so a personal local-root file round-trips back to a
-      // canonical `localRoot: true` rulesync rule instead of being emit-only.
-      const localRootToolRules = await (async () => {
-        if (
-          this.global ||
-          factory.meta.localRootMode !== "separate-local-file" ||
-          !factory.meta.localRootFileName
-        ) {
-          return [];
-        }
-        const fileName = factory.meta.localRootFileName;
-
-        const filePaths = await (async () => {
-          if (factory.class.getLocalRootFileGlob) {
-            return await findFilesByGlobs(factory.class.getLocalRootFileGlob({ fileName }), {
-              cwd: this.outputRoot,
-            });
-          }
-          if (!settablePaths.root) {
-            return [];
-          }
-          const primaryLocalFilePaths = await findFilesByGlobs(
-            rootRelativeGlob(settablePaths.root.relativeDirPath ?? ".", fileName),
-            { cwd: this.outputRoot },
-          );
-          if (forDeletion && omitsRootFiles) {
-            return primaryLocalFilePaths;
-          }
-          return await findFilesWithFallback(
-            primaryLocalFilePaths,
-            settablePaths.alternativeRoots,
-            (alt) => rootRelativeGlob(alt.relativeDirPath, fileName),
-            this.outputRoot,
-          );
-        })();
-
-        if (forDeletion) {
-          return buildDeletionRulesFromPaths(filePaths);
-        }
-
-        const importedRules = await Promise.all(
-          filePaths.map(async (filePath) => {
-            const relativeDirPath = resolveRelativeDirPath(filePath);
-            checkPathTraversal({
-              relativePath: relativeDirPath,
-              intendedRootDir: this.outputRoot,
-            });
-            const body = await readFileContent(filePath);
-            return this.buildLocalRootFile({
-              factory,
-              fileName: basename(filePath),
-              body,
-              relativeDirPath,
-              localRoot: true,
-            });
-          }),
-        );
-        return importedRules.filter((rule): rule is ToolRule => rule !== null);
-      })();
+      const localRootToolRules = await this.loadLocalRootToolRules(context);
       this.logger.debug(`Found ${localRootToolRules.length} local root tool rule files`);
-
-      const rootMirrorDeletionRules = await (async () => {
-        const rootMirror = factory.class.getRootMirror?.();
-        if (!forDeletion || this.global || !rootMirror) {
-          return [];
-        }
-        const { primaryGlob, mirrorGlob } = rootMirror.getMirrorDeletionGlobs();
-        const primaryPaths = await findFilesByGlobs(primaryGlob, { cwd: this.outputRoot });
-        if (primaryPaths.length === 0) {
-          return [];
-        }
-        const mirrorPaths = await findFilesByGlobs(mirrorGlob, { cwd: this.outputRoot });
-        return buildDeletionRulesFromPaths(mirrorPaths);
-      })();
-
-      // Extra fixed-path files (e.g. Pi's APPEND_SYSTEM.md) enumerated for both
-      // import and deletion so they round-trip and stale files are cleaned up —
-      // except `importOnly` entries, which are enumerated on import only.
-      const extraFixedToolRules = await (async () => {
-        const extraFiles = factory.class
-          .getExtraFixedFiles?.({ global: this.global })
-          .filter((file) => !(forDeletion && file.importOnly));
-        if (!extraFiles || extraFiles.length === 0) {
-          return [];
-        }
-
-        // Files only: a glob entry such as `*.md` would otherwise match a
-        // directory named `x.md`, which cannot be read as a rule.
-        const findExtraFiles = async (files: ToolRuleExtraFixedFile[]) =>
-          files.length === 0
-            ? []
-            : await findFilesByGlobs(
-                files.map((file) => rootRelativeGlob(file.relativeDirPath, file.relativeFilePath)),
-                { cwd: this.outputRoot, type: "file" },
-              );
-        const managedFilePaths = await findExtraFiles(
-          extraFiles.filter((file) => !file.importOnly),
-        );
-        if (forDeletion) {
-          return managedFilePaths.length === 0 ? [] : buildDeletionRulesFromPaths(managedFilePaths);
-        }
-
-        // An `importOnly` directory is shared with hand-written files, so a
-        // symlink there (the file or a directory above it) may point anywhere;
-        // skip it rather than copy its target into `.rulesync/rules/`, where
-        // it may be committed. A link is detected as a file whose real path,
-        // taken against the real output root, differs from its spelled one.
-        const importOnlyFilePaths: string[] = [];
-        for (const filePath of await findExtraFiles(extraFiles.filter((file) => file.importOnly))) {
-          const spelledPath = toPosixPath(relative(this.outputRoot, filePath));
-          const realPath = await resolvedRelativePath({
-            rootPath: this.outputRoot,
-            targetPath: filePath,
-          });
-          if (realPath !== spelledPath) {
-            this.logger.warn(
-              `Skipping symbolic link ${stripControlCharacters(spelledPath)} on import: ${this.toolTarget} files reached through a link are not copied into ${RULESYNC_RULES_RELATIVE_DIR_PATH}.`,
-            );
-            continue;
-          }
-          importOnlyFilePaths.push(filePath);
-        }
-        const filePaths = [...managedFilePaths, ...importOnlyFilePaths];
-        if (filePaths.length === 0) {
-          return [];
-        }
-
-        return await buildImportRulesFromPaths(filePaths);
-      })();
+      const rootMirrorDeletionRules = await this.loadRootMirrorDeletionRules(context);
+      const extraFixedToolRules = await this.loadExtraFixedToolRules(context);
       this.logger.debug(`Found ${extraFixedToolRules.length} extra fixed tool rule files`);
-
-      // Pattern-discovered rule files (the AGENTS.md standard's nested
-      // subproject files). Import only — see `getNestedFileGlobs`.
-      const nestedToolRules = await (async () => {
-        // Never in global mode: the output root is the home directory there, and
-        // walking all of it looking for subprojects is both wrong and expensive.
-        const patterns = this.global ? undefined : factory.class.getNestedFilePatterns?.();
-        if (forDeletion || !patterns || patterns.include.length === 0) {
-          return [];
-        }
-
-        // Symlinks are not followed. Unlike the fixed-path scans, this one walks
-        // the whole project tree, so a symlink committed to a repository could
-        // otherwise pull a file from outside the project (a key, a dotfile) into
-        // version-controlled `.rulesync/rules/`. Not following them also keeps a
-        // pair of directory symlinks from exploding the traversal.
-        const matchedPaths = await findFilesByGlobs(patterns.include, {
-          cwd: this.outputRoot,
-          type: "file",
-          followSymbolicLinks: false,
-          ignore: patterns.ignore,
-        });
-
-        // The project's own statement of what is not its source. Without it a
-        // vendored dependency's rule file — third-party content the user
-        // deliberately kept untracked — would be copied into version-controlled
-        // `.rulesync/rules/`, and targets that concatenate non-root rules into
-        // one file would then load it unconditionally.
-        const filePaths = filterOutPathsInGitIgnoredDirectories({
-          rootDir: this.outputRoot,
-          filePaths: matchedPaths,
-          ownedDirPath: patterns.ownedDirPath,
-        });
-
-        return await buildImportRulesFromPaths(filePaths);
-      })();
+      const nestedToolRules = await this.loadNestedToolRules(context);
       this.logger.debug(`Found ${nestedToolRules.length} nested tool rule files`);
-
-      // Read-only rule roots a tool documents but Rulesync never writes to
-      // (Junie's `.junie/rules/*.md` and `.junie/playbook.md`). Import only:
-      // since generation never produces them, treating them as deletion
-      // candidates would delete hand-authored files rulesync does not own.
-      //
-      // These are fixed, tool-owned directories, so this scan mirrors the
-      // `nonRoot` one below rather than the nested one above: symlinks are
-      // followed, because a shared rules tree linked into `.junie/rules` is a
-      // supported layout (see `docs/guide/separate-input-root.md` on symlinks
-      // and trust). It runs in project scope only — see `importOnlyRoots`.
-      const importOnlyToolRules = await (async () => {
-        // Project scope only — `ToolRuleSettablePathsGlobal` has no
-        // `importOnlyRoots`, so in global mode this narrows away rather than
-        // globbing relative directories under the user's home.
-        const importOnlyRoots =
-          "importOnlyRoots" in settablePaths ? settablePaths.importOnlyRoots : undefined;
-        if (forDeletion || !importOnlyRoots || importOnlyRoots.length === 0) {
-          return [];
-        }
-
-        // A root file that exists has already absorbed these rules on a previous
-        // generate (Junie folds non-root rules into `.junie/AGENTS.md`), so
-        // re-importing them beside it would duplicate the same content once per
-        // import/generate cycle. See `onlyWhenRootAbsent`. Only the tool's own
-        // root counts — see `primaryRootFilePaths`.
-        const rootFilePath = primaryRootFilePaths[0];
-
-        const scannedPaths: string[] = [];
-        const skippedPaths: string[] = [];
-        const skippedOutrankingPaths: string[] = [];
-        for (const importOnlyRoot of importOnlyRoots) {
-          const matchedPaths = await findFilesByGlobs(
-            rootRelativeGlob(
-              importOnlyRoot.relativeDirPath,
-              importOnlyRoot.relativeFilePath ?? `*.${factory.meta.extension}`,
-            ),
-            { cwd: this.outputRoot, type: "file" },
-          );
-          if (importOnlyRoot.onlyWhenRootAbsent === true && rootFilePath !== undefined) {
-            (importOnlyRoot.outranksRoot === true ? skippedOutrankingPaths : skippedPaths).push(
-              ...matchedPaths,
-            );
-            continue;
-          }
-          scannedPaths.push(...matchedPaths);
-        }
-
-        // Left unreported these look imported but silently are not, and the
-        // tool no longer reads them either — a state worth acting on. The
-        // names come off the filesystem, so they are stripped of control
-        // characters before reaching a terminal, and the list is capped so a
-        // large rules directory cannot turn one warning into a wall of text.
-        if (skippedPaths.length > 0 && rootFilePath !== undefined) {
-          const skippedNames = skippedPaths.map((filePath) =>
-            stripControlCharacters(relative(this.outputRoot, filePath)),
-          );
-          const listedNames = skippedNames.slice(0, MAX_LISTED_SKIPPED_IMPORT_ONLY_PATHS);
-          const remainingCount = skippedNames.length - listedNames.length;
-          this.logger.warn(
-            `Not importing ${listedNames.join(", ")}${remainingCount > 0 ? ` and ${remainingCount} more` : ""} for ${this.toolTarget}: ${stripControlCharacters(relative(this.outputRoot, rootFilePath))} exists, and the tool reads that file exclusively. Delete them once you have checked that content is in the root file, or move it into ${RULESYNC_RULES_RELATIVE_DIR_PATH} if it is not.`,
-          );
-        }
-
-        // The tool reads these instead of the root file, so the root file just
-        // imported is the one it ignores.
-        if (skippedOutrankingPaths.length > 0 && rootFilePath !== undefined) {
-          const rootName = stripControlCharacters(relative(this.outputRoot, rootFilePath));
-          const skippedNames = skippedOutrankingPaths.map((filePath) =>
-            stripControlCharacters(relative(this.outputRoot, filePath)),
-          );
-          const listedNames = skippedNames.slice(0, MAX_LISTED_SKIPPED_IMPORT_ONLY_PATHS);
-          const remainingCount = skippedNames.length - listedNames.length;
-          this.logger.warn(
-            `Not importing ${listedNames.join(", ")}${remainingCount > 0 ? ` and ${remainingCount} more` : ""} for ${this.toolTarget}: ${rootName} is imported instead, but ${this.toolTarget} reads ${listedNames.length === 1 ? "that file" : "those files"} in place of ${rootName} when both exist. Move any content only it has into ${RULESYNC_RULES_RELATIVE_DIR_PATH} and delete it, so the generated ${rootName} takes effect.`,
-          );
-        }
-
-        return await buildImportRulesFromPaths(scannedPaths);
-      })();
+      const importOnlyToolRules = await this.loadImportOnlyToolRules(context);
       this.logger.debug(`Found ${importOnlyToolRules.length} import-only tool rule files`);
-
-      const nonRootToolRules = await (async () => {
-        if (!settablePaths.nonRoot) {
-          return [];
-        }
-
-        const nonRootOutputRoot = join(this.outputRoot, settablePaths.nonRoot.relativeDirPath);
-        const isSharedGlobalNonRootDir =
-          this.global && factory.meta.sharedGlobalNonRootDir === true;
-        const nonRootFilePaths = await findFilesByGlobs(
-          !forDeletion && factory.meta.nonRootImportGlob !== undefined
-            ? factory.meta.nonRootImportGlob
-            : `${isSharedGlobalNonRootDir ? "" : "**/"}*.${factory.meta.extension}`,
-          { cwd: nonRootOutputRoot, followSymbolicLinks: !forDeletion },
-        );
-
-        if (forDeletion) {
-          return buildDeletionRulesFromPaths(nonRootFilePaths, {
-            outputRootOverride: nonRootOutputRoot,
-            relativeDirPathOverride: settablePaths.nonRoot.relativeDirPath,
-          });
-        }
-
-        const modularRootRelative = settablePaths.nonRoot.relativeDirPath;
-
-        // When the root file lives in the same directory as the non-root files
-        // (e.g. Kiro's global steering, where the root is `~/.kiro/steering/
-        // product.md` alongside the non-root `~/.kiro/steering/*.md`), the
-        // non-root glob also matches the root file. Exclude it here so the root
-        // rule is not imported a second time as a non-root rule.
-        const rootFileNameInSameDir =
-          settablePaths.root?.relativeDirPath === settablePaths.nonRoot.relativeDirPath
-            ? settablePaths.root?.relativeFilePath
-            : undefined;
-
-        const nonRootPathsForImport = nonRootFilePaths
-          .filter((filePath) => {
-            const warning = factory.class.getNonRootImportSkipWarning?.({
-              relativeFilePath: relative(nonRootOutputRoot, filePath),
-              nonRootRelativeDirPath: modularRootRelative,
-            });
-            if (warning !== undefined) {
-              this.logger.warn(warning);
-            }
-            return warning === undefined;
-          })
-          .filter(
-            (filePath) =>
-              rootFileNameInSameDir === undefined ||
-              relative(nonRootOutputRoot, filePath) !== rootFileNameInSameDir,
-          );
-
-        const loadedNonRootRules = await Promise.all(
-          nonRootPathsForImport.map(async (filePath) => {
-            const relativeFilePath = relative(nonRootOutputRoot, filePath);
-            checkPathTraversal({
-              relativePath: relativeFilePath,
-              intendedRootDir: nonRootOutputRoot,
-            });
-            try {
-              return await factory.class.fromFile({
-                outputRoot: this.outputRoot,
-                relativeDirPath: modularRootRelative,
-                relativeFilePath,
-                global: this.global,
-              });
-            } catch (error) {
-              // A shared directory holds files other writers own, so one of
-              // them being unreadable must not abort the whole import.
-              if (!isSharedGlobalNonRootDir) {
-                throw error;
-              }
-              this.logger.warn(
-                `Skipping ${stripControlCharacters(join(modularRootRelative, relativeFilePath))} for ${this.toolTarget}: ${formatError(error)}`,
-              );
-              return undefined;
-            }
-          }),
-        );
-        return loadedNonRootRules.filter((rule): rule is ToolRule => rule !== undefined);
-      })();
+      const nonRootToolRules = await this.loadNonRootToolRules(context);
       this.logger.debug(`Found ${nonRootToolRules.length} non-root tool rule files`);
 
       return [
@@ -2101,6 +1711,502 @@ As this project's AI coding tool, you must follow the additional conventions bel
       this.logger.error(`Failed to load tool files for ${this.toolTarget}: ${formatError(error)}`);
       return [];
     }
+  }
+
+  /** A discovered file's directory relative to the output root (`.` at the root). */
+  private resolveRelativeDirPath(filePath: string): string {
+    const dirName = dirname(relative(this.outputRoot, filePath));
+    return dirName === "" ? "." : dirName;
+  }
+
+  /**
+   * Deletion rules for root-shaped paths: the directory is resolved from the
+   * file itself and checked against the output root, and only deletable rules
+   * are kept.
+   */
+  private buildRootDeletionRules({
+    factory,
+    filePaths,
+  }: {
+    factory: ToolRuleFactory;
+    filePaths: string[];
+  }): ToolRule[] {
+    return filePaths
+      .map((filePath) => {
+        const relativeDirPath = this.resolveRelativeDirPath(filePath);
+        checkPathTraversal({
+          relativePath: relativeDirPath,
+          intendedRootDir: this.outputRoot,
+        });
+        return factory.class.forDeletion({
+          outputRoot: this.outputRoot,
+          relativeDirPath,
+          relativeFilePath: basename(filePath),
+          global: this.global,
+        });
+      })
+      .filter((rule) => rule.isDeletable());
+  }
+
+  /**
+   * Deletion rules for paths under the non-root directory: the file path is
+   * taken relative to that directory and checked against it, and only
+   * deletable rules are kept.
+   */
+  private buildNonRootDeletionRules({
+    factory,
+    filePaths,
+    nonRootOutputRoot,
+    relativeDirPath,
+  }: {
+    factory: ToolRuleFactory;
+    filePaths: string[];
+    nonRootOutputRoot: string;
+    relativeDirPath: string;
+  }): ToolRule[] {
+    return filePaths
+      .map((filePath) => {
+        const relativeFilePath = relative(nonRootOutputRoot, filePath);
+        checkPathTraversal({
+          relativePath: relativeFilePath,
+          intendedRootDir: nonRootOutputRoot,
+        });
+        return factory.class.forDeletion({
+          outputRoot: this.outputRoot,
+          relativeDirPath,
+          relativeFilePath,
+          global: this.global,
+        });
+      })
+      .filter((rule) => rule.isDeletable());
+  }
+
+  /**
+   * Import counterpart of {@link buildRootDeletionRules} for the root-shaped
+   * scans (root, legacy roots, read-only roots, extra fixed files and nested
+   * files), whose paths all sit at a directory Rulesync resolves from the file
+   * itself.
+   */
+  private buildImportRules({
+    factory,
+    filePaths,
+  }: {
+    factory: ToolRuleFactory;
+    filePaths: string[];
+  }): Promise<ToolRule[]> {
+    return Promise.all(
+      filePaths.map((filePath) => {
+        const relativeDirPath = this.resolveRelativeDirPath(filePath);
+        checkPathTraversal({
+          relativePath: relativeDirPath,
+          intendedRootDir: this.outputRoot,
+        });
+        return factory.class.fromFile({
+          outputRoot: this.outputRoot,
+          relativeDirPath,
+          relativeFilePath: basename(filePath),
+          global: this.global,
+        });
+      }),
+    );
+  }
+
+  /**
+   * Paths relative to the output root, stripped of control characters (they
+   * come off the filesystem) and capped at
+   * {@link MAX_LISTED_SKIPPED_IMPORT_ONLY_PATHS} with an `and N more` suffix.
+   */
+  private formatCappedPathList(filePaths: string[]): string {
+    const names = filePaths.map((filePath) =>
+      stripControlCharacters(relative(this.outputRoot, filePath)),
+    );
+    const listedNames = names.slice(0, MAX_LISTED_SKIPPED_IMPORT_ONLY_PATHS);
+    const remainingCount = names.length - listedNames.length;
+    return `${listedNames.join(", ")}${remainingCount > 0 ? ` and ${remainingCount} more` : ""}`;
+  }
+
+  /** The root rules (with legacy `alternativeRoots` as fallback), for import or deletion. */
+  private async loadRootToolRules({
+    factory,
+    settablePaths,
+    forDeletion,
+    omitsRootFiles,
+    primaryRootFilePaths,
+  }: ToolFileLoadContext): Promise<ToolRule[]> {
+    if (!settablePaths.root) {
+      return [];
+    }
+
+    if (forDeletion && omitsRootFiles) {
+      // Only sweep the file Rulesync writes: a `.claude/CLAUDE.md` is
+      // hand-authored, so it is reported instead of deleted.
+      await this.warnForShadowingRootFiles({ includePrimaryRoots: false });
+      return this.buildRootDeletionRules({ factory, filePaths: primaryRootFilePaths });
+    }
+
+    const uniqueRootFilePaths = await findFilesWithFallback(
+      primaryRootFilePaths,
+      settablePaths.alternativeRoots,
+      (alt) => rootRelativeGlob(alt.relativeDirPath, alt.relativeFilePath),
+      this.outputRoot,
+    );
+
+    if (forDeletion) {
+      return this.buildRootDeletionRules({ factory, filePaths: uniqueRootFilePaths });
+    }
+
+    return await this.buildImportRules({ factory, filePaths: uniqueRootFilePaths });
+  }
+
+  /**
+   * Load the separate `*.local.md` file (import and deletion) when the
+   * tool uses one, so a personal local-root file round-trips back to a
+   * canonical `localRoot: true` rulesync rule instead of being emit-only.
+   */
+  private async loadLocalRootToolRules({
+    factory,
+    settablePaths,
+    forDeletion,
+    omitsRootFiles,
+  }: ToolFileLoadContext): Promise<ToolRule[]> {
+    if (
+      this.global ||
+      factory.meta.localRootMode !== "separate-local-file" ||
+      !factory.meta.localRootFileName
+    ) {
+      return [];
+    }
+    const fileName = factory.meta.localRootFileName;
+
+    const filePaths = await (async () => {
+      if (factory.class.getLocalRootFileGlob) {
+        return await findFilesByGlobs(factory.class.getLocalRootFileGlob({ fileName }), {
+          cwd: this.outputRoot,
+        });
+      }
+      if (!settablePaths.root) {
+        return [];
+      }
+      const primaryLocalFilePaths = await findFilesByGlobs(
+        rootRelativeGlob(settablePaths.root.relativeDirPath ?? ".", fileName),
+        { cwd: this.outputRoot },
+      );
+      if (forDeletion && omitsRootFiles) {
+        return primaryLocalFilePaths;
+      }
+      return await findFilesWithFallback(
+        primaryLocalFilePaths,
+        settablePaths.alternativeRoots,
+        (alt) => rootRelativeGlob(alt.relativeDirPath, fileName),
+        this.outputRoot,
+      );
+    })();
+
+    if (forDeletion) {
+      return this.buildRootDeletionRules({ factory, filePaths: filePaths });
+    }
+
+    const importedRules = await Promise.all(
+      filePaths.map(async (filePath) => {
+        const relativeDirPath = this.resolveRelativeDirPath(filePath);
+        checkPathTraversal({
+          relativePath: relativeDirPath,
+          intendedRootDir: this.outputRoot,
+        });
+        const body = await readFileContent(filePath);
+        return this.buildLocalRootFile({
+          factory,
+          fileName: basename(filePath),
+          body,
+          relativeDirPath,
+          localRoot: true,
+        });
+      }),
+    );
+    return importedRules.filter((rule): rule is ToolRule => rule !== null);
+  }
+
+  /** The root mirror files to delete, only while the primary root file exists. */
+  private async loadRootMirrorDeletionRules({
+    factory,
+    forDeletion,
+  }: ToolFileLoadContext): Promise<ToolRule[]> {
+    const rootMirror = factory.class.getRootMirror?.();
+    if (!forDeletion || this.global || !rootMirror) {
+      return [];
+    }
+    const { primaryGlob, mirrorGlob } = rootMirror.getMirrorDeletionGlobs();
+    const primaryPaths = await findFilesByGlobs(primaryGlob, { cwd: this.outputRoot });
+    if (primaryPaths.length === 0) {
+      return [];
+    }
+    const mirrorPaths = await findFilesByGlobs(mirrorGlob, { cwd: this.outputRoot });
+    return this.buildRootDeletionRules({ factory, filePaths: mirrorPaths });
+  }
+
+  /**
+   * Extra fixed-path files (e.g. Pi's APPEND_SYSTEM.md) enumerated for both
+   * import and deletion so they round-trip and stale files are cleaned up —
+   * except `importOnly` entries, which are enumerated on import only.
+   */
+  private async loadExtraFixedToolRules({
+    factory,
+    forDeletion,
+  }: ToolFileLoadContext): Promise<ToolRule[]> {
+    const extraFiles = factory.class
+      .getExtraFixedFiles?.({ global: this.global })
+      .filter((file) => !(forDeletion && file.importOnly));
+    if (!extraFiles || extraFiles.length === 0) {
+      return [];
+    }
+
+    // Files only: a glob entry such as `*.md` would otherwise match a
+    // directory named `x.md`, which cannot be read as a rule.
+    const findExtraFiles = async (files: ToolRuleExtraFixedFile[]) =>
+      files.length === 0
+        ? []
+        : await findFilesByGlobs(
+            files.map((file) => rootRelativeGlob(file.relativeDirPath, file.relativeFilePath)),
+            { cwd: this.outputRoot, type: "file" },
+          );
+    const managedFilePaths = await findExtraFiles(extraFiles.filter((file) => !file.importOnly));
+    if (forDeletion) {
+      return managedFilePaths.length === 0
+        ? []
+        : this.buildRootDeletionRules({ factory, filePaths: managedFilePaths });
+    }
+
+    // An `importOnly` directory is shared with hand-written files, so a
+    // symlink there (the file or a directory above it) may point anywhere;
+    // skip it rather than copy its target into `.rulesync/rules/`, where
+    // it may be committed. A link is detected as a file whose real path,
+    // taken against the real output root, differs from its spelled one.
+    const importOnlyFilePaths: string[] = [];
+    for (const filePath of await findExtraFiles(extraFiles.filter((file) => file.importOnly))) {
+      const spelledPath = toPosixPath(relative(this.outputRoot, filePath));
+      const realPath = await resolvedRelativePath({
+        rootPath: this.outputRoot,
+        targetPath: filePath,
+      });
+      if (realPath !== spelledPath) {
+        this.logger.warn(
+          `Skipping symbolic link ${stripControlCharacters(spelledPath)} on import: ${this.toolTarget} files reached through a link are not copied into ${RULESYNC_RULES_RELATIVE_DIR_PATH}.`,
+        );
+        continue;
+      }
+      importOnlyFilePaths.push(filePath);
+    }
+    const filePaths = [...managedFilePaths, ...importOnlyFilePaths];
+    if (filePaths.length === 0) {
+      return [];
+    }
+
+    return await this.buildImportRules({ factory, filePaths: filePaths });
+  }
+
+  /**
+   * Pattern-discovered rule files (the AGENTS.md standard's nested
+   * subproject files). Import only — see `getNestedFileGlobs`.
+   */
+  private async loadNestedToolRules({
+    factory,
+    forDeletion,
+  }: ToolFileLoadContext): Promise<ToolRule[]> {
+    // Never in global mode: the output root is the home directory there, and
+    // walking all of it looking for subprojects is both wrong and expensive.
+    const patterns = this.global ? undefined : factory.class.getNestedFilePatterns?.();
+    if (forDeletion || !patterns || patterns.include.length === 0) {
+      return [];
+    }
+
+    // Symlinks are not followed. Unlike the fixed-path scans, this one walks
+    // the whole project tree, so a symlink committed to a repository could
+    // otherwise pull a file from outside the project (a key, a dotfile) into
+    // version-controlled `.rulesync/rules/`. Not following them also keeps a
+    // pair of directory symlinks from exploding the traversal.
+    const matchedPaths = await findFilesByGlobs(patterns.include, {
+      cwd: this.outputRoot,
+      type: "file",
+      followSymbolicLinks: false,
+      ignore: patterns.ignore,
+    });
+
+    // The project's own statement of what is not its source. Without it a
+    // vendored dependency's rule file — third-party content the user
+    // deliberately kept untracked — would be copied into version-controlled
+    // `.rulesync/rules/`, and targets that concatenate non-root rules into
+    // one file would then load it unconditionally.
+    const filePaths = filterOutPathsInGitIgnoredDirectories({
+      rootDir: this.outputRoot,
+      filePaths: matchedPaths,
+      ownedDirPath: patterns.ownedDirPath,
+    });
+
+    return await this.buildImportRules({ factory, filePaths: filePaths });
+  }
+
+  /**
+   * Read-only rule roots a tool documents but Rulesync never writes to
+   * (Junie's `.junie/rules/*.md` and `.junie/playbook.md`). Import only:
+   * since generation never produces them, treating them as deletion
+   * candidates would delete hand-authored files rulesync does not own.
+   *
+   * These are fixed, tool-owned directories, so this scan mirrors the
+   * `nonRoot` one below rather than the nested one above: symlinks are
+   * followed, because a shared rules tree linked into `.junie/rules` is a
+   * supported layout (see `docs/guide/separate-input-root.md` on symlinks
+   * and trust). It runs in project scope only — see `importOnlyRoots`.
+   */
+  private async loadImportOnlyToolRules({
+    factory,
+    settablePaths,
+    forDeletion,
+    primaryRootFilePaths,
+  }: ToolFileLoadContext): Promise<ToolRule[]> {
+    // Project scope only — `ToolRuleSettablePathsGlobal` has no
+    // `importOnlyRoots`, so in global mode this narrows away rather than
+    // globbing relative directories under the user's home.
+    const importOnlyRoots =
+      "importOnlyRoots" in settablePaths ? settablePaths.importOnlyRoots : undefined;
+    if (forDeletion || !importOnlyRoots || importOnlyRoots.length === 0) {
+      return [];
+    }
+
+    // A root file that exists has already absorbed these rules on a previous
+    // generate (Junie folds non-root rules into `.junie/AGENTS.md`), so
+    // re-importing them beside it would duplicate the same content once per
+    // import/generate cycle. See `onlyWhenRootAbsent`. Only the tool's own
+    // root counts — see `primaryRootFilePaths`.
+    const rootFilePath = primaryRootFilePaths[0];
+
+    const scannedPaths: string[] = [];
+    const skippedPaths: string[] = [];
+    const skippedOutrankingPaths: string[] = [];
+    for (const importOnlyRoot of importOnlyRoots) {
+      const matchedPaths = await findFilesByGlobs(
+        rootRelativeGlob(
+          importOnlyRoot.relativeDirPath,
+          importOnlyRoot.relativeFilePath ?? `*.${factory.meta.extension}`,
+        ),
+        { cwd: this.outputRoot, type: "file" },
+      );
+      if (importOnlyRoot.onlyWhenRootAbsent === true && rootFilePath !== undefined) {
+        (importOnlyRoot.outranksRoot === true ? skippedOutrankingPaths : skippedPaths).push(
+          ...matchedPaths,
+        );
+        continue;
+      }
+      scannedPaths.push(...matchedPaths);
+    }
+
+    // Left unreported these look imported but silently are not, and the
+    // tool no longer reads them either — a state worth acting on. The
+    // names come off the filesystem, so they are stripped of control
+    // characters before reaching a terminal, and the list is capped so a
+    // large rules directory cannot turn one warning into a wall of text.
+    if (skippedPaths.length > 0 && rootFilePath !== undefined) {
+      this.logger.warn(
+        `Not importing ${this.formatCappedPathList(skippedPaths)} for ${this.toolTarget}: ${stripControlCharacters(relative(this.outputRoot, rootFilePath))} exists, and the tool reads that file exclusively. Delete them once you have checked that content is in the root file, or move it into ${RULESYNC_RULES_RELATIVE_DIR_PATH} if it is not.`,
+      );
+    }
+
+    // The tool reads these instead of the root file, so the root file just
+    // imported is the one it ignores.
+    if (skippedOutrankingPaths.length > 0 && rootFilePath !== undefined) {
+      const rootName = stripControlCharacters(relative(this.outputRoot, rootFilePath));
+      this.logger.warn(
+        `Not importing ${this.formatCappedPathList(skippedOutrankingPaths)} for ${this.toolTarget}: ${rootName} is imported instead, but ${this.toolTarget} reads ${skippedOutrankingPaths.length === 1 ? "that file" : "those files"} in place of ${rootName} when both exist. Move any content only it has into ${RULESYNC_RULES_RELATIVE_DIR_PATH} and delete it, so the generated ${rootName} takes effect.`,
+      );
+    }
+
+    return await this.buildImportRules({ factory, filePaths: scannedPaths });
+  }
+
+  /** The non-root rules under the tool's non-root directory, for import or deletion. */
+  private async loadNonRootToolRules({
+    factory,
+    settablePaths,
+    forDeletion,
+  }: ToolFileLoadContext): Promise<ToolRule[]> {
+    if (!settablePaths.nonRoot) {
+      return [];
+    }
+
+    const nonRootOutputRoot = join(this.outputRoot, settablePaths.nonRoot.relativeDirPath);
+    const isSharedGlobalNonRootDir = this.global && factory.meta.sharedGlobalNonRootDir === true;
+    const nonRootFilePaths = await findFilesByGlobs(
+      !forDeletion && factory.meta.nonRootImportGlob !== undefined
+        ? factory.meta.nonRootImportGlob
+        : `${isSharedGlobalNonRootDir ? "" : "**/"}*.${factory.meta.extension}`,
+      { cwd: nonRootOutputRoot, followSymbolicLinks: !forDeletion },
+    );
+
+    if (forDeletion) {
+      return this.buildNonRootDeletionRules({
+        factory,
+        filePaths: nonRootFilePaths,
+        nonRootOutputRoot,
+        relativeDirPath: settablePaths.nonRoot.relativeDirPath,
+      });
+    }
+
+    const modularRootRelative = settablePaths.nonRoot.relativeDirPath;
+
+    // When the root file lives in the same directory as the non-root files
+    // (e.g. Kiro's global steering, where the root is `~/.kiro/steering/
+    // product.md` alongside the non-root `~/.kiro/steering/*.md`), the
+    // non-root glob also matches the root file. Exclude it here so the root
+    // rule is not imported a second time as a non-root rule.
+    const rootFileNameInSameDir =
+      settablePaths.root?.relativeDirPath === settablePaths.nonRoot.relativeDirPath
+        ? settablePaths.root?.relativeFilePath
+        : undefined;
+
+    const nonRootPathsForImport = nonRootFilePaths
+      .filter((filePath) => {
+        const warning = factory.class.getNonRootImportSkipWarning?.({
+          relativeFilePath: relative(nonRootOutputRoot, filePath),
+          nonRootRelativeDirPath: modularRootRelative,
+        });
+        if (warning !== undefined) {
+          this.logger.warn(warning);
+        }
+        return warning === undefined;
+      })
+      .filter(
+        (filePath) =>
+          rootFileNameInSameDir === undefined ||
+          relative(nonRootOutputRoot, filePath) !== rootFileNameInSameDir,
+      );
+
+    const loadedNonRootRules = await Promise.all(
+      nonRootPathsForImport.map(async (filePath) => {
+        const relativeFilePath = relative(nonRootOutputRoot, filePath);
+        checkPathTraversal({
+          relativePath: relativeFilePath,
+          intendedRootDir: nonRootOutputRoot,
+        });
+        try {
+          return await factory.class.fromFile({
+            outputRoot: this.outputRoot,
+            relativeDirPath: modularRootRelative,
+            relativeFilePath,
+            global: this.global,
+          });
+        } catch (error) {
+          // A shared directory holds files other writers own, so one of
+          // them being unreadable must not abort the whole import.
+          if (!isSharedGlobalNonRootDir) {
+            throw error;
+          }
+          this.logger.warn(
+            `Skipping ${stripControlCharacters(join(modularRootRelative, relativeFilePath))} for ${this.toolTarget}: ${formatError(error)}`,
+          );
+          return undefined;
+        }
+      }),
+    );
+    return loadedNonRootRules.filter((rule): rule is ToolRule => rule !== undefined);
   }
 
   /**
