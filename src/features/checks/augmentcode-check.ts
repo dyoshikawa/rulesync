@@ -8,18 +8,14 @@ import {
   AUGMENTCODE_DIR,
 } from "../../constants/augmentcode-paths.js";
 import { RULESYNC_CHECKS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
-import type { ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
 import { fileExists, readFileContentOrNull } from "../../utils/file.js";
 import { isPlainObject } from "../../utils/type-guards.js";
 import { loadYaml } from "../../utils/yaml.js";
 import { checkStem, parseCheckOverride, slugifyCheckName, uniqueCheckName } from "./check-slug.js";
 import { RulesyncCheck } from "./rulesync-check.js";
+import { SingleFileToolCheck } from "./single-file-tool-check.js";
 import {
-  ToolCheck,
-  type ToolCheckForDeletionParams,
-  type ToolCheckFromFileParams,
-  type ToolCheckFromRulesyncCheckParams,
   type ToolCheckFromRulesyncChecksParams,
   type ToolCheckSettablePaths,
 } from "./tool-check.js";
@@ -278,7 +274,7 @@ function readRule(
  *
  * @see https://docs.augmentcode.com/codereview/review-guidelines
  */
-export class AugmentcodeCheck extends ToolCheck {
+export class AugmentcodeCheck extends SingleFileToolCheck {
   static getSettablePaths(_options: { global?: boolean } = {}): ToolCheckSettablePaths {
     // Naming the file keeps consumers that would otherwise claim the whole
     // `.augment/` tree — the gitignore derivation, for one — narrowed to the one
@@ -302,20 +298,12 @@ export class AugmentcodeCheck extends ToolCheck {
    * no way to prove otherwise.
    */
   static async canDeleteAuxiliaryFiles({ outputRoot }: { outputRoot: string }): Promise<boolean> {
-    const paths = AugmentcodeCheck.getSettablePaths();
-    const filePath = join(
-      outputRoot,
-      paths.relativeDirPath,
-      paths.relativeFilePath ?? AUGMENTCODE_CODE_REVIEW_GUIDELINES_FILE_NAME,
-    );
+    const { filePath } = this.getSingleFilePath({ outputRoot });
     return !(await fileExists(filePath));
   }
 
-  static override fromRulesyncCheck(_params: ToolCheckFromRulesyncCheckParams): AugmentcodeCheck {
-    // Areas share one file, so they are only ever built as a set.
-    throw new Error(
-      "AugmentCode checks are built from all checks at once; use fromRulesyncChecks.",
-    );
+  protected static override getDisplayName(): string {
+    return "AugmentCode";
   }
 
   static async fromRulesyncChecks({
@@ -324,9 +312,10 @@ export class AugmentcodeCheck extends ToolCheck {
     global = false,
     logger,
   }: ToolCheckFromRulesyncChecksParams): Promise<AugmentcodeCheck[]> {
-    const paths = AugmentcodeCheck.getSettablePaths({ global });
-    const relativeFilePath = paths.relativeFilePath ?? AUGMENTCODE_CODE_REVIEW_GUIDELINES_FILE_NAME;
-    const filePath = join(outputRoot, paths.relativeDirPath, relativeFilePath);
+    const { relativeDirPath, relativeFilePath, filePath } = this.getSingleFilePath({
+      outputRoot,
+      global,
+    });
     // Read without initializing so a dry-run does not create the user's
     // guidelines file as a side effect.
     const existingContent = (await readFileContentOrNull(filePath)) ?? "";
@@ -378,48 +367,12 @@ export class AugmentcodeCheck extends ToolCheck {
     return [
       new AugmentcodeCheck({
         outputRoot,
-        relativeDirPath: paths.relativeDirPath,
+        relativeDirPath,
         relativeFilePath,
         fileContent,
         global,
       }),
     ];
-  }
-
-  static async fromFile({
-    outputRoot = process.cwd(),
-    global = false,
-  }: ToolCheckFromFileParams): Promise<AugmentcodeCheck> {
-    const paths = AugmentcodeCheck.getSettablePaths({ global });
-    const relativeFilePath = paths.relativeFilePath ?? AUGMENTCODE_CODE_REVIEW_GUIDELINES_FILE_NAME;
-    const filePath = join(outputRoot, paths.relativeDirPath, relativeFilePath);
-    return new AugmentcodeCheck({
-      outputRoot,
-      relativeDirPath: paths.relativeDirPath,
-      relativeFilePath,
-      fileContent: (await readFileContentOrNull(filePath)) ?? "",
-      global,
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-    global = false,
-  }: ToolCheckForDeletionParams): AugmentcodeCheck {
-    return new AugmentcodeCheck({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: "",
-      validate: false,
-      global,
-    });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   toRulesyncCheck(): RulesyncCheck {

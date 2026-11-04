@@ -8,18 +8,14 @@ import {
   GITLABDUO_MR_REVIEW_INSTRUCTIONS_FILE_NAME,
 } from "../../constants/gitlabduo-paths.js";
 import { RULESYNC_CHECKS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
-import type { ValidationResult } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
 import { fileExists, readFileContentOrNull } from "../../utils/file.js";
 import { isPlainObject } from "../../utils/type-guards.js";
 import { loadYaml } from "../../utils/yaml.js";
 import { checkStem, parseCheckOverride, slugifyCheckName, uniqueCheckName } from "./check-slug.js";
 import { RulesyncCheck } from "./rulesync-check.js";
+import { SingleFileToolCheck } from "./single-file-tool-check.js";
 import {
-  ToolCheck,
-  type ToolCheckForDeletionParams,
-  type ToolCheckFromFileParams,
-  type ToolCheckFromRulesyncCheckParams,
   type ToolCheckFromRulesyncChecksParams,
   type ToolCheckSettablePaths,
 } from "./tool-check.js";
@@ -106,7 +102,7 @@ function readInstruction(raw: unknown): GitlabduoInstruction | undefined {
  *
  * @see https://docs.gitlab.com/user/duo_agent_platform/customize/review_instructions/
  */
-export class GitlabduoCheck extends ToolCheck {
+export class GitlabduoCheck extends SingleFileToolCheck {
   static getSettablePaths(_options: { global?: boolean } = {}): ToolCheckSettablePaths {
     // Naming the file keeps consumers such as the gitignore derivation from
     // claiming the whole `.gitlab/duo/` directory.
@@ -125,17 +121,12 @@ export class GitlabduoCheck extends ToolCheck {
    * file may hold hand-written instructions and is never deleted.
    */
   static async canDeleteAuxiliaryFiles({ outputRoot }: { outputRoot: string }): Promise<boolean> {
-    const paths = GitlabduoCheck.getSettablePaths();
-    const filePath = join(
-      outputRoot,
-      paths.relativeDirPath,
-      paths.relativeFilePath ?? GITLABDUO_MR_REVIEW_INSTRUCTIONS_FILE_NAME,
-    );
+    const { filePath } = this.getSingleFilePath({ outputRoot });
     return !(await fileExists(filePath));
   }
 
-  static override fromRulesyncCheck(_params: ToolCheckFromRulesyncCheckParams): GitlabduoCheck {
-    throw new Error("GitLab Duo checks are built from all checks at once; use fromRulesyncChecks.");
+  protected static override getDisplayName(): string {
+    return "GitLab Duo";
   }
 
   static async fromRulesyncChecks({
@@ -144,9 +135,10 @@ export class GitlabduoCheck extends ToolCheck {
     global = false,
     logger,
   }: ToolCheckFromRulesyncChecksParams): Promise<GitlabduoCheck[]> {
-    const paths = GitlabduoCheck.getSettablePaths({ global });
-    const relativeFilePath = paths.relativeFilePath ?? GITLABDUO_MR_REVIEW_INSTRUCTIONS_FILE_NAME;
-    const filePath = join(outputRoot, paths.relativeDirPath, relativeFilePath);
+    const { relativeDirPath, relativeFilePath, filePath } = this.getSingleFilePath({
+      outputRoot,
+      global,
+    });
     const existing = parseInstructionsFile((await readFileContentOrNull(filePath)) ?? "", filePath);
     const existingInstructions = Array.isArray(existing.instructions) ? existing.instructions : [];
 
@@ -203,48 +195,12 @@ export class GitlabduoCheck extends ToolCheck {
     return [
       new GitlabduoCheck({
         outputRoot,
-        relativeDirPath: paths.relativeDirPath,
+        relativeDirPath,
         relativeFilePath,
         fileContent,
         global,
       }),
     ];
-  }
-
-  static async fromFile({
-    outputRoot = process.cwd(),
-    global = false,
-  }: ToolCheckFromFileParams): Promise<GitlabduoCheck> {
-    const paths = GitlabduoCheck.getSettablePaths({ global });
-    const relativeFilePath = paths.relativeFilePath ?? GITLABDUO_MR_REVIEW_INSTRUCTIONS_FILE_NAME;
-    const filePath = join(outputRoot, paths.relativeDirPath, relativeFilePath);
-    return new GitlabduoCheck({
-      outputRoot,
-      relativeDirPath: paths.relativeDirPath,
-      relativeFilePath,
-      fileContent: (await readFileContentOrNull(filePath)) ?? "",
-      global,
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-    global = false,
-  }: ToolCheckForDeletionParams): GitlabduoCheck {
-    return new GitlabduoCheck({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: "",
-      validate: false,
-      global,
-    });
-  }
-
-  validate(): ValidationResult {
-    return { success: true, error: null };
   }
 
   toRulesyncCheck(): RulesyncCheck {
