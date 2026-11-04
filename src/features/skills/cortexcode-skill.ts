@@ -1,5 +1,3 @@
-import { join } from "node:path";
-
 import { z } from "zod/mini";
 
 import {
@@ -162,38 +160,12 @@ export class CortexcodeSkill extends ToolSkill {
   protected static override readonly toolTarget = "cortexcode";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<CortexcodeSkill> {
-    const loaded = await this.loadSkillDirContent({
-      ...params,
-      getSettablePaths: CortexcodeSkill.getSettablePaths,
-    });
-
-    const frontmatter = this.parseLoadedFrontmatter({
-      schema: CortexcodeSkillFrontmatterSchema,
-      loaded,
-    });
-
-    if (frontmatter.name !== loaded.dirName) {
-      const skillFilePath = join(
-        loaded.outputRoot,
-        loaded.relativeDirPath,
-        loaded.dirName,
-        SKILL_FILE_NAME,
-      );
-      throw new Error(
-        `Frontmatter name (${frontmatter.name}) must match directory name (${loaded.dirName}) in ${skillFilePath}`,
-      );
-    }
-
-    return new CortexcodeSkill({
-      outputRoot: loaded.outputRoot,
-      relativeDirPath: loaded.relativeDirPath,
-      dirName: loaded.dirName,
-      frontmatter,
-      body: loaded.body,
-      otherFiles: loaded.otherFiles,
-      validate: true,
-      global: loaded.global,
-    });
+    return new CortexcodeSkill(
+      await this.loadStandardSkillParamsMatchingDirName({
+        params,
+        schema: CortexcodeSkillFrontmatterSchema,
+      }),
+    );
   }
 
   static forDeletion(params: ToolSkillForDeletionParams): CortexcodeSkill {

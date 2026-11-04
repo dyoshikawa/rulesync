@@ -153,6 +153,18 @@ type LoadedSkillDirContent = {
   global: boolean;
 };
 
+/** Validated constructor params built from a loaded skill directory. */
+type StandardSkillParams<T> = {
+  outputRoot: string;
+  relativeDirPath: string;
+  dirName: string;
+  frontmatter: T;
+  body: string;
+  otherFiles: SkillFile[];
+  validate: true;
+  global: boolean;
+};
+
 /**
  * Abstract base class for AI development tool-specific skill formats.
  *
@@ -417,6 +429,32 @@ export abstract class ToolSkill extends AiDir {
   }
 
   /**
+   * Like `parseLoadedFrontmatter`, and additionally requires the frontmatter
+   * `name` to match the skill directory name.
+   */
+  protected static parseLoadedFrontmatterMatchingDirName<T extends { name: string }>({
+    schema,
+    loaded,
+  }: {
+    schema: z.ZodMiniType<T>;
+    loaded: LoadedSkillDirContent;
+  }): T {
+    const frontmatter = this.parseLoadedFrontmatter({ schema, loaded });
+    if (frontmatter.name !== loaded.dirName) {
+      const skillFilePath = join(
+        loaded.outputRoot,
+        loaded.relativeDirPath,
+        loaded.dirName,
+        SKILL_FILE_NAME,
+      );
+      throw new Error(
+        `Frontmatter name (${frontmatter.name}) must match directory name (${loaded.dirName}) in ${skillFilePath}`,
+      );
+    }
+    return frontmatter;
+  }
+
+  /**
    * The common `fromDir` body: load the skill directory (resolving the default
    * root from the class's own `getSettablePaths`), parse its frontmatter
    * against the tool's schema, and return validated constructor params.
@@ -427,22 +465,43 @@ export abstract class ToolSkill extends AiDir {
   }: {
     params: ToolSkillFromDirParams;
     schema: z.ZodMiniType<T>;
-  }): Promise<{
-    outputRoot: string;
-    relativeDirPath: string;
-    dirName: string;
-    frontmatter: T;
-    body: string;
-    otherFiles: SkillFile[];
-    validate: true;
-    global: boolean;
-  }> {
+  }): Promise<StandardSkillParams<T>> {
+    return this.loadSkillParamsWith({
+      params,
+      parse: (loaded) => this.parseLoadedFrontmatter({ schema, loaded }),
+    });
+  }
+
+  /**
+   * Like `loadStandardSkillParams`, and additionally requires the frontmatter
+   * `name` to match the skill directory name.
+   */
+  protected static async loadStandardSkillParamsMatchingDirName<T extends { name: string }>({
+    params,
+    schema,
+  }: {
+    params: ToolSkillFromDirParams;
+    schema: z.ZodMiniType<T>;
+  }): Promise<StandardSkillParams<T>> {
+    return this.loadSkillParamsWith({
+      params,
+      parse: (loaded) => this.parseLoadedFrontmatterMatchingDirName({ schema, loaded }),
+    });
+  }
+
+  private static async loadSkillParamsWith<T>({
+    params,
+    parse,
+  }: {
+    params: ToolSkillFromDirParams;
+    parse: (loaded: LoadedSkillDirContent) => T;
+  }): Promise<StandardSkillParams<T>> {
     const loaded = await this.loadSkillDirContent({
       ...params,
       getSettablePaths: (options) => this.getSettablePaths(options),
     });
 
-    const frontmatter = this.parseLoadedFrontmatter({ schema, loaded });
+    const frontmatter = parse(loaded);
 
     return {
       outputRoot: loaded.outputRoot,

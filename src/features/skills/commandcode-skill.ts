@@ -1,5 +1,3 @@
-import { join } from "node:path";
-
 import { z } from "zod/mini";
 
 import { COMMANDCODE_SKILLS_DIR_PATH } from "../../constants/commandcode-paths.js";
@@ -205,38 +203,12 @@ export class CommandcodeSkill extends ToolSkill {
   protected static override readonly toolTarget = "commandcode";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<CommandcodeSkill> {
-    const loaded = await this.loadSkillDirContent({
-      ...params,
-      getSettablePaths: CommandcodeSkill.getSettablePaths,
-    });
-
-    const frontmatter = this.parseLoadedFrontmatter({
-      schema: CommandcodeSkillFrontmatterSchema,
-      loaded,
-    });
-
-    if (frontmatter.name !== loaded.dirName) {
-      const skillFilePath = join(
-        loaded.outputRoot,
-        loaded.relativeDirPath,
-        loaded.dirName,
-        SKILL_FILE_NAME,
-      );
-      throw new Error(
-        `Frontmatter name (${frontmatter.name}) must match directory name (${loaded.dirName}) in ${skillFilePath}`,
-      );
-    }
-
-    return new CommandcodeSkill({
-      outputRoot: loaded.outputRoot,
-      relativeDirPath: loaded.relativeDirPath,
-      dirName: loaded.dirName,
-      frontmatter,
-      body: loaded.body,
-      otherFiles: loaded.otherFiles,
-      validate: true,
-      global: loaded.global,
-    });
+    return new CommandcodeSkill(
+      await this.loadStandardSkillParamsMatchingDirName({
+        params,
+        schema: CommandcodeSkillFrontmatterSchema,
+      }),
+    );
   }
 
   static forDeletion(params: ToolSkillForDeletionParams): CommandcodeSkill {

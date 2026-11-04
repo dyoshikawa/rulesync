@@ -1,5 +1,3 @@
-import { join } from "node:path";
-
 import { z } from "zod/mini";
 
 import { SKILL_FILE_NAME } from "../../constants/general.js";
@@ -160,38 +158,12 @@ export class TabnineSkill extends ToolSkill {
   protected static override readonly toolTarget = "tabnine";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<TabnineSkill> {
-    const loaded = await this.loadSkillDirContent({
-      ...params,
-      getSettablePaths: TabnineSkill.getSettablePaths,
-    });
-
-    const frontmatter = this.parseLoadedFrontmatter({
-      schema: TabnineSkillFrontmatterSchema,
-      loaded,
-    });
-
-    if (frontmatter.name !== loaded.dirName) {
-      const skillFilePath = join(
-        loaded.outputRoot,
-        loaded.relativeDirPath,
-        loaded.dirName,
-        SKILL_FILE_NAME,
-      );
-      throw new Error(
-        `Frontmatter name (${frontmatter.name}) must match directory name (${loaded.dirName}) in ${skillFilePath}`,
-      );
-    }
-
-    return new TabnineSkill({
-      outputRoot: loaded.outputRoot,
-      relativeDirPath: loaded.relativeDirPath,
-      dirName: loaded.dirName,
-      frontmatter,
-      body: loaded.body,
-      otherFiles: loaded.otherFiles,
-      validate: true,
-      global: loaded.global,
-    });
+    return new TabnineSkill(
+      await this.loadStandardSkillParamsMatchingDirName({
+        params,
+        schema: TabnineSkillFrontmatterSchema,
+      }),
+    );
   }
 
   static forDeletion(params: ToolSkillForDeletionParams): TabnineSkill {

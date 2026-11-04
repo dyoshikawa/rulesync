@@ -1,5 +1,3 @@
-import { join } from "node:path";
-
 import { z } from "zod/mini";
 
 import { SKILL_FILE_NAME } from "../../constants/general.js";
@@ -171,35 +169,12 @@ export class KiroSkill extends ToolSkill {
   protected static override readonly toolTarget: ToolTarget = "kiro";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<KiroSkill> {
-    const loaded = await this.loadSkillDirContent({
-      ...params,
-      getSettablePaths: KiroSkill.getSettablePaths,
-    });
-
-    const frontmatter = this.parseLoadedFrontmatter({ schema: KiroSkillFrontmatterSchema, loaded });
-
-    if (frontmatter.name !== loaded.dirName) {
-      const skillFilePath = join(
-        loaded.outputRoot,
-        loaded.relativeDirPath,
-        loaded.dirName,
-        SKILL_FILE_NAME,
-      );
-      throw new Error(
-        `Frontmatter name (${frontmatter.name}) must match directory name (${loaded.dirName}) in ${skillFilePath}`,
-      );
-    }
-
-    return new KiroSkill({
-      outputRoot: loaded.outputRoot,
-      relativeDirPath: loaded.relativeDirPath,
-      dirName: loaded.dirName,
-      frontmatter,
-      body: loaded.body,
-      otherFiles: loaded.otherFiles,
-      validate: true,
-      global: loaded.global,
-    });
+    return new KiroSkill(
+      await this.loadStandardSkillParamsMatchingDirName({
+        params,
+        schema: KiroSkillFrontmatterSchema,
+      }),
+    );
   }
 
   static forDeletion(params: ToolSkillForDeletionParams): KiroSkill {

@@ -1,5 +1,3 @@
-import { join } from "node:path";
-
 import { z } from "zod/mini";
 
 import { CLINE_SKILLS_DIR_PATH } from "../../constants/cline-paths.js";
@@ -153,38 +151,12 @@ export class ClineSkill extends ToolSkill {
   protected static override readonly toolTarget = "cline";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<ClineSkill> {
-    const loaded = await this.loadSkillDirContent({
-      ...params,
-      getSettablePaths: ClineSkill.getSettablePaths,
-    });
-
-    const frontmatter = this.parseLoadedFrontmatter({
-      schema: ClineSkillFrontmatterSchema,
-      loaded,
-    });
-
-    if (frontmatter.name !== loaded.dirName) {
-      const skillFilePath = join(
-        loaded.outputRoot,
-        loaded.relativeDirPath,
-        loaded.dirName,
-        SKILL_FILE_NAME,
-      );
-      throw new Error(
-        `Frontmatter name (${frontmatter.name}) must match directory name (${loaded.dirName}) in ${skillFilePath}`,
-      );
-    }
-
-    return new ClineSkill({
-      outputRoot: loaded.outputRoot,
-      relativeDirPath: loaded.relativeDirPath,
-      dirName: loaded.dirName,
-      frontmatter,
-      body: loaded.body,
-      otherFiles: loaded.otherFiles,
-      validate: true,
-      global: loaded.global,
-    });
+    return new ClineSkill(
+      await this.loadStandardSkillParamsMatchingDirName({
+        params,
+        schema: ClineSkillFrontmatterSchema,
+      }),
+    );
   }
 
   static forDeletion(params: ToolSkillForDeletionParams): ClineSkill {

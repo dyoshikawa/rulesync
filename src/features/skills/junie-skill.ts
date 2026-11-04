@@ -7,7 +7,6 @@ import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { JUNIE_SKILLS_DIR_PATH } from "../../constants/junie-paths.js";
 import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
-import { formatError } from "../../utils/error.js";
 import { isRecord } from "../../utils/type-guards.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import {
@@ -218,31 +217,16 @@ export class JunieSkill extends ToolSkill {
       frontmatter = { ...frontmatter, description: derived };
     }
 
-    const result = JunieSkillFrontmatterSchema.safeParse(frontmatter);
-    if (!result.success) {
-      const skillDirPath = join(loaded.outputRoot, loaded.relativeDirPath, loaded.dirName);
-      throw new Error(
-        `Invalid frontmatter in ${join(skillDirPath, SKILL_FILE_NAME)}: ${formatError(result.error)}`,
-      );
-    }
-
-    if (result.data.name !== loaded.dirName) {
-      const skillFilePath = join(
-        loaded.outputRoot,
-        loaded.relativeDirPath,
-        loaded.dirName,
-        SKILL_FILE_NAME,
-      );
-      throw new Error(
-        `Frontmatter name (${result.data.name}) must match directory name (${loaded.dirName}) in ${skillFilePath}`,
-      );
-    }
+    const parsedFrontmatter = this.parseLoadedFrontmatterMatchingDirName({
+      schema: JunieSkillFrontmatterSchema,
+      loaded: { ...loaded, frontmatter },
+    });
 
     return new JunieSkill({
       outputRoot: loaded.outputRoot,
       relativeDirPath: loaded.relativeDirPath,
       dirName: loaded.dirName,
-      frontmatter: result.data,
+      frontmatter: parsedFrontmatter,
       body: loaded.body,
       otherFiles: loaded.otherFiles,
       validate: true,

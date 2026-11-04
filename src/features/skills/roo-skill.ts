@@ -1,5 +1,3 @@
-import { join } from "node:path";
-
 import { z } from "zod/mini";
 
 import { SKILL_FILE_NAME } from "../../constants/general.js";
@@ -156,35 +154,12 @@ export class RooSkill extends ToolSkill {
   protected static override readonly toolTarget: ToolTarget = "roo";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<RooSkill> {
-    const loaded = await this.loadSkillDirContent({
-      ...params,
-      getSettablePaths: RooSkill.getSettablePaths,
-    });
-
-    const frontmatter = this.parseLoadedFrontmatter({ schema: RooSkillFrontmatterSchema, loaded });
-
-    if (frontmatter.name !== loaded.dirName) {
-      const skillFilePath = join(
-        loaded.outputRoot,
-        loaded.relativeDirPath,
-        loaded.dirName,
-        SKILL_FILE_NAME,
-      );
-      throw new Error(
-        `Frontmatter name (${frontmatter.name}) must match directory name (${loaded.dirName}) in ${skillFilePath}`,
-      );
-    }
-
-    return new RooSkill({
-      outputRoot: loaded.outputRoot,
-      relativeDirPath: loaded.relativeDirPath,
-      dirName: loaded.dirName,
-      frontmatter,
-      body: loaded.body,
-      otherFiles: loaded.otherFiles,
-      validate: true,
-      global: loaded.global,
-    });
+    return new RooSkill(
+      await this.loadStandardSkillParamsMatchingDirName({
+        params,
+        schema: RooSkillFrontmatterSchema,
+      }),
+    );
   }
 
   static forDeletion(params: ToolSkillForDeletionParams): RooSkill {

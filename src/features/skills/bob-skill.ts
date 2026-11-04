@@ -1,5 +1,3 @@
-import { join } from "node:path";
-
 import { z } from "zod/mini";
 
 import { BOB_SKILLS_DIR_PATH } from "../../constants/bob-paths.js";
@@ -160,35 +158,12 @@ export class BobSkill extends ToolSkill {
   protected static override readonly toolTarget = "bob";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<BobSkill> {
-    const loaded = await this.loadSkillDirContent({
-      ...params,
-      getSettablePaths: BobSkill.getSettablePaths,
-    });
-
-    const frontmatter = this.parseLoadedFrontmatter({ schema: BobSkillFrontmatterSchema, loaded });
-
-    if (frontmatter.name !== loaded.dirName) {
-      const skillFilePath = join(
-        loaded.outputRoot,
-        loaded.relativeDirPath,
-        loaded.dirName,
-        SKILL_FILE_NAME,
-      );
-      throw new Error(
-        `Frontmatter name (${frontmatter.name}) must match directory name (${loaded.dirName}) in ${skillFilePath}`,
-      );
-    }
-
-    return new BobSkill({
-      outputRoot: loaded.outputRoot,
-      relativeDirPath: loaded.relativeDirPath,
-      dirName: loaded.dirName,
-      frontmatter,
-      body: loaded.body,
-      otherFiles: loaded.otherFiles,
-      validate: true,
-      global: loaded.global,
-    });
+    return new BobSkill(
+      await this.loadStandardSkillParamsMatchingDirName({
+        params,
+        schema: BobSkillFrontmatterSchema,
+      }),
+    );
   }
 
   static forDeletion(params: ToolSkillForDeletionParams): BobSkill {

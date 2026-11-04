@@ -1,5 +1,3 @@
-import { join } from "node:path";
-
 import { z } from "zod/mini";
 
 import { SKILL_FILE_NAME } from "../../constants/general.js";
@@ -185,38 +183,12 @@ export class RovodevSkill extends ToolSkill {
   protected static override readonly toolTarget = "rovodev";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<RovodevSkill> {
-    const loaded = await this.loadSkillDirContent({
-      ...params,
-      getSettablePaths: RovodevSkill.getSettablePaths,
-    });
-
-    const frontmatter = this.parseLoadedFrontmatter({
-      schema: RovodevSkillFrontmatterSchema,
-      loaded,
-    });
-
-    if (frontmatter.name !== loaded.dirName) {
-      const skillFilePath = join(
-        loaded.outputRoot,
-        loaded.relativeDirPath,
-        loaded.dirName,
-        SKILL_FILE_NAME,
-      );
-      throw new Error(
-        `Frontmatter name (${frontmatter.name}) must match directory name (${loaded.dirName}) in ${skillFilePath}`,
-      );
-    }
-
-    return new RovodevSkill({
-      outputRoot: loaded.outputRoot,
-      relativeDirPath: loaded.relativeDirPath,
-      dirName: loaded.dirName,
-      frontmatter,
-      body: loaded.body,
-      otherFiles: loaded.otherFiles,
-      validate: true,
-      global: loaded.global,
-    });
+    return new RovodevSkill(
+      await this.loadStandardSkillParamsMatchingDirName({
+        params,
+        schema: RovodevSkillFrontmatterSchema,
+      }),
+    );
   }
 
   static forDeletion(params: ToolSkillForDeletionParams): RovodevSkill {

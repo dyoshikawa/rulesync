@@ -1,5 +1,3 @@
-import { join } from "node:path";
-
 import { z } from "zod/mini";
 
 import { CONTINUE_SKILLS_DIR_PATH } from "../../constants/continue-paths.js";
@@ -160,38 +158,12 @@ export class ContinueSkill extends ToolSkill {
   protected static override readonly toolTarget = "continue";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<ContinueSkill> {
-    const loaded = await this.loadSkillDirContent({
-      ...params,
-      getSettablePaths: ContinueSkill.getSettablePaths,
-    });
-
-    const frontmatter = this.parseLoadedFrontmatter({
-      schema: ContinueSkillFrontmatterSchema,
-      loaded,
-    });
-
-    if (frontmatter.name !== loaded.dirName) {
-      const skillFilePath = join(
-        loaded.outputRoot,
-        loaded.relativeDirPath,
-        loaded.dirName,
-        SKILL_FILE_NAME,
-      );
-      throw new Error(
-        `Frontmatter name (${frontmatter.name}) must match directory name (${loaded.dirName}) in ${skillFilePath}`,
-      );
-    }
-
-    return new ContinueSkill({
-      outputRoot: loaded.outputRoot,
-      relativeDirPath: loaded.relativeDirPath,
-      dirName: loaded.dirName,
-      frontmatter,
-      body: loaded.body,
-      otherFiles: loaded.otherFiles,
-      validate: true,
-      global: loaded.global,
-    });
+    return new ContinueSkill(
+      await this.loadStandardSkillParamsMatchingDirName({
+        params,
+        schema: ContinueSkillFrontmatterSchema,
+      }),
+    );
   }
 
   static forDeletion(params: ToolSkillForDeletionParams): ContinueSkill {
