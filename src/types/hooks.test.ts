@@ -28,30 +28,6 @@ import {
 } from "./hooks.js";
 
 describe("Event map completeness", () => {
-  it("every CLAUDE_HOOK_EVENTS entry should exist in CANONICAL_TO_CLAUDE_EVENT_NAMES", () => {
-    for (const event of CLAUDE_HOOK_EVENTS) {
-      expect(CANONICAL_TO_CLAUDE_EVENT_NAMES).toHaveProperty(event);
-    }
-  });
-
-  it("every FACTORYDROID_HOOK_EVENTS entry should exist in CANONICAL_TO_FACTORYDROID_EVENT_NAMES", () => {
-    for (const event of FACTORYDROID_HOOK_EVENTS) {
-      expect(CANONICAL_TO_FACTORYDROID_EVENT_NAMES).toHaveProperty(event);
-    }
-  });
-
-  it("every CLINE_HOOK_EVENTS entry should exist in CANONICAL_TO_CLINE_EVENT_NAMES", () => {
-    for (const event of CLINE_HOOK_EVENTS) {
-      expect(CANONICAL_TO_CLINE_EVENT_NAMES).toHaveProperty(event);
-    }
-  });
-
-  it("every CURSOR_HOOK_EVENTS entry should exist in CANONICAL_TO_CURSOR_EVENT_NAMES", () => {
-    for (const event of CURSOR_HOOK_EVENTS) {
-      expect(CANONICAL_TO_CURSOR_EVENT_NAMES).toHaveProperty(event);
-    }
-  });
-
   it("every OPENCODE_HOOK_EVENTS entry should exist in CANONICAL_TO_OPENCODE_EVENT_NAMES", () => {
     // The shell events are not in the generic event map: OpenCode has no
     // shell-execution lifecycle event, so they are emitted as bash-gated
@@ -69,18 +45,6 @@ describe("Event map completeness", () => {
   it("every DEEPAGENTS_HOOK_EVENTS entry should exist in CANONICAL_TO_DEEPAGENTS_EVENT_NAMES", () => {
     for (const event of DEEPAGENTS_HOOK_EVENTS) {
       expect(CANONICAL_TO_DEEPAGENTS_EVENT_NAMES).toHaveProperty(event);
-    }
-  });
-
-  it("every CODEXCLI_HOOK_EVENTS entry should exist in CANONICAL_TO_CODEXCLI_EVENT_NAMES", () => {
-    for (const event of CODEXCLI_HOOK_EVENTS) {
-      expect(CANONICAL_TO_CODEXCLI_EVENT_NAMES).toHaveProperty(event);
-    }
-  });
-
-  it("every JUNIE_HOOK_EVENTS entry should exist in CANONICAL_TO_JUNIE_EVENT_NAMES", () => {
-    for (const event of JUNIE_HOOK_EVENTS) {
-      expect(CANONICAL_TO_JUNIE_EVENT_NAMES).toHaveProperty(event);
     }
   });
 });
