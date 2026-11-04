@@ -18,6 +18,7 @@ import {
 import { stringifyFrontmatter } from "../utils/frontmatter.js";
 import { ConsoleLogger } from "../utils/logger.js";
 import { resetRunWarningState } from "../utils/warned-once.js";
+import { assertEntryCountWithinLimit, assertEntrySizeWithinLimit } from "./entry-limits.js";
 import {
   assertNoSymlinkInFeaturePath,
   assertNoSymlinkInFeatureTree,
@@ -25,9 +26,6 @@ import {
 } from "./feature-symlinks.js";
 
 const logger = new ConsoleLogger({ verbose: false, silent: true });
-
-const maxSkillSizeBytes = 1024 * 1024; // 1MB
-const maxSkillsCount = 1000;
 
 /**
  * Encoding of the `body` field of an other file in the MCP API.
@@ -272,11 +270,7 @@ async function putSkill({
       (acc, file) => acc + file.relativeFilePathToDirPath.length + file.fileBuffer.byteLength,
       0,
     );
-  if (estimatedSize > maxSkillSizeBytes) {
-    throw new Error(
-      `Skill size ${estimatedSize} bytes exceeds maximum ${maxSkillSizeBytes} bytes (1MB) for ${relativeDirPathFromCwd}`,
-    );
-  }
+  assertEntrySizeWithinLimit({ label: "Skill", estimatedSize, path: relativeDirPathFromCwd });
 
   try {
     // Check skill count constraint
@@ -285,11 +279,12 @@ async function putSkill({
       (skill) => skill.relativeDirPathFromCwd === join(RULESYNC_SKILLS_RELATIVE_DIR_PATH, dirName),
     );
 
-    if (!isUpdate && existingSkills.length >= maxSkillsCount) {
-      throw new Error(
-        `Maximum number of skills (${maxSkillsCount}) reached in ${RULESYNC_SKILLS_RELATIVE_DIR_PATH}`,
-      );
-    }
+    assertEntryCountWithinLimit({
+      plural: "skills",
+      dirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+      existingCount: existingSkills.length,
+      isUpdate,
+    });
 
     // Create a new RulesyncSkill instance for validation
     const skill = new RulesyncSkill({

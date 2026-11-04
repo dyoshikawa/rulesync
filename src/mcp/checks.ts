@@ -11,12 +11,10 @@ import {
   writeFileContent,
 } from "../utils/file.js";
 import { ConsoleLogger } from "../utils/logger.js";
+import { assertEntryCountWithinLimit, assertEntrySizeWithinLimit } from "./entry-limits.js";
 import { assertNoSymlinkInFeaturePath, isFeatureSymlinkRefusal } from "./feature-symlinks.js";
 
 const logger = new ConsoleLogger({ verbose: false, silent: true });
-
-const maxCheckSizeBytes = 1024 * 1024; // 1MB
-const maxChecksCount = 1000;
 
 /**
  * Tool to list all checks from .rulesync/checks/*.md
@@ -134,11 +132,7 @@ async function putCheck({
 
   // Check file size constraint
   const estimatedSize = JSON.stringify(frontmatter).length + body.length;
-  if (estimatedSize > maxCheckSizeBytes) {
-    throw new Error(
-      `Check size ${estimatedSize} bytes exceeds maximum ${maxCheckSizeBytes} bytes (1MB) for ${relativePathFromCwd}`,
-    );
-  }
+  assertEntrySizeWithinLimit({ label: "Check", estimatedSize, path: relativePathFromCwd });
 
   try {
     // Check count constraint
@@ -147,11 +141,12 @@ async function putCheck({
       (check) => check.relativePathFromCwd === join(RULESYNC_CHECKS_RELATIVE_DIR_PATH, filename),
     );
 
-    if (!isUpdate && existingChecks.length >= maxChecksCount) {
-      throw new Error(
-        `Maximum number of checks (${maxChecksCount}) reached in ${RULESYNC_CHECKS_RELATIVE_DIR_PATH}`,
-      );
-    }
+    assertEntryCountWithinLimit({
+      plural: "checks",
+      dirPath: RULESYNC_CHECKS_RELATIVE_DIR_PATH,
+      existingCount: existingChecks.length,
+      isUpdate,
+    });
 
     const check = new RulesyncCheck({
       outputRoot: process.cwd(),

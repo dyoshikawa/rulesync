@@ -14,12 +14,10 @@ import {
   writeFileContent,
 } from "../utils/file.js";
 import { ConsoleLogger } from "../utils/logger.js";
+import { assertEntryCountWithinLimit, assertEntrySizeWithinLimit } from "./entry-limits.js";
 import { assertNoSymlinkInFeaturePath, isFeatureSymlinkRefusal } from "./feature-symlinks.js";
 
 const logger = new ConsoleLogger({ verbose: false, silent: true });
-
-const maxCommandSizeBytes = 1024 * 1024; // 1MB
-const maxCommandsCount = 1000;
 
 /**
  * Tool to list all commands from .rulesync/commands/*.md
@@ -142,11 +140,7 @@ async function putCommand({
 
   // Check file size constraint
   const estimatedSize = JSON.stringify(frontmatter).length + body.length;
-  if (estimatedSize > maxCommandSizeBytes) {
-    throw new Error(
-      `Command size ${estimatedSize} bytes exceeds maximum ${maxCommandSizeBytes} bytes (1MB) for ${relativePathFromCwd}`,
-    );
-  }
+  assertEntrySizeWithinLimit({ label: "Command", estimatedSize, path: relativePathFromCwd });
 
   try {
     // Check command count constraint
@@ -156,11 +150,12 @@ async function putCommand({
         command.relativePathFromCwd === join(RULESYNC_COMMANDS_RELATIVE_DIR_PATH, filename),
     );
 
-    if (!isUpdate && existingCommands.length >= maxCommandsCount) {
-      throw new Error(
-        `Maximum number of commands (${maxCommandsCount}) reached in ${RULESYNC_COMMANDS_RELATIVE_DIR_PATH}`,
-      );
-    }
+    assertEntryCountWithinLimit({
+      plural: "commands",
+      dirPath: RULESYNC_COMMANDS_RELATIVE_DIR_PATH,
+      existingCount: existingCommands.length,
+      isUpdate,
+    });
 
     // Create a new RulesyncCommand instance
     const command = new RulesyncCommand({

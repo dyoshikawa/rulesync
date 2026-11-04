@@ -16,12 +16,10 @@ import {
   writeFileContent,
 } from "../utils/file.js";
 import { ConsoleLogger } from "../utils/logger.js";
+import { assertEntryCountWithinLimit, assertEntrySizeWithinLimit } from "./entry-limits.js";
 import { assertNoSymlinkInFeaturePath, isFeatureSymlinkRefusal } from "./feature-symlinks.js";
 
 const logger = new ConsoleLogger({ verbose: false, silent: true });
-
-const maxSubagentSizeBytes = 1024 * 1024; // 1MB
-const maxSubagentsCount = 1000;
 
 function getSubagentRelativeFilePath(relativePathFromCwd: string): string {
   checkPathTraversal({
@@ -180,11 +178,7 @@ async function putSubagent({
 
   // Check file size constraint
   const estimatedSize = JSON.stringify(frontmatter).length + body.length;
-  if (estimatedSize > maxSubagentSizeBytes) {
-    throw new Error(
-      `Subagent size ${estimatedSize} bytes exceeds maximum ${maxSubagentSizeBytes} bytes (1MB) for ${relativePathFromCwd}`,
-    );
-  }
+  assertEntrySizeWithinLimit({ label: "Subagent", estimatedSize, path: relativePathFromCwd });
 
   try {
     // Check subagent count constraint
@@ -195,11 +189,12 @@ async function putSubagent({
         join(RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH, relativeFilePath),
     );
 
-    if (!isUpdate && existingSubagents.length >= maxSubagentsCount) {
-      throw new Error(
-        `Maximum number of subagents (${maxSubagentsCount}) reached in ${RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH}`,
-      );
-    }
+    assertEntryCountWithinLimit({
+      plural: "subagents",
+      dirPath: RULESYNC_SUBAGENTS_RELATIVE_DIR_PATH,
+      existingCount: existingSubagents.length,
+      isUpdate,
+    });
 
     // Create a new RulesyncSubagent instance
     const subagent = new RulesyncSubagent({

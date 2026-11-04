@@ -15,12 +15,10 @@ import {
   writeFileContent,
 } from "../utils/file.js";
 import { ConsoleLogger, withFallbackLoggerTarget } from "../utils/logger.js";
+import { assertEntryCountWithinLimit, assertEntrySizeWithinLimit } from "./entry-limits.js";
 import { assertNoSymlinkInFeaturePath, isFeatureSymlinkRefusal } from "./feature-symlinks.js";
 
 const logger = new ConsoleLogger({ verbose: false, silent: true });
-
-const maxRuleSizeBytes = 1024 * 1024; // 1MB
-const maxRulesCount = 1000;
 
 /**
  * The rule tools return `getAuthoredFrontmatter()`, the frontmatter as the
@@ -178,11 +176,7 @@ async function putRule({
 
   // Check file size constraint
   const estimatedSize = JSON.stringify(frontmatter).length + body.length;
-  if (estimatedSize > maxRuleSizeBytes) {
-    throw new Error(
-      `Rule size ${estimatedSize} bytes exceeds maximum ${maxRuleSizeBytes} bytes (1MB) for ${relativePathFromCwd}`,
-    );
-  }
+  assertEntrySizeWithinLimit({ label: "Rule", estimatedSize, path: relativePathFromCwd });
 
   try {
     // Check rule count constraint
@@ -191,11 +185,12 @@ async function putRule({
       (rule) => rule.relativePathFromCwd === join(RULESYNC_RULES_RELATIVE_DIR_PATH, filename),
     );
 
-    if (!isUpdate && existingRules.length >= maxRulesCount) {
-      throw new Error(
-        `Maximum number of rules (${maxRulesCount}) reached in ${RULESYNC_RULES_RELATIVE_DIR_PATH}`,
-      );
-    }
+    assertEntryCountWithinLimit({
+      plural: "rules",
+      dirPath: RULESYNC_RULES_RELATIVE_DIR_PATH,
+      existingCount: existingRules.length,
+      isUpdate,
+    });
 
     // Create a new RulesyncRule instance
     const rule = await withoutConsoleWarnings({
