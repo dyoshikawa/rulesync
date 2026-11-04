@@ -2,10 +2,7 @@ import { z } from "zod/mini";
 
 import { REASONIX_COMMANDS_DIR_PATH } from "../../constants/reasonix-paths.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
-import {
-  FrontmatterMarkdownToolCommand,
-  type FrontmatterMarkdownToolCommandParams,
-} from "./frontmatter-markdown-command.js";
+import { FrontmatterMarkdownToolCommand } from "./frontmatter-markdown-command.js";
 import type { ToolCommandSettablePaths } from "./tool-command.js";
 
 /**
@@ -24,9 +21,6 @@ export const ReasonixCommandFrontmatterSchema = z.looseObject({
 });
 
 export type ReasonixCommandFrontmatter = z.infer<typeof ReasonixCommandFrontmatterSchema>;
-
-export type ReasonixCommandParams =
-  FrontmatterMarkdownToolCommandParams<ReasonixCommandFrontmatter>;
 
 export class ReasonixCommand extends FrontmatterMarkdownToolCommand<ReasonixCommandFrontmatter> {
   static getSettablePaths(_options: { global?: boolean } = {}): ToolCommandSettablePaths {

@@ -2,10 +2,7 @@ import { z } from "zod/mini";
 
 import { QWENCODE_COMMANDS_DIR_PATH } from "../../constants/qwencode-paths.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
-import {
-  FrontmatterMarkdownToolCommand,
-  type FrontmatterMarkdownToolCommandParams,
-} from "./frontmatter-markdown-command.js";
+import { FrontmatterMarkdownToolCommand } from "./frontmatter-markdown-command.js";
 import type { ToolCommandSettablePaths } from "./tool-command.js";
 
 // looseObject preserves unknown keys during parsing (like passthrough in Zod 3)
@@ -21,9 +18,6 @@ export const QwencodeCommandFrontmatterSchema = z.looseObject({
 });
 
 export type QwencodeCommandFrontmatter = z.infer<typeof QwencodeCommandFrontmatterSchema>;
-
-export type QwencodeCommandParams =
-  FrontmatterMarkdownToolCommandParams<QwencodeCommandFrontmatter>;
 
 export class QwencodeCommand extends FrontmatterMarkdownToolCommand<QwencodeCommandFrontmatter> {
   static getSettablePaths(_options: { global?: boolean } = {}): ToolCommandSettablePaths {

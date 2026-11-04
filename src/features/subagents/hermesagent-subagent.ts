@@ -321,12 +321,6 @@ export class HermesagentSubagent extends ToolSubagent {
     return getHermesagentSharedConfigWritePaths();
   }
 
-  static getSettablePathsForRulesyncSubagent(rulesyncSubagent: RulesyncSubagent): string[] {
-    const slug = subagentSlug(rulesyncSubagent.getRelativePathFromCwd());
-
-    return [join(HERMESAGENT_RULESYNC_SUBAGENTS_DIR_PATH, `${slug}.json`)];
-  }
-
   toRulesyncSubagent(): RulesyncSubagent {
     const slug = basename(this.getRelativeFilePath(), ".json");
     const json = JSON.parse(this.getFileContent()) as {

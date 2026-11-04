@@ -2,10 +2,7 @@ import { z } from "zod/mini";
 
 import { BOB_COMMANDS_DIR_PATH } from "../../constants/bob-paths.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
-import {
-  FrontmatterMarkdownToolCommand,
-  type FrontmatterMarkdownToolCommandParams,
-} from "./frontmatter-markdown-command.js";
+import { FrontmatterMarkdownToolCommand } from "./frontmatter-markdown-command.js";
 import type { ToolCommandSettablePaths } from "./tool-command.js";
 
 /**
@@ -25,8 +22,6 @@ const BobCommandFrontmatterSchema = z.looseObject({
 });
 
 export type BobCommandFrontmatter = z.infer<typeof BobCommandFrontmatterSchema>;
-
-export type BobCommandParams = FrontmatterMarkdownToolCommandParams<BobCommandFrontmatter>;
 
 export class BobCommand extends FrontmatterMarkdownToolCommand<BobCommandFrontmatter> {
   static getSettablePaths(_options: { global?: boolean } = {}): ToolCommandSettablePaths {
