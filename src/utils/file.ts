@@ -24,6 +24,7 @@ import { mapWithConcurrency } from "./concurrency.js";
 import { quoteForLog, stripControlCharacters } from "./control-characters.js";
 import { formatError } from "./error.js";
 import { isEnvTest } from "./vitest.js";
+import { getKnownNonLinkPaths } from "./write-landing-cache.js";
 
 /**
  * Whether a relative path leads out of the root it is relative to. Matching
@@ -934,6 +935,7 @@ export async function writeLandingPath(targetPath: string): Promise<string | nul
   // Once a segment is missing, nothing below it can be a link.
   let exists = true;
   let linkHops = 0;
+  const knownNonLinks = getKnownNonLinkPaths();
   while (pending.length > 0) {
     const segment = pending.shift();
     if (segment === undefined || segment === "" || segment === ".") {
@@ -945,7 +947,7 @@ export async function writeLandingPath(targetPath: string): Promise<string | nul
       continue;
     }
     current = join(current, segment);
-    if (!exists) {
+    if (!exists || knownNonLinks?.has(current)) {
       continue;
     }
     let stats: Stats;
@@ -959,6 +961,7 @@ export async function writeLandingPath(targetPath: string): Promise<string | nul
       continue;
     }
     if (!stats.isSymbolicLink()) {
+      knownNonLinks?.add(current);
       continue;
     }
     linkHops += 1;
