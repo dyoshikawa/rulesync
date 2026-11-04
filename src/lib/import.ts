@@ -104,20 +104,44 @@ export async function importFromTool(params: {
   });
 
   const rulesCount = await importRulesCore({ config, tool, logger });
-  const ignoreCount = await runFeatureImport({ config, tool, logger }, IGNORE_IMPORT_STRATEGY);
-  const mcpCount = await runFeatureImport({ config, tool, logger }, MCP_IMPORT_STRATEGY);
-  const commandsCount = await runFeatureImport({ config, tool, logger }, COMMANDS_IMPORT_STRATEGY);
-  const subagentsCount = await runFeatureImport(
-    { config, tool, logger },
-    SUBAGENTS_IMPORT_STRATEGY,
-  );
+  const ignoreCount = await runFeatureImport({
+    config,
+    tool,
+    logger,
+    strategy: IGNORE_IMPORT_STRATEGY,
+  });
+  const mcpCount = await runFeatureImport({ config, tool, logger, strategy: MCP_IMPORT_STRATEGY });
+  const commandsCount = await runFeatureImport({
+    config,
+    tool,
+    logger,
+    strategy: COMMANDS_IMPORT_STRATEGY,
+  });
+  const subagentsCount = await runFeatureImport({
+    config,
+    tool,
+    logger,
+    strategy: SUBAGENTS_IMPORT_STRATEGY,
+  });
   const skillsCount = await importSkillsCore({ config, tool, logger });
-  const hooksCount = await runFeatureImport({ config, tool, logger }, HOOKS_IMPORT_STRATEGY);
-  const permissionsCount = await runFeatureImport(
-    { config, tool, logger },
-    PERMISSIONS_IMPORT_STRATEGY,
-  );
-  const checksCount = await runFeatureImport({ config, tool, logger }, CHECKS_IMPORT_STRATEGY);
+  const hooksCount = await runFeatureImport({
+    config,
+    tool,
+    logger,
+    strategy: HOOKS_IMPORT_STRATEGY,
+  });
+  const permissionsCount = await runFeatureImport({
+    config,
+    tool,
+    logger,
+    strategy: PERMISSIONS_IMPORT_STRATEGY,
+  });
+  const checksCount = await runFeatureImport({
+    config,
+    tool,
+    logger,
+    strategy: CHECKS_IMPORT_STRATEGY,
+  });
 
   return {
     rulesCount,
@@ -344,12 +368,17 @@ type ImportStrategy = {
  * the tool supports it, load the tool files, convert them to rulesync files
  * and write them.
  */
-async function runFeatureImport(
-  params: { config: Config; tool: ToolTarget; logger: Logger },
-  strategy: ImportStrategy,
-): Promise<number> {
-  const { config, tool, logger } = params;
-
+async function runFeatureImport({
+  config,
+  tool,
+  logger,
+  strategy,
+}: {
+  config: Config;
+  tool: ToolTarget;
+  logger: Logger;
+  strategy: ImportStrategy;
+}): Promise<number> {
   if (!config.getFeatures(tool).includes(strategy.feature)) {
     return 0;
   }
