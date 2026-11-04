@@ -17,6 +17,7 @@ import {
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { honorAllToolsOnBash } from "./shell-command-categories.js";
 import { isStricterAction } from "./single-action-collapse.js";
+import { splitToolRule } from "./tool-pattern-entry.js";
 import {
   ToolPermissions,
   type ToolPermissionsFromFileParams,
@@ -88,21 +89,8 @@ const LIST_TO_ACTION: Record<string, PermissionAction> = {
   deny: "deny",
 };
 
-/**
- * Split a rule the way Letta Code's matcher does: `Tool(payload)` or a bare
- * `Tool`. A rule that opens a parenthesis without closing it is returned with
- * an `undefined` payload and a `null` tool so it stays unmodeled.
- */
-function splitLettacodeRule(rule: string): { tool: string | null; payload: string | undefined } {
-  const match = rule.match(/^([^(]+)\(([\s\S]*)\)$/);
-  if (match) {
-    return { tool: match[1] ?? null, payload: match[2] };
-  }
-  return { tool: rule.includes("(") ? null : rule, payload: undefined };
-}
-
 function categoryOfRule(rule: string): string | undefined {
-  const { tool } = splitLettacodeRule(rule);
+  const { tool } = splitToolRule(rule);
   if (tool === null || !Object.hasOwn(LETTACODE_TOOL_TO_CATEGORY, tool)) {
     return undefined;
   }
@@ -198,7 +186,7 @@ function fromLettacodeRule(rule: string): { category: string; pattern: string } 
   if (category === undefined) {
     return null;
   }
-  const { payload } = splitLettacodeRule(rule);
+  const { payload } = splitToolRule(rule);
   if (payload === undefined) {
     return { category, pattern: CATCH_ALL_PATTERN };
   }

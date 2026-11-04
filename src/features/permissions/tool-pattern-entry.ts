@@ -36,3 +36,17 @@ export function buildToolPatternEntry({
   }
   return `${toolName}(${pattern})`;
 }
+
+/**
+ * Split a rule into `Tool(payload)` or a bare `Tool`, the way Claude Code-style
+ * matchers read it. Unlike `parseToolPatternEntry`, a rule that opens a
+ * parenthesis without closing it comes back with a `null` tool and an
+ * `undefined` payload, so callers keep it unmodeled (and preserved as-is).
+ */
+export function splitToolRule(rule: string): { tool: string | null; payload: string | undefined } {
+  const match = rule.match(/^([^(]+)\(([\s\S]*)\)$/);
+  if (match) {
+    return { tool: match[1] ?? null, payload: match[2] };
+  }
+  return { tool: rule.includes("(") ? null : rule, payload: undefined };
+}

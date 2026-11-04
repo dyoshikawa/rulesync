@@ -17,6 +17,7 @@ import {
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { ALL_TOOLS_PERMISSION_CATEGORY, honorAllToolsOnBash } from "./shell-command-categories.js";
 import { PERMISSION_ACTION_PRIORITY } from "./single-action-collapse.js";
+import { splitToolRule } from "./tool-pattern-entry.js";
 import {
   ToolPermissions,
   type ToolPermissionsFromFileParams,
@@ -101,26 +102,13 @@ const CATEGORY_TO_CODEBUDDY_TOOL: Record<string, string> = {
 const CODEBUDDY_TOOL_TO_CATEGORY: Record<string, string> = invertRecord(CATEGORY_TO_CODEBUDDY_TOOL);
 
 /**
- * Split a rule into its tool half and specifier: `Tool(specifier)` or a bare
- * `Tool`. A rule that opens a parenthesis without closing it comes back with
- * a `null` tool so it stays unmodeled (and is preserved as-is).
- */
-function splitCodebuddyRule(rule: string): { tool: string | null; specifier: string | undefined } {
-  const match = rule.match(/^([^(]+)\(([\s\S]*)\)$/);
-  if (match) {
-    return { tool: match[1] ?? null, specifier: match[2] };
-  }
-  return { tool: rule.includes("(") ? null : rule, specifier: undefined };
-}
-
-/**
  * The canonical category a CodeBuddy rule belongs to: a built-in tool maps to
  * its lowercase category, the all-MCP wildcard `mcp__*` to `mcp`, and any
  * other tool name (an `mcp__server__tool`, the standalone `*`, a tool without
  * a canonical category) is its own category.
  */
 function categoryOfRule(rule: string): string | undefined {
-  const { tool } = splitCodebuddyRule(rule);
+  const { tool } = splitToolRule(rule);
   if (tool === null) {
     return undefined;
   }
@@ -190,11 +178,11 @@ function parseCodebuddyRule(rule: string): { category: string; pattern: string }
   if (category === undefined) {
     return null;
   }
-  const { specifier } = splitCodebuddyRule(rule);
-  if (specifier === undefined) {
+  const { payload } = splitToolRule(rule);
+  if (payload === undefined) {
     return { category, pattern: CATCH_ALL_PATTERN };
   }
-  const trimmed = specifier.trim();
+  const trimmed = payload.trim();
   // `Tool()` matches no call, so it has no canonical meaning.
   return trimmed === "" ? null : { category, pattern: trimmed };
 }

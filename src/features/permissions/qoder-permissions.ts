@@ -18,6 +18,7 @@ import {
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { ALL_TOOLS_PERMISSION_CATEGORY, honorAllToolsOnBash } from "./shell-command-categories.js";
 import { isStricterAction } from "./single-action-collapse.js";
+import { splitToolRule } from "./tool-pattern-entry.js";
 import {
   ToolPermissions,
   type ToolPermissionsFromFileParams,
@@ -125,21 +126,9 @@ const QODER_PATH_RULE_ALIASES: Record<string, string> = {
 
 const ACTIONS: readonly PermissionAction[] = ["allow", "ask", "deny"];
 
-/**
- * Split a rule into `Tool(payload)` or a bare `Tool`. A rule that opens a
- * parenthesis without closing it gets a `null` tool so it stays unmodeled.
- */
-function splitQoderRule(rule: string): { tool: string | null; payload: string | undefined } {
-  const match = rule.match(/^([^(]+)\(([\s\S]*)\)$/);
-  if (match) {
-    return { tool: match[1] ?? null, payload: match[2] };
-  }
-  return { tool: rule.includes("(") ? null : rule, payload: undefined };
-}
-
 /** The canonical category a Qoder rule belongs to, or `undefined` if unmodeled. */
 function categoryOfRule(rule: string): string | undefined {
-  const { tool } = splitQoderRule(rule);
+  const { tool } = splitToolRule(rule);
   if (tool === null) {
     return undefined;
   }
@@ -206,7 +195,7 @@ function fromQoderRule(rule: string): { category: string; pattern: string } | nu
   if (category === undefined) {
     return null;
   }
-  const { payload } = splitQoderRule(rule);
+  const { payload } = splitToolRule(rule);
   if (payload === undefined) {
     return { category, pattern: CATCH_ALL_PATTERN };
   }
