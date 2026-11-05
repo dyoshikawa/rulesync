@@ -229,6 +229,24 @@ describe("ReasonixIgnore", () => {
       // Legacy `Read(...)` entries from an older rulesync still import.
       expect(ignore.toRulesyncIgnore().getFileContent()).toBe("*.log\n*.env");
     });
+
+    it("should place the imported file in the project even when read from the global config", async () => {
+      await ensureDir(join(testDir, ".reasonix"));
+      await writeFileContent(
+        join(testDir, ".reasonix", "config.toml"),
+        '[permissions]\ndeny = ["read_file(*.env)"]\n',
+      );
+
+      const ignore = await ReasonixIgnore.fromFile({ outputRoot: testDir, global: true });
+      const rulesyncIgnore = ignore.toRulesyncIgnore();
+
+      // rulesync sources always belong to the project, never to the home
+      // directory the global adapter reads from.
+      expect(rulesyncIgnore.getOutputRoot()).toBe(".");
+      expect(rulesyncIgnore.getRelativeDirPath()).toBe(RULESYNC_RELATIVE_DIR_PATH);
+      expect(rulesyncIgnore.getRelativeFilePath()).toBe(RULESYNC_AIIGNORE_FILE_NAME);
+      expect(rulesyncIgnore.getFileContent()).toBe("*.env");
+    });
   });
 
   describe("write round trip", () => {
