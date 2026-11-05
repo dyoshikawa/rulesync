@@ -1,6 +1,7 @@
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { parseGlobPattern } from "../../utils/glob.js";
 import type { Logger } from "../../utils/logger.js";
+import { getOrCreateOwn } from "../../utils/own-lookup.js";
 import {
   ANTIGRAVITY_COMMAND_ACTIONS as COMMAND_ACTIONS,
   BRACE_ALTERNATIVES,
@@ -459,10 +460,7 @@ export function convertAntigravityToRulesyncPermissions({
             toolLabel,
           })
         : target;
-      if (!permission[canonical]) {
-        permission[canonical] = {};
-      }
-      permission[canonical][pattern] = action;
+      getOrCreateOwn({ record: permission, key: canonical, create: () => ({}) })[pattern] = action;
     }
   };
 

@@ -8,7 +8,7 @@ import { stripControlCharacters } from "../../utils/control-characters.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull, toPosixPath } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
-import { invertRecord } from "../../utils/own-lookup.js";
+import { getOrCreateOwn, invertRecord, lookupOwn } from "../../utils/own-lookup.js";
 import { PROTOTYPE_POLLUTION_KEYS } from "../../utils/prototype-pollution.js";
 import { isRecord, toRecord } from "../../utils/type-guards.js";
 import {
@@ -63,11 +63,11 @@ const CLAUDE_TO_CANONICAL_TOOL_NAMES: Record<string, string> = invertRecord(
 );
 
 function toClaudeToolName(canonical: string): string {
-  return CANONICAL_TO_CLAUDE_TOOL_NAMES[canonical] ?? canonical;
+  return lookupOwn({ record: CANONICAL_TO_CLAUDE_TOOL_NAMES, key: canonical }) ?? canonical;
 }
 
 function toCanonicalToolName(claudeName: string): string {
-  return CLAUDE_TO_CANONICAL_TOOL_NAMES[claudeName] ?? claudeName;
+  return lookupOwn({ record: CLAUDE_TO_CANONICAL_TOOL_NAMES, key: claudeName }) ?? claudeName;
 }
 
 /**
@@ -1330,7 +1330,7 @@ function buildClaudePermissionEntry(toolName: string, pattern: string): string {
   if (pattern === "*") {
     return toolName;
   }
-  return `${CLAUDE_PATH_RULE_ALIASES[toolName] ?? toolName}(${pattern})`;
+  return `${lookupOwn({ record: CLAUDE_PATH_RULE_ALIASES, key: toolName }) ?? toolName}(${pattern})`;
 }
 
 /**
@@ -1710,10 +1710,7 @@ function convertClaudeToRulesyncPermissions(params: {
     for (const entry of entries) {
       const { toolName, pattern } = parseToolPatternEntry(entry);
       const canonical = toCanonicalToolName(toolName);
-      if (!permission[canonical]) {
-        permission[canonical] = {};
-      }
-      permission[canonical][pattern] = action;
+      getOrCreateOwn({ record: permission, key: canonical, create: () => ({}) })[pattern] = action;
     }
   };
 

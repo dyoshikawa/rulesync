@@ -12,6 +12,7 @@ import type { PermissionAction, PermissionsConfig } from "../../types/permission
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
+import { getOrCreateOwn, lookupOwn } from "../../utils/own-lookup.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { honorAllToolsOnBash, MCP_CATEGORY_PREFIX } from "./shell-command-categories.js";
@@ -78,7 +79,7 @@ function toCursorType(canonical: string): string {
   if (isMcpScopedCategory(canonical)) {
     return "Mcp";
   }
-  return CANONICAL_TO_CURSOR_TYPE[canonical] ?? canonical;
+  return lookupOwn({ record: CANONICAL_TO_CURSOR_TYPE, key: canonical }) ?? canonical;
 }
 
 /**
@@ -121,9 +122,13 @@ function toCanonicalCategory(cursorType: string, pattern: string): string {
       const tool = match[2] ?? "*";
       return `${MCP_CATEGORY_PREFIX}${server}__${tool}`;
     }
-    return CURSOR_TYPE_TO_CANONICAL[cursorType] ?? cursorType.toLowerCase();
+    return (
+      lookupOwn({ record: CURSOR_TYPE_TO_CANONICAL, key: cursorType }) ?? cursorType.toLowerCase()
+    );
   }
-  return CURSOR_TYPE_TO_CANONICAL[cursorType] ?? cursorType.toLowerCase();
+  return (
+    lookupOwn({ record: CURSOR_TYPE_TO_CANONICAL, key: cursorType }) ?? cursorType.toLowerCase()
+  );
 }
 
 type CursorCliConfig = {
@@ -551,15 +556,13 @@ function convertCursorToRulesyncPermissions(params: {
     for (const entry of entries) {
       const { toolName: type, pattern } = parseToolPatternEntry(entry);
       const canonical = toCanonicalCategory(type, pattern);
-      if (!permission[canonical]) {
-        permission[canonical] = {};
-      }
       // For per-tool MCP canonical categories (`mcp__server__tool`), the server
       // and tool address is already encoded in the category name, so the
       // pattern collapses to `*` to mirror the generation path.
       const canonicalPattern =
         type === "Mcp" && canonical.startsWith(MCP_CATEGORY_PREFIX) ? "*" : pattern;
-      permission[canonical][canonicalPattern] = action;
+      getOrCreateOwn({ record: permission, key: canonical, create: () => ({}) })[canonicalPattern] =
+        action;
     }
   };
 

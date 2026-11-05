@@ -905,4 +905,22 @@ describe("GrokcliPermissions", () => {
       expect(json.permission.bash["git *"]).toBe("allow");
     });
   });
+
+  describe("tool names that match Object.prototype members", () => {
+    it("skips a category named like a prototype member instead of writing an empty entry", async () => {
+      const permissions = await GrokcliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({
+          bash: { ls: "allow" },
+          toString: { "*": "allow", x: "deny" },
+        }),
+        global: true,
+        logger: createMockLogger(),
+      });
+
+      const permission = readPermission(permissions.getFileContent());
+      expect(permission.allow).toEqual(["Bash(ls)"]);
+      expect(permission.deny).toEqual([]);
+    });
+  });
 });

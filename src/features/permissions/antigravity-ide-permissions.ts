@@ -10,6 +10,7 @@ import type { AiFileParams } from "../../types/ai-file.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { fallbackLogger } from "../../utils/logger.js";
+import { lookupOwn } from "../../utils/own-lookup.js";
 import {
   convertAntigravityToRulesyncPermissions,
   convertRulesyncToAntigravityPermissions,
@@ -78,11 +79,11 @@ function toIdeAction(canonical: string): string {
   if (canonical.startsWith(MCP_CATEGORY_PREFIX)) {
     return "mcp";
   }
-  return CANONICAL_TO_IDE_ACTION[canonical] ?? canonical;
+  return lookupOwn({ record: CANONICAL_TO_IDE_ACTION, key: canonical }) ?? canonical;
 }
 
 function toCanonicalCategory(ideAction: string): string {
-  return IDE_ACTION_TO_CANONICAL[ideAction] ?? ideAction;
+  return lookupOwn({ record: IDE_ACTION_TO_CANONICAL, key: ideAction }) ?? ideAction;
 }
 
 /**

@@ -181,7 +181,7 @@ function toQoderRule({
     );
     return null;
   }
-  const tool = CATEGORY_TO_QODER_TOOL[category];
+  const tool = lookupOwn({ record: CATEGORY_TO_QODER_TOOL, key: category });
   if (tool === undefined) {
     return null;
   }

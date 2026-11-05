@@ -9,6 +9,7 @@ import { isPermissionAction } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
+import { lookupOwn } from "../../utils/own-lookup.js";
 import { isRecord, isStringArray, toRecord } from "../../utils/type-guards.js";
 import { loadYaml } from "../../utils/yaml.js";
 import {
@@ -621,7 +622,7 @@ function convertRulesyncToRovodevToolPermissions({
       continue;
     }
 
-    const toolKeys = CATEGORY_TO_TOOL_KEYS[category];
+    const toolKeys = lookupOwn({ record: CATEGORY_TO_TOOL_KEYS, key: category });
     if (!toolKeys) {
       logger?.warn(
         `Rovo Dev permissions have no target for the "${category}" category. Skipping it.`,

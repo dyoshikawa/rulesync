@@ -15,6 +15,7 @@ import {
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { fallbackLogger, type Logger } from "../../utils/logger.js";
+import { lookupOwn } from "../../utils/own-lookup.js";
 import {
   convertAntigravityToRulesyncPermissions,
   convertRulesyncToAntigravityPermissions,
@@ -131,11 +132,13 @@ function toAntigravityCliToolName(canonical: string): string {
   if (canonical.startsWith(MCP_CATEGORY_PREFIX)) {
     return "mcp";
   }
-  return CANONICAL_TO_ANTIGRAVITY_CLI_TOOL_NAMES[canonical] ?? canonical;
+  return (
+    lookupOwn({ record: CANONICAL_TO_ANTIGRAVITY_CLI_TOOL_NAMES, key: canonical }) ?? canonical
+  );
 }
 
 function toCanonicalToolName(cliName: string): string {
-  return ANTIGRAVITY_CLI_TO_CANONICAL_TOOL_NAMES[cliName] ?? cliName;
+  return lookupOwn({ record: ANTIGRAVITY_CLI_TO_CANONICAL_TOOL_NAMES, key: cliName }) ?? cliName;
 }
 
 /**

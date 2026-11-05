@@ -924,4 +924,40 @@ describe("ZedPermissions", () => {
       );
     });
   });
+
+  describe("tool names that match Object.prototype members", () => {
+    it("generates a canonical category named like a prototype member verbatim", async () => {
+      const permissions = await ZedPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: createRulesyncPermissions({
+          valueOf: { "*": "deny" },
+          toString: { "*": "ask" },
+        }),
+      });
+
+      const tools = JSON.parse(permissions.getFileContent()).agent.tool_permissions.tools;
+      expect(tools.valueOf).toEqual({ default: "deny" });
+      expect(tools.toString).toEqual({ default: "confirm" });
+    });
+
+    it("imports a native tool named like a prototype member as its own category", async () => {
+      await writeFileContent(
+        join(testDir, ".zed", "settings.json"),
+        JSON.stringify({
+          agent: {
+            tool_permissions: {
+              tools: { valueOf: { default: "allow" }, toString: { default: "deny" } },
+            },
+          },
+        }),
+      );
+
+      const permissions = await ZedPermissions.fromFile({ outputRoot: testDir });
+      const config = permissions.toRulesyncPermissions().getJson();
+      expect(config.permission).toEqual({
+        valueOf: { "*": "allow" },
+        toString: { "*": "deny" },
+      });
+    });
+  });
 });

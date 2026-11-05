@@ -8,6 +8,7 @@ import type { PermissionAction, PermissionsConfig } from "../../types/permission
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
+import { getOrCreateOwn, lookupOwn } from "../../utils/own-lookup.js";
 import { isRecord, isStringArray, toRecord } from "../../utils/type-guards.js";
 import { loadYaml } from "../../utils/yaml.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
@@ -241,7 +242,7 @@ function convertRulesyncToGoosePermissionConfig({
   const assigned = new Map<string, PermissionAction>();
 
   for (const [category, rules] of Object.entries(honorAllToolsOnBash(config.permission))) {
-    const toolName = RULESYNC_TO_GOOSE_TOOL_NAME[category] ?? category;
+    const toolName = lookupOwn({ record: RULESYNC_TO_GOOSE_TOOL_NAME, key: category }) ?? category;
 
     for (const [pattern, action] of Object.entries(rules)) {
       if (pattern !== CATCH_ALL_PATTERN) {
@@ -318,9 +319,12 @@ function convertGoosePermissionConfigToRulesync(
     const toolNames = isStringArray(userPermission[key]) ? userPermission[key] : [];
     const action = GOOSE_LIST_TO_ACTION[key];
     for (const toolName of toolNames) {
-      for (const category of GOOSE_TO_RULESYNC_TOOL_NAMES[toolName] ?? [toolName]) {
-        permission[category] ??= {};
-        permission[category][CATCH_ALL_PATTERN] = action;
+      for (const category of lookupOwn({ record: GOOSE_TO_RULESYNC_TOOL_NAMES, key: toolName }) ?? [
+        toolName,
+      ]) {
+        getOrCreateOwn({ record: permission, key: category, create: () => ({}) })[
+          CATCH_ALL_PATTERN
+        ] = action;
       }
     }
   }

@@ -1722,4 +1722,39 @@ describe("ReasonixPermissions", () => {
       expect(result.error).toBeNull();
     });
   });
+
+  describe("tool names that match Object.prototype members", () => {
+    it("generates a canonical category named like a prototype member verbatim", async () => {
+      const instance = await ReasonixPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({
+            permission: { valueOf: { x: "allow", y: "deny" }, toString: { "*": "ask" } },
+          }),
+        }),
+      });
+
+      const parsed = smolToml.parse(instance.getFileContent()) as any;
+      expect(parsed.permissions.allow).toEqual(["valueOf(x)"]);
+      expect(parsed.permissions.ask).toEqual(["toString"]);
+      expect(parsed.permissions.deny).toEqual(["valueOf(y)"]);
+    });
+
+    it("imports a native tool named like a prototype member as its own category", () => {
+      const instance = new ReasonixPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".",
+        relativeFilePath: "reasonix.toml",
+        fileContent: ["[permissions]", 'allow = ["valueOf(foo)", "toString"]'].join("\n"),
+      });
+
+      const config = instance.toRulesyncPermissions().getJson();
+      expect(config.permission).toEqual({
+        valueOf: { foo: "allow" },
+        toString: { "*": "allow" },
+      });
+    });
+  });
 });

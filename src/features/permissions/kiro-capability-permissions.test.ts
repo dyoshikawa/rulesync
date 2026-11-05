@@ -347,6 +347,24 @@ describe("KiroCapabilityPermissions", () => {
     const perms = await KiroCapabilityPermissions.fromFile({ outputRoot: testDir });
     expect(perms.toRulesyncPermissions().getJson().permission).toEqual({});
   });
+
+  describe("tool names that match Object.prototype members", () => {
+    it("skips a category named like a prototype member as having no capability", async () => {
+      const logger = createMockLogger();
+      const perms = await KiroCapabilityPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        logger,
+        rulesyncPermissions: rulesyncPermissions({
+          permission: { bash: { ls: "allow" }, toString: { "*": "allow" } },
+        }),
+      });
+
+      expect(load(perms.getFileContent())).toEqual({
+        rules: [{ capability: "shell", match: ["ls"], effect: "allow" }],
+      });
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining("category: toString"));
+    });
+  });
 });
 
 describe("KiroScopedPermissions", () => {

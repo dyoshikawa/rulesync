@@ -965,4 +965,36 @@ describe("DevinPermissions", () => {
       expect(back.permission).toEqual(config.permission);
     });
   });
+
+  describe("tool names that match Object.prototype members", () => {
+    it("generates a category named like a prototype member verbatim", async () => {
+      const perms = await DevinPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: makeRulesyncPermissions({
+          permission: { toString: { "*": "allow", x: "deny" }, valueOf: { "*": "ask" } },
+        }),
+      });
+
+      const parsed = JSON.parse(perms.getFileContent());
+      expect(parsed.permissions.allow).toEqual(["toString"]);
+      expect(parsed.permissions.ask).toEqual(["valueOf"]);
+      expect(parsed.permissions.deny).toEqual(["toString(x)"]);
+    });
+
+    it("imports a native scope named like a prototype member as its own category", () => {
+      const perms = new DevinPermissions({
+        outputRoot: testDir,
+        relativeDirPath: ".devin",
+        relativeFilePath: "config.json",
+        fileContent: JSON.stringify({
+          permissions: { allow: ["toString", "valueOf(x)"] },
+        }),
+      });
+
+      expect(perms.toRulesyncPermissions().getJson().permission).toEqual({
+        toString: { "*": "allow" },
+        valueOf: { x: "allow" },
+      });
+    });
+  });
 });

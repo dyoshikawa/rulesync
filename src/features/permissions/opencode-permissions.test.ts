@@ -663,4 +663,20 @@ describe("OpencodePermissions (OpenCode V2 permissions array)", () => {
 
     expect(rulesync.permission).toEqual({ mcp__github__get_issue: { "*": "deny" } });
   });
+
+  describe("tool names that match Object.prototype members", () => {
+    it("generates a category named like a prototype member verbatim", async () => {
+      const instance = await OpencodePermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({ permission: { toString: { "*": "allow" } } }),
+        }),
+      });
+
+      expect(instance.getFileContent()).not.toContain("[native code]");
+      expect(instance.getFileContent()).toContain('"toString"');
+    });
+  });
 });

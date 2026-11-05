@@ -888,4 +888,44 @@ describe("AntigravityCliPermissions", () => {
       expect(json["antigravity-cli"]).toBeUndefined();
     });
   });
+
+  describe("tool names that match Object.prototype members", () => {
+    it("generates a canonical category named like a prototype member verbatim", async () => {
+      const permissions = await AntigravityCliPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          outputRoot: testDir,
+          relativeDirPath: ".rulesync",
+          relativeFilePath: "permissions.json",
+          fileContent: JSON.stringify({
+            permission: { valueOf: { x: "allow", y: "deny" }, toString: { "*": "ask" } },
+          }),
+        }),
+        logger: createMockLogger(),
+      });
+
+      const settings = JSON.parse(permissions.getFileContent()) as SettingsJson;
+      expect(settings.permissions?.allow).toEqual(["valueOf(x)"]);
+      expect(settings.permissions?.ask).toEqual(["toString"]);
+      expect(settings.permissions?.deny).toEqual(["valueOf(y)"]);
+    });
+
+    it("imports a native tool named like a prototype member as its own category", () => {
+      const permissions = new AntigravityCliPermissions({
+        outputRoot: testDir,
+        relativeDirPath: join(".gemini", "antigravity-cli"),
+        relativeFilePath: "settings.json",
+        fileContent: JSON.stringify({
+          permissions: { allow: ["valueOf(foo)", "toString"] },
+        }),
+        global: true,
+      });
+
+      const json = permissions.toRulesyncPermissions().getJson();
+      expect(json.permission).toEqual({
+        valueOf: { foo: "allow" },
+        toString: { "*": "allow" },
+      });
+    });
+  });
 });

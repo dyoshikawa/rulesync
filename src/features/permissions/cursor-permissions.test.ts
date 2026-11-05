@@ -933,4 +933,32 @@ describe("CursorPermissions", () => {
       );
     });
   });
+
+  describe("tool names that match Object.prototype members", () => {
+    it("generates and imports a category named like a prototype member as itself", async () => {
+      const cursorPermissions = await CursorPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: new RulesyncPermissions({
+          relativeDirPath: RULESYNC_RELATIVE_DIR_PATH,
+          relativeFilePath: RULESYNC_PERMISSIONS_FILE_NAME,
+          fileContent: JSON.stringify({ permission: { toString: { "*": "allow", x: "deny" } } }),
+        }),
+        logger: createMockLogger(),
+      });
+
+      const parsed = JSON.parse(cursorPermissions.getFileContent());
+      expect(parsed.permissions.allow).toEqual(["toString"]);
+      expect(parsed.permissions.deny).toEqual(["toString(x)"]);
+
+      const imported = new CursorPermissions({
+        relativeDirPath: ".cursor",
+        relativeFilePath: "cli.json",
+        fileContent: cursorPermissions.getFileContent(),
+      });
+      // Cursor lowercases a type it does not know on import.
+      expect(imported.toRulesyncPermissions().getJson().permission).toEqual({
+        tostring: { "*": "allow", x: "deny" },
+      });
+    });
+  });
 });

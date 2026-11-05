@@ -10,6 +10,7 @@ import { isPermissionAction } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
+import { lookupOwn } from "../../utils/own-lookup.js";
 import { isRecord, isStringArray } from "../../utils/type-guards.js";
 import { loadYaml } from "../../utils/yaml.js";
 import { KiroPermissions } from "./kiro-permissions.js";
@@ -374,7 +375,7 @@ function buildKiroCapabilityRules({
     { capability: KiroCapability; effect: PermissionAction; patterns: Set<string> }
   >();
   for (const [category, rules] of Object.entries(honorAllToolsOnBash(config.permission))) {
-    const capability = CANONICAL_TO_KIRO_CAPABILITY[category];
+    const capability = lookupOwn({ record: CANONICAL_TO_KIRO_CAPABILITY, key: category });
     if (capability === undefined) {
       logger?.warn(`Kiro permissions.yaml has no capability for category: ${category}. Skipping.`);
       continue;

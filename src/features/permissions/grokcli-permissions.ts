@@ -13,6 +13,7 @@ import {
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
+import { lookupOwn } from "../../utils/own-lookup.js";
 import { isRecord, isStringArray, toRecord } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
@@ -195,7 +196,7 @@ function buildGrokEntry(category: string, pattern: string): string | null {
       ? GROK_MCP_TOOL
       : `${GROK_MCP_TOOL}(${pattern})`;
   }
-  const tool = CATEGORY_TO_GROK_TOOL[category];
+  const tool = lookupOwn({ record: CATEGORY_TO_GROK_TOOL, key: category });
   if (tool === undefined) {
     return null;
   }
@@ -237,7 +238,7 @@ function parseGrokEntry(entry: string): { category: string; pattern: string } | 
       : { category: "mcp", pattern: CATCH_ALL_PATTERN };
   }
 
-  const category = GROK_TOOL_TO_CATEGORY[tool];
+  const category = lookupOwn({ record: GROK_TOOL_TO_CATEGORY, key: tool });
   if (category === undefined) {
     return null;
   }

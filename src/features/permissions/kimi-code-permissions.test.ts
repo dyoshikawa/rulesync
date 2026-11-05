@@ -303,3 +303,15 @@ describe("KimiCodePermissions [tools] section", () => {
     });
   });
 });
+
+describe("KimiCodePermissions tool names that match Object.prototype members", () => {
+  it("skips a category named like a prototype member as unsupported", () => {
+    const parsed = generate({
+      json: { permission: { bash: { ls: "allow" }, toString: { "*": "allow" } } },
+    });
+
+    expect((parsed.permission as { rules: unknown[] }).rules).toEqual([
+      { decision: "allow", pattern: "Bash(ls)", scope: "user" },
+    ]);
+  });
+});

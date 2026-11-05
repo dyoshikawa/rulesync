@@ -13,7 +13,7 @@ import type { AiFileParams } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
-import { invertRecord } from "../../utils/own-lookup.js";
+import { invertRecord, lookupOwn } from "../../utils/own-lookup.js";
 import { isPlainObject } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
@@ -118,7 +118,7 @@ function toZedToolName(canonical: string): string {
     const address = toolParts.length > 0 ? `${server}:${toolParts.join("__")}` : (server ?? "");
     return `${MCP_ZED_PREFIX}${address}`;
   }
-  return CANONICAL_TO_ZED_TOOL_NAMES[canonical] ?? canonical;
+  return lookupOwn({ record: CANONICAL_TO_ZED_TOOL_NAMES, key: canonical }) ?? canonical;
 }
 
 function toCanonicalToolName(zedName: string): string {
@@ -127,7 +127,7 @@ function toCanonicalToolName(zedName: string): string {
     const address = toolParts.length > 0 ? `${server}__${toolParts.join(":")}` : (server ?? "");
     return `${MCP_CATEGORY_PREFIX}${address}`;
   }
-  return ZED_TO_CANONICAL_TOOL_NAMES[zedName] ?? zedName;
+  return lookupOwn({ record: ZED_TO_CANONICAL_TOOL_NAMES, key: zedName }) ?? zedName;
 }
 
 /**
@@ -605,7 +605,7 @@ export class ZedPermissions extends ToolPermissions {
 
     const permission: Record<string, Record<string, PermissionAction>> = {};
     const ensure = (category: string): Record<string, PermissionAction> => {
-      const existing = permission[category];
+      const existing = lookupOwn({ record: permission, key: category });
       if (existing) {
         return existing;
       }

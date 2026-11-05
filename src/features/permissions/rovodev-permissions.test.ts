@@ -1139,4 +1139,22 @@ describe("RovodevPermissions", () => {
       expect(imported.permission.edit).toBeUndefined();
     });
   });
+
+  describe("tool names that match Object.prototype members", () => {
+    it("skips a category named like a prototype member as having no target", async () => {
+      const logger = createMockLogger();
+      const perms = await RovodevPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          bash: { ls: "allow" },
+          toString: { "*": "allow" },
+        }),
+        global: false,
+        logger,
+      });
+
+      expect(Object.hasOwn(toolLevelsOf(perms.getFileContent()), "toString")).toBe(false);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"toString" category'));
+    });
+  });
 });

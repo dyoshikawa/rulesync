@@ -6,7 +6,7 @@ import type { PermissionAction, PermissionsConfig } from "../../types/permission
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
-import { invertRecord } from "../../utils/own-lookup.js";
+import { invertRecord, lookupOwn } from "../../utils/own-lookup.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { isRecord, toStringArray } from "../../utils/type-guards.js";
 import {
@@ -160,7 +160,7 @@ function toLettacodeRule({
   action: PermissionAction;
   logger?: Logger;
 }): string | null {
-  const tool = CATEGORY_TO_LETTACODE_TOOL[category];
+  const tool = lookupOwn({ record: CATEGORY_TO_LETTACODE_TOOL, key: category });
   if (tool === undefined) {
     return null;
   }

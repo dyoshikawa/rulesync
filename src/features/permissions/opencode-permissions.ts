@@ -269,8 +269,8 @@ function getOpencodeMcpServerNames(mcp: unknown): string[] {
 
 function toOpencodePermissionKey(canonical: string): string {
   return (
-    CANONICAL_TO_OPENCODE_PERMISSION_KEYS[canonical] ??
-    CANONICAL_TO_OPENCODE_FOLDED_PERMISSION_KEYS[canonical] ??
+    lookupOwn({ record: CANONICAL_TO_OPENCODE_PERMISSION_KEYS, key: canonical }) ??
+    lookupOwn({ record: CANONICAL_TO_OPENCODE_FOLDED_PERMISSION_KEYS, key: canonical }) ??
     canonical
   );
 }
@@ -309,7 +309,9 @@ function mergePatternRules(
 }
 
 function toCanonicalPermissionKey(opencodeKey: string): string {
-  return OPENCODE_TO_CANONICAL_PERMISSION_KEYS[opencodeKey] ?? opencodeKey;
+  return (
+    lookupOwn({ record: OPENCODE_TO_CANONICAL_PERMISSION_KEYS, key: opencodeKey }) ?? opencodeKey
+  );
 }
 
 function isSharedPermissionCategory(category: string): boolean {
