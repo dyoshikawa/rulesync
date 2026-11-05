@@ -472,6 +472,27 @@ describe("E2E: ignore (global mode)", () => {
     expect(imported).toContain("*.pem");
   });
 
+  it("should import the Reasonix user-level read denies into the project", async () => {
+    const projectDir = getProjectDir();
+    const homeDir = getHomeDir();
+    await writeFileContent(
+      join(homeDir, REASONIX_GLOBAL_DIR, REASONIX_GLOBAL_PERMISSIONS_FILE_NAME),
+      '[permissions]\ndeny = ["read_file(private/)", "Bash(rm *)"]\n',
+    );
+
+    await runImport({
+      target: "reasonix",
+      features: "ignore",
+      global: true,
+      env: { HOME_DIR: homeDir },
+    });
+
+    const imported = await readFileContent(join(projectDir, RULESYNC_AIIGNORE_RELATIVE_FILE_PATH));
+    expect(imported).toContain("private/");
+    expect(imported).not.toContain("rm *");
+    expect(await fileExists(join(homeDir, RULESYNC_AIIGNORE_RELATIVE_FILE_PATH))).toBe(false);
+  });
+
   it.each(["kiro-cli", "kiro-ide"])(
     "should import the user-level kiroignore for %s",
     async (target) => {
