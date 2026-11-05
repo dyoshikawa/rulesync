@@ -572,7 +572,7 @@ describe("addCommand", () => {
     await writeFileContent(configPath, originalContent);
 
     await expect(addCommand(logger, { source: "owner/repo" })).rejects.toThrow(
-      /Failed to parse rulesync\.jsonc/,
+      /Failed to parse "rulesync\.jsonc"/,
     );
 
     expect(await readFileContent(configPath)).toBe(originalContent);
