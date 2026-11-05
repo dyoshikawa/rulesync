@@ -10,6 +10,7 @@ import { isPermissionAction } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
+import { getOrCreateOwn, lookupOwn } from "../../utils/own-lookup.js";
 import { isRecord, isStringArray } from "../../utils/type-guards.js";
 import { loadYaml } from "../../utils/yaml.js";
 import { KiroPermissions } from "./kiro-permissions.js";
@@ -341,9 +342,13 @@ export class KiroCapabilityPermissions extends ToolPermissions {
           : isStringArray(rule.match)
             ? rule.match
             : [];
-      const categoryRules = (permission[category] ??= {});
+      const categoryRules = getOrCreateOwn({
+        record: permission,
+        key: category,
+        create: () => ({}),
+      });
       for (const pattern of patterns) {
-        const previous = categoryRules[pattern];
+        const previous = lookupOwn({ record: categoryRules, key: pattern });
         // Kiro resolves overlapping rules deny > ask > allow; keep the stricter.
         if (isStricterAction({ action: rule.effect, existing: previous })) {
           categoryRules[pattern] = rule.effect;
@@ -374,7 +379,7 @@ function buildKiroCapabilityRules({
     { capability: KiroCapability; effect: PermissionAction; patterns: Set<string> }
   >();
   for (const [category, rules] of Object.entries(honorAllToolsOnBash(config.permission))) {
-    const capability = CANONICAL_TO_KIRO_CAPABILITY[category];
+    const capability = lookupOwn({ record: CANONICAL_TO_KIRO_CAPABILITY, key: category });
     if (capability === undefined) {
       logger?.warn(`Kiro permissions.yaml has no capability for category: ${category}. Skipping.`);
       continue;

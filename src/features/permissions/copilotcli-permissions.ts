@@ -226,7 +226,9 @@ export class CopilotcliPermissions extends ToolPermissions {
       for (const pattern of toUrlList(settings[ALLOWED_URLS_KEY])) {
         // A pattern in both lists is a deny upstream (repository denials are
         // union-merged over the user allow list), so deny wins here too.
-        rules[pattern] ??= "allow";
+        if (!Object.hasOwn(rules, pattern)) {
+          rules[pattern] = "allow";
+        }
       }
     }
 

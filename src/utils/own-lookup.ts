@@ -19,6 +19,37 @@ export function lookupOwn<V>({
 }
 
 /**
+ * Return the value a map holds under its own `key`, first storing `create()`
+ * there when it has none. A bracket read would find an inherited member for a
+ * key such as `toString`, so an importer bucketing rules by a user-supplied
+ * name would write into an `Object.prototype` function instead of a fresh
+ * bucket.
+ */
+export function getOrCreateOwn<V>({
+  record,
+  key,
+  create,
+}: {
+  record: Record<string, V>;
+  key: string;
+  create: () => NoInfer<V>;
+}): V {
+  if (Object.hasOwn(record, key)) {
+    return record[key] as V;
+  }
+  const created = create();
+  // A plain assignment of `__proto__` would run the inherited setter and swap
+  // the record's prototype instead of adding a key, so define it as data.
+  Object.defineProperty(record, key, {
+    value: created,
+    writable: true,
+    enumerable: true,
+    configurable: true,
+  });
+  return created;
+}
+
+/**
  * Swap the keys and values of a name map, e.g. a canonical-to-tool map into
  * the tool-to-canonical map an importer reads. When two keys share a value,
  * the later key wins.

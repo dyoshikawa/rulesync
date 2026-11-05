@@ -13,6 +13,7 @@ import {
   getKimiCodeRulesyncOutputRoot,
 } from "../../utils/kimi-code.js";
 import { type Logger, warnWithFallback } from "../../utils/logger.js";
+import { lookupOwn } from "../../utils/own-lookup.js";
 import { isRecord, isStringArray, toRecord } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
@@ -57,7 +58,7 @@ function buildKimiCodePattern(category: string, pattern: string): string | null 
   if (category === "mcp") {
     return pattern === "*" || pattern === "" ? "mcp__*" : `mcp__${pattern}`;
   }
-  const tool = CATEGORY_TO_KIMI_CODE_TOOL[category];
+  const tool = lookupOwn({ record: CATEGORY_TO_KIMI_CODE_TOOL, key: category });
   if (!tool) {
     return null;
   }
@@ -191,7 +192,7 @@ function canonicalToKimiCodeRules({
     const isSupported =
       category === "mcp" ||
       category.startsWith(MCP_CATEGORY_PREFIX) ||
-      CATEGORY_TO_KIMI_CODE_TOOL[category] !== undefined;
+      lookupOwn({ record: CATEGORY_TO_KIMI_CODE_TOOL, key: category }) !== undefined;
     if (!isSupported) {
       if (Object.keys(rules).length > 0) {
         logger?.warn(`Kimi Code permissions: skipping unsupported category "${category}".`);

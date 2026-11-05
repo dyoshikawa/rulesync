@@ -7,6 +7,7 @@ import { isPermissionAction } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
+import { getOrCreateOwn, lookupOwn } from "../../utils/own-lookup.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { isRecord, toRecord, toStringArray } from "../../utils/type-guards.js";
 import {
@@ -501,8 +502,8 @@ export class TraePermissions extends ToolPermissions {
       if (isPrototypePollutionKey(category) || isPrototypePollutionKey(pattern)) {
         return;
       }
-      const rules = (permission[category] ??= {});
-      const existing = rules[pattern];
+      const rules = getOrCreateOwn({ record: permission, key: category, create: () => ({}) });
+      const existing = lookupOwn({ record: rules, key: pattern });
       if (isStricterAction({ action, existing })) {
         rules[pattern] = action;
       }

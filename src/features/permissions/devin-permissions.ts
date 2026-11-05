@@ -17,6 +17,7 @@ import {
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull, toPosixPath } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
+import { getOrCreateOwn, lookupOwn } from "../../utils/own-lookup.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { isRecord, toRecord } from "../../utils/type-guards.js";
@@ -85,11 +86,11 @@ const DEVIN_SCOPE_TO_CANONICAL: Record<string, string> = {
 const DEVIN_BARE_ONLY_SCOPES: ReadonlySet<string> = new Set(["web_search"]);
 
 function toDevinScope(canonical: string): string {
-  return CANONICAL_TO_DEVIN_SCOPE[canonical] ?? canonical;
+  return lookupOwn({ record: CANONICAL_TO_DEVIN_SCOPE, key: canonical }) ?? canonical;
 }
 
 function toCanonicalCategory(devinScope: string): string {
-  return DEVIN_SCOPE_TO_CANONICAL[devinScope] ?? devinScope;
+  return lookupOwn({ record: DEVIN_SCOPE_TO_CANONICAL, key: devinScope }) ?? devinScope;
 }
 
 type DevinPermissionsBlock = {
@@ -628,7 +629,7 @@ function convertDevinToRulesyncPermissions(params: {
         continue;
       }
       const canonical = toCanonicalCategory(scope);
-      (permission[canonical] ??= {})[pattern] = action;
+      getOrCreateOwn({ record: permission, key: canonical, create: () => ({}) })[pattern] = action;
     }
   };
 

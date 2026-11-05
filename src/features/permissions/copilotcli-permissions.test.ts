@@ -512,4 +512,22 @@ describe("CopilotcliPermissions", () => {
       );
     });
   });
+
+  describe("names that match Object.prototype members on import", () => {
+    it("imports an allowed URL named like a prototype member as an allow rule", async () => {
+      await writeSettings({
+        testDir,
+        relativeDirPath: GLOBAL_DIR,
+        settings: { allowedUrls: ["toString"] },
+      });
+
+      const permissions = await CopilotcliPermissions.fromFile({
+        outputRoot: testDir,
+        global: true,
+      });
+      expect(permissions.toRulesyncPermissions().getJson().permission).toEqual({
+        webfetch: { toString: "allow" },
+      });
+    });
+  });
 });

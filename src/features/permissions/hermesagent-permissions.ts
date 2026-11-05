@@ -20,6 +20,7 @@ import {
   getHermesagentSharedConfigWritePaths,
 } from "../../utils/hermesagent.js";
 import { type Logger, warnWithFallback } from "../../utils/logger.js";
+import { getOrCreateOwn } from "../../utils/own-lookup.js";
 import { isRecord, isStringArray, toRecord } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
@@ -83,7 +84,7 @@ function ensureCategory(
   permission: CanonicalPermissionBlock,
   category: string,
 ): Record<string, PermissionAction> {
-  return (permission[category] ??= {});
+  return getOrCreateOwn({ record: permission, key: category, create: () => ({}) });
 }
 
 function removeEmptyCategories(permission: CanonicalPermissionBlock): void {

@@ -10,6 +10,7 @@ import {
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
+import { lookupOwn } from "../../utils/own-lookup.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { honorAllToolsOnBash } from "./shell-command-categories.js";
 import {
@@ -370,7 +371,7 @@ function convertRulesyncToJunieRules({
   const ruleLists: Partial<Record<JunieRuleGroup, JunieRule[]>> = {};
 
   for (const [category, patterns] of Object.entries(honorAllToolsOnBash(config.permission))) {
-    const group = CANONICAL_TO_JUNIE_GROUP[category];
+    const group = lookupOwn({ record: CANONICAL_TO_JUNIE_GROUP, key: category });
     if (!group) {
       if (Object.keys(patterns).length > 0) {
         logger?.warn(

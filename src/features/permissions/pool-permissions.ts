@@ -715,7 +715,21 @@ function importPoolTool({
     bucket[pattern] = "deny";
   }
   for (const pattern of allowed.filter(isUsablePattern)) {
-    bucket[pattern] ??= "allow";
+    // An own-property check, so a `toString` pattern is not mistaken for one
+    // already denied.
+    if (!Object.hasOwn(bucket, pattern)) {
+      bucket[pattern] = "allow";
+    }
+  }
+}
+
+/**
+ * Record `allow` for a path no deny has claimed. The check is on own
+ * properties, so a path such as `toString` is not mistaken for a stored rule.
+ */
+function allowUnlessSet(bucket: ActionRules, path: string): void {
+  if (!Object.hasOwn(bucket, path)) {
+    bucket[path] = "allow";
   }
 }
 
@@ -758,10 +772,10 @@ function convertPoolToRulesync({
   for (const entry of allowEntries) {
     const path = pathOfEntry(entry);
     if (path === undefined) continue;
-    bucketFor(READ_CATEGORY)[path] ??= "allow";
+    allowUnlessSet(bucketFor(READ_CATEGORY), path);
     if (isRecord(entry) && entry[POOL_WRITE_KEY] === true) {
       for (const category of WRITE_CATEGORIES) {
-        bucketFor(category)[path] ??= "allow";
+        allowUnlessSet(bucketFor(category), path);
       }
     }
   }

@@ -20,6 +20,7 @@ import { formatError } from "../../utils/error.js";
 import { fileExists, readFileContentOrNull } from "../../utils/file.js";
 import { createIntersectionBudget } from "../../utils/glob.js";
 import type { Logger } from "../../utils/logger.js";
+import { lookupOwn } from "../../utils/own-lookup.js";
 import {
   CODEWHALE_PROJECT_CONFIG_PATHS,
   createCodewhaleProjectConfigFile,
@@ -82,7 +83,7 @@ function pathCategoryTools(category: string, action: PermissionAction): readonly
   if (category === "write" && action !== "allow") {
     return CODEWHALE_WRITE_RESTRICTION_TOOLS;
   }
-  return CODEWHALE_PATH_CATEGORY_TOOLS[category] ?? [];
+  return lookupOwn({ record: CODEWHALE_PATH_CATEGORY_TOOLS, key: category }) ?? [];
 }
 
 /** The canonical path categories a Codewhale file tool's rule can come from. */
@@ -522,7 +523,7 @@ function canonicalToCodewhaleRules({
     if (category === SHELL_PERMISSION_CATEGORY || category === ALL_TOOLS_PERMISSION_CATEGORY) {
       continue;
     }
-    if (CODEWHALE_PATH_CATEGORY_TOOLS[category] === undefined) {
+    if (lookupOwn({ record: CODEWHALE_PATH_CATEGORY_TOOLS, key: category }) === undefined) {
       if (Object.keys(rules).length > 0) {
         logger?.warn(
           `Codewhale permissions: skipping unsupported category "${category}"; Codewhale evaluates permission rules only for shell commands and file tools.`,
@@ -679,11 +680,13 @@ function toImportCandidates(rule: ResolvedCodewhaleRule): ImportCandidate[] {
   if (pattern === null) {
     return [];
   }
-  return (CODEWHALE_TOOL_TO_PATH_CATEGORIES[rule.tool] ?? []).map((category) => ({
-    category,
-    pattern,
-    rule,
-  }));
+  return (lookupOwn({ record: CODEWHALE_TOOL_TO_PATH_CATEGORIES, key: rule.tool }) ?? []).map(
+    (category) => ({
+      category,
+      pattern,
+      rule,
+    }),
+  );
 }
 
 /**

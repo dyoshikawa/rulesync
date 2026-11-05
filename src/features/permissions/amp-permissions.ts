@@ -6,6 +6,7 @@ import { AMP_DIR, AMP_GLOBAL_DIR, AMP_SETTINGS_FILE_NAME } from "../../constants
 import type { AiFileParams, ValidationResult } from "../../types/ai-file.js";
 import type { PermissionAction, PermissionsConfig } from "../../types/permissions.js";
 import { formatError } from "../../utils/error.js";
+import { getOrCreateOwn, lookupOwn } from "../../utils/own-lookup.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { isPlainObject } from "../../utils/type-guards.js";
 import { parseAmpSettings, resolveAmpSettingsFile } from "../shared/amp-settings.js";
@@ -529,8 +530,8 @@ function convertAmpToRulesync({
   const assign = (tool: string, pattern: string, action: PermissionAction): void => {
     if (isPrototypePollutionKey(tool)) return;
     if (isPrototypePollutionKey(pattern)) return;
-    const bucket = (permission[tool] ??= {});
-    const existing = bucket[pattern];
+    const bucket = getOrCreateOwn({ record: permission, key: tool, create: () => ({}) });
+    const existing = lookupOwn({ record: bucket, key: pattern });
     if (isStricterAction({ action, existing })) {
       bucket[pattern] = action;
     }

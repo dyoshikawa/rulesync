@@ -272,4 +272,20 @@ describe("TraePermissions", () => {
       webfetch: { "evil.com": "deny" },
     });
   });
+
+  describe("names that match Object.prototype members on import", () => {
+    it("imports a command named like a prototype member into its own entry", () => {
+      const permission = importFrom(homeDir, {
+        customProfiles: {
+          defaultCustomProfile: {
+            approval: { commandRules: { toString: { approval: "allow" } } },
+          },
+        },
+      });
+
+      expect(permission.bash).toEqual({ toString: "allow" });
+      expect(Object.hasOwn(Object.prototype.toString, "*")).toBe(false);
+      expect(Object.hasOwn(Object.prototype.toString, "toString")).toBe(false);
+    });
+  });
 });

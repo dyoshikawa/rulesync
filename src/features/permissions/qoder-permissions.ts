@@ -7,7 +7,7 @@ import type { PermissionAction, PermissionsConfig } from "../../types/permission
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
-import { invertRecord, lookupOwn } from "../../utils/own-lookup.js";
+import { getOrCreateOwn, invertRecord, lookupOwn } from "../../utils/own-lookup.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { isRecord, isStringArray, toRecord, toStringArray } from "../../utils/type-guards.js";
 import {
@@ -181,7 +181,7 @@ function toQoderRule({
     );
     return null;
   }
-  const tool = CATEGORY_TO_QODER_TOOL[category];
+  const tool = lookupOwn({ record: CATEGORY_TO_QODER_TOOL, key: category });
   if (tool === undefined) {
     return null;
   }
@@ -630,8 +630,12 @@ export class QoderPermissions extends ToolPermissions {
         ) {
           continue;
         }
-        const rules = (permission[parsed.category] ??= {});
-        const existing = rules[parsed.pattern];
+        const rules = getOrCreateOwn({
+          record: permission,
+          key: parsed.category,
+          create: () => ({}),
+        });
+        const existing = lookupOwn({ record: rules, key: parsed.pattern });
         // Qoder checks `deny` before `ask` and `ask` before `allow`, so the
         // stricter action wins when a rule appears in more than one list.
         if (isStricterAction({ action, existing })) {

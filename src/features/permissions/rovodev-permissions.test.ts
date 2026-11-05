@@ -1139,4 +1139,39 @@ describe("RovodevPermissions", () => {
       expect(imported.permission.edit).toBeUndefined();
     });
   });
+
+  describe("tool names that match Object.prototype members", () => {
+    it("skips a category named like a prototype member as having no target", async () => {
+      const logger = createMockLogger();
+      const perms = await RovodevPermissions.fromRulesyncPermissions({
+        outputRoot: testDir,
+        rulesyncPermissions: rulesyncPermissions({
+          bash: { ls: "allow" },
+          toString: { "*": "allow" },
+        }),
+        global: false,
+        logger,
+      });
+
+      expect(Object.hasOwn(toolLevelsOf(perms.getFileContent()), "toString")).toBe(false);
+      expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"toString" category'));
+    });
+  });
+
+  describe("names that match Object.prototype members on import", () => {
+    it("imports an external path named like a prototype member into its own read entry", async () => {
+      await ensureDir(join(testDir, ".rovodev"));
+      await writeFileContent(
+        join(testDir, ".rovodev", "config.yml"),
+        dump({ toolPermissions: { allowedExternalPaths: ["toString"] } }),
+      );
+
+      const perms = await RovodevPermissions.fromFile({ outputRoot: testDir, global: false });
+      expect(perms.toRulesyncPermissions().getJson().permission.read).toEqual({
+        toString: "allow",
+      });
+      expect(Object.hasOwn(Object.prototype.toString, "*")).toBe(false);
+      expect(Object.hasOwn(Object.prototype.toString, "toString")).toBe(false);
+    });
+  });
 });
