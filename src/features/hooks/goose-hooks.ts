@@ -103,22 +103,13 @@ export class GooseHooks extends ToolHooks {
       displayName: "Goose",
       parse: (fileContent) => JSON.parse(fileContent),
     });
-    // Drop any event key Goose does not define (e.g. `SubagentStart`/
-    // `SubagentStop` left in an old rulesync-generated file). Every real Goose
-    // event maps 1:1 to a canonical event, so a key absent from
-    // GOOSE_TO_CANONICAL_EVENT_NAMES is cruft rather than a tool-specific event
-    // worth passing through; keeping it would inject an invalid PascalCase key
-    // into the canonical `.rulesync/hooks.jsonc`.
-    const recognizedHooks =
-      parsed.hooks && typeof parsed.hooks === "object" && !Array.isArray(parsed.hooks)
-        ? Object.fromEntries(
-            Object.entries(parsed.hooks as Record<string, unknown>).filter(([eventName]) =>
-              Object.hasOwn(GOOSE_TO_CANONICAL_EVENT_NAMES, eventName),
-            ),
-          )
-        : parsed.hooks;
+    // Event keys with no canonical mapping (e.g. Goose's `PreToolUseResult`)
+    // keep their native name and land in the `goose.hooks` override block via
+    // `buildImportedHooksConfig`, so they survive an import-generate round
+    // trip. Goose ignores event names it does not define, so a stale key such
+    // as `SubagentStart` is harmless when emitted back.
     const hooks = toolHooksToCanonical({
-      hooks: recognizedHooks,
+      hooks: parsed.hooks,
       converterConfig: GOOSE_CONVERTER_CONFIG,
       logger,
     });

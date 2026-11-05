@@ -342,10 +342,12 @@ describe("GooseHooks", () => {
       );
     });
 
-    it("should drop non-Goose SubagentStart/SubagentStop keys on import", () => {
+    it("should keep non-canonical SubagentStart/SubagentStop keys in the goose override block on import", () => {
       // Goose never emits these (its HookEvent enum has no such arms), but an
       // old rulesync-generated hooks.json might carry them. They have no
-      // canonical mapping anymore, so import drops them while keeping real events.
+      // canonical mapping, so import routes them into `goose.hooks` instead of
+      // the canonical block; Goose ignores unknown event names, so emitting
+      // them back is harmless.
       const gooseHooks = new GooseHooks(
         createMockAiFileParams({
           relativeDirPath: GOOSE_HOOKS_DIR,
@@ -361,15 +363,58 @@ describe("GooseHooks", () => {
       );
 
       const parsed = gooseHooks.toRulesyncHooks().getJson();
-      expect(parsed.hooks.sessionStart?.[0]).toEqual({
-        type: "command",
-        command: "echo start",
+      expect(parsed.hooks).toEqual({
+        sessionStart: [{ type: "command", command: "echo start" }],
       });
-      // Neither the canonical camelCase name nor the raw PascalCase key survives.
-      expect(parsed.hooks.subagentStart).toBeUndefined();
-      expect(parsed.hooks.subagentStop).toBeUndefined();
-      expect((parsed.hooks as Record<string, unknown>).SubagentStart).toBeUndefined();
-      expect((parsed.hooks as Record<string, unknown>).SubagentStop).toBeUndefined();
+      expect(parsed.goose).toEqual({
+        hooks: {
+          SubagentStart: [{ type: "command", command: "echo sub-start" }],
+          SubagentStop: [{ type: "command", command: "echo sub-stop" }],
+        },
+      });
+    });
+
+    it("should keep PreToolUseResult through an import-generate-import round trip (issue #3770)", async () => {
+      const original = new GooseHooks(
+        createMockAiFileParams({
+          relativeDirPath: GOOSE_HOOKS_DIR,
+          relativeFilePath: "hooks.json",
+          fileContent: JSON.stringify({
+            hooks: {
+              PreToolUse: [{ matcher: "shell", hooks: [{ type: "command", command: "echo pre" }] }],
+              PreToolUseResult: [
+                { matcher: "shell", hooks: [{ type: "command", command: "echo audit" }] },
+              ],
+            },
+          }),
+        }),
+      );
+
+      const imported = original.toRulesyncHooks();
+      const expectedConfig = {
+        version: 1,
+        hooks: {
+          preToolUse: [{ type: "command", command: "echo pre", matcher: "shell" }],
+        },
+        goose: {
+          hooks: {
+            PreToolUseResult: [{ type: "command", command: "echo audit", matcher: "shell" }],
+          },
+        },
+      };
+      expect(imported.getJson()).toEqual(expectedConfig);
+
+      const generated = await GooseHooks.fromRulesyncHooks({
+        outputRoot: testDir,
+        rulesyncHooks: imported,
+        validate: true,
+      });
+      const generatedJson = JSON.parse(generated.getFileContent());
+      expect(generatedJson.hooks.PreToolUseResult).toEqual([
+        { matcher: "shell", hooks: [{ type: "command", command: "echo audit" }] },
+      ]);
+
+      expect(generated.toRulesyncHooks().getJson()).toEqual(expectedConfig);
     });
   });
 
