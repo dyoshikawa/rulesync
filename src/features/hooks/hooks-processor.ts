@@ -1302,9 +1302,6 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
   ],
 ]);
 
-// Project-mode generation/import should only expose tools that actually write
-// hooks into the workspace. This keeps global-only targets out of project
-// target lists while still allowing them in global mode.
 // The targets whose hooks format carries a per-hook field, named in the
 // dropped-field warnings so the list cannot drift from the factories.
 function targetsSupporting(
@@ -1316,6 +1313,9 @@ function targetsSupporting(
     .join(" / ");
 }
 
+// Project-mode generation/import should only expose tools that actually write
+// hooks into the workspace. This keeps global-only targets out of project
+// target lists while still allowing them in global mode.
 const hooksProcessorToolTargets: ToolTarget[] = [...toolHooksFactories.entries()]
   .filter(([, f]) => f.meta.supportsProject)
   .map(([t]) => t);
