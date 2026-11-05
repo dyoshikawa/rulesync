@@ -1210,4 +1210,20 @@ describe("CommandcodePermissions", () => {
       expect(permissions.validate()).toEqual({ success: true, error: null });
     });
   });
+
+  describe("names that match Object.prototype members on import", () => {
+    it("imports a pattern named like a prototype member into its own entry", async () => {
+      await writeSettings({
+        testDir,
+        settings: { permissions: { allow: ["Bash(toString)"] } },
+      });
+
+      const permissions = await CommandcodePermissions.fromFile({ outputRoot: testDir });
+      expect(permissions.toRulesyncPermissions().getJson().permission).toEqual({
+        bash: { toString: "allow" },
+      });
+      expect(Object.hasOwn(Object.prototype.toString, "*")).toBe(false);
+      expect(Object.hasOwn(Object.prototype.toString, "toString")).toBe(false);
+    });
+  });
 });

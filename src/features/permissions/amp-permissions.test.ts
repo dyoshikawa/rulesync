@@ -577,4 +577,26 @@ describe("AmpPermissions", () => {
       expect(instance.validate().success).toBe(true);
     });
   });
+
+  describe("names that match Object.prototype members on import", () => {
+    it("imports a tool and a pattern named like a prototype member into their own buckets", async () => {
+      await writeFileContent(
+        join(testDir, ".amp", "settings.json"),
+        JSON.stringify({
+          "amp.permissions": [
+            { tool: "toString", action: "allow" },
+            { tool: "bash", action: "allow", matches: { cmd: "toString" } },
+          ],
+        }),
+      );
+
+      const instance = await AmpPermissions.fromFile({ outputRoot: testDir });
+      expect(instance.toRulesyncPermissions().getJson().permission).toEqual({
+        toString: { "*": "allow" },
+        bash: { toString: "allow" },
+      });
+      expect(Object.hasOwn(Object.prototype.toString, "*")).toBe(false);
+      expect(Object.hasOwn(Object.prototype.toString, "toString")).toBe(false);
+    });
+  });
 });

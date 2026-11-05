@@ -11,7 +11,7 @@ import type { PermissionAction, PermissionsConfig } from "../../types/permission
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import { fallbackLogger, type Logger } from "../../utils/logger.js";
-import { lookupOwn } from "../../utils/own-lookup.js";
+import { getOrCreateOwn, lookupOwn } from "../../utils/own-lookup.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { isRecord } from "../../utils/type-guards.js";
 import {
@@ -672,8 +672,8 @@ function parseCommandcodeRuleLists(
             `as written; spell the rule the way the tool is registered if they differ.`,
         );
       }
-      const rules = (permission[category] ??= {});
-      if (isStricterAction({ action, existing: rules[pattern] })) {
+      const rules = getOrCreateOwn({ record: permission, key: category, create: () => ({}) });
+      if (isStricterAction({ action, existing: lookupOwn({ record: rules, key: pattern }) })) {
         rules[pattern] = action;
       }
     }

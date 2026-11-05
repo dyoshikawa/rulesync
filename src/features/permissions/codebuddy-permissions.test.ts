@@ -409,4 +409,16 @@ describe("CodebuddyPermissions", () => {
       expect(importOverride(settings, { global: true })).toEqual(codebuddy);
     });
   });
+
+  describe("names that match Object.prototype members on import", () => {
+    it("imports a tool and a pattern named like a prototype member into their own buckets", () => {
+      const permission = importFrom(testDir, {
+        permissions: { allow: ["toString", "Bash(toString)"] },
+      });
+
+      expect(permission).toEqual({ toString: { "*": "allow" }, bash: { toString: "allow" } });
+      expect(Object.hasOwn(Object.prototype.toString, "*")).toBe(false);
+      expect(Object.hasOwn(Object.prototype.toString, "toString")).toBe(false);
+    });
+  });
 });

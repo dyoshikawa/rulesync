@@ -8,7 +8,7 @@ import type { PermissionAction, PermissionsConfig } from "../../types/permission
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
-import { invertRecord, lookupOwn } from "../../utils/own-lookup.js";
+import { getOrCreateOwn, invertRecord, lookupOwn } from "../../utils/own-lookup.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { isStringArray, toRecord } from "../../utils/type-guards.js";
@@ -372,10 +372,12 @@ function convertContinuePermissionsToRulesync(lists: ContinuePermissionLists): P
         continue;
       }
       const category = toCanonicalToolName(parsedEntry.toolName);
-      permission[category] ??= {};
+      const rules = getOrCreateOwn({ record: permission, key: category, create: () => ({}) });
       // The CLI evaluates exclude before ask before allow, and the lists are
       // read in that order, so the first action recorded for a pattern wins.
-      permission[category][parsedEntry.pattern] ??= action;
+      if (!Object.hasOwn(rules, parsedEntry.pattern)) {
+        rules[parsedEntry.pattern] = action;
+      }
     }
   }
 

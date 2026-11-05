@@ -938,7 +938,9 @@ function convertRovodevToolPermissionsToRulesync(
       // Never widen a level already read from the tool keys: the `/directories`
       // command edits this list from inside a Rovo Dev session, so a stray `*`
       // entry would otherwise turn a `read` deny into an allow.
-      permission.read[path] ??= "allow";
+      if (!Object.hasOwn(permission.read, path)) {
+        permission.read[path] = "allow";
+      }
     }
   }
 

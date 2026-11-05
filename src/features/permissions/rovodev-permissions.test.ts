@@ -1157,4 +1157,21 @@ describe("RovodevPermissions", () => {
       expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('"toString" category'));
     });
   });
+
+  describe("names that match Object.prototype members on import", () => {
+    it("imports an external path named like a prototype member into its own read entry", async () => {
+      await ensureDir(join(testDir, ".rovodev"));
+      await writeFileContent(
+        join(testDir, ".rovodev", "config.yml"),
+        dump({ toolPermissions: { allowedExternalPaths: ["toString"] } }),
+      );
+
+      const perms = await RovodevPermissions.fromFile({ outputRoot: testDir, global: false });
+      expect(perms.toRulesyncPermissions().getJson().permission.read).toEqual({
+        toString: "allow",
+      });
+      expect(Object.hasOwn(Object.prototype.toString, "*")).toBe(false);
+      expect(Object.hasOwn(Object.prototype.toString, "toString")).toBe(false);
+    });
+  });
 });

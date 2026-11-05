@@ -923,4 +923,20 @@ describe("GrokcliPermissions", () => {
       expect(permission.deny).toEqual([]);
     });
   });
+
+  describe("names that match Object.prototype members on import", () => {
+    it("imports a pattern named like a prototype member into its own entry", async () => {
+      await writeFileContent(
+        join(testDir, ".grok", "config.toml"),
+        ["[permission]", 'allow = ["Bash(toString)"]', ""].join("\n"),
+      );
+
+      const tool = await GrokcliPermissions.fromFile({ outputRoot: testDir, global: true });
+      expect(tool.toRulesyncPermissions().getJson().permission.bash).toEqual({
+        toString: "allow",
+      });
+      expect(Object.hasOwn(Object.prototype.toString, "*")).toBe(false);
+      expect(Object.hasOwn(Object.prototype.toString, "toString")).toBe(false);
+    });
+  });
 });

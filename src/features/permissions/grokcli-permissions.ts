@@ -13,7 +13,7 @@ import {
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
-import { lookupOwn } from "../../utils/own-lookup.js";
+import { getOrCreateOwn, lookupOwn } from "../../utils/own-lookup.js";
 import { isRecord, isStringArray, toRecord } from "../../utils/type-guards.js";
 import { applySharedConfigPatch, sharedConfigFileKey } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
@@ -721,8 +721,8 @@ function parseGrokPermissionArrays(
     pattern: string;
     action: PermissionAction;
   }) => {
-    const bucket = (result[category] ??= {});
-    const existing = bucket[pattern];
+    const bucket = getOrCreateOwn({ record: result, key: category, create: () => ({}) });
+    const existing = lookupOwn({ record: bucket, key: pattern });
     // Strictest wins across both forms (deny > ask > allow), independent of the
     // order the two sources are read in.
     if (isStricterAction({ action, existing })) {

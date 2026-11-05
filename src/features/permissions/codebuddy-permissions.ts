@@ -6,7 +6,7 @@ import type { PermissionAction, PermissionsConfig } from "../../types/permission
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
-import { invertRecord, lookupOwn } from "../../utils/own-lookup.js";
+import { getOrCreateOwn, invertRecord, lookupOwn } from "../../utils/own-lookup.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
 import { isRecord, isStringArray, toStringArray } from "../../utils/type-guards.js";
 import {
@@ -524,8 +524,12 @@ export class CodebuddyPermissions extends ToolPermissions {
         ) {
           continue;
         }
-        const rules = (permission[parsed.category] ??= {});
-        const existing = rules[parsed.pattern];
+        const rules = getOrCreateOwn({
+          record: permission,
+          key: parsed.category,
+          create: () => ({}),
+        });
+        const existing = lookupOwn({ record: rules, key: parsed.pattern });
         // CodeBuddy evaluates `deny` first, then `ask`, then `allow`, so the
         // stricter action wins when a rule appears in more than one list.
         if (isStricterAction({ action, existing })) {
