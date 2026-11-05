@@ -33,6 +33,7 @@ import {
   PathOutsideRootError,
   posixRelativePathEscapesRoot,
   readFileBufferOrNull,
+  readFileContentOrNull,
   readFileContent,
   relativeWriteLanding,
   removeDirectory,
@@ -602,6 +603,47 @@ describe("file utilities", () => {
 
         expect(result).not.toBeNull();
         expect(result?.equals(fileBuffer)).toBe(true);
+      });
+
+      it("should return null when an ancestor of the path is a file", async () => {
+        const filePath = join(testDir, "plain.txt");
+        await writeFileContent(filePath, "content");
+
+        expect(await readFileBufferOrNull(join(filePath, "child.bin"))).toBeNull();
+      });
+
+      it("should throw the read error when the path is a directory", async () => {
+        await ensureDir(join(testDir, "a-directory"));
+
+        await expect(readFileBufferOrNull(join(testDir, "a-directory"))).rejects.toThrow(/EISDIR/);
+      });
+    });
+
+    describe("readFileContentOrNull", () => {
+      it("should return null when the file does not exist", async () => {
+        expect(await readFileContentOrNull(join(testDir, "missing", "file.md"))).toBeNull();
+      });
+
+      it("should return the content of an existing file", async () => {
+        const filePath = join(testDir, "existing.md");
+        await writeFileContent(filePath, "# Title\n");
+
+        expect(await readFileContentOrNull(filePath)).toBe("# Title\n");
+      });
+
+      it("should return null when an ancestor of the path is a file", async () => {
+        const filePath = join(testDir, "plain.md");
+        await writeFileContent(filePath, "content");
+
+        expect(await readFileContentOrNull(join(filePath, "child.md"))).toBeNull();
+      });
+
+      it("should throw the read error when the path is a directory", async () => {
+        await ensureDir(join(testDir, "another-directory"));
+
+        await expect(readFileContentOrNull(join(testDir, "another-directory"))).rejects.toThrow(
+          /EISDIR/,
+        );
       });
     });
 

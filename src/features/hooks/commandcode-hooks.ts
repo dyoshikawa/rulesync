@@ -4,7 +4,6 @@ import {
   COMMANDCODE_DIR,
   COMMANDCODE_SETTINGS_FILE_NAME,
 } from "../../constants/commandcode-paths.js";
-import type { AiFileParams } from "../../types/ai-file.js";
 import {
   CANONICAL_TO_COMMANDCODE_EVENT_NAMES,
   COMMANDCODE_HOOK_EVENTS,
@@ -26,8 +25,6 @@ import {
 } from "./tool-hooks-converter.js";
 import {
   ToolHooks,
-  type ToolHooksForDeletionParams,
-  type ToolHooksFromFileParams,
   type ToolHooksFromRulesyncHooksParams,
   type ToolHooksSettablePaths,
 } from "./tool-hooks.js";
@@ -86,13 +83,6 @@ function parseCommandcodeSettings(fileContent: string, filePath?: string): Recor
  * @see https://commandcode.ai/docs/settings
  */
 export class CommandcodeHooks extends ToolHooks {
-  constructor(params: AiFileParams) {
-    super({
-      ...params,
-      fileContent: params.fileContent ?? "{}",
-    });
-  }
-
   override isDeletable(): boolean {
     // settings.json carries user-managed settings beyond hooks, so it is never
     // removed wholesale; clearing hooks happens via an in-place merge.
@@ -106,23 +96,6 @@ export class CommandcodeHooks extends ToolHooks {
       relativeDirPath: COMMANDCODE_DIR,
       relativeFilePath: COMMANDCODE_SETTINGS_FILE_NAME,
     };
-  }
-
-  static async fromFile({
-    outputRoot = process.cwd(),
-    validate = true,
-    global = false,
-  }: ToolHooksFromFileParams): Promise<CommandcodeHooks> {
-    const paths = CommandcodeHooks.getSettablePaths({ global });
-    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
-    const fileContent = (await readFileContentOrNull(filePath)) ?? '{"hooks":{}}';
-    return new CommandcodeHooks({
-      outputRoot,
-      relativeDirPath: paths.relativeDirPath,
-      relativeFilePath: paths.relativeFilePath,
-      fileContent,
-      validate,
-    });
   }
 
   static async fromRulesyncHooks({
@@ -180,20 +153,6 @@ export class CommandcodeHooks extends ToolHooks {
         null,
         2,
       ),
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolHooksForDeletionParams): CommandcodeHooks {
-    return new CommandcodeHooks({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: JSON.stringify({ hooks: {} }, null, 2),
-      validate: false,
     });
   }
 }

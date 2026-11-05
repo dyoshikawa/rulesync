@@ -6,7 +6,6 @@ import {
   DEVIN_GLOBAL_CONFIG_DIR_PATH,
   DEVIN_HOOKS_V1_FILE_NAME,
 } from "../../constants/devin-paths.js";
-import type { AiFileParams } from "../../types/ai-file.js";
 import {
   CANONICAL_TO_DEVIN_EVENT_NAMES,
   DEVIN_HOOK_EVENTS,
@@ -25,8 +24,6 @@ import {
 } from "./tool-hooks-converter.js";
 import {
   ToolHooks,
-  type ToolHooksForDeletionParams,
-  type ToolHooksFromFileParams,
   type ToolHooksFromRulesyncHooksParams,
   type ToolHooksSettablePaths,
 } from "./tool-hooks.js";
@@ -84,13 +81,6 @@ export const DEVIN_CONVERTER_CONFIG: ToolHooksConverterConfig = {
  * @see https://docs.devin.ai/cli/extensibility/hooks/overview
  */
 export class DevinHooks extends ToolHooks {
-  constructor(params: AiFileParams) {
-    super({
-      ...params,
-      fileContent: params.fileContent ?? "{}",
-    });
-  }
-
   /**
    * The project standalone `hooks.v1.json` is owned wholesale by rulesync and
    * may be deleted as an orphan. The global `config.json` is shared with the MCP
@@ -113,21 +103,12 @@ export class DevinHooks extends ToolHooks {
     };
   }
 
-  static async fromFile({
-    outputRoot = process.cwd(),
-    validate = true,
-    global = false,
-  }: ToolHooksFromFileParams): Promise<DevinHooks> {
-    const paths = this.getSettablePaths({ global });
-    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
-    const fileContent = (await readFileContentOrNull(filePath)) ?? "{}";
-    return new this({
-      outputRoot,
-      relativeDirPath: paths.relativeDirPath,
-      relativeFilePath: paths.relativeFilePath,
-      fileContent,
-      validate,
-    });
+  protected static override getMissingFileContent(): string {
+    return "{}";
+  }
+
+  protected static override getDeletionFileContent(): string {
+    return "{}";
   }
 
   static async fromRulesyncHooks({
@@ -206,20 +187,6 @@ export class DevinHooks extends ToolHooks {
         null,
         2,
       ),
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolHooksForDeletionParams): DevinHooks {
-    return new this({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: "{}",
-      validate: false,
     });
   }
 }

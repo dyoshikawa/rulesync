@@ -3,7 +3,6 @@ import { join } from "node:path";
 import { nonnegative, z } from "zod/mini";
 
 import { KIRO_AGENTS_DIR_PATH, KIRO_HOOKS_FILE_NAME } from "../../constants/kiro-paths.js";
-import type { AiFileParams } from "../../types/ai-file.js";
 import type { HooksConfig } from "../../types/hooks.js";
 import {
   KIRO_HOOK_EVENTS,
@@ -20,8 +19,6 @@ import type { RulesyncHooks } from "./rulesync-hooks.js";
 import { buildImportedHooksConfig } from "./tool-hooks-converter.js";
 import {
   ToolHooks,
-  type ToolHooksForDeletionParams,
-  type ToolHooksFromFileParams,
   type ToolHooksFromRulesyncHooksParams,
   type ToolHooksSettablePaths,
 } from "./tool-hooks.js";
@@ -196,13 +193,6 @@ function kiroHooksToCanonical(kiroHooks: unknown): HooksConfig["hooks"] {
  * @see https://kiro.dev/docs/cli/v3/hooks-migration/
  */
 export class KiroHooks extends ToolHooks {
-  constructor(params: AiFileParams) {
-    super({
-      ...params,
-      fileContent: params.fileContent ?? "{}",
-    });
-  }
-
   override isDeletable(): boolean {
     return false;
   }
@@ -211,21 +201,8 @@ export class KiroHooks extends ToolHooks {
     return { relativeDirPath: KIRO_AGENTS_DIR_PATH, relativeFilePath: KIRO_HOOKS_FILE_NAME };
   }
 
-  static async fromFile({
-    outputRoot = process.cwd(),
-    validate = true,
-    global = false,
-  }: ToolHooksFromFileParams): Promise<KiroHooks> {
-    const paths = KiroHooks.getSettablePaths({ global });
-    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
-    const fileContent = (await readFileContentOrNull(filePath)) ?? "{}";
-    return new KiroHooks({
-      outputRoot,
-      relativeDirPath: paths.relativeDirPath,
-      relativeFilePath: paths.relativeFilePath,
-      fileContent,
-      validate,
-    });
+  protected static override getMissingFileContent(): string {
+    return "{}";
   }
 
   static async fromRulesyncHooks({
@@ -269,20 +246,6 @@ export class KiroHooks extends ToolHooks {
         null,
         2,
       ),
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolHooksForDeletionParams): KiroHooks {
-    return new KiroHooks({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: JSON.stringify({ hooks: {} }, null, 2),
-      validate: false,
     });
   }
 }

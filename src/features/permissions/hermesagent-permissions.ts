@@ -20,7 +20,7 @@ import {
   getHermesagentSharedConfigWritePaths,
 } from "../../utils/hermesagent.js";
 import { type Logger, warnWithFallback } from "../../utils/logger.js";
-import { isRecord, isStringArray } from "../../utils/type-guards.js";
+import { isRecord, isStringArray, toRecord } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
   mergeSharedConfigDeep,
@@ -30,14 +30,15 @@ import {
 import { RulesyncPermissions, withoutBlankPermissionKeysIn } from "./rulesync-permissions.js";
 import {
   ALL_TOOLS_PERMISSION_CATEGORY,
+  CATCH_ALL_PATTERN,
   collectShellCommandRules,
+  MCP_CATEGORY_PREFIX,
   partitionCommandRules,
   SHELL_PERMISSION_CATEGORY,
   warnAboutUnwrittenCommandRules,
 } from "./shell-command-categories.js";
 import {
   ToolPermissions,
-  type ToolPermissionsForDeletionParams,
   type ToolPermissionsFromFileParams,
   type ToolPermissionsFromRulesyncPermissionsParams,
 } from "./tool-permissions.js";
@@ -95,8 +96,6 @@ function removeEmptyCategories(permission: CanonicalPermissionBlock): void {
 
 /** The prefix Hermes's MCP trust gate keys its persisted "Always" answers with. */
 const MCP_ALLOWLIST_PREFIX = "mcp:";
-const MCP_CANONICAL_PREFIX = "mcp__";
-const CATCH_ALL_PATTERN = "*";
 
 /**
  * Whether a `command_allowlist` entry is an MCP trust-gate grant rather than a
@@ -123,7 +122,7 @@ function mcpAllowlistEntryToCategory(entry: string): string | null {
   const { server, tool } = parsed;
   if (server.includes("__") || server.includes(CATCH_ALL_PATTERN)) return null;
   if (tool.includes(CATCH_ALL_PATTERN)) return null;
-  return `${MCP_CANONICAL_PREFIX}${server}__${tool}`;
+  return `${MCP_CATEGORY_PREFIX}${server}__${tool}`;
 }
 
 /** The server and tool an `mcp:<server>/<tool>` entry names, or `null` when it is malformed. */
@@ -142,8 +141,8 @@ function parseMcpAllowlistEntry(entry: string): { server: string; tool: string }
  * `mcp` category). Only such a category can become one Hermes grant.
  */
 function parseMcpToolCategory(category: string): { server: string; tool: string } | null {
-  if (!category.startsWith(MCP_CANONICAL_PREFIX)) return null;
-  const remainder = category.slice(MCP_CANONICAL_PREFIX.length);
+  if (!category.startsWith(MCP_CATEGORY_PREFIX)) return null;
+  const remainder = category.slice(MCP_CATEGORY_PREFIX.length);
   const separator = remainder.indexOf("__");
   if (separator <= 0) return null;
   const server = remainder.slice(0, separator);
@@ -162,7 +161,7 @@ function parseMcpToolCategory(category: string): { server: string; tool: string 
 }
 
 function isMcpCategory(category: string): boolean {
-  return category === "mcp" || category.startsWith(MCP_CANONICAL_PREFIX);
+  return category === "mcp" || category.startsWith(MCP_CATEGORY_PREFIX);
 }
 
 function isRestricting(action: PermissionAction | undefined): boolean {
@@ -221,8 +220,8 @@ function findMcpToolRestriction(
         mcpNameGlobCovers(pattern, server, tool),
       );
     } else if (
-      category.startsWith(MCP_CANONICAL_PREFIX) &&
-      mcpNameGlobCovers(category.slice(MCP_CANONICAL_PREFIX.length), server, tool)
+      category.startsWith(MCP_CATEGORY_PREFIX) &&
+      mcpNameGlobCovers(category.slice(MCP_CATEGORY_PREFIX.length), server, tool)
     ) {
       found = firstRestrictingRule(category, rules);
     }
@@ -400,9 +399,9 @@ function canonicalPermissionOf(config: Record<string, unknown>): PermissionsConf
 
 /** The canonical `permission` block of a config's `permissions.rulesync` blob, if any. */
 function provenancePermissionOf(config: Record<string, unknown>): Record<string, unknown> {
-  const permissionsRoot = isRecord(config.permissions) ? config.permissions : {};
-  const provenance = isRecord(permissionsRoot.rulesync) ? permissionsRoot.rulesync : {};
-  return isRecord(provenance.permission) ? provenance.permission : {};
+  const permissionsRoot = toRecord(config.permissions);
+  const provenance = toRecord(permissionsRoot.rulesync);
+  return toRecord(provenance.permission);
 }
 
 /**
@@ -499,7 +498,7 @@ function buildHermesOverride(
   provenance: PermissionsConfig,
 ): Record<string, unknown> {
   const base = isRecord(provenance.hermes) ? { ...provenance.hermes } : {};
-  const approvals = isRecord(config.approvals) ? config.approvals : {};
+  const approvals = toRecord(config.approvals);
   const approvalsOverride = withoutKey(approvals, "deny");
   if (Object.keys(approvalsOverride).length > 0) {
     base.approvals = approvalsOverride;
@@ -578,13 +577,6 @@ export class HermesagentPermissions extends ToolPermissions {
     });
   }
 
-  static forDeletion({
-    outputRoot = process.cwd(),
-    global = false,
-  }: ToolPermissionsForDeletionParams): HermesagentPermissions {
-    return new HermesagentPermissions({ outputRoot, fileContent: "", validate: false, global });
-  }
-
   shouldMergeExistingFileContent(): boolean {
     return true;
   }
@@ -616,7 +608,7 @@ export class HermesagentPermissions extends ToolPermissions {
 
   toRulesyncPermissions({ logger }: { logger?: Logger } = {}): RulesyncPermissions {
     const config = parseSharedConfig({ format: "yaml", fileContent: this.getFileContent() });
-    const permissionsRoot = isRecord(config.permissions) ? config.permissions : {};
+    const permissionsRoot = toRecord(config.permissions);
     // Filter before validating: the provenance block is a canonical document
     // that a user may have hand-edited, and one blank pattern or category would
     // fail the schema and discard every rule recorded here without a word.
@@ -647,15 +639,15 @@ export class HermesagentPermissions extends ToolPermissions {
       logger,
     });
 
-    const approvals = isRecord(config.approvals) ? config.approvals : {};
+    const approvals = toRecord(config.approvals);
     reconcileNativeDenies({
       permission,
       category: SHELL_PERMISSION_CATEGORY,
       patterns: isStringArray(approvals.deny) ? approvals.deny : [],
     });
 
-    const security = isRecord(config.security) ? config.security : {};
-    const websiteBlocklist = isRecord(security.website_blocklist) ? security.website_blocklist : {};
+    const security = toRecord(config.security);
+    const websiteBlocklist = toRecord(security.website_blocklist);
     reconcileNativeDenies({
       permission,
       category: WEBFETCH_PERMISSION_CATEGORY,

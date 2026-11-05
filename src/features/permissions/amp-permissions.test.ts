@@ -534,18 +534,6 @@ describe("AmpPermissions", () => {
     });
   });
 
-  describe("forDeletion", () => {
-    it("produces an empty amp.tools.disable list", () => {
-      const instance = AmpPermissions.forDeletion({
-        outputRoot: testDir,
-        relativeDirPath: ".amp",
-        relativeFilePath: "settings.json",
-      });
-      const json = JSON.parse(instance.getFileContent());
-      expect(json["amp.tools.disable"]).toEqual([]);
-    });
-  });
-
   describe("validate", () => {
     it("rejects a non-array amp.tools.disable", () => {
       const instance = new AmpPermissions({

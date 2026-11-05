@@ -3,10 +3,7 @@ import { z } from "zod/mini";
 import { CURSOR_COMMANDS_DIR_PATH } from "../../constants/cursor-paths.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
 import { stringifyFrontmatter } from "../../utils/frontmatter.js";
-import {
-  FrontmatterMarkdownToolCommand,
-  type FrontmatterMarkdownToolCommandParams,
-} from "./frontmatter-markdown-command.js";
+import { FrontmatterMarkdownToolCommand } from "./frontmatter-markdown-command.js";
 import type { RulesyncCommandFrontmatter } from "./rulesync-command.js";
 import type { ToolCommandSettablePaths } from "./tool-command.js";
 
@@ -26,8 +23,6 @@ export const CursorCommandFrontmatterSchema = z.looseObject({
 });
 
 export type CursorCommandFrontmatter = z.infer<typeof CursorCommandFrontmatterSchema>;
-
-export type CursorCommandParams = FrontmatterMarkdownToolCommandParams<CursorCommandFrontmatter>;
 
 export class CursorCommand extends FrontmatterMarkdownToolCommand<CursorCommandFrontmatter> {
   static getSettablePaths(_options: { global?: boolean } = {}): ToolCommandSettablePaths {

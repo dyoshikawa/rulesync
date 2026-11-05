@@ -1,28 +1,15 @@
-import { join } from "node:path";
-
-import { optional, z } from "zod/mini";
+import { z } from "zod/mini";
 
 import { ROO_COMMANDS_DIR_PATH } from "../../constants/roo-paths.js";
-import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
-import { formatError } from "../../utils/error.js";
-import { readFileContent } from "../../utils/file.js";
-import {
-  parseFrontmatter,
-  stringifyFrontmatter,
-  validateFrontmatterSchema,
-} from "../../utils/frontmatter.js";
-import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
-import {
-  ToolCommand,
-  ToolCommandForDeletionParams,
-  ToolCommandFromFileParams,
-  ToolCommandFromRulesyncCommandParams,
-} from "./tool-command.js";
+import type { ToolTarget } from "../../types/tool-targets.js";
+import { FrontmatterMarkdownToolCommand } from "./frontmatter-markdown-command.js";
+import type { RulesyncCommandFrontmatter } from "./rulesync-command.js";
+import type { ToolCommandSettablePaths } from "./tool-command.js";
 
 // looseObject preserves unknown keys during parsing (like passthrough in Zod 3)
 export const RooCommandFrontmatterSchema = z.looseObject({
   description: z.optional(z.string()),
-  "argument-hint": optional(z.string()),
+  "argument-hint": z.optional(z.string()),
   // Mode slug (e.g. "code", "architect") to switch to before running the command body.
   // https://roocodeinc.github.io/Roo-Code/features/slash-commands
   mode: z.optional(z.string()),
@@ -30,20 +17,8 @@ export const RooCommandFrontmatterSchema = z.looseObject({
 
 export type RooCommandFrontmatter = z.infer<typeof RooCommandFrontmatterSchema>;
 
-export type RooCommandParams = {
-  frontmatter: RooCommandFrontmatter;
-  body: string;
-} & AiFileParams;
-
-export type RooCommandSettablePaths = {
-  relativeDirPath: string;
-};
-
-export class RooCommand extends ToolCommand {
-  private readonly frontmatter: RooCommandFrontmatter;
-  private readonly body: string;
-
-  static getSettablePaths(_options: { global?: boolean } = {}): RooCommandSettablePaths {
+export class RooCommand extends FrontmatterMarkdownToolCommand<RooCommandFrontmatter> {
+  static getSettablePaths(_options: { global?: boolean } = {}): ToolCommandSettablePaths {
     // Project `.roo/commands/` and global `~/.roo/commands/` share the same
     // relative dir (the global root resolves under the home directory) — the
     // same no-branch approach RooRule and RooSkill use.
@@ -53,150 +28,16 @@ export class RooCommand extends ToolCommand {
     };
   }
 
-  constructor({ frontmatter, body, ...rest }: RooCommandParams) {
-    // Validate frontmatter before calling super to avoid validation order issues
-    if (rest.validate) {
-      const result = RooCommandFrontmatterSchema.safeParse(frontmatter);
-      if (!result.success) {
-        throw new Error(
-          `Invalid frontmatter in ${join(rest.relativeDirPath, rest.relativeFilePath)}: ${formatError(result.error)}`,
-        );
-      }
-    }
-
-    super({
-      ...rest,
-      fileContent: stringifyFrontmatter(body, frontmatter),
-    });
-
-    this.frontmatter = frontmatter;
-    this.body = body;
+  /** Also the key of the `roo:` section, which Zoo Code reads too. */
+  protected static override getToolTarget(): ToolTarget {
+    return "roo";
   }
 
-  getBody(): string {
-    return this.body;
+  protected static override getFrontmatterSchema() {
+    return RooCommandFrontmatterSchema;
   }
 
-  getFrontmatter(): Record<string, unknown> {
-    return this.frontmatter;
-  }
-
-  toRulesyncCommand(): RulesyncCommand {
-    const { description, ...restFields } = this.frontmatter;
-
-    const rulesyncFrontmatter: RulesyncCommandFrontmatter = {
-      targets: ["roo"],
-      description,
-      // Preserve extra fields in roo section
-      ...(Object.keys(restFields).length > 0 && { roo: restFields }),
-    };
-
-    // Generate proper file content with Rulesync specific frontmatter
-    return new RulesyncCommand({
-      outputRoot: ".", // RulesyncCommand outputRoot is always the project root directory
-      frontmatter: rulesyncFrontmatter,
-      body: this.body,
-      relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
-      relativeFilePath: this.relativeFilePath,
-      validate: true,
-    });
-  }
-
-  static fromRulesyncCommand({
-    outputRoot = process.cwd(),
-    rulesyncCommand,
-    validate = true,
-  }: ToolCommandFromRulesyncCommandParams): RooCommand {
-    const rulesyncFrontmatter = rulesyncCommand.getFrontmatter();
-
-    // Merge roo-specific fields from rulesync frontmatter
-    const rooFields = rulesyncFrontmatter.roo ?? {};
-
-    const rooFrontmatter: RooCommandFrontmatter = {
-      description: rulesyncFrontmatter.description,
-      ...rooFields,
-    };
-
-    // Generate proper file content with Roo Code specific frontmatter
-    const body = rulesyncCommand.getBody();
-    const fileContent = stringifyFrontmatter(body, rooFrontmatter);
-
-    return new this({
-      outputRoot: outputRoot,
-      frontmatter: rooFrontmatter,
-      body,
-      relativeDirPath: RooCommand.getSettablePaths().relativeDirPath,
-      relativeFilePath: rulesyncCommand.getRelativeFilePath(),
-      fileContent: fileContent,
-      validate,
-    });
-  }
-
-  validate(): ValidationResult {
-    // Check if frontmatter is set (may be undefined during construction)
-    if (!this.frontmatter) {
-      return { success: true, error: null };
-    }
-
-    return validateFrontmatterSchema({
-      schema: RooCommandFrontmatterSchema,
-      frontmatter: this.frontmatter,
-      relativeDirPath: this.relativeDirPath,
-      relativeFilePath: this.relativeFilePath,
-    });
-  }
-
-  static isTargetedByRulesyncCommand(rulesyncCommand: RulesyncCommand): boolean {
-    return this.isTargetedByRulesyncCommandDefault({
-      rulesyncCommand,
-      toolTarget: "roo",
-    });
-  }
-
-  static async fromFile({
-    outputRoot = process.cwd(),
-    relativeFilePath,
-    validate = true,
-  }: ToolCommandFromFileParams): Promise<RooCommand> {
-    const filePath = join(
-      outputRoot,
-      RooCommand.getSettablePaths().relativeDirPath,
-      relativeFilePath,
-    );
-    // Read file content
-    const fileContent = await readFileContent(filePath);
-    const { frontmatter, body: content } = parseFrontmatter(fileContent, filePath);
-
-    // Validate frontmatter using RooCommandFrontmatterSchema
-    const result = RooCommandFrontmatterSchema.safeParse(frontmatter);
-    if (!result.success) {
-      throw new Error(`Invalid frontmatter in ${filePath}: ${formatError(result.error)}`);
-    }
-
-    return new this({
-      outputRoot: outputRoot,
-      relativeDirPath: RooCommand.getSettablePaths().relativeDirPath,
-      relativeFilePath,
-      frontmatter: result.data,
-      body: content.trim(),
-      fileContent,
-      validate,
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolCommandForDeletionParams): RooCommand {
-    return new this({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      frontmatter: { description: "" },
-      body: "",
-      fileContent: "",
-      validate: false,
-    });
+  protected static override getImportTargets(): RulesyncCommandFrontmatter["targets"] {
+    return ["roo"];
   }
 }

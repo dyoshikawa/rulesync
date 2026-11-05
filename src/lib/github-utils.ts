@@ -4,7 +4,7 @@ import type { GitHubFileEntry } from "../types/fetch.js";
 import { stripControlCharacters } from "../utils/control-characters.js";
 import { formatError } from "../utils/error.js";
 import type { Logger } from "../utils/logger.js";
-import type { GitHubClient } from "./github-client.js";
+import { type GitHubClient, GitHubClientError } from "./github-client.js";
 
 /**
  * How many directory levels below the requested path the walk descends.
@@ -12,6 +12,21 @@ import type { GitHubClient } from "./github-client.js";
  * same place, rather than below anything that could have been fetched.
  */
 export const MAX_RECURSION_DEPTH = 15;
+
+/**
+ * Detect a 404 "not found" error in a way that tolerates both real
+ * `GitHubClientError` instances and any other thrown value that exposes a
+ * `statusCode` of 404 (e.g. plain Errors raised from a test mock that does not
+ * import the real client class).
+ */
+export function isGitHubNotFoundError(error: unknown): boolean {
+  if (error instanceof GitHubClientError && error.statusCode === 404) {
+    return true;
+  }
+  return (
+    typeof error === "object" && error !== null && "statusCode" in error && error.statusCode === 404
+  );
+}
 
 /**
  * Execute an async function with semaphore-controlled concurrency.

@@ -40,18 +40,6 @@ describe("ReasonixPermissions", () => {
     });
   });
 
-  describe("isDeletable", () => {
-    it("should return false because the config file is shared with MCP/other settings", () => {
-      const instance = ReasonixPermissions.forDeletion({
-        outputRoot: testDir,
-        relativeDirPath: ".",
-        relativeFilePath: "reasonix.toml",
-      });
-
-      expect(instance.isDeletable()).toBe(false);
-    });
-  });
-
   describe("fromFile", () => {
     it("should load existing reasonix.toml content", async () => {
       await writeFileContent(
@@ -1732,19 +1720,6 @@ describe("ReasonixPermissions", () => {
       const result = instance.validate();
       expect(result.success).toBe(true);
       expect(result.error).toBeNull();
-    });
-  });
-
-  describe("forDeletion", () => {
-    it("should create a minimal instance for deletion", () => {
-      const instance = ReasonixPermissions.forDeletion({
-        outputRoot: testDir,
-        relativeDirPath: ".",
-        relativeFilePath: "reasonix.toml",
-      });
-
-      expect(instance).toBeInstanceOf(ReasonixPermissions);
-      expect(instance.isDeletable()).toBe(false);
     });
   });
 });

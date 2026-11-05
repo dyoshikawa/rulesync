@@ -13,7 +13,7 @@ import {
   getKimiCodeRulesyncOutputRoot,
 } from "../../utils/kimi-code.js";
 import { type Logger, warnWithFallback } from "../../utils/logger.js";
-import { isRecord, isStringArray } from "../../utils/type-guards.js";
+import { isRecord, isStringArray, toRecord } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
   KIMI_CODE_CONFIG_SHARED_FILE_KEY,
@@ -21,9 +21,9 @@ import {
   stringifySharedConfig,
 } from "../shared/shared-config-gateway.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
+import { MCP_CATEGORY_PREFIX } from "./shell-command-categories.js";
 import {
   ToolPermissions,
-  type ToolPermissionsForDeletionParams,
   type ToolPermissionsFromFileParams,
   type ToolPermissionsFromRulesyncPermissionsParams,
   type ToolPermissionsSettablePaths,
@@ -51,7 +51,7 @@ const CATEGORY_TO_KIMI_CODE_TOOL: Record<string, string> = {
 };
 
 function buildKimiCodePattern(category: string, pattern: string): string | null {
-  if (category.startsWith("mcp__")) {
+  if (category.startsWith(MCP_CATEGORY_PREFIX)) {
     return pattern === "*" || pattern === "" ? category : null;
   }
   if (category === "mcp") {
@@ -88,8 +88,8 @@ function mergeKimiCodeToolsSection({
     existing = undefined;
   }
   const merged: Record<string, unknown> = {
-    ...(isRecord(existing) ? existing : {}),
-    ...(isRecord(patch.tools) ? patch.tools : {}),
+    ...toRecord(existing),
+    ...toRecord(patch.tools),
   };
   if (Object.keys(merged).length === 0) {
     return undefined;
@@ -123,10 +123,10 @@ function mergeKimiCodePermissionSection({
   } catch {
     existing = undefined;
   }
-  const { rules: _existingRules, ...siblings } = isRecord(existing) ? existing : {};
+  const { rules: _existingRules, ...siblings } = toRecord(existing);
   return {
     ...siblings,
-    ...(isRecord(patch.permission) ? patch.permission : {}),
+    ...toRecord(patch.permission),
   };
 }
 
@@ -190,7 +190,7 @@ function canonicalToKimiCodeRules({
   for (const [category, rules] of Object.entries(config.permission)) {
     const isSupported =
       category === "mcp" ||
-      category.startsWith("mcp__") ||
+      category.startsWith(MCP_CATEGORY_PREFIX) ||
       CATEGORY_TO_KIMI_CODE_TOOL[category] !== undefined;
     if (!isSupported) {
       if (Object.keys(rules).length > 0) {
@@ -199,7 +199,7 @@ function canonicalToKimiCodeRules({
       continue;
     }
     for (const [pattern, decision] of Object.entries(rules)) {
-      if (category.startsWith("mcp__") && pattern !== "*" && pattern !== "") {
+      if (category.startsWith(MCP_CATEGORY_PREFIX) && pattern !== "*" && pattern !== "") {
         if (decision === "deny") {
           logger?.warn(
             `Kimi Code permissions: broadening argument-specific deny for "${category}" to the whole MCP tool because Kimi does not match MCP tool arguments.`,
@@ -466,7 +466,7 @@ export class KimiCodePermissions extends ToolPermissions {
       format: "toml",
       fileContent: this.getFileContent(),
     });
-    const permissionConfig = isRecord(config.permission) ? config.permission : {};
+    const permissionConfig = toRecord(config.permission);
     const { permission, nativeRules } = preserveKimiCodeRules(permissionConfig.rules);
     const defaultPermissionMode = config.default_permission_mode;
     const dangerousCommandGuard = permissionConfig.dangerous_command_guard;
@@ -497,17 +497,6 @@ export class KimiCodePermissions extends ToolPermissions {
         null,
         2,
       ),
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-  }: ToolPermissionsForDeletionParams): KimiCodePermissions {
-    return new KimiCodePermissions({
-      outputRoot,
-      fileContent: "",
-      validate: false,
-      global: true,
     });
   }
 }

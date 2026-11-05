@@ -12,7 +12,6 @@ import {
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   ToolPermissions,
-  type ToolPermissionsForDeletionParams,
   type ToolPermissionsFromFileParams,
   type ToolPermissionsFromRulesyncPermissionsParams,
   type ToolPermissionsSettablePaths,
@@ -50,11 +49,6 @@ export class PiPermissions extends ToolPermissions {
       ...params,
       fileContent: params.fileContent ?? "{}",
     });
-  }
-
-  /** `settings.json` holds unrelated user settings, so it must not be deleted. */
-  override isDeletable(): boolean {
-    return false;
   }
 
   static getSettablePaths({
@@ -144,21 +138,5 @@ export class PiPermissions extends ToolPermissions {
         { cause: error },
       );
     }
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-    global = false,
-  }: ToolPermissionsForDeletionParams): PiPermissions {
-    return new PiPermissions({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: "{}",
-      validate: false,
-      global,
-    });
   }
 }

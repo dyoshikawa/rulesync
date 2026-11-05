@@ -1,8 +1,5 @@
 import { isPlainObject } from "../../utils/type-guards.js";
-import {
-  findOpencodeMcpToolKeyOwner,
-  opencodeMcpToolPermissionKey,
-} from "./opencode-family-mcp-tool-keys.js";
+import { findOpencodeMcpToolKeyOwner } from "./opencode-family-mcp-tool-keys.js";
 
 /**
  * Kilo's own permission names. A server whose name is a prefix of one of these
@@ -33,14 +30,6 @@ const KILO_BUILTIN_PERMISSION_KEYS: ReadonlySet<string> = new Set([
   "repo_clone",
   "repo_overview",
 ]);
-
-/**
- * The permission key of one MCP tool, sanitized the way Kilo (an OpenCode
- * fork) names MCP tools; see {@link opencodeMcpToolPermissionKey}.
- */
-export function kiloMcpToolPermissionKey(serverName: string, toolName: string): string {
-  return opencodeMcpToolPermissionKey(serverName, toolName);
-}
 
 /** Whether a Kilo permission key is a wildcard pattern rather than one tool. */
 export function isKiloPermissionPattern(key: string): boolean {

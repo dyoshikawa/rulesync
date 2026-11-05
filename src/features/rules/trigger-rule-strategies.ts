@@ -29,7 +29,7 @@ export type TriggerRuleFrontmatter = z.infer<typeof TriggerRuleFrontmatterSchema
  * @param globs - Comma-separated globs string (e.g., "*.ts,*.js") or array of globs
  * @returns Array of glob patterns
  */
-export function parseGlobsString(globs: string | string[] | undefined): string[] {
+function parseGlobsString(globs: string | string[] | undefined): string[] {
   if (!globs) {
     return [];
   }
@@ -68,9 +68,7 @@ export type StoredTriggerRule =
  * Normalizes a StoredTriggerRule value to TriggerRuleFrontmatter format by
  * converting globs from array to string if needed.
  */
-export function normalizeStoredTriggerRule(
-  stored: StoredTriggerRule,
-): TriggerRuleFrontmatter | undefined {
+function normalizeStoredTriggerRule(stored: StoredTriggerRule): TriggerRuleFrontmatter | undefined {
   if (!stored) {
     return undefined;
   }
@@ -246,4 +244,53 @@ export function createTriggerStrategies<K extends string>(key: K): TriggerStrate
     unknownStrategy,
     inferenceStrategy,
   ];
+}
+
+/**
+ * Generate a trigger-based tool rule's frontmatter from the tool block stored
+ * in the RulesyncRule frontmatter, using the first strategy that handles the
+ * stored trigger.
+ */
+export function toTriggerToolFrontmatter<K extends string>({
+  strategies,
+  stored,
+  rulesyncFrontmatter,
+}: {
+  strategies: TriggerStrategy<K>[];
+  stored: (NonNullable<StoredTriggerRule> & { trigger?: string }) | undefined;
+  rulesyncFrontmatter: { description?: string; globs?: string[] };
+}): TriggerRuleFrontmatter {
+  const storedTrigger = stored?.trigger;
+  const strategy = strategies.find((s) => s.canHandle(storedTrigger));
+  if (!strategy) {
+    throw new Error(`No strategy found for trigger: ${storedTrigger}`);
+  }
+  return strategy.generateFrontmatter(normalizeStoredTriggerRule(stored), rulesyncFrontmatter);
+}
+
+/**
+ * Export a trigger-based tool rule's frontmatter back to RulesyncRule data.
+ * The tool block under `key` carries `globs` as an array, as the RulesyncRule
+ * schema expects.
+ */
+export function toTriggerRulesyncData<K extends string>({
+  strategies,
+  key,
+  frontmatter,
+}: {
+  strategies: TriggerStrategy<K>[];
+  key: K;
+  frontmatter: TriggerRuleFrontmatter;
+}): TriggerRuleRulesyncData<K> {
+  const strategy = strategies.find((s) => s.canHandle(frontmatter.trigger));
+  const rulesyncData = strategy
+    ? strategy.exportRulesyncData(frontmatter)
+    : ({ globs: [], [key]: frontmatter } as TriggerRuleRulesyncData<K>);
+  return {
+    ...rulesyncData,
+    [key]: {
+      ...rulesyncData[key],
+      globs: frontmatter.globs ? parseGlobsString(frontmatter.globs) : undefined,
+    },
+  };
 }

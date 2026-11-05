@@ -30,7 +30,7 @@ import {
 export type AntigravitySharedCommandParams = {
   frontmatter: AntigravityCommandFrontmatter;
   body: string;
-} & AiFileParams;
+} & Omit<AiFileParams, "fileContent">;
 
 /**
  * Shared command generator for Google Antigravity 2.0 (IDE and CLI).
@@ -194,7 +194,6 @@ export class AntigravitySharedCommand extends ToolCommand {
       body,
       relativeDirPath: join(this.getSkillsRelativeDirPath({ global }), name),
       relativeFilePath: SKILL_FILE_NAME,
-      fileContent: stringifyFrontmatter(body, antigravityFrontmatter),
       validate,
     });
   }
@@ -234,7 +233,6 @@ export class AntigravitySharedCommand extends ToolCommand {
       relativeFilePath,
       frontmatter: result.data,
       body: content.trim(),
-      fileContent,
       validate,
     });
   }
@@ -250,7 +248,6 @@ export class AntigravitySharedCommand extends ToolCommand {
       relativeFilePath,
       frontmatter: { description: "" },
       body: "",
-      fileContent: "",
       validate: false,
     });
   }

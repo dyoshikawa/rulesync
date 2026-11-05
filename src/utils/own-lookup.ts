@@ -17,3 +17,12 @@ export function lookupOwn<V>({
 }): V | undefined {
   return Object.hasOwn(record, key) ? record[key] : undefined;
 }
+
+/**
+ * Swap the keys and values of a name map, e.g. a canonical-to-tool map into
+ * the tool-to-canonical map an importer reads. When two keys share a value,
+ * the later key wins.
+ */
+export function invertRecord(record: Readonly<Record<string, string>>): Record<string, string> {
+  return Object.fromEntries(Object.entries(record).map(([key, value]) => [value, key]));
+}

@@ -112,7 +112,7 @@ export function serializeHooksOwnershipLock(owned: readonly OwnedHookRef[]): str
  * The ownership record itself. It is a rulesync by-product rather than tool
  * configuration, so it is deletable: dropping the target should take it along.
  */
-export class HooksOwnershipLockFile extends ToolFile {
+class HooksOwnershipLockFile extends ToolFile {
   override isDeletable(): boolean {
     return true;
   }

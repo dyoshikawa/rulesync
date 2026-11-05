@@ -1,11 +1,16 @@
 import { createHash } from "node:crypto";
-import { join, posix } from "node:path";
+import { join } from "node:path";
 
 import { optional, refine, z } from "zod/mini";
 
 import { getSourceTransport, type SourceEntry } from "../config/config.js";
 import { RULESYNC_SOURCES_LOCK_RELATIVE_FILE_PATH } from "../constants/rulesync-paths.js";
-import { fileExists, readFileContent, writeFileContent } from "../utils/file.js";
+import {
+  fileExists,
+  normalizePosixDirPath,
+  readFileContent,
+  writeFileContent,
+} from "../utils/file.js";
 import type { Logger } from "../utils/logger.js";
 
 /** Current lockfile format version. Bump when the schema changes. */
@@ -264,7 +269,7 @@ function encodeLockKeyQualifierValue(value: string): string {
 }
 
 function normalizeLockKeyDirPath(dirPath: string): string {
-  return posix.normalize(dirPath.replace(/\\/g, "/")).replace(/\/+$/, "");
+  return normalizePosixDirPath(dirPath);
 }
 
 /**

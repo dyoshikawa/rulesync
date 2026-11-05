@@ -169,7 +169,7 @@ export type RulesyncMcpFromFileParams = Pick<
   "outputRoot" | "validate" | "relativeDirPath"
 >;
 
-export type RulesyncMcpSettablePaths = RulesyncSourceSettablePaths;
+type RulesyncMcpSettablePaths = RulesyncSourceSettablePaths;
 
 /**
  * The tool-scoped block keys that carry a `{toolname}.mcpServers` sub-map.

@@ -8,10 +8,10 @@ import {
   AgentsSkillsSkill,
   type AgentsSkillsSkillParams,
   resolveAgentsSkillsSection,
-  toAllowedToolsArray,
   toSpecConformantAgentSkillFields,
 } from "./agentsskills-skill.js";
 import { RulesyncSkill, type RulesyncSkillFrontmatterInput } from "./rulesync-skill.js";
+import { toAllowedToolsArray } from "./skills-utils.js";
 import type {
   ToolSkillForDeletionParams,
   ToolSkillFromDirParams,

@@ -57,16 +57,6 @@ describe("ZedPermissions", () => {
     });
   });
 
-  describe("isDeletable", () => {
-    it("should not be deletable (shared settings file)", () => {
-      const permissions = ZedPermissions.forDeletion({
-        relativeDirPath: ".zed",
-        relativeFilePath: "settings.json",
-      });
-      expect(permissions.isDeletable()).toBe(false);
-    });
-  });
-
   describe("fromRulesyncPermissions", () => {
     it("should map canonical categories onto agent.tool_permissions", async () => {
       const rulesyncPermissions = createRulesyncPermissions({

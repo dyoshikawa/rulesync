@@ -152,8 +152,5 @@ export class XumSkill extends AgentsSkillsSkill {
     });
   }
 
-  static override isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("xum");
-  }
+  protected static override readonly toolTarget = "xum";
 }

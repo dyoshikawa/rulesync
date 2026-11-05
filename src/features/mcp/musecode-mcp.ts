@@ -13,7 +13,7 @@ import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { isRecord } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
-  parseSharedConfig,
+  parseSharedConfigFile,
   sharedConfigFileKey,
 } from "../shared/shared-config-gateway.js";
 import {
@@ -35,21 +35,6 @@ import {
 
 const MUSECODE_GLOBAL_ONLY_MESSAGE =
   "Muse Code MCP is global-only; use --global to sync ~/.config/muse/settings.json";
-
-/**
- * Single spelling of the settings.json codec/policy, matching the
- * `SHARED_CONFIG_OWNERSHIP` declaration for `.config/muse/settings.json`:
- * fail closed on an unparseable root rather than replacing the user's primary
- * Muse Code config with generated output.
- */
-function parseMusecodeSettings(fileContent: string, filePath?: string): Record<string, unknown> {
-  return parseSharedConfig({
-    format: "json",
-    fileContent,
-    filePath,
-    invalidRootPolicy: "error",
-  });
-}
 
 /**
  * The settings key holding the MCP server map. `mcp_servers` is the documented
@@ -361,10 +346,11 @@ export class MusecodeMcp extends ToolMcp {
 
   constructor(params: ToolMcpParams) {
     super(params);
-    this.json = parseMusecodeSettings(
-      this.fileContent ?? "",
-      join(this.relativeDirPath, this.relativeFilePath),
-    );
+    this.json = parseSharedConfigFile({
+      fileKey: sharedConfigFileKey(MusecodeMcp.getSettablePaths({ global: this.global })),
+      fileContent: this.fileContent ?? "",
+      filePath: join(this.relativeDirPath, this.relativeFilePath),
+    });
   }
 
   getJson(): Record<string, unknown> {
@@ -421,7 +407,11 @@ export class MusecodeMcp extends ToolMcp {
 
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const existingContent = (await readFileContentOrNull(filePath)) ?? "";
-    const existing = parseMusecodeSettings(existingContent, filePath);
+    const existing = parseSharedConfigFile({
+      fileKey: sharedConfigFileKey(paths),
+      fileContent: existingContent,
+      filePath,
+    });
 
     // `musecodeMode` is stripped by `getMcpServers()` so it cannot leak into
     // other tools' configs, so read it back off the unfiltered source JSON —

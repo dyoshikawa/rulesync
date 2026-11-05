@@ -17,6 +17,7 @@ import {
 } from "../../utils/frontmatter.js";
 import { RulesyncSubagent, RulesyncSubagentFrontmatter } from "./rulesync-subagent.js";
 import {
+  parseGeneratedSubagentFrontmatter,
   ToolSubagent,
   ToolSubagentForDeletionParams,
   ToolSubagentFromFileParams,
@@ -199,14 +200,12 @@ export class CopilotcliSubagent extends ToolSubagent {
       ...copilotCliSection,
     };
 
-    const result = CopilotCliSubagentFrontmatterSchema.safeParse(rawFrontmatter);
-    if (!result.success) {
-      throw new Error(
-        `Invalid copilotcli subagent frontmatter in ${rulesyncSubagent.getRelativeFilePath()}: ${formatError(result.error)}`,
-      );
-    }
-
-    const copilotCliFrontmatter = result.data;
+    const copilotCliFrontmatter = parseGeneratedSubagentFrontmatter({
+      schema: CopilotCliSubagentFrontmatterSchema,
+      frontmatter: rawFrontmatter,
+      toolTarget: "copilotcli",
+      rulesyncSubagent,
+    });
 
     const body = rulesyncSubagent.getBody();
     const fileContent = stringifyFrontmatter(body, copilotCliFrontmatter);

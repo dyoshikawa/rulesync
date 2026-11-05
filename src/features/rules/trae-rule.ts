@@ -27,7 +27,6 @@ import {
   ToolRuleFromRulesyncRuleParams,
   ToolRuleNestedFilePatterns,
   ToolRuleSettablePaths,
-  buildToolPath,
 } from "./tool-rule.js";
 
 /**
@@ -129,15 +128,10 @@ export class TraeRule extends ToolRule {
   private readonly frontmatter: TraeRuleFrontmatter;
   private readonly body: string;
 
-  static getSettablePaths(
-    options: {
-      global?: boolean;
-      excludeToolDir?: boolean;
-    } = {},
-  ): TraeRuleSettablePaths {
+  static getSettablePaths(_options: { global?: boolean } = {}): TraeRuleSettablePaths {
     return {
       nonRoot: {
-        relativeDirPath: buildToolPath(TRAE_DIR, "rules", options.excludeToolDir),
+        relativeDirPath: join(TRAE_DIR, "rules"),
       },
     };
   }

@@ -77,6 +77,50 @@ export type McpCommandResult = {
   error?: string;
 } & McpWarnings;
 
+export type McpFailure = {
+  success: false;
+  error: string;
+} & McpWarnings;
+
+/**
+ * Run an MCP operation with `logger` as the shared fallback logger target and
+ * turn a thrown error into a failure result.
+ *
+ * The whole run adopts the fallback, config resolution included: warnings
+ * raised on paths that never received a logger would otherwise go to a stderr
+ * the calling agent cannot read, and the absence of a `warnings` key would read
+ * as "nothing was wrong". Config resolution belongs inside `operation`
+ * rather than before it, because that is where a config file's own
+ * contradictions are reported — `global: true` quietly downgraded to project
+ * scope changes where the run writes. The caller creates `logger` before the
+ * run so a run that warns and then fails still reports what it warned about.
+ *
+ * `recover` may turn a thrown error back into a result of its own.
+ */
+export async function runMcpOperation<T, R extends object = never>({
+  logger,
+  operation,
+  recover,
+}: {
+  logger: WarningCollectingLogger;
+  operation: () => Promise<T>;
+  recover?: (error: unknown) => R | undefined;
+}): Promise<T | (R & McpWarnings) | McpFailure> {
+  try {
+    return await withFallbackLoggerTarget({ logger, operation });
+  } catch (error) {
+    const recovered = recover?.(error);
+    if (recovered !== undefined) {
+      return { ...recovered, ...warningsField(logger) };
+    }
+    return {
+      success: false,
+      error: formatError(error),
+      ...warningsField(logger),
+    };
+  }
+}
+
 /**
  * Run a CLI command implementation for an MCP caller and turn its outcome into
  * a structured result.
@@ -96,29 +140,20 @@ export async function runCommandForMcp({
   extraResult?: Record<string, unknown>;
 }): Promise<McpCommandResult> {
   const logger = new McpCommandLogger();
-  try {
-    const returned = await withFallbackLoggerTarget({
-      logger,
-      operation: async () => await run(logger),
-    });
-    const message = logger.getMessage();
-    return {
-      success: true,
-      ...(message !== undefined ? { message } : {}),
-      result: { ...logger.getJsonData(), ...extraResult, ...returned },
-      ...warningsField(logger),
-    };
-  } catch (error) {
-    const recovered = recover?.({ error, logger });
-    if (recovered !== undefined) {
-      return { ...recovered, ...warningsField(logger) };
-    }
-    return {
-      success: false,
-      error: formatError(error),
-      ...warningsField(logger),
-    };
-  }
+  return await runMcpOperation({
+    logger,
+    operation: async (): Promise<McpCommandResult> => {
+      const returned = await run(logger);
+      const message = logger.getMessage();
+      return {
+        success: true,
+        ...(message !== undefined ? { message } : {}),
+        result: { ...logger.getJsonData(), ...extraResult, ...returned },
+        ...warningsField(logger),
+      };
+    },
+    recover: (error) => recover?.({ error, logger }),
+  });
 }
 
 export function stringifyResult(result: McpCommandResult): string {

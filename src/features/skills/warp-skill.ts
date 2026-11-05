@@ -2,7 +2,6 @@ import { z } from "zod/mini";
 
 import { AGENTSMD_SKILLS_DIR_PATH } from "../../constants/agentsmd-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
-import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { WARP_SKILLS_DIR_PATH } from "../../constants/warp-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { rulesyncCommandSlugExists } from "../commands/command-skill-ownership.js";
@@ -114,16 +113,7 @@ export class WarpSkill extends ToolSkill {
       targets: ["*"],
     };
 
-    return new RulesyncSkill({
-      outputRoot: this.outputRoot,
-      relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
-      dirName: this.getDirName(),
-      frontmatter: rulesyncFrontmatter,
-      body: this.getBody(),
-      otherFiles: this.getOtherFiles(),
-      validate: true,
-      global: this.global,
-    });
+    return this.toRulesyncSkillWith(rulesyncFrontmatter);
   }
 
   static fromRulesyncSkill({
@@ -153,10 +143,7 @@ export class WarpSkill extends ToolSkill {
     });
   }
 
-  static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("warp");
-  }
+  protected static override readonly toolTarget = "warp";
 
   /**
    * Commands are emitted into the `.warp/skills/` tree as `<slug>/SKILL.md`
@@ -183,40 +170,12 @@ export class WarpSkill extends ToolSkill {
   }
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<WarpSkill> {
-    const loaded = await this.loadSkillDirContent({
-      ...params,
-      getSettablePaths: WarpSkill.getSettablePaths,
-    });
-
-    const frontmatter = this.parseLoadedFrontmatter({ schema: WarpSkillFrontmatterSchema, loaded });
-
-    return new WarpSkill({
-      outputRoot: loaded.outputRoot,
-      relativeDirPath: loaded.relativeDirPath,
-      dirName: loaded.dirName,
-      frontmatter,
-      body: loaded.body,
-      otherFiles: loaded.otherFiles,
-      validate: true,
-      global: loaded.global,
-    });
+    return new WarpSkill(
+      await this.loadStandardSkillParams({ params, schema: WarpSkillFrontmatterSchema }),
+    );
   }
 
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    dirName,
-    global = false,
-  }: ToolSkillForDeletionParams): WarpSkill {
-    return new WarpSkill({
-      outputRoot,
-      relativeDirPath,
-      dirName,
-      frontmatter: { name: "", description: "" },
-      body: "",
-      otherFiles: [],
-      validate: false,
-      global,
-    });
+  static forDeletion(params: ToolSkillForDeletionParams): WarpSkill {
+    return new WarpSkill(this.forDeletionParams(params));
   }
 }

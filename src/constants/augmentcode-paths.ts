@@ -1,5 +1,7 @@
 import { join } from "node:path";
 
+import { AGENTSMD_SKILLS_DIR_PATH } from "./agentsmd-paths.js";
+
 export const AUGMENTCODE_DIR = ".augment";
 export const AUGMENTCODE_COMMANDS_DIR_PATH = join(AUGMENTCODE_DIR, "commands");
 
@@ -20,7 +22,7 @@ export const AUGMENTCODE_AGENTS_DIR_PATH = join(AUGMENTCODE_DIR, "agents");
 // @see https://www.augmentcode.com/changelog/auggie-cli-0-16-0-release-notes
 // @see https://docs.augmentcode.com/cli/skills
 export const AUGMENTCODE_ALT_AGENTS_DIR_PATH = ".agents";
-export const AUGMENTCODE_AGENTS_SKILLS_DIR_PATH = join(".agents", "skills");
+export const AUGMENTCODE_AGENTS_SKILLS_DIR_PATH = AGENTSMD_SKILLS_DIR_PATH;
 export const AUGMENTCODE_SETTINGS_FILE_NAME = "settings.json";
 // Auggie CLI 0.16.0+ evaluates a layered settings model. The gitignored,
 // machine-specific overrides file `<workspace>/.augment/settings.local.json`

@@ -7,10 +7,7 @@ import { SKILLS_FEATURE_SUBDIR } from "../../constants/rulesync-paths.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
 import type { Logger } from "../../utils/logger.js";
 import { listSkillDirNames } from "../skills/skills-utils.js";
-import {
-  FrontmatterMarkdownToolCommand,
-  type FrontmatterMarkdownToolCommandParams,
-} from "./frontmatter-markdown-command.js";
+import { FrontmatterMarkdownToolCommand } from "./frontmatter-markdown-command.js";
 import type { RulesyncCommand } from "./rulesync-command.js";
 import type { ToolCommandSettablePaths } from "./tool-command.js";
 
@@ -41,8 +38,6 @@ const GrokcliCommandFrontmatterSchema = z.looseObject({
 });
 
 export type GrokcliCommandFrontmatter = z.infer<typeof GrokcliCommandFrontmatterSchema>;
-
-export type GrokcliCommandParams = FrontmatterMarkdownToolCommandParams<GrokcliCommandFrontmatter>;
 
 export class GrokcliCommand extends FrontmatterMarkdownToolCommand<GrokcliCommandFrontmatter> {
   static getSettablePaths(_options: { global?: boolean } = {}): ToolCommandSettablePaths {

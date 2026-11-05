@@ -31,6 +31,10 @@ import { warnOnceWithFallback } from "../../utils/logger.js";
  */
 export const AUTO_SUBPROJECT_PATH = "auto";
 
+/** The rules' paths, comma-separated, for messages. */
+export const formatRulePaths = (rules: RulesyncRule[]): string =>
+  rules.map((r) => join(r.getRelativeDirPath(), r.getRelativeFilePath())).join(", ");
+
 export const RulesyncRuleFrontmatterSchema = z.object({
   root: z.optional(z.boolean()),
   localRoot: z.optional(z.boolean()),

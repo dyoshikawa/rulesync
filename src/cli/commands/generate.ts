@@ -5,12 +5,7 @@ import {
   buildGeneratePlanFromResult,
   type GeneratePlan,
 } from "../../lib/generate-plan.js";
-import {
-  formatSourceLoadFailure,
-  generate,
-  inspectInputRoots,
-  type GenerateResult,
-} from "../../lib/generate.js";
+import { formatSourceLoadFailure, generate, inspectInputRoots } from "../../lib/generate.js";
 import {
   buildConfigFilePaths,
   buildWatchTargets,
@@ -21,7 +16,7 @@ import {
 import { CLIError, ErrorCodes } from "../../types/json-output.js";
 import { formatError } from "../../utils/error.js";
 import type { Logger } from "../../utils/logger.js";
-import { calculateTotalCount } from "../../utils/result.js";
+import { buildFeatureCountSummaryParts, calculateTotalCount } from "../../utils/result.js";
 
 export type GenerateOptions = ConfigResolverResolveParams & {
   /** Keep running and regenerate whenever a rulesync source file changes. */
@@ -109,33 +104,6 @@ function logFeatureDebugMessages(logger: Logger, features: readonly string[]): v
       logger.debug(FEATURE_DEBUG_MESSAGES[feature] ?? "");
     }
   }
-}
-
-/**
- * Build the human-readable per-feature summary fragments (e.g. "3 rules") for
- * features that produced at least one file. Order matches the original
- * sequential `if (count > 0) parts.push(...)` ladder.
- */
-function buildSummaryParts(result: GenerateResult): string[] {
-  const summarySpecs: { count: number; label: string }[] = [
-    { count: result.rulesCount, label: "rules" },
-    { count: result.ignoreCount, label: "ignore files" },
-    { count: result.mcpCount, label: "MCP files" },
-    { count: result.commandsCount, label: "commands" },
-    { count: result.subagentsCount, label: "subagents" },
-    { count: result.skillsCount, label: "skills" },
-    { count: result.hooksCount, label: "hooks" },
-    { count: result.permissionsCount, label: "permissions" },
-    { count: result.checksCount, label: "checks" },
-    { count: result.activationCount, label: "Hermes activation files" },
-    { count: result.pluginManifestCount, label: "plugin manifests" },
-  ];
-
-  const parts: string[] = [];
-  for (const { count, label } of summarySpecs) {
-    if (count > 0) parts.push(`${count} ${label}`);
-  }
-  return parts;
 }
 
 export async function generateCommand(logger: Logger, options: GenerateOptions): Promise<void> {
@@ -259,7 +227,7 @@ async function generateOnce(
     return;
   }
 
-  const parts = buildSummaryParts(result);
+  const parts = buildFeatureCountSummaryParts(result);
 
   if (isPreview) {
     logger.info(`${modePrefix} Would write ${totalGenerated} file(s) total (${parts.join(" + ")})`);

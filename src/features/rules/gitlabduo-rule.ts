@@ -1,14 +1,6 @@
 import { GITLABDUO_DIR, GITLABDUO_RULE_FILE_NAME } from "../../constants/gitlabduo-paths.js";
 import { SingleRootFileRule } from "./single-root-file-rule.js";
-import { ToolRuleSettablePaths } from "./tool-rule.js";
-
-export type GitlabduoRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> & {
-  root: {
-    relativeDirPath: string;
-    relativeFilePath: string;
-  };
-  nonRoot?: undefined;
-};
+import { ToolRuleRootOnlySettablePaths } from "./tool-rule.js";
 
 /**
  * GitLab Duo CLI reads custom rules from a single plain-Markdown file:
@@ -25,9 +17,8 @@ export class GitlabduoRule extends SingleRootFileRule {
   static getSettablePaths(
     _options: {
       global?: boolean;
-      excludeToolDir?: boolean;
     } = {},
-  ): GitlabduoRuleSettablePaths {
+  ): ToolRuleRootOnlySettablePaths {
     // The same `.gitlab/duo/chat-rules.md` path is used relative to the project
     // root and to the home directory.
     return {

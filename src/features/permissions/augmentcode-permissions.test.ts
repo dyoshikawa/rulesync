@@ -967,15 +967,6 @@ describe("AugmentcodePermissions", () => {
     expect(config.permission.write).toEqual({ "*": "ask" });
   });
 
-  it("forDeletion returns non-deletable instance", () => {
-    const instance = AugmentcodePermissions.forDeletion({
-      outputRoot: testDir,
-      relativeDirPath: ".augment",
-      relativeFilePath: "settings.json",
-    });
-    expect(instance.isDeletable()).toBe(false);
-  });
-
   it("should resolve fail-closed when an AugmentCode file has both deny and allow for the same managed non-bash tool (deny first)", () => {
     const instance = new AugmentcodePermissions({
       relativeDirPath: ".augment",
@@ -2085,7 +2076,7 @@ describe("AugmentcodePermissions", () => {
     });
 
     it("should not throw when constructed with validate: false even with malformed JSON", () => {
-      // `forDeletion` and other permissive paths pass `validate: false` and
+      // Permissive paths pass `validate: false` and
       // must not be rejected at construction time.
       expect(
         () =>

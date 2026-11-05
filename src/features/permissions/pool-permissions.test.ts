@@ -705,16 +705,4 @@ describe("PoolPermissions", () => {
       expect(permissions.toRulesyncPermissions().getJson().permission).toEqual({});
     });
   });
-
-  describe("forDeletion", () => {
-    it("should return a well-formed, non-deletable instance", () => {
-      const permissions = PoolPermissions.forDeletion({
-        outputRoot: testDir,
-        relativeDirPath: ".poolside",
-        relativeFilePath: "settings.yaml",
-      });
-      expect(permissions.getSettings()).toEqual({});
-      expect(permissions.isDeletable()).toBe(false);
-    });
-  });
 });

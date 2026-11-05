@@ -93,10 +93,6 @@ export async function executeAdd(options: AddOptions): Promise<McpCommandResult>
 
 export const addTools = {
   executeAdd: {
-    name: "executeAdd",
-    description:
-      "Execute the rulesync add command: scaffold a Rulesync feature file (source is a feature keyword such as 'rule', 'skill', 'mcp') or add a declarative skill/rule source to rulesync.jsonc and install it.",
-    parameters: addOptionsSchema,
     execute: async (options: AddOptions): Promise<string> =>
       stringifyResult(await executeAdd(options)),
   },

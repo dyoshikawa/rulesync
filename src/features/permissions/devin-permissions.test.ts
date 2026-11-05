@@ -48,17 +48,6 @@ describe("DevinPermissions", () => {
     });
   });
 
-  describe("isDeletable", () => {
-    it("should never delete the shared config.json", () => {
-      const perms = DevinPermissions.forDeletion({
-        outputRoot: testDir,
-        relativeDirPath: ".devin",
-        relativeFilePath: "config.json",
-      });
-      expect(perms.isDeletable()).toBe(false);
-    });
-  });
-
   describe("fromRulesyncPermissions", () => {
     it("should map canonical categories to Devin scope matchers under the permissions key", async () => {
       const config = {

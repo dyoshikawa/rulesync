@@ -28,7 +28,6 @@ import {
   ToolRuleParams,
   ToolRuleSettablePaths,
   ToolRuleSettablePathsGlobal,
-  buildToolPath,
 } from "./tool-rule.js";
 
 /**
@@ -145,10 +144,8 @@ export class CodebuddyRule extends ToolRule {
 
   static getSettablePaths({
     global,
-    excludeToolDir,
   }: {
     global?: boolean;
-    excludeToolDir?: boolean;
   } = {}): CodebuddyRuleSettablePaths | CodebuddyRuleSettablePathsGlobal {
     if (global) {
       // CodeBuddy Code reads user-scoped rules from `~/.codebuddy/rules/*.md`
@@ -156,11 +153,11 @@ export class CodebuddyRule extends ToolRule {
       // rules are generated there instead of being dropped.
       return {
         root: {
-          relativeDirPath: buildToolPath(CODEBUDDY_DIR, ".", excludeToolDir),
+          relativeDirPath: join(CODEBUDDY_DIR, "."),
           relativeFilePath: CODEBUDDY_RULE_FILE_NAME,
         },
         nonRoot: {
-          relativeDirPath: buildToolPath(CODEBUDDY_DIR, CODEBUDDY_RULES_DIR_NAME, excludeToolDir),
+          relativeDirPath: join(CODEBUDDY_DIR, CODEBUDDY_RULES_DIR_NAME),
         },
       };
     }
@@ -176,7 +173,7 @@ export class CodebuddyRule extends ToolRule {
         },
       ],
       nonRoot: {
-        relativeDirPath: buildToolPath(CODEBUDDY_DIR, CODEBUDDY_RULES_DIR_NAME, excludeToolDir),
+        relativeDirPath: join(CODEBUDDY_DIR, CODEBUDDY_RULES_DIR_NAME),
       },
     };
   }

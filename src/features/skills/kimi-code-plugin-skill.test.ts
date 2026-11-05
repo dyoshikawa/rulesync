@@ -7,7 +7,7 @@ import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { writeFileContent } from "../../utils/file.js";
 import { KimiCodePluginSkill } from "./kimi-code-plugin-skill.js";
 import { KimiCodeSkill } from "./kimi-code-skill.js";
-import { RulesyncSkill } from "./rulesync-skill.js";
+import { RulesyncSkill, RulesyncSkillFrontmatterInput } from "./rulesync-skill.js";
 
 describe("KimiCodePluginSkill", () => {
   let testDir: string;
@@ -21,7 +21,7 @@ describe("KimiCodePluginSkill", () => {
     await cleanup();
   });
 
-  const buildRulesyncSkill = (targets: string[]) =>
+  const buildRulesyncSkill = (targets: RulesyncSkillFrontmatterInput["targets"]) =>
     new RulesyncSkill({
       outputRoot: testDir,
       relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,

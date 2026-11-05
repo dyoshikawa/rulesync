@@ -1,25 +1,11 @@
-import { join } from "node:path";
-
 import { z } from "zod/mini";
 
 import { CLAUDECODE_COMMANDS_DIR_PATH } from "../../constants/claudecode-paths.js";
-import { AiFileParams, ValidationResult } from "../../types/ai-file.js";
-import { formatError } from "../../utils/error.js";
-import { readFileContent } from "../../utils/file.js";
-import {
-  parseFrontmatter,
-  stringifyFrontmatter,
-  validateFrontmatterSchema,
-} from "../../utils/frontmatter.js";
+import type { ToolTarget } from "../../types/tool-targets.js";
 import { ClaudecodeArgumentHintSchema } from "../shared/claudecode-argument-hint.js";
-import { RulesyncCommand, RulesyncCommandFrontmatter } from "./rulesync-command.js";
-import {
-  ToolCommand,
-  ToolCommandForDeletionParams,
-  ToolCommandFromFileParams,
-  ToolCommandFromRulesyncCommandParams,
-  ToolCommandSettablePaths,
-} from "./tool-command.js";
+import { FrontmatterMarkdownToolCommand } from "./frontmatter-markdown-command.js";
+import type { RulesyncCommandFrontmatter } from "./rulesync-command.js";
+import type { ToolCommandSettablePaths } from "./tool-command.js";
 
 // looseObject preserves unknown keys during parsing (like passthrough in Zod 3)
 export const ClaudecodeCommandFrontmatterSchema = z.looseObject({
@@ -36,50 +22,22 @@ export const ClaudecodeCommandFrontmatterSchema = z.looseObject({
 
 export type ClaudecodeCommandFrontmatter = z.infer<typeof ClaudecodeCommandFrontmatterSchema>;
 
-export type ClaudecodeCommandParams = {
-  frontmatter: ClaudecodeCommandFrontmatter;
-  body: string;
-} & Omit<AiFileParams, "fileContent">;
-
-export class ClaudecodeCommand extends ToolCommand {
-  private readonly frontmatter: ClaudecodeCommandFrontmatter;
-  private readonly body: string;
-
-  constructor({ frontmatter, body, ...rest }: ClaudecodeCommandParams) {
-    // Validate frontmatter before calling super to avoid validation order issues
-    if (rest.validate) {
-      const result = ClaudecodeCommandFrontmatterSchema.safeParse(frontmatter);
-      if (!result.success) {
-        throw new Error(
-          `Invalid frontmatter in ${join(rest.relativeDirPath, rest.relativeFilePath)}: ${formatError(result.error)}`,
-        );
-      }
-    }
-
-    super({
-      ...rest,
-      fileContent: stringifyFrontmatter(body, frontmatter),
-    });
-
-    this.frontmatter = frontmatter;
-    this.body = body;
-  }
-
+export class ClaudecodeCommand extends FrontmatterMarkdownToolCommand<ClaudecodeCommandFrontmatter> {
   static getSettablePaths(_options: { global?: boolean } = {}): ToolCommandSettablePaths {
     return {
       relativeDirPath: CLAUDECODE_COMMANDS_DIR_PATH,
     };
   }
 
-  getBody(): string {
-    return this.body;
+  protected static override getToolTarget(): ToolTarget {
+    return "claudecode";
   }
 
-  getFrontmatter(): Record<string, unknown> {
-    return this.frontmatter;
+  protected static override getFrontmatterSchema() {
+    return ClaudecodeCommandFrontmatterSchema;
   }
 
-  toRulesyncCommand(): RulesyncCommand {
+  protected override toRulesyncFrontmatter(): RulesyncCommandFrontmatter {
     const { description, ...extraFields } = this.frontmatter;
     // A field the schema normalized away (an empty-list `argument-hint`) is left
     // as an undefined key; drop it so it does not produce an empty section.
@@ -87,116 +45,11 @@ export class ClaudecodeCommand extends ToolCommand {
       Object.entries(extraFields).filter(([, value]) => value !== undefined),
     );
 
-    const rulesyncFrontmatter: RulesyncCommandFrontmatter = {
+    return {
       targets: ["*"],
       description,
       // Preserve extra fields in claudecode section
       ...(Object.keys(restFields).length > 0 && { claudecode: restFields }),
     };
-
-    // Generate proper file content with Rulesync specific frontmatter
-    return new RulesyncCommand({
-      outputRoot: ".", // RulesyncCommand outputRoot is always the project root directory
-      frontmatter: rulesyncFrontmatter,
-      body: this.body,
-      relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
-      relativeFilePath: this.relativeFilePath,
-      validate: true,
-    });
-  }
-
-  static fromRulesyncCommand({
-    outputRoot = process.cwd(),
-    rulesyncCommand,
-    validate = true,
-    global = false,
-  }: ToolCommandFromRulesyncCommandParams): ClaudecodeCommand {
-    const rulesyncFrontmatter = rulesyncCommand.getFrontmatter();
-
-    // Merge claudecode-specific fields from rulesync frontmatter
-    const claudecodeFields = rulesyncFrontmatter.claudecode ?? {};
-
-    const claudecodeFrontmatter: ClaudecodeCommandFrontmatter = {
-      description: rulesyncFrontmatter.description,
-      ...claudecodeFields,
-    };
-
-    // Generate proper file content with Claude Code specific frontmatter
-    const body = rulesyncCommand.getBody();
-
-    const paths = this.getSettablePaths({ global });
-
-    return new ClaudecodeCommand({
-      outputRoot: outputRoot,
-      frontmatter: claudecodeFrontmatter,
-      body,
-      relativeDirPath: paths.relativeDirPath,
-      relativeFilePath: rulesyncCommand.getRelativeFilePath(),
-      validate,
-    });
-  }
-
-  validate(): ValidationResult {
-    // Check if frontmatter is set (may be undefined during construction)
-    if (!this.frontmatter) {
-      return { success: true, error: null };
-    }
-
-    return validateFrontmatterSchema({
-      schema: ClaudecodeCommandFrontmatterSchema,
-      frontmatter: this.frontmatter,
-      relativeDirPath: this.relativeDirPath,
-      relativeFilePath: this.relativeFilePath,
-    });
-  }
-
-  static isTargetedByRulesyncCommand(rulesyncCommand: RulesyncCommand): boolean {
-    return this.isTargetedByRulesyncCommandDefault({
-      rulesyncCommand,
-      toolTarget: "claudecode",
-    });
-  }
-
-  static async fromFile({
-    outputRoot = process.cwd(),
-    relativeFilePath,
-    validate = true,
-    global = false,
-  }: ToolCommandFromFileParams): Promise<ClaudecodeCommand> {
-    const paths = this.getSettablePaths({ global });
-    const filePath = join(outputRoot, paths.relativeDirPath, relativeFilePath);
-    // Read file content
-    const fileContent = await readFileContent(filePath);
-    const { frontmatter, body: content } = parseFrontmatter(fileContent, filePath);
-
-    // Validate required fields using ClaudecodeCommandFrontmatterSchema
-    const result = ClaudecodeCommandFrontmatterSchema.safeParse(frontmatter);
-    if (!result.success) {
-      throw new Error(`Invalid frontmatter in ${filePath}: ${formatError(result.error)}`);
-    }
-
-    return new ClaudecodeCommand({
-      outputRoot: outputRoot,
-      relativeDirPath: paths.relativeDirPath,
-      relativeFilePath,
-      frontmatter: result.data,
-      body: content.trim(),
-      validate,
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolCommandForDeletionParams): ClaudecodeCommand {
-    return new ClaudecodeCommand({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      frontmatter: { description: "" },
-      body: "",
-      validate: false,
-    });
   }
 }

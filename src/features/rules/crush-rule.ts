@@ -10,7 +10,7 @@ import {
   ToolRuleForDeletionParams,
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
-  ToolRuleSettablePaths,
+  ToolRuleRootOnlySettablePaths,
 } from "./tool-rule.js";
 
 export type CrushRuleParams = AiFileParams & {
@@ -48,14 +48,6 @@ export type CrushRuleParams = AiFileParams & {
  * @see https://github.com/charmbracelet/crush/blob/main/internal/config/config.go
  * @see https://github.com/charmbracelet/crush/blob/main/internal/config/load.go
  */
-export type CrushRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> & {
-  root: {
-    relativeDirPath: string;
-    relativeFilePath: string;
-  };
-  nonRoot?: undefined;
-};
-
 export class CrushRule extends ToolRule {
   /**
    * Build this tool's separate personal local-root file (`localRootMode:
@@ -86,8 +78,7 @@ export class CrushRule extends ToolRule {
     global = false,
   }: {
     global?: boolean;
-    excludeToolDir?: boolean;
-  } = {}): CrushRuleSettablePaths {
+  } = {}): ToolRuleRootOnlySettablePaths {
     if (global) {
       return {
         root: {

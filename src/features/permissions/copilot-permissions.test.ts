@@ -57,16 +57,6 @@ describe("CopilotPermissions", () => {
     });
   });
 
-  describe("isDeletable", () => {
-    it("is not deletable (shared workspace settings file)", () => {
-      const permissions = CopilotPermissions.forDeletion({
-        relativeDirPath: ".vscode",
-        relativeFilePath: "settings.json",
-      });
-      expect(permissions.isDeletable()).toBe(false);
-    });
-  });
-
   describe("fromRulesyncPermissions", () => {
     it("maps bash allow onto true and deny/ask onto false in chat.tools.terminal.autoApprove", async () => {
       const rulesyncPermissions = createRulesyncPermissions({

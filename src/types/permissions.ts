@@ -9,6 +9,10 @@ import { z } from "zod/mini";
 export const PermissionActionSchema = z.enum(["allow", "ask", "deny"]);
 export type PermissionAction = z.infer<typeof PermissionActionSchema>;
 
+export function isPermissionAction(value: unknown): value is PermissionAction {
+  return PermissionActionSchema.safeParse(value).success;
+}
+
 /**
  * Whether a key in a permission block — a category name or a pattern — is
  * blank, that is empty or only whitespace. Shared with the import-side filter
@@ -83,7 +87,6 @@ const ToolScopedPermissionSchema = z.record(PermissionCategorySchema, Permission
 const CanonicalPermissionsOverrideSchema = z.looseObject({
   permission: z.optional(ToolScopedPermissionSchema),
 });
-export type CanonicalPermissionsOverride = z.infer<typeof CanonicalPermissionsOverrideSchema>;
 
 /**
  * One Codewhale `[[rules]]` record of `~/.codewhale/permissions.toml`, written
@@ -113,7 +116,6 @@ const CodewhalePermissionsOverrideSchema = z.looseObject({
   permission: z.optional(ToolScopedPermissionSchema),
   rules: z.optional(z.array(CodewhalePermissionRuleSchema)),
 });
-export type CodewhalePermissionsOverride = z.infer<typeof CodewhalePermissionsOverrideSchema>;
 
 /**
  * The values VS Code's `chat.permissions.default` setting accepts: the starting
@@ -136,10 +138,7 @@ export type CopilotLocalPermissionLevel = (typeof COPILOT_LOCAL_PERMISSION_LEVEL
  * @see https://code.visualstudio.com/updates/v1_144
  * @see https://github.com/microsoft/vscode/blob/1.144.0/src/vs/workbench/contrib/chat/browser/chat.shared.contribution.ts
  */
-export const COPILOT_DEFAULT_PERMISSION_MODES = [
-  ...COPILOT_LOCAL_PERMISSION_LEVELS,
-  "assisted",
-] as const;
+const COPILOT_DEFAULT_PERMISSION_MODES = [...COPILOT_LOCAL_PERMISSION_LEVELS, "assisted"] as const;
 export type CopilotDefaultPermissionMode = (typeof COPILOT_DEFAULT_PERMISSION_MODES)[number];
 
 /** `chat.agent.sandbox.enabled`: `"off"` or `"on"`. */
@@ -200,7 +199,6 @@ const CopilotPermissionsOverrideSchema = z.looseObject({
   defaultPermissionMode: z.optional(z.enum(COPILOT_DEFAULT_PERMISSION_MODES)),
   sandbox: z.optional(CopilotSandboxSchema),
 });
-export type CopilotPermissionsOverride = z.infer<typeof CopilotPermissionsOverrideSchema>;
 
 /**
  * The permission mode the GitHub Copilot CLI starts new interactive sessions
@@ -226,7 +224,6 @@ const CopilotcliPermissionsOverrideSchema = z.looseObject({
   permission: z.optional(ToolScopedPermissionSchema),
   defaultPermissionMode: z.optional(z.enum(COPILOTCLI_DEFAULT_PERMISSION_MODES)),
 });
-export type CopilotcliPermissionsOverride = z.infer<typeof CopilotcliPermissionsOverrideSchema>;
 
 /**
  * oh-my-pi's `tools.approvalMode` values: the tool tiers it auto-approves
@@ -294,7 +291,6 @@ const KimiCodePermissionsOverrideSchema = z.looseObject({
     }),
   ),
 });
-export type KimiCodePermissionsOverride = z.infer<typeof KimiCodePermissionsOverrideSchema>;
 
 /**
  * OpenCode-specific permission value. Unlike the shared canonical block, which
@@ -337,7 +333,6 @@ export type OpencodePermissionsOverride = z.infer<typeof OpencodePermissionsOver
 const HermesPermissionsOverrideSchema = z.looseObject({
   permission: z.optional(ToolScopedPermissionSchema),
 });
-export type HermesPermissionsOverride = z.infer<typeof HermesPermissionsOverrideSchema>;
 
 /**
  * Tool-scoped override block for Cline. Cline's `command-permissions.json`
@@ -354,7 +349,6 @@ const ClinePermissionsOverrideSchema = z.looseObject({
   permission: z.optional(ToolScopedPermissionSchema),
   allowRedirects: z.optional(z.boolean()),
 });
-export type ClinePermissionsOverride = z.infer<typeof ClinePermissionsOverrideSchema>;
 
 /**
  * Tool-scoped override block for Kilo Code (an OpenCode fork). Kilo's permission
@@ -437,7 +431,6 @@ const ClaudecodePermissionsOverrideSchema = z.looseObject({
   permissions: z.optional(z.looseObject({})),
   sandbox: z.optional(z.looseObject({})),
 });
-export type ClaudecodePermissionsOverride = z.infer<typeof ClaudecodePermissionsOverrideSchema>;
 
 /**
  * Tool-scoped override block for Mistral Vibe. Vibe's per-tool `BaseToolConfig`
@@ -502,7 +495,6 @@ const CursorPermissionsOverrideSchema = z.looseObject({
   // `networkAccess` as plain strings without enumerating their accepted values.
   sandbox: z.optional(z.looseObject({})),
 });
-export type CursorPermissionsOverride = z.infer<typeof CursorPermissionsOverrideSchema>;
 
 /**
  * Tool-scoped override block for Qwen Code. Qwen's `settings.json` exposes
@@ -640,7 +632,6 @@ const TabninePermissionsOverrideSchema = z.looseObject({
   tools: z.optional(z.looseObject({})),
   general: z.optional(z.looseObject({})),
 });
-export type TabninePermissionsOverride = z.infer<typeof TabninePermissionsOverrideSchema>;
 
 /**
  * Tool-scoped override block for Reasonix. Reasonix has security axes orthogonal
@@ -793,7 +784,6 @@ const QoderPermissionsOverrideSchema = z.looseObject({
   ),
   agentsMdExcludes: z.optional(z.array(z.string())),
 });
-export type QoderPermissionsOverride = z.infer<typeof QoderPermissionsOverrideSchema>;
 
 /**
  * Tool-scoped override block for CodeBuddy Code. The shared `permission` block
@@ -845,7 +835,6 @@ const CodebuddyPermissionsOverrideSchema = z.looseObject({
     }),
   ),
 });
-export type CodebuddyPermissionsOverride = z.infer<typeof CodebuddyPermissionsOverrideSchema>;
 
 /**
  * One native Factory Droid permission rule. `match.prefix` positions are either
@@ -907,7 +896,6 @@ const FactorydroidPermissionsOverrideSchema = z.looseObject({
   // https://docs.factory.com/autonomy-and-safety/permission-rules
   permissionRules: z.optional(FactorydroidPermissionRulesSchema),
 });
-export type FactorydroidPermissionsOverride = z.infer<typeof FactorydroidPermissionsOverrideSchema>;
 
 /**
  * Tool-scoped override block for Warp. Warp's `[agents.profiles]` table exposes
@@ -988,7 +976,6 @@ const WarpPermissionsOverrideSchema = z.looseObject({
   execution_profile: z.optional(WarpExecutionProfileOverrideSchema),
   auto_approve_bypasses_command_denylist: WarpAutoApproveBypassSchema,
 });
-export type WarpPermissionsOverride = z.infer<typeof WarpPermissionsOverrideSchema>;
 
 /**
  * Tool-scoped override block for the standalone Warp Agent CLI. The CLI reads
@@ -1145,7 +1132,6 @@ const JuniePermissionsOverrideSchema = z.looseObject({
     }),
   ),
 });
-export type JuniePermissionsOverride = z.infer<typeof JuniePermissionsOverrideSchema>;
 
 /**
  * Tool-scoped override block for Takt. Takt's `config.yaml` carries two
@@ -1193,7 +1179,6 @@ const TaktPermissionsOverrideSchema = z.looseObject({
   allow_git_hooks: z.optional(z.boolean()),
   allow_git_filters: z.optional(z.boolean()),
 });
-export type TaktPermissionsOverride = z.infer<typeof TaktPermissionsOverrideSchema>;
 
 /**
  * Tool-scoped override block for Amp. Amp's `amp.permissions` array and sibling
@@ -1238,7 +1223,6 @@ const AmpPermissionsOverrideSchema = z.looseObject({
   guardedFiles: z.optional(z.looseObject({ allowlist: z.optional(z.array(z.string())) })),
   dangerouslyAllowAll: z.optional(z.boolean()),
 });
-export type AmpPermissionsOverride = z.infer<typeof AmpPermissionsOverrideSchema>;
 
 /**
  * Tool-scoped override block for Pi Coding Agent. Pi has no allow/ask/deny rule
@@ -1262,7 +1246,6 @@ const PiPermissionsOverrideSchema = z.looseObject({
   permission: z.optional(ToolScopedPermissionSchema),
   defaultTools: z.optional(z.array(z.string())),
 });
-export type PiPermissionsOverride = z.infer<typeof PiPermissionsOverrideSchema>;
 
 /**
  * The Antigravity CLI's four documented `toolPermission` autonomy presets.
@@ -1344,9 +1327,6 @@ const AntigravityCliPermissionsOverrideSchema = z.looseObject({
    */
   agentMode: z.optional(z.enum(ANTIGRAVITY_CLI_AGENT_MODES)),
 });
-export type AntigravityCliPermissionsOverride = z.infer<
-  typeof AntigravityCliPermissionsOverrideSchema
->;
 
 /**
  * Tool-scoped override block for AugmentCode. AugmentCode's `toolPermissions[]`
@@ -1450,7 +1430,6 @@ const KiroPermissionsOverrideSchema = z.looseObject({
     }),
   ),
 });
-export type KiroPermissionsOverride = z.infer<typeof KiroPermissionsOverrideSchema>;
 
 /**
  * Codex CLI's approval-workflow policy. Serialized as a kebab-case string in
@@ -1631,7 +1610,6 @@ const CodexcliPermissionsOverrideSchema = z.looseObject({
   tui: z.optional(z.looseObject({})),
   git_write_rules: z.optional(z.boolean()),
 });
-export type CodexcliPermissionsOverride = z.infer<typeof CodexcliPermissionsOverrideSchema>;
 
 /**
  * Tool-scoped override block for Zed. These Zed `agent` keys sit outside the
@@ -1693,7 +1671,6 @@ const ZedPermissionsOverrideSchema = z.looseObject({
   // `AgentSettingsContent.default_profile` in Zed's `crates/settings_content/src/agent.rs`
   default_profile: z.optional(z.string()),
 });
-export type ZedPermissionsOverride = z.infer<typeof ZedPermissionsOverrideSchema>;
 
 /**
  * Tool-scoped override block for Devin Local. `sandbox` is the sibling
@@ -1747,7 +1724,6 @@ const DevinPermissionsOverrideSchema = z.looseObject({
   optionalPlugins: z.optional(DEVIN_PLUGIN_GOVERNANCE_SCHEMAS.optionalPlugins),
   forbiddenPlugins: z.optional(DEVIN_PLUGIN_GOVERNANCE_SCHEMAS.forbiddenPlugins),
 });
-export type DevinPermissionsOverride = z.infer<typeof DevinPermissionsOverrideSchema>;
 
 /**
  * Permissions configuration.

@@ -1,4 +1,5 @@
-import { CONTROL_CHARS, type HooksConfig } from "../../types/hooks.js";
+import { type HooksConfig } from "../../types/hooks.js";
+import { sanitizeMatcherRegex } from "./hook-matcher-regex.js";
 
 const AMP_TOOL_EVENTS = new Set(["tool.call", "tool.result"]);
 const AMP_CHANGES_PROMPT_EVENT = "changes.prompt";
@@ -7,19 +8,7 @@ type Handler = { command: string; matcher?: string };
 type HandlerGroup = Record<string, Handler[]>;
 
 function matcherToEmbeddedLiteral(matcher: string): string {
-  let sanitized = matcher;
-  for (const char of CONTROL_CHARS) {
-    sanitized = sanitized.replaceAll(char, "");
-  }
-  if (sanitized === "*") {
-    sanitized = ".*";
-  }
-  try {
-    new RegExp(sanitized);
-  } catch {
-    throw new Error(`Invalid regex pattern in hook matcher: ${sanitized}`);
-  }
-  return JSON.stringify(sanitized);
+  return JSON.stringify(sanitizeMatcherRegex(matcher));
 }
 
 function collectHandlers({

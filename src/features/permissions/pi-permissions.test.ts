@@ -44,16 +44,6 @@ describe("PiPermissions", () => {
     });
   });
 
-  it("should not be deletable because settings.json holds unrelated user settings", () => {
-    const permissions = PiPermissions.forDeletion({
-      outputRoot: testDir,
-      relativeDirPath: ".pi",
-      relativeFilePath: "settings.json",
-    });
-
-    expect(permissions.isDeletable()).toBe(false);
-  });
-
   it("should author defaultTools from the pi override", async () => {
     const permissions = await PiPermissions.fromRulesyncPermissions({
       outputRoot: testDir,

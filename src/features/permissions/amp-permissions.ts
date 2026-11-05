@@ -14,7 +14,6 @@ import { RulesyncPermissions } from "./rulesync-permissions.js";
 import { isStricterAction } from "./single-action-collapse.js";
 import {
   ToolPermissions,
-  type ToolPermissionsForDeletionParams,
   type ToolPermissionsFromFileParams,
   type ToolPermissionsFromRulesyncPermissionsParams,
   type ToolPermissionsSettablePaths,
@@ -183,15 +182,6 @@ export class AmpPermissions extends ToolPermissions {
       ...params,
       fileContent: params.fileContent ?? "{}",
     });
-  }
-
-  /**
-   * The settings file may carry other Amp settings (e.g. `amp.mcpServers`), so
-   * we never delete it; only the managed `amp.tools.disable` /
-   * `amp.permissions` keys are rewritten.
-   */
-  override isDeletable(): boolean {
-    return false;
   }
 
   static getSettablePaths({
@@ -366,20 +356,6 @@ export class AmpPermissions extends ToolPermissions {
         error: error instanceof Error ? error : new Error(formatError(error)),
       };
     }
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolPermissionsForDeletionParams): AmpPermissions {
-    return new AmpPermissions({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: JSON.stringify({ [AMP_TOOLS_DISABLE_KEY]: [] }, null, 2),
-      validate: false,
-    });
   }
 }
 

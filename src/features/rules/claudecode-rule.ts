@@ -28,7 +28,6 @@ import {
   ToolRuleParams,
   ToolRuleSettablePaths,
   ToolRuleSettablePathsGlobal,
-  buildToolPath,
 } from "./tool-rule.js";
 
 /**
@@ -106,10 +105,8 @@ export class ClaudecodeRule extends ToolRule {
 
   static getSettablePaths({
     global,
-    excludeToolDir,
   }: {
     global?: boolean;
-    excludeToolDir?: boolean;
   } = {}): ClaudecodeRuleSettablePaths | ClaudecodeRuleSettablePathsGlobal {
     if (global) {
       // Claude Code reads user-scoped modular rules from `~/.claude/rules/*.md`
@@ -117,11 +114,11 @@ export class ClaudecodeRule extends ToolRule {
       // non-root rules are generated there instead of being dropped.
       return {
         root: {
-          relativeDirPath: buildToolPath(CLAUDECODE_DIR, ".", excludeToolDir),
+          relativeDirPath: join(CLAUDECODE_DIR, "."),
           relativeFilePath: CLAUDECODE_RULE_FILE_NAME,
         },
         nonRoot: {
-          relativeDirPath: buildToolPath(CLAUDECODE_DIR, CLAUDECODE_RULES_DIR_NAME, excludeToolDir),
+          relativeDirPath: join(CLAUDECODE_DIR, CLAUDECODE_RULES_DIR_NAME),
         },
       };
     }
@@ -137,7 +134,7 @@ export class ClaudecodeRule extends ToolRule {
         },
       ],
       nonRoot: {
-        relativeDirPath: buildToolPath(CLAUDECODE_DIR, CLAUDECODE_RULES_DIR_NAME, excludeToolDir),
+        relativeDirPath: join(CLAUDECODE_DIR, CLAUDECODE_RULES_DIR_NAME),
       },
     };
   }

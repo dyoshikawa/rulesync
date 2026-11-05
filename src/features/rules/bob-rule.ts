@@ -9,7 +9,6 @@ import {
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
   ToolRuleSettablePaths,
-  buildToolPath,
 } from "./tool-rule.js";
 
 export type BobRuleSettablePaths = ToolRuleSettablePaths & {
@@ -41,21 +40,19 @@ export type BobRuleSettablePaths = ToolRuleSettablePaths & {
 export class BobRule extends ToolRule {
   static getSettablePaths({
     global,
-    excludeToolDir,
   }: {
     global?: boolean;
-    excludeToolDir?: boolean;
   } = {}): BobRuleSettablePaths {
     return {
       root: {
         // The workspace file sits at the project root; the user file sits
         // inside `~/.bob/`, which the processor reaches by supplying the home
         // directory as outputRoot.
-        relativeDirPath: global ? buildToolPath(BOB_DIR, ".", excludeToolDir) : ".",
+        relativeDirPath: global ? join(BOB_DIR, ".") : ".",
         relativeFilePath: BOB_RULE_FILE_NAME,
       },
       nonRoot: {
-        relativeDirPath: buildToolPath(BOB_DIR, "rules", excludeToolDir),
+        relativeDirPath: join(BOB_DIR, "rules"),
       },
     };
   }

@@ -1,13 +1,11 @@
-import { join } from "node:path";
-
 import { z } from "zod/mini";
 
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { KIRO_SKILLS_DIR_PATH } from "../../constants/kiro-paths.js";
-import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
+import { ToolTarget } from "../../types/tool-targets.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
-import { resolveCompatibility, resolveLicense, resolveMetadata } from "./skills-utils.js";
+import { resolveStandardSkillFields } from "./skills-utils.js";
 import {
   ToolSkill,
   ToolSkillForDeletionParams,
@@ -110,16 +108,7 @@ export class KiroSkill extends ToolSkill {
       ...(Object.keys(kiroSection).length > 0 && { kiro: kiroSection }),
     };
 
-    return new RulesyncSkill({
-      outputRoot: this.outputRoot,
-      relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
-      dirName: this.getDirName(),
-      frontmatter: rulesyncFrontmatter,
-      body: this.getBody(),
-      otherFiles: this.getOtherFiles(),
-      validate: true,
-      global: this.global,
-    });
+    return this.toRulesyncSkillWith(rulesyncFrontmatter);
   }
 
   static fromRulesyncSkill({
@@ -135,24 +124,13 @@ export class KiroSkill extends ToolSkill {
     // value when the `kiro` section omits them. Every resolver already prefers
     // a defined section value, so re-applying them after the spread never
     // discards one.
-    const license = resolveLicense({ rootFrontmatter: rulesyncFrontmatter, section: kiroSection });
-    const compatibility = resolveCompatibility({
-      rootFrontmatter: rulesyncFrontmatter,
-      section: kiroSection,
-    });
-    const metadata = resolveMetadata({
-      rootFrontmatter: rulesyncFrontmatter,
-      section: kiroSection,
-    });
 
     const { name: _sectionName, description: _sectionDescription, ...section } = kiroSection ?? {};
     const kiroFrontmatter: KiroSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
       ...section,
-      ...(license !== undefined && { license }),
-      ...(compatibility !== undefined && { compatibility }),
-      ...(metadata !== undefined && { metadata }),
+      ...resolveStandardSkillFields({ rootFrontmatter: rulesyncFrontmatter, section: kiroSection }),
     };
 
     return new KiroSkill({
@@ -167,58 +145,18 @@ export class KiroSkill extends ToolSkill {
     });
   }
 
-  static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("kiro");
-  }
+  protected static override readonly toolTarget: ToolTarget = "kiro";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<KiroSkill> {
-    const loaded = await this.loadSkillDirContent({
-      ...params,
-      getSettablePaths: KiroSkill.getSettablePaths,
-    });
-
-    const frontmatter = this.parseLoadedFrontmatter({ schema: KiroSkillFrontmatterSchema, loaded });
-
-    if (frontmatter.name !== loaded.dirName) {
-      const skillFilePath = join(
-        loaded.outputRoot,
-        loaded.relativeDirPath,
-        loaded.dirName,
-        SKILL_FILE_NAME,
-      );
-      throw new Error(
-        `Frontmatter name (${frontmatter.name}) must match directory name (${loaded.dirName}) in ${skillFilePath}`,
-      );
-    }
-
-    return new KiroSkill({
-      outputRoot: loaded.outputRoot,
-      relativeDirPath: loaded.relativeDirPath,
-      dirName: loaded.dirName,
-      frontmatter,
-      body: loaded.body,
-      otherFiles: loaded.otherFiles,
-      validate: true,
-      global: loaded.global,
-    });
+    return new KiroSkill(
+      await this.loadStandardSkillParamsMatchingDirName({
+        params,
+        schema: KiroSkillFrontmatterSchema,
+      }),
+    );
   }
 
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    dirName,
-    global = false,
-  }: ToolSkillForDeletionParams): KiroSkill {
-    return new KiroSkill({
-      outputRoot,
-      relativeDirPath,
-      dirName,
-      frontmatter: { name: "", description: "" },
-      body: "",
-      otherFiles: [],
-      validate: false,
-      global,
-    });
+  static forDeletion(params: ToolSkillForDeletionParams): KiroSkill {
+    return new KiroSkill(this.forDeletionParams(params));
   }
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { isRecord, toStringArray } from "./type-guards.js";
+import { isRecord, toRecord, toStringArray } from "./type-guards.js";
 
 describe("isRecord", () => {
   it("should return true for plain objects", () => {
@@ -111,5 +111,19 @@ describe("toStringArray", () => {
     const result = toStringArray(input);
     expect(result).toEqual(["a", "b"]);
     expect(result).not.toBe(input);
+  });
+});
+
+describe("toRecord", () => {
+  it("should return the record itself", () => {
+    const input = { a: 1 };
+    expect(toRecord(input)).toBe(input);
+  });
+
+  it("should return an empty object for non-record values", () => {
+    expect(toRecord(undefined)).toEqual({});
+    expect(toRecord(null)).toEqual({});
+    expect(toRecord("a")).toEqual({});
+    expect(toRecord(["a"])).toEqual({});
   });
 });

@@ -10,15 +10,9 @@ import {
 } from "../../constants/hermesagent-paths.js";
 import { ValidationResult } from "../../types/ai-file.js";
 import { ToolFile } from "../../types/tool-file.js";
-import { readFileContent, readFileContentOrNull, toPosixPath } from "../../utils/file.js";
-import { RulesyncIgnore } from "./rulesync-ignore.js";
-import {
-  ToolIgnore,
-  ToolIgnoreForDeletionParams,
-  ToolIgnoreFromFileParams,
-  ToolIgnoreFromRulesyncIgnoreParams,
-  ToolIgnoreSettablePaths,
-} from "./tool-ignore.js";
+import { readFileContentOrNull, toPosixPath } from "../../utils/file.js";
+import { PlainToolIgnore } from "./plain-tool-ignore.js";
+import { ToolIgnore, ToolIgnoreSettablePaths } from "./tool-ignore.js";
 
 function getPluginManifestContent(): string {
   return [
@@ -218,7 +212,7 @@ class HermesagentIgnoreAuxiliaryFile extends ToolFile {
   }
 }
 
-export class HermesagentIgnore extends ToolIgnore {
+export class HermesagentIgnore extends PlainToolIgnore {
   static getSettablePaths(): ToolIgnoreSettablePaths {
     return {
       relativeDirPath: HERMESAGENT_IGNORE_PLUGIN_DIR_PATH,
@@ -259,50 +253,5 @@ export class HermesagentIgnore extends ToolIgnore {
       join(outputRoot, HERMESAGENT_IGNORE_PLUGIN_OWNERSHIP_PATH),
     );
     return marker === "Generated and owned by RuleSync.\n";
-  }
-
-  toRulesyncIgnore(): RulesyncIgnore {
-    return this.toRulesyncIgnoreDefault();
-  }
-
-  static fromRulesyncIgnore({
-    outputRoot = process.cwd(),
-    rulesyncIgnore,
-  }: ToolIgnoreFromRulesyncIgnoreParams): HermesagentIgnore {
-    const paths = this.getSettablePaths();
-    return new HermesagentIgnore({
-      outputRoot,
-      ...paths,
-      fileContent: rulesyncIgnore.getFileContent(),
-    });
-  }
-
-  static async fromFile({
-    outputRoot = process.cwd(),
-    validate = true,
-  }: ToolIgnoreFromFileParams): Promise<HermesagentIgnore> {
-    const paths = this.getSettablePaths();
-    return new HermesagentIgnore({
-      outputRoot,
-      ...paths,
-      fileContent: await readFileContent(
-        join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
-      ),
-      validate,
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolIgnoreForDeletionParams): HermesagentIgnore {
-    return new HermesagentIgnore({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: "",
-      validate: false,
-    });
   }
 }

@@ -2,10 +2,7 @@ import { z } from "zod/mini";
 
 import { QODER_COMMANDS_DIR_PATH } from "../../constants/qoder-paths.js";
 import type { ToolTarget } from "../../types/tool-targets.js";
-import {
-  FrontmatterMarkdownToolCommand,
-  type FrontmatterMarkdownToolCommandParams,
-} from "./frontmatter-markdown-command.js";
+import { FrontmatterMarkdownToolCommand } from "./frontmatter-markdown-command.js";
 import type { ToolCommandSettablePaths } from "./tool-command.js";
 
 // looseObject preserves unknown keys during parsing (like passthrough in Zod 3)
@@ -18,8 +15,6 @@ const QoderCommandFrontmatterSchema = z.looseObject({
 });
 
 export type QoderCommandFrontmatter = z.infer<typeof QoderCommandFrontmatterSchema>;
-
-export type QoderCommandParams = FrontmatterMarkdownToolCommandParams<QoderCommandFrontmatter>;
 
 /**
  * Custom slash command for Qoder.

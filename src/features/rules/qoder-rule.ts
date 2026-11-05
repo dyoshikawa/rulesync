@@ -21,6 +21,7 @@ import {
 import { warnWithFallback } from "../../utils/logger.js";
 import {
   buildOutputStyleFrontmatter,
+  getOutputStyleRuleOptionWarnings,
   isDirectMarkdownChild,
   isOutputStyleChannel,
   resolveTopLevelOutputStyleStem,
@@ -35,7 +36,6 @@ import {
   ToolRuleFromRulesyncRuleParams,
   ToolRuleParams,
   ToolRuleSettablePaths,
-  buildToolPath,
 } from "./tool-rule.js";
 
 /**
@@ -224,6 +224,15 @@ export class QoderRule extends ToolRule {
     });
   }
 
+  /** See {@link getOutputStyleRuleOptionWarnings}. */
+  static getRuleOptionWarnings(rules: RulesyncRule[]): string[] {
+    return getOutputStyleRuleOptionWarnings({
+      rules,
+      toolTarget: "qoder",
+      isTargetedByRulesyncRule: (rule) => this.isTargetedByRulesyncRule(rule),
+    });
+  }
+
   /** Whether a rule opts into the `output-style` channel (non-root only). */
   private static isOutputStyleRule(rulesyncRule: RulesyncRule): boolean {
     const frontmatter = rulesyncRule.getFrontmatter();
@@ -253,21 +262,19 @@ export class QoderRule extends ToolRule {
 
   static getSettablePaths({
     global = false,
-    excludeToolDir,
   }: {
     global?: boolean;
-    excludeToolDir?: boolean;
   } = {}): QoderRuleSettablePaths {
     return {
       root: {
         // The project file sits at the project root; the user file sits inside
         // `~/.qoder/`, which the processor reaches by supplying the home
         // directory as outputRoot.
-        relativeDirPath: global ? buildToolPath(QODER_DIR, ".", excludeToolDir) : ".",
+        relativeDirPath: global ? join(QODER_DIR, ".") : ".",
         relativeFilePath: QODER_RULE_FILE_NAME,
       },
       nonRoot: {
-        relativeDirPath: buildToolPath(QODER_DIR, "rules", excludeToolDir),
+        relativeDirPath: join(QODER_DIR, "rules"),
       },
     };
   }

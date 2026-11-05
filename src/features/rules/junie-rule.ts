@@ -17,7 +17,6 @@ import {
   ToolRuleFromRulesyncRuleParams,
   ToolRuleImportOnlyRoot,
   ToolRuleSettablePathsGlobal,
-  buildToolPath,
 } from "./tool-rule.js";
 
 export type JunieRuleSettablePaths = {
@@ -75,31 +74,29 @@ export type JunieRuleSettablePaths = {
 export class JunieRule extends ToolRule {
   static getSettablePaths({
     global = false,
-    excludeToolDir,
   }: {
     global?: boolean;
-    excludeToolDir?: boolean;
   } = {}): JunieRuleSettablePaths | ToolRuleSettablePathsGlobal {
     if (global) {
       // Junie merges the user-scope `~/.junie/AGENTS.md` guideline file with
       // the project guidelines. Global guidelines are a single root file.
       return {
         root: {
-          relativeDirPath: buildToolPath(JUNIE_DIR, ".", excludeToolDir),
+          relativeDirPath: join(JUNIE_DIR, "."),
           relativeFilePath: JUNIE_RULE_FILE_NAME,
         },
       };
     }
     return {
       root: {
-        relativeDirPath: buildToolPath(JUNIE_DIR, ".", excludeToolDir),
+        relativeDirPath: join(JUNIE_DIR, "."),
         relativeFilePath: JUNIE_RULE_FILE_NAME,
       },
       // Junie still reads the legacy `.junie/guidelines.md`; accept it on import as a
       // fallback when `.junie/AGENTS.md` is absent so existing repos keep round-tripping.
       alternativeRoots: [
         {
-          relativeDirPath: buildToolPath(JUNIE_DIR, ".", excludeToolDir),
+          relativeDirPath: join(JUNIE_DIR, "."),
           relativeFilePath: JUNIE_LEGACY_RULE_FILE_NAME,
         },
       ],
@@ -112,11 +109,11 @@ export class JunieRule extends ToolRule {
       // by a previous generate.
       importOnlyRoots: [
         {
-          relativeDirPath: buildToolPath(JUNIE_DIR, JUNIE_RULES_DIR_NAME, excludeToolDir),
+          relativeDirPath: join(JUNIE_DIR, JUNIE_RULES_DIR_NAME),
           onlyWhenRootAbsent: true,
         },
         {
-          relativeDirPath: buildToolPath(JUNIE_DIR, ".", excludeToolDir),
+          relativeDirPath: join(JUNIE_DIR, "."),
           relativeFilePath: JUNIE_PLAYBOOK_FILE_NAME,
           onlyWhenRootAbsent: true,
         },
@@ -177,10 +174,7 @@ export class JunieRule extends ToolRule {
       fileContent,
       validate,
       // A `.junie/rules/AGENTS.md` is one of the combined files, not the root
-      // guideline, so the name alone does not decide this. The comparison uses
-      // the default (`.junie`-prefixed) paths because `fromFile` has no
-      // `excludeToolDir` input; a future caller that flattens the tool
-      // directory would have to thread that flag through here too.
+      // guideline, so the name alone does not decide this.
       root:
         relativeDirPath === settablePaths.root.relativeDirPath &&
         JunieRule.isRootRelativeFilePath(relativeFilePath),

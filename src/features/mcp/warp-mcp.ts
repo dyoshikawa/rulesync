@@ -2,8 +2,8 @@ import { join } from "node:path";
 
 import { WARP_DIR, WARP_MCP_FILE_NAME } from "../../constants/warp-paths.js";
 import { isMcpServers } from "../../types/mcp.js";
-import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
+import { parseMcpJsonOrThrow } from "./mcp-json-config.js";
 import { McpServerConfig } from "./mcp-transport.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
@@ -56,27 +56,16 @@ export class WarpMcp extends ToolMcp {
     super(params);
     this.json =
       this.fileContent !== undefined
-        ? WarpMcp.parseJsonOrThrow(this.fileContent, this.relativeDirPath, this.relativeFilePath)
+        ? parseMcpJsonOrThrow({
+            fileContent: this.fileContent,
+            relativePath: join(this.relativeDirPath, this.relativeFilePath),
+            label: "Warp",
+          })
         : {};
   }
 
   getJson(): Record<string, unknown> {
     return this.json;
-  }
-
-  private static parseJsonOrThrow(
-    content: string,
-    relativeDirPath: string,
-    relativeFilePath: string,
-  ): Record<string, unknown> {
-    try {
-      return JSON.parse(content);
-    } catch (error) {
-      throw new Error(
-        `Failed to parse Warp MCP config at ${join(relativeDirPath, relativeFilePath)}: ${formatError(error)}`,
-        { cause: error },
-      );
-    }
   }
 
   static getSettablePaths(_options?: { global?: boolean }): ToolMcpSettablePaths {
@@ -94,7 +83,11 @@ export class WarpMcp extends ToolMcp {
     const paths = this.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const fileContent = (await readFileContentOrNull(filePath)) ?? '{"mcpServers":{}}';
-    const json = this.parseJsonOrThrow(fileContent, paths.relativeDirPath, paths.relativeFilePath);
+    const json = parseMcpJsonOrThrow({
+      fileContent,
+      relativePath: join(paths.relativeDirPath, paths.relativeFilePath),
+      label: "Warp",
+    });
     const newJson = { ...json, mcpServers: json.mcpServers ?? {} };
 
     return new this({
@@ -119,7 +112,11 @@ export class WarpMcp extends ToolMcp {
       (await readFileContentOrNull(
         join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
       )) ?? JSON.stringify({ mcpServers: {} }, null, 2);
-    const json = this.parseJsonOrThrow(fileContent, paths.relativeDirPath, paths.relativeFilePath);
+    const json = parseMcpJsonOrThrow({
+      fileContent,
+      relativePath: join(paths.relativeDirPath, paths.relativeFilePath),
+      label: "Warp",
+    });
 
     const mcpServers = Object.fromEntries(
       Object.entries(rulesyncMcp.getMcpServers()).map(([name, server]) => [

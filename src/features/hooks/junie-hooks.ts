@@ -1,7 +1,6 @@
 import { join } from "node:path";
 
 import { JUNIE_DIR, JUNIE_HOOKS_FILE_NAME } from "../../constants/junie-paths.js";
-import type { AiFileParams } from "../../types/ai-file.js";
 import {
   CANONICAL_TO_JUNIE_EVENT_NAMES,
   JUNIE_HOOK_EVENTS,
@@ -19,8 +18,6 @@ import {
 } from "./tool-hooks-converter.js";
 import {
   ToolHooks,
-  type ToolHooksForDeletionParams,
-  type ToolHooksFromFileParams,
   type ToolHooksFromRulesyncHooksParams,
   type ToolHooksSettablePaths,
 } from "./tool-hooks.js";
@@ -51,13 +48,6 @@ export const JUNIE_CONVERTER_CONFIG: ToolHooksConverterConfig = {
 };
 
 export class JunieHooks extends ToolHooks {
-  constructor(params: AiFileParams) {
-    super({
-      ...params,
-      fileContent: params.fileContent ?? "{}",
-    });
-  }
-
   override isDeletable(): boolean {
     // ~/.junie/config.json is the user's primary Junie CLI config and holds
     // other user settings besides hooks; it must never be deleted.
@@ -69,23 +59,6 @@ export class JunieHooks extends ToolHooks {
     // `~/.junie/config.json`. In global mode the same relative path is
     // resolved under the user home; project hooks are ignored by Junie.
     return { relativeDirPath: JUNIE_DIR, relativeFilePath: JUNIE_HOOKS_FILE_NAME };
-  }
-
-  static async fromFile({
-    outputRoot = process.cwd(),
-    validate = true,
-    global = false,
-  }: ToolHooksFromFileParams): Promise<JunieHooks> {
-    const paths = JunieHooks.getSettablePaths({ global });
-    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
-    const fileContent = (await readFileContentOrNull(filePath)) ?? '{"hooks":{}}';
-    return new JunieHooks({
-      outputRoot,
-      relativeDirPath: paths.relativeDirPath,
-      relativeFilePath: paths.relativeFilePath,
-      fileContent,
-      validate,
-    });
   }
 
   static async fromRulesyncHooks({
@@ -144,22 +117,6 @@ export class JunieHooks extends ToolHooks {
         null,
         2,
       ),
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolHooksForDeletionParams): JunieHooks {
-    // Kept for interface parity with other ToolHooks implementations even
-    // though isDeletable() returns false (config.json is never deleted).
-    return new JunieHooks({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: JSON.stringify({ hooks: {} }, null, 2),
-      validate: false,
     });
   }
 }

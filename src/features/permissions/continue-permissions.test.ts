@@ -484,15 +484,4 @@ describe("ContinuePermissions", () => {
       expect(perms.getFileContent()).toBe("");
     });
   });
-
-  describe("forDeletion", () => {
-    it("is not deletable", () => {
-      const perms = ContinuePermissions.forDeletion({
-        outputRoot: testDir,
-        relativeDirPath: ".continue",
-        relativeFilePath: "permissions.yaml",
-      });
-      expect(perms.isDeletable()).toBe(false);
-    });
-  });
 });

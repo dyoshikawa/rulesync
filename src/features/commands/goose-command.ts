@@ -98,7 +98,7 @@ function isManagedRecipePath(value: unknown): boolean {
  * config that holds none of them would reformat the user's file (comments and
  * all) for nothing, so both writers check this first.
  */
-export function hasManagedGooseSlashCommands(fileContent: string): boolean {
+function hasManagedGooseSlashCommands(fileContent: string): boolean {
   const existing = parseSharedConfig({ format: "yaml", fileContent })[SLASH_COMMANDS_KEY];
   return (
     Array.isArray(existing) &&
@@ -112,7 +112,7 @@ export function hasManagedGooseSlashCommands(fileContent: string): boolean {
  * inside it are replaced (so a deleted command's registration is retracted),
  * and the key is dropped entirely when nothing is left.
  */
-export function getGooseSlashCommandsConfigContent({
+function getGooseSlashCommandsConfigContent({
   currentContent,
   entries,
 }: {

@@ -5,13 +5,15 @@ import { z } from "zod/mini";
 import { AGENTSMD_SKILLS_DIR_PATH } from "../../constants/agentsmd-paths.js";
 import { AMP_SKILLS_GLOBAL_DIR, AMP_SKILLS_NATIVE_GLOBAL_DIR } from "../../constants/amp-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
+import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { AiDir, ValidationResult } from "../../types/ai-dir.js";
+import { isTargetedByTargets, ToolTarget } from "../../types/tool-targets.js";
 import { stripControlCharacters } from "../../utils/control-characters.js";
 import { formatError } from "../../utils/error.js";
 import { fileExists, readFileContent, toPosixPath } from "../../utils/file.js";
 import { parseFrontmatterWithYamlRepair } from "../../utils/frontmatter.js";
 import { type Logger, warnOnceWithFallback } from "../../utils/logger.js";
-import { RulesyncSkill, SkillFile } from "./rulesync-skill.js";
+import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 
 export type ToolSkillFromRulesyncSkillParams = {
   outputRoot?: string;
@@ -83,10 +85,10 @@ export const EMPTY_SKILL_DESCRIPTION_VIOLATION =
  * Report a skill read from disk whose `description` is empty. This lives on the
  * read rather than on any one tool class because several targets share one
  * `.agents/skills` tree: which of them reports the skill must not depend on
- * which target the user happened to enable. Every loader calls it — the two
- * directory loaders (`loadSkillDirContent`, `SimulatedSkill.fromDirDefault`)
- * and the flat-file one — so the form a tool stores its skills in does not
- * decide whether the problem is reported either.
+ * which target the user happened to enable. Every loader calls it — the
+ * directory loader (`loadSkillDirContent`) and the flat-file one — so the form
+ * a tool stores its skills in does not decide whether the problem is reported
+ * either.
  */
 export function warnOnEmptyLoadedDescription({
   skillFilePath,
@@ -142,13 +144,25 @@ export type ToolSkillForDeletionParams = {
  * Common data loaded from a skill directory.
  * Used by loadSkillDirContent to return parsed file data.
  */
-export type LoadedSkillDirContent = {
+type LoadedSkillDirContent = {
   outputRoot: string;
   relativeDirPath: string;
   dirName: string;
   frontmatter: Record<string, unknown>;
   body: string;
   otherFiles: SkillFile[];
+  global: boolean;
+};
+
+/** Validated constructor params built from a loaded skill directory. */
+type StandardSkillParams<T> = {
+  outputRoot: string;
+  relativeDirPath: string;
+  dirName: string;
+  frontmatter: T;
+  body: string;
+  otherFiles: SkillFile[];
+  validate: true;
   global: boolean;
 };
 
@@ -240,15 +254,52 @@ export abstract class ToolSkill extends AiDir {
   abstract toRulesyncSkill(): RulesyncSkill;
 
   /**
+   * The target a subclass is generated for. When it is set, the default
+   * `isTargetedByRulesyncSkill` checks a skill's `targets` against it. Static
+   * fields are inherited, so a subclass that has a target of its own must
+   * declare it rather than rely on its parent's.
+   */
+  protected static readonly toolTarget: ToolTarget | undefined = undefined;
+
+  /**
+   * The common `toRulesyncSkill` tail: a RulesyncSkill in the rulesync skills
+   * directory that carries this skill's directory name, body and other files
+   * with the given frontmatter.
+   */
+  protected toRulesyncSkillWith(frontmatter: RulesyncSkillFrontmatterInput): RulesyncSkill {
+    return new RulesyncSkill({
+      outputRoot: this.outputRoot,
+      relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
+      dirName: this.getDirName(),
+      frontmatter,
+      body: this.getBody(),
+      otherFiles: this.getOtherFiles(),
+      validate: true,
+      global: this.global,
+    });
+  }
+
+  /**
    * Check if this tool is targeted by a RulesyncSkill.
-   * Since skills don't have targets field like commands/subagents,
-   * the default behavior may vary by tool.
    *
    * @param rulesyncSkill - The RulesyncSkill to check
    * @returns True if this tool should use the skill
    */
-  static isTargetedByRulesyncSkill(_rulesyncSkill: RulesyncSkill): boolean {
-    throw new Error("Please implement this method in the subclass.");
+  static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
+    if (this.toolTarget === undefined) {
+      throw new Error("Please implement this method in the subclass.");
+    }
+    return this.isTargetedByRulesyncSkillDefault({ rulesyncSkill, toolTarget: this.toolTarget });
+  }
+
+  protected static isTargetedByRulesyncSkillDefault({
+    rulesyncSkill,
+    toolTarget,
+  }: {
+    rulesyncSkill: RulesyncSkill;
+    toolTarget: ToolTarget;
+  }): boolean {
+    return isTargetedByTargets({ targets: rulesyncSkill.getFrontmatter().targets, toolTarget });
   }
 
   /**
@@ -267,6 +318,10 @@ export abstract class ToolSkill extends AiDir {
    * Subclasses should call this method and then validate the frontmatter
    * against their specific schema.
    *
+   * When `frontmatterSchema` is given, the frontmatter is validated against it
+   * right after parsing, before the empty-description warning and before the
+   * other files are collected, so an invalid skill fails without either.
+   *
    * @param params - Parameters including settablePaths callback to get tool-specific paths
    * @returns Parsed skill directory content
    */
@@ -276,8 +331,10 @@ export abstract class ToolSkill extends AiDir {
     dirName,
     global = false,
     getSettablePaths,
+    frontmatterSchema,
   }: ToolSkillFromDirParams & {
     getSettablePaths: (options: { global: boolean }) => ToolSkillSettablePaths;
+    frontmatterSchema?: z.ZodMiniType<Record<string, unknown>>;
   }): Promise<LoadedSkillDirContent> {
     const settablePaths = getSettablePaths({ global });
     const actualRelativeDirPath = relativeDirPath ?? settablePaths.relativeDirPath;
@@ -289,10 +346,19 @@ export abstract class ToolSkill extends AiDir {
     }
 
     const fileContent = await readFileContent(skillFilePath);
-    const { frontmatter, body: content } = parseFrontmatterWithYamlRepair(
+    const { frontmatter: rawFrontmatter, body: content } = parseFrontmatterWithYamlRepair(
       fileContent,
       skillFilePath,
     );
+
+    let frontmatter = rawFrontmatter;
+    if (frontmatterSchema) {
+      const result = frontmatterSchema.safeParse(rawFrontmatter);
+      if (!result.success) {
+        throw new Error(`Invalid frontmatter in ${skillFilePath}: ${formatError(result.error)}`);
+      }
+      frontmatter = result.data;
+    }
 
     warnOnEmptyLoadedDescription({ skillFilePath, description: frontmatter.description });
 
@@ -394,6 +460,124 @@ export abstract class ToolSkill extends AiDir {
       );
     }
     return result.data;
+  }
+
+  /**
+   * Like `parseLoadedFrontmatter`, and additionally requires the frontmatter
+   * `name` to match the skill directory name.
+   */
+  protected static parseLoadedFrontmatterMatchingDirName<T extends { name: string }>({
+    schema,
+    loaded,
+  }: {
+    schema: z.ZodMiniType<T>;
+    loaded: LoadedSkillDirContent;
+  }): T {
+    const frontmatter = this.parseLoadedFrontmatter({ schema, loaded });
+    if (frontmatter.name !== loaded.dirName) {
+      const skillFilePath = join(
+        loaded.outputRoot,
+        loaded.relativeDirPath,
+        loaded.dirName,
+        SKILL_FILE_NAME,
+      );
+      throw new Error(
+        `Frontmatter name (${frontmatter.name}) must match directory name (${loaded.dirName}) in ${skillFilePath}`,
+      );
+    }
+    return frontmatter;
+  }
+
+  /**
+   * The common `fromDir` body: load the skill directory (resolving the default
+   * root from the class's own `getSettablePaths`), parse its frontmatter
+   * against the tool's schema, and return validated constructor params.
+   */
+  protected static async loadStandardSkillParams<T>({
+    params,
+    schema,
+  }: {
+    params: ToolSkillFromDirParams;
+    schema: z.ZodMiniType<T>;
+  }): Promise<StandardSkillParams<T>> {
+    return this.loadSkillParamsWith({
+      params,
+      parse: (loaded) => this.parseLoadedFrontmatter({ schema, loaded }),
+    });
+  }
+
+  /**
+   * Like `loadStandardSkillParams`, and additionally requires the frontmatter
+   * `name` to match the skill directory name.
+   */
+  protected static async loadStandardSkillParamsMatchingDirName<T extends { name: string }>({
+    params,
+    schema,
+  }: {
+    params: ToolSkillFromDirParams;
+    schema: z.ZodMiniType<T>;
+  }): Promise<StandardSkillParams<T>> {
+    return this.loadSkillParamsWith({
+      params,
+      parse: (loaded) => this.parseLoadedFrontmatterMatchingDirName({ schema, loaded }),
+    });
+  }
+
+  private static async loadSkillParamsWith<T>({
+    params,
+    parse,
+  }: {
+    params: ToolSkillFromDirParams;
+    parse: (loaded: LoadedSkillDirContent) => T;
+  }): Promise<StandardSkillParams<T>> {
+    const loaded = await this.loadSkillDirContent({
+      ...params,
+      getSettablePaths: (options) => this.getSettablePaths(options),
+    });
+
+    const frontmatter = parse(loaded);
+
+    return {
+      outputRoot: loaded.outputRoot,
+      relativeDirPath: loaded.relativeDirPath,
+      dirName: loaded.dirName,
+      frontmatter,
+      body: loaded.body,
+      otherFiles: loaded.otherFiles,
+      validate: true,
+      global: loaded.global,
+    };
+  }
+
+  /**
+   * The common `forDeletion` body: constructor params for a minimal,
+   * unvalidated instance that never reads the directory content.
+   */
+  protected static forDeletionParams({
+    outputRoot = process.cwd(),
+    relativeDirPath,
+    dirName,
+    global = false,
+  }: ToolSkillForDeletionParams): {
+    outputRoot: string;
+    relativeDirPath: string;
+    dirName: string;
+    frontmatter: { name: string; description: string };
+    body: string;
+    otherFiles: SkillFile[];
+    validate: false;
+    global: boolean;
+  } {
+    return {
+      outputRoot,
+      relativeDirPath,
+      dirName,
+      frontmatter: { name: "", description: "" },
+      body: "",
+      otherFiles: [],
+      validate: false,
+      global,
+    };
   }
 
   protected requireMainFileFrontmatter(): Record<string, unknown> {

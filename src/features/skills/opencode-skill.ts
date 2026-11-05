@@ -8,7 +8,6 @@ import {
   OPENCODE_SKILLS_DIR_PATH,
   type OpencodeLayout,
 } from "../../constants/opencode-paths.js";
-import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { stripControlCharacters } from "../../utils/control-characters.js";
 import { formatError } from "../../utils/error.js";
@@ -21,10 +20,9 @@ import {
 } from "../opencode-config.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import {
-  resolveCompatibility,
+  pickStandardSkillFields,
   resolveDisableModelInvocation,
-  resolveLicense,
-  resolveMetadata,
+  resolveStandardSkillFields,
 } from "./skills-utils.js";
 import {
   ToolSkill,
@@ -208,11 +206,7 @@ export class OpenCodeSkill extends ToolSkill {
       ...(frontmatter["allowed-tools"] !== undefined && {
         "allowed-tools": frontmatter["allowed-tools"],
       }),
-      ...(frontmatter.license !== undefined && { license: frontmatter.license }),
-      ...(frontmatter.compatibility !== undefined && {
-        compatibility: frontmatter.compatibility,
-      }),
-      ...(frontmatter.metadata !== undefined && { metadata: frontmatter.metadata }),
+      ...pickStandardSkillFields(frontmatter),
       ...(frontmatter["disable-model-invocation"] !== undefined && {
         "disable-model-invocation": frontmatter["disable-model-invocation"],
       }),
@@ -225,16 +219,7 @@ export class OpenCodeSkill extends ToolSkill {
       ...(Object.keys(opencodeBlock).length > 0 && { [toolTarget]: opencodeBlock }),
     };
 
-    return new RulesyncSkill({
-      outputRoot: this.outputRoot,
-      relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
-      dirName: this.getDirName(),
-      frontmatter: rulesyncFrontmatter,
-      body: this.getBody(),
-      otherFiles: this.getOtherFiles(),
-      validate: true,
-      global: this.global,
-    });
+    return this.toRulesyncSkillWith(rulesyncFrontmatter);
   }
 
   static fromRulesyncSkill({
@@ -248,18 +233,6 @@ export class OpenCodeSkill extends ToolSkill {
 
     // Source precedence: the `opencode` section value takes priority, falling
     // back to the root-level rulesync frontmatter value when present.
-    const license = resolveLicense({
-      rootFrontmatter: rulesyncFrontmatter,
-      section: opencodeSection,
-    });
-    const compatibility = resolveCompatibility({
-      rootFrontmatter: rulesyncFrontmatter,
-      section: opencodeSection,
-    });
-    const metadata = resolveMetadata({
-      rootFrontmatter: rulesyncFrontmatter,
-      section: opencodeSection,
-    });
     const disableModelInvocation = resolveDisableModelInvocation({
       rootFrontmatter: rulesyncFrontmatter,
       section: opencodeSection,
@@ -268,9 +241,10 @@ export class OpenCodeSkill extends ToolSkill {
     const opencodeFrontmatter: OpenCodeSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
-      ...(license !== undefined && { license }),
-      ...(compatibility !== undefined && { compatibility }),
-      ...(metadata !== undefined && { metadata }),
+      ...resolveStandardSkillFields({
+        rootFrontmatter: rulesyncFrontmatter,
+        section: opencodeSection,
+      }),
       ...(opencodeSection?.["allowed-tools"] !== undefined && {
         "allowed-tools": opencodeSection["allowed-tools"],
       }),
@@ -328,22 +302,8 @@ export class OpenCodeSkill extends ToolSkill {
     });
   }
 
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    dirName,
-    global = false,
-  }: ToolSkillForDeletionParams): OpenCodeSkill {
-    return new this({
-      outputRoot,
-      relativeDirPath,
-      dirName,
-      frontmatter: { name: "", description: "" },
-      body: "",
-      otherFiles: [],
-      validate: false,
-      global,
-    });
+  static forDeletion(params: ToolSkillForDeletionParams): OpenCodeSkill {
+    return new this(this.forDeletionParams(params));
   }
 }
 

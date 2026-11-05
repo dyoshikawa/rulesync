@@ -1,17 +1,13 @@
-import { join } from "node:path";
-
 import {
   ANTIGRAVITY_DIR,
   ANTIGRAVITY_GLOBAL_CONFIG_DIR_PATH,
   ANTIGRAVITY_HOOKS_FILE_NAME,
 } from "../../constants/antigravity-paths.js";
-import type { AiFileParams } from "../../types/ai-file.js";
 import {
   ANTIGRAVITY_HOOK_EVENTS,
   ANTIGRAVITY_TO_CANONICAL_EVENT_NAMES,
   CANONICAL_TO_ANTIGRAVITY_EVENT_NAMES,
 } from "../../types/hooks.js";
-import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { lookupOwn } from "../../utils/own-lookup.js";
 import { isPrototypePollutionKey } from "../../utils/prototype-pollution.js";
@@ -25,8 +21,6 @@ import {
 } from "./tool-hooks-converter.js";
 import {
   ToolHooks,
-  type ToolHooksForDeletionParams,
-  type ToolHooksFromFileParams,
   type ToolHooksFromRulesyncHooksParams,
   type ToolHooksSettablePaths,
 } from "./tool-hooks.js";
@@ -178,13 +172,6 @@ type AntigravityOverrideKey = "antigravity-ide" | "antigravity-cli";
  * rulesync hooks config.
  */
 class AntigravityHooks extends ToolHooks {
-  constructor(params: AiFileParams) {
-    super({
-      ...params,
-      fileContent: params.fileContent ?? "{}",
-    });
-  }
-
   /** Per-target override key in the rulesync hooks config. */
   protected static getOverrideKey(): AntigravityOverrideKey {
     throw new Error("Please implement this method in the subclass.");
@@ -201,21 +188,12 @@ class AntigravityHooks extends ToolHooks {
     return { relativeDirPath: ANTIGRAVITY_DIR, relativeFilePath: ANTIGRAVITY_HOOKS_FILE_NAME };
   }
 
-  static async fromFile({
-    outputRoot = process.cwd(),
-    validate = true,
-    global = false,
-  }: ToolHooksFromFileParams): Promise<AntigravityHooks> {
-    const paths = this.getSettablePaths({ global });
-    const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
-    const fileContent = (await readFileContentOrNull(filePath)) ?? "{}";
-    return new this({
-      outputRoot,
-      relativeDirPath: paths.relativeDirPath,
-      relativeFilePath: paths.relativeFilePath,
-      fileContent,
-      validate,
-    });
+  protected static override getMissingFileContent(): string {
+    return "{}";
+  }
+
+  protected static override getDeletionFileContent(): string {
+    return "{}";
   }
 
   static async fromRulesyncHooks({
@@ -268,20 +246,6 @@ class AntigravityHooks extends ToolHooks {
     const overrideKey = (this.constructor as typeof AntigravityHooks).getOverrideKey();
     return this.toRulesyncHooksDefault({
       fileContent: JSON.stringify(buildImportedHooksConfig({ hooks, overrideKey }), null, 2),
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolHooksForDeletionParams): AntigravityHooks {
-    return new this({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: JSON.stringify({}, null, 2),
-      validate: false,
     });
   }
 }

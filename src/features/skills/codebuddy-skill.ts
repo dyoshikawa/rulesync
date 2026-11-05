@@ -2,7 +2,6 @@ import { z } from "zod/mini";
 
 import { CODEBUDDY_SKILLS_DIR_PATH } from "../../constants/codebuddy-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
-import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import { resolveDisableModelInvocation, resolveUserInvocable } from "./skills-utils.js";
@@ -119,16 +118,7 @@ export class CodebuddySkill extends ToolSkill {
       ...(Object.keys(codebuddySection).length > 0 && { codebuddy: codebuddySection }),
     };
 
-    return new RulesyncSkill({
-      outputRoot: this.outputRoot,
-      relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
-      dirName: this.getDirName(),
-      frontmatter: rulesyncFrontmatter,
-      body: this.getBody(),
-      otherFiles: this.getOtherFiles(),
-      validate: true,
-      global: this.global,
-    });
+    return this.toRulesyncSkillWith(rulesyncFrontmatter);
   }
 
   static fromRulesyncSkill({
@@ -178,49 +168,15 @@ export class CodebuddySkill extends ToolSkill {
     });
   }
 
-  static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("codebuddy");
-  }
+  protected static override readonly toolTarget = "codebuddy";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<CodebuddySkill> {
-    const loaded = await this.loadSkillDirContent({
-      ...params,
-      getSettablePaths: CodebuddySkill.getSettablePaths,
-    });
-
-    const frontmatter = this.parseLoadedFrontmatter({
-      schema: CodebuddySkillFrontmatterSchema,
-      loaded,
-    });
-
-    return new CodebuddySkill({
-      outputRoot: loaded.outputRoot,
-      relativeDirPath: loaded.relativeDirPath,
-      dirName: loaded.dirName,
-      frontmatter,
-      body: loaded.body,
-      otherFiles: loaded.otherFiles,
-      validate: true,
-      global: loaded.global,
-    });
+    return new CodebuddySkill(
+      await this.loadStandardSkillParams({ params, schema: CodebuddySkillFrontmatterSchema }),
+    );
   }
 
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    dirName,
-    global = false,
-  }: ToolSkillForDeletionParams): CodebuddySkill {
-    return new CodebuddySkill({
-      outputRoot,
-      relativeDirPath,
-      dirName,
-      frontmatter: { name: "", description: "" },
-      body: "",
-      otherFiles: [],
-      validate: false,
-      global,
-    });
+  static forDeletion(params: ToolSkillForDeletionParams): CodebuddySkill {
+    return new CodebuddySkill(this.forDeletionParams(params));
   }
 }

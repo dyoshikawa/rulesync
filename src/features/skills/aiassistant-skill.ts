@@ -2,7 +2,6 @@ import { z } from "zod/mini";
 
 import { AIASSISTANT_SKILLS_DIR_PATH } from "../../constants/aiassistant-paths.js";
 import { SKILL_FILE_NAME } from "../../constants/general.js";
-import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import {
@@ -105,16 +104,7 @@ export class AiassistantSkill extends ToolSkill {
       targets: ["*"],
     };
 
-    return new RulesyncSkill({
-      outputRoot: this.outputRoot,
-      relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
-      dirName: this.getDirName(),
-      frontmatter: rulesyncFrontmatter,
-      body: this.getBody(),
-      otherFiles: this.getOtherFiles(),
-      validate: true,
-      global: this.global,
-    });
+    return this.toRulesyncSkillWith(rulesyncFrontmatter);
   }
 
   static fromRulesyncSkill({
@@ -143,32 +133,12 @@ export class AiassistantSkill extends ToolSkill {
     });
   }
 
-  static isTargetedByRulesyncSkill(rulesyncSkill: RulesyncSkill): boolean {
-    const targets = rulesyncSkill.getFrontmatter().targets;
-    return targets.includes("*") || targets.includes("aiassistant");
-  }
+  protected static override readonly toolTarget = "aiassistant";
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<AiassistantSkill> {
-    const loaded = await this.loadSkillDirContent({
-      ...params,
-      getSettablePaths: AiassistantSkill.getSettablePaths,
-    });
-
-    const frontmatter = this.parseLoadedFrontmatter({
-      schema: AiassistantSkillFrontmatterSchema,
-      loaded,
-    });
-
-    return new AiassistantSkill({
-      outputRoot: loaded.outputRoot,
-      relativeDirPath: loaded.relativeDirPath,
-      dirName: loaded.dirName,
-      frontmatter,
-      body: loaded.body,
-      otherFiles: loaded.otherFiles,
-      validate: true,
-      global: loaded.global,
-    });
+    return new AiassistantSkill(
+      await this.loadStandardSkillParams({ params, schema: AiassistantSkillFrontmatterSchema }),
+    );
   }
 
   static forDeletion({

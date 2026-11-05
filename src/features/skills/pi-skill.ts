@@ -4,14 +4,14 @@ import { z } from "zod/mini";
 
 import { SKILL_FILE_NAME } from "../../constants/general.js";
 import { PI_LAYOUT, type PiLayout } from "../../constants/pi-paths.js";
-import { RULESYNC_SKILLS_RELATIVE_DIR_PATH } from "../../constants/rulesync-paths.js";
 import { ValidationResult } from "../../types/ai-dir.js";
 import { RulesyncSkill, RulesyncSkillFrontmatterInput, SkillFile } from "./rulesync-skill.js";
 import {
-  resolveCompatibility,
+  pickStandardSkillFields,
   resolveDisableModelInvocation,
-  resolveLicense,
-  resolveMetadata,
+  resolveStandardSkillFields,
+  toAllowedToolsArray,
+  toAllowedToolsString,
 } from "./skills-utils.js";
 import {
   ToolSkill,
@@ -119,11 +119,7 @@ export class PiSkill extends ToolSkill {
     const frontmatter = this.getFrontmatter();
     const allowedTools = frontmatter["allowed-tools"];
     const allowedToolsArray =
-      allowedTools === undefined
-        ? undefined
-        : Array.isArray(allowedTools)
-          ? allowedTools
-          : allowedTools.split(/\s+/).filter((tool) => tool.length > 0);
+      allowedTools === undefined ? undefined : toAllowedToolsArray(allowedTools);
     const piBlock = {
       // Normalized back to the canonical rulesync array, mirroring
       // `DeepagentsSkill`, so a generate → import round trip is stable.
@@ -132,11 +128,7 @@ export class PiSkill extends ToolSkill {
       ...(frontmatter["disable-model-invocation"] !== undefined && {
         "disable-model-invocation": frontmatter["disable-model-invocation"],
       }),
-      ...(frontmatter.license !== undefined && { license: frontmatter.license }),
-      ...(frontmatter.compatibility !== undefined && {
-        compatibility: frontmatter.compatibility,
-      }),
-      ...(frontmatter.metadata !== undefined && { metadata: frontmatter.metadata }),
+      ...pickStandardSkillFields(frontmatter),
     };
     const rulesyncFrontmatter: RulesyncSkillFrontmatterInput = {
       name: frontmatter.name,
@@ -147,16 +139,7 @@ export class PiSkill extends ToolSkill {
       }),
     };
 
-    return new RulesyncSkill({
-      outputRoot: this.outputRoot,
-      relativeDirPath: RULESYNC_SKILLS_RELATIVE_DIR_PATH,
-      dirName: this.getDirName(),
-      frontmatter: rulesyncFrontmatter,
-      body: this.getBody(),
-      otherFiles: this.getOtherFiles(),
-      validate: true,
-      global: this.global,
-    });
+    return this.toRulesyncSkillWith(rulesyncFrontmatter);
   }
 
   static fromRulesyncSkill({
@@ -177,16 +160,10 @@ export class PiSkill extends ToolSkill {
     // space-delimited string, so a canonical rulesync list is joined rather than
     // emitted as a YAML sequence. Mirrors `DeepagentsSkill`.
     const { "allowed-tools": allowedTools, ...piSectionRest } = piSection ?? {};
-    const allowedToolsString = Array.isArray(allowedTools) ? allowedTools.join(" ") : allowedTools;
+    const allowedToolsString =
+      allowedTools === undefined ? undefined : toAllowedToolsString(allowedTools);
     // The Agent Skills standard fields fall back to the root-level rulesync
     // value when the `pi` section omits them.
-    const license = resolveLicense({ rootFrontmatter: rulesyncFrontmatter, section: piSection });
-    const compatibility = resolveCompatibility({
-      rootFrontmatter: rulesyncFrontmatter,
-      section: piSection,
-    });
-    const metadata = resolveMetadata({ rootFrontmatter: rulesyncFrontmatter, section: piSection });
-
     const piFrontmatter: PiSkillFrontmatter = {
       name: rulesyncFrontmatter.name,
       description: rulesyncFrontmatter.description,
@@ -196,9 +173,7 @@ export class PiSkill extends ToolSkill {
       // section omits a key. Every resolver already prefers a defined section
       // value, so overriding the spread never discards one.
       ...piSectionRest,
-      ...(license !== undefined && { license }),
-      ...(compatibility !== undefined && { compatibility }),
-      ...(metadata !== undefined && { metadata }),
+      ...resolveStandardSkillFields({ rootFrontmatter: rulesyncFrontmatter, section: piSection }),
       ...(resolvedDisableModelInvocation !== undefined && {
         "disable-model-invocation": resolvedDisableModelInvocation,
       }),
@@ -222,40 +197,12 @@ export class PiSkill extends ToolSkill {
   }
 
   static async fromDir(params: ToolSkillFromDirParams): Promise<PiSkill> {
-    const loaded = await this.loadSkillDirContent({
-      ...params,
-      getSettablePaths: (options) => this.getSettablePaths(options),
-    });
-
-    const frontmatter = this.parseLoadedFrontmatter({ schema: PiSkillFrontmatterSchema, loaded });
-
-    return new this({
-      outputRoot: loaded.outputRoot,
-      relativeDirPath: loaded.relativeDirPath,
-      dirName: loaded.dirName,
-      frontmatter,
-      body: loaded.body,
-      otherFiles: loaded.otherFiles,
-      validate: true,
-      global: loaded.global,
-    });
+    return new this(
+      await this.loadStandardSkillParams({ params, schema: PiSkillFrontmatterSchema }),
+    );
   }
 
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    dirName,
-    global = false,
-  }: ToolSkillForDeletionParams): PiSkill {
-    return new this({
-      outputRoot,
-      relativeDirPath,
-      dirName,
-      frontmatter: { name: "", description: "" },
-      body: "",
-      otherFiles: [],
-      validate: false,
-      global,
-    });
+  static forDeletion(params: ToolSkillForDeletionParams): PiSkill {
+    return new this(this.forDeletionParams(params));
   }
 }

@@ -15,6 +15,7 @@ import {
 import type { Logger } from "../../utils/logger.js";
 import { RulesyncSubagent, RulesyncSubagentFrontmatter } from "./rulesync-subagent.js";
 import {
+  parseGeneratedSubagentFrontmatter,
   ToolSubagent,
   ToolSubagentForDeletionParams,
   ToolSubagentFromFileParams,
@@ -171,15 +172,15 @@ export class ClaudecodeSubagent extends ToolSubagent {
     };
 
     // Validate with ClaudecodeSubagentFrontmatterSchema (validates model if present)
-    const result = ClaudecodeSubagentFrontmatterSchema.safeParse(rawClaudecodeFrontmatter);
-    if (!result.success) {
-      throw new Error(
-        `Invalid claudecode subagent frontmatter in ${rulesyncSubagent.getRelativeFilePath()}: ${formatError(result.error)}`,
-      );
-    }
+    const parsedFrontmatter = parseGeneratedSubagentFrontmatter({
+      schema: ClaudecodeSubagentFrontmatterSchema,
+      frontmatter: rawClaudecodeFrontmatter,
+      toolTarget: "claudecode",
+      rulesyncSubagent,
+    });
 
     const claudecodeFrontmatter = this.sanitizeFrontmatter({
-      frontmatter: result.data,
+      frontmatter: parsedFrontmatter,
       relativeFilePath: rulesyncSubagent.getRelativeFilePath(),
       logger,
     });

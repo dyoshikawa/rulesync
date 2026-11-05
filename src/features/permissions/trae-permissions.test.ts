@@ -68,18 +68,11 @@ describe("TraePermissions", () => {
     vi.restoreAllMocks();
   });
 
-  it("uses ~/.trae/permission/global.json and is never deletable", () => {
+  it("uses ~/.trae/permission/global.json", () => {
     expect(TraePermissions.getSettablePaths({ global: true })).toEqual({
       relativeDirPath: CONFIG_DIR,
       relativeFilePath: CONFIG_FILE,
     });
-    expect(
-      TraePermissions.forDeletion({
-        outputRoot: homeDir,
-        relativeDirPath: CONFIG_DIR,
-        relativeFilePath: CONFIG_FILE,
-      }).isDeletable(),
-    ).toBe(false);
   });
 
   it("maps bash globs to exact, prefix and regex commandRules", async () => {

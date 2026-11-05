@@ -17,6 +17,7 @@ import {
 } from "../../utils/frontmatter.js";
 import { RulesyncSubagent, RulesyncSubagentFrontmatter } from "./rulesync-subagent.js";
 import {
+  parseGeneratedSubagentFrontmatter,
   ToolSubagent,
   ToolSubagentForDeletionParams,
   ToolSubagentFromFileParams,
@@ -145,14 +146,13 @@ export class GooseSubagent extends ToolSubagent {
       ...gooseSection,
     };
 
-    const result = GooseSubagentFrontmatterSchema.safeParse(rawFrontmatter);
-    if (!result.success) {
-      throw new Error(
-        `Invalid goose subagent frontmatter in ${rulesyncSubagent.getRelativeFilePath()}: ${formatError(result.error)}`,
-      );
-    }
+    const gooseFrontmatter = parseGeneratedSubagentFrontmatter({
+      schema: GooseSubagentFrontmatterSchema,
+      frontmatter: rawFrontmatter,
+      toolTarget: "goose",
+      rulesyncSubagent,
+    });
 
-    const gooseFrontmatter = result.data;
     const body = rulesyncSubagent.getBody();
     const fileContent = stringifyFrontmatter(body, gooseFrontmatter);
     const paths = this.getSettablePaths({ global });

@@ -114,15 +114,6 @@ describe("QwencodePermissions", () => {
     expect(config.permission.read).toEqual({ "src/**": "allow" });
   });
 
-  it("forDeletion returns non-deletable instance", () => {
-    const instance = QwencodePermissions.forDeletion({
-      outputRoot: testDir,
-      relativeDirPath: ".qwen",
-      relativeFilePath: "settings.json",
-    });
-    expect(instance.isDeletable()).toBe(false);
-  });
-
   it("should round-trip patterns containing nested parentheses (single, sequential, and multi-nest)", () => {
     const instance = new QwencodePermissions({
       relativeDirPath: ".qwen",
@@ -2107,7 +2098,7 @@ describe("QwencodePermissions", () => {
     });
 
     it("should not throw when constructed with validate: false even with malformed JSON", () => {
-      // `forDeletion` and other permissive paths pass `validate: false` and
+      // Permissive paths pass `validate: false` and
       // must not be rejected at construction time.
       expect(
         () =>

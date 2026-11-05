@@ -1,16 +1,12 @@
 import { GOOSE_GLOBAL_DIR, GOOSE_RULE_FILE_NAME } from "../../constants/goose-paths.js";
 import { SingleRootFileRule } from "./single-root-file-rule.js";
-import { ToolRuleParams, ToolRuleSettablePaths, ToolRuleSettablePathsGlobal } from "./tool-rule.js";
+import {
+  ToolRuleParams,
+  ToolRuleRootOnlySettablePaths,
+  ToolRuleSettablePathsGlobal,
+} from "./tool-rule.js";
 
 export type GooseRuleParams = ToolRuleParams;
-
-export type GooseRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> & {
-  root: {
-    relativeDirPath: string;
-    relativeFilePath: string;
-  };
-  nonRoot?: undefined;
-};
 
 export type GooseRuleSettablePathsGlobal = ToolRuleSettablePathsGlobal;
 
@@ -47,7 +43,7 @@ export class GooseRule extends SingleRootFileRule {
     global,
   }: {
     global?: boolean;
-  } = {}): GooseRuleSettablePaths | GooseRuleSettablePathsGlobal {
+  } = {}): ToolRuleRootOnlySettablePaths | GooseRuleSettablePathsGlobal {
     if (global) {
       return {
         root: {

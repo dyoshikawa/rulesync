@@ -225,16 +225,6 @@ describe("VibePermissions", () => {
     expect(parsed.tools.bash.sensitive_patterns).toEqual(["rm *"]);
   });
 
-  it("should not be deletable because config.toml is shared", () => {
-    const vibePermissions = VibePermissions.forDeletion({
-      outputRoot: testDir,
-      relativeDirPath: ".vibe",
-      relativeFilePath: "config.toml",
-    });
-
-    expect(vibePermissions.isDeletable()).toBe(false);
-  });
-
   it("should keep the edit and write categories on their own Vibe tools", async () => {
     const rulesyncPermissions = new RulesyncPermissions({
       outputRoot: testDir,

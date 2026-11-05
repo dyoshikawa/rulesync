@@ -38,16 +38,6 @@ describe("AntigravityCliPermissions", () => {
     expect(paths.relativeFilePath).toBe("settings.json");
   });
 
-  it("should not be deletable because settings.json holds other CLI settings", () => {
-    const permissions = AntigravityCliPermissions.forDeletion({
-      outputRoot: testDir,
-      relativeDirPath: join(".gemini", "antigravity-cli"),
-      relativeFilePath: "settings.json",
-    });
-
-    expect(permissions.isDeletable()).toBe(false);
-  });
-
   it("should report validation success", () => {
     const permissions = new AntigravityCliPermissions({
       outputRoot: testDir,

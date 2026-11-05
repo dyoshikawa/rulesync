@@ -23,9 +23,7 @@ import {
  * settable root path counts as the root file on deletion.
  */
 export class SingleRootFileRule extends ToolRule {
-  static getSettablePaths(
-    _options: { global?: boolean; excludeToolDir?: boolean } = {},
-  ): ToolRuleSettablePathsGlobal {
+  static getSettablePaths(_options: { global?: boolean } = {}): ToolRuleSettablePathsGlobal {
     throw new Error("Please implement this method in the subclass.");
   }
 

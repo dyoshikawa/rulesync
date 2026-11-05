@@ -14,7 +14,7 @@ import type { PermissionAction, PermissionsConfig } from "../../types/permission
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
-import { isRecord, isStringArray } from "../../utils/type-guards.js";
+import { isRecord, isStringArray, toRecord } from "../../utils/type-guards.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
 import {
   collectShellCommandRules,
@@ -23,7 +23,6 @@ import {
 } from "./shell-command-categories.js";
 import {
   ToolPermissions,
-  type ToolPermissionsForDeletionParams,
   type ToolPermissionsFromFileParams,
   type ToolPermissionsFromRulesyncPermissionsParams,
   type ToolPermissionsSettablePaths,
@@ -328,8 +327,8 @@ export class WarpPermissions extends ToolPermissions {
       );
     }
 
-    const agents = isRecord(settings.agents) ? settings.agents : {};
-    const profiles = isRecord(agents.profiles) ? agents.profiles : {};
+    const agents = toRecord(settings.agents);
+    const profiles = toRecord(agents.profiles);
 
     // Prefer the current surface: on a migrated install the `default`
     // execution profile is what runtime enforcement actually reads, and its
@@ -390,21 +389,6 @@ export class WarpPermissions extends ToolPermissions {
 
     return this.toRulesyncPermissionsDefault({
       fileContent: JSON.stringify(result, null, 2),
-    });
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolPermissionsForDeletionParams): WarpPermissions {
-    return new WarpPermissions({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: "",
-      validate: false,
-      global: true,
     });
   }
 }

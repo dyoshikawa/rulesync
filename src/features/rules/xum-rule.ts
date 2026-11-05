@@ -10,7 +10,7 @@ import {
   ToolRuleForDeletionParams,
   ToolRuleFromFileParams,
   ToolRuleFromRulesyncRuleParams,
-  ToolRuleSettablePaths,
+  ToolRuleRootOnlySettablePaths,
 } from "./tool-rule.js";
 
 /** An ATX level-1 heading line (`# Title`), which Xum's parser treats as an H1. */
@@ -59,14 +59,6 @@ function xumRuleHeading(rulesyncRule: RulesyncRule): string {
  * location: rulesync's topic-based non-root rules are folded into the root
  * file by the RulesProcessor.
  */
-export type XumRuleSettablePaths = Pick<ToolRuleSettablePaths, "root"> & {
-  root: {
-    relativeDirPath: string;
-    relativeFilePath: string;
-  };
-  nonRoot?: undefined;
-};
-
 /**
  * Rule generator for Xum (Coder's parallel coding-agent app, formerly Mux).
  *
@@ -113,9 +105,8 @@ export class XumRule extends ToolRule {
   static getSettablePaths(
     _options: {
       global?: boolean;
-      excludeToolDir?: boolean;
     } = {},
-  ): XumRuleSettablePaths {
+  ): ToolRuleRootOnlySettablePaths {
     // Both scopes share the same relative path; the home-directory root is
     // applied by the processor in global mode.
     return {

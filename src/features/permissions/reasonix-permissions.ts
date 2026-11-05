@@ -17,6 +17,7 @@ import type {
 import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull, toPosixPath } from "../../utils/file.js";
 import { type Logger, warnWithFallback } from "../../utils/logger.js";
+import { invertRecord } from "../../utils/own-lookup.js";
 import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { isRecord, toStringArray } from "../../utils/type-guards.js";
 import {
@@ -41,7 +42,6 @@ import {
 import { buildToolPatternEntry, parseToolPatternEntry } from "./tool-pattern-entry.js";
 import {
   ToolPermissions,
-  type ToolPermissionsForDeletionParams,
   type ToolPermissionsFromFileParams,
   type ToolPermissionsFromRulesyncPermissionsParams,
   type ToolPermissionsSettablePaths,
@@ -98,10 +98,10 @@ const CANONICAL_TO_LEGACY_REASONIX_TOOL_NAMES: Record<string, string> = {
  * Reverse mapping from Reasonix tool names (current and legacy spellings) to
  * rulesync canonical names.
  */
-const REASONIX_TO_CANONICAL_TOOL_NAMES: Record<string, string> = Object.fromEntries([
-  ...Object.entries(CANONICAL_TO_LEGACY_REASONIX_TOOL_NAMES).map(([k, v]) => [v, k]),
-  ...Object.entries(CANONICAL_TO_REASONIX_TOOL_NAMES).map(([k, v]) => [v, k]),
-]);
+const REASONIX_TO_CANONICAL_TOOL_NAMES: Record<string, string> = {
+  ...invertRecord(CANONICAL_TO_LEGACY_REASONIX_TOOL_NAMES),
+  ...invertRecord(CANONICAL_TO_REASONIX_TOOL_NAMES),
+};
 
 /** Every Reasonix tool name a canonical category owns on generate. */
 function reasonixToolNamesOf(canonical: string): string[] {
@@ -601,13 +601,6 @@ export class ReasonixPermissions extends ToolPermissions {
     this.toml = parseReasonixConfig(this.getFileContent());
   }
 
-  override isDeletable(): boolean {
-    // The Reasonix config file may hold many other settings (providers, ui,
-    // agent, MCP `[[plugins]]`, …), so it must never be deleted when no
-    // rulesync-managed permission rules remain.
-    return false;
-  }
-
   static getSettablePaths({ global }: { global?: boolean } = {}): ToolPermissionsSettablePaths {
     // Project config lives at the repository root (`./reasonix.toml`), while the
     // global config lives at `~/.reasonix/config.toml`; the home root is supplied
@@ -923,20 +916,6 @@ export class ReasonixPermissions extends ToolPermissions {
         error: new Error(`Failed to parse Reasonix config TOML: ${formatError(error)}`),
       };
     }
-  }
-
-  static forDeletion({
-    outputRoot = process.cwd(),
-    relativeDirPath,
-    relativeFilePath,
-  }: ToolPermissionsForDeletionParams): ReasonixPermissions {
-    return new ReasonixPermissions({
-      outputRoot,
-      relativeDirPath,
-      relativeFilePath,
-      fileContent: smolToml.stringify({}),
-      validate: false,
-    });
   }
 }
 

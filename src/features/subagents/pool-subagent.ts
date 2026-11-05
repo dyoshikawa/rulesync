@@ -21,7 +21,7 @@ import { quoteValueForWarning } from "../../utils/quote-value.js";
 import { isRecord } from "../../utils/type-guards.js";
 import {
   applySharedConfigPatch,
-  parseSharedConfig,
+  parseSharedConfigFile,
   sharedConfigFileKey,
 } from "../shared/shared-config-gateway.js";
 import { RulesyncSubagent, RulesyncSubagentFrontmatter } from "./rulesync-subagent.js";
@@ -67,20 +67,6 @@ export type PoolSubagentParams = {
   agents: Record<string, PoolAgent>;
   logger?: Logger;
 } & Omit<AiFileParams, "fileContent">;
-
-/**
- * Single spelling of the settings.yaml codec/policy, matching PoolMcp: fail
- * closed on an unparseable root rather than replacing the user's primary Pool
- * settings with generated output.
- */
-function parsePoolSettings(fileContent: string, filePath?: string): Record<string, unknown> {
-  return parseSharedConfig({
-    format: "yaml",
-    fileContent,
-    filePath,
-    invalidRootPolicy: "error",
-  });
-}
 
 /**
  * The file stem an imported agent lands under in `.rulesync/subagents/`. Pool
@@ -201,7 +187,11 @@ export class PoolSubagent extends ToolSubagent {
       relativeFilePath: this.getRelativeFilePath(),
     };
     const filePath = join(this.getOutputRoot(), paths.relativeDirPath, paths.relativeFilePath);
-    const existing = parsePoolSettings(existingContent, filePath);
+    const existing = parseSharedConfigFile({
+      fileKey: sharedConfigFileKey(paths),
+      fileContent: existingContent,
+      filePath,
+    });
     const existingBlock = isRecord(existing[POOL_SUBAGENTS_KEY])
       ? existing[POOL_SUBAGENTS_KEY]
       : {};
@@ -448,7 +438,14 @@ export class PoolSubagent extends ToolSubagent {
     const paths = this.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, relativeFilePath);
     const fileContent = (await readFileContentOrNull(filePath)) ?? "";
-    const settings = parsePoolSettings(fileContent, filePath);
+    const settings = parseSharedConfigFile({
+      fileKey: sharedConfigFileKey({
+        relativeDirPath: paths.relativeDirPath,
+        relativeFilePath: POOL_SETTINGS_FILE_NAME,
+      }),
+      fileContent,
+      filePath,
+    });
 
     return new this({
       outputRoot,

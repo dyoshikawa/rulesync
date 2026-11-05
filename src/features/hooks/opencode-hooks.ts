@@ -5,7 +5,6 @@ import {
   OPENCODE_LAYOUT,
   type OpencodeLayout,
 } from "../../constants/opencode-paths.js";
-import type { AiFileParams } from "../../types/ai-file.js";
 import {
   CANONICAL_TO_OPENCODE_EVENT_NAMES,
   CANONICAL_TO_OPENCODE_V2_EVENT_NAMES,
@@ -27,13 +26,6 @@ import {
 export class OpencodeHooks extends ToolHooks {
   /** Directory layout; OpenCode forks (MiMo Code) override it. */
   protected static readonly layout: OpencodeLayout = OPENCODE_LAYOUT;
-
-  constructor(params: AiFileParams) {
-    super({
-      ...params,
-      fileContent: params.fileContent ?? "",
-    });
-  }
 
   static getSettablePaths(options?: { global?: boolean }): ToolHooksSettablePaths {
     return {

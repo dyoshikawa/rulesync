@@ -29,7 +29,7 @@ export const CODEWHALE_PROJECT_CONFIG_PATHS = {
 } as const;
 
 /** The project `.codewhale/config.toml` overlay, as written by the permissions feature. */
-export class CodewhaleProjectConfigFile extends ToolFile {
+class CodewhaleProjectConfigFile extends ToolFile {
   validate(): ValidationResult {
     return { success: true, error: null };
   }

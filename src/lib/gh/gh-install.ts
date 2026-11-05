@@ -3,7 +3,12 @@ import { basename, join, posix } from "node:path";
 import { Semaphore } from "es-toolkit/promise";
 
 import type { SourceEntry } from "../../config/config.js";
-import { FETCH_CONCURRENCY_LIMIT, MAX_FILE_SIZE } from "../../constants/rulesync-paths.js";
+import {
+  FETCH_CONCURRENCY_LIMIT,
+  formatMegabytes,
+  MAX_FILE_SIZE,
+  MAX_FILE_SIZE_MB,
+} from "../../constants/rulesync-paths.js";
 import { formatError } from "../../utils/error.js";
 import {
   assertNoSymlinkBelowRoot,
@@ -17,8 +22,8 @@ import {
 } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { GitHubClient, GitHubClientError, logGitHubAuthHints } from "../github-client.js";
-import { listDirectoryRecursive, withSemaphore } from "../github-utils.js";
-import { computeInstallContentHash } from "../install-content-hash.js";
+import { isGitHubNotFoundError, listDirectoryRecursive, withSemaphore } from "../github-utils.js";
+import { computeInstallContentHash, RULESYNC_CONTENT_HASH_REGEX } from "../install-content-hash.js";
 import { parseSource } from "../source-parser.js";
 import { injectSourceMetadata } from "./gh-frontmatter.js";
 import {
@@ -27,7 +32,6 @@ import {
   type GhLock,
   type GhLockInstallation,
   readGhLock,
-  RULESYNC_CONTENT_HASH_REGEX,
   writeGhLock,
 } from "./gh-lock.js";
 import { type GhAgent, GH_AGENTS, type GhScope, relativeInstallDirFor } from "./gh-paths.js";
@@ -753,7 +757,7 @@ async function resolveGhRef(params: {
       // 404. We treat any 404 (real GitHubClientError or any thrown value
       // carrying statusCode 404) as "no releases" and fall back to the
       // default branch. Other errors propagate.
-      if (is404(error)) {
+      if (isGitHubNotFoundError(error)) {
         resolvedRef = await client.getDefaultBranch(owner, repo);
       } else {
         throw error;
@@ -785,7 +789,7 @@ async function discoverValidatedSkills(params: {
   try {
     topLevel = await client.listDirectory(owner, repo, SKILLS_REMOTE_DIR, resolvedSha);
   } catch (error) {
-    if (is404(error)) {
+    if (isGitHubNotFoundError(error)) {
       logger.warn(`No skills/ directory found in ${sourceKey}. Skipping.`);
       return null;
     }
@@ -911,7 +915,7 @@ async function buildSkillDeployment(params: {
   for (const file of allFiles) {
     if (file.size > MAX_FILE_SIZE) {
       logger.warn(
-        `Skipping "${file.path}" from ${sourceKey}: ${(file.size / 1024 / 1024).toFixed(2)}MB exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit.`,
+        `Skipping "${file.path}" from ${sourceKey}: ${formatMegabytes(file.size)}MB exceeds ${MAX_FILE_SIZE_MB}MB limit.`,
       );
       continue;
     }
@@ -939,7 +943,7 @@ async function buildSkillDeployment(params: {
     const byteLength = Buffer.byteLength(content, "utf8");
     if (byteLength > MAX_FILE_SIZE) {
       logger.warn(
-        `Skipping "${file.path}" from ${sourceKey}: fetched ${(byteLength / 1024 / 1024).toFixed(2)}MB exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit.`,
+        `Skipping "${file.path}" from ${sourceKey}: fetched ${formatMegabytes(byteLength)}MB exceeds ${MAX_FILE_SIZE_MB}MB limit.`,
       );
       continue;
     }
@@ -1055,25 +1059,4 @@ async function removeStaleFile(params: {
     await removeFile(absolute);
   }
   logger.debug(`Removed stale gh file: ${relativePath}`);
-}
-
-/**
- * Detect a 404-like error in a way that tolerates both real `GitHubClientError`
- * instances and any other thrown value that exposes a numeric `statusCode`
- * (e.g. plain Errors raised from a test mock that does not import the real
- * client class).
- */
-function is404(error: unknown): boolean {
-  if (error instanceof GitHubClientError && error.statusCode === 404) {
-    return true;
-  }
-  if (
-    typeof error === "object" &&
-    error !== null &&
-    "statusCode" in error &&
-    error.statusCode === 404
-  ) {
-    return true;
-  }
-  return false;
 }

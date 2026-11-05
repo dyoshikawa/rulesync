@@ -15,7 +15,6 @@ import {
   type ToolRuleFromRulesyncRuleParams,
   ToolRuleSettablePaths,
   ToolRuleSettablePathsGlobal,
-  buildToolPath,
 } from "./tool-rule.js";
 
 export type CodewhaleRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
@@ -45,15 +44,13 @@ export type CodewhaleRuleSettablePaths = Omit<ToolRuleSettablePaths, "root"> & {
 export class CodewhaleRule extends ToolRule {
   static getSettablePaths({
     global,
-    excludeToolDir,
   }: {
     global?: boolean;
-    excludeToolDir?: boolean;
   } = {}): CodewhaleRuleSettablePaths | ToolRuleSettablePathsGlobal {
     if (global) {
       return {
         root: {
-          relativeDirPath: buildToolPath(CODEWHALE_DIR, ".", excludeToolDir),
+          relativeDirPath: join(CODEWHALE_DIR, "."),
           relativeFilePath: CODEWHALE_RULE_FILE_NAME,
         },
       };
@@ -64,7 +61,7 @@ export class CodewhaleRule extends ToolRule {
         relativeFilePath: CODEWHALE_RULE_FILE_NAME,
       },
       nonRoot: {
-        relativeDirPath: buildToolPath(CODEWHALE_DIR, CODEWHALE_RULES_DIR_NAME, excludeToolDir),
+        relativeDirPath: join(CODEWHALE_DIR, CODEWHALE_RULES_DIR_NAME),
       },
     };
   }

@@ -1,4 +1,5 @@
 import type { AiFileFromFileParams, AiFileParams, ValidationResult } from "../../types/ai-file.js";
+import type { PermissionsConfig } from "../../types/permissions.js";
 import { ToolFile } from "../../types/tool-file.js";
 import type { Logger } from "../../utils/logger.js";
 import { RulesyncPermissions } from "./rulesync-permissions.js";
@@ -29,11 +30,15 @@ export type ToolPermissionsFromFileParams = Pick<
   logger?: Logger;
 };
 
-export type ToolPermissionsForDeletionParams = {
-  outputRoot?: string;
-  relativeDirPath: string;
-  relativeFilePath: string;
-  global?: boolean;
+/**
+ * Inputs for a factory's optional `getAuxiliaryFiles` hook, which returns the
+ * companion files written next to the main permissions file.
+ */
+export type ToolPermissionsAuxiliaryFilesParams = {
+  outputRoot: string;
+  config: PermissionsConfig;
+  global: boolean;
+  logger: Logger;
 };
 
 export abstract class ToolPermissions extends ToolFile {
@@ -49,8 +54,7 @@ export abstract class ToolPermissions extends ToolFile {
    * Permission settings live in a tool's shared settings/config file, which
    * also carries settings rulesync does not own (other features' keys, user
    * preferences), so the permissions feature never deletes it outright;
-   * retracting rules happens through an in-place merge instead. Subclasses
-   * that override this only restate the reason for their own file.
+   * retracting rules happens through an in-place merge instead.
    */
   override isDeletable(): boolean {
     return false;
@@ -81,10 +85,6 @@ export abstract class ToolPermissions extends ToolFile {
   }
 
   static async fromFile(_params: ToolPermissionsFromFileParams): Promise<ToolPermissions> {
-    throw new Error("Please implement this method in the subclass.");
-  }
-
-  static forDeletion(_params: ToolPermissionsForDeletionParams): ToolPermissions {
     throw new Error("Please implement this method in the subclass.");
   }
 }

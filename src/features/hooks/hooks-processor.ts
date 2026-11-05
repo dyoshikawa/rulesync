@@ -172,6 +172,13 @@ type ToolHooksFactory = {
    * schema level.
    */
   overrideOnlyEvents?: readonly string[];
+  /**
+   * Whether the target's hooks format carries a per-hook on-disk enable flag,
+   * so `enabled: false` is written rather than dropped with a warning.
+   */
+  supportsPerHookEnabled?: boolean;
+  /** Whether the target's hooks format carries the Kiro `confirm` prompt. */
+  supportsPerHookConfirm?: boolean;
 };
 
 /**
@@ -283,17 +290,6 @@ export const HOOKS_OVERRIDE_KEY_ALIASES: Partial<Record<ToolTarget, string>> = {
   // A Devin plugin's hooks are Devin hooks, so it reads the `devin` block.
   "devin-plugin": "devin",
 };
-
-/** The targets whose hooks format carries a per-hook on-disk enable flag. */
-const PER_HOOK_ENABLED_TARGETS: ReadonlySet<ToolTarget> = new Set([
-  "kiro-cli",
-  "kiro-ide",
-  "zcode",
-  "zcode-plugin",
-]);
-
-/** The targets whose hooks format carries the Kiro `confirm` prompt. */
-const PER_HOOK_CONFIRM_TARGETS: ReadonlySet<ToolTarget> = new Set(["kiro-cli", "kiro-ide"]);
 
 /**
  * Names the shared events that carry a hook whose canonical definition
@@ -834,6 +830,8 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       supportedEvents: KIRO_IDE_HOOK_EVENTS,
       supportedHookTypes: ["command", "prompt"],
       supportsMatcher: true,
+      supportsPerHookEnabled: true,
+      supportsPerHookConfirm: true,
       // Triggers with no canonical event (PostFileSave, PreTaskExec, …)
       // supplied via the shared `kiro` override block are emitted verbatim.
     },
@@ -856,6 +854,8 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       supportedEvents: KIRO_IDE_HOOK_EVENTS,
       supportedHookTypes: ["command", "prompt"],
       supportsMatcher: true,
+      supportsPerHookEnabled: true,
+      supportsPerHookConfirm: true,
       // IDE-only triggers (PostFileSave, PreTaskExec, …) supplied via the
       // shared `kiro` override block are emitted verbatim.
     },
@@ -1282,6 +1282,7 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       meta: { supportsProject: true, supportsGlobal: true, supportsImport: true },
       ...converterCapabilities(ZCODE_CONVERTER_CONFIG),
       supportsMatcher: true,
+      supportsPerHookEnabled: true,
     },
   ],
   [
@@ -1293,6 +1294,7 @@ export const toolHooksFactories = new Map<HooksProcessorToolTarget, ToolHooksFac
       meta: { supportsProject: true, supportsGlobal: false, supportsImport: true },
       ...converterCapabilities(ZCODE_PLUGIN_CONVERTER_CONFIG),
       supportsMatcher: true,
+      supportsPerHookEnabled: true,
     },
   ],
 ]);
@@ -1535,7 +1537,7 @@ export class HooksProcessor extends FeatureProcessor {
     // `kiro-cli` and `zcode` do); everywhere else the hook is emitted as an
     // ordinary, active hook, so a user who paused one hook would otherwise see
     // it keep firing with no explanation.
-    if (!PER_HOOK_ENABLED_TARGETS.has(this.toolTarget)) {
+    if (!factory.supportsPerHookEnabled) {
       const eventsWithDisabledHooks = emittedEventsWithHook({
         factory,
         sharedHooks,
@@ -1552,7 +1554,7 @@ export class HooksProcessor extends FeatureProcessor {
     // Same idea for the Kiro `confirm` prompt: it asks the user
     // before the command runs, so a target without it would run the hook
     // unconditionally with no explanation.
-    if (!PER_HOOK_CONFIRM_TARGETS.has(this.toolTarget)) {
+    if (!factory.supportsPerHookConfirm) {
       const eventsWithConfirmHooks = emittedEventsWithHook({
         factory,
         sharedHooks,

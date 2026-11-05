@@ -1,6 +1,7 @@
 import { KIMI_CODE_PLUGIN_SYSTEM_PROMPT_FILE_NAME } from "../../constants/plugin-paths.js";
-import { KimiCodeRule, type KimiCodeRuleSettablePaths } from "./kimi-code-rule.js";
+import { KimiCodeRule } from "./kimi-code-rule.js";
 import type { RulesyncRule } from "./rulesync-rule.js";
+import type { ToolRuleRootOnlySettablePaths } from "./tool-rule.js";
 
 /**
  * Instructions inside a Kimi Code plugin bundle (`<plugin>/SYSTEM.md`), the
@@ -13,7 +14,7 @@ import type { RulesyncRule } from "./rulesync-rule.js";
  * @see https://github.com/MoonshotAI/kimi-code/blob/%40moonshot-ai/kimi-code%402.1.1/docs/en/customization/plugins.md
  */
 export class KimiCodePluginRule extends KimiCodeRule {
-  static override getSettablePaths(): KimiCodeRuleSettablePaths {
+  static override getSettablePaths(): ToolRuleRootOnlySettablePaths {
     return {
       root: { relativeDirPath: ".", relativeFilePath: KIMI_CODE_PLUGIN_SYSTEM_PROMPT_FILE_NAME },
     };

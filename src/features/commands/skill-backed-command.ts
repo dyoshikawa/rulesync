@@ -95,8 +95,4 @@ export class SkillBackedToolCommand extends ToolCommand {
       ),
     });
   }
-
-  getFileContent(): string {
-    return this.fileContent;
-  }
 }

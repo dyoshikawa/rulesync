@@ -1,9 +1,9 @@
 import { join } from "node:path";
 
 import { TRAE_DIR, TRAE_MCP_FILE_NAME } from "../../constants/trae-paths.js";
-import { formatError } from "../../utils/error.js";
 import { readFileContent, readFileContentOrNull } from "../../utils/file.js";
 import { warnWithFallback } from "../../utils/logger.js";
+import { parseMcpJsonOrThrow } from "./mcp-json-config.js";
 import { RulesyncMcp } from "./rulesync-mcp.js";
 import {
   ToolMcp,
@@ -38,14 +38,11 @@ export class TraeMcp extends ToolMcp {
       this.json = {};
       return;
     }
-    try {
-      this.json = JSON.parse(this.fileContent);
-    } catch (error) {
-      throw new Error(
-        `Failed to parse Trae MCP config at ${join(this.relativeDirPath, this.relativeFilePath)}: ${formatError(error)}`,
-        { cause: error },
-      );
-    }
+    this.json = parseMcpJsonOrThrow({
+      fileContent: this.fileContent,
+      relativePath: join(this.relativeDirPath, this.relativeFilePath),
+      label: "Trae",
+    });
   }
 
   getJson(): Record<string, unknown> {
@@ -96,15 +93,11 @@ export class TraeMcp extends ToolMcp {
       (await readFileContentOrNull(
         join(outputRoot, paths.relativeDirPath, paths.relativeFilePath),
       )) ?? "{}";
-    let json: Record<string, unknown>;
-    try {
-      json = JSON.parse(existingContent);
-    } catch (error) {
-      throw new Error(
-        `Failed to parse Trae MCP config at ${join(paths.relativeDirPath, paths.relativeFilePath)}: ${formatError(error)}`,
-        { cause: error },
-      );
-    }
+    const json = parseMcpJsonOrThrow({
+      fileContent: existingContent,
+      relativePath: join(paths.relativeDirPath, paths.relativeFilePath),
+      label: "Trae",
+    });
 
     // Use getMcpServers() (not getJson().mcpServers) so rulesync-only fields
     // and codex-only fields (`envVars`) are stripped before writing the Trae

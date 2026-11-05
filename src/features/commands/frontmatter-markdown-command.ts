@@ -41,7 +41,9 @@ export type FrontmatterMarkdownToolCommandParams<
  *
  * Subclasses provide `getSettablePaths`, `getToolTarget` and
  * `getFrontmatterSchema`, and may override the frontmatter mapping hooks
- * (`toToolFrontmatter`, `toRulesyncFrontmatter`), `stringifyFileContent` and
+ * (`toToolFrontmatter`, `toRulesyncFrontmatter`, `getImportTargets`), the path
+ * mapping hooks (`toToolRelativeFilePath`, `toRulesyncRelativeFilePath`,
+ * `getRulesyncOutputRoot`), `stringifyFileContent` and
  * `getDeletionFrontmatter` where the tool differs from the default.
  */
 export class FrontmatterMarkdownToolCommand<
@@ -109,6 +111,16 @@ export class FrontmatterMarkdownToolCommand<
     };
   }
 
+  /** The `targets` a command imported from this tool gets. */
+  protected static getImportTargets(): RulesyncCommandFrontmatter["targets"] {
+    return ["*"];
+  }
+
+  /** The tool-side file path for a Rulesync command's relative file path. */
+  protected static toToolRelativeFilePath(rulesyncRelativeFilePath: string): string {
+    return rulesyncRelativeFilePath;
+  }
+
   /** The frontmatter of the minimal instance built for deletion. */
   protected static getDeletionFrontmatter(): FrontmatterMarkdownToolCommandFrontmatter {
     return { description: "" };
@@ -124,24 +136,36 @@ export class FrontmatterMarkdownToolCommand<
 
   /** The Rulesync frontmatter this tool command imports as. */
   protected toRulesyncFrontmatter(): RulesyncCommandFrontmatter {
-    const toolTarget = (this.constructor as typeof FrontmatterMarkdownToolCommand).getToolTarget();
+    const toolCommandClass = this.constructor as typeof FrontmatterMarkdownToolCommand;
+    const toolTarget = toolCommandClass.getToolTarget();
     const { description, ...restFields } = this.frontmatter;
 
     return {
-      targets: ["*"],
+      targets: toolCommandClass.getImportTargets(),
       description,
       // Preserve extra fields in the tool's section
       ...(Object.keys(restFields).length > 0 && { [toolTarget]: restFields }),
     };
   }
 
+  /** The output root of the Rulesync command this tool command imports as. */
+  protected getRulesyncOutputRoot(): string {
+    // RulesyncCommand outputRoot is always the project root directory
+    return ".";
+  }
+
+  /** The Rulesync relative file path this tool command imports as. */
+  protected toRulesyncRelativeFilePath(): string {
+    return this.relativeFilePath;
+  }
+
   toRulesyncCommand(): RulesyncCommand {
     return new RulesyncCommand({
-      outputRoot: ".", // RulesyncCommand outputRoot is always the project root directory
+      outputRoot: this.getRulesyncOutputRoot(),
       frontmatter: this.toRulesyncFrontmatter(),
       body: this.body,
       relativeDirPath: RulesyncCommand.getSettablePaths().relativeDirPath,
-      relativeFilePath: this.relativeFilePath,
+      relativeFilePath: this.toRulesyncRelativeFilePath(),
       validate: true,
     });
   }
@@ -161,7 +185,7 @@ export class FrontmatterMarkdownToolCommand<
       frontmatter,
       body,
       relativeDirPath: paths.relativeDirPath,
-      relativeFilePath: rulesyncCommand.getRelativeFilePath(),
+      relativeFilePath: this.toToolRelativeFilePath(rulesyncCommand.getRelativeFilePath()),
       validate,
     });
   }

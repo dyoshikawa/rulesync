@@ -55,16 +55,6 @@ describe("ZoocodePermissions", () => {
     });
   });
 
-  describe("isDeletable", () => {
-    it("is not deletable (shared workspace settings file)", () => {
-      const permissions = ZoocodePermissions.forDeletion({
-        relativeDirPath: ".vscode",
-        relativeFilePath: "settings.json",
-      });
-      expect(permissions.isDeletable()).toBe(false);
-    });
-  });
-
   describe("fromRulesyncPermissions", () => {
     it("withholds the allows that cover a bash ask under its own keys", async () => {
       const permissions = await ZoocodePermissions.fromRulesyncPermissions({

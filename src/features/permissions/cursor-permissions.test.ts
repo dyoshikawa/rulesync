@@ -709,18 +709,6 @@ describe("CursorPermissions", () => {
     });
   });
 
-  describe("forDeletion", () => {
-    it("should return a CursorPermissions with empty permissions block", () => {
-      const instance = CursorPermissions.forDeletion({
-        outputRoot: testDir,
-        relativeDirPath: ".cursor",
-        relativeFilePath: "cli.json",
-      });
-      expect(instance).toBeInstanceOf(CursorPermissions);
-      expect(JSON.parse(instance.getFileContent())).toEqual({ permissions: {} });
-    });
-  });
-
   describe("edit/write category merging", () => {
     it("should merge rulesync 'edit' and 'write' rules into a single Cursor Write entry", async () => {
       const logger = createMockLogger();
