@@ -62,7 +62,8 @@ export async function convertFromTool(params: {
   if (packagingTarget) {
     throw new Error(
       `Plugin packaging target '${packagingTarget}' is not supported by convert. ` +
-        "Use import and generate with explicit plugin directories.",
+        "Use import with the plugin directory as outputRoot (--output-root) and generate " +
+        "with it in outputRoots (--output-roots).",
     );
   }
 

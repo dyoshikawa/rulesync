@@ -133,12 +133,6 @@ export class OpenCodeCommand extends FrontmatterMarkdownToolCommand<OpenCodeComm
     };
   }
 
-  // OpenCode has always imported with the current directory as the output
-  // root, where most adapters pass "."; both resolve to the project root.
-  protected override getRulesyncOutputRoot(): string {
-    return process.cwd();
-  }
-
   /**
    * Imports commands defined inline in `opencode.json` / `opencode.jsonc` (and,
    * at project scope, `.opencode/opencode.json(c)`, which OpenCode merges over
