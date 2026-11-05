@@ -28,7 +28,11 @@ import {
   parseSharedConfig,
   stringifySharedConfig,
 } from "../shared/shared-config-gateway.js";
-import { RulesyncPermissions, withoutBlankPermissionKeysIn } from "./rulesync-permissions.js";
+import {
+  PERMISSION_OVERRIDE_KEY_ALIASES,
+  RulesyncPermissions,
+  withoutBlankPermissionKeysIn,
+} from "./rulesync-permissions.js";
 import {
   ALL_TOOLS_PERMISSION_CATEGORY,
   CATCH_ALL_PATTERN,
@@ -390,6 +394,22 @@ function unmanagedMcpAllowlistEntries({
   });
 }
 
+/** Hermes's override key in the canonical document (`hermes`). */
+const HERMES_OVERRIDE_KEY = PERMISSION_OVERRIDE_KEY_ALIASES.hermesagent ?? "hermesagent";
+
+/**
+ * The part of a canonical permissions document Hermes keeps as provenance: the
+ * `$schema`, the canonical `permission` block, and Hermes's own override.
+ */
+function hermesProvenanceOf(permissions: PermissionsConfig): Record<string, unknown> {
+  const source: Record<string, unknown> = permissions;
+  const provenance: Record<string, unknown> = {};
+  for (const key of ["$schema", "permission", HERMES_OVERRIDE_KEY]) {
+    if (source[key] !== undefined) provenance[key] = source[key];
+  }
+  return provenance;
+}
+
 /** The validated canonical `permission` block of a config's `permissions.rulesync` blob. */
 function canonicalPermissionOf(config: Record<string, unknown>): PermissionsConfig["permission"] {
   const parsed = RulesyncPermissionsFileSchema.safeParse({
@@ -659,10 +679,14 @@ export class HermesagentPermissions extends ToolPermissions {
     });
     removeEmptyCategories(permission);
 
-    const { permission: _permission, hermes: _hermes, ...otherProvenance } = provenance;
+    // Restore only what the generator keeps in the blob. A config.yaml written
+    // before other tools' override blocks were left out still carries them
+    // (`claudecode` with `env` credentials, say); bringing them back would put
+    // those secrets into `.rulesync/` again and overwrite fresher fields there.
     const hermes = buildHermesOverride(config, provenance);
+    const { $schema } = hermesProvenanceOf(provenance);
     const imported: PermissionsConfig = {
-      ...otherProvenance,
+      ...($schema !== undefined && { $schema }),
       permission,
       ...(Object.keys(hermes).length > 0 && { hermes }),
     };
@@ -772,9 +796,13 @@ export class HermesagentPermissions extends ToolPermissions {
       });
     }
 
-    // Keep the full canonical config under the rulesync-private key for a
-    // lossless round-trip back to `.rulesync/permissions.jsonc`.
-    config.permissions = { rulesync: permissions };
+    // Keep the canonical config under the rulesync-private key for a lossless
+    // round-trip back to `.rulesync/permissions.jsonc` — minus every other
+    // tool's override block. Those are not Hermes's to carry: the `claudecode`
+    // block passes `.claude/settings.json` through, `env` credentials included,
+    // so copying it here would write secrets into a third-party config. An
+    // import keeps the override blocks it does not name, so they are not lost.
+    config.permissions = { rulesync: hermesProvenanceOf(permissions) };
 
     return new HermesagentPermissions({
       outputRoot,
