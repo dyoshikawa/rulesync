@@ -12,6 +12,7 @@ import { formatError } from "../../utils/error.js";
 import { readFileContentOrNull } from "../../utils/file.js";
 import type { Logger } from "../../utils/logger.js";
 import { lookupOwn } from "../../utils/own-lookup.js";
+import { isPlainObject } from "../../utils/type-guards.js";
 import type { RulesyncHooks } from "./rulesync-hooks.js";
 import { buildImportedHooksConfig, isSafeEnvEntry } from "./tool-hooks-converter.js";
 import {
@@ -267,15 +268,23 @@ export class ReasonixHooks extends ToolHooks {
     const paths = ReasonixHooks.getSettablePaths({ global });
     const filePath = join(outputRoot, paths.relativeDirPath, paths.relativeFilePath);
     const existingContent = (await readFileContentOrNull(filePath)) ?? JSON.stringify({}, null, 2);
-    let settings: Record<string, unknown>;
+    let parsed: unknown;
     try {
-      settings = JSON.parse(existingContent);
+      parsed = JSON.parse(existingContent);
     } catch (error) {
       throw new Error(
         `Failed to parse existing Reasonix settings at ${filePath}: ${formatError(error)}`,
         { cause: error },
       );
     }
+    // Matches the shared config gateway: a non-object root such as `[1,2]`
+    // would otherwise be spread into `{"0":1,"1":2,"hooks":...}`.
+    if (!isPlainObject(parsed)) {
+      throw new Error(
+        `Failed to parse existing Reasonix settings at ${filePath}: expected a mapping at the root`,
+      );
+    }
+    const settings = parsed;
     const config = rulesyncHooks.getJson();
     const reasonixHooks = canonicalToReasonixHooks({
       config,
