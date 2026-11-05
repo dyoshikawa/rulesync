@@ -839,6 +839,64 @@ describe("config-resolver", () => {
     });
   });
 
+  describe("malformed config files", () => {
+    it.each([
+      ["a missing comma", '{"targets": ["cursor"] "features": ["rules"]}'],
+      ["unquoted keys", '{targets: ["cursor"], features: ["rules"]}'],
+      ["trailing garbage", '{"targets": ["cursor"], "features": ["rules"]} xyz'],
+      ["a truncated document", '{"targets": ["cursor"], "features": '],
+    ])("should reject rulesync.jsonc with %s and name the file", async (_label, content) => {
+      const configPath = join(testDir, "rulesync.jsonc");
+      await writeFileContent(configPath, content);
+
+      await expect(ConfigResolver.resolve({ configPath })).rejects.toThrow(
+        `Failed to parse ${JSON.stringify(configPath)}: Failed to parse JSONC content:`,
+      );
+    });
+
+    it("should reject a malformed rulesync.local.jsonc and name the local file", async () => {
+      const configPath = join(testDir, "rulesync.jsonc");
+      const localConfigPath = join(testDir, "rulesync.local.jsonc");
+      await writeFileContent(configPath, JSON.stringify({ targets: ["cursor"] }));
+      await writeFileContent(localConfigPath, '{targets: ["copilot"]}');
+
+      await expect(ConfigResolver.resolve({ configPath })).rejects.toThrow(
+        `Failed to parse ${JSON.stringify(localConfigPath)}`,
+      );
+    });
+
+    it("should reject __proto__ instead of reading values through the prototype", async () => {
+      const configPath = join(testDir, "rulesync.jsonc");
+      await writeFileContent(
+        configPath,
+        '{"__proto__": {"targets": ["copilot"], "delete": true}, "features": ["rules"]}',
+      );
+
+      await expect(ConfigResolver.resolve({ configPath })).rejects.toThrow(
+        `${JSON.stringify(configPath)} uses "__proto__" as a key`,
+      );
+    });
+
+    it("should still accept comments and trailing commas", async () => {
+      const configPath = join(testDir, "rulesync.jsonc");
+      await writeFileContent(
+        configPath,
+        `{
+  // Generate Cursor rules only
+  "targets": ["cursor",],
+  /* block comment */
+  "features": ["rules"],
+}
+`,
+      );
+
+      const config = await ConfigResolver.resolve({ configPath });
+
+      expect(config.getTargets()).toEqual(["cursor"]);
+      expect(config.getFeatures()).toEqual(["rules"]);
+    });
+  });
+
   describe("configPath security", () => {
     it("should accept configPath within current directory", async () => {
       const configContent = JSON.stringify({
