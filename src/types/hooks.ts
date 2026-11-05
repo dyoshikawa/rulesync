@@ -1932,14 +1932,16 @@ export const CANONICAL_TO_GOOSE_EVENT_NAMES: Record<string, string> = {
  * Hook events supported by Goose.
  *
  * Goose adopts the Open Plugins hooks spec: each plugin's `hooks/hooks.json`
- * maps PascalCase event names to matcher/handler arrays. Every Goose event has a
- * 1:1 canonical equivalent, so no new canonical events are required.
+ * maps PascalCase event names to matcher/handler arrays.
  *
- * Goose's `HookEvent` enum defines exactly these 11 events (v1.41.0). Notably it
- * has NO `SubagentStart`/`SubagentStop` arms — emitting them would write keys
- * Goose silently ignores, so `subagentStart`/`subagentStop` are intentionally
+ * Goose's `HookEvent` enum defines these 11 events plus `PreToolUseResult`
+ * (added in v1.48.0), which has no canonical equivalent: it is authored under
+ * the `goose.hooks` override block by its native name, emitted verbatim, and
+ * imported back into that block. Notably the enum has NO
+ * `SubagentStart`/`SubagentStop` arms — emitting them would write keys Goose
+ * silently ignores, so `subagentStart`/`subagentStop` are intentionally
  * excluded here and from `CANONICAL_TO_GOOSE_EVENT_NAMES`.
- * @see https://github.com/aaif-goose/goose/blob/v1.41.0/crates/goose/src/hooks/mod.rs
+ * @see https://github.com/aaif-goose/goose/blob/v1.48.0/crates/goose/src/hooks/mod.rs
  * @see https://goose-docs.ai/docs/guides/context-engineering/hooks/
  */
 export const GOOSE_HOOK_EVENTS: readonly HookEvent[] = eventsOf(CANONICAL_TO_GOOSE_EVENT_NAMES);
