@@ -1,7 +1,8 @@
 import { join } from "node:path";
 
-import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
+import { createMockLogger } from "../../test-utils/mock-logger.js";
 import { setupTestDirectory } from "../../test-utils/test-directories.js";
 import { AntigravityCliHooks, AntigravityIdeHooks } from "./antigravity-hooks.js";
 import { RulesyncHooks } from "./rulesync-hooks.js";
@@ -162,6 +163,79 @@ describe("AntigravityHooks", () => {
       });
     });
 
+    describe("matcher translation", () => {
+      const generate = async (matcher: string) => {
+        const logger = createMockLogger();
+        const warnSpy = vi.spyOn(logger, "warn");
+        const hooks = await HooksClass.fromRulesyncHooks({
+          outputRoot: testDir,
+          rulesyncHooks: new RulesyncHooks(
+            createMockAiFileParams({
+              fileContent: JSON.stringify({
+                version: 1,
+                hooks: { preToolUse: [{ type: "command", command: "echo pre", matcher }] },
+              }),
+            }),
+          ),
+          validate: true,
+          logger,
+        });
+        return {
+          matcher: JSON.parse(hooks.getFileContent()).rulesync.PreToolUse[0].matcher,
+          warnSpy,
+        };
+      };
+
+      it("should translate canonical tool names to the names Antigravity reports", async () => {
+        const { matcher, warnSpy } = await generate("Bash|Read|Write|Edit|WebSearch");
+
+        expect(matcher).toBe("run_command|read_file|write_file|edit_file|search_web");
+        expect(warnSpy).not.toHaveBeenCalled();
+      });
+
+      it("should leave Antigravity names, MCP names and regex syntax as written", async () => {
+        const { matcher, warnSpy } = await generate("run_command|browser_.*|mcp__srv__Bash");
+
+        expect(matcher).toBe("run_command|browser_.*|mcp__srv__Bash");
+        expect(warnSpy).not.toHaveBeenCalled();
+      });
+
+      it("should translate a whole name between regex escapes", async () => {
+        const { matcher } = await generate("\\bRead\\b");
+
+        expect(matcher).toBe("\\bread_file\\b");
+      });
+
+      it("should warn once about a capitalized name it cannot translate", async () => {
+        const { matcher, warnSpy } = await generate("Glob|Edit|Glob");
+
+        expect(matcher).toBe("Glob|edit_file|Glob");
+        expect(warnSpy).toHaveBeenCalledTimes(1);
+        expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('"Glob"'));
+      });
+
+      it("should import Antigravity tool names as canonical names", () => {
+        const hooks = new HooksClass(
+          createMockAiFileParams({
+            fileContent: JSON.stringify({
+              rulesync: {
+                PreToolUse: [
+                  {
+                    matcher: "write_file|edit_file|view_file",
+                    hooks: [{ type: "command", command: "echo pre" }],
+                  },
+                ],
+              },
+            }),
+          }),
+        );
+
+        expect(hooks.toRulesyncHooks().getJson().hooks.preToolUse?.[0]?.matcher).toBe(
+          "Write|Edit|view_file",
+        );
+      });
+    });
+
     describe("toRulesyncHooks", () => {
       it("should convert a top-level Antigravity hook map back to canonical events", () => {
         const hooks = new HooksClass(
@@ -212,7 +286,7 @@ describe("AntigravityHooks", () => {
 
         expect(parsed.hooks).toEqual({
           sessionStart: [{ type: "command", command: "echo start" }],
-          preToolUse: [{ type: "command", command: "echo pre", matcher: "run_command" }],
+          preToolUse: [{ type: "command", command: "echo pre", matcher: "Bash" }],
           preModelInvocation: [{ type: "command", command: "echo pre-model", timeout: 5 }],
           postModelInvocation: [{ type: "command", command: "echo post-model" }],
           stop: [
